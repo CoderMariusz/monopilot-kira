@@ -138,6 +138,13 @@ function buildLabels(locale: string): LpDetailLabels {
         intro: t('detail.actions.unblockModal.intro'),
         reason: t('detail.actions.unblockModal.reason'),
         reasonPlaceholder: t('detail.actions.unblockModal.reasonPlaceholder'),
+        esign: {
+          title: t('detail.actions.unblockModal.esign.title'),
+          meaning: t('detail.actions.unblockModal.esign.meaning'),
+          password: t('detail.actions.unblockModal.esign.password'),
+          passwordHelp: t('detail.actions.unblockModal.esign.passwordHelp'),
+          passwordPlaceholder: t('detail.actions.unblockModal.esign.passwordPlaceholder'),
+        },
         cancel: t('detail.actions.unblockModal.cancel'),
         confirm: t('detail.actions.unblockModal.confirm'),
         submitting: t('detail.actions.unblockModal.submitting'),
@@ -691,8 +698,56 @@ describe('LpDetailClient (WH-003 parity)', () => {
     await user.click(unblock);
     expect(await screen.findByTestId('lp-unblock-modal')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /unblock lp-0001/i })).toBeInTheDocument();
-    // Confirm is gated on a reason being entered.
+    // P0-B3: the e-sign password block renders and Confirm is gated on BOTH a
+    // reason AND the e-sign password (releasing the hold demands a real signature).
+    expect(screen.getByTestId('lp-unblock-esign')).toBeInTheDocument();
+    expect(screen.getByTestId('lp-unblock-password')).toHaveAttribute('type', 'password');
     expect(screen.getByTestId('lp-unblock-confirm')).toBeDisabled();
+
+    // Reason alone is not enough — the password is still required.
+    await user.type(screen.getByTestId('lp-unblock-reason'), 'inspection passed');
+    expect(screen.getByTestId('lp-unblock-confirm')).toBeDisabled();
+
+    // Password alone (no reason) is also not enough.
+    await user.clear(screen.getByTestId('lp-unblock-reason'));
+    await user.type(screen.getByTestId('lp-unblock-password'), 'Account-Password-1!');
+    expect(screen.getByTestId('lp-unblock-confirm')).toBeDisabled();
+
+    // Both present → Confirm enables.
+    await user.type(screen.getByTestId('lp-unblock-reason'), 'inspection passed');
+    expect(screen.getByTestId('lp-unblock-confirm')).toBeEnabled();
+  });
+
+  it('P0-B3 — unblock submits the e-sign password through to unblockLp (real entry point)', async () => {
+    const user = userEvent.setup();
+    // Spy that mirrors the real unblockLp(lpId, reason, password) signature.
+    const unblockLpAction = vi.fn(
+      async (_lpId: string, _reason: string, _password: string) => ({
+        ok: true as const,
+        data: {
+          lpId: 'lp-1',
+          status: 'available' as const,
+          qaStatus: 'released' as const,
+          holdId: 'hold-1',
+          holdNumber: 'HLD-00000001',
+          releasedAt: '2026-06-23T00:00:00.000Z',
+        },
+      }),
+    );
+
+    renderDetail({ status: 'blocked' }, EN, { unblockLpAction });
+    await user.click(screen.getByTestId('lp-action-unblock'));
+    await screen.findByTestId('lp-unblock-modal');
+
+    await user.type(screen.getByTestId('lp-unblock-reason'), 'inspection passed');
+    await user.type(screen.getByTestId('lp-unblock-password'), 'Account-Password-1!');
+    await user.click(screen.getByTestId('lp-unblock-confirm'));
+
+    await waitFor(() => expect(unblockLpAction).toHaveBeenCalledTimes(1));
+    // The password is threaded positionally as the 3rd arg (untrimmed).
+    expect(unblockLpAction).toHaveBeenCalledWith('lp-1', 'inspection passed', 'Account-Password-1!');
+    // Success surfaces the toast + clears the form.
+    expect(await screen.findByTestId('lp-action-toast')).toHaveTextContent(EN.actions.unblock.success);
   });
 
   it('opens the QA release modal for pending LPs', () => {

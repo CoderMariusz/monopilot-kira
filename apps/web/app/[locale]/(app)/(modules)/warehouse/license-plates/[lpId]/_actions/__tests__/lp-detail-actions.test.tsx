@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { blockLp, reserveLp } from '../lp-detail-actions';
+// P0-B3: unblockLp delegates the QA-hold release (now e-sign gated) to
+// releaseHoldFromWarehouseLpUnblock. Mock that owned action so we can assert the
+// REAL unblockLp entry point (a) refuses when the password is missing and (b)
+// threads the account password down as signature.password when both are present.
+const releaseHoldFromWarehouseLpUnblock = vi.fn();
+vi.mock('../../../../../quality/_actions/hold-actions', () => ({
+  releaseHoldFromWarehouseLpUnblock: (
+    input: { lpId: string; reasonText: string; signature: { password: string } },
+  ) => releaseHoldFromWarehouseLpUnblock(input),
+}));
+
+import { blockLp, reserveLp, unblockLp } from '../lp-detail-actions';
 import type { QueryClient } from '../../../../_actions/shared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -139,6 +150,59 @@ describe('LP detail reserve/block server actions', () => {
     activeHold = false;
     activeHoldsViewMissing = false;
     client = makeClient();
+    releaseHoldFromWarehouseLpUnblock.mockReset();
+  });
+
+  it('unblockLp REFUSES without an e-sign password and never calls the hold release (P0-B3)', async () => {
+    const result = await unblockLp(LP_ID, 'inspection passed', '');
+
+    expect(result).toEqual({ ok: false, reason: 'error', message: 'invalid_input' });
+    // No release attempted — the caller short-circuits before the e-sign action.
+    expect(releaseHoldFromWarehouseLpUnblock).not.toHaveBeenCalled();
+  });
+
+  it('unblockLp threads the e-sign password to releaseHoldFromWarehouseLpUnblock and releases the hold (P0-B3)', async () => {
+    releaseHoldFromWarehouseLpUnblock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        id: 'hold-1',
+        holdNumber: 'HLD-00000001',
+        releasedAt: '2026-06-23T00:00:00.000Z',
+        signatureHash: 'b'.repeat(64),
+      },
+    });
+
+    const result = await unblockLp(LP_ID, '  inspection passed  ', 'Account-Password-1!');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.message ?? result.reason);
+    expect(result.data).toMatchObject({
+      lpId: LP_ID,
+      status: 'available',
+      qaStatus: 'released',
+      holdId: 'hold-1',
+      holdNumber: 'HLD-00000001',
+      releasedAt: '2026-06-23T00:00:00.000Z',
+    });
+    // The reason is trimmed; the password is passed as signature.password (UNtrimmed).
+    expect(releaseHoldFromWarehouseLpUnblock).toHaveBeenCalledWith({
+      lpId: LP_ID,
+      reasonText: 'inspection passed',
+      signature: { password: 'Account-Password-1!' },
+    });
+  });
+
+  it('unblockLp surfaces a forbidden hold-release (missing quality.hold.release) as forbidden (P0-B3)', async () => {
+    releaseHoldFromWarehouseLpUnblock.mockResolvedValueOnce({ ok: false, reason: 'forbidden' });
+
+    const result = await unblockLp(LP_ID, 'inspection passed', 'Account-Password-1!');
+
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+    expect(releaseHoldFromWarehouseLpUnblock).toHaveBeenCalledWith({
+      lpId: LP_ID,
+      reasonText: 'inspection passed',
+      signature: { password: 'Account-Password-1!' },
+    });
   });
 
   it('blockLp creates a canonical quality hold, blocks the LP, and writes audit/outbox', async () => {

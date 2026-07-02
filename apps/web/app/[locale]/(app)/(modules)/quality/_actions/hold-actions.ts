@@ -1,7 +1,7 @@
 'use server';
 
 import type pg from 'pg';
-import { hashESignSubject, signEvent } from '@monopilot/e-sign';
+import { signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
@@ -120,6 +120,7 @@ const releaseSchema = z.object({
 const warehouseLpUnblockReleaseSchema = z.object({
   lpId: uuidSchema,
   reasonText: z.string().trim().min(1).max(2000),
+  signature: z.object({ password: z.string().min(1) }),
 });
 
 async function writeOutbox(
@@ -601,7 +602,7 @@ type ReleaseHoldCoreInput = {
   reasonText: string;
 };
 
-async function releaseHoldCore(
+export async function releaseHoldCore(
   ctx: QualityContext,
   input: ReleaseHoldCoreInput,
   options: {
@@ -830,11 +831,16 @@ export async function releaseHold(input: {
 export async function releaseHoldFromWarehouseLpUnblock(input: {
   lpId: string;
   reasonText: string;
+  // Required, MIRRORING warehouseLpUnblockReleaseSchema (P0-B3): the warehouse
+  // LP-unblock path now demands a real 21-CFR-Part-11 e-sign. Keeping this
+  // non-optional makes tsc reject any stale caller that forgets the password,
+  // instead of failing with a runtime ZodError.
+  signature: { password: string };
 }): Promise<ActionResult<ReleasedHold>> {
   try {
     const parsed = warehouseLpUnblockReleaseSchema.parse(input);
     return await withOrgContext(async (ctx): Promise<ActionResult<ReleasedHold>> => {
-      if (!(await hasPermission(ctx, 'warehouse.lp.block'))) return { ok: false, reason: 'forbidden' };
+      if (!(await hasPermission(ctx, 'quality.hold.release'))) return { ok: false, reason: 'forbidden' };
 
       const lp = await ctx.client.query<{ id: string; status: string; qa_status: string }>(
         `select id::text, status, qa_status
@@ -869,14 +875,19 @@ export async function releaseHoldFromWarehouseLpUnblock(input: {
       return releaseHoldCore(ctx, { holdId: activeHold.id, disposition: 'release', reasonText: parsed.reasonText }, {
         releaseSource: 'warehouse_lp_unblock',
         expectedReference: { type: 'lp', id: parsed.lpId },
-        getSignatureHash: async () =>
-          hashESignSubject({
-            holdId: activeHold.id,
-            lpId: parsed.lpId,
-            disposition: 'release',
-            reasonText: parsed.reasonText,
-            source: 'warehouse_lp_unblock',
-          }),
+        getSignatureHash: async () => {
+          const receipt = await signEvent(
+            {
+              signerUserId: ctx.userId,
+              pin: parsed.signature.password,
+              intent: 'qa.hold.release',
+              subject: { holdId: activeHold.id, disposition: 'release' },
+              reason: parsed.reasonText,
+            },
+            { client: ctx.client as unknown as pg.PoolClient },
+          );
+          return receipt.subjectHash;
+        },
       });
     });
   } catch (err) {

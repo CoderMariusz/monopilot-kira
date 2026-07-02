@@ -20,6 +20,9 @@ const DRILL_ID = '77777777-7777-4777-8777-777777777777';
 const SUPPLIER_ID = '88888888-8888-4888-8888-888888888888';
 const PO_ID = '99999999-9999-4999-8999-999999999999';
 const GRN_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const SO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const SHIPMENT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const CUSTOMER_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 
 let client: QueryClient;
 let scenario: 'chain' | 'solo';
@@ -102,7 +105,7 @@ function lpRows() {
       grn_id: null,
       wo_id: WO_ID,
       consumed_by_wo_id: null,
-      source_so_id: null,
+      source_so_id: SO_ID,
       created_at: '2026-06-23T09:00:00.000Z',
     },
   ];
@@ -199,6 +202,28 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.includes('get_forward_shipments_org_wide')) {
+        if (scenario === 'solo') return { rows: [], rowCount: 0 };
+        return {
+          rows: [
+            {
+              shipment_id: SHIPMENT_ID,
+              shipment_number: 'SH-2026-0001',
+              sales_order_id: SO_ID,
+              sales_order_number: 'SO-2026-0001',
+              customer_id: CUSTOMER_ID,
+              customer_name: 'Acme Foods',
+              customer_code: 'ACME',
+              lp_id: OUTPUT_LP_ID,
+              lp_ref: 'LP-OUT',
+              shipped_qty: '15.000',
+              uom: 'kg',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
       if (q.startsWith('insert into public.recall_drills')) {
         return { rows: [{ id: DRILL_ID }], rowCount: 1 };
       }
@@ -266,7 +291,7 @@ describe('trace recall server actions', () => {
     });
   });
 
-  it('runTraceReport assembles nodes, edges, and flat rows from a 2-level LP to WO to output LP chain', async () => {
+  it('runTraceReport assembles nodes, edges, and forward shipment/customer rows from a 2-level LP to SO chain', async () => {
     const report = await runTraceReport({ inputType: 'lp', inputRef: 'LP-IN', direction: 'both' });
 
     expect(report.nodes).toEqual(
@@ -277,21 +302,36 @@ describe('trace recall server actions', () => {
         expect.objectContaining({ nodeId: `lp:${INPUT_LP_ID}`, type: 'input_lp', ref: 'LP-IN', qty: '10.000000', uom: 'kg' }),
         expect.objectContaining({ nodeId: `wo:${WO_ID}`, type: 'work_order', ref: 'WO-2026-0001' }),
         expect.objectContaining({ nodeId: `lp:${OUTPUT_LP_ID}`, type: 'output_lp', ref: 'LP-OUT', qty: '15.000000', uom: 'kg' }),
-        expect.objectContaining({ type: 'shipment_placeholder', ref: 'shipping module inactive' }),
+        expect.objectContaining({
+          nodeId: `shipment:${SHIPMENT_ID}:${OUTPUT_LP_ID}`,
+          type: 'shipment_placeholder',
+          ref: 'SH-2026-0001',
+          label: 'Acme Foods / SO-2026-0001 / LP-OUT',
+          qty: '15.000',
+          uom: 'kg',
+        }),
       ]),
     );
     expect(report.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ from: `lp:${INPUT_LP_ID}`, to: `wo:${WO_ID}`, relation: 'consumed_by', qty: '10.000', uom: 'kg' }),
         expect.objectContaining({ from: `wo:${WO_ID}`, to: `lp:${OUTPUT_LP_ID}`, relation: 'produced', qty: '15.000', uom: 'kg' }),
+        expect.objectContaining({
+          from: `lp:${OUTPUT_LP_ID}`,
+          to: `shipment:${SHIPMENT_ID}:${OUTPUT_LP_ID}`,
+          relation: 'ships_to',
+          qty: '15.000',
+          uom: 'kg',
+        }),
       ]),
     );
+    expect(report.affectedCustomers).toEqual([{ customerId: CUSTOMER_ID, customerName: 'Acme Foods', customerCode: 'ACME' }]);
     expect(report.flat).toContainEqual({ nodeId: `lp:${INPUT_LP_ID}`, type: 'input_lp', ref: 'LP-IN', qty: '10.000000', uom: 'kg' });
     expect(report.summary).toEqual({
       lpCount: 2,
       woCount: 1,
       shipmentCount: 1,
-      customersAffected: 0,
+      customersAffected: 1,
       totalKg: '25',
     });
   });

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { signEvent } from '@monopilot/e-sign';
 
-import { createHold, getHoldDetail, listHolds, releaseHold } from '../hold-actions';
+import { createHold, getHoldDetail, listHolds, releaseHold, releaseHoldFromWarehouseLpUnblock } from '../hold-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -20,6 +20,7 @@ const REASON_ID = '77777777-7777-4777-8777-777777777777';
 
 let client: QueryClient;
 let allowPermission = true;
+let permissionOverrides: Record<string, boolean> = {};
 let holdAlreadyReleased = false;
 let holdReferenceType: 'lp' | 'wo' = 'lp';
 
@@ -51,7 +52,9 @@ function makeClient(): QueryClient {
       const q = normalize(sql);
 
       if (q.includes('from public.user_roles')) {
-        return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+        const permission = String(params[2]);
+        const permitted = permission in permissionOverrides ? permissionOverrides[permission] : allowPermission;
+        return { rows: permitted ? [{ ok: true }] : [], rowCount: permitted ? 1 : 0 };
       }
 
       if (q.includes("from public.reference_tables rt") && q.includes("default_hold_duration_days")) {
@@ -81,6 +84,19 @@ function makeClient(): QueryClient {
           ],
           rowCount: 2,
         };
+      }
+
+      if (q.startsWith('select id::text, status, qa_status') && q.includes('from public.license_plates')) {
+        return { rows: [{ id: LP_ID, status: 'blocked', qa_status: 'on_hold' }], rowCount: 1 };
+      }
+
+      if (
+        q.startsWith('select id::text') &&
+        q.includes('from public.quality_holds') &&
+        q.includes("reference_type = 'lp'") &&
+        q.includes('reference_id = $1::uuid')
+      ) {
+        return { rows: [{ id: HOLD_ID }], rowCount: 1 };
       }
 
       if (q.startsWith('select id::text, hold_number')) {
@@ -181,6 +197,7 @@ function makeClient(): QueryClient {
 describe('quality hold server actions', () => {
   beforeEach(() => {
     allowPermission = true;
+    permissionOverrides = {};
     holdAlreadyReleased = false;
     holdReferenceType = 'lp';
     client = makeClient();
@@ -285,6 +302,70 @@ describe('quality hold server actions', () => {
       signature: { password: 'pw' },
     });
     expect(second).toEqual({ ok: false, reason: 'error', message: 'quality hold is already released' });
+  });
+
+  it('refuses warehouse LP unblock release without quality hold release permission', async () => {
+    permissionOverrides = { 'quality.hold.release': false, 'warehouse.lp.block': true };
+
+    const result = await releaseHoldFromWarehouseLpUnblock({
+      lpId: LP_ID,
+      reasonText: 'inspection passed',
+      signature: { password: 'Account-Password-1!' },
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+    expect(signEvent).not.toHaveBeenCalled();
+    expect(vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).includes('from public.user_roles'))?.[1]?.[2]).toBe(
+      'quality.hold.release',
+    );
+  });
+
+  it('requires real e-sign for warehouse LP unblock release and stores the signEvent hash', async () => {
+    vi.mocked(signEvent).mockRejectedValueOnce(new Error('bad pin'));
+
+    const refused = await releaseHoldFromWarehouseLpUnblock({
+      lpId: LP_ID,
+      reasonText: 'inspection passed',
+      signature: { password: 'bad-pin' },
+    });
+
+    expect(refused).toEqual({ ok: false, reason: 'error', message: 'bad pin' });
+    expect(vi.mocked(client.query).mock.calls.some(([sql]) => normalize(String(sql)).startsWith('update public.quality_holds'))).toBe(false);
+
+    vi.clearAllMocks();
+    vi.mocked(signEvent).mockResolvedValueOnce({
+      signatureId: '99999999-9999-4999-8999-999999999999',
+      signerUserId: USER_ID,
+      intent: 'qa.hold.release',
+      subjectHash: 'b'.repeat(64),
+      signedAt: '2026-06-11T12:00:00.000Z',
+      auditEventId: 43,
+      nonce: 'nonce-2',
+    });
+
+    const released = await releaseHoldFromWarehouseLpUnblock({
+      lpId: LP_ID,
+      reasonText: 'inspection passed',
+      signature: { password: 'Account-Password-1!' },
+    });
+
+    expect(released.ok).toBe(true);
+    if (!released.ok) throw new Error(released.message ?? released.reason);
+    expect(released.data.signatureHash).toBe('b'.repeat(64));
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signerUserId: USER_ID,
+        pin: 'Account-Password-1!',
+        intent: 'qa.hold.release',
+        subject: { holdId: HOLD_ID, disposition: 'release' },
+        reason: 'inspection passed',
+      }),
+      expect.objectContaining({ client }),
+    );
+    const releaseUpdate = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => normalize(String(sql)).startsWith('update public.quality_holds'));
+    expect(releaseUpdate?.[1]?.[4]).toBe('b'.repeat(64));
   });
 
   it('maps LP reference display, reason labels, and item counts for list reads', async () => {

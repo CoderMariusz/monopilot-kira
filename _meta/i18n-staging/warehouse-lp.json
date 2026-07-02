@@ -153,6 +153,7 @@
         "qa": "Change QA status",
         "reserve": "Reserve",
         "move": "Move",
+        "putaway": "Putaway",
         "block": "Block",
         "unblock": "Unblock",
         "destroy": "Destroy / scrap",
@@ -220,6 +221,13 @@
           "intro": "Release the active quality hold and return this license plate to available for picking.",
           "reason": "Reason",
           "reasonPlaceholder": "Why is this LP being unblocked?",
+          "esign": {
+            "title": "Electronic signature",
+            "meaning": "Unblocking releases the quality hold on this license plate. Enter your account password to sign this release (21 CFR Part 11).",
+            "password": "Account password",
+            "passwordHelp": "Your password confirms your identity and is recorded as an electronic signature. It is never stored in the audit trail.",
+            "passwordPlaceholder": "Enter your account password"
+          },
           "cancel": "Cancel",
           "confirm": "Unblock LP",
           "submitting": "Unblocking…",
@@ -560,6 +568,7 @@
         "qa": "Zmień status QA",
         "reserve": "Zarezerwuj",
         "move": "Przesuń",
+        "putaway": "Odłóż",
         "block": "Zablokuj",
         "unblock": "Odblokuj",
         "destroy": "Zniszcz / złomuj",
@@ -627,6 +636,13 @@
           "intro": "Zwolnij aktywny hold jakościowy i przywróć ten LP do dostępnych do pobrania.",
           "reason": "Powód",
           "reasonPlaceholder": "Dlaczego ten LP jest odblokowywany?",
+          "esign": {
+            "title": "Podpis elektroniczny",
+            "meaning": "Odblokowanie zwalnia hold jakościowy na tym LP. Wpisz hasło konta, aby podpisać to zwolnienie (21 CFR Part 11).",
+            "password": "Hasło konta",
+            "passwordHelp": "Hasło potwierdza Twoją tożsamość i jest zapisywane jako podpis elektroniczny. Nigdy nie jest przechowywane w dzienniku audytu.",
+            "passwordPlaceholder": "Wpisz hasło konta"
+          },
           "cancel": "Anuluj",
           "confirm": "Odblokuj LP",
           "submitting": "Odblokowywanie…",

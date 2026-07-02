@@ -172,6 +172,13 @@ function buildLabels(locale: string): LpDetailLabels {
         intro: t('detail.actions.unblockModal.intro'),
         reason: t('detail.actions.unblockModal.reason'),
         reasonPlaceholder: t('detail.actions.unblockModal.reasonPlaceholder'),
+        esign: {
+          title: t('detail.actions.unblockModal.esign.title'),
+          meaning: t('detail.actions.unblockModal.esign.meaning'),
+          password: t('detail.actions.unblockModal.esign.password'),
+          passwordHelp: t('detail.actions.unblockModal.esign.passwordHelp'),
+          passwordPlaceholder: t('detail.actions.unblockModal.esign.passwordPlaceholder'),
+        },
         cancel: t('detail.actions.unblockModal.cancel'),
         confirm: t('detail.actions.unblockModal.confirm'),
         submitting: t('detail.actions.unblockModal.submitting'),

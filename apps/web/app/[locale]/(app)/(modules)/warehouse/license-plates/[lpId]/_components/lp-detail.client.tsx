@@ -187,6 +187,14 @@ export type LpDetailLabels = {
       intro: string;
       reason: string;
       reasonPlaceholder: string;
+      /** P0-B3 — e-sign (21 CFR Part 11) block copy for the required password. */
+      esign: {
+        title: string;
+        meaning: string;
+        password: string;
+        passwordHelp: string;
+        passwordPlaceholder: string;
+      };
       cancel: string;
       confirm: string;
       submitting: string;
@@ -359,6 +367,8 @@ export function LpDetailClient({
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [unblockModalOpen, setUnblockModalOpen] = useState(false);
   const [unblockReason, setUnblockReason] = useState('');
+  // P0-B3: unblocking releases the QA hold, which now requires a real e-sign.
+  const [unblockPassword, setUnblockPassword] = useState('');
   const [unblockError, setUnblockError] = useState<string | null>(null);
   const [actionToast, setActionToast] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [moveModalOpen, setMoveModalOpen] = useState(false);
@@ -426,6 +436,7 @@ export function LpDetailClient({
     if (isPending) return;
     setUnblockModalOpen(false);
     setUnblockReason('');
+    setUnblockPassword('');
     setUnblockError(null);
   }
 
@@ -446,14 +457,18 @@ export function LpDetailClient({
 
   function submitUnblock() {
     const reason = unblockReason.trim();
-    if (!reason || isPending) return;
+    // P0-B3: the password is NOT trimmed (spaces can be significant) but must be
+    // present — the server re-verifies it via signEvent and gates
+    // quality.hold.release; this island never trusts a client-only pass.
+    if (!reason || unblockPassword.length === 0 || isPending) return;
     setUnblockError(null);
     setActionToast(null);
     startTransition(async () => {
-      const result = await unblockLpAction(detail.id, reason);
+      const result = await unblockLpAction(detail.id, reason, unblockPassword);
       if (result.ok) {
         setUnblockModalOpen(false);
         setUnblockReason('');
+        setUnblockPassword('');
         setUnblockError(null);
         setActionToast({ tone: 'success', text: labels.actions.unblock.success });
         router.refresh();
@@ -1079,6 +1094,36 @@ export function LpDetailClient({
               onChange={(event) => setUnblockReason(event.target.value)}
               data-testid="lp-unblock-reason"
             />
+            {/* P0-B3 — e-sign (21 CFR Part 11) block. Mirrors the QA hold-release
+                modal (quality/holds/.../hold-release-modal.client.tsx:191-210):
+                releasing the underlying hold now requires a real account-password
+                signature, re-verified server-side by signEvent. */}
+            <div
+              data-testid="lp-unblock-esign"
+              className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3"
+            >
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {labels.actions.unblock.esign.title}
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500">{labels.actions.unblock.esign.meaning}</p>
+              <label htmlFor="lp-unblock-password" className="mt-2 flex flex-col gap-1">
+                <span className="text-xs font-medium text-slate-700">
+                  {labels.actions.unblock.esign.password} <span aria-hidden className="text-red-500">*</span>
+                </span>
+                <input
+                  id="lp-unblock-password"
+                  type="password"
+                  data-testid="lp-unblock-password"
+                  value={unblockPassword}
+                  disabled={isPending}
+                  placeholder={labels.actions.unblock.esign.passwordPlaceholder}
+                  autoComplete="current-password"
+                  onChange={(event) => setUnblockPassword(event.target.value)}
+                  className="rounded-md border border-slate-300 px-2.5 py-1.5 focus:border-slate-400 focus:outline-none"
+                />
+              </label>
+              <p className="mt-1 text-[10px] leading-snug text-slate-400">{labels.actions.unblock.esign.passwordHelp}</p>
+            </div>
             {unblockError ? (
               <p role="alert" data-testid="lp-unblock-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {unblockError}
@@ -1098,7 +1143,7 @@ export function LpDetailClient({
           </button>
           <button
             type="button"
-            disabled={!unblockReason.trim() || isPending}
+            disabled={!unblockReason.trim() || unblockPassword.length === 0 || isPending}
             onClick={submitUnblock}
             data-testid="lp-unblock-confirm"
             className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300"

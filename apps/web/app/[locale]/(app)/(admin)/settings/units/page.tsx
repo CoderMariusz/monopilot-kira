@@ -256,7 +256,7 @@ async function readUnitsData(): Promise<{ units: UnitOfMeasure[]; customConversi
               and ur.org_id = $2::uuid
               and (rp.permission is not null or r.permissions ? $3 or r.code = any($4::text[]) or r.slug = any($4::text[]))
             limit 1`,
-          [userId, orgId, MANAGE_PERMISSION, ['owner', 'admin', 'module_admin']],
+          [userId, orgId, MANAGE_PERMISSION, ['owner', 'admin', 'org_admin']],
         ),
       ]);
       const units = unitResult.rows.map(mapUnitRow).filter((row): row is UnitOfMeasure => row !== null);

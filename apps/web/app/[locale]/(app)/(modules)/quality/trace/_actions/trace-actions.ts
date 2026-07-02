@@ -82,6 +82,20 @@ export type TraceAffectedCustomer = {
   customerCode: string | null;
 };
 
+type ForwardShipmentRow = {
+  shipment_id: string;
+  shipment_number: string | null;
+  sales_order_id: string | null;
+  sales_order_number: string | null;
+  customer_id: string | null;
+  customer_name: string | null;
+  customer_code: string | null;
+  lp_id: string;
+  lp_ref: string;
+  shipped_qty: string;
+  uom: string | null;
+};
+
 export type RecallDrill = {
   id: string;
   inputType: TraceInput['inputType'];
@@ -360,6 +374,15 @@ async function fetchAffectedCustomers(client: QueryClient, sourceSoIds: string[]
     customerName: row.customer_name,
     customerCode: row.customer_code,
   }));
+}
+
+async function fetchForwardShipmentRows(client: QueryClient, lpIds: string[]): Promise<ForwardShipmentRow[]> {
+  if (lpIds.length === 0) return [];
+  const { rows } = await client.query<ForwardShipmentRow>(
+    `select * from public.get_forward_shipments_org_wide(app.current_org_id(), $1::uuid[])`,
+    [lpIds],
+  );
+  return rows;
 }
 
 async function fetchUpstreamRows(client: QueryClient, lpIds: string[]): Promise<Map<string, UpstreamRow>> {
@@ -676,17 +699,27 @@ async function buildTraceReport(ctx: QualityContext, input: TraceInput): Promise
     }
   }
 
-  for (const outputNodeId of outputNodeIds) {
-    const placeholderId = `shipment:${outputNodeId}`;
+  const outputLpIds = unique([...outputNodeIds].map((nodeId) => (nodeId.startsWith('lp:') ? nodeId.slice(3) : null)));
+  const forwardShipmentRows =
+    input.direction === 'forward' || input.direction === 'both'
+      ? await fetchForwardShipmentRows(ctx.client, outputLpIds)
+      : [];
+
+  for (const shipment of forwardShipmentRows) {
+    const outputNodeId = `lp:${shipment.lp_id}`;
+    const shipmentNodeId = `shipment:${shipment.shipment_id}:${shipment.lp_id}`;
+    const customerLabel = shipment.customer_name ?? shipment.customer_code ?? 'customer unavailable';
+    const soLabel = shipment.sales_order_number ?? shipment.sales_order_id ?? 'SO unavailable';
+    const shipmentRef = shipment.shipment_number ?? shipment.shipment_id;
     addNode({
-      nodeId: placeholderId,
+      nodeId: shipmentNodeId,
       type: 'shipment_placeholder',
-      ref: 'shipping module inactive',
-      label: 'shipping module inactive',
-      qty: null,
-      uom: null,
+      ref: shipmentRef,
+      label: `${customerLabel} / ${soLabel} / ${shipment.lp_ref}`,
+      qty: shipment.shipped_qty,
+      uom: shipment.uom,
     });
-    addEdge({ from: outputNodeId, to: placeholderId, relation: 'ships_to', qty: null, uom: null });
+    addEdge({ from: outputNodeId, to: shipmentNodeId, relation: 'ships_to', qty: shipment.shipped_qty, uom: shipment.uom });
   }
 
   const nodeList = [...nodes.values()];
@@ -696,7 +729,21 @@ async function buildTraceReport(ctx: QualityContext, input: TraceInput): Promise
     .map((lpId) => lpRows.get(lpId))
     .filter((lp): lp is LpRow => lp !== undefined && isKg(lp.uom))
     .map((lp) => lp.quantity);
-  const affectedCustomers = await fetchAffectedCustomers(ctx.client, unique([...lpRows.values()].map((lp) => lp.source_so_id)));
+  const affectedCustomersFromShipments = new Map<string, TraceAffectedCustomer>();
+  for (const shipment of forwardShipmentRows) {
+    if (!shipment.customer_id || !shipment.customer_name) continue;
+    affectedCustomersFromShipments.set(shipment.customer_id, {
+      customerId: shipment.customer_id,
+      customerName: shipment.customer_name,
+      customerCode: shipment.customer_code,
+    });
+  }
+  const affectedCustomers =
+    affectedCustomersFromShipments.size > 0
+      ? [...affectedCustomersFromShipments.values()].sort((a, b) => (
+          a.customerName.localeCompare(b.customerName) || (a.customerCode ?? '').localeCompare(b.customerCode ?? '')
+        ))
+      : await fetchAffectedCustomers(ctx.client, unique([...lpRows.values()].map((lp) => lp.source_so_id)));
 
   return {
     nodes: nodeList,

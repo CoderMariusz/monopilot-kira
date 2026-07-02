@@ -334,12 +334,21 @@ export async function blockLp(lpIdInput: string, reasonInput: string): Promise<W
   }
 }
 
-export async function unblockLp(lpIdInput: string, reasonInput: string): Promise<WarehouseResult<UnblockLpResult>> {
+export async function unblockLp(
+  lpIdInput: string,
+  reasonInput: string,
+  passwordInput: string,
+): Promise<WarehouseResult<UnblockLpResult>> {
   const lpId = asTrimmed(lpIdInput);
   const reason = asTrimmed(reasonInput);
-  if (!lpId || !reason) return { ok: false, reason: 'error', message: 'invalid_input' };
+  // P0-B3: unblocking an LP releases the underlying QA hold, which now REQUIRES a
+  // real e-sign (21 CFR Part 11). The account password is threaded through to
+  // releaseHoldFromWarehouseLpUnblock → signEvent; never trimmed/normalized (a
+  // password may legitimately contain leading/trailing spaces) and never logged.
+  const password = typeof passwordInput === 'string' ? passwordInput : '';
+  if (!lpId || !reason || password.length === 0) return { ok: false, reason: 'error', message: 'invalid_input' };
 
-  const released = await releaseHoldFromWarehouseLpUnblock({ lpId, reasonText: reason });
+  const released = await releaseHoldFromWarehouseLpUnblock({ lpId, reasonText: reason, signature: { password } });
   if (!released.ok) {
     if (released.reason === 'forbidden') return { ok: false, reason: 'forbidden' };
     if (released.message === 'license plate not found') return { ok: false, reason: 'not_found' };

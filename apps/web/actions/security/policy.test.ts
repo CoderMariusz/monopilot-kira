@@ -55,7 +55,7 @@ describe('org security policy Server Actions (TASK-000085/T-032 RED)', () => {
     expect(persistenceIndex, 'WebAuthn rejection must happen before org_security_policies persistence').toBeGreaterThan(rejectionIndex);
   });
 
-  it('forces MFA enrollment markers for owner/admin/module_admin users when required_admins is saved', () => {
+  it('forces MFA enrollment markers for owner/admin/org_admin users when required_admins is saved', () => {
     const forceSource = normalized(readRequiredSource(forceMfaPath, 'apps/web/actions/security/force-mfa.ts'));
     const upsertSource = normalized(readRequiredSource(upsertPolicyPath, 'apps/web/actions/security/upsert-policy.ts'));
     const combined = `${upsertSource}\n${forceSource}`;
@@ -71,7 +71,8 @@ describe('org security policy Server Actions (TASK-000085/T-032 RED)', () => {
 
     expect(forceSource).toMatch(/owner/);
     expect(forceSource).toMatch(/admin/);
-    expect(forceSource).toMatch(/module_admin/);
+    expect(forceSource).toMatch(/org_admin/);
+    expect(forceSource).not.toMatch(/module_admin/);
     expect(forceSource).toMatch(/requires_mfa_at/);
     expect(forceSource).toMatch(/update\s+public\.users|\.update\(/);
     expect(forceSource).toMatch(/user_roles|roles/);

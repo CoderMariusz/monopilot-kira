@@ -206,5 +206,16 @@ export async function packLpIntoBoxCore(ctx: PackContext, input: PackLpInput): P
     ],
   );
 
+  const { rowCount: linkedLpCount } = await ctx.client.query(
+    `update public.license_plates
+        set source_so_id = $2::uuid,
+            updated_at = now(),
+            updated_by = $3::uuid
+      where org_id = app.current_org_id()
+        and id = $1::uuid`,
+    [licensePlateId, shipment.sales_order_id, userId],
+  );
+  if (linkedLpCount !== 1) throw new Error('source_so_link_failed');
+
   return { ok: true, boxId };
 }

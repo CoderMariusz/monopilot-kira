@@ -45,7 +45,7 @@ type SecurityPolicyRow = {
 const FORBIDDEN = 'forbidden' as const;
 const PASSWORD_MIN_LENGTH_FLOOR = 8;
 const ALLOWED_MFA_METHODS = new Set(['totp', 'sms', 'email']);
-const ADMIN_ROLE_CODES = ['owner', 'admin', 'module_admin'] as const;
+const ADMIN_ROLE_CODES = ['owner', 'admin', 'org_admin'] as const;
 
 type ParsePolicyResult = {
   input?: ParsedSecurityPolicyInput;

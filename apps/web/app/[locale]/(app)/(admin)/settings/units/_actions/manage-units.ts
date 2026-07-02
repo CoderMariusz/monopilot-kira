@@ -89,7 +89,7 @@ async function hasManagePermission(ctx: OrgActionContext): Promise<boolean> {
         and ur.org_id = $2::uuid
         and (rp.permission is not null or r.permissions ? $3 or r.code = any($4::text[]) or r.slug = any($4::text[]))
       limit 1`,
-    [ctx.userId, ctx.orgId, MANAGE_PERMISSION, ['owner', 'admin', 'module_admin']],
+    [ctx.userId, ctx.orgId, MANAGE_PERMISSION, ['owner', 'admin', 'org_admin']],
   );
   return rows.length > 0;
 }

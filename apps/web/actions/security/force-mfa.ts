@@ -20,7 +20,7 @@ export type ForceMfaResult =
   | { ok: true; data: { markedUsers: number; roleCodes: string[]; requiresMfaAt: string } }
   | { ok: false; error: 'forbidden' | 'persistence_failed' };
 
-const ADMIN_ROLE_CODES = ['owner', 'admin', 'module_admin'] as const;
+const ADMIN_ROLE_CODES = ['owner', 'admin', 'org_admin'] as const;
 const FORBIDDEN = 'forbidden' as const;
 
 export async function forceMfa(input: ForceMfaInput = {}): Promise<ForceMfaResult> {

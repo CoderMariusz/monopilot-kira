@@ -187,7 +187,7 @@ async function requireSchemaEditor({ client, userId, orgId }: OrgActionContext):
           or r.slug = any($4::text[])
         )
       limit 1`,
-    [userId, orgId, 'settings.schema.edit', ['owner', 'admin', 'module_admin']],
+    [userId, orgId, 'settings.schema.edit', ['owner', 'admin', 'org_admin']],
   );
   if (rows.length === 0) throw FORBIDDEN;
 }

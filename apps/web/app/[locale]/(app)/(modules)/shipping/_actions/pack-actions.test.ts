@@ -29,6 +29,7 @@ let generatedSscc = '';
 let insertedShipments: Array<Record<string, unknown>> = [];
 let insertedBoxes: Array<Record<string, unknown>> = [];
 let insertedContents: Array<Record<string, unknown>> = [];
+let linkedLicensePlates: Array<Record<string, unknown>> = [];
 let existingPackedContent = false;
 let allocationExists = true;
 let lpBlocked = false;
@@ -194,6 +195,15 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
+      if (q.startsWith('update public.license_plates') && q.includes('source_so_id')) {
+        linkedLicensePlates.push({
+          license_plate_id: params[0],
+          source_so_id: params[1],
+          updated_by: params[2],
+        });
+        return { rows: [], rowCount: 1 };
+      }
+
       if (q.startsWith('select sh.id::text') && q.includes('sh.shipment_number') && q.includes('box_count')) {
         return {
           rows: [
@@ -234,6 +244,7 @@ beforeEach(() => {
   insertedShipments = [];
   insertedBoxes = [];
   insertedContents = [];
+  linkedLicensePlates = [];
   existingPackedContent = false;
   allocationExists = true;
   lpBlocked = false;
@@ -307,6 +318,7 @@ describe('packLpIntoBox', () => {
         created_by: USER_ID,
       },
     ]);
+    expect(linkedLicensePlates).toEqual([{ license_plate_id: LP_ID, source_so_id: SO_ID, updated_by: USER_ID }]);
   });
 
   it('resolves a scanned LP code to its UUID before packing', async () => {
