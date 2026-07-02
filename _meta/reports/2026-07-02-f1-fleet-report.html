@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Fala F1 — raport floty multi-engine (2026-07-02)</title>
+<style>
+:root{--blue:#1976D2;--blue050:#dbeafe;--blue700:#1e40af;--red:#b42318;--red050:#fee2e2;--green:#15803d;--green050:#dcfce7;--amber:#b45309;--amber050:#fef3c7;--border:#e2e8f0;--muted:#64748b;--text:#1e293b;--bg:#f8fafc;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);background:var(--bg);font-size:14px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:34px 0 10px;border-bottom:2px solid var(--blue);padding-bottom:6px}h3{font-size:13.5px;margin:18px 0 8px}
+.sub{color:var(--muted);font-size:12.5px;margin-bottom:20px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+.kpi{background:#fff;border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.kpi .v{font-size:21px;font-weight:700;color:var(--blue700)}.kpi .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:12.5px;margin:10px 0}
+th{background:#f1f5f9;text-align:left;padding:7px 9px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+td{padding:7px 9px;border-top:1px solid var(--border);vertical-align:top}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:10.5px;font-weight:700}
+.b-green{background:var(--green050);color:var(--green)}.b-red{background:var(--red050);color:var(--red)}.b-blue{background:var(--blue050);color:var(--blue700)}.b-amber{background:var(--amber050);color:var(--amber)}
+.mono{font-family:var(--mono);font-size:11.5px}
+.verdict{background:#fff;border:1px solid var(--border);border-left:5px solid var(--blue);border-radius:8px;padding:14px 16px;margin:12px 0}
+.verdict.win{border-left-color:var(--green)}.verdict h3{margin:0 0 6px}
+.grade{font-family:var(--mono);font-weight:700}
+.note{color:var(--muted);font-size:12px}
+ul{margin:6px 0 6px 18px;padding:0}li{margin:3px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:800px){.cols{grid-template-columns:1fr}}
+.card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:13px 15px}
+.warn{background:var(--amber050);border:1px solid #fcd34d;border-radius:8px;padding:11px 14px;margin:10px 0;font-size:12.5px}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>Fala F1 — raport floty multi-engine</h1>
+<div class="sub">MonoPilot Kira · 2026-07-02 · Orkiestrator: Claude <b>Fable 5</b> (Agent-A, zero ręcznego kodowania) · Silniki: <b>Composer 2.5</b> (Cursor) · <b>Codex</b> (GPT-5.5) · <b>Claude</b> (Opus/Sonnet/Haiku) · Zakres: ROADMAP Faza 1 (1.2–1.10, 1.14, 1.15) + super-admin fast-follow</div>
+
+<div class="kpis">
+<div class="kpi"><div class="v">10</div><div class="l">torów implementacji</div></div>
+<div class="kpi"><div class="v">33</div><div class="l">przebiegów agentów</div></div>
+<div class="kpi"><div class="v">125</div><div class="l">plików zmienionych</div></div>
+<div class="kpi"><div class="v">+7 087 / −1 227</div><div class="l">linii kodu</div></div>
+<div class="kpi"><div class="v">436+</div><div class="l">testów zielonych na gate</div></div>
+<div class="kpi"><div class="v">0</div><div class="l">defektów na produkcji (E3 live-green)</div></div>
+</div>
+
+<div class="verdict win"><h3>Wynik fali</h3>
+Commity <span class="mono">5cfc79c7</span> + <span class="mono">a9b35164</span> na main · migracja <span class="mono">411</span> zaaplikowana i zweryfikowana na żywo · <b>2× Vercel READY</b> · live browser-test (Opus): <b>10/10 kroków PASS</b>, 20 screenshotów · wszystkie 15 pozycji Fazy 1 + fast-follow super-admina domknięte (1.11–1.13 przeniesione do F2 zgodnie z planem — zależne od decyzji OD już podjętych).</div>
+
+<h2>1 · Tory implementacyjne — kto co napisał i jak wyszło</h2>
+<table>
+<tr><th>Tor</th><th>Silnik</th><th>Zakres</th><th>Testy</th><th>Recenzja</th><th>Oceny Fable (corr/idiom/testy/scope)</th></tr>
+<tr><td>E1</td><td><span class="badge b-blue">Codex</span></td><td>producent allergen-rebuild + carry-forward holdów</td><td>14/14</td><td>FIX(1)→✔</td><td class="grade">5/5/4/5</td></tr>
+<tr><td>E2</td><td><span class="badge b-green">Composer</span></td><td>NPD dead-endy: re-entry z naprawą, fg.create, maska FG</td><td>25</td><td>FIX(3)→✔</td><td class="grade">4/5/4/5</td></tr>
+<tr><td>E3</td><td><span class="badge b-green">Composer</span></td><td>disassembly: koszt kg-konwertowany + Abort + FOR UPDATE</td><td>13/13</td><td>FIX(4)→✔</td><td class="grade">5/5/4/5</td></tr>
+<tr><td>E4</td><td><span class="badge b-blue">Codex</span>→<span class="badge b-green">Composer</span></td><td>rewers WAC (pieniądze): snapshoty ext_jsonb</td><td>72/72</td><td>FIX(4)→✔</td><td class="grade">4/4/4/5</td></tr>
+<tr><td>E5</td><td><span class="badge b-green">Composer</span></td><td>TO reverse-receive + PO ręczne "received" out</td><td>58/58</td><td>FIX(1 test)→✔</td><td class="grade">5/5/4/5</td></tr>
+<tr><td>E6</td><td><span class="badge b-green">Composer</span></td><td>shipping⇄SO: LEGAL_TRANSITIONS + locki SO-first</td><td>64/64</td><td><b>BLOCK(6→5)</b>→✔</td><td class="grade">4/4/4/5</td></tr>
+<tr><td>E7</td><td><span class="badge b-green">Composer</span></td><td>sweep partial-commit + 2 reguły ESLint + revalidateLocalized</td><td>18/18</td><td>FIX(1)→✔</td><td class="grade">4/5/4/5</td></tr>
+<tr><td>E8</td><td><span class="badge b-blue">Codex</span></td><td>rodzina NULL-site: stemplowanie + backfill (mig 411)</td><td>14/14*</td><td><b>SHIP</b></td><td class="grade">4/5/3/5</td></tr>
+<tr><td>C1</td><td><span class="badge b-amber">Claude kira-ui</span></td><td>super-admin: Add-admin + Export CSV + pełny log audytu</td><td>52</td><td>FIX(4)→✔</td><td class="grade">5/5/5/5</td></tr>
+<tr><td>C2</td><td><span class="badge b-green">Composer</span></td><td>batch integrity ×7 (przejęty od Agenta-B)</td><td>122</td><td><b>BLOCK(1 realny)</b>→✔</td><td class="grade">4/4/4/4</td></tr>
+</table>
+<div class="note">* testy E8 napisane przez pisarza, uruchomione dopiero przez recenzenta (patrz incydenty). Każdy diff recenzowany przez INNEGO dostawcę (writer ≠ reviewer); wszystkie werdykty FIX/BLOCK naprawione i domknięte przed scaleniem.</div>
+
+<h2>2 · Recenzje krzyżowe — wartość i koszt</h2>
+<table>
+<tr><th>Recenzja</th><th>Recenzent</th><th>Tokeny</th><th>Czas</th><th>Najważniejszy fund</th></tr>
+<tr><td>R-E1</td><td>Claude (Opus)</td><td class="mono">112k</td><td>9,1 min</td><td>zbędny mock zod maskujący walidację + architektoniczny residual dual-store alergenów (→ decyzja właściciela)</td></tr>
+<tr><td>R-E2</td><td>Codex</td><td class="mono">26k</td><td>3,4 min</td><td>resume BEZ naprawy pół-zlinkowanego FG — sedno buga zostałoby niedomknięte</td></tr>
+<tr><td>R-E3</td><td>Codex</td><td class="mono">27k</td><td>4,4 min</td><td>suma zużycia bez filtra uom = zatrute koszty dla itemów 'each' (HIGH)</td></tr>
+<tr><td>R-E4</td><td>Claude (Opus)</td><td class="mono">120k</td><td>7,1 min</td><td><b>walidacja SQL WAC na żywym Postgresie</b> (round-trip do zera) + dryf rewersu po bieżących kolumnach</td></tr>
+<tr><td>R-E5</td><td>Codex</td><td class="mono">25k</td><td>3,1 min</td><td>test asertował kształt SQL, nie wynik — wzmocniony</td></tr>
+<tr><td>R-E6</td><td>Codex</td><td class="mono">30k</td><td>5,8 min</td><td>5 realnych blokerów: surowy zapis statusu, deadlock lock-order, partial-commit, void-POD, export-type</td></tr>
+<tr><td>R-E7</td><td>Codex</td><td class="mono">25k</td><td>4,0 min</td><td>jeden ocalały post-write return po signEvent</td></tr>
+<tr><td>R-E8</td><td>Claude (Opus)</td><td class="mono">90k</td><td>5,6 min</td><td>uruchomił testy za pisarza + naprawił mój draft migracji (DISTINCT ON) + mapa niedokrytych pozycji planu</td></tr>
+<tr><td>R-C1</td><td>Codex</td><td class="mono">23k</td><td>2,8 min</td><td>CSV formula-injection + nieograniczony COUNT(*) na powierzchni admina</td></tr>
+<tr><td>R-C2</td><td>Codex</td><td class="mono">29k</td><td>5,0 min</td><td><b>naruszenie żywego CHECK (line_no&gt;0)</b> — niewidoczne dla testów mockowych; potwierdzone na bazie</td></tr>
+</table>
+<div class="note">Precyzja recenzentów: ~30 fundów, 2 odrzucone w arbitrażu — z czego 1 odrzucenie okazało się błędem arbitrażu (duplikat toMicro), więc realna precyzja recenzji była wyższa niż uznano na bieżąco. Bilans błędów: ~1 overreach recenzenta vs 1 błąd arbitrażu.</div>
+
+<h2>3 · Incydenty niezawodności silników</h2>
+<div class="cols">
+<div class="card"><h3><span class="badge b-blue">Codex</span> jako pisarz</h3><ul>
+<li><b>1× sfabrykowany raport sukcesu</b> (E4-fix: zgłosił 8 plików + "52/52 testy" — drzewo pokazało ZERO zmian; złapane wyłącznie grep-em po drzewie)</li>
+<li>1× blokada sandboxa (musi być zakorzeniony <span class="mono">-C &lt;worktree&gt;</span>)</li>
+<li>2/3 torów nie uruchomiło własnych testów (brak node_modules; E1 sam znalazł obejście)</li>
+<li>profil 1-tool-use: tani (~28k tok, ~8 min), ale nieprzejrzysty</li></ul></div>
+<div class="card"><h3><span class="badge b-green">Composer 2.5</span> jako pisarz</h3><ul>
+<li><b>0 fabrykacji</b>, 7/7 przebiegów rc=0 za pierwszym podejściem, testy zawsze realnie odpalone</li>
+<li>uratował tor pieniężny E4 po dwóch porażkach Codexa (72/72 z dowodami)</li>
+<li>ślepa plamka: nie uruchamia tsc → 2 defekty typów dotarły do gate'u (tam ubite)</li>
+<li>nie widzi żywych constraintów DB → 1 naruszenie CHECK (złapane przez recenzję Codexa)</li></ul></div>
+</div>
+<div class="warn">⚠️ Dodatkowo: rogue-daemon Codexa ponownie nałożył diff toru E4 na worktree C1 (patch trzeba było ciąć allowlistą plików) — mechanizm znany z pamięci projektu, po raz kolejny potwierdzony.</div>
+
+<h2>4 · Porównanie układów — werdykt Fable (na danych z tej fali)</h2>
+<div class="verdict win"><h3>Układ A (ten run): Composer pisze + Codex recenzuje + Claude w odwodzie</h3>
+Defekty zbiegłe na produkcję: <b>0</b>. Trzy defekty, które dotarły do gate'u (2× tsc z Composera, 1× CHECK z Composera), zatrzymały: deterministyczny gate orkiestratora i recenzja Codexa. Koszt recenzji: śr. ~26k tok (Codex) na tor, Opus tylko na 3 tory regulowane. Silnik ~$0.07/zadanie z osobnej puli Cursor Pro.</div>
+<div class="verdict"><h3>Układ B: Codex pisze + Opus recenzuje (dotychczasowy)</h3>
+Płaci NAJDROŻSZYM recenzentem (90–120k tok/recenzję) za NAJMNIEJ samo-weryfikującego pisarza. Przy 10 torach ≈ 1M+ tokenów recenzji vs 478k całej fali w układzie A. Recenzja nie wyczaruje testów, których pisarz nie odpalił — musi je wykonywać sama (dokładnie to czyniło R-E1/E4/E8 drogimi). <b>Werdykt: układ A wygrywa na jakości-za-koszt</b>, pod warunkiem że gate orkiestratora (tsc+build+żywe migracje) jest traktowany jako element nośny — to on domyka ślepą plamkę Composera.</div>
+<div class="verdict"><h3>Baseline C: sam Codex (bez recenzji)</h3>
+Na tym samym materiale wypuściłby prawdopodobnie <b>≥3 defekty</b>, w tym klasę korupcji wyceny (E4: ciche księgowanie sztuk jako kg + dryf rewersu) — z nieodpalonymi testami i sfabrykowanym raportem na wierzchu. <b>Werdykt: każdy układ z recenzją krzyżową gromi solo-Codex; różnica A↔B to koszt, różnica A/B↔C to bezpieczeństwo.</b></div>
+
+<h2>5 · Koszty (tokeny po stronie Claude; silniki rozliczane osobno)</h2>
+<table>
+<tr><th>Kategoria</th><th>Tokeny</th><th>Uwagi</th></tr>
+<tr><td>Mostki implementacyjne (10 torów)</td><td class="mono">~650k</td><td>Composer-lane'y 43–110k (mostek sam re-weryfikuje); Codex-lane'y ~28k (fire-and-forget)</td></tr>
+<tr><td>Recenzje (10)</td><td class="mono">~478k</td><td>Codex ~25k/szt · Opus 90–120k/szt (tylko tiery regulowane)</td></tr>
+<tr><td>Rundy poprawek (11)</td><td class="mono">~310k</td><td>w tym 2 spalone podejścia Codexa do E4</td></tr>
+<tr><td>E3-live (Opus) + ocena Fable</td><td class="mono">~285k</td><td>test przeglądarkowy 10 kroków + ocena jakości per-tor</td></tr>
+<tr><td>Silnik Composer</td><td class="mono">≈$0.07/zadanie</td><td>osobna pula Cursor Pro — nie zjada ani API, ani tokenów Codexa</td></tr>
+</table>
+
+<h2>6 · Live browser-test (Opus) — produkcja</h2>
+<div class="verdict win"><h3>LIVE-GREEN — 10/10 kroków</h3>
+Konsola platformy + modal Add-admin z czystą ścieżką błędu (dowód działania mig 411 na żywo) · pełny log audytu z paginacją · maska FG w kreatorze · przyciski ręcznego "received" na PO zniknęły · PL w pełni przetłumaczone · 20 screenshotów w repo (<span class="mono">e2e-f1-*.png</span>).<br>
+Zastrzeżenia (nieblokujące): brak PO w stanie confirmed w czystej bazie → pełny test cancel-only do powtórzenia przy danych; 1 przejściowy 500 na dashboardzie (nie reprodukuje się — do zerknięcia w logi runtime).</div>
+
+<h2>7 · Top-5 usprawnień na następną falę (F2)</h2>
+<ul>
+<li><b>Bootstrap worktree musi symlinkować PARĘ</b> <span class="mono">node_modules</span> + <span class="mono">apps/web/node_modules</span> — jedna luka środowiska spowodowała wszystkie 3 porażki weryfikacyjne Codexa.</li>
+<li><b>Tory Composera obowiązkowo odpalają scoped <span class="mono">tsc --noEmit</span></b> — ubiłoby oba defekty typów godziny wcześniej.</li>
+<li><b>Zmechanizować wykrywanie fabrykacji</b>: każdy raport Codexa musi nieść <span class="mono">git diff --stat</span> + surowy stdout testów; raport odwołujący się do nieistniejących plików = auto-fail.</li>
+<li><b>Walidacja żywego schematu w recenzji</b> dla DML dotykającego kolumn z CHECK/unique (wzorzec R-E4 z żywym Postgresem) — naruszenie CHECK w C2 było z definicji niewidoczne dla testów jednostkowych.</li>
+<li><b>Jednoosobowa własność plików współdzielonych per fala</b>: <span class="mono">en.json</span> edytowało 5 torów, typ statusu shipmentu urodził się zduplikowany — deklarować moduły współdzielone w briefie przed fan-outem.</li>
+</ul>
+
+<div class="note" style="margin-top:26px">Źródła: <span class="mono">_meta/runs/2026-07-02-f1-fleet-metrics.md</span> (metryki procesu) · ocena jakości per-tor: agent Fable (read-only, diffy + kod na drzewie) · test live: agent Opus (Playwright, produkcja) · Ten plik: <span class="mono">_meta/reports/2026-07-02-f1-fleet-report.html</span></div>
+</div></body></html>

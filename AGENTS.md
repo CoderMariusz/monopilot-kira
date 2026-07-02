@@ -41,6 +41,13 @@ These cost real deploys/bugs; they pass local checks and bite later. Full retro:
 5. **Vitest config is by file extension:** `.tsx` (UI/RTL) tests run ONLY under `vitest.ui.config.ts`; `.ts` (server-action) tests under the default config. A wrong-config run fakes a misleading `Unexpected JSX expression` parse error. A server-action test must be `.ts` and run with the default config.
 6. **SQL correctness traps:** `INSERT … SELECT … ON CONFLICT DO UPDATE` needs the SELECT deduped on the conflict key (`SELECT DISTINCT …`) or it raises "cannot affect row a second time". A join that fans out (e.g. one row → many roles) silently multiplies a `SUM`/denominator — aggregate the inner grain in a CTE first, then roll up.
 7. **When you change a literal or behavior, update the test that asserts it** in the SAME change (don't leave a red test as "out of scope"). Verify by running it, not by your own summary.
+8. **`item_wac_state.avg_cost` is a GENERATED column — never write it.** Writing a generated column rolls back the whole transaction. Read-only.
+9. **`quality_holds.reference_id` is `uuid` — cast `$1::uuid`, never `::text`.**
+10. **SECURITY DEFINER functions:** take org from the TRUSTED `app.current_org_id()`, hard-filter every join by `org_id`, `set search_path = pg_catalog, public, pg_temp`, revoke-public + grant-app_user.
+11. **vitest v4 positional args are FILE PATHS not substring filters; picomatch breaks on `(app)`/`[locale]` under unquoted vars — run via a zsh array `FILES=("${(@f)$(...)}"); vitest run "${FILES[@]}"`; `.tsx` needs `--config vitest.ui.config.ts`.**
+12. **Worktree agents branch from origin/main (not local HEAD) — harvest/diff vs that base.**
+13. **Cross-review reads the PATCH FILE, not the main tree** (worktree-isolation false-negative).
+14. **Run the assembled-tree build-gate after consolidation — it catches cross-lane test-fixture interactions the isolated worktree reviews miss** (e.g. a genealogy-reader SQL change orphaning a test's mock branch).
 
 ## What "logic-heavy" means (why you got this task)
 
@@ -59,3 +66,9 @@ and `risk_red_lines` and the rules above. Report findings as
 consume/e-sign gates, crossed canonical ownership, and tests that don't actually
 exercise the behavior. The writer does not get to wave you off — disagreements
 escalate to the human, not to the author.
+
+## Wave-F1 fleet lessons (2026-07-02) — binding for every Codex lane
+
+15. **Root yourself in the worktree**: any lane/fix writing to a worktree MUST run `codex exec -C <worktree>` (a session rooted elsewhere has no write permission there and MUST NOT silently fall back).
+16. **Every report carries tree proof**: paste `git -C <worktree> diff --stat` AND the raw stdout tail of the actual test run. A report referencing files or test results the tree does not show is treated as FABRICATED and auto-fails (this happened; the check is now mechanical).
+17. **Worktree test bootstrap**: if `node_modules` is missing, symlink the PAIR from the main checkout — `node_modules` AND `apps/web/node_modules` (pnpm nests deps; the root symlink alone leaves `zod`/`pg` unresolvable). Remove symlinks after. Never mock a package (e.g. zod) to dodge a missing-module error — that masks real validation.

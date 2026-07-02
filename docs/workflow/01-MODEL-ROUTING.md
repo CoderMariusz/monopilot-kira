@@ -132,3 +132,69 @@ before touching the medium→Opus boundary (keep the medium main-flow on Codex p
 - A Codex `impl-standard` task that turns out architectural/ambiguous → escalate to **Opus** (orchestrator decides), don't let Codex guess.
 - An `impl-easy`/`mechanical` task that turns out non-trivial → bump to Codex (`impl-standard`) or Opus, don't force it.
 - Two cross-provider review rounds with unresolved disagreement → escalate to the human with both positions summarized (the writer never breaks the tie).
+
+## Composer 2.5 (Cursor CLI) — engine addendum (2026-07-02)
+
+A second external implementer is now wired next to Codex: **Composer 2.5** via the Cursor Agent
+CLI (`bash ~/.claude/scripts/cursor-exec.sh composer-2.5 <workspace> <prompt-file> <out-file>`,
+blocking, full file+shell access; details in skill `MON-engine-routing` + global `engine-delegation`).
+
+Why: ~60x cheaper per task than gpt-5.5 ($0.07 vs $4.82, Artificial Analysis CAI), >200 tok/s,
+SWE-Bench Multilingual 79.8% (>= GPT-5.5), billed from Cursor Pro's separate pool (does not burn
+Codex tokens or the $20 API pool). Weak spot: terminal/shell/infra (Terminal-Bench ~66-69% vs
+Codex 82.7%) — keep those on Codex.
+
+Token deltas (everything else in this file unchanged):
+- `impl-easy`  → Sonnet **or composer-2.5** (prefer Composer for multi-file mechanical impl).
+- `impl-standard` → **composer-2.5 by default**; stays Codex when the task is terminal/infra/CI-heavy,
+  needs live psql/cli debugging, or after 2 failed Composer attempts (escalate with same prompt).
+- Review pairing: writer != reviewer, cross-provider — Composer's code is reviewed by Codex
+  (MON-codex-review-checklist), Codex's code by Claude (or Composer in `--mode plan`).
+- Composer NEVER solo on auth/RLS/money/regulatory/canonical-owner tiers; its output always passes
+  Gate-5 + cross-review (documented RL reward-hacking tendencies).
+
+## Fleet orchestration (Agent-A) — addendum 2026-07-02
+> **OWNER 2026-07-02 (post-F1): this layout — "Układ A" (Composer writes → Codex reviews →
+> Claude in reserve) — is the STANDARD operating model.** Proven in wave F1 (0 escaped defects,
+> beats Codex-alone and Codex+Opus on quality-per-cost; full evidence:
+> `_meta/reports/2026-07-02-f1-fleet-report.html`). The orchestrator's deterministic gate
+> (tsc + build + live-migrate + tree-verification) is a LOAD-BEARING component of the layout.
+>
+> **Longitudinal eval protocol (owner):** for the NEXT TWO waves (F2, F3), repeat the full
+> end-of-wave evaluation — Fable grades every lane (correctness/idiom/tests/scope) AND
+> additionally grades **Composer-written code against the pre-F1 historical baseline**
+> (comparable modules previously written by Codex/Opus) — to confirm F1 wasn't luck.
+> Each wave ships the same HTML comparison report.
+>
+> **Wave protocol hard rules (F1 top-5, binding from F2):**
+> 1. Worktree bootstrap symlinks the node_modules PAIR (root + apps/web) —
+>    `~/.claude/scripts/worktree-bootstrap.sh <wt>`.
+> 2. Every Composer lane runs scoped `tsc --noEmit` on its package before reporting.
+> 3. Fabrication check is mechanical: every engine report must embed `git diff --stat`
+>    + raw test stdout; reports referencing absent files auto-fail.
+> 4. Reviews of DML touching CHECK/unique-constrained columns validate against the LIVE
+>    schema (R-E4 live-Postgres pattern), not just unit tests.
+> 5. Shared files get ONE owner per wave (declare in the fan-out brief); i18n keys are
+>    partitioned per lane before dispatch; shared-type modules named explicitly.
+
+Owner mandate: the orchestrator session (**Agent-A**) runs on **Fable 5** and never implements —
+its whole job is plan → split → fan-out → review arbitration → build-gate → migrations → push →
+report. Implementation always goes to the engines/lanes below.
+
+Scale target per wave: **7–8 external engine lanes + 2 Claude lanes**, every code lane in git
+worktree isolation:
+
+- **Engine lanes.** Composer 2.5 = default writer (`impl-easy`/`impl-standard`, multi-file bulk).
+  Codex takes terminal/infra/CI work, SQL-heavy tasks needing live psql, and it is the WRITER on
+  auth/RLS/money/regulatory/canonical-owner tiers (Composer never solo there). Escalation: 2 failed
+  Composer attempts → same prompt to Codex.
+- **Claude lanes.** `kira-ui` (prototype-parity UI + `impl-hard` per this doc) and **Agent-B** — a
+  separate Claude session; coordination EXCLUSIVELY through `~/Projects/_agent_handoff/STATUS.md`
+  (A writes "TODO for Agent-B", reads "DONE (B)"; the sessions never see each other's context).
+- **Review capacity is the real throttle:** every Composer diff → Codex review; every Codex diff →
+  Claude review; Agent-A arbitrates findings (writer never breaks the tie), owns the assembled-tree
+  build gate, explicit staging (never `git add -A`), migrations, push, Vercel READY + live-browser
+  E3 verification. No lane self-merges.
+- **Lane hygiene:** no two lanes co-edit `apps/web/i18n/en.json` (partition keys or serialize);
+  collision-check file scopes before launch; Codex briefs must not run `pnpm build` (build gate is
+  Agent-A's); verify engine work by the TREE, not the summary.

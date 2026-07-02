@@ -62,6 +62,7 @@ Modules NOT yet domain-mapped (covered by layer skills only): 00-foundation, 06-
 | D365 export-only R15, BRCGS 7y retention, CFR 21 Part 11 e-sign, GS1 SSCC-18, GDPR | [[MON-integrations-compliance]] |
 | Event naming `module.entity.verb` (3-seg) or `aggregate.verb` (2-seg ISA-95) | [[MON-foundation-primitives]] §events + `_meta/specs/event-naming-convention.md` |
 | Prototype parity (literal `prototypes/.../<file>.jsx:<lines>` anchor) | [[MON-t3-ui]] + [[prototype-labeling]] |
+| External engines: Codex + **Composer 2.5 (Cursor)** — writer/reviewer pairing, runner commands, tier deltas vs 01-MODEL-ROUTING.md | [[MON-engine-routing]] (added 2026-07-02) |
 
 ### Decomposition / planning skills (legacy — not MON-prefixed)
 
