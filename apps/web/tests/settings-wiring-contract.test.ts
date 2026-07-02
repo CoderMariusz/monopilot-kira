@@ -40,6 +40,10 @@ vi.mock('next/cache', () => ({
   revalidatePath: revalidatePathMock,
 }));
 
+vi.mock('../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: revalidatePathMock,
+}));
+
 function makeClient(): FakeClient {
   const client: FakeClient = {
     calls: [],

@@ -12,9 +12,8 @@
  * enum; never echo internal columns.
  */
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import {
   PACKAGING_WRITE_PERMISSION,
   UpsertPackagingComponentSchema,
@@ -134,7 +133,7 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
           },
         });
 
-        revalidatePath(`/[locale]/pipeline/${input.projectId}/packaging`, 'page');
+        revalidateLocalized(`/pipeline/${input.projectId}/packaging`, 'page');
         return { ok: true as const, data: { id } };
       }
 
@@ -189,7 +188,7 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
         },
       });
 
-      revalidatePath(`/[locale]/pipeline/${input.projectId}/packaging`, 'page');
+      revalidateLocalized(`/pipeline/${input.projectId}/packaging`, 'page');
       return { ok: true as const, data: { id } };
     });
   } catch (err) {

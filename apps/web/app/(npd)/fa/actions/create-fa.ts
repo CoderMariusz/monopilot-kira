@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { validateProductCodeV01, validateProductNameV02, type V01ProductCodeResult } from '@monopilot/validation';
 import { z } from 'zod';
 
@@ -8,6 +7,7 @@ import { hasPermission } from '../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { matchesCodeMask } from '../../../../lib/documents/code-mask';
 import { AuthError, DuplicateError, ValidationError } from './errors';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 // RBAC source-of-truth: npd_manager/core_user are granted fg.create (mig 133).
 const FA_CREATE_PERMISSION = 'fg.create';
@@ -126,7 +126,7 @@ function isUniqueViolation(error: unknown): boolean {
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

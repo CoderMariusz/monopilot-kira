@@ -14,10 +14,10 @@
  */
 
 import { z } from 'zod';
-import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { hasPilotPermission } from './get-pilot-run';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
 const DECIMAL = z
   .string()
@@ -147,7 +147,7 @@ export async function upsertPilotMaterial(raw: unknown): Promise<UpsertPilotMate
         ],
       );
 
-      revalidatePath(`/[locale]/(app)/(npd)/pipeline/${input.projectId}/pilot`, 'page');
+      revalidateLocalized(`/pipeline/${input.projectId}/pilot`, 'page');
 
       return { ok: true as const, data: { materialId, status } };
     });

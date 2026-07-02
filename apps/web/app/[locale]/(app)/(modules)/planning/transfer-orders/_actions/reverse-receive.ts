@@ -1,11 +1,11 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 import {
   assertCorrectionAllowed,
   CORRECTION_REASON_CODES,
@@ -620,9 +620,9 @@ export async function reverseToReceiveLine(rawInput: unknown): Promise<ReverseTo
     });
 
     if (result.ok) {
-      revalidatePath('/planning/transfer-orders');
-      revalidatePath(`/planning/transfer-orders/${result.data.transferOrderId}`);
-      revalidatePath('/warehouse/license-plates');
+      revalidateLocalized('/planning/transfer-orders');
+      revalidateLocalized(`/planning/transfer-orders/${result.data.transferOrderId}`);
+      revalidateLocalized('/warehouse/license-plates');
     }
 
     return result;

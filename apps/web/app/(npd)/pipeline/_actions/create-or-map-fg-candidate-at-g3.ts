@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
@@ -12,6 +11,7 @@ import {
   serializeGateError,
 } from './_lib/gate-helpers';
 import { type OrgContextLike } from './shared';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 const inputSchema = z.object({
   projectId: z.string().uuid(),
@@ -54,7 +54,7 @@ export async function createOrMapFgCandidateAtG3(
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

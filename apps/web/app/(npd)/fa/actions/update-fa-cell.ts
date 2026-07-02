@@ -1,11 +1,11 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z, type ZodTypeAny } from 'zod';
 
 import { hasPermission } from '../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { AuthError, ValidationError } from './errors';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 const FA_EDIT_EVENT = 'fa.edit';
 const APP_VERSION = 'update-fa-cell-v1';
@@ -373,7 +373,7 @@ function quoteIdentifier(identifier: string): string {
 
 function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidatePath(path, type);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

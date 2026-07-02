@@ -1,10 +1,10 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 import {
   PurchaseOrderStatusSchema,
   hasPlanningWritePermission,
@@ -299,8 +299,8 @@ async function ensureItemInOrg(client: QueryClient, itemId: string): Promise<boo
 
 function revalidatePurchaseOrderPaths(poId: string): void {
   try {
-    revalidatePath('/planning/purchase-orders');
-    revalidatePath(`/planning/purchase-orders/${poId}`);
+    revalidateLocalized('/planning/purchase-orders');
+    revalidateLocalized(`/planning/purchase-orders/${poId}`);
   } catch (err) {
     if (process.env.VITEST) return;
     throw err;

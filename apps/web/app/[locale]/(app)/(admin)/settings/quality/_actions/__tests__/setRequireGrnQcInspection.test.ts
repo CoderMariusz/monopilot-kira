@@ -19,6 +19,7 @@ vi.mock('@/lib/auth/with-org-context', () => ({
 vi.mock('next/cache', () => ({
   revalidatePath: _revalidatePath,
 }));
+vi.mock('../../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: _revalidatePath }));
 
 const actionPath = resolve(__dirname, '../setRequireGrnQcInspection.ts');
 const ORG_ID = '11111111-1111-4111-8111-111111111111';

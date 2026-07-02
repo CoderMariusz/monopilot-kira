@@ -1,8 +1,8 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { writeTenantOutbox } from './_shared/outbox';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 export type PromoteCanaryInput = {
   migrationId: string;
@@ -88,7 +88,7 @@ export async function promoteCanary(rawInput: PromoteCanaryInput): Promise<Promo
         },
       });
 
-      revalidatePath('/settings/tenant');
+      revalidateLocalized('/settings/tenant');
       return { ok: true, data: { migrationId: input.migrationId, status: nextStatus, canaryPct: nextPct } };
     } catch (error) {
       if (error === FORBIDDEN) return { ok: false, error: 'forbidden' };

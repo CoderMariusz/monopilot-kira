@@ -9,10 +9,10 @@
  * pattern (withOrgContext, zod parse inside the action, admin permission gate,
  * revalidatePath). RLS already enforces org_id = app.current_org_id().
  */
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const ADMIN_PERMISSION = 'settings.flags.edit' as const;
 const MACHINES_ROUTE = '/settings/machines';
@@ -175,7 +175,7 @@ export async function upsertMachine(rawInput: UpsertMachineInput): Promise<Upser
 
 function revalidateMachinesRoute() {
   try {
-    revalidatePath(MACHINES_ROUTE);
+    revalidateLocalized(MACHINES_ROUTE);
   } catch {
     /* no request store (test context) */
   }

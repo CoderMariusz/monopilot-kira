@@ -1,11 +1,10 @@
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
   emitComplianceDocOutbox,
   hasComplianceDocWritePermission,
   type QueryClient,
 } from './upload-doc';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 export type SoftDeleteDocInput = {
   productCode: string;
@@ -56,7 +55,7 @@ export async function softDeleteDoc(input: SoftDeleteDocInput): Promise<SoftDele
         },
       });
 
-      revalidatePath('/[locale]/fg/[productCode]/docs', 'page');
+      revalidateLocalized(`/npd/fg/${productCode}/docs`, 'page');
       return { ok: true, docId: row.id };
     } catch {
       return { ok: false, code: 'PERSISTENCE_FAILED' };

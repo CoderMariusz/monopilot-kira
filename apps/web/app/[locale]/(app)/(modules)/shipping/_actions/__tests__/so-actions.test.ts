@@ -45,14 +45,14 @@ let candidateRows: Array<{
 }> = [];
 let nearExpiryWarnDays: string = '7';
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
-const nextCacheMocks = vi.hoisted(() => ({ revalidatePath: vi.fn() }));
+const nextCacheMocks = vi.hoisted(() => ({ revalidateLocalized: vi.fn() }));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
 }));
-vi.mock('next/cache', () => nextCacheMocks);
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => nextCacheMocks);
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -235,7 +235,7 @@ beforeEach(() => {
   candidateRows = [];
   nearExpiryWarnDays = '7';
   queryLog = [];
-  nextCacheMocks.revalidatePath.mockClear();
+  nextCacheMocks.revalidateLocalized.mockClear();
   client = makeClient();
 });
 
@@ -322,7 +322,7 @@ describe('createSalesOrder', () => {
         ext_data: { order_uom: 'kg' },
       },
     ]);
-    expect(nextCacheMocks.revalidatePath).toHaveBeenCalledWith('/shipping');
+    expect(nextCacheMocks.revalidateLocalized).toHaveBeenCalledWith('/shipping');
   });
 
   it('uses item list_price_gbp for unit_price_gbp and line_total_gbp', async () => {

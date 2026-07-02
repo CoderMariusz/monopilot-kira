@@ -1,8 +1,7 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 import {
   SupplierCreateInput,
   SupplierStatusSchema,
@@ -56,8 +55,8 @@ const SupplierUpdateInput = SupplierCreateInput.extend({
 // [locale] page segment (covers en/pl/ro/uk) plus the per-id detail when known.
 function revalidateSupplierPaths(supplierId?: string): void {
   try {
-    revalidatePath('/[locale]/planning/suppliers', 'page');
-    if (supplierId) revalidatePath(`/[locale]/planning/suppliers/${supplierId}`, 'page');
+    revalidateLocalized('/planning/suppliers', 'page');
+    if (supplierId) revalidateLocalized(`/planning/suppliers/${supplierId}`, 'page');
   } catch (err) {
     if (process.env.VITEST) return;
     console.warn('[planning/suppliers] revalidate_skipped', err instanceof Error ? { message: err.message } : { message: String(err) });

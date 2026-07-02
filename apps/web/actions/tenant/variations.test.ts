@@ -16,6 +16,7 @@ vi.mock('../../lib/auth/with-org-context', () => ({
 vi.mock('next/cache', () => ({
   revalidatePath: _revalidatePath,
 }));
+vi.mock('../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: _revalidatePath }));
 
 const repoRoot = resolve(__dirname, '../../../..');
 const getTenantVariationsPath = resolve(repoRoot, 'apps/web/actions/tenant/get.ts');

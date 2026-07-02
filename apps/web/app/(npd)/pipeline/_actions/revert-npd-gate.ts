@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { signEvent } from '@monopilot/e-sign';
 import type { ESignTxOptions } from '@monopilot/e-sign';
 import { z } from 'zod';
@@ -17,6 +16,7 @@ import {
   updateProjectGate,
 } from './_lib/gate-helpers';
 import { type OrgContextLike, type ProjectGate } from './shared';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 const GATE_REVERTED_EVENT = 'npd.gate.reverted';
 
@@ -131,7 +131,7 @@ async function loadProjectForRevert(ctx: OrgContextLike, projectId: string): Pro
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

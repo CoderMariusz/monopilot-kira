@@ -2,10 +2,10 @@
 
 import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { writeSettingsInfraOutbox } from './_shared/outbox';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -233,7 +233,7 @@ export async function deleteLocation(rawInput: unknown): Promise<DeleteLocationR
 // covers every locale variant (en/pl/ro/uk) instead of the old hardcoded /en/ path.
 function revalidateLocationsPath(): void {
   try {
-    revalidatePath('/[locale]/settings/infra/locations', 'page');
+    revalidateLocalized('/settings/infra/locations', 'page');
   } catch (error) {
     console.warn('[settings/infra/locations] revalidate_skipped', error instanceof Error ? { message: error.message } : { message: String(error) });
   }

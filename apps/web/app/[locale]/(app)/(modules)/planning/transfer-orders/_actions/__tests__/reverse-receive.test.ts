@@ -39,8 +39,8 @@ vi.mock('../../../../../../../../lib/corrections/correct-ledger-entry', () => ({
   assertCorrectionAllowed: vi.fn(async () => undefined),
 }));
 
-vi.mock('next/cache', () => ({
-  revalidatePath: vi.fn(),
+vi.mock('../../../../../../../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: vi.fn(),
 }));
 
 function normalize(sql: string): string {

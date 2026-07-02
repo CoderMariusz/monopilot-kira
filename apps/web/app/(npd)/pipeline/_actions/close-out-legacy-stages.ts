@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
@@ -17,6 +16,7 @@ import {
 } from './_lib/gate-helpers';
 import { LEGACY_STAGES_CLOSED_EVENT, type OrgContextLike } from './shared';
 import { materializeNpdBom } from './_lib/materialize-npd-bom';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 const inputSchema = z.object({
   projectId: z.string().uuid(),
@@ -458,7 +458,7 @@ function serializeCloseoutError(error: unknown): CloseOutLegacyStagesResult | nu
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

@@ -14,9 +14,9 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import {
   BRIEF_ATTACHMENT_MIME_TYPES,
   NPD_ATTACHMENTS_BUCKET,
@@ -86,7 +86,7 @@ export async function uploadBriefAttachment(formData: FormData): Promise<UploadB
         },
       });
 
-      revalidatePath(`/[locale]/pipeline/${projectId}/brief`, 'page');
+      revalidateLocalized(`/pipeline/${projectId}/brief`, 'page');
       return { ok: true, objectName };
     });
   } catch (error) {

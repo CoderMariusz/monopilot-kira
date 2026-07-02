@@ -1,8 +1,8 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { writeTenantOutbox } from './_shared/outbox';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 export type SetDepartmentOverrideInput = {
   action: 'split' | 'merge' | 'add' | 'rename';
@@ -87,7 +87,7 @@ export async function setDepartmentOverride(rawInput: SetDepartmentOverrideInput
         payload: { org_id: orgId, scope: 'tenant', override, actor_user_id: userId },
       });
 
-      revalidatePath('/settings/tenant');
+      revalidateLocalized('/settings/tenant');
       return { ok: true, data: { deptOverrides: row.dept_overrides ?? {} } };
     } catch (error) {
       if (error === FORBIDDEN) return { ok: false, error: 'forbidden' };

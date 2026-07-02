@@ -1,11 +1,11 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { hasPermission, type OrgContextLike } from './shared';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 const WRITE_PERMISSION = 'npd.core.write';
 
@@ -135,7 +135,7 @@ export async function toggleGateChecklistItem(rawInput: unknown): Promise<Toggle
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

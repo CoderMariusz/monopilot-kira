@@ -73,7 +73,8 @@ function makeClient(): QueryClient {
               id: HOLD_ID,
               hold_number: 'HLD-00001000',
               reference_type: params[0],
-              reference_id: params[1],
+              // emulate RETURNING coalesce(reference_text, reference_id::text)
+              reference_id: params[8] ?? params[1],
               hold_status: 'open',
             },
           ],
@@ -289,9 +290,11 @@ describe('quality hold server actions', () => {
       .mocked(client.query)
       .mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'));
     expect(normalize(String(insert?.[0]))).toContain('reference_text');
-    expect(normalize(String(insert?.[0]))).toContain("case when $1 = 'batch' then $2 else null end");
+    // pg types one $n from its first cast, so uuid/text must be SEPARATE params
+    expect(normalize(String(insert?.[0]))).not.toContain('case when');
     expect(insert?.[1]?.[0]).toBe('batch');
-    expect(insert?.[1]?.[1]).toBe('BATCH-2026-07-02');
+    expect(insert?.[1]?.[1]).toBeNull();
+    expect(insert?.[1]?.[8]).toBe('BATCH-2026-07-02');
   });
 
   it('releases a hold, e-signs, restores LP qa_status, writes release history, and refuses double release', async () => {

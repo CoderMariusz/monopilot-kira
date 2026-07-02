@@ -1,6 +1,6 @@
-import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { createServerSupabaseClient } from '../../lib/auth/supabase-server';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 export type CompleteOnboardingInput = { orgId: string };
 
@@ -87,8 +87,8 @@ export async function completeOnboarding(rawInput: CompleteOnboardingInput): Pro
       if (!row) return { ok: false, error: 'not_found' };
       const completedAtIso = toIsoString(row.onboarding_completed_at);
       if (!completedAtIso) return { ok: false, error: 'PERSISTENCE_FAILED' };
-      revalidatePath('/settings/onboarding');
-      revalidatePath('/settings/users');
+      revalidateLocalized('/settings/onboarding');
+      revalidateLocalized('/settings/users');
       return {
         ok: true,
         onboardingCompletedAt: completedAtIso,

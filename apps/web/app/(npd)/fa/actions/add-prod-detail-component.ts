@@ -18,12 +18,12 @@
  *   - outbox 'fa.recipe_changed' audit event so the FA history reflects the add.
  */
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { AuthError, ValidationError } from './errors';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 const PRODUCTION_WRITE_PERMISSION = 'npd.production.write';
 const RECIPE_CHANGED_EVENT = 'fa.recipe_changed';
@@ -223,7 +223,7 @@ export async function removeProdDetailComponent(
 
 function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidatePath(path, type);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

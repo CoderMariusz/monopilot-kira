@@ -1,10 +1,10 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
 // The accept/revoke control is an allergen write, so it must accept the SAME
 // permission that gates the surface (npd.allergen.write — resolved in
@@ -183,7 +183,7 @@ async function requireAllergenDeclarationWrite(
 
 function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidatePath(path, type);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

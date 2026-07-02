@@ -29,11 +29,10 @@
  */
 
 import { z } from 'zod';
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { releaseNpdProjectToFactory } from '../../../../../../../(npd)/builder/_actions/release-npd-project-to-factory';
 import { hasHandoffPermission } from './get-handoff';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
 const Input = z.object({
   projectId: z.string().uuid(),
@@ -235,7 +234,7 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path, 'page');
+    revalidateLocalized(path, 'page');
   } catch {
     // Vitest imports Server Actions outside a Next request store.
   }

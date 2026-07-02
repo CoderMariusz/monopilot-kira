@@ -1,8 +1,8 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 import {
   type AuthorizationPolicyCode,
   type AuthorizationPolicyRow,
@@ -132,7 +132,7 @@ export async function updateAuthorizationPolicy(
         ],
       );
 
-      revalidatePath(AUTHORIZATION_SETTINGS_PATH);
+      revalidateLocalized(AUTHORIZATION_SETTINGS_PATH);
       return { ok: true, data: { policyCode: row.policy_code, version: nextVersion } };
     } catch {
       return { ok: false, error: 'persistence_failed' };

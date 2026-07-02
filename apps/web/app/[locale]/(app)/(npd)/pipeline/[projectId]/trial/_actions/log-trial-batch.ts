@@ -20,9 +20,9 @@
  */
 
 import { z } from 'zod';
-import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import {
   TRIAL_WRITE_PERMISSION,
   type LogTrialBatchError,
@@ -184,7 +184,7 @@ export async function logTrialBatch(raw: unknown): Promise<LogTrialBatchResult> 
         after: { trialNo: input.trialNo, result: input.result, projectId: input.projectId },
       });
 
-      revalidatePath(`/[locale]/pipeline/${input.projectId}/trial`);
+      revalidateLocalized(`/pipeline/${input.projectId}/trial`);
       return { ok: true as const, data: { id, trialNo: input.trialNo, result: input.result } };
     });
   } catch (err) {

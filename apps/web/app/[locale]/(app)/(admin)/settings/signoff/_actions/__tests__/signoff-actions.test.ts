@@ -21,6 +21,7 @@ vi.mock('@/lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: unknown) => Promise<unknown>) => _withOrgContextRunner(action)),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: _revalidatePath }));
+vi.mock('../../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: _revalidatePath }));
 
 const actionPath = resolve(__dirname, '../signoff-actions.ts');
 const ORG_ID = '11111111-1111-4111-8111-111111111111';

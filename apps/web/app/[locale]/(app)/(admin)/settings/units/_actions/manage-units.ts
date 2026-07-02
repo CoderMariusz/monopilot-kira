@@ -15,9 +15,8 @@
  */
 
 import { z } from 'zod';
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const MANAGE_PERMISSION = 'settings.units.manage';
 const APP_VERSION = 'settings-units-v1';
@@ -171,7 +170,7 @@ export async function createUnit(rawInput: unknown): Promise<CreateUnitResult> {
         payload: { code: input.code, category: input.category },
       });
 
-      revalidatePath('/settings/units');
+      revalidateLocalized('/settings/units');
       return { ok: true, data: { id: inserted.id, code: input.code, category: input.category } };
     });
   } catch (err) {
@@ -220,7 +219,7 @@ export async function createCustomConversion(rawInput: unknown): Promise<CreateC
         payload: { label: input.label, from: input.fromUnitCode, to: input.toUnitCode },
       });
 
-      revalidatePath('/settings/units');
+      revalidateLocalized('/settings/units');
       return { ok: true, data: { id: inserted.id, label: input.label } };
     });
   } catch (err) {
@@ -269,7 +268,7 @@ export async function softDeleteUnit(rawInput: unknown): Promise<SoftDeleteUnitR
         payload: { id: input.id },
       });
 
-      revalidatePath('/settings/units');
+      revalidateLocalized('/settings/units');
       return { ok: true, data: { id: input.id } };
     });
   } catch (err) {

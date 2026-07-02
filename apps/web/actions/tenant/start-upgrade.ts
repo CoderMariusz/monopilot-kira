@@ -1,8 +1,8 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { writeTenantOutbox } from './_shared/outbox';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 export type StartUpgradeInput = {
   component: string;
@@ -110,7 +110,7 @@ export async function startUpgrade(rawInput: StartUpgradeInput): Promise<StartUp
         },
       });
 
-      revalidatePath('/settings/tenant');
+      revalidateLocalized('/settings/tenant');
       return { ok: true, data: { migrationId: migration.id, status: migration.status ?? 'scheduled' } };
     } catch (error) {
       if (error === FORBIDDEN) return { ok: false, error: 'forbidden' };

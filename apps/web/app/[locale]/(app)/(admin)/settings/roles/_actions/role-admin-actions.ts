@@ -1,11 +1,10 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { ALL_PERMISSIONS } from '../../../../../../../../../packages/rbac/src/permissions.enum';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 /**
  * DEFECT-8 — Settings Roles Editor server actions.
@@ -205,7 +204,7 @@ export async function createRole(input: CreateRoleInput): Promise<CreateRoleResu
       if (!roleId) return { ok: false, error: 'code_taken' };
 
       await writeAudit(client, { orgId, userId, action: 'settings.role.created', roleId, after: { code, name } });
-      revalidatePath(ROLES_SETTINGS_PATH);
+      revalidateLocalized(ROLES_SETTINGS_PATH);
       return { ok: true, data: { roleId, code } };
     } catch {
       return { ok: false, error: 'persistence_failed' };
@@ -322,7 +321,7 @@ export async function setRolePermissions(input: SetRolePermissionsInput): Promis
         },
       });
 
-      revalidatePath(ROLES_SETTINGS_PATH);
+      revalidateLocalized(ROLES_SETTINGS_PATH);
       return { ok: true, data: { roleId, count: requested.length } };
     } catch {
       return { ok: false, error: 'persistence_failed' };

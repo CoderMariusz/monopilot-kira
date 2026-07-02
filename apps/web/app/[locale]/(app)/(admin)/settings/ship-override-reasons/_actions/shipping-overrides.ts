@@ -1,9 +1,9 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const SETTINGS_UPDATE_PERMISSION = 'settings.org.update';
 const SHIP_OVERRIDE_REASONS_ROUTE = '/settings/ship-override-reasons';
@@ -123,8 +123,8 @@ const DeleteReasonCodeInput = z
 
 function revalidateShippingOverrideRoutes() {
   try {
-    revalidatePath(SHIP_OVERRIDE_REASONS_ROUTE);
-    revalidatePath(SHIPPING_OVERRIDES_ROUTE);
+    revalidateLocalized(SHIP_OVERRIDE_REASONS_ROUTE);
+    revalidateLocalized(SHIPPING_OVERRIDES_ROUTE);
   } catch {
     /* no request store in action unit tests */
   }

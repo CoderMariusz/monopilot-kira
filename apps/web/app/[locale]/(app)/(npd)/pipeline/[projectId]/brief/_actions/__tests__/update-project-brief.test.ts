@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('../../../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
 
 type Handler = (sql: string, params?: readonly unknown[]) => { rows: unknown[] };
 
@@ -21,7 +21,7 @@ vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
     }),
 }));
 
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../../../../../../../../lib/i18n/revalidate-localized';
 import { updateProjectBrief } from '../update-project-brief';
 
 const PROJECT = '00000000-0000-4000-8000-0000000000b1';
@@ -68,7 +68,7 @@ function handler(opts: { perm?: boolean; found?: boolean; failUpdate?: boolean }
 
 beforeEach(() => {
   ctx.handler = handler();
-  vi.mocked(revalidatePath).mockClear();
+  vi.mocked(revalidateLocalized).mockClear();
 });
 
 describe('updateProjectBrief', () => {
@@ -115,6 +115,6 @@ describe('updateProjectBrief', () => {
     expect(result).toEqual({ ok: true, data: { projectId: PROJECT } });
     expect(calls.some((call) => /update public\.npd_projects/.test(call.sql))).toBe(true);
     expect(calls.some((call) => /insert into public\.audit_events/.test(call.sql))).toBe(true);
-    expect(revalidatePath).toHaveBeenCalledWith(`/pipeline/${PROJECT}/brief`);
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith(`/pipeline/${PROJECT}/brief`);
   });
 });

@@ -1,4 +1,3 @@
-import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -10,6 +9,7 @@ import {
   type RuleVariantRow,
   type SaveVariantOverrides,
 } from './rule-variant-selector.client';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 export const dynamic = 'force-dynamic';
 
@@ -331,8 +331,8 @@ async function saveRuleVariantOverridesLive(input: {
          values ($1::uuid, $2::uuid, 'user', 'tenant_variations.rule_variant.batch_updated', 'tenant_variations', $1, $3::jsonb, 'standard')`,
         [orgId, userId, JSON.stringify({ rule_variant_overrides: patch })],
       );
-      revalidatePath('/settings/tenant/rules');
-      revalidatePath('/settings/tenant');
+      revalidateLocalized('/settings/tenant/rules');
+      revalidateLocalized('/settings/tenant');
       return { ok: true };
     } catch (error) {
       if (error instanceof Error && error.message === 'forbidden') {

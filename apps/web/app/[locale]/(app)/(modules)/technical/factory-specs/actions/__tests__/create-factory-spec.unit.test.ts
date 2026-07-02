@@ -32,6 +32,7 @@ const { runWithOrgContext, revalidatePath } = vi.hoisted(() => ({
 
 vi.mock('server-only', () => ({}));
 vi.mock('next/cache', () => ({ revalidatePath }));
+vi.mock('../../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: revalidatePath }));
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: unknown) => Promise<unknown>) => runWithOrgContext(action)),
 }));

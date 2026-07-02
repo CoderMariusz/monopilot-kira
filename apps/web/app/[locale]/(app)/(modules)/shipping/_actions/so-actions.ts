@@ -1,7 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { resolveSalesLinePrice } from './sales-line-price';
@@ -18,6 +16,7 @@ import {
   type SalesOrderStatus,
 } from './so-transitions';
 import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext } from './so-status-write';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -602,7 +601,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     }
 
     const created = await fetchSalesOrder(ctx, soId);
-    revalidatePath('/shipping');
+    revalidateLocalized('/shipping');
     return { ok: true, data: created };
   });
 }

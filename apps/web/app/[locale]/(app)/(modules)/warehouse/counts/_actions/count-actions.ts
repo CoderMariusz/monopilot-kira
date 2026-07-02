@@ -4,8 +4,6 @@ import { randomUUID } from 'node:crypto';
 
 import { signEvent, type ESignTxOptions } from '@monopilot/e-sign';
 import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { makeLpNumber, makeStockMoveNumber } from '../../../../../../../lib/warehouse/lp-create';
@@ -29,6 +27,7 @@ import {
   type CreateCountSessionInput,
   type RecordCountInput,
 } from './count-types';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const WAREHOUSE_STOCK_ADJUST_PERMISSION = 'warehouse.stock.adjust';
 const STOCK_COUNT_ADJUST_INTENT = 'warehouse.stock.adjust';
@@ -816,7 +815,7 @@ export async function createCountSession(input: CreateCountSessionInput): Promis
     );
     const sessionId = rows[0]?.id;
     if (!sessionId) throw new Error('count_session_insert_failed');
-    revalidatePath('/[locale]/warehouse/counts', 'page');
+    revalidateLocalized('/warehouse/counts', 'page');
     return sessionId;
   });
 }
@@ -1221,7 +1220,7 @@ export async function closeCountSession(sessionId: string): Promise<string> {
     );
     const closedId = rows[0]?.id;
     if (!closedId) throw new Error('count_session_not_closable');
-    revalidatePath('/[locale]/warehouse/counts', 'page');
+    revalidateLocalized('/warehouse/counts', 'page');
     return closedId;
   });
 }

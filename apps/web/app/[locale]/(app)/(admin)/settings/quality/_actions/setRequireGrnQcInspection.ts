@@ -1,8 +1,7 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const FLAG_KEY = 'require_grn_qc_inspection' as const;
 const REQUIRED_PERMISSION = 'settings.flags.edit' as const;
@@ -97,7 +96,7 @@ export async function setRequireGrnQcInspection(
         ],
       );
 
-      revalidatePath('/settings/quality');
+      revalidateLocalized('/settings/quality');
       return { ok: true, data: { flagKey: FLAG_KEY, enabled } };
     });
   } catch {

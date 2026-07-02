@@ -1,6 +1,4 @@
 import { getTranslations } from 'next-intl/server';
-import { revalidatePath } from 'next/cache';
-
 import EmailTemplatesScreen, {
   type EmailTemplateDraft,
   type EmailTemplateSaveResult,
@@ -16,6 +14,7 @@ import EmailTemplatesScreen, {
 import { upsertEmailConfig } from '../../../../../../actions/email/upsert-config';
 import { testEmailProvider } from '../../../../../../actions/email/test-provider';
 import { loadEmailTemplatesData } from '../../../../../../actions/email/load-email-config';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 type EmailTemplatesPageProps = {
   params?: Promise<{ locale: string }>;
@@ -192,7 +191,7 @@ async function saveTemplateThroughEmailConfig(input: EmailTemplateDraft): Promis
   });
 
   if (result.status === 'ok') {
-    revalidatePath('/settings/email');
+    revalidateLocalized('/settings/email');
     return { ok: true, templateCode: result.data.triggerCode, revalidatedPath: '/settings/email' };
   }
 

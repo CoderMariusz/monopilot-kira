@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { findMissingD365Constants } from '../../lib/integrations/d365/gate';
 
@@ -107,7 +107,7 @@ export async function setCoreFlag(rawInput: SetCoreFlagInput): Promise<SetCoreFl
         ],
       );
 
-      revalidatePath('/settings/flags');
+      revalidateLocalized('/settings/flags');
       return { ok: true, data: { flagCode: flag.flag_code, enabled: flag.is_enabled } };
     } catch (error) {
       if (error === FORBIDDEN) {

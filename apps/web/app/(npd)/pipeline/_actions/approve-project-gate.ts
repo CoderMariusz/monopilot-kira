@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { signEvent } from '@monopilot/e-sign';
 import type { ESignTxOptions } from '@monopilot/e-sign';
 import { z } from 'zod';
@@ -21,6 +20,7 @@ import {
   type GateBlocker,
 } from './_lib/gate-helpers';
 import { type OrgContextLike, type ProjectGate } from './shared';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 // T-111 reconciliation: the e-signature password is required ONLY when approving
 // (G3/G4 require a BRCGS/CFR-21 e-sign). A rejection records the reason WITHOUT a
@@ -185,7 +185,7 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

@@ -1,9 +1,8 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 const RISK_WRITE_PERMISSION = 'npd.risk.write';
 const APP_VERSION = 'risk-actions-v1';
@@ -105,7 +104,7 @@ export async function createRisk(input: CreateRiskInput): Promise<CreateRiskResu
         ],
       );
 
-      revalidatePath('/[locale]/fg/[productCode]/risks', 'page');
+      revalidateLocalized(`/npd/fg/${parsed.productCode}/risks`, 'page');
       return { ok: true, riskId };
     } catch {
       return { ok: false, code: 'PERSISTENCE_FAILED' };

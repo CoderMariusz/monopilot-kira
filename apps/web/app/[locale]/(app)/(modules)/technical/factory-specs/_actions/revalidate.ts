@@ -1,10 +1,9 @@
 import 'server-only';
-
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 export function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // no-op outside a Next request/static-generation store (unit tests).
   }

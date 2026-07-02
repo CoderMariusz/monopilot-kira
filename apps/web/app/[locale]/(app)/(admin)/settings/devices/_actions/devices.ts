@@ -1,9 +1,9 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const SETTINGS_UPDATE_PERMISSION = 'settings.org.update';
 const DEVICES_ROUTE = '/settings/devices';
@@ -119,7 +119,7 @@ export type UpdateDeviceDefaultsInput = z.input<typeof DeviceDefaultsInput>;
 
 function revalidateDevicesRoute() {
   try {
-    revalidatePath(DEVICES_ROUTE);
+    revalidateLocalized(DEVICES_ROUTE);
   } catch {
     /* no request store in unit tests */
   }

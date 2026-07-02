@@ -19,11 +19,11 @@
  *
  * Roles FK is real (public.roles(id), migration 037); see 275-signoff-policies.sql.
  */
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { hasPermission as hasPermissionString } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const ADMIN_PERMISSION = 'settings.flags.edit' as const;
 // Read gate for the list action — mirrors the flags admin list (settings/flags
@@ -257,7 +257,7 @@ export async function upsertSignoffPolicy(rawInput: UpsertSignoffPolicyInput): P
       );
 
       try {
-        revalidatePath(SIGNOFF_ROUTE);
+        revalidateLocalized(SIGNOFF_ROUTE);
       } catch {
         /* no request store (unit/integration test) */
       }
@@ -332,7 +332,7 @@ export async function setOverconsumeThresholds(
         );
 
         try {
-          revalidatePath(SIGNOFF_ROUTE);
+          revalidateLocalized(SIGNOFF_ROUTE);
         } catch {
           /* no request store */
         }

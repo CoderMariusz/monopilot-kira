@@ -1,11 +1,11 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { writeSettingsInfraOutbox } from './_shared/outbox';
 import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -191,7 +191,7 @@ async function getLocationWarehouse(client: QueryClient, locationId: string): Pr
 
 function revalidateLinesPath(): void {
   try {
-    revalidatePath('/[locale]/settings/infra/lines', 'page');
+    revalidateLocalized('/settings/infra/lines', 'page');
   } catch (e) {
     console.warn('revalidateLinesPath failed', e);
   }

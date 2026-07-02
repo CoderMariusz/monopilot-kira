@@ -1,9 +1,9 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const PRODUCTS_ROUTE = '/settings/products';
 
@@ -59,7 +59,7 @@ const updateProductInputSchema = productInputSchema.extend({
 
 function revalidateProductsRoute() {
   try {
-    revalidatePath(PRODUCTS_ROUTE);
+    revalidateLocalized(PRODUCTS_ROUTE);
   } catch {
     /* no request store in action unit tests */
   }

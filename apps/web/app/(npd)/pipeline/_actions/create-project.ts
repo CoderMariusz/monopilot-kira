@@ -1,7 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import {
   DEFAULT_TEMPLATE_ID,
@@ -17,6 +15,7 @@ import {
   parseTargetLaunch,
   trimOptionalString,
 } from './shared';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 export type CreateProjectInput = {
   name: string;
@@ -139,7 +138,7 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

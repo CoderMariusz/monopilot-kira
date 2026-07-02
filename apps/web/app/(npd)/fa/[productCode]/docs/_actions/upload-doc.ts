@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 export const COMPLIANCE_DOC_WRITE_PERMISSION = 'npd.compliance_doc.write';
 export const COMPLIANCE_DOC_MAX_BYTES = 20 * 1024 * 1024;
@@ -175,7 +174,7 @@ export async function uploadDoc(formData: FormData): Promise<UploadDocResult> {
         },
       });
 
-      revalidatePath('/[locale]/fg/[productCode]/docs', 'page');
+      revalidateLocalized(`/npd/fg/${parsed.value.productCode}/docs`, 'page');
       return { ok: true, docId: row.id, versionNumber: row.version_number };
     } catch {
       return { ok: false, code: 'PERSISTENCE_FAILED' };

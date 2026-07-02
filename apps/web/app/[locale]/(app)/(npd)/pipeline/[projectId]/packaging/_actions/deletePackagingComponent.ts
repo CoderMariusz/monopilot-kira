@@ -9,9 +9,8 @@
  * enum; never echo internal columns.
  */
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import {
   DeletePackagingComponentSchema,
   PACKAGING_WRITE_PERMISSION,
@@ -63,7 +62,7 @@ export async function deletePackagingComponent(raw: unknown): Promise<DeletePack
         afterState: null,
       });
 
-      revalidatePath(`/[locale]/pipeline/${input.projectId}/packaging`, 'page');
+      revalidateLocalized(`/pipeline/${input.projectId}/packaging`, 'page');
       return { ok: true as const, data: { id } };
     });
   } catch (err) {

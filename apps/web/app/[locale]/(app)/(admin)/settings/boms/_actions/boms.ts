@@ -1,9 +1,9 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const BOMS_ROUTE = '/settings/boms';
 
@@ -78,7 +78,7 @@ const bomSettingsSchema = z
 
 function revalidateBomsRoute() {
   try {
-    revalidatePath(BOMS_ROUTE);
+    revalidateLocalized(BOMS_ROUTE);
   } catch {
     /* no request store in action unit tests */
   }

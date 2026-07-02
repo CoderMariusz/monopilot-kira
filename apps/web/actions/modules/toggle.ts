@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 export type ToggleModuleInput = {
@@ -120,7 +120,7 @@ export async function toggleModule(rawInput: ToggleModuleInput): Promise<ToggleM
         ],
       );
 
-      revalidatePath('/settings/modules');
+      revalidateLocalized('/settings/modules');
       return { ok: true, data: { moduleCode: input.moduleCode, enabled: input.enabled } };
     } catch (error) {
       if (error === FORBIDDEN) {

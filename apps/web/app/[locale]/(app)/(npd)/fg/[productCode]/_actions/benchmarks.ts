@@ -20,8 +20,6 @@
  * the sibling benchmarks.types.ts.
  */
 
-import { revalidatePath } from 'next/cache';
-
 import { AuthError, ValidationError } from '../../../../../../(npd)/fa/actions/errors';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -38,6 +36,7 @@ import {
   type ListBenchmarksInput,
   type UpsertBenchmarkInput,
 } from './benchmarks.types';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 type QueryResult<T = Record<string, unknown>> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {
@@ -102,7 +101,7 @@ async function emitCoreChanged(
 
 function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidatePath(path, type);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static-generation store.
   }

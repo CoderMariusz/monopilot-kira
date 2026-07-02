@@ -15,16 +15,16 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { _withOrgContextRunner, _revalidatePath } = vi.hoisted(() => ({
+const { _withOrgContextRunner, _revalidateLocalized } = vi.hoisted(() => ({
   _withOrgContextRunner: vi.fn(),
-  _revalidatePath: vi.fn(),
+  _revalidateLocalized: vi.fn(),
 }));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: unknown) => Promise<unknown>) => _withOrgContextRunner(action)),
 }));
 
-vi.mock('next/cache', () => ({ revalidatePath: _revalidatePath }));
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: _revalidateLocalized }));
 
 import {
   createRole,

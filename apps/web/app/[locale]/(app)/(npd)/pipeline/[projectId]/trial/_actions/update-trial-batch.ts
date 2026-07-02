@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
@@ -9,6 +8,7 @@ import {
   type TrialResult,
   type UpdateTrialBatchError,
 } from './errors';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
 const NON_NEG_DECIMAL = z
   .string()
@@ -185,7 +185,7 @@ export async function updateTrialBatch(raw: unknown): Promise<UpdateTrialBatchRe
         after: { trialNo: input.trialNo, result: input.result, projectId: input.projectId },
       });
 
-      safeRevalidatePath(`/[locale]/pipeline/${input.projectId}/trial`);
+      safeRevalidatePath(`/pipeline/${input.projectId}/trial`);
       return { ok: true as const, data: { id, trialNo: input.trialNo, result: input.result } };
     });
   } catch (err) {
@@ -202,7 +202,7 @@ export async function updateTrialBatch(raw: unknown): Promise<UpdateTrialBatchRe
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

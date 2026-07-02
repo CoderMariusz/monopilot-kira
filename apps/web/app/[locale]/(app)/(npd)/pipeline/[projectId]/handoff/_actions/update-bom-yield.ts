@@ -23,14 +23,13 @@
  * error/result types live in the non-'use server' sibling `./update-bom-yield-types`.
  */
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { hasHandoffPermission } from './get-handoff';
 import {
   UpdateBomYieldInput,
   type UpdateBomYieldResult,
 } from './update-bom-yield-types';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
 const YIELD_PERMISSION = 'npd.handoff.promote';
 
@@ -87,7 +86,7 @@ export async function updateBomYield(raw: unknown): Promise<UpdateBomYieldResult
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path, 'page');
+    revalidateLocalized(path, 'page');
   } catch {
     // Vitest imports Server Actions outside a Next request store.
   }

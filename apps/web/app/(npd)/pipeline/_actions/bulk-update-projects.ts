@@ -1,7 +1,6 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
@@ -12,6 +11,7 @@ import {
   type ProjectGate,
   type ProjectPriority,
 } from './shared';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 const BULK_PROJECT_PERMISSION = 'npd.core.write';
 
@@ -254,7 +254,7 @@ async function writeBulkGateAudit(
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Tests import Server Actions outside a Next request/static generation store.
   }

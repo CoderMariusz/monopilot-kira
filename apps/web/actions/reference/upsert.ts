@@ -1,10 +1,9 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { writeSettingsReferenceOutbox } from './_shared/outbox';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 const EDIT_PERMISSION = 'settings.reference.edit';
 
@@ -148,9 +147,9 @@ export async function upsertReferenceRow(rawInput: unknown): Promise<UpsertRefer
 
 function revalidateReferenceSettingsPaths(tableCode: string): void {
   try {
-    revalidatePath('/[locale]/settings/reference', 'page');
-    if (tableCode === 'processes') revalidatePath('/[locale]/settings/processes', 'page');
-    if (tableCode === 'partners') revalidatePath('/[locale]/settings/partners', 'page');
+    revalidateLocalized('/settings/reference', 'page');
+    if (tableCode === 'processes') revalidateLocalized('/settings/processes', 'page');
+    if (tableCode === 'partners') revalidateLocalized('/settings/partners', 'page');
   } catch (error) {
     console.warn('[settings/reference] revalidate_skipped', error instanceof Error ? { message: error.message } : { message: String(error) });
   }

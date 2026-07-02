@@ -1,7 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../auth/with-org-context';
 import {
   ONBOARDING_STEP_DEFINITIONS,
@@ -10,6 +8,7 @@ import {
   toOnboardingState,
 } from './get-onboarding-state';
 import type { OnboardingStepId } from './types';
+import { revalidateLocalized } from '../i18n/revalidate-localized';
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {
@@ -118,7 +117,7 @@ function nextCurrentStep(completed: ReadonlySet<number>, skipped: ReadonlySet<nu
 
 function revalidateSettingsOnboardingRoute() {
   try {
-    revalidatePath(SETTINGS_ONBOARDING_ROUTE);
+    revalidateLocalized(SETTINGS_ONBOARDING_ROUTE);
   } catch {
     /* no request store in unit tests */
   }

@@ -1,8 +1,7 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 import { setAllergenOverride } from '../../../actions/set-allergen-override';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 /**
  * T-040 — Override submit adapter for the AllergenOverrideModal.
@@ -24,7 +23,7 @@ export async function submitAllergenOverride(
   try {
     const result = await setAllergenOverride(productCode, allergenCode, action, reason);
     if (result.ok) {
-      revalidatePath('/[locale]/fg/[productCode]/allergens', 'page');
+      revalidateLocalized(`/npd/fg/${productCode}/allergens`, 'page');
     }
     return { ok: result.ok };
   } catch {

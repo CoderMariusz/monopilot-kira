@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
 
 type Handler = (sql: string, params?: readonly unknown[]) => { rows: unknown[] };
 
@@ -27,6 +28,7 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 }));
 
 import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 import { revertNpdGate } from '../../../../../../(npd)/pipeline/_actions/revert-npd-gate';
 
 const PROJECT = '00000000-0000-4000-8000-0000000000b1';
@@ -72,6 +74,7 @@ beforeEach(() => {
   const setup = handler();
   mocks.ctx.handler = setup.handle;
   vi.mocked(revalidatePath).mockClear();
+  vi.mocked(revalidateLocalized).mockClear();
 });
 
 describe('revertNpdGate', () => {
@@ -110,7 +113,7 @@ describe('revertNpdGate', () => {
       reason: 'Trial failed label review.',
       actor_user_id: mocks.ctx.userId,
     });
-    expect(revalidatePath).toHaveBeenCalledWith(`/npd/pipeline/${PROJECT}`);
+    expect(revalidateLocalized).toHaveBeenCalledWith(`/npd/pipeline/${PROJECT}`);
   });
 
   it('refuses to revert below the first gate', async () => {

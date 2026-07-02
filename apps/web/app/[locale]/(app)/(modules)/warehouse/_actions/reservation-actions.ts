@@ -1,7 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
   WAREHOUSE_LP_RESERVE_PERMISSION,
@@ -15,6 +13,7 @@ import {
   type WarehouseContext,
   type WarehouseResult,
 } from './shared';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 export async function listReservations(): Promise<WarehouseResult<ReservationRow[]>> {
   try {
@@ -168,7 +167,7 @@ export async function releaseReservation(input: ReleaseReservationInput): Promis
         );
       }
 
-      revalidatePath('/[locale]/warehouse/reservations', 'page');
+      revalidateLocalized('/warehouse/reservations', 'page');
 
       return {
         ok: true,

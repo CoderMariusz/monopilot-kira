@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('../../../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
 
 type Handler = (sql: string, params?: readonly unknown[]) => { rows: unknown[] };
 
@@ -21,7 +21,7 @@ vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
     }),
 }));
 
-import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../../../../../../../../lib/i18n/revalidate-localized';
 import { updateTrialBatch } from '../update-trial-batch';
 import { TRIAL_WRITE_PERMISSION } from '../errors';
 
@@ -80,7 +80,7 @@ function grantHandler(opts: {
 
 beforeEach(() => {
   ctx.handler = () => ({ rows: [] });
-  vi.mocked(revalidatePath).mockClear();
+  vi.mocked(revalidateLocalized).mockClear();
 });
 
 describe('updateTrialBatch', () => {
@@ -127,7 +127,7 @@ describe('updateTrialBatch', () => {
     expect(result).toEqual({ ok: true, data: { id: BATCH, trialNo: 'T-012', result: 'pass' } });
     expect(calls.some((sql) => /update public\.trial_batches/.test(sql))).toBe(true);
     expect(calls.some((sql) => /insert into public\.audit_log/.test(sql))).toBe(true);
-    expect(revalidatePath).toHaveBeenCalledWith(`/[locale]/pipeline/${PROJECT}/trial`);
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith(`/pipeline/${PROJECT}/trial`);
   });
 
   it('clears trial notes when null is explicitly present', async () => {

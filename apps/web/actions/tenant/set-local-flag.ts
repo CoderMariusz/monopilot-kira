@@ -1,8 +1,8 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { writeTenantOutbox } from './_shared/outbox';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 export type SetLocalFlagInput = {
   flagKey: string;
@@ -65,7 +65,7 @@ export async function setLocalFlag(rawInput: SetLocalFlagInput): Promise<SetLoca
         payload: { org_id: orgId, scope: 'tenant', ...afterState, actor_user_id: userId },
       });
 
-      revalidatePath('/settings/tenant');
+      revalidateLocalized('/settings/tenant');
       return { ok: true, data: { flagKey: input.flagKey, enabled: input.enabled } };
     } catch (error) {
       if (error === FORBIDDEN) return { ok: false, error: 'forbidden' };

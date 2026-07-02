@@ -1,7 +1,7 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -131,7 +131,7 @@ export async function editColumn(rawInput: EditColumnInput): Promise<EditColumnR
       }
 
       const nextVersion = Number(updatedRow.schema_version);
-      revalidatePath('/settings/schema');
+      revalidateLocalized('/settings/schema');
       return { ok: true, data: { tableCode: input.tableCode, columnCode: input.columnCode, schemaVersion: nextVersion } };
     } catch (error) {
       if (error === FORBIDDEN) return { ok: false, error: 'FORBIDDEN' };

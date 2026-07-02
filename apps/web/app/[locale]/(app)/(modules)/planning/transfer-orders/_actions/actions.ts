@@ -3,10 +3,10 @@
 import { randomUUID } from 'node:crypto';
 
 import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import {
   makeLpNumber,
@@ -282,8 +282,8 @@ async function ensureItemInOrg(client: QueryClient, itemId: string): Promise<boo
 
 function revalidateTransferOrderPaths(toId: string): void {
   try {
-    revalidatePath('/planning/transfer-orders');
-    revalidatePath(`/planning/transfer-orders/${toId}`);
+    revalidateLocalized('/planning/transfer-orders');
+    revalidateLocalized(`/planning/transfer-orders/${toId}`);
   } catch (err) {
     if (process.env.VITEST) return;
     throw err;

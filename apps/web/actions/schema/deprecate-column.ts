@@ -1,7 +1,7 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -128,7 +128,7 @@ export async function deprecateColumn(rawInput: DeprecateColumnInput): Promise<D
         };
       }
 
-      revalidatePath('/settings/schema');
+      revalidateLocalized('/settings/schema');
       return {
         ok: true,
         data: {

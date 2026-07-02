@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('../../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
 vi.mock('../../../../../../../../lib/site/site-context', () => ({
   getActiveSiteId: vi.fn(async () => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
 }));
 
 import { revalidatePath } from 'next/cache';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import { getActiveSiteId } from '../../../../../../../../lib/site/site-context';
 import { approveAndApplyVariance, closeCountSession, createCountSession, getCountSession, listCountSessions, recordCount } from '../count-actions';
 import type { CountLineStatus } from '../count-types';
@@ -320,6 +322,7 @@ beforeEach(async () => {
   const { signEvent } = await import('@monopilot/e-sign');
   vi.mocked(signEvent).mockClear();
   vi.mocked(revalidatePath).mockClear();
+  vi.mocked(revalidateLocalized).mockClear();
   vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
 });
 
@@ -331,7 +334,7 @@ describe('stock count actions', () => {
     const insert = queries.find((q) => normalize(q.sql).startsWith('insert into public.count_sessions'));
     expect(normalize(insert!.sql)).toContain('org_id, site_id, warehouse_id');
     expect(insert!.params).toEqual([SITE_ID, WAREHOUSE_ID, 'cycle']);
-    expect(revalidatePath).toHaveBeenCalledWith('/[locale]/warehouse/counts', 'page');
+    expect(revalidateLocalized).toHaveBeenCalledWith('/warehouse/counts', 'page');
   });
 
   it('filters count session reads to the active site', async () => {
@@ -684,7 +687,7 @@ describe('stock count actions', () => {
     const result = await closeCountSession(SESSION_ID);
 
     expect(result).toBe(SESSION_ID);
-    expect(revalidatePath).toHaveBeenCalledWith('/[locale]/warehouse/counts', 'page');
+    expect(revalidateLocalized).toHaveBeenCalledWith('/warehouse/counts', 'page');
     const update = queries.find((q) => normalize(q.sql).includes("status = 'closed'"));
     expect(update?.params).toEqual([SESSION_ID, USER_ID]);
   });

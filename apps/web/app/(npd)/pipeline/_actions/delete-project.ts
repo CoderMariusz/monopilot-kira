@@ -1,13 +1,12 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import {
   PROJECT_CREATE_PERMISSION,
   type OrgContextLike,
   hasPermission,
 } from './shared';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 const PROJECT_DELETED_EVENT = 'npd.project.deleted';
 
@@ -86,7 +85,7 @@ export async function deleteProject(rawInput: unknown): Promise<DeleteProjectRes
       }
 
       try {
-        revalidatePath('/pipeline');
+        revalidateLocalized('/pipeline');
       } catch {
         // Vitest imports Server Actions outside a Next request store.
       }

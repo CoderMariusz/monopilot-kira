@@ -27,7 +27,6 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
@@ -39,6 +38,7 @@ import {
   SENSORY_VERDICT_STATUSES,
   SENSORY_WRITE_PERMISSION,
 } from './record-sensory-constants';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {
@@ -135,7 +135,7 @@ async function writeAudit(
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

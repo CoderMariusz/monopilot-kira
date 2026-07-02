@@ -19,8 +19,6 @@
  */
 
 import { z } from 'zod';
-import { revalidatePath } from 'next/cache';
-
 import { hasPermission } from '../../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import {
@@ -29,6 +27,7 @@ import {
   decimalLt,
   decimalLte,
 } from '../../../../../../../../lib/costing/compute-waterfall';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
 const NON_NEG_DECIMAL = z
   .string()
@@ -172,7 +171,7 @@ export async function saveCostingScenario(raw: unknown): Promise<SaveScenarioRes
 
 function safeRevalidatePath(path: string, type?: 'layout' | 'page'): void {
   try {
-    revalidatePath(path, type);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

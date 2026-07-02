@@ -46,7 +46,7 @@ let wooRows: 'one' | 'none' = 'one';
 let inspectionStatus = 'in_progress';
 let activeHold = false;
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('../../lib/i18n/revalidate-localized', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@monopilot/e-sign', () => ({ signEvent: vi.fn(async () => ({ subjectHash: 'hash' })) }));
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>

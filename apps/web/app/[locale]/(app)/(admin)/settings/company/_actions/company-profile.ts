@@ -12,7 +12,6 @@
  * (migration 168 added legal_name/vat/regon/industry/address/contact columns),
  * emit the settings.org.updated outbox event, and revalidate the page.
  */
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -21,6 +20,7 @@ import type {
   SaveCompanyProfileInput,
   SaveCompanyProfileResult,
 } from '../company-profile-screen.client';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const UPDATE_PERMISSION = 'settings.org.update';
 const OUTBOX_EVENT_TYPE = 'settings.org.updated';
@@ -34,7 +34,7 @@ const COMPANY_ROUTE = '/settings/company';
 // that invoke the action directly) turn a persisted write into a failure.
 function revalidateCompanyRoute() {
   try {
-    revalidatePath(COMPANY_ROUTE);
+    revalidateLocalized(COMPANY_ROUTE);
   } catch {
     /* no request store (test/non-request context) — router.refresh() covers reload */
   }

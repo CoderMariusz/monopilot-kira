@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
@@ -12,6 +11,7 @@ import {
   requireReleasePermission,
   type ReleasePreflightBlocker,
 } from '../_lib/release-preflight';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 const RELEASED_TO_FACTORY_EVENT = 'fg.released_to_factory' as const;
 const APP_VERSION = 't-096';
@@ -266,7 +266,7 @@ function toIso(value: Date | string): string {
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

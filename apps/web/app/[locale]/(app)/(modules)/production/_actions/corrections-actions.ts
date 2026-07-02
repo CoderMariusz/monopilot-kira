@@ -1,9 +1,9 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import {
   assertCorrectionAllowed,
   CORRECTION_REASON_CODES,
@@ -856,8 +856,8 @@ export async function voidWasteEntry(input: VoidWasteEntryInput): Promise<VoidWa
     });
 
     if (result.ok && result.woId) {
-      revalidatePath('/[locale]/production', 'page');
-      revalidatePath(`/[locale]/production/wos/${result.woId}`, 'page');
+      revalidateLocalized('/production', 'page');
+      revalidateLocalized(`/production/wos/${result.woId}`, 'page');
     }
 
     return result.ok ? { ok: true } : result;
@@ -997,8 +997,8 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
     });
 
     if (result.ok && result.woId) {
-      revalidatePath('/[locale]/production', 'page');
-      revalidatePath(`/[locale]/production/wos/${result.woId}`, 'page');
+      revalidateLocalized('/production', 'page');
+      revalidateLocalized(`/production/wos/${result.woId}`, 'page');
     }
 
     return result.ok ? { ok: true } : result;
@@ -1127,8 +1127,8 @@ export async function reverseConsumption(input: ReverseConsumptionInput): Promis
     });
 
     if (result.ok && result.woId) {
-      revalidatePath('/[locale]/production', 'page');
-      revalidatePath(`/[locale]/production/wos/${result.woId}`, 'page');
+      revalidateLocalized('/production', 'page');
+      revalidateLocalized(`/production/wos/${result.woId}`, 'page');
     }
 
     return result.ok ? { ok: true } : result;

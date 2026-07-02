@@ -1,8 +1,8 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { writeTenantOutbox } from './_shared/outbox';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 export type SetRuleVariantInput = {
   ruleCode: string;
@@ -91,7 +91,7 @@ export async function setRuleVariant(rawInput: SetRuleVariantInput): Promise<Set
         payload: { org_id: orgId, scope: 'tenant', ...afterState, actor_user_id: userId },
       });
 
-      revalidatePath('/settings/tenant');
+      revalidateLocalized('/settings/tenant');
       return { ok: true, data: { ruleCode: input.ruleCode, variantVersionId: input.variantVersionId } };
     } catch (error) {
       if (error === FORBIDDEN) return { ok: false, error: 'forbidden' };

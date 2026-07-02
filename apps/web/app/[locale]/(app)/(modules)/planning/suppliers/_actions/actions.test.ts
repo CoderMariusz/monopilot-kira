@@ -12,8 +12,8 @@ let allowPermission = true;
 let supplierExists = true;
 
 const revalidatePath = vi.fn();
-vi.mock('next/cache', () => ({
-  revalidatePath: (...args: unknown[]) => revalidatePath(...args),
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: (...args: unknown[]) => revalidatePath(...args),
 }));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
@@ -102,16 +102,16 @@ describe('planning suppliers actions', () => {
     const result = await createSupplier({ code: 'SUP-TEST-01', name: 'Test Supplier', leadTimeDays: 5 });
 
     expect(result.ok).toBe(true);
-    expect(revalidatePath).toHaveBeenCalledWith('/[locale]/planning/suppliers', 'page');
-    expect(revalidatePath).toHaveBeenCalledWith(`/[locale]/planning/suppliers/${SUPPLIER_ID}`, 'page');
+    expect(revalidatePath).toHaveBeenCalledWith('/planning/suppliers', 'page');
+    expect(revalidatePath).toHaveBeenCalledWith(`/planning/suppliers/${SUPPLIER_ID}`, 'page');
   });
 
   it('revalidates the supplier paths after a status transition (family-a round-trip)', async () => {
     const result = await transitionSupplierStatus(SUPPLIER_ID, 'blocked');
 
     expect(result.ok).toBe(true);
-    expect(revalidatePath).toHaveBeenCalledWith('/[locale]/planning/suppliers', 'page');
-    expect(revalidatePath).toHaveBeenCalledWith(`/[locale]/planning/suppliers/${SUPPLIER_ID}`, 'page');
+    expect(revalidatePath).toHaveBeenCalledWith('/planning/suppliers', 'page');
+    expect(revalidatePath).toHaveBeenCalledWith(`/planning/suppliers/${SUPPLIER_ID}`, 'page');
   });
 
   it('rejects create when caller lacks planning write permission', async () => {
@@ -139,8 +139,8 @@ describe('planning suppliers actions', () => {
         sql.includes('insert into public.audit_events') && params?.[2] === 'planning.supplier.updated'
       )),
     ).toBe(true);
-    expect(revalidatePath).toHaveBeenCalledWith('/[locale]/planning/suppliers', 'page');
-    expect(revalidatePath).toHaveBeenCalledWith(`/[locale]/planning/suppliers/${SUPPLIER_ID}`, 'page');
+    expect(revalidatePath).toHaveBeenCalledWith('/planning/suppliers', 'page');
+    expect(revalidatePath).toHaveBeenCalledWith(`/planning/suppliers/${SUPPLIER_ID}`, 'page');
   });
 
   it('rejects update when caller lacks planning write permission', async () => {

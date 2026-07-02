@@ -1,12 +1,12 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { AuthError, ValidationError } from './errors';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 const FA_DELETE_PERMISSION = 'npd.core.write';
 const FA_DELETED_EVENT = 'fa.deleted';
@@ -193,7 +193,7 @@ async function writeOutbox(ctx: OrgContextLike, productCode: string, reason: str
 
 function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidatePath(path, type);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

@@ -1,4 +1,3 @@
-import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
@@ -16,6 +15,7 @@ import SettingsNotificationsScreen, {
   type ToggleRuleInput,
   type ToggleRuleResult,
 } from './notifications-screen.client';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 export const dynamic = 'force-dynamic';
 
@@ -304,7 +304,7 @@ async function defaultToggleNotificationRule(input: ToggleRuleInput): Promise<To
       actorUserId: userId,
     });
   });
-  revalidatePath('/settings/notifications');
+  revalidateLocalized('/settings/notifications');
   return { ok: true, ruleId: input.ruleId, enabled: input.enabled, outboxEventType: OUTBOX_NOTIFICATION_RULE_EVENT };
 }
 
@@ -330,7 +330,7 @@ async function defaultToggleNotificationChannel(input: ToggleChannelInput): Prom
       actorUserId: userId,
     });
   });
-  revalidatePath('/settings/notifications');
+  revalidateLocalized('/settings/notifications');
   return { ok: true, channelId: input.channelId, enabled: input.enabled, outboxEventType: OUTBOX_NOTIFICATION_CHANNEL_EVENT };
 }
 
@@ -353,7 +353,7 @@ async function defaultToggleDigestEmail(input: ToggleDigestInput): Promise<Toggl
       actorUserId: userId,
     });
   });
-  revalidatePath('/settings/notifications');
+  revalidateLocalized('/settings/notifications');
   return { ok: true, digestId: input.digestId, enabled: input.enabled, outboxEventType: OUTBOX_NOTIFICATION_DIGEST_EVENT };
 }
 

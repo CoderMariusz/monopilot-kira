@@ -2,9 +2,8 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 import { resolveWacDeltaQtyKg, upsertWac } from '../../../../../../../lib/finance/upsert-wac';
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { computeExpiryDate, formatDecimal, parseDecimal } from '../../../../../../../lib/warehouse/scanner/receive-po';
@@ -697,8 +696,8 @@ async function completeFullyReceivedGrns(
 
 function revalidatePurchaseOrderPaths(poId: string): void {
   try {
-    revalidatePath('/planning/purchase-orders');
-    revalidatePath(`/planning/purchase-orders/${poId}`);
+    revalidateLocalized('/planning/purchase-orders');
+    revalidateLocalized(`/planning/purchase-orders/${poId}`);
   } catch (err) {
     if (process.env.VITEST) return;
     throw err;

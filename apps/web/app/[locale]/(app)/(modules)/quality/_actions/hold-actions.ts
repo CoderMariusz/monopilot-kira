@@ -480,8 +480,8 @@ export async function createHold(input: {
            app.current_org_id(),
            $8::uuid,
            $1,
-           case when $1 = 'batch' then null else $2::uuid end,
-           case when $1 = 'batch' then $2 else null end,
+           $2::uuid,
+           $9,
            $3::uuid,
            $4,
            $5,
@@ -492,13 +492,17 @@ export async function createHold(input: {
          returning id::text, hold_number, reference_type, coalesce(reference_text, reference_id::text) as reference_id, hold_status`,
         [
           parsed.referenceType,
-          parsed.referenceId,
+          // pg infers a parameter's type from its cast, so one $n used as both
+          // ::uuid and bare text fails at BIND time for batch references (22P02).
+          // Split reference into two parameters computed here instead.
+          parsed.referenceType === 'batch' ? null : parsed.referenceId,
           parsed.reasonCodeId ?? null,
           parsed.reasonText ?? null,
           parsed.priority,
           defaultHoldDurationDays,
           ctx.userId,
           siteId,
+          parsed.referenceType === 'batch' ? parsed.referenceId.trim() : null,
         ],
       );
       const created = hold.rows[0];

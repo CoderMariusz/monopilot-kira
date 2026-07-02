@@ -9,13 +9,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   _withOrgContextRunner,
-  _revalidatePath,
+  _revalidateLocalized,
   _stampedClaims,
   _createServerSupabaseClient,
   _createClient,
 } = vi.hoisted(() => ({
   _withOrgContextRunner: vi.fn(),
-  _revalidatePath: vi.fn(),
+  _revalidateLocalized: vi.fn(),
   _stampedClaims: [] as Array<{ userId: string; completedAt: unknown }>,
   _createServerSupabaseClient: vi.fn(),
   _createClient: vi.fn(),
@@ -31,9 +31,9 @@ vi.mock('../../lib/auth/supabase-server', () => ({
   createServerSupabaseClient: _createServerSupabaseClient,
 }));
 
-vi.mock('next/cache', () => ({
-  revalidatePath: _revalidatePath,
-}));
+vi.mock('../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: _revalidateLocalized,
+})));
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: _createClient,

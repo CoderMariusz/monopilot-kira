@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
+
+import { revalidateLocalized } from '../../../../../lib/i18n/revalidate-localized';
 
 type Handler = (sql: string, params?: readonly unknown[]) => { rows: unknown[] };
 
@@ -21,7 +23,6 @@ vi.mock('../../../../../lib/auth/with-org-context', () => ({
     }),
 }));
 
-import { revalidatePath } from 'next/cache';
 import { toggleGateChecklistItem } from '../toggle-gate-checklist-item';
 
 const PROJECT = '00000000-0000-4000-8000-0000000000b1';
@@ -62,7 +63,7 @@ function handler(opts: { perm?: boolean; found?: boolean; updateFound?: boolean 
 
 beforeEach(() => {
   ctx.handler = handler();
-  vi.mocked(revalidatePath).mockClear();
+  vi.mocked(revalidateLocalized).mockClear();
 });
 
 describe('toggleGateChecklistItem', () => {
@@ -101,7 +102,7 @@ describe('toggleGateChecklistItem', () => {
     expect(calls.some((call) => call.sql.includes('Done\\_') && call.sql.includes('escape'))).toBe(true);
     expect(calls.some((call) => /update public\.gate_checklist_items/.test(call.sql))).toBe(false);
     expect(calls.some((call) => /insert into public\.audit_events/.test(call.sql))).toBe(false);
-    expect(revalidatePath).not.toHaveBeenCalled();
+    expect(vi.mocked(revalidateLocalized)).not.toHaveBeenCalled();
   });
 
   it('updates completion state, audits, and revalidates the pipeline', async () => {
@@ -123,6 +124,6 @@ describe('toggleGateChecklistItem', () => {
       true,
       ctx.userId,
     ]);
-    expect(revalidatePath).toHaveBeenCalledWith('/pipeline');
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith('/pipeline');
   });
 });

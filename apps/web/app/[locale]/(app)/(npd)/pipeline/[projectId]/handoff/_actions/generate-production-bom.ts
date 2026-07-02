@@ -21,11 +21,10 @@
  */
 
 import { z } from 'zod';
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { materializeNpdBom } from '../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom';
 import { hasHandoffPermission } from './get-handoff';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
 const Input = z.object({ projectId: z.string().uuid() });
 
@@ -113,7 +112,7 @@ export async function generateProductionBom(raw: unknown): Promise<GenerateProdu
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path, 'page');
+    revalidateLocalized(path, 'page');
   } catch {
     // Vitest imports Server Actions outside a Next request store.
   }

@@ -13,10 +13,10 @@
  */
 
 import { z } from 'zod';
-import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { hasHandoffPermission } from './get-handoff';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
 const Input = z.object({
   projectId: z.string().uuid(),
@@ -82,7 +82,7 @@ export async function toggleHandoffChecklistItem(
         [ctx.userId, row.id, JSON.stringify({ isChecked: row.is_checked })],
       );
 
-      revalidatePath(`/[locale]/(app)/(npd)/pipeline/${input.projectId}/handoff`, 'page');
+      revalidateLocalized(`/pipeline/${input.projectId}/handoff`, 'page');
 
       return { ok: true as const, data: { itemId: row.id, isChecked: row.is_checked } };
     });

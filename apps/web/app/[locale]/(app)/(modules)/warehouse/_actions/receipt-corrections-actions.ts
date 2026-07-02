@@ -1,10 +1,10 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import { CORRECTION_REASON_CODES } from '../../../../../../lib/corrections/correct-ledger-entry';
 import { resolveWacDeltaQtyKg, upsertWac } from '../../../../../../lib/finance/upsert-wac';
 import { toMicro } from '../../../../../../lib/shared/decimal';
@@ -449,8 +449,8 @@ export async function cancelGrnLine(input: unknown): Promise<
         },
       });
 
-      revalidatePath('/warehouse/grns');
-      revalidatePath('/planning/purchase-orders');
+      revalidateLocalized('/warehouse/grns');
+      revalidateLocalized('/planning/purchase-orders');
       return { ok: true };
     });
   } catch (error) {
@@ -550,8 +550,8 @@ export async function updateLpMetadata(input: unknown): Promise<
         },
       });
 
-      revalidatePath('/warehouse/license-plates');
-      revalidatePath(`/warehouse/license-plates/${lp.id}`);
+      revalidateLocalized('/warehouse/license-plates');
+      revalidateLocalized(`/warehouse/license-plates/${lp.id}`);
       return { ok: true };
     });
   } catch (error) {

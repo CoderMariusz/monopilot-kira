@@ -56,8 +56,8 @@ let lines = INITIAL_LINES.map((line) => ({ ...line }));
 
 const revalidatePath = vi.fn();
 
-vi.mock('next/cache', () => ({
-  revalidatePath: (path: string) => revalidatePath(path),
+vi.mock('../../../../../../../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: (path: string, type?: string) => type !== undefined ? revalidatePath(path, type) : revalidatePath(path),
 }));
 
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({

@@ -8,10 +8,10 @@
  * can read/write real Supabase data through withOrgContext/RLS.
  */
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const LABELS_ROUTE = '/settings/labels';
 const SETTINGS_UPDATE_PERMISSION = 'settings.org.update';
@@ -76,7 +76,7 @@ export type UpdateLabelTemplateInput = z.input<typeof UpdateLabelTemplateInput>;
 
 function revalidateLabelsRoute() {
   try {
-    revalidatePath(LABELS_ROUTE);
+    revalidateLocalized(LABELS_ROUTE);
   } catch {
     /* no request store in action unit tests */
   }

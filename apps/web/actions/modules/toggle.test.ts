@@ -2,9 +2,9 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { _withOrgContextRunner, _revalidatePath } = vi.hoisted(() => ({
+const { _withOrgContextRunner, _revalidateLocalized } = vi.hoisted(() => ({
   _withOrgContextRunner: vi.fn(),
-  _revalidatePath: vi.fn(),
+  _revalidateLocalized: vi.fn(),
 }));
 
 vi.mock('../../lib/auth/with-org-context', () => ({
@@ -13,9 +13,9 @@ vi.mock('../../lib/auth/with-org-context', () => ({
   ),
 }));
 
-vi.mock('next/cache', () => ({
-  revalidatePath: _revalidatePath,
-}));
+vi.mock('../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: _revalidateLocalized,
+})));
 
 const repoRoot = resolve(__dirname, '../../../..');
 const toggleModulePath = resolve(repoRoot, 'apps/web/actions/modules/toggle.ts');

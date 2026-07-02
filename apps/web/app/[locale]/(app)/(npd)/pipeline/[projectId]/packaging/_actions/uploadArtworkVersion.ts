@@ -15,9 +15,9 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import { PACKAGING_WRITE_PERMISSION } from './shared';
 import {
   ARTWORK_MIME_TYPES,
@@ -102,7 +102,7 @@ export async function uploadArtworkVersion(formData: FormData): Promise<UploadAr
         },
       });
 
-      revalidatePath(`/[locale]/pipeline/${projectId}/packaging`, 'page');
+      revalidateLocalized(`/pipeline/${projectId}/packaging`, 'page');
       return { ok: true, objectName, version };
     });
   } catch (error) {

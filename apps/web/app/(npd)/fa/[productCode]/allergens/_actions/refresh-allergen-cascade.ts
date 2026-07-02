@@ -1,8 +1,7 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 import { updateFaAllergenSet } from './update-allergen-set';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 /**
  * T-040 — Refresh adapter for the AllergenCascadeWidget Refresh button.
@@ -21,6 +20,6 @@ export async function refreshAllergenCascade(productCode: string): Promise<void>
 
   const result = await updateFaAllergenSet({ productCode: code });
   if (result.ok && result.changed) {
-    revalidatePath('/[locale]/fg/[productCode]/allergens', 'page');
+    revalidateLocalized(`/npd/fg/${code}/allergens`, 'page');
   }
 }

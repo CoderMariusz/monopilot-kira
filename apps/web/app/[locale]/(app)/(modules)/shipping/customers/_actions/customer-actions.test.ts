@@ -18,7 +18,7 @@ let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
 
 const revalidatePath = vi.hoisted(() => vi.fn());
 
-vi.mock('next/cache', () => ({ revalidatePath }));
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: revalidatePath }));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>

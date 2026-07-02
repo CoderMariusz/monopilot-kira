@@ -34,8 +34,6 @@
  * 080/149/236), revalidatePath for the FG detail route. Never client-trusted.
  */
 
-import { revalidatePath } from 'next/cache';
-
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { AuthError, ValidationError } from '../../../../../../(npd)/fa/actions/errors';
@@ -56,6 +54,7 @@ import {
   type UpdateProdDetailRowInput,
   type UpdateProdDetailRowResult,
 } from './finish-wip-types';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 type QueryResult<T = Record<string, unknown>> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {
@@ -298,7 +297,7 @@ export async function removeProdDetailRow(
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static-generation store.
   }

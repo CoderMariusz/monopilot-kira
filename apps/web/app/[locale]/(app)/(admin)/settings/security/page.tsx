@@ -1,4 +1,3 @@
-import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 
 import { upsertSecurityPolicy } from '../../../../../../actions/security/upsert-policy';
@@ -9,6 +8,7 @@ import SecurityScreen, {
   type SecurityScreenLabels,
   type SaveSecuritySettings,
 } from './security-screen.client';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 export const dynamic = 'force-dynamic';
 
@@ -377,7 +377,7 @@ const saveSecuritySettings: SaveSecuritySettings = async (data) => {
     return { ok: false, code: 'error' in policyResult ? policyResult.error : 'persistence_failed', data };
   }
 
-  revalidatePath('/settings/security');
+  revalidateLocalized('/settings/security');
   return { ok: true, data };
 };
 

@@ -1,10 +1,10 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { upsertLine } from '../../../../../../../actions/infra/line';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const SETTINGS_UPDATE_PERMISSION = 'settings.org.update';
 const SITES_ROUTE = '/settings/sites';
@@ -233,7 +233,7 @@ function isUniqueViolation(error: unknown): boolean {
 
 function revalidateSitesRoute() {
   try {
-    revalidatePath(SITES_ROUTE);
+    revalidateLocalized(SITES_ROUTE);
   } catch {
     /* no request store in action unit tests */
   }

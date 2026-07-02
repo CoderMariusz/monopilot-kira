@@ -1,7 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import {
   PROJECT_CREATE_PERMISSION,
@@ -12,6 +10,7 @@ import {
   parsePriority,
   trimOptionalString,
 } from './shared';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 /**
  * cloneProject — create a NEW NPD project seeded from an EXISTING one.
@@ -271,7 +270,7 @@ function toNumericOrNull(value: string | number | null): number | null {
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

@@ -22,11 +22,11 @@
  * fail-closed org-admin read gate so the page renders permission-denied for
  * non-admins instead of leaking the policy.
  */
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { hasPermission as hasPermissionString } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const ADMIN_PERMISSION = 'settings.flags.edit' as const;
 const READ_PERMISSION = 'org.access.admin' as const;
@@ -152,7 +152,7 @@ export async function setScannerReverseAuthPolicy(
         );
 
         try {
-          revalidatePath(SCANNER_AUTH_ROUTE);
+          revalidateLocalized(SCANNER_AUTH_ROUTE);
         } catch {
           /* no request store (unit/integration test) */
         }

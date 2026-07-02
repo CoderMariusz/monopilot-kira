@@ -1,5 +1,5 @@
-import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 const TOTAL_STEPS = 6;
 const REQUIRED_STEPS = new Set([1, 2, 3, 6]);
@@ -96,7 +96,7 @@ export async function mutateOnboarding(transition: Transition, rawInput: unknown
       }
       await writeAuditLog(context, transition, currentState, persisted);
       await writeOutbox(context, transition, persisted);
-      revalidatePath(ONBOARDING_PATH);
+      revalidateLocalized(ONBOARDING_PATH);
       return { ok: true, data: { state: persisted } };
     });
   } catch {

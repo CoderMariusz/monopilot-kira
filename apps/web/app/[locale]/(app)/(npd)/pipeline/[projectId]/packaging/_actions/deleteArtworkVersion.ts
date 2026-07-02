@@ -9,9 +9,8 @@
  * CURRENT (versioning = `v<N>-` ordering). RBAC write: `npd.packaging.write`.
  */
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import { PACKAGING_WRITE_PERMISSION } from './shared';
 import {
   NPD_ATTACHMENTS_BUCKET,
@@ -68,7 +67,7 @@ export async function deleteArtworkVersion(input: {
         afterState: { project_id: projectId, object_name: objectName },
       });
 
-      revalidatePath(`/[locale]/pipeline/${projectId}/packaging`, 'page');
+      revalidateLocalized(`/pipeline/${projectId}/packaging`, 'page');
       return { ok: true };
     });
   } catch (error) {

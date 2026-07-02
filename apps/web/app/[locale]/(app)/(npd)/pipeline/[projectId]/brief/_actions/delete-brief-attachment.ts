@@ -8,9 +8,8 @@
  * outside the org/project prefix. RBAC write: `npd.core.write`.
  */
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import {
   NPD_ATTACHMENTS_BUCKET,
   briefAttachmentsPrefix,
@@ -68,7 +67,7 @@ export async function deleteBriefAttachment(input: {
         afterState: { project_id: projectId, object_name: objectName },
       });
 
-      revalidatePath(`/[locale]/pipeline/${projectId}/brief`, 'page');
+      revalidateLocalized(`/pipeline/${projectId}/brief`, 'page');
       return { ok: true };
     });
   } catch (error) {

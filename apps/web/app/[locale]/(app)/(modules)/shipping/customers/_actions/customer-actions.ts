@@ -28,10 +28,10 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -258,8 +258,8 @@ export async function createCustomer(rawInput: unknown): Promise<CustomerResult<
         afterState: { code: row.customer_code, name: row.name, category: row.category, is_active: row.is_active },
       });
 
-      revalidatePath('/shipping');
-      revalidatePath('/shipping/customers');
+      revalidateLocalized('/shipping');
+      revalidateLocalized('/shipping/customers');
 
       return { ok: true, id: row.id, data: mapCustomer(row) };
     });

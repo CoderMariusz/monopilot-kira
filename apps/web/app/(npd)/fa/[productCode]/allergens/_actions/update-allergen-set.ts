@@ -1,8 +1,7 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 /**
  * T-038 — Allergen cascade ENGINE entry point (thin Server Action wrapper).
@@ -71,7 +70,7 @@ export async function updateFaAllergenSet(
       if (!row) return { ok: false, code: 'NOT_FOUND' };
 
       if (row.changed) {
-        revalidatePath('/[locale]/fg/[productCode]/allergens', 'page');
+        revalidateLocalized(`/npd/fg/${productCode}/allergens`, 'page');
       }
 
       return {

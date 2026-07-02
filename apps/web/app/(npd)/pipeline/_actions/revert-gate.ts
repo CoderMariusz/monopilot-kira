@@ -1,7 +1,6 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
@@ -17,6 +16,7 @@ import {
   updateProjectGate,
 } from './_lib/gate-helpers';
 import { type OrgContextLike, type ProjectGate } from './shared';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
 const inputSchema = z.object({
   projectId: z.string().uuid(),
@@ -120,7 +120,7 @@ function isRollbackTarget(currentGate: ProjectGate, targetGate: ProjectGate): bo
 
 function safeRevalidatePath(path: string): void {
   try {
-    revalidatePath(path);
+    revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

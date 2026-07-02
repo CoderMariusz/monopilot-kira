@@ -1,7 +1,7 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -198,7 +198,7 @@ export async function addColumn(rawInput: AddColumnInput): Promise<AddColumnResu
           ],
         );
 
-        revalidatePath('/settings/schema');
+        revalidateLocalized('/settings/schema');
         return {
           ok: true,
           data: {
@@ -246,7 +246,7 @@ export async function addColumn(rawInput: AddColumnInput): Promise<AddColumnResu
         [orgId, input.tableCode, input.columnCode, 'schema_column_added', plan.tier, 'completed', 'Runtime JSON schema metadata update; no DDL executed.'],
       );
 
-      revalidatePath('/settings/schema');
+      revalidateLocalized('/settings/schema');
       return {
         ok: true,
         data: {

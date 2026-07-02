@@ -34,8 +34,8 @@ vi.mock('../../../warehouse/_actions/shared', () => ({
   hasWarehousePermission: vi.fn(async () => permissionAllowed),
 }));
 
-vi.mock('next/cache', () => ({
-  revalidatePath: vi.fn(),
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: vi.fn(),
 }));
 
 describe('receivePoLineDesktop', () => {
