@@ -63,6 +63,7 @@ export const STAGE_ORDER = [
   'brief',
   'recipe',
   'packaging',
+  'costing_nutrition',
   'trial',
   'sensory',
   'pilot',
@@ -75,7 +76,7 @@ export type TerminalStage = 'launched';
 export type AnyStage = ProjectStage | TerminalStage;
 
 /** Stages, in order, that derive into gate G3 (FG candidate is created entering the first). */
-const G3_STAGES: ProjectStage[] = ['packaging', 'trial', 'sensory', 'pilot'];
+const G3_STAGES: ProjectStage[] = ['packaging', 'costing_nutrition', 'trial', 'sensory', 'pilot'];
 
 /** The stage on which the FG candidate is created (the 3rd stage = entering G3). */
 export const FG_CANDIDATE_STAGE: ProjectStage = 'packaging';
@@ -89,6 +90,7 @@ const GATE_BY_STAGE: Record<AnyStage, ProjectGate> = {
   brief: 'G1',
   recipe: 'G2',
   packaging: 'G3',
+  costing_nutrition: 'G3',
   trial: 'G3',
   sensory: 'G3',
   pilot: 'G3',
