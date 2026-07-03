@@ -5932,7 +5932,17 @@
       "statusCompleted": "Завершено",
       "linePlaceholder": "Select a line…",
       "noLines": "No production lines configured.",
-      "selectLineHint": "Select a line to see ingredient availability."
+      "selectLineHint": "Select a line to see ingredient availability.",
+      "pilotWoTitle": "Pilot work order",
+      "createPilotWo": "Create pilot WO",
+      "creatingPilotWo": "Creating pilot WO…",
+      "pilotWoLinked": "Pilot work order:",
+      "pilotWoLinkLabel": "{woNumber}",
+      "createPilotWoError": "Could not create the pilot work order. Try again.",
+      "createPilotWoErrorNoFg": "Link a finished-good product to this project before creating a pilot work order.",
+      "createPilotWoErrorRecipe": "Lock the recipe version (or activate a production BOM) before creating a pilot work order.",
+      "createPilotWoErrorForbidden": "You do not have permission to create a pilot work order.",
+      "createPilotWoErrorPlanning": "Planning rejected the work order"
     },
     "trial": {
       "title": "Лабораторні та кухонні випробування",

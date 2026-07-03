@@ -5946,7 +5946,17 @@
       "statusCompleted": "Zakończony",
       "linePlaceholder": "Wybierz linię…",
       "noLines": "Brak skonfigurowanych linii produkcyjnych.",
-      "selectLineHint": "Wybierz linię, aby zobaczyć dostępność składników."
+      "selectLineHint": "Wybierz linię, aby zobaczyć dostępność składników.",
+      "pilotWoTitle": "Zlecenie pilotażowe",
+      "createPilotWo": "Utwórz zlecenie pilotażowe",
+      "creatingPilotWo": "Tworzenie zlecenia pilotażowego…",
+      "pilotWoLinked": "Zlecenie pilotażowe:",
+      "pilotWoLinkLabel": "{woNumber}",
+      "createPilotWoError": "Nie udało się utworzyć zlecenia pilotażowego. Spróbuj ponownie.",
+      "createPilotWoErrorNoFg": "Powiąż produkt gotowy (FG) z projektem przed utworzeniem zlecenia pilotażowego.",
+      "createPilotWoErrorRecipe": "Zablokuj wersję receptury (lub aktywuj BOM produkcyjny) przed utworzeniem zlecenia pilotażowego.",
+      "createPilotWoErrorForbidden": "Brak uprawnień do utworzenia zlecenia pilotażowego.",
+      "createPilotWoErrorPlanning": "Planowanie odrzuciło zlecenie"
     },
     "trial": {
       "title": "Próby laboratoryjne i kuchenne",

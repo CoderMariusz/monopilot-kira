@@ -34,10 +34,13 @@ import {
   type PilotActionOutcome,
   type LoadRecipeMaterialsCall,
   type UpsertRunCall,
+  type CreatePilotWoCall,
+  type CreatePilotWoOutcome,
 } from './_components/pilot-screen';
 import { getPilotRun, hasPilotPermission } from './_actions/get-pilot-run';
 import { togglePilotChecklistItem } from './_actions/toggle-pilot-checklist-item';
 import { upsertPilotRun } from './_actions/upsert-pilot-run';
+import { createPilotWorkOrder, getPilotWorkOrderLink } from './_actions/create-pilot-wo';
 import { listProductionLines } from './_actions/list-production-lines';
 import { getPilotRecipeMaterials } from './_actions/get-pilot-recipe-materials';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -60,6 +63,7 @@ type LoaderResult = {
   supervisors: SupervisorOption[];
   lines: ProductionLineOption[];
   recipeMaterials: PilotRecipeMaterialView[];
+  pilotWorkOrder: PilotScreenData['pilotWorkOrder'];
 };
 
 type QueryClient = {
@@ -118,6 +122,16 @@ const DEFAULT_LABELS: PilotLabels = {
   saving: 'Saving…',
   cancel: 'Cancel',
   saveError: 'Could not save. Check the values and try again.',
+  pilotWoTitle: 'Pilot work order',
+  createPilotWo: 'Create pilot WO',
+  creatingPilotWo: 'Creating pilot WO…',
+  pilotWoLinked: 'Pilot work order:',
+  pilotWoLinkLabel: '{woNumber}',
+  createPilotWoError: 'Could not create the pilot work order. Try again.',
+  createPilotWoErrorNoFg: 'Link a finished-good product to this project before creating a pilot work order.',
+  createPilotWoErrorRecipe: 'Lock the recipe version (or activate a production BOM) before creating a pilot work order.',
+  createPilotWoErrorForbidden: 'You do not have permission to create a pilot work order.',
+  createPilotWoErrorPlanning: 'Planning rejected the work order',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof PilotLabels>;
@@ -200,10 +214,11 @@ async function readRecipeMaterials(
 }
 
 async function readPageData(projectId: string): Promise<LoaderResult> {
-  const [{ canWrite, supervisors }, result, lines] = await Promise.all([
+  const [{ canWrite, supervisors }, result, lines, pilotWorkOrder] = await Promise.all([
     readWriteContext(),
     getPilotRun({ projectId }),
     readLines(),
+    getPilotWorkOrderLink(projectId),
   ]);
 
   if (result.ok) {
@@ -216,8 +231,9 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       canWrite,
       lines,
       recipeMaterials,
+      pilotWorkOrder,
     };
-    return { state: 'ready', data, canWrite, supervisors, lines, recipeMaterials };
+    return { state: 'ready', data, canWrite, supervisors, lines, recipeMaterials, pilotWorkOrder };
   }
   switch (result.error) {
     case 'forbidden':
@@ -228,13 +244,38 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
         supervisors: [],
         lines: [],
         recipeMaterials: [],
+        pilotWorkOrder: null,
       };
     case 'not_found':
-      return { state: 'empty', data: null, canWrite, supervisors, lines, recipeMaterials: [] };
+      return {
+        state: 'empty',
+        data: null,
+        canWrite,
+        supervisors,
+        lines,
+        recipeMaterials: [],
+        pilotWorkOrder,
+      };
     case 'invalid_input':
-      return { state: 'error', data: null, canWrite, supervisors, lines, recipeMaterials: [] };
+      return {
+        state: 'error',
+        data: null,
+        canWrite,
+        supervisors,
+        lines,
+        recipeMaterials: [],
+        pilotWorkOrder: null,
+      };
     default:
-      return { state: 'error', data: null, canWrite, supervisors, lines, recipeMaterials: [] };
+      return {
+        state: 'error',
+        data: null,
+        canWrite,
+        supervisors,
+        lines,
+        recipeMaterials: [],
+        pilotWorkOrder: null,
+      };
   }
 }
 
@@ -304,6 +345,15 @@ export default async function PilotPage(propsInput: unknown = {}) {
     return readRecipeMaterials(projectId, call.lineCode);
   }
 
+  async function createPilotWoAction(call: CreatePilotWoCall): Promise<CreatePilotWoOutcome> {
+    'use server';
+    const result = await createPilotWorkOrder({ projectId: call.projectId });
+    if (!result.ok) {
+      return { ok: false, error: result.error, message: result.message ?? result.planningError };
+    }
+    return { ok: true, workOrder: result.data, created: result.created };
+  }
+
   const injected = props.data !== undefined || props.state !== undefined;
   const loaded: LoaderResult = injected
     ? {
@@ -313,6 +363,7 @@ export default async function PilotPage(propsInput: unknown = {}) {
         supervisors: props.data?.supervisors ?? [],
         lines: props.data?.lines ?? [],
         recipeMaterials: props.data?.recipeMaterials ?? [],
+        pilotWorkOrder: props.data?.pilotWorkOrder ?? null,
       }
     : await readPageData(projectId);
   const stageSections = await readStageSections(projectId);
@@ -344,9 +395,13 @@ export default async function PilotPage(propsInput: unknown = {}) {
         supervisors={loaded.supervisors}
         lines={loaded.lines}
         recipeMaterials={loaded.recipeMaterials}
+        pilotWorkOrder={loaded.pilotWorkOrder}
+        projectId={projectId}
         onToggleChecklistItem={toggleChecklistAction}
         onUpsertRun={upsertRunAction}
         onLoadRecipeMaterials={loadRecipeMaterialsAction}
+        onCreatePilotWo={createPilotWoAction}
+        locale={locale}
       />
       {stageSections ? <StageDeptSections projectId={projectId} stage="pilot" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
     </>

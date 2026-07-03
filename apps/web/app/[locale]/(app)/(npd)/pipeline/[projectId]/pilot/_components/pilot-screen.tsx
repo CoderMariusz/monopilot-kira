@@ -90,6 +90,11 @@ export type PilotRunView = {
 
 export type SupervisorOption = { id: string; name: string };
 
+export type PilotWorkOrderLinkView = {
+  id: string;
+  woNumber: string;
+};
+
 export type PilotScreenData = {
   run: PilotRunView;
   checklist: PilotChecklistItemView[];
@@ -97,6 +102,8 @@ export type PilotScreenData = {
   supervisors: SupervisorOption[];
   /** True when the caller holds npd.pilot.write (server-resolved, never client-trusted). */
   canWrite: boolean;
+  /** Linked pilot work order, when one already exists for this project. */
+  pilotWorkOrder?: PilotWorkOrderLinkView | null;
   /**
    * Recipe ingredients (auto from the latest non-draft formulation), already
    * resolved against the persisted line's warehouse on the server. The screen
@@ -168,12 +175,30 @@ export type PilotLabels = {
   saving: string;
   cancel: string;
   saveError: string;
+  /** Pilot WO affordances (D9). */
+  pilotWoTitle: string;
+  createPilotWo: string;
+  creatingPilotWo: string;
+  pilotWoLinked: string;
+  /** "{woNumber}" placeholder. */
+  pilotWoLinkLabel: string;
+  createPilotWoError: string;
+  createPilotWoErrorNoFg: string;
+  createPilotWoErrorRecipe: string;
+  createPilotWoErrorForbidden: string;
+  createPilotWoErrorPlanning: string;
 };
 
 export type ToggleChecklistCall = { itemId: string; isChecked: boolean };
 export type ToggleChecklistOutcome = { ok: boolean; error?: string };
 
 export type PilotActionOutcome = { ok: boolean; error?: string };
+
+export type CreatePilotWoCall = { projectId: string };
+
+export type CreatePilotWoOutcome =
+  | { ok: true; workOrder: PilotWorkOrderLinkView; created: boolean }
+  | { ok: false; error: string; message?: string };
 
 export type PilotRunStatus = 'planned' | 'in_progress' | 'completed';
 
@@ -297,9 +322,13 @@ export function PilotScreen({
   supervisors = [],
   lines = [],
   recipeMaterials,
+  pilotWorkOrder: pilotWorkOrderProp,
+  projectId: projectIdProp,
   onToggleChecklistItem,
   onUpsertRun,
+  onCreatePilotWo,
   onLoadRecipeMaterials,
+  locale = 'en',
 }: {
   state?: PageState;
   data: PilotScreenData | null;
@@ -315,8 +344,15 @@ export function PilotScreen({
    * Overrides `data.recipeMaterials` when provided (test seam / explicit prop).
    */
   recipeMaterials?: PilotRecipeMaterialView[];
+  /** Pilot WO link for empty-state rendering (when `data` is null). */
+  pilotWorkOrder?: PilotWorkOrderLinkView | null;
+  /** Project id for empty-state pilot WO create. */
+  projectId?: string;
   onToggleChecklistItem?: (call: ToggleChecklistCall) => Promise<ToggleChecklistOutcome>;
   onUpsertRun?: (call: UpsertRunCall) => Promise<PilotActionOutcome>;
+  onCreatePilotWo?: (call: CreatePilotWoCall) => Promise<CreatePilotWoOutcome>;
+  /** Locale prefix for production WO deep links (e.g. "en"). */
+  locale?: string;
   /**
    * Re-derive recipe ingredients + availability for a line. Called when the
    * line changes so Available/Reserved track the new warehouse without a full
@@ -328,6 +364,16 @@ export function PilotScreen({
   const [optimistic, setOptimistic] = React.useState<Record<string, boolean>>({});
   // Run-plan modal (planning a new run OR editing the existing one).
   const [runModalOpen, setRunModalOpen] = React.useState(false);
+  const [pilotWo, setPilotWo] = React.useState<PilotWorkOrderLinkView | null>(
+    data?.pilotWorkOrder ?? pilotWorkOrderProp ?? null,
+  );
+  const [pilotWoBusy, setPilotWoBusy] = React.useState(false);
+  const [pilotWoError, setPilotWoError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setPilotWo(data?.pilotWorkOrder ?? pilotWorkOrderProp ?? null);
+    setPilotWoError(null);
+  }, [data?.pilotWorkOrder, pilotWorkOrderProp, data?.run.id]);
 
   // Recipe materials are auto-derived (NOT typed by the user). Seed from the
   // server-resolved prop, then re-derive client-side when the line changes.
@@ -350,6 +396,43 @@ export function PilotScreen({
   // action still renders correctly).
   const canEdit = data?.canWrite ?? canWrite;
   const canEditRun = canEdit && Boolean(onUpsertRun);
+  const canCreatePilotWo = canEdit && Boolean(onCreatePilotWo);
+
+  function pilotWoErrorMessage(error: string, message?: string): string {
+    switch (error) {
+      case 'no_linked_fg':
+        return labels.createPilotWoErrorNoFg;
+      case 'recipe_not_ready':
+        return labels.createPilotWoErrorRecipe;
+      case 'forbidden':
+        return labels.createPilotWoErrorForbidden;
+      case 'wo_create_failed':
+        return message
+          ? `${labels.createPilotWoErrorPlanning}: ${message}`
+          : labels.createPilotWoErrorPlanning;
+      default:
+        return labels.createPilotWoError;
+    }
+  }
+
+  async function handleCreatePilotWo() {
+    const pid = data?.run.projectId ?? projectIdProp;
+    if (!onCreatePilotWo || !pid) return;
+    setPilotWoBusy(true);
+    setPilotWoError(null);
+    try {
+      const result = await onCreatePilotWo({ projectId: pid });
+      if (!result.ok) {
+        setPilotWoError(pilotWoErrorMessage(result.error, result.message));
+        return;
+      }
+      setPilotWo(result.workOrder);
+    } catch {
+      setPilotWoError(labels.createPilotWoError);
+    } finally {
+      setPilotWoBusy(false);
+    }
+  }
 
   /**
    * Re-derive recipe availability for a newly-chosen line. Invoked from the
@@ -384,6 +467,7 @@ export function PilotScreen({
   if (state !== 'ready' || !data) {
     // Empty + writable → show the "+ Plan pilot run" planner instead of a dead end.
     const canPlan = state === 'empty' && canEditRun;
+    const canCreateWoEmpty = state === 'empty' && canCreatePilotWo;
     return (
       <main
         data-testid="pilot-screen"
@@ -406,6 +490,47 @@ export function PilotScreen({
           ) : null}
         </header>
         <StateNotice state={state} labels={labels} />
+        {canCreateWoEmpty || pilotWo ? (
+          <Card data-testid="pilot-wo-card">
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <CardTitle>{labels.pilotWoTitle}</CardTitle>
+              {canCreateWoEmpty && !pilotWo ? (
+                <Button
+                  type="button"
+                  className="btn-sm"
+                  data-testid="create-pilot-wo-button"
+                  disabled={pilotWoBusy}
+                  onClick={() => void handleCreatePilotWo()}
+                >
+                  {pilotWoBusy ? labels.creatingPilotWo : labels.createPilotWo}
+                </Button>
+              ) : null}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pilotWoError ? (
+                <div role="alert" data-testid="create-pilot-wo-error" className="alert alert-red">
+                  <div className="alert-title">{pilotWoError}</div>
+                </div>
+              ) : null}
+              {pilotWo ? (
+                <p data-testid="pilot-wo-link-row" className="text-sm">
+                  <span className="muted">{labels.pilotWoLinked}</span>{' '}
+                  <a
+                    href={`/${locale}/production/wos/${pilotWo.id}`}
+                    data-testid="pilot-wo-link"
+                    className="font-mono font-medium text-[var(--primary)] underline-offset-2 hover:underline"
+                  >
+                    {interpolate(labels.pilotWoLinkLabel, { woNumber: pilotWo.woNumber })}
+                  </a>
+                </p>
+              ) : (
+                <p className="muted text-sm" data-testid="pilot-wo-empty">
+                  {labels.createPilotWo}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
         {canPlan ? (
           <PilotRunModal
             open={runModalOpen}
@@ -485,6 +610,46 @@ export function PilotScreen({
       <div role="note" data-testid="pilot-info-bar" className="alert alert-blue">
         <strong>{labels.scheduledPilot}</strong> <span data-testid="pilot-info-body">{scheduledBody}</span>
       </div>
+
+      <Card data-testid="pilot-wo-card">
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <CardTitle>{labels.pilotWoTitle}</CardTitle>
+          {canCreatePilotWo && !pilotWo ? (
+            <Button
+              type="button"
+              className="btn-sm"
+              data-testid="create-pilot-wo-button"
+              disabled={pilotWoBusy}
+              onClick={() => void handleCreatePilotWo()}
+            >
+              {pilotWoBusy ? labels.creatingPilotWo : labels.createPilotWo}
+            </Button>
+          ) : null}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {pilotWoError ? (
+            <div role="alert" data-testid="create-pilot-wo-error" className="alert alert-red">
+              <div className="alert-title">{pilotWoError}</div>
+            </div>
+          ) : null}
+          {pilotWo ? (
+            <p data-testid="pilot-wo-link-row" className="text-sm">
+              <span className="muted">{labels.pilotWoLinked}</span>{' '}
+              <a
+                href={`/${locale}/production/wos/${pilotWo.id}`}
+                data-testid="pilot-wo-link"
+                className="font-mono font-medium text-[var(--primary)] underline-offset-2 hover:underline"
+              >
+                {interpolate(labels.pilotWoLinkLabel, { woNumber: pilotWo.woNumber })}
+              </a>
+            </p>
+          ) : (
+            <p className="muted text-sm" data-testid="pilot-wo-empty">
+              {labels.createPilotWo}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Pilot run plan — prototype lines 364-372. */}
       <Card data-testid="pilot-plan-card">
