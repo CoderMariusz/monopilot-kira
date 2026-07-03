@@ -105,6 +105,7 @@ export function IngredientRow({
   labels,
   disabled,
   error,
+  cascadeControl,
   searchItemsAction,
   currency = 'GBP',
   onChange,
@@ -117,6 +118,7 @@ export function IngredientRow({
   labels: IngredientRowLabels;
   disabled: boolean;
   error: RowError | undefined;
+  cascadeControl?: React.ReactNode;
   /** Org-scoped item-search Server Action for the ingredient picker. */
   searchItemsAction: ItemSearchFn;
   /**
@@ -142,6 +144,7 @@ export function IngredientRow({
             master — the free-text rmCode <Input> is replaced by the ItemPicker
             combobox. The chosen item's code/name/cost/allergen populate the row. */}
         <div className="flex items-center gap-2" data-field="rmCode">
+          {cascadeControl}
           {ingredient.rmCode ? (
             <span
               className="mono text-xs font-semibold"

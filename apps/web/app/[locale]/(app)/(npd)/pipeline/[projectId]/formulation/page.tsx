@@ -51,6 +51,7 @@ import { createFormulationVersion } from '../../../../../../(npd)/pipeline/[proj
 // 'use server' shim — that breaks the production build.
 import { submitForTrial } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/submit-for-trial';
 import { compareVersions } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/compare-versions';
+import { loadRecipeCascade } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade';
 // C1 — lock recipe: import the legacy-tree action DIRECTLY (no re-export shim).
 import { lockVersion } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/lock-version';
 // A6 — unlock recipe: import the legacy-tree action DIRECTLY (no re-export shim).
@@ -851,6 +852,7 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       recomputeAction={recomputeAndCache}
       submitForTrialAction={submitForTrial}
       compareVersionsAction={compareVersions}
+      loadRecipeCascadeAction={loadRecipeCascade}
       // C1 — lock recipe: only thread the action when the user can write (same
       // gate as save). The action ALSO enforces `npd.formulation.lock` server-side
       // and surfaces `forbidden` inline if the user lacks the lock grant.

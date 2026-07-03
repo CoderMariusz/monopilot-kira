@@ -5009,7 +5009,13 @@
       },
       "submitErrorNotLocked": "Lock the recipe version before submitting for trial.",
       "wipNoFgTitle": "No Finished Good linked",
-      "wipNoFgBody": "Link or create a Finished Good for this project to edit production / WIP processes on the Recipe stage."
+      "wipNoFgBody": "Link or create a Finished Good for this project to edit production / WIP processes on the Recipe stage.",
+      "cascadeToggle": "Toggle sub-recipe",
+      "cascadeLoading": "Loading sub-recipe…",
+      "cascadeCycle": "Cycle detected in sub-recipe.",
+      "cascadeMaxDepth": "Max depth reached.",
+      "cascadeNutritionEmpty": "No nutrition data",
+      "cascadeTotal": "Sub-recipe total"
     },
     "costPanel": {
       "title": "Вартість і маржа",

@@ -69,6 +69,10 @@ import {
   type NutritionTargets,
 } from './nutrition-panel';
 import { UnlockVersionModal } from './unlock-version-modal';
+import type {
+  RecipeCascadeNode,
+  RecipeCascadeSubRecipe,
+} from '../../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade.types';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
@@ -369,6 +373,11 @@ export type UnlockVersionAction = (input: {
     }
 >;
 
+export type LoadRecipeCascadeAction = (
+  projectId: string,
+  formulationVersionId: string,
+) => Promise<RecipeCascadeNode[]>;
+
 /** Row-level Zod schema (Costing v2): qtyKg ≥ 0, rm_code required (AC#3). */
 const RowSchema = z.object({
   rmCode: z.string().trim().min(1),
@@ -607,6 +616,7 @@ export function FormulationEditor({
   createVersionAction,
   lockVersionAction,
   unlockVersionAction,
+  loadRecipeCascadeAction,
   updatePackWeightAction,
   searchItemsAction,
   projectId,
@@ -645,6 +655,8 @@ export function FormulationEditor({
   lockVersionAction?: LockVersionAction;
   /** Unlock-version Server Action (A6) — returns a locked version to draft (e-sign PIN). Gated server-side. */
   unlockVersionAction?: UnlockVersionAction;
+  /** D15 — read-only lazy cascade tree loader for processed/WIP ingredients. */
+  loadRecipeCascadeAction?: LoadRecipeCascadeAction;
   /** Costing v2: persist the editable batch size (= pack weight g) via the brief action. */
   updatePackWeightAction?: UpdatePackWeightAction;
   /** Lane-B: org-scoped item-search action for the ingredient picker (defaults to searchItems). */
@@ -703,6 +715,45 @@ export function FormulationEditor({
   // it never just swaps a local label while the editor keeps the old rows.
   const versionId = data?.versionId ?? '';
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>('idle');
+  const [cascadeRows, setCascadeRows] = React.useState<RecipeCascadeNode[] | null>(null);
+  const [cascadeLoading, setCascadeLoading] = React.useState(false);
+  const [expandedCascadeIds, setExpandedCascadeIds] = React.useState<Set<string>>(() => new Set());
+
+  React.useEffect(() => {
+    setCascadeRows(null);
+    setExpandedCascadeIds(new Set());
+    setCascadeLoading(false);
+  }, [versionId]);
+
+  const cascadeByLineId = React.useMemo(
+    () => new Map((cascadeRows ?? []).map((node) => [node.ingredientLineId, node])),
+    [cascadeRows],
+  );
+
+  const ensureCascadeLoaded = React.useCallback(async () => {
+    if (!loadRecipeCascadeAction || !data || cascadeRows || cascadeLoading) return;
+    setCascadeLoading(true);
+    try {
+      setCascadeRows(await loadRecipeCascadeAction(data.projectId, versionId));
+    } catch {
+      setCascadeRows([]);
+    } finally {
+      setCascadeLoading(false);
+    }
+  }, [cascadeRows, cascadeLoading, data, loadRecipeCascadeAction, versionId]);
+
+  const toggleCascade = React.useCallback(
+    (lineId: string) => {
+      setExpandedCascadeIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(lineId)) next.delete(lineId);
+        else next.add(lineId);
+        return next;
+      });
+      void ensureCascadeLoaded();
+    },
+    [ensureCascadeLoaded],
+  );
 
   /**
    * Navigate the RSC to load a specific version. The page reads `?version=<id>`
@@ -1309,6 +1360,67 @@ export function FormulationEditor({
           ? labels.saveError
           : labels.saveDraft;
 
+  const renderCascadeRows = (
+    subRecipe: RecipeCascadeSubRecipe | undefined,
+    parentKey: string,
+    depth: number,
+  ): React.ReactNode => {
+    if (!subRecipe) return null;
+    if (subRecipe.cycle) {
+      return (
+        <TableRow key={`${parentKey}-cycle`} data-testid="recipe-cascade-cycle">
+          <TableCell colSpan={6} className="text-xs text-red-600">
+            {/* TODO(i18n): npd.formulationEditor.cascadeCycle */}
+            Cycle detected in sub-recipe.
+          </TableCell>
+        </TableRow>
+      );
+    }
+    if (subRecipe.maxDepthReached) {
+      return (
+        <TableRow key={`${parentKey}-max-depth`} data-testid="recipe-cascade-max-depth">
+          <TableCell colSpan={6} className="text-xs muted">
+            {/* TODO(i18n): npd.formulationEditor.cascadeMaxDepth */}
+            Max depth reached.
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    return subRecipe.lines.flatMap((line, idx) => {
+      const lineKey = `${parentKey}-${line.itemCode || idx}-${depth}`;
+      const nutritionSummary = Object.entries(line.nutritionPer100g ?? {})
+        .slice(0, 3)
+        .map(([code, value]) => `${code}: ${value}`)
+        .join(' · ');
+      const children =
+        line.subRecipe && depth < 3
+          ? renderCascadeRows(line.subRecipe, lineKey, depth + 1)
+          : line.subRecipe?.maxDepthReached
+            ? renderCascadeRows(line.subRecipe, lineKey, depth + 1)
+            : null;
+      return [
+        <TableRow key={lineKey} data-testid="recipe-cascade-sub-row" className="bg-slate-50/60">
+          <TableCell style={{ paddingLeft: `${depth * 1.5 + 1}rem` }}>
+            <div className="text-xs font-medium">{line.itemName}</div>
+            <div className="mono text-[10px] muted">{line.itemCode}</div>
+          </TableCell>
+          <TableCell className="text-right mono">{line.pct ? `${line.pct}%` : '—'}</TableCell>
+          <TableCell className="text-right mono">
+            {`${line.unitCost.toFixed(3)} ${symbolFor(currency)}`}
+          </TableCell>
+          <TableCell className="text-right mono">—</TableCell>
+          <TableCell className="text-xs muted">
+            {/* TODO(i18n): npd.formulationEditor.cascadeNutritionEmpty */}
+            {nutritionSummary || 'No nutrition data'}
+          </TableCell>
+          <TableCell />
+        </TableRow>,
+        children,
+      ];
+    });
+  };
+
   return (
     <main
       data-testid="formulation-editor"
@@ -1640,22 +1752,68 @@ export function FormulationEditor({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((ingredient, index) => (
-                    <IngredientRow
-                      key={ingredient.id}
-                      ingredient={ingredient}
-                      index={index}
-                      labels={labels}
-                      disabled={!editable}
-                      error={errors[ingredient.id]}
-                      searchItemsAction={searchAction}
-                      currency={currency}
-                      onChange={handleChange}
-                      onSelectItem={handleSelectItem}
-                      onCommit={handleCommit}
-                      onDelete={handleDelete}
-                    />
-                  ))}
+                  {rows.map((ingredient, index) => {
+                    const cascadeNode = cascadeByLineId.get(ingredient.id);
+                    const expanded = expandedCascadeIds.has(ingredient.id);
+                    const canExpand = Boolean(loadRecipeCascadeAction && ingredient.itemId);
+                    return (
+                      <React.Fragment key={ingredient.id}>
+                        <IngredientRow
+                          ingredient={ingredient}
+                          index={index}
+                          labels={labels}
+                          disabled={!editable}
+                          error={errors[ingredient.id]}
+                          cascadeControl={
+                            canExpand ? (
+                              <Button
+                                type="button"
+                                className="btn-ghost btn-icon h-6 w-6"
+                                aria-expanded={expanded}
+                                // TODO(i18n): npd.formulationEditor.cascadeToggle
+                                aria-label={`Toggle sub-recipe for ${ingredient.name || ingredient.rmCode}`}
+                                data-testid="recipe-cascade-toggle"
+                                onClick={() => toggleCascade(ingredient.id)}
+                              >
+                                <span aria-hidden="true">{expanded ? '⌄' : '›'}</span>
+                              </Button>
+                            ) : null
+                          }
+                          searchItemsAction={searchAction}
+                          currency={currency}
+                          onChange={handleChange}
+                          onSelectItem={handleSelectItem}
+                          onCommit={handleCommit}
+                          onDelete={handleDelete}
+                        />
+                        {expanded && cascadeLoading && !cascadeRows ? (
+                          <TableRow data-testid="recipe-cascade-loading">
+                            <TableCell colSpan={6} className="text-xs muted">
+                              {/* TODO(i18n): npd.formulationEditor.cascadeLoading */}
+                              Loading sub-recipe…
+                            </TableCell>
+                          </TableRow>
+                        ) : expanded && cascadeNode?.hasSubRecipe ? (
+                          <>
+                            {renderCascadeRows(cascadeNode.subRecipe, ingredient.id, 1)}
+                            <TableRow data-testid="recipe-cascade-total" className="bg-slate-50/60">
+                              <TableCell className="text-xs font-semibold">
+                                {/* TODO(i18n): npd.formulationEditor.cascadeTotal */}
+                                Sub-recipe total
+                              </TableCell>
+                              <TableCell />
+                              <TableCell />
+                              <TableCell className="text-right mono">
+                                {`${(cascadeNode.subRecipe?.totalCost ?? 0).toFixed(3)} ${symbolFor(currency)}`}
+                              </TableCell>
+                              <TableCell />
+                              <TableCell />
+                            </TableRow>
+                          </>
+                        ) : null}
+                      </React.Fragment>
+                    );
+                  })}
                   <TableRow data-testid="total-row" className="font-semibold">
                     <TableCell>{labels.total}</TableCell>
                     <TableCell

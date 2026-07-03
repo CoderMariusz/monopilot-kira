@@ -1,0 +1,138 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { loadRecipeCascade } from './load-recipe-cascade';
+
+type QueryClient = {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<{ rows: T[] }>;
+};
+
+const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
+const VERSION_ID = '22222222-2222-4222-8222-222222222222';
+const USER_ID = '33333333-3333-4333-8333-333333333333';
+const ORG_ID = '44444444-4444-4444-8444-444444444444';
+
+let client: QueryClient;
+let rootCode = 'WIP-A';
+let versionsByCode: Record<string, string>;
+let componentsByVersion: Record<string, Array<Record<string, unknown>>>;
+let queries: string[];
+
+vi.mock('../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: vi.fn(
+    async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+  ),
+}));
+
+function normalize(sql: string): string {
+  return sql.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function makeClient(): QueryClient {
+  return {
+    query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
+      const q = normalize(sql);
+      queries.push(q);
+      if (q.includes('join public.formulation_versions fv') && q.includes('join public.formulation_ingredients fi')) {
+        return {
+          rows: [
+            {
+              ingredient_line_id: 'line-root',
+              item_code: rootCode,
+              item_name: rootCode,
+            },
+          ],
+        };
+      }
+      if (q.includes('f.product_code = $1::text')) {
+        const itemCode = String(params?.[0] ?? '');
+        const version = versionsByCode[itemCode];
+        return { rows: version ? [{ version_id: version }] : [] };
+      }
+      if (q.includes('from public.formulation_ingredients fi')) {
+        const versionId = String(params?.[0] ?? '');
+        return { rows: componentsByVersion[versionId] ?? [] };
+      }
+      throw new Error(`unexpected query: ${q}`);
+    }),
+  };
+}
+
+beforeEach(() => {
+  queries = [];
+  rootCode = 'WIP-A';
+  versionsByCode = {};
+  componentsByVersion = {};
+  client = makeClient();
+});
+
+describe('loadRecipeCascade', () => {
+  it('stops recursive expansion at depth 3', async () => {
+    versionsByCode = {
+      'WIP-A': 'version-a',
+      'WIP-B': 'version-b',
+      'WIP-C': 'version-c',
+    };
+    componentsByVersion = {
+      'version-a': [line('WIP-B', 'Blend B', '50', '0.5', '2')],
+      'version-b': [line('WIP-C', 'Blend C', '25', '0.25', '3')],
+      'version-c': [line('RM-D', 'Raw D', '10', '0.1', '4')],
+    };
+
+    const result = await loadRecipeCascade(PROJECT_ID, VERSION_ID);
+
+    const first = result[0]?.subRecipe?.lines[0];
+    const second = first?.subRecipe?.lines[0];
+    expect(second?.subRecipe).toMatchObject({ maxDepthReached: true, lines: [] });
+    expect(queries.filter((q) => q.includes('where fi.version_id = $1::uuid'))).toHaveLength(2);
+  });
+
+  it('marks a repeated item code as a cycle', async () => {
+    versionsByCode = { 'WIP-A': 'version-a' };
+    componentsByVersion = {
+      'version-a': [line('WIP-A', 'Blend A again', '100', '1', '1')],
+    };
+
+    const result = await loadRecipeCascade(PROJECT_ID, VERSION_ID);
+
+    expect(result[0]?.subRecipe?.lines[0]?.subRecipe).toMatchObject({ cycle: true, lines: [] });
+  });
+
+  it('reads unit cost from public.v_item_effective_cost', async () => {
+    versionsByCode = { 'WIP-A': 'version-a' };
+    componentsByVersion = {
+      'version-a': [line('RM-1', 'Raw 1', '100', '2', '1.23', { protein_g: '12' })],
+    };
+
+    const result = await loadRecipeCascade(PROJECT_ID, VERSION_ID);
+
+    expect(result[0]?.subRecipe?.lines[0]).toMatchObject({
+      itemCode: 'RM-1',
+      unitCost: 1.23,
+      nutritionPer100g: { protein_g: 12 },
+    });
+    expect(result[0]?.subRecipe?.totalCost).toBe(2.46);
+    expect(queries.some((q) => q.includes('public.v_item_effective_cost'))).toBe(true);
+  });
+});
+
+function line(
+  itemCode: string,
+  itemName: string,
+  pct: string,
+  qtyKg: string,
+  unitCost: string,
+  nutritionPer100g: Record<string, unknown> | null = null,
+): Record<string, unknown> {
+  return {
+    item_code: itemCode,
+    item_name: itemName,
+    pct,
+    qty_kg: qtyKg,
+    unit_cost: unitCost,
+    nutrition_per_100g: nutritionPer100g,
+  };
+}
