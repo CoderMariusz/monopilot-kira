@@ -65,6 +65,26 @@ const LABELS: TrialLabels = {
   cancel: 'Cancel',
   saveError: 'Could not save the trial. Try again.',
   duplicateError: 'A trial with this number already exists for this project.',
+  colLineTime: 'Line time',
+  lineTimeNotBooked: 'Not booked',
+  bookLineTime: 'Book line time',
+  rebookLineTime: 'Re-book',
+  bookLineTimeModalTitle: 'Book line time',
+  rebookLineTimeModalTitle: 'Re-book line time',
+  fieldLine: 'Production line',
+  linePlaceholder: 'Select a line…',
+  noLines: 'No production lines configured.',
+  fieldBlockDate: 'Date',
+  fieldStartTime: 'Start time',
+  fieldEndTime: 'End time',
+  bookLineTimeSaving: 'Saving…',
+  bookLineTimeError: 'Could not book line time. Try again.',
+  bookLineTimeErrorInvalidInput: 'Check the line, date, and time fields.',
+  bookLineTimeErrorInvalidRange: 'End time must be after start time.',
+  bookLineTimeErrorForbidden: 'You do not have permission to book line time.',
+  bookLineTimeErrorInvalidLine: 'The selected line is not available.',
+  bookLineTimeErrorTrialNotFound: 'This trial could not be found.',
+  bookLineTimeErrorPersistence: 'Could not save the booking. Try again.',
   loading: 'Loading trials…',
   empty: 'No trials logged yet',
   emptyBody: 'Log a small-batch run to validate the recipe before pilot.',
@@ -117,6 +137,9 @@ const DATA: TrialScreenData = {
     { id: 'u2', name: 'B. Tech' },
   ],
   canWrite: true,
+  canBookLineTime: true,
+  lines: [{ id: 'line-1', code: 'LINE-01', name: 'Line One' }],
+  capacityBookings: {},
 };
 
 function renderReady(extra?: Partial<React.ComponentProps<typeof TrialScreen>>) {
@@ -131,10 +154,15 @@ describe('TrialScreen — parity', () => {
     expect(screen.getByText(LABELS.subtitle)).toBeInTheDocument();
   });
 
-  it('renders the 7 prototype data columns in order (Edit affordance is additive)', () => {
-    // canWrite=false → the additive Actions column is absent, so the header is
-    // byte-identical to the prototype's 7-column table (222-257).
-    render(<TrialScreen state="ready" data={{ ...DATA, canWrite: false }} labels={LABELS} />);
+  it('renders the 7 prototype data columns in order (Line time + Actions are additive)', () => {
+    // canWrite=false, canBookLineTime=false → additive Line time column only.
+    render(
+      <TrialScreen
+        state="ready"
+        data={{ ...DATA, canWrite: false, canBookLineTime: false }}
+        labels={LABELS}
+      />,
+    );
     const heads = within(screen.getByTestId('trial-table'))
       .getAllByRole('columnheader')
       .map((h) => h.textContent);
@@ -146,15 +174,16 @@ describe('TrialScreen — parity', () => {
       LABELS.colTechnologist,
       LABELS.colResult,
       LABELS.colNotes,
+      LABELS.colLineTime,
     ]);
   });
 
-  it('keeps the 7 prototype data columns first when an additive Actions column is shown', () => {
+  it('keeps the 7 prototype data columns first when additive Line time + Actions columns are shown', () => {
     renderReady({ onUpdateTrial: vi.fn() });
     const heads = within(screen.getByTestId('trial-table'))
       .getAllByRole('columnheader')
       .map((h) => h.textContent);
-    // First 7 columns unchanged; an 8th (sr-only "Actions") is appended.
+    // First 7 columns unchanged; Line time + sr-only Actions are appended.
     expect(heads.slice(0, 7)).toEqual([
       LABELS.colTrialNo,
       LABELS.colDate,
@@ -164,7 +193,8 @@ describe('TrialScreen — parity', () => {
       LABELS.colResult,
       LABELS.colNotes,
     ]);
-    expect(heads).toHaveLength(8);
+    expect(heads).toHaveLength(9);
+    expect(heads[7]).toBe(LABELS.colLineTime);
     expect(screen.getByTestId('trial-actions-head')).toHaveTextContent(LABELS.colActions);
   });
 
@@ -201,7 +231,11 @@ describe('TrialScreen — parity', () => {
 
   it('hides the write CTA when the caller cannot write (RBAC, server-resolved)', () => {
     render(
-      <TrialScreen state="ready" data={{ ...DATA, canWrite: false }} labels={LABELS} />,
+      <TrialScreen
+        state="ready"
+        data={{ ...DATA, canWrite: false, canBookLineTime: false }}
+        labels={LABELS}
+      />,
     );
     expect(screen.queryByTestId('log-new-trial-button')).toBeNull();
   });
@@ -285,7 +319,7 @@ describe('TrialScreen — edit logged trial', () => {
     render(
       <TrialScreen
         state="ready"
-        data={{ ...DATA, canWrite: false }}
+        data={{ ...DATA, canWrite: false, canBookLineTime: false }}
         labels={LABELS}
         onUpdateTrial={vi.fn()}
       />,
@@ -347,5 +381,117 @@ describe('TrialScreen — edit logged trial', () => {
     // No refresh on failure; modal stays open for correction.
     expect(refresh).not.toHaveBeenCalled();
     expect(screen.getByTestId('edit-trial-form')).toBeInTheDocument();
+  });
+});
+
+describe('TrialScreen — book line time', () => {
+  it('shows "Not booked" when no capacity block exists', () => {
+    renderReady();
+    expect(screen.getByTestId('trial-line-time-t1')).toHaveTextContent(LABELS.lineTimeNotBooked);
+  });
+
+  it('shows the booked window when a capacity block exists', () => {
+    renderReady({
+      data: {
+        ...DATA,
+        capacityBookings: {
+          t1: {
+            id: 'cb-1',
+            trialId: 't1',
+            lineId: 'line-1',
+            lineCode: 'LINE-01',
+            lineName: 'Line One',
+            blockDate: '2025-12-10',
+            startTime: '09:00',
+            endTime: '12:00',
+          },
+        },
+      },
+    });
+    expect(screen.getByTestId('trial-line-time-t1')).toHaveTextContent(
+      '2025-12-10 · Line One · 09:00–12:00',
+    );
+    expect(screen.getByTestId('book-line-time-button-t1')).toHaveTextContent(LABELS.rebookLineTime);
+  });
+
+  it('opens the booking modal with NO raw <select> and submits upsert payload', async () => {
+    const onBookLineTime = vi.fn().mockResolvedValue({ ok: true });
+    const { container } = renderReady({
+      onBookLineTime,
+      data: {
+        ...DATA,
+        capacityBookings: {
+          t1: {
+            id: 'cb-1',
+            trialId: 't1',
+            lineId: 'line-1',
+            lineCode: 'LINE-01',
+            lineName: 'Line One',
+            blockDate: '2025-12-10',
+            startTime: '09:00',
+            endTime: '12:00',
+          },
+        },
+      },
+    });
+    fireEvent.click(screen.getByTestId('book-line-time-button-t1'));
+    expect(screen.getByTestId('book-line-time-form-t1')).toBeInTheDocument();
+    expect(container.querySelector('select')).toBeNull();
+    fireEvent.change(screen.getByLabelText(LABELS.fieldBlockDate), {
+      target: { value: '2025-12-11' },
+    });
+    fireEvent.change(screen.getByLabelText(LABELS.fieldStartTime), {
+      target: { value: '10:00' },
+    });
+    fireEvent.change(screen.getByLabelText(LABELS.fieldEndTime), {
+      target: { value: '13:00' },
+    });
+    fireEvent.submit(screen.getByTestId('book-line-time-form-t1'));
+    await waitFor(() => expect(onBookLineTime).toHaveBeenCalledTimes(1));
+    expect(onBookLineTime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trialId: 't1',
+        lineId: 'line-1',
+        blockDate: '2025-12-11',
+        startTime: '10:00',
+        endTime: '13:00',
+      }),
+    );
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+  });
+
+  it('surfaces forbidden errors loudly in the modal', async () => {
+    const onBookLineTime = vi.fn().mockResolvedValue({ ok: false, error: 'forbidden' });
+    renderReady({
+      onBookLineTime,
+      data: {
+        ...DATA,
+        capacityBookings: {
+          t1: {
+            id: 'cb-1',
+            trialId: 't1',
+            lineId: 'line-1',
+            lineCode: 'LINE-01',
+            lineName: 'Line One',
+            blockDate: '2025-12-10',
+            startTime: '09:00',
+            endTime: '12:00',
+          },
+        },
+      },
+    });
+    fireEvent.click(screen.getByTestId('book-line-time-button-t1'));
+    fireEvent.submit(screen.getByTestId('book-line-time-form-t1'));
+    await waitFor(() =>
+      expect(screen.getByTestId('book-line-time-error-t1')).toHaveTextContent(
+        LABELS.bookLineTimeErrorForbidden,
+      ),
+    );
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('hides book affordance when the caller lacks planning write (RBAC)', () => {
+    renderReady({ data: { ...DATA, canBookLineTime: false } });
+    expect(screen.queryByTestId('book-line-time-button-t1')).toBeNull();
   });
 });

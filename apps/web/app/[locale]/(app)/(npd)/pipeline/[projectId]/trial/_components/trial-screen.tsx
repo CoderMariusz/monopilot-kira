@@ -32,8 +32,15 @@ import { Button } from '@monopilot/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { BookLineTimeModal } from './book-line-time-modal';
 import { LogTrialModal, TrialFormModal, type TrialFormValues } from './log-trial-modal';
+import type { ProductionLineOption } from '../_lib/capacity-block';
 import type { TrialBatchView, TrialResult } from '../_actions/errors';
+import type {
+  CapacityBlockActionOutcome,
+  TrialCapacityBookingView,
+  UpsertCapacityBlockCall,
+} from '../_lib/capacity-block';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
@@ -46,6 +53,12 @@ export type TrialScreenData = {
   technologists: TechnologistOption[];
   /** True when the caller holds npd.trial.write (server-resolved). */
   canWrite: boolean;
+  /** True when the caller holds npd.planning.write (server-resolved). */
+  canBookLineTime: boolean;
+  /** Active production lines for the line-time picker. */
+  lines: ProductionLineOption[];
+  /** Existing capacity blocks keyed by trial batch id. */
+  capacityBookings: Record<string, TrialCapacityBookingView>;
 };
 
 export type TrialLabels = {
@@ -82,6 +95,27 @@ export type TrialLabels = {
   cancel: string;
   saveError: string;
   duplicateError: string;
+  // Line time booking
+  colLineTime: string;
+  lineTimeNotBooked: string;
+  bookLineTime: string;
+  rebookLineTime: string;
+  bookLineTimeModalTitle: string;
+  rebookLineTimeModalTitle: string;
+  fieldLine: string;
+  linePlaceholder: string;
+  noLines: string;
+  fieldBlockDate: string;
+  fieldStartTime: string;
+  fieldEndTime: string;
+  bookLineTimeSaving: string;
+  bookLineTimeError: string;
+  bookLineTimeErrorInvalidInput: string;
+  bookLineTimeErrorInvalidRange: string;
+  bookLineTimeErrorForbidden: string;
+  bookLineTimeErrorInvalidLine: string;
+  bookLineTimeErrorTrialNotFound: string;
+  bookLineTimeErrorPersistence: string;
   // States
   loading: string;
   empty: string;
@@ -105,6 +139,8 @@ export type LogTrialCall = {
 
 /** Edit payload — same shape as LogTrialCall plus the batch `id` to update. */
 export type UpdateTrialCall = LogTrialCall & { id: string };
+
+export type BookLineTimeCall = UpsertCapacityBlockCall;
 
 function resultVariant(result: TrialResult): BadgeVariant {
   switch (result) {
@@ -152,6 +188,14 @@ function formatBatch(value: string | null): string {
   const [intPart, fracRaw = ''] = value.trim().split('.');
   const frac = fracRaw.replace(/0+$/, '');
   return `${frac ? `${intPart}.${frac}` : intPart} kg`;
+}
+
+function formatLineTimeBooking(
+  booking: TrialCapacityBookingView | undefined,
+  labels: TrialLabels,
+): string {
+  if (!booking) return labels.lineTimeNotBooked;
+  return `${booking.blockDate} · ${booking.lineName} · ${booking.startTime}–${booking.endTime}`;
 }
 
 /**
@@ -213,17 +257,20 @@ export function TrialScreen({
   labels,
   onLogTrial,
   onUpdateTrial,
+  onBookLineTime,
 }: {
   state?: PageState;
   data: TrialScreenData | null;
   labels: TrialLabels;
   onLogTrial?: (call: LogTrialCall) => Promise<TrialActionOutcome>;
   onUpdateTrial?: (call: UpdateTrialCall) => Promise<TrialActionOutcome>;
+  onBookLineTime?: (call: BookLineTimeCall) => Promise<CapacityBlockActionOutcome>;
 }) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = React.useState(false);
   // The row currently being edited (null = edit modal closed).
   const [editingRow, setEditingRow] = React.useState<TrialBatchView | null>(null);
+  const [bookingTrialId, setBookingTrialId] = React.useState<string | null>(null);
 
   // The Log-new-trial button + modal are an OPTIMISTIC affordance: on a
   // successful action the list is revalidated server-side (RSC re-render).
@@ -307,6 +354,17 @@ export function TrialScreen({
     return result;
   }
 
+  async function handleBookLineTime(call: BookLineTimeCall): Promise<CapacityBlockActionOutcome> {
+    if (!onBookLineTime) return { ok: false, error: 'persistence_failed' };
+    const result = await onBookLineTime(call);
+    if (result.ok) {
+      router.refresh();
+    }
+    return result;
+  }
+
+  const bookingExisting = bookingTrialId ? data.capacityBookings[bookingTrialId] ?? null : null;
+
   return (
     <main
       data-testid="trial-screen"
@@ -350,7 +408,8 @@ export function TrialScreen({
                 <TableHead scope="col">{labels.colTechnologist}</TableHead>
                 <TableHead scope="col">{labels.colResult}</TableHead>
                 <TableHead scope="col">{labels.colNotes}</TableHead>
-                {data.canWrite ? (
+                <TableHead scope="col">{labels.colLineTime}</TableHead>
+                {data.canWrite || data.canBookLineTime ? (
                   <TableHead scope="col" data-testid="trial-actions-head">
                     <span className="sr-only">{labels.colActions}</span>
                   </TableHead>
@@ -375,21 +434,40 @@ export function TrialScreen({
                     </Badge>
                   </TableCell>
                   <TableCell className="muted">{t.notes ?? ''}</TableCell>
-                  {data.canWrite ? (
+                  <TableCell
+                    className="mono text-sm"
+                    data-testid={`trial-line-time-${t.id}`}
+                  >
+                    {formatLineTimeBooking(data.capacityBookings[t.id], labels)}
+                  </TableCell>
+                  {data.canWrite || data.canBookLineTime ? (
                     <TableCell className="text-right">
-                      {/* Optimistic rows have a transient id and aren't yet
-                          persisted, so they can't be edited until the refresh. */}
-                      {t.id.startsWith('optimistic-') ? null : (
-                        <Button
-                          type="button"
-                          variant="default"
-                          className="btn-ghost btn-sm"
-                          data-testid={`edit-trial-button-${t.id}`}
-                          onClick={() => setEditingRow(t)}
-                        >
-                          {labels.editTrial}
-                        </Button>
-                      )}
+                      <div className="flex flex-col items-end gap-1">
+                        {/* Optimistic rows have a transient id and aren't yet
+                            persisted, so they can't be edited until the refresh. */}
+                        {data.canWrite && !t.id.startsWith('optimistic-') ? (
+                          <Button
+                            type="button"
+                            variant="default"
+                            className="btn-ghost btn-sm"
+                            data-testid={`edit-trial-button-${t.id}`}
+                            onClick={() => setEditingRow(t)}
+                          >
+                            {labels.editTrial}
+                          </Button>
+                        ) : null}
+                        {data.canBookLineTime && !t.id.startsWith('optimistic-') ? (
+                          <Button
+                            type="button"
+                            variant="default"
+                            className="btn-ghost btn-sm"
+                            data-testid={`book-line-time-button-${t.id}`}
+                            onClick={() => setBookingTrialId(t.id)}
+                          >
+                            {data.capacityBookings[t.id] ? labels.rebookLineTime : labels.bookLineTime}
+                          </Button>
+                        ) : null}
+                      </div>
                     </TableCell>
                   ) : null}
                 </TableRow>
@@ -407,6 +485,20 @@ export function TrialScreen({
           technologists={data.technologists}
           technologistNone={labels.technologistNone}
           onSubmit={handleSubmit}
+        />
+      ) : null}
+
+      {data.canBookLineTime && bookingTrialId ? (
+        <BookLineTimeModal
+          open={bookingTrialId !== null}
+          onOpenChange={(open) => {
+            if (!open) setBookingTrialId(null);
+          }}
+          labels={labels}
+          trialId={bookingTrialId}
+          lines={data.lines}
+          existingBooking={bookingExisting}
+          onSubmit={handleBookLineTime}
         />
       ) : null}
 

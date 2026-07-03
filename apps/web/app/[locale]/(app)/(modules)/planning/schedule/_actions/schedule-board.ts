@@ -35,6 +35,7 @@ import {
   BOARD_WINDOW_DAYS,
   RESCHEDULE_LEGAL_STATUSES,
   type ScheduleBoardData,
+  type ScheduleCapacityBlock,
   type ScheduleBoardLine,
   type ScheduleBoardWo,
 } from '../_lib/board';
@@ -63,6 +64,18 @@ type WoRow = {
   item_name: string | null;
 };
 
+type CapacityBlockRow = {
+  id: string;
+  line_id: string;
+  project_id: string | null;
+  trial_id: string | null;
+  label: string | null;
+  block_date: string;
+  start_time: string;
+  end_time: string;
+  block_type: string;
+};
+
 function mapBoardWo(row: WoRow): ScheduleBoardWo {
   return {
     id: row.id,
@@ -76,6 +89,20 @@ function mapBoardWo(row: WoRow): ScheduleBoardWo {
     scheduledEnd: row.scheduled_end_time ? toIso(row.scheduled_end_time) : null,
     plannedQuantity: String(row.planned_quantity),
     uom: row.uom,
+  };
+}
+
+function mapCapacityBlock(row: CapacityBlockRow): ScheduleCapacityBlock {
+  return {
+    id: row.id,
+    lineId: row.line_id,
+    projectId: row.project_id,
+    trialId: row.trial_id,
+    label: row.label ?? 'NPD trial',
+    blockDate: row.block_date,
+    startTime: row.start_time.slice(0, 5),
+    endTime: row.end_time.slice(0, 5),
+    blockType: row.block_type,
   };
 }
 
@@ -111,6 +138,7 @@ export async function getScheduleBoard(): Promise<GetScheduleBoardResult> {
             lines: [],
             scheduled: [],
             unscheduled: [],
+            capacityBlocks: [],
             noActiveSite: true,
           } as ScheduleBoardData & { noActiveSite: true },
         };
@@ -145,6 +173,28 @@ export async function getScheduleBoard(): Promise<GetScheduleBoardResult> {
         [[...BOARD_STATUSES], s],
       );
 
+      const capacityBlocksResult = await ctx.client.query<CapacityBlockRow>(
+        `select pcb.id::text as id,
+                pcb.line_id::text as line_id,
+                pcb.project_id::text as project_id,
+                pcb.trial_id::text as trial_id,
+                pcb.label,
+                to_char(pcb.block_date, 'YYYY-MM-DD') as block_date,
+                pcb.start_time::text as start_time,
+                pcb.end_time::text as end_time,
+                pcb.block_type
+           from public.planning_capacity_blocks pcb
+           join public.production_lines pl
+             on pl.org_id = pcb.org_id
+            and pl.id = pcb.line_id
+          where pcb.org_id = app.current_org_id()
+            and pl.site_id = $3::uuid
+            and pcb.block_date >= $1::date
+            and pcb.block_date < $2::date
+          order by pcb.block_date, pcb.start_time`,
+        [windowStart.toISOString().slice(0, 10), windowEnd.toISOString().slice(0, 10), s],
+      );
+
       return {
         ok: true,
         data: {
@@ -153,6 +203,7 @@ export async function getScheduleBoard(): Promise<GetScheduleBoardResult> {
           lines: linesResult.rows,
           scheduled: scheduledResult.rows.map(mapBoardWo),
           unscheduled: unscheduledResult.rows.map(mapBoardWo),
+          capacityBlocks: capacityBlocksResult.rows.map(mapCapacityBlock),
         },
       };
     });

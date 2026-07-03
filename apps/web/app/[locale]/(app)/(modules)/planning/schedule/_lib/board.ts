@@ -38,12 +38,25 @@ export type ScheduleBoardWo = {
   uom: string;
 };
 
+export type ScheduleCapacityBlock = {
+  id: string;
+  lineId: string;
+  projectId: string | null;
+  trialId: string | null;
+  label: string;
+  blockDate: string;
+  startTime: string;
+  endTime: string;
+  blockType: string;
+};
+
 export type ScheduleBoardData = {
   windowStart: string; // ISO, UTC midnight today
   windowEnd: string; // ISO, windowStart + 7d
   lines: ScheduleBoardLine[];
   scheduled: ScheduleBoardWo[];
   unscheduled: ScheduleBoardWo[];
+  capacityBlocks: ScheduleCapacityBlock[];
 };
 
 export type BarInterval = {
@@ -90,6 +103,13 @@ export function barInterval(wo: ScheduleBoardWo): BarInterval | null {
   const endParsed = wo.scheduledEnd ? Date.parse(wo.scheduledEnd) : Number.NaN;
   const endMs = Number.isNaN(endParsed) ? startMs + OPEN_END_FALLBACK_MS : endParsed;
   return { id: wo.id, lineId: wo.productionLineId, startMs, endMs: Math.max(endMs, startMs) };
+}
+
+export function capacityBlockInterval(block: ScheduleCapacityBlock): BarInterval | null {
+  const startMs = Date.parse(`${block.blockDate}T${block.startTime}Z`);
+  const endMs = Date.parse(`${block.blockDate}T${block.endTime}Z`);
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) return null;
+  return { id: block.id, lineId: block.lineId, startMs, endMs: Math.max(endMs, startMs) };
 }
 
 /**

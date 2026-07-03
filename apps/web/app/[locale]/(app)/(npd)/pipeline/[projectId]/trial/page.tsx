@@ -26,12 +26,16 @@
 
 import { getTranslations } from 'next-intl/server';
 
-import { TrialScreen, type TrialScreenData, type TrialLabels, type PageState, type LogTrialCall, type UpdateTrialCall, type TrialActionOutcome } from './_components/trial-screen';
+import { TrialScreen, type TrialScreenData, type TrialLabels, type PageState, type LogTrialCall, type UpdateTrialCall, type TrialActionOutcome, type BookLineTimeCall } from './_components/trial-screen';
 import { logTrialBatch } from './_actions/log-trial-batch';
 import { updateTrialBatch } from './_actions/update-trial-batch';
+import { listProductionLines } from './_actions/list-production-lines';
+import { upsertCapacityBlock } from '../../../../(modules)/planning/schedule/_actions/capacity-block-actions';
+import { PLANNING_WO_WRITE_PERMISSION } from '../../../../(modules)/planning/work-orders/_actions/shared';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { TRIAL_READ_PERMISSION, TRIAL_WRITE_PERMISSION, type TrialBatchView, type TrialResult } from './_actions/errors';
+import { normalizeTimeHHMM, type TrialCapacityBookingView } from './_lib/capacity-block';
 import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
 import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
@@ -84,6 +88,26 @@ const DEFAULT_LABELS: TrialLabels = {
   cancel: 'Cancel',
   saveError: 'Could not save the trial. Try again.',
   duplicateError: 'A trial with this number already exists for this project.',
+  colLineTime: 'Line time',
+  lineTimeNotBooked: 'Not booked',
+  bookLineTime: 'Book line time',
+  rebookLineTime: 'Re-book',
+  bookLineTimeModalTitle: 'Book line time',
+  rebookLineTimeModalTitle: 'Re-book line time',
+  fieldLine: 'Production line',
+  linePlaceholder: 'Select a line…',
+  noLines: 'No production lines configured.',
+  fieldBlockDate: 'Date',
+  fieldStartTime: 'Start time',
+  fieldEndTime: 'End time',
+  bookLineTimeSaving: 'Saving…',
+  bookLineTimeError: 'Could not book line time. Try again.',
+  bookLineTimeErrorInvalidInput: 'Check the line, date, and time fields.',
+  bookLineTimeErrorInvalidRange: 'End time must be after start time.',
+  bookLineTimeErrorForbidden: 'You do not have permission to book line time.',
+  bookLineTimeErrorInvalidLine: 'The selected line is not available.',
+  bookLineTimeErrorTrialNotFound: 'This trial could not be found.',
+  bookLineTimeErrorPersistence: 'Could not save the booking. Try again.',
   loading: 'Loading trials…',
   empty: 'No trials logged yet',
   emptyBody: 'Log a small-batch run to validate the recipe before pilot.',
@@ -126,7 +150,89 @@ type TrialRow = {
   notes: string | null;
 };
 
+type CapacityBookingRow = {
+  id: string;
+  trial_id: string;
+  line_id: string;
+  line_code: string;
+  line_name: string;
+  block_date: string;
+  start_time: string;
+  end_time: string;
+};
+
+async function readProductionLines(): Promise<TrialScreenData['lines']> {
+  try {
+    return await listProductionLines();
+  } catch (error) {
+    console.error('[trial] production-line read failed:', error);
+    return [];
+  }
+}
+
+async function readCapacityBookings(projectId: string): Promise<Record<string, TrialCapacityBookingView>> {
+  try {
+    return await withOrgContext(async (rawCtx): Promise<Record<string, TrialCapacityBookingView>> => {
+      const ctx = rawCtx as OrgContextLike;
+      const canRead = await hasPermission(ctx, TRIAL_READ_PERMISSION);
+      if (!canRead) return {};
+
+      const result = await ctx.client.query<CapacityBookingRow>(
+        `select pcb.id::text as id,
+                pcb.trial_id::text as trial_id,
+                pcb.line_id::text as line_id,
+                pl.code as line_code,
+                pl.name as line_name,
+                to_char(pcb.block_date, 'YYYY-MM-DD') as block_date,
+                pcb.start_time::text as start_time,
+                pcb.end_time::text as end_time
+           from public.planning_capacity_blocks pcb
+           join public.production_lines pl
+             on pl.org_id = pcb.org_id
+            and pl.id = pcb.line_id
+          where pcb.org_id = app.current_org_id()
+            and pcb.project_id = $1::uuid`,
+        [projectId],
+      );
+
+      return result.rows.reduce<Record<string, TrialCapacityBookingView>>((acc, row) => {
+        acc[row.trial_id] = {
+          id: row.id,
+          trialId: row.trial_id,
+          lineId: row.line_id,
+          lineCode: row.line_code,
+          lineName: row.line_name,
+          blockDate: row.block_date,
+          startTime: normalizeTimeHHMM(row.start_time),
+          endTime: normalizeTimeHHMM(row.end_time),
+        };
+        return acc;
+      }, {});
+    });
+  } catch (error) {
+    console.error('[trial] capacity-booking read failed:', error);
+    return {};
+  }
+}
+
+async function readCanBookLineTime(): Promise<boolean> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as OrgContextLike;
+      return await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION);
+    });
+  } catch {
+    return false;
+  }
+}
+
 async function readPageData(projectId: string): Promise<LoaderResult> {
+  const [lines, capacityBookings, canBookLineTime] = await Promise.all([
+    readProductionLines(),
+    readCapacityBookings(projectId),
+    readCanBookLineTime(),
+  ]);
+
   try {
     return await withOrgContext(async (rawCtx): Promise<LoaderResult> => {
       const ctx = rawCtx as OrgContextLike;
@@ -200,6 +306,9 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
           batches,
           technologists: technologists.rows.map((u) => ({ id: u.id, name: u.name })),
           canWrite,
+          canBookLineTime,
+          lines,
+          capacityBookings,
         },
       };
     });
@@ -221,6 +330,13 @@ async function updateTrialAction(call: UpdateTrialCall): Promise<TrialActionOutc
   'use server';
   const result = await updateTrialBatch(call);
   return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
+/** Server Action adapter for booking trial line time on the schedule board. */
+async function bookLineTimeAction(call: BookLineTimeCall) {
+  'use server';
+  const result = await upsertCapacityBlock(call);
+  return result.ok ? { ok: true as const } : { ok: false as const, error: result.error };
 }
 
 async function readStageSections(projectId: string) {
@@ -267,6 +383,7 @@ export default async function TrialPage(propsInput: unknown = {}) {
           labels={labels}
           onLogTrial={logTrialAction}
           onUpdateTrial={updateTrialAction}
+          onBookLineTime={bookLineTimeAction}
         />
         {stageSections ? <StageDeptSections projectId={projectId} stage="trial" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
       </>
@@ -281,6 +398,7 @@ export default async function TrialPage(propsInput: unknown = {}) {
         labels={labels}
         onLogTrial={logTrialAction}
         onUpdateTrial={updateTrialAction}
+        onBookLineTime={bookLineTimeAction}
       />
       {stageSections ? <StageDeptSections projectId={projectId} stage="trial" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
     </>
