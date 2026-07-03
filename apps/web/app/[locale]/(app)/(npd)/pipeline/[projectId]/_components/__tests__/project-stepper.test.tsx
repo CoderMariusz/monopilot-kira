@@ -24,6 +24,7 @@ const LABELS = {
   brief: 'Brief',
   recipe: 'Recipe',
   packaging: 'Packaging',
+  costing_nutrition: 'Costing & Nutrition',
   trial: 'Trial',
   sensory: 'Sensory',
   pilot: 'Pilot',
@@ -35,6 +36,7 @@ const STAGE_ROUTE: Record<string, string> = {
   brief: 'brief',
   recipe: 'formulation',
   packaging: 'packaging',
+  costing_nutrition: 'costing-nutrition',
   trial: 'trial',
   sensory: 'sensory',
   pilot: 'pilot',
@@ -58,7 +60,7 @@ function renderStepper(args: { pathname: string; currentStageKey?: string | null
 afterEach(cleanup);
 
 describe('ProjectStepper (project.jsx:4-20,130-142)', () => {
-  it('renders all 8 stages as locale-prefixed links to the per-stage routes', () => {
+  it('renders all 9 stages as locale-prefixed links to the per-stage routes', () => {
     renderStepper({ pathname: '/en/pipeline/p1/formulation', currentStageKey: 'recipe' });
 
     const nav = screen.getByTestId('project-stepper');
@@ -69,18 +71,18 @@ describe('ProjectStepper (project.jsx:4-20,130-142)', () => {
       expect(link).toHaveAttribute('href', `/en/pipeline/p1/${STAGE_ROUTE[stage.key]}`);
       expect(link).toHaveTextContent(LABELS[stage.key]);
     }
-    expect(screen.getAllByRole('listitem')).toHaveLength(8);
+    expect(screen.getAllByRole('listitem')).toHaveLength(9);
   });
 
   it('drives done/active from the project current_stage — earlier ✓ done, current active, later future', () => {
-    // Project is at "trial" (index 3); route happens to be the index.
+    // Project is at "trial" (index 4); route happens to be the index.
     renderStepper({ pathname: '/en/pipeline/p1', currentStageKey: 'trial' });
 
     const active = screen.getByTestId('project-step-trial');
     expect(active).toHaveAttribute('data-status', 'active');
-    expect(within(active).getByText('4')).toBeInTheDocument();
+    expect(within(active).getByText('5')).toBeInTheDocument();
 
-    for (const key of ['brief', 'recipe', 'packaging']) {
+    for (const key of ['brief', 'recipe', 'packaging', 'costing_nutrition']) {
       expect(screen.getByTestId(`project-step-${key}`)).toHaveAttribute('data-status', 'done');
     }
     for (const key of ['sensory', 'pilot', 'approval', 'handoff']) {
@@ -101,7 +103,7 @@ describe('ProjectStepper (project.jsx:4-20,130-142)', () => {
   });
 
   it('falls back to the viewed route segment when current_stage is absent', () => {
-    renderStepper({ pathname: '/en/pipeline/p1/approval' }); // index 6, no current_stage
+    renderStepper({ pathname: '/en/pipeline/p1/approval' }); // index 7, no current_stage
 
     expect(screen.getByTestId('project-step-link-recipe')).toHaveAttribute(
       'href',

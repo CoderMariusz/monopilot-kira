@@ -46,6 +46,7 @@ const LABELS: KanbanLabels = {
   stageBrief: 'Brief',
   stageRecipe: 'Recipe',
   stagePackaging: 'Packaging',
+  stageCostingNutrition: 'Costing & Nutrition',
   stageTrial: 'Trial',
   stageSensory: 'Sensory',
   stagePilot: 'Pilot',
@@ -190,7 +191,7 @@ describe('T-059 parity evidence — write per-state DOM artifacts', () => {
       anchor: 'prototypes/design/Monopilot Design System/npd/pipeline.jsx:19-52',
       anchor_status: '@deprecated BL-NPD-02 (legacy R&D stage board, read-only) — translated to the production Stage-Gate model',
       mapping: [
-        { prototype: 'KanbanView columns from window.NPD_STAGES', production: '8 stage columns brief→recipe→packaging→trial→sensory→pilot→approval→handoff from STAGE_ORDER', lines: '36-52', deviation: 'PACKAGING/SENSORY/PILOT are rendered for parity but never hold a real card — npd_projects.current_stage CHECK (mig 085) only persists brief/recipe/trial/approval/handoff; columns show "—"' },
+        { prototype: 'KanbanView columns from window.NPD_STAGES', production: '10 stage columns brief→recipe→packaging→costing_nutrition→trial→sensory→pilot→approval→handoff→launched from STAGE_ORDER', lines: '36-52', deviation: 'PACKAGING/SENSORY/PILOT columns may show "—" until a project reaches that stage' },
         { prototype: 'kanban-col-head label + .count', production: 'data-testid=kanban-col-* header + kanban-count-* badge', lines: '42-45' },
         { prototype: 'projects.filter(p => p.stage === s.key)', production: 'projects bucketed by currentStage (REAL listProjects rows)', lines: '39' },
         { prototype: 'empty column "—"', production: 'labelled per-column placeholder (labels.columnEmpty)', lines: '47' },
@@ -215,11 +216,12 @@ describe('T-059 parity evidence — write per-state DOM artifacts', () => {
     // Sanity gates so the evidence run is also a real assertion.
     const readyState = (report.states as Record<string, ReturnType<typeof regionSummary>>).ready;
     expect(readyState.pageRoot).toBe(true);
-    expect(readyState.columns).toBe(9);
+    expect(readyState.columns).toBe(10);
     expect(readyState.stageOrder).toEqual([
       'brief',
       'recipe',
       'packaging',
+      'costing_nutrition',
       'trial',
       'sensory',
       'pilot',

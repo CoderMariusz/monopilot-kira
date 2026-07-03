@@ -38,6 +38,7 @@ export type ProjectStage =
   | 'brief'
   | 'recipe'
   | 'packaging'
+  | 'costing_nutrition'
   | 'trial'
   | 'sensory'
   | 'pilot'
@@ -49,6 +50,7 @@ export const STAGE_ORDER: ProjectStage[] = [
   'brief',
   'recipe',
   'packaging',
+  'costing_nutrition',
   'trial',
   'sensory',
   'pilot',
@@ -57,8 +59,18 @@ export const STAGE_ORDER: ProjectStage[] = [
   'launched',
 ];
 
-/** Stages the DB can actually persist (migration 085 CHECK constraint). */
-export const PERSISTED_STAGES: ProjectStage[] = ['brief', 'recipe', 'trial', 'approval', 'handoff'];
+/** Stages the DB can actually persist (migration 242 / 422 CHECK constraint). */
+export const PERSISTED_STAGES: ProjectStage[] = [
+  'brief',
+  'recipe',
+  'packaging',
+  'costing_nutrition',
+  'trial',
+  'sensory',
+  'pilot',
+  'approval',
+  'handoff',
+];
 
 export function normalizeStage(raw: string | null | undefined): ProjectStage {
   return (STAGE_ORDER as string[]).includes(raw ?? '') ? (raw as ProjectStage) : 'brief';
@@ -114,6 +126,7 @@ export type KanbanLabels = {
   stageBrief: string;
   stageRecipe: string;
   stagePackaging: string;
+  stageCostingNutrition: string;
   stageTrial: string;
   stageSensory: string;
   stagePilot: string;
@@ -154,6 +167,8 @@ export function stageLabel(stage: ProjectStage, labels: KanbanLabels): string {
       return labels.stageRecipe;
     case 'packaging':
       return labels.stagePackaging;
+    case 'costing_nutrition':
+      return labels.stageCostingNutrition;
     case 'trial':
       return labels.stageTrial;
     case 'sensory':

@@ -2098,7 +2098,7 @@
       "marginWarn": "Margin warn",
       "marginWarnBody": "At target price, margin is {marginPct}% — below the NPD minimum of {threshold}%.",
       "hardFail": "Margin hard fail",
-      "hardFailBody": "Scenario \"{name}\" has a negative margin ({marginPct}%) and cannot be saved.",
+      "hardFailBody": "Scenario \"{name}\" has a negative margin ({marginPct}%).",
       "whatIfTitle": "What-if sliders",
       "sliderPorkContent": "Raw cost £/kg",
       "sliderYield": "Yield %",
@@ -2118,9 +2118,11 @@
       "computeError": "Could not compute the costing. Try again.",
       "computeErrorNotFound": "No formulation is available to compute costing from yet.",
       "computeErrorNoCosts": "Every ingredient needs a cost before costing can be computed.",
-      "computeErrorHardFail": "The target margin is negative, so the breakdown cannot be saved.",
+      "computeErrorHardFail": "The target margin is negative — the breakdown was saved; review pricing and costs.",
       "computeErrorFgNotMapped": "The recipe exists, but no Finished Good is linked yet — advance the project to the Packaging stage first.",
-      "recomputeCosting": "Recompute"
+      "recomputeCosting": "Recompute",
+      "marginNegativeWarn": "Negative margin",
+      "marginNegativeWarnBody": "The computed margin is {marginPct}% — you can still save the breakdown, but review pricing and costs."
     },
     "risks": {
       "title": "Risk register",
@@ -3757,7 +3759,8 @@
       "pilot": "Pilot",
       "approval": "Approval",
       "handoff": "Handoff",
-      "ariaLabel": "Project stages"
+      "ariaLabel": "Project stages",
+      "costing_nutrition": "Costing & Nutrition"
     },
     "handoff": {
       "title": "Handoff to production BOM",
@@ -4030,7 +4033,8 @@
         "advanceError": "Could not advance the project. The change was reverted.",
         "adjacencyError": "Projects can only advance to the next gate. The change was reverted.",
         "esignRequiredError": "Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.",
-        "checklistIncompleteError": "The gate checklist is incomplete — finish the open checklist items before advancing."
+        "checklistIncompleteError": "The gate checklist is incomplete — finish the open checklist items before advancing.",
+        "stageCostingNutrition": "Costing & Nutrition"
       },
       "table": {
         "title": "Pipeline",

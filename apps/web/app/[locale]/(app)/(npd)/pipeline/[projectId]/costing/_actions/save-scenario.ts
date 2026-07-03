@@ -15,7 +15,7 @@
  * and recompute on demand.
  *
  * Red lines: org-scoped (withOrgContext -> RLS), money stays decimal strings,
- * margin hard-fail floor (< 0%) still refuses to persist.
+ * margin < 0% persists with status 'fail' (D10 — warning in UI, not a save block).
  */
 
 import { z } from 'zod';
@@ -99,16 +99,8 @@ export async function saveCostingScenario(raw: unknown): Promise<SaveScenarioRes
   }
   const input = parsed.data;
 
-  // Derive the snapshot columns from the named scenario's params. No threshold
-  // needed here (warn is advisory); only the hard-fail floor gates persistence.
+  // Derive the snapshot columns from the named scenario's params.
   const result = computeWaterfall(input.params);
-  if (result.status === 'fail') {
-    return {
-      ok: false,
-      error: 'margin_hard_fail',
-      message: `margin ${result.marginPct}% is below the 0% hard-fail floor`,
-    };
-  }
 
   try {
     return await withOrgContext(async ({ orgId, userId, client }) => {
@@ -142,7 +134,7 @@ export async function saveCostingScenario(raw: unknown): Promise<SaveScenarioRes
       const breakdownId = upsert.rows[0]?.id;
       if (!breakdownId) return { ok: false as const, error: 'not_found' as const };
 
-      safeRevalidatePath(`/[locale]/pipeline/${input.projectId}/costing`, 'page');
+      safeRevalidatePath(`/[locale]/pipeline/${input.projectId}/costing-nutrition`, 'page');
 
       return {
         ok: true as const,

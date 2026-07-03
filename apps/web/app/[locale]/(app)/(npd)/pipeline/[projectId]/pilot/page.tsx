@@ -318,7 +318,7 @@ export default async function PilotPage(propsInput: unknown = {}) {
       >
         <span className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Related</span>
         <a
-          href={`/${locale}/pipeline/${projectId}/costing`}
+          href={`/${locale}/pipeline/${projectId}/costing-nutrition`}
           data-testid="pilot-link-costing"
           className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]"
         >

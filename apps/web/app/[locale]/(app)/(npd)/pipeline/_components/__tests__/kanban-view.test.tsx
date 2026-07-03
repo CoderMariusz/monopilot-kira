@@ -114,6 +114,7 @@ const LABELS: KanbanLabels = {
   stageBrief: 'lbl.stageBrief',
   stageRecipe: 'lbl.stageRecipe',
   stagePackaging: 'lbl.stagePackaging',
+  stageCostingNutrition: 'lbl.stageCostingNutrition',
   stageTrial: 'lbl.stageTrial',
   stageSensory: 'lbl.stageSensory',
   stagePilot: 'lbl.stagePilot',
@@ -166,15 +167,16 @@ function renderView(overrides: Partial<React.ComponentProps<typeof KanbanView>> 
 }
 
 describe('KanbanView — prototype parity (pipeline.jsx:36-52, stage board)', () => {
-  it('renders 9 stage columns in order brief → recipe → packaging → trial → sensory → pilot → approval → handoff → launched', () => {
+  it('renders 10 stage columns in order brief → recipe → packaging → costing_nutrition → trial → sensory → pilot → approval → handoff → launched', () => {
     renderView();
     const cols = screen.getAllByTestId(/^kanban-col-/);
-    expect(cols).toHaveLength(9);
+    expect(cols).toHaveLength(10);
     const order = cols.map((c) => c.getAttribute('data-stage'));
     expect(order).toEqual([
       'brief',
       'recipe',
       'packaging',
+      'costing_nutrition',
       'trial',
       'sensory',
       'pilot',

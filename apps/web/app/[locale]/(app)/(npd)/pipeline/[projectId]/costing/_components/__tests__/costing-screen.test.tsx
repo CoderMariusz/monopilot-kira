@@ -99,7 +99,10 @@ const LABELS: CostingLabels = {
   marginWarnBody:
     'At target price, margin is {marginPct}% — below the NPD minimum of {threshold}%.',
   hardFail: 'Margin hard fail',
-  hardFailBody: 'Scenario "{name}" has a negative margin ({marginPct}%) and cannot be saved.',
+  hardFailBody: 'Scenario "{name}" has a negative margin ({marginPct}%).',
+  marginNegativeWarn: 'Negative margin',
+  marginNegativeWarnBody:
+    'The computed margin is {marginPct}% — you can still save the breakdown, but review pricing and costs.',
   whatIfTitle: 'What-if sliders',
   sliderPorkContent: 'Raw cost €/kg',
   sliderYield: 'Yield %',
@@ -209,34 +212,35 @@ describe('CostingScreen — V07 warn / hard fail', () => {
     expect(within(target).getByText(LABELS.marginWarn)).toBeInTheDocument();
   });
 
-  it('shows the HARD FAIL banner when a scenario margin < 0%', () => {
+  it('shows the negative-margin warning when a scenario margin < 0%', () => {
     renderReady();
-    const banner = screen.getByTestId('hard-fail-banner');
+    const banner = screen.getByTestId('margin-negative-warning');
     expect(banner).toBeInTheDocument();
-    expect(within(banner).getByText(/Pessimistic/)).toBeInTheDocument();
+    expect(banner).toHaveClass('alert-amber');
+    expect(within(banner).getByText(/-5\.4000/)).toBeInTheDocument();
   });
 
-  it('does not show the hard-fail banner when all margins are >= 0%', () => {
+  it('does not show the negative-margin warning when all margins are >= 0%', () => {
     const safeScenarios = SCENARIOS.map((s) =>
       s.scenario === 'pessimistic'
         ? { ...s, marginEur: '0.1000', marginPct: '0.5000', status: 'warn' as const }
         : s,
     );
     renderReady({ data: { ...DATA, scenarios: safeScenarios } });
-    expect(screen.queryByTestId('hard-fail-banner')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('margin-negative-warning')).not.toBeInTheDocument();
   });
 });
 
 describe('CostingScreen — save scenario', () => {
-  it('disables Save when the current (target) scenario hard-fails (margin < 0%)', () => {
+  it('allows Save when the current (target) scenario has a negative margin', () => {
     const failingData: CostingScreenData = {
       ...DATA,
       currentParams: { ...DATA.currentParams, marginPct: '-5' },
       scenarios: SCENARIOS,
     };
-    renderReady({ data: failingData });
+    renderReady({ data: failingData, onSaveScenario: vi.fn().mockResolvedValue({ ok: true }) });
     const save = screen.getByRole('button', { name: LABELS.saveScenario });
-    expect(save).toBeDisabled();
+    expect(save).not.toBeDisabled();
   });
 
   it('calls onSaveScenario with the named scenario + current params on Save', async () => {

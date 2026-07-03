@@ -79,7 +79,10 @@ const LABELS: CostingLabels = {
   marginWarn: 'Margin warn',
   marginWarnBody: 'At target price, margin is {marginPct}% — below the NPD minimum of {threshold}%.',
   hardFail: 'Margin hard fail',
-  hardFailBody: 'Scenario "{name}" has a negative margin ({marginPct}%) and cannot be saved.',
+  hardFailBody: 'Scenario "{name}" has a negative margin ({marginPct}%).',
+  marginNegativeWarn: 'Negative margin',
+  marginNegativeWarnBody:
+    'The computed margin is {marginPct}% — you can still save the breakdown, but review pricing and costs.',
   whatIfTitle: 'What-if sliders',
   sliderPorkContent: 'Raw cost €/kg',
   sliderYield: 'Yield %',

@@ -96,6 +96,7 @@ const DEFAULT_LABELS: KanbanLabels = {
   stageBrief: 'Brief',
   stageRecipe: 'Recipe',
   stagePackaging: 'Packaging',
+  stageCostingNutrition: 'Costing & Nutrition',
   stageTrial: 'Trial',
   stageSensory: 'Sensory',
   stagePilot: 'Pilot',

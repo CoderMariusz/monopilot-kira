@@ -234,22 +234,21 @@ runIntegration('computeCosting (integration)', () => {
     expect(cnt.rows[0]!.n).toBe('1');
   });
 
-  it('HARD FAILs and refuses to commit when scenario margin (-5%) < 0%', async () => {
+  it('persists when scenario margin (-5%) < 0% and returns fail status (D10)', async () => {
     const res = await computeCosting({
       productCode: productA,
       scenario: 'broken',
       params: { ...baseParams, marginPct: '-5' },
     });
-    expect(res.ok).toBe(false);
-    if (res.ok) return;
-    expect(res.error).toBe('margin_hard_fail');
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.status).toBe('fail');
 
-    // Nothing persisted for the failing scenario.
     const cnt = await appClient.query<{ n: string }>(
       `select count(*) as n from public.costing_breakdowns where product_code = $1 and scenario = 'broken'`,
       [productA],
     );
-    expect(cnt.rows[0]!.n).toBe('0');
+    expect(cnt.rows[0]!.n).toBe('1');
   });
 
   it('recompute is idempotent: UPSERT keeps one breakdown + replaces (still 9) steps', async () => {
@@ -308,7 +307,7 @@ runIntegration('computeCosting (integration)', () => {
     expect(rows.rows[0]!.n).toBe('1');
     expect(rows.rows[0]!.margin_pct).toBe('35.0000');
     expect(revalidatedPaths).toContainEqual({
-      path: `/[locale]/pipeline/${projectA}/costing`,
+      path: `/[locale]/pipeline/${projectA}/costing-nutrition`,
       type: 'page',
     });
   });

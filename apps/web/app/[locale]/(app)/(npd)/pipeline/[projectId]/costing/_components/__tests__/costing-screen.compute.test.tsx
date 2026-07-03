@@ -50,7 +50,10 @@ const LABELS: CostingLabels = {
   marginWarn: 'Margin warn',
   marginWarnBody: 'At target price, margin is {marginPct}% — below the NPD minimum of {threshold}%.',
   hardFail: 'Margin hard fail',
-  hardFailBody: 'Scenario "{name}" has a negative margin ({marginPct}%) and cannot be saved.',
+  hardFailBody: 'Scenario "{name}" has a negative margin ({marginPct}%).',
+  marginNegativeWarn: 'Negative margin',
+  marginNegativeWarnBody:
+    'The computed margin is {marginPct}% — you can still save the breakdown, but review pricing and costs.',
   whatIfTitle: 'What-if sliders',
   sliderPorkContent: 'Raw cost €/kg',
   sliderYield: 'Yield %',
@@ -292,8 +295,9 @@ describe('C3 — Compute costing (empty state)', () => {
     );
   });
 
-  it('maps margin_hard_fail to its localized message', async () => {
-    const compute = vi.fn().mockResolvedValue({ ok: false, error: 'margin_hard_fail' });
+  it('shows a warning after compute when margin is negative but still refreshes', async () => {
+    const compute = vi.fn().mockResolvedValue({ ok: true, marginNegative: true });
+    const onRefresh = vi.fn();
     render(
       <CostingScreen
         state="empty"
@@ -301,14 +305,15 @@ describe('C3 — Compute costing (empty state)', () => {
         labels={LABELS}
         projectId={PROJECT_ID}
         computeAction={compute}
+        onRefresh={onRefresh}
       />,
     );
     await act(async () => {
       fireEvent.click(screen.getByTestId('costing-compute'));
     });
-    await waitFor(() =>
-      expect(screen.getByTestId('costing-compute-error')).toHaveTextContent(LABELS.computeErrorHardFail),
-    );
+    await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('margin-negative-warning')).toBeInTheDocument();
+    expect(screen.queryByTestId('costing-compute-error')).not.toBeInTheDocument();
   });
 
   it('maps forbidden to the localized forbidden label (never surfaces raw code)', async () => {

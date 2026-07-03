@@ -12,7 +12,7 @@
  *   - 3-scenario margin <table>                   → @monopilot/ui Table (pessimistic / target / optimistic)
  *   - what-if `<input type=range>`                → @monopilot/ui Slider (raw range is a red-line)
  *   - alert "7.5% below NPD minimum 15%"          → @monopilot/ui Alert-style banner; threshold from AlertThresholds
- *   - HARD FAIL (margin < 0%)                      → destructive banner; Save disabled while current params hard-fail
+ *   - Negative margin (margin < 0%)           → amber warning banner; save still allowed (D10)
  *   - "Save scenario" CTA                          → calls onSaveScenario (saveCostingScenario Server Action — T-073)
  *
  * Money is rendered straight from NUMERIC decimal STRINGS (never JS floats). The
@@ -108,6 +108,9 @@ export type CostingLabels = {
   hardFail: string;
   /** "{name}" and "{marginPct}" are replaced client-side. */
   hardFailBody: string;
+  marginNegativeWarn: string;
+  /** "{marginPct}" is replaced client-side. */
+  marginNegativeWarnBody: string;
   whatIfTitle: string;
   sliderPorkContent: string;
   sliderYield: string;
@@ -151,7 +154,12 @@ export type SaveScenarioOutcome = { ok: boolean; error?: string };
  * write); errors are surfaced inline.
  */
 export type ComputeCostingCall = { projectId: string };
-export type ComputeCostingOutcome = { ok: boolean; error?: string; message?: string };
+export type ComputeCostingOutcome = {
+  ok: boolean;
+  error?: string;
+  message?: string;
+  marginNegative?: boolean;
+};
 
 const CURRENCY = '£';
 
@@ -280,6 +288,7 @@ export function CostingScreen({
   type ComputeStatus = 'idle' | 'computing' | 'computed' | 'error';
   const [computeStatus, setComputeStatus] = React.useState<ComputeStatus>('idle');
   const [computeError, setComputeError] = React.useState<string>('');
+  const [computeMarginWarning, setComputeMarginWarning] = React.useState<string>('');
   const canCompute = !!computeAction && !!projectId;
 
   const computeErrorMessage = React.useCallback(
@@ -298,8 +307,6 @@ export function CostingScreen({
           // The action's message ("…has no complete ingredient costs") is the most
           // useful signal here; fall back to a localized hint.
           return message || labels.computeErrorNoCosts;
-        case 'margin_hard_fail':
-          return labels.computeErrorHardFail;
         case 'forbidden':
           // The compute action is only injected when the user can write (server-gated),
           // so this case is rare — but if it fires, surface the existing forbidden label
@@ -312,15 +319,29 @@ export function CostingScreen({
     [labels],
   );
 
+  // Live what-if params (sliders mutate these). Initialised from server data.
+  const [params, setParams] = React.useState<CostingParams | null>(data?.currentParams ?? null);
+  React.useEffect(() => {
+    setParams(data?.currentParams ?? null);
+  }, [data?.currentParams]);
+
   const runCompute = React.useCallback(() => {
     if (!computeAction || !projectId || computeStatus === 'computing') return;
     setComputeStatus('computing');
     setComputeError('');
+    setComputeMarginWarning('');
     void (async () => {
       try {
         const result = await computeAction({ projectId });
         if (result.ok) {
           setComputeStatus('computed');
+          if (result.marginNegative) {
+            setComputeMarginWarning(
+              interpolate(labels.marginNegativeWarnBody, {
+                marginPct: params?.marginPct ?? data?.currentParams.marginPct ?? '0',
+              }),
+            );
+          }
           refresh();
         } else {
           setComputeStatus('error');
@@ -331,13 +352,7 @@ export function CostingScreen({
         setComputeError(labels.computeError);
       }
     })();
-  }, [computeAction, projectId, computeStatus, refresh, computeErrorMessage, labels.computeError]);
-
-  // Live what-if params (sliders mutate these). Initialised from server data.
-  const [params, setParams] = React.useState<CostingParams | null>(data?.currentParams ?? null);
-  React.useEffect(() => {
-    setParams(data?.currentParams ?? null);
-  }, [data?.currentParams]);
+  }, [computeAction, projectId, computeStatus, refresh, computeErrorMessage, labels.computeError, labels.marginNegativeWarnBody, params?.marginPct, data?.currentParams.marginPct]);
 
   if (state !== 'ready' || !data) {
     return (
@@ -354,6 +369,16 @@ export function CostingScreen({
         {computeStatus === 'error' && computeError ? (
           <div role="alert" className="alert alert-red" data-testid="costing-compute-error">
             {computeError}
+          </div>
+        ) : null}
+        {computeMarginWarning ? (
+          <div
+            role="status"
+            data-testid="margin-negative-warning"
+            className="alert alert-amber"
+          >
+            <div className="alert-title">{labels.marginNegativeWarn}</div>
+            <p className="mt-1">{computeMarginWarning}</p>
           </div>
         ) : null}
         <StateNotice state={state} labels={labels} />
@@ -378,11 +403,18 @@ export function CostingScreen({
 
   const activeParams = params ?? data.currentParams;
 
-  // Hard-fail = current params margin < 0% (Save is blocked). String compare so
-  // we never float-coerce money; a leading '-' (non-"-0") means negative.
   const currentMarginNegative = /^-(?!0(\.0+)?$)/.test(activeParams.marginPct.trim());
 
   const failingScenarios = data.scenarios.filter((s) => s.status === 'fail');
+
+  const negativeMarginWarning =
+    currentMarginNegative || failingScenarios.length > 0
+      ? interpolate(labels.marginNegativeWarnBody, {
+          marginPct: currentMarginNegative
+            ? activeParams.marginPct
+            : failingScenarios[0]!.marginPct,
+        })
+      : null;
 
   // Bar scale = max cumulative step value (layout-only number; never money out).
   const scaleEur = data.steps.reduce(
@@ -395,7 +427,7 @@ export function CostingScreen({
     data.scenarios.find((s) => s.status === 'warn');
 
   async function handleSave() {
-    if (!onSaveScenario || currentMarginNegative || saveState === 'saving') return;
+    if (!onSaveScenario || saveState === 'saving') return;
     setSaveState('saving');
     try {
       const result = await onSaveScenario({
@@ -481,19 +513,14 @@ export function CostingScreen({
         </div>
       ) : null}
 
-      {failingScenarios.length > 0 ? (
+      {computeMarginWarning || negativeMarginWarning ? (
         <div
-          role="alert"
-          data-testid="hard-fail-banner"
-          className="alert alert-red"
+          role="status"
+          data-testid="margin-negative-warning"
+          className="alert alert-amber"
         >
-          <div className="alert-title">{labels.hardFail}</div>
-          <p className="mt-1">
-            {interpolate(labels.hardFailBody, {
-              name: failingScenarios[0]!.name,
-              marginPct: failingScenarios[0]!.marginPct,
-            })}
-          </p>
+          <div className="alert-title">{labels.marginNegativeWarn}</div>
+          <p className="mt-1">{computeMarginWarning || negativeMarginWarning}</p>
         </div>
       ) : null}
 
@@ -662,7 +689,7 @@ export function CostingScreen({
               <Button
                 type="button"
                 onClick={handleSave}
-                disabled={currentMarginNegative || saveState === 'saving' || !onSaveScenario}
+                disabled={saveState === 'saving' || !onSaveScenario}
                 aria-label={labels.saveScenario}
                 className="btn-primary mt-1 w-full"
               >

@@ -3,16 +3,16 @@
 /**
  * T-073 — `computeCosting` Server Action (§17.11.3).
  *
- * Computes the deterministic 9-step costing waterfall (pure helper) and, when
- * the scenario does NOT hard-fail (margin >= 0%), UPSERTs the breakdown and
- * REPLACES its waterfall steps inside a single org-scoped transaction.
+ * Computes the deterministic 9-step costing waterfall (pure helper) and UPSERTs
+ * the breakdown and REPLACES its waterfall steps inside a single org-scoped
+ * transaction. Negative margins persist with status 'fail' (D10 — UI warning only).
  *
  * Red lines honoured:
  *   - Money stays NUMERIC-exact: the pure helper returns decimal STRINGS and we
  *     bind them straight into NUMERIC columns ($n::numeric). No Number() / float.
  *   - Margin warn threshold is READ from Reference.AlertThresholds
  *     (`costing_margin_warn_pct`) — never hardcoded.
- *   - Hard fail (margin < 0%) returns FAIL and refuses to commit.
+ *   - Hard fail (margin < 0%) persists with status 'fail'; UI shows a warning (D10).
  *   - org scope via withOrgContext -> app.set_org_context -> RLS
  *     (org_id = app.current_org_id()). No tenant_id / current_setting.
  */
@@ -141,15 +141,8 @@ export async function computeCosting(raw: unknown): Promise<ComputeCostingResult
       // 2) Pure, deterministic, NUMERIC-exact compute.
       const result = computeWaterfall(input.params, marginWarnPct ? { marginWarnPct } : {});
 
-      // 3) Hard fail: refuse to commit (§17.11.3 hard-fail rule). The wrapping
-      //    transaction will ROLLBACK because no writes have occurred.
-      if (result.status === 'fail') {
-        return {
-          ok: false as const,
-          error: 'margin_hard_fail' as const,
-          message: `margin ${result.marginPct}% is below the 0% hard-fail floor`,
-        };
-      }
+      // 3) Negative margin is advisory (D10): persist the breakdown and surface a
+      //    warning in the UI — only genuine validation errors block the commit.
 
       // 4) UPSERT the breakdown (org_id, product_code, scenario unique). Money
       //    binds as decimal strings into NUMERIC columns — no float coercion.

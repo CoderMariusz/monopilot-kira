@@ -4425,7 +4425,7 @@
       "marginWarn": "Ostrzeżenie o marży",
       "marginWarnBody": "Przy cenie docelowej marża wynosi {marginPct}% — poniżej minimum NPD równego {threshold}%.",
       "hardFail": "Krytyczny błąd marży",
-      "hardFailBody": "Scenariusz „{name}” ma ujemną marżę ({marginPct}%) i nie może zostać zapisany.",
+      "hardFailBody": "Scenariusz „{name}\" ma ujemną marżę ({marginPct}%).",
       "whatIfTitle": "Suwaki symulacji",
       "sliderPorkContent": "Koszt surowca £/kg",
       "sliderYield": "Wydajność %",
@@ -4445,9 +4445,11 @@
       "computeError": "Nie udało się obliczyć kalkulacji. Spróbuj ponownie.",
       "computeErrorNotFound": "Brak receptury do obliczenia kalkulacji.",
       "computeErrorNoCosts": "Każdy składnik musi mieć koszt, aby obliczyć kalkulację.",
-      "computeErrorHardFail": "Marża docelowa jest ujemna, więc kalkulacji nie można zapisać.",
+      "computeErrorHardFail": "Marża docelowa jest ujemna — kalkulacja została zapisana; sprawdź ceny i koszty.",
       "computeErrorFgNotMapped": "Receptura istnieje, ale nie powiązano jeszcze wyrobu gotowego — najpierw przenieś projekt do etapu Pakowanie.",
-      "recomputeCosting": "Przelicz ponownie"
+      "recomputeCosting": "Przelicz ponownie",
+      "marginNegativeWarn": "Ujemna marża",
+      "marginNegativeWarnBody": "Obliczona marża wynosi {marginPct}% — możesz zapisać kalkulację, ale sprawdź ceny i koszty."
     },
     "risks": {
       "title": "Rejestr ryzyk",
@@ -6041,7 +6043,8 @@
       "pilot": "Pilotaż",
       "approval": "Zatwierdzenie",
       "handoff": "Przekazanie",
-      "ariaLabel": "Etapy projektu"
+      "ariaLabel": "Etapy projektu",
+      "costing_nutrition": "Koszt i żywienie"
     },
     "handoff": {
       "title": "Przekazanie do BOM produkcyjnego",
@@ -6314,7 +6317,8 @@
         "advanceError": "Nie udało się przesunąć projektu. Zmiana została cofnięta.",
         "adjacencyError": "Projekty można przesuwać tylko do następnej bramki. Zmiana została cofnięta.",
         "esignRequiredError": "Przed przekazaniem wymagane jest zatwierdzenie e-podpisem bramki G4 — zatwierdź je na etapie Zatwierdzenie.",
-        "checklistIncompleteError": "Lista kontrolna bramki jest niekompletna — zamknij otwarte pozycje przed przesunięciem projektu."
+        "checklistIncompleteError": "Lista kontrolna bramki jest niekompletna — zamknij otwarte pozycje przed przesunięciem projektu.",
+        "stageCostingNutrition": "Koszt i żywienie"
       },
       "table": {
         "title": "Lejek NPD",

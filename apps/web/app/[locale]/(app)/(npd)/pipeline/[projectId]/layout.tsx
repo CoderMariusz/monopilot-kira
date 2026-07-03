@@ -102,6 +102,7 @@ const STEP_FALLBACKS: Record<ProjectStageKey, string> = {
   brief: 'Brief',
   recipe: 'Recipe',
   packaging: 'Packaging',
+  costing_nutrition: 'Costing & Nutrition',
   trial: 'Trial',
   sensory: 'Sensory',
   pilot: 'Pilot',
@@ -217,6 +218,10 @@ const ADVANCE_DEFAULTS = {
     'The project can only advance one stage at a time. Reload the page — the stage may have changed.',
   notFoundError: 'This project could not be found. It may have been deleted.',
   fgLinkedError: 'The Finished Good code is already linked to another active NPD project.',
+  softGateBlockedError: 'Required stage checks are incomplete. Add an override note to continue.',
+  overrideNoteLabel: 'Override note',
+  overrideNoteHint: 'Required to override incomplete stage checks.',
+  overrideConfirm: 'Override and advance',
 };
 
 async function pickerFor(locale: string, namespace: string) {
@@ -241,7 +246,7 @@ async function pickerFor(locale: string, namespace: string) {
 // a `targetGate` (its gate-transition UI), but the engine is stage-native now: the
 // adapter loads the project's real current_stage and advances exactly one operational
 // stage (STAGE_ORDER). `targetGate` is accepted for the existing prop shape but ignored.
-async function advanceAdapter(input: { projectId: string; targetGate: TargetGate; notes: string }) {
+async function advanceAdapter(input: { projectId: string; targetGate: TargetGate; notes: string; override?: { note: string } }) {
   'use server';
   const current = await getProject({ projectId: input.projectId });
   if (!current.ok) {
@@ -251,9 +256,14 @@ async function advanceAdapter(input: { projectId: string; targetGate: TargetGate
   if (!next) {
     return { ok: false as const, error: 'ADJACENCY_VIOLATION', status: 422 };
   }
-  const result = await advanceProjectGateAction({ projectId: input.projectId, targetStage: next });
+  const result = await advanceProjectGateAction({
+    projectId: input.projectId,
+    targetStage: next,
+    notes: input.notes || undefined,
+    override: input.override,
+  });
   if (result.ok) return { ok: true as const, data: result.data };
-  return { ok: false as const, error: result.error, status: result.status, blockers: result.blockers };
+  return { ok: false as const, error: result.error, status: result.status, blockers: result.blockers, missing: result.missing };
 }
 
 // Delete-project Server Action adapter (RBAC enforced inside deleteProject + only
@@ -489,6 +499,10 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
       adjacencyError: a('adjacencyError', ADVANCE_DEFAULTS.adjacencyError),
       notFoundError: a('notFoundError', ADVANCE_DEFAULTS.notFoundError),
       fgLinkedError: a('fgLinkedError', ADVANCE_DEFAULTS.fgLinkedError),
+      softGateBlockedError: a('softGateBlockedError', ADVANCE_DEFAULTS.softGateBlockedError),
+      overrideNoteLabel: a('overrideNoteLabel', ADVANCE_DEFAULTS.overrideNoteLabel),
+      overrideNoteHint: a('overrideNoteHint', ADVANCE_DEFAULTS.overrideNoteHint),
+      overrideConfirm: a('overrideConfirm', ADVANCE_DEFAULTS.overrideConfirm),
     },
     project: { id: project.id, code: project.code, name: project.name, currentGate: currentKey },
     gateInfo: {

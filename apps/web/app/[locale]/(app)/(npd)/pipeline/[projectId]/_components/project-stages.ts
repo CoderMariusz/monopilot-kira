@@ -10,11 +10,12 @@
  * directive, lets the server import the real array.
  */
 
-/** The fixed 8 workflow stages, in order, with their route segment + i18n key. */
+/** The fixed 9 workflow stages, in order, with their route segment + i18n key. */
 export const PROJECT_STAGES = [
   { key: 'brief', segment: 'brief', i18nKey: 'brief' },
   { key: 'recipe', segment: 'formulation', i18nKey: 'recipe' },
   { key: 'packaging', segment: 'packaging', i18nKey: 'packaging' },
+  { key: 'costing_nutrition', segment: 'costing-nutrition', i18nKey: 'costing_nutrition' },
   { key: 'trial', segment: 'trial', i18nKey: 'trial' },
   { key: 'sensory', segment: 'sensory', i18nKey: 'sensory' },
   { key: 'pilot', segment: 'pilot', i18nKey: 'pilot' },
