@@ -90,6 +90,17 @@ const LABELS: DashboardScreenLabels = {
   deptTechnical: 'Technical',
   deptMrp: 'MRP',
   deptProcurement: 'Procurement',
+  // Wave F5 (decision D1): departments grouped by pipeline stage — stage labels required.
+  // Structure superseded by owner decision D1 (wave F5) — anchor deviation documented.
+  stageBrief: 'Brief',
+  stageRecipe: 'Recipe',
+  stagePackaging: 'Packaging',
+  stageCostingNutrition: 'Costing & Nutrition',
+  stageTrial: 'Trial',
+  stageSensory: 'Sensory',
+  stagePilot: 'Pilot',
+  stageApproval: 'Approval',
+  stageHandoff: 'Handoff',
   loading: 'Loading dashboard…',
   empty: 'No active Finished Goods yet',
   emptyBody: 'Launch alerts appear once Finished Goods are created from a Brief.',
@@ -104,13 +115,15 @@ const READY: DashboardScreenProps = {
   canRefresh: true,
   summary: { totalActive: 23, fullyComplete: 5, inProgress: 15, totalBuilt: 3 },
   perDept: [
-    { dept: 'core', done: 8, pending: 12, blocked: 3 },
-    { dept: 'planning', done: 5, pending: 10, blocked: 8 },
-    { dept: 'commercial', done: 7, pending: 11, blocked: 5 },
-    { dept: 'production', done: 4, pending: 9, blocked: 10 },
-    { dept: 'technical', done: 13, pending: 5, blocked: 5 },
-    { dept: 'mrp', done: 3, pending: 8, blocked: 12 },
-    { dept: 'procurement', done: 5, pending: 10, blocked: 8 },
+    // Wave F5 (D1): DeptProgress requires deptName/stageCode/stageRoute/stageOrder
+    // for the pipeline-stage-grouped table layout (departments grouped by stage).
+    { dept: 'core', deptName: 'Core', stageCode: 'brief', stageRoute: 'brief', stageOrder: 0, done: 8, pending: 12, blocked: 3 },
+    { dept: 'planning', deptName: 'Planning', stageCode: 'brief', stageRoute: 'brief', stageOrder: 0, done: 5, pending: 10, blocked: 8 },
+    { dept: 'commercial', deptName: 'Commercial', stageCode: 'recipe', stageRoute: 'formulation', stageOrder: 1, done: 7, pending: 11, blocked: 5 },
+    { dept: 'production', deptName: 'Production', stageCode: 'packaging', stageRoute: 'packaging', stageOrder: 2, done: 4, pending: 9, blocked: 10 },
+    { dept: 'technical', deptName: 'Technical', stageCode: 'packaging', stageRoute: 'packaging', stageOrder: 2, done: 13, pending: 5, blocked: 5 },
+    { dept: 'mrp', deptName: 'MRP', stageCode: 'costing_nutrition', stageRoute: 'costing-nutrition', stageOrder: 3, done: 3, pending: 8, blocked: 12 },
+    { dept: 'procurement', deptName: 'Procurement', stageCode: 'costing_nutrition', stageRoute: 'costing-nutrition', stageOrder: 3, done: 5, pending: 10, blocked: 8 },
   ],
   alerts: [
     { productCode: 'FA0043', productName: 'Smoked Almond Yoghurt', launchDate: '2026-04-28', daysLeft: 9, alertLevel: 'RED', missingData: 'MRP: Tara', built: false },

@@ -78,7 +78,9 @@ const BASE: DashboardScreenProps = {
   canCreate: true,
   canRefresh: false,
   summary: { totalActive: 1, fullyComplete: 0, inProgress: 1, totalBuilt: 0 },
-  perDept: [{ dept: 'core', done: 1, pending: 0, blocked: 0 }],
+  // Wave F5 (D1): DeptProgress requires deptName/stageCode/stageRoute/stageOrder
+  // for the pipeline-stage-grouped table layout.
+  perDept: [{ dept: 'core', deptName: 'Core', stageCode: 'brief', stageRoute: 'brief', stageOrder: 0, done: 1, pending: 0, blocked: 0 }],
   alerts: [],
 };
 
@@ -132,7 +134,8 @@ describe('Dashboard "+ Create FG" — opens the modal + wires the action', () =>
         productName: 'Pulled Chicken Shawarma',
       }),
     );
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fa/FA5609'));
+    // Wave F5: /fa route renamed to /fg; DashboardScreen.onCreated navigates to /en/fg/<code>.
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fg/FA5609'));
   });
 
   it('RBAC: when canCreate is false the button is absent AND no dialog can be opened', () => {

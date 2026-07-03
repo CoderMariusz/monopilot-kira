@@ -90,17 +90,19 @@ describe('ProductCreateWizard — onboarding returnTo flow', () => {
     expect(pushMock).toHaveBeenCalledWith('/onboarding/wo');
   });
 
-  it('ignores an unsafe protocol-relative returnTo and falls back to /{locale}/fa', async () => {
+  it('ignores an unsafe protocol-relative returnTo and falls back to /{locale}/fg', async () => {
+    // Wave F5: /fa route renamed to /fg; ProductCreateWizard fallbackBase = `/${locale}/fg`.
     const user = userEvent.setup();
     const action = vi.fn(async () => ({ productCode: 'FA5609' }));
     render(<ProductCreateWizard labels={LABELS} createFaAction={action} locale="en" returnTo="%2F%2Fevil.example.com" />);
 
     await fillAndCreate(user);
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fa/FA5609'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fg/FA5609'));
   });
 
-  it('ignores a backslash open-redirect (/\\evil.example.com) and falls back to /{locale}/fa', async () => {
+  it('ignores a backslash open-redirect (/\\evil.example.com) and falls back to /{locale}/fg', async () => {
+    // Wave F5: /fa route renamed to /fg; ProductCreateWizard fallbackBase = `/${locale}/fg`.
     const user = userEvent.setup();
     const action = vi.fn(async () => ({ productCode: 'FA5609' }));
     // "%2F%5Cevil.example.com" decodes to "/\evil.example.com", which URL parsers
@@ -109,10 +111,11 @@ describe('ProductCreateWizard — onboarding returnTo flow', () => {
 
     await fillAndCreate(user);
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fa/FA5609'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fg/FA5609'));
   });
 
-  it('ignores a tab/control-char open-redirect (/%09//evil) and falls back to /{locale}/fa', async () => {
+  it('ignores a tab/control-char open-redirect (/%09//evil) and falls back to /{locale}/fg', async () => {
+    // Wave F5: /fa route renamed to /fg; ProductCreateWizard fallbackBase = `/${locale}/fg`.
     const user = userEvent.setup();
     const action = vi.fn(async () => ({ productCode: 'FA5609' }));
     // "%2F%09%2F%2Fevil.example.com" decodes to "/\t//evil.example.com".
@@ -122,17 +125,18 @@ describe('ProductCreateWizard — onboarding returnTo flow', () => {
 
     await fillAndCreate(user);
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fa/FA5609'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fg/FA5609'));
   });
 
   it('lands on the new FG detail route when no returnTo is provided', async () => {
+    // Wave F5: /fa route renamed to /fg; ProductCreateWizard navigates to /en/fg/<code>.
     const user = userEvent.setup();
     const action = vi.fn(async () => ({ productCode: 'FA5609' }));
     render(<ProductCreateWizard labels={LABELS} createFaAction={action} locale="en" />);
 
     await fillAndCreate(user);
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fa/FA5609'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fg/FA5609'));
   });
 
   it('accepts a non-FA product code (prefix is no longer hardcoded to FA)', async () => {

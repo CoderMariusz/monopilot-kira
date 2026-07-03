@@ -80,9 +80,13 @@ function summary(root: HTMLElement) {
     viewAllLink: Boolean(
       Array.from(root.querySelectorAll('a')).find((a) => a.getAttribute('href') === '/pipeline'),
     ),
+    // Wave F5 (D1): rows route to the NPD pipeline working surface (/pipeline/<projectId>)
+    // rather than /fg/<productCode>. The pipeline preview does not own the FG detail route —
+    // that route is entered from the FG list (fa-list-table) or the dashboard alerts table.
+    // Structure superseded by owner decision D1 (wave F5) — anchor deviation documented.
     rowLinks: Array.from(root.querySelectorAll('a'))
       .map((a) => a.getAttribute('href'))
-      .filter((href): href is string => Boolean(href?.startsWith('/fg/'))),
+      .filter((href): href is string => Boolean(href?.startsWith('/pipeline/'))),
     badges: root.querySelectorAll('[data-slot="badge"]').length,
     badgeDots: Array.from(root.querySelectorAll('[data-slot="badge"]')).every((b) =>
       Boolean(b.querySelector('[aria-hidden="true"]')),
@@ -157,7 +161,11 @@ describe('T-133 parity evidence — write per-state DOM artifacts', () => {
     const readyState = (report.states as Record<string, ReturnType<typeof summary>>).ready;
     expect(readyState.card).toBe(true);
     expect(readyState.viewAllLink).toBe(true);
-    expect(readyState.rowLinks).toEqual(['/fg/FA5101', '/fg/FA5102', '/fg/FA5103']);
+    // Wave F5 (D1): pipeline preview rows link to the project's NPD working surface
+    // (/pipeline/<projectId>) not to FG detail (/fg/<productCode>). The FG detail
+    // route is entered separately from the launch-alerts table or the FG list page.
+    // Structure superseded by owner decision D1 (wave F5) — anchor deviation documented.
+    expect(readyState.rowLinks).toEqual(['/pipeline/p-001', '/pipeline/p-002', '/pipeline/p-003']);
     expect(readyState.badges).toBe(3);
     expect(readyState.badgeDots).toBe(true);
     expect(readyState.rawSelects).toBe(0);

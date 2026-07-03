@@ -125,11 +125,13 @@ describe('ProjectHeader — FG-candidate affordance (dead-end fix)', () => {
     },
   );
 
-  it('shows an "Open FG" link to /{locale}/fa/{code} once a product_code is linked', () => {
+  it('shows an "Open FG" link to /{locale}/fg/{code} once a product_code is linked', () => {
+    // Wave F5: /fa route renamed to /fg; the project-header "Open FG" link now
+    // points to /[locale]/fg/[productCode] (canonical FG detail route).
     renderHeader(makeView({ currentGate: 'G3', productCode: 'FG-DEV-088' }));
     const link = screen.getByTestId('project-header-open-fg');
     expect(link).toHaveTextContent(LABELS.openFg);
-    expect(link).toHaveAttribute('href', '/en/fa/FG-DEV-088');
+    expect(link).toHaveAttribute('href', '/en/fg/FG-DEV-088');
     expect(screen.queryByTestId('project-header-create-fg')).toBeNull();
   });
 

@@ -90,6 +90,16 @@ const LABELS: DashboardScreenLabels = {
   deptTechnical: 'Technical',
   deptMrp: 'MRP',
   deptProcurement: 'Procurement',
+  // Wave F5 (decision D1): departments are grouped by pipeline stage — stage labels required.
+  stageBrief: 'Brief',
+  stageRecipe: 'Recipe',
+  stagePackaging: 'Packaging',
+  stageCostingNutrition: 'Costing & Nutrition',
+  stageTrial: 'Trial',
+  stageSensory: 'Sensory',
+  stagePilot: 'Pilot',
+  stageApproval: 'Approval',
+  stageHandoff: 'Handoff',
   loading: 'Loading dashboard…',
   empty: 'No active Finished Goods yet',
   emptyBody: 'Launch alerts appear once Finished Goods exist.',
@@ -106,6 +116,12 @@ const READY_PROPS: DashboardScreenProps = {
   perDept: [
     {
       dept: 'core',
+      // Wave F5 (D1): DeptProgress now requires deptName/stageCode/stageRoute/stageOrder
+      // for the pipeline-stage-grouped table layout.
+      deptName: 'Core',
+      stageCode: 'brief',
+      stageRoute: 'brief',
+      stageOrder: 0,
       done: 8,
       pending: 12,
       blocked: 3,
@@ -117,7 +133,17 @@ const READY_PROPS: DashboardScreenProps = {
         },
       ],
     },
-    { dept: 'planning', done: 5, pending: 10, blocked: 8, blockedFas: [] },
+    {
+      dept: 'planning',
+      deptName: 'Planning',
+      stageCode: 'brief',
+      stageRoute: 'brief',
+      stageOrder: 0,
+      done: 5,
+      pending: 10,
+      blocked: 8,
+      blockedFas: [],
+    },
   ],
   alerts: [
     {

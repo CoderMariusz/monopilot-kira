@@ -65,7 +65,8 @@ describe('NpdSubNav', () => {
 
     // Apex children visible by default.
     expect(within(root).getByTestId('npd-subnav-item-fgDashboard')).toHaveAttribute('href', '/en/npd');
-    expect(within(root).getByTestId('npd-subnav-item-finishedGoods')).toHaveAttribute('href', '/en/fa');
+    // Wave F5: /fa route renamed to /fg (canonical FG list route).
+    expect(within(root).getByTestId('npd-subnav-item-finishedGoods')).toHaveAttribute('href', '/en/fg');
     // 'briefs' nav item was removed when the standalone /briefs flow was folded into the project.
 
     // FG-canonical labels (no "FA Dashboard"/"Factory Articles").
@@ -86,8 +87,9 @@ describe('NpdSubNav', () => {
   });
 
   it('lights the active Apex child (and the parent toggle) on a child route', () => {
-    currentPathname = '/en/fa/FG-001';
-    render(<NpdSubNav locale="en" pathnameOverride="/en/fa/FG-001" />);
+    // Wave F5: /fa route renamed to /fg; the active-state check uses /fg/FG-001.
+    currentPathname = '/en/fg/FG-001';
+    render(<NpdSubNav locale="en" pathnameOverride="/en/fg/FG-001" />);
 
     const root = screen.getByTestId('npd-subnav');
     expect(within(root).getByTestId('npd-subnav-item-finishedGoods')).toHaveAttribute('aria-current', 'page');

@@ -162,12 +162,16 @@ describe('A2 FA detail page — auto-derived field render plumbing (mig 374)', (
     expect(input).toHaveAttribute('readonly');
   });
 
-  it('keeps the SOURCE field editable (not read-only)', async () => {
+  it('source field is read-only on the FG detail page (D1: edit moved to stage screens)', async () => {
+    // Wave F5 (decision D1): FG detail is now a READ-ONLY overview; all dept fields
+    // (including non-auto source columns) are force-read-only at render time via
+    // forceReadOnlyColumns(). Editing is intentionally moved to the stage screens
+    // (/pipeline/<projectId>/<stage>). The assertion is inverted from the pre-F5 contract.
     await renderPage();
     const coreTab = screen.getByTestId('fa-core-tab');
     const sourceField = coreTab.querySelector('[data-field="source_label"]') as HTMLElement;
     expect(sourceField).not.toBeNull();
-    // The non-auto source column is NOT marked data-readonly.
-    expect(sourceField).not.toHaveAttribute('data-readonly', 'true');
+    // FG detail renders all fields read-only (forceReadOnlyColumns — page.tsx:238).
+    expect(sourceField).toHaveAttribute('data-readonly', 'true');
   });
 });
