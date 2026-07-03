@@ -4705,7 +4705,9 @@
         "singleComponentType": "Pojedynczy komponent"
       },
       "closeDept": "Zamknij {dept}",
-      "reopenDept": "Otwórz ponownie: {dept}"
+      "reopenDept": "Otwórz ponownie: {dept}",
+      "editOnStage": "Edytuj na etapie {stage}",
+      "editProductionOnRecipe": "Edytuj produkcję / WIP na etapie Receptura →"
     },
     "dashboard": {
       "alertAmber": "Bursztynowy",
@@ -4762,7 +4764,16 @@
       "title": "Pulpit NPD",
       "expandBlockedFas": "Pokaż zablokowane FG",
       "collapseBlockedFas": "Ukryj zablokowane FG",
-      "blockedFaListTitle": "Zablokowane FG"
+      "blockedFaListTitle": "Zablokowane FG",
+      "stageBrief": "Brief",
+      "stageRecipe": "Receptura",
+      "stagePackaging": "Opakowanie",
+      "stageCostingNutrition": "Koszt i żywienie",
+      "stageTrial": "Próba",
+      "stageSensory": "Sensoryka",
+      "stagePilot": "Pilotaż",
+      "stageApproval": "Akceptacja",
+      "stageHandoff": "Przekazanie"
     },
     "briefDetail": {
       "breadcrumbRoot": "NPD",
@@ -5010,7 +5021,9 @@
       "picker": {
         "createItemCta": "Utwórz pozycję w module Techniczny"
       },
-      "submitErrorNotLocked": "Zablokuj wersję receptury przed zgłoszeniem do próby."
+      "submitErrorNotLocked": "Zablokuj wersję receptury przed zgłoszeniem do próby.",
+      "wipNoFgTitle": "Brak powiązanego wyrobu gotowego",
+      "wipNoFgBody": "Powiąż lub utwórz WG dla tego projektu, aby edytować produkcję / WIP na etapie Receptura."
     },
     "costPanel": {
       "title": "Koszt i marża",
@@ -6480,7 +6493,8 @@
       "saveFailed": "Zapis nie powiódł się",
       "selectPlaceholder": "Wybierz...",
       "booleanYes": "Tak",
-      "booleanNo": "Nie"
+      "booleanNo": "Nie",
+      "closeSection": "Zamknij sekcję {dept}"
     }
   },
   "Errors": {

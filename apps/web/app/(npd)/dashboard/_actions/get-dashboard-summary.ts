@@ -1,12 +1,12 @@
 'use server';
 
+import { isNpdFieldValueFilled } from '../../../../lib/npd/field-value-filled';
+import { stageOrderIndex, stageRoutePath } from '../../../../lib/npd/stage-routes';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 
 const DASHBOARD_VIEW_PERMISSIONS = ['npd.dashboard.view', 'dashboard.view'] as const;
 const FULL_DASHBOARD_ROLE_CODES = new Set(['npd_manager', 'admin']);
-const DEPTS = ['core', 'planning', 'commercial', 'production', 'technical', 'mrp', 'procurement'] as const;
 
-type Dept = (typeof DEPTS)[number];
 type QueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
@@ -22,22 +22,39 @@ type SummaryRow = {
   pending: string | number;
   total_built: string | number;
 };
-type DeptRow = {
-  dept: Dept;
-  done: string | number;
-  pending: string | number;
-  blocked: string | number;
-  blocked_fas: string | BlockedFaRow[];
-};
 type BlockedFaRow = {
   productCode: string;
   productName: string | null;
   missingData: string | null;
+  projectId?: string | null;
+  stageRoute?: string | null;
 };
 type CallerAccess = {
   roleCodes: string[];
   canView: boolean;
-  deptFilter: Dept | null;
+  deptFilter: string | null;
+};
+
+type ActiveDeptRow = {
+  code: string;
+  name: string;
+  stage_code: string;
+  display_order: number;
+};
+
+type DeptFieldRow = {
+  dept_code: string;
+  field_code: string;
+  required: boolean;
+  is_auto: boolean;
+  auto_source_field: string | null;
+};
+
+type ProductRow = {
+  product_code: string;
+  product_name: string | null;
+  product_json: Record<string, unknown>;
+  project_id: string | null;
 };
 
 export type DashboardSummaryResult = {
@@ -48,7 +65,11 @@ export type DashboardSummaryResult = {
     totalBuilt: number;
   };
   perDept: Array<{
-    dept: Dept;
+    dept: string;
+    deptName: string;
+    stageCode: string;
+    stageRoute: string;
+    stageOrder: number;
     done: number;
     pending: number;
     blocked: number;
@@ -85,7 +106,7 @@ async function getCallerAccess(ctx: OrgActionContext): Promise<CallerAccess> {
 
   const roleCodes = [...new Set(rows.map((row) => row.code).filter(Boolean))];
   const canView = rows.some((row) => row.permission !== null) || await hasLegacyJsonPermission(ctx, DASHBOARD_VIEW_PERMISSIONS);
-  const deptFilter = shouldFilterToDept(roleCodes) ? inferDept(roleCodes) : null;
+  const deptFilter = shouldFilterToDept(roleCodes) ? inferDept(roleCodes, await readActiveDeptCodes(ctx.client)) : null;
 
   return { roleCodes, canView, deptFilter };
 }
@@ -113,8 +134,19 @@ function shouldFilterToDept(roleCodes: readonly string[]): boolean {
   return roleCodes.some((code) => code.includes('dept_manager') || code.includes('dept_user'));
 }
 
-function inferDept(roleCodes: readonly string[]): Dept | null {
-  for (const dept of DEPTS) {
+async function readActiveDeptCodes(client: QueryClient): Promise<string[]> {
+  const { rows } = await client.query<{ code: string }>(
+    `select lower(d.code) as code
+       from public.npd_departments d
+      where d.org_id = app.current_org_id()
+        and d.active = true
+      order by d.display_order asc, d.code asc`,
+  );
+  return rows.map((row) => row.code);
+}
+
+function inferDept(roleCodes: readonly string[], activeDepts: readonly string[]): string | null {
+  for (const dept of activeDepts) {
     if (roleCodes.some((code) => code.toLowerCase().includes(dept))) return dept;
   }
   return null;
@@ -135,102 +167,154 @@ async function readSummary(client: QueryClient): Promise<DashboardSummaryResult[
   };
 }
 
-async function readPerDept(client: QueryClient, deptFilter: Dept | null): Promise<DashboardSummaryResult['perDept']> {
-  const { rows } = await client.query<DeptRow>(
-    `with dept_rows(dept, done_column) as (
-       values
-         ('core', 'done_core'),
-         ('planning', 'done_planning'),
-         ('commercial', 'done_commercial'),
-         ('production', 'done_production'),
-         ('technical', 'done_technical'),
-         ('mrp', 'done_mrp'),
-         ('procurement', 'done_procurement')
-     ),
-     product_dept as (
-       select d.dept::text as dept,
-              p.product_code,
-              p.product_name,
-              case d.done_column
-                when 'done_core' then coalesce(p.done_core, false)
-                when 'done_planning' then coalesce(p.done_planning, false)
-                when 'done_commercial' then coalesce(p.done_commercial, false)
-                when 'done_production' then coalesce(p.done_production, false)
-                when 'done_technical' then coalesce(p.done_technical, false)
-                when 'done_mrp' then coalesce(p.done_mrp, false)
-                when 'done_procurement' then coalesce(p.done_procurement, false)
-                else false
-              end as is_done,
-              m.missing_data,
-              m.missing_data is not null as is_blocked
-         from public.product p
-         cross join dept_rows d
-         left join public.missing_required_cols m
-           on m.org_id = p.org_id
-          and m.product_code = p.product_code
-          and m.missing_data ilike '%' || d.dept || ':%'
-        where p.org_id = app.current_org_id()
-          and p.product_code is not null
-          and ($1::text is null or d.dept = $1)
-     )
-     select dept,
-            count(*) filter (where is_done)::text as done,
-            count(*) filter (where not is_done)::text as pending,
-            count(*) filter (where is_blocked)::text as blocked,
-            coalesce(
-              jsonb_agg(
-                jsonb_build_object(
-                  'productCode', product_code,
-                  'productName', product_name,
-                  'missingData', missing_data
-                )
-                order by product_code
-              ) filter (where is_blocked),
-              '[]'::jsonb
-            )::text as blocked_fas
-       from product_dept
-      group by dept
-      order by array_position(array['core','planning','commercial','production','technical','mrp','procurement'], dept)`,
-    [deptFilter],
+async function readActiveDepartments(client: QueryClient): Promise<ActiveDeptRow[]> {
+  const { rows } = await client.query<ActiveDeptRow>(
+    `select lower(d.code) as code,
+            d.name,
+            coalesce(d.stage_code, 'brief') as stage_code,
+            coalesce(d.display_order, 0) as display_order
+       from public.npd_departments d
+      where d.org_id = app.current_org_id()
+        and d.active = true
+      order by d.display_order asc, d.code asc`,
   );
+  return rows;
+}
 
-  return rows.map((row) => ({
-    dept: row.dept,
-    done: toNumber(row.done),
-    pending: toNumber(row.pending),
-    blocked: toNumber(row.blocked),
-    blockedFas: parseBlockedFas(row.blocked_fas),
-  }));
+async function readDeptFieldRequirements(client: QueryClient): Promise<DeptFieldRow[]> {
+  const { rows } = await client.query<DeptFieldRow>(
+    `select lower(d.code) as dept_code,
+            lower(f.code) as field_code,
+            coalesce(df.required, false) as required,
+            coalesce(f.is_auto, false) as is_auto,
+            f.auto_source_field
+       from public.npd_departments d
+       join public.npd_department_field df
+         on df.department_id = d.id
+        and df.org_id = d.org_id
+       join public.npd_field_catalog f
+         on f.id = df.field_id
+        and f.org_id = df.org_id
+      where d.org_id = app.current_org_id()
+        and d.active = true
+        and df.visible = true
+        and f.active = true
+        and df.required = true`,
+  );
+  return rows;
+}
+
+async function readProducts(client: QueryClient): Promise<ProductRow[]> {
+  const { rows } = await client.query<ProductRow>(
+    `select p.product_code,
+            p.product_name,
+            to_jsonb(p.*) as product_json,
+            np.id::text as project_id
+       from public.product p
+       left join public.npd_projects np
+         on np.org_id = p.org_id
+        and np.product_code = p.product_code
+      where p.org_id = app.current_org_id()
+        and p.product_code is not null`,
+  );
+  return rows;
+}
+
+function resolveFieldValue(
+  productJson: Record<string, unknown>,
+  field: DeptFieldRow,
+): unknown {
+  const fieldCode = field.field_code;
+  const autoSource =
+    field.is_auto && (field.auto_source_field ?? '').trim() !== ''
+      ? (field.auto_source_field as string).trim().toLowerCase()
+      : null;
+  if (autoSource && autoSource in productJson) return productJson[autoSource];
+  return productJson[fieldCode];
+}
+
+function formatMissingData(deptName: string, missingLabels: string[]): string {
+  if (missingLabels.length === 0) return '';
+  return `${deptName}: ${missingLabels.join(', ')}.`;
+}
+
+async function readPerDept(
+  client: QueryClient,
+  deptFilter: string | null,
+): Promise<DashboardSummaryResult['perDept']> {
+  const [departments, fieldRows, products] = await Promise.all([
+    readActiveDepartments(client),
+    readDeptFieldRequirements(client),
+    readProducts(client),
+  ]);
+
+  const fieldsByDept = new Map<string, DeptFieldRow[]>();
+  for (const row of fieldRows) {
+    const list = fieldsByDept.get(row.dept_code) ?? [];
+    list.push(row);
+    fieldsByDept.set(row.dept_code, list);
+  }
+
+  const filteredDepts = deptFilter
+    ? departments.filter((dept) => dept.code === deptFilter)
+    : departments;
+
+  return filteredDepts
+    .map((dept) => {
+      const requiredFields = fieldsByDept.get(dept.code) ?? [];
+      let done = 0;
+      let pending = 0;
+      let blocked = 0;
+      const blockedFas: BlockedFaRow[] = [];
+
+      for (const product of products) {
+        const missingLabels: string[] = [];
+        for (const field of requiredFields) {
+          const value = resolveFieldValue(product.product_json, field);
+          if (!isNpdFieldValueFilled(value)) {
+            missingLabels.push(field.field_code.replace(/_/g, ' '));
+          }
+        }
+
+        const hasRequired = requiredFields.length > 0;
+        const isComplete = !hasRequired || missingLabels.length === 0;
+
+        if (isComplete) {
+          done += 1;
+        } else {
+          pending += 1;
+          blocked += 1;
+          blockedFas.push({
+            productCode: product.product_code,
+            productName: product.product_name,
+            missingData: formatMissingData(dept.name, missingLabels),
+            projectId: product.project_id,
+            stageRoute: stageRoutePath(dept.stage_code),
+          });
+        }
+      }
+
+      return {
+        dept: dept.code,
+        deptName: dept.name,
+        stageCode: dept.stage_code,
+        stageRoute: stageRoutePath(dept.stage_code),
+        stageOrder: stageOrderIndex(dept.stage_code),
+        done,
+        pending,
+        blocked,
+        blockedFas: blockedFas.sort((a, b) => a.productCode.localeCompare(b.productCode)),
+      };
+    })
+    .sort((a, b) => {
+      if (a.stageOrder !== b.stageOrder) return a.stageOrder - b.stageOrder;
+      if (a.dept !== b.dept) return a.dept.localeCompare(b.dept);
+      return 0;
+    });
 }
 
 function toNumber(value: string | number | null | undefined): number {
   if (typeof value === 'number') return value;
   if (!value) return 0;
   return Number(value);
-}
-
-function parseBlockedFas(value: string | BlockedFaRow[] | null | undefined): BlockedFaRow[] {
-  if (Array.isArray(value)) return value.map(normalizeBlockedFa).filter(Boolean) as BlockedFaRow[];
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed)
-      ? parsed.map(normalizeBlockedFa).filter(Boolean) as BlockedFaRow[]
-      : [];
-  } catch (error) {
-    console.error('[npd-dashboard] failed to parse blocked FA rows:', error);
-    return [];
-  }
-}
-
-function normalizeBlockedFa(value: unknown): BlockedFaRow | null {
-  if (!value || typeof value !== 'object') return null;
-  const row = value as Record<string, unknown>;
-  const productCode = typeof row.productCode === 'string' ? row.productCode : '';
-  if (!productCode) return null;
-  return {
-    productCode,
-    productName: typeof row.productName === 'string' ? row.productName : null,
-    missingData: typeof row.missingData === 'string' ? row.missingData : null,
-  };
 }

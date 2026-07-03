@@ -15,12 +15,16 @@ import {
 import Textarea from '@monopilot/ui/Textarea';
 
 import { saveStageDeptField } from '../_actions/save-stage-dept-field';
+import type { Dept } from '../../fa/actions/get-required-fields-for-dept';
 import type { StageDeptField, StageDeptSectionsResult } from '../_actions/load-stage-dept-sections.types';
+import { StageDeptCloseButton } from './StageDeptCloseButton';
 
 type StageDeptSectionsProps = {
   projectId: string;
   stage: string;
   data: StageDeptSectionsResult;
+  /** Label template for close button, e.g. "Close {dept} section". */
+  closeSectionLabel?: string;
 };
 
 type Drafts = Record<string, string>;
@@ -147,7 +151,7 @@ function FieldEditor({
   );
 }
 
-export function StageDeptSections({ projectId, stage, data }: StageDeptSectionsProps) {
+export function StageDeptSections({ projectId, stage, data, closeSectionLabel }: StageDeptSectionsProps) {
   const initialDrafts = useMemo(() => {
     const next: Drafts = {};
     for (const section of data.sections) {
@@ -178,6 +182,8 @@ export function StageDeptSections({ projectId, stage, data }: StageDeptSectionsP
     });
   };
 
+  const closeLabel = closeSectionLabel ?? 'Close {dept} section';
+
   return (
     <section className="mt-6 space-y-4" data-testid={`stage-dept-sections-${stage}`}>
       {data.no_fg_linked ? (
@@ -191,11 +197,22 @@ export function StageDeptSections({ projectId, stage, data }: StageDeptSectionsP
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-slate-900">{section.label}</h2>
-              {section.readOnly ? (
-                <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">
-                  Read-only
-                </span>
-              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                {data.productCode && section.allRequiredFilled && !section.readOnly ? (
+                  <StageDeptCloseButton
+                    productCode={data.productCode}
+                    dept={section.closeDeptValue as Dept}
+                    deptLabel={section.label}
+                    closeSectionLabel={closeLabel}
+                    canClose={section.allRequiredFilled === true}
+                  />
+                ) : null}
+                {section.readOnly ? (
+                  <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">
+                    Read-only
+                  </span>
+                ) : null}
+              </div>
             </div>
           </CardHeader>
           <CardContent>

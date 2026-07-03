@@ -40,22 +40,7 @@ import {
   FinishWipEditor,
   type FinishWipEditorLabels,
 } from './_components/finish-wip-editor';
-import {
-  BenchmarkEditor,
-  type BenchmarkEditorLabels,
-  type BenchmarkRow,
-} from './_components/benchmark-editor';
-import {
-  addProdDetailRow,
-  listProdDetail,
-  removeProdDetailRow,
-  updateProdDetailRow,
-} from './_actions/finish-wip';
-import {
-  deleteBenchmark,
-  listBenchmarks,
-  upsertBenchmark,
-} from './_actions/benchmarks';
+import { listProdDetail } from './_actions/finish-wip';
 import {
   FaPlanningTab,
   type FaPlanningColumn,
@@ -81,13 +66,6 @@ import {
   type ComponentProcess,
 } from '../../../../../(npd)/fa/actions/get-component-processes';
 import { listManufacturingOperations } from '../../../../../../actions/reference/manufacturing-ops/list';
-import {
-  addWipProcess,
-  updateWipProcess,
-  removeWipProcess,
-  saveWipProcessRoles,
-} from '../../../../../(npd)/fa/actions/wip-process-actions';
-import { getProcessDefault } from '../../../(admin)/settings/process-defaults/_actions/process-defaults-actions';
 import {
   FaTechnicalTab,
   type FaTechnicalColumn,
@@ -123,6 +101,7 @@ import {
 } from '../../../../../../lib/npd/derive-dept-statuses';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { pipelineStageHref } from '../../../../../../lib/npd/stage-routes';
 
 export const dynamic = 'force-dynamic';
 
@@ -255,6 +234,28 @@ function mapDeptColumn(row: DeptColumnRow, index: number): GenericDeptColumn {
   };
 }
 
+/** FG detail is read-only — every editable dept cell is forced read-only at render time. */
+function forceReadOnlyColumns<T extends { readOnly?: boolean }>(columns: T[]): T[] {
+  return columns.map((col) => ({ ...col, readOnly: true }));
+}
+
+const STAGE_DISPLAY_NAMES: Record<string, string> = {
+  brief: 'Brief',
+  recipe: 'Recipe',
+  packaging: 'Packaging',
+  costing_nutrition: 'Costing & Nutrition',
+  trial: 'Trial',
+  sensory: 'Sensory',
+  pilot: 'Pilot',
+  approval: 'Approval',
+  handoff: 'Handover',
+};
+
+function stageDisplayName(stageCode: string): string {
+  const key = (stageCode ?? '').trim().toLowerCase();
+  return STAGE_DISPLAY_NAMES[key] ?? stageCode;
+}
+
 async function readDeptColumns(
   ctx: OrgContextLike,
   deptCode: string,
@@ -311,6 +312,31 @@ async function readActiveDeptCodes(ctx: OrgContextLike): Promise<Set<DeptKey>> {
   const active = new Set<DeptKey>();
   for (const row of rows) if (valid.has(row.code)) active.add(row.code as DeptKey);
   return active;
+}
+
+async function readProjectIdForProduct(ctx: OrgContextLike, productCode: string): Promise<string | null> {
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `select id::text as id
+       from public.npd_projects
+      where org_id = app.current_org_id()
+        and product_code = $1::text
+      limit 1`,
+    [productCode],
+  );
+  return rows[0]?.id ?? null;
+}
+
+async function readDeptStageMap(ctx: OrgContextLike): Promise<Record<string, string>> {
+  const { rows } = await ctx.client.query<{ code: string; stage_code: string }>(
+    `select lower(d.code) as code,
+            coalesce(d.stage_code, 'brief') as stage_code
+       from public.npd_departments d
+      where d.org_id = app.current_org_id()
+        and d.active = true`,
+  );
+  const map: Record<string, string> = {};
+  for (const row of rows) map[row.code] = row.stage_code;
+  return map;
 }
 
 // ---------------------------------------------------------------------------
@@ -484,6 +510,8 @@ type DeptData = {
    * so a deactivated non-Core department never renders. All-7-active ⇒ full set.
    */
   activeDepts: Set<DeptKey>;
+  projectId: string | null;
+  deptStageByCode: Record<string, string>;
 };
 
 async function readFaCore(ctx: OrgContextLike, productCode: string): Promise<FaCoreRow | null> {
@@ -554,6 +582,8 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         canDelete,
         canBuild,
         activeDepts,
+        projectId,
+        deptStageByCode,
       ] = await Promise.all([
         readProductValues(ctx, productCode),
         readDeptColumns(ctx, 'Core'),
@@ -568,6 +598,8 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         hasPermission(ctx, DELETE_PERMISSION),
         hasPermission(ctx, BUILD_PERMISSION),
         readActiveDeptCodes(ctx),
+        readProjectIdForProduct(ctx, productCode),
+        readDeptStageMap(ctx),
       ]);
 
       // mig 374 — AUTO-DERIVED field read-time override. For every loaded auto
@@ -614,26 +646,30 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
       // dynamic per-component process list (FaProductionTab → ComponentProcesses).
       // All OTHER Production columns (line, equipment_setup, resource_requirement,
       // rate, component_weight, …) are kept untouched.
-      const productionFiltered = production.filter((col) => !isLegacyProcessColumn(col.key));
+      const productionFiltered = forceReadOnlyColumns(
+        production.filter((col) => !isLegacyProcessColumn(col.key)),
+      );
 
       const dept: DeptData = {
         values,
         coreDone,
         prodDone,
-        core,
-        planning,
-        commercial,
+        core: forceReadOnlyColumns(core),
+        planning: forceReadOnlyColumns(planning),
+        commercial: forceReadOnlyColumns(commercial),
         production: productionFiltered,
-        technical,
-        procurement,
-        mrp,
+        technical: forceReadOnlyColumns(technical),
+        procurement: forceReadOnlyColumns(procurement),
+        mrp: forceReadOnlyColumns(mrp),
         prodRows,
         // Enriched after the org-context block closes (each action opens its OWN tx).
         prodProcesses: {},
         operations: [],
         dropdowns,
-        canWriteProduction,
+        canWriteProduction: false,
         activeDepts,
+        projectId,
+        deptStageByCode,
       };
 
       // Dept-status strip — derived SERVER-SIDE from the real product row +
@@ -717,6 +753,10 @@ type FaDetailLabels = {
    * in place of Close for a CLOSED dept; launches the reopen confirm modal.
    */
   reopenDept: string;
+  /** Read-only hint: "Edit on the {stage} stage". */
+  editOnStage: string;
+  /** Production tab link to the Recipe stage WIP editor. */
+  editProductionOnRecipe: string;
   /** Header actions bar (prototype fa-screens.jsx:344-362). */
   actions: FaHeaderActionsLabels;
   /** Workflow template line (product-owner approved addition). */
@@ -780,6 +820,8 @@ const DEFAULT_FA_DETAIL_LABELS: FaDetailLabels = {
   },
   closeDept: 'Close {dept}',
   reopenDept: 'Reopen {dept}',
+  editOnStage: 'Edit on the {stage} stage',
+  editProductionOnRecipe: 'Edit production / WIP on the Recipe stage →',
   actions: {
     deleteFa: 'Delete FG',
     d365Build: 'Build D365 →',
@@ -860,6 +902,8 @@ async function buildFaDetailLabels(locale: string): Promise<FaDetailLabels> {
       },
       closeDept: pick('closeDept', d.closeDept),
       reopenDept: pick('reopenDept', d.reopenDept),
+      editOnStage: pick('editOnStage', d.editOnStage),
+      editProductionOnRecipe: pick('editProductionOnRecipe', d.editProductionOnRecipe),
       actions: {
         deleteFa: pick('actions.deleteFa', d.actions.deleteFa),
         d365Build: pick('actions.d365Build', d.actions.d365Build),
@@ -1052,30 +1096,6 @@ async function buildFinishWipLabels(locale: string): Promise<FinishWipEditorLabe
     forbidden: p('forbidden', 'You do not have permission to view production components.'),
     saving: p('saving', 'Saving…'),
     saveError: p('saveError', 'Could not save the component.'),
-  };
-}
-
-async function buildBenchmarkLabels(locale: string): Promise<BenchmarkEditorLabels> {
-  const p = await pickerFor(locale, 'npd.benchmarks');
-  return {
-    title: p('title', 'Benchmarks'),
-    subtitle: p('subtitle', 'Competitor reference prices'),
-    countBadge: p('countBadge', '{n} benchmarks'),
-    labelHeader: p('labelHeader', 'Benchmark'),
-    priceHeader: p('priceHeader', 'Price'),
-    labelPlaceholder: p('labelPlaceholder', 'e.g. Tesco Finest'),
-    pricePlaceholder: p('pricePlaceholder', '0.00'),
-    add: p('add', 'Add benchmark'),
-    save: p('save', 'Save'),
-    saving: p('saving', 'Saving…'),
-    remove: p('remove', 'Remove'),
-    saved: p('saved', 'Saved'),
-    saveError: p('saveError', 'Could not save the benchmark'),
-    loading: p('loading', 'Loading benchmarks…'),
-    empty: p('empty', 'No benchmarks yet'),
-    emptyBody: p('emptyBody', 'Add a competitor benchmark price.'),
-    error: p('error', 'Something went wrong loading benchmarks'),
-    forbidden: p('forbidden', 'You do not have permission to view benchmarks'),
   };
 }
 
@@ -1414,6 +1434,8 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     // Test-injection seam: treat every department as active so the injected
     // render matches the all-7-active production default (Defect A1-2 no-op).
     activeDepts: new Set<DeptKey>(DEPT_KEYS),
+    projectId: null,
+    deptStageByCode: {},
   };
 
   const emptyDeptStatuses: Record<DeptKey, DeptStatus> = {
@@ -1503,7 +1525,6 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     mrpLabels,
     allergenLabels,
     finishWipLabels,
-    benchmarkLabels,
     bomLabels,
   ] = await Promise.all([
     buildCoreLabels(locale, dept.core),
@@ -1515,7 +1536,6 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     buildMrpLabels(locale, dept.mrp),
     buildAllergenLabels(locale),
     buildFinishWipLabels(locale),
-    buildBenchmarkLabels(locale),
     buildBomLabels(locale),
   ]);
 
@@ -1553,14 +1573,6 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
   // DB-free; on that path the slots are omitted entirely.
   const isMultiComponent = templateValue.toLowerCase().startsWith('multi') || componentCount > 1;
   const finishWipRows = injected ? [] : (await listProdDetail({ productCode: fa.productCode })).rows;
-  const benchmarkRows: BenchmarkRow[] = injected
-    ? []
-    : (await listBenchmarks({ productCode: fa.productCode })).map((b) => ({
-        id: b.id,
-        label: b.label,
-        price: b.price,
-        displayOrder: b.displayOrder,
-      }));
 
   const finishWipSlot = injected ? undefined : (
     <FinishWipEditor
@@ -1569,19 +1581,6 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
       isMultiComponent={isMultiComponent}
       labels={finishWipLabels}
       state="ready"
-      onAddRow={addProdDetailRow}
-      onRemoveRow={removeProdDetailRow}
-      onUpdateRow={updateProdDetailRow}
-    />
-  );
-  const benchmarkSlot = injected ? undefined : (
-    <BenchmarkEditor
-      productCode={fa.productCode}
-      initialRows={benchmarkRows}
-      labels={benchmarkLabels}
-      state="ready"
-      onUpsert={upsertBenchmark}
-      onDelete={deleteBenchmark}
     />
   );
 
@@ -1596,6 +1595,19 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
   // value is not part of this slice's reads, so pass null (the rule is advisory
   // and re-enforced in updateFaCell). Wired by the Commercial parity slice.
   const earliestLaunch: string | null = null;
+
+  const projectId = dept.projectId;
+  const deptStageHint = (deptKey: string): { editStageHint?: string; editStageHref?: string } => {
+    if (!projectId) return {};
+    const stageCode = dept.deptStageByCode[deptKey] ?? 'brief';
+    return {
+      editStageHint: labels.editOnStage.replace('{stage}', stageDisplayName(stageCode)),
+      editStageHref: pipelineStageHref(locale, projectId, stageCode),
+    };
+  };
+
+  const recipeStageHref =
+    projectId != null ? pipelineStageHref(locale, projectId, 'recipe') : null;
 
   // A3 SLICE 2 — assemble each dept body ONCE (the FaXxxTab components themselves
   // get ZERO changes), then GROUP them into 3 owner-facing sections via
@@ -1614,7 +1626,6 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
       labels={coreLabels}
       state="ready"
       finishWipSlot={finishWipSlot}
-      benchmarkSlot={benchmarkSlot}
     />
   );
   const planningNode = (
@@ -1641,26 +1652,31 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     />
   );
   const productionNode = (
-    <FaProductionTab
-      productCode={fa.productCode}
-      packSizeFilled={packSizeFilled}
-      columns={dept.production as FaProductionColumn[]}
-      rows={dept.prodRows}
-      dropdowns={dept.dropdowns}
-      labels={productionLabels}
-      canWrite={dept.canWriteProduction}
-      state="ready"
-      // S5b (D6/D9) — server-loaded dynamic process list + the operation picker
-      // source. The CRUD / getProcessDefault action seams default to the real
-      // Server Actions inside the component (RPC stubs); we pass only the DATA.
-      componentProcesses={dept.prodProcesses}
-      operationOptions={dept.operations}
-      onAddProcess={addWipProcess}
-      onUpdateProcess={updateWipProcess}
-      onRemoveProcess={removeWipProcess}
-      onSaveProcessRoles={saveWipProcessRoles}
-      onGetProcessDefault={getProcessDefault}
-    />
+    <div className="space-y-2">
+      {recipeStageHref ? (
+        <p className="text-xs text-slate-500">
+          <a
+            href={recipeStageHref}
+            data-testid="fa-production-edit-on-recipe"
+            className="text-[var(--blue)] hover:underline"
+          >
+            {labels.editProductionOnRecipe}
+          </a>
+        </p>
+      ) : null}
+      <FaProductionTab
+        productCode={fa.productCode}
+        packSizeFilled={packSizeFilled}
+        columns={dept.production as FaProductionColumn[]}
+        rows={dept.prodRows}
+        dropdowns={dept.dropdowns}
+        labels={productionLabels}
+        canWrite={false}
+        state="ready"
+        componentProcesses={dept.prodProcesses}
+        operationOptions={dept.operations}
+      />
+    </div>
   );
   const technicalNode = (
     <FaTechnicalTab
@@ -1721,14 +1737,14 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     String(dept.values[`closed_${deptKey}`] ?? '').toLowerCase() === 'yes';
 
   const ALL_COMMERCIAL: FaSectionPart[] = [
-    { key: 'commercial', deptValue: 'Commercial', heading: labels.deptStrip.labels.commercial, node: commercialNode, closed: isDeptClosed('commercial') },
-    { key: 'planning', deptValue: 'Planning', heading: labels.deptStrip.labels.planning, node: planningNode, closed: isDeptClosed('planning') },
-    { key: 'procurement', deptValue: 'Procurement', heading: labels.deptStrip.labels.procurement, node: procurementNode, closed: isDeptClosed('procurement') },
+    { key: 'commercial', deptValue: 'Commercial', heading: labels.deptStrip.labels.commercial, node: commercialNode, closed: isDeptClosed('commercial'), ...deptStageHint('commercial') },
+    { key: 'planning', deptValue: 'Planning', heading: labels.deptStrip.labels.planning, node: planningNode, closed: isDeptClosed('planning'), ...deptStageHint('planning') },
+    { key: 'procurement', deptValue: 'Procurement', heading: labels.deptStrip.labels.procurement, node: procurementNode, closed: isDeptClosed('procurement'), ...deptStageHint('procurement') },
   ];
   const ALL_PRODUCTION: FaSectionPart[] = [
-    { key: 'production', deptValue: 'Production', heading: labels.deptStrip.labels.production, node: productionNode, closed: isDeptClosed('production') },
-    { key: 'technical', deptValue: 'Technical', heading: labels.deptStrip.labels.technical, node: technicalNode, closed: isDeptClosed('technical') },
-    { key: 'mrp', deptValue: 'MRP', heading: labels.deptStrip.labels.mrp, node: mrpNode, closed: isDeptClosed('mrp') },
+    { key: 'production', deptValue: 'Production', heading: labels.deptStrip.labels.production, node: productionNode, closed: isDeptClosed('production'), ...deptStageHint('production') },
+    { key: 'technical', deptValue: 'Technical', heading: labels.deptStrip.labels.technical, node: technicalNode, closed: isDeptClosed('technical'), ...deptStageHint('technical') },
+    { key: 'mrp', deptValue: 'MRP', heading: labels.deptStrip.labels.mrp, node: mrpNode, closed: isDeptClosed('mrp'), ...deptStageHint('mrp') },
   ];
   const commercialParts = ALL_COMMERCIAL.filter((p) => dept.activeDepts.has(p.key as DeptKey));
   const productionParts = ALL_PRODUCTION.filter((p) => dept.activeDepts.has(p.key as DeptKey));
@@ -1737,13 +1753,25 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     core: (
       <FaSectionWrapper
         sectionKey="core"
-        closeDeptLabel={labels.closeDept}
-        reopenDeptLabel={labels.reopenDept}
-        parts={[{ key: 'core', deptValue: 'Core', heading: labels.deptStrip.labels.core, node: coreNode, closed: isDeptClosed('core') }]}
+        showCloseAffordance={false}
+        parts={[
+          {
+            key: 'core',
+            deptValue: 'Core',
+            heading: labels.deptStrip.labels.core,
+            node: coreNode,
+            closed: isDeptClosed('core'),
+            ...deptStageHint('core'),
+          },
+        ]}
       />
     ),
-    commercial: <FaSectionWrapper sectionKey="commercial" closeDeptLabel={labels.closeDept} reopenDeptLabel={labels.reopenDept} parts={commercialParts} />,
-    production: <FaSectionWrapper sectionKey="production" closeDeptLabel={labels.closeDept} reopenDeptLabel={labels.reopenDept} parts={productionParts} />,
+    commercial: (
+      <FaSectionWrapper sectionKey="commercial" showCloseAffordance={false} parts={commercialParts} />
+    ),
+    production: (
+      <FaSectionWrapper sectionKey="production" showCloseAffordance={false} parts={productionParts} />
+    ),
     bom: bomSlot,
     history: (
       <FaHistoryTab

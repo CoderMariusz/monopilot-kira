@@ -80,8 +80,26 @@ vi.mock('../../../../../lib/auth/with-org-context', () => ({
 const SUMMARY = {
   summary: { totalActive: 23, fullyComplete: 5, pending: 15, totalBuilt: 3 },
   perDept: [
-    { dept: 'core', done: 8, pending: 12, blocked: 3 },
-    { dept: 'mrp', done: 3, pending: 8, blocked: 12 },
+    {
+      dept: 'core',
+      deptName: 'Core',
+      stageCode: 'brief',
+      stageRoute: 'brief',
+      stageOrder: 0,
+      done: 8,
+      pending: 12,
+      blocked: 3,
+    },
+    {
+      dept: 'mrp',
+      deptName: 'MRP',
+      stageCode: 'packaging',
+      stageRoute: 'packaging',
+      stageOrder: 2,
+      done: 3,
+      pending: 8,
+      blocked: 12,
+    },
   ],
 };
 
@@ -275,7 +293,8 @@ describe('T-134 assembly — KPI region + T-133 pipeline preview + launch alerts
     const row = within(previewRegion).getByRole('link', {
       name: /FA5101.*Smoked Almond Yoghurt/i,
     });
-    expect(row).toHaveAttribute('href', '/fg/FA5101');
+    // D6 (wave F5): preview rows open the PROJECT pipeline, not the FG card.
+    expect(row).toHaveAttribute('href', '/pipeline/p-001');
   });
 
   it('renders the preview empty state when there are no recent projects', async () => {

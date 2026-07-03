@@ -61,6 +61,8 @@ import { loadAllergensConfig } from '../../../../(modules)/technical/allergens-c
 import { updateProjectBrief } from '../brief/_actions/update-project-brief';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { FormulationWipPanel } from './_components/formulation-wip-panel';
+import type { FaProductionTabLabels } from '../../../fg/[productCode]/_components/fa-production-tab';
 
 export const dynamic = 'force-dynamic';
 
@@ -615,16 +617,195 @@ async function readPageData(projectId: string, versionId?: string): Promise<Load
   return { state: 'ready', data, canEdit, submitAllowed, allergenReference };
 }
 
+async function buildWipNoFgLabels(locale: string): Promise<{ title: string; body: string }> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.formulationEditor' });
+    const pick = (key: string, fallback: string) => {
+      try {
+        const value = t(key);
+        return value === key ? fallback : value;
+      } catch {
+        return fallback;
+      }
+    };
+    return {
+      title: pick('wipNoFgTitle', 'No Finished Good linked'),
+      body: pick(
+        'wipNoFgBody',
+        'Link or create a Finished Good for this project to edit production / WIP processes on the Recipe stage.',
+      ),
+    };
+  } catch {
+    return {
+      title: 'No Finished Good linked',
+      body: 'Link or create a Finished Good for this project to edit production / WIP processes on the Recipe stage.',
+    };
+  }
+}
+
+async function buildWipPanelLabels(locale: string): Promise<FaProductionTabLabels> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.faProductionTab' });
+    const p = (key: string, fallback: string) => {
+      try {
+        const value = t(key);
+        return value === key ? fallback : value;
+      } catch {
+        return fallback;
+      }
+    };
+    return {
+      title: p('title', 'Production detail'),
+      componentsCount: p('componentsCount', '{count} component(s)'),
+      subtitle: p('subtitle', 'Edits reset the Built flag automatically.'),
+      lockedTitle: p('lockedTitle', 'Blocked'),
+      lockedBody: p('lockedBody', 'Pack Size must be filled in Core first.'),
+      v06Pass: p('v06Pass', 'Yield OK'),
+      v06Warn: p('v06Warn', 'Yield incomplete'),
+      aggregateTitle: p('aggregateTitle', 'Aggregate'),
+      autoHint: p('autoHint', 'Auto-derived'),
+      singleComponent: p('singleComponent', 'Component'),
+      save: p('save', 'Save Production'),
+      saving: p('saving', 'Saving…'),
+      saveSuccess: p('saveSuccess', 'Saved'),
+      saveError: p('saveError', 'Save failed'),
+      selectPlaceholder: p('selectPlaceholder', 'Select…'),
+      loading: p('loading', 'Loading…'),
+      empty: p('empty', 'No production components'),
+      emptyBody: p('emptyBody', 'Production rows derive from Core recipe components.'),
+      error: p('error', 'Unable to load Production.'),
+      forbidden: p('forbidden', 'You cannot edit Production.'),
+      addComponent: p('addComponent', '+ Add production component'),
+      emptyCtaBody: p('emptyCtaBody', 'Add a production component from the items master.'),
+      removeComponent: p('removeComponent', 'Remove component'),
+      removeError: p('removeError', 'Could not remove the component'),
+      picker: {
+        trigger: p('addComponent', '+ Add production component'),
+        searchLabel: p('picker.searchLabel', 'Search items'),
+        searchPlaceholder: p('picker.searchPlaceholder', 'Search by code or name…'),
+        loading: p('picker.loading', 'Searching…'),
+        empty: p('picker.empty', 'No matching items'),
+        cancel: p('picker.cancel', 'Cancel'),
+        error: p('picker.error', 'Item search failed'),
+      },
+      processes: {
+        sectionTitle: p('processes.sectionTitle', 'Processes'),
+        sectionSubtitle: p('processes.sectionSubtitle', 'Add the manufacturing processes for this component.'),
+        addProcess: p('processes.addProcess', '+ Add process'),
+        pickerLabel: p('processes.pickerLabel', 'Select a process'),
+        pickerPlaceholder: p('processes.pickerPlaceholder', 'Search processes…'),
+        pickerEmpty: p('processes.pickerEmpty', 'No processes available'),
+        pickerLoading: p('processes.pickerLoading', 'Loading processes…'),
+        pickerError: p('processes.pickerError', 'Could not load processes'),
+        pickerCancel: p('processes.pickerCancel', 'Cancel'),
+        empty: p('processes.empty', 'No processes yet'),
+        emptyBody: p('processes.emptyBody', 'Add the first manufacturing process.'),
+        duration: p('processes.duration', 'Duration (h)'),
+        additionalCost: p('processes.additionalCost', 'Standard cost'),
+        processCost: p('processes.processCost', 'Process cost'),
+        createsWip: p('processes.createsWip', 'Creates WIP'),
+        rolesHeader: p('processes.rolesHeader', 'Roles'),
+        editProcess: p('processes.editProcess', 'Edit process'),
+        removeProcess: p('processes.removeProcess', 'Remove process'),
+        save: p('processes.save', 'Save process'),
+        saving: p('processes.saving', 'Saving…'),
+        cancel: p('processes.cancel', 'Cancel'),
+        addError: p('processes.addError', 'Could not add the process'),
+        updateError: p('processes.updateError', 'Could not update the process'),
+        removeError: p('processes.removeError', 'Could not remove the process'),
+        saveRolesError: p('processes.saveRolesError', 'Could not save the roles'),
+        subtotalLabel: p('processes.subtotalLabel', 'Process subtotal'),
+        roleGroup: p('processes.roleGroup', 'Role'),
+        headcount: p('processes.headcount', 'Headcount'),
+        loading: p('processes.loading', 'Loading processes…'),
+        loadError: p('processes.loadError', 'Could not load processes'),
+      },
+      fields: {},
+    };
+  } catch {
+    return {
+      title: 'Production detail',
+      componentsCount: '{count} component(s)',
+      subtitle: 'Edits reset the Built flag automatically.',
+      lockedTitle: 'Blocked',
+      lockedBody: 'Pack Size must be filled in Core first.',
+      v06Pass: 'Yield OK',
+      v06Warn: 'Yield incomplete',
+      aggregateTitle: 'Aggregate',
+      autoHint: 'Auto-derived',
+      singleComponent: 'Component',
+      save: 'Save Production',
+      saving: 'Saving…',
+      saveSuccess: 'Saved',
+      saveError: 'Save failed',
+      selectPlaceholder: 'Select…',
+      loading: 'Loading…',
+      empty: 'No production components',
+      emptyBody: 'Production rows derive from Core recipe components.',
+      error: 'Unable to load Production.',
+      forbidden: 'You cannot edit Production.',
+      addComponent: '+ Add production component',
+      emptyCtaBody: 'Add a production component from the items master.',
+      removeComponent: 'Remove component',
+      removeError: 'Could not remove the component',
+      picker: {
+        trigger: '+ Add production component',
+        searchLabel: 'Search items',
+        searchPlaceholder: 'Search by code or name…',
+        loading: 'Searching…',
+        empty: 'No matching items',
+        cancel: 'Cancel',
+        error: 'Item search failed',
+      },
+      processes: {
+        sectionTitle: 'Processes',
+        sectionSubtitle: 'Add the manufacturing processes for this component.',
+        addProcess: '+ Add process',
+        pickerLabel: 'Select a process',
+        pickerPlaceholder: 'Search processes…',
+        pickerEmpty: 'No processes available',
+        pickerLoading: 'Loading processes…',
+        pickerError: 'Could not load processes',
+        pickerCancel: 'Cancel',
+        empty: 'No processes yet',
+        emptyBody: 'Add the first manufacturing process.',
+        duration: 'Duration (h)',
+        additionalCost: 'Standard cost',
+        processCost: 'Process cost',
+        createsWip: 'Creates WIP',
+        rolesHeader: 'Roles',
+        editProcess: 'Edit process',
+        removeProcess: 'Remove process',
+        save: 'Save process',
+        saving: 'Saving…',
+        cancel: 'Cancel',
+        addError: 'Could not add the process',
+        updateError: 'Could not update the process',
+        removeError: 'Could not remove the process',
+        saveRolesError: 'Could not save the roles',
+        subtotalLabel: 'Process subtotal',
+        roleGroup: 'Role',
+        headcount: 'Headcount',
+        loading: 'Loading processes…',
+        loadError: 'Could not load processes',
+      },
+      fields: {},
+    };
+  }
+}
+
 export default async function FormulationPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as FormulationPageProps;
   const { locale, projectId } = props.params
     ? await props.params
     : { locale: 'en', projectId: '' };
 
-  const [labels, panelLabels, allergenNames] = await Promise.all([
+  const [labels, panelLabels, allergenNames, wipPanelLabels, wipNoFgLabels] = await Promise.all([
     buildLabels(locale),
     buildPanelLabels(locale),
     buildAllergenNames(locale),
+    buildWipPanelLabels(locale),
+    buildWipNoFgLabels(locale),
   ]);
 
   // ?version=<versionId> — the selector navigates here to load THAT version, so
@@ -684,6 +865,12 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       projectId={projectId}
       createDraftAction={loaded.canEdit ? createDraftAdapter : undefined}
       createVersionAction={loaded.canEdit ? createVersionAdapter : undefined}
+      />
+      <FormulationWipPanel
+        projectId={projectId}
+        labels={wipPanelLabels}
+        noFgTitle={wipNoFgLabels.title}
+        noFgBody={wipNoFgLabels.body}
       />
     </>
   );

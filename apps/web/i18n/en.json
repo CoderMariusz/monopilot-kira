@@ -2378,7 +2378,9 @@
         "singleComponentType": "Single component"
       },
       "closeDept": "Close {dept}",
-      "reopenDept": "Reopen {dept}"
+      "reopenDept": "Reopen {dept}",
+      "editOnStage": "Edit on the {stage} stage",
+      "editProductionOnRecipe": "Edit production / WIP on the Recipe stage →"
     },
     "dashboard": {
       "alertAmber": "Amber",
@@ -2435,7 +2437,16 @@
       "title": "NPD Dashboard",
       "expandBlockedFas": "Show blocked FGs",
       "collapseBlockedFas": "Hide blocked FGs",
-      "blockedFaListTitle": "Blocked FGs"
+      "blockedFaListTitle": "Blocked FGs",
+      "stageBrief": "Brief",
+      "stageRecipe": "Recipe",
+      "stagePackaging": "Packaging",
+      "stageCostingNutrition": "Costing & Nutrition",
+      "stageTrial": "Trial",
+      "stageSensory": "Sensory",
+      "stagePilot": "Pilot",
+      "stageApproval": "Approval",
+      "stageHandoff": "Handover"
     },
     "briefDetail": {
       "breadcrumbRoot": "NPD",
@@ -2683,7 +2694,9 @@
       "picker": {
         "createItemCta": "Create an item in Technical"
       },
-      "submitErrorNotLocked": "Lock the recipe version before submitting for trial."
+      "submitErrorNotLocked": "Lock the recipe version before submitting for trial.",
+      "wipNoFgTitle": "No Finished Good linked",
+      "wipNoFgBody": "Link or create a Finished Good for this project to edit production / WIP processes on the Recipe stage."
     },
     "costPanel": {
       "title": "Cost & margin",
@@ -4196,7 +4209,8 @@
       "saveFailed": "Save failed",
       "selectPlaceholder": "Select...",
       "booleanYes": "Yes",
-      "booleanNo": "No"
+      "booleanNo": "No",
+      "closeSection": "Close {dept} section"
     }
   },
   "technical": {

@@ -22,6 +22,8 @@
 import React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
+import { PIPELINE_STAGE_ORDER } from '../../../../../../lib/npd/stage-routes';
+
 import { Checkbox } from '@monopilot/ui/Checkbox';
 import {
   Table,
@@ -47,14 +49,7 @@ function localePrefixFrom(pathname: string | null): string {
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
-export type Dept =
-  | 'core'
-  | 'planning'
-  | 'commercial'
-  | 'production'
-  | 'technical'
-  | 'mrp'
-  | 'procurement';
+export type Dept = string;
 
 export type AlertLevel = 'RED' | 'YELLOW' | 'GREEN';
 
@@ -66,7 +61,11 @@ export type DashboardSummary = {
 };
 
 export type DeptProgress = {
-  dept: Dept;
+  dept: string;
+  deptName: string;
+  stageCode: string;
+  stageRoute: string;
+  stageOrder: number;
   done: number;
   pending: number;
   blocked: number;
@@ -77,6 +76,8 @@ export type BlockedFa = {
   productCode: string;
   productName: string | null;
   missingData: string | null;
+  projectId?: string | null;
+  stageRoute?: string | null;
 };
 
 export type LaunchAlert = {
@@ -140,6 +141,15 @@ export type DashboardScreenLabels = {
   deptTechnical: string;
   deptMrp: string;
   deptProcurement: string;
+  stageBrief: string;
+  stageRecipe: string;
+  stagePackaging: string;
+  stageCostingNutrition: string;
+  stageTrial: string;
+  stageSensory: string;
+  stagePilot: string;
+  stageApproval: string;
+  stageHandoff: string;
   loading: string;
   empty: string;
   emptyBody: string;
@@ -187,8 +197,35 @@ export type DashboardScreenProps = {
 
 const ANCHOR = 'npd/fa-screens.jsx:32-174';
 
-function deptLabel(dept: Dept, labels: DashboardScreenLabels): string {
-  switch (dept) {
+function stageLabel(stageCode: string, labels: DashboardScreenLabels): string {
+  const key = (stageCode ?? '').trim().toLowerCase();
+  switch (key) {
+    case 'brief':
+      return labels.stageBrief;
+    case 'recipe':
+      return labels.stageRecipe;
+    case 'packaging':
+      return labels.stagePackaging;
+    case 'costing_nutrition':
+      return labels.stageCostingNutrition;
+    case 'trial':
+      return labels.stageTrial;
+    case 'sensory':
+      return labels.stageSensory;
+    case 'pilot':
+      return labels.stagePilot;
+    case 'approval':
+      return labels.stageApproval;
+    case 'handoff':
+      return labels.stageHandoff;
+    default:
+      return stageCode;
+  }
+}
+
+function deptLabel(row: DeptProgress, labels: DashboardScreenLabels): string {
+  if (row.deptName.trim()) return row.deptName;
+  switch (row.dept) {
     case 'core':
       return labels.deptCore;
     case 'planning':
@@ -204,8 +241,13 @@ function deptLabel(dept: Dept, labels: DashboardScreenLabels): string {
     case 'procurement':
       return labels.deptProcurement;
     default:
-      return dept;
+      return row.dept;
   }
+}
+
+function stageHref(localePrefix: string, projectId: string | null | undefined, stageRoute: string): string | null {
+  if (!projectId || !stageRoute) return null;
+  return `${localePrefix}/pipeline/${projectId}/${stageRoute}`;
 }
 
 function dashboardLabel(
@@ -377,6 +419,19 @@ export function DashboardScreen({
     );
   }, [alerts, showBuilt]);
 
+  const groupedDepts = React.useMemo(() => {
+    const groups = new Map<string, DeptProgress[]>();
+    for (const stage of PIPELINE_STAGE_ORDER) {
+      groups.set(stage, []);
+    }
+    for (const row of perDept) {
+      const key = (row.stageCode ?? 'brief').toLowerCase();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(row);
+    }
+    return [...groups.entries()].filter(([, rowsInStage]) => rowsInStage.length > 0);
+  }, [perDept]);
+
   // Permission-denied / error / loading short-circuit the data regions.
   if (state === 'permission_denied' || state === 'error' || state === 'loading') {
     return (
@@ -476,14 +531,22 @@ export function DashboardScreen({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {perDept.map((row) => {
+                {groupedDepts.map(([stageCode, stageRows]) => (
+                  <React.Fragment key={stageCode}>
+                    <TableRow className="bg-slate-50">
+                      <TableCell colSpan={5} className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        {stageLabel(stageCode, labels)}
+                      </TableCell>
+                    </TableRow>
+                    {stageRows.map((row) => {
                   const total = row.done + row.pending + row.blocked;
                   const pct = total ? Math.round((row.done / total) * 100) : 0;
                   const barColor =
                     pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500';
                   const blockedFas = row.blockedFas ?? [];
                   const isExpanded = expandedDepts.has(row.dept);
-                  const rowLabel = deptLabel(row.dept, labels);
+                  const rowLabel = deptLabel(row, labels);
+                  const localePrefix = localePrefixFrom(pathname);
                   return (
                     <React.Fragment key={row.dept}>
                       <TableRow>
@@ -539,19 +602,27 @@ export function DashboardScreen({
                                 {dashboardLabel(labels, 'blockedFaListTitle')}
                               </div>
                               <ul className="space-y-1">
-                                {blockedFas.map((fa) => (
+                                {blockedFas.map((fa) => {
+                                  const stageLink = stageHref(localePrefix, fa.projectId, fa.stageRoute ?? row.stageRoute);
+                                  return (
                                   <li key={fa.productCode} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
                                     <a
                                       className="mono font-semibold"
                                       style={{ color: 'var(--blue)' }}
-                                      href={`${localePrefixFrom(pathname)}/fg/${encodeURIComponent(fa.productCode)}`}
+                                      href={`${localePrefix}/fg/${encodeURIComponent(fa.productCode)}`}
                                     >
                                       {fa.productCode}
                                     </a>
                                     <span>{fa.productName ?? '—'}</span>
                                     <span className="muted">{fa.missingData ?? '—'}</span>
+                                    {stageLink ? (
+                                      <a className="text-[var(--blue)] hover:underline" href={stageLink}>
+                                        {labels.openFa} {stageLabel(row.stageCode, labels)} →
+                                      </a>
+                                    ) : null}
                                   </li>
-                                ))}
+                                  );
+                                })}
                               </ul>
                             </div>
                           </TableCell>
@@ -560,6 +631,8 @@ export function DashboardScreen({
                     </React.Fragment>
                   );
                 })}
+                  </React.Fragment>
+                ))}
               </TableBody>
             </Table>
         </div>

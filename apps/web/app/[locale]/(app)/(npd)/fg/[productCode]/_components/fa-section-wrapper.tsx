@@ -43,6 +43,12 @@ export type FaSectionPart = {
   /** The already-assembled dept-tab ReactNode (built in page.tsx). */
   node: ReactNode;
   /**
+   * Subtle hint linking edits to the owning pipeline stage (FG detail read-only mode).
+   */
+  editStageHint?: string;
+  /** Locale-aware href to the pipeline stage screen where this dept is edited. */
+  editStageHref?: string;
+  /**
    * BUG 4a — whether this dept section is CURRENTLY closed (closed_<dept> === 'Yes').
    * When true the wrapper shows a "Reopen {dept}" affordance INSTEAD of "Close
    * {dept}", so a closed dept can be undone. Defaults to false (open → Close shown).
@@ -71,6 +77,10 @@ export type FaSectionWrapperProps = {
    * Shown in place of the Close affordance for a CLOSED dept. `{dept}` → heading.
    */
   reopenDeptLabel?: string;
+  /**
+   * When false, hides Close/Reopen affordances (FG detail retirement — close moves to stage screens).
+   */
+  showCloseAffordance?: boolean;
 };
 
 const DEFAULT_CLOSE_DEPT_LABEL = 'Close {dept}';
@@ -103,7 +113,13 @@ export function deptReopenHref(deptValue: string): string {
   return `?${params.toString()}`;
 }
 
-export function FaSectionWrapper({ sectionKey, parts, closeDeptLabel, reopenDeptLabel }: FaSectionWrapperProps) {
+export function FaSectionWrapper({
+  sectionKey,
+  parts,
+  closeDeptLabel,
+  reopenDeptLabel,
+  showCloseAffordance = true,
+}: FaSectionWrapperProps) {
   const labelTemplate = closeDeptLabel ?? DEFAULT_CLOSE_DEPT_LABEL;
   const reopenLabelTemplate = reopenDeptLabel ?? DEFAULT_REOPEN_DEPT_LABEL;
   return (
@@ -132,35 +148,36 @@ export function FaSectionWrapper({ sectionKey, parts, closeDeptLabel, reopenDept
               >
                 {part.heading}
               </h3>
-              {/*
-                Per-dept close/reopen affordance — the ONLY dept-close entry point
-                that survives the section regroup. A plain link (not a button) so
-                the target `?modal=deptClose|deptReopen&dept=<DeptValue>` is
-                inspectable and the modal host can resolve the dept explicitly. NO
-                gating here: the modal + Server Action do the permission + readiness
-                checks server-side. BUG 4a — a CLOSED dept swaps Close → Reopen so
-                a dept-section close can be undone (reopenDeptSection,
-                `npd.closed_flag.unset`).
-              */}
-              {part.closed ? (
+              {part.editStageHint && part.editStageHref ? (
                 <a
-                  href={deptReopenHref(part.deptValue)}
-                  data-testid={`fa-section-reopen-${part.key}`}
-                  data-dept-value={part.deptValue}
-                  className="btn-secondary btn-xs inline-flex items-center rounded-md border border-[var(--border)] bg-white px-2 py-1 text-xs font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]"
+                  href={part.editStageHref}
+                  data-testid={`fa-section-edit-hint-${part.key}`}
+                  className="text-xs text-[var(--blue)] hover:underline"
                 >
-                  {reopenLabel}
+                  {part.editStageHint}
                 </a>
-              ) : (
-                <a
-                  href={deptCloseHref(part.deptValue)}
-                  data-testid={`fa-section-close-${part.key}`}
-                  data-dept-value={part.deptValue}
-                  className="btn-secondary btn-xs inline-flex items-center rounded-md border border-[var(--border)] bg-white px-2 py-1 text-xs font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]"
-                >
-                  {closeLabel}
-                </a>
-              )}
+              ) : null}
+              {showCloseAffordance ? (
+                part.closed ? (
+                  <a
+                    href={deptReopenHref(part.deptValue)}
+                    data-testid={`fa-section-reopen-${part.key}`}
+                    data-dept-value={part.deptValue}
+                    className="btn-secondary btn-xs inline-flex items-center rounded-md border border-[var(--border)] bg-white px-2 py-1 text-xs font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]"
+                  >
+                    {reopenLabel}
+                  </a>
+                ) : (
+                  <a
+                    href={deptCloseHref(part.deptValue)}
+                    data-testid={`fa-section-close-${part.key}`}
+                    data-dept-value={part.deptValue}
+                    className="btn-secondary btn-xs inline-flex items-center rounded-md border border-[var(--border)] bg-white px-2 py-1 text-xs font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]"
+                  >
+                    {closeLabel}
+                  </a>
+                )
+              ) : null}
             </div>
             {part.node}
           </div>

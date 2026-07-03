@@ -3,6 +3,7 @@
 import { AuthError, ValidationError } from '../../fa/actions/errors';
 import { hasPermission } from '../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import { deptCodeToCloseDept } from '../../../../lib/npd/stage-routes';
 import {
   STAGE_DEPT_SECTIONS_READ_PERMISSION,
   type StageDeptField,
@@ -198,6 +199,7 @@ function buildSections(
         key: deptCode.toLowerCase(),
         label: (row.dept_name ?? deptCode).trim() || deptCode,
         deptCode,
+        closeDeptValue: deptCodeToCloseDept(deptCode),
         readOnly: noFgLinked,
         no_fg_linked: noFgLinked ? true : undefined,
         fields: [],
@@ -228,13 +230,20 @@ function buildSections(
     });
   }
 
-  return [...byDept.values()].map((section) => ({
-    ...section,
-    fields: section.fields.sort((a, b) => {
+  return [...byDept.values()].map((section) => {
+    const fields = section.fields.sort((a, b) => {
       if (a.displayOrder !== b.displayOrder) return a.displayOrder - b.displayOrder;
       return a.code.localeCompare(b.code);
-    }),
-  }));
+    });
+    const requiredFields = fields.filter((field) => field.required);
+    const allRequiredFilled =
+      requiredFields.length === 0 || requiredFields.every((field) => isFilled(field.value));
+    return {
+      ...section,
+      fields,
+      allRequiredFilled,
+    };
+  });
 }
 
 async function loadStageDeptSectionsInContext(

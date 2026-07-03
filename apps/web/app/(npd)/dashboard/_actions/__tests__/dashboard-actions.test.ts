@@ -68,6 +68,43 @@ async function seedOrg(targetOrgId: string, targetUserId: string, targetRoleId: 
   );
 }
 
+async function seedNpdCatalogFromDeptColumns(targetOrgId: string): Promise<void> {
+  await owner.query(
+    `insert into public.npd_departments (org_id, code, name, stage_code, display_order, active)
+     select dc.org_id, dc.dept_code, dc.dept_code, case lower(dc.dept_code)
+              when 'mrp' then 'packaging'
+              when 'commercial' then 'approval'
+              else 'brief'
+            end,
+            min(coalesce(dc.display_order, 0)), true
+       from "Reference"."DeptColumns" dc
+      where dc.org_id = $1::uuid
+      group by dc.org_id, dc.dept_code
+     on conflict (org_id, code) do update
+       set stage_code = excluded.stage_code, active = true`,
+    [targetOrgId],
+  );
+  await owner.query(
+    `insert into public.npd_field_catalog (org_id, code, label, data_type, active)
+     select distinct dc.org_id, dc.column_key, dc.column_key, 'text', true
+       from "Reference"."DeptColumns" dc
+      where dc.org_id = $1::uuid
+     on conflict (org_id, code) do update set active = true`,
+    [targetOrgId],
+  );
+  await owner.query(
+    `insert into public.npd_department_field (org_id, department_id, field_id, required, visible, display_order)
+     select dc.org_id, d.id, f.id, dc.required_for_done, true, coalesce(dc.display_order, 0)
+       from "Reference"."DeptColumns" dc
+       join public.npd_departments d on d.org_id = dc.org_id and d.code = dc.dept_code
+       join public.npd_field_catalog f on f.org_id = dc.org_id and f.code = dc.column_key
+      where dc.org_id = $1::uuid
+     on conflict (org_id, department_id, field_id) do update
+       set required = excluded.required, visible = true`,
+    [targetOrgId],
+  );
+}
+
 async function seedProducts(): Promise<void> {
   await owner.query(
     `insert into "Reference"."AlertThresholds" (org_id, threshold_key, value_int)
@@ -132,6 +169,8 @@ async function seedProducts(): Promise<void> {
            article_number = excluded.article_number`,
     [otherOrgId, otherUserId],
   );
+  await seedNpdCatalogFromDeptColumns(orgId);
+  await seedNpdCatalogFromDeptColumns(otherOrgId);
 }
 
 async function seed(): Promise<void> {
@@ -151,6 +190,9 @@ async function seed(): Promise<void> {
 async function cleanup(): Promise<void> {
   await owner.query(`delete from public.outbox_events where org_id in ($1, $2)`, [orgId, otherOrgId]).catch(() => undefined);
   await owner.query(`delete from public.d365_import_cache where org_id in ($1, $2)`, [orgId, otherOrgId]).catch(() => undefined);
+  await owner.query(`delete from public.npd_department_field where org_id in ($1, $2)`, [orgId, otherOrgId]).catch(() => undefined);
+  await owner.query(`delete from public.npd_field_catalog where org_id in ($1, $2)`, [orgId, otherOrgId]).catch(() => undefined);
+  await owner.query(`delete from public.npd_departments where org_id in ($1, $2)`, [orgId, otherOrgId]).catch(() => undefined);
   await owner.query(`delete from public.product where org_id in ($1, $2)`, [orgId, otherOrgId]).catch(() => undefined);
   await owner.query(`delete from "Reference"."DeptColumns" where org_id in ($1, $2)`, [orgId, otherOrgId]).catch(() => undefined);
   await owner.query(`delete from "Reference"."AlertThresholds" where org_id in ($1, $2)`, [orgId, otherOrgId]).catch(() => undefined);
@@ -187,7 +229,12 @@ run('NPD dashboard Server Actions (T-051 real DB)', () => {
     expect(result.summary.totalActive).toBeGreaterThanOrEqual(3);
     expect(result.summary.pending).toBeGreaterThanOrEqual(2);
     expect(result.perDept).toEqual([
-      expect.objectContaining({ dept: 'mrp', done: 1, pending: 2 }),
+      expect.objectContaining({
+        dept: 'mrp',
+        done: 1,
+        pending: 2,
+        stageCode: expect.any(String),
+      }),
     ]);
   });
 
