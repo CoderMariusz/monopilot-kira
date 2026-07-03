@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Raport fali F-NPD-3 / W3 — Platforma WIP (2026-07-03)</title>
+<style>
+  :root { --ink:#1a1f2e; --mut:#6b7280; --ok:#0a7d33; --warn:#b45309; --bad:#b91c1c; --card:#f8fafc; --line:#e5e7eb; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); max-width: 1080px; margin: 32px auto; padding: 0 20px; line-height: 1.55; }
+  h1 { font-size: 1.6rem; border-bottom: 3px solid var(--ink); padding-bottom: 8px; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  h3 { font-size: 1.02rem; margin-top: 1.2rem; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
+  code { background: var(--card); padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+  .ok { color: var(--ok); font-weight: 600; } .warn { color: var(--warn); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:.8rem; font-weight:600; }
+  .pill.g { background:#dcfce7; color:var(--ok);} .pill.y { background:#fef3c7; color:var(--warn);} .pill.r { background:#fee2e2; color:var(--bad);}
+  .card { background: var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 18px; margin:12px 0; }
+  .grade { font-size: 2.2rem; font-weight: 800; }
+  ul { margin: 6px 0 6px 1.2rem; } li { margin: 3px 0; }
+  .small { font-size:.85rem; color:var(--mut); }
+</style>
+</head>
+<body>
+
+<h1>Wave F-NPD-3 / W3 — Platforma WIP <span class="pill g">DOWIEZIONE + ZWERYFIKOWANE</span></h1>
+<p class="small">2026-07-03 (noc) · main: <code>27ce2c5f</code> → <code>0956b9a6</code> → <code>9cd360b2</code> · migracje <b>430–432 LIVE</b> (następna wolna: <b>433</b>) · deploy Vercel READY · orkiestracja: Fable · implementacja: 2×Codex + 2×Composer · przeglądy: Opus REGULATORY + Codex cross-review · Gate-5b: 2 spacery + 1 mini-retest Opusa na produkcji</p>
+
+<h2>1. Co zostało zbudowane (decyzje D29/D32–D35/D42/D43, U3/U4)</h2>
+<table>
+<tr><th>Obszar</th><th>Zakres</th><th>Status</th></tr>
+<tr><td><b>Definicje WIP (org-wide)</b></td><td><code>wip_definitions</code> + skład (<code>_ingredients</code>) + łańcuch procesów (<code>_processes</code>/<code>_roles</code>) + akceptacje (<code>_acks</code>). Jeden współdzielony item na typ WIP (D34), jednostka bazowa = jednostka wyjścia procesu tworzącego (D42), wersjonowanie, flaga „wielokrotnego użytku" (U3), unikalna nazwa per org. FORCE RLS + granty wg wzorca Wave0.</td><td class="ok">LIVE</td></tr>
+<tr><td><b>Cykl życia definicji</b></td><td>zapis z bumpem wersji TYLKO przy zmianie treści → outbox <code>wip.definition.updated</code> + powiadomienia; publikacja z komponentu produkcyjnego (przechwycenie łańcucha, jednostka z ostatniego procesu, idempotentna); akceptacja per projekt z uczciwą flagą <code>bomsRegenerated</code>; archiwizacja zablokowana przy żywych referencjach (409); odświeżenie alergenów itemu WIP z osłoną <code>manual_override</code> (V-TEC-42).</td><td class="ok">LIVE</td></tr>
+<tr><td><b>BOM per poziom (D43)</b></td><td><code>materializeNpdBom</code> v2: wiersze WIP z receptury → linie <code>component_type='WIP'</code> w BOM-ie FG + WŁASNY BOM itemu WIP (per 1 jedn. bazową, skład + uzysk z definicji, supersede przy zmianie wersji). Kaskada alergenów obejmuje linie WIP.</td><td class="ok">LIVE</td></tr>
+<tr><td><b>Łańcuch WO (U4)</b></td><td><code>createWorkOrderChain</code>: WO na WIP-y → WO na FG, spięte przez <code>wo_dependencies</code>; idempotencja po numerach dokumentów; pilot NPD przechodzi przez łańcuch (WIP WO = <code>WO-pilot-{FG}-W1…</code>); kontrakt błędów z W1 zachowany (specyficzne kody, nie generyczny fail). Genealogia LP przez ISTNIEJĄCE chokepointy konsumpcji — bramka holdów T-064 nietknięta (ślad adwersaryjny A: PASS).</td><td class="ok">LIVE</td></tr>
+<tr><td><b>Silnik kosztów — rekursja WIP</b></td><td>Wejście <code>wipComponents</code> (dotąd martwe: zawsze <code>[]</code>) zasilone naprawdę: partycja wierszy receptury, koszt jednostkowy WIP = (skład×<code>v_item_effective_cost</code> + robocizna z łańcucha)/uzysk; nieokosztowany skład → typowany bloker <code>ingredient_costs_missing</code> (nigdy ciche 0).</td><td class="ok">LIVE</td></tr>
+<tr><td><b>Technical › Biblioteka WIP</b></td><td>Lista/szczegół/edytor składu + łańcucha/where-used/reusable/archiwum; wzorzec strukturalny 1:1 z technical/items; odczyt otwarty (read-only bez uprawnień zapisu), zapisy za <code>technical.wip.*</code>.</td><td class="ok">LIVE</td></tr>
+<tr><td><b>Picker WIP w recepturze</b></td><td>„+ Dodaj WIP" → definicje reusable+active (v1: jednostki masowe); wiersz z badge, item stały, koszt NIGDY nie fabrykowany (NULL do czasu wyliczenia przez silnik); ack-at-pick = baseline wersji.</td><td class="ok">LIVE</td></tr>
+<tr><td><b>Przepływ zmian (D33/U3)</b></td><td>Dzwonek + inbox powiadomień w topbarze (net-new: <code>user_notifications</code>); banner „definicja zaktualizowana → v{N}" na recepturze i kosztorysie; „Update &amp; accept" per projekt; copy twierdzi o regeneracji BOM-ów TYLKO gdy faktycznie zaszła.</td><td class="ok">LIVE</td></tr>
+<tr><td><b>RBAC</b></td><td><code>technical.wip.create/edit</code> dla rodziny technical-operator; <code>deactivate</code> tylko lead + org-admin (SoD wg mig 207); oba magazyny uprawnień + trigger org-insert + backfill.</td><td class="ok">LIVE</td></tr>
+</table>
+
+<h2>2. Weryfikacja — jak testowano (mandat D29: „dobrze zaprojektować i testować")</h2>
+<ul>
+<li><b>Noga real-DB (REGULATORY):</b> świeża lokalna baza, pełny replay migracji <b>001→432</b> (wymagane stuby <code>storage</code>/<code>auth</code> Supabase — zbudowane, zostają jako infra); test integracyjny łańcucha WIP <span class="ok">GREEN</span>: 2 poziomy BOM w wiernym cyklu draft→linie→aktywacja (trigger niemutowalności uszanowany), inwariant genealogii (item wyjściowy WIP WO = item linii materiałowej FG WO), idempotencja <code>wo_dependencies</code>. Migracje 430–432 wykonane <b>dwukrotnie</b> — twarda re-entrancja potwierdzona (runner Vercela powtórzył je bezbłędnie na prod).</li>
+<li><b>Testy jednostkowe:</b> silnik kosztów 8/8 (w tym nowy test przybijający poprawkę H1 — wkład WIP niezmienny względem wagi paczki), akcje definicji 6/6 (w tym pin osłony <code>manual_override</code> — H2), pilot 9/9, compute 50, banner+staleness+dzwonek 16, biblioteka 10. tsc: 0 błędów; <code>next build</code>: zielony 3×.</li>
+<li><b>Uczciwa luka:</b> test integracyjny jest schema-level (bezpośredni SQL, nie akcje serwera) — logikę pokrywają testy jednostkowe na mockach. Przegląd REGULATORY zażądał w fast-follow testu RLS pod rolą <code>app_user</code> (dziś RLS potwierdzone strukturalnie + wzorcem 60 innych tabel).</li>
+</ul>
+
+<h2>3. Przeglądy i znaleziska (wszystkie HIGH naprawione w tej samej sesji)</h2>
+<table>
+<tr><th>Źródło</th><th>Znalezisko</th><th>Sev</th><th>Los</th></tr>
+<tr><td>Opus REGULATORY</td><td><b>H1</b>: wkład kosztowy WIP mnożony drugi raz przez wagę paczki (<code>unitToPackFactor</code>) — przy paczce 2 kg koszt ×2, przy 0,5 kg ×0,5. Rekursja kosztów = FAIL.</td><td class="bad">HIGH</td><td class="ok">NAPRAWIONE + test przybijający (wkład per paczka, niezmienny od wagi)</td></tr>
+<tr><td>Opus REGULATORY</td><td><b>H2</b>: odświeżenie alergenów itemu WIP mogło po cichu nadpisać wiersz <code>manual_override</code> (ryzyko utraty deklaracji „may contain" — V-TEC-42).</td><td class="bad">HIGH</td><td class="ok">NAPRAWIONE (guard jak w kanonicznej kaskadzie) + test</td></tr>
+<tr><td>Opus REGULATORY</td><td><b>M1</b>: seed RBAC zbyt szeroki (goły <code>operator</code>/<code>lead</code>, deactivate dla operatorów — brak SoD). <b>M2</b>: publikacja z komponentu bez idempotencji (dubel przy double-submit).</td><td class="warn">MED</td><td class="ok">NAPRAWIONE przed aplikacją migracji</td></tr>
+<tr><td>Codex cross-review (Composer)</td><td><b>F1</b>: dodanie WIP-a do receptury zapisywało sfabrykowany koszt <code>0</code> do bazy. <b>F2</b>: akcje odczytu biblioteki bramkowane uprawnieniami ZAPISU — czytelnik dostawał błąd zamiast widoku read-only.</td><td class="bad">BLOCK</td><td class="ok">NAPRAWIONE (koszt=NULL klient+serwer; odczyt otwarty wg wzorca items)</td></tr>
+<tr><td>Codex cross-review</td><td>F3 (komórki produkcyjne bez bramki <code>canWrite</code> w UI) i F4 (angielskie stringi panelu kaskady) — dowiedzione diffem jako <b>pre-existing</b> sprzed W3.</td><td class="warn">MED/LOW</td><td>→ backlog</td></tr>
+<tr><td>Ślady adwersaryjne</td><td>A (obejście holdów/QA przez ścieżki WIP): <span class="ok">PASS</span> — nowy kod nie dotyka chokepointów konsumpcji. C (integralność referencji między projektami): <span class="ok">PASS</span>. D (RLS cross-org na nowych tabelach): <span class="ok">PASS</span>.</td><td>—</td><td>—</td></tr>
+</table>
+
+<h2>4. Gate-5b — spacer logiki na produkcji</h2>
+<div class="card">
+<p><b>Spacer #1</b> (deploy <code>27ce2c5f</code>) — <b>1 HIGH, klasa F6.1</b>: pusta biblioteka WIP nie renderowała przycisku „Utwórz definicję" (empty-branch nie montował klienta z modalem), a copy pustego stanu wprost kazało definicję utworzyć — instrukcja niesatysfikowalna na własnym etapie. Ponieważ KAŻDA organizacja startuje z pustą biblioteką, cała platforma (picker, koszty, BOM 2-poziomowy, pilot) była nie-do-uruchomienia z UI. Do tego MED i18n: pusty picker po angielsku na PL. <b>Werdykty cząstkowe:</b> pola Brief W1 wymagane i satysfikowalne (PASS), picker uczciwy (bez fabrykowanych wierszy i kosztów — PASS), bump wersji/uczciwość copy bannera/dzwonek (LOGIC PASS), regresje topbara: brak. Spacer NIE użył żadnego override i nie tknął danych właściciela.</p>
+<p><b>Naprawa w tej samej sesji</b> (<code>0956b9a6</code>): klient listy renderuje się też w stanie pustym (przycisk + <code>?modal=create</code> działa); etykiety pickera WIP tłumaczone z <code>npd.formulationEditor.wipPicker</code> (klucze PL były scalone, RSC hardkodował EN).</p>
+<p id="rewalk"><b>Spacer #2 (retest po naprawie)</b>: wynik w sekcji poniżej — patrz §4a.</p>
+<p class="small">Znalezisko incydentalne (pre-existing, poza W3): trasa szczegółu FG zwraca „Nie znaleziono" dla części FG (FG0004/6/7) mimo istniejących wierszy product — do triage w F7.</p>
+</div>
+<div class="card" id="rewalk-result">
+<h3>4a. Retest (spacer #2, deploy <code>0956b9a6</code>) + poprawka W3.2</h3>
+<table>
+<tr><th>Krok</th><th>Wynik</th></tr>
+<tr><td>Biblioteka: przycisk „Nowa definicja" na pustym stanie → utworzenie E2E-W3B-Ciasto → szczegół (skład/łańcuch/where-used) → dyscyplina wersji (bump tylko przy zmianie treści, no-op nie bumpuje)</td><td class="ok">PASS</td></tr>
+<tr><td>Projekt E2E-W3B-WALK: Brief (wolumen+przebiegi) → Core edytowalne pre-FG (fix F6.1 działa) → receptura</td><td class="ok">PASS</td></tr>
+<tr><td>Picker WIP po polsku, wiersz z badge, koszt PUSTY (nie 0), alergeny WIP-a skaskadowane, round-trip po reloadzie (0,6 RM + 0,4 WIP = 1,000 kg)</td><td class="ok">PASS</td></tr>
+<tr><td>Przepływ zmian: edycja → v3 → dzwonek „1" + powiadomienie → banner → accept → wersja zaakceptowana v2→v3 w where-used; <b>zero fałszywej deklaracji regeneracji BOM-ów</b></td><td class="ok">PASS</td></tr>
+<tr><td>Regresje (pulpit, pozycje)</td><td class="ok">PASS</td></tr>
+<tr><td><b>NOWY HIGH (3. deadlock satysfikowalności tej fali):</b> definicja tworzona w bibliotece zapisywała się jako <code>draft</code>, picker wymaga <code>active</code>, a UI nie miało akcji aktywacji — biblioteczne definicje były martwe dla receptur.</td><td class="bad">FINDING → <span class="ok">NAPRAWIONE (W3.2, <code>9cd360b2</code>, deploy READY)</span>: zgodnie z U3 przełącznik „wielokrotnego użytku" JEST decyzją o publikacji — reusable=true aktywuje definicję; wyłączenie nie degraduje (znika z pickera przez filtr reusable). <b>Mini-retest na produkcji: PASS</b> — definicja utworzona z UI ma status „Aktywna" i jest natychmiast widoczna w pickerze receptury (zrzuty <code>w32-retest-*.png</code>). LOW z retestu: nagłówek szczegółu pokazuje stale „draft" po zapisie (etykieta; lista i picker poprawne) → F7.</td></tr>
+<tr><td>MED: lekki panel kosztów przy recepturze liczy tylko surowce (wkład WIP £0) — autorytatywna zakładka Costing (z rekursją WIP) jest bramkowana istnieniem FG (copy uczciwa).</td><td class="warn">→ F7 (rollup WIP w panelu podręcznym)</td></tr>
+<tr><td>LOW: dialog wyboru itemu po angielsku (pre-existing), treść powiadomienia EN w PL bannerze, throughput niewidoczny w wierszu procesu, brak pola ról w edytorze łańcucha biblioteki, echo wolumenu w podsumowaniu wizarda</td><td class="warn">→ F7</td></tr>
+</table>
+</div>
+
+<h2>5. Ocena kodu i logiki (na życzenie właściciela)</h2>
+<div class="card">
+<p><span class="grade">B+</span> &nbsp; <b>Kod</b> — architektura czysta i spójna z resztą aplikacji (wzorce items/RLS/outbox skopiowane wiernie, zero nowych „dual-store'ów"), SQL parametryzowany, typowane błędy wszędzie, migracje wzorcowo re-entrant. Minusy: cztery niezależne lane'y zostawiły szwy, które wyłapały dopiero przeglądy (fabrykowany koszt, bramka odczytu, default generic <code>ActionResult</code>) — bez podwójnego przeglądu dwa z nich weszłyby na produkcję.</p>
+<p><span class="grade">B</span> &nbsp; <b>Logika domeny</b> — model definicji WIP jako samodzielnego mini-produktu jest nośny (rozwiązuje brakujące od zawsze powiązanie RM→WIP) i wszystkie reguły D29–D43/U3/U4 są odwzorowane. Ale dwa błędy tej fali to błędy LOGIKI, nie składni: podwójne skalowanie kosztu (H1) i martwy punkt wejścia (Gate-5b) — obie klasy złapały dopiero przeglądy/spacer, co potwierdza, że proces (przegląd REGULATORY + Gate-5b) jest nie-negocjowalny dla tej skali zmian.</p>
+<p><b>Proces tej fali w liczbach:</b> 4 lane'y + 3 recon + 2 przeglądy + 1 spacer; 5 zwisów mostków (wrapper Codexa/Composera) — wszystkie uratowane weryfikacją po drzewie; 2 HIGH + 2 BLOCK + 2 MED znalezione i naprawione PRZED oddaniem właścicielowi; 72 pliki, ~9,0k linii netto.</p>
+</div>
+
+<h2>6. Stopień gotowości na resztę roadmapy</h2>
+<table>
+<tr><th>Filar</th><th>Gotowość</th><th>Komentarz</th></tr>
+<tr><td>NPD end-to-end (brief→receptura→koszty→produkcja→pilot→handoff)</td><td><span class="pill g">~85%</span></td><td>Wszystkie duże klocki z chartera rundy 3 (W1+W2+W3) są na produkcji. Zostają: pełny spacer właściciela, drobne UX z retestu, oraz pierwsze REALNE użycie WIP-ów w Twoim produkcie (to zweryfikuje model lepiej niż każdy test).</td></tr>
+<tr><td>Fundamenty regulacyjne (RLS/holdy/e-sign/audyt)</td><td><span class="pill g">~90%</span></td><td>W3 nie naruszyła żadnego chokepointu; ślady A/C/D czyste. Brak: test RLS pod app_user (fast-follow), allergen-rebuild producer (stary backlog).</td></tr>
+<tr><td>Infrastruktura testowa</td><td><span class="pill y">~70%</span></td><td>DUŻY krok tej fali: lokalny pełny replay 001→432 działa (stuby storage/auth) — to zalążek „real-DB gate infra" z backlogu F5. Do zrobienia: włączyć do CI, dopisać nogi RLS/akcji serwera.</td></tr>
+<tr><td>Backlog znany (F7)</td><td><span class="pill y">w kolejce</span></td><td>WAC integrity P0, 28 gapów NN-*, FG-detail 404 (nowe z tego spaceru), F3/F4 pre-existing, powiadomienia dla ack-holderów, ESLint rule-13.</td></tr>
+<tr><td>Ryzyka procesu wytwórczego</td><td><span class="pill y">stałe</span></td><td>Zwisy mostków agentów to nadal podatek (~30–60 min/falę na salvage); wzorzec weryfikacji-po-drzewie działa, ale hardening wrapperów wciąż w backlogu.</td></tr>
+</table>
+
+<h2>7. Dane testowe i bezpieczeństwo danych właściciela</h2>
+<ul>
+<li>Projekt spacerowy <b>E2E-W3-WALK (NPD-024)</b> usunięty z bazy produkcyjnej (formulation_ingredients → versions → formulations → projekt; potwierdzone 0 pozostałości).</li>
+<li>Projekt właściciela „new" (NPD-019) i wszystkie FG produkcyjne — <b>nietknięte</b> (spacer odmówił forsowania bramek na cudzych danych).</li>
+<li>Spacer #1 nie utworzył definicji WIP, itemów, BOM-ów ani WO (deadlock uniemożliwił) — brak dalszej czystki.</li>
+</ul>
+
+<p class="small">Artefakty: kontrakt wykonawczy <code>_meta/plans/2026-07-03-w3-execution-contract.md</code> · rejestr zmian kontraktu + arbitraż <code>_meta/tmp/w3-contract-changes.md</code> · zrzuty spaceru <code>w3-walk-*.png</code> · poprzedni raport (W1+W2) <code>_meta/reports/2026-07-03-f-npd3-wave-report.html</code>.</p>
+
+</body>
+</html>
