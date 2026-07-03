@@ -98,6 +98,9 @@ export type FormulationEditorData = {
     rmCode: string;
     /** Lane-B: FK to the real items master row (null for legacy free-text rows). */
     itemId?: string | null;
+    substituteItemId?: string | null;
+    substituteItemCode?: string | null;
+    substituteItemName?: string | null;
     name: string;
     /** Costing v2: amount used in ONE pack, in kg. */
     qtyKg: string | null;
@@ -142,6 +145,7 @@ export type FormulationLabels = {
   saving: string;
   saved: string;
   saveError: string;
+  substituteAllergenMismatch?: string;
   submitForTrial: string;
   /** Transient toast/inline state after a successful submit-for-trial. */
   submitting: string;
@@ -254,6 +258,9 @@ export type FormulationLabels = {
   noAllergen: string;
   /** Lane-B: ingredient-row item-picker labels (combobox over the items master). */
   chooseItem: string;
+  substitute?: string;
+  chooseSubstitute?: string;
+  clearSubstitute?: string;
   /** Phase-3 NPD↔Technical shortcut — "↗ Open item in Technical" link title. */
   openInTechnical: string;
   picker: IngredientRowLabels['picker'];
@@ -266,6 +273,7 @@ export type SaveDraftAction = (input: {
     rmCode: string;
     /** Lane-B: real items-master FK (null when no item is wired). */
     itemId: string | null;
+    substituteItemId: string | null;
     qtyKg: string | null;
     pct: string | null;
     costPerKgEur: string | null;
@@ -525,6 +533,9 @@ function toEditable(data: FormulationEditorData): EditableIngredient[] {
     id: ing.id,
     rmCode: ing.rmCode,
     itemId: ing.itemId ?? null,
+    substituteItemId: ing.substituteItemId ?? null,
+    substituteItemCode: ing.substituteItemCode ?? null,
+    substituteItemName: ing.substituteItemName ?? null,
     name: ing.name,
     qtyKg: ing.qtyKg ?? '',
     pct: ing.pct ?? '',
@@ -715,6 +726,7 @@ export function FormulationEditor({
   // it never just swaps a local label while the editor keeps the old rows.
   const versionId = data?.versionId ?? '';
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>('idle');
+  const [saveErrorDetail, setSaveErrorDetail] = React.useState<string>('');
   const [cascadeRows, setCascadeRows] = React.useState<RecipeCascadeNode[] | null>(null);
   const [cascadeLoading, setCascadeLoading] = React.useState(false);
   const [expandedCascadeIds, setExpandedCascadeIds] = React.useState<Set<string>>(() => new Set());
@@ -950,6 +962,7 @@ export function FormulationEditor({
     if (Object.keys(blocking).length > 0) return; // qtyKg still gates draft saves.
 
     setSaveStatus('saving');
+    setSaveErrorDetail('');
     void (async () => {
       try {
         const completeRows = current.filter((r) => r.rmCode.trim().length > 0);
@@ -963,6 +976,7 @@ export function FormulationEditor({
           ingredients: completeRows.map((r, i) => ({
             rmCode: r.rmCode.trim(),
             itemId: r.itemId,
+            substituteItemId: r.substituteItemId,
             // Costing v2: persist the entered qty (kg/pack); pct is no longer authored.
             qtyKg: isDecimalString(r.qtyKg) ? r.qtyKg : null,
             pct: null,
@@ -979,13 +993,25 @@ export function FormulationEditor({
             void recomputeAction({ projectId: data.projectId, versionId }).catch(() => undefined);
           }
         } else {
+          if (
+            result &&
+            'error' in result &&
+            result.error === 'SUBSTITUTE_ALLERGEN_MISMATCH' &&
+            'offendingAllergens' in result &&
+            Array.isArray(result.offendingAllergens)
+          ) {
+            setSaveErrorDetail(
+              `${labels.substituteAllergenMismatch ?? 'Substitute blocked because it introduces undeclared allergens'}: ${result.offendingAllergens.join(', ')}`,
+            );
+          }
           setSaveStatus('error');
         }
       } catch {
+        setSaveErrorDetail('');
         setSaveStatus('error');
       }
     })();
-  }, [data, editable, packWeightKg, processingPct, recomputeAction, saveDraftAction, targetPrice, validate, versionId, yieldPct]);
+  }, [data, editable, labels.substituteAllergenMismatch, packWeightKg, processingPct, recomputeAction, saveDraftAction, targetPrice, validate, versionId, yieldPct]);
 
   /** Schedule a single debounced save (resets the 800 ms timer on each call). */
   const scheduleSave = React.useCallback(() => {
@@ -1022,6 +1048,9 @@ export function FormulationEditor({
         id: `new-${Date.now()}-${prev.length}`,
         rmCode: '',
         itemId: null,
+        substituteItemId: null,
+        substituteItemCode: null,
+        substituteItemName: null,
         name: '',
         qtyKg: '0',
         pct: '0',
@@ -1047,6 +1076,9 @@ export function FormulationEditor({
             ? {
                 ...r,
                 itemId: item.id,
+                substituteItemId: null,
+                substituteItemCode: null,
+                substituteItemName: null,
                 rmCode: item.itemCode,
                 name: item.name,
                 // Prefill € / kg from the item's cost; fall back to its list price
@@ -1065,6 +1097,44 @@ export function FormulationEditor({
         }
         return next;
       });
+      scheduleSave();
+    },
+    [scheduleSave],
+  );
+
+  const handleSelectSubstitute = React.useCallback(
+    (index: number, item: ItemPickerOption) => {
+      setRows((prev) =>
+        prev.map((r, i) =>
+          i === index
+            ? {
+                ...r,
+                substituteItemId: item.id,
+                substituteItemCode: item.itemCode,
+                substituteItemName: item.name,
+              }
+            : r,
+        ),
+      );
+      scheduleSave();
+    },
+    [scheduleSave],
+  );
+
+  const handleClearSubstitute = React.useCallback(
+    (index: number) => {
+      setRows((prev) =>
+        prev.map((r, i) =>
+          i === index
+            ? {
+                ...r,
+                substituteItemId: null,
+                substituteItemCode: null,
+                substituteItemName: null,
+              }
+            : r,
+        ),
+      );
       scheduleSave();
     },
     [scheduleSave],
@@ -1350,6 +1420,12 @@ export function FormulationEditor({
   const batchKgDisplay = packWeightKg ?? '';
 
   const versionOptions = data?.versions ?? [];
+  const ingredientLabels: IngredientRowLabels = {
+    ...labels,
+    substitute: labels.substitute ?? 'Substitute',
+    chooseSubstitute: labels.chooseSubstitute ?? 'Pick substitute',
+    clearSubstitute: labels.clearSubstitute ?? 'Clear',
+  };
 
   const saveLabel =
     saveStatus === 'saving'
@@ -1761,7 +1837,7 @@ export function FormulationEditor({
                         <IngredientRow
                           ingredient={ingredient}
                           index={index}
-                          labels={labels}
+                          labels={ingredientLabels}
                           disabled={!editable}
                           error={errors[ingredient.id]}
                           cascadeControl={
@@ -1783,6 +1859,8 @@ export function FormulationEditor({
                           currency={currency}
                           onChange={handleChange}
                           onSelectItem={handleSelectItem}
+                          onSelectSubstitute={handleSelectSubstitute}
+                          onClearSubstitute={handleClearSubstitute}
                           onCommit={handleCommit}
                           onDelete={handleDelete}
                         />
@@ -1842,6 +1920,14 @@ export function FormulationEditor({
                   className="alert alert-blue m-2.5"
                 >
                   {labels.packWeightUnsetHint}
+                </div>
+              ) : saveStatus === 'error' && saveErrorDetail ? (
+                <div
+                  role="alert"
+                  data-testid="formulation-save-error-detail"
+                  className="alert alert-red m-2.5"
+                >
+                  {saveErrorDetail}
                 </div>
               ) : !balanced ? (
                 <div

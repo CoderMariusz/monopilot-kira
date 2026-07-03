@@ -10,6 +10,7 @@ const consumptionId = '71000000-0000-0000-0000-000000000001';
 const reverseConsumptionId = '72000000-0000-0000-0000-000000000001';
 const lpId = '90000000-0000-0000-0000-000000000001';
 const componentId = '80000000-0000-0000-0000-000000000001';
+const substituteComponentId = '80000000-0000-0000-0000-000000000099';
 const materialLineAId = '70000000-0000-0000-0000-000000000001';
 const materialLineBId = '70000000-0000-0000-0000-000000000002';
 
@@ -291,6 +292,37 @@ describe('scanner reverse-consume route', () => {
     expect(woMaterialSqls.every((sql) => sql.includes('and id = $2::uuid'))).toBe(true);
     const decrementCall = fakeClient.query.mock.calls.find((call) => String(call[0]).includes('update public.wo_materials'));
     expect(decrementCall?.[1]).toEqual([woId, materialLineAId, '2.000']);
+  });
+
+  it('reverses substitute consumption against the recorded primary material line id', async () => {
+    const { POST } = await import('../reverse-consume/route');
+    const materialRows = [
+      { id: materialLineAId, product_id: componentId, consumed_qty: '5.000' },
+      { id: materialLineBId, product_id: componentId, consumed_qty: '7.000' },
+    ];
+    installQueryMock({
+      requireSupervisor: false,
+      materialRows,
+      original: originalConsumption({
+        component_id: substituteComponentId,
+        qty_consumed: '2.000',
+        ext_jsonb: { materialId: materialLineAId },
+      }),
+    });
+
+    const response = await POST(request(body({ clientOpId: 'reverse-op-substitute' })) as never, context);
+
+    expect(response.status).toBe(200);
+    const counterInsert = fakeClient.query.mock.calls.find((call) => String(call[0]).includes('insert into public.wo_material_consumption'));
+    expect((counterInsert?.[1] as unknown[])).toContain(substituteComponentId);
+    const decrementCall = fakeClient.query.mock.calls.find((call) => String(call[0]).includes('update public.wo_materials'));
+    expect(decrementCall?.[1]).toEqual([woId, materialLineAId, '2.000']);
+    const stockMoveCall = fakeClient.query.mock.calls.find((call) => String(call[0]).includes('insert into public.stock_moves'));
+    expect(stockMoveCall?.[1]).toEqual(expect.arrayContaining([lpId, '-2.000', 'kg', 'scanner correction', woId, materialLineAId]));
+    expect(materialRows).toEqual([
+      { id: materialLineAId, product_id: componentId, consumed_qty: '3.000' },
+      { id: materialLineBId, product_id: componentId, consumed_qty: '7.000' },
+    ]);
   });
 
   it('rejects legacy consumption on duplicate component lines without decrementing any material row', async () => {

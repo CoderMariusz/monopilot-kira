@@ -29,6 +29,7 @@ type LockedFormulationRow = {
 type IngredientRow = {
   rm_code: string;
   item_id: string | null;
+  substitute_item_id: string | null;
   qty_kg: string | null;
   sequence: number;
 };
@@ -230,6 +231,7 @@ async function loadIngredients(ctx: OrgContextLike, versionId: string): Promise<
   const { rows } = await ctx.client.query<IngredientRow>(
     `select rm_code,
             item_id::text as item_id,
+            substitute_item_id::text as substitute_item_id,
             qty_kg::text as qty_kg,
             sequence
        from public.formulation_ingredients
@@ -452,15 +454,16 @@ async function createActiveNpdBom(
     const quantity = computeBomLineQty(Number(ingredient.qty_kg ?? 0), packsPerBox).toFixed(6);
     await ctx.client.query(
       `insert into public.bom_lines
-         (org_id, bom_header_id, line_no, item_id, component_code, component_type, quantity, uom,
+         (org_id, bom_header_id, line_no, item_id, substitute_item_id, component_code, component_type, quantity, uom,
           scrap_pct, manufacturing_operation_name, sequence, is_phantom, source)
        values
-         (app.current_org_id(), $1::uuid, $2, $3::uuid, $4, 'RM', $5::numeric, 'kg',
-          0.00, $6, $7, false, 'npd_locked_formulation')`,
+         (app.current_org_id(), $1::uuid, $2, $3::uuid, $4::uuid, $5, 'RM', $6::numeric, 'kg',
+          0.00, $7, $8, false, 'npd_locked_formulation')`,
       [
         header.id,
         index + 1,
         ingredient.item_id,
+        ingredient.substitute_item_id,
         ingredient.rm_code,
         quantity,
         'NPD formulation',

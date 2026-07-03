@@ -59,7 +59,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
              left join public.wo_materials wm
                on wm.org_id = c.org_id
               and wm.wo_id = c.wo_id
-              and wm.product_id = c.component_id
+              and (
+                ((c.ext_jsonb->>'materialId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                  and wm.id = (c.ext_jsonb->>'materialId')::uuid)
+                or ((c.ext_jsonb->>'materialId') is null and wm.product_id = c.component_id)
+              )
              left join public.items item
                on item.org_id = c.org_id
               and item.id = c.component_id

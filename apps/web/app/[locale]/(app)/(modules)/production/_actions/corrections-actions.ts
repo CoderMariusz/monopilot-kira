@@ -574,7 +574,7 @@ async function writeConsumptionReverseStockMove(
       params.note,
       transactionId,
       params.original.wo_id,
-      params.original.component_id,
+      materialIdFromConsumptionExt(params.original) ?? params.original.component_id,
       JSON.stringify({
         source: 'reverseConsumption',
         consumption_id: params.original.id,

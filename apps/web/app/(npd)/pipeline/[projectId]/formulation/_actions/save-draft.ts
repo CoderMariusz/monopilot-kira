@@ -10,6 +10,8 @@ type IngredientInput = {
   rmCode: string;
   /** Lane-B: optional FK to the real items master row (null for legacy free text). */
   itemId: string | null;
+  /** F6-D17: optional component-level substitute item. */
+  substituteItemId: string | null;
   qtyKg: string | null;
   costPerKgEur: string | null;
   costCurrency: string | null;
@@ -33,7 +35,15 @@ export type SaveDraftResult =
   | { ok: true; data: { versionId: string; ingredientCount: number } }
   | {
       ok: false;
-      error: 'invalid_input' | 'forbidden' | 'not_found' | 'VERSION_LOCKED' | 'VERSION_NOT_DRAFT' | 'persistence_failed';
+      error:
+        | 'invalid_input'
+        | 'forbidden'
+        | 'not_found'
+        | 'VERSION_LOCKED'
+        | 'VERSION_NOT_DRAFT'
+        | 'SUBSTITUTE_ALLERGEN_MISMATCH'
+        | 'persistence_failed';
+      offendingAllergens?: string[];
     };
 
 export async function saveDraft(input: {
@@ -115,8 +125,13 @@ export async function saveDraft(input: {
       const sanitizeCarriedCodes = (codes: string[]): string[] =>
         canonicalAllergenCodes === null ? codes : codes.filter((code) => canonicalAllergenCodes.has(code));
 
-      await ctx.client.query(`delete from public.formulation_ingredients where version_id = $1::uuid`, [versionId]);
-      const requestedItemIds = [...new Set(ingredients.map((ingredient) => ingredient.itemId).filter(Boolean))] as string[];
+      const requestedItemIds = [
+        ...new Set(
+          ingredients
+            .flatMap((ingredient) => [ingredient.itemId, ingredient.substituteItemId])
+            .filter(Boolean),
+        ),
+      ] as string[];
       // F-B12: the effective-cost view is the cost source of record; the client
       // value is only a fallback for items with no resolved cost (or legacy
       // free-text lines).
@@ -156,13 +171,37 @@ export async function saveDraft(input: {
                 )
               ).rows.map((profile) => [profile.item_id, profile.codes]),
             );
+
+      for (const ingredient of ingredients) {
+        if (!ingredient.substituteItemId) continue;
+        const primaryItemId = ingredient.itemId && resolvedCostByItemId.has(ingredient.itemId) ? ingredient.itemId : null;
+        const substituteItemId = resolvedCostByItemId.has(ingredient.substituteItemId) ? ingredient.substituteItemId : null;
+        if (!primaryItemId || !substituteItemId) return { ok: false, error: 'invalid_input' };
+        const primaryAllergens = new Set(allergensByItemId.get(primaryItemId) ?? []);
+        const offendingAllergens = (allergensByItemId.get(substituteItemId) ?? []).filter(
+          (code) => !primaryAllergens.has(code),
+        );
+        if (offendingAllergens.length > 0) {
+          return {
+            ok: false,
+            error: 'SUBSTITUTE_ALLERGEN_MISMATCH',
+            offendingAllergens,
+          };
+        }
+      }
+
       const ingredientRows = ingredients.map((ingredient) => {
         const itemId = ingredient.itemId && resolvedCostByItemId.has(ingredient.itemId) ? ingredient.itemId : null;
+        const substituteItemId =
+          ingredient.substituteItemId && resolvedCostByItemId.has(ingredient.substituteItemId)
+            ? ingredient.substituteItemId
+            : null;
         const masterCost = itemId ? (resolvedCostByItemId.get(itemId) ?? null) : null;
         const masterCurrency = itemId ? (resolvedCurrencyByItemId.get(itemId) ?? null) : null;
         return {
           rm_code: ingredient.rmCode,
           item_id: itemId,
+          substitute_item_id: substituteItemId,
           qty_kg: ingredient.qtyKg,
           // F-B12: master cost wins; client value is the documented fallback.
           cost_per_kg_eur: masterCost ?? ingredient.costPerKgEur,
@@ -177,14 +216,16 @@ export async function saveDraft(input: {
           sequence: ingredient.sequence,
         };
       });
+      await ctx.client.query(`delete from public.formulation_ingredients where version_id = $1::uuid`, [versionId]);
       if (ingredientRows.length > 0) {
         await ctx.client.query(
           `insert into public.formulation_ingredients
-             (version_id, rm_code, item_id, qty_kg, pct, cost_per_kg_eur, cost_currency, allergens_inherited, sequence)
+             (version_id, rm_code, item_id, substitute_item_id, qty_kg, pct, cost_per_kg_eur, cost_currency, allergens_inherited, sequence)
            select
              $1::uuid,
              x.rm_code,
              x.item_id::uuid,
+             x.substitute_item_id::uuid,
              x.qty_kg::numeric,
              case
                when x.qty_kg::numeric is null then null
@@ -201,6 +242,7 @@ export async function saveDraft(input: {
            from jsonb_to_recordset($2::jsonb) as x(
              rm_code text,
              item_id text,
+             substitute_item_id text,
              qty_kg text,
              cost_per_kg_eur text,
              cost_currency text,
@@ -291,17 +333,18 @@ function parseIngredient(value: unknown): IngredientInput | null {
   const candidate = value as Record<string, unknown>;
   const rmCode = normalizeRmCode(candidate.rmCode);
   const itemId = normalizeUuidOrNull(candidate.itemId);
+  const substituteItemId = normalizeUuidOrNull(candidate.substituteItemId);
   const qtyKg = normalizeNumeric(candidate.qtyKg);
   const costPerKgEur = normalizeNumeric(candidate.costPerKgEur);
   const costCurrency = normalizeOptionalText(candidate.costCurrency);
   const sequence = candidate.sequence;
   const allergensInherited = parseTextArray(candidate.allergensInherited);
-  if (!rmCode || itemId === undefined || qtyKg === undefined || costPerKgEur === undefined) {
+  if (!rmCode || itemId === undefined || substituteItemId === undefined || qtyKg === undefined || costPerKgEur === undefined) {
     return null;
   }
   if (typeof sequence !== 'number' || !Number.isInteger(sequence) || sequence < 1) return null;
   if (!allergensInherited) return null;
-  return { rmCode, itemId, qtyKg, costPerKgEur, costCurrency, sequence, allergensInherited };
+  return { rmCode, itemId, substituteItemId, qtyKg, costPerKgEur, costCurrency, sequence, allergensInherited };
 }
 
 function normalizeRmCode(value: unknown): string | null {

@@ -36,7 +36,7 @@ import {
 import type { ItemPickerOption } from '../../../../../../../(npd)/fa/actions/search-items';
 import { symbolFor } from './cost-panel';
 
-export type IngredientField = 'rmCode' | 'name' | 'qtyKg' | 'pct' | 'costPerKgEur' | 'itemId';
+export type IngredientField = 'rmCode' | 'name' | 'qtyKg' | 'pct' | 'costPerKgEur' | 'itemId' | 'substituteItemId';
 
 export type EditableIngredient = {
   /** Stable client key (DB id for persisted rows, generated id for new rows). */
@@ -44,6 +44,10 @@ export type EditableIngredient = {
   rmCode: string;
   /** Lane-B: FK to the real items master row this ingredient represents (or null). */
   itemId: string | null;
+  /** F6-D17: optional substitute item allowed for this line at consumption only. */
+  substituteItemId: string | null;
+  substituteItemCode?: string | null;
+  substituteItemName?: string | null;
   /** Display label (raw-material name); populated from the picked item. */
   name: string;
   /** Costing v2: decimal STRING amount used in ONE pack, in kg. */
@@ -72,6 +76,9 @@ export type IngredientRowLabels = {
   rmCodeRequired: string;
   /** "Choose item" affordance text shown when no item is picked yet. */
   chooseItem: string;
+  substitute: string;
+  chooseSubstitute: string;
+  clearSubstitute: string;
   /**
    * Phase-3 NPD↔Technical shortcut — "↗" link title to open the picked item in
    * Technical. Optional (English fallback in the row) for back-compat with callers
@@ -110,6 +117,8 @@ export function IngredientRow({
   currency = 'GBP',
   onChange,
   onSelectItem,
+  onSelectSubstitute,
+  onClearSubstitute,
   onCommit,
   onDelete,
 }: {
@@ -130,6 +139,9 @@ export function IngredientRow({
   onChange: (index: number, field: IngredientField, value: string) => void;
   /** Lane-B: a real item was chosen — wire item_id + populate code/name/cost/allergen. */
   onSelectItem: (index: number, item: ItemPickerOption) => void;
+  /** F6-D17: a real item was chosen as the line substitute. */
+  onSelectSubstitute: (index: number, item: ItemPickerOption) => void;
+  onClearSubstitute: (index: number) => void;
   onCommit: (index: number) => void;
   onDelete: (index: number) => void;
 }) {
@@ -192,6 +204,40 @@ export function IngredientRow({
         {ingredient.name ? (
           <div className="mt-0.5 text-[10px] muted">{ingredient.name}</div>
         ) : null}
+        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50/60 p-2">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-normal text-slate-500">
+            {labels.substitute}
+          </div>
+          {ingredient.substituteItemId ? (
+            <div className="mb-1 flex items-center gap-2">
+              <span className="mono text-xs font-semibold" data-substitute-item-id={ingredient.substituteItemId}>
+                {ingredient.substituteItemCode ?? ingredient.substituteItemId}
+              </span>
+              {ingredient.substituteItemName ? (
+                <span className="text-[10px] muted">{ingredient.substituteItemName}</span>
+              ) : null}
+              <Button
+                type="button"
+                className="btn-ghost btn-sm"
+                disabled={disabled}
+                onClick={() => onClearSubstitute(index)}
+              >
+                {labels.clearSubstitute}
+              </Button>
+            </div>
+          ) : (
+            <div className="mb-1 text-[10px] muted">{labels.chooseSubstitute}</div>
+          )}
+          <ItemPicker
+            labels={{ ...labels.picker, trigger: labels.chooseSubstitute }}
+            searchItemsAction={searchItemsAction}
+            itemTypes={['rm', 'ingredient', 'intermediate', 'co_product', 'byproduct']}
+            disabled={disabled || !ingredient.itemId}
+            triggerClassName="btn-ghost btn-sm"
+            onSelect={(item) => onSelectSubstitute(index, item)}
+            createItemHref="/technical/items?modal=create"
+          />
+        </div>
         {error?.rmCode ? (
           <p id={rmErrorId} role="alert" className="mt-0.5 text-xs text-red-600">
             {error.rmCode}

@@ -42,6 +42,7 @@ type MaterialUpdateRow = {
 type MaterialGateRow = {
   id: string;
   product_id: string;
+  substitute_item_id: string | null;
   material_name: string;
   required_qty: string;
   consumed_qty: string;
@@ -55,6 +56,7 @@ type MaterialGateRow = {
 
 type ConsumedLpMoveRow = {
   id: string;
+  product_id: string;
   quantity: string;
   site_id: string | null;
   location_id: string | null;
@@ -255,6 +257,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
          )
          select wm.id,
                 wm.product_id,
+                bl.substitute_item_id,
                 wm.material_name,
                 wm.required_qty::text as required_qty,
                 wm.consumed_qty::text as consumed_qty,
@@ -271,6 +274,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
                   else null
                 end as over_pct
            from public.wo_materials wm
+           left join public.bom_lines bl
+             on bl.org_id = wm.org_id
+            and bl.id = wm.bom_item_id
           where wm.org_id = $1::uuid
             and wm.wo_id = $2::uuid
             and wm.id = $3::uuid
@@ -414,6 +420,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
       let fefoAdherence = true;
       let consumedLpMove: ConsumedLpMoveRow | null = null;
+      let consumedItemId = material.product_id;
       if (lpId) {
         const lpRes = await client.query<ConsumedLpMoveRow>(
           `update public.license_plates
@@ -424,12 +431,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
                   updated_at = now()
             where org_id = $1::uuid
               and id = $2::uuid
-              and product_id = $6::uuid
+              and product_id = any($6::uuid[])
               and uom = $7
               and quantity - $3::numeric >= reserved_qty
               and app.user_can_see_site(site_id)
-            returning id, quantity::text as quantity, site_id::text as site_id, location_id::text as location_id`,
-          [session.org_id, lpId, qty, woId, session.user_id, material.product_id, material.uom],
+            returning id, product_id::text as product_id, quantity::text as quantity, site_id::text as site_id, location_id::text as location_id`,
+          [session.org_id, lpId, qty, woId, session.user_id, [material.product_id, gate.substitute_item_id].filter(Boolean), material.uom],
         );
         if (!lpRes.rows[0]) {
           await client.query('rollback');
@@ -441,6 +448,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           return scannerError('lp_unavailable', 409);
         }
         consumedLpMove = lpRes.rows[0];
+        consumedItemId = consumedLpMove.product_id;
 
         const fefo = await client.query<{ violates: boolean }>(
           `select exists (
@@ -459,7 +467,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
                        and (chosen.expiry_date is null
                             or cand.expiry_date < chosen.expiry_date)
                   ) as violates`,
-          [session.org_id, lpId, material.product_id, material.uom],
+          [session.org_id, lpId, consumedItemId, material.uom],
         );
         fefoAdherence = !(fefo.rows[0]?.violates ?? false);
       }
@@ -476,7 +484,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         [
           txnId,
           woId,
-          material.product_id,
+          consumedItemId,
           lpId,
           qty,
           material.uom,
@@ -532,7 +540,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           aggregateId: consumptionId,
           woId,
           lpId,
-          itemId: material.product_id,
+          itemId: consumedItemId,
           qty,
           uom: material.uom,
           orgId: session.org_id,

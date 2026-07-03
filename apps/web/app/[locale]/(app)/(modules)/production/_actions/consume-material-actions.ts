@@ -126,6 +126,7 @@ export type ConsumeActionResult<T> =
 type MaterialGateRow = {
   id: string;
   product_id: string;
+  substitute_item_id: string | null;
   material_name: string;
   required_qty: string;
   consumed_qty: string;
@@ -268,12 +269,17 @@ export async function listConsumableLps(
         return { ok: false, reason: 'forbidden' };
       }
 
-      const materialRes = await ctx.client.query<{ product_id: string; uom: string }>(
-        `select product_id::text as product_id, uom
-           from public.wo_materials
-          where org_id = app.current_org_id()
-            and wo_id = $1::uuid
-            and id = $2::uuid
+      const materialRes = await ctx.client.query<{ product_id: string; substitute_item_id: string | null; uom: string }>(
+        `select wm.product_id::text as product_id,
+                bl.substitute_item_id::text as substitute_item_id,
+                wm.uom
+           from public.wo_materials wm
+           left join public.bom_lines bl
+             on bl.org_id = wm.org_id
+            and bl.id = wm.bom_item_id
+          where wm.org_id = app.current_org_id()
+            and wm.wo_id = $1::uuid
+            and wm.id = $2::uuid
           limit 1`,
         [woId, materialId],
       );
@@ -294,11 +300,11 @@ export async function listConsumableLps(
                 to_char(expiry_date, 'YYYY-MM-DD') as expiry_date
            from public.v_inventory_available
           where org_id = app.current_org_id()
-            and product_id = $1::uuid
+            and product_id = any($1::uuid[])
             and uom = $2
           order by expiry_date asc nulls last, lp_number asc
           limit 25`,
-        [material.product_id, material.uom],
+        [[material.product_id, material.substitute_item_id].filter(Boolean), material.uom],
       );
 
       return {
@@ -392,7 +398,11 @@ export async function recordDesktopConsumption(
            join public.wo_materials wm
              on wm.org_id = c.org_id
             and wm.wo_id = c.wo_id
-            and wm.product_id = c.component_id
+            and (
+              ((c.ext_jsonb->>'materialId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                and wm.id = (c.ext_jsonb->>'materialId')::uuid)
+              or ((c.ext_jsonb->>'materialId') is null and wm.product_id = c.component_id)
+            )
           where c.org_id = app.current_org_id()
             and c.transaction_id = $1::uuid
           limit 1`,
@@ -466,6 +476,7 @@ export async function recordDesktopConsumption(
          )
          select wm.id::text as id,
                 wm.product_id::text as product_id,
+                bl.substitute_item_id::text as substitute_item_id,
                 wm.material_name,
                 wm.required_qty::text as required_qty,
                 wm.consumed_qty::text as consumed_qty,
@@ -482,6 +493,9 @@ export async function recordDesktopConsumption(
                   else null
                 end as over_pct
            from public.wo_materials wm
+           left join public.bom_lines bl
+             on bl.org_id = wm.org_id
+            and bl.id = wm.bom_item_id
           where wm.org_id = app.current_org_id()
             and wm.wo_id = $1::uuid
             and wm.id = $2::uuid
@@ -512,32 +526,36 @@ export async function recordDesktopConsumption(
         : undefined;
 
       let lpLedgerInput: Omit<Parameters<typeof writeConsumeLedger>[1], 'consumptionId'> | null = null;
+      let consumedItemId = gate.product_id;
       if (lpId) {
         const lpAvailability = await ctx.client.query<{
           id: string;
+          product_id: string;
           status: string;
           site_id: string | null;
           location_id: string | null;
         }>(
           `select lp.id::text as id,
+                  lp.product_id::text as product_id,
                   lp.status,
                   lp.site_id::text as site_id,
                   lp.location_id::text as location_id
              from public.license_plates lp
             where lp.org_id = app.current_org_id()
               and lp.id = $1::uuid
-              and lp.product_id = $2::uuid
+              and lp.product_id = any($2::uuid[])
               and lp.uom = $3
               and lp.quantity - $4::numeric >= lp.reserved_qty
             limit 1
             for update`,
-          [lpId, gate.product_id, gate.uom, qty],
+          [lpId, [gate.product_id, gate.substitute_item_id].filter(Boolean), gate.uom, qty],
         );
         if (!lpAvailability.rows[0]) {
           return { ok: false, reason: 'lp_unavailable' };
         }
 
         const lpBefore = lpAvailability.rows[0];
+        consumedItemId = lpBefore.product_id;
         const lpRes = await ctx.client.query<{ id: string; quantity: string }>(
           `update public.license_plates
               set quantity = quantity - $3::numeric,
@@ -547,11 +565,11 @@ export async function recordDesktopConsumption(
                   updated_at = now()
             where org_id = $1::uuid
               and id = $2::uuid
-              and product_id = $6::uuid
+              and product_id = any($6::uuid[])
               and uom = $7
               and quantity - $3::numeric >= reserved_qty
             returning id::text, quantity::text as quantity`,
-          [orgId, lpId, qty, woId, userId, gate.product_id, gate.uom],
+          [orgId, lpId, qty, woId, userId, [gate.product_id, gate.substitute_item_id].filter(Boolean), gate.uom],
         );
         if (!lpRes.rows[0]) {
           throw new Error('recordDesktopConsumption: LP decrement failed after availability gate');
@@ -616,7 +634,7 @@ export async function recordDesktopConsumption(
                        and (chosen.expiry_date is null
                             or cand.expiry_date < chosen.expiry_date)
                   ) as violates`,
-          [material.product_id, lpId, material.uom],
+          [consumedItemId, lpId, material.uom],
         );
         fefoAdherence = !(fefo.rows[0]?.violates ?? false);
       }
@@ -636,7 +654,7 @@ export async function recordDesktopConsumption(
         [
           txnId,
           woId,
-          material.product_id,
+          consumedItemId,
           lpId,
           qty,
           material.uom,
@@ -668,7 +686,7 @@ export async function recordDesktopConsumption(
           aggregateId: consumptionId,
           woId,
           lpId,
-          itemId: material.product_id,
+          itemId: consumedItemId,
           qty,
           uom: material.uom,
           orgId,

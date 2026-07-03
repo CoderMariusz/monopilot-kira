@@ -98,6 +98,7 @@ const DEFAULT_LABELS: FormulationLabels = {
   saving: 'Saving…',
   saved: 'Saved',
   saveError: 'Could not save the draft. Try again.',
+  substituteAllergenMismatch: 'Substitute blocked because it introduces undeclared allergens',
   submitForTrial: 'Submit for trial',
   submitting: 'Submitting…',
   submittedForTrial: 'Submitted for trial',
@@ -194,6 +195,9 @@ const DEFAULT_LABELS: FormulationLabels = {
   locked: 'This version is locked and cannot be edited.',
   noAllergen: '—',
   chooseItem: 'Choose item',
+  substitute: 'Substitute',
+  chooseSubstitute: 'Pick substitute',
+  clearSubstitute: 'Clear',
   // Phase-3 NPD↔Technical shortcut — "↗" link title on each picked ingredient row.
   openInTechnical: 'Open item in Technical',
   picker: {
@@ -601,6 +605,9 @@ async function readPageData(projectId: string, versionId?: string): Promise<Load
         rmCode: ing.rm_code,
         // Lane-B: item_id wires the real items-master row; name comes from the join.
         itemId: ing.item_id,
+        substituteItemId: ing.substitute_item_id,
+        substituteItemCode: ing.substitute_item_code,
+        substituteItemName: ing.substitute_item_name,
         name: ing.item_name ?? '',
         // Costing v2: the entered qty/pack (kg) is the primary editable field.
         qtyKg: ing.qty_kg,

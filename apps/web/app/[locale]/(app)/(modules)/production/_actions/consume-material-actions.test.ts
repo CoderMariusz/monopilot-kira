@@ -8,6 +8,7 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const WO_ID = '33333333-3333-4333-8333-333333333333';
 const MATERIAL_ID = '44444444-4444-4444-8444-444444444444';
 const PRODUCT_ID = '55555555-5555-4555-8555-555555555555';
+const SUBSTITUTE_PRODUCT_ID = '55555555-5555-4555-8555-000000000001';
 const LP_ID = '66666666-6666-4666-8666-666666666666';
 const CONSUMPTION_ID = '77777777-7777-4777-8777-777777777777';
 
@@ -27,6 +28,8 @@ type State = {
   lpExpired: boolean;
   lpLockedByOther: boolean;
   lpHeld: boolean;
+  lpProductId: string;
+  substituteItemId: string | null;
   woExecutionStatus: 'planned' | 'in_progress' | 'paused' | 'completed' | 'closed' | 'cancelled' | null;
 };
 
@@ -75,10 +78,12 @@ function makeClient(): QueryClient {
           : { rows: [{ status: state.woExecutionStatus }], rowCount: 1 };
       }
       if (n.includes('from public.license_plates lp') && n.includes('quantity - $4::numeric >= lp.reserved_qty')) {
-        return state.lpDecrementSucceeds
+        const allowedItems = params[1] as string[];
+        return state.lpDecrementSucceeds && allowedItems.includes(state.lpProductId)
           ? {
               rows: [{
                 id: LP_ID,
+                product_id: state.lpProductId,
                 status: state.lpStatus,
                 site_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
                 location_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -113,6 +118,7 @@ function makeClient(): QueryClient {
                 {
                   id: MATERIAL_ID,
                   product_id: PRODUCT_ID,
+                  substitute_item_id: state.substituteItemId,
                   material_name: 'Lean beef 80/20',
                   required_qty: '120.000',
                   consumed_qty: '2.500',
@@ -145,7 +151,8 @@ function makeClient(): QueryClient {
           : { rows: [], rowCount: 0 };
       }
       if (n.startsWith('update public.license_plates')) {
-        return state.lpDecrementSucceeds
+        const allowedItems = params[5] as string[];
+        return state.lpDecrementSucceeds && allowedItems.includes(state.lpProductId)
           ? { rows: [{ id: LP_ID, quantity: state.lpRemainingQty }], rowCount: 1 }
           : { rows: [], rowCount: 0 };
       }
@@ -166,9 +173,9 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
       // listConsumableLps material lookup
-      if (n.startsWith('select product_id::text as product_id, uom from public.wo_materials')) {
+      if (n.includes('from public.wo_materials wm') && n.includes('left join public.bom_lines bl') && !n.includes('for update of wm')) {
         return state.materialExists
-          ? { rows: [{ product_id: PRODUCT_ID, uom: 'kg' }], rowCount: 1 }
+          ? { rows: [{ product_id: PRODUCT_ID, substitute_item_id: state.substituteItemId, uom: 'kg' }], rowCount: 1 }
           : { rows: [], rowCount: 0 };
       }
       if (n.includes('from public.v_inventory_available')) {
@@ -200,6 +207,8 @@ beforeEach(() => {
     lpExpired: false,
     lpLockedByOther: false,
     lpHeld: false,
+    lpProductId: PRODUCT_ID,
+    substituteItemId: null,
     woExecutionStatus: 'in_progress',
   };
   queries = [];
@@ -285,6 +294,39 @@ describe('recordDesktopConsumption — conditional UPDATE', () => {
       org_id: ORG_ID,
       actor: USER_ID,
     });
+  });
+
+  it('accepts a substitute LP item when the BOM line declares substitute_item_id and records the actual item', async () => {
+    state.substituteItemId = SUBSTITUTE_PRODUCT_ID;
+    state.lpProductId = SUBSTITUTE_PRODUCT_ID;
+
+    const result = await recordDesktopConsumption(VALID_INPUT);
+
+    expect(result.ok).toBe(true);
+    const ledger = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
+    expect(ledger).toBeDefined();
+    expect(ledger?.params[2]).toBe(SUBSTITUTE_PRODUCT_ID);
+    expect(JSON.parse(String(ledger?.params[8]))).toMatchObject({ materialId: MATERIAL_ID });
+
+    const outbox = queries.find(
+      (q) =>
+        normalize(q.sql).startsWith('insert into public.outbox_events') &&
+        q.params[0] === 'warehouse.material.consumed',
+    );
+    expect(JSON.parse(String(outbox?.params[3]))).toMatchObject({
+      item_id: SUBSTITUTE_PRODUCT_ID,
+      lp_id: LP_ID,
+    });
+  });
+
+  it('rejects a substitute LP item when the BOM line does not declare it', async () => {
+    state.lpProductId = SUBSTITUTE_PRODUCT_ID;
+
+    const result = await recordDesktopConsumption(VALID_INPUT);
+
+    expect(result).toEqual({ ok: false, reason: 'lp_unavailable' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
   });
 
   it('returns invalid_material when the WHERE matches no row', async () => {
@@ -375,6 +417,8 @@ describe('recordDesktopConsumption — LP underflow refusal', () => {
 
   it('rejects held LPs with the canonical quality_hold_active and emits production.consume.blocked', async () => {
     state.lpHeld = true;
+    state.substituteItemId = SUBSTITUTE_PRODUCT_ID;
+    state.lpProductId = SUBSTITUTE_PRODUCT_ID;
     const result = await recordDesktopConsumption(VALID_INPUT);
     expect(result).toEqual({ ok: false, reason: 'quality_hold_active' });
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
@@ -447,6 +491,7 @@ describe('recordDesktopConsumption — no-LP path', () => {
 
 describe('listConsumableLps', () => {
   it('returns FEFO-ordered candidates from v_inventory_available', async () => {
+    state.substituteItemId = SUBSTITUTE_PRODUCT_ID;
     const result = await listConsumableLps({ woId: WO_ID, materialId: MATERIAL_ID });
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -454,6 +499,8 @@ describe('listConsumableLps', () => {
         { lpId: LP_ID, lpNumber: 'LP-001', qty: '10.000', uom: 'kg', expiry: '2026-07-01' },
       ]);
     }
+    const lpQuery = queries.find((q) => normalize(q.sql).includes('from public.v_inventory_available'));
+    expect(lpQuery?.params[0]).toEqual([PRODUCT_ID, SUBSTITUTE_PRODUCT_ID]);
   });
 
   it('refuses without permission', async () => {

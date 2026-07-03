@@ -129,6 +129,7 @@ export const bomLines = pgTable(
     componentCode: text('component_code').notNull(),
     // T-002: canonical item master FK; component_code kept for display / back-compat.
     itemId: uuid('item_id').references(() => items.id, { onDelete: 'restrict' }),
+    substituteItemId: uuid('substitute_item_id').references(() => items.id, { onDelete: 'restrict' }),
     componentType: text('component_type'),
     quantity: numeric('quantity', { precision: 14, scale: 6 }).notNull(),
     uom: text('uom').notNull(),
@@ -154,6 +155,9 @@ export const bomLines = pgTable(
     orgItemIdx: index('bom_lines_org_item_idx')
       .on(table.orgId, table.itemId)
       .where(sql`${table.itemId} is not null`),
+    orgSubstituteItemIdx: index('bom_lines_org_substitute_item_idx')
+      .on(table.orgId, table.substituteItemId)
+      .where(sql`${table.substituteItemId} is not null`),
     lineNoCheck: check('bom_lines_line_no_check', sql`${table.lineNo} > 0`),
     quantityPositiveCheck: check('bom_lines_quantity_positive_check', sql`${table.quantity} > 0`),
     scrapPctCheck: check(

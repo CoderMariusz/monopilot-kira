@@ -166,7 +166,11 @@ async function loadConsumptionForUpdate(
        join public.wo_materials wm
          on wm.org_id = c.org_id
         and wm.wo_id = c.wo_id
-        and wm.product_id = c.component_id
+        and (
+          ((c.ext_jsonb->>'materialId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and wm.id = (c.ext_jsonb->>'materialId')::uuid)
+          or ((c.ext_jsonb->>'materialId') is null and wm.product_id = c.component_id)
+        )
       where c.org_id = app.current_org_id()
         and c.wo_id = $1::uuid
         and wm.id = $2::uuid
@@ -385,7 +389,7 @@ async function writeConsumptionReverseStockMove(
       params.note,
       transactionId,
       params.original.wo_id,
-      params.original.component_id,
+      materialIdFromConsumptionExt(params.original) ?? params.original.component_id,
       JSON.stringify({
         source: 'scannerReverseConsumption',
         consumption_id: params.original.id,

@@ -28,6 +28,10 @@ type IngredientRow = {
   item_id: string | null;
   /** Lane-B: display name from the joined items row (empty when no item). */
   item_name: string | null;
+  /** F6-D17: optional substitute item for this component line. */
+  substitute_item_id: string | null;
+  substitute_item_code: string | null;
+  substitute_item_name: string | null;
   qty_kg: string | null;
   pct: string | null;
   cost_per_kg_eur: string | null;
@@ -227,6 +231,9 @@ const INGREDIENT_SELECT = `
   fi.rm_code,
   fi.item_id::text,
   it.name as item_name,
+  fi.substitute_item_id::text,
+  substitute.item_code as substitute_item_code,
+  substitute.name as substitute_item_name,
   fi.qty_kg::text,
   fi.pct::text,
   fi.cost_per_kg_eur::text,
@@ -252,6 +259,7 @@ async function loadIngredients(client: QueryClient, versionId: string): Promise<
          rm.nutrition_per_100g
        from public.formulation_ingredients fi
        left join public.items it on it.id = fi.item_id
+       left join public.items substitute on substitute.id = fi.substitute_item_id
        left join profile_allergens pa on pa.item_id = fi.item_id
        left join "Reference"."RawMaterials" rm
          on rm.org_id = app.current_org_id()
@@ -267,6 +275,7 @@ async function loadIngredients(client: QueryClient, versionId: string): Promise<
        select${INGREDIENT_SELECT}
        from public.formulation_ingredients fi
        left join public.items it on it.id = fi.item_id
+       left join public.items substitute on substitute.id = fi.substitute_item_id
        left join profile_allergens pa on pa.item_id = fi.item_id
       where fi.version_id = $1::uuid
       order by fi.sequence`,

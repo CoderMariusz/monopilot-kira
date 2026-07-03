@@ -32,17 +32,22 @@ export async function GET(request: NextRequest, context: RouteContext) {
       // In autocommit it is NULL: the wo_materials gate would 422 and the FEFO
       // list would always be empty live.
       withTxnOrgContext(scopedClient, session.org_id, session.user_id, async () => {
-        const materialRes = await scopedClient.query<{ product_id: string; uom: string }>(
-          `select product_id, uom
-             from public.wo_materials
-            where org_id = app.current_org_id()
-              and wo_id = $1::uuid
-              and id = $2::uuid
+        const materialRes = await scopedClient.query<{ product_id: string; substitute_item_id: string | null; uom: string }>(
+          `select wm.product_id::text as product_id,
+                  bl.substitute_item_id::text as substitute_item_id,
+                  wm.uom
+             from public.wo_materials wm
+             left join public.bom_lines bl
+               on bl.org_id = wm.org_id
+              and bl.id = wm.bom_item_id
+            where wm.org_id = app.current_org_id()
+              and wm.wo_id = $1::uuid
+              and wm.id = $2::uuid
               and exists (
                 select 1
                   from public.work_orders wo
                  where wo.org_id = app.current_org_id()
-                   and wo.id = wo_materials.wo_id
+                   and wo.id = wm.wo_id
                    and app.user_can_see_site(wo.site_id)
               )
             limit 1`,
@@ -57,14 +62,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
                   available_qty::text as available_qty,
                   uom,
                   expiry_date
-             from public.v_inventory_available
-            where org_id = app.current_org_id()
-              and product_id = $1::uuid
+            from public.v_inventory_available
+           where org_id = app.current_org_id()
+              and product_id = any($1::uuid[])
               and uom = $2
               and app.user_can_see_site(site_id)
             order by expiry_date asc nulls last, lp_number asc
             limit 25`,
-          [material.product_id, material.uom],
+          [[material.product_id, material.substitute_item_id].filter(Boolean), material.uom],
         );
         return lpRes.rows;
       }),

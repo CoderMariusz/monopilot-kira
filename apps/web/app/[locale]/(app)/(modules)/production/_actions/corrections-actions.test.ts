@@ -41,6 +41,7 @@ const PARENT_LP_ID = '99999999-9999-4999-8999-999999999999';
 const WASTE_SITE_ID = '12121212-1212-4121-8121-121212121212';
 const CONSUMPTION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const COMPONENT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const SUBSTITUTE_COMPONENT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const MATERIAL_A_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const MATERIAL_B_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const NO_LP_ID = '00000000-0000-0000-0000-000000000000';
@@ -53,6 +54,7 @@ type State = {
   consumptionExists: boolean;
   consumptionAlreadyCorrected: boolean;
   consumptionNoLp: boolean;
+  consumptionComponentId: string;
   consumptionQty: string;
   consumptionExtJsonb: unknown;
   lpExists: boolean;
@@ -174,7 +176,7 @@ function makeClient(): QueryClient {
                 transaction_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
                 site_id: null,
                 wo_id: WO_ID,
-                component_id: COMPONENT_ID,
+                component_id: state.consumptionComponentId,
                 lp_id: state.consumptionNoLp ? NO_LP_ID : LP_ID,
                 qty_consumed: state.consumptionQty,
                 uom: 'kg',
@@ -337,6 +339,7 @@ beforeEach(() => {
     consumptionExists: true,
     consumptionAlreadyCorrected: false,
     consumptionNoLp: false,
+    consumptionComponentId: COMPONENT_ID,
     consumptionQty: '4.250',
     consumptionExtJsonb: { source: 'desktop' },
     lpExists: true,
@@ -579,6 +582,39 @@ describe('reverseConsumption', () => {
     expect(state.materialRows).toEqual([
       { id: MATERIAL_A_ID, product_id: COMPONENT_ID, consumed_qty: '0' },
       { id: MATERIAL_B_ID, product_id: COMPONENT_ID, consumed_qty: '100' },
+    ]);
+  });
+
+  it('reverses substitute consumption against the recorded primary material line id', async () => {
+    state.consumptionComponentId = SUBSTITUTE_COMPONENT_ID;
+    state.consumptionQty = '2.000';
+    state.consumptionExtJsonb = { source: 'scanner', materialId: MATERIAL_A_ID };
+    state.materialRows = [
+      { id: MATERIAL_A_ID, product_id: COMPONENT_ID, consumed_qty: '5.000' },
+      { id: MATERIAL_B_ID, product_id: COMPONENT_ID, consumed_qty: '7.000' },
+    ];
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'wrong_quantity',
+      note: 'substitute correction',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+
+    const insert = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
+    expect(insert?.params).toContain(SUBSTITUTE_COMPONENT_ID);
+
+    const materialUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.wo_materials'));
+    expect(normalize(materialUpdate!.sql)).toContain('and id = $2::uuid');
+    expect(materialUpdate?.params).toEqual([WO_ID, MATERIAL_A_ID, '2.000']);
+
+    const stockMove = queries.find((q) => normalize(q.sql).startsWith('insert into public.stock_moves'));
+    expect(stockMove?.params).toEqual(expect.arrayContaining([LP_ID, '-2.000', 'kg', 'substitute correction', WO_ID, MATERIAL_A_ID]));
+    expect(state.materialRows).toEqual([
+      { id: MATERIAL_A_ID, product_id: COMPONENT_ID, consumed_qty: '3' },
+      { id: MATERIAL_B_ID, product_id: COMPONENT_ID, consumed_qty: '7.000' },
     ]);
   });
 

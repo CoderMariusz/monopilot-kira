@@ -146,7 +146,7 @@ describe('materializeNpdBom', () => {
     });
     expect(client.calls.filter((call) => normalize(call.sql).startsWith('insert into public.bom_lines'))).toHaveLength(2);
     const bomLineInserts = client.calls.filter((c) => normalize(c.sql).startsWith('insert into public.bom_lines'));
-    expect(bomLineInserts[0]?.params[4]).toBe('5.000000');
+    expect(bomLineInserts[0]?.params[5]).toBe('5.000000');
     const bomHeaderInsert = client.calls.find((c) => normalize(c.sql).startsWith('insert into public.bom_headers'));
     expect(bomHeaderInsert?.sql).toContain('per_box');
     const itemsInsert = client.calls.find((c) => normalize(c.sql).startsWith('insert into public.items'));

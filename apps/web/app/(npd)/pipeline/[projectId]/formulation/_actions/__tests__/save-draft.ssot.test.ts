@@ -32,6 +32,10 @@ const FORMULATION_ID = '55555555-5555-4555-8555-555555555555';
 const ITEM_A = '66666666-6666-4666-8666-666666666666';
 /** Item with a truly-empty allergen profile and NO master cost. */
 const ITEM_B = '77777777-7777-4777-8777-777777777777';
+/** Substitute with an allergen subset compatible with ITEM_A. */
+const ITEM_C = '88888888-8888-4888-8888-888888888888';
+/** Substitute that introduces an extra allergen not present on ITEM_A. */
+const ITEM_D = '99999999-9999-4999-8999-999999999999';
 
 let client: QueryClient;
 /** Captured $2 of the formulation_ingredients INSERT (the persisted rows). */
@@ -79,6 +83,8 @@ function makeClient(): QueryClient {
         const known: Record<string, { id: string; cost_per_kg: string | null; cost_currency?: string | null }> = {
           [ITEM_A]: { id: ITEM_A, cost_per_kg: '9.9900', cost_currency: 'GBP' },
           [ITEM_B]: { id: ITEM_B, cost_per_kg: null, cost_currency: null },
+          [ITEM_C]: { id: ITEM_C, cost_per_kg: '8.8800', cost_currency: 'GBP' },
+          [ITEM_D]: { id: ITEM_D, cost_per_kg: '7.7700', cost_currency: 'GBP' },
         };
         return { rows: requested.filter((id) => known[id]).map((id) => known[id]) };
       }
@@ -86,9 +92,17 @@ function makeClient(): QueryClient {
         const requested = (params[0] as string[]) ?? [];
         // ITEM_A: full multi-allergen profile; ITEM_B: NO rows (truly empty).
         return {
-          rows: requested.includes(ITEM_A)
-            ? [{ item_id: ITEM_A, codes: ['celery', 'mustard', 'sesame'] }]
-            : [],
+          rows: [
+            ...(requested.includes(ITEM_A)
+              ? [{ item_id: ITEM_A, codes: ['celery', 'mustard', 'sesame'] }]
+              : []),
+            ...(requested.includes(ITEM_C)
+              ? [{ item_id: ITEM_C, codes: ['mustard'] }]
+              : []),
+            ...(requested.includes(ITEM_D)
+              ? [{ item_id: ITEM_D, codes: ['gluten'] }]
+              : []),
+          ],
         };
       }
       if (q.startsWith('insert into public.formulation_ingredients')) {
@@ -108,6 +122,7 @@ function makeClient(): QueryClient {
 function line(overrides: Partial<{
   rmCode: string;
   itemId: string | null;
+  substituteItemId: string | null;
   qtyKg: string | null;
   costPerKgEur: string | null;
   costCurrency: string | null;
@@ -117,6 +132,7 @@ function line(overrides: Partial<{
   return {
     rmCode: 'RM-1001',
     itemId: ITEM_A,
+    substituteItemId: null,
     qtyKg: '0.200',
     costPerKgEur: '1.00',
     costCurrency: null,
@@ -158,6 +174,32 @@ describe('saveDraft — F-A06 allergen SSOT (client payload ignored)', () => {
       ingredients: [line({ itemId: ITEM_B, allergensInherited: ['sneaky'] })],
     });
     expect(insertedRows?.[0]?.allergens_inherited).toEqual([]);
+  });
+
+  it('allows a substitute whose allergen profile is a subset of the primary profile', async () => {
+    const result = await saveDraft({
+      projectId: PROJECT_ID,
+      versionId: VERSION_ID,
+      ingredients: [line({ substituteItemId: ITEM_C })],
+    });
+
+    expect(result).toEqual({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 1 } });
+    expect(insertedRows?.[0]?.substitute_item_id).toBe(ITEM_C);
+  });
+
+  it('fail-closes a substitute that introduces allergens absent from the primary profile before persistence', async () => {
+    const result = await saveDraft({
+      projectId: PROJECT_ID,
+      versionId: VERSION_ID,
+      ingredients: [line({ substituteItemId: ITEM_D })],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'SUBSTITUTE_ALLERGEN_MISMATCH',
+      offendingAllergens: ['gluten'],
+    });
+    expect(insertedRows).toBeNull();
   });
 
   it('carries over the previously PERSISTED allergens for legacy free-text lines (no item_id) — never the wire value', async () => {

@@ -106,11 +106,14 @@ function getRequest(query = ''): Request {
 const context = { params: { id: '60000000-0000-0000-0000-000000000001' } };
 const approverUserId = '30000000-0000-0000-0000-000000000099';
 const consumptionId = '71000000-0000-0000-0000-000000000001';
+const primaryItemId = '80000000-0000-0000-0000-000000000001';
+const substituteItemId = '80000000-0000-0000-0000-000000000099';
 
 function materialGate(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: '70000000-0000-0000-0000-000000000001',
     product_id: '80000000-0000-0000-0000-000000000001',
+    substitute_item_id: null,
     material_name: 'Sugar',
     required_qty: '10.000',
     consumed_qty: '5.000',
@@ -198,7 +201,7 @@ describe('production scanner WO routes', () => {
         };
       }
       if (sql.includes('update public.license_plates')) {
-        return { rows: [{ id: 'lp-1', quantity: '7.500', site_id: session.site_id, location_id: null }] };
+        return { rows: [{ id: 'lp-1', product_id: '80000000-0000-0000-0000-000000000001', quantity: '0.000', site_id: session.site_id, location_id: null }] };
       }
       if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
       if (sql.includes('insert into public.stock_moves')) return { rows: [] };
@@ -241,7 +244,7 @@ describe('production scanner WO routes', () => {
         };
       }
       if (sql.includes('update public.license_plates')) {
-        return { rows: [{ id: 'lp-1', quantity: '2.500', site_id: session.site_id, location_id: null }] };
+        return { rows: [{ id: 'lp-1', product_id: '80000000-0000-0000-0000-000000000001', quantity: '0.000', site_id: session.site_id, location_id: null }] };
       }
       if (sql.includes('from public.v_inventory_available cand')) return { rows: [{ violates: false }] };
       if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
@@ -303,7 +306,7 @@ describe('production scanner WO routes', () => {
         };
       }
       if (sql.includes('update public.license_plates')) {
-        return { rows: [{ id: 'lp-1', quantity: '2.500', site_id: session.site_id, location_id: null }] };
+        return { rows: [{ id: 'lp-1', product_id: '80000000-0000-0000-0000-000000000001', quantity: '0.000', site_id: session.site_id, location_id: null }] };
       }
       if (sql.includes('from public.v_inventory_available cand')) return { rows: [{ violates: false }] };
       if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
@@ -340,6 +343,101 @@ describe('production scanner WO routes', () => {
       org_id: session.org_id,
       actor: session.user_id,
     });
+  });
+
+  it('consume accepts a declared substitute LP and records the actual LP item on ledger and event', async () => {
+    const { POST } = await import('../consume/route');
+    fakeClient.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.license_plates lp')) return { rows: [consumableLp()] };
+      if (sql.includes('from public.v_active_holds')) return { rows: [] };
+      if (sql.includes('for update of wm')) return { rows: [materialGate({ substitute_item_id: substituteItemId })] };
+      if (sql.includes('update public.wo_materials')) {
+        return {
+          rows: [{
+            id: '70000000-0000-0000-0000-000000000001',
+            product_id: primaryItemId,
+            material_name: 'Sugar',
+            consumed_qty: '7.500',
+            uom: 'kg',
+          }],
+        };
+      }
+      if (sql.includes('update public.license_plates')) {
+        expect(params?.[5]).toEqual([primaryItemId, substituteItemId]);
+        return { rows: [{ id: 'lp-1', product_id: substituteItemId, quantity: '0.000', site_id: session.site_id, location_id: null }] };
+      }
+      if (sql.includes('from public.v_inventory_available cand')) {
+        expect(params?.[2]).toBe(substituteItemId);
+        return { rows: [{ violates: false }] };
+      }
+      if (sql.includes('insert into public.wo_material_consumption')) return { rows: [{ id: consumptionId }] };
+      if (sql.includes('insert into public.stock_moves')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-substitute-lp',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '2.500',
+        lpId: '90000000-0000-0000-0000-000000000001',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    const ledgerCall = ledgerInsertCall();
+    expect((ledgerCall?.[1] as unknown[])[2]).toBe(substituteItemId);
+    expect(JSON.parse((ledgerCall?.[1] as unknown[])[8] as string)).toMatchObject({
+      materialId: '70000000-0000-0000-0000-000000000001',
+    });
+    const eventCall = fakeClient.query.mock.calls.find(
+      (call) => String(call[0]).includes('insert into public.outbox_events') && (call[1] as unknown[])[0] === 'warehouse.material.consumed',
+    );
+    expect(JSON.parse((eventCall?.[1] as unknown[])[3] as string)).toMatchObject({ item_id: substituteItemId });
+  });
+
+  it('consume rejects a substitute LP when the BOM line does not declare that substitute', async () => {
+    const { POST } = await import('../consume/route');
+    fakeClient.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('from public.license_plates lp')) return { rows: [consumableLp()] };
+      if (sql.includes('from public.v_active_holds')) return { rows: [] };
+      if (sql.includes('for update of wm')) return { rows: [materialGate()] };
+      if (sql.includes('update public.wo_materials')) {
+        return {
+          rows: [{
+            id: '70000000-0000-0000-0000-000000000001',
+            product_id: primaryItemId,
+            material_name: 'Sugar',
+            consumed_qty: '7.500',
+            uom: 'kg',
+          }],
+        };
+      }
+      if (sql.includes('update public.license_plates')) {
+        expect(params?.[5]).toEqual([primaryItemId]);
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const response = await POST(
+      request({
+        clientOpId: 'op-substitute-not-declared',
+        materialId: '70000000-0000-0000-0000-000000000001',
+        qty: '2.500',
+        lpId: '90000000-0000-0000-0000-000000000001',
+      }) as never,
+      context,
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'lp_unavailable' });
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('insert into public.wo_material_consumption'))).toBe(false);
   });
 
   it('consume replay returns ok without reapplying material update and reconstructs the original response from the stored ext', async () => {
@@ -1362,6 +1460,37 @@ describe('production scanner WO routes', () => {
     expect(sqls[materialIdx]).toContain('app.current_org_id()');
     expect(sqls[lpIdx]).toContain('app.current_org_id()');
     expect(fakeClient.query.mock.calls[materialIdx][1]).toEqual([context.params.id, '70000000-0000-0000-0000-000000000001']);
+  });
+
+  it('lps includes declared substitute items as FEFO candidates for the same material', async () => {
+    const { GET } = await import('../lps/route');
+    fakeClient.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      const stub = txnStubs(sql);
+      if (stub) return stub;
+      if (sql.includes('from public.wo_materials')) {
+        return { rows: [{ product_id: primaryItemId, substitute_item_id: substituteItemId, uom: 'kg' }] };
+      }
+      if (sql.includes('from public.v_inventory_available')) {
+        expect(params?.[0]).toEqual([primaryItemId, substituteItemId]);
+        return {
+          rows: [
+            { lp_id: 'lp-sub', lp_number: 'LP-SUB', available_qty: '20.000', uom: 'kg', expiry_date: '2026-06-10' },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const response = await GET(
+      getRequest('?materialId=70000000-0000-0000-0000-000000000001') as never,
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      lps: [{ lpId: 'lp-sub', lpNumber: 'LP-SUB', qty: '20.000', uom: 'kg', expiry: '2026-06-10' }],
+    });
   });
 
   it('lps rejects a missing materialId with 400 missing_fields', async () => {
