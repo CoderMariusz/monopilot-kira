@@ -337,6 +337,16 @@ async function readStageSections(projectId: string) {
   }
 }
 
+async function getCloseSectionLabel(locale: string): Promise<string> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.stageDeptSections' });
+    const value = t('closeSection');
+    return value === 'closeSection' ? 'Close {dept} section' : value;
+  } catch {
+    return 'Close {dept} section';
+  }
+}
+
 export default async function PackagingPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as PackagingPageProps;
   const { locale, projectId } = props.params
@@ -360,6 +370,7 @@ export default async function PackagingPage(propsInput: unknown = {}) {
     loaded.data.artwork = await readArtworkView(projectId);
   }
   const stageSections = await readStageSections(projectId);
+  const closeSectionLabel = await getCloseSectionLabel(locale);
 
   return (
     <>
@@ -390,7 +401,7 @@ export default async function PackagingPage(propsInput: unknown = {}) {
         onDeleteArtwork={deleteArtworkAction}
         searchItemsAction={searchPackagingItemsAction}
       />
-      {stageSections ? <StageDeptSections projectId={projectId} stage="packaging" data={stageSections} /> : null}
+      {stageSections ? <StageDeptSections projectId={projectId} stage="packaging" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
     </>
   );
 }

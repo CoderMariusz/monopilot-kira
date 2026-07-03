@@ -248,6 +248,16 @@ async function readStageSections(projectId: string) {
   }
 }
 
+async function getCloseSectionLabel(locale: string): Promise<string> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.stageDeptSections' });
+    const value = t('closeSection');
+    return value === 'closeSection' ? 'Close {dept} section' : value;
+  } catch {
+    return 'Close {dept} section';
+  }
+}
+
 export default async function PilotPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as PilotPageProps;
   const { locale, projectId } = props.params
@@ -306,6 +316,7 @@ export default async function PilotPage(propsInput: unknown = {}) {
       }
     : await readPageData(projectId);
   const stageSections = await readStageSections(projectId);
+  const closeSectionLabel = await getCloseSectionLabel(locale);
 
   return (
     <>
@@ -337,7 +348,7 @@ export default async function PilotPage(propsInput: unknown = {}) {
         onUpsertRun={upsertRunAction}
         onLoadRecipeMaterials={loadRecipeMaterialsAction}
       />
-      {stageSections ? <StageDeptSections projectId={projectId} stage="pilot" data={stageSections} /> : null}
+      {stageSections ? <StageDeptSections projectId={projectId} stage="pilot" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
     </>
   );
 }

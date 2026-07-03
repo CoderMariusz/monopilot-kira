@@ -7,6 +7,8 @@
  * CostingScreen + NutritionScreen and their Server Actions via the shared loaders.
  */
 
+import { getTranslations } from 'next-intl/server';
+
 import { CostingScreen } from '../costing/_components/costing-screen';
 import {
   buildCostingLabels,
@@ -39,19 +41,30 @@ async function readStageSections(projectId: string) {
   }
 }
 
+async function getCloseSectionLabel(locale: string): Promise<string> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.stageDeptSections' });
+    const value = t('closeSection');
+    return value === 'closeSection' ? 'Close {dept} section' : value;
+  } catch {
+    return 'Close {dept} section';
+  }
+}
+
 export default async function CostingNutritionPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as CostingNutritionPageProps;
   const { locale, projectId } = props.params
     ? await props.params
     : { locale: 'en', projectId: '' };
 
-  const [costingLabels, nutritionLabels, costingLoaded, nutritionLoaded, stageSections] =
+  const [costingLabels, nutritionLabels, costingLoaded, nutritionLoaded, stageSections, closeSectionLabel] =
     await Promise.all([
       buildCostingLabels(locale),
       buildNutritionLabels(locale),
       readCostingPageData(projectId),
       readNutritionPageData(projectId),
       readStageSections(projectId),
+      getCloseSectionLabel(locale),
     ]);
 
   const permissionDenied =
@@ -77,7 +90,7 @@ export default async function CostingNutritionPage(propsInput: unknown = {}) {
         computeAction={nutritionLoaded.canCompute ? computeNutriScoreAction : undefined}
       />
       {stageSections ? (
-        <StageDeptSections projectId={projectId} stage="costing_nutrition" data={stageSections} />
+        <StageDeptSections projectId={projectId} stage="costing_nutrition" data={stageSections} closeSectionLabel={closeSectionLabel} />
       ) : null}
     </div>
   );

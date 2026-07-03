@@ -233,6 +233,16 @@ async function readStageSections(projectId: string) {
   }
 }
 
+async function getCloseSectionLabel(locale: string): Promise<string> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.stageDeptSections' });
+    const value = t('closeSection');
+    return value === 'closeSection' ? 'Close {dept} section' : value;
+  } catch {
+    return 'Close {dept} section';
+  }
+}
+
 export default async function TrialPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as TrialPageProps;
   const { locale, projectId } = props.params ? await props.params : { locale: 'en', projectId: '' };
@@ -244,6 +254,7 @@ export default async function TrialPage(propsInput: unknown = {}) {
     ? { state: props.state ?? (props.data ? 'ready' : 'empty'), data: props.data ?? null }
     : await readPageData(projectId);
   const stageSections = await readStageSections(projectId);
+  const closeSectionLabel = await getCloseSectionLabel(locale);
 
   // When empty but the caller can write, render the screen with an empty table +
   // the "Log new trial" CTA rather than the read-only empty notice.
@@ -257,7 +268,7 @@ export default async function TrialPage(propsInput: unknown = {}) {
           onLogTrial={logTrialAction}
           onUpdateTrial={updateTrialAction}
         />
-        {stageSections ? <StageDeptSections projectId={projectId} stage="trial" data={stageSections} /> : null}
+        {stageSections ? <StageDeptSections projectId={projectId} stage="trial" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
       </>
     );
   }
@@ -271,7 +282,7 @@ export default async function TrialPage(propsInput: unknown = {}) {
         onLogTrial={logTrialAction}
         onUpdateTrial={updateTrialAction}
       />
-      {stageSections ? <StageDeptSections projectId={projectId} stage="trial" data={stageSections} /> : null}
+      {stageSections ? <StageDeptSections projectId={projectId} stage="trial" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
     </>
   );
 }
