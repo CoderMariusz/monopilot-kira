@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raport fali F-NPD-3 — W1 + W2 (2026-07-03, wieczór)</title>
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --panel2:#273449; --text:#e2e8f0; --muted:#94a3b8;
+    --green:#34d399; --amber:#fbbf24; --red:#f87171; --blue:#60a5fa; --violet:#a78bfa; --border:#334155; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.55; }
+  .wrap { max-width:1080px; margin:0 auto; padding:32px 24px 80px; }
+  h1 { font-size:26px; margin:0 0 4px; } h2 { font-size:20px; margin:40px 0 12px; border-bottom:2px solid var(--border); padding-bottom:8px; }
+  h3 { font-size:16px; margin:24px 0 8px; color:var(--blue); }
+  .sub { color:var(--muted); margin-bottom:24px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin:20px 0; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .card .num { font-size:24px; font-weight:700; } .card .lbl { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .g{color:var(--green);} .a{color:var(--amber);} .r{color:var(--red);} .b{color:var(--blue);} .v{color:var(--violet);}
+  table { width:100%; border-collapse:collapse; margin:12px 0 20px; font-size:14px; }
+  th { text-align:left; color:var(--muted); font-weight:600; padding:8px 10px; border-bottom:2px solid var(--border); }
+  td { padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:20px; font-size:12px; font-weight:600; }
+  .tag.ok{background:rgba(52,211,153,.15);color:var(--green);} .tag.warn{background:rgba(251,191,36,.15);color:var(--amber);}
+  .tag.crit{background:rgba(248,113,113,.15);color:var(--red);} .tag.reg{background:rgba(167,139,250,.15);color:var(--violet);}
+  .box { background:var(--panel); border:1px solid var(--border); border-left:4px solid var(--blue); border-radius:8px; padding:14px 18px; margin:16px 0; }
+  .box.crit{border-left-color:var(--red);} .box.ok{border-left-color:var(--green);} .box.warn{border-left-color:var(--amber);}
+  code { background:var(--panel2); padding:1px 6px; border-radius:4px; font-size:13px; font-family:"SF Mono",Menlo,monospace; }
+  ul { margin:8px 0; padding-left:22px; } li { margin:4px 0; }
+  .small { font-size:13px; color:var(--muted); } .commit { font-family:"SF Mono",Menlo,monospace; font-size:12px; color:var(--violet); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>⚙️ Fala F-NPD-3 — przebudowa NPD wg karty rundy 3 (D19–D44 + U1–U4)</h1>
+<div class="sub">2026-07-03, ~15:30–18:40 · autonomiczny GO ownera (5–8h) · orkiestrator: Fable · wykonanie: 3× Codex + 2×2 Composer + kira-easy · Gate-5b: 2 pełne spacery logiczne Opusa · produkcja: Vercel + Supabase</div>
+
+<div class="cards">
+  <div class="card"><div class="num g">2/3</div><div class="lbl">pod-fale dowiezione (W1+W2)</div></div>
+  <div class="card"><div class="num b">4</div><div class="lbl">commity (2 duże + 2 fix)</div></div>
+  <div class="card"><div class="num v">5</div><div class="lbl">migracje live (425–429)</div></div>
+  <div class="card"><div class="num g">2</div><div class="lbl">spacery Gate-5b</div></div>
+  <div class="card"><div class="num a">4</div><div class="lbl">HIGH złapane i naprawione</div></div>
+  <div class="card"><div class="num g">READY</div><div class="lbl">deploy produkcyjny</div></div>
+</div>
+
+<div class="box ok">
+<strong>TL;DR:</strong> W1 (naprawy + fundamenty jednostek) i W2 (prawdziwy silnik kosztów) są na produkcji.
+<strong>Pilot WO działa</strong> — spacer utworzył realne <code>WO-pilot-FG0007</code> (posprzątane).
+<strong>Zapis sekcji Production działa.</strong> Waterfall ma nowy kanon U2 (Setup osobno, bez Distributor/Retail),
+trzy kolumny £/kg | £/paczka | £/batch i typowane blokery zamiast „spróbuj ponownie".
+Gate-5b znowu zarobił na siebie: 2×HIGH w W1 (ukryte błędy SQL pod ogólnymi komunikatami) i 1×HIGH w W2
+(panel danych kosztowych nieosiągalny przed pierwszym przeliczeniem — deadlock klasy F6.1 piętro wyżej) —
+wszystkie naprawione i re-zweryfikowane w tej samej sesji. <strong>W3 (platforma WIP) nie startowała</strong> — pełna
+specyfikacja czeka w planie; to świadoma decyzja jakościowa, nie brak czasu na siłę.
+</div>
+
+<h2>W1 — naprawy + fundamenty jednostek <span class="tag ok">DEPLOYED</span></h2>
+<div class="small">commit <span class="commit">31f9ad38</span> · migracje <strong>425–428</strong> live · 3× Codex + 2× Composer</div>
+<table>
+<tr><th>Lane</th><th>Dostarczone</th></tr>
+<tr><td>L1 (mig 425)</td><td>Klucze katalogu pól = kolumny widoku produktu: <code>Resource_Requirement→Staffing</code>, <code>Equipment_Setup→Dieset</code> (scalanie duplikatów, migracja wartości w <code>field_values</code>, lustro w DeptColumns, funkcje seedujące, test parzystości) — usuwa „Nie udało się zapisać sekcji produkcji"</td></tr>
+<tr><td>L2 (mig 428)</td><td>Pilot WO: numer <code>WO-pilot-FG####</code> z góry przez nowy parametr <code>documentNumber</code> rdzenia (koniec klasy „sierota po rename"), <strong>linia wymagana</strong> → jawny zakład z linii (D39), ilość w jednostce bazowej FG + data (D40), 6 konkretnych kodów błędów, bundle <code>npd.planning.write</code> dla ról z <code>npd.pilot.write</code></td></tr>
+<tr><td>L3 (mig 426 + ekran)</td><td>Checklisty bramek: 13 pozycji przemapowane na właściwe etapy (D36; G0=4/G1=5/G2=6/G3=11/G4=22), sync otwartych projektów z zachowaniem odhaczeń (D37), odświeżony trigger seedujący; <strong>nowy ekran Settings → NPD → Checklisty bramek</strong> (CRUD + propagacja); checklist pozostaje doradczy (D38)</td></tr>
+<tr><td>L4 (mig 427)</td><td>Brief: <strong>wolumen tygodniowy (paczki)</strong> + <strong>przebiegi/tydzień</strong> jako wymagane pola liczbowe (D25/D30); opakowania <strong>per pełny box</strong> z nagłówkiem „Paczek w boxie" współdzielonym z Brief (D19/D20) + kolumna <strong>Waste %</strong> per komponent, osobna od scrap (D41/U1); modal pilota: linia wymagana filtrowana zakładem, etykieta w jednostce bazowej</td></tr>
+</table>
+
+<div class="box warn">
+<strong>Spacer Gate-5b W1 (Opus): 3/5 PASS + 2 HIGH.</strong> Linia przechodnia Brief→Pilotaż <strong>bez jednego override</strong>
+(bramki logicznie spełnialne — cel F6.1 utrzymany). HIGH-1: zapis Production dalej padał — тym razem
+<code>column "value" does not exist</code>: walidacja dropdownów miała zahardkodowaną kolumnę <code>value</code>, a źródła
+Reference mają różne kolumny (<code>Lines_By_PackSize.line</code>). HIGH-2: pilot WO — zapytanie joinowało
+<code>fv.org_id</code>, którego nie ma na <code>formulation_versions</code>. Oba to błędy widoczne TYLKO na żywej bazie
+(mocki ślepe) — dokładnie po to jest ten gate. + MED pusta lista linii (filtr zakładu bez wyjaśnienia), 3×LOW (podwójne „(kg) (kg)", surowy klucz i18n, EN-on-PL w Settings).
+</div>
+
+<h2>W2 — silnik kosztów <span class="tag ok">DEPLOYED</span> <span class="tag reg">REGULATORY</span></h2>
+<div class="small">commity <span class="commit">459b7261</span> + <span class="commit">1d410da0</span> · migracja <strong>429</strong> live · Codex (silnik) + Composer (UI) + kira-easy (kontrakty testów) + naprawy orkiestratora</div>
+
+<h3>Silnik (jeden, zamiast dwóch rozjechanych ścieżek)</h3>
+<ul>
+<li><strong>Kanon per-paczka (U2):</strong> Surowce → Strata (yield) → Praca procesów → <strong>Setup</strong> (osobny wiersz) → Opakowania → Overhead → Logistyka → <strong>Koszt całkowity</strong> → Marża vs cena docelowa. <strong>Distributor/Retail usunięte</strong> (D28). Surowce liczone matematyką ilościową (ścieżka A) — stary procentowy SQL skasowany.</li>
+<li><strong>Typowane blokery zamiast cichych zer:</strong> <code>yield_required</code> (D23 — brak uzysku BLOKUJE, nie udaje 100%), <code>brief_inputs_required</code>, <code>packs_per_case_required</code> oraz przywrócony przez orkiestratora kontrakt uczciwości <code>ingredient_costs_missing</code> (składnik bez ceny blokuje, nigdy nie liczy się po 0).</li>
+<li><strong>Praca procesów z wydajności w jednostce WYJŚCIA procesu</strong> (D24/D42: wędzenie kg/h, pakowanie paczki/h) z fallbackiem na stary czas trwania (flagowane); <strong>Setup = koszt × przebiegi ÷ wolumen</strong> (D25); <strong>opakowania per box + waste per komponent ÷ paczki-w-boxie</strong> (D20/D41); <strong>Overhead £/kg + Logistyka £/box</strong> z domyślnymi org + nadpisaniami projektu (D26/D27); <strong>rekurencja WIP</strong> po obecnym schemacie (D29).</li>
+<li><strong>Regres precyzji V07 naprawiony</strong> (znalezisko kira-easy przy aktualizacji kontraktów): bramka statusu marży widziała wartość po zaokrągleniu do 4 miejsc — 14.99999% przechodziło jako OK zamiast WARN, −0.00001% jako WARN zamiast FAIL. Teraz status = pełna precyzja, wyświetlanie = 4 miejsca.</li>
+<li>mig 429: <code>avg_batch_qty</code> + nadpisania na projekcie, throughput/setup na procesach + defaults, tabela <code>org_npd_cost_params</code> (FORCE RLS).</li>
+</ul>
+
+<h3>UI</h3>
+<ul>
+<li><strong>Waterfall 3-kolumnowy</strong> £/kg | £/paczka | £/batch (przełącznik skasowany — U2), stan zablokowany = czytelna checklista braków z linkami (yield→receptura, wolumen→Brief, paczki-w-boxie→opakowania).</li>
+<li><strong>Panel danych kosztowych</strong> (średni batch w jednostce bazowej FG, nadpisania overhead/logistyki, wolumen+przebiegi read-only z Brief) — po poprawce W2b <strong>widoczny od razu</strong>, także przed pierwszym przeliczeniem.</li>
+<li><strong>Settings → NPD → Parametry kosztowe</strong> (D26: „dobre miejsce") — domyślne stawki org.</li>
+<li>Dialog procesu w sekcji Production: <strong>Wydajność/godz. + jednostka + koszt setupu</strong>.</li>
+</ul>
+
+<div class="box warn">
+<strong>Spacer Gate-5b W2 (Opus):</strong> naprawy W1 <strong>re-zweryfikowane: wszystkie PASS</strong> — zapis Production działa
+(z nowymi polami procesu), <strong>pilot WO realnie utworzony</strong> (<code>WO-pilot-FG0007</code>, po teście usunięty z DB),
+etykiety poprawne, Settings po polsku. Backend silnika PASS (typowany <code>brief_inputs_required</code> w odpowiedzi).
+<strong>HIGH: panel danych + waterfall były nieosiągalne</strong> — loader zwracał je tylko przy istniejącym przeliczeniu,
+a średni batch trzeba wpisać PRZED pierwszym przeliczeniem (deadlock klasy F6.1 piętro wyżej) i typowane blokery
+zlewały się w ogólne „Nie udało się obliczyć kalkulacji". <strong>Naprawione (W2b <span class="commit">1d410da0</span>):</strong>
+panel renderuje się też w stanie pustym, blokery mapują się na konkretne komunikaty z instrukcją gdzie iść.
+LOW-y odnotowane: uzysk w edytorze receptury mógł nie utrwalić się po reloadzie (do sprawdzenia w W3-walk), zdublowany podtytuł w Settings checklist, treści pozycji checklist są danymi org po angielsku (edytowalne w nowym ekranie).
+</div>
+
+<h2>W3 — platforma WIP <span class="tag warn">NIE STARTOWAŁA — świadoma decyzja</span></h2>
+<div class="box">
+Największy klocek REGULATORY fali (Twoje ostrzeżenie D29: „wiele złożonych itemów i BOM-ów — projektować i testować porządnie").
+Po dwóch pod-falach z pełnymi spacerami i naprawami sesja osiągnęła punkt, w którym start W3 oznaczałby budowę
+bez pełnej weryfikacji — dokładnie to, co Gate-5b ma eliminować. <strong>Specyfikacja jest GOTOWA</strong> w
+<code>_meta/plans/2026-07-03-f-npd3-wave-plan.md §W3</code>: <code>wip_definitions</code> org-wide (jeden item na typ, jednostka
+z procesu tworzącego — D34/D42), flaga „wielokrotnego użytku" = publikacja do biblioteki <strong>Technical</strong> (U3/D35),
+BOM per poziom + łańcuchy WO z pilotem włącznie (D43/U4), referencja z akceptacją zmian per FG (D32/D33), testy real-DB +
+review Opusa + pełny spacer 2-poziomowego produktu. Migracje od 430. Do odpalenia na świeżej sesji — powiedz GO.
+</div>
+
+<h2>Incydenty procesu</h2>
+<ul>
+<li><strong>Śmierci mostków ×4</strong> (2× cursor-rescue, 2× codex-rescue) mimo porannej poprawki definicji agenta — za każdym razem uratowane weryfikacją po drzewie; dzieci zwykle kończyły pracę, ginęły tylko raporty. Klasa wymaga twardszej naprawy w wrapperach pluginów (backlog F7).</li>
+<li><strong>Konflikt migracji 425↔427</strong> (obie CREATE OR REPLACE tej samej funkcji seedującej) — wykryty przy przeglądzie przed aplikacją, scalony w nadzbiór.</li>
+<li><strong>Klasa 'use server' × obiekt zod</strong> — złapana na build-gate (pamięć działa), schemat wyniesiony do sidecara.</li>
+</ul>
+
+<h2>Stan końcowy</h2>
+<ul>
+<li>main <span class="commit">1d410da0</span> · deploy READY · migracje 425–429 live (następna wolna: <strong>430</strong>)</li>
+<li>Dane testowe: 0 śladów (projekty E2E-W1/W2-WALK skasowane, FG0006/FG0007 soft-delete, WO-pilot-FG0007 usunięte z DB, parametry org zresetowane)</li>
+<li>Twój projekt „new" (NPD-019) nietknięty</li>
+<li>Karta rundy 3 zamknięta: <code>_meta/plans/2026-07-03-npd-round3-charter.md</code> · plan fali: <code>2026-07-03-f-npd3-wave-plan.md</code></li>
+</ul>
+
+<div class="small" style="margin-top:40px; border-top:1px solid var(--border); padding-top:12px;">
+Wygenerowano 2026-07-03 wieczorem · Fable (orkiestrator) · MonoPilot Kira · poprzedni raport nocny: <code>_meta/reports/2026-07-03-npd-rebuild-night-report.html</code>
+</div>
+
+</div>
+</body>
+</html>

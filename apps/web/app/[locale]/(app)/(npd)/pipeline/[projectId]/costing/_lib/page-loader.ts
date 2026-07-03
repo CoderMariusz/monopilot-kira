@@ -108,7 +108,8 @@ function translateLabel(t: (key: string) => string, key: keyof CostingLabels): s
   if (typeof fallback !== 'string') return '';
   try {
     const value = t(key);
-    return value === key ? fallback : value;
+    // next-intl returns the FULL namespaced key for a missing message.
+    return !value || value === key || value.includes('npd.costing') ? fallback : value;
   } catch {
     return fallback;
   }
@@ -121,6 +122,21 @@ export async function buildCostingLabels(locale: string): Promise<CostingLabels>
       const fallback = DEFAULT_COSTING_LABELS[key];
       if (typeof fallback === 'string') {
         labels[key] = translateLabel(t, key) as never;
+      } else if (key === 'stepLabels') {
+        // Translate the nested step labels via step_<snake> keys (4-locale JSONs).
+        const stepFallback = fallback as Record<string, string>;
+        const translated: Record<string, string> = {};
+        for (const [stepKey, stepDefault] of Object.entries(stepFallback)) {
+          const msgKey = 'step_' + stepKey.replace(/[A-Z]/g, (ch) => '_' + ch.toLowerCase());
+          try {
+            const value = t(msgKey);
+            translated[stepKey] =
+              !value || value === msgKey || value.includes('npd.costing') ? stepDefault : value;
+          } catch {
+            translated[stepKey] = stepDefault;
+          }
+        }
+        labels[key] = translated as never;
       } else {
         labels[key] = fallback as never;
       }
