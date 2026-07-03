@@ -43,17 +43,10 @@ export default async function WipLibraryPage({
           <div className="alert-title">{labels.listErrorTitle}</div>
           {labels.listErrorBody}
         </div>
-      ) : state === 'empty' ? (
-        <div className="card">
-          <div className="empty-state">
-            <div className="empty-state-icon">⚗️</div>
-            <div className="empty-state-title">{labels.listEmptyTitle}</div>
-            <div className="empty-state-body">
-              {canCreate ? labels.listEmptyBodyCreate : labels.listEmptyBodyView}
-            </div>
-          </div>
-        </div>
       ) : (
+        // The client renders for BOTH ready and empty states — an empty library
+        // must still offer the create entry point, or the first definition can
+        // never be seeded through the UI (Gate-5b W3 walk HIGH).
         <WipLibraryListClient
           definitions={definitions}
           canCreate={canCreate}

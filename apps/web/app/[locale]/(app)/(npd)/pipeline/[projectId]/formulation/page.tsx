@@ -276,10 +276,16 @@ async function buildLabels(locale: string): Promise<FormulationLabels> {
       'picker.createItemCta',
       DEFAULT_LABELS.picker.createItemCta ?? 'Create an item in Technical',
     );
+    const wipPicker = Object.fromEntries(
+      (Object.keys(DEFAULT_WIP_PICKER_LABELS) as Array<keyof WipDefinitionPickerLabels>).map((key) => [
+        key,
+        translatePickerKey(t, `wipPicker.${key}`, DEFAULT_WIP_PICKER_LABELS[key]),
+      ]),
+    ) as WipDefinitionPickerLabels;
     return {
       ...(scalar as Omit<FormulationLabels, 'picker' | 'wipPicker'>),
       picker: { ...DEFAULT_LABELS.picker, createItemCta },
-      wipPicker: { ...DEFAULT_WIP_PICKER_LABELS },
+      wipPicker,
     };
   } catch {
     return { ...DEFAULT_LABELS };
