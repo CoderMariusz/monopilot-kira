@@ -27,8 +27,35 @@ Date: 2026-07-03 · Owner feedback after his post-F6.1 walk · Investigation: 3 
 4. Gate checklists stage-accurate + configurable in Settings (+ custom items).
 5. Pilot WO must work.
 
-## Question set → sent to owner as D19-D40 (Polish message 2026-07-03)
-See the conversation message; answers to be recorded here as rulings.
+## Owner rulings D19-D40 (2026-07-03)
+
+- **D19** packs-per-box: ONE field (`npd_projects.packs_per_case`) editable from BOTH Brief and the packaging modal header.
+- **D20** ALL packaging lines entered per full box.
+- **D21** packaging waste: NOT from the component scrap field → separate waste input at costing (shape = follow-up D41).
+- **D22** "batch" = manually entered avg batch, persisted per project (`avg_batch_kg`… unit per D40/D42 semantics).
+- **D23** yield REQUIRED before costing computes (no silent 100%).
+- **D24** process model = THROUGHPUT (kg/h; owner: "robimy to dobrze i dokładnie") + weekly volume → line time.
+- **D25** setup cost PER PROCESS; runs/week = REQUIRED Brief field (universal field regardless of product).
+- **D26** overhead = £/kg rate, org default in Settings + per-project override; orchestrator picks the Settings home → Settings › NPD › Cost parameters (new section, next to npd-approval).
+- **D27** logistics = simple org £/box rate now; branch to grow later.
+- **D28** Distributor/Retail rows REMOVED from waterfall until real trade terms exist.
+- **D29** WIP-first recursion CONFIRMED, full depth. Owner warning: this creates many complex items/BOMs per project — design carefully + real tests.
+- **D30** weekly volume = numeric packs/week, field in Brief.
+- **D31** line run-rate: line-level default + per-product override in Production section.
+- **D32** WIP sharing = REFERENCE to a WIP definition (not copy).
+- **D33** WIP chain edits: notify + per-FG approval (no silent propagation).
+- **D34** one org-wide WIP item (shared dough) CONFIRMED; code from mask, name user-given.
+- **D35** WIP library lives in TECHNICAL (editing existing WIPs is Technical's domain, not NPD). Recipe dropdown shows all org WIPs.
+- **D36** checklist remap of the 13 misplaced items APPROVED wholesale.
+- **D37** template changes SYNC to open projects, preserving checked state.
+- **D38** checklist stays ADVISORY for now.
+- **D39** pilot WO MUST be created from a production line; line list filtered by the top-bar site (All sites → all lines). NPD can serve 2 sites; at handover the product lands in that line's site.
+- **D40** pilot WO qty in the FG's BASE UNIT (each→each, kg→kg) = the WO-output base unit, not always kg.
+
+## Follow-up questions D41-D44 (sent 2026-07-03)
+- D41 packaging-waste input shape · D42 throughput unit = process-output unit ·
+  D43 WIP materialization at handoff (BOM/WO per level?) · D44 pilot site → handoff site default.
+  Rulings to be appended here.
 
 ## Bug fixes needing NO ruling (queued for the build wave regardless)
 - `resource_requirement`→`staffing` mapping (and audit ALL catalog keys vs product-view columns; fix equipment_setup mapping too).
