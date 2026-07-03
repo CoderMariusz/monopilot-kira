@@ -628,17 +628,26 @@ describe('computeAndSaveInitialBreakdown — lookup honesty (W9-L6, fake client)
   type Handler = (sql: string, params?: readonly unknown[]) => { rows: unknown[] };
   let handler: Handler = () => ({ rows: [] });
 
-  /** Bootstrap row exactly as the CTE projects it (LOCKED v1 fixture). */
+  /** Bootstrap row exactly as the W2 engine bootstrap projects it (LOCKED v1 fixture). */
   function lockedFormulationRow(productCode: string | null) {
     return {
       product_code: productCode,
-      ingredient_count: '2',
-      missing_cost_count: '0',
-      raw_cost_eur: '2.5000',
-      yield_pct: '95',
-      margin_pct: '20',
+      version_id: '00000000-0000-4000-8000-00000000aaaa',
+      target_yield_pct: '95',
+      target_price_eur: '10',
+      pack_weight_kg: '0.2',
+      packs_per_case: '10',
+      weekly_volume_packs: '1000',
+      runs_per_week: '2',
+      avg_batch_qty: '100',
+      fg_base_uom: 'kg',
+      overhead_per_kg: '0',
+      logistics_per_box: '0',
     };
   }
+
+  /** The W2 bootstrap query is uniquely identified by the cost-params join. */
+  const BOOTSTRAP_MARK = 'org_npd_cost_params';
 
   beforeEach(() => {
     handler = () => ({ rows: [] });
@@ -657,7 +666,7 @@ describe('computeAndSaveInitialBreakdown — lookup honesty (W9-L6, fake client)
   it('LOCKED formulation, no FG anywhere → fg_not_mapped (NOT not_found)', async () => {
     const { computeAndSaveInitialBreakdown } = await import('../compute');
     handler = (sql) => {
-      if (sql.includes('with current_recipe')) return { rows: [lockedFormulationRow(null)] };
+      if (sql.includes(BOOTSTRAP_MARK)) return { rows: [lockedFormulationRow(null)] };
       return { rows: [] };
     };
     const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
@@ -669,10 +678,18 @@ describe('computeAndSaveInitialBreakdown — lookup honesty (W9-L6, fake client)
     const seen: string[] = [];
     handler = (sql) => {
       seen.push(sql);
-      if (sql.includes('with current_recipe')) {
+      if (sql.includes(BOOTSTRAP_MARK)) {
         expect(sql).toContain('coalesce(f.product_code, p.product_code)');
         expect(sql).toContain('join public.npd_projects p');
         return { rows: [lockedFormulationRow('FG-W9L6-007')] };
+      }
+      if (sql.includes('from public.formulation_ingredients')) {
+        return {
+          rows: [
+            { rm_code: 'RM1', qty_kg: '0.100', pct: '50', cost_per_kg_eur: '2.00' },
+            { rm_code: 'RM2', qty_kg: '0.100', pct: '50', cost_per_kg_eur: '3.00' },
+          ],
+        };
       }
       if (sql.includes('"Reference"."AlertThresholds"')) {
         return { rows: [{ value_int: 15, value_text: null }] };
@@ -688,20 +705,25 @@ describe('computeAndSaveInitialBreakdown — lookup honesty (W9-L6, fake client)
     if (res.ok) {
       expect(res.data.productCode).toBe('FG-W9L6-007');
       expect(res.data.scenario).toBe('target');
-      expect(res.data.steps).toHaveLength(9);
+      expect(res.data.steps.length).toBeGreaterThanOrEqual(9);
+      expect(
+        seen.filter((sql) => sql.includes('insert into public.costing_waterfall_steps')),
+      ).toHaveLength(res.data.steps.length);
     }
-    expect(seen.filter((sql) => sql.includes('insert into public.costing_waterfall_steps'))).toHaveLength(9);
   });
 
-  it('missing ingredient costs still report invalid_input (contract unchanged)', async () => {
+  it('missing ingredient costs BLOCK the compute (honesty contract, now typed)', async () => {
     const { computeAndSaveInitialBreakdown } = await import('../compute');
     handler = (sql) => {
-      if (sql.includes('with current_recipe')) {
-        return { rows: [{ ...lockedFormulationRow('FG-W9L6-007'), missing_cost_count: '1' }] };
+      if (sql.includes(BOOTSTRAP_MARK)) {
+        return { rows: [lockedFormulationRow('FG-W9L6-007')] };
+      }
+      if (sql.includes('from public.formulation_ingredients')) {
+        return { rows: [{ rm_code: 'RM1', qty_kg: '0.100', pct: '100', cost_per_kg_eur: null }] };
       }
       return { rows: [] };
     };
     const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
-    expect(res).toMatchObject({ ok: false, error: 'invalid_input' });
+    expect(res).toMatchObject({ ok: false, error: 'ingredient_costs_missing' });
   });
 });

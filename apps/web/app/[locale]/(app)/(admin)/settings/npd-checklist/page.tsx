@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { listChecklistTemplates } from './_actions/list-checklist-templates';
 import { NPD_CHECKLIST_PERMISSION } from './_actions/checklist-template-schema';
@@ -41,8 +42,7 @@ async function canEditNpdSchema(): Promise<boolean> {
   }
 }
 
-function buildLabels(): NpdChecklistScreenLabels {
-  return {
+const DEFAULT_LABELS: NpdChecklistScreenLabels = {
     title: 'Gate checklists',
     subtitle: 'Manage the default G0–G4 gate checklist templates copied into new NPD projects.',
     readOnlyNotice: 'You can view gate checklist templates but need npd.schema.edit to change them.',
@@ -94,14 +94,39 @@ function buildLabels(): NpdChecklistScreenLabels {
       technical: 'Technical',
       compliance: 'Compliance',
     },
-  };
+};
+
+// F6 (W1 walk): screen rendered EN-on-PL — thread settings.npdChecklist.* with
+// per-key fallback to the EN defaults (next-intl returns the namespaced key when
+// a message is missing).
+async function buildLabels(locale: string): Promise<NpdChecklistScreenLabels> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'settings.npdChecklist' });
+    const out: Record<string, string> = { ...(DEFAULT_LABELS as unknown as Record<string, string>) };
+    for (const key of Object.keys(out)) {
+      const snake = key.replace(/[A-Z]/g, (ch) => '_' + ch.toLowerCase());
+      try {
+        const value = t(snake);
+        if (value && value !== snake && !value.includes('npdChecklist')) out[key] = value;
+      } catch {
+        // keep EN default
+      }
+    }
+    return out as unknown as NpdChecklistScreenLabels;
+  } catch {
+    return DEFAULT_LABELS;
+  }
 }
 
-export default async function NpdChecklistSettingsPage({ params }: PageProps = {}) {
-  void params;
 
-  const [result, canEdit] = await Promise.all([listChecklistTemplates(), canEditNpdSchema()]);
-  const labels = buildLabels();
+export default async function NpdChecklistSettingsPage({ params }: PageProps = {}) {
+  const { locale } = params ? await params : { locale: 'en' };
+
+  const [result, canEdit, labels] = await Promise.all([
+    listChecklistTemplates(),
+    canEditNpdSchema(),
+    buildLabels(locale),
+  ]);
 
   if (!result.ok && result.code === 'forbidden') {
     return (

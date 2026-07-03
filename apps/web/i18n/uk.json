@@ -1617,6 +1617,21 @@
       "category_business": "Business",
       "category_technical": "Technical",
       "category_compliance": "Compliance"
+    },
+    "npdCostParams": {
+      "title": "NPD cost parameters",
+      "subtitle": "Org-wide overhead and logistics defaults for costing",
+      "section_title": "Default rates",
+      "helper": "These defaults apply when a project has no override on the costing screen.",
+      "field_overhead": "Overhead (£/kg)",
+      "field_logistics": "Logistics (£/box)",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "save_error": "Could not save cost parameters",
+      "read_only_notice": "You can view but not edit cost parameters.",
+      "forbidden": "You do not have permission to view cost parameters.",
+      "load_error": "Unable to load cost parameters."
     }
   },
   "navigation": {
@@ -1805,7 +1820,8 @@
         "scanner_auth": "Sign-off & PINs",
         "npd_approval": "Approval requirements",
         "compliance": "Compliance profile",
-        "npd_checklist": "Gate checklists"
+        "npd_checklist": "Gate checklists",
+        "npd_cost_params": "Cost parameters"
       }
     },
     "npd": {
@@ -4483,7 +4499,35 @@
       "computeErrorFgNotMapped": "The recipe exists, but no Finished Good is linked yet — advance the project to the Packaging stage first.",
       "recomputeCosting": "Recompute",
       "marginNegativeWarn": "Negative margin",
-      "marginNegativeWarnBody": "The computed margin is {marginPct}% — you can still save the breakdown, but review pricing and costs."
+      "marginNegativeWarnBody": "The computed margin is {marginPct}% — you can still save the breakdown, but review pricing and costs.",
+      "waterfall_title": "Cost waterfall",
+      "col_step": "Step",
+      "col_per_kg": "£/kg",
+      "col_per_pack": "£/pack",
+      "col_per_batch": "£/batch",
+      "inputs_title": "Costing inputs",
+      "input_avg_batch": "Avg batch qty",
+      "input_overhead": "Overhead override (£/kg)",
+      "input_logistics": "Logistics override (£/box)",
+      "input_weekly_volume": "Weekly volume (packs)",
+      "input_runs_per_week": "Runs per week",
+      "edit_in_brief": "Edit in Brief",
+      "save_inputs": "Save inputs",
+      "saving_inputs": "Saving…",
+      "saved_inputs": "Inputs saved",
+      "save_inputs_error": "Could not save inputs",
+      "blocked_title": "Costing blocked",
+      "blocked_prefix": "Complete:",
+      "not_derivable": "—",
+      "step_raw_materials": "Raw materials",
+      "step_yield_loss": "Yield loss",
+      "step_process_labour": "Process labour",
+      "step_setup": "Setup",
+      "step_packaging": "Packaging",
+      "step_overhead": "Overhead",
+      "step_logistics": "Logistics",
+      "step_total": "Total cost",
+      "step_margin": "Margin vs target price"
     },
     "risks": {
       "title": "Реєстр ризиків",
@@ -5637,7 +5681,10 @@
         "roleGroup": "Role",
         "headcount": "Headcount",
         "loading": "Loading processes…",
-        "loadError": "Could not load processes"
+        "loadError": "Could not load processes",
+        "throughput_per_hour": "Throughput / hour",
+        "throughput_uom": "Throughput unit",
+        "setup_cost": "Setup cost (£)"
       }
     },
     "faTechnicalTab": {
@@ -5985,7 +6032,7 @@
       "editPlan": "Edit plan",
       "fieldPlannedDate": "Planned date",
       "fieldLine": "Line",
-      "fieldBatchSize": "Batch size (kg)",
+      "fieldBatchSize": "Batch size ({unit})",
       "fieldExpectedYield": "Expected yield (%)",
       "fieldDuration": "Duration (hours)",
       "fieldSupervisor": "Supervisor",
@@ -5998,7 +6045,7 @@
       "statusInProgress": "В процесі",
       "statusCompleted": "Завершено",
       "linePlaceholder": "Select a line…",
-      "noLines": "No production lines configured.",
+      "noLines": "No lines for the selected site - switch the site in the top bar or choose All sites.",
       "selectLineHint": "Select a line to see ingredient availability.",
       "pilotWoTitle": "Pilot work order",
       "createPilotWo": "Create pilot WO",
@@ -6147,7 +6194,9 @@
       "fieldPacksPerBox": "Packs per box",
       "fieldPacksPerBoxHelp": "Shared with Brief - number of sellable packs in one full box.",
       "savePacksPerBox": "Save packs per box",
-      "savingPacksPerBox": "Saving…"
+      "savingPacksPerBox": "Saving…",
+      "fieldScrapPct": "Scrap %",
+      "fieldScrapPctHelp": "Extra % requisitioned in the WO to cover packing loss (separate from costing Waste %)."
     },
     "stepper": {
       "brief": "Бриф",

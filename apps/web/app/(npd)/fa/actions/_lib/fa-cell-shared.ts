@@ -171,12 +171,26 @@ async function baseSchemaForColumn(
   }
 }
 
+// Reference dropdown tables do NOT share one value-column name (caught live by the
+// W1 Gate-5b walk: saving `line` hit `column "value" does not exist` against
+// Lines_By_PackSize). Mirrors DROPDOWN_SOURCE_TABLE in load-stage-dept-sections.
+const DROPDOWN_VALUE_COLUMN: Record<string, string> = {
+  PackSizes: 'value',
+  Templates: 'template_name',
+  Lines_By_PackSize: 'line',
+  Equipment_Setup_By_Line_Pack: 'equipment_setup',
+  CloseConfirm: 'value',
+  ManufacturingOperations: 'operation_name',
+  Suppliers: 'value',
+};
+
 async function dropdownSchema(ctx: OrgContextLike, column: DeptColumnRow): Promise<ZodTypeAny> {
   if (!column.dropdown_source || !/^[A-Za-z][A-Za-z0-9_]*$/.test(column.dropdown_source)) {
     throw new ValidationError('INVALID_DROPDOWN_SOURCE', 'Dropdown source is missing or unsafe');
   }
+  const valueColumn = DROPDOWN_VALUE_COLUMN[column.dropdown_source] ?? 'value';
   const { rows } = await ctx.client.query<{ value: string }>(
-    `select value from "Reference"."${column.dropdown_source}" where org_id = app.current_org_id() order by value`,
+    `select "${valueColumn}" as value from "Reference"."${column.dropdown_source}" where org_id = app.current_org_id() order by 1`,
   );
   const values = rows.map((row) => row.value);
   if (values.length === 0) {

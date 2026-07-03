@@ -63,6 +63,9 @@ export const SETTINGS_NAV_GROUPS = [
     // Sits next to NPD fields / approval requirements; RBAC (npd.schema.edit) is
     // enforced server-side on the page/actions; nav stays ungated per UI-128.
     item("npd-checklist", "Gate checklists", "☑", false, "/settings/npd-checklist"),
+    // NPD org-wide cost parameters — overhead £/kg + logistics £/box defaults for
+    // the costing waterfall. RBAC (npd.schema.edit) enforced server-side.
+    item("npd-cost-params", "Cost parameters", "£", false, "/settings/npd-cost-params"),
     item("boms", "BOMs & recipes", "⛓"),
     item("processes", "Processes", "⟶", true),
     item("machines", "Machines", "⚙"),

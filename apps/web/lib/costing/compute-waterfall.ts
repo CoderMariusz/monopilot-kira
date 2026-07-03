@@ -1,302 +1,461 @@
 /**
- * T-073 — Pure 9-step costing waterfall (§17.11.3).
+ * NPD costing engine (owner rulings D22-D31/D41-D42/U2).
  *
- * PRD: docs/prd/01-NPD-PRD.md §17.11.3.
- *
- * DETERMINISTIC + NUMERIC-EXACT. Money is NEVER carried as a JS float: every
- * monetary quantity is represented internally as a scaled BigInt (fixed
- * `MONEY_SCALE` decimal places) and surfaced to callers as a fixed-scale
- * decimal STRING. Percentages are likewise parsed into scaled BigInts. There is
- * no `Number()` / `parseFloat()` on any monetary value anywhere in this module.
- *
- * This is a PURE function — no I/O, no DB, no clock. The Server Action
- * (`./_actions/compute.ts`) calls it and persists the result.
- *
- * Note on file location: the task contract names `packages/domain/src/costing/`,
- * but this repo has no `packages/domain` workspace. Pure NPD domain rules live
- * under `apps/web/lib/<module>/` (cf. `apps/web/lib/settings/rules/`), and the
- * Server Action that consumes this helper lives in the same app, so the helper
- * is co-located here following the established repo convention.
+ * Canonical basis is PER PACK. Money and quantities are decimal strings and all
+ * arithmetic uses the repo fixed-point decimal helper.
  */
 
-/** Canonical, ordered 9-step waterfall names (§17.11.3). step_index = idx+1. */
+import { Dec, recomputeCalc, type RecomputeIngredient } from '@monopilot/domain';
+
 export const COSTING_WATERFALL_STEP_NAMES = [
-  'Raw materials', // 1 — base raw material cost
-  'Yield loss', // 2 — material cost grossed up for yield losses
-  'Process labour', // 3 — + direct process labour
-  'Packaging', // 4 — + packaging
-  'Overhead', // 5 — + manufacturing overhead
-  'Logistics', // 6 — + inbound/outbound logistics (== COGS)
-  'Margin', // 7 — manufacturer margin -> ex-works price
-  'Distributor', // 8 — distributor markup
-  'Retail', // 9 — retail markup -> final retail price
+  'Raw materials',
+  'Yield loss',
+  'Process labour',
+  'Setup',
+  'Packaging',
+  'Overhead',
+  'Logistics',
+  'Total cost',
+  'Margin vs target price',
 ] as const;
 
 export type CostingWaterfallStepName = (typeof COSTING_WATERFALL_STEP_NAMES)[number];
+export type WaterfallStatus = 'ok' | 'warn' | 'fail';
+export type CostingErrorCode =
+  | 'yield_required'
+  | 'brief_inputs_required'
+  | 'packs_per_case_required'
+  // Honesty contract carried over from the pct-era compute (W9-L6): an ingredient
+  // without a cost must BLOCK the compute, never silently price as zero.
+  | 'ingredient_costs_missing';
 
-/** All monetary fields are decimal strings; all percentages are decimal strings. */
 export interface WaterfallParams {
-  /** Base raw-material cost (EUR). */
   rawCostEur: string;
-  /** Yield percentage in (0, 100]. e.g. "90" means 90% yield. */
   yieldPct: string;
-  /** Direct process labour added cost (EUR). */
   processLabourEur: string;
-  /** Packaging added cost (EUR). */
   packagingEur: string;
-  /** Manufacturing overhead added cost (EUR). */
   overheadEur: string;
-  /** Logistics added cost (EUR). */
   logisticsEur: string;
-  /** Manufacturer margin percentage in (-100, 100). Drives ex-works price. */
   marginPct: string;
-  /** Distributor markup percentage (>= 0). */
-  distributorMarkupPct: string;
-  /** Retail markup percentage (>= 0). */
-  retailMarkupPct: string;
+  distributorMarkupPct?: string;
+  retailMarkupPct?: string;
+}
+
+export interface NpdCostUnits {
+  packWeightKg: string;
+  packsPerCase: string;
+  avgBatchQty: string;
+  fgBaseUom: 'kg' | 'each' | 'pack';
+  packsPerBatch: string;
 }
 
 export interface WaterfallStep {
   stepIndex: number;
   stepName: CostingWaterfallStepName;
-  /** Cumulative running value at this step (fixed-scale decimal string). */
   valueEur: string;
-  /** Percent change vs the prior step (decimal string); null for step 1. */
   deltaPct: string | null;
 }
 
-export type WaterfallStatus = 'ok' | 'warn' | 'fail';
+export interface NpdCostStep {
+  stepIndex: number;
+  stepName: CostingWaterfallStepName;
+  perPackEur: string;
+  deltaPct: string | null;
+}
+
+export interface NpdCostProcessInput {
+  id?: string;
+  roles: Array<{ ratePerHour: string | null | undefined; headcount: string | null | undefined }>;
+  throughputPerHour?: string | null;
+  throughputUom?: string | null;
+  durationHours?: string | null;
+  additionalCost?: string | null;
+  setupCost?: string | null;
+}
+
+export interface NpdWipComponentInput {
+  quantity: string;
+  quantityUom?: string | null;
+  rawMaterialCostPerOutputUnit: string;
+  yieldPct: string;
+  processes: NpdCostProcessInput[];
+}
+
+export interface NpdCostEngineInput {
+  ingredients: RecomputeIngredient[];
+  yieldPct: string | null | undefined;
+  packWeightKg: string | null | undefined;
+  packsPerCase: string | null | undefined;
+  avgBatchQty: string | null | undefined;
+  fgBaseUom: 'kg' | 'each' | 'pack' | string | null | undefined;
+  weeklyVolumePacks: string | null | undefined;
+  runsPerWeek: string | null | undefined;
+  targetPriceEur: string | null | undefined;
+  marginWarnPct?: string;
+  packagingComponents: Array<{
+    qtyPerBox: string | null | undefined;
+    costPerUnit: string | null | undefined;
+    wastePct: string | null | undefined;
+  }>;
+  processes: NpdCostProcessInput[];
+  wipComponents?: NpdWipComponentInput[];
+  overheadPerKg: string | null | undefined;
+  logisticsPerBox: string | null | undefined;
+}
 
 export interface WaterfallResult {
   steps: WaterfallStep[];
-  /** Echo of the raw-material cost (fixed-scale decimal string). */
+  costSteps: NpdCostStep[];
   rawCostEur: string;
-  /** The scenario margin percentage (fixed-scale decimal string). */
   marginPct: string;
-  /** Final retail (target) price (fixed-scale decimal string). */
   targetPriceEur: string;
-  /**
-   * V07 status:
-   *   - 'fail' when margin < 0% (hard fail — caller MUST NOT persist).
-   *   - 'warn' when 0% <= margin < warn threshold.
-   *   - 'ok'   otherwise (or when no warn threshold was supplied).
-   */
   status: WaterfallStatus;
-  /** Convenience boolean: true iff status === 'warn'. */
   warn: boolean;
+  missing: CostingErrorCode[];
+  units: NpdCostUnits;
+  legacyDurationBasis: boolean;
+  params: {
+    rawCostEur: string;
+    yieldPct: string;
+    processLabourEur: string;
+    setupEur: string;
+    packagingEur: string;
+    overheadEur: string;
+    logisticsEur: string;
+    marginPct: string;
+  };
 }
 
 export interface WaterfallThresholds {
-  /**
-   * Margin warn threshold percentage (decimal string), read from
-   * Reference.AlertThresholds (`costing_margin_warn_pct`). When omitted, the
-   * function cannot raise a 'warn' (only the hard-fail floor applies).
-   */
   marginWarnPct?: string;
 }
 
-// ─── Exact fixed-scale decimal arithmetic on BigInt (no floats) ───────────────
+const HUNDRED = Dec.from('100');
+const ONE = Dec.from('1');
+const ZERO4 = '0.0000';
 
-/** Internal working scale (decimal places) for money + percentages. */
-const MONEY_SCALE = 4;
-/** Higher intermediate scale to keep division/multiplication exact before rounding. */
-const WORK_SCALE = 12;
-
-const SCALE_FACTOR = (scale: number): bigint => 10n ** BigInt(scale);
-
-/** Parse a decimal string into a BigInt scaled to `scale` (half-up). */
-function parseScaled(value: string, scale: number): bigint {
-  const trimmed = value.trim();
-  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) {
-    throw new Error(`computeWaterfall: not a decimal string: ${JSON.stringify(value)}`);
-  }
-  const negative = trimmed.startsWith('-');
-  const unsigned = negative ? trimmed.slice(1) : trimmed;
-  const [intPart, fracPartRaw = ''] = unsigned.split('.');
-  // Pad/truncate the fractional part to `scale`, rounding half-up on truncation.
-  let frac = fracPartRaw;
-  if (frac.length > scale) {
-    const keep = frac.slice(0, scale);
-    const nextDigit = frac.charCodeAt(scale) - 48; // first dropped digit
-    let scaled = BigInt(intPart + (keep || ''));
-    if (nextDigit >= 5) scaled += 1n;
-    return negative ? -scaled : scaled;
-  }
-  frac = frac.padEnd(scale, '0');
-  const scaled = BigInt(intPart + frac);
-  return negative ? -scaled : scaled;
-}
-
-/** Format a BigInt scaled at `scale` back into a fixed-scale decimal string. */
-function formatScaled(scaled: bigint, scale: number): string {
-  const negative = scaled < 0n;
-  const abs = negative ? -scaled : scaled;
-  const factor = SCALE_FACTOR(scale);
-  const intPart = abs / factor;
-  const fracPart = abs % factor;
-  const fracStr = fracPart.toString().padStart(scale, '0');
-  const body = scale === 0 ? intPart.toString() : `${intPart.toString()}.${fracStr}`;
-  return negative && scaled !== 0n ? `-${body}` : body;
-}
-
-/** Re-scale a BigInt from `fromScale` to `toScale` (half-up). */
-function rescale(value: bigint, fromScale: number, toScale: number): bigint {
-  if (toScale === fromScale) return value;
-  if (toScale > fromScale) return value * SCALE_FACTOR(toScale - fromScale);
-  const drop = SCALE_FACTOR(fromScale - toScale);
-  const negative = value < 0n;
-  const abs = negative ? -value : value;
-  const q = abs / drop;
-  const r = abs % drop;
-  const rounded = r * 2n >= drop ? q + 1n : q;
-  return negative ? -rounded : rounded;
-}
-
-/** Multiply two WORK_SCALE BigInts, returning a WORK_SCALE BigInt (half-up). */
-function mulWork(a: bigint, b: bigint): bigint {
-  return rescale(a * b, WORK_SCALE * 2, WORK_SCALE);
-}
-
-/** Divide two WORK_SCALE BigInts, returning a WORK_SCALE BigInt (half-up). */
-function divWork(a: bigint, b: bigint): bigint {
-  if (b === 0n) throw new Error('computeWaterfall: division by zero');
-  const negative = a < 0n !== b < 0n;
-  const absA = (a < 0n ? -a : a) * SCALE_FACTOR(WORK_SCALE);
-  const absB = b < 0n ? -b : b;
-  const q = absA / absB;
-  const r = absA % absB;
-  const rounded = r * 2n >= absB ? q + 1n : q;
-  return negative ? -rounded : rounded;
-}
-
-const ONE_WORK = SCALE_FACTOR(WORK_SCALE);
-const HUNDRED_WORK = 100n * ONE_WORK;
-
-/** Percent change ((cur - prev) / prev) * 100, as a MONEY_SCALE decimal string. */
-function deltaPct(prevMoney4: bigint, curMoney4: bigint): string | null {
-  if (prevMoney4 === 0n) return null;
-  const prev = rescale(prevMoney4, MONEY_SCALE, WORK_SCALE);
-  const cur = rescale(curMoney4, MONEY_SCALE, WORK_SCALE);
-  const ratio = divWork(cur - prev, prev);
-  const pct = mulWork(ratio, HUNDRED_WORK);
-  return formatScaled(rescale(pct, WORK_SCALE, MONEY_SCALE), MONEY_SCALE);
-}
-
-// ─── Exact decimal-string comparison (for input bounds; no float coercion) ────
-
-/** Compare two decimal strings EXACTLY at full precision. -1 | 0 | 1. */
-export function compareDecimalStrings(a: string, b: string): -1 | 0 | 1 {
-  const sa = parseScaled(a, WORK_SCALE);
-  const sb = parseScaled(b, WORK_SCALE);
-  if (sa < sb) return -1;
-  if (sa > sb) return 1;
-  return 0;
-}
-
-/** a < b (exact decimal-string comparison). */
-export function decimalLt(a: string, b: string): boolean {
-  return compareDecimalStrings(a, b) < 0;
-}
-
-/** a <= b (exact decimal-string comparison). */
-export function decimalLte(a: string, b: string): boolean {
-  return compareDecimalStrings(a, b) <= 0;
-}
-
-/** a > b (exact decimal-string comparison). */
-export function decimalGt(a: string, b: string): boolean {
-  return compareDecimalStrings(a, b) > 0;
-}
-
-// ─── Public compute ───────────────────────────────────────────────────────────
-
-/**
- * Compute the deterministic 9-step costing waterfall. All money math is exact
- * scaled-BigInt arithmetic; the returned values are fixed-scale decimal strings.
- */
 export function computeWaterfall(
   params: WaterfallParams,
   thresholds: WaterfallThresholds = {},
 ): WaterfallResult {
-  // Parse inputs at the working scale (money) / working scale (pct as fraction).
-  const rawCost = rescale(parseScaled(params.rawCostEur, MONEY_SCALE), MONEY_SCALE, WORK_SCALE);
-  const yieldFrac = divWork(parseScaled(params.yieldPct, WORK_SCALE), HUNDRED_WORK);
-  const labour = rescale(parseScaled(params.processLabourEur, MONEY_SCALE), MONEY_SCALE, WORK_SCALE);
-  const packaging = rescale(parseScaled(params.packagingEur, MONEY_SCALE), MONEY_SCALE, WORK_SCALE);
-  const overhead = rescale(parseScaled(params.overheadEur, MONEY_SCALE), MONEY_SCALE, WORK_SCALE);
-  const logistics = rescale(parseScaled(params.logisticsEur, MONEY_SCALE), MONEY_SCALE, WORK_SCALE);
-  const marginFrac = divWork(parseScaled(params.marginPct, WORK_SCALE), HUNDRED_WORK);
-  const distFrac = divWork(parseScaled(params.distributorMarkupPct, WORK_SCALE), HUNDRED_WORK);
-  const retailFrac = divWork(parseScaled(params.retailMarkupPct, WORK_SCALE), HUNDRED_WORK);
-
-  // Bounds (full internal precision — never display-rounded):
-  //   0 < yieldPct <= 100  (>100 would silently REDUCE cost via gross-up).
-  //   marginPct < 100      (>=100 => 1-margin <= 0 => div-by-zero / negative price).
-  const yieldWork = rescale(parseScaled(params.yieldPct, WORK_SCALE), WORK_SCALE, WORK_SCALE);
-  if (yieldFrac <= 0n) {
-    throw new Error('computeWaterfall: yieldPct must be > 0');
+  const yieldPct = params.yieldPct;
+  if (!decimalGt(yieldPct, '0') || decimalGt(yieldPct, '100')) {
+    throw new Error('computeWaterfall: yieldPct must be in (0, 100]');
   }
-  if (yieldWork > HUNDRED_WORK) {
-    throw new Error('computeWaterfall: yieldPct must be <= 100');
-  }
-  const marginWork = rescale(parseScaled(params.marginPct, WORK_SCALE), WORK_SCALE, WORK_SCALE);
-  if (marginWork >= HUNDRED_WORK) {
+  if (!decimalLt(params.marginPct, '100')) {
     throw new Error('computeWaterfall: marginPct must be < 100');
   }
 
-  // Cumulative running totals (WORK_SCALE).
-  const s1 = rawCost; // Raw materials
-  const s2 = divWork(s1, yieldFrac); // Yield loss: gross up by yield
-  const s3 = s2 + labour; // Process labour
-  const s4 = s3 + packaging; // Packaging
-  const s5 = s4 + overhead; // Overhead
-  const s6 = s5 + logistics; // Logistics (== COGS)
-  // Margin: ex-works price = COGS / (1 - margin). marginFrac may be negative.
-  const denom = ONE_WORK - marginFrac;
-  const s7 = divWork(s6, denom); // Margin
-  const s8 = mulWork(s7, ONE_WORK + distFrac); // Distributor
-  const s9 = mulWork(s8, ONE_WORK + retailFrac); // Retail (final)
+  const raw = Dec.from(params.rawCostEur);
+  const yielded = raw.div(Dec.from(yieldPct).div(HUNDRED));
+  const labour = Dec.from(params.processLabourEur);
+  const setup = Dec.zero();
+  const packaging = Dec.from(params.packagingEur);
+  const overhead = Dec.from(params.overheadEur);
+  const logistics = Dec.from(params.logisticsEur);
+  const total = yielded.add(labour).add(packaging).add(overhead).add(logistics);
+  const target = targetPriceFromMargin(total, params.marginPct);
 
-  const workValues = [s1, s2, s3, s4, s5, s6, s7, s8, s9];
-  // Round each cumulative value to MONEY_SCALE once, deterministically.
-  const moneyValues = workValues.map((v) => rescale(v, WORK_SCALE, MONEY_SCALE));
+  return buildResult({
+    raw,
+    yielded,
+    labour,
+    setup,
+    packaging,
+    overhead,
+    logistics,
+    total,
+    target,
+    yieldPct,
+    // V07 (rework finding 1): the status gate must see the CALLER'S full-precision
+    // margin, never a value re-derived from the toFixed(4) round-trip via
+    // computeMarginPct(total, target) — 14.99999 would round to 15.0000 and skip
+    // the warn threshold; -0.00001 would round to 0.0000 and skip the hard fail.
+    marginPct: params.marginPct,
+    marginWarnPct: thresholds.marginWarnPct,
+    units: zeroUnits(),
+    missing: [],
+    legacyDurationBasis: false,
+  });
+}
 
-  const steps: WaterfallStep[] = COSTING_WATERFALL_STEP_NAMES.map((name, idx) => ({
+export function computeNpdCostEngine(input: NpdCostEngineInput): WaterfallResult {
+  const missing: CostingErrorCode[] = [];
+  const packWeightKg = Dec.from(input.packWeightKg);
+  const packsPerCase = Dec.from(input.packsPerCase);
+  const avgBatchQty = Dec.from(input.avgBatchQty);
+  const weeklyVolumePacks = Dec.from(input.weeklyVolumePacks);
+  const runsPerWeek = Dec.from(input.runsPerWeek);
+  const yieldPctText = normaliseNumeric(input.yieldPct);
+
+  if (!yieldPctText || !decimalGt(yieldPctText, '0')) {
+    missing.push('yield_required');
+  }
+  if (packsPerCase.isZero()) {
+    missing.push('packs_per_case_required');
+  }
+  const briefMissing = new Set<string>();
+  if (weeklyVolumePacks.isZero()) briefMissing.add('weekly_volume_packs');
+  if (runsPerWeek.isZero()) briefMissing.add('runs_per_week');
+  if (avgBatchQty.isZero()) briefMissing.add('avg_batch_qty');
+  if (briefMissing.size > 0) missing.push('brief_inputs_required');
+  if (input.ingredients.some((ing) => !normaliseNumeric(ing.costPerKgEur))) {
+    missing.push('ingredient_costs_missing');
+  }
+
+  const fgBaseUom = normaliseFgBaseUom(input.fgBaseUom);
+  const packsPerBatch = packsFromOutput(avgBatchQty, fgBaseUom, packWeightKg);
+  const units: NpdCostUnits = {
+    packWeightKg: packWeightKg.toFixed(6),
+    packsPerCase: packsPerCase.toFixed(4),
+    avgBatchQty: avgBatchQty.toFixed(4),
+    fgBaseUom,
+    packsPerBatch: packsPerBatch.toFixed(4),
+  };
+
+  const rawFromFormula = recomputeCalc({
+    ingredients: input.ingredients,
+    yieldPct: yieldPctText ?? '0',
+    packWeightKg: input.packWeightKg,
+    targetPriceEur: input.targetPriceEur,
+    processingOverheadPct: '0',
+    packagingCostPerKg: '0',
+  });
+  let raw = Dec.from(rawFromFormula.rawCostPerPack);
+  for (const wip of input.wipComponents ?? []) {
+    const componentUnitCost = computeWipComponentCostDecimal(wip, packWeightKg, avgBatchQty);
+    raw = raw.add(componentUnitCost.mul(Dec.from(wip.quantity)).mul(unitToPackFactor(wip.quantityUom, packWeightKg)));
+  }
+
+  const yieldPct = yieldPctText ?? '100';
+  const yielded = missing.includes('yield_required') ? raw : raw.div(Dec.from(yieldPct).div(HUNDRED));
+  const processResult = computeProcessLabour(input.processes, packWeightKg, packsPerBatch);
+  const setup = missing.includes('brief_inputs_required')
+    ? Dec.zero()
+    : sumSetup(input.processes).mul(runsPerWeek).div(weeklyVolumePacks);
+  const packaging = packsPerCase.isZero()
+    ? Dec.zero()
+    : sumPackaging(input.packagingComponents).div(packsPerCase);
+  const overhead = Dec.from(input.overheadPerKg).mul(packWeightKg);
+  const logistics = packsPerCase.isZero() ? Dec.zero() : Dec.from(input.logisticsPerBox).div(packsPerCase);
+  const total = yielded.add(processResult.perPack).add(setup).add(packaging).add(overhead).add(logistics);
+  const target = Dec.from(input.targetPriceEur);
+  const marginPct = computeMarginPct(total, target);
+
+  return buildResult({
+    raw,
+    yielded,
+    labour: processResult.perPack,
+    setup,
+    packaging,
+    overhead,
+    logistics,
+    total,
+    target,
+    yieldPct,
+    marginPct,
+    marginWarnPct: input.marginWarnPct,
+    units,
+    missing,
+    legacyDurationBasis: processResult.legacyDurationBasis,
+  });
+}
+
+function buildResult(input: {
+  raw: Dec;
+  yielded: Dec;
+  labour: Dec;
+  setup: Dec;
+  packaging: Dec;
+  overhead: Dec;
+  logistics: Dec;
+  total: Dec;
+  target: Dec;
+  yieldPct: string;
+  marginPct?: string;
+  marginWarnPct?: string;
+  units: NpdCostUnits;
+  missing: CostingErrorCode[];
+  legacyDurationBasis: boolean;
+}): WaterfallResult {
+  // V07: gate on FULL precision, report display-rounded. Rounding before the
+  // gate made 14.99999 read as 15.0000 (skips warn) and -0.00001 as 0.0000
+  // (skips fail).
+  const marginPctFull = input.marginPct ?? computeMarginPct(input.total, input.target);
+  const status = computeStatus(marginPctFull, input.marginWarnPct);
+  const marginPct = Dec.from(marginPctFull).toFixed(4);
+  const cumulatives = [
+    input.raw,
+    input.yielded,
+    input.yielded.add(input.labour),
+    input.yielded.add(input.labour).add(input.setup),
+    input.yielded.add(input.labour).add(input.setup).add(input.packaging),
+    input.yielded.add(input.labour).add(input.setup).add(input.packaging).add(input.overhead),
+    input.yielded.add(input.labour).add(input.setup).add(input.packaging).add(input.overhead).add(input.logistics),
+    input.total,
+    input.target,
+  ];
+  const steps: WaterfallStep[] = COSTING_WATERFALL_STEP_NAMES.map((stepName, idx) => ({
     stepIndex: idx + 1,
-    stepName: name,
-    valueEur: formatScaled(moneyValues[idx]!, MONEY_SCALE),
-    deltaPct: idx === 0 ? null : deltaPct(moneyValues[idx - 1]!, moneyValues[idx]!),
+    stepName,
+    valueEur: cumulatives[idx]!.toFixed(4),
+    deltaPct: idx === 0 ? null : percentChange(cumulatives[idx - 1]!, cumulatives[idx]!),
   }));
-
-  // V07 gate at FULL internal precision (WORK_SCALE) — NEVER on the
-  // display-rounded 4dp value. `marginPct` (below) is display-only.
-  const marginPctWork = parseScaled(params.marginPct, WORK_SCALE);
-  const status = computeStatus(marginPctWork, thresholds.marginWarnPct);
-  const marginPct4 = parseScaled(params.marginPct, MONEY_SCALE);
 
   return {
     steps,
-    rawCostEur: formatScaled(rescale(rawCost, WORK_SCALE, MONEY_SCALE), MONEY_SCALE),
-    marginPct: formatScaled(marginPct4, MONEY_SCALE),
-    targetPriceEur: formatScaled(moneyValues[8]!, MONEY_SCALE),
+    costSteps: steps.map((step) => ({
+      stepIndex: step.stepIndex,
+      stepName: step.stepName,
+      perPackEur: step.valueEur,
+      deltaPct: step.deltaPct,
+    })),
+    rawCostEur: input.raw.toFixed(4),
+    marginPct,
+    targetPriceEur: input.target.toFixed(4),
     status,
     warn: status === 'warn',
+    missing: input.missing,
+    units: input.units,
+    legacyDurationBasis: input.legacyDurationBasis,
+    params: {
+      rawCostEur: input.raw.toFixed(4),
+      yieldPct: Dec.from(input.yieldPct).toFixed(4),
+      processLabourEur: input.labour.toFixed(4),
+      setupEur: input.setup.toFixed(4),
+      packagingEur: input.packaging.toFixed(4),
+      overheadEur: input.overhead.toFixed(4),
+      logisticsEur: input.logistics.toFixed(4),
+      marginPct,
+    },
   };
 }
 
-/**
- * V07 status from the scenario margin and the optional warn threshold (decimal
- * string from Reference.AlertThresholds). The margin is compared at FULL
- * internal precision (WORK_SCALE BigInt) — NEVER on a display-rounded value, so
- * e.g. 14.99999% warns (not ok) and -0.00001% fails (not ok).
- *   margin < 0%                  -> 'fail' (hard fail)
- *   0% <= margin < warn          -> 'warn'
- *   margin >= warn (or no warn)  -> 'ok'
- * Warn is strictly below the threshold (a margin AT the threshold is ok).
- */
-function computeStatus(marginPctWork: bigint, marginWarnPct?: string): WaterfallStatus {
-  if (marginPctWork < 0n) return 'fail';
-  if (marginWarnPct === undefined) return 'ok';
-  const warnWork = parseScaled(marginWarnPct, WORK_SCALE);
-  return marginPctWork < warnWork ? 'warn' : 'ok';
+function computeProcessLabour(
+  processes: NpdCostProcessInput[],
+  packWeightKg: Dec,
+  packsPerBatch: Dec,
+): { perPack: Dec; legacyDurationBasis: boolean } {
+  let perPack = Dec.zero();
+  let legacyDurationBasis = false;
+  for (const process of processes) {
+    const crewRate = sumCrewRate(process.roles);
+    if (process.throughputPerHour && decimalGt(process.throughputPerHour, '0')) {
+      const perOutput = crewRate.div(Dec.from(process.throughputPerHour));
+      perPack = perPack.add(perOutput.mul(unitToPackFactor(process.throughputUom, packWeightKg)));
+    } else {
+      legacyDurationBasis = true;
+      const batchCost = crewRate.mul(Dec.from(process.durationHours)).add(Dec.from(process.additionalCost));
+      perPack = perPack.add(packsPerBatch.isZero() ? Dec.zero() : batchCost.div(packsPerBatch));
+    }
+    if (process.throughputPerHour && decimalGt(process.throughputPerHour, '0')) {
+      perPack = perPack.add(Dec.from(process.additionalCost).mul(batchDivisor(packsPerBatch)));
+    }
+  }
+  return { perPack, legacyDurationBasis };
+}
+
+function computeWipComponentCostDecimal(
+  component: NpdWipComponentInput,
+  packWeightKg: Dec,
+  packsPerBatch: Dec,
+): Dec {
+  const processCosts = component.processes.reduce((sum, process) => {
+    const processLabour = computeProcessLabour([process], packWeightKg, packsPerBatch).perPack;
+    return sum.add(processLabour);
+  }, Dec.zero());
+  const yieldPct = normaliseNumeric(component.yieldPct) ?? '100';
+  return Dec.from(component.rawMaterialCostPerOutputUnit).add(processCosts).div(Dec.from(yieldPct).div(HUNDRED));
+}
+
+function sumCrewRate(roles: NpdCostProcessInput['roles']): Dec {
+  return roles.reduce((sum, role) => {
+    return sum.add(Dec.from(role.ratePerHour).mul(Dec.from(role.headcount)));
+  }, Dec.zero());
+}
+
+function sumSetup(processes: NpdCostProcessInput[]): Dec {
+  return processes.reduce((sum, process) => sum.add(Dec.from(process.setupCost)), Dec.zero());
+}
+
+function sumPackaging(components: NpdCostEngineInput['packagingComponents']): Dec {
+  return components.reduce((sum, component) => {
+    const wasteFactor = ONE.add(Dec.from(component.wastePct).div(HUNDRED));
+    return sum.add(Dec.from(component.qtyPerBox).mul(Dec.from(component.costPerUnit)).mul(wasteFactor));
+  }, Dec.zero());
+}
+
+function packsFromOutput(qty: Dec, uom: NpdCostUnits['fgBaseUom'], packWeightKg: Dec): Dec {
+  if (qty.isZero()) return Dec.zero();
+  if (uom === 'kg') return packWeightKg.isZero() ? Dec.zero() : qty.div(packWeightKg);
+  return qty;
+}
+
+function unitToPackFactor(uom: string | null | undefined, packWeightKg: Dec): Dec {
+  const normalised = (uom ?? 'pack').trim().toLowerCase();
+  if (normalised === 'kg') return packWeightKg;
+  if (normalised === 'g') return packWeightKg.mul(Dec.from('1000'));
+  return ONE;
+}
+
+function batchDivisor(packsPerBatch: Dec): Dec {
+  return packsPerBatch.isZero() ? Dec.zero() : ONE.div(packsPerBatch);
+}
+
+function targetPriceFromMargin(total: Dec, marginPct: string): Dec {
+  const denom = ONE.sub(Dec.from(marginPct).div(HUNDRED));
+  return total.div(denom);
+}
+
+function computeMarginPct(total: Dec, target: Dec): string {
+  if (target.isZero()) return ZERO4;
+  return target.sub(total).div(target).mul(HUNDRED).toFixed(4);
+}
+
+function computeStatus(marginPct: string, marginWarnPct?: string): WaterfallStatus {
+  if (decimalLt(marginPct, '0')) return 'fail';
+  if (marginWarnPct && decimalLt(marginPct, marginWarnPct)) return 'warn';
+  return 'ok';
+}
+
+function percentChange(prev: Dec, current: Dec): string | null {
+  if (prev.isZero()) return null;
+  return current.sub(prev).div(prev).mul(HUNDRED).toFixed(4);
+}
+
+function normaliseNumeric(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed && /^-?\d+(\.\d+)?$/.test(trimmed) ? trimmed : undefined;
+}
+
+function normaliseFgBaseUom(value: string | null | undefined): NpdCostUnits['fgBaseUom'] {
+  const normalised = (value ?? 'kg').trim().toLowerCase();
+  return normalised === 'each' || normalised === 'pack' ? normalised : 'kg';
+}
+
+function zeroUnits(): NpdCostUnits {
+  return {
+    packWeightKg: ZERO4,
+    packsPerCase: ZERO4,
+    avgBatchQty: ZERO4,
+    fgBaseUom: 'kg',
+    packsPerBatch: ZERO4,
+  };
+}
+
+export function compareDecimalStrings(a: string, b: string): -1 | 0 | 1 {
+  const cmp = Dec.from(a).cmp(Dec.from(b));
+  return cmp < 0 ? -1 : cmp > 0 ? 1 : 0;
+}
+
+export function decimalLt(a: string, b: string): boolean {
+  return compareDecimalStrings(a, b) < 0;
+}
+
+export function decimalLte(a: string, b: string): boolean {
+  return compareDecimalStrings(a, b) <= 0;
+}
+
+export function decimalGt(a: string, b: string): boolean {
+  return compareDecimalStrings(a, b) > 0;
 }

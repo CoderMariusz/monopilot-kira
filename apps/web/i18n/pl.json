@@ -1631,6 +1631,21 @@
       "category_business": "Biznes",
       "category_technical": "Techniczne",
       "category_compliance": "Zgodność"
+    },
+    "npdCostParams": {
+      "title": "Parametry kosztowe NPD",
+      "subtitle": "Domyślne stawki overhead i logistyki dla kosztorysów",
+      "section_title": "Stawki domyślne",
+      "helper": "Stawki stosowane, gdy projekt nie ma nadpisania na ekranie kosztów.",
+      "field_overhead": "Overhead (£/kg)",
+      "field_logistics": "Logistyka (£/box)",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "saved": "Zapisano",
+      "save_error": "Nie udało się zapisać parametrów",
+      "read_only_notice": "Możesz przeglądać, ale nie edytować parametrów.",
+      "forbidden": "Brak uprawnień do parametrów kosztowych.",
+      "load_error": "Nie udało się wczytać parametrów."
     }
   },
   "navigation": {
@@ -1819,7 +1834,8 @@
         "scanner_auth": "Zatwierdzenia i PIN-y",
         "npd_approval": "Wymagania zatwierdzenia",
         "compliance": "Profil zgodności",
-        "npd_checklist": "Checklisty bramek"
+        "npd_checklist": "Checklisty bramek",
+        "npd_cost_params": "Parametry kosztowe"
       }
     },
     "npd": {
@@ -4497,7 +4513,35 @@
       "computeErrorFgNotMapped": "Receptura istnieje, ale nie powiązano jeszcze wyrobu gotowego — najpierw przenieś projekt do etapu Pakowanie.",
       "recomputeCosting": "Przelicz ponownie",
       "marginNegativeWarn": "Ujemna marża",
-      "marginNegativeWarnBody": "Obliczona marża wynosi {marginPct}% — możesz zapisać kalkulację, ale sprawdź ceny i koszty."
+      "marginNegativeWarnBody": "Obliczona marża wynosi {marginPct}% — możesz zapisać kalkulację, ale sprawdź ceny i koszty.",
+      "waterfall_title": "Waterfall kosztów",
+      "col_step": "Pozycja",
+      "col_per_kg": "£/kg",
+      "col_per_pack": "£/paczka",
+      "col_per_batch": "£/batch",
+      "inputs_title": "Dane kosztowe",
+      "input_avg_batch": "Średni batch (ilość)",
+      "input_overhead": "Nadpisanie overhead (£/kg)",
+      "input_logistics": "Nadpisanie logistyki (£/box)",
+      "input_weekly_volume": "Wolumen tygodniowy (paczki)",
+      "input_runs_per_week": "Przebiegi na tydzień",
+      "edit_in_brief": "Edytuj w Brief",
+      "save_inputs": "Zapisz dane",
+      "saving_inputs": "Zapisywanie…",
+      "saved_inputs": "Dane zapisane",
+      "save_inputs_error": "Nie udało się zapisać danych",
+      "blocked_title": "Kosztorys zablokowany",
+      "blocked_prefix": "Uzupełnij:",
+      "not_derivable": "—",
+      "step_raw_materials": "Surowce",
+      "step_yield_loss": "Strata (yield)",
+      "step_process_labour": "Praca procesów",
+      "step_setup": "Setup",
+      "step_packaging": "Opakowania",
+      "step_overhead": "Overhead",
+      "step_logistics": "Logistyka",
+      "step_total": "Koszt całkowity",
+      "step_margin": "Marża vs cena docelowa"
     },
     "risks": {
       "title": "Rejestr ryzyk",
@@ -5651,7 +5695,10 @@
         "roleGroup": "Rola",
         "headcount": "Liczba osób",
         "loading": "Ładowanie procesów…",
-        "loadError": "Nie można załadować procesów"
+        "loadError": "Nie można załadować procesów",
+        "throughput_per_hour": "Wydajność / godz.",
+        "throughput_uom": "Jednostka wydajności",
+        "setup_cost": "Koszt setupu (£)"
       }
     },
     "faTechnicalTab": {
@@ -5999,7 +6046,7 @@
       "editPlan": "Edytuj plan",
       "fieldPlannedDate": "Planowana data",
       "fieldLine": "Line",
-      "fieldBatchSize": "Wielkość partii (kg)",
+      "fieldBatchSize": "Wielkość partii ({unit})",
       "fieldExpectedYield": "Oczekiwany uzysk (%)",
       "fieldDuration": "Czas trwania (godziny)",
       "fieldSupervisor": "Supervisor",
@@ -6012,7 +6059,7 @@
       "statusInProgress": "W toku",
       "statusCompleted": "Zakończony",
       "linePlaceholder": "Wybierz linię…",
-      "noLines": "Brak skonfigurowanych linii produkcyjnych.",
+      "noLines": "Brak linii dla wybranego zakładu - zmień zakład w górnym pasku lub wybierz „Wszystkie zakłady”.",
       "selectLineHint": "Wybierz linię, aby zobaczyć dostępność składników.",
       "pilotWoTitle": "Zlecenie pilotażowe",
       "createPilotWo": "Utwórz zlecenie pilotażowe",
@@ -6161,7 +6208,9 @@
       "fieldPacksPerBox": "Paczek w boxie",
       "fieldPacksPerBoxHelp": "Wspólne z Brief - liczba paczek sprzedażnych w jednym pełnym boxie.",
       "savePacksPerBox": "Zapisz paczki w boxie",
-      "savingPacksPerBox": "Zapisywanie…"
+      "savingPacksPerBox": "Zapisywanie…",
+      "fieldScrapPct": "Scrap %",
+      "fieldScrapPctHelp": "Dodatkowy % pobierany w WO na straty pakowania (osobny od Waste % w kosztach)."
     },
     "stepper": {
       "brief": "Brief",

@@ -8,11 +8,11 @@
  */
 
 import { CostingScreen } from '../costing/_components/costing-screen';
+import { saveCostingInputs } from '../costing/_actions/save-costing-inputs';
 import {
   buildCostingLabels,
   computeCostingAction,
   readCostingPageData,
-  saveCostingScenarioAction,
 } from '../costing/_lib/page-loader';
 import { NutritionScreen } from '../nutrition/_components/nutrition-screen';
 import {
@@ -76,8 +76,10 @@ export default async function CostingNutritionPage(propsInput: unknown = {}) {
         state={permissionDenied ? 'permission_denied' : costingLoaded.state}
         data={costingLoaded.data}
         labels={costingLabels}
-        onSaveScenario={saveCostingScenarioAction}
+        locale={locale}
         projectId={projectId}
+        onSaveInputs={saveCostingInputs}
+        canSaveInputs={costingLoaded.canCompute}
         computeAction={costingLoaded.canCompute ? computeCostingAction : undefined}
       />
       <NutritionScreen

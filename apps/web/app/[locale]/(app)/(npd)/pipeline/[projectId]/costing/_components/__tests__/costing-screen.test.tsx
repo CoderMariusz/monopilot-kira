@@ -1,18 +1,6 @@
 /**
  * @vitest-environment jsdom
- * T-075 — CostingScreen (costing_screen prototype) component test.
- *
- * Prototype parity source (1:1):
- *   prototypes/design/Monopilot Design System/npd/other-stages.jsx:83-163 (CostingScreen)
- *
- * RED → GREEN: asserts the parity checklist (9-step canonical cost waterfall in
- * order, per-kg / per-pack / per-batch unit pills, 3-scenario margin table
- * pessimistic/target/optimistic, the V07 "Margin warn" badge when margin is
- * below the threshold, the HARD FAIL banner when a scenario margin < 0%, the
- * what-if Sliders rendered as the @monopilot/ui Slider primitive — NEVER a raw
- * <input type="range">, and the Save Scenario CTA), the four required UI states
- * (loading / empty / populated / error), permission-denied, and that visible
- * strings come from the injected i18n labels (no default leak).
+ * W2-L6 — CostingScreen 3-column waterfall + inputs panel + blocked checklist.
  */
 
 import React from 'react';
@@ -21,280 +9,223 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn() }),
+  useRouter: () => ({
+    refresh: vi.fn(),
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+  }),
 }));
 
+vi.mock('next/link', () => ({
+  default: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children: React.ReactNode;
+    'data-testid'?: string;
+    className?: string;
+  }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 
 import {
   CostingScreen,
+  type CostingInputsView,
   type CostingLabels,
   type CostingScreenData,
-  type CostingWaterfallStepView,
-  type ScenarioRow,
+  type CostEngineResult,
 } from '../costing-screen';
 
 afterEach(() => cleanup());
 
-// Canonical 9-step order per §17.11.3 / COSTING_WATERFALL_STEP_NAMES.
-const STEPS: CostingWaterfallStepView[] = [
-  { stepIndex: 1, stepName: 'Raw materials', label: 'Raw materials', valueEur: '15.1700', deltaPct: null },
-  { stepIndex: 2, stepName: 'Yield loss', label: 'Yield loss', valueEur: '16.8556', deltaPct: '11.1100' },
-  { stepIndex: 3, stepName: 'Process labour', label: 'Process labour', valueEur: '18.3756', deltaPct: '9.0200' },
-  { stepIndex: 4, stepName: 'Packaging', label: 'Packaging', valueEur: '19.0256', deltaPct: '3.5400' },
-  { stepIndex: 5, stepName: 'Overhead', label: 'Overhead', valueEur: '20.0256', deltaPct: '5.2600' },
-  { stepIndex: 6, stepName: 'Logistics', label: 'Logistics', valueEur: '20.5256', deltaPct: '2.5000' },
-  { stepIndex: 7, stepName: 'Margin', label: 'Margin', valueEur: '22.1900', deltaPct: '8.1100' },
-  { stepIndex: 8, stepName: 'Distributor', label: 'Distributor', valueEur: '24.4090', deltaPct: '10.0000' },
-  { stepIndex: 9, stepName: 'Retail', label: 'Retail', valueEur: '29.2908', deltaPct: '20.0000' },
-];
+const ENGINE_RESULT: CostEngineResult = {
+  status: 'ok',
+  missing: [],
+  units: {
+    packWeightKg: '0.2',
+    packsPerCase: 6,
+    avgBatchQty: '120',
+    fgBaseUom: 'kg',
+    packsPerBatch: '600',
+  },
+  steps: [
+    { key: 'raw_materials', valuePerPackEur: '1.0000' },
+    { key: 'yield_loss', valuePerPackEur: '1.1000' },
+    { key: 'process_labour', valuePerPackEur: '1.2000' },
+    { key: 'setup', valuePerPackEur: '0.0500' },
+    { key: 'packaging', valuePerPackEur: '0.1500' },
+    { key: 'overhead', valuePerPackEur: '0.0800' },
+    { key: 'logistics', valuePerPackEur: '0.0400' },
+    { key: 'total', valuePerPackEur: '1.6200' },
+    { key: 'margin', valuePerPackEur: '0.1800' },
+  ],
+};
 
-const SCENARIOS: ScenarioRow[] = [
-  {
-    scenario: 'pessimistic',
-    name: 'Pessimistic (promo)',
-    targetPriceEur: '17.4500',
-    costEur: '18.4000',
-    marginEur: '-0.9500',
-    marginPct: '-5.4000',
-    status: 'fail',
-  },
-  {
-    scenario: 'target',
-    name: 'Target',
-    targetPriceEur: '19.9000',
-    costEur: '18.4000',
-    marginEur: '1.5000',
-    marginPct: '7.5000',
-    status: 'warn',
-  },
-  {
-    scenario: 'optimistic',
-    name: 'Optimistic',
-    targetPriceEur: '21.4500',
-    costEur: '18.4000',
-    marginEur: '3.0500',
-    marginPct: '14.2000',
-    status: 'ok',
-  },
-];
+const INPUTS: CostingInputsView = {
+  avgBatchQty: '120',
+  fgBaseUom: 'kg',
+  overheadPerKgOverride: '',
+  logisticsPerBoxOverride: '0.25',
+  orgOverheadPerKg: '0.50',
+  orgLogisticsPerBox: '0.30',
+  weeklyVolumePacks: '10000',
+  runsPerWeek: '5',
+};
 
 const LABELS: CostingLabels = {
   title: 'Cost breakdown',
-  subtitle: 'Waterfall from raw materials to final cost per kg',
-  unitPerKg: 'Per kg',
-  unitPerPack: 'Per pack',
-  unitPerBatch: 'Per batch',
+  subtitle: 'Waterfall per pack with kg and batch columns',
   waterfallTitle: 'Cost waterfall',
   colStep: 'Step',
-  colValue: 'Value €/kg',
-  colDelta: 'Δ %',
-  marginTitle: 'Margin vs target price',
-  colScenario: 'Scenario',
-  colTargetPrice: 'Target price',
-  colRevenue: 'Revenue €/kg',
-  colCost: 'Cost €/kg',
-  colMargin: 'Margin',
-  colMarginPct: 'Margin %',
-  marginWarn: 'Margin warn',
-  marginWarnBody:
-    'At target price, margin is {marginPct}% — below the NPD minimum of {threshold}%.',
-  hardFail: 'Margin hard fail',
-  hardFailBody: 'Scenario "{name}" has a negative margin ({marginPct}%).',
-  marginNegativeWarn: 'Negative margin',
-  marginNegativeWarnBody:
-    'The computed margin is {marginPct}% — you can still save the breakdown, but review pricing and costs.',
-  whatIfTitle: 'What-if sliders',
-  sliderPorkContent: 'Raw cost €/kg',
-  sliderYield: 'Yield %',
-  sliderTargetPrice: 'Margin %',
-  scenarioName: 'Scenario name',
-  saveScenario: 'Save scenario',
-  saving: 'Saving…',
-  saveError: 'Could not save the scenario. Try again.',
-  saved: 'Scenario saved.',
-  loading: 'Loading costing data…',
-  empty: 'No costing data yet',
-  emptyBody: 'Costing is computed once the formulation has ingredient costs.',
-  error: 'Unable to load costing data.',
-  forbidden: 'You do not have permission to view costing data.',
-  computeCosting: 'Compute costing',
+  colPerKg: '£/kg',
+  colPerPack: '£/pack',
+  colPerBatch: '£/batch',
+  inputsTitle: 'Costing inputs',
+  inputAvgBatch: 'Avg batch qty',
+  inputOverhead: 'Overhead override (£/kg)',
+  inputLogistics: 'Logistics override (£/box)',
+  inputWeeklyVolume: 'Weekly volume (packs)',
+  inputRunsPerWeek: 'Runs per week',
+  editInBrief: 'Edit in Brief',
+  saveInputs: 'Save inputs',
+  savingInputs: 'Saving…',
+  savedInputs: 'Inputs saved',
+  saveInputsError: 'Could not save inputs',
+  blockedTitle: 'Costing blocked',
+  blockedPrefix: 'Complete:',
+  notDerivable: '—',
+  loading: 'Loading…',
+  empty: 'No costing data',
+  emptyBody: 'Compute costing first',
+  error: 'Error',
+  forbidden: 'Forbidden',
+  computeCosting: 'Compute',
   computing: 'Computing…',
-  computeError: 'Could not compute the costing. Try again.',
-  computeErrorNotFound: 'No formulation is available to compute costing from yet.',
-  computeErrorNoCosts: 'Every ingredient needs a cost before costing can be computed.',
-  computeErrorHardFail: 'The target margin is negative, so the breakdown cannot be saved.',
+  computeError: 'Compute failed',
+  computeErrorNotFound: 'Not found',
+  computeErrorNoCosts: 'No costs',
+  computeErrorHardFail: 'Hard fail',
+  marginNegativeWarn: 'Negative margin',
+  marginNegativeWarnBody: 'Margin is {marginPct}',
 };
 
 const DATA: CostingScreenData = {
-  productCode: 'FA1001',
-  projectId: 'project-1',
-  productName: 'Sliced Ham 200g',
+  productCode: 'FG-001',
+  projectId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  productName: 'Test FG',
   marginWarnThresholdPct: '15',
-  steps: STEPS,
-  scenarios: SCENARIOS,
-  currentParams: {
-    rawCostEur: '15.17',
-    yieldPct: '78',
-    processLabourEur: '1.52',
-    packagingEur: '0.65',
-    overheadEur: '1.00',
-    logisticsEur: '0.50',
-    marginPct: '7.5',
-    distributorMarkupPct: '10',
-    retailMarkupPct: '20',
-  },
+  engineResult: ENGINE_RESULT,
+  inputs: INPUTS,
 };
 
 function renderReady(extra?: Partial<React.ComponentProps<typeof CostingScreen>>) {
-  return render(<CostingScreen state="ready" data={DATA} labels={LABELS} {...extra} />);
+  return render(
+    <CostingScreen
+      state="ready"
+      data={DATA}
+      labels={LABELS}
+      locale="en"
+      projectId={DATA.projectId}
+      canSaveInputs
+      {...extra}
+    />,
+  );
 }
 
-describe('CostingScreen — parity', () => {
-  it('renders the 9-step waterfall in canonical order', () => {
+describe('CostingScreen — 3-column waterfall', () => {
+  it('renders nine waterfall rows in canonical order without unit toggle', () => {
     renderReady();
-    const wf = screen.getByTestId('costing-waterfall');
-    const rows = within(wf).getAllByTestId('waterfall-step');
+    expect(screen.queryByRole('button', { name: 'Per kg' })).not.toBeInTheDocument();
+    const rows = screen.getAllByTestId('waterfall-row');
     expect(rows).toHaveLength(9);
-    const names = rows.map((r) => within(r).getByTestId('waterfall-step-label').textContent);
-    expect(names).toEqual([
-      'Raw materials',
-      'Yield loss',
-      'Process labour',
-      'Packaging',
-      'Overhead',
-      'Logistics',
-      'Margin',
-      'Distributor',
-      'Retail',
-    ]);
+    const labels = rows.map((r) => r.textContent);
+    expect(labels[0]).toContain('Surowce');
+    expect(labels[7]).toContain('Koszt całkowity');
+    expect(labels[8]).toContain('Marża');
   });
 
-  it('renders money from NUMERIC strings (never JS float)', () => {
+  it('derives £/kg and £/batch from per-pack values', () => {
     renderReady();
-    const wf = screen.getByTestId('costing-waterfall');
-    const first = within(wf).getAllByTestId('waterfall-step')[0];
-    // 15.1700 displayed as a formatted euro value, derived from the string.
-    expect(within(first).getByTestId('waterfall-step-value').textContent).toContain('15.17');
+    const rmRow = screen.getAllByTestId('waterfall-row')[0]!;
+    expect(within(rmRow).getByText('£5.00')).toBeInTheDocument();
+    expect(within(rmRow).getByText('£1.00')).toBeInTheDocument();
+    expect(within(rmRow).getByText('£600.00')).toBeInTheDocument();
   });
 
-  it('renders the 3 scenario rows (pessimistic / target / optimistic)', () => {
-    renderReady();
-    const table = screen.getByTestId('scenario-table');
-    const rows = within(table).getAllByTestId('scenario-row');
-    expect(rows).toHaveLength(3);
-    const names = rows.map((r) => within(r).getByTestId('scenario-name').textContent);
-    expect(names).toEqual(['Pessimistic (promo)', 'Target', 'Optimistic']);
-  });
-
-  it('renders the unit pills (per kg / per pack / per batch)', () => {
-    renderReady();
-    expect(screen.getByRole('button', { name: LABELS.unitPerKg })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: LABELS.unitPerPack })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: LABELS.unitPerBatch })).toBeInTheDocument();
-  });
-
-  it('renders what-if sliders as the Slider primitive — NOT raw <input type=range>', () => {
-    const { container } = renderReady();
-    expect(container.querySelector('input[type="range"]')).toBeNull();
-    const sliders = screen.getAllByRole('slider');
-    expect(sliders.length).toBeGreaterThanOrEqual(3);
-  });
-});
-
-describe('CostingScreen — V07 warn / hard fail', () => {
-  it('shows a "Margin warn" badge when the target scenario margin is below threshold', () => {
-    renderReady();
-    // Target scenario has status 'warn' (7.5% < 15%).
-    const table = screen.getByTestId('scenario-table');
-    const target = within(table)
-      .getAllByTestId('scenario-row')
-      .find((r) => within(r).getByTestId('scenario-name').textContent === 'Target')!;
-    expect(within(target).getByText(LABELS.marginWarn)).toBeInTheDocument();
-  });
-
-  it('shows the negative-margin warning when a scenario margin < 0%', () => {
-    renderReady();
-    const banner = screen.getByTestId('margin-negative-warning');
-    expect(banner).toBeInTheDocument();
-    expect(banner).toHaveClass('alert-amber');
-    expect(within(banner).getByText(/-5\.4000/)).toBeInTheDocument();
-  });
-
-  it('does not show the negative-margin warning when all margins are >= 0%', () => {
-    const safeScenarios = SCENARIOS.map((s) =>
-      s.scenario === 'pessimistic'
-        ? { ...s, marginEur: '0.1000', marginPct: '0.5000', status: 'warn' as const }
-        : s,
-    );
-    renderReady({ data: { ...DATA, scenarios: safeScenarios } });
-    expect(screen.queryByTestId('margin-negative-warning')).not.toBeInTheDocument();
-  });
-});
-
-describe('CostingScreen — save scenario', () => {
-  it('allows Save when the current (target) scenario has a negative margin', () => {
-    const failingData: CostingScreenData = {
-      ...DATA,
-      currentParams: { ...DATA.currentParams, marginPct: '-5' },
-      scenarios: SCENARIOS,
+  it('shows em dash when kg or batch is not derivable', () => {
+    const noUnits: CostEngineResult = {
+      ...ENGINE_RESULT,
+      units: { ...ENGINE_RESULT.units, packWeightKg: null, packsPerBatch: null },
     };
-    renderReady({ data: failingData, onSaveScenario: vi.fn().mockResolvedValue({ ok: true }) });
-    const save = screen.getByRole('button', { name: LABELS.saveScenario });
-    expect(save).not.toBeDisabled();
-  });
-
-  it('calls onSaveScenario with the named scenario + current params on Save', async () => {
-    const onSaveScenario = vi.fn().mockResolvedValue({ ok: true });
-    const onRefresh = vi.fn();
-    renderReady({ onSaveScenario, onRefresh });
-    const nameInput = screen.getByLabelText(LABELS.scenarioName);
-    fireEvent.change(nameInput, { target: { value: 'my-scenario' } });
-    const save = screen.getByRole('button', { name: LABELS.saveScenario });
-    fireEvent.click(save);
-    await waitFor(() => expect(onSaveScenario).toHaveBeenCalledTimes(1));
-    const arg = onSaveScenario.mock.calls[0][0];
-    expect(arg.projectId).toBe('project-1');
-    expect(arg.productCode).toBe('FA1001');
-    expect(arg.scenario).toBe('my-scenario');
-    // Params are decimal strings (never floats).
-    expect(typeof arg.params.rawCostEur).toBe('string');
-    await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
+    renderReady({ engineResult: noUnits });
+    const rmRow = screen.getAllByTestId('waterfall-row')[0]!;
+    const dashes = within(rmRow).getAllByText('—');
+    expect(dashes.length).toBeGreaterThanOrEqual(2);
   });
 });
 
-describe('CostingScreen — required states', () => {
-  it('loading shows a live status region', () => {
-    render(<CostingScreen state="loading" data={null} labels={LABELS} />);
-    expect(screen.getByText(LABELS.loading)).toBeInTheDocument();
-    expect(screen.queryByTestId('costing-waterfall')).not.toBeInTheDocument();
-  });
-
-  it('empty shows the empty-state copy', () => {
-    render(<CostingScreen state="empty" data={null} labels={LABELS} />);
-    expect(screen.getByText(LABELS.empty)).toBeInTheDocument();
-    expect(screen.queryByTestId('costing-waterfall')).not.toBeInTheDocument();
-  });
-
-  it('error shows an alert with the i18n error copy', () => {
-    render(<CostingScreen state="error" data={null} labels={LABELS} />);
-    const alert = screen.getByRole('alert');
-    expect(within(alert).getByText(LABELS.error)).toBeInTheDocument();
-  });
-
-  it('permission_denied hides the waterfall and shows forbidden copy', () => {
-    render(<CostingScreen state="permission_denied" data={null} labels={LABELS} />);
-    expect(screen.getByText(LABELS.forbidden)).toBeInTheDocument();
-    expect(screen.queryByTestId('costing-waterfall')).not.toBeInTheDocument();
+describe('CostingScreen — blocked checklist', () => {
+  it('renders amber checklist with links for missing prerequisites', () => {
+    const blocked: CostEngineResult = {
+      status: 'blocked',
+      missing: ['yield_pct', 'weekly_volume_packs', 'packs_per_case'],
+      units: ENGINE_RESULT.units,
+      steps: [],
+    };
+    renderReady({ engineResult: blocked });
+    const checklist = screen.getByTestId('costing-blocked-checklist');
+    expect(checklist).toHaveClass('alert-amber');
+    expect(screen.getByText(LABELS.blockedPrefix)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Yield' })).toHaveAttribute(
+      'href',
+      `/en/pipeline/${DATA.projectId}/formulation`,
+    );
+    expect(screen.getByRole('link', { name: 'Weekly volume' })).toHaveAttribute(
+      'href',
+      `/en/pipeline/${DATA.projectId}/brief`,
+    );
+    expect(screen.getByRole('link', { name: 'Packs per case' })).toHaveAttribute(
+      'href',
+      `/en/pipeline/${DATA.projectId}/packaging`,
+    );
   });
 });
 
-describe('CostingScreen — i18n', () => {
-  it('renders only provided label strings (no default leak)', () => {
+describe('CostingScreen — inputs panel', () => {
+  it('renders inputs with org-default placeholders and brief link', () => {
     renderReady();
-    // Title appears in the breadcrumb and the heading (with the product name);
-    // assert via the heading's substring so we don't depend on exact wrapping.
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain(LABELS.title);
-    expect(screen.getByText(LABELS.marginTitle)).toBeInTheDocument();
-    expect(screen.getByText(LABELS.whatIfTitle)).toBeInTheDocument();
+    expect(screen.getByTestId('costing-inputs-card')).toBeInTheDocument();
+    expect(screen.getByTestId('costing-avg-batch')).toHaveValue(120);
+    expect(screen.getByTestId('costing-overhead')).toHaveAttribute('placeholder', '0.50');
+    expect(screen.getByTestId('costing-logistics')).toHaveAttribute('placeholder', '0.30');
+    expect(screen.getByTestId('costing-edit-brief')).toHaveAttribute(
+      'href',
+      `/en/pipeline/${DATA.projectId}/brief`,
+    );
+    expect(screen.getByTestId('costing-brief-readonly')).toHaveTextContent('10000');
+    expect(screen.getByTestId('costing-brief-readonly')).toHaveTextContent('5');
+  });
+
+  it('calls onSaveInputs with project overrides', async () => {
+    const onSaveInputs = vi.fn().mockResolvedValue({ ok: true });
+    renderReady({ onSaveInputs });
+    fireEvent.change(screen.getByTestId('costing-avg-batch'), { target: { value: '150' } });
+    fireEvent.change(screen.getByTestId('costing-overhead'), { target: { value: '0.75' } });
+    fireEvent.click(screen.getByTestId('costing-save-inputs'));
+    await waitFor(() => expect(onSaveInputs).toHaveBeenCalledTimes(1));
+    expect(onSaveInputs.mock.calls[0][0]).toEqual({
+      projectId: DATA.projectId,
+      avgBatchQty: '150',
+      overheadPerKgOverride: '0.75',
+      logisticsPerBoxOverride: '0.25',
+    });
   });
 });

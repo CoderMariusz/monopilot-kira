@@ -133,6 +133,9 @@ export type ProductionProcessLabels = {
   emptyBody: string;
   duration: string;
   additionalCost: string;
+  throughputPerHour?: string;
+  throughputUom?: string;
+  setupCost?: string;
   processCost: string;
   createsWip: string;
   rolesHeader: string;
@@ -331,6 +334,9 @@ const DEFAULT_PROCESS_LABELS: ProductionProcessLabels = {
   emptyBody: 'Add the first manufacturing process.',
   duration: 'Duration (h)',
   additionalCost: 'Standard cost',
+  throughputPerHour: 'Throughput / hour',
+  throughputUom: 'Throughput unit',
+  setupCost: 'Setup cost (£)',
   processCost: 'Process cost',
   createsWip: 'Creates WIP',
   rolesHeader: 'Roles',
@@ -709,11 +715,23 @@ function ProcessEditDialog({
   labels: ProductionProcessLabels;
   disabled: boolean;
   onClose: () => void;
-  onSubmit: (next: { durationHours: number; additionalCost: number; createsWipItem: boolean }) => void;
+  onSubmit: (next: {
+    durationHours: number;
+    additionalCost: number;
+    createsWipItem: boolean;
+    throughputPerHour: number;
+    throughputUom: 'kg' | 'pack' | 'each' | 'l';
+    setupCost: number;
+  }) => void;
 }) {
   const [duration, setDuration] = React.useState(String(process.durationHours ?? 0));
   const [addCost, setAddCost] = React.useState(String(process.additionalCost ?? 0));
   const [createsWip, setCreatesWip] = React.useState(Boolean(process.createsWipItem));
+  const [throughput, setThroughput] = React.useState(String(process.throughputPerHour ?? 0));
+  const [throughputUom, setThroughputUom] = React.useState<'kg' | 'pack' | 'each' | 'l'>(
+    (process.throughputUom as 'kg' | 'pack' | 'each' | 'l') ?? 'kg',
+  );
+  const [setupCost, setSetupCost] = React.useState(String(process.setupCost ?? 0));
   const onCloseRef = React.useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -780,6 +798,66 @@ function ProcessEditDialog({
               className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm"
             />
           </div>
+          <div className="grid gap-1">
+            <label htmlFor="fa-prod-process-throughput" className="text-xs font-medium text-slate-700">
+              {labels.throughputPerHour}
+            </label>
+            <Input
+              id="fa-prod-process-throughput"
+              data-testid="fa-prod-process-throughput"
+              type="number"
+              min={0}
+              step="0.01"
+              value={throughput}
+              disabled={disabled}
+              onChange={(e) => setThroughput(e.target.value)}
+              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div className="grid gap-1">
+            <label htmlFor="fa-prod-process-throughput-uom" className="text-xs font-medium text-slate-700">
+              {labels.throughputUom}
+            </label>
+            <Select
+              id="fa-prod-process-throughput-uom"
+              value={throughputUom}
+              disabled={disabled}
+              onValueChange={(value) => setThroughputUom(value as 'kg' | 'pack' | 'each' | 'l')}
+              options={[
+                { value: 'kg', label: 'kg' },
+                { value: 'pack', label: 'pack' },
+                { value: 'each', label: 'each' },
+                { value: 'l', label: 'l' },
+              ]}
+            >
+              <SelectTrigger aria-label={labels.throughputUom} data-testid="fa-prod-process-throughput-uom">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(['kg', 'pack', 'each', 'l'] as const).map((uom) => (
+                  <SelectItem key={uom} value={uom}>
+                    {uom}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1">
+            <label htmlFor="fa-prod-process-setup-cost" className="text-xs font-medium text-slate-700">
+              {labels.setupCost}
+            </label>
+            <Input
+              id="fa-prod-process-setup-cost"
+              data-testid="fa-prod-process-setup-cost"
+              type="number"
+              min={0}
+              step="0.01"
+              value={setupCost}
+              disabled={disabled}
+              onChange={(e) => setSetupCost(e.target.value)}
+              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm"
+            />
+          </div>
           <div className="flex items-center justify-between">
             <span id="fa-prod-process-wip-label" className="text-xs font-medium text-slate-700">
               {labels.createsWip}
@@ -806,6 +884,9 @@ function ProcessEditDialog({
                 durationHours: Number(duration) || 0,
                 additionalCost: Number(addCost) || 0,
                 createsWipItem: createsWip,
+                throughputPerHour: Number(throughput) || 0,
+                throughputUom,
+                setupCost: Number(setupCost) || 0,
               })
             }
           >
@@ -914,7 +995,14 @@ function ComponentProcesses({
 
   async function handleUpdate(
     id: string,
-    next: { durationHours: number; additionalCost: number; createsWipItem: boolean },
+    next: {
+      durationHours: number;
+      additionalCost: number;
+      createsWipItem: boolean;
+      throughputPerHour: number;
+      throughputUom: 'kg' | 'pack' | 'each' | 'l';
+      setupCost: number;
+    },
   ) {
     setBusy(true);
     setError(null);

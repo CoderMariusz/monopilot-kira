@@ -148,7 +148,8 @@ describe('wip-process-actions WIP item linkage', () => {
       /update\s+public\.npd_wip_processes/i.test(String(call[0])),
     );
     expect(String(updateCall?.[0])).toMatch(/wip_item_id\s*=\s*case\s+when\s+\$5::boolean\s+is\s+false\s+then\s+null/i);
-    expect(updateCall?.[1]).toEqual([processId, null, null, null, false]);
+    // Params: [id, processName, durationHours, additionalCost, createsWipItem, throughputPerHour, throughputUom, setupCost]
+    expect(updateCall?.[1]).toEqual([processId, null, null, null, false, null, null, null]);
 
     const deletedItem = queryMock.mock.calls.some((call) =>
       /delete\s+from\s+public\.items/i.test(String(call[0])),

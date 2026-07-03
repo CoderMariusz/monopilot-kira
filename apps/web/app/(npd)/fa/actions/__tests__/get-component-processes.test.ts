@@ -34,6 +34,9 @@ describe('getComponentProcesses', () => {
             additional_cost: '5',
             creates_wip_item: true,
             wip_item_id: '55555555-5555-4555-8555-555555555555',
+            throughput_per_hour: null,
+            throughput_uom: null,
+            setup_cost: null,
           }],
         };
       }
@@ -63,6 +66,9 @@ describe('getComponentProcesses', () => {
         additionalCost: 5,
         createsWipItem: true,
         wipItemId: '55555555-5555-4555-8555-555555555555',
+        throughputPerHour: 0,
+        throughputUom: 'kg',
+        setupCost: 0,
         roles: [{ roleGroup: 'operator', headcount: 2, ratePerHour: 20 }],
         processCost: 65,
       }],

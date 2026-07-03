@@ -185,9 +185,10 @@ async function hasLockedRecipe(ctx: OrgCtx, projectId: string): Promise<boolean>
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
        from public.formulation_versions fv
+       -- formulation_versions has NO org_id; org scoping flows through the parent
+       -- formulations row (caught live by the W1 Gate-5b walk: 42703 fv.org_id).
        join public.formulations f
          on f.id = fv.formulation_id
-        and f.org_id = fv.org_id
       where f.project_id = $1::uuid
         and f.org_id = app.current_org_id()
         and fv.state = 'locked'

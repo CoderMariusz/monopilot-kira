@@ -24,6 +24,9 @@ const addWipProcessSchema = z.object({
   durationHours: z.coerce.number().finite().nonnegative().optional().default(0),
   additionalCost: z.coerce.number().finite().nonnegative().optional().default(0),
   createsWipItem: z.boolean().optional().default(false),
+  throughputPerHour: z.coerce.number().finite().nonnegative().optional().default(0),
+  throughputUom: z.enum(['kg', 'pack', 'each', 'l']).optional().default('kg'),
+  setupCost: z.coerce.number().finite().nonnegative().optional().default(0),
 });
 
 const updateWipProcessSchema = z.object({
@@ -32,6 +35,9 @@ const updateWipProcessSchema = z.object({
   durationHours: z.coerce.number().finite().nonnegative().optional(),
   additionalCost: z.coerce.number().finite().nonnegative().optional(),
   createsWipItem: z.boolean().optional(),
+  throughputPerHour: z.coerce.number().finite().nonnegative().optional(),
+  throughputUom: z.enum(['kg', 'pack', 'each', 'l']).optional(),
+  setupCost: z.coerce.number().finite().nonnegative().optional(),
 });
 
 const removeWipProcessSchema = z.object({
@@ -71,7 +77,8 @@ export async function addWipProcess(input: AddWipProcessInput): Promise<ActionRe
 
     const inserted = await ctx.client.query<{ id: string }>(
       `insert into public.npd_wip_processes
-         (org_id, prod_detail_id, process_name, display_order, duration_hours, additional_cost, creates_wip_item)
+         (org_id, prod_detail_id, process_name, display_order, duration_hours, additional_cost,
+          creates_wip_item, throughput_per_hour, throughput_uom, setup_cost)
        values
          (
            app.current_org_id(),
@@ -85,7 +92,10 @@ export async function addWipProcess(input: AddWipProcessInput): Promise<ActionRe
            ),
            $3::numeric,
            $4::numeric,
-           $5::boolean
+           $5::boolean,
+           $6::numeric,
+           $7,
+           $8::numeric
          )
        returning id`,
       [
@@ -94,6 +104,9 @@ export async function addWipProcess(input: AddWipProcessInput): Promise<ActionRe
         parsed.data.durationHours,
         parsed.data.additionalCost,
         parsed.data.createsWipItem,
+        parsed.data.throughputPerHour,
+        parsed.data.throughputUom,
+        parsed.data.setupCost,
       ],
     );
 
@@ -122,6 +135,9 @@ export async function updateWipProcess(input: UpdateWipProcessInput): Promise<Ac
               duration_hours = coalesce($3::numeric, duration_hours),
               additional_cost = coalesce($4::numeric, additional_cost),
               creates_wip_item = coalesce($5::boolean, creates_wip_item),
+              throughput_per_hour = coalesce($6::numeric, throughput_per_hour),
+              throughput_uom = coalesce($7::text, throughput_uom),
+              setup_cost = coalesce($8::numeric, setup_cost),
               wip_item_id = case when $5::boolean is false then null else wip_item_id end,
               updated_at = now()
         where id = $1::uuid
@@ -133,6 +149,9 @@ export async function updateWipProcess(input: UpdateWipProcessInput): Promise<Ac
         parsed.data.durationHours ?? null,
         parsed.data.additionalCost ?? null,
         parsed.data.createsWipItem ?? null,
+        parsed.data.throughputPerHour ?? null,
+        parsed.data.throughputUom ?? null,
+        parsed.data.setupCost ?? null,
       ],
     );
 

@@ -10,6 +10,8 @@ import {
   type CostingStatus,
   type CostingWaterfallStepView,
   type CostingLabels,
+  type CostEngineResult,
+  type CostEngineStepKey,
   type PageState,
   type SaveScenarioCall,
   type SaveScenarioOutcome,
@@ -36,40 +38,31 @@ const DEFAULT_WARN_PCT = '15';
 
 const SCENARIO_ORDER = ['pessimistic', 'target', 'optimistic'] as const;
 
-export const DEFAULT_COSTING_LABELS: Required<CostingLabels> = {
+export const DEFAULT_COSTING_LABELS: CostingLabels = {
   title: 'Cost breakdown',
-  subtitle: 'Waterfall from raw materials to final cost per kg',
-  unitPerKg: 'Per kg',
-  unitPerPack: 'Per pack',
-  unitPerBatch: 'Per batch',
+  subtitle: 'Waterfall from raw materials to final cost per pack',
   waterfallTitle: 'Cost waterfall',
   colStep: 'Step',
-  colValue: 'Value £/kg',
-  colDelta: 'Δ %',
-  marginTitle: 'Margin vs target price',
-  colScenario: 'Scenario',
-  colTargetPrice: 'Target price',
-  colRevenue: 'Revenue £/kg',
-  colCost: 'Cost £/kg',
-  colMargin: 'Margin',
-  colMarginPct: 'Margin %',
-  marginWarn: 'Margin warn',
-  marginWarnBody:
-    'At target price, margin is {marginPct}% — below the NPD minimum of {threshold}%.',
-  hardFail: 'Margin hard fail',
-  hardFailBody: 'Scenario "{name}" has a negative margin ({marginPct}%).',
+  colPerKg: '£/kg',
+  colPerPack: '£/pack',
+  colPerBatch: '£/batch',
+  inputsTitle: 'Cost inputs',
+  inputAvgBatch: 'Average batch',
+  inputOverhead: 'Overhead per kg',
+  inputLogistics: 'Logistics per box',
+  inputWeeklyVolume: 'Weekly volume',
+  inputRunsPerWeek: 'Runs per week',
+  editInBrief: 'Edit in brief',
+  saveInputs: 'Save inputs',
+  savingInputs: 'Saving…',
+  savedInputs: 'Inputs saved.',
+  saveInputsError: 'Could not save inputs.',
+  blockedTitle: 'Costing inputs required',
+  blockedPrefix: 'Missing',
+  notDerivable: 'Not derivable',
   marginNegativeWarn: 'Negative margin',
   marginNegativeWarnBody:
     'The computed margin is {marginPct}% — you can still save the breakdown, but review pricing and costs.',
-  whatIfTitle: 'What-if sliders',
-  sliderPorkContent: 'Raw cost £/kg',
-  sliderYield: 'Yield %',
-  sliderTargetPrice: 'Margin %',
-  scenarioName: 'Scenario name',
-  saveScenario: 'Save scenario',
-  saving: 'Saving…',
-  saveError: 'Could not save the scenario. Try again.',
-  saved: 'Scenario saved.',
   loading: 'Loading costing data…',
   empty: 'No costing data yet',
   emptyBody: 'Costing is computed once the formulation has ingredient costs.',
@@ -85,16 +78,29 @@ export const DEFAULT_COSTING_LABELS: Required<CostingLabels> = {
     'The target margin is negative — the breakdown was saved; review pricing and costs.',
   computeErrorFgNotMapped:
     'The recipe exists, but no Finished Good is linked yet — advance the project to the Packaging stage first.',
+  stepLabels: {
+    raw_materials: 'Raw materials',
+    yield_loss: 'Yield loss',
+    process_labour: 'Process labour',
+    setup: 'Setup',
+    packaging: 'Packaging',
+    overhead: 'Overhead',
+    logistics: 'Logistics',
+    total: 'Total cost',
+    margin: 'Margin vs target price',
+  },
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_COSTING_LABELS) as Array<keyof CostingLabels>;
 
 function translateLabel(t: (key: string) => string, key: keyof CostingLabels): string {
+  const fallback = DEFAULT_COSTING_LABELS[key];
+  if (typeof fallback !== 'string') return '';
   try {
     const value = t(key);
-    return value === key ? DEFAULT_COSTING_LABELS[key] : value;
+    return value === key ? fallback : value;
   } catch {
-    return DEFAULT_COSTING_LABELS[key];
+    return fallback;
   }
 }
 
@@ -102,7 +108,12 @@ export async function buildCostingLabels(locale: string): Promise<CostingLabels>
   try {
     const t = await getTranslations({ locale, namespace: 'npd.costing' });
     return LABEL_KEYS.reduce((labels, key) => {
-      labels[key] = translateLabel(t, key);
+      const fallback = DEFAULT_COSTING_LABELS[key];
+      if (typeof fallback === 'string') {
+        labels[key] = translateLabel(t, key) as never;
+      } else {
+        labels[key] = fallback as never;
+      }
       return labels;
     }, {} as CostingLabels);
   } catch {
@@ -138,7 +149,16 @@ type BreakdownRow = {
   raw_cost_eur: string;
   margin_pct: string;
   target_price_eur: string;
-  params: CostingParams | null;
+  params: (CostingParams & {
+    units?: {
+      packWeightKg?: string | null;
+      packsPerCase?: string | number | null;
+      avgBatchQty?: string | null;
+      fgBaseUom?: string | null;
+      packsPerBatch?: string | null;
+    };
+    missing?: string[];
+  }) | null;
 };
 
 type StepRow = {
@@ -191,6 +211,60 @@ function deriveParamsFallback(b: BreakdownRow): CostingParams {
     marginPct: b.margin_pct,
     distributorMarkupPct: '0',
     retailMarkupPct: '0',
+  };
+}
+
+function stepKey(stepName: string): CostEngineStepKey | null {
+  switch (stepName) {
+    case 'Raw materials':
+      return 'raw_materials';
+    case 'Yield loss':
+      return 'yield_loss';
+    case 'Process labour':
+      return 'process_labour';
+    case 'Setup':
+      return 'setup';
+    case 'Packaging':
+      return 'packaging';
+    case 'Overhead':
+      return 'overhead';
+    case 'Logistics':
+      return 'logistics';
+    case 'Total cost':
+      return 'total';
+    case 'Margin vs target price':
+      return 'margin';
+    default:
+      return null;
+  }
+}
+
+function toNullableNumber(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function engineResultFromRows(
+  primary: BreakdownRow,
+  rows: StepRow[],
+  warnPct: string,
+): CostEngineResult {
+  const units = primary.params?.units;
+  return {
+    status: marginStatus(primary.margin_pct, warnPct) === 'fail' ? 'fail' : 'ok',
+    missing: primary.params?.missing ?? [],
+    steps: rows.flatMap((row) => {
+      const key = stepKey(row.step_name);
+      return key ? [{ key, valuePerPackEur: row.value_eur }] : [];
+    }),
+    units: {
+      packWeightKg: units?.packWeightKg ?? null,
+      packsPerCase: toNullableNumber(units?.packsPerCase),
+      avgBatchQty: units?.avgBatchQty ?? null,
+      fgBaseUom: units?.fgBaseUom ?? null,
+      packsPerBatch: units?.packsPerBatch ?? null,
+    },
   };
 }
 
@@ -312,6 +386,7 @@ export async function readCostingPageData(projectId: string): Promise<CostingLoa
           steps: stepViews,
           scenarios: scenarioRows,
           currentParams,
+          engineResult: engineResultFromRows(primary, primarySteps, warnPct),
         },
         canCompute,
       };
