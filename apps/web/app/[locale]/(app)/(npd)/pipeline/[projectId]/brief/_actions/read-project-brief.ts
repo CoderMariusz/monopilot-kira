@@ -36,6 +36,10 @@ export type ProjectBriefView = {
   /** Costing v2: pack net weight in grams (the recipe batch size). */
   packWeightG: string | null;
   packsPerCase: number | null;
+  /** Numeric weekly volume in packs (costing input, D25). Decimal STRING. */
+  weeklyVolumePacks: string | null;
+  /** Production runs per week (costing input, D30). Decimal STRING. */
+  runsPerWeek: string | null;
   expectedVolume: string | null;
   marketingClaims: string | null;
   /** RIGHT column. */
@@ -71,6 +75,8 @@ type ProjectBriefRow = {
   pack_format: string | null;
   pack_weight_g: string | null;
   packs_per_case: number | null;
+  weekly_volume_packs: string | null;
+  runs_per_week: string | null;
   sales_channel: string | null;
   expected_volume: string | null;
   target_retail_price_eur: string | null;
@@ -102,6 +108,8 @@ export async function readProjectBrief(projectId: string): Promise<ReadProjectBr
                 pack_format,
                 pack_weight_g::text            as pack_weight_g,
                 packs_per_case,
+                weekly_volume_packs::text     as weekly_volume_packs,
+                runs_per_week::text           as runs_per_week,
                 sales_channel,
                 expected_volume,
                 target_retail_price_eur::text  as target_retail_price_eur,
@@ -133,6 +141,8 @@ export async function readProjectBrief(projectId: string): Promise<ReadProjectBr
         packFormat: row.pack_format,
         packWeightG: row.pack_weight_g,
         packsPerCase: row.packs_per_case,
+        weeklyVolumePacks: row.weekly_volume_packs,
+        runsPerWeek: row.runs_per_week,
         expectedVolume: row.expected_volume,
         marketingClaims: row.marketing_claims,
         category: row.type,

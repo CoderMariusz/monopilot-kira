@@ -43,6 +43,8 @@ const patchSchema = z
     packFormat: optionalText(160),
     packWeightG: optionalDecimal,
     packsPerCase: z.number().int().min(0).nullable().optional(),
+    weeklyVolumePacks: optionalDecimal,
+    runsPerWeek: optionalDecimal,
     expectedVolume: optionalText(120),
     marketingClaims: optionalText(600),
     targetRetailPriceEur: optionalDecimal,
@@ -72,6 +74,8 @@ type ProjectBriefAuditRow = {
   pack_format: string | null;
   pack_weight_g: string | null;
   packs_per_case: number | null;
+  weekly_volume_packs: string | null;
+  runs_per_week: string | null;
   sales_channel: string | null;
   expected_volume: string | null;
   target_retail_price_eur: string | null;
@@ -100,6 +104,8 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
                 pack_format,
                 pack_weight_g::text           as pack_weight_g,
                 packs_per_case,
+                weekly_volume_packs::text as weekly_volume_packs,
+                runs_per_week::text as runs_per_week,
                 sales_channel,
                 expected_volume,
                 target_retail_price_eur::text as target_retail_price_eur,
@@ -125,13 +131,15 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
                 pack_format             = case when $8::boolean then $9 else pack_format end,
                 pack_weight_g           = case when $10::boolean then $11::numeric else pack_weight_g end,
                 packs_per_case          = case when $12::boolean then $13::integer else packs_per_case end,
-                expected_volume         = case when $14::boolean then $15 else expected_volume end,
-                marketing_claims        = case when $16::boolean then $17 else marketing_claims end,
-                target_retail_price_eur = case when $18::boolean then $19::numeric else target_retail_price_eur end,
-                sales_channel           = case when $20::boolean then $21 else sales_channel end,
-                target_audience         = case when $22::boolean then $23 else target_audience end,
-                constraints             = case when $24::boolean then $25 else constraints end,
-                notes                   = case when $26::boolean then $27 else notes end
+                weekly_volume_packs     = case when $14::boolean then $15::numeric else weekly_volume_packs end,
+                runs_per_week           = case when $16::boolean then $17::numeric else runs_per_week end,
+                expected_volume         = case when $18::boolean then $19 else expected_volume end,
+                marketing_claims        = case when $20::boolean then $21 else marketing_claims end,
+                target_retail_price_eur = case when $22::boolean then $23::numeric else target_retail_price_eur end,
+                sales_channel           = case when $24::boolean then $25 else sales_channel end,
+                target_audience         = case when $26::boolean then $27 else target_audience end,
+                constraints             = case when $28::boolean then $29 else constraints end,
+                notes                   = case when $30::boolean then $31 else notes end
           where id = $1::uuid
             and org_id = app.current_org_id()
           returning id,
@@ -141,6 +149,8 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
                     pack_format,
                     pack_weight_g::text           as pack_weight_g,
                     packs_per_case,
+                    weekly_volume_packs::text     as weekly_volume_packs,
+                    runs_per_week::text           as runs_per_week,
                     sales_channel,
                     expected_volume,
                     target_retail_price_eur::text as target_retail_price_eur,
@@ -162,6 +172,10 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
           patch.packWeightG ?? null,
           patch.packsPerCase !== undefined,
           patch.packsPerCase ?? null,
+          patch.weeklyVolumePacks !== undefined,
+          patch.weeklyVolumePacks ?? null,
+          patch.runsPerWeek !== undefined,
+          patch.runsPerWeek ?? null,
           patch.expectedVolume !== undefined,
           patch.expectedVolume ?? null,
           patch.marketingClaims !== undefined,

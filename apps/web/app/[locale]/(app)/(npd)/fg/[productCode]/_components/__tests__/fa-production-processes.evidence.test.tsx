@@ -106,8 +106,8 @@ const LABELS: FaProductionTabLabels = {
   },
   fields: {
     line: 'Line',
-    equipment_setup: 'Dieset (auto)',
-    resource_requirement: 'Staffing',
+    dieset: 'Dieset (auto)',
+    staffing: 'Staffing',
     rate: 'Rate',
     // legacy keys carried in fields but FILTERED from the grid:
     manufacturing_operation_1: 'Process 1',
@@ -125,8 +125,8 @@ const COLUMNS: FaProductionColumn[] = [
   { key: 'yield_line', dataType: 'number', required: true, readOnly: false, displayOrder: 4 },
   // Surviving production columns.
   { key: 'line', dataType: 'dropdown', required: true, readOnly: false, displayOrder: 13, dropdownSource: 'Lines' },
-  { key: 'equipment_setup', dataType: 'text', required: false, readOnly: true, auto: true, displayOrder: 14 },
-  { key: 'resource_requirement', dataType: 'text', required: false, readOnly: false, displayOrder: 16 },
+  { key: 'dieset', dataType: 'text', required: false, readOnly: true, auto: true, displayOrder: 14 },
+  { key: 'staffing', dataType: 'text', required: false, readOnly: false, displayOrder: 16 },
   { key: 'rate', dataType: 'number', required: true, readOnly: false, displayOrder: 17 },
 ];
 
@@ -138,7 +138,7 @@ const ROWS: ProdDetailRow[] = [
     componentLabel: 'Bacon block',
     componentWeight: 200,
     v06Status: 'pass',
-    values: { line: 'L2', equipment_setup: 'DS-L2', resource_requirement: '3 op', rate: 1100 },
+    values: { line: 'L2', dieset: 'DS-L2', staffing: '3 op', rate: 1100 },
   },
 ];
 

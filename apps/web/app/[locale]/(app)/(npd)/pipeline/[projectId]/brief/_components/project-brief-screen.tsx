@@ -53,6 +53,8 @@ export type BriefPatch = {
    * other optional brief fields send null on empty; this one stays untouched).
    */
   packsPerCase?: number | null;
+  weeklyVolumePacks: string | null;
+  runsPerWeek: string | null;
   expectedVolume: string | null;
   marketingClaims: string | null;
   targetRetailPriceEur: string | null;
@@ -102,6 +104,8 @@ export type ProjectBriefLabels = {
   fieldPackFormat: string;
   fieldPackWeight: string;
   fieldPacksPerCase: string;
+  fieldWeeklyVolumePacks: string;
+  fieldRunsPerWeek: string;
   fieldSalesChannel: string;
   fieldExpectedVolume: string;
   fieldTargetAudience: string;
@@ -171,6 +175,8 @@ type FormState = {
   packFormat: string;
   packWeightG: string;
   packsPerCase: string;
+  weeklyVolumePacks: string;
+  runsPerWeek: string;
   salesChannel: string;
   expectedVolume: string;
   targetAudience: string;
@@ -189,6 +195,8 @@ function viewToForm(data: ProjectBriefView): FormState {
     packWeightG: data.packWeightG ?? '',
     // number|null → string for the input ('' when unset).
     packsPerCase: data.packsPerCase != null ? String(data.packsPerCase) : '',
+    weeklyVolumePacks: data.weeklyVolumePacks ?? '',
+    runsPerWeek: data.runsPerWeek ?? '',
     salesChannel: data.salesChannel ?? '',
     expectedVolume: data.expectedVolume ?? '',
     targetAudience: data.targetAudience ?? '',
@@ -227,6 +235,8 @@ function formToPatch(form: FormState): BriefPatch {
     packWeightG: orNull(form.packWeightG),
     // Omitted when empty (never null) → an existing value is preserved on save.
     ...packsPerCasePatch(form.packsPerCase),
+    weeklyVolumePacks: orNull(form.weeklyVolumePacks),
+    runsPerWeek: orNull(form.runsPerWeek),
     expectedVolume: orNull(form.expectedVolume),
     marketingClaims: orNull(form.marketingClaims),
     targetRetailPriceEur: orNull(form.targetRetailPriceEur),
@@ -318,6 +328,8 @@ function ReadBriefCard({ data, labels }: { data: ProjectBriefView; labels: Proje
             value={data.packsPerCase != null ? String(data.packsPerCase) : null}
             placeholder={ph}
           />
+          <ReadField label={labels.fieldWeeklyVolumePacks} value={data.weeklyVolumePacks} placeholder={ph} />
+          <ReadField label={labels.fieldRunsPerWeek} value={data.runsPerWeek} placeholder={ph} />
           <ReadField label={labels.fieldSalesChannel} value={data.salesChannel} placeholder={ph} />
           <ReadField label={labels.fieldExpectedVolume} value={data.expectedVolume} placeholder={ph} />
           <ReadField label={labels.fieldTargetAudience} value={data.targetAudience} placeholder={ph} />
@@ -497,6 +509,38 @@ function EditBriefCard({
                 value={form.packsPerCase}
                 onChange={(e) => set('packsPerCase', e.target.value)}
                 data-testid="brief-field-packsPerCase"
+              />
+            </label>
+            <label className="field">
+              <span className="field__label" style={{ textTransform: 'uppercase' }}>
+                {labels.fieldWeeklyVolumePacks}
+                <span className="req" aria-label="required"> *</span>
+              </span>
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                required
+                value={form.weeklyVolumePacks}
+                onChange={(e) => set('weeklyVolumePacks', e.target.value)}
+                data-testid="brief-field-weeklyVolumePacks"
+              />
+            </label>
+            <label className="field">
+              <span className="field__label" style={{ textTransform: 'uppercase' }}>
+                {labels.fieldRunsPerWeek}
+                <span className="req" aria-label="required"> *</span>
+              </span>
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                required
+                value={form.runsPerWeek}
+                onChange={(e) => set('runsPerWeek', e.target.value)}
+                data-testid="brief-field-runsPerWeek"
               />
             </label>
             <label className="field">

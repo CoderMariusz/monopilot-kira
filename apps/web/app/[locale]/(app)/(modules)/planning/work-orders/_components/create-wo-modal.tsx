@@ -120,6 +120,12 @@ export type CreateWoLabels = {
     no_active_site?: string;
     /** F10 — >1 active site, none chosen/default; operator must pick one. */
     ambiguous_site?: string;
+    /**
+     * W1-L2 — org_document_settings has no 'wo' mask row. The pilot path surfaces
+     * it specifically; this planning modal never mints custom numbers, so the
+     * `?? persistence_failed` fallback covers the unset case.
+     */
+    document_mask_missing?: string;
   };
   noBomWarning: string;
   /** P0-UOM — surfaced when createWorkOrder warns the FG has no approved factory spec. */

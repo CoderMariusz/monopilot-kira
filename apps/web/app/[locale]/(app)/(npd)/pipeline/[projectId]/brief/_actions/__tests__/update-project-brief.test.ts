@@ -94,6 +94,24 @@ describe('updateProjectBrief', () => {
     expect(result).toEqual({ ok: false, error: 'NOT_FOUND', status: 404 });
   });
 
+  it('persists weekly_volume_packs and runs_per_week in the brief patch', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      return handler()(sql, params);
+    };
+
+    const result = await updateProjectBrief({
+      projectId: PROJECT,
+      patch: { weeklyVolumePacks: '12000', runsPerWeek: '3.5' },
+    });
+
+    expect(result).toEqual({ ok: true, data: { projectId: PROJECT } });
+    const update = calls.find((c) => /update public\.npd_projects/.test(c.sql));
+    expect(update?.params).toContain('12000');
+    expect(update?.params).toContain('3.5');
+  });
+
   it('updates the folded npd_projects brief columns, audits, and revalidates', async () => {
     const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
     ctx.handler = (sql, params) => {

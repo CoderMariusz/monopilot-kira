@@ -68,6 +68,7 @@ type LoaderResult = {
   lines: ProductionLineOption[];
   recipeMaterials: PilotRecipeMaterialView[];
   pilotWorkOrder: PilotScreenData['pilotWorkOrder'];
+  fgBaseUom: string | null;
 };
 
 type QueryClient = {
@@ -110,11 +111,13 @@ const DEFAULT_LABELS: PilotLabels = {
   planPilotRun: '+ Plan pilot run',
   editPlan: 'Edit plan',
   fieldPlannedDate: 'Planned date',
-  fieldLine: 'Line',
+  fieldLine: 'Production line',
+  fieldLineRequired: 'Production line is required.',
   linePlaceholder: 'Select a line…',
   noLines: 'No production lines configured.',
   selectLineHint: 'Select a line to see ingredient availability.',
-  fieldBatchSize: 'Batch size (kg)',
+  fieldBatchSize: 'Batch size ({unit})',
+  batchUnitLabel: 'kg',
   fieldExpectedYield: 'Expected yield (%)',
   fieldDuration: 'Duration (hours)',
   fieldSupervisor: 'Supervisor',
@@ -136,6 +139,11 @@ const DEFAULT_LABELS: PilotLabels = {
   createPilotWoErrorRecipe: 'Lock the recipe version (or activate a production BOM) before creating a pilot work order.',
   createPilotWoErrorForbidden: 'You do not have permission to create a pilot work order.',
   createPilotWoErrorPlanning: 'Planning rejected the work order',
+  createPilotWoErrorLineRequired: 'Select a production line for the pilot run first.',
+  createPilotWoErrorNoActiveSite: 'The selected line has no active site. Pick a line with a site assigned.',
+  createPilotWoErrorPlanningWrite: 'Your role is missing npd.planning.write — ask an admin to grant it.',
+  createPilotWoErrorDocumentMaskMissing: 'The organization has no WO numbering mask configured (Settings > Documents).',
+  createPilotWoErrorFgItemMissing: 'The FG item record is missing from the item master. Re-create or map the FG candidate.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof PilotLabels>;
@@ -143,9 +151,9 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof PilotLabels>;
 function translateLabel(t: (key: string) => string, key: keyof PilotLabels): string {
   try {
     const value = t(key);
-    return value === key ? DEFAULT_LABELS[key] : value;
+    return value === key ? DEFAULT_LABELS[key] ?? '' : value;
   } catch {
-    return DEFAULT_LABELS[key];
+    return DEFAULT_LABELS[key] ?? '';
   }
 }
 
@@ -217,12 +225,38 @@ async function readRecipeMaterials(
   }
 }
 
+async function readFgBaseUom(projectId: string): Promise<string | null> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as { client: QueryClient };
+      const { rows } = await ctx.client.query<{ uom_base: string | null }>(
+        `select i.uom_base
+           from public.items i
+           join public.npd_projects p
+             on p.id = $1::uuid
+            and p.org_id = i.org_id
+          where i.org_id = app.current_org_id()
+            and i.npd_project_id = p.id
+            and i.item_type = 'fg'
+          order by i.created_at asc
+          limit 1`,
+        [projectId],
+      );
+      return rows[0]?.uom_base ?? null;
+    });
+  } catch (error) {
+    console.error('[pilot] fg base uom read failed:', error);
+    return null;
+  }
+}
+
 async function readPageData(projectId: string): Promise<LoaderResult> {
-  const [{ canWrite, supervisors }, result, lines, pilotWorkOrder] = await Promise.all([
+  const [{ canWrite, supervisors }, result, lines, pilotWorkOrder, fgBaseUom] = await Promise.all([
     readWriteContext(),
     getPilotRun({ projectId }),
     readLines(),
     getPilotWorkOrderLink(projectId),
+    readFgBaseUom(projectId),
   ]);
 
   if (result.ok) {
@@ -236,8 +270,9 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       lines,
       recipeMaterials,
       pilotWorkOrder,
+      fgBaseUom,
     };
-    return { state: 'ready', data, canWrite, supervisors, lines, recipeMaterials, pilotWorkOrder };
+    return { state: 'ready', data, canWrite, supervisors, lines, recipeMaterials, pilotWorkOrder, fgBaseUom };
   }
   switch (result.error) {
     case 'forbidden':
@@ -249,6 +284,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
         lines: [],
         recipeMaterials: [],
         pilotWorkOrder: null,
+        fgBaseUom: null,
       };
     case 'not_found':
       return {
@@ -259,6 +295,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
         lines,
         recipeMaterials: [],
         pilotWorkOrder,
+        fgBaseUom,
       };
     case 'invalid_input':
       return {
@@ -269,6 +306,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
         lines,
         recipeMaterials: [],
         pilotWorkOrder: null,
+        fgBaseUom: null,
       };
     default:
       return {
@@ -279,6 +317,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
         lines,
         recipeMaterials: [],
         pilotWorkOrder: null,
+        fgBaseUom: null,
       };
   }
 }
@@ -358,6 +397,7 @@ export default async function PilotPage(propsInput: unknown = {}) {
         lines: props.data?.lines ?? [],
         recipeMaterials: props.data?.recipeMaterials ?? [],
         pilotWorkOrder: props.data?.pilotWorkOrder ?? null,
+        fgBaseUom: props.data?.fgBaseUom ?? null,
       }
     : await readPageData(projectId);
   const [stageSections, closeSectionLabel, stageDeptLabels] = await Promise.all([

@@ -13,6 +13,7 @@ const SITE_ID = '88888888-8888-4888-8888-888888888888';
 let client: QueryClient;
 let allowPermission = true;
 let hasActiveSite = true;
+let explicitSiteBelongs = true;
 let hasBom = true;
 let bomLineBasis = 'per_base';
 let hasRouting = true;
@@ -43,6 +44,9 @@ function makeClient(): QueryClient {
       // F10 — resolveWriteSiteId reads public.sites (default lookup + single-active
       // fallback). A single active/default site makes the write-site unambiguous.
       if (normalized.includes('from public.sites')) {
+        if (normalized.includes('id = $1::uuid')) {
+          return { rows: explicitSiteBelongs ? [{ id: String(params[0]) }] : [], rowCount: explicitSiteBelongs ? 1 : 0 };
+        }
         return { rows: hasActiveSite ? [{ id: SITE_ID }] : [], rowCount: hasActiveSite ? 1 : 0 };
       }
       if (normalized.startsWith('update public.org_document_settings')) {
@@ -80,9 +84,9 @@ function makeClient(): QueryClient {
               produced_quantity: null,
               uom: String(params[15]),
               status: 'DRAFT',
-              scheduled_start_time: null,
+              scheduled_start_time: params[5] === null ? null : String(params[5]),
               scheduled_end_time: null,
-              production_line_id: null,
+              production_line_id: params[6] === null ? null : String(params[6]),
               machine_id: null,
               priority: 'normal',
               source_of_demand: 'manual',
@@ -151,6 +155,7 @@ describe('createWorkOrder', () => {
   beforeEach(() => {
     allowPermission = true;
     hasActiveSite = true;
+    explicitSiteBelongs = true;
     hasBom = true;
     bomLineBasis = 'per_base';
     hasRouting = true;
@@ -347,6 +352,54 @@ describe('createWorkOrder', () => {
     const [, params] = headerCall as [string, readonly unknown[]];
     // site_id is the 17th bind ($17::uuid) — must be the resolved SITE_ID, not null.
     expect(params[16]).toBe(SITE_ID);
+  });
+
+  it('uses an explicit document number and site without advancing the WO sequence', async () => {
+    const explicitSiteId = '77777777-7777-4777-8777-777777777777';
+    const lineId = '66666666-6666-4666-8666-666666666666';
+
+    const result = await createWorkOrder({
+      productId: PRODUCT_ID,
+      itemCode: 'FG-NPD-004',
+      documentNumber: 'WO-pilot-FG-NPD-004',
+      siteId: explicitSiteId,
+      plannedQuantity: '25.1250',
+      scheduledStartTime: '2026-07-10T00:00:00.000Z',
+      productionLineId: lineId,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.workOrder.woNumber).toBe('WO-pilot-FG-NPD-004');
+    expect(result.workOrder.plannedQuantity).toBe('25.1250');
+    expect(result.workOrder.scheduledStartTime).toBe('2026-07-10T00:00:00.000Z');
+    expect(result.workOrder.productionLineId).toBe(lineId);
+
+    const calls = (client.query as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.some(([sql]: [string]) => String(sql).startsWith('update public.org_document_settings'))).toBe(false);
+    const headerCall = calls.find(([sql]: [string]) =>
+      String(sql).replace(/\s+/g, ' ').toLowerCase().startsWith('insert into public.work_orders'),
+    );
+    expect(headerCall).toBeDefined();
+    const [, params] = headerCall as [string, readonly unknown[]];
+    expect(params[1]).toBe('WO-pilot-FG-NPD-004');
+    expect(params[16]).toBe(explicitSiteId);
+  });
+
+  it('refuses an explicit site outside the current org before inserting the WO', async () => {
+    explicitSiteBelongs = false;
+
+    const result = await createWorkOrder({
+      productId: PRODUCT_ID,
+      itemCode: 'FG-NPD-004',
+      documentNumber: 'WO-pilot-FG-NPD-004',
+      siteId: '77777777-7777-4777-8777-777777777777',
+      plannedQuantity: '25.0000',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'no_active_site' });
+    const calls = (client.query as ReturnType<typeof vi.fn>).mock.calls.map(([sql]: [string]) => String(sql));
+    expect(calls.some((sql: string) => sql.includes('insert into public.work_orders'))).toBe(false);
   });
 
   it('F10: refuses to create with no_active_site instead of writing a null-site WO (fail-closed)', async () => {

@@ -21,7 +21,7 @@
  *  - AC2 chain3 (Recipe_Components): editing recipe_components + Save calls
  *    updateFaCell with the recipe_components column → server fires chain3.
  *  - AC3 chain1 (pack_size): changing pack_size + Save calls updateFaCell with
- *    the pack_size column → server fires chain1 (line + equipment_setup cleared).
+ *    the pack_size column → server fires chain1 (line + dieset cleared).
  *  - read-only red line: ingredient_codes is NOT editable and is NEVER submitted.
  *  - the five required UI states (loading / empty / ready / error / permission_denied).
  *  - i18n: the component renders LABEL VALUES (props), never inline English literals.
@@ -237,7 +237,7 @@ describe('FaCoreTab — AC2 chain3 (Recipe_Components → ProdDetail sync)', () 
   });
 });
 
-describe('FaCoreTab — AC3 chain1 (pack_size → Line + equipment_setup cleared)', () => {
+describe('FaCoreTab — AC3 chain1 (pack_size → Line + dieset cleared)', () => {
   it('Save calls updateFaCell for pack_size when it is changed', async () => {
     const user = userEvent.setup();
     renderReady();

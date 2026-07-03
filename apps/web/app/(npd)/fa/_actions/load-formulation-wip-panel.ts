@@ -40,12 +40,12 @@ type DeptColumnRow = {
 
 const AUTO_DERIVED_KEYS = new Set<string>([
   'ingredient_codes',
-  'equipment_setup',
-  'intermediate_code_p1',
-  'intermediate_code_p2',
-  'intermediate_code_p3',
-  'intermediate_code_p4',
-  'intermediate_code_final',
+  'dieset',
+  'pr_code_p1',
+  'pr_code_p2',
+  'pr_code_p3',
+  'pr_code_p4',
+  'pr_code_final',
 ]);
 const READONLY_ID_KEYS = new Set<string>(['product_code']);
 

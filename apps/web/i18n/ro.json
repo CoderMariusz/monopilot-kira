@@ -1570,6 +1570,53 @@
         "qa_hold_release": "Quality hold release",
         "qa_ncr_close": "Critical NCR close"
       }
+    },
+    "npdChecklist": {
+      "title": "Gate checklists",
+      "subtitle": "Manage the default G0-G4 gate checklist templates copied into new NPD projects.",
+      "read_only_notice": "You can view gate checklist templates but need npd.schema.edit to change them.",
+      "forbidden": "You do not have permission to view gate checklist templates.",
+      "load_error": "Could not load gate checklist templates. Try again.",
+      "propagate": "Propagate to open projects",
+      "propagating": "Propagating…",
+      "propagate_success": "Propagated to {projects} open project(s): {inserted} inserted, {updated} updated, {deleted} unchecked removed.",
+      "propagate_error": "Could not propagate checklist templates to open projects.",
+      "add_item": "Add item",
+      "add_item_title": "Add checklist item",
+      "delete_item": "Delete",
+      "delete_item_title": "Delete checklist item",
+      "delete_item_body": "Remove this item from the org template. Checked items on open projects are preserved when you propagate.",
+      "delete_confirm": "Delete",
+      "delete_cancel": "Cancel",
+      "deleting": "Deleting…",
+      "save": "Save",
+      "cancel": "Cancel",
+      "create": "Add",
+      "saving": "Saving…",
+      "action_error": "Could not save changes. Try again.",
+      "empty_gate": "No checklist items for this gate.",
+      "column_text": "Item",
+      "column_category": "Category",
+      "column_required": "Required",
+      "column_actions": "Actions",
+      "field_gate": "Gate",
+      "field_category": "Category",
+      "field_text": "Item text",
+      "field_required": "Required",
+      "required_yes": "Yes",
+      "required_no": "No",
+      "move_up": "Move up",
+      "move_down": "Move down",
+      "edit_text": "Edit",
+      "validation_text_required": "Item text is required.",
+      "gate_g0": "G0 — Idea",
+      "gate_g1": "G1 — Feasibility",
+      "gate_g2": "G2 — Business case",
+      "gate_g3": "G3 — Development",
+      "gate_g4": "G4 — Testing / handoff",
+      "category_business": "Business",
+      "category_technical": "Technical",
+      "category_compliance": "Compliance"
     }
   },
   "navigation": {
@@ -1757,7 +1804,8 @@
         "docks": "Dock doors",
         "scanner_auth": "Sign-off & PINs",
         "npd_approval": "Approval requirements",
-        "compliance": "Compliance profile"
+        "compliance": "Compliance profile",
+        "npd_checklist": "Gate checklists"
       }
     },
     "npd": {
@@ -5881,7 +5929,9 @@
       "attachUnsupportedType": "Unsupported file type. Allowed: PDF, PNG, JPG, DOCX, XLSX.",
       "attachUploadFailed": "Could not upload the attachment. Please try again.",
       "attachDeleteFailed": "Could not delete the attachment. Please try again.",
-      "fieldPacksPerCase": "Packs per case"
+      "fieldPacksPerCase": "Packs per case",
+      "fieldWeeklyVolumePacks": "Weekly volume (packs/week)",
+      "fieldRunsPerWeek": "Runs per week"
     },
     "sensory": {
       "title": "Panel senzorial",
@@ -5959,7 +6009,14 @@
       "createPilotWoErrorNoFg": "Link a finished-good product to this project before creating a pilot work order.",
       "createPilotWoErrorRecipe": "Lock the recipe version (or activate a production BOM) before creating a pilot work order.",
       "createPilotWoErrorForbidden": "You do not have permission to create a pilot work order.",
-      "createPilotWoErrorPlanning": "Planning rejected the work order"
+      "createPilotWoErrorPlanning": "Planning rejected the work order",
+      "createPilotWoErrorLineRequired": "Select a production line for the pilot run first.",
+      "createPilotWoErrorNoActiveSite": "The selected line has no active site. Pick a line with a site assigned.",
+      "createPilotWoErrorPlanningWrite": "Your role is missing npd.planning.write — ask an admin to grant it.",
+      "createPilotWoErrorDocumentMaskMissing": "The organization has no WO numbering mask configured (Settings > Documents).",
+      "createPilotWoErrorFgItemMissing": "The FG item record is missing from the item master. Re-create or map the FG candidate.",
+      "fieldLineRequired": "Production line is required.",
+      "batchUnitLabel": "kg"
     },
     "trial": {
       "title": "Probe de laborator și bucătărie",
@@ -6082,7 +6139,15 @@
       "artworkTooLarge": "File is larger than 20 MB.",
       "artworkUnsupportedType": "Unsupported file type. Allowed: PDF, PNG, JPG.",
       "artworkUploadFailed": "Could not upload the artwork. Please try again.",
-      "artworkDeleteFailed": "Could not delete the artwork version. Please try again."
+      "artworkDeleteFailed": "Could not delete the artwork version. Please try again.",
+      "colWastePct": "Waste %",
+      "fieldWastePct": "Waste %",
+      "fieldQtyPerBox": "Qty per full box",
+      "fieldQtyPerBoxHelp": "Component quantity declared per one full box (not per pack).",
+      "fieldPacksPerBox": "Packs per box",
+      "fieldPacksPerBoxHelp": "Shared with Brief - number of sellable packs in one full box.",
+      "savePacksPerBox": "Save packs per box",
+      "savingPacksPerBox": "Saving…"
     },
     "stepper": {
       "brief": "Brief",
@@ -6298,7 +6363,11 @@
       "fieldPackWeightPlaceholder": "e.g. 200",
       "startUnavailableHint": "Indisponibil încă",
       "fieldPacksPerCase": "Packs per case",
-      "fieldPacksPerCasePlaceholder": "e.g. 12"
+      "fieldPacksPerCasePlaceholder": "e.g. 12",
+      "fieldWeeklyVolumePacks": "Weekly volume (packs/week)",
+      "fieldWeeklyVolumePacksPlaceholder": "e.g. 5000",
+      "fieldRunsPerWeek": "Runs per week",
+      "fieldRunsPerWeekPlaceholder": "e.g. 3"
     },
     "faBomTab": {
       "title": "BOM (vizualizare calculată)",

@@ -68,6 +68,7 @@ const LABELS: PackagingLabels = {
   colSupplier: 'Supplier',
   colSpec: 'Spec',
   colCostUnit: 'Cost / unit',
+  colWastePct: 'Waste %',
   colStatus: 'Status',
   colActions: 'Actions',
   statusApproved: 'Approved',
@@ -83,6 +84,13 @@ const LABELS: PackagingLabels = {
   fieldSpec: 'Spec',
   fieldCostUnit: 'Cost per unit (€)',
   fieldScrapPct: 'Scrap %',
+  fieldWastePct: 'Waste %',
+  fieldQtyPerBox: 'Qty per full box',
+  fieldQtyPerBoxHelp: 'Per full box',
+  fieldPacksPerBox: 'Packs per box',
+  fieldPacksPerBoxHelp: 'Shared with Brief',
+  savePacksPerBox: 'Save packs per box',
+  savingPacksPerBox: 'Saving…',
   fieldStatus: 'Status',
   fieldTier: 'Tier',
   tierPrimary: 'Primary',
@@ -130,6 +138,7 @@ const PRIMARY: PackagingComponentRow[] = [
     spec: '160×110×35mm',
     costPerUnit: '0.1800',
     scrapPct: 0,
+    wastePct: 2.5,
     status: 'approved',
     artworkFileId: null,
     artworkStatus: null,
@@ -144,6 +153,7 @@ const PRIMARY: PackagingComponentRow[] = [
     spec: '60×40mm',
     costPerUnit: '0.0200',
     scrapPct: 0,
+    wastePct: 2.5,
     status: 'pending_artwork',
     artworkFileId: null,
     artworkStatus: null,
@@ -161,6 +171,7 @@ const SECONDARY: PackagingComponentRow[] = [
     spec: '320×240×80mm',
     costPerUnit: '0.2200',
     scrapPct: 0,
+    wastePct: 2.5,
     status: 'approved',
     artworkFileId: null,
     artworkStatus: null,
@@ -171,6 +182,7 @@ const SECONDARY: PackagingComponentRow[] = [
 const DATA: PackagingScreenData = {
   projectId: '99999999-9999-4999-8999-999999999999',
   productName: 'Sliced Ham 200g',
+  packsPerCase: 12,
   primary: PRIMARY,
   secondary: SECONDARY,
   artwork: { fileName: 'artwork-v2.pdf', uploadedAt: '2025-12-08', fileSize: '3.2 MB' },
@@ -360,6 +372,8 @@ describe('PackagingScreen — add via modal calls the Server Action', () => {
       costPerUnit: '0.18',
       // Scrap % defaults to 0 when the field is left untouched.
       scrapPct: 0,
+      wastePct: 0,
+      qtyPerPack: null,
       status: 'draft',
       // The optional catalog link defaults to null when no item is picked.
       itemId: null,
@@ -443,5 +457,36 @@ describe('PackagingScreen — optimistic delete', () => {
       projectId: DATA.projectId,
     });
     confirmSpy.mockRestore();
+  });
+});
+
+describe('PackagingScreen — unit foundations (W1-L4)', () => {
+  it('renders packs-per-box header bound to project.packs_per_case', () => {
+    renderReady({ canWrite: true, onUpsert: vi.fn(), onUpdatePacksPerCase: vi.fn() });
+    expect(screen.getByTestId('packaging-packs-per-box-header')).toBeInTheDocument();
+    expect(screen.getByTestId('packaging-packs-per-box')).toHaveValue(12);
+  });
+
+  it('shows Waste % column values on primary rows', () => {
+    renderReady();
+    const table = screen.getByTestId('primary-packaging-table');
+    const wasteCells = within(table).getAllByTestId('component-waste-pct');
+    expect(wasteCells[0]).toHaveTextContent('2.5%');
+  });
+
+  it('calls onUpdatePacksPerCase when saving packs per box', async () => {
+    const onUpdatePacksPerCase = vi.fn().mockResolvedValue({ ok: true });
+    renderReady({ canWrite: true, onUpsert: vi.fn(), onUpdatePacksPerCase });
+
+    fireEvent.change(screen.getByTestId('packaging-packs-per-box'), { target: { value: '24' } });
+    fireEvent.click(screen.getByTestId('packaging-save-packs-per-box'));
+
+    await waitFor(() =>
+      expect(onUpdatePacksPerCase).toHaveBeenCalledWith({
+        projectId: DATA.projectId,
+        packsPerCase: 24,
+      }),
+    );
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
   });
 });

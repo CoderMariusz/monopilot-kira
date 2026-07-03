@@ -1584,6 +1584,53 @@
         "qa_hold_release": "Zwolnienie blokady jakości",
         "qa_ncr_close": "Zamknięcie krytycznego NCR"
       }
+    },
+    "npdChecklist": {
+      "title": "Checklisty bramek",
+      "subtitle": "Zarządzaj szablonami checklist bramek G0-G4 kopiowanymi do nowych projektów NPD.",
+      "read_only_notice": "Możesz przeglądać szablony checklist, ale do zmian potrzebujesz npd.schema.edit.",
+      "forbidden": "Nie masz uprawnień do przeglądania szablonów checklist bramek.",
+      "load_error": "Nie udało się wczytać szablonów checklist. Spróbuj ponownie.",
+      "propagate": "Propaguj do otwartych projektów",
+      "propagating": "Propagowanie…",
+      "propagate_success": "Zpropagowano do {projects} otwartych projektów: {inserted} dodanych, {updated} zaktualizowanych, {deleted} nieodhaczonych usuniętych.",
+      "propagate_error": "Nie udało się propagować szablonów do otwartych projektów.",
+      "add_item": "Dodaj pozycję",
+      "add_item_title": "Dodaj pozycję checklisty",
+      "delete_item": "Usuń",
+      "delete_item_title": "Usuń pozycję checklisty",
+      "delete_item_body": "Usuń tę pozycję z szablonu organizacji. Odhaczone pozycje w otwartych projektach są zachowywane przy propagacji.",
+      "delete_confirm": "Usuń",
+      "delete_cancel": "Anuluj",
+      "deleting": "Usuwanie…",
+      "save": "Zapisz",
+      "cancel": "Anuluj",
+      "create": "Dodaj",
+      "saving": "Zapisywanie…",
+      "action_error": "Nie udało się zapisać zmian. Spróbuj ponownie.",
+      "empty_gate": "Brak pozycji checklisty dla tej bramki.",
+      "column_text": "Pozycja",
+      "column_category": "Kategoria",
+      "column_required": "Wymagane",
+      "column_actions": "Akcje",
+      "field_gate": "Bramka",
+      "field_category": "Kategoria",
+      "field_text": "Treść pozycji",
+      "field_required": "Wymagane",
+      "required_yes": "Tak",
+      "required_no": "Nie",
+      "move_up": "Przenieś wyżej",
+      "move_down": "Przenieś niżej",
+      "edit_text": "Edytuj",
+      "validation_text_required": "Treść pozycji jest wymagana.",
+      "gate_g0": "G0 — Pomysł",
+      "gate_g1": "G1 — Wykonalność",
+      "gate_g2": "G2 — Uzasadnienie biznesowe",
+      "gate_g3": "G3 — Rozwój",
+      "gate_g4": "G4 — Testy / przekazanie",
+      "category_business": "Biznes",
+      "category_technical": "Techniczne",
+      "category_compliance": "Zgodność"
     }
   },
   "navigation": {
@@ -1771,7 +1818,8 @@
         "docks": "Bramy dokowe",
         "scanner_auth": "Zatwierdzenia i PIN-y",
         "npd_approval": "Wymagania zatwierdzenia",
-        "compliance": "Profil zgodności"
+        "compliance": "Profil zgodności",
+        "npd_checklist": "Checklisty bramek"
       }
     },
     "npd": {
@@ -5895,7 +5943,9 @@
       "attachUnsupportedType": "Nieobsługiwany typ pliku. Dozwolone: PDF, PNG, JPG, DOCX, XLSX.",
       "attachUploadFailed": "Nie udało się przesłać załącznika. Spróbuj ponownie.",
       "attachDeleteFailed": "Nie udało się usunąć załącznika. Spróbuj ponownie.",
-      "fieldPacksPerCase": "Sztuk w zbiorczym"
+      "fieldPacksPerCase": "Sztuk w zbiorczym",
+      "fieldWeeklyVolumePacks": "Wolumen tygodniowy (paczek/tydzień)",
+      "fieldRunsPerWeek": "Przebiegi na tydzień"
     },
     "sensory": {
       "title": "Panel sensoryczny",
@@ -5973,7 +6023,14 @@
       "createPilotWoErrorNoFg": "Powiąż produkt gotowy (FG) z projektem przed utworzeniem zlecenia pilotażowego.",
       "createPilotWoErrorRecipe": "Zablokuj wersję receptury (lub aktywuj BOM produkcyjny) przed utworzeniem zlecenia pilotażowego.",
       "createPilotWoErrorForbidden": "Brak uprawnień do utworzenia zlecenia pilotażowego.",
-      "createPilotWoErrorPlanning": "Planowanie odrzuciło zlecenie"
+      "createPilotWoErrorPlanning": "Planowanie odrzuciło zlecenie",
+      "createPilotWoErrorLineRequired": "Najpierw wybierz linię produkcyjną dla przebiegu pilotażowego.",
+      "createPilotWoErrorNoActiveSite": "Wybrana linia nie ma aktywnego zakładu. Wybierz linię z przypisanym zakładem.",
+      "createPilotWoErrorPlanningWrite": "Twoja rola nie ma uprawnienia npd.planning.write — poproś administratora o nadanie.",
+      "createPilotWoErrorDocumentMaskMissing": "Organizacja nie ma skonfigurowanej maski numeracji WO (Ustawienia > Dokumenty).",
+      "createPilotWoErrorFgItemMissing": "Brak rekordu FG w kartotece pozycji. Utwórz lub zmapuj kandydata FG ponownie.",
+      "fieldLineRequired": "Linia produkcyjna jest wymagana.",
+      "batchUnitLabel": "kg"
     },
     "trial": {
       "title": "Próby laboratoryjne i kuchenne",
@@ -6096,7 +6153,15 @@
       "artworkTooLarge": "Plik jest większy niż 20 MB.",
       "artworkUnsupportedType": "Nieobsługiwany typ pliku. Dozwolone: PDF, PNG, JPG.",
       "artworkUploadFailed": "Nie udało się przesłać grafiki. Spróbuj ponownie.",
-      "artworkDeleteFailed": "Nie udało się usunąć wersji grafiki. Spróbuj ponownie."
+      "artworkDeleteFailed": "Nie udało się usunąć wersji grafiki. Spróbuj ponownie.",
+      "colWastePct": "Waste %",
+      "fieldWastePct": "Waste %",
+      "fieldQtyPerBox": "Ilość na pełny box",
+      "fieldQtyPerBoxHelp": "Ilość komponentu deklarowana na jeden pełny box (nie na paczkę).",
+      "fieldPacksPerBox": "Paczek w boxie",
+      "fieldPacksPerBoxHelp": "Wspólne z Brief - liczba paczek sprzedażnych w jednym pełnym boxie.",
+      "savePacksPerBox": "Zapisz paczki w boxie",
+      "savingPacksPerBox": "Zapisywanie…"
     },
     "stepper": {
       "brief": "Brief",
@@ -6312,7 +6377,11 @@
       "fieldPackWeightPlaceholder": "np. 200",
       "startUnavailableHint": "Jeszcze niedostępne",
       "fieldPacksPerCase": "Sztuk w zbiorczym",
-      "fieldPacksPerCasePlaceholder": "np. 12"
+      "fieldPacksPerCasePlaceholder": "np. 12",
+      "fieldWeeklyVolumePacks": "Wolumen tygodniowy (paczek/tydzień)",
+      "fieldWeeklyVolumePacksPlaceholder": "np. 5000",
+      "fieldRunsPerWeek": "Przebiegi na tydzień",
+      "fieldRunsPerWeekPlaceholder": "np. 3"
     },
     "faBomTab": {
       "title": "BOM (widok obliczony)",

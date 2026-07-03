@@ -9,7 +9,7 @@
  *     "Blocked: Pack_Size must be filled" alert when locked; one block per
  *     ProdDetail component with a 4-column grid of Process 1..4 (select) +
  *     Yield P1..4 (number) + PR code P1..4 (auto read-only GREEN), then Line *
- *     (select), Dieset/equipment_setup (auto read-only GREEN), Yield Line *
+ *     (select), Dieset/dieset (auto read-only GREEN), Yield Line *
  *     (number), Staffing (text), Rate * (number), PR Code Final (auto read-only
  *     GREEN); a per-component V06 badge; an aggregate (read-only green) summary
  *     row when N>1; and a "Save Production" action row.
@@ -26,14 +26,14 @@
  *
  * Asserts:
  *  - AC1 parity: same regions (lock alert, per-component rows, 4 op dropdowns +
- *    yields + auto PR codes, line + equipment_setup + yield_line + staffing +
+ *    yields + auto PR codes, line + dieset + yield_line + staffing +
  *    rate + final code, V06 badge, aggregate row, action row), shadcn
  *    Input/Select primitives, auto cols read-only GREEN.
  *  - AC2 chain2 (manufacturing_operation_1): editing op1 + Save calls updateFaCell
  *    with the manufacturing_operation_1 column → server fires chain2.
  *  - AC3 chain1 (line): changing line + Save calls updateFaCell with the line
- *    column → server fires chain1 (equipment_setup autofilled).
- *  - read-only red line: intermediate_code_* / equipment_setup are NOT editable
+ *    column → server fires chain1 (dieset autofilled).
+ *  - read-only red line: intermediate_code_* / dieset are NOT editable
  *    and NEVER submitted.
  *  - locked gate: when Pack_Size is missing, every editable control is disabled.
  *  - the five required UI states (loading / empty / ready / error / permission_denied).
@@ -109,9 +109,9 @@ const LABELS: FaProductionTabLabels = {
     intermediate_code_p3: 'PR code P3 (auto)',
     intermediate_code_p4: 'PR code P4 (auto)',
     line: 'Line',
-    equipment_setup: 'Dieset (auto)',
+    dieset: 'Dieset (auto)',
     yield_line: 'Yield Line %',
-    resource_requirement: 'Staffing',
+    staffing: 'Staffing',
     rate: 'Rate',
     intermediate_code_final: 'PR Code Final (auto)',
   },
@@ -193,9 +193,9 @@ const COLUMNS: FaProductionColumn[] = [
   { key: 'operation_yield_4', dataType: 'number', required: false, readOnly: false, displayOrder: 11 },
   { key: 'intermediate_code_p4', dataType: 'text', required: false, readOnly: true, auto: true, displayOrder: 12 },
   { key: 'line', dataType: 'dropdown', required: true, readOnly: false, displayOrder: 13, dropdownSource: 'Lines' },
-  { key: 'equipment_setup', dataType: 'text', required: false, readOnly: true, auto: true, displayOrder: 14 },
+  { key: 'dieset', dataType: 'text', required: false, readOnly: true, auto: true, displayOrder: 14 },
   { key: 'yield_line', dataType: 'number', required: true, readOnly: false, displayOrder: 15 },
-  { key: 'resource_requirement', dataType: 'text', required: false, readOnly: false, displayOrder: 16 },
+  { key: 'staffing', dataType: 'text', required: false, readOnly: false, displayOrder: 16 },
   { key: 'rate', dataType: 'number', required: true, readOnly: false, displayOrder: 17 },
   { key: 'intermediate_code_final', dataType: 'text', required: false, readOnly: true, auto: true, displayOrder: 18 },
 ];
@@ -222,9 +222,9 @@ const ROWS: ProdDetailRow[] = [
       operation_yield_4: null,
       intermediate_code_p4: '',
       line: 'L2',
-      equipment_setup: 'DS-L2',
+      dieset: 'DS-L2',
       yield_line: 92,
-      resource_requirement: '3 op',
+      staffing: '3 op',
       rate: 1100,
       intermediate_code_final: 'PR1939H-MP',
     },
@@ -277,7 +277,7 @@ describe('FaProductionTab — AC1 prototype parity (fa-screens.jsx:571-653)', ()
     // S5b (D6/D9): only the NON-legacy production columns survive the grid; the
     // legacy fixed manufacturing_operation_N / operation_yield_N / intermediate_*
     // / yield_line columns are filtered out (moved into the dynamic process list).
-    const SURVIVING = ['line', 'equipment_setup', 'resource_requirement', 'rate'] as const;
+    const SURVIVING = ['line', 'dieset', 'staffing', 'rate'] as const;
     for (const key of SURVIVING) {
       expect(screen.getAllByText(LABELS.fields[key], { exact: false }).length).toBeGreaterThan(0);
     }
@@ -292,9 +292,9 @@ describe('FaProductionTab — AC1 prototype parity (fa-screens.jsx:571-653)', ()
     expect(container.querySelector('select')).toBeNull();
   });
 
-  it('still renders the surviving equipment_setup (dieset auto) as read-only green', () => {
+  it('still renders the surviving dieset auto field as read-only green', () => {
     renderReady();
-    const dieset = screen.getByLabelText(LABELS.fields.equipment_setup, { exact: false }) as HTMLInputElement;
+    const dieset = screen.getByLabelText(LABELS.fields.dieset, { exact: false }) as HTMLInputElement;
     expect(dieset).toHaveAttribute('readonly');
     expect(dieset.className).toMatch(/green/);
   });
@@ -316,7 +316,7 @@ describe('FaProductionTab — multi-component aggregate row', () => {
       componentLabel: 'Cheese layer',
       componentWeight: 50,
       v06Status: 'warn',
-      values: { ...ROWS[0].values, line: 'L3', equipment_setup: 'DS-L3', intermediate_code_final: 'PR2045A-MP' },
+      values: { ...ROWS[0].values, line: 'L3', dieset: 'DS-L3', intermediate_code_final: 'PR2045A-MP' },
     },
   ];
 
@@ -334,7 +334,7 @@ describe('FaProductionTab — multi-component aggregate row', () => {
   });
 });
 
-describe('FaProductionTab — AC3 chain1 (line → equipment_setup autofilled)', () => {
+describe('FaProductionTab — AC3 chain1 (line → dieset autofilled)', () => {
   it('Save calls updateFaCell for line when it is changed', async () => {
     const user = userEvent.setup();
     renderReady();
@@ -357,7 +357,7 @@ describe('FaProductionTab — AC3 chain1 (line → equipment_setup autofilled)',
 });
 
 describe('FaProductionTab — read-only red line', () => {
-  it('never submits the read-only equipment_setup even when editable fields change', async () => {
+  it('never submits the read-only dieset field even when editable fields change', async () => {
     const user = userEvent.setup();
     renderReady();
     const rateInput = screen.getByLabelText(LABELS.fields.rate, { exact: false });
@@ -367,7 +367,7 @@ describe('FaProductionTab — read-only red line', () => {
 
     const calledColumns = updateFaCellMock.mock.calls.map((c) => c[1]);
     expect(calledColumns).toContain('rate');
-    expect(calledColumns).not.toContain('equipment_setup');
+    expect(calledColumns).not.toContain('dieset');
   });
 
   it('does not call updateFaCell for unchanged fields', async () => {
@@ -604,10 +604,10 @@ describe('FaProductionTab — S5b legacy process columns are filtered out', () =
     expect(document.querySelector('[data-field="intermediate_code_final"]')).toBeNull();
   });
 
-  it('keeps the NON-legacy production columns (line, equipment_setup, resource_requirement, rate)', () => {
+  it('keeps the NON-legacy production columns (line, dieset, staffing, rate)', () => {
     renderS5b();
     expect(screen.getAllByText(S5B_LABELS.fields.line).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(S5B_LABELS.fields.equipment_setup, { exact: false }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(S5B_LABELS.fields.dieset, { exact: false }).length).toBeGreaterThan(0);
     expect(screen.getAllByText(S5B_LABELS.fields.rate, { exact: false }).length).toBeGreaterThan(0);
   });
 

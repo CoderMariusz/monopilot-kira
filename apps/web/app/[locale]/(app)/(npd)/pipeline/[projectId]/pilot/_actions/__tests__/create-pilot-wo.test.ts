@@ -1,7 +1,7 @@
 /**
  * NPD PILOT stage — createPilotWorkOrder unit tests.
  *
- * Mocks withOrgContext + createWorkOrder (canonical planning path). Asserts:
+ * Mocks withOrgContext + createWorkOrderCore (canonical planning path). Asserts:
  * happy path, rejection when no linked FG, idempotency (second call returns
  * existing WO without a second insert).
  */
@@ -12,8 +12,8 @@ type Handler = (sql: string, params: readonly unknown[]) => { rows: unknown[] } 
 
 const handlerHolder: { handler: Handler } = { handler: () => ({ rows: [] }) };
 
-const { createWorkOrderMock } = vi.hoisted(() => ({
-  createWorkOrderMock: vi.fn(),
+const { createWorkOrderCoreMock } = vi.hoisted(() => ({
+  createWorkOrderCoreMock: vi.fn(),
 }));
 
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
@@ -29,8 +29,8 @@ vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
     }),
 }));
 
-vi.mock('../../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/createWorkOrder', () => ({
-  createWorkOrder: createWorkOrderMock,
+vi.mock('../../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-core', () => ({
+  createWorkOrderCore: createWorkOrderCoreMock,
 }));
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
@@ -40,11 +40,13 @@ import { createPilotWorkOrder } from '../create-pilot-wo';
 const PROJECT = '07300000-0000-4000-8000-0000000000c1';
 const ITEM_ID = '07300000-0000-4000-8000-0000000000f1';
 const WO_ID = '07300000-0000-4000-8000-0000000000a1';
+const LINE_ID = '07300000-0000-4000-8000-0000000000d1';
+const SITE_ID = '07300000-0000-4000-8000-0000000000e1';
 const PRODUCT_CODE = 'FG0042';
 
 afterEach(() => {
   handlerHolder.handler = () => ({ rows: [] });
-  createWorkOrderMock.mockReset();
+  createWorkOrderCoreMock.mockReset();
   vi.clearAllMocks();
 });
 
@@ -73,12 +75,12 @@ function seedHappyPath(rest?: Handler): Handler {
       return { rows: [{ id: ITEM_ID, item_code: PRODUCT_CODE }] };
     }
     if (/from public.pilot_runs/.test(sql) && /batch_size_kg/.test(sql)) {
-      return { rows: [{ batch_size_kg: '250.000' }] };
+      return { rows: [{ batch_size_kg: '250.1250', planned_date: '2026-07-10', line: 'LINE-A' }] };
+    }
+    if (/from public.production_lines/.test(sql)) {
+      return { rows: [{ id: LINE_ID, site_id: SITE_ID }] };
     }
     if (/update public.product/.test(sql) && /npd_project_pilot_wo_id/.test(sql)) {
-      return { rows: [] };
-    }
-    if (/update public.work_orders/.test(sql) && /wo_number/.test(sql)) {
       return { rows: [] };
     }
     if (/from public.work_orders/.test(sql) && /id = \$1/.test(sql)) {
@@ -102,25 +104,25 @@ describe('createPilotWorkOrder', () => {
 
     const result = await createPilotWorkOrder({ projectId: PROJECT });
     expect(result).toEqual({ ok: false, error: 'no_linked_fg' });
-    expect(createWorkOrderMock).not.toHaveBeenCalled();
+    expect(createWorkOrderCoreMock).not.toHaveBeenCalled();
   });
 
-  it('creates a pilot WO on the happy path and renames it to WO-pilot-{FG}', async () => {
+  it('creates a pilot WO on the happy path with the pilot document number and explicit line site', async () => {
     handlerHolder.handler = permHandler(['npd.pilot.write'], seedHappyPath());
-    createWorkOrderMock.mockResolvedValue({
+    createWorkOrderCoreMock.mockResolvedValue({
       ok: true,
       workOrder: {
         id: WO_ID,
-        woNumber: 'WO-202607-0007',
+        woNumber: `WO-pilot-${PRODUCT_CODE}`,
         productId: ITEM_ID,
         itemCode: PRODUCT_CODE,
-        plannedQuantity: '250.000',
+        plannedQuantity: '250.1250',
         producedQuantity: null,
         uom: 'kg',
         status: 'DRAFT',
-        scheduledStartTime: null,
+        scheduledStartTime: '2026-07-10T00:00:00.000Z',
         scheduledEndTime: null,
-        productionLineId: null,
+        productionLineId: LINE_ID,
         machineId: null,
         priority: null,
         sourceOfDemand: 'manual',
@@ -140,12 +142,17 @@ describe('createPilotWorkOrder', () => {
       data: { id: WO_ID, woNumber: `WO-pilot-${PRODUCT_CODE}` },
       created: true,
     });
-    expect(createWorkOrderMock).toHaveBeenCalledTimes(1);
-    expect(createWorkOrderMock).toHaveBeenCalledWith(
+    expect(createWorkOrderCoreMock).toHaveBeenCalledTimes(1);
+    expect(createWorkOrderCoreMock).toHaveBeenCalledWith(
+      expect.objectContaining({ orgId: '07300000-0000-4000-8000-00000000000a' }),
       expect.objectContaining({
         productId: ITEM_ID,
         itemCode: PRODUCT_CODE,
-        plannedQuantity: '250.000',
+        documentNumber: `WO-pilot-${PRODUCT_CODE}`,
+        siteId: SITE_ID,
+        plannedQuantity: '250.1250',
+        scheduledStartTime: '2026-07-10T00:00:00.000Z',
+        productionLineId: LINE_ID,
       }),
     );
   });
@@ -181,6 +188,93 @@ describe('createPilotWorkOrder', () => {
       data: { id: WO_ID, woNumber: `WO-pilot-${PRODUCT_CODE}` },
       created: false,
     });
-    expect(createWorkOrderMock).not.toHaveBeenCalled();
+    expect(createWorkOrderCoreMock).not.toHaveBeenCalled();
+  });
+
+  it('requires a pilot production line before creating the WO', async () => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
+      if (/from public.npd_projects/.test(sql)) {
+        return { rows: [{ id: PROJECT, product_code: PRODUCT_CODE }] };
+      }
+      if (/from public.product/.test(sql) && /private_jsonb/.test(sql)) {
+        return { rows: [{ private_jsonb: {} }] };
+      }
+      if (/from public.work_orders/.test(sql) && /wo_number/.test(sql)) {
+        return { rows: [] };
+      }
+      if (/from public.formulation_versions/.test(sql) && /locked/.test(sql)) {
+        return { rows: [{ ok: true }] };
+      }
+      if (/from public.items/.test(sql) && /item_code/.test(sql)) {
+        return { rows: [{ id: ITEM_ID, item_code: PRODUCT_CODE }] };
+      }
+      if (/from public.pilot_runs/.test(sql) && /batch_size_kg/.test(sql)) {
+        return { rows: [{ batch_size_kg: '25.0000', planned_date: '2026-07-10', line: null }] };
+      }
+      return { rows: [] };
+    });
+
+    const result = await createPilotWorkOrder({ projectId: PROJECT });
+
+    expect(result).toEqual({ ok: false, error: 'line_required' });
+    expect(createWorkOrderCoreMock).not.toHaveBeenCalled();
+  });
+
+  it('returns fg_item_missing when the product code has no public.items row', async () => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
+      if (/from public.npd_projects/.test(sql)) {
+        return { rows: [{ id: PROJECT, product_code: PRODUCT_CODE }] };
+      }
+      if (/from public.product/.test(sql) && /private_jsonb/.test(sql)) {
+        return { rows: [{ private_jsonb: {} }] };
+      }
+      if (/from public.work_orders/.test(sql) && /wo_number/.test(sql)) {
+        return { rows: [] };
+      }
+      if (/from public.formulation_versions/.test(sql) && /locked/.test(sql)) {
+        return { rows: [{ ok: true }] };
+      }
+      if (/from public.pilot_runs/.test(sql) && /batch_size_kg/.test(sql)) {
+        return { rows: [{ batch_size_kg: '25.0000', planned_date: '2026-07-10', line: 'LINE-A' }] };
+      }
+      return { rows: [] };
+    });
+
+    const result = await createPilotWorkOrder({ projectId: PROJECT });
+
+    expect(result).toEqual({ ok: false, error: 'fg_item_missing' });
+    expect(createWorkOrderCoreMock).not.toHaveBeenCalled();
+  });
+
+  it('surfaces planning permission failures distinctly while preserving the core error', async () => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], seedHappyPath());
+    createWorkOrderCoreMock.mockResolvedValue({ ok: false, error: 'forbidden' });
+
+    const result = await createPilotWorkOrder({ projectId: PROJECT });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'forbidden_planning_write',
+      planningError: 'forbidden',
+      message: 'forbidden',
+    });
+  });
+
+  it.each([
+    ['no_active_site', 'no_active_site'],
+    ['document_mask_missing', 'document_mask_missing'],
+    ['persistence_failed', 'wo_create_failed'],
+  ] as const)('maps core %s to pilot %s and preserves the inner planning error', async (planningError, pilotError) => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], seedHappyPath());
+    createWorkOrderCoreMock.mockResolvedValue({ ok: false, error: planningError });
+
+    const result = await createPilotWorkOrder({ projectId: PROJECT });
+
+    expect(result).toEqual({
+      ok: false,
+      error: pilotError,
+      planningError,
+      message: planningError,
+    });
   });
 });

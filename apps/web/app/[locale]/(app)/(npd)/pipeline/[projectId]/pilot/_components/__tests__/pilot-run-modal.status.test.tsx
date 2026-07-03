@@ -32,9 +32,11 @@ const LABELS = {
   planPilotRun: 'lbl.planPilotRun',
   fieldPlannedDate: 'lbl.fieldPlannedDate',
   fieldLine: 'lbl.fieldLine',
+  fieldLineRequired: 'lbl.fieldLineRequired',
   linePlaceholder: 'lbl.linePlaceholder',
   noLines: 'lbl.noLines',
-  fieldBatchSize: 'lbl.fieldBatchSize',
+  fieldBatchSize: 'Batch size ({unit})',
+  batchUnitLabel: 'kg',
   fieldExpectedYield: 'lbl.fieldExpectedYield',
   fieldDuration: 'lbl.fieldDuration',
   fieldSupervisor: 'lbl.fieldSupervisor',
@@ -62,6 +64,17 @@ const RUN: PilotRunView = {
   status: 'planned',
 };
 
+const LINES = [
+  {
+    id: 'line-1',
+    code: 'L1',
+    name: 'Line 1',
+    warehouseId: 'wh-1',
+    siteCode: 'PL01',
+    siteName: 'Plant 1',
+  },
+];
+
 describe('PilotRunModal — status control (gap 1)', () => {
   it('renders a Status select in edit mode (no raw <select>)', () => {
     const { container } = render(
@@ -71,7 +84,7 @@ describe('PilotRunModal — status control (gap 1)', () => {
         labels={LABELS}
         run={RUN}
         supervisors={[]}
-        lines={[]}
+        lines={LINES}
         onSubmit={async () => ({ ok: true })}
       />,
     );
@@ -91,23 +104,61 @@ describe('PilotRunModal — status control (gap 1)', () => {
         labels={LABELS}
         run={RUN}
         supervisors={[]}
-        lines={[]}
+        lines={LINES}
         onSubmit={onSubmit}
       />,
     );
 
     const field = screen.getByTestId('pilot-status-field');
     await user.click(within(field).getByRole('combobox'));
-    // The listbox is portaled to <body>; jsdom flags its options pointer-events:none,
-    // so dispatch a plain click to select the option.
     fireEvent.click(screen.getByRole('option', { name: LABELS.statusCompleted }));
+
+    const lineField = screen.getByTestId('pilot-line-field');
+    await user.click(within(lineField).getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: /L1 — Line 1 · PL01/ }));
 
     await user.click(screen.getByTestId('pilot-run-submit'));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'completed' }),
+      expect.objectContaining({ status: 'completed', line: 'L1' }),
     );
+  });
+
+  it('shows batch size label with the FG base unit', () => {
+    render(
+      <PilotRunModal
+        open
+        onOpenChange={() => {}}
+        labels={LABELS}
+        run={RUN}
+        supervisors={[]}
+        lines={LINES}
+        batchUnitLabel="each"
+        onSubmit={async () => ({ ok: true })}
+      />,
+    );
+    expect(screen.getByLabelText('Batch size (each)')).toBeInTheDocument();
+  });
+
+  it('blocks submit when production line is empty', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn(async () => ({ ok: true as const }));
+    render(
+      <PilotRunModal
+        open
+        onOpenChange={() => {}}
+        labels={LABELS}
+        run={{ ...RUN, line: '' }}
+        supervisors={[]}
+        lines={LINES}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await user.click(screen.getByTestId('pilot-run-submit'));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByTestId('pilot-run-error')).toBeInTheDocument();
   });
 
   it('pre-fills the status from the existing run', () => {
@@ -118,7 +169,7 @@ describe('PilotRunModal — status control (gap 1)', () => {
         labels={LABELS}
         run={{ ...RUN, status: 'in_progress' }}
         supervisors={[]}
-        lines={[]}
+        lines={LINES}
         onSubmit={async () => ({ ok: true })}
       />,
     );

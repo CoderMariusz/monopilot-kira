@@ -61,9 +61,11 @@ export type WizardCloneAction = (input: {
     targetLaunch: string | null;
     packFormat: string | null;
     packWeightG: number | null;
-    /** Packs per case — optional non-negative integer; omitted when empty. */
-    packsPerCase?: number | null;
-    salesChannel: string | null;
+  /** Packs per case — optional non-negative integer; omitted when empty. */
+  packsPerCase?: number | null;
+  weeklyVolumePacks?: number | null;
+  runsPerWeek?: number | null;
+  salesChannel: string | null;
     expectedVolume: string | null;
     targetRetailPriceEur: number | null;
     targetAudience: string | null;
@@ -84,6 +86,10 @@ export type WizardCreateAction = (input: {
   packWeightG: number | null;
   /** Packs per case — optional non-negative integer; omitted when empty. */
   packsPerCase?: number | null;
+  /** Weekly volume in packs — optional non-negative decimal. */
+  weeklyVolumePacks?: number | null;
+  /** Production runs per week — optional non-negative decimal. */
+  runsPerWeek?: number | null;
   salesChannel: string | null;
   expectedVolume: string | null;
   targetRetailPriceEur: number | null;
@@ -116,6 +122,10 @@ export type WizardLabels = {
   fieldPackWeightPlaceholder: string;
   fieldPacksPerCase: string;
   fieldPacksPerCasePlaceholder: string;
+  fieldWeeklyVolumePacks: string;
+  fieldWeeklyVolumePacksPlaceholder: string;
+  fieldRunsPerWeek: string;
+  fieldRunsPerWeekPlaceholder: string;
   fieldSalesChannel: string;
   fieldVolume: string;
   fieldVolumePlaceholder: string;
@@ -186,6 +196,8 @@ type FormState = {
   packFormat: string;
   packWeightG: string;
   packsPerCase: string;
+  weeklyVolumePacks: string;
+  runsPerWeek: string;
   salesChannel: string;
   expectedVolume: string;
   targetRetailPriceEur: string;
@@ -205,6 +217,8 @@ const INITIAL_FORM: FormState = {
   packFormat: '',
   packWeightG: '',
   packsPerCase: '',
+  weeklyVolumePacks: '',
+  runsPerWeek: '',
   salesChannel: SALES_CHANNEL_VALUES[0],
   expectedVolume: '',
   targetRetailPriceEur: '',
@@ -318,10 +332,11 @@ export function CreateProjectWizard({
             type: form.type,
             targetLaunch: nullable(form.targetLaunch),
             packFormat: nullable(form.packFormat),
-            packWeightG: parseEur(form.packWeightG),
-            // Empty → omitted so a cloned source value isn't clobbered to null.
-            ...packsPerCaseField(form.packsPerCase),
-            salesChannel: form.salesChannel,
+        packWeightG: parseEur(form.packWeightG),
+        ...packsPerCaseField(form.packsPerCase),
+        weeklyVolumePacks: parseEur(form.weeklyVolumePacks),
+        runsPerWeek: parseEur(form.runsPerWeek),
+        salesChannel: form.salesChannel,
             expectedVolume: nullable(form.expectedVolume),
             targetRetailPriceEur: parseEur(form.targetRetailPriceEur),
             targetAudience: nullable(form.targetAudience),
@@ -357,8 +372,9 @@ export function CreateProjectWizard({
         targetLaunch: nullable(form.targetLaunch),
         packFormat: nullable(form.packFormat),
         packWeightG: parseEur(form.packWeightG),
-        // Empty → omitted (optional); a parsed integer is sent through to the FG.
         ...packsPerCaseField(form.packsPerCase),
+        weeklyVolumePacks: parseEur(form.weeklyVolumePacks),
+        runsPerWeek: parseEur(form.runsPerWeek),
         salesChannel: form.salesChannel,
         expectedVolume: nullable(form.expectedVolume),
         targetRetailPriceEur: parseEur(form.targetRetailPriceEur),
@@ -575,6 +591,42 @@ export function CreateProjectWizard({
                 placeholder={labels.fieldPacksPerCasePlaceholder}
                 value={form.packsPerCase}
                 onChange={(e) => update('packsPerCase', e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="ff-inline">
+            <div className="ff">
+              <label htmlFor="wiz-weekly-volume">
+                {labels.fieldWeeklyVolumePacks} <span className="req" aria-label="required">*</span>
+              </label>
+              <input
+                id="wiz-weekly-volume"
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                required
+                placeholder={labels.fieldWeeklyVolumePacksPlaceholder}
+                value={form.weeklyVolumePacks}
+                onChange={(e) => update('weeklyVolumePacks', e.target.value)}
+                data-testid="wiz-weekly-volume"
+              />
+            </div>
+            <div className="ff">
+              <label htmlFor="wiz-runs-per-week">
+                {labels.fieldRunsPerWeek} <span className="req" aria-label="required">*</span>
+              </label>
+              <input
+                id="wiz-runs-per-week"
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                required
+                placeholder={labels.fieldRunsPerWeekPlaceholder}
+                value={form.runsPerWeek}
+                onChange={(e) => update('runsPerWeek', e.target.value)}
+                data-testid="wiz-runs-per-week"
               />
             </div>
           </div>

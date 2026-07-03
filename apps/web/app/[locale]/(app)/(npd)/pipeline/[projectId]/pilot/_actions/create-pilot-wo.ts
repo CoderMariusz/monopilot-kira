@@ -3,15 +3,15 @@
 /**
  * NPD PILOT stage — create (or return) the pilot work order for a project.
  *
- * Calls the canonical planning `createWorkOrder` action (08-production / planning
- * owner) — never inserts into work_orders directly. Links the WO back on
+ * Calls the canonical planning work-order core (08-production / planning owner)
+ * inside this org transaction — never inserts into work_orders directly. Links the WO back on
  * `product.private_jsonb.npd_project_pilot_wo_id`, which close-out reads
  * (`close-out-legacy-stages.ts:resolvePilotEvidence`).
  */
 
 import { z } from 'zod';
 
-import { createWorkOrder } from '../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/createWorkOrder';
+import { createWorkOrderCore } from '../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-core';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import { hasPilotPermission } from './get-pilot-run';
@@ -21,24 +21,27 @@ const Input = z.object({
   projectId: z.string().uuid(),
 });
 
-export type CreatePilotWoInput = z.infer<typeof Input>;
-
-export type CreatePilotWoError =
+type CreatePilotWoError =
   | 'invalid_input'
   | 'forbidden'
   | 'not_found'
   | 'no_linked_fg'
   | 'recipe_not_ready'
   | 'no_planned_quantity'
+  | 'line_required'
+  | 'no_active_site'
+  | 'forbidden_planning_write'
+  | 'document_mask_missing'
+  | 'fg_item_missing'
   | 'wo_create_failed'
   | 'persistence_failed';
 
-export type PilotWorkOrderLink = {
+type PilotWorkOrderLink = {
   id: string;
   woNumber: string;
 };
 
-export type CreatePilotWoResult =
+type CreatePilotWoResult =
   | { ok: true; data: PilotWorkOrderLink; created: boolean }
   | { ok: false; error: CreatePilotWoError; message?: string; planningError?: string };
 
@@ -66,10 +69,13 @@ type ItemRow = {
 
 type PilotRunQtyRow = {
   batch_size_kg: string | null;
+  planned_date: string | null;
+  line: string | null;
 };
 
 type LineRow = {
   id: string;
+  site_id: string | null;
 };
 
 function stringFromPrivateJson(source: Record<string, unknown> | null, key: string): string | null {
@@ -204,9 +210,11 @@ async function hasActiveProductionBom(ctx: OrgCtx, productCode: string): Promise
   return rows.length > 0;
 }
 
-async function loadPilotBatchQty(ctx: OrgCtx, projectId: string): Promise<string | null> {
+async function loadLatestPilotRunPlan(ctx: OrgCtx, projectId: string): Promise<PilotRunQtyRow | null> {
   const { rows } = await ctx.client.query<PilotRunQtyRow>(
-    `select batch_size_kg::text as batch_size_kg
+    `select batch_size_kg::text as batch_size_kg,
+            planned_date::text as planned_date,
+            line
        from public.pilot_runs
       where org_id = app.current_org_id()
         and project_id = $1::uuid
@@ -214,64 +222,20 @@ async function loadPilotBatchQty(ctx: OrgCtx, projectId: string): Promise<string
       limit 1`,
     [projectId],
   );
-  const qty = rows[0]?.batch_size_kg?.trim();
-  if (!qty || !/^\d+(\.\d{1,3})?$/.test(qty) || Number(qty) <= 0) return null;
-  return qty;
+  return rows[0] ?? null;
 }
 
-async function resolveProductionLineId(ctx: OrgCtx, projectId: string): Promise<string | undefined> {
-  const { rows } = await ctx.client.query<{ line: string | null }>(
-    `select line
-       from public.pilot_runs
-      where org_id = app.current_org_id()
-        and project_id = $1::uuid
-      order by planned_date desc nulls last, created_at desc
-      limit 1`,
-    [projectId],
-  );
-  const lineCode = rows[0]?.line?.trim();
-  if (!lineCode) return undefined;
-
+async function resolveProductionLine(ctx: OrgCtx, lineCode: string): Promise<LineRow | null> {
   const lineRes = await ctx.client.query<LineRow>(
-    `select id::text as id
+    `select id::text as id, site_id::text as site_id
        from public.production_lines
       where org_id = app.current_org_id()
         and code = $1
+        and status = 'active'
       limit 1`,
     [lineCode],
   );
-  return lineRes.rows[0]?.id;
-}
-
-async function applyPilotWoNumber(
-  ctx: OrgCtx,
-  woId: string,
-  targetNumber: string,
-): Promise<PilotWorkOrderLink> {
-  const current = await loadWorkOrderById(ctx, woId);
-  if (!current) throw new Error('pilot_wo_missing_after_create');
-  if (current.woNumber === targetNumber) return current;
-
-  try {
-    await ctx.client.query(
-      `update public.work_orders
-          set wo_number = $2,
-              updated_by = $3::uuid
-        where org_id = app.current_org_id()
-          and id = $1::uuid`,
-      [woId, targetNumber, ctx.userId],
-    );
-    return { id: woId, woNumber: targetNumber };
-  } catch (error) {
-    const pgCode = typeof error === 'object' && error !== null && 'code' in error
-      ? String((error as { code?: unknown }).code)
-      : '';
-    if (pgCode === '23505') {
-      const existing = await loadWorkOrderByNumber(ctx, targetNumber);
-      if (existing) return existing;
-    }
-    throw error;
-  }
+  return lineRes.rows[0] ?? null;
 }
 
 /** Read the linked pilot WO for display (idempotent with closeout evidence). */
@@ -327,54 +291,68 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
         return { ok: true as const, data: existing, created: false };
       }
 
-      const [lockedRecipe, activeBom, item, batchQty, productionLineId] = await Promise.all([
+      const [lockedRecipe, activeBom, item, pilotRun] = await Promise.all([
         hasLockedRecipe(ctx, projectId),
         hasActiveProductionBom(ctx, productCode),
         loadFgItem(ctx, productCode),
-        loadPilotBatchQty(ctx, projectId),
-        resolveProductionLineId(ctx, projectId),
+        loadLatestPilotRunPlan(ctx, projectId),
       ]);
 
       if (!lockedRecipe && !activeBom) {
         return { ok: false as const, error: 'recipe_not_ready' as const };
       }
       if (!item) {
-        return { ok: false as const, error: 'no_linked_fg' as const };
+        return { ok: false as const, error: 'fg_item_missing' as const };
       }
 
-      const plannedQuantity = batchQty ?? '1.000';
-      if (!/^\d+(\.\d{1,3})?$/.test(plannedQuantity) || Number(plannedQuantity) <= 0) {
+      const plannedQuantity = pilotRun?.batch_size_kg?.trim() ?? '';
+      if (!/^\d+(\.\d{1,4})?$/.test(plannedQuantity) || Number(plannedQuantity) <= 0) {
         return { ok: false as const, error: 'no_planned_quantity' as const };
       }
 
       const targetWoNumber = buildPilotWoNumber(productCode);
-      const createResult = await createWorkOrder({
+      const lineCode = pilotRun?.line?.trim();
+      if (!lineCode) return { ok: false as const, error: 'line_required' as const };
+
+      const productionLine = await resolveProductionLine(ctx, lineCode);
+      if (!productionLine) return { ok: false as const, error: 'line_required' as const };
+      if (!productionLine.site_id) return { ok: false as const, error: 'no_active_site' as const };
+
+      const createResult = await createWorkOrderCore(ctx, {
         productId: item.id,
         itemCode: item.item_code,
+        documentNumber: targetWoNumber,
+        siteId: productionLine.site_id,
         plannedQuantity,
-        quantityEntered: plannedQuantity,
-        quantityEnteredUom: 'base',
-        productionLineId,
+        scheduledStartTime: pilotRun?.planned_date ? `${pilotRun.planned_date}T00:00:00.000Z` : undefined,
+        productionLineId: productionLine.id,
         notes: `NPD pilot WO for project ${projectId}`,
       });
 
       if (!createResult.ok) {
+        const error = createResult.error === 'forbidden'
+          ? 'forbidden_planning_write'
+          : createResult.error === 'no_active_site'
+            ? 'no_active_site'
+            : createResult.error === 'document_mask_missing'
+              ? 'document_mask_missing'
+              : 'wo_create_failed';
         return {
           ok: false as const,
-          error: 'wo_create_failed' as const,
+          error,
           planningError: createResult.error,
           message: createResult.error,
         };
       }
 
-      const renamed = await applyPilotWoNumber(ctx, createResult.workOrder.id, targetWoNumber);
-      await linkPilotWoToProduct(ctx, productCode, renamed.id);
+      const link = { id: createResult.workOrder.id, woNumber: createResult.workOrder.woNumber };
+      await linkPilotWoToProduct(ctx, productCode, link.id);
 
       revalidateLocalized(`/pipeline/${projectId}/pilot`);
       revalidateLocalized('/planning/work-orders');
-      revalidateLocalized(`/production/wos/${renamed.id}`);
+      revalidateLocalized(`/production/wos/${link.id}`);
 
-      return { ok: true as const, data: renamed, created: true };
+      return { ok: true as const, data: link, created: true };
     });
   } catch (error) {
     console.error('[createPilotWorkOrder] failed:', error);

@@ -59,6 +59,10 @@ export const SETTINGS_NAV_GROUPS = [
     // not a URL-only dead-end. RBAC (npd.schema.edit) is enforced server-side on
     // the page/actions; the nav stays ungated per the UI-128 RBAC_TODO contract.
     item("npd-approval", "Approval requirements", "✔", false, "/settings/npd-approval"),
+    // NPD gate checklist templates — per-org G0–G4 items copied into new projects.
+    // Sits next to NPD fields / approval requirements; RBAC (npd.schema.edit) is
+    // enforced server-side on the page/actions; nav stays ungated per UI-128.
+    item("npd-checklist", "Gate checklists", "☑", false, "/settings/npd-checklist"),
     item("boms", "BOMs & recipes", "⛓"),
     item("processes", "Processes", "⟶", true),
     item("machines", "Machines", "⚙"),

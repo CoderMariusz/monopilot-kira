@@ -30,6 +30,7 @@ import { useRouter } from 'next/navigation';
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '@monopilot/ui/Card';
+import Input from '@monopilot/ui/Input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { PackagingComponentModal } from './packaging-component-modal';
@@ -71,6 +72,8 @@ export type ArtworkView = {
 export type PackagingScreenData = {
   projectId: string;
   productName: string;
+  /** Shared with Brief — packs per full box (npd_projects.packs_per_case). */
+  packsPerCase: number | null;
   primary: PackagingComponentRow[];
   secondary: PackagingComponentRow[];
   /** Optional artwork metadata (nullable until a file is attached). */
@@ -92,6 +95,7 @@ export type PackagingLabels = {
   colSupplier: string;
   colSpec: string;
   colCostUnit: string;
+  colWastePct: string;
   colStatus: string;
   colActions: string;
   statusApproved: string;
@@ -120,6 +124,13 @@ export type PackagingLabels = {
   fieldSpec: string;
   fieldCostUnit: string;
   fieldScrapPct: string;
+  fieldWastePct: string;
+  fieldQtyPerBox: string;
+  fieldQtyPerBoxHelp: string;
+  fieldPacksPerBox: string;
+  fieldPacksPerBoxHelp: string;
+  savePacksPerBox: string;
+  savingPacksPerBox: string;
   fieldStatus: string;
   fieldTier: string;
   tierPrimary: string;
@@ -159,6 +170,8 @@ export type UpsertCall = {
   costPerUnit: string | null;
   /** % lost to damage/setup during packing (0..100). */
   scrapPct: number;
+  /** Costing loss factor (0..100). */
+  wastePct: number;
   status: PackagingStatus;
   /** Optional FK to a `packaging` item in the catalog (item picker). */
   itemId?: string | null;
@@ -513,6 +526,7 @@ export function PackagingScreen({
   onUploadArtwork,
   onDeleteArtwork,
   searchItemsAction,
+  onUpdatePacksPerCase,
 }: {
   state?: PageState;
   data: PackagingScreenData | null;
@@ -526,13 +540,25 @@ export function PackagingScreen({
   onDeleteArtwork?: (call: ArtworkDeleteCall) => Promise<MutationOutcome>;
   /** Org-scoped item search seam for the optional packaging catalog picker. */
   searchItemsAction?: ItemSearchFn;
+  /** Persist npd_projects.packs_per_case from the packaging header. */
+  onUpdatePacksPerCase?: (call: { projectId: string; packsPerCase: number }) => Promise<MutationOutcome>;
 }) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<PackagingComponentRow | null>(null);
   const [defaultTier, setDefaultTier] = React.useState<PackagingTier>('primary');
+  const [packsPerCaseInput, setPacksPerCaseInput] = React.useState('');
+  const [packsPerCaseSaving, setPacksPerCaseSaving] = React.useState(false);
   // Optimistic: ids currently being deleted are visually dimmed/removed.
   const [pendingDeletes, setPendingDeletes] = React.useState<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    if (data?.packsPerCase != null) {
+      setPacksPerCaseInput(String(data.packsPerCase));
+    } else {
+      setPacksPerCaseInput('');
+    }
+  }, [data?.packsPerCase, data?.projectId]);
 
   // After a successful mutation the write Server Action has already
   // revalidatePath'd on the server; router.refresh() re-runs the RSC loader so
@@ -596,7 +622,22 @@ export function PackagingScreen({
   // "+ Add component" affordances; this inline hint replaces the old dead-end
   // empty card so a write-capable user is never stranded with no buttons.
   const noComponents = visiblePrimary.length === 0 && visibleSecondary.length === 0;
-  const primaryColSpan = canWrite ? 7 : 6;
+  const primaryColSpan = canWrite ? 8 : 7;
+
+  async function handleSavePacksPerCase() {
+    if (!onUpdatePacksPerCase || !data || packsPerCaseSaving) return;
+    const trimmed = packsPerCaseInput.trim();
+    const parsed = trimmed === '' ? NaN : Number(trimmed);
+    if (!Number.isInteger(parsed) || parsed < 0) return;
+    setPacksPerCaseSaving(true);
+    const result = await onUpdatePacksPerCase({ projectId: data.projectId, packsPerCase: parsed });
+    setPacksPerCaseSaving(false);
+    if (result.ok) handleMutated();
+  }
+
+  const packsPerCaseDirty =
+    data != null &&
+    (data.packsPerCase == null ? packsPerCaseInput.trim() !== '' : String(data.packsPerCase) !== packsPerCaseInput.trim());
 
   return (
     <main
@@ -612,6 +653,38 @@ export function PackagingScreen({
           {labels.title} — {data.productName}
         </h1>
         <p className="mt-1 text-sm muted">{labels.subtitle}</p>
+        <div
+          className="mt-3 flex flex-wrap items-end gap-3"
+          data-testid="packaging-packs-per-box-header"
+        >
+          <label className="field" style={{ minWidth: 160 }}>
+            <span className="field__label text-[10px] font-semibold uppercase tracking-wide">
+              {labels.fieldPacksPerBox}
+            </span>
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              inputMode="numeric"
+              value={packsPerCaseInput}
+              onChange={(e) => setPacksPerCaseInput(e.target.value)}
+              disabled={!canWrite || !onUpdatePacksPerCase}
+              data-testid="packaging-packs-per-box"
+            />
+            <span className="text-xs text-muted">{labels.fieldPacksPerBoxHelp}</span>
+          </label>
+          {canWrite && onUpdatePacksPerCase ? (
+            <Button
+              type="button"
+              className="btn-secondary btn-sm"
+              disabled={packsPerCaseSaving || !packsPerCaseDirty}
+              onClick={() => void handleSavePacksPerCase()}
+              data-testid="packaging-save-packs-per-box"
+            >
+              {packsPerCaseSaving ? labels.savingPacksPerBox : labels.savePacksPerBox}
+            </Button>
+          ) : null}
+        </div>
       </header>
 
       {/* ── Primary packaging table ─────────────────────────────────────────── */}
@@ -638,6 +711,7 @@ export function PackagingScreen({
                 <TableHead>{labels.colSupplier}</TableHead>
                 <TableHead>{labels.colSpec}</TableHead>
                 <TableHead>{labels.colCostUnit}</TableHead>
+                <TableHead>{labels.colWastePct}</TableHead>
                 <TableHead>{labels.colStatus}</TableHead>
                 {canWrite && <TableHead>{labels.colActions}</TableHead>}
               </TableRow>
@@ -676,6 +750,9 @@ export function PackagingScreen({
                   <TableCell className="mono">{row.spec ?? labels.emDash}</TableCell>
                   <TableCell className="mono num" data-testid="component-cost">
                     {formatMoney(row.costPerUnit, labels.emDash)}
+                  </TableCell>
+                  <TableCell className="mono num" data-testid="component-waste-pct">
+                    {row.wastePct}%
                   </TableCell>
                   <TableCell>
                     <Badge

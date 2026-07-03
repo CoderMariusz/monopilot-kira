@@ -78,6 +78,8 @@ const DEFAULT_LABELS: ProjectBriefLabels = {
   fieldPackFormat: 'Pack format',
   fieldPackWeight: 'Pack weight (g)',
   fieldPacksPerCase: 'Packs per case',
+  fieldWeeklyVolumePacks: 'Weekly volume (packs/week)',
+  fieldRunsPerWeek: 'Runs per week',
   fieldSalesChannel: 'Sales channel',
   fieldExpectedVolume: 'Expected volume',
   fieldTargetAudience: 'Target audience',

@@ -47,6 +47,9 @@ export type ProductionLineOption = {
   code: string;
   name: string;
   warehouseId: string | null;
+  siteId?: string | null;
+  siteCode?: string | null;
+  siteName?: string | null;
 };
 
 /**
@@ -112,6 +115,8 @@ export type PilotScreenData = {
   recipeMaterials?: PilotRecipeMaterialView[];
   /** Production-line options for the run-plan "Line" dropdown. */
   lines?: ProductionLineOption[];
+  /** FG base UOM for batch-size display (from linked item.uom_base). */
+  fgBaseUom?: string | null;
 };
 
 export type PilotLabels = {
@@ -154,6 +159,7 @@ export type PilotLabels = {
   // Modal fields.
   fieldPlannedDate: string;
   fieldLine: string;
+  fieldLineRequired: string;
   /** Placeholder for the "Line" dropdown when nothing is selected. */
   linePlaceholder: string;
   /** Empty-state copy when the org has no production lines configured. */
@@ -161,6 +167,8 @@ export type PilotLabels = {
   /** Hint shown above the materials table until a line is chosen. */
   selectLineHint: string;
   fieldBatchSize: string;
+  /** FG base unit for batch label interpolation, e.g. "kg" / "each". */
+  batchUnitLabel: string;
   fieldExpectedYield: string;
   fieldDuration: string;
   fieldSupervisor: string;
@@ -187,6 +195,12 @@ export type PilotLabels = {
   createPilotWoErrorRecipe: string;
   createPilotWoErrorForbidden: string;
   createPilotWoErrorPlanning: string;
+  // W1-L2 specific error surfaces (optional: pages may omit; mapper falls back).
+  createPilotWoErrorLineRequired?: string;
+  createPilotWoErrorNoActiveSite?: string;
+  createPilotWoErrorPlanningWrite?: string;
+  createPilotWoErrorDocumentMaskMissing?: string;
+  createPilotWoErrorFgItemMissing?: string;
 };
 
 export type ToggleChecklistCall = { itemId: string; isChecked: boolean };
@@ -205,8 +219,8 @@ export type PilotRunStatus = 'planned' | 'in_progress' | 'completed';
 export type UpsertRunCall = {
   pilotRunId: string | null;
   plannedDate: string | null;
-  /** The selected production line's CODE (persisted into pilot_runs.line). */
-  line: string | null;
+  /** The selected production line's CODE (persisted into pilot_runs.line). Required. */
+  line: string;
   batchSizeKg: string | null;
   expectedYieldPct: string | null;
   durationHours: string | null;
@@ -402,10 +416,20 @@ export function PilotScreen({
     switch (error) {
       case 'no_linked_fg':
         return labels.createPilotWoErrorNoFg;
+      case 'fg_item_missing':
+        return labels.createPilotWoErrorFgItemMissing ?? labels.createPilotWoErrorNoFg;
       case 'recipe_not_ready':
         return labels.createPilotWoErrorRecipe;
       case 'forbidden':
         return labels.createPilotWoErrorForbidden;
+      case 'forbidden_planning_write':
+        return labels.createPilotWoErrorPlanningWrite ?? labels.createPilotWoErrorForbidden;
+      case 'line_required':
+        return labels.createPilotWoErrorLineRequired ?? labels.fieldLineRequired;
+      case 'no_active_site':
+        return labels.createPilotWoErrorNoActiveSite ?? labels.createPilotWoError;
+      case 'document_mask_missing':
+        return labels.createPilotWoErrorDocumentMaskMissing ?? labels.createPilotWoError;
       case 'wo_create_failed':
         return message
           ? `${labels.createPilotWoErrorPlanning}: ${message}`
@@ -454,8 +478,7 @@ export function PilotScreen({
     return onUpsertRun({
       pilotRunId: data?.run.id ?? null,
       plannedDate: values.plannedDate.trim() || null,
-      // The dropdown already yields the line CODE (or '' = unset).
-      line: values.line.trim() || null,
+      line: values.line.trim(),
       batchSizeKg: values.batchSizeKg.trim() || null,
       expectedYieldPct: values.expectedYieldPct.trim() || null,
       durationHours: values.durationHours.trim() || null,
@@ -539,6 +562,7 @@ export function PilotScreen({
             run={null}
             supervisors={supervisorList}
             lines={lineList}
+            batchUnitLabel={labels.batchUnitLabel ?? labels.unitKg}
             onSubmit={handleRunSubmit}
             onLineChange={handleLineChange}
           />
@@ -562,12 +586,20 @@ export function PilotScreen({
   const totalShortKg = totalShortScaled > 0n ? formatDec(totalShortScaled) : null;
 
   const supervisor = run.supervisorName ?? labels.noSupervisor;
-  const infoBatch = formatQty(run.batchSizeKg, labels.unitKg, labels.notSet);
+  const infoBatch = formatQty(
+    run.batchSizeKg,
+    data?.fgBaseUom ?? labels.batchUnitLabel ?? labels.unitKg,
+    labels.notSet,
+  );
   // Resolve the persisted line CODE to a friendly "code — name" label for display.
   const lineOption = run.line ? lineList.find((l) => l.code === run.line) : undefined;
+  const lineSiteSuffix =
+    lineOption?.siteCode || lineOption?.siteName
+      ? ` (${lineOption.siteCode ?? lineOption.siteName})`
+      : '';
   const lineDisplay = run.line
     ? lineOption
-      ? `${lineOption.code} — ${lineOption.name}`
+      ? `${lineOption.code} — ${lineOption.name}${lineSiteSuffix}`
       : run.line
     : labels.notSet;
   const scheduledBody = interpolate(labels.scheduledPilotBody, {
@@ -674,7 +706,13 @@ export function PilotScreen({
             </div>
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wide muted">{labels.colBatchSize}</div>
-              <div className="mono font-medium">{formatQty(run.batchSizeKg, labels.unitKg, labels.notSet)}</div>
+              <div className="mono font-medium">
+                {formatQty(
+                  run.batchSizeKg,
+                  data?.fgBaseUom ?? labels.batchUnitLabel ?? labels.unitKg,
+                  labels.notSet,
+                )}
+              </div>
             </div>
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wide muted">{labels.colExpectedYield}</div>
@@ -829,6 +867,7 @@ export function PilotScreen({
           run={run}
           supervisors={supervisorList}
           lines={lineList}
+          batchUnitLabel={data?.fgBaseUom ?? labels.batchUnitLabel ?? labels.unitKg}
           onSubmit={handleRunSubmit}
           onLineChange={handleLineChange}
         />

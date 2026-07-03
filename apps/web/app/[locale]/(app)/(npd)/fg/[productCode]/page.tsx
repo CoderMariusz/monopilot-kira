@@ -163,12 +163,12 @@ type HistoryLoad = { state: FaHistoryPageState; rows: FaHistoryRow[] };
 /** Physical product/prod_detail columns that are AUTO-derived (read-only, green). */
 const AUTO_DERIVED_KEYS = new Set<string>([
   'ingredient_codes',
-  'equipment_setup',
-  'intermediate_code_p1',
-  'intermediate_code_p2',
-  'intermediate_code_p3',
-  'intermediate_code_p4',
-  'intermediate_code_final',
+  'dieset',
+  'pr_code_p1',
+  'pr_code_p2',
+  'pr_code_p3',
+  'pr_code_p4',
+  'pr_code_final',
 ]);
 /** Physical columns that are read-only identifiers (PK), not auto-derived. */
 const READONLY_ID_KEYS = new Set<string>(['product_code']);
@@ -644,7 +644,7 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
       // Production grid (manufacturing_operation_N / operation_yield_N /
       // intermediate_code_* / yield_line / pr_code*). They are replaced by the
       // dynamic per-component process list (FaProductionTab → ComponentProcesses).
-      // All OTHER Production columns (line, equipment_setup, resource_requirement,
+      // All OTHER Production columns (line, dieset, staffing,
       // rate, component_weight, …) are kept untouched.
       const productionFiltered = forceReadOnlyColumns(
         production.filter((col) => !isLegacyProcessColumn(col.key)),

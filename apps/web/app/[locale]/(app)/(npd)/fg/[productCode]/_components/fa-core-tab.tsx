@@ -30,7 +30,7 @@
  *   fires the cascades:
  *     - Recipe_Components edit → Chain 3 (auto-derive Ingredient_Codes +
  *       idempotent sync_prod_detail_rows).
- *     - Pack_Size change       → Chain 1 (clears Line + equipment_setup).
+ *     - Pack_Size change       → Chain 1 (clears Line + dieset).
  *   The client NEVER trusts a client-side permission flag and NEVER writes the
  *   auto-derived `ingredient_codes` column (read-only red line).
  *

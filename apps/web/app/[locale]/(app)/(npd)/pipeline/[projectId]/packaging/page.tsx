@@ -36,6 +36,7 @@ import {
   type UpsertCall,
 } from './_components/packaging-screen';
 import { upsertPackagingComponent } from './_actions/upsertPackagingComponent';
+import { updateProjectPacksPerCase } from './_actions/update-project-packs-per-case';
 import { deletePackagingComponent } from './_actions/deletePackagingComponent';
 import { uploadArtworkVersion } from './_actions/uploadArtworkVersion';
 import { listArtworkVersions } from './_actions/listArtworkVersions';
@@ -86,6 +87,7 @@ const DEFAULT_LABELS: PackagingLabels = {
   colSupplier: 'Supplier',
   colSpec: 'Spec',
   colCostUnit: 'Cost / unit',
+  colWastePct: 'Waste %',
   colStatus: 'Status',
   colActions: 'Actions',
   statusApproved: 'Approved',
@@ -112,6 +114,13 @@ const DEFAULT_LABELS: PackagingLabels = {
   fieldSpec: 'Spec',
   fieldCostUnit: 'Cost per unit (£)',
   fieldScrapPct: 'Scrap %',
+  fieldWastePct: 'Waste %',
+  fieldQtyPerBox: 'Qty per full box',
+  fieldQtyPerBoxHelp: 'Component quantity declared per one full box (not per pack).',
+  fieldPacksPerBox: 'Packs per box',
+  fieldPacksPerBoxHelp: 'Shared with Brief — number of sellable packs in one full box.',
+  savePacksPerBox: 'Save packs per box',
+  savingPacksPerBox: 'Saving…',
   fieldStatus: 'Status',
   fieldTier: 'Tier',
   tierPrimary: 'Primary',
@@ -171,6 +180,7 @@ type LoaderRow = {
   cost_per_unit: string | null;
   /** NUMERIC(5,2) — the pg driver may hand this back as a string; coerced on map. */
   scrap_pct: string | number | null;
+  waste_pct: string | number | null;
   status: string;
   artwork_file_id: string | null;
   artwork_status: string | null;
@@ -188,6 +198,7 @@ function toRow(r: LoaderRow): PackagingComponentRow {
     spec: r.spec,
     costPerUnit: r.cost_per_unit,
     scrapPct: Number(r.scrap_pct ?? 0),
+    wastePct: Number(r.waste_pct ?? 0),
     status: r.status as PackagingStatus,
     artworkFileId: r.artwork_file_id,
     artworkStatus: r.artwork_status,
@@ -206,9 +217,14 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
 
       const canWrite = await hasPermission(queryClient, userId, orgId, PACKAGING_WRITE_PERMISSION);
 
-      const project = await queryClient.query<{ product_code: string | null; product_name: string | null }>(
+      const project = await queryClient.query<{
+        product_code: string | null;
+        product_name: string | null;
+        packs_per_case: number | null;
+      }>(
         `select p.product_code,
-                pr.product_name
+                pr.product_name,
+                p.packs_per_case
            from public.npd_projects p
            left join public.product pr
              on pr.org_id = p.org_id and pr.product_code = p.product_code
@@ -224,6 +240,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       const { rows } = await queryClient.query<LoaderRow>(
         `select id, tier, component_name, material, supplier_code, spec,
                 cost_per_unit::text as cost_per_unit, coalesce(scrap_pct, 0) as scrap_pct,
+                coalesce(waste_pct, 0) as waste_pct,
                 status, artwork_file_id,
                 artwork_status, display_order, qty_per_pack::text as qty_per_pack
            from public.packaging_components
@@ -241,6 +258,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       const data: PackagingScreenData = {
         projectId,
         productName,
+        packsPerCase: project.rows[0]?.packs_per_case ?? null,
         primary: components.filter((c) => c.tier === 'primary'),
         secondary: components.filter((c) => c.tier === 'secondary'),
         // Artwork file store is a future deliverable (artwork_file_id is a soft
@@ -311,6 +329,15 @@ async function deleteArtworkAction(call: ArtworkDeleteCall): Promise<MutationOut
   'use server';
   const result = await deleteArtworkVersion(call);
   return result.ok ? { ok: true } : { ok: false, error: result.code };
+}
+
+async function updatePacksPerCaseAction(call: {
+  projectId: string;
+  packsPerCase: number;
+}): Promise<MutationOutcome> {
+  'use server';
+  const result = await updateProjectPacksPerCase(call);
+  return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
 async function deleteAction(call: { id: string; projectId: string }): Promise<MutationOutcome> {
@@ -397,6 +424,7 @@ export default async function PackagingPage(propsInput: unknown = {}) {
         onUploadArtwork={uploadArtworkAction}
         onDeleteArtwork={deleteArtworkAction}
         searchItemsAction={searchPackagingItemsAction}
+        onUpdatePacksPerCase={loaded.canWrite ? updatePacksPerCaseAction : undefined}
       />
       {stageSections ? (
         <StageDeptSections

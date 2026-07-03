@@ -215,6 +215,28 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
     expect(update!.params).toContain(3);
   });
 
+  it('defaults waste_pct to 0 when omitted and binds it ::numeric in the INSERT', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    const res = await upsertPackagingComponent(valid);
+    expect(res).toEqual({ ok: true, data: { id: 'new-component-id' } });
+
+    const insert = ctx.calls.find((c) => /insert into public\.packaging_components/i.test(c.sql));
+    expect(insert).toBeTruthy();
+    expect(insert!.sql).toContain('waste_pct');
+    expect(insert!.sql).toMatch(/\$9::numeric/);
+    expect(insert!.params).toContain(0);
+  });
+
+  it('round-trips waste_pct into the INSERT', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    const res = await upsertPackagingComponent({ ...valid, wastePct: '1.25' });
+    expect(res).toEqual({ ok: true, data: { id: 'new-component-id' } });
+
+    const insert = ctx.calls.find((c) => /insert into public\.packaging_components/i.test(c.sql));
+    expect(insert).toBeTruthy();
+    expect(insert!.params).toContain(1.25);
+  });
+
   it('validates optional itemId as a packaging item before writing', async () => {
     ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
     ctx.packagingItemExists = false;

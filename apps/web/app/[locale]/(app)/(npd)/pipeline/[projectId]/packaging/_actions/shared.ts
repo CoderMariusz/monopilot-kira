@@ -55,6 +55,8 @@ export const UpsertPackagingComponentSchema = z.object({
   // number — unlike cost it carries no money-precision concern. The WO later
   // inflates required_qty by 1 / (1 - scrap_pct/100).
   scrapPct: z.coerce.number().min(0).max(100).default(0),
+  /** Costing loss factor (% lost during packing). Separate from scrap_pct (WO). */
+  wastePct: z.coerce.number().min(0).max(100).default(0),
   qtyPerPack: z.coerce.number().positive().nullable().optional(),
   status: z.enum(PACKAGING_STATUSES).default('draft'),
   displayOrder: z.number().int().min(0).max(100000).optional(),
@@ -84,6 +86,8 @@ export type PackagingComponentRow = {
   costPerUnit: string | null;
   /** % lost to damage/setup during packing (0..100). */
   scrapPct: number;
+  /** Costing loss factor (% lost during packing, 0..100). */
+  wastePct: number;
   qtyPerPack: number | null;
   status: PackagingStatus;
   artworkFileId: string | null;

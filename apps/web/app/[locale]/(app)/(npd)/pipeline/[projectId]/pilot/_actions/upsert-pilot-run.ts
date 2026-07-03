@@ -34,7 +34,7 @@ const Input = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be an ISO date (YYYY-MM-DD)')
     .nullable()
     .optional(),
-  line: z.string().trim().max(120).nullable().optional(),
+  line: z.string().trim().min(1, 'line is required').max(120),
   batchSizeKg: OPTIONAL_DECIMAL,
   expectedYieldPct: DECIMAL.refine((s) => Number(s) <= 100, { message: 'yield must be <= 100' })
     .nullable()

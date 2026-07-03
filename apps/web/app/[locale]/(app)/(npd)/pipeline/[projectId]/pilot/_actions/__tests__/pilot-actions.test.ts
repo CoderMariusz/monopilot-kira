@@ -119,6 +119,11 @@ describe('getPilotRun — RBAC', () => {
 });
 
 describe('upsertPilotRun — zod + RBAC', () => {
+  it('rejects missing production line (required)', async () => {
+    const r = await upsertPilotRun({ projectId: PROJECT, line: '' });
+    expect(r).toEqual(expect.objectContaining({ ok: false, error: 'invalid_input' }));
+  });
+
   it('rejects an out-of-range expectedYieldPct', async () => {
     const r = await upsertPilotRun({ projectId: PROJECT, expectedYieldPct: '120' });
     expect(r).toEqual(expect.objectContaining({ ok: false, error: 'invalid_input' }));

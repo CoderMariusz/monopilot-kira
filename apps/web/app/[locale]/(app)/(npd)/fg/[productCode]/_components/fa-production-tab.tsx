@@ -12,7 +12,7 @@
  *   one block per ProdDetail component, each with the intermediate (PR) code +
  *   component label + weight + a V06 pass/warn badge, a 4-column grid of
  *   Process 1..4 (Select) + Yield P1..4 (Input number) + PR code P1..4 (auto,
- *   read-only GREEN), then Line * (Select), Dieset/equipment_setup (auto,
+ *   read-only GREEN), then Line * (Select), Dieset/dieset (auto,
  *   read-only GREEN), Yield Line * (number), Staffing (text), Rate * (number),
  *   PR Code Final (auto, read-only GREEN); a read-only GREEN aggregate summary
  *   row when N>1; and a "Save Production" action row.
@@ -36,9 +36,9 @@
  *   permission server-side, and fires the cascades:
  *     - manufacturing_operation_N change → Chain 2 (derive intermediate_code_pN
  *       and intermediate_code_final from the process suffix).
- *     - line change                      → Chain 1 (autofill equipment_setup).
+ *     - line change                      → Chain 1 (autofill dieset).
  *   The client NEVER trusts a client-side permission flag and NEVER writes the
- *   auto-derived intermediate_code_* / equipment_setup columns (read-only red
+ *   auto-derived intermediate_code_* / dieset columns (read-only red
  *   line). Cascade logic lives ONLY server-side — never duplicated here.
  *
  * shadcn primitives only: Input / Select / Card / Badge / Button / EmptyState
@@ -167,7 +167,7 @@ export type FaProductionColumn = {
   required: boolean;
   /** Read-only in the UI (auto-derived / formula). Never submitted. */
   readOnly: boolean;
-  /** Auto-derived field (intermediate_code_*, equipment_setup) — styled green. */
+  /** Auto-derived field (intermediate_code_*, dieset) — styled green. */
   auto?: boolean;
   /** Reference dropdown table name (when dataType === 'dropdown'). */
   dropdownSource?: string;
@@ -1179,7 +1179,7 @@ export function FaProductionTab({
         );
         // Sequential writes: a single failed cell surfaces an error without
         // masking later cascade-bearing writes. Auto/read-only columns
-        // (intermediate_code_*, equipment_setup) are NEVER submitted.
+        // (intermediate_code_*, dieset) are NEVER submitted.
         for (const col of dirty) {
           await persist(productCode, col.key, cells[col.key], {
             componentIndex: row.componentIndex,
@@ -1355,8 +1355,8 @@ export function FaProductionTab({
                 >
                   <strong className="font-semibold">{labels.aggregateTitle}:</strong>{' '}
                   <span className="font-mono">
-                    {labels.fields.line}: {uniqueJoin(rows, 'line')} · {labels.fields.equipment_setup}:{' '}
-                    {uniqueJoin(rows, 'equipment_setup')} · {labels.fields.intermediate_code_final}:{' '}
+                    {labels.fields.line}: {uniqueJoin(rows, 'line')} · {labels.fields.dieset}:{' '}
+                    {uniqueJoin(rows, 'dieset')} · {labels.fields.intermediate_code_final}:{' '}
                     {uniqueJoin(rows, 'intermediate_code_final')}
                   </span>
                 </div>

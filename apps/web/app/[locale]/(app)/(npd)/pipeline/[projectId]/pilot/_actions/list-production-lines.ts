@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../../../lib/site/site-context';
 import { hasPilotPermission } from './get-pilot-run';
 
 type QueryClient = {
@@ -12,6 +13,9 @@ export type ProductionLineOption = {
   code: string;
   name: string;
   warehouseId: string | null;
+  siteId: string | null;
+  siteCode: string | null;
+  siteName: string | null;
 };
 
 const READ_PERMISSION = 'npd.pilot.read';
@@ -21,6 +25,9 @@ type ProductionLineRow = {
   code: string;
   name: string;
   warehouse_id: string | null;
+  site_id: string | null;
+  site_code: string | null;
+  site_name: string | null;
 };
 
 export async function listProductionLines(): Promise<ProductionLineOption[]> {
@@ -31,12 +38,25 @@ export async function listProductionLines(): Promise<ProductionLineOption[]> {
       throw new Error('forbidden');
     }
 
+    const activeSiteId = await getActiveSiteId({ client: ctx.client });
+
     const { rows } = await ctx.client.query<ProductionLineRow>(
-      `select id::text, code, name, warehouse_id::text
-         from public.production_lines
-        where org_id = app.current_org_id()
-          and coalesce(status, 'active') <> 'archived'
-        order by code`,
+      `select pl.id::text,
+              pl.code,
+              pl.name,
+              pl.warehouse_id::text,
+              pl.site_id::text,
+              s.site_code,
+              s.name as site_name
+         from public.production_lines pl
+         left join public.sites s
+           on s.id = pl.site_id
+          and s.org_id = pl.org_id
+        where pl.org_id = app.current_org_id()
+          and coalesce(pl.status, 'active') <> 'archived'
+          and ($1::uuid is null or pl.site_id = $1::uuid or pl.site_id is null)
+        order by s.site_code nulls last, pl.code`,
+      [activeSiteId],
     );
 
     return rows.map((row) => ({
@@ -44,6 +64,9 @@ export async function listProductionLines(): Promise<ProductionLineOption[]> {
       code: row.code,
       name: row.name,
       warehouseId: row.warehouse_id,
+      siteId: row.site_id,
+      siteCode: row.site_code,
+      siteName: row.site_name,
     }));
   });
 }

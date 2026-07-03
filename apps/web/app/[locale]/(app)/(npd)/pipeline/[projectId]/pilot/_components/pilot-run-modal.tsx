@@ -73,6 +73,7 @@ export function PilotRunModal({
   run,
   supervisors,
   lines,
+  batchUnitLabel = 'kg',
   onSubmit,
   onLineChange,
 }: {
@@ -84,6 +85,8 @@ export function PilotRunModal({
   supervisors: SupervisorOption[];
   /** Production-line options for the "Line" dropdown; value = line CODE. */
   lines: ProductionLineOption[];
+  /** FG base unit shown in the batch-size label (e.g. kg / each). */
+  batchUnitLabel?: string;
   onSubmit: (values: PilotRunFormValues) => Promise<PilotActionOutcome>;
   /**
    * Notify the parent when the line changes (with the new line CODE, or null
@@ -109,6 +112,10 @@ export function PilotRunModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitState === 'saving') return;
+    if (!values.line.trim()) {
+      setSubmitState('error');
+      return;
+    }
     setSubmitState('saving');
     const result = await onSubmit(values);
     if (result.ok) {
@@ -123,12 +130,17 @@ export function PilotRunModal({
     ...supervisors.map((s) => ({ value: s.id, label: s.name })),
   ];
 
-  // The "Line" dropdown persists the line CODE; show "code — name" per option.
-  // First option ('') is the unset placeholder so a run can have no line yet.
-  const lineOptions = [
-    { value: '', label: labels.linePlaceholder },
-    ...lines.map((l) => ({ value: l.code, label: `${l.code} — ${l.name}` })),
-  ];
+  // Production LINE is required — no unset placeholder option.
+  const lineOptions = lines.map((l) => {
+    const siteLabel =
+      l.siteCode || l.siteName ? ` · ${l.siteCode ?? l.siteName}` : '';
+    return { value: l.code, label: `${l.code} — ${l.name}${siteLabel}` };
+  });
+
+  const batchSizeLabel =
+    labels.fieldBatchSize.includes('({unit})')
+      ? labels.fieldBatchSize.replace('({unit})', `(${batchUnitLabel})`)
+      : `${labels.fieldBatchSize} (${batchUnitLabel})`;
 
   function handleLineSelect(next: string) {
     update('line', next);
@@ -161,9 +173,13 @@ export function PilotRunModal({
               />
             </div>
             <div className="field" data-testid="pilot-line-field">
-              <label id="pilot-line-label">{labels.fieldLine}</label>
+              <label id="pilot-line-label">
+                {labels.fieldLine}
+                <span className="req" aria-label="required"> *</span>
+              </label>
               <Select
                 aria-labelledby="pilot-line-label"
+                aria-required="true"
                 value={values.line}
                 onValueChange={handleLineSelect}
                 options={lineOptions}
@@ -176,7 +192,7 @@ export function PilotRunModal({
               ) : null}
             </div>
             <div className="field">
-              <label htmlFor="pilot-batch">{labels.fieldBatchSize}</label>
+              <label htmlFor="pilot-batch">{batchSizeLabel}</label>
               <Input
                 id="pilot-batch"
                 inputMode="decimal"

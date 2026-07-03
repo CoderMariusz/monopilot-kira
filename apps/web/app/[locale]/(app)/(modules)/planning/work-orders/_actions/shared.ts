@@ -26,6 +26,7 @@ export type PlanningWorkOrderError =
   // active site, none chosen or default — operator must pick via the top bar).
   | 'no_active_site'
   | 'ambiguous_site'
+  | 'document_mask_missing'
   | 'persistence_failed';
 
 export type EnteredUom = 'base' | 'each' | 'box';
@@ -185,15 +186,17 @@ export type DeleteDraftWorkOrderResult =
 export const CreateWorkOrderInput = z.object({
   productId: z.string().uuid(),
   itemCode: z.string().trim().min(1).max(128),
+  documentNumber: z.string().trim().min(1).max(128).optional(),
+  siteId: z.string().uuid().optional(),
   plannedQuantity: z
     .string()
     .trim()
-    .regex(/^\d+(?:\.\d{1,3})?$/, 'plannedQuantity must be a positive numeric string with up to 3 decimals')
+    .regex(/^\d+(?:\.\d{1,4})?$/, 'plannedQuantity must be a positive numeric string with up to 4 decimals')
     .refine((value) => Number(value) > 0, 'plannedQuantity must be positive'),
   quantityEntered: z
     .string()
     .trim()
-    .regex(/^\d+(?:\.\d{1,3})?$/, 'quantityEntered must be a positive numeric string with up to 3 decimals')
+    .regex(/^\d+(?:\.\d{1,4})?$/, 'quantityEntered must be a positive numeric string with up to 4 decimals')
     .refine((value) => Number(value) > 0, 'quantityEntered must be positive')
     .optional(),
   quantityEnteredUom: z.enum(['base', 'each', 'box']).optional(),

@@ -33,6 +33,8 @@ type ItemUomRow = {
 export type CreateWorkOrderCoreParams = {
   productId: string;
   itemCode: string;
+  documentNumber?: string;
+  siteId?: string;
   plannedQuantity: string;
   quantityEntered?: string;
   quantityEnteredUom?: 'base' | 'each' | 'box';
@@ -52,11 +54,34 @@ export async function createWorkOrderCore(
   if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
   const input = parsed.data;
-  const siteResolution = await resolveWriteSiteId(ctx.client);
-  if (!siteResolution.ok) return { ok: false, error: siteResolution.reason };
-  const siteId = siteResolution.siteId;
+  let siteId: string;
+  if (input.siteId) {
+    const explicitSite = await ctx.client.query<{ id: string }>(
+      `select id::text as id
+         from public.sites
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and is_active = true
+        limit 1`,
+      [input.siteId],
+    );
+    if (!explicitSite.rows[0]) return { ok: false, error: 'no_active_site' };
+    siteId = explicitSite.rows[0].id;
+  } else {
+    const siteResolution = await resolveWriteSiteId(ctx.client);
+    if (!siteResolution.ok) return { ok: false, error: siteResolution.reason };
+    siteId = siteResolution.siteId;
+  }
   const woId = randomUUID();
-  const woNumber = await nextDocumentNumber(ctx.client, ctx.orgId, 'wo', new Date());
+  let woNumber: string;
+  try {
+    woNumber = input.documentNumber ?? await nextDocumentNumber(ctx.client, ctx.orgId, 'wo', new Date());
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('document_number_settings_missing:')) {
+      return { ok: false, error: 'document_mask_missing' };
+    }
+    throw error;
+  }
 
   const itemUomResult = await ctx.client.query<ItemUomRow>(
     `select output_uom, uom_base, net_qty_per_each::text as net_qty_per_each,
@@ -183,6 +208,7 @@ export async function createWorkOrderCore(
     insertedWo = await insertWorkOrderHeader(woNumber);
   } catch (error) {
     if (!isPgError(error) || error.code !== '23505') throw error;
+    if (input.documentNumber) return { ok: false, error: 'persistence_failed' };
     insertedWo = await insertWorkOrderHeader(await nextDocumentNumber(ctx.client, ctx.orgId, 'wo', new Date()));
   }
   const workOrder = insertedWo.rows[0];
