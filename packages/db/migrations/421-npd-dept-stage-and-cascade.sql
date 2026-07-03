@@ -28,26 +28,43 @@ begin
 end
 $$;
 
-with ranked_stage as (
-  select department_id,
-         stage_code,
-         row_number() over (
-           partition by department_id
-           order by count(*) desc, stage_code
-         ) as rn
-    from public.npd_department_field
-   where stage_code is not null
-     and stage_code in (
-       'brief', 'recipe', 'packaging', 'costing_nutrition', 'trial',
-       'sensory', 'pilot', 'approval', 'handoff'
-     )
-   group by department_id, stage_code
-)
-update public.npd_departments d
-   set stage_code = ranked_stage.stage_code
-  from ranked_stage
- where ranked_stage.department_id = d.id
-   and ranked_stage.rn = 1;
+-- Backfill dept.stage_code from the legacy assignment-level column. Guarded +
+-- dynamic: on a RE-RUN the source column is already dropped (below), so the
+-- statement must not even be parsed then.
+do $$
+begin
+  if exists (
+    select 1
+      from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'npd_department_field'
+       and column_name = 'stage_code'
+  ) then
+    execute $sql$
+      with ranked_stage as (
+        select department_id,
+               stage_code,
+               row_number() over (
+                 partition by department_id
+                 order by count(*) desc, stage_code
+               ) as rn
+          from public.npd_department_field
+         where stage_code is not null
+           and stage_code in (
+             'brief', 'recipe', 'packaging', 'costing_nutrition', 'trial',
+             'sensory', 'pilot', 'approval', 'handoff'
+           )
+         group by department_id, stage_code
+      )
+      update public.npd_departments d
+         set stage_code = ranked_stage.stage_code
+        from ranked_stage
+       where ranked_stage.department_id = d.id
+         and ranked_stage.rn = 1
+    $sql$;
+  end if;
+end
+$$;
 
 update public.npd_departments
    set stage_code = 'brief'
