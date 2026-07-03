@@ -143,6 +143,10 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
     const nextVersion = existing ? existing.version + (contentChanged ? 1 : 0) : 1;
 
     const itemId = existing?.item_id ?? await ensureDefinitionItem(ctx, parsed.data.name, parsed.data.baseUom);
+    // U3: the "reusable" toggle IS the publication decision — a reusable
+    // definition must be pickable, and the recipe picker requires 'active'.
+    // Without this, library-authored definitions were draft dead-ends
+    // (Gate-5b re-walk HIGH). Un-toggling never downgrades an active row.
     const saved = existing
       ? await ctx.client.query<{ id: string; version: number }>(
           `update public.wip_definitions
@@ -153,6 +157,7 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
                   reusable = $6::boolean,
                   item_id = $7::uuid,
                   version = $8::int,
+                  status = case when $6::boolean and status = 'draft' then 'active' else status end,
                   updated_at = now()
             where id = $1::uuid
               and org_id = app.current_org_id()
@@ -172,7 +177,8 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
           `insert into public.wip_definitions
              (org_id, item_id, name, description, base_uom, yield_pct, version, status, reusable, created_by)
            values
-             (app.current_org_id(), $1::uuid, $2, $3, $4, $5::numeric, 1, 'draft', $6::boolean, $7::uuid)
+             (app.current_org_id(), $1::uuid, $2, $3, $4, $5::numeric, 1,
+              case when $6::boolean then 'active' else 'draft' end, $6::boolean, $7::uuid)
            returning id, version`,
           [itemId, parsed.data.name, parsed.data.description ?? null, parsed.data.baseUom, parsed.data.yieldPct, parsed.data.reusable, ctx.userId],
         );
