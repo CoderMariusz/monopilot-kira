@@ -61,7 +61,6 @@ type ReleaseRow = {
 
 type ProductCloseoutRow = {
   shelf_life: string | null;
-  done_mrp: boolean | null;
   closed_mrp: string | null;
   box: string | null;
   top_label: string | null;
@@ -185,7 +184,7 @@ export async function closeOutLegacyStagesForLaunch(
     throw new GateActionError('HANDOFF_BOM_NOT_APPROVED', 409);
   }
 
-  const packagingMrpComplete = product.done_mrp === true || product.closed_mrp === 'Yes';
+  const packagingMrpComplete = product.closed_mrp === 'Yes';
   if (!packagingMrpComplete) throw new GateActionError('PACKAGING_MRP_INCOMPLETE', 409);
 
   const packagingSnapshot = buildPackagingSnapshot(project.product_code, product);
@@ -283,7 +282,7 @@ async function loadRelease(ctx: OrgContextLike, project: GateProjectRow): Promis
 
 async function loadProduct(ctx: OrgContextLike, productCode: string): Promise<ProductCloseoutRow | null> {
   const { rows } = await ctx.client.query<ProductCloseoutRow>(
-    `select shelf_life, done_mrp, closed_mrp, box, top_label, bottom_label, web,
+    `select shelf_life, closed_mrp, box, top_label, bottom_label, web,
             mrp_box, mrp_labels, mrp_films, mrp_sleeves, mrp_cartons, private_jsonb
        from public.product
       where org_id = app.current_org_id()

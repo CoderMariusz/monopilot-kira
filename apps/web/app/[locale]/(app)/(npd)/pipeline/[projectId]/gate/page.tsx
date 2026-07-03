@@ -188,6 +188,10 @@ const DEFAULT_ADVANCE_LABELS: AdvanceGateLabels = {
   esignRequiredError:
     'Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.',
   blockersPresentError: '{count} blocker(s) prevent advancement.',
+  softGateBlockedError: 'Required stage checks are incomplete. Add an override note to continue.',
+  overrideNoteLabel: 'Override note',
+  overrideNoteHint: 'Required to override incomplete stage checks.',
+  overrideConfirm: 'Override and advance',
 };
 
 const DEFAULT_HISTORY_LABELS: ApprovalHistoryLabels = {
@@ -462,7 +466,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
 
 // ─── Server-Action adapters passed to the client (T-058 owns the actions themselves). ───
 
-async function advanceAdapter(input: { projectId: string; targetGate: TargetGate; notes: string }) {
+async function advanceAdapter(input: { projectId: string; targetGate: TargetGate; notes: string; override?: { note: string } }) {
   'use server';
   // Stage-native engine: advance exactly one operational stage from the project's
   // real current_stage (the modal's `targetGate` is the old gate-transition UI shape
@@ -476,9 +480,10 @@ async function advanceAdapter(input: { projectId: string; targetGate: TargetGate
     targetStage: next,
     // Thread the modal notes through to the outbox event payload for the audit trail.
     notes: input.notes || undefined,
+    override: input.override,
   });
   if (result.ok) return { ok: true as const, data: result.data };
-  return { ok: false as const, error: result.error, status: result.status, blockers: result.blockers };
+  return { ok: false as const, error: result.error, status: result.status, blockers: result.blockers, missing: result.missing };
 }
 
 async function approveAdapter(

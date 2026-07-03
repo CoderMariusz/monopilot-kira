@@ -13,6 +13,8 @@
  *    ok:false with status 200 — a silent fail when clicked live. It must now carry
  *    an honest 409 so no caller can mistake it for success.
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
@@ -159,6 +161,271 @@ describe('advanceProjectGate — ALREADY_CLOSED is an honest failure (F-C09)', (
     // brief's only legal target is 'recipe' — jumping to 'packaging' must fail loudly.
     const result = await advanceProjectGate({ projectId: PROJECT, targetStage: 'packaging' });
     expect(result).toMatchObject({ ok: false, error: 'ADJACENCY_VIOLATION', status: 422 });
+  });
+});
+
+describe('advanceProjectGate — ONE gate system soft and hard gates', () => {
+  const PROJECT = '00000000-0000-4000-8000-0000000000d1';
+
+  beforeEach(() => {
+    ctx.handler = () => ({ rows: [] });
+  });
+
+  it('returns SOFT_GATE_BLOCKED when required stage fields are missing and no override is supplied', async () => {
+    const calls: string[] = [];
+    ctx.handler = (sql) => {
+      calls.push(sql);
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.npd_projects') && sql.includes('for update')) {
+        return {
+          rows: [{
+            id: PROJECT,
+            code: 'NPD-SOFT-001',
+            name: 'Soft gate project',
+            type: 'single',
+            current_gate: 'G3',
+            current_stage: 'packaging',
+            product_code: 'FG-SOFT-001',
+          }],
+        };
+      }
+      if (sql.includes('from public.npd_departments')) {
+        return {
+          rows: [{
+            dept_code: 'PKG',
+            dept_name: 'Packaging',
+            field_code: 'box',
+            field_label: 'Box',
+            auto_source_field: null,
+            product_json: {},
+          }],
+        };
+      }
+      return { rows: [] };
+    };
+
+    const result = await advanceProjectGate({ projectId: PROJECT, targetStage: 'costing_nutrition' });
+    expect(result).toEqual({
+      ok: false,
+      error: 'SOFT_GATE_BLOCKED',
+      status: 409,
+      missing: ['Packaging: Box'],
+    });
+    expect(calls.some((sql) => /update public\.npd_projects/.test(sql))).toBe(false);
+    expect(calls.some((sql) => /insert into public\.audit_log/.test(sql))).toBe(false);
+  });
+
+  it('allows a soft gate override with a non-empty note and writes audit_log', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.npd_projects') && sql.includes('for update')) {
+        return {
+          rows: [{
+            id: PROJECT,
+            code: 'NPD-SOFT-002',
+            name: 'Soft gate override project',
+            type: 'single',
+            current_gate: 'G3',
+            current_stage: 'packaging',
+            product_code: 'FG-SOFT-002',
+          }],
+        };
+      }
+      if (sql.includes('from public.npd_departments')) {
+        return {
+          rows: [{
+            dept_code: 'PKG',
+            dept_name: 'Packaging',
+            field_code: 'box',
+            field_label: 'Box',
+            auto_source_field: null,
+            product_json: {},
+          }],
+        };
+      }
+      return { rows: [] };
+    };
+
+    const result = await advanceProjectGate({
+      projectId: PROJECT,
+      targetStage: 'costing_nutrition',
+      override: { note: 'Proceeding for pilot timing; packaging data owner notified.' },
+    });
+    expect(result).toMatchObject({ ok: true, data: { currentStage: 'costing_nutrition' } });
+
+    const audit = calls.find((call) => /insert into public\.audit_log/.test(call.sql));
+    expect(audit).toBeTruthy();
+    expect(audit?.sql).toContain('npd.stage.gate_overridden');
+    expect(JSON.parse(audit?.params?.[2] as string)).toEqual({
+      fromStage: 'packaging',
+      toStage: 'costing_nutrition',
+      missing: ['Packaging: Box'],
+      note: 'Proceeding for pilot timing; packaging data owner notified.',
+      actor: ctx.userId,
+    });
+    expect(calls.some((call) => /update public\.npd_projects/.test(call.sql))).toBe(true);
+  });
+
+  it('does not allow override of a hard recipe ingredient gate', async () => {
+    const calls: string[] = [];
+    ctx.handler = (sql) => {
+      calls.push(sql);
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.npd_projects') && sql.includes('for update')) {
+        return {
+          rows: [{
+            id: PROJECT,
+            code: 'NPD-HARD-001',
+            name: 'Hard gate project',
+            type: 'single',
+            current_gate: 'G2',
+            current_stage: 'recipe',
+            product_code: null,
+          }],
+        };
+      }
+      if (sql.includes('count(fi.id)::text as n')) return { rows: [{ n: '0' }] };
+      return { rows: [] };
+    };
+
+    const result = await advanceProjectGate({
+      projectId: PROJECT,
+      targetStage: 'packaging',
+      override: { note: 'This must not bypass recipe ingredients.' },
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'BLOCKERS_PRESENT',
+      status: 409,
+      blockers: [{ code: 'RECIPE_INGREDIENTS_REQUIRED' }],
+    });
+    expect(calls.some((sql) => /insert into public\.audit_log/.test(sql))).toBe(false);
+    expect(calls.some((sql) => /update public\.npd_projects/.test(sql))).toBe(false);
+  });
+
+  it('soft-blocks costing_nutrition → trial when costing and nutrition are not computed', async () => {
+    ctx.handler = (sql) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.npd_projects') && sql.includes('for update')) {
+        return {
+          rows: [{
+            id: PROJECT,
+            code: 'NPD-CN-001',
+            name: 'Cost nutrition project',
+            type: 'single',
+            current_gate: 'G3',
+            current_stage: 'costing_nutrition',
+            product_code: 'FG-CN-001',
+          }],
+        };
+      }
+      if (sql.includes('costing_breakdowns') && sql.includes('nutri_score_results')) {
+        return { rows: [{ cost_ready: false, nutrition_ready: false }] };
+      }
+      if (sql.includes('from public.npd_departments')) return { rows: [] };
+      return { rows: [] };
+    };
+
+    const result = await advanceProjectGate({ projectId: PROJECT, targetStage: 'trial' });
+    expect(result).toEqual({
+      ok: false,
+      error: 'SOFT_GATE_BLOCKED',
+      status: 409,
+      missing: ['Cost breakdown computed', 'Nutrition computed'],
+    });
+  });
+});
+
+describe('advanceProjectGate — e-sign non-overridability (assertG3/G4ESignForApproval/Handoff)', () => {
+  const PROJECT = '00000000-0000-4000-8000-0000000000e1';
+
+  beforeEach(() => {
+    ctx.handler = () => ({ rows: [] });
+  });
+
+  it('pilot→approval with override note but NO gate_approvals row returns ESIGN_REQUIRED 403 and issues no update/audit_log', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      // Permission check
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      // loadProjectForUpdate
+      if (sql.includes('from public.npd_projects') && sql.includes('for update')) {
+        return {
+          rows: [{
+            id: PROJECT,
+            code: 'NPD-ESIGN-001',
+            name: 'Pilot esign project',
+            type: 'single',
+            current_gate: 'G3',
+            current_stage: 'pilot',
+            product_code: 'FG-ESIGN-001',
+          }],
+        };
+      }
+      // assertG3ESignForApproval queries gate_approvals — return empty (no e-sign)
+      if (sql.includes('from public.gate_approvals')) return { rows: [] };
+      return { rows: [] };
+    };
+
+    const result = await advanceProjectGate({
+      projectId: PROJECT,
+      targetStage: 'approval',
+      override: { note: 'x' },
+    });
+
+    expect(result).toEqual({ ok: false, error: 'ESIGN_REQUIRED', status: 403 });
+    expect(calls.some(({ sql }) => /update\s+public\.npd_projects/.test(sql))).toBe(false);
+    expect(calls.some(({ sql }) => /insert into public\.audit_log/.test(sql))).toBe(false);
+  });
+
+  it('approval→handoff with override note but NO gate_approvals row returns ESIGN_REQUIRED 403 and issues no update/audit_log', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      // Permission check
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      // loadProjectForUpdate
+      if (sql.includes('from public.npd_projects') && sql.includes('for update')) {
+        return {
+          rows: [{
+            id: PROJECT,
+            code: 'NPD-ESIGN-002',
+            name: 'Approval esign project',
+            type: 'single',
+            current_gate: 'G4',
+            current_stage: 'approval',
+            product_code: 'FG-ESIGN-002',
+          }],
+        };
+      }
+      // assertG4ESignForHandoff queries gate_approvals — return empty (no e-sign)
+      if (sql.includes('from public.gate_approvals')) return { rows: [] };
+      return { rows: [] };
+    };
+
+    const result = await advanceProjectGate({
+      projectId: PROJECT,
+      targetStage: 'handoff',
+      override: { note: 'x' },
+    });
+
+    expect(result).toEqual({ ok: false, error: 'ESIGN_REQUIRED', status: 403 });
+    expect(calls.some(({ sql }) => /update\s+public\.npd_projects/.test(sql))).toBe(false);
+    expect(calls.some(({ sql }) => /insert into public\.audit_log/.test(sql))).toBe(false);
+  });
+});
+
+describe('closeOutLegacyStagesForLaunch — MRP closeout gate uses closed_mrp only', () => {
+  it('has no done_mrp code path in the closeout action', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'app/(npd)/pipeline/_actions/close-out-legacy-stages.ts'),
+      'utf8',
+    );
+    expect(source).not.toContain('done_mrp');
+    expect(source).toContain("product.closed_mrp === 'Yes'");
   });
 });
 

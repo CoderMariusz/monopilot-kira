@@ -5096,7 +5096,11 @@
       "alreadyClosedError": "Ten projekt jest już wdrożony (launched) — nie ma kolejnego etapu do przejścia.",
       "adjacencyError": "Projekt może przejść tylko o jeden etap naraz. Odśwież stronę — etap mógł się zmienić.",
       "notFoundError": "Nie znaleziono projektu. Mógł zostać usunięty.",
-      "fgLinkedError": "Kod wyrobu gotowego jest już powiązany z innym aktywnym projektem NPD."
+      "fgLinkedError": "Kod wyrobu gotowego jest już powiązany z innym aktywnym projektem NPD.",
+      "softGateBlockedError": "Wymagane kontrole etapu są niekompletne. Dodaj notatkę obejścia, aby kontynuować.",
+      "overrideNoteLabel": "Notatka obejścia",
+      "overrideNoteHint": "Wymagana do obejścia niekompletnych kontroli etapu.",
+      "overrideConfirm": "Obejdź i przejdź dalej"
     },
     "briefModals": {
       "create": {

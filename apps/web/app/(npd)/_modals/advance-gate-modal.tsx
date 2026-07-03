@@ -77,6 +77,7 @@ export type AdvanceProjectGateAction = (input: {
   projectId: string;
   targetGate: TargetGate;
   notes: string;
+  override?: { note: string };
 }) => Promise<{
   ok: true;
   data?: unknown;
@@ -85,6 +86,7 @@ export type AdvanceProjectGateAction = (input: {
   error: string;
   status: number;
   blockers?: Array<{ id?: string; code?: string; text?: string; label?: string; message?: string }>;
+  missing?: string[];
 }>;
 
 export type AdvanceGateLabels = {
@@ -120,6 +122,10 @@ export type AdvanceGateLabels = {
   adjacencyError?: string;
   notFoundError?: string;
   fgLinkedError?: string;
+  softGateBlockedError?: string;
+  overrideNoteLabel?: string;
+  overrideNoteHint?: string;
+  overrideConfirm?: string;
 };
 
 function fmt(template: string, vars: Record<string, string | number>): string {
@@ -149,6 +155,11 @@ function resolveSubmitError(
       .map((blocker) => blocker.text ?? blocker.label ?? blocker.message ?? blocker.code ?? blocker.id)
       .filter((value): value is string => Boolean(value));
     return details.length > 0 ? `${title}\n${details.join('\n')}` : title;
+  }
+  if (result.error === 'SOFT_GATE_BLOCKED') {
+    const missing = result.missing ?? [];
+    const title = labels.softGateBlockedError ?? 'Required stage checks are incomplete. Add an override note to continue.';
+    return missing.length > 0 ? `${title}\n${missing.join('\n')}` : title;
   }
   // F-C09 honesty: every ok:false path maps to a specific, human-readable message
   // (the modal NEVER closes on failure — see onSubmit). Codes without a dedicated
@@ -220,6 +231,7 @@ export function AdvanceGateModal({
   state = 'ready',
   advanceProjectGate,
   onAdvanced,
+  onESignRequired,
   onClose,
 }: {
   open: boolean;
@@ -231,19 +243,24 @@ export function AdvanceGateModal({
   advanceProjectGate?: AdvanceProjectGateAction;
   /** Called after a successful advance; the host maps it to revalidation / close. */
   onAdvanced?: () => void;
+  /** Called when the server reports that an e-sign approval must be collected first. */
+  onESignRequired?: () => void;
   onClose: () => void;
 }) {
-  const { register, handleSubmit, reset, formState } = useForm<NotesForm>({
+  const { register, handleSubmit, reset, formState, watch } = useForm<NotesForm>({
     defaultValues: { notes: '' },
     mode: 'onChange',
   });
   const [serverError, setServerError] = React.useState<string | null>(null);
+  const [softGateMissing, setSoftGateMissing] = React.useState<string[]>([]);
   const [success, setSuccess] = React.useState(false);
+  const noteValue = watch('notes');
 
   React.useEffect(() => {
     if (!open) {
       reset({ notes: '' });
       setServerError(null);
+      setSoftGateMissing([]);
       setSuccess(false);
     }
   }, [open, reset]);
@@ -264,20 +281,30 @@ export function AdvanceGateModal({
     : 0;
 
   const isBlocked = false; // checklist is advisory; see note above
-  const canAdvance = true; // notes optional; e-sign (if any) is enforced server-side
+  const overrideMode = softGateMissing.length > 0;
+  const overrideNote = noteValue.trim();
+  const canAdvance = !overrideMode || overrideNote.length > 0; // notes optional until a soft-gate override is requested
   const submitting = formState.isSubmitting;
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
     try {
+      const trimmedNotes = values.notes.trim();
       const result = await advanceProjectGate?.({
         projectId: project.id,
         targetGate: gateInfo.next,
-        notes: values.notes.trim(),
+        notes: trimmedNotes,
+        ...(overrideMode ? { override: { note: trimmedNotes } } : {}),
       });
       if (result?.ok) {
         setSuccess(true);
         onAdvanced?.();
+      } else if (result?.error === 'ESIGN_REQUIRED') {
+        onESignRequired?.();
+        setServerError(resolveSubmitError(result, labels));
+      } else if (result?.error === 'SOFT_GATE_BLOCKED') {
+        setSoftGateMissing(result.missing ?? []);
+        setServerError(result ? resolveSubmitError(result, labels) : labels.error);
       } else {
         setServerError(result ? resolveSubmitError(result, labels) : labels.error);
       }
@@ -439,10 +466,25 @@ export function AdvanceGateModal({
               </div>
             )}
 
+            {softGateMissing.length > 0 ? (
+              <div role="alert" data-testid="advance-gate-soft-block" className="alert alert-amber">
+                <p className="alert-title text-amber-800">
+                  {labels.softGateBlockedError ?? 'Required stage checks are incomplete. Add an override note to continue.'}
+                </p>
+                <ul data-testid="advance-gate-soft-block-list" className="list-none p-0">
+                  {softGateMissing.map((missing) => (
+                    <li key={missing} data-testid="advance-gate-soft-block-item" className="text-xs text-amber-900">
+                      <span aria-hidden="true">○</span> {missing}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
             {/* ——— Notes ——— */}
             <div className="grid gap-1">
               <label htmlFor="advance-gate-notes" className="text-sm font-medium text-slate-700">
-                {labels.notesLabel}
+                {overrideMode ? labels.overrideNoteLabel ?? 'Override note' : labels.notesLabel}
               </label>
               <Textarea
                 id="advance-gate-notes"
@@ -455,7 +497,9 @@ export function AdvanceGateModal({
           {...register('notes')}
               />
               <span id="advance-gate-notes-hint" className="text-xs text-slate-500">
-                {labels.notesHint}
+                {overrideMode
+                  ? labels.overrideNoteHint ?? 'Required to override incomplete stage checks.'
+                  : labels.notesHint}
               </span>
             </div>
 
@@ -481,7 +525,7 @@ export function AdvanceGateModal({
             className="btn--primary btn-sm text-sm"
             disabled={!canAdvance || submitting || !advanceProjectGate}
           >
-            {submitting ? labels.advancing : advanceLabel}
+            {submitting ? labels.advancing : overrideMode ? labels.overrideConfirm ?? 'Override and advance' : advanceLabel}
           </Button>
         </Modal.Footer>
       )}

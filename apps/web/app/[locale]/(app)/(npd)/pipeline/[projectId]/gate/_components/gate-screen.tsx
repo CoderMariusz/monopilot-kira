@@ -207,6 +207,7 @@ export function GateScreen({
         state={canAdvance ? 'ready' : 'permission_denied'}
         advanceProjectGate={canAdvance ? advanceProjectGate : undefined}
         onAdvanced={onMutated}
+        onESignRequired={() => setActiveModal('gateApproval')}
         onClose={closeModal}
       />
 

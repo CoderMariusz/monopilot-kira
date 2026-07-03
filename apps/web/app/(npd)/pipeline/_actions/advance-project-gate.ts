@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
@@ -15,6 +16,7 @@ import {
   createFgCandidate,
   emitOutbox,
   gateForStage,
+  checkCostingNutritionReady,
   getBlockers,
   loadProjectForUpdate,
   requireActionPermission,
@@ -57,6 +59,9 @@ const inputSchema = z.object({
   productCode: z.string().trim().min(1).max(80).optional().nullable(),
   /** Optional audit note from the advance modal; stored in the outbox event payload. */
   notes: z.string().trim().max(2000).optional().nullable(),
+  override: z.object({
+    note: z.string().trim().min(1).max(2000),
+  }).optional(),
 });
 
 export type AdvanceProjectGateResult =
@@ -72,7 +77,142 @@ export type AdvanceProjectGateResult =
         outboxEventType: typeof GATE_ADVANCED_EVENT;
       };
     }
-  | { ok: false; error: string; status: number; blockers?: GateBlocker[] };
+  | { ok: false; error: string; status: number; blockers?: GateBlocker[]; missing?: string[] };
+
+type StageGateEvaluation =
+  | { status: 'PASS' }
+  | { status: 'SOFT_GATE_BLOCKED'; missing: string[] }
+  | { status: 'HARD_BLOCKED'; hardReason: string; blockers?: GateBlocker[] };
+
+type RequiredFieldRow = {
+  dept_code: string | null;
+  dept_name: string | null;
+  field_code: string | null;
+  field_label: string | null;
+  auto_source_field: string | null;
+  product_json: Record<string, unknown> | null;
+};
+
+function isFilled(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
+}
+
+async function requiredFieldsMissing(
+  ctx: OrgContextLike,
+  projectId: string,
+  stage: AnyStage,
+): Promise<string[]> {
+  if (stage === 'launched') return [];
+  const { rows } = await ctx.client.query<RequiredFieldRow>(
+    `select
+        d.code as dept_code,
+        d.name as dept_name,
+        f.code as field_code,
+        f.label as field_label,
+        f.auto_source_field,
+        to_jsonb(p.*) as product_json
+       from public.npd_departments d
+       join public.npd_department_field df
+         on df.department_id = d.id
+        and df.org_id = d.org_id
+       join public.npd_field_catalog f
+         on f.id = df.field_id
+        and f.org_id = df.org_id
+       join public.npd_projects np
+         on np.id = $1::uuid
+        and np.org_id = app.current_org_id()
+       left join public.product p
+         on p.org_id = app.current_org_id()
+        and p.product_code = np.product_code
+      where d.org_id = app.current_org_id()
+        and d.active = true
+        and d.stage_code = $2::text
+        and df.visible = true
+        and df.required = true
+        and f.active = true
+      order by d.display_order asc, d.code asc, df.display_order asc, f.code asc`,
+    [projectId, stage],
+  );
+
+  const missing: string[] = [];
+  for (const row of rows) {
+    const fieldCode = (row.field_code ?? '').trim().toLowerCase();
+    if (!fieldCode) continue;
+    const autoSource = (row.auto_source_field ?? '').trim().toLowerCase();
+    const values = row.product_json ?? {};
+    const value = autoSource && autoSource in values ? values[autoSource] : values[fieldCode];
+    if (!isFilled(value)) {
+      const dept = (row.dept_name ?? row.dept_code ?? 'Stage field').trim();
+      const field = (row.field_label ?? fieldCode).trim();
+      missing.push(`${dept}: ${field}`);
+    }
+  }
+  return missing;
+}
+
+async function writeGateOverrideAudit(
+  ctx: OrgContextLike,
+  params: {
+    projectId: string;
+    fromStage: AnyStage;
+    toStage: AnyStage;
+    missing: string[];
+    note: string;
+  },
+): Promise<void> {
+  const payload = {
+    fromStage: params.fromStage,
+    toStage: params.toStage,
+    missing: params.missing,
+    note: params.note,
+    actor: ctx.userId,
+  };
+  await ctx.client.query(
+    `insert into public.audit_log
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id,
+        before_state, after_state, request_id, retention_class)
+     values (app.current_org_id(), $1::uuid, 'user', 'npd.stage.gate_overridden',
+             'npd_project', $2, null, $3::jsonb, $4::uuid, 'operational')`,
+    [ctx.userId, params.projectId, JSON.stringify(payload), randomUUID()],
+  );
+}
+
+export async function evaluateStageGate(
+  projectId: string,
+  fromStage: AnyStage,
+  toStage: AnyStage,
+  db: OrgContextLike,
+  project?: Parameters<typeof getBlockers>[1],
+): Promise<StageGateEvaluation> {
+  const softMissing: string[] = [];
+  const projectRow = project ?? await loadProjectForUpdate(db, projectId);
+
+  const blockers = await getBlockers(db, projectRow, toStage);
+  if (blockers.length > 0) {
+    return { status: 'HARD_BLOCKED', hardReason: blockers[0]?.code ?? 'BLOCKERS_PRESENT', blockers };
+  }
+
+  if (gateForStage(fromStage) === 'G3' && gateForStage(toStage) === 'G4') {
+    await assertG3ESignForApproval(db, projectId);
+  }
+  if (fromStage === 'approval' && toStage === 'handoff') {
+    await assertG4ESignForHandoff(db, projectId);
+  }
+
+  if (fromStage === 'costing_nutrition' && toStage === 'trial') {
+    const readiness = await checkCostingNutritionReady(db, projectId);
+    if (!readiness.costReady) softMissing.push('Cost breakdown computed');
+    if (!readiness.nutritionReady) softMissing.push('Nutrition computed');
+  }
+
+  softMissing.push(...await requiredFieldsMissing(db, projectId, fromStage));
+  return softMissing.length > 0
+    ? { status: 'SOFT_GATE_BLOCKED', missing: softMissing }
+    : { status: 'PASS' };
+}
 
 export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProjectGateResult> {
   const parsed = inputSchema.safeParse(rawInput);
@@ -98,26 +238,41 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
       assertAdjacentStage(project.current_stage, targetStage);
       const targetGate = gateForStage(targetStage);
 
-      // Blockers are checked against the CURRENT stage's gate checklist.
-      const blockers = await getBlockers(context, project, targetStage);
-      if (blockers.length > 0) {
-        return { ok: false, error: 'BLOCKERS_PRESENT', status: 409, blockers };
+      const gateEvaluation = await evaluateStageGate(
+        project.id,
+        project.current_stage as AnyStage,
+        targetStage,
+        context,
+        project,
+      );
+      if (gateEvaluation.status === 'HARD_BLOCKED') {
+        return {
+          ok: false,
+          error: 'BLOCKERS_PRESENT',
+          status: 409,
+          blockers: gateEvaluation.blockers,
+        };
+      }
+      if (gateEvaluation.status === 'SOFT_GATE_BLOCKED') {
+        if (!parsed.data.override) {
+          return { ok: false, error: 'SOFT_GATE_BLOCKED', status: 409, missing: gateEvaluation.missing };
+        }
+        await writeGateOverrideAudit(context, {
+          projectId: project.id,
+          fromStage: project.current_stage as AnyStage,
+          toStage: targetStage,
+          missing: gateEvaluation.missing,
+          note: parsed.data.override.note,
+        });
       }
 
       // ─── Per-transition side effects ───
       let productCode = project.product_code;
 
-      // E-sign checkpoint: crossing the G3 → G4 boundary (pilot → approval) requires a
-      // valid G3 e-signature (collected by approveProjectGate). Owner decision F-1.
-      if (gateForStage(project.current_stage as AnyStage) === 'G3' && targetGate === 'G4') {
-        await assertG3ESignForApproval(context, project.id);
-      }
-
       // E-sign checkpoint: approval → handoff requires a valid G4 e-signature.
       // Entering handoff also seeds the handoff checklist — without it the stage
       // is a dead end (get-handoff not_found, promote impossible, launch 409).
       if (project.current_stage === 'approval' && targetStage === 'handoff') {
-        await assertG4ESignForHandoff(context, project.id);
         await seedHandoffChecklist(context, project);
       }
 

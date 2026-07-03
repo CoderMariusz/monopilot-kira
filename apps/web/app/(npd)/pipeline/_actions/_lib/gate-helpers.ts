@@ -339,6 +339,59 @@ export async function getBlockers(
   return blockers;
 }
 
+export async function checkCostingNutritionReady(
+  ctx: OrgContextLike,
+  projectId: string,
+): Promise<{ costReady: boolean; nutritionReady: boolean }> {
+  const { rows } = await ctx.client.query<{
+    cost_ready: boolean;
+    nutrition_ready: boolean;
+  }>(
+    `with project_row as (
+       select p.id, p.product_code
+         from public.npd_projects p
+        where p.id = $1::uuid
+          and p.org_id = app.current_org_id()
+        limit 1
+     ),
+     locked_recipe as (
+       select fv.id as locked_version_id
+         from public.formulations f
+         join public.formulation_versions fv
+           on fv.formulation_id = f.id
+          and fv.state = 'locked'
+        where f.project_id = $1::uuid
+          and f.org_id = app.current_org_id()
+        order by fv.version_number desc
+        limit 1
+     )
+     select
+       exists (
+         select 1
+           from public.costing_breakdowns cb
+           join project_row p on p.product_code = cb.product_code
+          where cb.org_id = app.current_org_id()
+            and lower(cb.scenario) = 'target'
+       ) as cost_ready,
+       exists (
+         select 1
+           from public.nutri_score_results nsr
+           join project_row p on p.product_code = nsr.product_code
+           left join locked_recipe lr on true
+          where nsr.org_id = app.current_org_id()
+            and (
+              lr.locked_version_id is null
+              or nsr.formulation_version_id = lr.locked_version_id
+            )
+       ) as nutrition_ready`,
+    [projectId],
+  );
+  return {
+    costReady: rows[0]?.cost_ready === true,
+    nutritionReady: rows[0]?.nutrition_ready === true,
+  };
+}
+
 /**
  * Persist a stage transition. `current_stage` is authoritative; `current_gate` is
  * DERIVED via GATE_BY_STAGE so all gate-keyed infra stays in sync. The 'launched'

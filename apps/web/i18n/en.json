@@ -2769,7 +2769,11 @@
       "alreadyClosedError": "This project is already launched — there is no further stage to advance to.",
       "adjacencyError": "The project can only advance one stage at a time. Reload the page — the stage may have changed.",
       "notFoundError": "This project could not be found. It may have been deleted.",
-      "fgLinkedError": "The Finished Good code is already linked to another active NPD project."
+      "fgLinkedError": "The Finished Good code is already linked to another active NPD project.",
+      "softGateBlockedError": "Required stage checks are incomplete. Add an override note to continue.",
+      "overrideNoteLabel": "Override note",
+      "overrideNoteHint": "Required to override incomplete stage checks.",
+      "overrideConfirm": "Override and advance"
     },
     "briefModals": {
       "create": {
