@@ -74,7 +74,11 @@ export interface NpdCostProcessInput {
 }
 
 export interface NpdWipComponentInput {
+  /** Quantity consumed PER PACK of the FG, in the WIP's base unit (formulation
+   *  qty_kg per pack for mass WIPs). No pack-weight rescaling is applied —
+   *  the raw contribution is unitCost × quantity. */
   quantity: string;
+  /** Informational — the WIP's base unit for the quantity above. */
   quantityUom?: string | null;
   rawMaterialCostPerOutputUnit: string;
   yieldPct: string;
@@ -224,7 +228,9 @@ export function computeNpdCostEngine(input: NpdCostEngineInput): WaterfallResult
   let raw = Dec.from(rawFromFormula.rawCostPerPack);
   for (const wip of input.wipComponents ?? []) {
     const componentUnitCost = computeWipComponentCostDecimal(wip, packWeightKg, avgBatchQty);
-    raw = raw.add(componentUnitCost.mul(Dec.from(wip.quantity)).mul(unitToPackFactor(wip.quantityUom, packWeightKg)));
+    // quantity is already per pack in the WIP's base unit — rescaling by
+    // unitToPackFactor here would multiply by pack weight a second time (review H1).
+    raw = raw.add(componentUnitCost.mul(Dec.from(wip.quantity)));
   }
 
   const yieldPct = yieldPctText ?? '100';

@@ -33,6 +33,7 @@ type ItemUomRow = {
 export type CreateWorkOrderCoreParams = {
   productId: string;
   itemCode: string;
+  itemTypeAtCreation?: 'rm' | 'ingredient' | 'intermediate' | 'fg' | 'co_product' | 'byproduct';
   documentNumber?: string;
   siteId?: string;
   plannedQuantity: string;
@@ -173,7 +174,7 @@ export async function createWorkOrderCore(
           source_of_demand, source_reference, qty_entered, qty_entered_uom, uom_snapshot,
           ext_jsonb, created_by, updated_by, site_id)
        values
-         ($1::uuid, app.current_org_id(), $2, $3::uuid, 'fg', $4::uuid,
+         ($1::uuid, app.current_org_id(), $2, $3::uuid, $18, $4::uuid,
           $12::uuid,
           $5::numeric, $16, 'DRAFT', $6::timestamptz, $7::uuid, $8::uuid,
           'manual', $9, $13::numeric, $14, $15::jsonb, $10::jsonb, $11::uuid, $11::uuid, $17::uuid)
@@ -199,6 +200,7 @@ export async function createWorkOrderCore(
         JSON.stringify(dbUomSnapshot),
         uomSnapshot.uomBase,
         siteId,
+        input.itemTypeAtCreation ?? 'fg',
       ],
     );
   }

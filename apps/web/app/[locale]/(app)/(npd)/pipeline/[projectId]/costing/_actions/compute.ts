@@ -31,6 +31,7 @@ import {
   type CostingErrorCode,
   type NpdCostEngineInput,
   type NpdCostProcessInput,
+  type NpdWipComponentInput,
   type WaterfallResult,
 } from '../../../../../../../../lib/costing/compute-waterfall';
 
@@ -134,6 +135,7 @@ type IngredientRow = {
   qty_kg: string | null;
   pct: string | null;
   cost_per_kg_eur: string | null;
+  wip_definition_id: string | null;
 };
 
 type PackagingRow = {
@@ -151,6 +153,18 @@ type ProcessRow = {
   setup_cost: string | null;
   rate_per_hour: string | null;
   headcount: string | null;
+};
+
+type WipComponentCostRow = {
+  wip_definition_id: string;
+  qty_kg: string | null;
+  yield_pct: string;
+  raw_material_cost_per_output_unit: string;
+  composition_missing_cost: boolean;
+};
+
+type WipProcessRow = ProcessRow & {
+  wip_definition_id: string;
 };
 
 export async function computeCosting(raw: unknown): Promise<ComputeCostingResult> {
@@ -310,12 +324,13 @@ export async function computeAndSaveInitialBreakdown(raw: unknown): Promise<Comp
       if (!recipe) return { ok: false as const, error: 'not_found' as const };
       if (!recipe.product_code) return { ok: false as const, error: 'fg_not_mapped' as const };
 
-      const [ingredients, packaging, processes, threshold] = await Promise.all([
+      const [ingredients, packaging, processes, threshold, wipCosts, wipProcesses] = await Promise.all([
         client.query<IngredientRow>(
           `select rm_code,
                   qty_kg::text as qty_kg,
                   pct::text as pct,
-                  cost_per_kg_eur::text as cost_per_kg_eur
+                  cost_per_kg_eur::text as cost_per_kg_eur,
+                  wip_definition_id::text as wip_definition_id
              from public.formulation_ingredients
             where version_id = $1::uuid
             order by sequence, rm_code`,
@@ -366,10 +381,15 @@ export async function computeAndSaveInitialBreakdown(raw: unknown): Promise<Comp
             where threshold_key = $1`,
           [MARGIN_WARN_THRESHOLD_KEY],
         ),
+        loadWipComponentCosts(client, recipe.version_id),
+        loadWipProcesses(client, recipe.version_id),
       ]);
+      if (wipCosts.rows.some((row) => row.composition_missing_cost)) {
+        return { ok: false as const, error: 'ingredient_costs_missing' as const };
+      }
 
       const input: NpdCostEngineInput = {
-        ingredients: ingredients.rows.map((row) => ({
+        ingredients: ingredients.rows.filter((row) => !row.wip_definition_id).map((row) => ({
           rmCode: row.rm_code,
           qtyKg: row.qty_kg,
           pct: row.pct,
@@ -391,7 +411,7 @@ export async function computeAndSaveInitialBreakdown(raw: unknown): Promise<Comp
           wastePct: row.waste_pct,
         })),
         processes: groupProcesses(processes.rows),
-        wipComponents: [],
+        wipComponents: buildWipComponents(wipCosts.rows, wipProcesses.rows),
         overheadPerKg: recipe.overhead_per_kg,
         logisticsPerBox: recipe.logistics_per_box,
       };
@@ -469,6 +489,110 @@ function groupProcesses(rows: ProcessRow[]): NpdCostProcessInput[] {
     }
   }
   return [...byId.values()];
+}
+
+function buildWipComponents(costRows: WipComponentCostRow[], processRows: WipProcessRow[]): NpdWipComponentInput[] {
+  const processesByDefinition = new Map<string, NpdCostProcessInput[]>();
+  for (const row of processRows) {
+    const list = processesByDefinition.get(row.wip_definition_id) ?? [];
+    if (!processesByDefinition.has(row.wip_definition_id)) {
+      processesByDefinition.set(row.wip_definition_id, list);
+    }
+  }
+  const groupedProcesses = groupWipProcesses(processRows);
+  for (const [definitionId, processes] of groupedProcesses) {
+    processesByDefinition.set(definitionId, processes);
+  }
+
+  return costRows.map((row) => ({
+    quantity: row.qty_kg ?? '0',
+    quantityUom: 'kg',
+    rawMaterialCostPerOutputUnit: row.raw_material_cost_per_output_unit,
+    yieldPct: row.yield_pct,
+    processes: processesByDefinition.get(row.wip_definition_id) ?? [],
+  }));
+}
+
+function groupWipProcesses(rows: WipProcessRow[]): Map<string, NpdCostProcessInput[]> {
+  const byDefinition = new Map<string, WipProcessRow[]>();
+  for (const row of rows) {
+    const list = byDefinition.get(row.wip_definition_id) ?? [];
+    list.push(row);
+    byDefinition.set(row.wip_definition_id, list);
+  }
+  const result = new Map<string, NpdCostProcessInput[]>();
+  for (const [definitionId, definitionRows] of byDefinition) {
+    result.set(definitionId, groupProcesses(definitionRows));
+  }
+  return result;
+}
+
+function loadWipComponentCosts(
+  client: { query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }> },
+  versionId: string,
+): Promise<{ rows: WipComponentCostRow[] }> {
+  return client.query<WipComponentCostRow>(
+    `select fi.wip_definition_id::text as wip_definition_id,
+            fi.qty_kg::text as qty_kg,
+            wd.yield_pct::text as yield_pct,
+            coalesce(sum(wdi.qty_per_unit * vec.amount) filter (where vec.amount is not null), 0)::text
+              as raw_material_cost_per_output_unit,
+            bool_or(vec.amount is null) as composition_missing_cost
+       from public.formulation_ingredients fi
+       join public.wip_definitions wd
+         on wd.id = fi.wip_definition_id
+        and wd.org_id = app.current_org_id()
+       join public.wip_definition_ingredients wdi
+         on wdi.org_id = wd.org_id
+        and wdi.wip_definition_id = wd.id
+       left join public.v_item_effective_cost vec
+         on vec.org_id = wdi.org_id
+        and vec.item_id = wdi.item_id
+      where fi.version_id = $1::uuid
+        and fi.wip_definition_id is not null
+      group by fi.id, fi.wip_definition_id, fi.qty_kg, wd.yield_pct
+      order by min(fi.sequence), fi.wip_definition_id`,
+    [versionId],
+  );
+}
+
+function loadWipProcesses(
+  client: { query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }> },
+  versionId: string,
+): Promise<{ rows: WipProcessRow[] }> {
+  return client.query<WipProcessRow>(
+    `select wd.id::text as wip_definition_id,
+            wdp.id::text as process_id,
+            wdp.duration_hours::text as duration_hours,
+            wdp.additional_cost::text as additional_cost,
+            wdp.throughput_per_hour::text as throughput_per_hour,
+            wdp.throughput_uom::text as throughput_uom,
+            wdp.setup_cost::text as setup_cost,
+            coalesce(wdr.rate_per_hour, lr.rate_per_hour)::text as rate_per_hour,
+            wdr.headcount::text as headcount
+       from public.formulation_ingredients fi
+       join public.wip_definitions wd
+         on wd.id = fi.wip_definition_id
+        and wd.org_id = app.current_org_id()
+       join public.wip_definition_processes wdp
+         on wdp.org_id = wd.org_id
+        and wdp.wip_definition_id = wd.id
+       left join public.wip_definition_roles wdr
+         on wdr.org_id = wdp.org_id
+        and wdr.process_id = wdp.id
+       left join lateral (
+         select rate_per_hour
+           from public.labor_rates lr
+          where lr.org_id = wdp.org_id
+            and lr.role_group = wdr.role_group
+          order by lr.effective_from desc
+          limit 1
+       ) lr on true
+      where fi.version_id = $1::uuid
+        and fi.wip_definition_id is not null
+      order by wd.id, wdp.display_order, wdr.role_group`,
+    [versionId],
+  );
 }
 
 async function persistCostingResult(input: {

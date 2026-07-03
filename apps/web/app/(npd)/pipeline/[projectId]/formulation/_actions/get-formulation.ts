@@ -26,6 +26,10 @@ type IngredientRow = {
   rm_code: string;
   /** Lane-B: FK to the real items master row (null for legacy free text). */
   item_id: string | null;
+  /** W3-L10: reusable WIP definition referenced by this recipe line (null for RM rows). */
+  wip_definition_id: string | null;
+  /** W3-L10: display name from the joined wip_definitions row. */
+  wip_definition_name: string | null;
   /** Lane-B: display name from the joined items row (empty when no item). */
   item_name: string | null;
   /** F6-D17: optional substitute item for this component line. */
@@ -230,6 +234,8 @@ const INGREDIENT_SELECT = `
   fi.id::text,
   fi.rm_code,
   fi.item_id::text,
+  fi.wip_definition_id::text,
+  wd.name as wip_definition_name,
   it.name as item_name,
   fi.substitute_item_id::text,
   substitute.item_code as substitute_item_code,
@@ -259,6 +265,7 @@ async function loadIngredients(client: QueryClient, versionId: string): Promise<
          rm.nutrition_per_100g
        from public.formulation_ingredients fi
        left join public.items it on it.id = fi.item_id
+       left join public.wip_definitions wd on wd.id = fi.wip_definition_id
        left join public.items substitute on substitute.id = fi.substitute_item_id
        left join profile_allergens pa on pa.item_id = fi.item_id
        left join "Reference"."RawMaterials" rm
@@ -275,6 +282,7 @@ async function loadIngredients(client: QueryClient, versionId: string): Promise<
        select${INGREDIENT_SELECT}
        from public.formulation_ingredients fi
        left join public.items it on it.id = fi.item_id
+       left join public.wip_definitions wd on wd.id = fi.wip_definition_id
        left join public.items substitute on substitute.id = fi.substitute_item_id
        left join profile_allergens pa on pa.item_id = fi.item_id
       where fi.version_id = $1::uuid

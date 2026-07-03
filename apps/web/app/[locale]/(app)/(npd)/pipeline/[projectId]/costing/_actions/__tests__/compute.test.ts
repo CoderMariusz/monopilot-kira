@@ -726,4 +726,82 @@ describe('computeAndSaveInitialBreakdown — lookup honesty (W9-L6, fake client)
     const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
     expect(res).toMatchObject({ ok: false, error: 'ingredient_costs_missing' });
   });
+
+  it('partitions WIP formulation rows out of plain ingredients and feeds wipComponents', async () => {
+    const { computeAndSaveInitialBreakdown } = await import('../compute');
+    handler = (sql) => {
+      if (sql.includes(BOOTSTRAP_MARK)) {
+        return { rows: [lockedFormulationRow('FG-WIP-001')] };
+      }
+      if (sql.includes('from public.formulation_ingredients') && !sql.includes('wip_definition_ingredients') && !sql.includes('wip_definition_processes')) {
+        return {
+          rows: [
+            { rm_code: 'RM-PLAIN', qty_kg: '0.100', pct: '100', cost_per_kg_eur: '2.00', wip_definition_id: null },
+            { rm_code: 'WIP-SAUCE', qty_kg: '0.050', pct: null, cost_per_kg_eur: null, wip_definition_id: randomUUID() },
+          ],
+        };
+      }
+      if (sql.includes('wip_definition_ingredients') && sql.includes('v_item_effective_cost')) {
+        return {
+          rows: [{
+            wip_definition_id: '00000000-0000-4000-8000-00000000w001'.replace('w', 'a'),
+            qty_kg: '0.050',
+            yield_pct: '90',
+            raw_material_cost_per_output_unit: '3.0000',
+            composition_missing_cost: false,
+          }],
+        };
+      }
+      if (sql.includes('wip_definition_processes')) {
+        return {
+          rows: [{
+            wip_definition_id: '00000000-0000-4000-8000-00000000a001',
+            process_id: '00000000-0000-4000-8000-00000000b001',
+            duration_hours: '0',
+            additional_cost: '0',
+            throughput_per_hour: '100',
+            throughput_uom: 'kg',
+            setup_cost: '0',
+            rate_per_hour: '20',
+            headcount: '1',
+          }],
+        };
+      }
+      if (sql.includes('"Reference"."AlertThresholds"')) return { rows: [{ value_int: 15, value_text: null }] };
+      if (sql.includes('insert into public.costing_breakdowns')) return { rows: [{ id: randomUUID() }] };
+      return { rows: [] };
+    };
+
+    const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.rawCostEur).not.toBe('0.2000');
+  });
+
+  it('blocks when any WIP composition item has no effective cost', async () => {
+    const { computeAndSaveInitialBreakdown } = await import('../compute');
+    handler = (sql) => {
+      if (sql.includes(BOOTSTRAP_MARK)) return { rows: [lockedFormulationRow('FG-WIP-002')] };
+      if (sql.includes('from public.formulation_ingredients') && !sql.includes('wip_definition_ingredients')) {
+        return {
+          rows: [{ rm_code: 'WIP-SAUCE', qty_kg: '0.050', pct: null, cost_per_kg_eur: null, wip_definition_id: randomUUID() }],
+        };
+      }
+      if (sql.includes('wip_definition_ingredients') && sql.includes('v_item_effective_cost')) {
+        return {
+          rows: [{
+            wip_definition_id: '00000000-0000-4000-8000-00000000a002',
+            qty_kg: '0.050',
+            yield_pct: '90',
+            raw_material_cost_per_output_unit: '0',
+            composition_missing_cost: true,
+          }],
+        };
+      }
+      return { rows: [] };
+    };
+
+    const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
+    expect(res).toMatchObject({ ok: false, error: 'ingredient_costs_missing' });
+  });
 });

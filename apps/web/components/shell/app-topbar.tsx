@@ -5,6 +5,11 @@ import { SiteCrumb } from "./site-crumb";
 import { SiteSwitcher, type SiteSwitcherOption } from "./site-switcher";
 import { OrgSwitcher, type OrgSwitcherOrg } from "./org-switcher";
 import { UserMenu } from "./user-menu";
+import {
+  NotificationBell,
+  type NotificationBellLabels,
+  type NotificationBellProps,
+} from "./notification-bell";
 import type { UserMenuLanguagePickerProps } from "../../app/_components/user-menu-language-picker";
 import type { PlatformSwitcherData } from "../../lib/platform/org-switcher-data";
 
@@ -41,6 +46,16 @@ type AppTopbarProps = {
   /** Audited act-as server actions (lib/platform/actions). */
   actAsOrgAction?: (orgId: string) => Promise<{ ok: boolean } | { ok: false; error: string }>;
   exitActAsAction?: () => Promise<{ ok: boolean } | { ok: false; error: string }>;
+  /** W3 L11 — notification inbox bell (optional so shell unit tests stay isolated). */
+  notificationInbox?: Pick<
+    NotificationBellProps,
+    | "initialUnreadCount"
+    | "listNotificationsAction"
+    | "markNotificationReadAction"
+    | "markAllNotificationsReadAction"
+  > & {
+    labels: NotificationBellLabels;
+  };
 };
 
 export async function AppTopbar({
@@ -60,6 +75,7 @@ export async function AppTopbar({
   platformSwitcher,
   actAsOrgAction,
   exitActAsAction,
+  notificationInbox,
 }: AppTopbarProps): Promise<JSX.Element> {
   const t = await getTranslations({ locale, namespace: "Topbar" });
   const tp = await getTranslations({ locale, namespace: "platform" });
@@ -128,6 +144,15 @@ export async function AppTopbar({
         ) : (
           <SiteCrumb orgName={orgName} />
         )}
+        {notificationInbox ? (
+          <NotificationBell
+            initialUnreadCount={notificationInbox.initialUnreadCount}
+            labels={notificationInbox.labels}
+            listNotificationsAction={notificationInbox.listNotificationsAction}
+            markNotificationReadAction={notificationInbox.markNotificationReadAction}
+            markAllNotificationsReadAction={notificationInbox.markAllNotificationsReadAction}
+          />
+        ) : null}
         <UserMenu
           user={user}
           orgId={orgId}

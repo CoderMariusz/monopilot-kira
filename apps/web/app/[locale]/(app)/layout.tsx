@@ -15,6 +15,13 @@ import { setActiveSite } from '../../../lib/site/site-actions';
 import { getActiveSiteId } from '../../../lib/site/site-context';
 import { getPlatformSwitcherData } from '../../../lib/platform/org-switcher-data';
 import { actAsOrgAction, exitActAsAction } from '../../../lib/platform/actions';
+import { getUnreadNotificationCount } from '../../../lib/notifications/get-unread-notification-count';
+import { buildNotificationBellLabels } from '../../../lib/notifications/build-notification-bell-labels';
+import {
+  listNotificationsForInbox,
+  markAllInboxNotificationsRead,
+  markInboxNotificationRead,
+} from '../../../components/shell/_actions/notification-inbox-actions';
 import type { PhaseOneLanguage, UserLanguage } from '../../../lib/i18n/user-language';
 
 type Locale = 'en' | 'pl' | 'uk' | 'ro';
@@ -168,10 +175,13 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
   // for a normal user; only an app.platform_admins row unlocks it. RBAC is
   // resolved server-side here and never client-trusted. A resolution failure
   // degrades to null so the normal shell still renders.
-  const [sites, activeSiteId, platformSwitcher] = await Promise.all([
+  const [sites, activeSiteId, platformSwitcher, initialUnreadCount, notificationBellLabels] =
+    await Promise.all([
     getUserSites(shellUser.id),
     getActiveSiteId(),
     getPlatformSwitcherData().catch(() => null),
+    getUnreadNotificationCount(),
+    buildNotificationBellLabels(locale),
   ]);
   const topbar = await AppTopbar({
     locale,
@@ -190,6 +200,13 @@ export default async function AppRouteGroupLayout({ children, params }: AppRoute
     platformSwitcher,
     actAsOrgAction,
     exitActAsAction,
+    notificationInbox: {
+      initialUnreadCount,
+      labels: notificationBellLabels,
+      listNotificationsAction: listNotificationsForInbox,
+      markNotificationReadAction: markInboxNotificationRead,
+      markAllNotificationsReadAction: markAllInboxNotificationsRead,
+    },
   });
 
   const actingAs = Boolean(platformSwitcher?.isActingAs);

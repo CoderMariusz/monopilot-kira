@@ -44,6 +44,10 @@ export type EditableIngredient = {
   rmCode: string;
   /** Lane-B: FK to the real items master row this ingredient represents (or null). */
   itemId: string | null;
+  /** W3-L10: reusable WIP definition referenced by this recipe line. */
+  wipDefinitionId?: string | null;
+  /** W3-L10: display name of the referenced WIP definition. */
+  wipDefinitionName?: string | null;
   /** F6-D17: optional substitute item allowed for this line at consumption only. */
   substituteItemId: string | null;
   substituteItemCode?: string | null;
@@ -87,6 +91,8 @@ export type IngredientRowLabels = {
   openInTechnical?: string;
   /** Item-picker (combobox over the real items master) labels. */
   picker: ItemPickerLabels;
+  /** W3-L10 — badge label for reusable WIP recipe lines. */
+  wipBadge?: string;
 };
 
 /**
@@ -148,6 +154,7 @@ export function IngredientRow({
   const contribution = computeContribution(ingredient.qtyKg, ingredient.costPerKgEur);
   const qtyErrorId = `ing-${ingredient.id}-qty-error`;
   const rmErrorId = `ing-${ingredient.id}-rm-error`;
+  const isWipRow = Boolean(ingredient.wipDefinitionId);
 
   return (
     <TableRow data-testid="ingredient-row" data-sequence={ingredient.sequence}>
@@ -157,6 +164,11 @@ export function IngredientRow({
             combobox. The chosen item's code/name/cost/allergen populate the row. */}
         <div className="flex items-center gap-2" data-field="rmCode">
           {cascadeControl}
+          {isWipRow ? (
+            <Badge variant="info" className="badge-blue" data-testid="ingredient-wip-badge">
+              {labels.wipBadge ?? 'WIP'}
+            </Badge>
+          ) : null}
           {ingredient.rmCode ? (
             <span
               className="mono text-xs font-semibold"
@@ -187,23 +199,31 @@ export function IngredientRow({
               <span aria-hidden="true">↗</span>
             </Link>
           ) : null}
-          <ItemPicker
-            labels={labels.picker}
-            searchItemsAction={searchItemsAction}
-            itemTypes={['rm', 'ingredient', 'intermediate', 'co_product', 'byproduct']}
-            disabled={disabled}
-            triggerClassName="btn-ghost btn-sm"
-            onSelect={(item) => onSelectItem(index, item)}
-            /* F6 — on a fresh org the raw-material library is empty, so the
-               picker's "no matching items" state is a Cancel-only dead-end.
-               Point the user to Technical → Items (create wizard auto-opens via
-               ?modal=create) so they can self-serve the recipe stage. */
-            createItemHref="/technical/items?modal=create"
-          />
+          {!isWipRow ? (
+            <ItemPicker
+              labels={labels.picker}
+              searchItemsAction={searchItemsAction}
+              itemTypes={['rm', 'ingredient', 'intermediate', 'co_product', 'byproduct']}
+              disabled={disabled}
+              triggerClassName="btn-ghost btn-sm"
+              onSelect={(item) => onSelectItem(index, item)}
+              /* F6 — on a fresh org the raw-material library is empty, so the
+                 picker's "no matching items" state is a Cancel-only dead-end.
+                 Point the user to Technical → Items (create wizard auto-opens via
+                 ?modal=create) so they can self-serve the recipe stage. */
+              createItemHref="/technical/items?modal=create"
+            />
+          ) : null}
         </div>
         {ingredient.name ? (
-          <div className="mt-0.5 text-[10px] muted">{ingredient.name}</div>
+          <div className="mt-0.5 text-[10px] muted">
+            {ingredient.name}
+            {ingredient.wipDefinitionName ? (
+              <span className="ml-1 text-slate-400">({ingredient.wipDefinitionName})</span>
+            ) : null}
+          </div>
         ) : null}
+        {!isWipRow ? (
         <div className="mt-2 rounded-md border border-slate-200 bg-slate-50/60 p-2">
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-normal text-slate-500">
             {labels.substitute}
@@ -238,6 +258,7 @@ export function IngredientRow({
             createItemHref="/technical/items?modal=create"
           />
         </div>
+        ) : null}
         {error?.rmCode ? (
           <p id={rmErrorId} role="alert" className="mt-0.5 text-xs text-red-600">
             {error.rmCode}

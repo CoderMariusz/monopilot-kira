@@ -186,6 +186,7 @@ export type DeleteDraftWorkOrderResult =
 export const CreateWorkOrderInput = z.object({
   productId: z.string().uuid(),
   itemCode: z.string().trim().min(1).max(128),
+  itemTypeAtCreation: z.enum(['rm', 'ingredient', 'intermediate', 'fg', 'co_product', 'byproduct']).optional(),
   documentNumber: z.string().trim().min(1).max(128).optional(),
   siteId: z.string().uuid().optional(),
   plannedQuantity: z

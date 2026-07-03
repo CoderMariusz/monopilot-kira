@@ -1,7 +1,7 @@
 /**
  * NPD PILOT stage — createPilotWorkOrder unit tests.
  *
- * Mocks withOrgContext + createWorkOrderCore (canonical planning path). Asserts:
+ * Mocks withOrgContext + createWorkOrderChainForContext (canonical planning path). Asserts:
  * happy path, rejection when no linked FG, idempotency (second call returns
  * existing WO without a second insert).
  */
@@ -12,8 +12,8 @@ type Handler = (sql: string, params: readonly unknown[]) => { rows: unknown[] } 
 
 const handlerHolder: { handler: Handler } = { handler: () => ({ rows: [] }) };
 
-const { createWorkOrderCoreMock } = vi.hoisted(() => ({
-  createWorkOrderCoreMock: vi.fn(),
+const { createWorkOrderChainMock } = vi.hoisted(() => ({
+  createWorkOrderChainMock: vi.fn(),
 }));
 
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
@@ -29,8 +29,8 @@ vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
     }),
 }));
 
-vi.mock('../../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-core', () => ({
-  createWorkOrderCore: createWorkOrderCoreMock,
+vi.mock('../../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain', () => ({
+  createWorkOrderChainForContext: createWorkOrderChainMock,
 }));
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
@@ -46,7 +46,7 @@ const PRODUCT_CODE = 'FG0042';
 
 afterEach(() => {
   handlerHolder.handler = () => ({ rows: [] });
-  createWorkOrderCoreMock.mockReset();
+  createWorkOrderChainMock.mockReset();
   vi.clearAllMocks();
 });
 
@@ -104,14 +104,14 @@ describe('createPilotWorkOrder', () => {
 
     const result = await createPilotWorkOrder({ projectId: PROJECT });
     expect(result).toEqual({ ok: false, error: 'no_linked_fg' });
-    expect(createWorkOrderCoreMock).not.toHaveBeenCalled();
+    expect(createWorkOrderChainMock).not.toHaveBeenCalled();
   });
 
   it('creates a pilot WO on the happy path with the pilot document number and explicit line site', async () => {
     handlerHolder.handler = permHandler(['npd.pilot.write'], seedHappyPath());
-    createWorkOrderCoreMock.mockResolvedValue({
+    createWorkOrderChainMock.mockResolvedValue({
       ok: true,
-      workOrder: {
+      fgWorkOrder: {
         id: WO_ID,
         woNumber: `WO-pilot-${PRODUCT_CODE}`,
         productId: ITEM_ID,
@@ -132,8 +132,9 @@ describe('createPilotWorkOrder', () => {
         updatedAt: '2026-07-03T00:00:00.000Z',
         itemTypeAtCreation: 'fg',
       },
-      materials: [],
-      primarySchedule: {} as never,
+      wipWorkOrders: [],
+      dependencies: [],
+      created: true,
     });
 
     const result = await createPilotWorkOrder({ projectId: PROJECT });
@@ -142,8 +143,8 @@ describe('createPilotWorkOrder', () => {
       data: { id: WO_ID, woNumber: `WO-pilot-${PRODUCT_CODE}` },
       created: true,
     });
-    expect(createWorkOrderCoreMock).toHaveBeenCalledTimes(1);
-    expect(createWorkOrderCoreMock).toHaveBeenCalledWith(
+    expect(createWorkOrderChainMock).toHaveBeenCalledTimes(1);
+    expect(createWorkOrderChainMock).toHaveBeenCalledWith(
       expect.objectContaining({ orgId: '07300000-0000-4000-8000-00000000000a' }),
       expect.objectContaining({
         productId: ITEM_ID,
@@ -188,7 +189,7 @@ describe('createPilotWorkOrder', () => {
       data: { id: WO_ID, woNumber: `WO-pilot-${PRODUCT_CODE}` },
       created: false,
     });
-    expect(createWorkOrderCoreMock).not.toHaveBeenCalled();
+    expect(createWorkOrderChainMock).not.toHaveBeenCalled();
   });
 
   it('requires a pilot production line before creating the WO', async () => {
@@ -217,7 +218,7 @@ describe('createPilotWorkOrder', () => {
     const result = await createPilotWorkOrder({ projectId: PROJECT });
 
     expect(result).toEqual({ ok: false, error: 'line_required' });
-    expect(createWorkOrderCoreMock).not.toHaveBeenCalled();
+    expect(createWorkOrderChainMock).not.toHaveBeenCalled();
   });
 
   it('returns fg_item_missing when the product code has no public.items row', async () => {
@@ -243,12 +244,12 @@ describe('createPilotWorkOrder', () => {
     const result = await createPilotWorkOrder({ projectId: PROJECT });
 
     expect(result).toEqual({ ok: false, error: 'fg_item_missing' });
-    expect(createWorkOrderCoreMock).not.toHaveBeenCalled();
+    expect(createWorkOrderChainMock).not.toHaveBeenCalled();
   });
 
   it('surfaces planning permission failures distinctly while preserving the core error', async () => {
     handlerHolder.handler = permHandler(['npd.pilot.write'], seedHappyPath());
-    createWorkOrderCoreMock.mockResolvedValue({ ok: false, error: 'forbidden' });
+    createWorkOrderChainMock.mockResolvedValue({ ok: false, error: 'forbidden' });
 
     const result = await createPilotWorkOrder({ projectId: PROJECT });
 
@@ -264,9 +265,9 @@ describe('createPilotWorkOrder', () => {
     ['no_active_site', 'no_active_site'],
     ['document_mask_missing', 'document_mask_missing'],
     ['persistence_failed', 'wo_create_failed'],
-  ] as const)('maps core %s to pilot %s and preserves the inner planning error', async (planningError, pilotError) => {
+  ] as const)('maps chain %s to pilot %s and preserves the inner planning error', async (planningError, pilotError) => {
     handlerHolder.handler = permHandler(['npd.pilot.write'], seedHappyPath());
-    createWorkOrderCoreMock.mockResolvedValue({ ok: false, error: planningError });
+    createWorkOrderChainMock.mockResolvedValue({ ok: false, error: planningError });
 
     const result = await createPilotWorkOrder({ projectId: PROJECT });
 

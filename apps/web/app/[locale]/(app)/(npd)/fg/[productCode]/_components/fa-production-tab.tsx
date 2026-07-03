@@ -51,7 +51,8 @@
 
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -76,6 +77,11 @@ import { ItemPicker, type ItemPickerLabels, type ItemSearchFn } from '../../../_
 import type {
   ComponentProcess,
 } from '../../../../../../(npd)/fa/actions/get-component-processes';
+import {
+  resolveComponentProcessBundle,
+  type ComponentProcessBundle,
+} from '../../../../../../(npd)/fa/actions/map-definition-process-chain';
+import { publishWipDefinitionFromComponent } from '../../../../(modules)/technical/wip-library/_actions/wip-definition-actions';
 import {
   addWipProcess,
   updateWipProcess,
@@ -153,6 +159,16 @@ export type ProductionProcessLabels = {
   headcount: string;
   loading: string;
   loadError: string;
+  /** W3-L10 — referenced WIP definition chain is read-only in the project. */
+  readOnlyDefinition?: string;
+  editInWipLibrary?: string;
+  publishAsWipDefinition?: string;
+  publishWipNameLabel?: string;
+  publishWipNamePlaceholder?: string;
+  publishWipConfirm?: string;
+  publishWipCancel?: string;
+  publishWipPublishing?: string;
+  publishWipError?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -270,7 +286,7 @@ export type FaProductionTabProps = {
 
   // -- S5b dynamic per-component process list -------------------------------
   /** Server-loaded processes keyed by prod_detail_id (= ProdDetailRow.id). */
-  componentProcesses?: Record<string, ComponentProcess[]>;
+  componentProcesses?: Record<string, ComponentProcess[] | ComponentProcessBundle>;
   /** Active ManufacturingOperations (id + name) for the process picker. */
   operationOptions?: OperationOption[];
   /** Seam: getProcessDefault(operationId) (Settings → process defaults). */
@@ -283,6 +299,8 @@ export type FaProductionTabProps = {
   onRemoveProcess?: RemoveProcessFn;
   /** Seam: saveWipProcessRoles. */
   onSaveProcessRoles?: SaveProcessRolesFn;
+  /** W3-L10 — publish a local component chain as a reusable WIP definition. */
+  onPublishWipDefinition?: typeof publishWipDefinitionFromComponent;
 };
 
 // ---------------------------------------------------------------------------
@@ -354,6 +372,15 @@ const DEFAULT_PROCESS_LABELS: ProductionProcessLabels = {
   headcount: 'Headcount',
   loading: 'Loading processes…',
   loadError: 'Could not load processes',
+  readOnlyDefinition: 'Referenced WIP definition',
+  editInWipLibrary: 'Edit in WIP library',
+  publishAsWipDefinition: 'Publish as WIP definition',
+  publishWipNameLabel: 'Definition name',
+  publishWipNamePlaceholder: 'Enter a name for this WIP definition',
+  publishWipConfirm: 'Publish',
+  publishWipCancel: 'Cancel',
+  publishWipPublishing: 'Publishing…',
+  publishWipError: 'Could not publish the WIP definition',
 };
 
 /** Replace the "{count}" placeholder in a pre-translated string. */
@@ -900,41 +927,138 @@ function ProcessEditDialog({
 }
 
 // ---------------------------------------------------------------------------
+// W3-L10 — publish local component chain as a reusable WIP definition
+// ---------------------------------------------------------------------------
+
+function PublishWipDialog({
+  defaultName,
+  labels,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  defaultName: string;
+  labels: ProductionProcessLabels;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (name: string) => void;
+}) {
+  const [name, setName] = React.useState(defaultName);
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
+
+  React.useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') onCloseRef.current();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={labels.publishAsWipDefinition}
+      data-testid="fa-prod-publish-wip-dialog"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1100,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(15,23,42,0.45)',
+        pointerEvents: 'auto',
+      }}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-sm rounded-lg bg-white p-4 shadow-xl">
+        <h3 className="mb-3 text-sm font-semibold text-slate-900">{labels.publishAsWipDefinition}</h3>
+        <label htmlFor="fa-prod-publish-wip-name" className="mb-1 block text-xs font-medium text-slate-700">
+          {labels.publishWipNameLabel}
+        </label>
+        <Input
+          id="fa-prod-publish-wip-name"
+          data-testid="fa-prod-publish-wip-name"
+          value={name}
+          disabled={busy}
+          placeholder={labels.publishWipNamePlaceholder}
+          onChange={(event) => setName(event.target.value)}
+          className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm"
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" className="btn--ghost" disabled={busy} onClick={onClose}>
+            {labels.publishWipCancel}
+          </Button>
+          <Button
+            type="button"
+            data-testid="fa-prod-publish-wip-confirm"
+            disabled={busy || name.trim().length === 0}
+            onClick={() => onConfirm(name.trim())}
+          >
+            {busy ? labels.publishWipPublishing : labels.publishWipConfirm}
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // S5b — per-component dynamic process list. One instance per ProdDetailRow.
 // ---------------------------------------------------------------------------
 
 function ComponentProcesses({
   prodDetailId,
-  processes,
+  bundle,
   operations,
   labels,
   canWrite,
   locked,
+  locale,
+  componentLabel,
   getDefault,
   addProcess,
   updateProcess,
   removeProcess,
   saveRoles,
+  publishWipDefinition,
   onMutated,
 }: {
   prodDetailId: string;
-  processes: ComponentProcess[];
+  bundle: ComponentProcessBundle;
   operations: OperationOption[];
   labels: ProductionProcessLabels;
   canWrite: boolean;
   locked: boolean;
+  locale: string;
+  componentLabel?: string;
   getDefault: GetProcessDefaultFn;
   addProcess: AddProcessFn;
   updateProcess: UpdateProcessFn;
   removeProcess: RemoveProcessFn;
   saveRoles: SaveProcessRolesFn;
+  publishWipDefinition: typeof publishWipDefinitionFromComponent;
   onMutated: () => void;
 }) {
+  const processes = bundle.processes;
+  const readOnly = Boolean(bundle.readOnly);
+  const definitionId = bundle.definitionId;
+  const definitionName = bundle.definitionName;
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [editing, setEditing] = React.useState<ComponentProcess | null>(null);
+  const [publishOpen, setPublishOpen] = React.useState(false);
 
-  const writable = canWrite && !locked;
+  const writable = canWrite && !locked && !readOnly;
+  const canPublish =
+    canWrite && !locked && !readOnly && processes.some((process) => process.createsWipItem);
   const subtotal = processes.reduce((sum, p) => sum + (Number(p.processCost) || 0), 0);
 
   async function handlePick(op: OperationOption) {
@@ -1021,6 +1145,24 @@ function ComponentProcesses({
     }
   }
 
+  async function handlePublish(name: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await publishWipDefinition({ prodDetailId, name });
+      if (!result.ok) {
+        setError(result.error ?? labels.publishWipError ?? 'Could not publish the WIP definition');
+        return;
+      }
+      setPublishOpen(false);
+      onMutated();
+    } catch {
+      setError(labels.publishWipError ?? 'Could not publish the WIP definition');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div
       className="mt-3 rounded-md border border-slate-200 bg-slate-50/60 p-3"
@@ -1030,15 +1172,43 @@ function ComponentProcesses({
         <div>
           <h4 className="text-sm font-semibold text-slate-800">{labels.sectionTitle}</h4>
           <p className="text-[11px] text-slate-500">{labels.sectionSubtitle}</p>
+          {readOnly && definitionName ? (
+            <p className="mt-1 text-[11px] text-amber-800" data-testid={`fa-prod-wip-readonly-${prodDetailId}`}>
+              {labels.readOnlyDefinition}: <span className="font-medium">{definitionName}</span>
+            </p>
+          ) : null}
         </div>
-        {writable ? (
-          <OperationPicker
-            labels={labels}
-            options={operations}
-            disabled={busy}
-            onSelect={handlePick}
-          />
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {readOnly && definitionId ? (
+            <Link
+              href={`/${locale}/technical/wip-library/${encodeURIComponent(definitionId)}`}
+              prefetch={false}
+              data-testid={`fa-prod-edit-wip-library-${prodDetailId}`}
+              className="text-xs font-medium text-blue-700 hover:underline"
+            >
+              {labels.editInWipLibrary}
+            </Link>
+          ) : null}
+          {canPublish ? (
+            <Button
+              type="button"
+              className="btn-secondary btn-sm"
+              data-testid={`fa-prod-publish-wip-${prodDetailId}`}
+              disabled={busy}
+              onClick={() => setPublishOpen(true)}
+            >
+              {labels.publishAsWipDefinition}
+            </Button>
+          ) : null}
+          {writable ? (
+            <OperationPicker
+              labels={labels}
+              options={operations}
+              disabled={busy}
+              onSelect={handlePick}
+            />
+          ) : null}
+        </div>
       </div>
 
       {processes.length === 0 ? (
@@ -1145,6 +1315,16 @@ function ComponentProcesses({
           onSubmit={(next) => handleUpdate(editing.id, next)}
         />
       ) : null}
+
+      {publishOpen ? (
+        <PublishWipDialog
+          defaultName={componentLabel?.trim() || definitionName || ''}
+          labels={labels}
+          busy={busy}
+          onClose={() => setPublishOpen(false)}
+          onConfirm={handlePublish}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1174,7 +1354,10 @@ export function FaProductionTab({
   onUpdateProcess,
   onRemoveProcess,
   onSaveProcessRoles,
+  onPublishWipDefinition,
 }: FaProductionTabProps) {
+  const params = useParams();
+  const locale = typeof params?.locale === 'string' ? params.locale : 'en';
   const ordered = React.useMemo(() => sortColumns(columns), [columns]);
   const locked = !packSizeFilled;
 
@@ -1188,6 +1371,7 @@ export function FaProductionTab({
   const updateProcessAction: UpdateProcessFn = onUpdateProcess ?? updateWipProcess;
   const removeProcessAction: RemoveProcessFn = onRemoveProcess ?? removeWipProcess;
   const saveRolesAction: SaveProcessRolesFn = onSaveProcessRoles ?? saveWipProcessRoles;
+  const publishWipAction = onPublishWipDefinition ?? publishWipDefinitionFromComponent;
 
   // Default refresh after add/remove re-renders the server component (re-reads the
   // real prod_detail rows). useRouter() is always called at the top (Rules of
@@ -1421,16 +1605,19 @@ export function FaProductionTab({
                       legacy fixed 4 manufacturing_operation slots. */}
                   <ComponentProcesses
                     prodDetailId={row.id}
-                    processes={componentProcesses?.[row.id] ?? []}
+                    bundle={resolveComponentProcessBundle(componentProcesses?.[row.id])}
                     operations={operationOptions}
                     labels={{ ...DEFAULT_PROCESS_LABELS, ...labels.processes }}
                     canWrite={canWrite}
                     locked={locked}
+                    locale={locale}
+                    componentLabel={row.componentLabel ?? row.intermediateCode}
                     getDefault={getDefaultAction}
                     addProcess={addProcessAction}
                     updateProcess={updateProcessAction}
                     removeProcess={removeProcessAction}
                     saveRoles={saveRolesAction}
+                    publishWipDefinition={publishWipAction}
                     onMutated={() => mutated?.()}
                   />
                 </div>

@@ -1906,7 +1906,8 @@
         "eco": "Change control (ECO)",
         "revisions": "Revision history",
         "where_used": "Where-used",
-        "portfolio_cost": "Portfolio cost"
+        "portfolio_cost": "Portfolio cost",
+        "wip_library": "WIP library"
       }
     }
   },
@@ -1919,7 +1920,17 @@
     "siteCrumbLabel": "Current organization",
     "sitePickerLabel": "Site",
     "sitePickerAllSites": "All sites",
-    "sitePickerTooltip": "Filters work orders, license plates and OEE only — other screens stay org-wide"
+    "sitePickerTooltip": "Filters work orders, license plates and OEE only — other screens stay org-wide",
+    "notificationsTrigger": "Notifications",
+    "notificationsUnreadCount": "{n} unread notifications",
+    "notificationsEmpty": "No notifications",
+    "notificationsMarkAllRead": "Mark all read",
+    "notificationsLoading": "Loading notifications…",
+    "notificationsLoadError": "Could not load notifications.",
+    "notificationsRelativeJustNow": "Just now",
+    "notificationsRelativeMinutes": "{n}m ago",
+    "notificationsRelativeHours": "{n}h ago",
+    "notificationsRelativeDays": "{n}d ago"
   },
   "onboarding": {
     "wizard_title": "Onboarding wizard",
@@ -2830,7 +2841,18 @@
       "substituteAllergenMismatch": "Substitute blocked because it introduces undeclared allergens",
       "substitute": "Substitute",
       "chooseSubstitute": "Pick substitute",
-      "clearSubstitute": "Clear"
+      "clearSubstitute": "Clear",
+      "addWip": "Add WIP",
+      "wipBadge": "WIP",
+      "wipPicker": {
+        "trigger": "+ Add WIP",
+        "searchLabel": "Search WIP definitions",
+        "searchPlaceholder": "Search by name or item code…",
+        "loading": "Searching…",
+        "empty": "No matching WIP definitions",
+        "cancel": "Cancel",
+        "error": "WIP search failed"
+      }
     },
     "costPanel": {
       "title": "Cost & margin",
@@ -3423,7 +3445,16 @@
         "loadError": "Could not load processes",
         "throughput_per_hour": "Throughput / hour",
         "throughput_uom": "Throughput unit",
-        "setup_cost": "Setup cost (£)"
+        "setup_cost": "Setup cost (£)",
+        "readOnlyDefinition": "Referenced WIP definition",
+        "editInWipLibrary": "Edit in WIP library",
+        "publishAsWipDefinition": "Publish as WIP definition",
+        "publishWipNameLabel": "Definition name",
+        "publishWipNamePlaceholder": "Enter a name for this WIP definition",
+        "publishWipConfirm": "Publish",
+        "publishWipCancel": "Cancel",
+        "publishWipPublishing": "Publishing…",
+        "publishWipError": "Could not publish the WIP definition"
       }
     },
     "faTechnicalTab": {
@@ -4401,6 +4432,15 @@
       "booleanYes": "Yes",
       "booleanNo": "No",
       "closeSection": "Close {dept} section"
+    },
+    "staleWipBanner": {
+      "updatedMessage": "WIP definition '{name}' was updated to v{version}",
+      "acceptButton": "Update & accept",
+      "accepting": "Accepting…",
+      "acceptSuccess": "WIP definition update accepted.",
+      "acceptSuccessBomsRegenerated": "WIP definition accepted and production BOMs were regenerated.",
+      "acceptError": "Could not accept the WIP definition update. Try again.",
+      "acceptForbidden": "You do not have permission to accept WIP definition updates."
     }
   },
   "technical": {
@@ -6379,6 +6419,151 @@
       "qtyLabel": "Qty",
       "lotLabel": "Lot",
       "statusLabel": "Status"
+    },
+    "wip": {
+      "breadcrumbRoot": "Technical",
+      "list": {
+        "title": "WIP library",
+        "description": "Org-wide work-in-progress definitions — composition, process chain, and yield per output unit.",
+        "errorTitle": "Could not load WIP definitions",
+        "errorBody": "Try refreshing the page. If the problem persists, contact your administrator.",
+        "emptyTitle": "No WIP definitions yet",
+        "emptyBodyCreate": "Create a definition from scratch or publish one from an NPD production component chain.",
+        "emptyBodyView": "No definitions are available in this organization.",
+        "viewerOnly": "You have read-only access to the WIP library.",
+        "searchPlaceholder": "Search by name or item code…",
+        "filter": {
+          "active": "Active",
+          "archived": "Archived"
+        },
+        "noMatches": "No definitions match your filters.",
+        "newDefinition": "New definition",
+        "columns": {
+          "name": "Name",
+          "baseUom": "Base UoM",
+          "version": "Version",
+          "status": "Status",
+          "reusable": "Reusable",
+          "processCount": "Processes",
+          "whereUsed": "Where used",
+          "actions": "Actions"
+        },
+        "openDetail": "Open"
+      },
+      "status": {
+        "draft": "Draft",
+        "active": "Active",
+        "archived": "Archived"
+      },
+      "reusable": {
+        "yes": "Reusable",
+        "no": "Not reusable"
+      },
+      "create": {
+        "title": "New WIP definition",
+        "name": "Name",
+        "baseUom": "Base unit of measure",
+        "cancel": "Cancel",
+        "submit": "Create",
+        "saving": "Creating…",
+        "error": "Could not create the definition."
+      },
+      "detail": {
+        "breadcrumb": "WIP library",
+        "errorTitle": "Could not load this definition",
+        "notFoundTitle": "Definition not found",
+        "notFoundBody": "This WIP definition may have been removed or you may not have access.",
+        "viewerOnly": "You have read-only access to this definition.",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Saved",
+        "saveError": "Could not save changes.",
+        "archive": "Archive",
+        "archiving": "Archiving…",
+        "archiveConfirmTitle": "Archive this definition?",
+        "archiveConfirmBody": "Archived definitions cannot be reused in new formulations. Existing references stay read-only until projects accept updates.",
+        "archiveCancel": "Cancel",
+        "archiveConfirm": "Archive"
+      },
+      "header": {
+        "name": "Name",
+        "description": "Description",
+        "baseUom": "Base UoM",
+        "yieldPct": "Yield %",
+        "reusable": "Reusable in formulations",
+        "status": "Status",
+        "version": "Version",
+        "itemCode": "Item code"
+      },
+      "composition": {
+        "title": "Composition",
+        "subtitle": "Raw materials per 1 output unit of this WIP.",
+        "add": "+ Add ingredient",
+        "columns": {
+          "item": "Item",
+          "qty": "Qty / output unit",
+          "uom": "UoM",
+          "actions": "Actions"
+        },
+        "remove": "Remove",
+        "empty": "No composition lines yet."
+      },
+      "process": {
+        "title": "Process chain",
+        "subtitle": "Ordered manufacturing operations with duration, cost, throughput, and staffing.",
+        "add": "+ Add process",
+        "empty": "No processes yet",
+        "emptyBody": "Add operations from your manufacturing operations master.",
+        "duration": "Duration (h)",
+        "additionalCost": "Additional cost",
+        "throughput": "Throughput / hour",
+        "throughputUom": "Throughput UoM",
+        "setupCost": "Setup cost",
+        "edit": "Edit",
+        "remove": "Remove",
+        "rolesHeader": "Roles",
+        "roleGroup": "Role group",
+        "headcount": "Headcount",
+        "ratePerHour": "Rate / hour",
+        "save": "Save",
+        "cancel": "Cancel",
+        "picker": {
+          "label": "Search operations",
+          "placeholder": "Filter by name…",
+          "empty": "No matching operations",
+          "cancel": "Cancel"
+        }
+      },
+      "whereUsed": {
+        "title": "Where used",
+        "subtitle": "NPD projects referencing this definition and their accepted version.",
+        "columns": {
+          "project": "Project",
+          "fgCode": "FG code",
+          "acceptedVersion": "Accepted version"
+        },
+        "empty": "Not referenced by any project."
+      },
+      "picker": {
+        "trigger": "+ Add item",
+        "searchLabel": "Search items",
+        "searchPlaceholder": "Search by code or name…",
+        "loading": "Searching…",
+        "empty": "No matching items",
+        "cancel": "Cancel",
+        "error": "Item search failed",
+        "createItemCta": "Create an item in Technical"
+      },
+      "errors": {
+        "forbidden": "WIP definition permission required.",
+        "inUse": "WIP definition is referenced by non-archived projects."
+      },
+      "notifications": {
+        "updated": {
+          "title": "WIP definition updated",
+          "body": "A referenced WIP definition was updated and needs acceptance."
+        }
+      }
     }
   },
   "Technical": {

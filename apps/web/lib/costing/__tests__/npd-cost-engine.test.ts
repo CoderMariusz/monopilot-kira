@@ -173,4 +173,24 @@ describe('computeNpdCostEngine', () => {
 
     expect(result.rawCostEur).toBe('0.8510');
   });
+
+  it('WIP contribution is per-pack in the WIP base unit and invariant to pack weight (review H1)', () => {
+    // 2 kg of WIP per pack, WIP raw €5/unit at 92.5% yield → (5 / 0.925) × 2 = €10.8108/pack,
+    // regardless of the FG pack weight (no unitToPackFactor rescaling).
+    const wip = {
+      quantity: '2',
+      quantityUom: 'kg',
+      rawMaterialCostPerOutputUnit: '5',
+      yieldPct: '92.5',
+      processes: [],
+    };
+    const base = computeNpdCostEngine(breadInput({}));
+    const withWip = computeNpdCostEngine(breadInput({ wipComponents: [wip] }));
+    const contribution = Number(withWip.rawCostEur) - Number(base.rawCostEur);
+    expect(contribution).toBeCloseTo(10.8108, 3);
+
+    const heavyBase = computeNpdCostEngine(breadInput({ packWeightKg: '2' }));
+    const heavyWithWip = computeNpdCostEngine(breadInput({ packWeightKg: '2', wipComponents: [wip] }));
+    expect(Number(heavyWithWip.rawCostEur) - Number(heavyBase.rawCostEur)).toBeCloseTo(contribution, 3);
+  });
 });

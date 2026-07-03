@@ -32,6 +32,25 @@ type IngredientRow = {
   substitute_item_id: string | null;
   qty_kg: string | null;
   sequence: number;
+  wip_definition_id: string | null;
+};
+
+type WipDefinitionRow = {
+  id: string;
+  item_id: string | null;
+  item_code: string | null;
+  name: string;
+  base_uom: string;
+  yield_pct: string;
+  version: number;
+};
+
+type WipDefinitionIngredientRow = {
+  item_id: string;
+  item_code: string;
+  qty_per_unit: string;
+  uom: string;
+  sequence: number;
 };
 
 type PackagingComponentRow = {
@@ -71,7 +90,7 @@ type DbErrorLike = {
 };
 
 export type MaterializeNpdBomResult = {
-  code?: 'PRODUCTION_CODE_CONFLICT' | 'PACKS_PER_BOX_REQUIRED';
+  code?: 'PRODUCTION_CODE_CONFLICT' | 'PACKS_PER_BOX_REQUIRED' | 'WIP_ITEM_REQUIRED';
   projectId: string;
   productCode: string | null;
   productionCode: string | null;
@@ -107,6 +126,8 @@ export async function materializeNpdBom(
   }
 
   const ingredients = await loadIngredients(ctx, formulation.version_id);
+  const plainIngredients = ingredients.filter((ingredient) => !ingredient.wip_definition_id);
+  const wipIngredients = ingredients.filter((ingredient) => !!ingredient.wip_definition_id);
 
   // v2 anchor #2: a production BOM is built PER BOX, so packs-per-box must be set before we can
   // create one. This gate MUST run BEFORE ensureFgItemAndProduct/stampProductCloseoutInputs:
@@ -123,11 +144,20 @@ export async function materializeNpdBom(
     };
   }
 
+  const wipComponents = await resolveWipComponents(ctx, wipIngredients);
+  if (wipComponents.some((component) => !component.itemId)) {
+    return {
+      code: 'WIP_ITEM_REQUIRED',
+      ...emptyResult(project.id, project.product_code, productionCode),
+    };
+  }
+
   const item = await ensureFgItemAndProduct(ctx, project, formulation);
   await stampProductCloseoutInputs(ctx, project, item);
+  await ensureWipDefinitionBoms(ctx, wipComponents);
 
   const bom = existingBom ?? (ingredients.length > 0
-    ? await createActiveNpdBom(ctx, project, formulation, ingredients)
+    ? await createActiveNpdBom(ctx, project, formulation, plainIngredients, wipComponents)
     : null);
 
   const existingSpec = bom ? await loadApprovedFactorySpec(ctx, item.id) : null;
@@ -141,12 +171,16 @@ export async function materializeNpdBom(
   // writes it (live walk-5: every project 409'd at handoff→launched on it). The
   // stamp is honest: the recompute genuinely ran here, right after the BOM landed.
   if (bom) {
-    for (const ingredient of ingredients) {
-      if (!ingredient.item_id) continue;
+    const cascadeItemIds = [
+      ...plainIngredients.map((ingredient) => ingredient.item_id),
+      ...wipComponents.map((component) => component.itemId),
+    ];
+    for (const itemId of cascadeItemIds) {
+      if (!itemId) continue;
       await cascadeAllergensForChangedItem(
         ctx.client as Parameters<typeof cascadeAllergensForChangedItem>[0],
         ctx.orgId,
-        ingredient.item_id,
+        itemId,
       );
     }
     await ctx.client.query(
@@ -233,7 +267,8 @@ async function loadIngredients(ctx: OrgContextLike, versionId: string): Promise<
             item_id::text as item_id,
             substitute_item_id::text as substitute_item_id,
             qty_kg::text as qty_kg,
-            sequence
+            sequence,
+            wip_definition_id::text as wip_definition_id
        from public.formulation_ingredients
       where version_id = $1::uuid
         and coalesce(qty_kg, 0) > 0
@@ -418,6 +453,7 @@ async function createActiveNpdBom(
   project: ProjectRow,
   formulation: LockedFormulationRow,
   ingredients: IngredientRow[],
+  wipComponents: Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number }>,
 ): Promise<BomHeaderRow> {
   const productCode = deriveProductionCode(project.product_code as string);
   const version = await nextBomVersion(ctx, productCode);
@@ -472,10 +508,36 @@ async function createActiveNpdBom(
     );
   }
 
+  for (let index = 0; index < wipComponents.length; index++) {
+    const component = wipComponents[index]!;
+    const lineNo = ingredients.length + index + 1;
+    // WIP formulation rows are per pack, same as RM rows. FG BOMs are per box, so
+    // quantity = row qty_kg * packs_per_case. FG-level yield stays on the header;
+    // line quantities are not pre-divided, matching existing RM handling.
+    const quantity = computeBomLineQty(Number(component.qtyKg), packsPerBox).toFixed(6);
+    await ctx.client.query(
+      `insert into public.bom_lines
+         (org_id, bom_header_id, line_no, item_id, component_code, component_type, quantity, uom,
+          scrap_pct, manufacturing_operation_name, sequence, is_phantom, source)
+       values
+         (app.current_org_id(), $1::uuid, $2, $3::uuid, $4, 'WIP', $5::numeric, 'kg',
+          0.00, $6, $7, false, 'npd_locked_formulation_wip')`,
+      [
+        header.id,
+        lineNo,
+        component.itemId,
+        component.itemCode,
+        quantity,
+        'NPD WIP formulation',
+        component.sequence,
+      ],
+    );
+  }
+
   const packagingComponents = await loadPackagingComponents(ctx, project.id);
   for (let index = 0; index < packagingComponents.length; index++) {
     const component = packagingComponents[index]!;
-    const lineNo = ingredients.length + index + 1;
+    const lineNo = ingredients.length + wipComponents.length + index + 1;
     const pmQty = (Number(component.qty) * packsPerBox).toFixed(6);
     // Packaging components lose a fraction to damage/setup during packing (owner: "scrap per
     // packaging component"). Carry the component's scrap_pct onto the PM BOM line so the WO
@@ -512,6 +574,253 @@ async function createActiveNpdBom(
   );
 
   return header;
+}
+
+async function resolveWipComponents(
+  ctx: OrgContextLike,
+  wipIngredients: IngredientRow[],
+): Promise<Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number }>> {
+  const components: Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number }> = [];
+  for (const row of wipIngredients) {
+    const definitionId = row.wip_definition_id;
+    if (!definitionId) continue;
+    const definition = await loadWipDefinition(ctx, definitionId);
+    if (!definition?.item_id || !definition.item_code) {
+      components.push({ itemId: '', itemCode: '', qtyKg: row.qty_kg ?? '0', sequence: row.sequence });
+      continue;
+    }
+    components.push({
+      itemId: definition.item_id,
+      itemCode: definition.item_code,
+      qtyKg: row.qty_kg ?? '0',
+      sequence: row.sequence,
+    });
+  }
+  return components;
+}
+
+async function ensureWipDefinitionBoms(
+  ctx: OrgContextLike,
+  wipComponents: Array<{ itemId: string; itemCode: string }>,
+): Promise<void> {
+  const seenItemIds = new Set<string>();
+  for (const component of wipComponents) {
+    if (seenItemIds.has(component.itemId)) continue;
+    const definition = await loadWipDefinitionByItem(ctx, component.itemId);
+    if (definition) await ensureActiveWipBom(ctx, definition);
+    seenItemIds.add(component.itemId);
+  }
+}
+
+async function loadWipDefinition(ctx: OrgContextLike, definitionId: string): Promise<WipDefinitionRow | null> {
+  const { rows } = await ctx.client.query<WipDefinitionRow>(
+    `select wd.id::text as id,
+            wd.item_id::text as item_id,
+            i.item_code,
+            wd.name,
+            wd.base_uom,
+            wd.yield_pct::text as yield_pct,
+            wd.version
+       from public.wip_definitions wd
+       left join public.items i
+         on i.org_id = wd.org_id
+        and i.id = wd.item_id
+      where wd.org_id = app.current_org_id()
+        and wd.id = $1::uuid
+        and wd.status = 'active'
+      limit 1`,
+    [definitionId],
+  );
+  return rows[0] ?? null;
+}
+
+async function loadWipDefinitionByItem(ctx: OrgContextLike, itemId: string): Promise<WipDefinitionRow | null> {
+  const { rows } = await ctx.client.query<WipDefinitionRow>(
+    `select wd.id::text as id,
+            wd.item_id::text as item_id,
+            i.item_code,
+            wd.name,
+            wd.base_uom,
+            wd.yield_pct::text as yield_pct,
+            wd.version
+       from public.wip_definitions wd
+       join public.items i
+         on i.org_id = wd.org_id
+        and i.id = wd.item_id
+      where wd.org_id = app.current_org_id()
+        and wd.item_id = $1::uuid
+        and wd.status = 'active'
+      order by wd.version desc, wd.updated_at desc
+      limit 1`,
+    [itemId],
+  );
+  return rows[0] ?? null;
+}
+
+async function loadWipDefinitionIngredients(
+  ctx: OrgContextLike,
+  definitionId: string,
+): Promise<WipDefinitionIngredientRow[]> {
+  const { rows } = await ctx.client.query<WipDefinitionIngredientRow>(
+    `select wdi.item_id::text as item_id,
+            i.item_code,
+            wdi.qty_per_unit::text as qty_per_unit,
+            wdi.uom,
+            wdi.sequence
+       from public.wip_definition_ingredients wdi
+       join public.items i
+         on i.org_id = wdi.org_id
+        and i.id = wdi.item_id
+      where wdi.org_id = app.current_org_id()
+        and wdi.wip_definition_id = $1::uuid
+      order by wdi.sequence, i.item_code`,
+    [definitionId],
+  );
+  return rows;
+}
+
+async function ensureActiveWipBom(ctx: OrgContextLike, definition: WipDefinitionRow): Promise<BomHeaderRow | null> {
+  if (!definition.item_id || !definition.item_code) return null;
+  const ingredients = await loadWipDefinitionIngredients(ctx, definition.id);
+  if (ingredients.length === 0) return null;
+
+  const existing = await loadActiveWipBom(ctx, definition.item_id);
+  if (existing && await wipBomContentMatches(ctx, existing.id, definition, ingredients)) {
+    return existing;
+  }
+
+  const version = await nextBomVersion(ctx, definition.item_code);
+  const { rows } = await ctx.client.query<BomHeaderRow>(
+    `insert into public.bom_headers
+       (org_id, product_id, item_id, origin_module, status, version, supersedes_bom_header_id,
+        yield_pct, line_basis, effective_from, notes, created_by_user, approved_by, approved_at, app_version)
+     values
+       (app.current_org_id(), $1, $2::uuid, 'npd', 'active', $3, $4::uuid,
+        $5::numeric, 'per_base', current_date, $6, $7::uuid, $7::uuid, now(), 'npd-wip-materialize-v2')
+     returning id, version`,
+    [
+      definition.item_code,
+      definition.item_id,
+      version,
+      existing?.id ?? null,
+      normalizeBomYieldPct(definition.yield_pct),
+      `Materialized from WIP definition ${definition.name} v${definition.version}.`,
+      ctx.userId,
+    ],
+  );
+  const header = rows[0];
+  if (!header) throw new Error('wip bom_headers insert returned no row');
+
+  for (let index = 0; index < ingredients.length; index++) {
+    const ingredient = ingredients[index]!;
+    await ctx.client.query(
+      `insert into public.bom_lines
+         (org_id, bom_header_id, line_no, item_id, component_code, component_type, quantity, uom,
+          scrap_pct, manufacturing_operation_name, sequence, is_phantom, source)
+       values
+         (app.current_org_id(), $1::uuid, $2, $3::uuid, $4, 'RM', $5::numeric, $6,
+          0.00, $7, $8, false, 'npd_wip_definition')`,
+      [
+        header.id,
+        index + 1,
+        ingredient.item_id,
+        ingredient.item_code,
+        ingredient.qty_per_unit,
+        ingredient.uom,
+        'NPD WIP definition',
+        ingredient.sequence,
+      ],
+    );
+  }
+
+  if (existing) {
+    await ctx.client.query(
+      `update public.bom_headers
+          set status = 'superseded',
+              effective_to = current_date,
+              updated_at = now()
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and status = 'active'`,
+      [existing.id],
+    );
+  }
+  return header;
+}
+
+async function loadActiveWipBom(ctx: OrgContextLike, itemId: string): Promise<BomHeaderRow | null> {
+  const { rows } = await ctx.client.query<BomHeaderRow>(
+    `select id, version
+       from public.bom_headers
+      where org_id = app.current_org_id()
+        and item_id = $1::uuid
+        and origin_module = 'npd'
+        and status = 'active'
+      order by version desc, created_at desc
+      limit 1`,
+    [itemId],
+  );
+  return rows[0] ?? null;
+}
+
+async function wipBomContentMatches(
+  ctx: OrgContextLike,
+  bomHeaderId: string,
+  definition: WipDefinitionRow,
+  ingredients: WipDefinitionIngredientRow[],
+): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ matches: boolean }>(
+    `with expected as (
+       select *
+         from jsonb_to_recordset($3::jsonb)
+              as x(item_id uuid, component_code text, quantity numeric, uom text, sequence int, line_no int)
+     ),
+     header_ok as (
+       select true as ok
+         from public.bom_headers
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and item_id = $2::uuid
+          and line_basis = 'per_base'
+          and yield_pct = $4::numeric
+     ),
+     line_diff as (
+       (
+         select item_id, component_code, quantity, uom, sequence, line_no
+           from public.bom_lines
+          where org_id = app.current_org_id()
+            and bom_header_id = $1::uuid
+            and component_type = 'RM'
+       )
+       except
+       select item_id, component_code, quantity, uom, sequence, line_no from expected
+       union all
+       select item_id, component_code, quantity, uom, sequence, line_no from expected
+       except
+       (
+         select item_id, component_code, quantity, uom, sequence, line_no
+           from public.bom_lines
+          where org_id = app.current_org_id()
+            and bom_header_id = $1::uuid
+            and component_type = 'RM'
+       )
+     )
+     select exists(select 1 from header_ok) and not exists(select 1 from line_diff) as matches`,
+    [
+      bomHeaderId,
+      definition.item_id,
+      JSON.stringify(ingredients.map((ingredient, index) => ({
+        item_id: ingredient.item_id,
+        component_code: ingredient.item_code,
+        quantity: ingredient.qty_per_unit,
+        uom: ingredient.uom,
+        sequence: ingredient.sequence,
+        line_no: index + 1,
+      }))),
+      normalizeBomYieldPct(definition.yield_pct),
+    ],
+  );
+  return rows[0]?.matches === true;
 }
 
 // Defensive clamp: scrap_pct is bounded 0..100 by the DB check, but guard against NULL/NaN/legacy

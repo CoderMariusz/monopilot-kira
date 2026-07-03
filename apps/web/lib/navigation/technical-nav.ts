@@ -71,6 +71,7 @@ export const TECHNICAL_NAV_GROUPS: TechnicalNavGroup[] = [
   ]),
   navGroup('process', 'Process', [
     navItem('routings', 'Routings', '/technical/routings', '→'),
+    navItem('wip-library', 'WIP library', '/technical/wip-library', '⚗'),
     navItem('tooling', 'Tooling', '/technical/tooling', '⚙'),
   ]),
   navGroup('compliance', 'Compliance', [

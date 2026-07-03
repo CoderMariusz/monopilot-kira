@@ -54,6 +54,12 @@ import {
 import { searchItems, type ItemPickerOption } from '../../../../../../../(npd)/fa/actions/search-items';
 import { type ItemSearchFn } from '../../../../_components/item-picker';
 import {
+  WipDefinitionPicker,
+  type SearchWipDefinitionsFn,
+  type WipDefinitionPickerLabels,
+} from './wip-definition-picker';
+import type { WipDefinitionPickerOption } from '../../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/search-wip-definitions';
+import {
   AllergenPanel,
   EU14_ALLERGEN_CODES,
   type AllergenPanelLabels,
@@ -98,6 +104,9 @@ export type FormulationEditorData = {
     rmCode: string;
     /** Lane-B: FK to the real items master row (null for legacy free-text rows). */
     itemId?: string | null;
+    /** W3-L10: reusable WIP definition referenced by this recipe line. */
+    wipDefinitionId?: string | null;
+    wipDefinitionName?: string | null;
     substituteItemId?: string | null;
     substituteItemCode?: string | null;
     substituteItemName?: string | null;
@@ -214,6 +223,10 @@ export type FormulationLabels = {
   compareStatusUnchanged: string;
   ingredients: string;
   addIngredient: string;
+  /** W3-L10 — toolbar control to add a reusable WIP definition line. */
+  addWip?: string;
+  wipBadge?: string;
+  wipPicker?: WipDefinitionPickerLabels;
   colIngredient: string;
   /** Costing v2: "Qty / pack (kg)" column header. */
   colQtyPerPack: string;
@@ -273,6 +286,7 @@ export type SaveDraftAction = (input: {
     rmCode: string;
     /** Lane-B: real items-master FK (null when no item is wired). */
     itemId: string | null;
+    wipDefinitionId: string | null;
     substituteItemId: string | null;
     qtyKg: string | null;
     pct: string | null;
@@ -533,6 +547,8 @@ function toEditable(data: FormulationEditorData): EditableIngredient[] {
     id: ing.id,
     rmCode: ing.rmCode,
     itemId: ing.itemId ?? null,
+    wipDefinitionId: ing.wipDefinitionId ?? null,
+    wipDefinitionName: ing.wipDefinitionName ?? null,
     substituteItemId: ing.substituteItemId ?? null,
     substituteItemCode: ing.substituteItemCode ?? null,
     substituteItemName: ing.substituteItemName ?? null,
@@ -630,6 +646,7 @@ export function FormulationEditor({
   loadRecipeCascadeAction,
   updatePackWeightAction,
   searchItemsAction,
+  searchWipDefinitionsAction,
   projectId,
   createDraftAction,
   onRefresh,
@@ -672,6 +689,8 @@ export function FormulationEditor({
   updatePackWeightAction?: UpdatePackWeightAction;
   /** Lane-B: org-scoped item-search action for the ingredient picker (defaults to searchItems). */
   searchItemsAction?: ItemSearchFn;
+  /** W3-L10: org-scoped reusable WIP definition search for the WIP picker. */
+  searchWipDefinitionsAction?: SearchWipDefinitionsFn;
   /** Server-side refresh (router.refresh) — called after a successful submit. */
   onRefresh?: () => void;
 }) {
@@ -976,6 +995,7 @@ export function FormulationEditor({
           ingredients: completeRows.map((r, i) => ({
             rmCode: r.rmCode.trim(),
             itemId: r.itemId,
+            wipDefinitionId: r.wipDefinitionId ?? null,
             substituteItemId: r.substituteItemId,
             // Costing v2: persist the entered qty (kg/pack); pct is no longer authored.
             qtyKg: isDecimalString(r.qtyKg) ? r.qtyKg : null,
@@ -1048,6 +1068,8 @@ export function FormulationEditor({
         id: `new-${Date.now()}-${prev.length}`,
         rmCode: '',
         itemId: null,
+        wipDefinitionId: null,
+        wipDefinitionName: null,
         substituteItemId: null,
         substituteItemCode: null,
         substituteItemName: null,
@@ -1060,6 +1082,35 @@ export function FormulationEditor({
       },
     ]);
   }, [editable]);
+
+  const handleAddWip = React.useCallback(
+    (option: WipDefinitionPickerOption) => {
+      if (!editable) return;
+      setRows((prev) => [
+        ...prev,
+        {
+          id: `wip-${Date.now()}-${prev.length}`,
+          rmCode: option.itemCode,
+          itemId: option.itemId,
+          wipDefinitionId: option.id,
+          wipDefinitionName: option.name,
+          substituteItemId: null,
+          substituteItemCode: null,
+          substituteItemName: null,
+          name: option.name,
+          qtyKg: '0',
+          pct: '0',
+          // WIP cost comes from the cost engine via the definition — never a
+          // fabricated client-side 0 (empty persists as NULL until resolved).
+          costPerKgEur: '',
+          allergens: [],
+          sequence: prev.length + 1,
+        },
+      ]);
+      scheduleSave();
+    },
+    [editable, scheduleSave],
+  );
 
   /**
    * Lane-B: a real item was chosen for an ingredient row — wire item_id and
@@ -1425,6 +1476,18 @@ export function FormulationEditor({
     substitute: labels.substitute ?? 'Substitute',
     chooseSubstitute: labels.chooseSubstitute ?? 'Pick substitute',
     clearSubstitute: labels.clearSubstitute ?? 'Clear',
+    wipBadge: labels.wipBadge ?? 'WIP',
+    picker: labels.picker,
+  };
+
+  const wipPickerLabels: WipDefinitionPickerLabels = {
+    trigger: labels.addWip ?? '+ Add WIP',
+    searchLabel: labels.wipPicker?.searchLabel ?? 'Search WIP definitions',
+    searchPlaceholder: labels.wipPicker?.searchPlaceholder ?? 'Search by name or item code…',
+    loading: labels.wipPicker?.loading ?? 'Searching…',
+    empty: labels.wipPicker?.empty ?? 'No matching WIP definitions',
+    cancel: labels.wipPicker?.cancel ?? 'Cancel',
+    error: labels.wipPicker?.error ?? 'WIP search failed',
   };
 
   const saveLabel =
@@ -1797,15 +1860,26 @@ export function FormulationEditor({
                 <CardTitle>{labels.ingredients}</CardTitle>
                 <p className="text-xs text-slate-500">{labels.subtitle}</p>
               </div>
-              <Button
-                type="button"
-                className="btn-secondary btn-sm"
-                disabled={!editable}
-                aria-label={labels.addIngredient}
-                onClick={handleAdd}
-              >
-                {`+ ${labels.addIngredient}`}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  disabled={!editable}
+                  aria-label={labels.addIngredient}
+                  onClick={handleAdd}
+                >
+                  {`+ ${labels.addIngredient}`}
+                </Button>
+                {searchWipDefinitionsAction ? (
+                  <WipDefinitionPicker
+                    labels={wipPickerLabels}
+                    searchWipDefinitionsAction={searchWipDefinitionsAction}
+                    disabled={!editable}
+                    triggerClassName="btn-secondary btn-sm"
+                    onSelect={handleAddWip}
+                  />
+                ) : null}
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table data-testid="ingredient-table">

@@ -73,7 +73,6 @@ describe('getComponentProcesses', () => {
         processCost: 65,
       }],
     });
-    expect(queryMock).toHaveBeenCalledTimes(3);
   });
 
   it('falls back to labor_rates when role ratePerHour is null', async () => {
@@ -115,6 +114,65 @@ describe('getComponentProcesses', () => {
       data: [{
         roles: [{ roleGroup: 'butcher', headcount: 1, ratePerHour: 30 }],
         processCost: 61,
+      }],
+    });
+  });
+
+  it('returns definition chain read-only when prod_detail item matches a WIP definition', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from\s+public\.prod_detail/i.test(text)) {
+        return { rows: [{ item_id: 'item-wip-1' }] };
+      }
+      if (/from\s+public\.npd_wip_processes/i.test(text) && /wip_definition_id/i.test(text)) {
+        return { rows: [] };
+      }
+      if (/from\s+public\.wip_definitions/i.test(text) && /id = any/i.test(text)) {
+        return { rows: [{ id: 'def-1', name: 'Shared WIP', item_id: 'item-wip-1' }] };
+      }
+      if (/from\s+public\.wip_definitions/i.test(text) && /item_id = \$1/i.test(text)) {
+        return { rows: [{ id: 'def-1' }] };
+      }
+      if (/from\s+public\.wip_definition_processes/i.test(text)) {
+        return {
+          rows: [{
+            id: 'def-proc-1',
+            process_name: 'Def smoke',
+            display_order: 1,
+            duration_hours: '1',
+            additional_cost: '2',
+            throughput_per_hour: null,
+            throughput_uom: null,
+            setup_cost: null,
+          }],
+        };
+      }
+      if (/from\s+public\.wip_definition_roles/i.test(text)) {
+        return {
+          rows: [{
+            process_id: 'def-proc-1',
+            role_group: 'operator',
+            headcount: 1,
+            rate_per_hour: '15',
+          }],
+        };
+      }
+      if (/from\s+public\.labor_rates/i.test(text)) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const result = await getComponentProcesses(prodDetailId);
+
+    expect(result).toMatchObject({
+      ok: true,
+      readOnly: true,
+      definitionId: 'def-1',
+      definitionName: 'Shared WIP',
+      data: [{
+        id: 'def-proc-1',
+        processName: 'Def smoke',
+        createsWipItem: false,
+        processCost: 17,
       }],
     });
   });

@@ -11,7 +11,7 @@
 
 import { z } from 'zod';
 
-import { createWorkOrderCore } from '../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-core';
+import { createWorkOrderChainForContext } from '../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import { hasPilotPermission } from './get-pilot-run';
@@ -319,7 +319,7 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
       if (!productionLine) return { ok: false as const, error: 'line_required' as const };
       if (!productionLine.site_id) return { ok: false as const, error: 'no_active_site' as const };
 
-      const createResult = await createWorkOrderCore(ctx, {
+      const createResult = await createWorkOrderChainForContext(ctx, {
         productId: item.id,
         itemCode: item.item_code,
         documentNumber: targetWoNumber,
@@ -346,7 +346,7 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
         };
       }
 
-      const link = { id: createResult.workOrder.id, woNumber: createResult.workOrder.woNumber };
+      const link = { id: createResult.fgWorkOrder.id, woNumber: createResult.fgWorkOrder.woNumber };
       await linkPilotWoToProduct(ctx, productCode, link.id);
 
       revalidateLocalized(`/pipeline/${projectId}/pilot`);
@@ -356,6 +356,17 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
       return { ok: true as const, data: link, created: true };
     });
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith('wo_create_failed:')) {
+      const planningError = error.message.slice('wo_create_failed:'.length);
+      const mapped = planningError === 'forbidden'
+        ? 'forbidden_planning_write'
+        : planningError === 'no_active_site'
+          ? 'no_active_site'
+          : planningError === 'document_mask_missing'
+            ? 'document_mask_missing'
+            : 'wo_create_failed';
+      return { ok: false, error: mapped, planningError, message: planningError };
+    }
     console.error('[createPilotWorkOrder] failed:', error);
     return { ok: false, error: 'persistence_failed' };
   }

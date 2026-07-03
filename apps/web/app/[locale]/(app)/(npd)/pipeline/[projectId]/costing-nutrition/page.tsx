@@ -26,6 +26,10 @@ import {
   getStageDeptSectionLabels,
 } from '../../../../../../(npd)/pipeline/_lib/get-stage-dept-section-labels';
 import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
+import { getStaleWipRefs } from '../_lib/get-stale-wip-refs';
+import { buildStaleWipBannerLabels } from '../_lib/build-stale-wip-banner-labels';
+import { StaleWipDefinitionBanner } from '../_components/stale-wip-definition-banner';
+import { acceptWipDefinitionUpdateForProject } from '../_actions/accept-wip-definition-update-wrapper';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +61,8 @@ export default async function CostingNutritionPage(propsInput: unknown = {}) {
     stageSections,
     closeSectionLabel,
     stageDeptLabels,
+    staleWipBannerLabels,
+    staleWipRefs,
   ] = await Promise.all([
     buildCostingLabels(locale),
     buildNutritionLabels(locale),
@@ -65,6 +71,8 @@ export default async function CostingNutritionPage(propsInput: unknown = {}) {
     readStageSections(projectId),
     getCloseSectionLabel(locale),
     getStageDeptSectionLabels(locale),
+    buildStaleWipBannerLabels(locale),
+    getStaleWipRefs({ projectId }),
   ]);
 
   const permissionDenied =
@@ -72,6 +80,13 @@ export default async function CostingNutritionPage(propsInput: unknown = {}) {
 
   return (
     <div data-testid="costing-nutrition-stage" className="space-y-2">
+      <StaleWipDefinitionBanner
+        projectId={projectId}
+        staleDefinitions={staleWipRefs.staleDefinitions}
+        canAccept={staleWipRefs.canAccept}
+        labels={staleWipBannerLabels}
+        acceptAction={acceptWipDefinitionUpdateForProject}
+      />
       <CostingScreen
         state={permissionDenied ? 'permission_denied' : costingLoaded.state}
         data={costingLoaded.data}

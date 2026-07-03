@@ -36,12 +36,14 @@ import type { CostPanelLabels } from './_components/cost-panel';
 import type { NutritionPanelLabels, NutritionTargets } from './_components/nutrition-panel';
 import type { AllergenPanelLabels } from './_components/allergen-panel';
 import type { CompositionBarLabels } from './_components/composition-bar';
+import type { WipDefinitionPickerLabels } from './_components/wip-definition-picker';
 // Import from the PLAIN module (NOT allergen-panel, which is 'use client' — importing
 // a const array from a client module into this RSC makes it a client-reference proxy in
 // the production bundle, so iterating it threw and crashed the page render).
 import { EU14_ALLERGEN_CODES } from './_components/eu14-allergen-codes';
 import { getFormulation } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/get-formulation';
 import { saveDraft } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/save-draft';
+import { searchWipDefinitionsForFormulation } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/search-wip-definitions';
 import { recomputeAndCache } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/recompute';
 import { createFormulationDraft } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/create-draft';
 import { createFormulationVersion } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/create-version';
@@ -64,6 +66,10 @@ import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { FormulationWipPanel } from './_components/formulation-wip-panel';
 import type { FaProductionTabLabels } from '../../../fg/[productCode]/_components/fa-production-tab';
+import { getStaleWipRefs } from '../_lib/get-stale-wip-refs';
+import { buildStaleWipBannerLabels } from '../_lib/build-stale-wip-banner-labels';
+import { StaleWipDefinitionBanner } from '../_components/stale-wip-definition-banner';
+import { acceptWipDefinitionUpdateForProject } from '../_actions/accept-wip-definition-update-wrapper';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +93,16 @@ type QueryClient = {
 type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
 
 const EDIT_PERMISSION = 'npd.formulation.create_draft';
+
+const DEFAULT_WIP_PICKER_LABELS: WipDefinitionPickerLabels = {
+  trigger: '+ Add WIP',
+  searchLabel: 'Search WIP definitions',
+  searchPlaceholder: 'Search by name or item code…',
+  loading: 'Searching…',
+  empty: 'No matching WIP definitions',
+  cancel: 'Cancel',
+  error: 'WIP search failed',
+};
 
 const DEFAULT_LABELS: FormulationLabels = {
   title: 'Recipe',
@@ -158,6 +174,8 @@ const DEFAULT_LABELS: FormulationLabels = {
   compareStatusUnchanged: 'Unchanged',
   ingredients: 'Ingredients',
   addIngredient: 'Add ingredient',
+  addWip: 'Add WIP',
+  wipBadge: 'WIP',
   colIngredient: 'Ingredient',
   colQtyPerPack: 'Qty / pack (kg)',
   colCostPerKg: '£ / kg',
@@ -210,14 +228,15 @@ const DEFAULT_LABELS: FormulationLabels = {
     error: 'Item search failed',
     createItemCta: 'Create an item in Technical',
   },
+  wipPicker: DEFAULT_WIP_PICKER_LABELS,
 };
 
 // Scalar (string) label keys only — the nested `picker` object is assigned
 // separately because the per-key translate pass is string-valued.
-type ScalarLabelKey = Exclude<keyof FormulationLabels, 'picker'>;
+type ScalarLabelKey = Exclude<keyof FormulationLabels, 'picker' | 'wipPicker'>;
 
 const LABEL_KEYS = (Object.keys(DEFAULT_LABELS) as Array<keyof FormulationLabels>).filter(
-  (k): k is ScalarLabelKey => k !== 'picker',
+  (k): k is ScalarLabelKey => k !== 'picker' && k !== 'wipPicker',
 );
 
 function translateLabel(t: (key: string) => string, key: ScalarLabelKey): string {
@@ -258,8 +277,9 @@ async function buildLabels(locale: string): Promise<FormulationLabels> {
       DEFAULT_LABELS.picker.createItemCta ?? 'Create an item in Technical',
     );
     return {
-      ...(scalar as Omit<FormulationLabels, 'picker'>),
+      ...(scalar as Omit<FormulationLabels, 'picker' | 'wipPicker'>),
       picker: { ...DEFAULT_LABELS.picker, createItemCta },
+      wipPicker: { ...DEFAULT_WIP_PICKER_LABELS },
     };
   } catch {
     return { ...DEFAULT_LABELS };
@@ -605,6 +625,8 @@ async function readPageData(projectId: string, versionId?: string): Promise<Load
         rmCode: ing.rm_code,
         // Lane-B: item_id wires the real items-master row; name comes from the join.
         itemId: ing.item_id,
+        wipDefinitionId: ing.wip_definition_id,
+        wipDefinitionName: ing.wip_definition_name,
         substituteItemId: ing.substitute_item_id,
         substituteItemCode: ing.substitute_item_code,
         substituteItemName: ing.substitute_item_name,
@@ -808,24 +830,28 @@ export default async function FormulationPage(propsInput: unknown = {}) {
     ? await props.params
     : { locale: 'en', projectId: '' };
 
-  const [labels, panelLabels, allergenNames, wipPanelLabels, wipNoFgLabels] = await Promise.all([
-    buildLabels(locale),
-    buildPanelLabels(locale),
-    buildAllergenNames(locale),
-    buildWipPanelLabels(locale),
-    buildWipNoFgLabels(locale),
-  ]);
-
-  // ?version=<versionId> — the selector navigates here to load THAT version, so
-  // the displayed ingredients and the saveDraft target are always the SAME
-  // version. Coerce string[] → first, ignore non-strings; the loader org-scopes
-  // and validates it (a foreign/unknown id falls back to the current version).
   const search = props.searchParams ? await props.searchParams : undefined;
   const rawVersion = search?.version;
   const versionParam = Array.isArray(rawVersion) ? rawVersion[0] : rawVersion;
   const requestedVersionId = typeof versionParam === 'string' && versionParam.length > 0 ? versionParam : undefined;
-
   const injected = props.data !== undefined || props.state !== undefined;
+
+  const [labels, panelLabels, allergenNames, wipPanelLabels, wipNoFgLabels, staleWipBannerLabels, staleWipRefs] =
+    await Promise.all([
+      buildLabels(locale),
+      buildPanelLabels(locale),
+      buildAllergenNames(locale),
+      buildWipPanelLabels(locale),
+      buildWipNoFgLabels(locale),
+      buildStaleWipBannerLabels(locale),
+      injected
+        ? Promise.resolve({ staleDefinitions: [], canAccept: false })
+        : getStaleWipRefs({
+            projectId,
+            versionId: requestedVersionId,
+          }),
+    ]);
+
   const loaded: LoaderResult = injected
     ? {
         state: props.state ?? (props.data ? 'ready' : 'empty'),
@@ -838,6 +864,13 @@ export default async function FormulationPage(propsInput: unknown = {}) {
 
   return (
     <>
+      <StaleWipDefinitionBanner
+        projectId={projectId}
+        staleDefinitions={staleWipRefs.staleDefinitions}
+        canAccept={staleWipRefs.canAccept}
+        labels={staleWipBannerLabels}
+        acceptAction={acceptWipDefinitionUpdateForProject}
+      />
       {/*
         Nutrition + Costing links were moved OFF the recipe stage (owner): costing
         is computed after the PILOT stage and nutrition after recipe approval, so
@@ -874,6 +907,7 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       projectId={projectId}
       createDraftAction={loaded.canEdit ? createDraftAdapter : undefined}
       createVersionAction={loaded.canEdit ? createVersionAdapter : undefined}
+      searchWipDefinitionsAction={loaded.canEdit ? searchWipDefinitionsForFormulation : undefined}
       />
       <FormulationWipPanel
         projectId={projectId}

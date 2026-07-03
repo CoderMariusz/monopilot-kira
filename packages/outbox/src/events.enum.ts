@@ -197,6 +197,7 @@ export enum EventType {
   SHIPPING_SHIPMENT_CONFIRMED = 'shipping.shipment.confirmed',
   SHIPPING_BOL_ISSUED = 'shipping.bol.issued',
   TECHNICAL_FACTORY_SPEC_APPROVED = 'technical.factory_spec.approved',
+  WIP_DEFINITION_UPDATED = 'wip.definition.updated',
   TENANT_COHORT_ADVANCED = 'tenant.cohort.advanced',
   TENANT_MIGRATION_RUN = 'tenant.migration.run',
   TENANT_MIGRATION_RUN_FAILED = 'tenant.migration.run.failed',

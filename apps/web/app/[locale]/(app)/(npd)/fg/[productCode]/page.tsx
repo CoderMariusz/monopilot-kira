@@ -65,6 +65,7 @@ import {
   getComponentProcesses,
   type ComponentProcess,
 } from '../../../../../(npd)/fa/actions/get-component-processes';
+import type { ComponentProcessBundle } from '../../../../../(npd)/fa/actions/map-definition-process-chain';
 import { listManufacturingOperations } from '../../../../../../actions/reference/manufacturing-ops/list';
 import {
   FaTechnicalTab,
@@ -456,13 +457,25 @@ async function readProdDetailRows(
  */
 async function loadComponentProcesses(
   prodRows: ProdDetailRow[],
-): Promise<Record<string, ComponentProcess[]>> {
-  const map: Record<string, ComponentProcess[]> = {};
+): Promise<Record<string, ComponentProcess[] | ComponentProcessBundle>> {
+  const map: Record<string, ComponentProcess[] | ComponentProcessBundle> = {};
   const results = await Promise.all(
     prodRows.map(async (row) => {
       try {
         const res = await getComponentProcesses(row.id);
-        return { id: row.id, data: res.ok ? res.data : [] };
+        if (!res.ok) return { id: row.id, data: [] as ComponentProcess[] };
+        if (res.readOnly) {
+          return {
+            id: row.id,
+            data: {
+              processes: res.data,
+              readOnly: true,
+              definitionId: res.definitionId,
+              definitionName: res.definitionName,
+            } satisfies ComponentProcessBundle,
+          };
+        }
+        return { id: row.id, data: res.data };
       } catch {
         return { id: row.id, data: [] as ComponentProcess[] };
       }
@@ -497,7 +510,7 @@ type DeptData = {
   mrp: GenericDeptColumn[];
   prodRows: ProdDetailRow[];
   /** S5b (D6/D9) — dynamic per-component process list keyed by prod_detail_id. */
-  prodProcesses: Record<string, ComponentProcess[]>;
+  prodProcesses: Record<string, ComponentProcess[] | ComponentProcessBundle>;
   /** S5b — active ManufacturingOperations (id + name) for the process picker. */
   operations: OperationOption[];
   /** Real, org-scoped dropdown options keyed by dropdown_source. */

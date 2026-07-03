@@ -8,7 +8,7 @@ import type {
   OperationOption,
   ProdDetailRow,
 } from '../../../[locale]/(app)/(npd)/fg/[productCode]/_components/fa-production-tab';
-import type { ComponentProcess } from '../actions/get-component-processes';
+import type { ComponentProcess, ComponentProcessBundle } from '../actions/map-definition-process-chain';
 import { getComponentProcesses } from '../actions/get-component-processes';
 import { listManufacturingOperations } from '../../../../actions/reference/manufacturing-ops/list';
 import {
@@ -174,13 +174,25 @@ async function readDropdowns(
 
 async function loadComponentProcesses(
   prodRows: ProdDetailRow[],
-): Promise<Record<string, ComponentProcess[]>> {
-  const map: Record<string, ComponentProcess[]> = {};
+): Promise<Record<string, ComponentProcess[] | ComponentProcessBundle>> {
+  const map: Record<string, ComponentProcess[] | ComponentProcessBundle> = {};
   const results = await Promise.all(
     prodRows.map(async (row) => {
       try {
         const res = await getComponentProcesses(row.id);
-        return { id: row.id, data: res.ok ? res.data : [] };
+        if (!res.ok) return { id: row.id, data: [] as ComponentProcess[] };
+        if (res.readOnly) {
+          return {
+            id: row.id,
+            data: {
+              processes: res.data,
+              readOnly: true,
+              definitionId: res.definitionId,
+              definitionName: res.definitionName,
+            } satisfies ComponentProcessBundle,
+          };
+        }
+        return { id: row.id, data: res.data };
       } catch {
         return { id: row.id, data: [] as ComponentProcess[] };
       }
@@ -209,7 +221,7 @@ export type FormulationWipPanelData =
       columns: FaProductionColumn[];
       rows: ProdDetailRow[];
       dropdowns: Record<string, string[]>;
-      componentProcesses: Record<string, ComponentProcess[]>;
+      componentProcesses: Record<string, ComponentProcess[] | ComponentProcessBundle>;
       operationOptions: OperationOption[];
       canWrite: boolean;
       actions: {

@@ -1887,7 +1887,8 @@
         "eco": "Kontrola zmian (ECO)",
         "revisions": "Historia rewizji",
         "where_used": "Gdzie użyte",
-        "portfolio_cost": "Koszt portfela"
+        "portfolio_cost": "Koszt portfela",
+        "wip_library": "Biblioteka WIP"
       }
     }
   },
@@ -1900,7 +1901,17 @@
     "siteCrumbLabel": "Bieżąca organizacja",
     "sitePickerLabel": "Zakład",
     "sitePickerAllSites": "Wszystkie zakłady",
-    "sitePickerTooltip": "Filtruje tylko zlecenia produkcyjne, nośniki LP i OEE — pozostałe ekrany obejmują całą organizację"
+    "sitePickerTooltip": "Filtruje tylko zlecenia produkcyjne, nośniki LP i OEE — pozostałe ekrany obejmują całą organizację",
+    "notificationsTrigger": "Powiadomienia",
+    "notificationsUnreadCount": "{n} nieprzeczytanych powiadomień",
+    "notificationsEmpty": "Brak powiadomień",
+    "notificationsMarkAllRead": "Oznacz wszystkie jako przeczytane",
+    "notificationsLoading": "Ładowanie powiadomień…",
+    "notificationsLoadError": "Nie udało się załadować powiadomień.",
+    "notificationsRelativeJustNow": "Przed chwilą",
+    "notificationsRelativeMinutes": "{n} min temu",
+    "notificationsRelativeHours": "{n} godz. temu",
+    "notificationsRelativeDays": "{n} dni temu"
   },
   "onboarding": {
     "wizard_title": "Kreator wdrożenia",
@@ -3899,6 +3910,151 @@
       "qtyLabel": "Ilość",
       "lotLabel": "Partia",
       "statusLabel": "Status"
+    },
+    "wip": {
+      "breadcrumbRoot": "Techniczne",
+      "list": {
+        "title": "Biblioteka WIP",
+        "description": "Organizacyjne definicje produktów w toku — skład, łańcuch procesów i wydajność na jednostkę wyjściową.",
+        "errorTitle": "Nie udało się wczytać definicji WIP",
+        "errorBody": "Odśwież stronę. Jeśli problem się powtarza, skontaktuj się z administratorem.",
+        "emptyTitle": "Brak definicji WIP",
+        "emptyBodyCreate": "Utwórz definicję od zera lub opublikuj ją z łańcucha komponentów NPD.",
+        "emptyBodyView": "W tej organizacji nie ma dostępnych definicji.",
+        "viewerOnly": "Masz dostęp tylko do odczytu biblioteki WIP.",
+        "searchPlaceholder": "Szukaj po nazwie lub kodzie pozycji…",
+        "filter": {
+          "active": "Aktywne",
+          "archived": "Zarchiwizowane"
+        },
+        "noMatches": "Brak definicji pasujących do filtrów.",
+        "newDefinition": "Nowa definicja",
+        "columns": {
+          "name": "Nazwa",
+          "baseUom": "J.m. bazowa",
+          "version": "Wersja",
+          "status": "Status",
+          "reusable": "Wielokrotnego użytku",
+          "processCount": "Procesy",
+          "whereUsed": "Gdzie używane",
+          "actions": "Akcje"
+        },
+        "openDetail": "Otwórz"
+      },
+      "status": {
+        "draft": "Szkic",
+        "active": "Aktywna",
+        "archived": "Zarchiwizowana"
+      },
+      "reusable": {
+        "yes": "Wielokrotnego użytku",
+        "no": "Bez ponownego użycia"
+      },
+      "create": {
+        "title": "Nowa definicja WIP",
+        "name": "Nazwa",
+        "baseUom": "Bazowa jednostka miary",
+        "cancel": "Anuluj",
+        "submit": "Utwórz",
+        "saving": "Tworzenie…",
+        "error": "Nie udało się utworzyć definicji."
+      },
+      "detail": {
+        "breadcrumb": "Biblioteka WIP",
+        "errorTitle": "Nie udało się wczytać tej definicji",
+        "notFoundTitle": "Nie znaleziono definicji",
+        "notFoundBody": "Ta definicja WIP mogła zostać usunięta lub nie masz do niej dostępu.",
+        "viewerOnly": "Masz dostęp tylko do odczytu tej definicji.",
+        "save": "Zapisz",
+        "saving": "Zapisywanie…",
+        "saved": "Zapisano",
+        "saveError": "Nie udało się zapisać zmian.",
+        "archive": "Archiwizuj",
+        "archiving": "Archiwizowanie…",
+        "archiveConfirmTitle": "Zarchiwizować tę definicję?",
+        "archiveConfirmBody": "Zarchiwizowane definicje nie mogą być ponownie używane w nowych recepturach. Istniejące odniesienia pozostają tylko do odczytu do czasu akceptacji aktualizacji w projektach.",
+        "archiveCancel": "Anuluj",
+        "archiveConfirm": "Archiwizuj"
+      },
+      "header": {
+        "name": "Nazwa",
+        "description": "Opis",
+        "baseUom": "J.m. bazowa",
+        "yieldPct": "Wydajność %",
+        "reusable": "Wielokrotnego użytku w recepturach",
+        "status": "Status",
+        "version": "Wersja",
+        "itemCode": "Kod pozycji"
+      },
+      "composition": {
+        "title": "Skład",
+        "subtitle": "Surowce na 1 jednostkę wyjściową tego WIP.",
+        "add": "+ Dodaj składnik",
+        "columns": {
+          "item": "Pozycja",
+          "qty": "Ilość / j. wyjściowa",
+          "uom": "J.m.",
+          "actions": "Akcje"
+        },
+        "remove": "Usuń",
+        "empty": "Brak linii składu."
+      },
+      "process": {
+        "title": "Łańcuch procesów",
+        "subtitle": "Uporządkowane operacje produkcyjne z czasem, kosztem, przepustowością i obsadą.",
+        "add": "+ Dodaj proces",
+        "empty": "Brak procesów",
+        "emptyBody": "Dodaj operacje z rejestru operacji produkcyjnych.",
+        "duration": "Czas (h)",
+        "additionalCost": "Koszt dodatkowy",
+        "throughput": "Przepustowość / h",
+        "throughputUom": "J.m. przepustowości",
+        "setupCost": "Koszt przezbrojenia",
+        "edit": "Edytuj",
+        "remove": "Usuń",
+        "rolesHeader": "Role",
+        "roleGroup": "Grupa roli",
+        "headcount": "Liczba osób",
+        "ratePerHour": "Stawka / h",
+        "save": "Zapisz",
+        "cancel": "Anuluj",
+        "picker": {
+          "label": "Szukaj operacji",
+          "placeholder": "Filtruj po nazwie…",
+          "empty": "Brak pasujących operacji",
+          "cancel": "Anuluj"
+        }
+      },
+      "whereUsed": {
+        "title": "Gdzie używane",
+        "subtitle": "Projekty NPD odwołujące się do tej definicji i zaakceptowana wersja.",
+        "columns": {
+          "project": "Projekt",
+          "fgCode": "Kod FG",
+          "acceptedVersion": "Zaakceptowana wersja"
+        },
+        "empty": "Brak odniesień z projektów."
+      },
+      "picker": {
+        "trigger": "+ Dodaj pozycję",
+        "searchLabel": "Szukaj pozycji",
+        "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+        "loading": "Wyszukiwanie…",
+        "empty": "Brak pasujących pozycji",
+        "cancel": "Anuluj",
+        "error": "Wyszukiwanie pozycji nie powiodło się",
+        "createItemCta": "Utwórz pozycję w module Techniczne"
+      },
+      "errors": {
+        "forbidden": "Wymagane jest uprawnienie do definicji WIP.",
+        "inUse": "Definicja WIP jest używana przez niearchiwalne projekty."
+      },
+      "notifications": {
+        "updated": {
+          "title": "Definicja WIP została zaktualizowana",
+          "body": "Powiązana definicja WIP została zaktualizowana i wymaga akceptacji."
+        }
+      }
     }
   },
   "Technical": {
@@ -5157,7 +5313,18 @@
       "substituteAllergenMismatch": "Zamiennik zablokowany — wprowadzałby niezadeklarowane alergeny",
       "substitute": "Zamiennik",
       "chooseSubstitute": "Wybierz zamiennik",
-      "clearSubstitute": "Wyczyść"
+      "clearSubstitute": "Wyczyść",
+      "addWip": "Dodaj WIP",
+      "wipBadge": "WIP",
+      "wipPicker": {
+        "trigger": "+ Dodaj WIP",
+        "searchLabel": "Szukaj definicji WIP",
+        "searchPlaceholder": "Szukaj po nazwie lub kodzie pozycji…",
+        "loading": "Wyszukiwanie…",
+        "empty": "Brak pasujących definicji WIP",
+        "cancel": "Anuluj",
+        "error": "Wyszukiwanie WIP nie powiodło się"
+      }
     },
     "costPanel": {
       "title": "Koszt i marża",
@@ -5723,7 +5890,16 @@
         "loadError": "Nie można załadować procesów",
         "throughput_per_hour": "Wydajność / godz.",
         "throughput_uom": "Jednostka wydajności",
-        "setup_cost": "Koszt setupu (£)"
+        "setup_cost": "Koszt setupu (£)",
+        "readOnlyDefinition": "Odwołana definicja WIP",
+        "editInWipLibrary": "Edytuj w bibliotece WIP",
+        "publishAsWipDefinition": "Opublikuj jako definicję WIP",
+        "publishWipNameLabel": "Nazwa definicji",
+        "publishWipNamePlaceholder": "Wpisz nazwę tej definicji WIP",
+        "publishWipConfirm": "Opublikuj",
+        "publishWipCancel": "Anuluj",
+        "publishWipPublishing": "Publikowanie…",
+        "publishWipError": "Nie udało się opublikować definicji WIP"
       }
     },
     "faTechnicalTab": {
@@ -6685,6 +6861,15 @@
       "booleanYes": "Tak",
       "booleanNo": "Nie",
       "closeSection": "Zamknij sekcję {dept}"
+    },
+    "staleWipBanner": {
+      "updatedMessage": "Definicja WIP „{name}” została zaktualizowana do wersji v{version}",
+      "acceptButton": "Aktualizuj i zaakceptuj",
+      "accepting": "Akceptowanie…",
+      "acceptSuccess": "Aktualizacja definicji WIP zaakceptowana.",
+      "acceptSuccessBomsRegenerated": "Definicja WIP zaakceptowana i BOM-y produkcyjne zostały wygenerowane ponownie.",
+      "acceptError": "Nie udało się zaakceptować aktualizacji definicji WIP. Spróbuj ponownie.",
+      "acceptForbidden": "Nie masz uprawnień do akceptowania aktualizacji definicji WIP."
     }
   },
   "Errors": {

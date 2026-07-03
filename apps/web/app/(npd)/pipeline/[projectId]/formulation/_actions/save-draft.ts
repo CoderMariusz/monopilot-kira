@@ -10,6 +10,8 @@ type IngredientInput = {
   rmCode: string;
   /** Lane-B: optional FK to the real items master row (null for legacy free text). */
   itemId: string | null;
+  /** W3-L10: optional reusable WIP definition reference for this recipe line. */
+  wipDefinitionId: string | null;
   /** F6-D17: optional component-level substitute item. */
   substituteItemId: string | null;
   qtyKg: string | null;
@@ -132,6 +134,25 @@ export async function saveDraft(input: {
             .filter(Boolean),
         ),
       ] as string[];
+      const requestedWipDefinitionIds = [
+        ...new Set(ingredients.map((ingredient) => ingredient.wipDefinitionId).filter(Boolean)),
+      ] as string[];
+      const wipDefinitionById =
+        requestedWipDefinitionIds.length === 0
+          ? new Map<string, { item_id: string }>()
+          : new Map(
+              (
+                await ctx.client.query<{ id: string; item_id: string }>(
+                  `select id::text, item_id::text
+                     from public.wip_definitions
+                    where org_id = app.current_org_id()
+                      and id = any($1::uuid[])
+                      and status = 'active'
+                      and reusable is true`,
+                  [requestedWipDefinitionIds],
+                )
+              ).rows.map((row) => [row.id, { item_id: row.item_id }]),
+            );
       // F-B12: the effective-cost view is the cost source of record; the client
       // value is only a fallback for items with no resolved cost (or legacy
       // free-text lines).
@@ -173,6 +194,13 @@ export async function saveDraft(input: {
             );
 
       for (const ingredient of ingredients) {
+        if (ingredient.wipDefinitionId) {
+          const definition = wipDefinitionById.get(ingredient.wipDefinitionId);
+          if (!definition) return { ok: false, error: 'invalid_input' };
+          if (!ingredient.itemId || ingredient.itemId !== definition.item_id) {
+            return { ok: false, error: 'invalid_input' };
+          }
+        }
         if (!ingredient.substituteItemId) continue;
         const primaryItemId = ingredient.itemId && resolvedCostByItemId.has(ingredient.itemId) ? ingredient.itemId : null;
         const substituteItemId = resolvedCostByItemId.has(ingredient.substituteItemId) ? ingredient.substituteItemId : null;
@@ -201,10 +229,13 @@ export async function saveDraft(input: {
         return {
           rm_code: ingredient.rmCode,
           item_id: itemId,
+          wip_definition_id: ingredient.wipDefinitionId,
           substitute_item_id: substituteItemId,
           qty_kg: ingredient.qtyKg,
           // F-B12: master cost wins; client value is the documented fallback.
-          cost_per_kg_eur: masterCost ?? ingredient.costPerKgEur,
+          // WIP reference rows NEVER take a client cost — their real cost comes
+          // from the definition via the cost engine; anything else is fabricated.
+          cost_per_kg_eur: ingredient.wipDefinitionId ? masterCost : (masterCost ?? ingredient.costPerKgEur),
           cost_currency: masterCurrency ?? ingredient.costCurrency,
           // F-A06: client payload IGNORED. Item-linked line → profile-derived
           // full array (truly-empty profile → []); free-text line → server-side
@@ -220,11 +251,12 @@ export async function saveDraft(input: {
       if (ingredientRows.length > 0) {
         await ctx.client.query(
           `insert into public.formulation_ingredients
-             (version_id, rm_code, item_id, substitute_item_id, qty_kg, pct, cost_per_kg_eur, cost_currency, allergens_inherited, sequence)
+             (version_id, rm_code, item_id, wip_definition_id, substitute_item_id, qty_kg, pct, cost_per_kg_eur, cost_currency, allergens_inherited, sequence)
            select
              $1::uuid,
              x.rm_code,
              x.item_id::uuid,
+             x.wip_definition_id::uuid,
              x.substitute_item_id::uuid,
              x.qty_kg::numeric,
              case
@@ -242,6 +274,7 @@ export async function saveDraft(input: {
            from jsonb_to_recordset($2::jsonb) as x(
              rm_code text,
              item_id text,
+             wip_definition_id text,
              substitute_item_id text,
              qty_kg text,
              cost_per_kg_eur text,
@@ -252,6 +285,27 @@ export async function saveDraft(input: {
            order by x.sequence asc`,
           [versionId, JSON.stringify(ingredientRows)],
         );
+        // Ack-at-pick baseline: referencing a WIP definition records the version the
+        // project adopted, so the stale-definition banner is a pure ack-vs-version
+        // comparison. First reference only — accepts of later bumps go through
+        // acceptWipDefinitionUpdate and are never overwritten here.
+        if (ingredientRows.some((ingredientRow) => ingredientRow.wip_definition_id)) {
+          await ctx.client.query(
+            `insert into public.wip_definition_acks
+               (org_id, wip_definition_id, npd_project_id, accepted_version, accepted_by)
+             select distinct d.org_id, d.id, f.project_id, d.version, $2::uuid
+               from public.formulation_ingredients fi
+               join public.formulation_versions fv on fv.id = fi.version_id
+               join public.formulations f on f.id = fv.formulation_id
+               join public.wip_definitions d
+                 on d.id = fi.wip_definition_id
+                and d.org_id = app.current_org_id()
+              where fi.version_id = $1::uuid
+                and fi.wip_definition_id is not null
+             on conflict (org_id, wip_definition_id, npd_project_id) do nothing`,
+            [versionId, ctx.userId],
+          );
+        }
       }
 
       if (shouldPersistVersionParams) {
@@ -333,18 +387,19 @@ function parseIngredient(value: unknown): IngredientInput | null {
   const candidate = value as Record<string, unknown>;
   const rmCode = normalizeRmCode(candidate.rmCode);
   const itemId = normalizeUuidOrNull(candidate.itemId);
+  const wipDefinitionId = normalizeUuidOrNull(candidate.wipDefinitionId);
   const substituteItemId = normalizeUuidOrNull(candidate.substituteItemId);
   const qtyKg = normalizeNumeric(candidate.qtyKg);
   const costPerKgEur = normalizeNumeric(candidate.costPerKgEur);
   const costCurrency = normalizeOptionalText(candidate.costCurrency);
   const sequence = candidate.sequence;
   const allergensInherited = parseTextArray(candidate.allergensInherited);
-  if (!rmCode || itemId === undefined || substituteItemId === undefined || qtyKg === undefined || costPerKgEur === undefined) {
+  if (!rmCode || itemId === undefined || wipDefinitionId === undefined || substituteItemId === undefined || qtyKg === undefined || costPerKgEur === undefined) {
     return null;
   }
   if (typeof sequence !== 'number' || !Number.isInteger(sequence) || sequence < 1) return null;
   if (!allergensInherited) return null;
-  return { rmCode, itemId, substituteItemId, qtyKg, costPerKgEur, costCurrency, sequence, allergensInherited };
+  return { rmCode, itemId, wipDefinitionId, substituteItemId, qtyKg, costPerKgEur, costCurrency, sequence, allergensInherited };
 }
 
 function normalizeRmCode(value: unknown): string | null {

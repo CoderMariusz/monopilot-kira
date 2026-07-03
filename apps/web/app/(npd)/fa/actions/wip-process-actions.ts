@@ -251,15 +251,87 @@ async function getCurrentLaborRate(ctx: OrgContextLike, roleGroup: string): Prom
 }
 
 async function ensureWipItem(ctx: OrgContextLike, processName: string, processId: string): Promise<string> {
-  const linked = await ctx.client.query<{ wip_item_id: string | null }>(
-    `select wip_item_id
-       from public.npd_wip_processes
-      where id = $1::uuid
-        and org_id = app.current_org_id()
+  const linked = await ctx.client.query<{
+    wip_item_id: string | null;
+    wip_definition_id: string | null;
+    definition_item_id: string | null;
+    definition_base_uom: string | null;
+    definition_name: string | null;
+  }>(
+    `select p.wip_item_id,
+            p.wip_definition_id,
+            d.item_id as definition_item_id,
+            d.base_uom as definition_base_uom,
+            d.name as definition_name
+       from public.npd_wip_processes p
+       left join public.wip_definitions d
+         on d.id = p.wip_definition_id
+        and d.org_id = p.org_id
+      where p.id = $1::uuid
+        and p.org_id = app.current_org_id()
       limit 1`,
     [processId],
   );
-  const existingItemId = linked.rows[0]?.wip_item_id;
+  const process = linked.rows[0];
+  if (!process) {
+    throw new Error('WIP process is not visible in this organisation');
+  }
+
+  if (process.wip_definition_id) {
+    if (process.definition_item_id) {
+      const existingDefinitionItem = await ctx.client.query<{ id: string }>(
+        `select id
+           from public.items
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1`,
+        [process.definition_item_id],
+      );
+      const definitionItemId = existingDefinitionItem.rows[0]?.id;
+      if (definitionItemId) {
+        await linkProcessToWipItem(ctx, processId, definitionItemId);
+        return definitionItemId;
+      }
+    }
+
+    const definitionItemCode = await mintWipItemCode(ctx, process.definition_name ?? processName, processId);
+    const definitionItem = await ctx.client.query<{ id: string }>(
+      `insert into public.items
+         (org_id, item_code, item_type, name, origin_module, status, uom_base, created_by)
+       values
+         (app.current_org_id(), $1, 'intermediate', $2, 'npd', 'active', $3, $4::uuid)
+       returning id`,
+      [
+        definitionItemCode,
+        process.definition_name ?? processName,
+        process.definition_base_uom ?? 'kg',
+        ctx.userId,
+      ],
+    );
+    const definitionItemId = definitionItem.rows[0]?.id;
+    if (!definitionItemId) {
+      throw new Error('Could not ensure WIP definition item');
+    }
+    await writeAudit(ctx, 'wip_definition.item.create', 'item', definitionItemId, null, {
+      itemCode: definitionItemCode,
+      name: process.definition_name ?? processName,
+      baseUom: process.definition_base_uom ?? 'kg',
+      wipDefinitionId: process.wip_definition_id,
+    });
+    await ctx.client.query(
+      `update public.wip_definitions
+          set item_id = $2::uuid,
+              updated_at = now()
+        where id = $1::uuid
+          and org_id = app.current_org_id()
+          and item_id is null`,
+      [process.wip_definition_id, definitionItemId],
+    );
+    await linkProcessToWipItem(ctx, processId, definitionItemId);
+    return definitionItemId;
+  }
+
+  const existingItemId = process.wip_item_id;
   if (existingItemId) {
     const existingItem = await ctx.client.query<{ id: string }>(
       `select id
@@ -289,6 +361,18 @@ async function ensureWipItem(ctx: OrgContextLike, processName: string, processId
     throw new Error('Could not ensure WIP item');
   }
 
+  await writeAudit(ctx, 'wip_process.item.create', 'item', itemId, null, {
+    itemCode,
+    name: processName,
+    baseUom: 'kg',
+    processId,
+  });
+  await linkProcessToWipItem(ctx, processId, itemId);
+
+  return itemId;
+}
+
+async function linkProcessToWipItem(ctx: OrgContextLike, processId: string, itemId: string): Promise<void> {
   const linkedProcess = await ctx.client.query(
     `update public.npd_wip_processes
         set wip_item_id = $2::uuid,
@@ -300,8 +384,23 @@ async function ensureWipItem(ctx: OrgContextLike, processName: string, processId
   if (linkedProcess.rowCount !== 1) {
     throw new Error('Could not link WIP item to process');
   }
+}
 
-  return itemId;
+async function writeAudit(
+  ctx: OrgContextLike,
+  action: string,
+  resourceType: string,
+  resourceId: string,
+  beforeState: unknown,
+  afterState: unknown,
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.audit_log
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
+     values
+       (app.current_org_id(), $1::uuid, 'user', $2, $3, $4, $5::jsonb, $6::jsonb, 'standard')`,
+    [ctx.userId, action, resourceType, resourceId, JSON.stringify(beforeState), JSON.stringify(afterState)],
+  );
 }
 
 async function mintWipItemCode(ctx: OrgContextLike, processName: string, processId: string): Promise<string> {
