@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raport nocny — przebudowa NPD: fale F5 + F6 + hotfix F6.1 (2026-07-03)</title>
+<style>
+  :root {
+    --bg: #0f172a; --panel: #1e293b; --panel2: #273449; --text: #e2e8f0; --muted: #94a3b8;
+    --green: #34d399; --amber: #fbbf24; --red: #f87171; --blue: #60a5fa; --violet: #a78bfa;
+    --border: #334155;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--text); line-height: 1.55; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 20px; margin: 40px 0 12px; border-bottom: 2px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 16px; margin: 24px 0 8px; color: var(--blue); }
+  .sub { color: var(--muted); margin-bottom: 24px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 20px 0; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card .num { font-size: 24px; font-weight: 700; }
+  .card .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .g { color: var(--green); } .a { color: var(--amber); } .r { color: var(--red); } .b { color: var(--blue); } .v { color: var(--violet); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 2px solid var(--border); }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: var(--panel); }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .tag.ok { background: rgba(52,211,153,.15); color: var(--green); }
+  .tag.warn { background: rgba(251,191,36,.15); color: var(--amber); }
+  .tag.crit { background: rgba(248,113,113,.15); color: var(--red); }
+  .tag.info { background: rgba(96,165,250,.15); color: var(--blue); }
+  .tag.reg { background: rgba(167,139,250,.15); color: var(--violet); }
+  .box { background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--blue);
+         border-radius: 8px; padding: 14px 18px; margin: 16px 0; }
+  .box.crit { border-left-color: var(--red); }
+  .box.ok { border-left-color: var(--green); }
+  .box.warn { border-left-color: var(--amber); }
+  code { background: var(--panel2); padding: 1px 6px; border-radius: 4px; font-size: 13px; font-family: "SF Mono", Menlo, monospace; }
+  .flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 10px 0; font-size: 13px; }
+  .flow .step { background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; }
+  .flow .arr { color: var(--muted); }
+  ul { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  .small { font-size: 13px; color: var(--muted); }
+  .commit { font-family: "SF Mono", Menlo, monospace; font-size: 12px; color: var(--violet); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>🌙 Raport nocny — przebudowa NPD (F5 + F6) + hotfix F6.1</h1>
+<div class="sub">2026-07-03, ~00:30–09:00 · orkiestrator: Fable · wykonanie: Codex + Composer 2.5 · review: Opus (REGULATORY ×2 + spacer logiczny) · produkcja: Vercel + Supabase</div>
+
+<div class="cards">
+  <div class="card"><div class="num g">3</div><div class="lbl">fale (F5, F6, F6.1)</div></div>
+  <div class="card"><div class="num b">16</div><div class="lbl">commitów na main</div></div>
+  <div class="card"><div class="num v">4</div><div class="lbl">migracje live (421–424)</div></div>
+  <div class="card"><div class="num g">18/18</div><div class="lbl">decyzji D1–D18</div></div>
+  <div class="card"><div class="num a">1</div><div class="lbl">escape (deadlock pre-FG)</div></div>
+  <div class="card"><div class="num g">READY</div><div class="lbl">deploy produkcyjny</div></div>
+</div>
+
+<div class="box ok">
+<strong>TL;DR:</strong> Cała przebudowa NPD wg Twoich decyzji D1–D18 jest na produkcji: jeden system progresji
+(etap ← departament ← pole), scalony etap Koszt+Żywienie, twarde kasowanie w Settings, dashboard FG read-only,
+drzewo kaskady receptur, substytuty komponentów, rezerwacja czasu linii z Trialu, pilotażowe WO.
+Twój poranny spacer wykrył <strong>1 poważny escape</strong> — deadlock pól Core przed powiązaniem z FG — naprawiony
+falą F6.1 tego samego ranka. Z tego incydentu wynika stała zmiana procesu: <strong>Gate 5b — spacer logiczny Opusa po każdej fali</strong>.
+</div>
+
+<h2>Fala F5 — NPD-core (jeden system progresji)</h2>
+<div class="small">main <span class="commit">29e80098…08a475c6</span> (11 commitów) · migracje <strong>421, 422</strong> · deploy READY · raport szczegółowy: <code>_meta/audits/2026-07-03-f5-wave-report.md</code></div>
+
+<table>
+<tr><th>Lane</th><th>Silnik</th><th>Dostarczone</th></tr>
+<tr><td>N1</td><td>Codex</td><td>mig 421: <code>npd_departments.stage_code</code> + twarde kasowanie departamentu/pola (kaskada czyści wartości i zależności bramek), usunięty fantomowy <code>stage_code</code> z poziomu pola</td></tr>
+<tr><td>N2</td><td>Composer</td><td>Settings ⋅ pola NPD: wybór etapu na departamencie, tabela grupowana etapami, dialogi kasowania z potwierdzeniem przez przepisanie nazwy</td></tr>
+<tr><td>N3</td><td>Codex</td><td>Silnik sekcji etapowych: <code>&lt;StageDeptSections&gt;</code> + status pól wymaganych — jedno źródło dla stron etapów i bramek</td></tr>
+<tr><td>N4</td><td>Codex <span class="tag reg">REGULATORY · review Opus</span></td><td>JEDNA bramka etapowa: pola wymagane (miękka, override z notą audytowaną w <code>audit_log</code>), auto-checki, e-podpis (twarda, bez override na G3→G4 i approval→handoff); naprawa cichego 403 e-podpisu</td></tr>
+<tr><td>N5</td><td>Composer</td><td>Scalony etap <strong>Koszt i żywienie</strong> (kropka #4, przekierowania ze starych /costing /nutrition); odblokowany zapis przy ujemnej marży (ostrzeżenie zamiast twardej blokady)</td></tr>
+<tr><td>N6</td><td>Composer</td><td>Dashboard FG przebudowany (aktywne departamenty, grupowanie etapami, read-only + linki do etapów); edycja na FG-detail wycofana; edytor WIP przeniesiony na etap Receptura</td></tr>
+<tr><td>N7</td><td>Composer</td><td>Link NPD-xxx w tabeli projektów; kreator auto-tworzy szkic receptury v1; „Wyślij na trial" aktywne po zablokowaniu wersji</td></tr>
+<tr><td>N8 + fix</td><td>kira-mechanical / kira-easy</td><td>i18n domknięcia, aktualizacja 8 plików testów RTL do nowych kontraktów (613 zielonych)</td></tr>
+</table>
+
+<div class="box warn">
+<strong>Incydent deploy (naprawiony):</strong> pierwszy deploy F5 padł — mig 421 nie był re-entrant (backfill czytał kolumnę,
+którą ten sam plik dropuje; runner Vercela powtarza migracje pre-aplikowane przez MCP). Naprawa <span class="commit">08a475c6</span> +
+nowa reguła: każda migracja pre-aplikowana przez MCP musi być w pełni re-entrant, włącznie z DML czytającym dropowane kolumny.
+</div>
+
+<h2>Fala F6 — NPD-materials + integracja z planowaniem</h2>
+<div class="small">main <span class="commit">fd33899d…b7dd578f</span> · migracje <strong>423, 424</strong> · deploy READY · raport szczegółowy: <code>_meta/audits/2026-07-03-f6-wave-report.md</code></div>
+
+<table>
+<tr><th>Lane</th><th>Silnik</th><th>Dostarczone</th></tr>
+<tr><td>M1</td><td>Codex</td><td>Drzewo kaskady receptur (D15): pod-receptury rozwijane do głębokości 3, koszt z kanonicznego <code>v_item_effective_cost</code>, ochrona przed cyklami</td></tr>
+<tr><td>M2</td><td>Codex <span class="tag reg">REGULATORY · review Opus</span></td><td>Substytuty komponentów (D17): mig 424; deklaracja na linii receptury z <strong>fail-closed</strong> strażnikiem alergenów (substytut nie może DODAĆ alergenów); konsumpcja przypięta do deklarującej linii BOM na desktopie+skanerze+odwrotkach; wszystkie bramki (T-064, qa_status, site) nietknięte; genealogia zapisuje faktycznie zużyty item. Werdykt Opusa: 6/6 śladów adwersaryjnych PASS</td></tr>
+<tr><td>M3</td><td>Codex+Composer</td><td>Trial → planowanie (D18): mig 423 <code>planning_capacity_blocks</code> (FORCE RLS), modal „Czas na linii", rezerwacja widoczna na desce planowania; potwierdzone wierszem w DB na produkcji</td></tr>
+<tr><td>M4</td><td>Composer</td><td>Pilotażowe WO <code>WO-pilot-FG####</code> (D9) przez kanoniczne <code>createWorkOrder</code>, idempotentne, link na ekranie Pilot</td></tr>
+</table>
+
+<div class="box warn">
+<strong>Incydent (opanowany):</strong> oba mostki Codex (M2/M3) zbackgroundowały dziecko wbrew instrukcji i umarły w połowie —
+uratowane weryfikacją po drzewie + dokończeniem przez świeży lane Composera. <strong>Naprawa trwała w F6.1:</strong> definicja agenta
+codex-rescue już nie preferuje backgroundu (obie kopie załatane).
+</div>
+
+<h2 class="r">Hotfix F6.1 — deadlock pól Core przed powiązaniem z FG</h2>
+<div class="small">main <span class="commit">62a37e53</span> · bez migracji (wykorzystuje mig 387 z NPD v2) · plan: <code>_meta/plans/2026-07-03-f6-1-npd-prefg-deadlock-hotfix.md</code></div>
+
+<div class="box crit">
+<strong>Zgłoszenie właściciela (pierwszy spacer po nocy):</strong> bramka Brief wymaga pól Core
+(<em>Product Name, Pack Size, Recipe Components</em>), ale te pola są <strong>read-only dopóki projekt nie ma FG</strong> —
+a FG powstaje dopiero przy G3. Dwa braki blokują się nawzajem; jedyne wyjście = override z notą.
+<br><br>
+<strong>Dlaczego E3 tego nie złapał:</strong> nocny test live „przeszedł" bramkę właśnie przez override — zweryfikował mechanikę
+(blokada działa, audyt się zapisuje), nie logikę (wymagania są niespełnialne na swoim etapie). To dokładnie luka,
+którą od dziś zamyka Gate 5b.
+</div>
+
+<h3>Korzeń</h3>
+<p class="small">Decyzja D1/D2 z NPD v2 („projekt = FG"; mig 387 dodał na <code>npd_projects</code> kolumny FG + <code>field_values</code> jsonb — live od 29.06)
+nigdy nie została podpięta. F5 wskazał odczyt/zapis pól wyłącznie na wiersz <code>public.product</code>, który przed G3 nie istnieje.</p>
+
+<h3>Naprawa (dokończenie D1/D2)</h3>
+<div class="flow">
+  <span class="step">Brief: pola <b>edytowalne</b>, wartości zapisują się na projekcie</span><span class="arr">→</span>
+  <span class="step">bramka widzi wartości → przechodnia <b>bez override</b></span><span class="arr">→</span>
+  <span class="step">G3: FG powstaje, wartości <b>przenoszą się</b> na produkt (nigdy nie nadpisując)</span>
+</div>
+<ul>
+  <li><strong>Loader</strong>: przed FG czyta wartości z projektu (kolumny bezpośrednie + <code>field_values</code> + alias <code>product_name</code>↔<code>name</code>); read-only zostaje tylko dla pól auto/formuł.</li>
+  <li><strong>Zapis</strong>: <code>saveStageDeptField</code> dostał ścieżkę projektową — te same uprawnienia per departament i ta sama walidacja co edycja FG (wspólne helpery wydzielone do modułu poza <code>'use server'</code>); nazwy kolumn wyłącznie przez whitelistę z <code>information_schema</code> + quoting; zdarzenie audytowe do outboxa.</li>
+  <li><strong>Transfer przy G3</strong>: uogólniony copy-over projekt→produkt (coalesce-only) + synchronizacja wierszy produkcyjnych gdy przenosi się <code>recipe_components</code>.</li>
+  <li><strong>UI</strong>: baner z ostrzegawczego „read-only" na informacyjny „wartości zapisują się na projekcie i przeniosą się do FG przy G3" (4 locale); etykiety komponentu przez i18n na 6 stronach etapów; zdublowana lista braków w modalu advance zdeduplikowana.</li>
+</ul>
+
+<div class="box ok">
+<strong>Złapane przed wysyłką (PREPARE na żywej bazie):</strong> zapis jsonb miał błąd <code>42P18</code>
+(parametr bez kontekstu typu w <code>jsonb_build_object</code>) — każdy zapis pola long-tail dałby 500 na produkcji,
+a testy jednostkowe (mock) tego nie widziały. Naprawione rzutowaniem <code>::text</code> i ponownie PREPARE-zweryfikowane.
+Sprawdzone też: granty <code>app_user</code> na <code>npd_projects</code>, katalog trafia <code>pack_size</code> case-insensitive,
+<code>Reference.PackSizes</code> ma 8 wartości (brak dead-endu pustego dropdownu).
+</div>
+
+<h3>Bramka jakości F6.1</h3>
+<ul>
+  <li>tsc: 0 błędów · build produkcyjny: GREEN</li>
+  <li>vitest: 15/15 backend (loader/zapis/transfer) + 24/24 UI (RTL) + 20/20 parzystość i18n</li>
+  <li>SQL ścieżki zapisu: 4× PREPARE OK na żywej bazie</li>
+  <li>Deploy <span class="commit">62a37e53</span>: READY na produkcji</li>
+</ul>
+
+<h3>Spacer logiczny Opusa (Gate 5b — pierwszy przebieg) → złapał drugą połowę deadlocka</h3>
+
+<div class="box crit">
+<strong>Werdykt spaceru (deploy <span class="commit">62a37e53</span>):</strong> połowa UI naprawiona i potwierdzona
+(pola Core edytowalne, zapis „Zapisano", wartości przeżywają reload, baner informacyjny, zdeduplikowana lista braków) —
+ale advance <strong>nadal zwracał</strong> <code>SOFT_GATE_BLOCKED</code> na tych samych trzech polach, wymuszając notę obejścia.
+Modal przeczył sam sobie: „✓ Brak blokad — gotowe do przejścia!" tuż nad żądaniem noty obejścia.
+<br><br>
+<strong>Korzeń (warstwa niżej):</strong> akcja <code>advanceProjectGate</code> ma <em>własną, drugą</em> implementację
+sprawdzenia wymaganych pól (<code>requiredFieldsMissing</code>), czytającą wartości wyłącznie z <code>to_jsonb(product.*)</code> —
+loader naprawiony w F6.1 nie jest przez nią używany. Klasyczny „dual system" w miniaturze.
+</div>
+
+<div class="box ok">
+<strong>Naprawa F6.1b <span class="commit">805e0dfa</span> (fix-and-retest, zgodnie z Gate 5b):</strong>
+<ul>
+  <li><code>requiredFieldsMissing</code> czyta teraz też <code>project_json</code> i rozwiązuje wartości identycznie jak loader (kolumny bezpośrednie + <code>field_values</code> + alias <code>product_name</code>↔<code>name</code>); <code>product_json</code> jest NULL dokładnie wtedy, gdy nie ma FG.</li>
+  <li>Test regresyjny: advance z Brief przechodzi bez override przy wartościach we wszystkich trzech ścieżkach projektu (18/18 zielone).</li>
+  <li>Znaleziska LOW ze spaceru domknięte od ręki: 11 brakujących kluczy <code>npd.formulationEditor.*</code> (surowe klucze w wierszu składnika) dodane w 4 locale; podpowiedź notatki w modalu advance mówi teraz prawdę („Opcjonalna — zostanie zapisana w śladzie audytu") zamiast fałszywego „wymagana".</li>
+  <li>Znalezisko MED (strona Koszt i żywienie bez panelu kosztów na świeżym projekcie) = pusty stan zależny od danych — panel istnieje i renderuje się przy recepturze (poprzednie E3 na NPD-018); poprawka pustego stanu → follow-up F7.</li>
+</ul>
+</div>
+
+<div class="box ok">
+<strong>Retest na produkcji (deploy <span class="commit">805e0dfa</span>, projekt E2E-F61B-RETEST/NPD-021): PASS.</strong>
+Product Name pre-wypełniony aliasem z nazwy projektu · Pack Size 250g „Zapisano" (kolumna bezpośrednia) ·
+Recipe Components „Zapisano" (ścieżka jsonb — brak 42P18 live) · modal advance <strong>bez</strong> listy braków Core,
+checklist manualny wyłącznie doradczy, podpowiedź notatki „Opcjonalna" · „Przejdź do G2" <strong>bez noty</strong> →
+projekt stanął w kolumnie <strong>Receptura</strong>. Deadlock zamknięty end-to-end. Dane testowe usunięte
+(0 śladów w npd_projects/product/formulations).
+</div>
+
+<h2>Zmiana procesu (mandat właściciela, na stałe)</h2>
+<ul>
+  <li><strong>Gate 5b — spacer logiczny po KAŻDEJ fali</strong> (Opus, produkcja, przepływ end-to-end): każde wymaganie bramki musi być spełnialne na etapie, na którym jest egzekwowane; dojście do końca przez override/obejście = finding, nie pass; modale i komunikaty muszą mówić prawdę. Zapisane w <code>docs/workflow/02-QUALITY-GATES.md</code> §Gate 5b, skillu <code>kira-orchestrator</code> i pamięci.</li>
+  <li><strong>Raporty fal w HTML</strong> (ten plik jest pierwszym wg nowego standardu) + podsumowanie po polsku.</li>
+  <li><strong>Flow bez zmian:</strong> Fable = orkiestracja i bramki, Composer/Codex = implementacja, Opus = review REGULATORY + spacery logiczne.</li>
+</ul>
+
+<h2>Co dalej</h2>
+<ul>
+  <li><strong>Ty:</strong> pełne przejście linii NPD od utworzenia projektu do handoff — bez override'ów.</li>
+  <li><strong>F7 (po Twoim GO):</strong> integralność WAC (P0 z audytu B), 28 luk NN-*, infrastruktura testów real-DB, ESLint rule-13, żniwa UX + follow-upy F5/F6 (wątek etykiet kaskady, override numeru WO, decyzja o kompletności profili alergenów).</li>
+  <li><strong>Potem wg roadmapy:</strong> enablery Fazy 2 (załączniki, silnik PDF, list-kit) → ★ MRP + harmonogramowanie (Twoja D4; wymaga decyzji OD-22 catch-weight) → zgodność Fazy 3 (GS1-128/SSCC).</li>
+</ul>
+
+<div class="small" style="margin-top:40px; border-top:1px solid var(--border); padding-top:12px;">
+Wygenerowano 2026-07-03 · Fable (orkiestrator) · MonoPilot Kira · raporty źródłowe:
+<code>_meta/audits/2026-07-03-f5-wave-report.md</code>, <code>_meta/audits/2026-07-03-f6-wave-report.md</code>,
+<code>_meta/plans/2026-07-03-f6-1-npd-prefg-deadlock-hotfix.md</code>
+</div>
+
+</div>
+</body>
+</html>
