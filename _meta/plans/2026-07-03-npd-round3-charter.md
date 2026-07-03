@@ -52,10 +52,21 @@ Date: 2026-07-03 · Owner feedback after his post-F6.1 walk · Investigation: 3 
 - **D39** pilot WO MUST be created from a production line; line list filtered by the top-bar site (All sites → all lines). NPD can serve 2 sites; at handover the product lands in that line's site.
 - **D40** pilot WO qty in the FG's BASE UNIT (each→each, kg→kg) = the WO-output base unit, not always kg.
 
-## Follow-up questions D41-D44 (sent 2026-07-03)
-- D41 packaging-waste input shape · D42 throughput unit = process-output unit ·
-  D43 WIP materialization at handoff (BOM/WO per level?) · D44 pilot site → handoff site default.
-  Rulings to be appended here.
+## Owner rulings D41-D44 (2026-07-03)
+
+- **D41** packaging waste: PER COMPONENT — each packaging line has its own waste %.
+- **D42** throughput unit = the PROCESS OUTPUT unit (smoke kg/h, packing pack/h). That unit
+  ALSO becomes the created WIP's base unit when the process creates a WIP.
+- **D43** = option (a) **BOM PER LEVEL** — explicitly so WIPs are reusable across other
+  production (owner example: gold+copper mix WIP → ring FG1 + chain FG2 + chain2 FG3).
+  Both raw components AND the finished mix (WIP) must be STORABLE (WIP = stockable
+  item/LP in the warehouse). Sub-question (pilot chain vs single WO) carried to U4.
+- **D44** handoff site: DEFAULT from the pilot line's site, editable at handoff.
+
+## UI round U1-U4 (sent 2026-07-03)
+- U1 waste-% entry location (packaging modal column) · U2 waterfall layout (3 units at
+  once vs toggle; setup row separate?) · U3 WIP create/publish flow + where D33 change
+  approvals surface · U4 pilot chain (WIP WO + FG WO vs single). Rulings to be appended.
 
 ## Bug fixes needing NO ruling (queued for the build wave regardless)
 - `resource_requirement`→`staffing` mapping (and audit ALL catalog keys vs product-view columns; fix equipment_setup mapping too).
