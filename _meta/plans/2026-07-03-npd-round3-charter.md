@@ -63,10 +63,19 @@ Date: 2026-07-03 · Owner feedback after his post-F6.1 walk · Investigation: 3 
   item/LP in the warehouse). Sub-question (pilot chain vs single WO) carried to U4.
 - **D44** handoff site: DEFAULT from the pilot line's site, editable at handoff.
 
-## UI round U1-U4 (sent 2026-07-03)
-- U1 waste-% entry location (packaging modal column) · U2 waterfall layout (3 units at
-  once vs toggle; setup row separate?) · U3 WIP create/publish flow + where D33 change
-  approvals surface · U4 pilot chain (WIP WO + FG WO vs single). Rulings to be appended.
+## Owner rulings U1-U4 (2026-07-03) — CHARTER CLOSED
+
+- **U1** waste % = column in the packaging modal component table (costing reads it).
+- **U2** ALL approved: 3 value columns at once (£/kg | £/pack | £/batch, no toggle);
+  Setup as its OWN waterfall row; row order = Raw materials → Yield → Process labour →
+  Setup → Packaging → Overhead → Logistics → **Total cost** → Margin vs target price.
+- **U3** the existing `creates_wip_item` toggle IS the storable-WIP decision (weigh/store);
+  ADD a separate `reusable` flag = explicit publication to the Technical library.
+  Change approvals: banner on referencing projects PLUS a notification inbox; once an FG
+  is IN PRODUCTION and the WIP formula changes, each FG must receive update + accept.
+- **U4** pilot = FULL CHAIN (WO for the WIP → WO for the FG), consistent with per-level BOMs.
+
+Build plan: `_meta/plans/2026-07-03-f-npd3-wave-plan.md`.
 
 ## Bug fixes needing NO ruling (queued for the build wave regardless)
 - `resource_requirement`→`staffing` mapping (and audit ALL catalog keys vs product-view columns; fix equipment_setup mapping too).
