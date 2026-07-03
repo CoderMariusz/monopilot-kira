@@ -75,6 +75,8 @@ export default async function CostingNutritionPage(propsInput: unknown = {}) {
       <CostingScreen
         state={permissionDenied ? 'permission_denied' : costingLoaded.state}
         data={costingLoaded.data}
+        engineResult={costingLoaded.data?.engineResult ?? null}
+        inputs={costingLoaded.inputs ?? costingLoaded.data?.inputs ?? null}
         labels={costingLabels}
         locale={locale}
         projectId={projectId}

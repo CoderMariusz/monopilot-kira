@@ -23,7 +23,17 @@ import { hasPermission } from '../../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { COSTING_WATERFALL_STEP_NAMES } from '../../../../../../../../lib/costing/compute-waterfall';
 
-export type CostingLoaderResult = { state: PageState; data: CostingScreenData | null; canCompute: boolean };
+export type CostingLoaderResult = {
+  state: PageState;
+  data: CostingScreenData | null;
+  canCompute: boolean;
+  /**
+   * W2 Gate-5b fix: the costing-INPUTS panel must render even in the 'empty'
+   * state — avg batch is entered BEFORE the first successful compute, so gating
+   * the panel on an existing breakdown recreated an F6.1-class deadlock.
+   */
+  inputs?: import('../_components/costing-screen').CostingInputsView | null;
+};
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {
@@ -268,6 +278,53 @@ function engineResultFromRows(
   };
 }
 
+
+async function readCostingInputsView(
+  ctx: OrgContextLike,
+  projectId: string,
+): Promise<import('../_components/costing-screen').CostingInputsView | null> {
+  const { rows } = await ctx.client.query<{
+    avg_batch_qty: string | null;
+    overhead_override: string | null;
+    logistics_override: string | null;
+    weekly_volume_packs: string | null;
+    runs_per_week: string | null;
+    org_overhead: string | null;
+    org_logistics: string | null;
+    fg_base_uom: string | null;
+  }>(
+    `select p.avg_batch_qty::text as avg_batch_qty,
+            p.overhead_per_kg_override::text as overhead_override,
+            p.logistics_per_box_override::text as logistics_override,
+            p.weekly_volume_packs::text as weekly_volume_packs,
+            p.runs_per_week::text as runs_per_week,
+            cp.overhead_per_kg::text as org_overhead,
+            cp.logistics_per_box::text as org_logistics,
+            coalesce(i.uom_base, i.output_uom) as fg_base_uom
+       from public.npd_projects p
+       left join public.org_npd_cost_params cp on cp.org_id = p.org_id
+       left join public.items i
+         on i.org_id = p.org_id
+        and i.item_code = p.product_code
+      where p.id = $1::uuid
+        and p.org_id = app.current_org_id()
+      limit 1`,
+    [projectId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    avgBatchQty: row.avg_batch_qty ?? '',
+    fgBaseUom: row.fg_base_uom ?? 'kg',
+    overheadPerKgOverride: row.overhead_override ?? '',
+    logisticsPerBoxOverride: row.logistics_override ?? '',
+    orgOverheadPerKg: row.org_overhead ?? '0',
+    orgLogisticsPerBox: row.org_logistics ?? '0',
+    weeklyVolumePacks: row.weekly_volume_packs,
+    runsPerWeek: row.runs_per_week,
+  };
+}
+
 export async function readCostingPageData(projectId: string): Promise<CostingLoaderResult> {
   try {
     return await withOrgContext(async (rawCtx): Promise<CostingLoaderResult> => {
@@ -294,7 +351,7 @@ export async function readCostingPageData(projectId: string): Promise<CostingLoa
       );
       const productCode = project.rows[0]?.product_code;
       if (!productCode) {
-        return { state: 'empty', data: null, canCompute };
+        return { state: 'empty', data: null, canCompute, inputs: await readCostingInputsView(ctx, projectId) };
       }
       const productName = project.rows[0]?.product_name ?? productCode;
 
@@ -320,7 +377,7 @@ export async function readCostingPageData(projectId: string): Promise<CostingLoa
       );
 
       if (breakdowns.rows.length === 0) {
-        return { state: 'empty', data: null, canCompute };
+        return { state: 'empty', data: null, canCompute, inputs: await readCostingInputsView(ctx, projectId) };
       }
 
       const ids = breakdowns.rows.map((b) => b.id);
@@ -378,6 +435,7 @@ export async function readCostingPageData(projectId: string): Promise<CostingLoa
 
       return {
         state: 'ready',
+        inputs: await readCostingInputsView(ctx, projectId),
         data: {
           productCode,
           projectId,

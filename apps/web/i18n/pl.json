@@ -4541,7 +4541,11 @@
       "step_overhead": "Overhead",
       "step_logistics": "Logistyka",
       "step_total": "Koszt całkowity",
-      "step_margin": "Marża vs cena docelowa"
+      "step_margin": "Marża vs cena docelowa",
+      "blocked_yield_required": "Uzupełnij uzysk (yield %) w recepturze, potem przelicz ponownie.",
+      "blocked_brief_inputs": "Uzupełnij dane kosztowe: średni batch (panel powyżej) oraz wolumen tygodniowy i przebiegi/tydzień w Brief.",
+      "blocked_packs_per_case": "Uzupełnij liczbę paczek w boxie na etapie Opakowania.",
+      "blocked_ingredient_costs": "Co najmniej jeden składnik receptury nie ma ceny - uzupełnij koszty składników."
     },
     "risks": {
       "title": "Rejestr ryzyk",

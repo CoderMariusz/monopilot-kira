@@ -111,6 +111,10 @@ export type CostingLabels = {
   recomputeCosting?: string;
   computing: string;
   computeError: string;
+  blockedYieldRequired?: string;
+  blockedBriefInputs?: string;
+  blockedPacksPerCase?: string;
+  blockedIngredientCosts?: string;
   computeErrorNotFound: string;
   computeErrorNoCosts: string;
   computeErrorHardFail: string;
@@ -385,6 +389,28 @@ export function CostingScreen({
           return message || labels.computeErrorNoCosts;
         case 'forbidden':
           return labels.forbidden;
+        // W2 typed blockers — tell the user exactly WHAT to complete and WHERE,
+        // never the generic "try again" (Gate-5b truthful-copy rule).
+        case 'yield_required':
+          return (
+            labels.blockedYieldRequired ??
+            'Uzupełnij uzysk (yield %) w recepturze, potem przelicz ponownie.'
+          );
+        case 'brief_inputs_required':
+          return (
+            labels.blockedBriefInputs ??
+            'Uzupełnij dane kosztowe: średni batch (panel powyżej) oraz wolumen tygodniowy i przebiegi/tydzień w Brief.'
+          );
+        case 'packs_per_case_required':
+          return (
+            labels.blockedPacksPerCase ??
+            'Uzupełnij liczbę paczek w boxie na etapie Opakowania.'
+          );
+        case 'ingredient_costs_missing':
+          return (
+            labels.blockedIngredientCosts ??
+            'Co najmniej jeden składnik receptury nie ma ceny — uzupełnij koszty składników.'
+          );
         default:
           return labels.computeError;
       }

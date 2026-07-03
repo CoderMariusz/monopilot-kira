@@ -4527,7 +4527,11 @@
       "step_overhead": "Overhead",
       "step_logistics": "Logistics",
       "step_total": "Total cost",
-      "step_margin": "Margin vs target price"
+      "step_margin": "Margin vs target price",
+      "blocked_yield_required": "Fill in the yield % on the recipe, then recompute.",
+      "blocked_brief_inputs": "Complete the costing inputs: avg batch (panel above) plus weekly volume and runs/week in Brief.",
+      "blocked_packs_per_case": "Set packs per box on the Packaging stage.",
+      "blocked_ingredient_costs": "At least one recipe ingredient has no cost - fill in ingredient costs."
     },
     "risks": {
       "title": "Реєстр ризиків",
