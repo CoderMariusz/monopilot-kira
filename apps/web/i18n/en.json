@@ -2692,7 +2692,14 @@
       "linkNutrition": "Nutrition",
       "linkCosting": "Costing",
       "picker": {
-        "createItemCta": "Create an item in Technical"
+        "createItemCta": "Create an item in Technical",
+        "trigger": "Pick item",
+        "searchLabel": "Search items",
+        "searchPlaceholder": "Search by code or name…",
+        "loading": "Searching…",
+        "empty": "No matching items",
+        "cancel": "Cancel",
+        "error": "Item search failed"
       },
       "submitErrorNotLocked": "Lock the recipe version before submitting for trial.",
       "wipNoFgTitle": "No Finished Good linked",
@@ -2702,7 +2709,11 @@
       "cascadeCycle": "Cycle detected in sub-recipe.",
       "cascadeMaxDepth": "Max depth reached.",
       "cascadeNutritionEmpty": "No nutrition data",
-      "cascadeTotal": "Sub-recipe total"
+      "cascadeTotal": "Sub-recipe total",
+      "substituteAllergenMismatch": "Substitute blocked because it introduces undeclared allergens",
+      "substitute": "Substitute",
+      "chooseSubstitute": "Pick substitute",
+      "clearSubstitute": "Clear"
     },
     "costPanel": {
       "title": "Cost & margin",
@@ -2771,7 +2782,7 @@
       "readyAlert": "No blockers — ready to advance!",
       "notesLabel": "Gate advancement notes",
       "notesPlaceholder": "Summarise completion, conditions, or observations for the audit trail…",
-      "notesHint": "Required for the audit trail",
+      "notesHint": "Optional — recorded in the audit trail.",
       "cancel": "Cancel",
       "advance": "Advance to {gate}: {nextLabel}",
       "advancing": "Processing…",

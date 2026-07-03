@@ -91,7 +91,30 @@ type RequiredFieldRow = {
   field_label: string | null;
   auto_source_field: string | null;
   product_json: Record<string, unknown> | null;
+  project_json: Record<string, unknown> | null;
 };
+
+// F6.1 CRITICAL: this action's soft-gate check is a SECOND implementation of the
+// required-fields read, separate from loadStageDeptSections. Before an FG exists
+// (np.product_code IS NULL) the values live on the PROJECT (direct columns +
+// field_values jsonb + the product_name<->name alias) — reading only product_json
+// here recreated the Brief deadlock the F6.1 loader fix closed (caught by the
+// Gate-5b logic walk). Value resolution must mirror the loader exactly.
+function resolveGateFieldValues(row: RequiredFieldRow): Record<string, unknown> {
+  if (row.product_json) return row.product_json;
+  const projectJson = row.project_json ?? {};
+  const rawFieldValues = projectJson.field_values;
+  const fieldValues =
+    typeof rawFieldValues === 'object' && rawFieldValues !== null && !Array.isArray(rawFieldValues)
+      ? (rawFieldValues as Record<string, unknown>)
+      : {};
+  const values: Record<string, unknown> = { ...fieldValues };
+  for (const [key, value] of Object.entries(projectJson)) {
+    if (key !== 'field_values') values[key] = value;
+  }
+  values.product_name = projectJson.name ?? null;
+  return values;
+}
 
 function isFilled(value: unknown): boolean {
   if (value === null || value === undefined) return false;
@@ -113,7 +136,8 @@ async function requiredFieldsMissing(
         f.code as field_code,
         f.label as field_label,
         f.auto_source_field,
-        to_jsonb(p.*) as product_json
+        case when p.product_code is not null then to_jsonb(p.*) end as product_json,
+        to_jsonb(np.*) as project_json
        from public.npd_departments d
        join public.npd_department_field df
          on df.department_id = d.id
@@ -142,7 +166,7 @@ async function requiredFieldsMissing(
     const fieldCode = (row.field_code ?? '').trim().toLowerCase();
     if (!fieldCode) continue;
     const autoSource = (row.auto_source_field ?? '').trim().toLowerCase();
-    const values = row.product_json ?? {};
+    const values = resolveGateFieldValues(row);
     const value = autoSource && autoSource in values ? values[autoSource] : values[fieldCode];
     if (!isFilled(value)) {
       const dept = (row.dept_name ?? row.dept_code ?? 'Stage field').trim();

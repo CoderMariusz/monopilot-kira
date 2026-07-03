@@ -5005,7 +5005,14 @@
       "linkNutrition": "Nutrition",
       "linkCosting": "Costing",
       "picker": {
-        "createItemCta": "Create an item in Technical"
+        "createItemCta": "Create an item in Technical",
+        "trigger": "Pick item",
+        "searchLabel": "Search items",
+        "searchPlaceholder": "Search by code or name…",
+        "loading": "Searching…",
+        "empty": "No matching items",
+        "cancel": "Cancel",
+        "error": "Item search failed"
       },
       "submitErrorNotLocked": "Lock the recipe version before submitting for trial.",
       "wipNoFgTitle": "No Finished Good linked",
@@ -5015,7 +5022,11 @@
       "cascadeCycle": "Cycle detected in sub-recipe.",
       "cascadeMaxDepth": "Max depth reached.",
       "cascadeNutritionEmpty": "No nutrition data",
-      "cascadeTotal": "Sub-recipe total"
+      "cascadeTotal": "Sub-recipe total",
+      "substituteAllergenMismatch": "Substitute blocked because it introduces undeclared allergens",
+      "substitute": "Substitute",
+      "chooseSubstitute": "Pick substitute",
+      "clearSubstitute": "Clear"
     },
     "costPanel": {
       "title": "Cost și marjă",
@@ -5084,7 +5095,7 @@
       "readyAlert": "Niciun blocaj — gata de avansare!",
       "notesLabel": "Note privind avansarea porții",
       "notesPlaceholder": "Rezumați finalizarea, condițiile sau observațiile pentru pista de audit…",
-      "notesHint": "Necesar pentru pista de audit",
+      "notesHint": "Optional — recorded in the audit trail.",
       "cancel": "Anulează",
       "advance": "Avansează la {gate}: {nextLabel}",
       "advancing": "Se procesează…",

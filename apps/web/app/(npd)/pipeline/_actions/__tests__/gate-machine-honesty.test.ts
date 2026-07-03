@@ -268,6 +268,52 @@ describe('advanceProjectGate — ONE gate system soft and hard gates', () => {
     expect(calls.some((call) => /update public\.npd_projects/.test(call.sql))).toBe(true);
   });
 
+  it('F6.1 regression: pre-FG brief advance PASSES without override when required Core values live on the project', async () => {
+    // The Gate-5b logic walk caught this: the action's own requiredFieldsMissing
+    // read values ONLY from product_json, so a pre-FG project (product_code null)
+    // could never satisfy the Brief gate even with values saved on the project.
+    // The three rows below exercise all three project-side resolution paths:
+    // product_name via the name alias, pack_size via a direct column, and
+    // recipe_components via field_values jsonb.
+    const calls: string[] = [];
+    const projectJson = {
+      name: 'E2E Pre-FG product',
+      pack_size: '250g',
+      field_values: { recipe_components: 'RM1' },
+    };
+    ctx.handler = (sql) => {
+      calls.push(sql);
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.npd_projects') && sql.includes('for update')) {
+        return {
+          rows: [{
+            id: PROJECT,
+            code: 'NPD-PREFG-001',
+            name: 'E2E Pre-FG product',
+            type: 'single',
+            current_gate: 'G0',
+            current_stage: 'brief',
+            product_code: null,
+          }],
+        };
+      }
+      if (sql.includes('from public.npd_departments')) {
+        return {
+          rows: [
+            { dept_code: 'Core', dept_name: 'Core', field_code: 'Product_Name', field_label: 'Product Name', auto_source_field: null, product_json: null, project_json: projectJson },
+            { dept_code: 'Core', dept_name: 'Core', field_code: 'Pack_Size', field_label: 'Pack Size', auto_source_field: null, product_json: null, project_json: projectJson },
+            { dept_code: 'Core', dept_name: 'Core', field_code: 'Recipe_Components', field_label: 'Recipe Components', auto_source_field: null, product_json: null, project_json: projectJson },
+          ],
+        };
+      }
+      return { rows: [] };
+    };
+
+    const result = await advanceProjectGate({ projectId: PROJECT, targetStage: 'recipe' });
+    expect(result).toMatchObject({ ok: true });
+    expect(calls.some((sql) => /insert into public\.audit_log/.test(sql))).toBe(false);
+  });
+
   it('does not allow override of a hard recipe ingredient gate', async () => {
     const calls: string[] = [];
     ctx.handler = (sql) => {

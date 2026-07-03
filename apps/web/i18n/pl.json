@@ -5019,7 +5019,14 @@
       "linkNutrition": "Wartości odżywcze",
       "linkCosting": "Kalkulacja kosztów",
       "picker": {
-        "createItemCta": "Utwórz pozycję w module Techniczny"
+        "createItemCta": "Utwórz pozycję w module Techniczny",
+        "trigger": "Wybierz pozycję",
+        "searchLabel": "Szukaj pozycji",
+        "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+        "loading": "Szukanie…",
+        "empty": "Brak pasujących pozycji",
+        "cancel": "Anuluj",
+        "error": "Wyszukiwanie pozycji nie powiodło się"
       },
       "submitErrorNotLocked": "Zablokuj wersję receptury przed zgłoszeniem do próby.",
       "wipNoFgTitle": "Brak powiązanego wyrobu gotowego",
@@ -5029,7 +5036,11 @@
       "cascadeCycle": "Wykryto cykl w podrecepturze.",
       "cascadeMaxDepth": "Osiągnięto maksymalną głębokość.",
       "cascadeNutritionEmpty": "Brak danych żywieniowych",
-      "cascadeTotal": "Suma podreceptury"
+      "cascadeTotal": "Suma podreceptury",
+      "substituteAllergenMismatch": "Zamiennik zablokowany — wprowadzałby niezadeklarowane alergeny",
+      "substitute": "Zamiennik",
+      "chooseSubstitute": "Wybierz zamiennik",
+      "clearSubstitute": "Wyczyść"
     },
     "costPanel": {
       "title": "Koszt i marża",
@@ -5098,7 +5109,7 @@
       "readyAlert": "Brak blokad — gotowe do przejścia!",
       "notesLabel": "Notatki dotyczące przejścia bramki",
       "notesPlaceholder": "Podsumuj ukończenie, warunki lub uwagi na potrzeby ścieżki audytu…",
-      "notesHint": "Wymagane na potrzeby ścieżki audytu",
+      "notesHint": "Opcjonalna — zostanie zapisana w śladzie audytu.",
       "cancel": "Anuluj",
       "advance": "Przejdź do {gate}: {nextLabel}",
       "advancing": "Przetwarzanie…",
