@@ -37,6 +37,10 @@ import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { TRIAL_READ_PERMISSION, TRIAL_WRITE_PERMISSION, type TrialBatchView, type TrialResult } from './_actions/errors';
 import { normalizeTimeHHMM, type TrialCapacityBookingView } from './_lib/capacity-block';
 import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import {
+  getCloseSectionLabel,
+  getStageDeptSectionLabels,
+} from '../../../../../../(npd)/pipeline/_lib/get-stage-dept-section-labels';
 import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
 export const dynamic = 'force-dynamic';
@@ -349,16 +353,6 @@ async function readStageSections(projectId: string) {
   }
 }
 
-async function getCloseSectionLabel(locale: string): Promise<string> {
-  try {
-    const t = await getTranslations({ locale, namespace: 'npd.stageDeptSections' });
-    const value = t('closeSection');
-    return value === 'closeSection' ? 'Close {dept} section' : value;
-  } catch {
-    return 'Close {dept} section';
-  }
-}
-
 export default async function TrialPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as TrialPageProps;
   const { locale, projectId } = props.params ? await props.params : { locale: 'en', projectId: '' };
@@ -369,8 +363,21 @@ export default async function TrialPage(propsInput: unknown = {}) {
   const loaded: LoaderResult = injected
     ? { state: props.state ?? (props.data ? 'ready' : 'empty'), data: props.data ?? null }
     : await readPageData(projectId);
-  const stageSections = await readStageSections(projectId);
-  const closeSectionLabel = await getCloseSectionLabel(locale);
+  const [stageSections, closeSectionLabel, stageDeptLabels] = await Promise.all([
+    readStageSections(projectId),
+    getCloseSectionLabel(locale),
+    getStageDeptSectionLabels(locale),
+  ]);
+
+  const stageDeptSectionsEl = stageSections ? (
+    <StageDeptSections
+      projectId={projectId}
+      stage="trial"
+      data={stageSections}
+      closeSectionLabel={closeSectionLabel}
+      labels={stageDeptLabels}
+    />
+  ) : null;
 
   // When empty but the caller can write, render the screen with an empty table +
   // the "Log new trial" CTA rather than the read-only empty notice.
@@ -385,7 +392,7 @@ export default async function TrialPage(propsInput: unknown = {}) {
           onUpdateTrial={updateTrialAction}
           onBookLineTime={bookLineTimeAction}
         />
-        {stageSections ? <StageDeptSections projectId={projectId} stage="trial" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
+        {stageDeptSectionsEl}
       </>
     );
   }
@@ -400,7 +407,7 @@ export default async function TrialPage(propsInput: unknown = {}) {
         onUpdateTrial={updateTrialAction}
         onBookLineTime={bookLineTimeAction}
       />
-      {stageSections ? <StageDeptSections projectId={projectId} stage="trial" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
+      {stageDeptSectionsEl}
     </>
   );
 }

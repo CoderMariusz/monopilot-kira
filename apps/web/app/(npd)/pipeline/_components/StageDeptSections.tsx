@@ -19,12 +19,37 @@ import type { Dept } from '../../fa/actions/get-required-fields-for-dept';
 import type { StageDeptField, StageDeptSectionsResult } from '../_actions/load-stage-dept-sections.types';
 import { StageDeptCloseButton } from './StageDeptCloseButton';
 
+export type StageDeptSectionLabels = {
+  noFgLinked: string;
+  readOnly: string;
+  save: string;
+  saved: string;
+  saveFailed: string;
+  selectPlaceholder: string;
+  booleanYes: string;
+  booleanNo: string;
+};
+
+const DEFAULT_LABELS: StageDeptSectionLabels = {
+  noFgLinked:
+    'No Finished Good linked yet - values are saved on the project and will transfer to the FG automatically when it is created at gate G3.',
+  readOnly: 'Read-only',
+  save: 'Save',
+  saved: 'Saved',
+  saveFailed: 'Save failed',
+  selectPlaceholder: 'Select...',
+  booleanYes: 'Yes',
+  booleanNo: 'No',
+};
+
 type StageDeptSectionsProps = {
   projectId: string;
   stage: string;
   data: StageDeptSectionsResult;
   /** Label template for close button, e.g. "Close {dept} section". */
   closeSectionLabel?: string;
+  /** Optional i18n labels; omitted keys fall back to English defaults. */
+  labels?: Partial<StageDeptSectionLabels>;
 };
 
 type Drafts = Record<string, string>;
@@ -57,11 +82,13 @@ function FieldEditor({
   field,
   value,
   disabled,
+  labels,
   onChange,
 }: {
   field: StageDeptField;
   value: string;
   disabled: boolean;
+  labels: StageDeptSectionLabels;
   onChange: (next: string) => void;
 }) {
   const id = `stage-dept-${field.deptCode}-${field.code}`;
@@ -76,8 +103,8 @@ function FieldEditor({
     const options =
       field.dataType === 'boolean'
         ? [
-            { value: 'true', label: 'Yes' },
-            { value: 'false', label: 'No' },
+            { value: 'true', label: labels.booleanYes },
+            { value: 'false', label: labels.booleanNo },
           ]
         : (field.dropdownOptions ?? []).map((option) => ({ value: option, label: option }));
     return (
@@ -95,7 +122,7 @@ function FieldEditor({
           aria-labelledby={`${id}-label`}
         >
           <SelectTrigger aria-label={field.label}>
-            <SelectValue placeholder="Select..." />
+            <SelectValue placeholder={labels.selectPlaceholder} />
           </SelectTrigger>
           <SelectContent>
             {options.map((option) => (
@@ -151,7 +178,14 @@ function FieldEditor({
   );
 }
 
-export function StageDeptSections({ projectId, stage, data, closeSectionLabel }: StageDeptSectionsProps) {
+export function StageDeptSections({
+  projectId,
+  stage,
+  data,
+  closeSectionLabel,
+  labels: labelsProp,
+}: StageDeptSectionsProps) {
+  const labels = { ...DEFAULT_LABELS, ...labelsProp };
   const initialDrafts = useMemo(() => {
     const next: Drafts = {};
     for (const section of data.sections) {
@@ -187,8 +221,12 @@ export function StageDeptSections({ projectId, stage, data, closeSectionLabel }:
   return (
     <section className="mt-6 space-y-4" data-testid={`stage-dept-sections-${stage}`}>
       {data.no_fg_linked ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Department fields are read-only until this project is linked to a Finished Good.
+        <div
+          role="note"
+          data-testid="stage-dept-no-fg-linked-banner"
+          className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+        >
+          {labels.noFgLinked}
         </div>
       ) : null}
 
@@ -209,7 +247,7 @@ export function StageDeptSections({ projectId, stage, data, closeSectionLabel }:
                 ) : null}
                 {section.readOnly ? (
                   <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">
-                    Read-only
+                    {labels.readOnly}
                   </span>
                 ) : null}
               </div>
@@ -225,6 +263,7 @@ export function StageDeptSections({ projectId, stage, data, closeSectionLabel }:
                       field={field}
                       value={drafts[field.code] ?? ''}
                       disabled={disabled}
+                      labels={labels}
                       onChange={(next) => setDrafts((prev) => ({ ...prev, [field.code]: next }))}
                     />
                     {!section.readOnly && !field.readOnly ? (
@@ -235,13 +274,13 @@ export function StageDeptSections({ projectId, stage, data, closeSectionLabel }:
                           onClick={() => saveField(field)}
                           className="px-3 py-1.5 text-xs"
                         >
-                          Save
+                          {labels.save}
                         </Button>
                         {feedback[field.code] === 'saved' ? (
-                          <span className="text-xs text-green-700">Saved</span>
+                          <span className="text-xs text-green-700">{labels.saved}</span>
                         ) : null}
                         {feedback[field.code] === 'error' ? (
-                          <span className="text-xs text-red-700">Save failed</span>
+                          <span className="text-xs text-red-700">{labels.saveFailed}</span>
                         ) : null}
                       </div>
                     ) : null}

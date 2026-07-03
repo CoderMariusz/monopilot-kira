@@ -157,9 +157,7 @@ function resolveSubmitError(
     return details.length > 0 ? `${title}\n${details.join('\n')}` : title;
   }
   if (result.error === 'SOFT_GATE_BLOCKED') {
-    const missing = result.missing ?? [];
-    const title = labels.softGateBlockedError ?? 'Required stage checks are incomplete. Add an override note to continue.';
-    return missing.length > 0 ? `${title}\n${missing.join('\n')}` : title;
+    return labels.softGateBlockedError ?? 'Required stage checks are incomplete. Add an override note to continue.';
   }
   // F-C09 honesty: every ok:false path maps to a specific, human-readable message
   // (the modal NEVER closes on failure — see onSubmit). Codes without a dedicated
@@ -304,7 +302,7 @@ export function AdvanceGateModal({
         setServerError(resolveSubmitError(result, labels));
       } else if (result?.error === 'SOFT_GATE_BLOCKED') {
         setSoftGateMissing(result.missing ?? []);
-        setServerError(result ? resolveSubmitError(result, labels) : labels.error);
+        setServerError(null);
       } else {
         setServerError(result ? resolveSubmitError(result, labels) : labels.error);
       }
@@ -478,30 +476,45 @@ export function AdvanceGateModal({
                     </li>
                   ))}
                 </ul>
+                <div className="mt-3 grid gap-1">
+                  <label htmlFor="advance-gate-notes" className="text-sm font-medium text-slate-700">
+                    {labels.overrideNoteLabel ?? 'Override note'}
+                  </label>
+                  <Textarea
+                    id="advance-gate-notes"
+                    rows={3}
+                    placeholder={labels.notesPlaceholder}
+                    disabled={isBlocked}
+                    aria-describedby="advance-gate-notes-hint"
+                    className={isBlocked ? 'opacity-50' : undefined}
+                    maxLength={2000}
+                    {...register('notes')}
+                  />
+                  <span id="advance-gate-notes-hint" className="text-xs text-slate-500">
+                    {labels.overrideNoteHint ?? 'Required to override incomplete stage checks.'}
+                  </span>
+                </div>
               </div>
-            ) : null}
-
-            {/* ——— Notes ——— */}
-            <div className="grid gap-1">
-              <label htmlFor="advance-gate-notes" className="text-sm font-medium text-slate-700">
-                {overrideMode ? labels.overrideNoteLabel ?? 'Override note' : labels.notesLabel}
-              </label>
-              <Textarea
-                id="advance-gate-notes"
-                rows={3}
-                placeholder={labels.notesPlaceholder}
-                disabled={isBlocked}
-                aria-describedby="advance-gate-notes-hint"
-                className={isBlocked ? 'opacity-50' : undefined}
-                maxLength={2000}
-          {...register('notes')}
-              />
-              <span id="advance-gate-notes-hint" className="text-xs text-slate-500">
-                {overrideMode
-                  ? labels.overrideNoteHint ?? 'Required to override incomplete stage checks.'
-                  : labels.notesHint}
-              </span>
-            </div>
+            ) : (
+              <div className="grid gap-1">
+                <label htmlFor="advance-gate-notes" className="text-sm font-medium text-slate-700">
+                  {labels.notesLabel}
+                </label>
+                <Textarea
+                  id="advance-gate-notes"
+                  rows={3}
+                  placeholder={labels.notesPlaceholder}
+                  disabled={isBlocked}
+                  aria-describedby="advance-gate-notes-hint"
+                  className={isBlocked ? 'opacity-50' : undefined}
+                  maxLength={2000}
+                  {...register('notes')}
+                />
+                <span id="advance-gate-notes-hint" className="text-xs text-slate-500">
+                  {labels.notesHint}
+                </span>
+              </div>
+            )}
 
             {serverError ? (
               <div role="alert" data-testid="advance-gate-error" className="alert alert-red text-sm">

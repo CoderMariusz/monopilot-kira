@@ -6522,7 +6522,7 @@
       "forbidden": "Nie masz uprawnień do cofania etapów."
     },
     "stageDeptSections": {
-      "noFgLinked": "Pola działów są tylko do odczytu, dopóki projekt nie zostanie połączony z wyrobem gotowym.",
+      "noFgLinked": "Wyrób gotowy (FG) nie jest jeszcze powiązany - wartości zapisują się na projekcie i przeniosą się do FG automatycznie w momencie jego utworzenia (bramka G3).",
       "readOnly": "Tylko do odczytu",
       "save": "Zapisz",
       "saved": "Zapisano",

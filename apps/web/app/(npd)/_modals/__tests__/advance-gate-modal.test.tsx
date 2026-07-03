@@ -430,7 +430,7 @@ describe('AdvanceGateModal — F-C09: every ok:false surfaces visibly and the mo
     expect(screen.queryByText('FORBIDDEN')).not.toBeInTheDocument();
   });
 
-  it('SOFT_GATE_BLOCKED: amber missing list renders; advance disabled until override note typed; resubmit passes override to action', async () => {
+  it('SOFT_GATE_BLOCKED: single alert lists missing items once; advance disabled until override note typed; resubmit passes override to action', async () => {
     const user = userEvent.setup();
     // First call returns SOFT_GATE_BLOCKED; second call returns success.
     const advance = vi
@@ -451,18 +451,21 @@ describe('AdvanceGateModal — F-C09: every ok:false surfaces visibly and the mo
     // First submit (no notes) — action returns SOFT_GATE_BLOCKED.
     await user.click(screen.getByRole('button', { name: /Advance to G3/ }));
 
-    // Amber missing list should be visible.
+    // Single amber alert: title + list + override note field (no duplicate serverError list).
     const softBlock = await screen.findByTestId('advance-gate-soft-block');
     expect(softBlock).toHaveAttribute('role', 'alert');
-    expect(softBlock).toHaveTextContent('Dept: Field');
+    expect(within(softBlock).getAllByTestId('advance-gate-soft-block-item')).toHaveLength(1);
+    expect(within(softBlock).getByText('Dept: Field')).toBeInTheDocument();
+    expect(screen.getAllByText('Dept: Field')).toHaveLength(1);
+    expect(within(softBlock).getByLabelText(/Override note/)).toBeInTheDocument();
+    expect(screen.queryByTestId('advance-gate-error')).not.toBeInTheDocument();
 
     // Advance button now disabled (overrideMode, no note yet).
-    // The button label switches to the override confirm label.
     const overrideBtn = screen.getByRole('button', { name: /Override and advance/ });
     expect(overrideBtn).toBeDisabled();
 
     // Type a non-empty override note → button becomes enabled.
-    const noteField = screen.getByLabelText(/Override note/);
+    const noteField = within(softBlock).getByLabelText(/Override note/);
     await user.clear(noteField);
     await user.type(noteField, 'Approved by QA lead');
     expect(overrideBtn).toBeEnabled();

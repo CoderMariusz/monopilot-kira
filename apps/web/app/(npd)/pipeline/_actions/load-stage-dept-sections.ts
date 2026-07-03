@@ -129,6 +129,29 @@ async function readProductValues(
   return rows[0]?.product_json ?? {};
 }
 
+async function readProjectValues(ctx: OrgContextLike, projectId: string): Promise<Record<string, unknown>> {
+  const { rows } = await ctx.client.query<{ project_json: Record<string, unknown> | null }>(
+    `select to_jsonb(np.*) as project_json
+       from public.npd_projects np
+      where np.id = $1::uuid
+        and np.org_id = app.current_org_id()
+      limit 1`,
+    [projectId],
+  );
+  const projectJson = rows[0]?.project_json ?? {};
+  const fieldValues = isRecord(projectJson.field_values) ? projectJson.field_values : {};
+  const values: Record<string, unknown> = { ...fieldValues };
+  for (const [key, value] of Object.entries(projectJson)) {
+    if (key !== 'field_values') values[key] = value;
+  }
+  values.product_name = projectJson.name ?? null;
+  return values;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 async function readDropdowns(
   ctx: OrgContextLike,
   rows: CatalogRow[],
@@ -200,7 +223,7 @@ function buildSections(
         label: (row.dept_name ?? deptCode).trim() || deptCode,
         deptCode,
         closeDeptValue: deptCodeToCloseDept(deptCode),
-        readOnly: noFgLinked,
+        readOnly: false,
         no_fg_linked: noFgLinked ? true : undefined,
         fields: [],
       };
@@ -223,7 +246,7 @@ function buildSections(
       deptCode,
       displayOrder: Number(row.df_display_order ?? 0),
       value: value ?? null,
-      readOnly: noFgLinked || auto || dataType === 'formula',
+      readOnly: auto || dataType === 'formula',
       auto: auto || undefined,
       autoSourceField,
       dropdownOptions: dropdownSource ? dropdowns[dropdownSource] ?? [] : undefined,
@@ -263,7 +286,7 @@ async function loadStageDeptSectionsInContext(
     readCatalogRows(ctx, stage),
   ]);
   const [values, dropdowns] = await Promise.all([
-    readProductValues(ctx, productCode),
+    productCode ? readProductValues(ctx, productCode) : readProjectValues(ctx, projectId),
     readDropdowns(ctx, catalogRows),
   ]);
   const sections = buildSections(catalogRows, productCode, values, dropdowns);

@@ -90,6 +90,25 @@ Run, in order:
 
 Only when the live click-through is clean (or each remaining failure is a recorded external gap) write `_meta/runs/<module>-SIGNOFF.md` and STOP for human review. Note: Vercel **production = `main`**; module work deploys as a PREVIEW (branch alias) — verify on the preview, merge to main only after human acceptance.
 
+### Gate 5b — LOGIC walk, not just mechanics (owner mandate 2026-07-03)
+
+After EVERY wave deploy, an **Opus lane walks the touched flow end-to-end in the
+live browser and judges LOGIC**, in addition to Gate-5's OK/EMPTY/ERROR mechanics:
+
+1. **Satisfiability:** every gate/guard requirement must be satisfiable AT THE STAGE
+   where it is enforced. If requirement A needs artifact B, but B is only creatable
+   after passing the gate that requires A, that is a **deadlock finding** (real case:
+   Brief-stage gate required Core fields that were read-only until an FG that only
+   exists at G3).
+2. **No-override rule:** a walk that reaches the end only via an override, a note,
+   or any workaround is a FINDING, not a pass. Overrides are for business
+   exceptions, never for structural impossibility.
+3. **Truthful copy:** modals, banners, blockers and error messages must describe the
+   actual state and the actual way forward (no "add a note to continue" when the
+   real fix is elsewhere; no read-only banner on an editable form or vice versa).
+4. **Fix-and-retest before owner report** — findings loop back into the wave; the
+   wave report ships only after the logic walk is clean or residuals are listed.
+
 ## Recurring live-bug checklist (classes that pass vitest+tsc but break live — only Gate-5 finds them)
 
 Every one of these shipped a GREEN local run while the deployed preview was broken. Treat this as a pre-deploy checklist for **every module** — verify each before claiming a module ready. (Sources: 01-npd run, 02-settings re-open, cross-module audit.)

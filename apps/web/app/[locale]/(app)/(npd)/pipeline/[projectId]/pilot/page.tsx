@@ -45,6 +45,10 @@ import { listProductionLines } from './_actions/list-production-lines';
 import { getPilotRecipeMaterials } from './_actions/get-pilot-recipe-materials';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import {
+  getCloseSectionLabel,
+  getStageDeptSectionLabels,
+} from '../../../../../../(npd)/pipeline/_lib/get-stage-dept-section-labels';
 import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
 export const dynamic = 'force-dynamic';
@@ -289,16 +293,6 @@ async function readStageSections(projectId: string) {
   }
 }
 
-async function getCloseSectionLabel(locale: string): Promise<string> {
-  try {
-    const t = await getTranslations({ locale, namespace: 'npd.stageDeptSections' });
-    const value = t('closeSection');
-    return value === 'closeSection' ? 'Close {dept} section' : value;
-  } catch {
-    return 'Close {dept} section';
-  }
-}
-
 export default async function PilotPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as PilotPageProps;
   const { locale, projectId } = props.params
@@ -366,8 +360,11 @@ export default async function PilotPage(propsInput: unknown = {}) {
         pilotWorkOrder: props.data?.pilotWorkOrder ?? null,
       }
     : await readPageData(projectId);
-  const stageSections = await readStageSections(projectId);
-  const closeSectionLabel = await getCloseSectionLabel(locale);
+  const [stageSections, closeSectionLabel, stageDeptLabels] = await Promise.all([
+    readStageSections(projectId),
+    getCloseSectionLabel(locale),
+    getStageDeptSectionLabels(locale),
+  ]);
 
   return (
     <>
@@ -403,7 +400,15 @@ export default async function PilotPage(propsInput: unknown = {}) {
         onCreatePilotWo={createPilotWoAction}
         locale={locale}
       />
-      {stageSections ? <StageDeptSections projectId={projectId} stage="pilot" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
+      {stageSections ? (
+        <StageDeptSections
+          projectId={projectId}
+          stage="pilot"
+          data={stageSections}
+          closeSectionLabel={closeSectionLabel}
+          labels={stageDeptLabels}
+        />
+      ) : null}
     </>
   );
 }

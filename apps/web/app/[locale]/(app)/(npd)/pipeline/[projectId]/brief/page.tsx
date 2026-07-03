@@ -50,6 +50,10 @@ import {
   type OrgContextLike,
 } from '../../../../../../(npd)/pipeline/_actions/shared';
 import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import {
+  getCloseSectionLabel,
+  getStageDeptSectionLabels,
+} from '../../../../../../(npd)/pipeline/_lib/get-stage-dept-section-labels';
 import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
 export const dynamic = 'force-dynamic';
@@ -195,16 +199,6 @@ async function readStageSections(projectId: string) {
   }
 }
 
-async function getCloseSectionLabel(locale: string): Promise<string> {
-  try {
-    const t = await getTranslations({ locale, namespace: 'npd.stageDeptSections' });
-    const value = t('closeSection');
-    return value === 'closeSection' ? 'Close {dept} section' : value;
-  } catch {
-    return 'Close {dept} section';
-  }
-}
-
 export default async function ProjectBriefPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as ProjectBriefPageProps;
   const { locale, projectId } = props.params
@@ -230,8 +224,11 @@ export default async function ProjectBriefPage(propsInput: unknown = {}) {
 
   const attachments =
     !injected && loaded.state === 'ready' && projectId ? await readAttachments(projectId) : [];
-  const stageSections = await readStageSections(projectId);
-  const closeSectionLabel = await getCloseSectionLabel(locale);
+  const [stageSections, closeSectionLabel, stageDeptLabels] = await Promise.all([
+    readStageSections(projectId),
+    getCloseSectionLabel(locale),
+    getStageDeptSectionLabels(locale),
+  ]);
 
   return (
     <>
@@ -245,7 +242,15 @@ export default async function ProjectBriefPage(propsInput: unknown = {}) {
         onUploadAttachment={uploadAttachmentAction}
         onDeleteAttachment={deleteAttachmentAction}
       />
-      {stageSections ? <StageDeptSections projectId={projectId} stage="brief" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
+      {stageSections ? (
+        <StageDeptSections
+          projectId={projectId}
+          stage="brief"
+          data={stageSections}
+          closeSectionLabel={closeSectionLabel}
+          labels={stageDeptLabels}
+        />
+      ) : null}
     </>
   );
 }

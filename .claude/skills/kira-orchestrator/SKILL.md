@@ -120,6 +120,17 @@ exist.
    (`app/__tests__/i18n.test.ts`) must stay green when locale JSON changes.
 4. **Spot-check the deliverable's substance**, not just exit codes — e.g. read the
    PL JSON values to confirm they're real translations, not English fallbacks.
+5. **Opus LOGIC walk after EVERY wave (owner mandate 2026-07-03).** After the
+   deploy is READY, an Opus lane walks the touched flow END-TO-END in the
+   production browser and judges LOGIC, not just mechanics: can every gate's
+   requirements actually be satisfied at the stage where they're enforced; do
+   modals/banners/copy tell the truth; are there mutually-blocking requirements
+   (the F5 escape: Brief-stage gate required Core fields that were read-only until
+   an FG that only exists at G3 — my live-E3 "passed" it via override and missed
+   the deadlock). A walk that reaches the end only via override/workaround is a
+   FINDING, not a pass. Fix-and-retest before reporting to the owner.
+6. **Wave reports are HTML** (self-contained file in `_meta/reports/`, style like
+   `2026-07-02-f1-fleet-report.html`), delivered with a Polish summary message.
 
 ## Integration & push discipline
 

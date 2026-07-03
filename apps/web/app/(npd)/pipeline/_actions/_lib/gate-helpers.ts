@@ -6,6 +6,7 @@ import {
   type ProjectGate,
   type QueryClient,
 } from '../shared';
+import { quoteIdentifier, syncProdDetailRows } from '../../../fa/actions/_lib/fa-cell-shared';
 import { nextEntityCode, renderCodeMask } from '../../../../../lib/documents/code-mask';
 import type { QueryClient as NumberingQueryClient } from '../../../../../lib/documents/numbering';
 
@@ -629,6 +630,7 @@ async function ensureFgCandidateMapped(
   if (await ensureFgFactorySpecLink(ctx, project, productCode)) mapped = true;
 
   await copyBriefFieldsToProduct(ctx, project.id, productCode);
+  await transferProjectFieldValuesToProduct(ctx, project.id, productCode);
 
   return { created, mapped };
 }
@@ -723,6 +725,103 @@ async function copyBriefFieldsToProduct(
         and product_code = $1`,
     [productCode, b.pack_weight_g, b.target_retail_price_eur, volumeNumeric, packsPerCase],
   );
+}
+
+export async function transferProjectFieldValuesToProduct(
+  ctx: OrgContextLike,
+  projectId: string,
+  productCode: string,
+): Promise<void> {
+  const values = await readProjectFieldValues(ctx, projectId);
+  const catalogKeys = await readOrgCatalogFieldKeys(ctx);
+  const productColumns = await readProductColumnSet(ctx);
+  let transferredRecipeComponents = false;
+
+  for (const key of catalogKeys) {
+    if (!productColumns.has(key)) continue;
+    const value = key === 'product_name' ? values.product_name : values[key];
+    if (!hasTransferValue(value)) continue;
+    if (await coalesceProductColumn(ctx, productCode, key, value)) {
+      transferredRecipeComponents = transferredRecipeComponents || key === 'recipe_components';
+    }
+  }
+
+  if (transferredRecipeComponents) {
+    await syncProdDetailRows(ctx, productCode);
+  }
+}
+
+async function readProjectFieldValues(
+  ctx: OrgContextLike,
+  projectId: string,
+): Promise<Record<string, unknown>> {
+  const { rows } = await ctx.client.query<{ project_json: Record<string, unknown> | null }>(
+    `select to_jsonb(np.*) as project_json
+       from public.npd_projects np
+      where np.id = $1::uuid
+        and np.org_id = app.current_org_id()
+      limit 1`,
+    [projectId],
+  );
+  const projectJson = rows[0]?.project_json ?? {};
+  const fieldValues = isRecord(projectJson.field_values) ? projectJson.field_values : {};
+  const values: Record<string, unknown> = { ...fieldValues };
+  for (const [key, value] of Object.entries(projectJson)) {
+    if (key !== 'field_values') values[key] = value;
+  }
+  values.product_name = projectJson.name ?? null;
+  return values;
+}
+
+async function readOrgCatalogFieldKeys(ctx: OrgContextLike): Promise<string[]> {
+  const { rows } = await ctx.client.query<{ column_key: string }>(
+    `select distinct lower(f.code) as column_key
+       from public.npd_field_catalog f
+      where f.org_id = app.current_org_id()
+        and f.active = true
+        and lower(f.code) ~ '^[a-z][a-z0-9_]*$'
+      order by lower(f.code)`,
+  );
+  return rows.map((row) => row.column_key);
+}
+
+async function readProductColumnSet(ctx: OrgContextLike): Promise<Set<string>> {
+  const { rows } = await ctx.client.query<{ column_name: string }>(
+    `select column_name
+       from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'product'`,
+  );
+  return new Set(rows.map((row) => row.column_name));
+}
+
+async function coalesceProductColumn(
+  ctx: OrgContextLike,
+  productCode: string,
+  columnName: string,
+  value: unknown,
+): Promise<boolean> {
+  const quoted = quoteIdentifier(columnName);
+  const result = await ctx.client.query(
+    `update public.product
+        set ${quoted} = $2
+      where org_id = app.current_org_id()
+        and product_code = $1
+        and (${quoted} is null or ${quoted}::text = '')
+      returning product_code`,
+    [productCode, value],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+function hasTransferValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  return true;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export async function peekSuggestedFgCandidateCode(

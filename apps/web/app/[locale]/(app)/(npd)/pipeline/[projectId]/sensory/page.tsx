@@ -28,6 +28,10 @@ import {
   type SensoryScreenData,
 } from './_components/sensory-screen';
 import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import {
+  getCloseSectionLabel,
+  getStageDeptSectionLabels,
+} from '../../../../../../(npd)/pipeline/_lib/get-stage-dept-section-labels';
 import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
 export const dynamic = 'force-dynamic';
@@ -95,27 +99,29 @@ async function readStageSections(projectId: string) {
   }
 }
 
-async function getCloseSectionLabel(locale: string): Promise<string> {
-  try {
-    const t = await getTranslations({ locale, namespace: 'npd.stageDeptSections' });
-    const value = t('closeSection');
-    return value === 'closeSection' ? 'Close {dept} section' : value;
-  } catch {
-    return 'Close {dept} section';
-  }
-}
-
 export default async function SensoryPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as SensoryPageProps;
   const { locale, projectId } = props.params
     ? await props.params
     : { locale: 'en', projectId: '' };
 
-  const labels = await buildLabels(locale);
-  const closeSectionLabel = await getCloseSectionLabel(locale);
-
   const injected = props.data !== undefined || props.state !== undefined;
-  const stageSections = await readStageSections(projectId);
+  const [labels, closeSectionLabel, stageDeptLabels, stageSections] = await Promise.all([
+    buildLabels(locale),
+    getCloseSectionLabel(locale),
+    getStageDeptSectionLabels(locale),
+    readStageSections(projectId),
+  ]);
+
+  const stageDeptSectionsEl = stageSections ? (
+    <StageDeptSections
+      projectId={projectId}
+      stage="sensory"
+      data={stageSections}
+      closeSectionLabel={closeSectionLabel}
+      labels={stageDeptLabels}
+    />
+  ) : null;
 
   if (injected) {
     return (
@@ -125,7 +131,7 @@ export default async function SensoryPage(propsInput: unknown = {}) {
           data={props.data ?? null}
           labels={labels}
         />
-        {stageSections ? <StageDeptSections projectId={projectId} stage="sensory" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
+        {stageDeptSectionsEl}
       </>
     );
   }
@@ -139,7 +145,7 @@ export default async function SensoryPage(propsInput: unknown = {}) {
         data={result.data}
         labels={labels}
       />
-      {stageSections ? <StageDeptSections projectId={projectId} stage="sensory" data={stageSections} closeSectionLabel={closeSectionLabel} /> : null}
+      {stageDeptSectionsEl}
     </>
   );
 }

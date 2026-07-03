@@ -6508,7 +6508,7 @@
       "forbidden": "You do not have permission to revert gates."
     },
     "stageDeptSections": {
-      "noFgLinked": "Department fields are read-only until this project is linked to a Finished Good.",
+      "noFgLinked": "No Finished Good linked yet - values are saved on the project and will transfer to the FG automatically when it is created at gate G3.",
       "readOnly": "Read-only",
       "save": "Save",
       "saved": "Saved",

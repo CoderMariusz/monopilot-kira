@@ -7,8 +7,6 @@
  * CostingScreen + NutritionScreen and their Server Actions via the shared loaders.
  */
 
-import { getTranslations } from 'next-intl/server';
-
 import { CostingScreen } from '../costing/_components/costing-screen';
 import {
   buildCostingLabels,
@@ -23,6 +21,10 @@ import {
   readNutritionPageData,
 } from '../nutrition/_lib/page-loader';
 import { loadStageDeptSections } from '../../../../../../(npd)/pipeline/_actions/load-stage-dept-sections';
+import {
+  getCloseSectionLabel,
+  getStageDeptSectionLabels,
+} from '../../../../../../(npd)/pipeline/_lib/get-stage-dept-section-labels';
 import { StageDeptSections } from '../../../../../../(npd)/pipeline/_components/StageDeptSections';
 
 export const dynamic = 'force-dynamic';
@@ -41,31 +43,29 @@ async function readStageSections(projectId: string) {
   }
 }
 
-async function getCloseSectionLabel(locale: string): Promise<string> {
-  try {
-    const t = await getTranslations({ locale, namespace: 'npd.stageDeptSections' });
-    const value = t('closeSection');
-    return value === 'closeSection' ? 'Close {dept} section' : value;
-  } catch {
-    return 'Close {dept} section';
-  }
-}
-
 export default async function CostingNutritionPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as CostingNutritionPageProps;
   const { locale, projectId } = props.params
     ? await props.params
     : { locale: 'en', projectId: '' };
 
-  const [costingLabels, nutritionLabels, costingLoaded, nutritionLoaded, stageSections, closeSectionLabel] =
-    await Promise.all([
-      buildCostingLabels(locale),
-      buildNutritionLabels(locale),
-      readCostingPageData(projectId),
-      readNutritionPageData(projectId),
-      readStageSections(projectId),
-      getCloseSectionLabel(locale),
-    ]);
+  const [
+    costingLabels,
+    nutritionLabels,
+    costingLoaded,
+    nutritionLoaded,
+    stageSections,
+    closeSectionLabel,
+    stageDeptLabels,
+  ] = await Promise.all([
+    buildCostingLabels(locale),
+    buildNutritionLabels(locale),
+    readCostingPageData(projectId),
+    readNutritionPageData(projectId),
+    readStageSections(projectId),
+    getCloseSectionLabel(locale),
+    getStageDeptSectionLabels(locale),
+  ]);
 
   const permissionDenied =
     costingLoaded.state === 'permission_denied' || nutritionLoaded.state === 'permission_denied';
@@ -90,7 +90,13 @@ export default async function CostingNutritionPage(propsInput: unknown = {}) {
         computeAction={nutritionLoaded.canCompute ? computeNutriScoreAction : undefined}
       />
       {stageSections ? (
-        <StageDeptSections projectId={projectId} stage="costing_nutrition" data={stageSections} closeSectionLabel={closeSectionLabel} />
+        <StageDeptSections
+          projectId={projectId}
+          stage="costing_nutrition"
+          data={stageSections}
+          closeSectionLabel={closeSectionLabel}
+          labels={stageDeptLabels}
+        />
       ) : null}
     </div>
   );
