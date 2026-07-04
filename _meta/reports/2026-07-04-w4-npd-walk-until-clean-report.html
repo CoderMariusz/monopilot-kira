@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Raport fali W4 — NPD: naprawy z Twojego spaceru + pętla walk-until-clean (2026-07-04)</title>
+<style>
+  :root { --ink:#1a1f2e; --mut:#6b7280; --ok:#0a7d33; --warn:#b45309; --bad:#b91c1c; --card:#f8fafc; --line:#e5e7eb; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); max-width: 1080px; margin: 32px auto; padding: 0 20px; line-height: 1.55; }
+  h1 { font-size: 1.55rem; border-bottom: 3px solid var(--ink); padding-bottom: 8px; }
+  h2 { font-size: 1.18rem; margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
+  code { background: var(--card); padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+  .ok { color: var(--ok); font-weight: 600; } .warn { color: var(--warn); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:.8rem; font-weight:600; }
+  .pill.g { background:#dcfce7; color:var(--ok);} .pill.y { background:#fef3c7; color:var(--warn);} .pill.r { background:#fee2e2; color:var(--bad);}
+  .card { background: var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 18px; margin:12px 0; }
+  .small { font-size:.85rem; color:var(--mut); }
+</style>
+</head>
+<body>
+
+<h1>Wave W4 — NPD walk-until-clean <span class="pill g">CLEAN PASS (spacer #3)</span></h1>
+<p class="small">2026-07-04 · commity <code>05415b8e → 51f417a6 → ca9c4077 → f15aa7be</code> (+W4.4 hotfix) · migracje <b>433–435 LIVE</b> (następna: <b>436</b>) · 3 pełne spacery Opusa + 5 lane'ów naprawczych · mandat: „puszczaj browser run aż dojdziesz do etapu, gdzie nie ma takich błędów"</p>
+
+<h2>1. Twoje 9 znalezisk — status końcowy</h2>
+<table>
+<tr><th>#</th><th>Znalezisko (Twój spacer)</th><th>Naprawa</th><th>Retest na prod</th></tr>
+<tr><td>1</td><td>Dwa pola wolumenu tygodniowego w kreatorze</td><td>Zostaje jedno (<code>weekly_volume_packs</code>); legacy <code>expected_volume</code> ukryte + write-through. <b>Bonus:</b> ground-truth ujawnił CZWARTY duplikat tej klasy — legacy <code>Runs_Per_Week</code> obok nowego <code>runs_per_week</code> — też ukryty (mig 433).</td><td class="ok">PASS ×2</td></tr>
+<tr><td>2</td><td>Runs per week = szacunek, zmienny w czasie projektu</td><td>„Przebiegi na tydzień (szacunkowo)" + helper; edytowalne z Briefu na każdym etapie; katalog zaktualizowany.</td><td class="ok">PASS</td></tr>
+<tr><td>3</td><td>Target retail price wpisywany 2× (Brief + receptura)</td><td>Jedno źródło (<code>npd_projects</code> jako kotwica), dwa miejsca edycji z dwustronnym write-through; wersje zablokowane nietykane.</td><td class="ok">PASS (12.50→15.00 w obie strony)</td></tr>
+<tr><td>4</td><td>Ingredient Codes — zbędne ręczne pole w Core</td><td>Pole = auto-derived z receptury (katalog <code>is_auto</code> + źródło <code>Recipe_Components</code>), ukryte w edytorach etapów; most do komponentów produkcyjnych działa dalej.</td><td class="ok">PASS (brak pola w edytorach)</td></tr>
+<tr><td>5</td><td>Waste i scrap w modalu opakowań = to samo 2×</td><td>JEDNO pole „Waste %" zapisujące obie kolumny (<code>scrap_pct</code> dla matematyki WO + <code>waste_pct</code> dla kosztów) — obaj konsumenci zasileni.</td><td class="ok">PASS</td></tr>
+<tr><td>6</td><td>Deadlock: produkcja czeka na pole Core, którego nie ma — powinna odblokowywać się od składników</td><td>Odblokowanie = ≥1 wiersz receptury; komponenty prod_detail wyprowadzane ze składników, gdy Core puste (mig 434); uczciwa copy bramki.</td><td class="ok">PASS</td></tr>
+<tr><td>7</td><td>Staffing/rates „saved", ale nic nie zapisane</td><td>DWA poziomy: (a) <code>rowCount=0</code> = typowany błąd, koniec fałszywych sukcesów; (b) spacer #1 znalazł drugą warstwę — zapis szedł do <code>public.product</code>, a loader panelu receptury czytał tylko <code>prod_detail</code> → rehydracja z właściwego źródła.</td><td class="ok">PASS (save→reload→pola wracają)</td></tr>
+<tr><td>8</td><td>Costing inputs „Could not save inputs"</td><td>TRZY warstwy: (a) zod odrzucał aliasy pól zanim SQL ruszył; (b) panel nie renderował się poza stanem „ready"; (c) spacer #2 odkrył sedno — <b>kolumna <code>npd_projects.updated_at</code> nigdy nie istniała</b>, każdy UPDATE z nią = 42703 i rollback CAŁEJ transakcji (mig 435 + trigger).</td><td class="ok">PASS (100/0.2/1.2 zapisuje i wraca po reloadzie)</td></tr>
+<tr><td>9</td><td>Raw material per pack == per kg przy paczce 200 g</td><td>Twardy kontrakt silnika: raw/pack = Σ(qtyKg×koszt) + test liczbowy na Twój przypadek (0,2 kg × £5/kg ⇒ £1,00/paczka).</td><td class="ok">PASS (£4.65/kg → £0.93/paczka)</td></tr>
+</table>
+
+<h2>2. Pętla walk-until-clean — trzy spacery</h2>
+<table>
+<tr><th>Spacer</th><th>Wynik</th><th>Co znalazł / co potwierdził</th></tr>
+<tr><td><b>#1</b> (51f417a6)</td><td class="warn">2 HIGH + 2 MED + 3 LOW</td><td>Potwierdził 6/9 napraw + Trial/Approval/pamięć-między-krokami OK. Znalazł: rehydrację (2. warstwa #7), pilot niesatysfikowalny (<code>no_active_bom</code> — BOM powstawał 2 etapy później), checklisty G3 bez auto-tick (wymuszony bypass), martwy Sensory, pusty dropdown linii przy All-sites, surowy klucz i18n w kreatorze.</td></tr>
+<tr><td><b>#2</b> (ca9c4077)</td><td class="warn">2 HIGH, 1 root cause</td><td>Potwierdził wszystkie naprawy W4.2 (rehydracja ✓, auto-tick z plakietką „auto" bez bypassa ✓, linie ✓). Znalazł wspólne sedno obu HIGH: brak kolumny <code>updated_at</code> → 42703 rollback (costing save + pilot auto-BOM).</td></tr>
+<tr><td><b>#3</b> (f15aa7be)</td><td class="ok"><b>CLEAN PASS</b></td><td>CAŁA linia end-to-end bez bypassów: kreator → Brief → receptura → produkcja → bramki (auto-tick) → <b>Costing (£4.32/kg → £5.49/kg total = £1,09/paczka — matematyka spójna)</b> → Trial → <b>pilot: WO-pilot-FG0011 + aktywny BOM (ilości per-box poprawne: per-pack ×8)</b> → Approval (C3 kosztowy spełnialny, e-podpis, G3+G4 zatwierdzone) → <b>Handoff: 5 bramek zielonych, factory spec zatwierdzony, PROMOCJA „wydany do fabryki"</b> → transfer pól Core do FG ✓ → sweep pamięci wstecz ✓. <b>Zero błędów mandatowanej klasy.</b></td></tr>
+</table>
+
+<h2>3. Znaleziska POZA mandatowaną klasą (ze spaceru #3)</h2>
+<table>
+<tr><th>Sev</th><th>Znalezisko</th><th>Los</th></tr>
+<tr><td class="bad">HIGH (regulacyjne)</td><td>Deklaracja alergenów na zakładce Nutrition <b>fabrykuje widmowy „Gluten"</b> — kaskada FG i baza mówią Eggs-only (jedyny RM z profilem = eggs/contains). Fałszywy pozytyw w deklaracji = klasa uczciwości alergenowej.</td><td class="ok">Hotfix W4.4 — deklaracja czyta to samo źródło co kaskada</td></tr>
+<tr><td class="warn">LOW</td><td>Lista WO w planowaniu pokazuje 0 pod „Wszystkie zakłady" (WO widać po zawężeniu do zakładu) — All-sites musi być nadzbiorem.</td><td class="ok">Hotfix W4.4</td></tr>
+<tr><td class="warn">LOW (niska pewność)</td><td>„Potwierdź wysłanie" przy e-podpisie 2× no-op bez komunikatu zanim zadziałał — możliwy artefakt automatyzacji (JS-set hasła vs stan Reacta); pusty/zły podpis może failować bez feedbacku.</td><td>→ F7 (ręczne potwierdzenie)</td></tr>
+<tr><td class="warn">LOW</td><td>„Historia zatwierdzeń" bramek pusta po przejściach G0→G2→G3 (przejścia nielogowane do panelu historii).</td><td>→ F7</td></tr>
+</table>
+
+<h2>4. Higiena procesu tej fali</h2>
+<ul>
+<li><b>Dane testowe:</b> wszystkie trzy projekty spacerów (NPD-028/029/030 + FG0009/0010/0011 + WO-pilot-FG0011 + BOM-y + factory spec + trial'e) usunięte z produkcyjnej bazy — potwierdzone zapytaniami 0/0/0/0. Dane właściciela (NPD-019 „new", FG-KAB, Kabanosy) nietknięte we wszystkich spacerach, zero użytych bypassów.</li>
+<li><b>Migracje 433–435:</b> wszystkie re-entrant (dowód podwójnym wykonaniem lokalnie), aplikowane przez MCP przed pushem; 433 wymagała mojej korekty SQL po lane (UPDATE…FROM + dokładny kod <code>Recipe_Components</code> dla triggera anty-cyklowego) — złapane PRZED prodem na lokalnym replay.</li>
+<li><b>Wpadka procesu (uczciwie):</b> pierwszy deploy W4 padł na Vercelu przez NOWY plik lane'a pominięty w jawnym stagingu (lokalny build go widział na dysku) — naprawione osobnym commitem; lekcja: staging list musi zawsze kończyć się sprawdzeniem <code>git status ??</code> na katalogach app.</li>
+</ul>
+
+<h2>5. Stan po fali</h2>
+<div class="card">
+<p><b>Linia NPD od kreatora do promocji do fabryki przechodzi w całości bez błędów klasy: niezapisane pola / duplikaty / logika odblokowań / brak BOM / logika kosztów / pamięć między krokami.</b> To jest stan, o który prosiłeś — możesz przejść własny run. Zaległe drobiazgi (2×LOW z §3 + drobne UX z poprzednich fal) są w kolejce F7 i nie blokują przepływu.</p>
+<p class="small">Artefakty: zrzuty spacerów <code>w41-*.png / w42-*.png / w43-*.png</code> w katalogu repo · poprzedni raport (W3 WIP platform) <code>_meta/reports/2026-07-03-f-npd3-w3-wave-report.html</code>.</p>
+</div>
+
+</body>
+</html>

@@ -185,14 +185,34 @@ export async function readNutritionPageData(projectId: string): Promise<Nutritio
       );
 
       const allergens = await ctx.client.query<AllergenLoaderRow>(
-        `select na.allergen_code,
-                na.presence,
+        `with cascade as (
+           select coalesce(fac.published_allergens, '{}'::text[]) as published_allergens,
+                  coalesce(fac.may_contain_allergens, '{}'::text[]) as may_contain_allergens
+             from public.fa_allergen_cascade fac
+            where fac.org_id = app.current_org_id()
+              and fac.product_code = $1
+            limit 1
+         ), declared as (
+           select btrim(a.allergen_code) as allergen_code,
+                  'contains'::text as presence
+             from cascade
+             cross join lateral unnest(cascade.published_allergens) as a(allergen_code)
+            where btrim(coalesce(a.allergen_code, '')) <> ''
+           union
+           select btrim(a.allergen_code) as allergen_code,
+                  'may_contain'::text as presence
+             from cascade
+             cross join lateral unnest(cascade.may_contain_allergens) as a(allergen_code)
+            where btrim(coalesce(a.allergen_code, '')) <> ''
+         )
+         select d.allergen_code,
+                d.presence,
                 null::text as source_ingredient
-           from public.nutrition_allergens na
-          where na.org_id = app.current_org_id()
-            and na.product_code = $1
-            and na.presence <> 'free_from'
-          order by na.allergen_code asc`,
+           from declared d
+           join "Reference"."Allergens" ra
+             on ra.org_id = app.current_org_id()
+            and ra.allergen_code = d.allergen_code
+          order by d.presence asc, d.allergen_code asc`,
         [productCode],
       );
 

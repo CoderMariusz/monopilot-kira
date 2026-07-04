@@ -11,7 +11,7 @@
  *   - <table> nutrient declaration    → @monopilot/ui Table primitives (raw <table> is a red-line)
  *   - badge OK / At limit             → @monopilot/ui Badge + TEXT label (color is never the sole signal — a11y)
  *   - Nutri-Score A-E visual scale    → server-read public.nutri_score_results.grade; active letter marked + sr text
- *   - allergen declaration sub-table  → server-read public.nutrition_allergens (presence enum)
+ *   - allergen declaration sub-table  → server-read public.fa_allergen_cascade (FG declaration)
  *   - "Export CSV"                    → client CSV download (7 rows + header) — read-only, no server write
  *   - "Generate label PDF"            → disabled stub (Phase C4 deferred per risk_red_lines)
  *

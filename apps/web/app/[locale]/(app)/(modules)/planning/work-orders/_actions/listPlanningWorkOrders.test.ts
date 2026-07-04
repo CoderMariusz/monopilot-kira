@@ -113,7 +113,7 @@ describe('listPlanningWorkOrders', () => {
       expect.stringContaining('from public.work_orders wo'),
       ['RELEASED', 'FG', 10, false, SITE_ID],
     );
-    expect(vi.mocked(client.query).mock.calls[0]?.[0]).toContain('wo.site_id = $5::uuid');
+    expect(vi.mocked(client.query).mock.calls[0]?.[0]).toContain('($5::uuid is null or wo.site_id = $5::uuid)');
   });
 
   it('passes archived=true to return only archived work orders', async () => {
@@ -122,16 +122,18 @@ describe('listPlanningWorkOrders', () => {
     expect(vi.mocked(client.query).mock.calls[0]?.[1]).toEqual([null, null, 50, true, SITE_ID]);
   });
 
-  it('fails closed with no active site before running the work orders read', async () => {
+  it('treats a null active site as All sites and returns org-wide work orders', async () => {
     getActiveSiteIdMock.mockResolvedValue(null);
 
-    await expect(listPlanningWorkOrders({})).resolves.toEqual({
-      ok: true,
-      workOrders: [],
-      archivedCount: 0,
-      noActiveSite: true,
-    });
-    expect(client.query).not.toHaveBeenCalled();
+    const result = await listPlanningWorkOrders({});
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.workOrders).toHaveLength(1);
+    expect(vi.mocked(client.query).mock.calls[0]?.[1]).toEqual([null, null, 50, false, null]);
+    expect(vi.mocked(client.query).mock.calls[0]?.[0]).toContain('($5::uuid is null or wo.site_id = $5::uuid)');
+    expect(vi.mocked(client.query).mock.calls[1]?.[1]).toEqual([null, null, null]);
+    expect(vi.mocked(client.query).mock.calls[1]?.[0]).toContain('($3::uuid is null or wo.site_id = $3::uuid)');
   });
 
   it('returns persistence_failed when the query fails', async () => {

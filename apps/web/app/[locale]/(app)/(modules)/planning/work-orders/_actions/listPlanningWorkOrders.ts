@@ -24,11 +24,6 @@ export async function listPlanningWorkOrders(params: {
   try {
     return await withOrgContext(async ({ client }): Promise<ListPlanningWorkOrdersResult> => {
       const s = await getActiveSiteId({ client });
-      if (!s) {
-        return { ok: true, workOrders: [], archivedCount: 0, noActiveSite: true } as ListPlanningWorkOrdersResult & {
-          noActiveSite: true;
-        };
-      }
 
       const { rows } = await client.query<WOSummaryRow>(
         `select
@@ -78,7 +73,7 @@ export async function listPlanningWorkOrders(params: {
             limit 1
          ) sched on true
          where wo.org_id = app.current_org_id()
-           and wo.site_id = $5::uuid
+           and ($5::uuid is null or wo.site_id = $5::uuid)
            and ($1::text is null or wo.status = $1)
            and (
              $2::text is null
@@ -105,7 +100,7 @@ export async function listPlanningWorkOrders(params: {
              on ods.org_id = wo.org_id
             and ods.doc_type = 'wo'
           where wo.org_id = app.current_org_id()
-            and wo.site_id = $3::uuid
+            and ($3::uuid is null or wo.site_id = $3::uuid)
             and ($1::text is null or wo.status = $1)
             and (
               $2::text is null
