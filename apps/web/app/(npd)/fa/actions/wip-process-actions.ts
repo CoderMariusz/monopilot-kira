@@ -156,11 +156,14 @@ export async function updateWipProcess(input: UpdateWipProcessInput): Promise<Ac
     );
 
     const process = updated.rows[0];
+    if (updated.rowCount !== 1 || !process) {
+      return { ok: false, error: 'WIP process is not visible in this organisation' };
+    }
     if (process?.creates_wip_item) {
       await ensureWipItem(ctx, process.process_name, process.id);
     }
 
-    return { ok: true, updated: updated.rowCount === 1 };
+    return { ok: true, updated: true };
   });
 }
 
@@ -181,7 +184,11 @@ export async function removeWipProcess(input: RemoveWipProcessInput): Promise<Ac
       [parsed.data.id],
     );
 
-    return { ok: true, removed: deleted.rowCount === 1 };
+    if (deleted.rowCount !== 1) {
+      return { ok: false, error: 'WIP process is not visible in this organisation' };
+    }
+
+    return { ok: true, removed: true };
   });
 }
 
@@ -216,21 +223,26 @@ export async function saveWipProcessRoles(
       [parsed.data.processId],
     );
 
+    let insertedCount = 0;
     for (const role of parsed.data.roles) {
       const ratePerHour =
         role.ratePerHour ??
         (await getCurrentLaborRate(ctx, role.roleGroup));
 
-      await ctx.client.query(
+      const inserted = await ctx.client.query(
         `insert into public.npd_wip_process_roles
            (org_id, process_id, role_group, headcount, rate_per_hour)
          values
            (app.current_org_id(), $1::uuid, $2, $3::int, $4::numeric)`,
         [parsed.data.processId, role.roleGroup, role.headcount, ratePerHour],
       );
+      if (inserted.rowCount !== 1) {
+        throw new Error('Could not persist WIP process role');
+      }
+      insertedCount += 1;
     }
 
-    return { ok: true, saved: parsed.data.roles.length };
+    return { ok: true, saved: insertedCount };
   });
 }
 

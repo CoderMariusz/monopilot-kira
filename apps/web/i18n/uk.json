@@ -6179,7 +6179,8 @@
       "attachDeleteFailed": "Could not delete the attachment. Please try again.",
       "fieldPacksPerCase": "Packs per case",
       "fieldWeeklyVolumePacks": "Weekly volume (packs/week)",
-      "fieldRunsPerWeek": "Runs per week"
+      "fieldRunsPerWeek": "Runs per week",
+      "fieldRunsPerWeekHelp": "Planning estimate only — you can revise this until launch; the final run rate is confirmed at handover."
     },
     "sensory": {
       "title": "Сенсорна панель",
@@ -6856,6 +6857,10 @@
       "acceptSuccessBomsRegenerated": "WIP definition accepted and production BOMs were regenerated.",
       "acceptError": "Could not accept the WIP definition update. Try again.",
       "acceptForbidden": "You do not have permission to accept WIP definition updates."
+    },
+    "wizard": {
+      "fieldRunsPerWeek": "Runs per week (estimate)",
+      "fieldRunsPerWeekHelp": "Planning estimate only — revise later on the project brief as volumes firm up."
     }
   },
   "Errors": {

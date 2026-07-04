@@ -448,6 +448,22 @@ async function readProdDetailRows(
   });
 }
 
+async function readCurrentFormulationIngredientCount(ctx: OrgContextLike, productCode: string): Promise<number> {
+  const { rows } = await ctx.client.query<{ ingredient_count: string | number | null }>(
+    `select count(fi.id) as ingredient_count
+       from public.formulations f
+       join public.formulation_versions fv
+         on fv.id = f.current_version_id
+        and fv.formulation_id = f.id
+       left join public.formulation_ingredients fi
+         on fi.version_id = fv.id
+      where f.org_id = app.current_org_id()
+        and f.product_code = $1::text`,
+    [productCode],
+  );
+  return Number(rows[0]?.ingredient_count ?? 0);
+}
+
 /**
  * S5b — load the dynamic per-component process list for each ProdDetail row.
  * getComponentProcesses opens its OWN org-context tx (RLS-pinned), so we call it
@@ -509,6 +525,8 @@ type DeptData = {
   /** A3 SLICE 2: MRP schema-driven columns, rendered inside the Production section. */
   mrp: GenericDeptColumn[];
   prodRows: ProdDetailRow[];
+  /** Count of rows in the current formulation version; drives Production unlock. */
+  formulationIngredientCount: number;
   /** S5b (D6/D9) — dynamic per-component process list keyed by prod_detail_id. */
   prodProcesses: Record<string, ComponentProcess[] | ComponentProcessBundle>;
   /** S5b — active ManufacturingOperations (id + name) for the process picker. */
@@ -590,6 +608,7 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         technical,
         procurement,
         prodRows,
+        formulationIngredientCount,
         canWriteProduction,
         mrp,
         canDelete,
@@ -606,6 +625,7 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         readDeptColumns(ctx, 'Technical'),
         readDeptColumns(ctx, 'Procurement'),
         readProdDetailRows(ctx, productCode),
+        readCurrentFormulationIngredientCount(ctx, productCode),
         hasPermission(ctx, 'npd.production.write'),
         readDeptColumns(ctx, 'MRP'),
         hasPermission(ctx, DELETE_PERMISSION),
@@ -675,6 +695,7 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         procurement: forceReadOnlyColumns(procurement),
         mrp: forceReadOnlyColumns(mrp),
         prodRows,
+        formulationIngredientCount,
         // Enriched after the org-context block closes (each action opens its OWN tx).
         prodProcesses: {},
         operations: [],
@@ -1177,7 +1198,10 @@ async function buildProductionLabels(
     componentsCount: p('componentsCount', '{count} component(s)'),
     subtitle: p('subtitle', 'Edits reset the Built flag automatically.'),
     lockedTitle: p('lockedTitle', 'Blocked'),
-    lockedBody: p('lockedBody', 'Pack Size must be filled in Core first.'),
+    lockedBody: p(
+      'lockedBody',
+      'Add at least one ingredient to the current recipe/formulation before editing Production.',
+    ),
     v06Pass: p('v06Pass', 'Yield OK'),
     v06Warn: p('v06Warn', 'Yield incomplete'),
     aggregateTitle: p('aggregateTitle', 'Aggregate'),
@@ -1440,6 +1464,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     procurement: [],
     mrp: [],
     prodRows: [],
+    formulationIngredientCount: 0,
     prodProcesses: {},
     operations: [],
     dropdowns: {},
@@ -1597,7 +1622,6 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     />
   );
 
-  const packSizeFilled = String(dept.values.pack_size ?? '').trim() !== '';
   const briefId = dept.values.brief_id != null ? String(dept.values.brief_id) : null;
   const closedCommercial =
     dept.values.closed_commercial != null ? String(dept.values.closed_commercial) : null;
@@ -1679,7 +1703,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
       ) : null}
       <FaProductionTab
         productCode={fa.productCode}
-        packSizeFilled={packSizeFilled}
+        formulationIngredientCount={dept.formulationIngredientCount}
         columns={dept.production as FaProductionColumn[]}
         rows={dept.prodRows}
         dropdowns={dept.dropdowns}

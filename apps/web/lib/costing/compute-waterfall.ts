@@ -5,7 +5,7 @@
  * arithmetic uses the repo fixed-point decimal helper.
  */
 
-import { Dec, recomputeCalc, type RecomputeIngredient } from '@monopilot/domain';
+import { Dec, type RecomputeIngredient } from '@monopilot/domain';
 
 export const COSTING_WATERFALL_STEP_NAMES = [
   'Raw materials',
@@ -217,15 +217,7 @@ export function computeNpdCostEngine(input: NpdCostEngineInput): WaterfallResult
     packsPerBatch: packsPerBatch.toFixed(4),
   };
 
-  const rawFromFormula = recomputeCalc({
-    ingredients: input.ingredients,
-    yieldPct: yieldPctText ?? '0',
-    packWeightKg: input.packWeightKg,
-    targetPriceEur: input.targetPriceEur,
-    processingOverheadPct: '0',
-    packagingCostPerKg: '0',
-  });
-  let raw = Dec.from(rawFromFormula.rawCostPerPack);
+  let raw = sumIngredientRawCostPerPack(input.ingredients);
   for (const wip of input.wipComponents ?? []) {
     const componentUnitCost = computeWipComponentCostDecimal(wip, packWeightKg, avgBatchQty);
     // quantity is already per pack in the WIP's base unit — rescaling by
@@ -388,6 +380,12 @@ function sumPackaging(components: NpdCostEngineInput['packagingComponents']): De
   return components.reduce((sum, component) => {
     const wasteFactor = ONE.add(Dec.from(component.wastePct).div(HUNDRED));
     return sum.add(Dec.from(component.qtyPerBox).mul(Dec.from(component.costPerUnit)).mul(wasteFactor));
+  }, Dec.zero());
+}
+
+function sumIngredientRawCostPerPack(ingredients: RecomputeIngredient[]): Dec {
+  return ingredients.reduce((sum, ingredient) => {
+    return sum.add(Dec.from(ingredient.qtyKg).mul(Dec.from(ingredient.costPerKgEur)));
   }, Dec.zero());
 }
 

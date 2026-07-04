@@ -8,7 +8,8 @@
  *   prototypes/design/Monopilot Design System/npd/fa-screens.jsx:571-653 (fa_production_tab)
  *   FAProductionTab: "Production detail — N component(s)" card with the
  *   "Edits reset Built flag automatically." sub-line; an amber locked alert
- *   ("Blocked: Pack_Size must be filled in Core …") when Pack_Size is missing;
+ *   ("Blocked: add at least one ingredient …") when the current formulation has
+ *   no ingredient rows;
  *   one block per ProdDetail component, each with the intermediate (PR) code +
  *   component label + weight + a V06 pass/warn badge, a 4-column grid of
  *   Process 1..4 (Select) + Yield P1..4 (Input number) + PR code P1..4 (auto,
@@ -90,6 +91,7 @@ import {
 } from '../../../../../../(npd)/fa/actions/wip-process-actions';
 import { getProcessDefault } from '../../../../(admin)/settings/process-defaults/_actions/process-defaults-actions';
 import { isLegacyProcessColumn } from './legacy-process-column';
+import { canEditProductionFromFormulationIngredientCount } from './production-unlock';
 
 export type { ComponentProcess } from '../../../../../../(npd)/fa/actions/get-component-processes';
 
@@ -256,8 +258,10 @@ export type FaProductionTabLabels = {
 
 export type FaProductionTabProps = {
   productCode: string;
-  /** Pack_Size gate (Core). When false, every editable control is disabled. */
-  packSizeFilled: boolean;
+  /** Count of rows in the current formulation version. Editing unlocks at >= 1 row. */
+  formulationIngredientCount?: number;
+  /** @deprecated kept only for older test fixtures; real loaders pass formulationIngredientCount. */
+  packSizeFilled?: boolean;
   /** Schema-driven Production column metadata (Reference.DeptColumns, server-loaded). */
   columns: FaProductionColumn[];
   /** Real prod_detail rows (one per component), server-loaded. */
@@ -1335,6 +1339,7 @@ function ComponentProcesses({
 
 export function FaProductionTab({
   productCode,
+  formulationIngredientCount,
   packSizeFilled,
   columns,
   rows,
@@ -1359,7 +1364,10 @@ export function FaProductionTab({
   const params = useParams();
   const locale = typeof params?.locale === 'string' ? params.locale : 'en';
   const ordered = React.useMemo(() => sortColumns(columns), [columns]);
-  const locked = !packSizeFilled;
+  const locked =
+    formulationIngredientCount == null
+      ? !packSizeFilled
+      : !canEditProductionFromFormulationIngredientCount(formulationIngredientCount);
 
   const searchAction: ItemSearchFn = onSearchItems ?? searchItems;
   const addAction = onAddComponent ?? addProdDetailComponent;
@@ -1472,7 +1480,7 @@ export function FaProductionTab({
   const dataLoaded = state === 'ready' || state === 'empty';
 
   // "+ Add production component" picker — only shown when the user can write and
-  // the Production tab is not locked by the Pack_Size gate. Opens the combobox
+  // the Production tab is unlocked by at least one formulation ingredient. Opens the combobox
   // over the REAL items master and creates a prod_detail row on select.
   const addPicker =
     canWrite && !locked ? (

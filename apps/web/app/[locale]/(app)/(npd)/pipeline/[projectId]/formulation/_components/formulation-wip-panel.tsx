@@ -35,7 +35,7 @@ export async function FormulationWipPanel({
     <section className="mt-8 space-y-2" data-testid="formulation-wip-panel">
       <FaProductionTab
         productCode={data.productCode}
-        packSizeFilled={data.packSizeFilled}
+        formulationIngredientCount={data.formulationIngredientCount}
         columns={data.columns}
         rows={data.rows}
         dropdowns={data.dropdowns}

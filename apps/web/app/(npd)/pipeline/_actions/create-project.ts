@@ -16,6 +16,7 @@ import {
   trimOptionalString,
 } from './shared';
 import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
+import { expectedVolumeFromWeeklyPacks } from '../../../../lib/npd/brief-field-sync';
 
 export type CreateProjectInput = {
   name: string;
@@ -33,7 +34,6 @@ export type CreateProjectInput = {
   weeklyVolumePacks?: number | null;
   runsPerWeek?: number | null;
   salesChannel?: string | null;
-  expectedVolume?: string | null;
   targetRetailPriceEur?: number | null;
   targetAudience?: string | null;
   marketingClaims?: string | null;
@@ -101,7 +101,7 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
           input.notes,
           input.packFormat ?? null,
           input.salesChannel ?? null,
-          input.expectedVolume ?? null,
+          expectedVolumeFromWeeklyPacks(input.weeklyVolumePacks),
           input.targetRetailPriceEur ?? null,
           input.targetAudience ?? null,
           input.marketingClaims ?? null,
@@ -121,6 +121,12 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
       const seeded = await seedChecklistItems(context, project.id, input.templateId);
       const formulationDraft = await seedFormulationDraft(context, project.id);
       if (!formulationDraft) return { ok: false, error: 'PERSISTENCE_FAILED' };
+      await seedBriefTargetPriceOnDraft(
+        context,
+        project.id,
+        formulationDraft,
+        input.targetRetailPriceEur ?? null,
+      );
       await writeProjectCreatedOutbox(context, project.id, project.code, input, seeded);
       safeRevalidatePath('/pipeline');
 
@@ -165,7 +171,6 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   // Brief step — all optional (undefined === over-length/invalid → reject).
   const packFormat = trimOptionalString(input.packFormat, 160);
   const salesChannel = trimOptionalString(input.salesChannel, 80);
-  const expectedVolume = trimOptionalString(input.expectedVolume, 120);
   const targetAudience = trimOptionalString(input.targetAudience, 400);
   const marketingClaims = trimOptionalString(input.marketingClaims, 600);
   const constraints = trimOptionalString(input.constraints, 2000);
@@ -180,7 +185,7 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   if (
     !name || !type || !prio || !templateId ||
     owner === undefined || targetLaunch === undefined || notes === undefined ||
-    packFormat === undefined || salesChannel === undefined || expectedVolume === undefined ||
+    packFormat === undefined || salesChannel === undefined ||
     targetAudience === undefined || marketingClaims === undefined || constraints === undefined ||
     targetRetailPriceEur === undefined || packWeightG === undefined || packsPerCase === undefined ||
     weeklyVolumePacks === undefined || runsPerWeek === undefined ||
@@ -191,7 +196,7 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
 
   return {
     name, type, prio, owner, targetLaunch, notes,
-    packFormat, salesChannel, expectedVolume, targetRetailPriceEur,
+    packFormat, salesChannel, targetRetailPriceEur,
     targetAudience, marketingClaims, constraints, packWeightG, packsPerCase,
     weeklyVolumePacks, runsPerWeek,
     startFrom, cloneSource, templateId,
@@ -292,6 +297,26 @@ async function seedFormulationDraft(ctx: OrgContextLike, projectId: string): Pro
   );
 
   return versionId;
+}
+
+async function seedBriefTargetPriceOnDraft(
+  ctx: OrgContextLike,
+  projectId: string,
+  versionId: string,
+  targetRetailPriceEur: number | null,
+): Promise<void> {
+  if (targetRetailPriceEur === null) return;
+  await ctx.client.query(
+    `update public.formulation_versions fv
+        set target_price_eur = $3::numeric
+       from public.formulations f
+      where fv.id = $2::uuid
+        and f.id = fv.formulation_id
+        and f.project_id = $1::uuid
+        and f.org_id = app.current_org_id()
+        and fv.state = 'draft'`,
+    [projectId, versionId, targetRetailPriceEur],
+  );
 }
 
 async function seedChecklistItems(ctx: OrgContextLike, projectId: string, templateId: string): Promise<number> {

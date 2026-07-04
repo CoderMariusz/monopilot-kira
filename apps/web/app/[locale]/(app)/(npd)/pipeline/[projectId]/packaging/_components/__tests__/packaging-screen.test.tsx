@@ -370,7 +370,6 @@ describe('PackagingScreen — add via modal calls the Server Action', () => {
       supplierCode: null,
       spec: null,
       costPerUnit: '0.18',
-      // Scrap % defaults to 0 when the field is left untouched.
       scrapPct: 0,
       wastePct: 0,
       qtyPerPack: null,
@@ -380,6 +379,30 @@ describe('PackagingScreen — add via modal calls the Server Action', () => {
     });
     // After a successful upsert the RSC loader is re-run.
     await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+  });
+
+  it('renders one Waste % input and submits that value to both wastePct and scrapPct', async () => {
+    const onUpsert = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <PackagingScreen
+        state="ready"
+        data={EMPTY_DATA}
+        labels={LABELS}
+        canWrite
+        onUpsert={onUpsert}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('add-component-empty'));
+    fireEvent.change(screen.getByTestId('field-component-name'), { target: { value: 'MAP tray' } });
+    fireEvent.change(screen.getByTestId('field-waste-pct'), { target: { value: '2.5' } });
+
+    expect(screen.queryByTestId('field-scrap-pct')).not.toBeInTheDocument();
+    fireEvent.submit(screen.getByTestId('packaging-component-form'));
+
+    await waitFor(() => expect(onUpsert).toHaveBeenCalledTimes(1));
+    expect(onUpsert).toHaveBeenCalledWith(expect.objectContaining({ scrapPct: 2.5, wastePct: 2.5 }));
   });
 });
 

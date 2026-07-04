@@ -207,11 +207,13 @@ function CostingInputsPanel({
   const [overhead, setOverhead] = React.useState(inputs.overheadPerKgOverride);
   const [logistics, setLogistics] = React.useState(inputs.logisticsPerBoxOverride);
   const [saveState, setSaveState] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveError, setSaveError] = React.useState('');
 
   React.useEffect(() => {
     setAvgBatchQty(inputs.avgBatchQty);
     setOverhead(inputs.overheadPerKgOverride);
     setLogistics(inputs.logisticsPerBoxOverride);
+    setSaveError('');
   }, [inputs]);
 
   const briefHref = `/${locale}/pipeline/${projectId}/brief`;
@@ -227,8 +229,10 @@ function CostingInputsPanel({
         logisticsPerBoxOverride: logistics.trim() === '' ? null : logistics,
       });
       setSaveState(result.ok ? 'saved' : 'error');
+      setSaveError(result.ok ? '' : result.error);
     } catch {
       setSaveState('error');
+      setSaveError(labels.saveInputsError);
     }
   }
 
@@ -251,10 +255,11 @@ function CostingInputsPanel({
               step="0.001"
               value={avgBatchQty}
               disabled={!canSave}
-              onChange={(e) => {
-                setSaveState('idle');
-                setAvgBatchQty(e.target.value);
-              }}
+                onChange={(e) => {
+                  setSaveState('idle');
+                  setSaveError('');
+                  setAvgBatchQty(e.target.value);
+                }}
             />
           </div>
           <div className="grid gap-1">
@@ -270,10 +275,11 @@ function CostingInputsPanel({
               value={overhead}
               disabled={!canSave}
               placeholder={inputs.orgOverheadPerKg}
-              onChange={(e) => {
-                setSaveState('idle');
-                setOverhead(e.target.value);
-              }}
+                onChange={(e) => {
+                  setSaveState('idle');
+                  setSaveError('');
+                  setOverhead(e.target.value);
+                }}
             />
           </div>
           <div className="grid gap-1">
@@ -289,10 +295,11 @@ function CostingInputsPanel({
               value={logistics}
               disabled={!canSave}
               placeholder={inputs.orgLogisticsPerBox}
-              onChange={(e) => {
-                setSaveState('idle');
-                setLogistics(e.target.value);
-              }}
+                onChange={(e) => {
+                  setSaveState('idle');
+                  setSaveError('');
+                  setLogistics(e.target.value);
+                }}
             />
           </div>
           {canSave ? (
@@ -313,7 +320,7 @@ function CostingInputsPanel({
               ) : null}
               {saveState === 'error' ? (
                 <span role="alert" className="text-sm text-red-700">
-                  {labels.saveInputsError}
+                  {saveError || labels.saveInputsError}
                 </span>
               ) : null}
             </div>

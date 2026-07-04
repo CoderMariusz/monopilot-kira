@@ -16,7 +16,7 @@ vi.mock('../../../../../lib/documents/code-mask', () => ({
   nextEntityCode: (...args: unknown[]) => nextEntityCodeMock(...args),
 }));
 
-import { addWipProcess, updateWipProcess } from '../wip-process-actions';
+import { addWipProcess, removeWipProcess, saveWipProcessRoles, updateWipProcess } from '../wip-process-actions';
 
 const prodDetailId = '33333333-3333-4333-8333-333333333333';
 const processId = '44444444-4444-4444-8444-444444444444';
@@ -40,7 +40,17 @@ describe('wip-process-actions WIP item linkage', () => {
       if (/insert\s+into\s+public\.npd_wip_processes/i.test(text)) {
         return { rows: [{ id: processId }], rowCount: 1 };
       }
-      if (/select\s+wip_item_id/i.test(text)) return { rows: [{ wip_item_id: null }] };
+      if (/select\s+p\.wip_item_id/i.test(text)) {
+        return {
+          rows: [{
+            wip_item_id: null,
+            wip_definition_id: null,
+            definition_item_id: null,
+            definition_base_uom: null,
+            definition_name: null,
+          }],
+        };
+      }
       if (/insert\s+into\s+public\.items/i.test(text)) {
         return { rows: [{ id: itemId }], rowCount: 1 };
       }
@@ -79,7 +89,17 @@ describe('wip-process-actions WIP item linkage', () => {
       if (/insert\s+into\s+public\.npd_wip_processes/i.test(text)) {
         return { rows: [{ id: processId }], rowCount: 1 };
       }
-      if (/select\s+wip_item_id/i.test(text)) return { rows: [{ wip_item_id: existingItemId }] };
+      if (/select\s+p\.wip_item_id/i.test(text)) {
+        return {
+          rows: [{
+            wip_item_id: existingItemId,
+            wip_definition_id: null,
+            definition_item_id: null,
+            definition_base_uom: null,
+            definition_name: null,
+          }],
+        };
+      }
       if (/from\s+public\.items/i.test(text) && /id\s*=\s*\$1::uuid/i.test(text)) {
         return { rows: [{ id: existingItemId }] };
       }
@@ -106,7 +126,17 @@ describe('wip-process-actions WIP item linkage', () => {
       if (/insert\s+into\s+public\.npd_wip_processes/i.test(text)) {
         return { rows: [{ id: processId }], rowCount: 1 };
       }
-      if (/select\s+wip_item_id/i.test(text)) return { rows: [{ wip_item_id: null }] };
+      if (/select\s+p\.wip_item_id/i.test(text)) {
+        return {
+          rows: [{
+            wip_item_id: null,
+            wip_definition_id: null,
+            definition_item_id: null,
+            definition_base_uom: null,
+            definition_name: null,
+          }],
+        };
+      }
       if (/insert\s+into\s+public\.items/i.test(text)) {
         return { rows: [{ id: itemId }], rowCount: 1 };
       }
@@ -155,5 +185,70 @@ describe('wip-process-actions WIP item linkage', () => {
       /delete\s+from\s+public\.items/i.test(String(call[0])),
     );
     expect(deletedItem).toBe(false);
+  });
+
+  it('updateWipProcess returns a typed error when no process row is updated', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
+      if (/update\s+public\.npd_wip_processes/i.test(text)) {
+        return { rows: [], rowCount: 0 };
+      }
+      return { rows: [] };
+    });
+
+    const result = await updateWipProcess({ id: processId, durationHours: 2 });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'WIP process is not visible in this organisation',
+    });
+  });
+
+  it('removeWipProcess returns a typed error when no process row is deleted', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
+      if (/delete\s+from\s+public\.npd_wip_processes/i.test(text)) return { rows: [], rowCount: 0 };
+      return { rows: [] };
+    });
+
+    const result = await removeWipProcess({ id: processId });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'WIP process is not visible in this organisation',
+    });
+  });
+
+  it('saveWipProcessRoles writes role rows with headcounts and persisted rates', async () => {
+    queryMock.mockImplementation(async (sql: string, params?: readonly unknown[]) => {
+      const text = String(sql);
+      if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
+      if (/select\s+true\s+as\s+ok/i.test(text)) return { rows: [{ ok: true }] };
+      if (/delete\s+from\s+public\.npd_wip_process_roles/i.test(text)) return { rows: [], rowCount: 1 };
+      if (/from\s+public\.labor_rates/i.test(text)) {
+        return { rows: [{ rate_per_hour: params?.[0] === 'Supervisor' ? '30' : '20' }] };
+      }
+      if (/insert\s+into\s+public\.npd_wip_process_roles/i.test(text)) return { rows: [], rowCount: 1 };
+      return { rows: [] };
+    });
+
+    const result = await saveWipProcessRoles({
+      processId,
+      roles: [
+        { roleGroup: 'Operator', headcount: 2 },
+        { roleGroup: 'Supervisor', headcount: 1, ratePerHour: 35 },
+      ],
+    });
+
+    expect(result).toEqual({ ok: true, saved: 2 });
+    const inserts = queryMock.mock.calls.filter((call) =>
+      /insert\s+into\s+public\.npd_wip_process_roles/i.test(String(call[0])),
+    );
+    expect(inserts.map((call) => call[1])).toEqual([
+      [processId, 'Operator', 2, 20],
+      [processId, 'Supervisor', 1, 35],
+    ]);
   });
 });

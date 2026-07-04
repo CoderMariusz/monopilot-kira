@@ -11,6 +11,7 @@ import {
   trimOptionalString,
 } from './shared';
 import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
+import { expectedVolumeFromWeeklyPacks } from '../../../../lib/npd/brief-field-sync';
 
 /**
  * cloneProject — create a NEW NPD project seeded from an EXISTING one.
@@ -44,8 +45,9 @@ export type CloneProjectOverrides = {
   packFormat?: string | null;
   packWeightG?: number | null;
   packsPerCase?: number | null;
+  weeklyVolumePacks?: number | null;
+  runsPerWeek?: number | null;
   salesChannel?: string | null;
-  expectedVolume?: string | null;
   targetRetailPriceEur?: number | null;
   targetAudience?: string | null;
   marketingClaims?: string | null;
@@ -90,6 +92,8 @@ type SourceRow = {
   constraints: string | null;
   pack_weight_g: string | number | null;
   packs_per_case: string | number | null;
+  weekly_volume_packs: string | number | null;
+  runs_per_week: string | number | null;
 };
 
 type InsertRow = { id: string; code: string };
@@ -109,7 +113,8 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
       // 1. Load the source (org-scoped — RLS + explicit org_id guard).
       const { rows: sourceRows } = await ctx.client.query<SourceRow>(
         `select code, name, type, prio, owner, target_launch::text as target_launch, notes,
-                pack_format, sales_channel, expected_volume, target_retail_price_eur,
+                pack_format, sales_channel, expected_volume, weekly_volume_packs, runs_per_week,
+                target_retail_price_eur,
                 target_audience, marketing_claims, constraints, pack_weight_g, packs_per_case
            from public.npd_projects
           where id = $1::uuid
@@ -129,7 +134,15 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
       const targetLaunch = pick(o, 'targetLaunch', source.target_launch);
       const packFormat = pick(o, 'packFormat', source.pack_format);
       const salesChannel = pick(o, 'salesChannel', source.sales_channel);
-      const expectedVolume = pick(o, 'expectedVolume', source.expected_volume);
+      const weeklyVolumePacks =
+        o?.weeklyVolumePacks !== undefined && o.weeklyVolumePacks !== null
+          ? o.weeklyVolumePacks
+          : toNumericOrNull(source.weekly_volume_packs);
+      const runsPerWeek =
+        o?.runsPerWeek !== undefined && o.runsPerWeek !== null
+          ? o.runsPerWeek
+          : toNumericOrNull(source.runs_per_week);
+      const expectedVolume = expectedVolumeFromWeeklyPacks(weeklyVolumePacks) ?? source.expected_volume;
       const targetAudience = pick(o, 'targetAudience', source.target_audience);
       const marketingClaims = pick(o, 'marketingClaims', source.marketing_claims);
       const constraints = pick(o, 'constraints', source.constraints);
@@ -156,12 +169,14 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
            (org_id, code, name, type, prio, owner, target_launch, notes,
             pack_format, sales_channel, expected_volume, target_retail_price_eur,
             target_audience, marketing_claims, constraints, pack_weight_g, packs_per_case,
+            weekly_volume_packs, runs_per_week,
             current_gate, current_stage, start_from, clone_source, created_by_user, app_version)
          values
            ($1::uuid, $2, $3, $4, $5, $6, $7::date, $8,
             $9, $10, $11, $12::numeric,
             $13, $14, $15, $16::numeric, $17::integer,
-            'G0', 'brief', 'clone', $18, $19::uuid, 'npd-project-actions-v1')
+            $18::numeric, $19::numeric,
+            'G0', 'brief', 'clone', $20, $21::uuid, 'npd-project-actions-v1')
          returning id, code`,
         [
           ctx.orgId,
@@ -181,6 +196,8 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
           constraints,
           packWeightG,
           packsPerCase,
+          weeklyVolumePacks,
+          runsPerWeek,
           source.code,
           ctx.userId,
         ],
@@ -294,7 +311,6 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
   const type = trimOptionalString(raw.type, 120);
   const packFormat = trimOptionalString(raw.packFormat, 160);
   const salesChannel = trimOptionalString(raw.salesChannel, 80);
-  const expectedVolume = trimOptionalString(raw.expectedVolume, 120);
   const targetAudience = trimOptionalString(raw.targetAudience, 400);
   const marketingClaims = trimOptionalString(raw.marketingClaims, 600);
   const constraints = trimOptionalString(raw.constraints, 2000);
@@ -303,14 +319,17 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
   const targetRetailPriceEur = parseOptionalNonNeg(raw.targetRetailPriceEur);
   const packWeightG = parseOptionalNonNeg(raw.packWeightG);
   const packsPerCase = parseOptionalNonNegInteger(raw.packsPerCase);
+  const weeklyVolumePacks = parseOptionalNonNeg(raw.weeklyVolumePacks);
+  const runsPerWeek = parseOptionalNonNeg(raw.runsPerWeek);
   const prio = raw.prio === undefined || raw.prio === null ? null : parsePriority(raw.prio);
 
   if (
     name === undefined || type === undefined || packFormat === undefined ||
-    salesChannel === undefined || expectedVolume === undefined || targetAudience === undefined ||
+    salesChannel === undefined || targetAudience === undefined ||
     marketingClaims === undefined || constraints === undefined || notes === undefined ||
     targetLaunch === undefined || targetRetailPriceEur === undefined || packWeightG === undefined ||
-    packsPerCase === undefined || prio === null
+    packsPerCase === undefined || weeklyVolumePacks === undefined || runsPerWeek === undefined ||
+    prio === null
   ) {
     return null;
   }
@@ -318,8 +337,9 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
   return {
     sourceProjectId,
     overrides: {
-      name, type, prio, targetLaunch, packFormat, salesChannel, expectedVolume,
+      name, type, prio, targetLaunch, packFormat, salesChannel,
       targetAudience, marketingClaims, constraints, notes, targetRetailPriceEur, packWeightG, packsPerCase,
+      weeklyVolumePacks, runsPerWeek,
     },
   };
 }

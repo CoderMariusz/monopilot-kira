@@ -55,7 +55,6 @@ export type BriefPatch = {
   packsPerCase?: number | null;
   weeklyVolumePacks: string | null;
   runsPerWeek: string | null;
-  expectedVolume: string | null;
   marketingClaims: string | null;
   targetRetailPriceEur: string | null;
   salesChannel: string | null;
@@ -106,8 +105,8 @@ export type ProjectBriefLabels = {
   fieldPacksPerCase: string;
   fieldWeeklyVolumePacks: string;
   fieldRunsPerWeek: string;
+  fieldRunsPerWeekHelp: string;
   fieldSalesChannel: string;
-  fieldExpectedVolume: string;
   fieldTargetAudience: string;
   fieldMarketingClaims: string;
   fieldConstraints: string;
@@ -178,7 +177,6 @@ type FormState = {
   weeklyVolumePacks: string;
   runsPerWeek: string;
   salesChannel: string;
-  expectedVolume: string;
   targetAudience: string;
   marketingClaims: string;
   constraints: string;
@@ -198,7 +196,6 @@ function viewToForm(data: ProjectBriefView): FormState {
     weeklyVolumePacks: data.weeklyVolumePacks ?? '',
     runsPerWeek: data.runsPerWeek ?? '',
     salesChannel: data.salesChannel ?? '',
-    expectedVolume: data.expectedVolume ?? '',
     targetAudience: data.targetAudience ?? '',
     marketingClaims: data.marketingClaims ?? '',
     constraints: data.constraints ?? '',
@@ -237,7 +234,6 @@ function formToPatch(form: FormState): BriefPatch {
     ...packsPerCasePatch(form.packsPerCase),
     weeklyVolumePacks: orNull(form.weeklyVolumePacks),
     runsPerWeek: orNull(form.runsPerWeek),
-    expectedVolume: orNull(form.expectedVolume),
     marketingClaims: orNull(form.marketingClaims),
     targetRetailPriceEur: orNull(form.targetRetailPriceEur),
     salesChannel: orNull(form.salesChannel),
@@ -331,7 +327,6 @@ function ReadBriefCard({ data, labels }: { data: ProjectBriefView; labels: Proje
           <ReadField label={labels.fieldWeeklyVolumePacks} value={data.weeklyVolumePacks} placeholder={ph} />
           <ReadField label={labels.fieldRunsPerWeek} value={data.runsPerWeek} placeholder={ph} />
           <ReadField label={labels.fieldSalesChannel} value={data.salesChannel} placeholder={ph} />
-          <ReadField label={labels.fieldExpectedVolume} value={data.expectedVolume} placeholder={ph} />
           <ReadField label={labels.fieldTargetAudience} value={data.targetAudience} placeholder={ph} />
         </div>
         <ReadField label={labels.fieldMarketingClaims} value={data.marketingClaims} placeholder={ph} />
@@ -542,6 +537,9 @@ function EditBriefCard({
                 onChange={(e) => set('runsPerWeek', e.target.value)}
                 data-testid="brief-field-runsPerWeek"
               />
+              <p className="muted text-xs" data-testid="brief-field-runsPerWeek-help">
+                {labels.fieldRunsPerWeekHelp}
+              </p>
             </label>
             <label className="field">
               <span className="field__label" style={{ textTransform: 'uppercase' }}>{labels.fieldSalesChannel}</span>
@@ -562,14 +560,6 @@ function EditBriefCard({
                   ))}
                 </SelectContent>
               </Select>
-            </label>
-            <label className="field">
-              <span className="field__label" style={{ textTransform: 'uppercase' }}>{labels.fieldExpectedVolume}</span>
-              <Input
-                value={form.expectedVolume}
-                onChange={(e) => set('expectedVolume', e.target.value)}
-                data-testid="brief-field-expectedVolume"
-              />
             </label>
             <label className="field">
               <span className="field__label" style={{ textTransform: 'uppercase' }}>{labels.fieldTargetAudience}</span>

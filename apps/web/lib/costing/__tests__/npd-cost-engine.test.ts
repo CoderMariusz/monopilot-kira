@@ -174,6 +174,29 @@ describe('computeNpdCostEngine', () => {
     expect(result.rawCostEur).toBe('0.8510');
   });
 
+  it('prices raw materials per pack from per-pack qtyKg while keeping the per-kg column derivable', () => {
+    const result = computeNpdCostEngine(
+      breadInput({
+        ingredients: [
+          { rmCode: 'BEEF', qtyKg: '0.2', pct: '100', costPerKgEur: '5', allergensInherited: [] },
+        ],
+        yieldPct: '100',
+        packWeightKg: '0.2',
+        packagingComponents: [],
+        processes: [],
+        overheadPerKg: '0',
+        logisticsPerBox: '0',
+      }),
+    );
+
+    expect(result.rawCostEur).toBe('1.0000');
+    expect(result.costSteps[0]).toMatchObject({
+      stepName: 'Raw materials',
+      perPackEur: '1.0000',
+    });
+    expect(Number(result.costSteps[0]!.perPackEur) / Number(result.units.packWeightKg)).toBe(5);
+  });
+
   it('WIP contribution is per-pack in the WIP base unit and invariant to pack weight (review H1)', () => {
     // 2 kg of WIP per pack, WIP raw €5/unit at 92.5% yield → (5 / 0.925) × 2 = €10.8108/pack,
     // regardless of the FG pack weight (no unitToPackFactor rescaling).

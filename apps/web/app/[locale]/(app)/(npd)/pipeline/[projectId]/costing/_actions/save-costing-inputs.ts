@@ -28,41 +28,52 @@ export async function saveCostingInputs(input: SaveCostingInputsInput): Promise<
     };
   }
 
-  return withOrgContext<SaveCostingInputsResult>(async (rawCtx) => {
-    const ctx = rawCtx as OrgContextLike;
-    if (!(await hasPermission(ctx, WRITE_PERMISSION))) {
-      return {
-        ok: false,
-        error: `${WRITE_PERMISSION} is required to save costing inputs`,
-        code: 'forbidden',
-      };
-    }
+  try {
+    return await withOrgContext<SaveCostingInputsResult>(async (rawCtx) => {
+      const ctx = rawCtx as OrgContextLike;
+      if (!(await hasPermission(ctx, WRITE_PERMISSION))) {
+        return {
+          ok: false,
+          error: `${WRITE_PERMISSION} is required to save costing inputs`,
+          code: 'forbidden',
+        };
+      }
 
-    const updated = await ctx.client.query<{ id: string }>(
-      `update public.npd_projects
-          set avg_batch_qty = $2::numeric,
-              overhead_per_kg_override = $3::numeric,
-              logistics_per_box_override = $4::numeric,
-              updated_at = now()
-        where id = $1::uuid
-          and org_id = app.current_org_id()
-      returning id`,
-      [
-        parsed.data.projectId,
-        parsed.data.avgBatchQty,
-        parsed.data.overheadPerKgOverride,
-        parsed.data.logisticsPerBoxOverride,
-      ],
-    );
+      const updated = await ctx.client.query<{ id: string }>(
+        `update public.npd_projects
+            set avg_batch_qty = $2::numeric,
+                overhead_per_kg_override = $3::numeric,
+                logistics_per_box_override = $4::numeric,
+                updated_at = now()
+          where id = $1::uuid
+            and org_id = app.current_org_id()
+        returning id`,
+        [
+          parsed.data.projectId,
+          parsed.data.avgBatchQty,
+          parsed.data.overheadPerKgOverride,
+          parsed.data.logisticsPerBoxOverride,
+        ],
+      );
 
-    if (updated.rowCount !== 1) {
-      return {
-        ok: false,
-        error: 'Project not found in this organisation',
-        code: 'not_found',
-      };
-    }
+      if (updated.rowCount !== 1) {
+        return {
+          ok: false,
+          error: 'Project not found in this organisation',
+          code: 'not_found',
+        };
+      }
 
-    return { ok: true };
-  });
+      return { ok: true };
+    });
+  } catch (err) {
+    const dbCode = typeof (err as { code?: unknown }).code === 'string' ? (err as { code: string }).code : undefined;
+    const message = err instanceof Error ? err.message : 'Could not save costing inputs';
+    return {
+      ok: false,
+      error: dbCode ? `Database error ${dbCode}: ${message}` : message,
+      code: 'db_error',
+      dbCode,
+    };
+  }
 }

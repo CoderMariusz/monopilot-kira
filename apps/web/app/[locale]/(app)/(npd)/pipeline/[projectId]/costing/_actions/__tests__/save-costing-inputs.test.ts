@@ -48,6 +48,47 @@ describe('saveCostingInputs', () => {
     expect(String(updateCall?.[0])).toContain('app.current_org_id()');
   });
 
+  it('accepts the costing panel alias payload and persists all override values', async () => {
+    const result = await saveCostingInputs({
+      projectId,
+      avgBatchQty: '100',
+      overheadOverride: '0.2',
+      logisticsOverride: '1.2',
+    });
+
+    expect(result).toEqual({ ok: true });
+    const updateCall = queryMock.mock.calls.find((call) =>
+      /update\s+public\.npd_projects/i.test(String(call[0])),
+    );
+    expect(updateCall?.[1]).toEqual([projectId, '100', '0.2', '1.2']);
+  });
+
+  it('returns a typed database error instead of the generic UI failure', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      if (/from\s+public\.user_roles/i.test(sql)) return { rows: [{ ok: true }] };
+      if (/update\s+public\.npd_projects/i.test(sql)) {
+        const err = new Error('numeric field overflow') as Error & { code: string };
+        err.code = '22003';
+        throw err;
+      }
+      return { rows: [] };
+    });
+
+    const result = await saveCostingInputs({
+      projectId,
+      avgBatchQty: '100',
+      overheadOverride: '0.2',
+      logisticsOverride: '1.2',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Database error 22003: numeric field overflow',
+      code: 'db_error',
+      dbCode: '22003',
+    });
+  });
+
   it('returns not_found when the project is invisible', async () => {
     queryMock.mockImplementation(async (sql: string) => {
       if (/from\s+public\.user_roles/i.test(sql)) return { rows: [{ ok: true }] };

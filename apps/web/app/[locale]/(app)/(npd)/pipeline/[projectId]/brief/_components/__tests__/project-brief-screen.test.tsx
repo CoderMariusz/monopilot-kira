@@ -48,7 +48,9 @@ const LABELS: ProjectBriefLabels = {
   fieldPackWeight: 'Pack weight (g)',
   fieldPacksPerCase: 'Packs per case',
   fieldSalesChannel: 'Sales channel',
-  fieldExpectedVolume: 'Expected volume',
+  fieldWeeklyVolumePacks: 'Weekly volume (packs/week)',
+  fieldRunsPerWeek: 'Runs per week (estimate)',
+  fieldRunsPerWeekHelp: 'Estimate help copy',
   fieldTargetAudience: 'Target audience',
   fieldMarketingClaims: 'Marketing claims',
   fieldConstraints: 'Constraints & requirements',
@@ -97,6 +99,8 @@ const READY: ProjectBriefView = {
   packFormat: '200g sliced pack',
   packWeightG: '200',
   packsPerCase: 12,
+  weeklyVolumePacks: '1200',
+  runsPerWeek: '3',
   expectedVolume: '1200',
   marketingClaims: 'High protein',
   category: 'Meat · Cold cut',
@@ -145,7 +149,8 @@ describe('ProjectBriefScreen — inline edit form (write grant)', () => {
     expect(screen.getByTestId('brief-field-packFormat')).toHaveValue('200g sliced pack');
     expect(screen.getByTestId('brief-field-packWeightG')).toHaveValue(200);
     expect(screen.getByTestId('brief-field-packsPerCase')).toHaveValue(12);
-    expect(screen.getByTestId('brief-field-expectedVolume')).toHaveValue('1200');
+    expect(screen.getByTestId('brief-field-weeklyVolumePacks')).toHaveValue(1200);
+    expect(screen.getByTestId('brief-field-runsPerWeek')).toHaveValue(3);
     expect(screen.getByTestId('brief-field-targetAudience')).toHaveValue('Premium retail');
     expect(screen.getByTestId('brief-field-marketingClaims')).toHaveValue('High protein');
     expect(screen.getByTestId('brief-field-constraints')).toHaveValue('Shelf life >= 28 days');
@@ -184,8 +189,9 @@ describe('ProjectBriefScreen — inline edit form (write grant)', () => {
         packWeightG: '200',
         // Present (unchanged) value sent as a number per the zod patch contract.
         packsPerCase: 12,
+        weeklyVolumePacks: '1200',
+        runsPerWeek: '3',
         salesChannel: 'Retail',
-        expectedVolume: '1200',
         targetAudience: 'Premium retail',
         marketingClaims: 'High protein',
         constraints: 'Shelf life >= 28 days',

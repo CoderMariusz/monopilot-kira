@@ -66,8 +66,7 @@ export type WizardCloneAction = (input: {
   weeklyVolumePacks?: number | null;
   runsPerWeek?: number | null;
   salesChannel: string | null;
-    expectedVolume: string | null;
-    targetRetailPriceEur: number | null;
+  targetRetailPriceEur: number | null;
     targetAudience: string | null;
     marketingClaims: string | null;
     constraints: string | null;
@@ -91,7 +90,6 @@ export type WizardCreateAction = (input: {
   /** Production runs per week — optional non-negative decimal. */
   runsPerWeek?: number | null;
   salesChannel: string | null;
-  expectedVolume: string | null;
   targetRetailPriceEur: number | null;
   targetAudience: string | null;
   marketingClaims: string | null;
@@ -126,9 +124,8 @@ export type WizardLabels = {
   fieldWeeklyVolumePacksPlaceholder: string;
   fieldRunsPerWeek: string;
   fieldRunsPerWeekPlaceholder: string;
+  fieldRunsPerWeekHelp: string;
   fieldSalesChannel: string;
-  fieldVolume: string;
-  fieldVolumePlaceholder: string;
   briefTitle: string;
   fieldRetailPrice: string;
   fieldAudience: string;
@@ -199,7 +196,6 @@ type FormState = {
   weeklyVolumePacks: string;
   runsPerWeek: string;
   salesChannel: string;
-  expectedVolume: string;
   targetRetailPriceEur: string;
   targetAudience: string;
   marketingClaims: string;
@@ -220,7 +216,6 @@ const INITIAL_FORM: FormState = {
   weeklyVolumePacks: '',
   runsPerWeek: '',
   salesChannel: SALES_CHANNEL_VALUES[0],
-  expectedVolume: '',
   targetRetailPriceEur: '',
   targetAudience: '',
   marketingClaims: '',
@@ -337,7 +332,6 @@ export function CreateProjectWizard({
         weeklyVolumePacks: parseEur(form.weeklyVolumePacks),
         runsPerWeek: parseEur(form.runsPerWeek),
         salesChannel: form.salesChannel,
-            expectedVolume: nullable(form.expectedVolume),
             targetRetailPriceEur: parseEur(form.targetRetailPriceEur),
             targetAudience: nullable(form.targetAudience),
             marketingClaims: nullable(form.marketingClaims),
@@ -376,7 +370,6 @@ export function CreateProjectWizard({
         weeklyVolumePacks: parseEur(form.weeklyVolumePacks),
         runsPerWeek: parseEur(form.runsPerWeek),
         salesChannel: form.salesChannel,
-        expectedVolume: nullable(form.expectedVolume),
         targetRetailPriceEur: parseEur(form.targetRetailPriceEur),
         targetAudience: nullable(form.targetAudience),
         marketingClaims: nullable(form.marketingClaims),
@@ -551,16 +544,6 @@ export function CreateProjectWizard({
                 onValueChange={(v) => update('salesChannel', v)}
               />
             </div>
-            <div className="ff">
-              <label htmlFor="wiz-volume">{labels.fieldVolume}</label>
-              <input
-                id="wiz-volume"
-                type="text"
-                placeholder={labels.fieldVolumePlaceholder}
-                value={form.expectedVolume}
-                onChange={(e) => update('expectedVolume', e.target.value)}
-              />
-            </div>
           </div>
           {/* Costing v2: pack weight (g) = the recipe's batch size (the per-kg divisor). */}
           <div className="ff-inline">
@@ -628,6 +611,9 @@ export function CreateProjectWizard({
                 onChange={(e) => update('runsPerWeek', e.target.value)}
                 data-testid="wiz-runs-per-week"
               />
+              <p className="muted text-xs" data-testid="wiz-runs-per-week-help">
+                {labels.fieldRunsPerWeekHelp}
+              </p>
             </div>
           </div>
         </div>
@@ -812,7 +798,7 @@ export function CreateProjectWizard({
               <tr>
                 <td className="muted">{labels.reviewChannelVolume}</td>
                 <td>
-                  {form.salesChannel} · {form.expectedVolume.trim() || labels.empty}
+                  {form.salesChannel} · {form.weeklyVolumePacks.trim() || labels.empty} packs/wk
                 </td>
               </tr>
               <tr>

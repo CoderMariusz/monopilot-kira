@@ -184,7 +184,7 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
     expect(insert!.params).toContain(0);
   });
 
-  it('round-trips a scrap_pct value (coerced number) into the INSERT', async () => {
+  it('uses a legacy scrap_pct-only value as the unified Waste % alias in the INSERT', async () => {
     ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
     // String input is coerced by z.coerce.number() — mirrors the modal sending a number.
     const res = await upsertPackagingComponent({ ...valid, scrapPct: '2.5' });
@@ -192,8 +192,8 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
 
     const insert = ctx.calls.find((c) => /insert into public\.packaging_components/i.test(c.sql));
     expect(insert).toBeTruthy();
-    // Bound as the numeric 2.5 (scrap is a bounded % — no money-precision concern).
-    expect(insert!.params).toContain(2.5);
+    // Bound to both scrap_pct and waste_pct.
+    expect(insert!.params.filter((param) => param === 2.5)).toHaveLength(2);
   });
 
   it('rejects an out-of-range scrap_pct (>100) with invalid_input (no DB touched)', async () => {
@@ -203,16 +203,18 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
     expect(ctx.calls).toHaveLength(0);
   });
 
-  it('updates scrap_pct in the set-list and audits it', async () => {
+  it('updates both scrap_pct and waste_pct from the single Waste % alias', async () => {
     ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
-    const res = await upsertPackagingComponent({ ...valid, id: COMPONENT_ID, scrapPct: 3 });
+    const res = await upsertPackagingComponent({ ...valid, id: COMPONENT_ID, wastePct: 3 });
     expect(res).toEqual({ ok: true, data: { id: 'new-component-id' } });
 
     const update = ctx.calls.find((c) => /update public\.packaging_components/i.test(c.sql));
     expect(update).toBeTruthy();
     expect(update!.sql).toContain('scrap_pct');
     expect(update!.sql).toMatch(/scrap_pct\s*=\s*\$8::numeric/);
-    expect(update!.params).toContain(3);
+    expect(update!.sql).toContain('waste_pct');
+    expect(update!.sql).toMatch(/waste_pct\s*=\s*\$9::numeric/);
+    expect(update!.params.filter((param) => param === 3)).toHaveLength(2);
   });
 
   it('defaults waste_pct to 0 when omitted and binds it ::numeric in the INSERT', async () => {
@@ -234,7 +236,7 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
 
     const insert = ctx.calls.find((c) => /insert into public\.packaging_components/i.test(c.sql));
     expect(insert).toBeTruthy();
-    expect(insert!.params).toContain(1.25);
+    expect(insert!.params.filter((param) => param === 1.25)).toHaveLength(2);
   });
 
   it('validates optional itemId as a packaging item before writing', async () => {

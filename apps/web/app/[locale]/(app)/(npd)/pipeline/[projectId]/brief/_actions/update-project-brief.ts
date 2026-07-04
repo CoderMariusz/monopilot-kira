@@ -9,6 +9,7 @@ import {
   type OrgContextLike,
 } from '../../../../../../../(npd)/pipeline/_actions/shared';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
+import { expectedVolumeFromWeeklyPacks } from '../../../../../../../../lib/npd/brief-field-sync';
 
 const WRITE_PERMISSION = 'npd.core.write';
 
@@ -45,7 +46,6 @@ const patchSchema = z
     packsPerCase: z.number().int().min(0).nullable().optional(),
     weeklyVolumePacks: optionalDecimal,
     runsPerWeek: optionalDecimal,
-    expectedVolume: optionalText(120),
     marketingClaims: optionalText(600),
     targetRetailPriceEur: optionalDecimal,
     salesChannel: optionalText(80),
@@ -123,6 +123,10 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
       if (!beforeRow) return { ok: false, error: 'NOT_FOUND', status: 404 };
 
       const patch = parsed.data.patch;
+      const syncedExpectedVolume =
+        patch.weeklyVolumePacks !== undefined
+          ? expectedVolumeFromWeeklyPacks(patch.weeklyVolumePacks)
+          : undefined;
       const updated = await context.client.query<ProjectBriefAuditRow>(
         `update public.npd_projects
             set name                    = case when $2::boolean then $3 else name end,
@@ -133,13 +137,16 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
                 packs_per_case          = case when $12::boolean then $13::integer else packs_per_case end,
                 weekly_volume_packs     = case when $14::boolean then $15::numeric else weekly_volume_packs end,
                 runs_per_week           = case when $16::boolean then $17::numeric else runs_per_week end,
-                expected_volume         = case when $18::boolean then $19 else expected_volume end,
-                marketing_claims        = case when $20::boolean then $21 else marketing_claims end,
-                target_retail_price_eur = case when $22::boolean then $23::numeric else target_retail_price_eur end,
-                sales_channel           = case when $24::boolean then $25 else sales_channel end,
-                target_audience         = case when $26::boolean then $27 else target_audience end,
-                constraints             = case when $28::boolean then $29 else constraints end,
-                notes                   = case when $30::boolean then $31 else notes end
+                expected_volume         = case
+                                            when $14::boolean then $18::text
+                                            else expected_volume
+                                          end,
+                marketing_claims        = case when $19::boolean then $20 else marketing_claims end,
+                target_retail_price_eur = case when $21::boolean then $22::numeric else target_retail_price_eur end,
+                sales_channel           = case when $23::boolean then $24 else sales_channel end,
+                target_audience         = case when $25::boolean then $26 else target_audience end,
+                constraints             = case when $27::boolean then $28 else constraints end,
+                notes                   = case when $29::boolean then $30 else notes end
           where id = $1::uuid
             and org_id = app.current_org_id()
           returning id,
@@ -176,8 +183,7 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
           patch.weeklyVolumePacks ?? null,
           patch.runsPerWeek !== undefined,
           patch.runsPerWeek ?? null,
-          patch.expectedVolume !== undefined,
-          patch.expectedVolume ?? null,
+          syncedExpectedVolume ?? null,
           patch.marketingClaims !== undefined,
           patch.marketingClaims ?? null,
           patch.targetRetailPriceEur !== undefined,
@@ -194,6 +200,20 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
       );
       const afterRow = updated.rows[0];
       if (!afterRow) return { ok: false, error: 'NOT_FOUND', status: 404 };
+
+      if (patch.targetRetailPriceEur !== undefined) {
+        await context.client.query(
+          `update public.formulation_versions fv
+              set target_price_eur = $2::numeric
+             from public.formulations f
+            where f.id = fv.formulation_id
+              and f.project_id = $1::uuid
+              and f.org_id = app.current_org_id()
+              and fv.id = f.current_version_id
+              and fv.state = 'draft'`,
+          [parsed.data.projectId, patch.targetRetailPriceEur ?? null],
+        );
+      }
 
       // Keep items.each_per_box in sync when packs_per_case changes (mirrors
       // materialize-npd-bom.ts) so WO snapshots created before the next materialize

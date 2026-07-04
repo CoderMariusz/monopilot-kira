@@ -31,8 +31,7 @@ type FormState = {
   supplierCode: string;
   spec: string;
   costPerUnit: string;
-  /** % lost to damage/setup during packing (0..100), kept as the input string. */
-  scrapPct: string;
+  /** % lost during packing (0..100), kept as the input string. */
   wastePct: string;
   qtyPerPack: string;
   status: PackagingStatus;
@@ -50,7 +49,6 @@ function rowToForm(row: PackagingComponentRow | null, defaultTier: PackagingTier
     supplierCode: row?.supplierCode ?? '',
     spec: row?.spec ?? '',
     costPerUnit: row?.costPerUnit ?? '',
-    scrapPct: row?.scrapPct != null ? String(row.scrapPct) : '0',
     wastePct: row?.wastePct != null ? String(row.wastePct) : '0',
     qtyPerPack: row?.qtyPerPack != null ? String(row.qtyPerPack) : '',
     status: row?.status ?? 'draft',
@@ -146,12 +144,6 @@ export function PackagingComponentModal({
       setError(labels.saveError);
       return;
     }
-    const scrapRaw = form.scrapPct.trim();
-    const scrapPct = scrapRaw === '' ? 0 : Number(scrapRaw);
-    if (!Number.isFinite(scrapPct) || scrapPct < 0 || scrapPct > 100) {
-      setError(labels.saveError);
-      return;
-    }
     const wasteRaw = form.wastePct.trim();
     const wastePct = wasteRaw === '' ? 0 : Number(wasteRaw);
     if (!Number.isFinite(wastePct) || wastePct < 0 || wastePct > 100) {
@@ -176,7 +168,7 @@ export function PackagingComponentModal({
         supplierCode: form.supplierCode.trim() || null,
         spec: form.spec.trim() || null,
         costPerUnit: cost || null,
-        scrapPct,
+        scrapPct: wastePct,
         wastePct,
         qtyPerPack,
         status: form.status,
@@ -303,22 +295,6 @@ export function PackagingComponentModal({
               />
             </label>
             <label>
-              <span>{labels.fieldScrapPct}</span>
-              <Input
-                name="scrapPct"
-                type="number"
-                min="0"
-                max="100"
-                step="0.1"
-                value={form.scrapPct}
-                onChange={(e) => set('scrapPct', e.target.value)}
-                data-testid="field-scrap-pct"
-              />
-              <span className="text-xs text-muted">
-                Extra % requisitioned to cover packing loss
-              </span>
-            </label>
-            <label>
               <span>{labels.fieldWastePct}</span>
               <Input
                 name="wastePct"
@@ -331,7 +307,7 @@ export function PackagingComponentModal({
                 data-testid="field-waste-pct"
               />
               <span className="text-xs text-muted">
-                Costing loss factor for this component (separate from scrap %)
+                Loss factor used for costing and production material inflation
               </span>
             </label>
             <label>

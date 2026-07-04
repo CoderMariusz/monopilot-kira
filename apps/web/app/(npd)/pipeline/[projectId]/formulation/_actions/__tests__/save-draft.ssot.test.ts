@@ -113,6 +113,9 @@ function makeClient(): QueryClient {
         versionUpdateParams = params;
         return { rows: [] };
       }
+      if (q.startsWith('update public.npd_projects np') && q.includes('target_retail_price_eur')) {
+        return { rows: [] };
+      }
       if (q.startsWith('insert into public.formulation_audit_log')) return { rows: [] };
       throw new Error(`unexpected query in save-draft.ssot.test: ${q.slice(0, 120)}`);
     }),

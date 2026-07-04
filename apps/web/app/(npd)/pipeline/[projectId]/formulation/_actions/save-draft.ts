@@ -325,6 +325,19 @@ export async function saveDraft(input: {
               )`,
           [versionId, targetYieldPct, targetPriceEur, processingOverheadPct, hasBatchSizeKg, batchSizeKg],
         );
+
+        if (Object.prototype.hasOwnProperty.call(input, 'targetPriceEur')) {
+          await ctx.client.query(
+            `update public.npd_projects np
+                set target_retail_price_eur = $2::numeric
+               from public.formulations f
+               join public.formulation_versions fv on fv.formulation_id = f.id
+              where fv.id = $1::uuid
+                and f.project_id = np.id
+                and np.org_id = app.current_org_id()`,
+            [versionId, targetPriceEur],
+          );
+        }
       }
 
       await ctx.client.query(

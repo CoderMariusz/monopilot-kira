@@ -26,7 +26,7 @@ type CatalogRowInput = {
 const catalogRows: CatalogRowInput[] = [
   { dept: 'Core', stage: 'brief', field: 'product_name', label: 'Product name', required: true, order: 10 },
   { dept: 'Core', stage: 'brief', field: 'pack_size', label: 'Pack size', required: true, order: 20 },
-  { dept: 'Core', stage: 'brief', field: 'expected_volume', label: 'Expected volume', order: 30 },
+  { dept: 'Core', stage: 'brief', field: 'weekly_volume_packs', label: 'Weekly volume (packs/week)', order: 30 },
   { dept: 'Core', stage: 'brief', field: 'auto_margin', label: 'Auto margin', order: 40, auto: true },
   { dept: 'Core', stage: 'brief', field: 'formula_cost', label: 'Formula cost', order: 50, dataType: 'formula' },
   { dept: 'Packaging', stage: 'packaging', field: 'case_format', label: 'Case format', required: true, order: 10 },
@@ -108,7 +108,7 @@ describe('loadStageDeptSections', () => {
         pack_size: '200g',
         field_values: {
           pack_size: '100g',
-          expected_volume: '5000',
+          weekly_volume_packs: '5000',
         },
       },
     });
@@ -122,7 +122,7 @@ describe('loadStageDeptSections', () => {
     expect(result.sections[0]?.no_fg_linked).toBe(true);
     expect(result.sections[0]?.fields.find((field) => field.code === 'product_name')?.value).toBe('Project Pie');
     expect(result.sections[0]?.fields.find((field) => field.code === 'pack_size')?.value).toBe('200g');
-    expect(result.sections[0]?.fields.find((field) => field.code === 'expected_volume')?.value).toBe('5000');
+    expect(result.sections[0]?.fields.find((field) => field.code === 'weekly_volume_packs')?.value).toBe('5000');
     expect(result.sections[0]?.fields.find((field) => field.code === 'product_name')?.readOnly).toBe(false);
     expect(result.sections[0]?.fields.find((field) => field.code === 'pack_size')?.readOnly).toBe(false);
     expect(result.sections[0]?.fields.find((field) => field.code === 'auto_margin')?.readOnly).toBe(true);

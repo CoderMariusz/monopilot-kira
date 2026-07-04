@@ -6193,7 +6193,8 @@
       "attachDeleteFailed": "Nie udało się usunąć załącznika. Spróbuj ponownie.",
       "fieldPacksPerCase": "Sztuk w zbiorczym",
       "fieldWeeklyVolumePacks": "Wolumen tygodniowy (paczek/tydzień)",
-      "fieldRunsPerWeek": "Przebiegi na tydzień"
+      "fieldRunsPerWeek": "Przebiegi na tydzień",
+      "fieldRunsPerWeekHelp": "Szacunek planistyczny — można go zmieniać do momentu premiery; ostateczna liczba przebiegów jest potwierdzana przy przekazaniu."
     },
     "sensory": {
       "title": "Panel sensoryczny",
@@ -6870,6 +6871,10 @@
       "acceptSuccessBomsRegenerated": "Definicja WIP zaakceptowana i BOM-y produkcyjne zostały wygenerowane ponownie.",
       "acceptError": "Nie udało się zaakceptować aktualizacji definicji WIP. Spróbuj ponownie.",
       "acceptForbidden": "Nie masz uprawnień do akceptowania aktualizacji definicji WIP."
+    },
+    "wizard": {
+      "fieldRunsPerWeek": "Przebiegi na tydzień (szacunkowo)",
+      "fieldRunsPerWeekHelp": "Szacunek planistyczny — można go później zmienić w briefie projektu, gdy wolumen się ustali."
     }
   },
   "Errors": {

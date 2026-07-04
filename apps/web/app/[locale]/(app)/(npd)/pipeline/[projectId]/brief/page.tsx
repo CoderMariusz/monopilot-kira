@@ -79,9 +79,10 @@ const DEFAULT_LABELS: ProjectBriefLabels = {
   fieldPackWeight: 'Pack weight (g)',
   fieldPacksPerCase: 'Packs per case',
   fieldWeeklyVolumePacks: 'Weekly volume (packs/week)',
-  fieldRunsPerWeek: 'Runs per week',
+  fieldRunsPerWeek: 'Runs per week (estimate)',
+  fieldRunsPerWeekHelp:
+    'Planning estimate only — you can revise this until launch; the final run rate is confirmed at handover.',
   fieldSalesChannel: 'Sales channel',
-  fieldExpectedVolume: 'Expected volume',
   fieldTargetAudience: 'Target audience',
   fieldMarketingClaims: 'Marketing claims',
   fieldConstraints: 'Constraints & requirements',

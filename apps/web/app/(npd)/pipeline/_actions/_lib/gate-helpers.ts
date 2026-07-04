@@ -690,15 +690,15 @@ async function copyBriefFieldsToProduct(
   // entry). createFgCandidate used to insert only code+name, so Volume / Weight (g) /
   // Price (Brief) stayed NULL on every project-created FG and had to be re-typed on the
   // FG detail. Copy them from npd_projects now; coalesce only fills blanks (never
-  // clobbers a value the user already typed). expected_volume is free text → copied
-  // only when it is a plain number. Runs whether the FG was just created or only mapped.
+  // clobbers a value the user already typed). weekly_volume_packs is the canonical
+  // brief volume (W4-B); mirrored into product.volume as a plain number.
   const brief = await ctx.client.query<{
     pack_weight_g: string | null;
     target_retail_price_eur: string | null;
-    expected_volume: string | null;
+    weekly_volume_packs: string | null;
     packs_per_case: string | null;
   }>(
-    `select pack_weight_g::text, target_retail_price_eur::text, expected_volume, packs_per_case::text
+    `select pack_weight_g::text, target_retail_price_eur::text, weekly_volume_packs::text, packs_per_case::text
        from public.npd_projects
       where id = $1::uuid and org_id = app.current_org_id()`,
     [projectId],
@@ -707,8 +707,8 @@ async function copyBriefFieldsToProduct(
   if (!b) return;
 
   const volumeNumeric =
-    b.expected_volume && /^[0-9]+(\.[0-9]+)?$/.test(b.expected_volume.trim())
-      ? b.expected_volume.trim()
+    b.weekly_volume_packs && /^[0-9]+(\.[0-9]+)?$/.test(b.weekly_volume_packs.trim())
+      ? b.weekly_volume_packs.trim()
       : null;
   const parsedPacksPerCase =
     b.packs_per_case && /^\d+$/.test(b.packs_per_case.trim())

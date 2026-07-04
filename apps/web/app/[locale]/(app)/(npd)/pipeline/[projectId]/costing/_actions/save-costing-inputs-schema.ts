@@ -19,14 +19,26 @@ export const saveCostingInputsSchema = z
   .object({
     projectId: z.string().uuid(),
     avgBatchQty: optionalNumericString,
-    overheadPerKgOverride: optionalNumericString,
-    logisticsPerBoxOverride: optionalNumericString,
+    overheadPerKgOverride: optionalNumericString.optional(),
+    logisticsPerBoxOverride: optionalNumericString.optional(),
+    overheadOverride: optionalNumericString.optional(),
+    logisticsOverride: optionalNumericString.optional(),
   })
-  .strict();
+  .strict()
+  .transform((value) => ({
+    projectId: value.projectId,
+    avgBatchQty: value.avgBatchQty,
+    overheadPerKgOverride: value.overheadPerKgOverride ?? value.overheadOverride ?? null,
+    logisticsPerBoxOverride: value.logisticsPerBoxOverride ?? value.logisticsOverride ?? null,
+  }));
 
 export type SaveCostingInputsInput = z.input<typeof saveCostingInputsSchema>;
 
 export type SaveCostingInputsResult =
   | { ok: true }
-  | { ok: false; error: string; code?: 'forbidden' | 'not_found' | 'invalid_input' };
-
+  | {
+      ok: false;
+      error: string;
+      code?: 'forbidden' | 'not_found' | 'invalid_input' | 'db_error';
+      dbCode?: string;
+    };

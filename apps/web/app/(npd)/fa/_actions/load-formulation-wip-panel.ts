@@ -110,16 +110,20 @@ async function readDeptColumns(ctx: OrgContextLike, deptCode: string): Promise<F
   return rows.map((row, i) => mapDeptColumn(row, i));
 }
 
-async function readProductValues(ctx: OrgContextLike, productCode: string): Promise<Record<string, unknown>> {
-  const { rows } = await ctx.client.query<{ product_json: Record<string, unknown> | null }>(
-    `select to_jsonb(p.*) as product_json
-       from public.product p
-      where p.org_id = app.current_org_id()
-        and p.product_code = $1::text
-      limit 1`,
-    [productCode],
+async function readCurrentFormulationIngredientCount(ctx: OrgContextLike, projectId: string): Promise<number> {
+  const { rows } = await ctx.client.query<{ ingredient_count: string | number | null }>(
+    `select count(fi.id) as ingredient_count
+       from public.formulations f
+       join public.formulation_versions fv
+         on fv.id = f.current_version_id
+        and fv.formulation_id = f.id
+       left join public.formulation_ingredients fi
+         on fi.version_id = fv.id
+      where f.org_id = app.current_org_id()
+        and f.project_id = $1::uuid`,
+    [projectId],
   );
-  return rows[0]?.product_json ?? {};
+  return Number(rows[0]?.ingredient_count ?? 0);
 }
 
 async function readProdDetailRows(ctx: OrgContextLike, productCode: string): Promise<ProdDetailRow[]> {
@@ -217,7 +221,7 @@ export type FormulationWipPanelData =
   | {
       state: 'ready';
       productCode: string;
-      packSizeFilled: boolean;
+      formulationIngredientCount: number;
       columns: FaProductionColumn[];
       rows: ProdDetailRow[];
       dropdowns: Record<string, string[]>;
@@ -247,11 +251,11 @@ export async function loadFormulationWipPanel(projectId: string): Promise<Formul
     const productCode = rows[0]?.product_code ?? null;
     if (!productCode) return { state: 'no_fg_linked' };
 
-    const [values, production, prodRows, canWrite] = await Promise.all([
-      readProductValues(ctx, productCode),
+    const [production, prodRows, canWrite, formulationIngredientCount] = await Promise.all([
       readDeptColumns(ctx, 'Production'),
       readProdDetailRows(ctx, productCode),
       hasPermission(ctx, 'npd.production.write'),
+      readCurrentFormulationIngredientCount(ctx, projectId),
     ]);
 
     const productionFiltered = production.filter((col) => !isLegacyProcessColumn(col.key));
@@ -264,7 +268,7 @@ export async function loadFormulationWipPanel(projectId: string): Promise<Formul
     return {
       state: 'ready',
       productCode,
-      packSizeFilled: String(values.pack_size ?? '').trim() !== '',
+      formulationIngredientCount,
       columns: productionFiltered,
       rows: prodRows,
       dropdowns,

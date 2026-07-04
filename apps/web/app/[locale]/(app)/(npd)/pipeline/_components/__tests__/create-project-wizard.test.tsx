@@ -73,9 +73,12 @@ const LABELS: WizardLabels = {
   fieldPackWeightPlaceholder: 'lbl.fieldPackWeightPlaceholder',
   fieldPacksPerCase: 'lbl.fieldPacksPerCase',
   fieldPacksPerCasePlaceholder: 'lbl.fieldPacksPerCasePlaceholder',
+  fieldWeeklyVolumePacks: 'lbl.fieldWeeklyVolumePacks',
+  fieldWeeklyVolumePacksPlaceholder: 'lbl.fieldWeeklyVolumePacksPlaceholder',
+  fieldRunsPerWeek: 'lbl.fieldRunsPerWeek',
+  fieldRunsPerWeekPlaceholder: 'lbl.fieldRunsPerWeekPlaceholder',
+  fieldRunsPerWeekHelp: 'lbl.fieldRunsPerWeekHelp',
   fieldSalesChannel: 'lbl.fieldSalesChannel',
-  fieldVolume: 'lbl.fieldVolume',
-  fieldVolumePlaceholder: 'lbl.fieldVolumePlaceholder',
   briefTitle: 'lbl.briefTitle',
   fieldRetailPrice: 'lbl.fieldRetailPrice',
   fieldAudience: 'lbl.fieldAudience',
@@ -247,7 +250,8 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
     fireEvent.change(screen.getByLabelText(/lbl\.fieldPackFormat/), { target: { value: '200g sliced pack' } });
     fireEvent.change(screen.getByLabelText('lbl.fieldPackWeight'), { target: { value: '200' } });
     fireEvent.change(screen.getByLabelText('lbl.fieldPacksPerCase'), { target: { value: '12' } });
-    fireEvent.change(screen.getByLabelText(/lbl\.fieldVolume/), { target: { value: '1,200 kg/week' } });
+    fireEvent.change(screen.getByTestId('wiz-weekly-volume'), { target: { value: '5000' } });
+    fireEvent.change(screen.getByTestId('wiz-runs-per-week'), { target: { value: '3' } });
     fireEvent.click(screen.getByTestId('wizard-continue'));
 
     // Step 2
@@ -278,8 +282,9 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
       packWeightG: 200,
       // Optional integer captured from the form and included in the payload.
       packsPerCase: 12,
+      weeklyVolumePacks: 5000,
+      runsPerWeek: 3,
       salesChannel: 'Retail',
-      expectedVolume: '1,200 kg/week',
       targetRetailPriceEur: 19.9,
       targetAudience: 'Premium retail',
       marketingClaims: 'High protein',
@@ -308,7 +313,8 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
       name: 'Bare',
       targetLaunch: null,
       packFormat: null,
-      expectedVolume: null,
+      weeklyVolumePacks: null,
+      runsPerWeek: null,
       targetRetailPriceEur: null,
       targetAudience: null,
       marketingClaims: null,

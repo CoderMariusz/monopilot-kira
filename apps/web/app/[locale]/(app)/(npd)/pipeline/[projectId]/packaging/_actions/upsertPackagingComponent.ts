@@ -29,6 +29,13 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
     return { ok: false, error: 'invalid_input', message: parsed.error.message };
   }
   const input = parsed.data;
+  const rawRecord = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const unifiedWastePct =
+    rawRecord.wastePct !== undefined
+      ? input.wastePct
+      : rawRecord.scrapPct !== undefined
+        ? input.scrapPct
+        : input.wastePct;
 
   try {
     return await withOrgContext(async ({ userId, orgId, client }) => {
@@ -49,8 +56,8 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
       const supplierCode = input.supplierCode ?? null;
       const spec = input.spec ?? null;
       const costPerUnit = input.costPerUnit ?? null;
-      const scrapPct = input.scrapPct;
-      const wastePct = input.wastePct;
+      const scrapPct = unifiedWastePct;
+      const wastePct = unifiedWastePct;
       const qtyPerPack = input.qtyPerPack ?? null;
       const displayOrder = input.displayOrder ?? 0;
       const itemId = input.itemId ?? null;

@@ -91,7 +91,16 @@ function fullyLinkedRepairHandler(
       return { rows: factorySpecInsertRows > 0 ? [{ id: 'spec-1' }] : [], rowCount: factorySpecInsertRows };
     }
     if (sql.includes('from public.npd_projects') && sql.includes('pack_weight_g')) {
-      return { rows: [{ pack_weight_g: null, target_retail_price_eur: null, expected_volume: null, packs_per_case: null }] };
+      return { rows: [{ pack_weight_g: null, target_retail_price_eur: null, weekly_volume_packs: null, packs_per_case: null }] };
+    }
+    if (sql.includes('to_jsonb(np.*) as project_json')) {
+      return { rows: [{ project_json: { field_values: {} } }] };
+    }
+    if (sql.includes('from public.npd_field_catalog f') && sql.includes('column_key')) {
+      return { rows: [] };
+    }
+    if (sql.includes('from information_schema.columns') && sql.includes('table_name = \'product\'')) {
+      return { rows: [] };
     }
     if (sql.includes('update public.product') && sql.includes('weight')) {
       return { rows: [] };

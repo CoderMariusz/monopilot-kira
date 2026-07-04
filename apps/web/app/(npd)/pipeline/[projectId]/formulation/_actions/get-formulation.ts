@@ -122,13 +122,16 @@ export async function getFormulation(input: {
            fv.state,
            fv.batch_size_kg::text,
            fv.target_yield_pct::text,
-           fv.target_price_eur::text,
+           coalesce(fv.target_price_eur, np.target_retail_price_eur)::text as target_price_eur,
            fv.processing_overhead_pct::text,
            fcc.cost_json,
            fcc.nutrition_json,
            fcc.allergen_json,
            fcc.computed_at::text
          from public.formulations f
+         left join public.npd_projects np
+           on np.id = f.project_id
+          and np.org_id = f.org_id
          -- When a specific (org-scoped, in-formulation) versionId is requested,
          -- load THAT version; otherwise fall back to the formulation's current
          -- version. The id is matched only against versions of THIS formulation
