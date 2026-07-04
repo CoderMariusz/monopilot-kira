@@ -5288,8 +5288,8 @@
         "error": "Item search failed"
       },
       "submitErrorNotLocked": "Lock the recipe version before submitting for trial.",
-      "wipNoFgTitle": "No Finished Good linked",
-      "wipNoFgBody": "Link or create a Finished Good for this project to edit production / WIP processes on the Recipe stage.",
+      "wipNoFgTitle": "No Finished Good linked yet",
+      "wipNoFgBody": "The FG candidate is created automatically when the project advances to Development (G3). Review gate progress on the pipeline gates view.",
       "cascadeToggle": "Toggle sub-recipe",
       "cascadeLoading": "Loading sub-recipe…",
       "cascadeCycle": "Cycle detected in sub-recipe.",
@@ -5310,7 +5310,8 @@
         "empty": "No matching WIP definitions",
         "cancel": "Cancel",
         "error": "WIP search failed"
-      }
+      },
+      "wipNoFgGateLink": "View project gates"
     },
     "costPanel": {
       "title": "Вартість і маржа",
@@ -5362,7 +5363,8 @@
       "faDerivedHint": "Closed in FG →",
       "faDerivedLocked": "FG-derived",
       "revertGate": "Revert gate",
-      "advanceTerminalHint": "Launched — fully advanced"
+      "advanceTerminalHint": "Launched — fully advanced",
+      "autoDerived": "auto"
     },
     "advanceGateModal": {
       "title": "Перехід до наступного етапу",
@@ -6197,7 +6199,9 @@
       "empty": "Для цього продукту ще немає сенсорної панелі",
       "emptyBody": "Сенсорна оцінка належить технічному відділу й з’явиться тут після реєстрації панелі.",
       "error": "Не вдалося завантажити сенсорну панель.",
-      "forbidden": "У вас немає дозволу переглядати сенсорну панель."
+      "forbidden": "У вас немає дозволу переглядати сенсорну панель.",
+      "technicalLink": "Open Technical sensory module",
+      "technicalHint": "Sensory evaluations are registered in Technical; this NPD stage reflects that data once a panel exists."
     },
     "pilot": {
       "title": "Пілотне виробництво",
@@ -6617,8 +6621,9 @@
       "fieldPacksPerCasePlaceholder": "e.g. 12",
       "fieldWeeklyVolumePacks": "Weekly volume (packs/week)",
       "fieldWeeklyVolumePacksPlaceholder": "e.g. 5000",
-      "fieldRunsPerWeek": "Runs per week",
-      "fieldRunsPerWeekPlaceholder": "e.g. 3"
+      "fieldRunsPerWeek": "Runs per week (estimate)",
+      "fieldRunsPerWeekPlaceholder": "e.g. 3",
+      "fieldRunsPerWeekHelp": "Planning estimate only — revise later on the project brief as volumes firm up."
     },
     "faBomTab": {
       "title": "BOM (обчислений вигляд)",

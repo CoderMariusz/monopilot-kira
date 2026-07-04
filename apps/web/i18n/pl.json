@@ -5303,7 +5303,7 @@
       },
       "submitErrorNotLocked": "Zablokuj wersję receptury przed zgłoszeniem do próby.",
       "wipNoFgTitle": "Brak powiązanego wyrobu gotowego",
-      "wipNoFgBody": "Powiąż lub utwórz WG dla tego projektu, aby edytować produkcję / WIP na etapie Receptura.",
+      "wipNoFgBody": "Kandydat WG powstaje automatycznie po przejściu projektu do rozwoju (G3). Postęp bramek sprawdzisz na widoku bramek projektu.",
       "cascadeToggle": "Przełącz podrecepturę",
       "cascadeLoading": "Ładowanie podreceptury…",
       "cascadeCycle": "Wykryto cykl w podrecepturze.",
@@ -5324,7 +5324,8 @@
         "empty": "Brak pasujących definicji WIP",
         "cancel": "Anuluj",
         "error": "Wyszukiwanie WIP nie powiodło się"
-      }
+      },
+      "wipNoFgGateLink": "Zobacz bramki projektu"
     },
     "costPanel": {
       "title": "Koszt i marża",
@@ -5376,7 +5377,8 @@
       "faDerivedHint": "Zamknięte w FG →",
       "faDerivedLocked": "Wyliczane z FA",
       "revertGate": "Cofnij etap",
-      "advanceTerminalHint": "Uruchomiony — w pełni zaawansowany"
+      "advanceTerminalHint": "Uruchomiony — w pełni zaawansowany",
+      "autoDerived": "auto"
     },
     "advanceGateModal": {
       "title": "Przejście do następnej bramki",
@@ -6211,7 +6213,9 @@
       "empty": "Brak zarejestrowanego panelu sensorycznego dla tego produktu",
       "emptyBody": "Ocena sensoryczna należy do działu Technicznego i pojawi się tutaj po zarejestrowaniu panelu.",
       "error": "Nie można załadować panelu sensorycznego.",
-      "forbidden": "Nie masz uprawnień do wyświetlenia panelu sensorycznego."
+      "forbidden": "Nie masz uprawnień do wyświetlenia panelu sensorycznego.",
+      "technicalLink": "Otwórz moduł sensoryczny w Technicznym",
+      "technicalHint": "Oceny sensoryczne rejestrujesz w module Technicznego; ten etap NPD odzwierciedla je po zapisaniu panelu."
     },
     "pilot": {
       "title": "Produkcja pilotażowa",
@@ -6631,8 +6635,9 @@
       "fieldPacksPerCasePlaceholder": "np. 12",
       "fieldWeeklyVolumePacks": "Wolumen tygodniowy (paczek/tydzień)",
       "fieldWeeklyVolumePacksPlaceholder": "np. 5000",
-      "fieldRunsPerWeek": "Przebiegi na tydzień",
-      "fieldRunsPerWeekPlaceholder": "np. 3"
+      "fieldRunsPerWeek": "Przebiegi na tydzień (szacunkowo)",
+      "fieldRunsPerWeekPlaceholder": "np. 3",
+      "fieldRunsPerWeekHelp": "Szacunek planistyczny — doprecyzuj później w briefie projektu, gdy wolumeny się ustabilizują."
     },
     "faBomTab": {
       "title": "BOM (widok obliczony)",

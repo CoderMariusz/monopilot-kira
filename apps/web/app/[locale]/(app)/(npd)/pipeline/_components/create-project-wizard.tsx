@@ -40,6 +40,20 @@ import { useRouter } from 'next/navigation';
 
 import { Select } from '@monopilot/ui/Select';
 
+const WIZARD_FIELD_FALLBACKS = {
+  fieldRunsPerWeek: 'Runs per week (estimate)',
+  fieldRunsPerWeekPlaceholder: 'e.g. 3',
+  fieldRunsPerWeekHelp:
+    'Planning estimate only — revise later on the project brief as volumes firm up.',
+} as const;
+
+function wizardLabel(labels: WizardLabels, key: keyof typeof WIZARD_FIELD_FALLBACKS): string {
+  const value = labels[key];
+  const fallback = WIZARD_FIELD_FALLBACKS[key];
+  if (!value || value === key || value.includes('npd.projectWizard')) return fallback;
+  return value;
+}
+
 export type WizardStartFrom = 'blank' | 'clone' | 'template';
 
 /** A project the user may clone from (the wizard's "Clone existing recipe" picker). */
@@ -597,7 +611,8 @@ export function CreateProjectWizard({
             </div>
             <div className="ff">
               <label htmlFor="wiz-runs-per-week">
-                {labels.fieldRunsPerWeek} <span className="req" aria-label="required">*</span>
+                {wizardLabel(labels, 'fieldRunsPerWeek')}{' '}
+                <span className="req" aria-label="required">*</span>
               </label>
               <input
                 id="wiz-runs-per-week"
@@ -606,13 +621,13 @@ export function CreateProjectWizard({
                 step="any"
                 inputMode="decimal"
                 required
-                placeholder={labels.fieldRunsPerWeekPlaceholder}
+                placeholder={labels.fieldRunsPerWeekPlaceholder || WIZARD_FIELD_FALLBACKS.fieldRunsPerWeekPlaceholder}
                 value={form.runsPerWeek}
                 onChange={(e) => update('runsPerWeek', e.target.value)}
                 data-testid="wiz-runs-per-week"
               />
               <p className="muted text-xs" data-testid="wiz-runs-per-week-help">
-                {labels.fieldRunsPerWeekHelp}
+                {wizardLabel(labels, 'fieldRunsPerWeekHelp')}
               </p>
             </div>
           </div>

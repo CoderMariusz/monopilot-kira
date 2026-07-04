@@ -28,6 +28,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -85,6 +86,8 @@ export type SensoryLabels = {
   loading: string;
   empty: string;
   emptyBody: string;
+  technicalLink: string;
+  technicalHint: string;
   error: string;
   forbidden: string;
 };
@@ -169,7 +172,15 @@ export function buildSensoryCsv(data: SensoryScreenData, labels: SensoryLabels):
   return toCsv(header, rows);
 }
 
-function StateNotice({ state, labels }: { state: PageState; labels: SensoryLabels }) {
+function StateNotice({
+  state,
+  labels,
+  locale = 'en',
+}: {
+  state: PageState;
+  labels: SensoryLabels;
+  locale?: string;
+}) {
   if (state === 'loading') {
     return (
       <div role="status" aria-live="polite" className="card empty-state">
@@ -183,6 +194,14 @@ function StateNotice({ state, labels }: { state: PageState; labels: SensoryLabel
         <div className="empty-state-icon" aria-hidden="true">👅</div>
         <div className="empty-state-title">{labels.empty}</div>
         <div className="empty-state-body">{labels.emptyBody}</div>
+        <p className="mt-3 text-sm muted">{labels.technicalHint}</p>
+        <Link
+          href={`/${locale}/technical/sensory`}
+          className="mt-3 inline-flex text-sm font-medium text-blue-600 hover:text-blue-700"
+          data-testid="sensory-technical-link"
+        >
+          {labels.technicalLink}
+        </Link>
       </div>
     );
   }
@@ -197,6 +216,14 @@ function StateNotice({ state, labels }: { state: PageState; labels: SensoryLabel
     return (
       <div role="alert" className="alert alert-red" data-testid="sensory-forbidden">
         <div className="alert-title">{labels.forbidden}</div>
+        <p className="mt-2 text-sm">{labels.technicalHint}</p>
+        <Link
+          href={`/${locale}/technical/sensory`}
+          className="mt-2 inline-flex text-sm font-medium text-blue-600 hover:text-blue-700"
+          data-testid="sensory-technical-link"
+        >
+          {labels.technicalLink}
+        </Link>
       </div>
     );
   }
@@ -207,10 +234,12 @@ export function SensoryScreen({
   state = 'ready',
   data,
   labels,
+  locale = 'en',
 }: {
   state?: PageState;
   data: SensoryScreenData | null;
   labels: SensoryLabels;
+  locale?: string;
 }) {
   if (state !== 'ready' || !data) {
     return (
@@ -224,7 +253,7 @@ export function SensoryScreen({
             {labels.title}
           </h1>
         </header>
-        <StateNotice state={state} labels={labels} />
+        <StateNotice state={state} labels={labels} locale={locale} />
       </main>
     );
   }

@@ -12,6 +12,7 @@ import {
   mapProjectRow,
 } from './shared';
 import { peekSuggestedFgCandidateCode } from './_lib/gate-helpers';
+import { applyGateChecklistAutoSatisfy } from '../_lib/gate-checklist-auto-satisfy';
 
 const GATE_ADVANCE_PERMISSION = 'npd.gate.advance';
 
@@ -30,6 +31,8 @@ export type ChecklistItem = {
   evidenceFile: string | null;
   faDept: string | null;
   faProductCode: string | null;
+  /** True when `done` was derived from live project state (not manual completed_at). */
+  autoDerived?: boolean;
 };
 
 export type GateApprovalTimelineItem = {
@@ -108,7 +111,12 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
       // Delete and clone (Duplicate) both gate on npd.project.create.
       const permissions: ProjectPermissions = { canAdvance: mayAdvance, canDelete: mayCreate, canClone: mayCreate };
 
-      const projectRows = await context.client.query<ProjectRow & { recipe_ingredient_count: number }>(
+      const projectRows = await context.client.query<
+        ProjectRow & {
+          recipe_ingredient_count: number;
+          has_locked_formulation: boolean;
+        }
+      >(
         `select p.id,
                 p.code,
                 p.name,
@@ -133,7 +141,15 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
                    join public.formulation_versions fv on fv.id = f.current_version_id
                    join public.formulation_ingredients fi on fi.version_id = fv.id
                   where f.org_id = app.current_org_id()
-                    and f.project_id = p.id)::int as recipe_ingredient_count
+                    and f.project_id = p.id)::int as recipe_ingredient_count,
+                exists (
+                  select 1
+                    from public.formulations f
+                    join public.formulation_versions fv on fv.id = f.current_version_id
+                   where f.org_id = app.current_org_id()
+                     and f.project_id = p.id
+                     and fv.state = 'locked'
+                ) as has_locked_formulation
            from public.npd_projects p
            left join public.gate_checklist_items gci
              on gci.project_id = p.id
@@ -164,6 +180,10 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
       const project = projectRows.rows[0];
       if (!project) return { ok: false, error: 'NOT_FOUND' };
       const recipeIngredientCount = Number(project.recipe_ingredient_count ?? 0);
+      const hasLockedFormulation = project.has_locked_formulation === true;
+      const hasFgCandidate =
+        project.product_code !== null &&
+        project.product_code.trim() !== '';
       const suggestedFgCandidateCode = await peekSuggestedFgCandidateCode(context.client, context.orgId, project.code);
 
       const [checklistRows, approvalsRows] = await Promise.all([
@@ -231,11 +251,21 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
         ),
       ]);
 
+      const checklistByGate = groupChecklist(checklistRows.rows);
+      const autoSignals = {
+        hasLockedFormulation,
+        hasFgCandidate,
+        ingredientCount: recipeIngredientCount,
+      };
+      for (const gate of checklistGates) {
+        checklistByGate[gate] = applyGateChecklistAutoSatisfy(checklistByGate[gate], autoSignals);
+      }
+
       return {
         ok: true,
         data: {
           project: mapProjectRow(project),
-          checklistByGate: groupChecklist(checklistRows.rows),
+          checklistByGate,
           approvalsTimeline: approvalsRows.rows.map(mapApproval),
           permissions,
           recipeIngredientCount,

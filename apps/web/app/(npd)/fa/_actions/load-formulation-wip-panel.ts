@@ -25,6 +25,13 @@ type QueryClient = {
 };
 type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
 
+const PRODUCT_PRODUCTION_FALLBACK_KEYS = new Set<string>([
+  'line',
+  'staffing',
+  'rate',
+  'closed_production',
+]);
+
 type DeptColumnRow = {
   column_key: string;
   physical_column: string;
@@ -126,17 +133,48 @@ async function readCurrentFormulationIngredientCount(ctx: OrgContextLike, projec
   return Number(rows[0]?.ingredient_count ?? 0);
 }
 
-async function readProdDetailRows(ctx: OrgContextLike, productCode: string): Promise<ProdDetailRow[]> {
-  const { rows } = await ctx.client.query<{ pd_json: Record<string, unknown> }>(
-    `select to_jsonb(pd.*) as pd_json
-       from public.prod_detail pd
-      where pd.org_id = app.current_org_id()
-        and pd.product_code = $1
-      order by pd.component_index asc`,
+async function readProductValues(ctx: OrgContextLike, productCode: string): Promise<Record<string, unknown>> {
+  const { rows } = await ctx.client.query<{ product_json: Record<string, unknown> | null }>(
+    `select to_jsonb(p.*) as product_json
+       from public.product p
+      where p.org_id = app.current_org_id()
+        and p.product_code = $1
+      limit 1`,
     [productCode],
   );
+  return rows[0]?.product_json ?? {};
+}
+
+function mergeProductProductionFallbacks(
+  prodDetailValues: Record<string, unknown>,
+  productValues: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = { ...prodDetailValues };
+  for (const key of PRODUCT_PRODUCTION_FALLBACK_KEYS) {
+    const detailValue = merged[key];
+    if (detailValue !== null && detailValue !== undefined && detailValue !== '') continue;
+    if (!(key in productValues)) continue;
+    merged[key] = productValues[key];
+  }
+  return merged;
+}
+
+async function readProdDetailRows(ctx: OrgContextLike, productCode: string): Promise<ProdDetailRow[]> {
+  const [productValues, detailRows] = await Promise.all([
+    readProductValues(ctx, productCode),
+    ctx.client.query<{ pd_json: Record<string, unknown> }>(
+      `select to_jsonb(pd.*) as pd_json
+         from public.prod_detail pd
+        where pd.org_id = app.current_org_id()
+          and pd.product_code = $1
+        order by pd.component_index asc`,
+      [productCode],
+    ),
+  ]);
+  const { rows } = detailRows;
   return rows.map((r) => {
     const json = r.pd_json ?? {};
+    const values = mergeProductProductionFallbacks(json, productValues);
     const id = String(json.id ?? json.component_index ?? '');
     const componentIndex = Number(json.component_index ?? 0);
     const weight = json.component_weight;
@@ -146,7 +184,7 @@ async function readProdDetailRows(ctx: OrgContextLike, productCode: string): Pro
       intermediateCode: String(json.intermediate_code ?? ''),
       componentWeight: weight === null || weight === undefined ? null : Number(weight),
       v06Status: 'warn' as const,
-      values: json,
+      values,
     };
   });
 }

@@ -156,6 +156,7 @@ const DEFAULT_CHECKLIST_LABELS: GateChecklistLabels = {
   forbidden: 'You do not have permission to view this gate.',
   faDerivedHint: 'Closed in FA →',
   faDerivedLocked: 'FA-derived',
+  autoDerived: 'auto',
   revertGate: 'Revert gate',
 };
 
@@ -280,6 +281,7 @@ function mapChecklistItem(item: ChecklistItem) {
     file: item.evidenceFile,
     faDept: item.faDept,
     faHref,
+    autoDerived: item.autoDerived,
   };
 }
 

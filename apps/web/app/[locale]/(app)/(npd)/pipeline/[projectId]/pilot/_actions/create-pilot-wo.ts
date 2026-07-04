@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { createWorkOrderChainForContext } from '../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
+import { materializeNpdBom } from '../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom';
 import { hasPilotPermission } from './get-pilot-run';
 import { buildPilotWoNumber } from './_helpers';
 
@@ -33,6 +34,9 @@ type CreatePilotWoError =
   | 'forbidden_planning_write'
   | 'document_mask_missing'
   | 'fg_item_missing'
+  | 'production_code_conflict'
+  | 'packs_per_box_required'
+  | 'wip_item_required'
   | 'wo_create_failed'
   | 'persistence_failed';
 
@@ -292,16 +296,32 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
         return { ok: true as const, data: existing, created: false };
       }
 
-      const [lockedRecipe, activeBom, item, pilotRun] = await Promise.all([
+      const [lockedRecipe, activeBom, pilotRun] = await Promise.all([
         hasLockedRecipe(ctx, projectId),
         hasActiveProductionBom(ctx, productCode),
-        loadFgItem(ctx, productCode),
         loadLatestPilotRunPlan(ctx, projectId),
       ]);
 
       if (!lockedRecipe && !activeBom) {
         return { ok: false as const, error: 'recipe_not_ready' as const };
       }
+      if (lockedRecipe && !activeBom) {
+        const materialized = await materializeNpdBom(ctx, { projectId });
+        if (materialized.code === 'PRODUCTION_CODE_CONFLICT') {
+          return { ok: false as const, error: 'production_code_conflict' as const };
+        }
+        if (materialized.code === 'PACKS_PER_BOX_REQUIRED') {
+          return { ok: false as const, error: 'packs_per_box_required' as const };
+        }
+        if (materialized.code === 'WIP_ITEM_REQUIRED') {
+          return { ok: false as const, error: 'wip_item_required' as const };
+        }
+        if (!materialized.bomHeaderId) {
+          return { ok: false as const, error: 'recipe_not_ready' as const };
+        }
+      }
+
+      const item = await loadFgItem(ctx, productCode);
       if (!item) {
         return { ok: false as const, error: 'fg_item_missing' as const };
       }

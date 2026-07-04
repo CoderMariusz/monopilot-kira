@@ -57,6 +57,9 @@ const DEFAULT_LABELS: SensoryLabels = {
   loading: 'Loading sensory panel…',
   empty: 'No sensory panel recorded for this product yet',
   emptyBody: 'Sensory evaluation is owned by Technical and will appear here once a panel is recorded.',
+  technicalLink: 'Open Technical sensory module',
+  technicalHint:
+    'Sensory evaluations are registered in Technical; this NPD stage reflects that data once a panel exists.',
   error: 'Unable to load the sensory panel.',
   forbidden: 'You do not have permission to view the sensory panel.',
 };
@@ -130,6 +133,7 @@ export default async function SensoryPage(propsInput: unknown = {}) {
           state={props.state ?? (props.data ? 'ready' : 'empty')}
           data={props.data ?? null}
           labels={labels}
+          locale={locale}
         />
         {stageDeptSectionsEl}
       </>
@@ -144,6 +148,7 @@ export default async function SensoryPage(propsInput: unknown = {}) {
         state={toPageState(result.state)}
         data={result.data}
         labels={labels}
+        locale={locale}
       />
       {stageDeptSectionsEl}
     </>

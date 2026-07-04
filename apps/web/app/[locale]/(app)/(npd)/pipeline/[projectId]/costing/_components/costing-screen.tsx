@@ -456,6 +456,18 @@ export function CostingScreen({
   const resolvedEngine = engineResult ?? data?.engineResult ?? null;
   const resolvedInputs = inputs ?? data?.inputs ?? null;
 
+  const inputsPanel =
+    resolvedInputs && resolvedProjectId ? (
+      <CostingInputsPanel
+        projectId={resolvedProjectId}
+        locale={locale}
+        inputs={resolvedInputs}
+        labels={labels}
+        canSave={canSaveInputs}
+        onSave={onSaveInputs}
+      />
+    ) : null;
+
   if (state !== 'ready' || !data) {
     return (
       <main
@@ -473,6 +485,7 @@ export function CostingScreen({
             {computeError}
           </div>
         ) : null}
+        {inputsPanel}
         <StateNotice state={state} labels={labels} />
         {state === 'empty' && canCompute ? (
           <div style={{ textAlign: 'center' }}>
@@ -557,16 +570,7 @@ export function CostingScreen({
         </div>
       ) : null}
 
-      {resolvedInputs ? (
-        <CostingInputsPanel
-          projectId={resolvedProjectId}
-          locale={locale}
-          inputs={resolvedInputs}
-          labels={labels}
-          canSave={canSaveInputs}
-          onSave={onSaveInputs}
-        />
-      ) : null}
+      {inputsPanel}
 
       {blocked ? (
         <div

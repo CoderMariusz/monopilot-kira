@@ -115,7 +115,9 @@ async function buildLabels(locale: string): Promise<WizardLabels> {
     return LABEL_KEYS.reduce((labels, key) => {
       try {
         const value = t(key);
-        labels[key] = value === key ? DEFAULT_LABELS[key] : value;
+        const fallback = DEFAULT_LABELS[key];
+        labels[key] =
+          !value || value === key || value.includes('npd.projectWizard') ? fallback : value;
       } catch {
         labels[key] = DEFAULT_LABELS[key];
       }

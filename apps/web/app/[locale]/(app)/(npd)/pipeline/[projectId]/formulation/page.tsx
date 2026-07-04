@@ -653,28 +653,32 @@ async function readPageData(projectId: string, versionId?: string): Promise<Load
   return { state: 'ready', data, canEdit, submitAllowed, allergenReference };
 }
 
-async function buildWipNoFgLabels(locale: string): Promise<{ title: string; body: string }> {
+async function buildWipNoFgLabels(
+  locale: string,
+): Promise<{ title: string; body: string; gateLink: string }> {
   try {
     const t = await getTranslations({ locale, namespace: 'npd.formulationEditor' });
     const pick = (key: string, fallback: string) => {
       try {
         const value = t(key);
-        return value === key ? fallback : value;
+        return !value || value === key || value.includes('npd.formulationEditor') ? fallback : value;
       } catch {
         return fallback;
       }
     };
     return {
-      title: pick('wipNoFgTitle', 'No Finished Good linked'),
+      title: pick('wipNoFgTitle', 'No Finished Good linked yet'),
       body: pick(
         'wipNoFgBody',
-        'Link or create a Finished Good for this project to edit production / WIP processes on the Recipe stage.',
+        'The FG candidate is created automatically when the project advances to Development (G3). Review gate progress on the pipeline gates view.',
       ),
+      gateLink: pick('wipNoFgGateLink', 'View project gates'),
     };
   } catch {
     return {
-      title: 'No Finished Good linked',
-      body: 'Link or create a Finished Good for this project to edit production / WIP processes on the Recipe stage.',
+      title: 'No Finished Good linked yet',
+      body: 'The FG candidate is created automatically when the project advances to Development (G3). Review gate progress on the pipeline gates view.',
+      gateLink: 'View project gates',
     };
   }
 }
@@ -920,9 +924,11 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       />
       <FormulationWipPanel
         projectId={projectId}
+        locale={locale}
         labels={wipPanelLabels}
         noFgTitle={wipNoFgLabels.title}
         noFgBody={wipNoFgLabels.body}
+        noFgGateLink={wipNoFgLabels.gateLink}
       />
     </>
   );

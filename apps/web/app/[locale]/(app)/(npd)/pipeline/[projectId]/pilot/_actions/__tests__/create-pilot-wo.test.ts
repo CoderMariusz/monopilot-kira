@@ -6,14 +6,15 @@
  * existing WO without a second insert).
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type Handler = (sql: string, params: readonly unknown[]) => { rows: unknown[] } | undefined;
 
 const handlerHolder: { handler: Handler } = { handler: () => ({ rows: [] }) };
 
-const { createWorkOrderChainMock } = vi.hoisted(() => ({
+const { createWorkOrderChainMock, materializeNpdBomMock } = vi.hoisted(() => ({
   createWorkOrderChainMock: vi.fn(),
+  materializeNpdBomMock: vi.fn(),
 }));
 
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
@@ -33,6 +34,10 @@ vi.mock('../../../../../../../../../app/[locale]/(app)/(modules)/planning/work-o
   createWorkOrderChainForContext: createWorkOrderChainMock,
 }));
 
+vi.mock('../../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom', () => ({
+  materializeNpdBom: materializeNpdBomMock,
+}));
+
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { createPilotWorkOrder } from '../create-pilot-wo';
@@ -47,7 +52,22 @@ const PRODUCT_CODE = 'FG0042';
 afterEach(() => {
   handlerHolder.handler = () => ({ rows: [] });
   createWorkOrderChainMock.mockReset();
+  materializeNpdBomMock.mockReset();
   vi.clearAllMocks();
+});
+
+beforeEach(() => {
+  materializeNpdBomMock.mockResolvedValue({
+    projectId: PROJECT,
+    productCode: PRODUCT_CODE,
+    productionCode: PRODUCT_CODE,
+    itemId: ITEM_ID,
+    bomHeaderId: '07300000-0000-4000-8000-0000000000b1',
+    factorySpecId: '07300000-0000-4000-8000-0000000000b2',
+    yieldPromptRequired: false,
+    createdBom: true,
+    createdFactorySpec: true,
+  });
 });
 
 function permHandler(granted: string[], rest?: Handler): Handler {
@@ -62,6 +82,8 @@ function permHandler(granted: string[], rest?: Handler): Handler {
 
 function seedHappyPath(rest?: Handler): Handler {
   return (sql, params) => {
+    const override = rest?.(sql, params);
+    if (override) return override;
     if (/from public.npd_projects/.test(sql)) {
       return { rows: [{ id: PROJECT, product_code: PRODUCT_CODE }] };
     }
@@ -70,6 +92,9 @@ function seedHappyPath(rest?: Handler): Handler {
     }
     if (/from public.formulation_versions/.test(sql) && /locked/.test(sql)) {
       return { rows: [{ ok: true }] };
+    }
+    if (/from public.bom_headers/.test(sql)) {
+      return { rows: [] };
     }
     if (/from public.items/.test(sql) && /item_code/.test(sql)) {
       return { rows: [{ id: ITEM_ID, item_code: PRODUCT_CODE }] };
@@ -89,7 +114,7 @@ function seedHappyPath(rest?: Handler): Handler {
     if (/from public.work_orders/.test(sql) && /wo_number/.test(sql)) {
       return { rows: [] };
     }
-    return rest ? rest(sql, params) : { rows: [] };
+    return { rows: [] };
   };
 }
 
@@ -156,6 +181,105 @@ describe('createPilotWorkOrder', () => {
         productionLineId: LINE_ID,
       }),
     );
+    expect(materializeNpdBomMock).toHaveBeenCalledTimes(1);
+    expect(materializeNpdBomMock).toHaveBeenCalledWith(
+      expect.objectContaining({ orgId: '07300000-0000-4000-8000-00000000000a' }),
+      { projectId: PROJECT },
+    );
+  });
+
+  it('does not materialize a BOM when an active BOM already exists', async () => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], seedHappyPath((sql) => {
+      if (/from public.bom_headers/.test(sql)) return { rows: [{ ok: true }] };
+      return undefined;
+    }));
+    createWorkOrderChainMock.mockResolvedValue({
+      ok: true,
+      fgWorkOrder: {
+        id: WO_ID,
+        woNumber: `WO-pilot-${PRODUCT_CODE}`,
+        productId: ITEM_ID,
+        itemCode: PRODUCT_CODE,
+        plannedQuantity: '250.1250',
+        producedQuantity: null,
+        uom: 'kg',
+        status: 'DRAFT',
+        scheduledStartTime: '2026-07-10T00:00:00.000Z',
+        scheduledEndTime: null,
+        productionLineId: LINE_ID,
+        machineId: null,
+        priority: null,
+        sourceOfDemand: 'manual',
+        sourceReference: PRODUCT_CODE,
+        notes: null,
+        createdAt: '2026-07-03T00:00:00.000Z',
+        updatedAt: '2026-07-03T00:00:00.000Z',
+        itemTypeAtCreation: 'fg',
+      },
+      wipWorkOrders: [],
+      dependencies: [],
+      created: true,
+    });
+
+    const result = await createPilotWorkOrder({ projectId: PROJECT });
+
+    expect(result.ok).toBe(true);
+    expect(materializeNpdBomMock).not.toHaveBeenCalled();
+    expect(createWorkOrderChainMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces materializer typed blockers before creating the WO chain', async () => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], seedHappyPath());
+    materializeNpdBomMock.mockResolvedValue({
+      code: 'PACKS_PER_BOX_REQUIRED',
+      projectId: PROJECT,
+      productCode: PRODUCT_CODE,
+      productionCode: PRODUCT_CODE,
+      itemId: null,
+      bomHeaderId: null,
+      factorySpecId: null,
+      yieldPromptRequired: false,
+      createdBom: false,
+      createdFactorySpec: false,
+    });
+
+    const result = await createPilotWorkOrder({ projectId: PROJECT });
+
+    expect(result).toEqual({ ok: false, error: 'packs_per_box_required' });
+    expect(createWorkOrderChainMock).not.toHaveBeenCalled();
+  });
+
+  it('returns recipe_not_ready without materializing when no locked recipe and no active BOM exist', async () => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
+      if (/from public.npd_projects/.test(sql)) {
+        return { rows: [{ id: PROJECT, product_code: PRODUCT_CODE }] };
+      }
+      if (/from public.product/.test(sql) && /private_jsonb/.test(sql)) {
+        return { rows: [{ private_jsonb: {} }] };
+      }
+      if (/from public.work_orders/.test(sql) && /wo_number/.test(sql)) {
+        return { rows: [] };
+      }
+      if (/from public.formulation_versions/.test(sql) && /locked/.test(sql)) {
+        return { rows: [] };
+      }
+      if (/from public.bom_headers/.test(sql)) {
+        return { rows: [] };
+      }
+      if (/from public.items/.test(sql) && /item_code/.test(sql)) {
+        return { rows: [{ id: ITEM_ID, item_code: PRODUCT_CODE }] };
+      }
+      if (/from public.pilot_runs/.test(sql) && /batch_size_kg/.test(sql)) {
+        return { rows: [{ batch_size_kg: '25.0000', planned_date: '2026-07-10', line: 'LINE-A' }] };
+      }
+      return { rows: [] };
+    });
+
+    const result = await createPilotWorkOrder({ projectId: PROJECT });
+
+    expect(result).toEqual({ ok: false, error: 'recipe_not_ready' });
+    expect(materializeNpdBomMock).not.toHaveBeenCalled();
+    expect(createWorkOrderChainMock).not.toHaveBeenCalled();
   });
 
   it('returns the existing pilot WO on a second call (idempotent)', async () => {

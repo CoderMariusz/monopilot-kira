@@ -60,6 +60,8 @@ export type ChecklistItemView = {
   file: string | null;
   faDept?: string | null;
   faHref?: string | null;
+  /** True when done was derived from live project state at read time. */
+  autoDerived?: boolean;
 };
 
 export type GateView = {
@@ -130,6 +132,8 @@ export type GateChecklistLabels = {
   forbidden: string;
   faDerivedHint: string;
   faDerivedLocked: string;
+  /** Badge for checklist rows auto-ticked from live project state. */
+  autoDerived: string;
   /** "Revert gate" ghost button label (admin/owner rollback to the previous gate). */
   revertGate: string;
 };
@@ -248,6 +252,8 @@ function ChecklistItemRow({
   pending: boolean;
 }) {
   const isFaDerived = !!item.faDept;
+  const isAutoDerived = !!item.autoDerived;
+  const isDerived = isFaDerived || isAutoDerived;
   const isBlocking = item.required && !item.done;
   const metaId = `item-meta-${item.id}`;
   return (
@@ -263,8 +269,8 @@ function ChecklistItemRow({
     >
       <Checkbox
         checked={item.done}
-        disabled={isFaDerived || !canWrite || pending}
-        onCheckedChange={isFaDerived ? undefined : () => onToggle(item)}
+        disabled={isDerived || !canWrite || pending}
+        onCheckedChange={isDerived ? undefined : () => onToggle(item)}
         aria-label={item.text}
         aria-describedby={metaId}
         data-testid="gate-checklist-checkbox"
@@ -293,6 +299,11 @@ function ChecklistItemRow({
               <span aria-hidden="true">🔒</span> {labels.faDerivedLocked}
             </Badge>
           )}
+          {isAutoDerived && (
+            <Badge variant="muted" data-testid="gate-item-auto-derived-badge">
+              {labels.autoDerived}
+            </Badge>
+          )}
           {item.file && (
             <span className="text-xs text-slate-500" data-testid="gate-item-file">
               <span aria-hidden="true">📎</span> {item.file}
@@ -317,7 +328,9 @@ function ChecklistItemRow({
                   )}
                 </>
               )
-            : item.done && item.by
+            : isAutoDerived
+              ? labels.autoDerived
+              : item.done && item.by
             ? labels.completedBy.replace('{by}', item.by).replace('{at}', item.at ?? '')
             : labels.notStarted}
         </div>

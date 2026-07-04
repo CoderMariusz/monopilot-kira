@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import {
   FaProductionTab,
   type FaProductionTabLabels,
@@ -6,16 +8,20 @@ import { loadFormulationWipPanel } from '../../../../../../../(npd)/fa/_actions/
 
 type FormulationWipPanelProps = {
   projectId: string;
+  locale: string;
   labels: FaProductionTabLabels;
   noFgTitle: string;
   noFgBody: string;
+  noFgGateLink: string;
 };
 
 export async function FormulationWipPanel({
   projectId,
+  locale,
   labels,
   noFgTitle,
   noFgBody,
+  noFgGateLink,
 }: FormulationWipPanelProps) {
   const data = await loadFormulationWipPanel(projectId);
 
@@ -27,6 +33,13 @@ export async function FormulationWipPanel({
       >
         <h2 className="text-sm font-semibold text-amber-900">{noFgTitle}</h2>
         <p className="mt-1 text-sm text-amber-800">{noFgBody}</p>
+        <Link
+          href={`/${locale}/pipeline/${projectId}/gate`}
+          className="mt-2 inline-flex text-sm font-medium text-blue-700 hover:text-blue-800"
+          data-testid="formulation-wip-gate-link"
+        >
+          {noFgGateLink}
+        </Link>
       </section>
     );
   }

@@ -200,6 +200,22 @@ describe('CostingScreen — blocked checklist', () => {
 });
 
 describe('CostingScreen — inputs panel', () => {
+  it('renders inputs in empty state when loader supplies inputs separately', () => {
+    render(
+      <CostingScreen
+        state="empty"
+        data={null}
+        inputs={INPUTS}
+        labels={LABELS}
+        locale="en"
+        projectId={DATA.projectId}
+        canSaveInputs
+      />,
+    );
+    expect(screen.getByTestId('costing-inputs-card')).toBeInTheDocument();
+    expect(screen.getByTestId('costing-avg-batch')).toHaveValue(120);
+  });
+
   it('renders inputs with org-default placeholders and brief link', () => {
     renderReady();
     expect(screen.getByTestId('costing-inputs-card')).toBeInTheDocument();

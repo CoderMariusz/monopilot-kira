@@ -38,7 +38,7 @@ export async function listProductionLines(): Promise<ProductionLineOption[]> {
       throw new Error('forbidden');
     }
 
-    const activeSiteId = await getActiveSiteId({ client: ctx.client });
+    const activeSiteId = (await getActiveSiteId({ client: ctx.client })) ?? null;
 
     const { rows } = await ctx.client.query<ProductionLineRow>(
       `select pl.id::text,
