@@ -309,7 +309,7 @@ async function computeWoActualCostInContext(
            select rate_per_hour
              from public.labor_rates lr
             where lr.org_id = app.current_org_id()
-              and lr.role_group = crew.role_group
+              and lower(lr.role_group) = lower(crew.role_group)
               and lr.currency = 'GBP'
               and lr.effective_from <= $2::date
             order by lr.effective_from desc
@@ -345,7 +345,7 @@ async function computeWoActualCostInContext(
            select rate_per_hour
              from public.labor_rates lr
             where lr.org_id = app.current_org_id()
-              and lr.role_group = pdr.role_group
+              and lower(lr.role_group) = lower(pdr.role_group)
               and lr.currency = 'GBP'
                  and lr.effective_from <= $2::date
             order by lr.effective_from desc

@@ -354,7 +354,6 @@ async function persistPromotedItemPricesAndCost(
        join "Reference"."ProductCategories" pc
          on pc.org_id = p.org_id
         and pc.label = p.type
-        and pc.is_active = true
       where i.org_id = app.current_org_id()
         and p.org_id = app.current_org_id()
         and p.id = $1::uuid
