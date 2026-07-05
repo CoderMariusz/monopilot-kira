@@ -337,16 +337,26 @@ async function ensureFgItemAndProduct(
   if (!item) throw new Error(`failed to ensure FG item ${productCode}`);
 
   if (project.packs_per_case != null && project.packs_per_case > 0) {
+    // ONE atomic statement: items_output_uom_pack_factors_check (mig 267) demands
+    // net_qty_per_each AND each_per_box be NOT NULL the moment output_uom becomes
+    // 'box' — flipping the uom in a separate UPDATE from the factors violated the
+    // CHECK for a pre-existing FG created before its pack weight was set (walk-2
+    // H-1). If neither the stored nor the incoming pack weight is known, keep the
+    // current output_uom rather than write an unsatisfiable 'box'.
     await ctx.client.query(
-      `update public.items set each_per_box = $2 where org_id = app.current_org_id() and item_code = $1 and coalesce(each_per_box, 0) <> $2`,
-      [productCode, project.packs_per_case],
-    );
-    await ctx.client.query(
-      `update public.items set output_uom = 'box'
+      `update public.items
+          set each_per_box = $2::int,
+              net_qty_per_each = coalesce(net_qty_per_each, $3::numeric),
+              output_uom = case
+                when coalesce(net_qty_per_each, $3::numeric) is not null then 'box'
+                else output_uom
+              end
         where org_id = app.current_org_id()
           and item_code = $1
-          and output_uom is distinct from 'box'`,
-      [productCode],
+          and (coalesce(each_per_box, 0) <> $2
+               or output_uom is distinct from 'box'
+               or (net_qty_per_each is null and $3::numeric is not null))`,
+      [productCode, project.packs_per_case, netQtyPerEach],
     );
   }
   // Pair each_per_box with net_qty_per_each (kg per pack) so per-box WO consumption scaling

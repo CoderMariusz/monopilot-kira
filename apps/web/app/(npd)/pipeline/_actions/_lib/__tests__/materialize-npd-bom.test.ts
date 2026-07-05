@@ -373,6 +373,60 @@ describe('materializeNpdBom', () => {
     expect(rmLineInsert?.params[6]).toBe('3.600000');
   });
 
+  it('upgrades a pre-existing FG to output_uom=box ATOMICALLY with both pack factors (walk-2 H-1)', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [{ ...projectRow(), pack_weight_g: '300.000', packs_per_case: 12 }];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '100' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [{ rm_code: 'RM-PORK', item_id: null, substitute_item_id: null, qty_kg: '0.300000', sequence: 1 }];
+      }
+      if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select pc.component_name')) return [];
+      if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
+      // Pre-existing item: INSERT hits ON CONFLICT DO NOTHING, loadItem returns the row.
+      if (sql.startsWith('insert into public.items')) return [];
+      if (sql.startsWith('select id, item_code, name, shelf_life_days')) {
+        return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
+      }
+      if (sql.startsWith('update public.items')) return [];
+      if (sql.startsWith('select 1 from public.product')) return [];
+      if (sql.startsWith('insert into public.product')) return [];
+      if (sql.startsWith('update public.formulations')) return [];
+      if (sql.startsWith('select id, wo_reference, status')) return [];
+      if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
+      if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
+      if (sql.startsWith('insert into public.bom_lines')) return [];
+      if (sql.startsWith('update public.bom_headers')) return [];
+      if (sql.startsWith('select id from public.factory_specs')) return [];
+      if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('with recursive parents as')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    });
+
+    await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    // items_output_uom_pack_factors_check: output_uom='box' requires BOTH factors
+    // in the SAME statement — assert the single atomic UPDATE carries them.
+    const boxUpgrade = client.calls.find((call) => {
+      const sql = normalize(call.sql);
+      return sql.startsWith('update public.items') && sql.includes("then 'box'");
+    });
+    expect(boxUpgrade).toBeDefined();
+    expect(boxUpgrade?.sql).toContain('each_per_box = $2');
+    expect(boxUpgrade?.sql).toContain('net_qty_per_each = coalesce(net_qty_per_each, $3::numeric)');
+    expect(boxUpgrade?.params).toEqual(['FG-001', 12, 0.3]);
+    // And no legacy split write flips output_uom to box without the factors.
+    const nakedFlip = client.calls.find((call) => {
+      const sql = normalize(call.sql);
+      return sql.startsWith('update public.items') && sql.includes("set output_uom = 'box'");
+    });
+    expect(nakedFlip).toBeUndefined();
+  });
+
   it('creates a new BOM version and supersedes stale active NPD BOMs', async () => {
     const client = createClient((sql) => {
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
@@ -453,7 +507,8 @@ describe('materializeNpdBom', () => {
 
     const itemInsert = client.calls.find((call) => normalize(call.sql).startsWith('insert into public.items'));
     expect(itemInsert?.params[2]).toBe('box');
-    expect(client.calls.some((call) => normalize(call.sql).includes("set output_uom = 'box'"))).toBe(true);
+    // Atomic box upgrade (walk-2 H-1): output_uom flips together with both pack factors.
+    expect(client.calls.some((call) => normalize(call.sql).includes("then 'box'") && normalize(call.sql).includes('each_per_box = $2'))).toBe(true);
     expect(client.calls.some((call) => normalize(call.sql).includes("set uom_base = 'kg'"))).toBe(true);
     const pmLineInsert = client.calls.find((call) => normalize(call.sql).startsWith('insert into public.bom_lines'));
     expect(pmLineInsert?.params[3]).toBe(PM_SUB);
