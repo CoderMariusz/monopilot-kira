@@ -427,6 +427,50 @@ describe('materializeNpdBom', () => {
     expect(nakedFlip).toBeUndefined();
   });
 
+  it('supersedes the OLD active header BEFORE activating the new one (walk-4 unique-index order)', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 4, target_yield_pct: '100' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [{ rm_code: 'RM-001', item_id: ITEM, substitute_item_id: null, qty_kg: '1.250000', sequence: 1 }];
+      }
+      if (sql.startsWith('select h.id, h.version')) return [{ id: BOM, version: 2 }];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
+      if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
+      if (sql.startsWith('with expected as')) return [{ matches: false }];
+      if (sql.startsWith('insert into public.items')) return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
+      if (sql.startsWith('update public.items')) return [];
+      if (sql.startsWith('select 1 from public.product')) return [];
+      if (sql.startsWith('insert into public.product')) return [];
+      if (sql.startsWith('update public.formulations')) return [];
+      if (sql.startsWith('select id, wo_reference, status')) return [];
+      if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 3 }];
+      if (sql.startsWith('insert into public.bom_headers')) return [{ id: SPEC, version: 3 }];
+      if (sql.startsWith('insert into public.bom_lines')) return [];
+      if (sql.startsWith('update public.bom_headers')) return [];
+      if (sql.startsWith('select id from public.factory_specs')) return [];
+      if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('with recursive parents as')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    });
+
+    await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    const headerUpdates = client.calls
+      .map((call, index) => ({ sql: normalize(call.sql), index }))
+      .filter((c) => c.sql.startsWith('update public.bom_headers'));
+    const supersedeIdx = headerUpdates.find((c) => c.sql.includes("set status = 'superseded'"))?.index;
+    const activateIdx = headerUpdates.find((c) => c.sql.includes("set status = 'active'"))?.index;
+    expect(supersedeIdx).toBeDefined();
+    expect(activateIdx).toBeDefined();
+    // Partial unique (org, product) WHERE active: old must leave 'active' first.
+    expect(supersedeIdx!).toBeLessThan(activateIdx!);
+  });
+
   it('creates a new BOM version and supersedes stale active NPD BOMs', async () => {
     const client = createClient((sql) => {
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];

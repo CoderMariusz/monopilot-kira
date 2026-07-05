@@ -573,16 +573,10 @@ async function createActiveNpdBom(
     );
   }
 
-  await ctx.client.query(
-    `update public.bom_headers
-        set status = 'active',
-            approved_by = $2::uuid,
-            approved_at = now()
-      where org_id = app.current_org_id()
-        and id = $1::uuid`,
-    [header.id, ctx.userId],
-  );
-
+  // ORDER MATTERS (walk-4 blocker): bom_headers_active_version_idx is a partial
+  // UNIQUE on (org_id, product_id) WHERE status='active' — the OLD active header
+  // must be superseded BEFORE the new one flips to active, or the flip violates
+  // the index and the whole promote rolls back.
   if (supersedesBom) {
     await ctx.client.query(
       `update public.bom_headers
@@ -595,6 +589,16 @@ async function createActiveNpdBom(
       [supersedesBom.id],
     );
   }
+
+  await ctx.client.query(
+    `update public.bom_headers
+        set status = 'active',
+            approved_by = $2::uuid,
+            approved_at = now()
+      where org_id = app.current_org_id()
+        and id = $1::uuid`,
+    [header.id, ctx.userId],
+  );
 
   return header;
 }

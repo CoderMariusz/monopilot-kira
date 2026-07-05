@@ -188,6 +188,8 @@ export type PromoteCall = { projectId: string };
 export type PromoteOutcome = {
   ok: boolean;
   error?: string;
+  /** Truthful failure detail (walk-4): DB code/constraint or blocker codes. */
+  message?: string;
   /** On success, the auto-built production-BOM result (contract from promoteToProduction). */
   productionCode?: string | null;
   bomHeaderId?: string | null;
@@ -340,6 +342,7 @@ export function HandoffScreen({
   const [optimistic, setOptimistic] = React.useState<Record<string, boolean>>({});
   const [promoting, setPromoting] = React.useState(false);
   const [promoteError, setPromoteError] = React.useState<string | null>(null);
+  const [promoteErrorDetail, setPromoteErrorDetail] = React.useState<string | null>(null);
   // "Generate production BOM" step (deadlock break) — its own pending + error state.
   const [generating, setGenerating] = React.useState(false);
   const [generateError, setGenerateError] = React.useState<string | null>(null);
@@ -440,10 +443,12 @@ export function HandoffScreen({
     if (!onPromote || !canPromote || promoting) return;
     setPromoting(true);
     setPromoteError(null);
+    setPromoteErrorDetail(null);
     try {
       const result = await onPromote({ projectId: data!.projectId });
       if (!result.ok) {
         setPromoteError(result.error ?? 'error');
+        setPromoteErrorDetail(result.message ?? null);
       } else {
         // Surface the auto-built production-BOM result (FG code + BOM link) and,
         // when the recipe had no target yield, the inline yield prompt. Held in
@@ -942,10 +947,11 @@ export function HandoffScreen({
         <div role="alert" data-testid="handoff-promote-error" className="alert alert-red">
           <div className="alert-title">
             {labels.promoteError}
-            {/* Truthful copy (walk-3 F3): surface the REAL failure code — a
-                static "check the gates" on an all-green project hid the actual
-                server error and sent the user chasing satisfied gates. */}
+            {/* Truthful copy (walk-3 F3 / walk-4 HIGH): surface the REAL failure
+                code AND its DB/blocker detail — a static "check the gates" on an
+                all-green project hid the actual server error. */}
             {promoteError !== 'error' ? ` (${promoteError})` : null}
+            {promoteErrorDetail ? ` — ${promoteErrorDetail}` : null}
           </div>
         </div>
       ) : null}

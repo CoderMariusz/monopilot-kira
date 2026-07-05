@@ -200,7 +200,7 @@ export default async function HandoffPage(propsInput: unknown = {}) {
   async function promoteAction(_call: PromoteCall): Promise<PromoteOutcome> {
     'use server';
     const result = await promoteToProduction({ projectId });
-    if (!result.ok) return { ok: false, error: result.error };
+    if (!result.ok) return { ok: false, error: result.error, message: result.message };
     const { productionCode, bomHeaderId, yieldPromptRequired } = result.data;
     // Technical BOM detail route: /[locale]/technical/bom/[itemCode] where
     // [itemCode] resolves to bom_headers.product_id (the FG product_code) — which

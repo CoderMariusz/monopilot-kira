@@ -228,7 +228,11 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
     if (error instanceof PromoteAbort) return { ok: false, error: error.code, message: error.msg };
 
     console.error('[promoteToProduction] persistence_failed:', error);
-    return { ok: false, error: 'persistence_failed' };
+    // Truthful copy (walk-4 HIGH): surface the DB failure identity — a bare
+    // 'persistence_failed' sent the user chasing gates that were all green.
+    const pg = error as { code?: string; constraint?: string; message?: string };
+    const detail = [pg.code, pg.constraint ?? pg.message?.slice(0, 120)].filter(Boolean).join(' ');
+    return { ok: false, error: 'persistence_failed', message: detail || undefined };
   }
 }
 
