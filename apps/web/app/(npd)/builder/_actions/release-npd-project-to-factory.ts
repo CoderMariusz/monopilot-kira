@@ -340,6 +340,25 @@ async function persistPromotedItemPricesAndCost(
     [projectId],
   );
 
+  // L8 MED-2: NPD stores the category LABEL on npd_projects.type (legacy parity)
+  // while items carry the Reference code — backfill the code at promote so the
+  // BOM list resolves the LIVE label instead of the stale project snapshot.
+  await ctx.client.query(
+    `update public.items i
+        set category_code = pc.code
+       from public.npd_projects p
+       join "Reference"."ProductCategories" pc
+         on pc.org_id = p.org_id
+        and pc.label = p.type
+        and pc.is_active = true
+      where i.org_id = app.current_org_id()
+        and p.org_id = app.current_org_id()
+        and p.id = $1::uuid
+        and i.item_code = p.product_code
+        and i.category_code is null`,
+    [projectId],
+  );
+
   const { rows } = await ctx.client.query<PersistedWaterfallRow>(
     `select i.id::text as fg_item_id,
             cws.value_eur::text as total_cost_per_pack,

@@ -6581,7 +6581,8 @@
       },
       "generatePackagingUnlinked": "Komponenty opakowania muszą być powiązane z pozycjami przed wygenerowaniem BOM produkcyjnego: {components}",
       "generateWarningNoLine": "BOM produkcyjny utworzony, ale nie ustawiono linii produkcyjnej w projekcie — marszruta nie została utworzona.",
-      "generateWarningNoProcesses": "BOM produkcyjny utworzony, ale nie znaleziono procesów NPD do utworzenia marszruty."
+      "generateWarningNoProcesses": "BOM produkcyjny utworzony, ale nie znaleziono procesów NPD do utworzenia marszruty.",
+      "generateWarningRoutingDraft": "Marszruta utworzona jako SZKIC — zatwierdź i aktywuj ją w Techniczne → Marszruty, aby zlecenia produkcyjne pobrały kroki produkcji."
     },
     "pipelineCreate": {
       "title": "Utwórz projekt NPD",

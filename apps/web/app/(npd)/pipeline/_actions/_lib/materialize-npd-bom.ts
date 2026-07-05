@@ -92,6 +92,8 @@ type ProductProcessYields = {
   all: number[];
   byIngredientItemId: Map<string, number[]>;
   byWipItemId: Map<string, number[]>;
+  /** Distinct prod_detail component rows carrying processes. */
+  componentCount: number;
 };
 
 type FactorySpecRow = {
@@ -710,13 +712,20 @@ async function loadProductProcessYields(ctx: OrgContextLike, productCode: string
     }
   }
 
-  return { all, byIngredientItemId, byWipItemId };
+  return { all, byIngredientItemId, byWipItemId, componentCount: byDetail.size };
 }
 
 function compoundedYieldPctForComponent(processYields: ProductProcessYields, itemId: string | null): number {
+  // Unlinked components may only inherit the FULL process chain when the product
+  // has a SINGLE prod_detail component (the chain unambiguously IS the product's
+  // chain — the owner's canonical 0.300/0.95/0.95 case). With multiple components
+  // the union of every sibling's processes would over-compound (divide by
+  // 0.95^(2×N)), so an unlinked component takes no yield adjustment until it is
+  // explicitly linked to its component chain.
+  const fallback = processYields.componentCount <= 1 ? processYields.all : [];
   const yields = itemId
-    ? processYields.byIngredientItemId.get(itemId) ?? processYields.byWipItemId.get(itemId) ?? processYields.all
-    : processYields.all;
+    ? processYields.byIngredientItemId.get(itemId) ?? processYields.byWipItemId.get(itemId) ?? fallback
+    : fallback;
   if (yields.length === 0) return 100;
   return yields.reduce((factor, yieldPct) => {
     if (!Number.isFinite(yieldPct) || yieldPct <= 0 || yieldPct > 100) return factor;

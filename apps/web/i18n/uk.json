@@ -6567,7 +6567,8 @@
       },
       "generatePackagingUnlinked": "Packaging components must be linked to items before generating the production BOM: {components}",
       "generateWarningNoLine": "Production BOM created, but no production line is set on the project — routing was not materialized.",
-      "generateWarningNoProcesses": "Production BOM created, but no NPD processes were found to build a routing."
+      "generateWarningNoProcesses": "Production BOM created, but no NPD processes were found to build a routing.",
+      "generateWarningRoutingDraft": "Routing created as DRAFT — approve and activate it in Technical → Routings so work orders pick up the production steps."
     },
     "pipelineCreate": {
       "title": "Створити проєкт NPD",

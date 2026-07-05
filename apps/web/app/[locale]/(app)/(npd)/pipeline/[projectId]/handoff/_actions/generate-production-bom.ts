@@ -29,7 +29,7 @@ import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate
 
 const Input = z.object({ projectId: z.string().uuid() });
 
-export type GenerateProductionBomRoutingWarningCode = 'no_processes' | 'no_line';
+export type GenerateProductionBomRoutingWarningCode = 'no_processes' | 'no_line' | 'routing_draft';
 
 export type GenerateProductionBomRoutingWarning = {
   code: GenerateProductionBomRoutingWarningCode;
@@ -145,6 +145,11 @@ export async function generateProductionBom(raw: unknown): Promise<GenerateProdu
         if (routing.code === 'no_processes' || routing.code === 'no_line') {
           warnings.push({ code: routing.code });
         }
+      } else if (routing.ok) {
+        // L8 MED-1: the materialized routing is a DRAFT — WOs copy operations
+        // only from an ACTIVE routing, so tell the user to approve it in
+        // Technical instead of leaving a silent dead end.
+        warnings.push({ code: 'routing_draft' });
       }
 
       return {

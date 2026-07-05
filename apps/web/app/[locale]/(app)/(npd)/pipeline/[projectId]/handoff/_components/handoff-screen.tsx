@@ -138,9 +138,10 @@ export type HandoffLabels = {
   generateError: string;
   /** W5 hard gate: packaging components not linked to items ({components} placeholder). */
   generatePackagingUnlinked?: string;
-  /** W5 routing-bridge warnings (BOM succeeded, routing skipped). */
+  /** W5 routing-bridge warnings (BOM succeeded, routing skipped or draft). */
   generateWarningNoLine?: string;
   generateWarningNoProcesses?: string;
+  generateWarningRoutingDraft?: string;
   // Post-promote success panel (auto-built production BOM result).
   promoteSuccessTitle: string;
   /** Body with the {code} placeholder for the generated production FG code. */
@@ -834,6 +835,8 @@ export function HandoffScreen({
                       <div key={code} className="alert-title">
                         {code === 'no_line'
                           ? (labels.generateWarningNoLine ?? 'Production BOM created, but no production line is set on the project — routing was not materialized.')
+                          : code === 'routing_draft'
+                          ? (labels.generateWarningRoutingDraft ?? 'Routing created as DRAFT — approve and activate it in Technical → Routings so work orders pick up the production steps.')
                           : (labels.generateWarningNoProcesses ?? 'Production BOM created, but no NPD processes were found to build a routing.')}
                       </div>
                     ))}

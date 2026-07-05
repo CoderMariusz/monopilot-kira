@@ -111,6 +111,8 @@ const DEFAULT_LABELS: HandoffLabels = {
     'Production BOM created, but no production line is set on the project — routing was not materialized.',
   generateWarningNoProcesses:
     'Production BOM created, but no NPD processes were found to build a routing.',
+  generateWarningRoutingDraft:
+    'Routing created as DRAFT — approve and activate it in Technical → Routings so work orders pick up the production steps.',
   promoteSuccessTitle: 'Production BOM created',
   promoteSuccessBody: 'Production FG {code} was created and its BOM auto-built.',
   promoteSuccessViewBom: 'Open production BOM',

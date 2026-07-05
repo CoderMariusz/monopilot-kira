@@ -327,6 +327,52 @@ describe('materializeNpdBom', () => {
     expect(rmLineInsert?.params[6]).toBe('3.988920');
   });
 
+  it('does NOT compound sibling components\' yields for an unlinked RM on a MULTI-component product (L8 HIGH-1)', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [{ ...projectRow(), pack_weight_g: '300.000', packs_per_case: 12 }];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '100' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [{ rm_code: 'RM-PORK', item_id: null, substitute_item_id: null, qty_kg: '0.300000', sequence: 1 }];
+      }
+      if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select pc.component_name')) return [];
+      if (sql.startsWith('select pd.id::text as prod_detail_id')) {
+        // TWO components, each with its own 95% process chain — an unlinked RM
+        // must NOT be divided by 0.95^4 (the union), nor by either chain.
+        return [
+          { prod_detail_id: 'pd-1', ingredient_item_id: null, wip_item_id: null, display_order: 1, yield_pct: '95.000' },
+          { prod_detail_id: 'pd-1', ingredient_item_id: null, wip_item_id: null, display_order: 2, yield_pct: '95.000' },
+          { prod_detail_id: 'pd-2', ingredient_item_id: null, wip_item_id: null, display_order: 1, yield_pct: '95.000' },
+          { prod_detail_id: 'pd-2', ingredient_item_id: null, wip_item_id: null, display_order: 2, yield_pct: '95.000' },
+        ];
+      }
+      if (sql.startsWith('insert into public.items')) return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
+      if (sql.startsWith('update public.items')) return [];
+      if (sql.startsWith('select 1 from public.product')) return [];
+      if (sql.startsWith('insert into public.product')) return [];
+      if (sql.startsWith('update public.formulations')) return [];
+      if (sql.startsWith('select id, wo_reference, status')) return [];
+      if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
+      if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
+      if (sql.startsWith('insert into public.bom_lines')) return [];
+      if (sql.startsWith('update public.bom_headers')) return [];
+      if (sql.startsWith('select id from public.factory_specs')) return [];
+      if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('with recursive parents as')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    });
+
+    await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    const rmLineInsert = client.calls.find((call) => normalize(call.sql).startsWith('insert into public.bom_lines'));
+    // 0.300 kg/pack × 12 packs — no yield adjustment until the RM is linked to its chain.
+    expect(rmLineInsert?.params[6]).toBe('3.600000');
+  });
+
   it('creates a new BOM version and supersedes stale active NPD BOMs', async () => {
     const client = createClient((sql) => {
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
