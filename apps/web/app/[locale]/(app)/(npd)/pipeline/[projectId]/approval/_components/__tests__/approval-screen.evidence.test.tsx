@@ -78,6 +78,8 @@ const LABELS: ApprovalLabels = {
   stepDone: 'Approved',
   stepCurrent: 'Awaiting',
   stepPending: 'Pending',
+  approverPermissionFallback: 'Any user with npd.gate.approve can approve',
+  approverNoneConfigured: 'No eligible approver is configured',
   modalTitle: 'Submit for approval',
   modalSubtitle: 'An e-signature is required to submit this gate for approval.',
   fieldPassword: 'Password',
@@ -111,6 +113,7 @@ function data(overrides?: Partial<Record<ApprovalCriterionKey, ApprovalCriterion
     approvalMode: 'single',
     criteria: { ...base, ...overrides },
     steps: [{ who: 'NPD Manager', name: 'A. Davis', status: 'current', when: 'pending' }],
+    eligibleApproverCount: 1,
   };
 }
 

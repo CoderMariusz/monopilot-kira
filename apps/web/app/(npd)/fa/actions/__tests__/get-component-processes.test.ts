@@ -37,6 +37,7 @@ describe('getComponentProcesses', () => {
             throughput_per_hour: null,
             throughput_uom: null,
             setup_cost: null,
+            yield_pct: '95',
           }],
         };
       }
@@ -69,6 +70,7 @@ describe('getComponentProcesses', () => {
         throughputPerHour: 0,
         throughputUom: 'kg',
         setupCost: 0,
+        yieldPct: 95,
         roles: [{ roleGroup: 'operator', headcount: 2, ratePerHour: 20 }],
         processCost: 65,
       }],

@@ -11,11 +11,14 @@ import {
   GATE_APPROVED_EVENT,
   deterministicApprovalHash,
   emitOutbox,
+  gateForStage,
   getBlockers,
   loadProjectForUpdate,
   nextStage,
   requireActionPermission,
+  seedHandoffChecklist,
   serializeGateError,
+  updateProjectStage,
   type AnyStage,
   type GateBlocker,
 } from './_lib/gate-helpers';
@@ -53,6 +56,7 @@ export type ApproveProjectGateResult =
         approvedGate: 'G3' | 'G4';
         decision: 'approved' | 'rejected';
         currentGate: ProjectGate;
+        currentStage: AnyStage;
         approvalId: string;
         outboxEventType: typeof GATE_APPROVED_EVENT;
       };
@@ -86,7 +90,7 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
           : [];
       if (blockers.length > 0) return { ok: false, error: 'BLOCKERS_PRESENT', status: 409, blockers };
 
-      const currentGate = project.current_gate;
+      let currentGate: ReturnType<typeof gateForStage> = project.current_gate;
 
       // E-signature is collected ONLY on the approve path (G3/G4 require it). A rejection
       // records the reason with no password and no signature (esigned_at/esign_hash null).
@@ -135,8 +139,19 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
       const approvalId = approval.rows[0]?.id;
       if (!approvalId) return { ok: false, error: 'PERSISTENCE_FAILED', status: 500 };
 
-      // No auto-advance: the project stays on its current stage/gate. The e-sign is a
-      // recorded checkpoint; advancing the stage is the user's separate explicit step.
+      let currentStage = project.current_stage as AnyStage;
+      if (parsed.data.decision === 'approved') {
+        const targetStage = approvalTargetStage(project.current_stage, parsed.data.gateCode);
+        if (targetStage) {
+          if (project.current_stage === 'approval' && targetStage === 'handoff') {
+            await seedHandoffChecklist(context, project);
+          }
+          await updateProjectStage(context, project.id, targetStage);
+          currentStage = targetStage;
+          currentGate = gateForStage(targetStage);
+        }
+      }
+
       await emitOutbox(context, {
         eventType: GATE_APPROVED_EVENT,
         aggregateType: 'npd_project',
@@ -149,6 +164,7 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
           gate_code: parsed.data.gateCode,
           decision: parsed.data.decision,
           current_gate: currentGate,
+          current_stage: currentStage,
           approval_id: approvalId,
           e_sign_signature_id: signatureId,
           esign_hash: esignHash,
@@ -164,6 +180,7 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
           approvedGate: parsed.data.gateCode,
           decision: parsed.data.decision,
           currentGate,
+          currentStage,
           approvalId,
           outboxEventType: GATE_APPROVED_EVENT,
         },
@@ -181,6 +198,12 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
     });
     return { ok: false, error: 'PERSISTENCE_FAILED', status: 500 };
   }
+}
+
+function approvalTargetStage(currentStage: string, gateCode: 'G3' | 'G4'): AnyStage | null {
+  if (gateCode === 'G3') return 'approval';
+  if (gateCode === 'G4' && currentStage === 'approval') return 'handoff';
+  return null;
 }
 
 function safeRevalidatePath(path: string): void {

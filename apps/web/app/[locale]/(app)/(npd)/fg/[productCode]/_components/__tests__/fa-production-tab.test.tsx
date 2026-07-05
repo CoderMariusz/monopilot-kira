@@ -117,6 +117,10 @@ const LABELS: FaProductionTabLabels = {
     intermediate_code_final: 'PR Code Final (auto)',
   },
   processes: PROCESS_LABELS(),
+  productionLine: 'Production line',
+  productionLinePlaceholder: 'Select a line…',
+  productionLineEmpty: 'No production lines configured for this site.',
+  productionLineSaveError: 'Could not save the production line',
 };
 
 function PROCESS_LABELS(): ProductionProcessLabels {
@@ -134,6 +138,10 @@ function PROCESS_LABELS(): ProductionProcessLabels {
     emptyBody: 'Add the first manufacturing process.',
     duration: 'Duration (h)',
     additionalCost: 'Standard cost',
+    throughputPerHour: 'Throughput / hour',
+    throughputUom: 'Throughput unit',
+    setupCost: 'Setup cost (£)',
+    yieldPct: 'Yield %',
     processCost: 'Process cost',
     createsWip: 'Creates WIP',
     rolesHeader: 'Roles',
@@ -170,6 +178,10 @@ const COMPONENT_PROCESSES: Record<string, ComponentProcess[]> = {
       additionalCost: 5,
       createsWipItem: false,
       wipItemId: null,
+      throughputPerHour: 0,
+      throughputUom: 'kg',
+      setupCost: 0,
+      yieldPct: 95,
       roles: [
         { roleGroup: 'Operator', headcount: 3, ratePerHour: 12 },
         { roleGroup: 'Supervisor', headcount: 1, ratePerHour: 20 },
@@ -644,6 +656,13 @@ describe('FaProductionTab — S5b per-component process list', () => {
     expect(within(section).getByText(/Supervisor/)).toBeInTheDocument();
     // The computed process cost is shown.
     expect(within(section).getByTestId('fa-prod-process-cost-wp-1')).toHaveTextContent('117');
+  });
+
+  it('renders loaded yieldPct in the process row (not a hardcoded 100 default)', () => {
+    renderS5b();
+    const row = screen.getByTestId('fa-prod-process-wp-1');
+    expect(row).toHaveTextContent('95.00');
+    expect(row).not.toHaveTextContent('100.00');
   });
 
   it('shows the per-component process subtotal (Σ processCost)', () => {

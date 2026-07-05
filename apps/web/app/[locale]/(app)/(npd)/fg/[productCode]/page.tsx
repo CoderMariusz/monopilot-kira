@@ -1248,6 +1248,10 @@ async function buildProductionLabels(
       emptyBody: p('processes.emptyBody', 'Add the first manufacturing process.'),
       duration: p('processes.duration', 'Duration (h)'),
       additionalCost: p('processes.additionalCost', 'Standard cost'),
+      throughputPerHour: p('processes.throughput_per_hour', 'Throughput / hour'),
+      throughputUom: p('processes.throughput_uom', 'Throughput unit'),
+      setupCost: p('processes.setup_cost', 'Setup cost (£)'),
+      yieldPct: p('processYieldPct', 'Yield %'),
       processCost: p('processes.processCost', 'Process cost'),
       createsWip: p('processes.createsWip', 'Creates WIP'),
       rolesHeader: p('processes.rolesHeader', 'Roles'),
@@ -1266,6 +1270,10 @@ async function buildProductionLabels(
       loading: p('processes.loading', 'Loading processes…'),
       loadError: p('processes.loadError', 'Could not load processes'),
     },
+    productionLine: p('productionLine', 'Production line'),
+    productionLinePlaceholder: p('productionLinePlaceholder', 'Select a line…'),
+    productionLineEmpty: p('productionLineEmpty', 'No production lines configured for this site.'),
+    productionLineSaveError: p('productionLineSaveError', 'Could not save the production line'),
     fields: fieldLabelsFor(columns, p),
   };
 }

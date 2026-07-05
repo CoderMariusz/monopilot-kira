@@ -103,6 +103,8 @@ const DEFAULT_LABELS: ApprovalLabels = {
   stepDone: 'Approved',
   stepCurrent: 'Awaiting',
   stepPending: 'Pending',
+  approverPermissionFallback: 'Any user with npd.gate.approve can approve',
+  approverNoneConfigured: 'No eligible approver is configured',
   modalTitle: 'Submit for approval',
   modalSubtitle: 'An e-signature is required to submit this gate for approval.',
   fieldPassword: 'Password',
@@ -154,6 +156,10 @@ type ApprovalRow = {
   approver_user_id: string;
   approver_name: string | null;
   esigned_at: string | null;
+};
+
+type EligibleApproverRow = {
+  count: string;
 };
 
 const APPROVAL_GATES: readonly ApprovalGateCode[] = ['G3', 'G4'] as const;
@@ -228,6 +234,23 @@ async function readPageData(projectId: string, locale: string): Promise<LoaderRe
       }
 
       const gateCode = asApprovalGate(projectRow.current_gate);
+      const eligibleApprovers = await ctx.client.query<EligibleApproverRow>(
+        `select count(distinct ur.user_id)::text as count
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           left join public.role_permissions rp
+             on rp.role_id = r.id
+            and rp.permission = $1
+          where ur.org_id = app.current_org_id()
+            and (
+              rp.permission is not null
+              or coalesce(r.permissions, '[]'::jsonb) ? $1
+              or r.code = any($2::text[])
+              or r.slug = any($2::text[])
+            )`,
+        [GATE_APPROVE_PERMISSION, ['owner', 'admin', 'org_admin']],
+      );
+      const eligibleApproverCount = Number(eligibleApprovers.rows[0]?.count ?? 0);
 
       // Approval-chain step status for the current gate (REAL gate_approvals row).
       const approval = await ctx.client.query<ApprovalRow>(
@@ -260,6 +283,7 @@ async function readPageData(projectId: string, locale: string): Promise<LoaderRe
           approvalMode: 'single',
           criteria: EMPTY_CRITERIA,
           steps: [step],
+          eligibleApproverCount,
         },
         canApprove,
         productCode: projectRow.product_code,

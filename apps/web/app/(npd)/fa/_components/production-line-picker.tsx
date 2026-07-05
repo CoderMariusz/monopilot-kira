@@ -15,10 +15,18 @@ import type { SetProductionLineResult } from '../_actions/set-production-line-ty
 
 const UNSET = '__none__';
 
+export type ProductionLinePickerLabels = {
+  productionLine: string;
+  productionLinePlaceholder: string;
+  productionLineEmpty: string;
+  productionLineSaveError: string;
+};
+
 export function ProductionLinePicker({
   projectId,
   value,
   options,
+  labels,
   canWrite,
   disabled,
   onSetProductionLine,
@@ -27,6 +35,7 @@ export function ProductionLinePicker({
   projectId: string;
   value: string | null;
   options: FaProductionLineOption[];
+  labels: ProductionLinePickerLabels;
   canWrite: boolean;
   disabled?: boolean;
   onSetProductionLine: (input: {
@@ -54,7 +63,7 @@ export function ProductionLinePicker({
       }
       onSaved?.();
     } catch {
-      setError('Could not save the production line');
+      setError(labels.productionLineSaveError);
     } finally {
       setBusy(false);
     }
@@ -71,11 +80,11 @@ export function ProductionLinePicker({
         id="fa-production-line-label"
         className="mb-1 block text-xs font-medium text-slate-700"
       >
-        Production line
+        {labels.productionLine}
       </label>
       {options.length === 0 ? (
         <p className="text-xs text-slate-500" data-testid="fa-production-line-empty">
-          No production lines configured for this site.
+          {labels.productionLineEmpty}
         </p>
       ) : (
         <Select
@@ -83,7 +92,7 @@ export function ProductionLinePicker({
           disabled={readOnly}
           onValueChange={handleChange}
           options={[
-            { value: UNSET, label: 'Select a line…' },
+            { value: UNSET, label: labels.productionLinePlaceholder },
             ...options.map((line) => ({
               value: line.id,
               label: `${line.code} — ${line.name}`,
@@ -91,11 +100,11 @@ export function ProductionLinePicker({
           ]}
           aria-labelledby="fa-production-line-label"
         >
-          <SelectTrigger aria-label="Production line" data-testid="fa-production-line-select">
-            <SelectValue placeholder="Select a line…" />
+          <SelectTrigger aria-label={labels.productionLine} data-testid="fa-production-line-select">
+            <SelectValue placeholder={labels.productionLinePlaceholder} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={UNSET}>Select a line…</SelectItem>
+            <SelectItem value={UNSET}>{labels.productionLinePlaceholder}</SelectItem>
             {options.map((line) => (
               <SelectItem key={line.id} value={line.id}>
                 {line.code} — {line.name}

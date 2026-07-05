@@ -66,6 +66,7 @@ export type ApprovalScreenData = {
   approvalMode: ApprovalMode;
   criteria: Record<ApprovalCriterionKey, ApprovalCriterionStatus>;
   steps: ApprovalChainStep[];
+  eligibleApproverCount?: number;
   /** Per-criterion remediation hrefs (locale + product-code aware; built in page.tsx). */
   criterionLinks?: CriterionLinks;
 };
@@ -91,6 +92,8 @@ export type ApprovalLabels = CriteriaLabels &
     stepDone: string;
     stepCurrent: string;
     stepPending: string;
+    approverPermissionFallback: string;
+    approverNoneConfigured: string;
     loading: string;
     empty: string;
     emptyBody: string;
@@ -201,6 +204,10 @@ export function ApprovalScreen({
 
   const counts = tallyCriteria(data.criteria);
   const canSubmit = counts.allSatisfied;
+  const pendingApproverCopy =
+    (data.eligibleApproverCount ?? 0) > 0 || canApprove
+      ? labels.approverPermissionFallback
+      : labels.approverNoneConfigured;
 
   return (
     <main data-testid="approval-screen" aria-labelledby="approval-title" className="mx-auto w-full max-w-4xl">
@@ -292,7 +299,9 @@ export function ApprovalScreen({
               <div className="flex-1">
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{step.who}</div>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  {[step.name, step.when].filter(Boolean).join(' · ') || '—'}
+                  {[step.name ?? (step.status === 'current' ? pendingApproverCopy : null), step.when]
+                    .filter(Boolean)
+                    .join(' · ') || '—'}
                 </div>
               </div>
               {stepStatusBadge(step.status, labels)}

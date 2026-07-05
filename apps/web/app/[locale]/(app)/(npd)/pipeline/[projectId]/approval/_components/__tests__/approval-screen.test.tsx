@@ -76,6 +76,8 @@ const LABELS: ApprovalLabels = {
   stepDone: 'Approved',
   stepCurrent: 'Awaiting',
   stepPending: 'Pending',
+  approverPermissionFallback: 'Any user with npd.gate.approve can approve',
+  approverNoneConfigured: 'No eligible approver is configured',
   modalTitle: 'Submit for approval',
   modalSubtitle: 'E-signature required to submit.',
   fieldPassword: 'Password',
@@ -112,6 +114,7 @@ function makeData(
     approvalMode: 'single',
     criteria: { ...base, ...overrides },
     steps: [{ who: 'NPD Manager', name: 'A. Davis', status: 'current', when: 'pending' }],
+    eligibleApproverCount: 1,
     criterionLinks,
   };
 }
@@ -240,6 +243,34 @@ describe('ApprovalScreen — parity + gating + e-sign', () => {
   it('hides the Submit affordance when caller lacks approve permission (no render-then-disable leak)', () => {
     render(<ApprovalScreen state="ready" data={makeData()} labels={LABELS} canApprove={false} />);
     expect(screen.queryByTestId('submit-for-approval')).not.toBeInTheDocument();
+  });
+
+  it('names permission holders as the fallback approver for an unassigned pending step', () => {
+    render(
+      <ApprovalScreen
+        state="ready"
+        data={{ ...makeData(), steps: [{ who: 'Approver', name: null, status: 'current', when: null }] }}
+        labels={LABELS}
+        canApprove
+      />,
+    );
+    expect(screen.getByTestId('chain-step-0')).toHaveTextContent(LABELS.approverPermissionFallback);
+  });
+
+  it('warns loudly when no eligible approver is configured for an unassigned pending step', () => {
+    render(
+      <ApprovalScreen
+        state="ready"
+        data={{
+          ...makeData(),
+          steps: [{ who: 'Approver', name: null, status: 'current', when: null }],
+          eligibleApproverCount: 0,
+        }}
+        labels={LABELS}
+        canApprove={false}
+      />,
+    );
+    expect(screen.getByTestId('chain-step-0')).toHaveTextContent(LABELS.approverNoneConfigured);
   });
 
   it('renders loading state', () => {

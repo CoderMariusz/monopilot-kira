@@ -258,6 +258,11 @@ export type FaProductionTabLabels = {
   picker: ItemPickerLabels;
   /** S5b — dynamic per-component process list labels. */
   processes: ProductionProcessLabels;
+  /** W5 — project-scoped production line picker labels. */
+  productionLine: string;
+  productionLinePlaceholder: string;
+  productionLineEmpty: string;
+  productionLineSaveError: string;
   /** Per-column human label keyed by physical column key. */
   fields: Record<string, string>;
 };
@@ -781,9 +786,7 @@ function ProcessEditDialog({
     (process.throughputUom as 'kg' | 'pack' | 'each' | 'l') ?? 'kg',
   );
   const [setupCost, setSetupCost] = React.useState(String(process.setupCost ?? 0));
-  const [yieldPct, setYieldPct] = React.useState(
-    String((process as ComponentProcess & { yieldPct?: number }).yieldPct ?? 100),
-  );
+  const [yieldPct, setYieldPct] = React.useState(String(process.yieldPct ?? 100));
   const onCloseRef = React.useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -1288,8 +1291,7 @@ function ComponentProcesses({
                     {labels.additionalCost}: {fmtCost(Number(proc.additionalCost))}
                   </span>
                   <span className="tabular-nums">
-                    {labels.yieldPct}:{' '}
-                    {fmtCost(Number((proc as ComponentProcess & { yieldPct?: number }).yieldPct ?? 100))}
+                    {labels.yieldPct}: {fmtCost(Number(proc.yieldPct ?? 100))}
                   </span>
                   <span className="font-semibold tabular-nums text-slate-800">
                     {labels.processCost}:{' '}
@@ -1593,6 +1595,12 @@ export function FaProductionTab({
                 projectId={projectId}
                 value={productionLineId}
                 options={productionLineOptions}
+                labels={{
+                  productionLine: labels.productionLine,
+                  productionLinePlaceholder: labels.productionLinePlaceholder,
+                  productionLineEmpty: labels.productionLineEmpty,
+                  productionLineSaveError: labels.productionLineSaveError,
+                }}
                 canWrite={canWrite}
                 disabled={locked}
                 onSetProductionLine={onSetProductionLine}

@@ -1883,7 +1883,8 @@
         "npd_approval": "Wymagania zatwierdzenia",
         "compliance": "Profil zgodności",
         "npd_checklist": "Checklisty bramek",
-        "npd_cost_params": "Parametry kosztowe"
+        "npd_cost_params": "Parametry kosztowe",
+        "product_categories": "Kategorie produktów"
       }
     },
     "npd": {
@@ -5629,7 +5630,9 @@
       "c5Hint": "Otwórz ekran Alergeny, a następnie zaznacz „Deklaracja zaakceptowana”, aby spełnić to kryterium.",
       "c6Hint": "Zamknij lub obniż wszystkie otwarte ryzyka wysokiej wagi na ekranie Risks.",
       "c7Hint": "Dodaj ważne, aktualne dokumenty zgodności na ekranie Docs.",
-      "fixLink": "Napraw →"
+      "fixLink": "Napraw →",
+      "approverPermissionFallback": "Każdy użytkownik z uprawnieniem npd.gate.approve może zatwierdzić",
+      "approverNoneConfigured": "Nie skonfigurowano żadnego kwalifikowanego zatwierdzającego"
     },
     "gateApprovalModal": {
       "title": "Zatwierdzenie bramki",

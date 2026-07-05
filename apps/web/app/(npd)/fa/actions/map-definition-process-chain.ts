@@ -12,6 +12,7 @@ export type ComponentProcess = {
   throughputPerHour: number;
   throughputUom: string;
   setupCost: number;
+  yieldPct: number;
   roles: ComponentProcessRole[];
   processCost: number;
 };
@@ -95,6 +96,7 @@ export function mapDefinitionProcessesToComponentProcesses(
       throughputPerHour: Number(process.throughput_per_hour ?? 0),
       throughputUom: process.throughput_uom ?? 'kg',
       setupCost: Number(process.setup_cost ?? 0),
+      yieldPct: 100,
       roles: processRoles,
       processCost: computeWipProcessCost(
         processRoles.map((role) => ({

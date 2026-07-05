@@ -1869,7 +1869,8 @@
         "npd_approval": "Approval requirements",
         "compliance": "Compliance profile",
         "npd_checklist": "Gate checklists",
-        "npd_cost_params": "Cost parameters"
+        "npd_cost_params": "Cost parameters",
+        "product_categories": "Product categories"
       }
     },
     "npd": {
@@ -5615,7 +5616,9 @@
       "c5Hint": "Open the Allergens screen, then check “Declaration accepted” to satisfy this criterion.",
       "c6Hint": "Закрийте або знизьте всі відкриті ризики високої ваги на екрані Risks.",
       "c7Hint": "Додайте чинні, актуальні документи відповідності на екрані Docs.",
-      "fixLink": "Виправити →"
+      "fixLink": "Виправити →",
+      "approverPermissionFallback": "Any user with npd.gate.approve can approve",
+      "approverNoneConfigured": "No eligible approver is configured"
     },
     "gateApprovalModal": {
       "title": "Затвердження етапу",

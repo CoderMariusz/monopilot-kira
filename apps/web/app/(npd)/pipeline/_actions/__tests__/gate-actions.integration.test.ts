@@ -356,19 +356,18 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
   it('approves with e-sign and stores deterministic gate_approvals esign_hash', async () => {
     const { approveProjectGate } = await import('../approve-project-gate');
 
-    // approveProjectId is at approval/G4. Approval is a CHECKPOINT RECORD — it records
-    // the e-sign in gate_approvals but does NOT advance the stage (advance is separate).
+    // approveProjectId is at approval/G4. Approval records the e-sign and advances
+    // directly to handoff so the approval screen cannot strand the project.
     const approved = await withActionActor(seed.userAId, seed.orgAId, () =>
       approveProjectGate({ projectId: approveProjectId, gateCode: 'G4', decision: 'approved', notes: 'Ready for testing approval.', password: pin }),
     );
     expect(approved).toMatchObject({ ok: true, data: { approvedGate: 'G4', currentGate: 'G4' } });
 
-    // Approval did NOT advance the project's stage.
-    const stillApproval = await owner.query<{ current_stage: string }>(
-      `select current_stage from public.npd_projects where id = $1::uuid`,
+    const advanced = await owner.query<{ current_gate: string; current_stage: string }>(
+      `select current_gate, current_stage from public.npd_projects where id = $1::uuid`,
       [approveProjectId],
     );
-    expect(stillApproval.rows[0]?.current_stage).toBe('approval');
+    expect(advanced.rows[0]).toMatchObject({ current_gate: 'G4', current_stage: 'handoff' });
 
     const approval = await owner.query<{ gate_code: string; esigned_at: Date; esign_hash: string; approved_events: string }>(
       `select ga.gate_code,
@@ -498,16 +497,10 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
     );
     expect(stillApproval.rows[0]?.current_stage).toBe('approval');
 
-    // Record the G4 e-signature via the existing approve flow, then the advance passes.
+    // Record the G4 e-signature via the existing approve flow; approval itself advances to handoff.
     await expect(
       withActionActor(seed.userAId, seed.orgAId, () =>
         approveProjectGate({ projectId: handoffProjectId, gateCode: 'G4', decision: 'approved', notes: 'Handoff e-sign.', password: pin }),
-      ),
-    ).resolves.toMatchObject({ ok: true });
-
-    await expect(
-      withActionActor(seed.userAId, seed.orgAId, () =>
-        advanceProjectGate({ projectId: handoffProjectId, targetStage: 'handoff' }),
       ),
     ).resolves.toMatchObject({ ok: true, data: { currentStage: 'handoff', currentGate: 'G4' } });
   });
@@ -529,16 +522,10 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
     );
     expect(stillPilot.rows[0]?.current_stage).toBe('pilot');
 
-    // Record the G3 e-signature via the existing approve flow, then the advance passes.
+    // Record the G3 e-signature via the existing approve flow; approval itself advances to G4/approval.
     await expect(
       withActionActor(seed.userAId, seed.orgAId, () =>
         approveProjectGate({ projectId: approvalProjectId, gateCode: 'G3', decision: 'approved', notes: 'Approval e-sign.', password: pin }),
-      ),
-    ).resolves.toMatchObject({ ok: true });
-
-    await expect(
-      withActionActor(seed.userAId, seed.orgAId, () =>
-        advanceProjectGate({ projectId: approvalProjectId, targetStage: 'approval' }),
       ),
     ).resolves.toMatchObject({ ok: true, data: { currentStage: 'approval', currentGate: 'G4' } });
   });

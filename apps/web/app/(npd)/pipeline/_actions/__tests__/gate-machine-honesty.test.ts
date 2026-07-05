@@ -18,6 +18,12 @@ import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('@monopilot/e-sign', () => ({
+  signEvent: vi.fn(async () => ({
+    signatureId: 'sig-fc1',
+    signedAt: '2026-07-05T10:00:00.000Z',
+  })),
+}));
 
 type Handler = (sql: string, params?: readonly unknown[]) => { rows: unknown[] };
 
@@ -45,6 +51,7 @@ import {
   nextStage,
 } from '../_lib/gate-helpers';
 import { advanceProjectGate } from '../advance-project-gate';
+import { approveProjectGate } from '../approve-project-gate';
 import { rollbackGate } from '../revert-gate';
 
 describe('advanceTransitionForStage — the single honest source for "advance to …" claims', () => {
@@ -380,6 +387,66 @@ describe('advanceProjectGate — ONE gate system soft and hard gates', () => {
       error: 'SOFT_GATE_BLOCKED',
       status: 409,
       missing: ['Cost breakdown computed', 'Nutrition computed'],
+    });
+  });
+});
+
+describe('approveProjectGate — FC1 approval completion advances the project', () => {
+  const PROJECT = '00000000-0000-4000-8000-0000000005b1';
+
+  beforeEach(() => {
+    ctx.handler = () => ({ rows: [] });
+  });
+
+  it('unconfigured single-approver fallback: a permission-holder approves G3 and the project advances to approval/G4', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.npd_projects') && sql.includes('for update')) {
+        return {
+          rows: [{
+            id: PROJECT,
+            code: 'NPD-032',
+            name: 'FC1 approval project',
+            type: 'standard',
+            current_gate: 'G3',
+            current_stage: 'packaging',
+            product_code: 'FG-NPD-032',
+          }],
+        };
+      }
+      if (sql.includes('insert into public.gate_approvals')) {
+        return { rows: [{ id: '00000000-0000-4000-8000-0000000005a1' }] };
+      }
+      return { rows: [] };
+    };
+
+    const result = await approveProjectGate({
+      projectId: PROJECT,
+      gateCode: 'G3',
+      decision: 'approved',
+      notes: 'All approval criteria satisfied.',
+      password: '123456',
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        approvedGate: 'G3',
+        currentGate: 'G4',
+        currentStage: 'approval',
+      },
+    });
+    const stageUpdate = calls.find((call) => /update public\.npd_projects/.test(call.sql));
+    expect(stageUpdate?.params).toEqual([PROJECT, 'approval', 'G4']);
+    const outbox = calls.find((call) => /insert into public\.outbox_events/.test(call.sql));
+    expect(JSON.parse(outbox?.params?.[3] as string)).toMatchObject({
+      project_code: 'NPD-032',
+      gate_code: 'G3',
+      decision: 'approved',
+      current_gate: 'G4',
+      current_stage: 'approval',
     });
   });
 });

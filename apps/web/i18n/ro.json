@@ -1869,7 +1869,8 @@
         "npd_approval": "Approval requirements",
         "compliance": "Compliance profile",
         "npd_checklist": "Gate checklists",
-        "npd_cost_params": "Cost parameters"
+        "npd_cost_params": "Cost parameters",
+        "product_categories": "Product categories"
       }
     },
     "npd": {
@@ -5615,7 +5616,9 @@
       "c5Hint": "Open the Allergens screen, then check “Declaration accepted” to satisfy this criterion.",
       "c6Hint": "Închide sau retrogradează toate riscurile majore deschise pe ecranul Risks.",
       "c7Hint": "Adaugă documente de conformitate valide şi în termen pe ecranul Docs.",
-      "fixLink": "Rezolvă →"
+      "fixLink": "Rezolvă →",
+      "approverPermissionFallback": "Any user with npd.gate.approve can approve",
+      "approverNoneConfigured": "No eligible approver is configured"
     },
     "gateApprovalModal": {
       "title": "Aprobare poartă",

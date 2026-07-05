@@ -61,6 +61,7 @@ describe('mapDefinitionProcessesToComponentProcesses', () => {
         throughputPerHour: 0,
         throughputUom: 'kg',
         setupCost: 0,
+        yieldPct: 100,
         roles: [{ roleGroup: 'operator', headcount: 1, ratePerHour: 10 }],
         processCost: 24,
       },
