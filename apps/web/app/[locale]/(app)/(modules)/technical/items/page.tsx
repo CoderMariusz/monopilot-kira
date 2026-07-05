@@ -23,6 +23,7 @@ import { getTranslations } from 'next-intl/server';
 import { type SelectOption } from '@monopilot/ui/Select';
 
 import { listSuppliers } from '../../planning/suppliers/_actions/actions';
+import { listActiveProductCategories } from '../../../../../../actions/reference/product-categories/list';
 import { listItems } from './_actions/list-items';
 import type { DeactivateLabels } from './_components/deactivate-modal';
 import { buildTransitionLabels } from './_components/item-transition-labels';
@@ -62,6 +63,7 @@ function buildDeactivateLabels(t: Translator): DeactivateLabels {
       invalid_input: t('errors.invalid_input'),
       not_found: t('errors.not_found'),
       persistence_failed: t('errors.persistence_failed'),
+      invalid_category: t.has('errors.invalid_category') ? t('errors.invalid_category') : 'Choose an active product category or leave blank.',
     },
   };
 }
@@ -87,12 +89,19 @@ export default async function TechnicalItemsPage({
   // createItem payload); supplierIdByCode maps each code → UUID so the EDIT-mode
   // save can call createItemSupplierSpec, which keys its row on the supplier id.
   let supplierOptions: SelectOption[] = [];
+  let categoryOptions: SelectOption[] = [];
   const supplierIdByCode: Record<string, string> = {};
   if (canCreate || canEdit) {
-    const suppliers = await listSuppliers({ status: 'active', limit: 200 });
+    const [suppliers, categories] = await Promise.all([
+      listSuppliers({ status: 'active', limit: 200 }),
+      listActiveProductCategories(),
+    ]);
     if (suppliers.ok) {
       supplierOptions = suppliers.data.map((s) => ({ value: s.code, label: `${s.code} — ${s.name}` }));
       for (const s of suppliers.data) supplierIdByCode[s.code] = s.id;
+    }
+    if (categories.ok) {
+      categoryOptions = categories.data.map((c) => ({ value: c.code, label: c.label }));
     }
   }
 
@@ -173,6 +182,7 @@ export default async function TechnicalItemsPage({
             label={newItemLabel}
             wizardLabels={wizardLabels}
             supplierOptions={supplierOptions}
+            categoryOptions={categoryOptions}
             autoOpen={autoOpenCreate}
           />
         ) : null}
@@ -193,7 +203,7 @@ export default async function TechnicalItemsPage({
             </div>
             {canCreate ? (
               <div className="empty-state-action">
-                <NewItemButton label={newItemLabel} wizardLabels={wizardLabels} supplierOptions={supplierOptions} />
+                <NewItemButton label={newItemLabel} wizardLabels={wizardLabels} supplierOptions={supplierOptions} categoryOptions={categoryOptions} />
               </div>
             ) : null}
           </div>
@@ -219,6 +229,7 @@ export default async function TechnicalItemsPage({
             deactivateLabels={deactivateLabels}
             transitionLabels={transitionLabels}
             supplierOptions={supplierOptions}
+            categoryOptions={categoryOptions}
             supplierIdByCode={supplierIdByCode}
           />
         </>

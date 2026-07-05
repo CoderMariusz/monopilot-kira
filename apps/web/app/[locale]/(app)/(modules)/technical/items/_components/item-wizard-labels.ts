@@ -34,6 +34,7 @@ export type ItemWizardLabels = {
     uomBase: string;
     uomSecondary: string;
     productGroup: string;
+    category: string;
     // A11 — optional supplier link (auto-creates an approved supplier spec).
     supplier: string;
     supplierHelp: string;
@@ -100,6 +101,7 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     uomBase: 'Base UoM',
     uomSecondary: 'Secondary UoM',
     productGroup: 'Product group',
+    category: 'Category',
     supplier: 'Supplier',
     supplierHelp: 'Optional. Auto-creates an approved supplier specification for this item.',
     weightMode: 'Weight mode',
@@ -163,6 +165,7 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     invalid_input: 'Please check the values and try again.',
     not_found: 'That item no longer exists.',
     persistence_failed: 'Could not save. Please try again.',
+    invalid_category: 'Choose an active product category or leave blank.',
   },
 };
 
@@ -213,6 +216,7 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       uomBase: t('create.fields.uomBase'),
       uomSecondary: t('create.fields.uomSecondary'),
       productGroup: t('create.fields.productGroup'),
+      category: get('create.fields.category', D.fields.category),
       supplier: get('create.fields.supplier', D.fields.supplier),
       supplierHelp: get('create.fields.supplierHelp', D.fields.supplierHelp),
       weightMode: t('create.fields.weightMode'),
@@ -279,6 +283,7 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       invalid_input: t('errors.invalid_input'),
       not_found: t('errors.not_found'),
       persistence_failed: t('errors.persistence_failed'),
+      invalid_category: get('errors.invalid_category', D.actionErrors.invalid_category),
     },
   };
 }

@@ -70,6 +70,7 @@ export const SETTINGS_NAV_GROUPS = [
     item("processes", "Processes", "⟶", true),
     item("machines", "Machines", "⚙"),
     item("manufacturing-ops", "Manufacturing operations", "⚒", true, "/settings/reference/manufacturing-operations"),
+    item("product-categories", "Product categories", "🏷", true, "/settings/reference/product-categories"),
     // NPD v2 S5a (owner decision D9) — per-process production DEFAULTS (standard
     // cost + default duration + roles[role_group, headcount]) that pre-fill the
     // NPD Production tab. Sits next to Manufacturing operations / Processes so the

@@ -44,6 +44,7 @@ function rowToForm(item: ItemListItem): WizardFormState {
     itemType: item.itemType,
     status: item.status,
     productGroup: item.productGroup ?? '',
+    categoryCode: item.categoryCode ?? '',
     // A11 — supplier link. The list row does NOT carry the item's current active
     // supplier (listItems reads only public.items), so we leave this blank and let
     // the user pick in EDIT mode rather than over-fetch per row. A chosen supplier
@@ -72,12 +73,13 @@ export function NewItemButton({
   label,
   wizardLabels,
   supplierOptions = [],
+  categoryOptions = [],
   autoOpen = false,
 }: {
   label: string;
   wizardLabels?: ItemWizardLabels;
-  /** A11 — org supplier list (CODE → "CODE — Name") for the wizard's optional supplier link. */
   supplierOptions?: SelectOption[];
+  categoryOptions?: SelectOption[];
   /**
    * F6 — deep-link auto-open (?modal=create). The page renders this CTA twice
    * (header + empty-state), so the auto-open must be owned by exactly ONE
@@ -107,6 +109,7 @@ export function NewItemButton({
         mode={{ kind: 'create' }}
         labels={wizardLabels}
         supplierOptions={supplierOptions}
+        categoryOptions={categoryOptions}
       />
     </>
   );
@@ -123,6 +126,7 @@ export function ItemRowActions({
   deactivateLabels,
   transitionLabels = DEFAULT_TRANSITION_LABELS,
   supplierOptions = [],
+  categoryOptions = [],
   supplierIdByCode = {},
 }: {
   item: ItemListItem;
@@ -136,6 +140,7 @@ export function ItemRowActions({
   transitionLabels?: StatusTransitionLabels;
   /** A11 — org supplier list (CODE → "CODE — Name") for the edit wizard's supplier picker. */
   supplierOptions?: SelectOption[];
+  categoryOptions?: SelectOption[];
   /** A11 — supplier CODE → UUID map so EDIT-mode save can call createItemSupplierSpec. */
   supplierIdByCode?: Record<string, string>;
 }) {
@@ -200,6 +205,7 @@ export function ItemRowActions({
           initialForm={rowToForm(item)}
           labels={wizardLabels}
           supplierOptions={supplierOptions}
+          categoryOptions={categoryOptions}
           supplierIdByCode={supplierIdByCode}
         />
       ) : null}

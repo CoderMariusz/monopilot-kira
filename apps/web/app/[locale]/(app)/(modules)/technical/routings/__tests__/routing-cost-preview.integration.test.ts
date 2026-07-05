@@ -2,11 +2,12 @@
  * T-023 — 03-technical Routing cost preview: REAL DB-backed tests.
  *
  * Drives routingCostPreview through withOrgContext (RLS-scoped). Owner SQL seeds
- * a routing with operations, then asserts the NUMERIC-exact arithmetic.
+ * a routing with crew, labor rates, and a legacy empty-crew routing, then asserts
+ * the NUMERIC-exact arithmetic.
  *
- *   - AC1: one op (setup=30 min, run=10 sec, cost=60/h), volume=100 →
- *       setup 30/60×60 = 30.00 ; run (10×100)/3600×60 = 16.67 ; op_cost = 46.67
- *       (within 0.01). total = 46.67.
+ *   - W5 crew path: one op (setup=30 min, run=10 sec, crew rate=100/h),
+ *       volume=100 → setup 50.00 ; run 27.78 ; op_cost = 77.78.
+ *   - Legacy fallback: empty crew + cost_per_hour=60/h keeps old 46.67 result.
  *   - AC2: missing volume → invalid_input.
  *   - AC3: cross-org routing id → not_found (RLS scopes the SELECT to 0 rows).
  *   - read-only: no rows are written/changed by the preview.
@@ -43,6 +44,7 @@ const seed = {
   lineAId: randomUUID(),
   machineAId: randomUUID(),
   routingAId: randomUUID(),
+  legacyRoutingAId: randomUUID(),
   routingBId: randomUUID(),
 };
 
@@ -54,6 +56,9 @@ async function ensureAppUser(): Promise<void> {
 
 async function seedFixtures(): Promise<void> {
   await ensureAppUser();
+  await owner.query(`alter table public.routing_operations add column if not exists crew jsonb`);
+  await owner.query(`alter table public.routing_operations add column if not exists yield_pct numeric(6,3) not null default 100`);
+  await owner.query(`alter table public.routings add column if not exists origin_module text not null default 'technical'`);
   await owner.query(
     `insert into public.tenants (id, name, region_cluster, data_plane_url)
      values ($1, 'Cost Preview IT Tenant', 'eu', 'https://cp-it.example.test')
@@ -123,7 +128,17 @@ async function seedFixtures(): Promise<void> {
     [seed.machineAId, seed.orgAId, `CPM-${seed.machineAId.slice(0, 6)}`],
   );
 
-  // Routing A (org A) with the AC1 single op: setup 30 min, run 10 s, cost 60/h.
+  await owner.query(
+    `insert into public.labor_rates (org_id, role_group, rate_per_hour, currency, effective_from)
+     values
+       ($1, 'operator', 25.0000, 'GBP', '2026-01-01'),
+       ($1, 'supervisor', 50.0000, 'GBP', '2026-01-01')
+     on conflict (org_id, role_group, effective_from)
+     do update set rate_per_hour = excluded.rate_per_hour, currency = excluded.currency`,
+    [seed.orgAId],
+  );
+
+  // Routing A (org A) with crew: 2 operators × 25/h + 1 supervisor × 50/h = 100/h.
   await owner.query(
     `insert into public.routings (id, org_id, item_id, version, status)
      values ($1, $2, $3, 1, 'active')
@@ -132,9 +147,32 @@ async function seedFixtures(): Promise<void> {
   );
   await owner.query(
     `insert into public.routing_operations
-       (org_id, routing_id, op_no, op_code, op_name, line_id, machine_id, setup_time_min, run_time_per_unit_sec, cost_per_hour)
-     values ($1, $2, 1, 'MIX', 'Mixing', $3, $4, 30, 10.00, 60.0000)`,
-    [seed.orgAId, seed.routingAId, seed.lineAId, seed.machineAId],
+       (org_id, routing_id, op_no, op_code, op_name, line_id, machine_id, setup_time_min, run_time_per_unit_sec, cost_per_hour, crew)
+     values ($1, $2, 1, 'MIX', 'Mixing', $3, $4, 30, 10.00, 999.0000, $5::jsonb)`,
+    [
+      seed.orgAId,
+      seed.routingAId,
+      seed.lineAId,
+      seed.machineAId,
+      JSON.stringify([
+        { role_group: 'operator', headcount: 2 },
+        { role_group: 'supervisor', headcount: 1 },
+      ]),
+    ],
+  );
+
+  // Legacy routing A (org A) keeps empty crew + cost_per_hour fallback behavior.
+  await owner.query(
+    `insert into public.routings (id, org_id, item_id, version, status)
+     values ($1, $2, $3, 2, 'active')
+     on conflict (id) do nothing`,
+    [seed.legacyRoutingAId, seed.orgAId, seed.itemAId],
+  );
+  await owner.query(
+    `insert into public.routing_operations
+       (org_id, routing_id, op_no, op_code, op_name, line_id, machine_id, setup_time_min, run_time_per_unit_sec, cost_per_hour, crew)
+     values ($1, $2, 1, 'LEG', 'Legacy', $3, $4, 30, 10.00, 60.0000, '[]'::jsonb)`,
+    [seed.orgAId, seed.legacyRoutingAId, seed.lineAId, seed.machineAId],
   );
 
   // Routing B (org B) — used by the cross-org RLS assertion.
@@ -147,6 +185,7 @@ async function seedFixtures(): Promise<void> {
 }
 
 async function cleanup(): Promise<void> {
+  await owner.query(`delete from public.labor_rates where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.routing_operations where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.routings where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.machines where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
@@ -179,7 +218,7 @@ run('03-technical routing cost preview (NUMERIC-exact, RLS, real DB)', () => {
     }
   });
 
-  it('AC1: op_cost = 30 + 16.67 = 46.67 for setup=30min, run=10s, cost=60/h, volume=100 (NUMERIC-exact)', async () => {
+  it('computes op_cost from crew × effective labor_rates instead of legacy cost_per_hour', async () => {
     const result = await withActionActor(seed.userAId, seed.orgAId, () =>
       routingCostPreview({ routingId: seed.routingAId, volume: 100 }),
     );
@@ -187,13 +226,27 @@ run('03-technical routing cost preview (NUMERIC-exact, RLS, real DB)', () => {
     if (result.ok) {
       expect(result.data.operations).toHaveLength(1);
       const op = result.data.operations[0]!;
-      expect(op.setupCost).toBe('30.00');
-      expect(op.runCost).toBe('16.67');
-      expect(Math.abs(Number(op.opCost) - 46.67)).toBeLessThanOrEqual(0.01);
-      expect(op.opCost).toBe('46.67');
-      expect(result.data.totalCost).toBe('46.67');
+      expect(op.setupCost).toBe('50.00');
+      expect(op.runCost).toBe('27.78');
+      expect(op.opCost).toBe('77.78');
+      expect(result.data.totalCost).toBe('77.78');
       // NUMERIC stays a string (no float coercion in the result shape).
       expect(typeof op.opCost).toBe('string');
+    }
+  });
+
+  it('falls back to legacy cost_per_hour only when crew is empty', async () => {
+    const result = await withActionActor(seed.userAId, seed.orgAId, () =>
+      routingCostPreview({ routingId: seed.legacyRoutingAId, volume: 100 }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.operations[0]).toMatchObject({
+        setupCost: '30.00',
+        runCost: '16.67',
+        opCost: '46.67',
+      });
+      expect(result.data.totalCost).toBe('46.67');
     }
   });
 

@@ -188,14 +188,8 @@ export type WizardLabels = {
   errorForbidden: string;
 };
 
-/** Category options mirror the prototype's <select> (project.jsx:152-155). */
-const CATEGORY_VALUES = [
-  'Meat · Cold cut',
-  'Meat · Smoked',
-  'Meat · Cured',
-  'Meat · Pâté',
-  'Fish · Smoked',
-] as const;
+/** Category options are loaded server-side from Reference.ProductCategories. */
+export type CategoryOption = { value: string; label: string };
 
 /** Sales channel options mirror the prototype's <select> (project.jsx:164-166). */
 const SALES_CHANNEL_VALUES = ['Retail', 'HoReCa', 'Industrial', 'Export'] as const;
@@ -220,9 +214,9 @@ type FormState = {
   cloneSourceId: string;
 };
 
-const INITIAL_FORM: FormState = {
+const INITIAL_FORM = (defaultCategory: string): FormState => ({
   name: '',
-  type: CATEGORY_VALUES[0],
+  type: defaultCategory,
   targetLaunch: '',
   packFormat: '',
   packWeightG: '',
@@ -237,7 +231,7 @@ const INITIAL_FORM: FormState = {
   notes: '',
   startFrom: 'blank',
   cloneSourceId: '',
-};
+});
 
 /** Trim → null for optional free-text fields. */
 function nullable(value: string): string | null {
@@ -277,6 +271,7 @@ export function CreateProjectWizard({
   createAction,
   cloneAction,
   cloneSources = [],
+  categoryOptions = [],
 }: {
   locale: string;
   labels: WizardLabels;
@@ -286,10 +281,13 @@ export function CreateProjectWizard({
   cloneAction?: WizardCloneAction;
   /** Source projects the user may clone from (org-scoped, from listProjects). */
   cloneSources?: WizardCloneSource[];
+  /** Active org product categories (label stored in npd_projects.type). */
+  categoryOptions?: CategoryOption[];
 }) {
   const router = useRouter();
+  const defaultCategory = categoryOptions[0]?.value ?? '';
   const [step, setStep] = React.useState(1);
-  const [form, setForm] = React.useState<FormState>(INITIAL_FORM);
+  const [form, setForm] = React.useState<FormState>(() => INITIAL_FORM(defaultCategory));
   const [submitting, setSubmitting] = React.useState(false);
   const [serverError, setServerError] = React.useState<string | null>(null);
 
@@ -306,10 +304,12 @@ export function CreateProjectWizard({
   // Clone is offered only when the clone action is injected AND there is ≥1 source.
   const cloneEnabled = Boolean(cloneAction) && cloneSources.length > 0;
 
-  const categoryOptions = React.useMemo(
-    () => CATEGORY_VALUES.map((value) => ({ value, label: value })),
-    [],
-  );
+  const categorySelectOptions = React.useMemo(() => {
+    const canonical = categoryOptions.map((o) => o.value);
+    const current = form.type;
+    const values = current && !canonical.includes(current) ? [{ value: current, label: current }, ...categoryOptions] : categoryOptions;
+    return values;
+  }, [categoryOptions, form.type]);
   const channelOptions = React.useMemo(
     () => SALES_CHANNEL_VALUES.map((value) => ({ value, label: value })),
     [],
@@ -517,7 +517,7 @@ export function CreateProjectWizard({
                 id="wiz-type"
                 aria-label={labels.fieldCategory}
                 value={form.type}
-                options={categoryOptions}
+                options={categorySelectOptions}
                 onValueChange={(v) => update('type', v)}
               />
             </div>

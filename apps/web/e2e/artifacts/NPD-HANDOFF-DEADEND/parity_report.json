@@ -9,7 +9,7 @@
     "promoteToProduction → releaseNpdProjectToFactory → runReleasePreflight (authoritative)",
     "advanceProjectGate (handoff → launched) via the existing project AdvanceGateModal"
   ],
-  "generated_at": "2026-07-02T18:29:59.705Z",
+  "generated_at": "2026-07-03T01:28:33.849Z",
   "states": {
     "loading": {
       "main": true,

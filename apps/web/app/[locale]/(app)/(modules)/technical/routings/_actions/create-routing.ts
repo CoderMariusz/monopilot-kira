@@ -15,6 +15,7 @@
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { z } from 'zod';
 import { safeRevalidatePath } from '../../items/_actions/revalidate';
 import {
   CreateRoutingInput,
@@ -24,13 +25,35 @@ import {
   isPgError,
   type OrgActionContext,
   type QueryClient,
+  RoutingOperationInput,
   ROUTING_WRITE_PERMISSION,
   validateOperationSet,
   writeAudit,
 } from './shared';
 
+const RoutingCrewMemberInput = z.object({
+  roleGroup: z.string().trim().min(1).max(128),
+  headcount: z.number().int().positive(),
+});
+
+const CreateRoutingActionInput = CreateRoutingInput.extend({
+  operations: z.array(
+    RoutingOperationInput.omit({ costPerHour: true }).extend({
+      crew: z.array(RoutingCrewMemberInput).optional().default([]),
+      yieldPct: z
+        .union([z.string(), z.number()])
+        .transform((v) => (typeof v === 'number' ? String(v) : v.trim()))
+        .refine((v) => /^\d+(\.\d+)?$/.test(v) && Number(v) > 0 && Number(v) <= 100, {
+          message: 'yieldPct must be > 0 and <= 100',
+        })
+        .optional()
+        .default('100'),
+    }),
+  ).min(1, 'a routing needs at least one operation'),
+});
+
 export async function createRouting(rawInput: unknown): Promise<CreateRoutingResult> {
-  const parsed = CreateRoutingInput.safeParse(rawInput);
+  const parsed = CreateRoutingActionInput.safeParse(rawInput);
   if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
   const input = parsed.data;
 
@@ -98,10 +121,10 @@ export async function createRouting(rawInput: unknown): Promise<CreateRoutingRes
         await qc.query(
           `insert into public.routing_operations
              (org_id, routing_id, op_no, op_code, op_name, line_id, machine_id,
-              setup_time_min, run_time_per_unit_sec, cost_per_hour, manufacturing_operation_name, created_by)
+              setup_time_min, run_time_per_unit_sec, manufacturing_operation_name, crew, yield_pct, created_by)
            values
              (app.current_org_id(), $1::uuid, $2::integer, $3, $4, $5::uuid, $6::uuid,
-              $7::integer, $8::numeric, $9::numeric, $10, $11::uuid)`,
+              $7::integer, $8::numeric, $9, $10::jsonb, $11::numeric, $12::uuid)`,
           [
             routing.id,
             op.opNo,
@@ -111,8 +134,9 @@ export async function createRouting(rawInput: unknown): Promise<CreateRoutingRes
             op.machineId ?? null,
             op.setupTimeMin,
             op.runTimePerUnitSec ?? null,
-            op.costPerHour ?? null,
             op.manufacturingOperationName,
+            JSON.stringify(op.crew.map((member) => ({ role_group: member.roleGroup, headcount: member.headcount }))),
+            op.yieldPct,
             userId,
           ],
         );

@@ -80,6 +80,11 @@ describe('wip-process-actions WIP item linkage', () => {
     );
     expect(itemInsert?.[1]?.[0]).toBe('WIP-20260702-0001');
     expect(itemInsert?.[1]).toEqual(['WIP-20260702-0001', 'Cold Smoke', '11111111-1111-4111-8111-111111111111']);
+    const processInsert = queryMock.mock.calls.find((call) =>
+      /insert\s+into\s+public\.npd_wip_processes/i.test(String(call[0])),
+    );
+    expect(String(processInsert?.[0])).toMatch(/yield_pct/i);
+    expect(processInsert?.[1]?.[8]).toBe(100);
   });
 
   it('ensureWipItem returns an existing linked item without minting a new code', async () => {
@@ -178,8 +183,8 @@ describe('wip-process-actions WIP item linkage', () => {
       /update\s+public\.npd_wip_processes/i.test(String(call[0])),
     );
     expect(String(updateCall?.[0])).toMatch(/wip_item_id\s*=\s*case\s+when\s+\$5::boolean\s+is\s+false\s+then\s+null/i);
-    // Params: [id, processName, durationHours, additionalCost, createsWipItem, throughputPerHour, throughputUom, setupCost]
-    expect(updateCall?.[1]).toEqual([processId, null, null, null, false, null, null, null]);
+    // Params: [id, processName, durationHours, additionalCost, createsWipItem, throughputPerHour, throughputUom, setupCost, yieldPct]
+    expect(updateCall?.[1]).toEqual([processId, null, null, null, false, null, null, null, null]);
 
     const deletedItem = queryMock.mock.calls.some((call) =>
       /delete\s+from\s+public\.items/i.test(String(call[0])),
@@ -203,6 +208,32 @@ describe('wip-process-actions WIP item linkage', () => {
       ok: false,
       error: 'WIP process is not visible in this organisation',
     });
+  });
+
+  it('persists explicit process yield percentages on add and update', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
+      if (/insert\s+into\s+public\.npd_wip_processes/i.test(text)) return { rows: [{ id: processId }], rowCount: 1 };
+      if (/update\s+public\.npd_wip_processes/i.test(text)) {
+        return { rows: [{ id: processId, process_name: 'Cold Smoke', creates_wip_item: false }], rowCount: 1 };
+      }
+      return { rows: [] };
+    });
+
+    const added = await addWipProcess({
+      prodDetailId,
+      processName: 'Cold Smoke',
+      yieldPct: 95,
+    });
+    const updated = await updateWipProcess({ id: processId, yieldPct: 97.5 });
+
+    expect(added).toEqual({ ok: true, id: processId });
+    expect(updated).toEqual({ ok: true, updated: true });
+    const processInsert = queryMock.mock.calls.find((call) => /insert\s+into\s+public\.npd_wip_processes/i.test(String(call[0])));
+    const processUpdate = queryMock.mock.calls.find((call) => /update\s+public\.npd_wip_processes/i.test(String(call[0])));
+    expect(processInsert?.[1]?.[8]).toBe(95);
+    expect(processUpdate?.[1]?.[8]).toBe(97.5);
   });
 
   it('removeWipProcess returns a typed error when no process row is deleted', async () => {

@@ -1632,6 +1632,54 @@
       "read_only_notice": "You can view but not edit cost parameters.",
       "forbidden": "You do not have permission to view cost parameters.",
       "load_error": "Unable to load cost parameters."
+    },
+    "product_categories": {
+      "breadcrumb_settings": "Settings",
+      "breadcrumb_reference_tables": "Reference Tables",
+      "breadcrumb_product_categories": "Product categories",
+      "set_reference": "SET-REFERENCE / W5-T7",
+      "title": "Product categories",
+      "subtitle": "Org-scoped NPD and Technical item categories — code, label, display order, and active state.",
+      "notice": "Categories feed the NPD project wizard, project brief, and Technical item master. Codes are immutable after creation; deactivate instead of deleting.",
+      "loading": "Loading product categories…",
+      "error": "Unable to load product categories.",
+      "permission_denied": "You do not have permission to manage product categories.",
+      "add_new": "Add category",
+      "show_inactive": "Show inactive",
+      "column_code": "Code",
+      "column_label": "Label",
+      "column_display_order": "Order",
+      "column_status": "Status",
+      "column_actions": "Actions",
+      "status_active": "Active",
+      "status_inactive": "Inactive",
+      "edit_category": "Edit {category}",
+      "deactivate_category": "Deactivate {category}",
+      "activate_category": "Activate {category}",
+      "empty": "No product categories match the current filters.",
+      "add_dialog_title": "Add product category",
+      "field_code": "Code",
+      "field_label": "Label",
+      "field_display_order": "Display order",
+      "field_active": "Active",
+      "create": "Create",
+      "creating": "Creating…",
+      "duplicate_code": "A category with this code already exists.",
+      "create_failed": "Unable to create product category.",
+      "cancel": "Cancel",
+      "edit_dialog_title": "Edit product category",
+      "save": "Save",
+      "saving": "Saving…",
+      "update_failed": "Unable to update product category.",
+      "immutable_field": "Category code is immutable after creation.",
+      "deactivate_dialog_title": "Deactivate product category",
+      "deactivate_dialog_body": "Deactivate „{category}”? It will no longer appear in NPD or item pickers. Existing records keep their stored value.",
+      "activate_dialog_title": "Activate product category",
+      "activate_dialog_body": "Activate „{category}” so it appears in NPD and item pickers again.",
+      "confirm_deactivate": "Deactivate",
+      "confirm_activate": "Activate",
+      "toggling": "Saving…",
+      "toggle_failed": "Unable to update category status."
     }
   },
   "navigation": {
@@ -2109,6 +2157,13 @@
             "base": "Base unit",
             "each": "Each (piece)",
             "box": "Box"
+          },
+          "effectiveCost": "Effective cost",
+          "effectiveCostSource": {
+            "cost_history": "Cost history",
+            "supplier_spec": "Supplier spec",
+            "list_price": "List price",
+            "none": "None"
           }
         },
         "dataTabs": {
@@ -2321,7 +2376,8 @@
           "outputUom": "Output unit",
           "netQtyPerEach": "Net content per each",
           "eachPerBox": "Each per box",
-          "boxesPerPallet": "Boxes per pallet"
+          "boxesPerPallet": "Boxes per pallet",
+          "category": "Category"
         },
         "catchHint": "Catch weight requires nominal weight, gross weight max and a variance tolerance.",
         "review": {
@@ -2392,7 +2448,8 @@
         "forbidden": "You do not have permission to perform this action.",
         "invalid_input": "Please check the values and try again.",
         "not_found": "That item no longer exists.",
-        "persistence_failed": "Could not save. Please try again."
+        "persistence_failed": "Could not save. Please try again.",
+        "invalid_category": "Choose an active product category or leave blank."
       },
       "list": {
         "title": "Items",
@@ -3015,7 +3072,15 @@
         "loading": "Loading disassembly BOM…",
         "error": "Unable to load this disassembly BOM. Please try again.",
         "notFound": "Disassembly BOM not found."
-      }
+      },
+      "perBoxBasis": "per box (× {n} packs)",
+      "perPackValue": "{value} / pack",
+      "substituteLabel": "Substitute:",
+      "expandWip": "Show WIP sub-BOM",
+      "collapseWip": "Hide WIP sub-BOM",
+      "wipSubBomLoading": "Loading WIP sub-BOM…",
+      "wipSubBomEmpty": "No active BOM for this WIP.",
+      "wipSubBomError": "Unable to load this WIP sub-BOM."
     },
     "bomDelete": {
       "title": "Delete BOM version",
@@ -5888,7 +5953,13 @@
         "publishWipCancel": "Cancel",
         "publishWipPublishing": "Publishing…",
         "publishWipError": "Could not publish the WIP definition"
-      }
+      },
+      "productionLine": "Production line",
+      "productionLinePlaceholder": "Select a line…",
+      "productionLineEmpty": "No production lines configured for this site.",
+      "productionLineSaveError": "Could not save the production line",
+      "processYieldPct": "Yield %",
+      "effectiveKgPerPackHint": "effective {qty} kg/pack after process yields"
     },
     "faTechnicalTab": {
       "title": "Secțiune tehnică",
@@ -6486,7 +6557,17 @@
       "yieldErrorInvalidInput": "Could not save the yield. Enter a value between 0.001 and 100 and try again.",
       "yieldErrorForbidden": "You do not have permission to update this yield.",
       "yieldErrorNotFound": "The active BOM was not found. Refresh and try again.",
-      "yieldErrorPersistenceFailed": "Could not save the yield. Try again."
+      "yieldErrorPersistenceFailed": "Could not save the yield. Try again.",
+      "errors": {
+        "packaging_unlinked": "Packaging components must be linked to items before generating the production BOM: {components}"
+      },
+      "warnings": {
+        "routing_no_processes": "Production BOM created, but no NPD processes were found to build a routing.",
+        "routing_no_line": "Production BOM created, but no production line is set on the project — routing was not materialized."
+      },
+      "generatePackagingUnlinked": "Packaging components must be linked to items before generating the production BOM: {components}",
+      "generateWarningNoLine": "Production BOM created, but no production line is set on the project — routing was not materialized.",
+      "generateWarningNoProcesses": "Production BOM created, but no NPD processes were found to build a routing."
     },
     "pipelineCreate": {
       "title": "Creează proiect NPD",

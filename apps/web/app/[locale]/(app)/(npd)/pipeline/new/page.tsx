@@ -24,6 +24,7 @@ import {
   type OrgContextLike,
 } from '../../../../../(npd)/pipeline/_actions/shared';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { listActiveProductCategories } from '../../../../../../actions/reference/product-categories/list';
 import {
   CreateProjectWizard,
   type WizardCloneAction,
@@ -180,6 +181,17 @@ async function resolveCanCreate(): Promise<boolean> {
   }
 }
 
+async function loadCategoryOptions() {
+  try {
+    const result = await listActiveProductCategories();
+    if (!result.ok) return [];
+    // npd_projects.type stores the human label (legacy hardcoded values were labels).
+    return result.data.map((row) => ({ value: row.label, label: row.label }));
+  } catch {
+    return [];
+  }
+}
+
 type NewProjectPageProps = {
   params?: Promise<{ locale: string }>;
   // Test seam (mirrors pipeline/page convention): bypass DB/RBAC resolution.
@@ -195,6 +207,7 @@ export default async function NewProjectPage(propsInput: unknown = {}) {
   // Clone sources are loaded only when the user may create — the Clone card stays
   // disabled (no sources) when forbidden, so we never query needlessly.
   const cloneSources = canCreate ? await loadCloneSources() : [];
+  const categoryOptions = await loadCategoryOptions();
 
   return (
     <CreateProjectWizard
@@ -203,6 +216,7 @@ export default async function NewProjectPage(propsInput: unknown = {}) {
       createAction={canCreate ? createProjectAdapter : undefined}
       cloneAction={canCreate ? cloneProjectAdapter : undefined}
       cloneSources={cloneSources}
+      categoryOptions={categoryOptions}
     />
   );
 }

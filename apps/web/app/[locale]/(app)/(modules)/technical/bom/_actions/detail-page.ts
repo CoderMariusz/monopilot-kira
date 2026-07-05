@@ -32,7 +32,8 @@ import {
 } from './shared';
 
 const HEADER_COLS = `id, product_id, npd_project_id, fa_code, origin_module, status, version,
-  supersedes_bom_header_id, yield_pct, effective_from, effective_to, approved_by, approved_at, notes`;
+  supersedes_bom_header_id, yield_pct, effective_from, effective_to, approved_by, approved_at, notes,
+  line_basis`;
 
 export type BomVersionRow = {
   id: string;
@@ -61,6 +62,18 @@ export type BomWhereUsedRow = {
   uom: string;
 };
 
+/**
+ * A component line enriched for the detail screen with the per-box basis inputs
+ * and the resolved substitute item — beyond the shared `BomLineView`.
+ */
+export type BomDetailLine = BomLineView & {
+  /** items.id of the primary component (used to lazy-load a WIP's sub-BOM). */
+  itemId: string | null;
+  /** bom_lines.substitute_item_id resolved to a code/name (null when unset). */
+  substituteCode: string | null;
+  substituteName: string | null;
+};
+
 export type BomDetailPage = {
   productId: string;
   productName: string | null;
@@ -68,7 +81,11 @@ export type BomDetailPage = {
   /** The version currently rendered (latest by default, or the requested one). */
   selectedVersion: number;
   header: ReturnType<typeof mapHeader>;
-  lines: BomLineView[];
+  /** bom_headers.line_basis for the selected version ('per_base' | 'per_box'). */
+  lineBasis: 'per_base' | 'per_box';
+  /** items.each_per_box of the owning FG (packs per box); null when unset. */
+  eachPerBox: number | null;
+  lines: BomDetailLine[];
   coProducts: BomCoProductView[];
   versions: BomVersionRow[];
   snapshots: BomSnapshotRow[];
@@ -218,9 +235,10 @@ export async function getBomDetailPage(
             where org_id = app.current_org_id() and id = $1`,
           [selectedId],
         ),
-        c.query<{ product_name: string | null; category: string | null }>(
+        c.query<{ product_name: string | null; category: string | null; each_per_box: number | null }>(
           `select i.name as product_name,
-                  x.department_number as category
+                  x.department_number as category,
+                  i.each_per_box as each_per_box
              from public.items i
              left join public.fg_npd_ext x
                     on x.item_id = i.id
@@ -230,18 +248,30 @@ export async function getBomDetailPage(
           [productId],
         ),
       ]);
-      const headerRow = headerRes.rows[0];
+      const headerRow = headerRes.rows[0] as (Record<string, unknown> & { line_basis?: string | null }) | undefined;
       if (!headerRow) return { ok: false, error: 'not_found' };
       const header = mapHeader(headerRow as never);
+      const lineBasis: 'per_base' | 'per_box' =
+        headerRow.line_basis === 'per_box' ? 'per_box' : 'per_base';
+      const eachPerBoxRaw = productRes.rows[0]?.each_per_box ?? null;
+      const eachPerBox =
+        eachPerBoxRaw != null && Number.isFinite(Number(eachPerBoxRaw)) && Number(eachPerBoxRaw) > 0
+          ? Number(eachPerBoxRaw)
+          : null;
 
       // 3) Lines + co-products + snapshots + where-used (parallel, org-scoped).
       const [linesRes, coProductsRes, snapshotsRes, whereUsedRes] = await Promise.all([
         c.query(
-          `select id, line_no, item_id, component_code, component_type, quantity, uom, scrap_pct,
-                  manufacturing_operation_name, sequence, is_phantom
-             from public.bom_lines
-            where org_id = app.current_org_id() and bom_header_id = $1
-            order by line_no asc`,
+          `select bl.id, bl.line_no, bl.item_id, bl.component_code, bl.component_type,
+                  bl.quantity, bl.uom, bl.scrap_pct,
+                  bl.manufacturing_operation_name, bl.sequence, bl.is_phantom,
+                  si.item_code as substitute_code,
+                  si.name      as substitute_name
+             from public.bom_lines bl
+             left join public.items si
+               on si.id = bl.substitute_item_id and si.org_id = bl.org_id
+            where bl.org_id = app.current_org_id() and bl.bom_header_id = $1
+            order by bl.line_no asc`,
           [selectedId],
         ),
         c.query(
@@ -297,7 +327,18 @@ export async function getBomDetailPage(
         category: productRes.rows[0]?.category ?? null,
         selectedVersion,
         header,
-        lines: linesRes.rows.map((r) => mapLine(r as never)),
+        lineBasis,
+        eachPerBox,
+        lines: linesRes.rows.map((r) => {
+          const base = mapLine(r as never);
+          const row = r as { substitute_code?: string | null; substitute_name?: string | null };
+          return {
+            ...base,
+            itemId: base.itemId,
+            substituteCode: row.substitute_code ?? null,
+            substituteName: row.substitute_name ?? null,
+          } satisfies BomDetailLine;
+        }),
         coProducts: coProductsRes.rows.map((r) => mapCoProduct(r as never)),
         versions,
         snapshots: snapshotsRes.rows.map((r) => ({

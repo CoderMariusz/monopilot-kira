@@ -164,6 +164,8 @@ export type ProjectBriefScreenProps = {
     projectId: string;
     objectName: string;
   }) => Promise<DeleteAttachmentOutcome>;
+  /** Active org product categories (label values for npd_projects.type). */
+  categoryOptions?: CategoryOption[];
 };
 
 type FormState = {
@@ -243,12 +245,19 @@ function formToPatch(form: FormState): BriefPatch {
   };
 }
 
-// Prototype option lists (project.jsx:67-78). The CURRENT stored value is folded
-// in when it falls outside the canonical list so the Select stays accurate.
-const CATEGORY_OPTIONS = ['Meat · Cold cut', 'Meat · Smoked', 'Meat · Cured', 'Meat · Pâté', 'Fish · Smoked'];
+export type CategoryOption = { value: string; label: string };
+
 const CHANNEL_OPTIONS = ['Retail', 'HoReCa', 'Industrial', 'Export'];
 
-function withCurrent(canonical: string[], current: string): Array<{ value: string; label: string }> {
+function withCurrent(canonical: CategoryOption[], current: string): CategoryOption[] {
+  const values = canonical.map((o) => o.value);
+  if (current && !values.includes(current)) {
+    return [{ value: current, label: current }, ...canonical];
+  }
+  return canonical;
+}
+
+function withCurrentStrings(canonical: string[], current: string): Array<{ value: string; label: string }> {
   const values = current && !canonical.includes(current) ? [current, ...canonical] : canonical;
   return values.map((v) => ({ value: v, label: v }));
 }
@@ -346,10 +355,12 @@ function EditBriefCard({
   data,
   labels,
   onUpdate,
+  categoryOptions = [],
 }: {
   data: ProjectBriefView;
   labels: ProjectBriefLabels;
   onUpdate: (call: UpdateBriefCall) => Promise<UpdateBriefOutcome>;
+  categoryOptions?: CategoryOption[];
 }) {
   const router = useRouter();
   // Re-seed local form state whenever the persisted brief changes (after a
@@ -442,13 +453,13 @@ function EditBriefCard({
                 aria-label={labels.fieldCategory}
                 value={form.category}
                 onValueChange={(v) => set('category', v)}
-                options={withCurrent(CATEGORY_OPTIONS, form.category)}
+                options={withCurrent(categoryOptions, form.category)}
               >
                 <SelectTrigger aria-label={labels.fieldCategory} data-testid="brief-field-category">
                   <SelectValue placeholder={labels.fieldCategory} />
                 </SelectTrigger>
                 <SelectContent>
-                  {withCurrent(CATEGORY_OPTIONS, form.category).map((o) => (
+                  {withCurrent(categoryOptions, form.category).map((o) => (
                     <SelectItem key={o.value} value={o.value}>
                       {o.label}
                     </SelectItem>
@@ -547,13 +558,13 @@ function EditBriefCard({
                 aria-label={labels.fieldSalesChannel}
                 value={form.salesChannel}
                 onValueChange={(v) => set('salesChannel', v)}
-                options={withCurrent(CHANNEL_OPTIONS, form.salesChannel)}
+                options={withCurrentStrings(CHANNEL_OPTIONS, form.salesChannel)}
               >
                 <SelectTrigger aria-label={labels.fieldSalesChannel} data-testid="brief-field-salesChannel">
                   <SelectValue placeholder={labels.fieldSalesChannel} />
                 </SelectTrigger>
                 <SelectContent>
-                  {withCurrent(CHANNEL_OPTIONS, form.salesChannel).map((o) => (
+                  {withCurrentStrings(CHANNEL_OPTIONS, form.salesChannel).map((o) => (
                     <SelectItem key={o.value} value={o.value}>
                       {o.label}
                     </SelectItem>
@@ -827,6 +838,7 @@ export function ProjectBriefScreen({
   attachments = [],
   onUploadAttachment,
   onDeleteAttachment,
+  categoryOptions = [],
 }: ProjectBriefScreenProps) {
   if (state === 'loading') {
     return (
@@ -856,7 +868,7 @@ export function ProjectBriefScreen({
   return (
     <div data-testid="project-brief-screen">
       {editable ? (
-        <EditBriefCard data={data} labels={labels} onUpdate={onUpdate!} />
+        <EditBriefCard data={data} labels={labels} onUpdate={onUpdate!} categoryOptions={categoryOptions} />
       ) : (
         <ReadBriefCard data={data} labels={labels} />
       )}

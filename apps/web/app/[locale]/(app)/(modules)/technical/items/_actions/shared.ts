@@ -75,7 +75,8 @@ export type ItemsActionError =
   | 'forbidden'
   | 'already_exists'
   | 'not_found'
-  | 'persistence_failed';
+  | 'persistence_failed'
+  | 'invalid_category';
 
 const OptionalNumeric = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
@@ -151,6 +152,7 @@ export type ItemListItem = {
   status: ItemStatus;
   description: string | null;
   productGroup: string | null;
+  categoryCode: string | null;
   uomBase: string;
   uomSecondary: string | null;
   gs1Gtin: string | null;
@@ -196,6 +198,10 @@ export const CreateItemInput = z
     weightMode: z.enum(WEIGHT_MODES).optional().default('fixed'),
     description: z.string().trim().max(2000).optional(),
     productGroup: z.string().trim().max(128).optional(),
+    categoryCode: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+      z.string().trim().min(1).max(64).optional(),
+    ),
     supplierCode: z.string().trim().min(1).optional(),
     // '' (the empty option) ⇒ undefined; otherwise must be canonical.
     uomSecondary: z.preprocess(
@@ -235,6 +241,10 @@ export const UpdateItemInput = z
     weightMode: z.enum(WEIGHT_MODES),
     description: z.string().trim().max(2000).optional(),
     productGroup: z.string().trim().max(128).optional(),
+    categoryCode: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+      z.string().trim().min(1).max(64).optional(),
+    ),
     uomSecondary: z.preprocess(
       (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
       z.enum(CANONICAL_UOMS).optional(),

@@ -33,6 +33,7 @@ export type ItemDetail = {
   status: ItemStatus;
   description: string | null;
   productGroup: string | null;
+  categoryCode: string | null;
   uomBase: string;
   uomSecondary: string | null;
   gs1Gtin: string | null;
@@ -50,6 +51,9 @@ export type ItemDetail = {
   boxesPerPallet: number | null;
   costPerKg: string | null;
   listPriceGbp: string | null;
+  effectiveCostAmount: string | null;
+  effectiveCostCurrency: string | null;
+  effectiveCostSource: string | null;
   updatedAt: string;
 };
 
@@ -66,6 +70,7 @@ type ItemDetailRow = {
   status: string;
   description: string | null;
   product_group: string | null;
+  category_code: string | null;
   uom_base: string;
   uom_secondary: string | null;
   gs1_gtin: string | null;
@@ -82,6 +87,9 @@ type ItemDetailRow = {
   boxes_per_pallet: number | null;
   cost_per_kg: string | null;
   list_price_gbp: string | null;
+  effective_cost_amount: string | null;
+  effective_cost_currency: string | null;
+  effective_cost_source: string | null;
   updated_at: string | Date;
 };
 
@@ -102,6 +110,7 @@ function mapDetail(row: ItemDetailRow): ItemDetail | null {
     status: row.status as ItemStatus,
     description: row.description,
     productGroup: row.product_group,
+    categoryCode: row.category_code,
     uomBase: row.uom_base,
     uomSecondary: row.uom_secondary,
     gs1Gtin: row.gs1_gtin,
@@ -118,6 +127,9 @@ function mapDetail(row: ItemDetailRow): ItemDetail | null {
     boxesPerPallet: row.boxes_per_pallet,
     costPerKg: row.cost_per_kg,
     listPriceGbp: row.list_price_gbp,
+    effectiveCostAmount: row.effective_cost_amount,
+    effectiveCostCurrency: row.effective_cost_currency,
+    effectiveCostSource: row.effective_cost_source,
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
   };
 }
@@ -131,14 +143,21 @@ export async function getItem(itemCode: string): Promise<GetItemResult> {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       const [rowResult, canEdit, canDeactivate] = await Promise.all([
         (client as QueryClient).query<ItemDetailRow>(
-          `select id, item_code, name, item_type, status, description, product_group,
-                  uom_base, uom_secondary, gs1_gtin, weight_mode, nominal_weight, tare_weight, gross_weight_max,
-                  variance_tolerance_pct, shelf_life_days, shelf_life_mode,
-                  output_uom, net_qty_per_each, each_per_box, boxes_per_pallet,
-                  cost_per_kg, list_price_gbp::text as list_price_gbp, updated_at
-             from public.items
-            where org_id = app.current_org_id()
-              and item_code = $1
+          `select i.id, i.item_code, i.name, i.item_type, i.status, i.description, i.product_group, i.category_code,
+                  i.uom_base, i.uom_secondary, i.gs1_gtin, i.weight_mode, i.nominal_weight, i.tare_weight, i.gross_weight_max,
+                  i.variance_tolerance_pct, i.shelf_life_days, i.shelf_life_mode,
+                  i.output_uom, i.net_qty_per_each, i.each_per_box, i.boxes_per_pallet,
+                  i.cost_per_kg, i.list_price_gbp::text as list_price_gbp,
+                  vec.amount::text as effective_cost_amount,
+                  vec.currency as effective_cost_currency,
+                  vec.source as effective_cost_source,
+                  i.updated_at
+             from public.items i
+             left join public.v_item_effective_cost vec
+               on vec.org_id = i.org_id
+              and vec.item_id = i.id
+            where i.org_id = app.current_org_id()
+              and i.item_code = $1
             limit 1`,
           [code],
         ),

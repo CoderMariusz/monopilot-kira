@@ -99,13 +99,17 @@ export async function listBomHeaders(opts?: {
                    h.yield_pct::text as yield_pct,
                    h.updated_at,
                    i.name as product_name,
-                   x.department_number as category
+                   coalesce(pc.label, np.type) as category
               from public.bom_headers h
               left join public.items i
                 on i.id = h.item_id
                and i.org_id = h.org_id
-              left join public.fg_npd_ext x
-                on x.item_id = i.id
+              left join "Reference"."ProductCategories" pc
+                on pc.org_id = i.org_id
+               and pc.code = i.category_code
+              left join public.npd_projects np
+                on np.id = h.npd_project_id
+               and np.org_id = h.org_id
              where h.org_id = app.current_org_id()
                and h.item_id is not null
              order by i.item_code, h.version desc

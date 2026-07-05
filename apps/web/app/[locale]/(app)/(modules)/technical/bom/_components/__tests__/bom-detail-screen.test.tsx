@@ -16,7 +16,7 @@ import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   BomDetailScreen,
@@ -24,7 +24,15 @@ import {
   type BomDetailLabels,
 } from '../bom-detail-screen';
 
-afterEach(() => cleanup());
+const loadWipSubBomMock = vi.fn();
+vi.mock('../../_actions/wip-sub-bom', () => ({
+  loadWipSubBom: (...args: unknown[]) => loadWipSubBomMock(...args),
+}));
+
+afterEach(() => {
+  cleanup();
+  loadWipSubBomMock.mockReset();
+});
 
 const LABELS: BomDetailLabels = {
   breadcrumbRoot: 'BOMs & recipes',
@@ -46,6 +54,14 @@ const LABELS: BomDetailLabels = {
   colOperation: 'Operation',
   colActions: 'Actions',
   phantomBadge: 'phantom',
+  perBoxBasis: 'per box (× {n} packs)',
+  perPackValue: '{value} / pack',
+  substituteLabel: 'Substitute:',
+  expandWip: 'Show WIP sub-BOM',
+  collapseWip: 'Hide WIP sub-BOM',
+  wipSubBomLoading: 'Loading WIP sub-BOM…',
+  wipSubBomEmpty: 'No active BOM for this WIP.',
+  wipSubBomError: 'Unable to load this WIP sub-BOM.',
   colCoProduct: 'Co-product item',
   colAllocation: 'Allocation',
   byproductBadge: 'By-product',
@@ -335,5 +351,84 @@ describe('BomDetailScreen — NPD origin shortcut (Phase-3)', () => {
     // DATA has no npdProjectId key at all — the link must not render.
     render(<BomDetailScreen state="ready" data={DATA} labels={LABELS} />);
     expect(screen.queryByTestId('bom-origin-npd-link')).not.toBeInTheDocument();
+  });
+});
+
+// W5 / T5 ruling — per-box basis annotation, substitutes, WIP expansion.
+describe('BomDetailScreen — per-box basis annotation', () => {
+  it('annotates "per box (× N packs)" + a muted per-pack value when line_basis=per_box', () => {
+    render(
+      <BomDetailScreen
+        state="ready"
+        data={{ ...DATA, lineBasis: 'per_box', eachPerBox: 4 }}
+        labels={LABELS}
+      />,
+    );
+    expect(screen.getByTestId('bom-line-perbox-l1')).toHaveTextContent('per box (× 4 packs)');
+    // 0.540000 / 4 = 0.135 per pack.
+    expect(screen.getByTestId('bom-line-perpack-l1')).toHaveTextContent('0.135 / pack');
+  });
+
+  it('omits the per-box annotation for per_base BOMs', () => {
+    render(
+      <BomDetailScreen state="ready" data={{ ...DATA, lineBasis: 'per_base', eachPerBox: 4 }} labels={LABELS} />,
+    );
+    expect(screen.queryByTestId('bom-line-perbox-l1')).not.toBeInTheDocument();
+  });
+});
+
+describe('BomDetailScreen — substitutes', () => {
+  it('shows the substitute item on an RM line labelled "Substitute:"', () => {
+    const lines = [
+      { ...DATA.lines[0], substituteCode: 'R-2002', substituteName: 'Alt beef' },
+      DATA.lines[1],
+    ];
+    render(<BomDetailScreen state="ready" data={{ ...DATA, lines }} labels={LABELS} />);
+    const sub = screen.getByTestId('bom-line-substitute-l1');
+    expect(sub).toHaveTextContent('Substitute:');
+    expect(sub).toHaveTextContent('R-2002');
+    expect(sub).toHaveTextContent('Alt beef');
+  });
+});
+
+describe('BomDetailScreen — WIP expansion', () => {
+  it('lazy-loads the WIP sub-BOM on expand and renders nested lines', async () => {
+    loadWipSubBomMock.mockResolvedValue({
+      ok: true,
+      lines: [
+        {
+          id: 'sub1',
+          lineNo: 1,
+          componentCode: 'R-3003',
+          componentType: 'RM',
+          quantity: '0.010000',
+          uom: 'kg',
+          scrapPct: '0.00',
+          isPhantom: false,
+          substituteCode: null,
+          substituteName: null,
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    // l2 is a WIP line with itemId set.
+    const lines = [DATA.lines[0], { ...DATA.lines[1], itemId: 'wip-item-uuid' }];
+    render(<BomDetailScreen state="ready" data={{ ...DATA, lines }} labels={LABELS} />);
+    await user.click(screen.getByTestId('bom-wip-toggle-l2'));
+    expect(await screen.findByText('R-3003')).toBeInTheDocument();
+    expect(loadWipSubBomMock).toHaveBeenCalledWith('wip-item-uuid');
+    const subRows = screen.getAllByTestId('bom-wip-subline-row');
+    expect(subRows).toHaveLength(1);
+  });
+
+  it('shows the honest empty state when the WIP has no active BOM', async () => {
+    loadWipSubBomMock.mockResolvedValue({ ok: true, lines: [] });
+    const user = userEvent.setup();
+    const lines = [DATA.lines[0], { ...DATA.lines[1], itemId: 'wip-item-uuid' }];
+    render(<BomDetailScreen state="ready" data={{ ...DATA, lines }} labels={LABELS} />);
+    await user.click(screen.getByTestId('bom-wip-toggle-l2'));
+    expect(await screen.findByTestId('bom-wip-subbom-empty')).toHaveTextContent(
+      'No active BOM for this WIP.',
+    );
   });
 });

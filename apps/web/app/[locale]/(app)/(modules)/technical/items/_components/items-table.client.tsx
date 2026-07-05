@@ -150,6 +150,7 @@ export function ItemsTableClient({
   deactivateLabels,
   transitionLabels,
   supplierOptions = [],
+  categoryOptions = [],
   supplierIdByCode = {},
 }: {
   items: ItemListItem[];
@@ -167,6 +168,7 @@ export function ItemsTableClient({
   transitionLabels?: StatusTransitionLabels;
   /** A11 — org supplier list (CODE → "CODE — Name") for the per-row edit wizard supplier picker. */
   supplierOptions?: SelectOption[];
+  categoryOptions?: SelectOption[];
   /** A11 — supplier CODE → UUID map so EDIT-mode save can call createItemSupplierSpec. */
   supplierIdByCode?: Record<string, string>;
 }) {
@@ -335,6 +337,7 @@ export function ItemsTableClient({
                       deactivateLabels={deactivateLabels}
                       transitionLabels={transitionLabels}
                       supplierOptions={supplierOptions}
+                      categoryOptions={categoryOptions}
                       supplierIdByCode={supplierIdByCode}
                     />
                   </td>

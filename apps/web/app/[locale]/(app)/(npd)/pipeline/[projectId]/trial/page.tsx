@@ -246,9 +246,14 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
 
       const canWrite = await hasPermission(ctx, TRIAL_WRITE_PERMISSION);
 
-      const project = await ctx.client.query<{ product_code: string | null; product_name: string | null }>(
+      const project = await ctx.client.query<{
+        product_code: string | null;
+        product_name: string | null;
+        production_line_id: string | null;
+      }>(
         `select p.product_code,
-                pr.product_name
+                pr.product_name,
+                p.production_line_id::text as production_line_id
            from public.npd_projects p
            left join public.product pr
              on pr.org_id = p.org_id and pr.product_code = p.product_code
@@ -258,6 +263,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       );
       if (project.rows.length === 0) return { state: 'error', data: null };
       const productName = project.rows[0]?.product_name ?? project.rows[0]?.product_code ?? 'Project';
+      const defaultProductionLineId = project.rows[0]?.production_line_id ?? null;
 
       const trials = await ctx.client.query<TrialRow>(
         `select tb.id,
@@ -313,6 +319,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
           canBookLineTime,
           lines,
           capacityBookings,
+          defaultProductionLineId,
         },
       };
     });

@@ -91,6 +91,11 @@ import {
 } from '../../../../../../(npd)/fa/actions/wip-process-actions';
 import { getProcessDefault } from '../../../../(admin)/settings/process-defaults/_actions/process-defaults-actions';
 import { isLegacyProcessColumn } from './legacy-process-column';
+import { isW5HiddenProductionColumn } from '../../../../../../(npd)/fa/_components/w5-production-constants';
+import { ProductionLinePicker } from '../../../../../../(npd)/fa/_components/production-line-picker';
+import { ProcessYieldHint } from '../../../../../../(npd)/fa/_components/process-yield-hint';
+import type { FaProductionLineOption } from '../../../../../../(npd)/fa/_components/w5-production-constants';
+import type { SetProductionLineResult } from '../../../../../../(npd)/fa/_actions/set-production-line-types';
 import { canEditProductionFromFormulationIngredientCount } from './production-unlock';
 
 export type { ComponentProcess } from '../../../../../../(npd)/fa/actions/get-component-processes';
@@ -144,6 +149,7 @@ export type ProductionProcessLabels = {
   throughputPerHour?: string;
   throughputUom?: string;
   setupCost?: string;
+  yieldPct?: string;
   processCost: string;
   createsWip: string;
   rolesHeader: string;
@@ -305,6 +311,15 @@ export type FaProductionTabProps = {
   onSaveProcessRoles?: SaveProcessRolesFn;
   /** W3-L10 — publish a local component chain as a reusable WIP definition. */
   onPublishWipDefinition?: typeof publishWipDefinitionFromComponent;
+  /** W5 — project-scoped production line (UUID FK on npd_projects). */
+  projectId?: string;
+  productionLineId?: string | null;
+  productionLineOptions?: FaProductionLineOption[];
+  ingredientQtyKgPerPack?: number | null;
+  onSetProductionLine?: (input: {
+    projectId: string;
+    productionLineId: string | null;
+  }) => Promise<SetProductionLineResult>;
 };
 
 // ---------------------------------------------------------------------------
@@ -328,6 +343,7 @@ function sortColumns(columns: FaProductionColumn[]): FaProductionColumn[] {
   // vs. the page-loader filter so a future seed cannot reintroduce a slot column.
   return [...columns]
     .filter((col) => !isLegacyProcessColumn(col.key))
+    .filter((col) => !isW5HiddenProductionColumn(col.key, col.dropdownSource))
     .sort((a, b) => {
       if (a.displayOrder !== b.displayOrder) return a.displayOrder - b.displayOrder;
       return a.key.localeCompare(b.key);
@@ -359,6 +375,7 @@ const DEFAULT_PROCESS_LABELS: ProductionProcessLabels = {
   throughputPerHour: 'Throughput / hour',
   throughputUom: 'Throughput unit',
   setupCost: 'Setup cost (£)',
+  yieldPct: 'Yield %',
   processCost: 'Process cost',
   createsWip: 'Creates WIP',
   rolesHeader: 'Roles',
@@ -753,6 +770,7 @@ function ProcessEditDialog({
     throughputPerHour: number;
     throughputUom: 'kg' | 'pack' | 'each' | 'l';
     setupCost: number;
+    yieldPct: number;
   }) => void;
 }) {
   const [duration, setDuration] = React.useState(String(process.durationHours ?? 0));
@@ -763,6 +781,9 @@ function ProcessEditDialog({
     (process.throughputUom as 'kg' | 'pack' | 'each' | 'l') ?? 'kg',
   );
   const [setupCost, setSetupCost] = React.useState(String(process.setupCost ?? 0));
+  const [yieldPct, setYieldPct] = React.useState(
+    String((process as ComponentProcess & { yieldPct?: number }).yieldPct ?? 100),
+  );
   const onCloseRef = React.useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -889,6 +910,23 @@ function ProcessEditDialog({
               className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm"
             />
           </div>
+          <div className="grid gap-1">
+            <label htmlFor="fa-prod-process-yield-pct" className="text-xs font-medium text-slate-700">
+              {labels.yieldPct}
+            </label>
+            <Input
+              id="fa-prod-process-yield-pct"
+              data-testid="fa-prod-process-yield-pct"
+              type="number"
+              min={0.001}
+              max={100}
+              step="0.001"
+              value={yieldPct}
+              disabled={disabled}
+              onChange={(e) => setYieldPct(e.target.value)}
+              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm"
+            />
+          </div>
           <div className="flex items-center justify-between">
             <span id="fa-prod-process-wip-label" className="text-xs font-medium text-slate-700">
               {labels.createsWip}
@@ -910,7 +948,9 @@ function ProcessEditDialog({
             type="button"
             data-testid="fa-prod-process-save"
             disabled={disabled}
-            onClick={() =>
+            onClick={() => {
+              const parsedYield = Number(yieldPct);
+              if (!Number.isFinite(parsedYield) || parsedYield <= 0 || parsedYield > 100) return;
               onSubmit({
                 durationHours: Number(duration) || 0,
                 additionalCost: Number(addCost) || 0,
@@ -918,8 +958,9 @@ function ProcessEditDialog({
                 throughputPerHour: Number(throughput) || 0,
                 throughputUom,
                 setupCost: Number(setupCost) || 0,
-              })
-            }
+                yieldPct: parsedYield,
+              });
+            }}
           >
             {labels.save}
           </Button>
@@ -1034,6 +1075,7 @@ function ComponentProcesses({
   saveRoles,
   publishWipDefinition,
   onMutated,
+  ingredientQtyKgPerPack,
 }: {
   prodDetailId: string;
   bundle: ComponentProcessBundle;
@@ -1050,6 +1092,7 @@ function ComponentProcesses({
   saveRoles: SaveProcessRolesFn;
   publishWipDefinition: typeof publishWipDefinitionFromComponent;
   onMutated: () => void;
+  ingredientQtyKgPerPack?: number | null;
 }) {
   const processes = bundle.processes;
   const readOnly = Boolean(bundle.readOnly);
@@ -1080,6 +1123,7 @@ function ComponentProcesses({
         durationHours,
         additionalCost,
         createsWipItem: false,
+        yieldPct: 100,
       });
       if (!added.ok) {
         setError(labels.addError);
@@ -1130,12 +1174,13 @@ function ComponentProcesses({
       throughputPerHour: number;
       throughputUom: 'kg' | 'pack' | 'each' | 'l';
       setupCost: number;
+      yieldPct: number;
     },
   ) {
     setBusy(true);
     setError(null);
     try {
-      const res = await updateProcess({ id, ...next });
+      const res = await updateProcess({ id, ...next, yieldPct: next.yieldPct });
       if (!res.ok) {
         setError(labels.updateError);
         return;
@@ -1242,6 +1287,10 @@ function ComponentProcesses({
                   <span className="tabular-nums">
                     {labels.additionalCost}: {fmtCost(Number(proc.additionalCost))}
                   </span>
+                  <span className="tabular-nums">
+                    {labels.yieldPct}:{' '}
+                    {fmtCost(Number((proc as ComponentProcess & { yieldPct?: number }).yieldPct ?? 100))}
+                  </span>
                   <span className="font-semibold tabular-nums text-slate-800">
                     {labels.processCost}:{' '}
                     <span data-testid={`fa-prod-process-cost-${proc.id}`}>
@@ -1292,6 +1341,8 @@ function ComponentProcesses({
           ))}
         </ul>
       )}
+
+      <ProcessYieldHint baseQtyKg={ingredientQtyKgPerPack} processes={processes} />
 
       <div
         className="mt-2 flex justify-end text-xs font-semibold text-slate-800"
@@ -1360,6 +1411,11 @@ export function FaProductionTab({
   onRemoveProcess,
   onSaveProcessRoles,
   onPublishWipDefinition,
+  projectId,
+  productionLineId = null,
+  productionLineOptions = [],
+  ingredientQtyKgPerPack = null,
+  onSetProductionLine,
 }: FaProductionTabProps) {
   const params = useParams();
   const locale = typeof params?.locale === 'string' ? params.locale : 'en';
@@ -1531,6 +1587,20 @@ export function FaProductionTab({
         </CardHeader>
 
         <CardContent>
+          {projectId && onSetProductionLine ? (
+            <div className="mb-4">
+              <ProductionLinePicker
+                projectId={projectId}
+                value={productionLineId}
+                options={productionLineOptions}
+                canWrite={canWrite}
+                disabled={locked}
+                onSetProductionLine={onSetProductionLine}
+                onSaved={() => mutated?.()}
+              />
+            </div>
+          ) : null}
+
           {!dataLoaded ? (
             <StateNotice state={state} labels={labels} />
           ) : rows.length === 0 ? (
@@ -1627,6 +1697,7 @@ export function FaProductionTab({
                     saveRoles={saveRolesAction}
                     publishWipDefinition={publishWipAction}
                     onMutated={() => mutated?.()}
+                    ingredientQtyKgPerPack={ingredientQtyKgPerPack}
                   />
                 </div>
               ))}
@@ -1638,9 +1709,8 @@ export function FaProductionTab({
                 >
                   <strong className="font-semibold">{labels.aggregateTitle}:</strong>{' '}
                   <span className="font-mono">
-                    {labels.fields.line}: {uniqueJoin(rows, 'line')} · {labels.fields.dieset}:{' '}
-                    {uniqueJoin(rows, 'dieset')} · {labels.fields.intermediate_code_final}:{' '}
-                    {uniqueJoin(rows, 'intermediate_code_final')}
+                    {labels.fields.dieset}: {uniqueJoin(rows, 'dieset')} ·{' '}
+                    {labels.fields.intermediate_code_final}: {uniqueJoin(rows, 'intermediate_code_final')}
                   </span>
                 </div>
               ) : null}

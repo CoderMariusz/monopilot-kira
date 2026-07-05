@@ -243,7 +243,7 @@ export async function createWorkOrderCore(
   await ctx.client.query(
     `insert into public.wo_operations
        (org_id, site_id, wo_id, sequence, operation_name, machine_id, line_id,
-        expected_duration_minutes, status, notes)
+        expected_duration_minutes, status, notes, crew)
      select app.current_org_id(), ro.site_id, $1::uuid, ro.op_no, ro.op_name,
             ro.machine_id, ro.line_id,
             case
@@ -255,7 +255,7 @@ export async function createWorkOrderCore(
               else (coalesce(ro.setup_time_min, 0)::numeric
                     + coalesce(ceil((ro.run_time_per_unit_sec * $2::numeric) / 60.0), 0))::integer
             end,
-            'pending', ro.op_code
+            'pending', ro.op_code, ro.crew
        from public.routing_operations ro
        join public.routings r
          on r.id = ro.routing_id

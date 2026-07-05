@@ -46,6 +46,7 @@ type ItemRow = {
   status: string;
   description: string | null;
   product_group: string | null;
+  category_code: string | null;
   uom_base: string;
   uom_secondary: string | null;
   gs1_gtin: string | null;
@@ -85,6 +86,7 @@ function mapRow(row: ItemRow): ItemListItem | null {
     status: row.status as ItemStatus,
     description: row.description,
     productGroup: row.product_group,
+    categoryCode: row.category_code,
     uomBase: row.uom_base,
     uomSecondary: row.uom_secondary,
     gs1Gtin: row.gs1_gtin,
@@ -138,6 +140,7 @@ export async function listItems(opts?: {
       const [itemsResult, canCreate, canEdit, canDeactivate] = await Promise.all([
         (client as QueryClient).query<ItemRow>(
           `select i.id, i.item_code, i.name, i.item_type, i.status, i.description, i.product_group,
+                  i.category_code,
                   i.uom_base, i.uom_secondary,
                   i.gs1_gtin, i.weight_mode, i.nominal_weight, i.tare_weight, i.gross_weight_max,
                   i.variance_tolerance_pct, i.shelf_life_days, i.shelf_life_mode,

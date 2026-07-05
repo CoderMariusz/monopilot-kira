@@ -51,9 +51,17 @@ export type ReleaseNpdProjectToFactoryResult =
     }
   | {
       ok: false;
-      error: 'INVALID_INPUT' | 'FORBIDDEN' | 'PRECONDITION_BLOCKERS' | 'PERSISTENCE_FAILED';
+      error:
+        | 'INVALID_INPUT'
+        | 'FORBIDDEN'
+        | 'PRECONDITION_BLOCKERS'
+        | 'PACKAGING_UNLINKED'
+        | 'PERSISTENCE_FAILED';
       status: number;
       blockers?: ReleasePreflightBlocker[];
+      /** Present when error === 'PACKAGING_UNLINKED'. */
+      unlinkedComponents?: string[];
+      message?: string;
     };
 
 export async function releaseNpdProjectToFactory(
@@ -67,6 +75,19 @@ export async function releaseNpdProjectToFactory(
     const runRelease = async (ctx: OrgContextLike): Promise<ReleaseNpdProjectToFactoryResult> => {
       const context = ctx as OrgContextLike;
       await requireReleasePermission(context);
+
+      const unlinkedComponents = await loadUnlinkedPackagingComponents(context, parsed.data.projectId);
+      if (unlinkedComponents.length > 0) {
+        const names = unlinkedComponents.join(', ');
+        return {
+          ok: false,
+          error: 'PACKAGING_UNLINKED',
+          status: 409,
+          unlinkedComponents,
+          message: `packaging components not linked to items: ${names}`,
+        };
+      }
+
       const materialized = await materializeNpdBom(context, { projectId: parsed.data.projectId });
       if (materialized.code === 'PRODUCTION_CODE_CONFLICT') {
         return {
@@ -114,6 +135,8 @@ export async function releaseNpdProjectToFactory(
         activeFactorySpecId: ready.activeFactorySpecId,
         releaseEventId,
       });
+
+      await persistPromotedItemPricesAndCost(context, ready.projectId, ready.productCode);
 
       safeRevalidatePath(`/npd/pipeline/${ready.projectId}`);
       safeRevalidatePath(`/npd/fg/${ready.productCode}`);
@@ -270,4 +293,103 @@ function safeRevalidatePath(path: string): void {
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }
+}
+
+type PackagingUnlinkedRow = { component_name: string };
+
+async function loadUnlinkedPackagingComponents(ctx: OrgContextLike, projectId: string): Promise<string[]> {
+  const { rows } = await ctx.client.query<PackagingUnlinkedRow>(
+    `select component_name
+       from public.packaging_components
+      where org_id = app.current_org_id()
+        and project_id = $1::uuid
+        and item_id is null
+      order by display_order, component_name`,
+    [projectId],
+  );
+  return rows.map((row) => row.component_name);
+}
+
+type PersistedWaterfallRow = {
+  fg_item_id: string;
+  total_cost_per_pack: string;
+  pack_weight_kg: string;
+  current_cost_per_kg: string | null;
+};
+
+/**
+ * T8 — after a successful factory release, write target retail price to the FG item
+ * and snapshot NPD costing waterfall total cost per kg when a persisted breakdown exists.
+ * Idempotent: re-running release skips rows that already match.
+ */
+async function persistPromotedItemPricesAndCost(
+  ctx: OrgContextLike,
+  projectId: string,
+  productCode: string,
+): Promise<void> {
+  await ctx.client.query(
+    `update public.items i
+        set list_price_gbp = p.target_retail_price_eur
+       from public.npd_projects p
+      where i.org_id = app.current_org_id()
+        and p.org_id = app.current_org_id()
+        and p.id = $1::uuid
+        and i.item_code = p.product_code
+        and p.target_retail_price_eur is not null
+        and i.list_price_gbp is distinct from p.target_retail_price_eur`,
+    [projectId],
+  );
+
+  const { rows } = await ctx.client.query<PersistedWaterfallRow>(
+    `select i.id::text as fg_item_id,
+            cws.value_eur::text as total_cost_per_pack,
+            cb.params->'units'->>'packWeightKg' as pack_weight_kg,
+            i.cost_per_kg::text as current_cost_per_kg
+       from public.costing_breakdowns cb
+       join public.costing_waterfall_steps cws
+         on cws.breakdown_id = cb.id
+        and cws.step_name = 'Total cost'
+       join public.items i
+         on i.org_id = cb.org_id
+        and i.item_code = cb.product_code
+      where cb.org_id = app.current_org_id()
+        and cb.product_code = $2
+        and lower(cb.scenario) = 'target'
+      limit 1`,
+    [projectId, productCode],
+  );
+  const snapshot = rows[0];
+  if (!snapshot?.total_cost_per_pack || !snapshot.pack_weight_kg) return;
+
+  const computed = await ctx.client.query<{ cost_per_kg: string }>(
+    `select ($1::numeric / nullif($2::numeric, 0))::text as cost_per_kg`,
+    [snapshot.total_cost_per_pack, snapshot.pack_weight_kg],
+  );
+  const costPerKg = computed.rows[0]?.cost_per_kg;
+  if (!costPerKg) return;
+  if (snapshot.current_cost_per_kg === costPerKg) return;
+
+  await ctx.client.query(
+    `update public.item_cost_history
+        set effective_to = greatest((current_date - interval '1 day')::date, effective_from)
+      where org_id = app.current_org_id()
+        and item_id = $1::uuid
+        and effective_to is null`,
+    [snapshot.fg_item_id],
+  );
+  await ctx.client.query(
+    `insert into public.item_cost_history
+       (org_id, item_id, cost_per_kg, currency, effective_from, source)
+     values
+       (app.current_org_id(), $1::uuid, $2::numeric, 'GBP', current_date, 'manual')`,
+    [snapshot.fg_item_id, costPerKg],
+  );
+  await ctx.client.query(
+    `update public.items
+        set cost_per_kg = $2::numeric
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and cost_per_kg is distinct from $2::numeric`,
+    [snapshot.fg_item_id, costPerKg],
+  );
 }

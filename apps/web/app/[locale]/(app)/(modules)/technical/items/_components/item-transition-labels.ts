@@ -47,6 +47,7 @@ export const DEFAULT_TRANSITION_LABELS: StatusTransitionLabels = {
     invalid_input: 'Please check the values and try again.',
     not_found: 'That item no longer exists.',
     persistence_failed: 'Could not save. Please try again.',
+    invalid_category: 'Choose an active product category or leave blank.',
     invalid_transition: "This status change is not allowed from the item's current status.",
     activation_gate_failed:
       'This item cannot be activated yet — its base unit is not one of the canonical units. Edit the item first.',
@@ -126,6 +127,7 @@ export function buildTransitionLabels(t: Translator): StatusTransitionLabels {
       invalid_input: get('errors.invalid_input', d.actionErrors.invalid_input),
       not_found: get('errors.not_found', d.actionErrors.not_found),
       persistence_failed: get('errors.persistence_failed', d.actionErrors.persistence_failed),
+      invalid_category: get('errors.invalid_category', d.actionErrors.invalid_category),
       invalid_transition: get('transition.errors.invalid_transition', d.actionErrors.invalid_transition),
       activation_gate_failed: get('transition.errors.activation_gate_failed', d.actionErrors.activation_gate_failed),
     },

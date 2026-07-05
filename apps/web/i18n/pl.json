@@ -1646,6 +1646,54 @@
       "read_only_notice": "Możesz przeglądać, ale nie edytować parametrów.",
       "forbidden": "Brak uprawnień do parametrów kosztowych.",
       "load_error": "Nie udało się wczytać parametrów."
+    },
+    "product_categories": {
+      "breadcrumb_settings": "Ustawienia",
+      "breadcrumb_reference_tables": "Tabele referencyjne",
+      "breadcrumb_product_categories": "Kategorie produktów",
+      "set_reference": "SET-REFERENCE / W5-T7",
+      "title": "Kategorie produktów",
+      "subtitle": "Kategorie produktów dla NPD i modułu technicznego — kod, etykieta, kolejność i status.",
+      "notice": "Kategorie zasilają kreator NPD, brief projektu i kartotekę pozycji. Kod jest niezmienny po utworzeniu — dezaktywuj zamiast usuwać.",
+      "loading": "Ładowanie kategorii produktów…",
+      "error": "Nie można załadować kategorii produktów.",
+      "permission_denied": "Brak uprawnień do zarządzania kategoriami produktów.",
+      "add_new": "Dodaj kategorię",
+      "show_inactive": "Pokaż nieaktywne",
+      "column_code": "Kod",
+      "column_label": "Etykieta",
+      "column_display_order": "Kolejność",
+      "column_status": "Status",
+      "column_actions": "Akcje",
+      "status_active": "Aktywna",
+      "status_inactive": "Nieaktywna",
+      "edit_category": "Edytuj {category}",
+      "deactivate_category": "Dezaktywuj {category}",
+      "activate_category": "Aktywuj {category}",
+      "empty": "Brak kategorii dla bieżących filtrów.",
+      "add_dialog_title": "Dodaj kategorię produktu",
+      "field_code": "Kod",
+      "field_label": "Etykieta",
+      "field_display_order": "Kolejność wyświetlania",
+      "field_active": "Aktywna",
+      "create": "Utwórz",
+      "creating": "Tworzenie…",
+      "duplicate_code": "Kategoria o tym kodzie już istnieje.",
+      "create_failed": "Nie można utworzyć kategorii produktu.",
+      "cancel": "Anuluj",
+      "edit_dialog_title": "Edytuj kategorię produktu",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "update_failed": "Nie można zaktualizować kategorii produktu.",
+      "immutable_field": "Kod kategorii jest niezmienny po utworzeniu.",
+      "deactivate_dialog_title": "Dezaktywuj kategorię produktu",
+      "deactivate_dialog_body": "Dezaktywować „{category}”? Nie będzie widoczna w listach NPD ani pozycji. Istniejące rekordy zachowają wartość.",
+      "activate_dialog_title": "Aktywuj kategorię produktu",
+      "activate_dialog_body": "Aktywować „{category}”? Pojawi się ponownie w listach NPD i pozycji.",
+      "confirm_deactivate": "Dezaktywuj",
+      "confirm_activate": "Aktywuj",
+      "toggling": "Zapisywanie…",
+      "toggle_failed": "Nie można zmienić statusu kategorii."
     }
   },
   "navigation": {
@@ -2123,6 +2171,13 @@
             "base": "Jednostka bazowa",
             "each": "Sztuka",
             "box": "Karton"
+          },
+          "effectiveCost": "Koszt efektywny",
+          "effectiveCostSource": {
+            "cost_history": "Historia kosztów",
+            "supplier_spec": "Specyfikacja dostawcy",
+            "list_price": "Cena katalogowa",
+            "none": "Brak"
           }
         },
         "dataTabs": {
@@ -2335,7 +2390,8 @@
           "outputUom": "Jednostka wyjściowa",
           "netQtyPerEach": "Zawartość netto na sztukę",
           "eachPerBox": "Sztuk w kartonie",
-          "boxesPerPallet": "Kartonów na palecie"
+          "boxesPerPallet": "Kartonów na palecie",
+          "category": "Kategoria"
         },
         "catchHint": "Masa zmienna wymaga masy nominalnej, maks. masy brutto i tolerancji odchylenia.",
         "review": {
@@ -2406,7 +2462,8 @@
         "forbidden": "Nie masz uprawnień do wykonania tej akcji.",
         "invalid_input": "Sprawdź wartości i spróbuj ponownie.",
         "not_found": "Ta pozycja już nie istnieje.",
-        "persistence_failed": "Nie udało się zapisać. Spróbuj ponownie."
+        "persistence_failed": "Nie udało się zapisać. Spróbuj ponownie.",
+        "invalid_category": "Wybierz aktywną kategorię produktu lub pozostaw puste."
       },
       "list": {
         "title": "Pozycje",
@@ -3029,7 +3086,15 @@
         "loading": "Ładowanie BOM rozbioru…",
         "error": "Nie można załadować BOM rozbioru. Spróbuj ponownie.",
         "notFound": "Nie znaleziono BOM rozbioru."
-      }
+      },
+      "perBoxBasis": "na karton (× {n} paczek)",
+      "perPackValue": "{value} / paczkę",
+      "substituteLabel": "Zamiennik:",
+      "expandWip": "Pokaż pod-BOM WIP",
+      "collapseWip": "Ukryj pod-BOM WIP",
+      "wipSubBomLoading": "Ładowanie pod-BOM WIP…",
+      "wipSubBomEmpty": "Brak aktywnego BOM dla tego WIP.",
+      "wipSubBomError": "Nie można załadować pod-BOM tego WIP."
     },
     "bomDelete": {
       "title": "Usuń wersję BOM",
@@ -5902,7 +5967,13 @@
         "publishWipCancel": "Anuluj",
         "publishWipPublishing": "Publikowanie…",
         "publishWipError": "Nie udało się opublikować definicji WIP"
-      }
+      },
+      "productionLine": "Linia produkcyjna",
+      "productionLinePlaceholder": "Wybierz linię…",
+      "productionLineEmpty": "Brak skonfigurowanych linii produkcyjnych dla tego zakładu.",
+      "productionLineSaveError": "Nie udało się zapisać linii produkcyjnej",
+      "processYieldPct": "Yield %",
+      "effectiveKgPerPackHint": "efektywnie {qty} kg/paczkę po uzyskach procesów"
     },
     "faTechnicalTab": {
       "title": "Sekcja techniczna",
@@ -6500,7 +6571,17 @@
       "yieldErrorInvalidInput": "Nie udało się zapisać wydajności. Podaj wartość od 0,001 do 100 i spróbuj ponownie.",
       "yieldErrorForbidden": "Nie masz uprawnień do aktualizacji tej wydajności.",
       "yieldErrorNotFound": "Nie znaleziono aktywnej BOM. Odśwież i spróbuj ponownie.",
-      "yieldErrorPersistenceFailed": "Nie udało się zapisać wydajności. Spróbuj ponownie."
+      "yieldErrorPersistenceFailed": "Nie udało się zapisać wydajności. Spróbuj ponownie.",
+      "errors": {
+        "packaging_unlinked": "Komponenty opakowania muszą być powiązane z pozycjami przed wygenerowaniem BOM produkcyjnego: {components}"
+      },
+      "warnings": {
+        "routing_no_processes": "BOM produkcyjny utworzony, ale nie znaleziono procesów NPD do utworzenia marszruty.",
+        "routing_no_line": "BOM produkcyjny utworzony, ale nie ustawiono linii produkcyjnej w projekcie — marszruta nie została utworzona."
+      },
+      "generatePackagingUnlinked": "Komponenty opakowania muszą być powiązane z pozycjami przed wygenerowaniem BOM produkcyjnego: {components}",
+      "generateWarningNoLine": "BOM produkcyjny utworzony, ale nie ustawiono linii produkcyjnej w projekcie — marszruta nie została utworzona.",
+      "generateWarningNoProcesses": "BOM produkcyjny utworzony, ale nie znaleziono procesów NPD do utworzenia marszruty."
     },
     "pipelineCreate": {
       "title": "Utwórz projekt NPD",

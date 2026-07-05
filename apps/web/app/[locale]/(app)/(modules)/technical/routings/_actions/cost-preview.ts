@@ -5,8 +5,9 @@
  * routing version at a given production volume.
  *
  * Per-op cost (PRD §11.4 / §12.4):
- *   setup_cost = setup_time_min / 60                  × cost_per_hour
- *   run_cost   = (run_time_per_unit_sec × volume) / 3600 × cost_per_hour
+ *   hourly_rate = Σ(crew.headcount × labor_rates.rate_per_hour)
+ *   setup_cost  = setup_time_min / 60                     × hourly_rate
+ *   run_cost    = (run_time_per_unit_sec × volume) / 3600 × hourly_rate
  *   op_cost    = setup_cost + run_cost
  *   total      = Σ op_cost
  *
@@ -62,39 +63,106 @@ export async function routingCostPreview(rawInput: unknown): Promise<RoutingCost
       );
       if (!routingRows[0]) return { ok: false, error: 'not_found' };
 
-      // Single SQL pass — all NUMERIC. coalesce missing cost/run-time to 0 so a
-      // partially-costed op contributes its setup cost without erroring.
+      // Single SQL pass — all NUMERIC. Crew is the canonical rate source; legacy
+      // cost_per_hour is used only when crew is empty and cost_per_hour is set.
       const { rows } = await qc.query<OpCostRow>(
-        `select
-            o.op_no,
-            o.op_code,
-            o.op_name,
-            round((coalesce(o.setup_time_min, 0)::numeric / 60)
-                  * coalesce(o.cost_per_hour, 0), 2)::text as setup_cost,
-            round((coalesce(o.run_time_per_unit_sec, 0) * $2::numeric / 3600)
-                  * coalesce(o.cost_per_hour, 0), 2)::text as run_cost,
+        `with op_rates as (
+           select o.op_no,
+                  o.op_code,
+                  o.op_name,
+                  o.setup_time_min,
+                  o.run_time_per_unit_sec,
+                  case
+                    when jsonb_typeof(coalesce(o.crew, '[]'::jsonb)) = 'array'
+                     and jsonb_array_length(coalesce(o.crew, '[]'::jsonb)) > 0
+                      then coalesce(crew_rates.rate_per_hour, 0)
+                    when o.cost_per_hour is not null
+                      then o.cost_per_hour
+                    else 0
+                  end as rate_per_hour
+             from public.routing_operations o
+             left join lateral (
+               select sum(coalesce((c.headcount)::numeric, 0) * coalesce(lr.rate_per_hour, 0)) as rate_per_hour
+                 from jsonb_to_recordset(
+                        case
+                          when jsonb_typeof(coalesce(o.crew, '[]'::jsonb)) = 'array'
+                            then coalesce(o.crew, '[]'::jsonb)
+                          else '[]'::jsonb
+                        end
+                      ) as c(role_group text, headcount numeric)
+                 left join lateral (
+                   select rate_per_hour
+                     from public.labor_rates lr
+                    where lr.org_id = app.current_org_id()
+                      and lr.role_group = c.role_group
+                      and lr.currency = 'GBP'
+                      and lr.effective_from <= current_date
+                    order by lr.effective_from desc
+                    limit 1
+                 ) lr on true
+             ) crew_rates on true
+            where o.org_id = app.current_org_id()
+              and o.routing_id = $1::uuid
+         )
+         select
+            op_no,
+            op_code,
+            op_name,
+            round((coalesce(setup_time_min, 0)::numeric / 60) * rate_per_hour, 2)::text as setup_cost,
+            round((coalesce(run_time_per_unit_sec, 0) * $2::numeric / 3600) * rate_per_hour, 2)::text as run_cost,
             round(
-              (coalesce(o.setup_time_min, 0)::numeric / 60) * coalesce(o.cost_per_hour, 0)
-              + (coalesce(o.run_time_per_unit_sec, 0) * $2::numeric / 3600) * coalesce(o.cost_per_hour, 0),
+              (coalesce(setup_time_min, 0)::numeric / 60) * rate_per_hour
+              + (coalesce(run_time_per_unit_sec, 0) * $2::numeric / 3600) * rate_per_hour,
               2
             )::text as op_cost
-           from public.routing_operations o
-          where o.org_id = app.current_org_id()
-            and o.routing_id = $1::uuid
-          order by o.op_no asc`,
+           from op_rates
+          order by op_no asc`,
         [input.routingId, input.volume],
       );
 
       // Total summed in SQL too (exact, then rounded to 2 dp) so the total is not
       // the float-sum of already-rounded per-op strings.
       const { rows: totalRows } = await qc.query<{ total: string }>(
-        `select round(coalesce(sum(
-            (coalesce(o.setup_time_min, 0)::numeric / 60) * coalesce(o.cost_per_hour, 0)
-            + (coalesce(o.run_time_per_unit_sec, 0) * $2::numeric / 3600) * coalesce(o.cost_per_hour, 0)
+        `with op_rates as (
+           select o.setup_time_min,
+                  o.run_time_per_unit_sec,
+                  case
+                    when jsonb_typeof(coalesce(o.crew, '[]'::jsonb)) = 'array'
+                     and jsonb_array_length(coalesce(o.crew, '[]'::jsonb)) > 0
+                      then coalesce(crew_rates.rate_per_hour, 0)
+                    when o.cost_per_hour is not null
+                      then o.cost_per_hour
+                    else 0
+                  end as rate_per_hour
+             from public.routing_operations o
+             left join lateral (
+               select sum(coalesce((c.headcount)::numeric, 0) * coalesce(lr.rate_per_hour, 0)) as rate_per_hour
+                 from jsonb_to_recordset(
+                        case
+                          when jsonb_typeof(coalesce(o.crew, '[]'::jsonb)) = 'array'
+                            then coalesce(o.crew, '[]'::jsonb)
+                          else '[]'::jsonb
+                        end
+                      ) as c(role_group text, headcount numeric)
+                 left join lateral (
+                   select rate_per_hour
+                     from public.labor_rates lr
+                    where lr.org_id = app.current_org_id()
+                      and lr.role_group = c.role_group
+                      and lr.currency = 'GBP'
+                      and lr.effective_from <= current_date
+                    order by lr.effective_from desc
+                    limit 1
+                 ) lr on true
+             ) crew_rates on true
+            where o.org_id = app.current_org_id()
+              and o.routing_id = $1::uuid
+         )
+         select round(coalesce(sum(
+            (coalesce(setup_time_min, 0)::numeric / 60) * rate_per_hour
+            + (coalesce(run_time_per_unit_sec, 0) * $2::numeric / 3600) * rate_per_hour
           ), 0), 2)::text as total
-           from public.routing_operations o
-          where o.org_id = app.current_org_id()
-            and o.routing_id = $1::uuid`,
+           from op_rates`,
         [input.routingId, input.volume],
       );
 

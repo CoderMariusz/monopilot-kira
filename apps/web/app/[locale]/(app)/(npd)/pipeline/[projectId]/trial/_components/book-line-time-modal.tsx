@@ -33,14 +33,22 @@ const EMPTY: BookLineTimeFormValues = {
   endTime: '',
 };
 
-function fromBooking(booking: TrialCapacityBookingView | null): BookLineTimeFormValues {
-  if (!booking) return EMPTY;
-  return {
-    lineId: booking.lineId,
-    blockDate: booking.blockDate,
-    startTime: booking.startTime,
-    endTime: booking.endTime,
-  };
+function fromBooking(
+  booking: TrialCapacityBookingView | null,
+  defaultLineId: string | null,
+): BookLineTimeFormValues {
+  if (booking) {
+    return {
+      lineId: booking.lineId,
+      blockDate: booking.blockDate,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+    };
+  }
+  if (defaultLineId) {
+    return { ...EMPTY, lineId: defaultLineId };
+  }
+  return EMPTY;
 }
 
 function minutesSinceMidnight(value: string): number {
@@ -55,6 +63,7 @@ export function BookLineTimeModal({
   trialId,
   lines,
   existingBooking,
+  defaultProductionLineId = null,
   onSubmit,
 }: {
   open: boolean;
@@ -63,20 +72,23 @@ export function BookLineTimeModal({
   trialId: string;
   lines: ProductionLineOption[];
   existingBooking: TrialCapacityBookingView | null;
+  defaultProductionLineId?: string | null;
   onSubmit: (call: BookLineTimeFormValues & { trialId: string }) => Promise<CapacityBlockActionOutcome>;
 }) {
   const isRebook = existingBooking !== null;
-  const [values, setValues] = React.useState<BookLineTimeFormValues>(() => fromBooking(existingBooking));
+  const [values, setValues] = React.useState<BookLineTimeFormValues>(() =>
+    fromBooking(existingBooking, defaultProductionLineId),
+  );
   const [submitState, setSubmitState] = React.useState<'idle' | 'saving' | 'error'>('idle');
   const [errorCode, setErrorCode] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (open) {
-      setValues(fromBooking(existingBooking));
+      setValues(fromBooking(existingBooking, defaultProductionLineId));
       setSubmitState('idle');
       setErrorCode(null);
     }
-  }, [open, existingBooking]);
+  }, [open, existingBooking, defaultProductionLineId]);
 
   const dialogTitle = isRebook ? labels.rebookLineTimeModalTitle : labels.bookLineTimeModalTitle;
   const submitLabel = isRebook ? labels.rebookLineTime : labels.bookLineTime;

@@ -7,10 +7,10 @@
  * - Materials: public.wo_material_consumption.qty_consumed joined to public.items by
  *   component_id; active `item_cost_history.cost_per_kg` is preferred, falling
  *   back to the denormalized `items.cost_per_kg`.
- * - Process costing: WO operation names resolve to Reference.ManufacturingOperations,
- *   then NPD process defaults/roles and effective-dated public.labor_rates. The
- *   returned labor shape stays per-hour by deriving the aggregate hourly rate over
- *   summed expected WO operation minutes.
+ * - Process costing: WO operation crew snapshots are the primary source.
+ *   Operation-level hourly cost is Σ(crew.headcount × effective-dated
+ *   labor_rates.rate_per_hour). The older ManufacturingOperations →
+ *   npd_process_defaults chain is retained only when wo_operations.crew IS NULL.
  * - Runtime: the OEE producer's exact window rule is reused for downtime overlap
  *   merging via totalDowntimeMinutes(); runtime = started/completed minus merged
  *   downtime for that WO. We do not write or read oee_snapshots here.
@@ -283,23 +283,49 @@ async function computeWoActualCostInContext(
     `with op as (
        select sequence,
               operation_name,
-              coalesce(expected_duration_minutes, 0)::numeric as expected_duration_minutes
+              coalesce(expected_duration_minutes, 0)::numeric as expected_duration_minutes,
+              crew
          from public.wo_operations
         where org_id = app.current_org_id()
           and wo_id = $1::uuid
      ),
-     op_rate as (
-       -- Aggregate roles PER OPERATION first so the crew rate is NOT deflated by the
-       -- role-fanout. crew_rate_per_hour = SUM over roles(rate x headcount) = the true
-       -- GBP/h for the whole crew on that operation; exactly one row per operation, so
-       -- the outer aggregate (and the downtime rate derived from cost_rate) is correct
-       -- even when an operation has multiple default roles.
+     direct_op_rate as (
+       select op.sequence,
+              op.operation_name,
+              op.expected_duration_minutes,
+              null::uuid as mo_id,
+              sum(coalesce((crew.headcount)::numeric, 0) * coalesce(lr.rate_per_hour, 0)) as crew_rate_per_hour,
+              bool_or(lr.rate_per_hour is not null) as has_rate,
+              true as used_direct_crew
+         from op
+         left join lateral jsonb_to_recordset(
+           case
+             when jsonb_typeof(coalesce(op.crew, '[]'::jsonb)) = 'array'
+               then coalesce(op.crew, '[]'::jsonb)
+             else '[]'::jsonb
+           end
+         ) as crew(role_group text, headcount numeric) on true
+         left join lateral (
+           select rate_per_hour
+             from public.labor_rates lr
+            where lr.org_id = app.current_org_id()
+              and lr.role_group = crew.role_group
+              and lr.currency = 'GBP'
+              and lr.effective_from <= $2::date
+            order by lr.effective_from desc
+            limit 1
+         ) lr on true
+        where op.crew is not null
+        group by op.sequence, op.operation_name, op.expected_duration_minutes
+     ),
+     fallback_op_rate as (
        select op.sequence,
               op.operation_name,
               op.expected_duration_minutes,
               mo.id as mo_id,
               sum(coalesce(lr.rate_per_hour, 0) * coalesce(pdr.default_headcount, 0)) as crew_rate_per_hour,
-              bool_or(lr.rate_per_hour is not null) as has_rate
+              bool_or(lr.rate_per_hour is not null) as has_rate,
+              false as used_direct_crew
          from op
          left join lateral (
            select id
@@ -321,11 +347,17 @@ async function computeWoActualCostInContext(
             where lr.org_id = app.current_org_id()
               and lr.role_group = pdr.role_group
               and lr.currency = 'GBP'
-              and lr.effective_from <= $2::date
+                 and lr.effective_from <= $2::date
             order by lr.effective_from desc
             limit 1
          ) lr on true
+        where op.crew is null
         group by op.sequence, op.operation_name, op.expected_duration_minutes, mo.id
+     ),
+     op_rate as (
+       select * from direct_op_rate
+       union all
+       select * from fallback_op_rate
      )
      select (array_agg(operation_name order by sequence))[1] as operation_name,
             (array_agg(mo_id::text order by sequence) filter (where mo_id is not null))[1] as row_key,
@@ -430,8 +462,8 @@ async function computeWoActualCostInContext(
         currency: processRow?.currency ?? null,
         note:
           processRow?.has_labor_rate
-            ? 'Matched WO operations to ManufacturingOperations/process-defaults/labor_rates using GBP effective labor rates.'
-            : 'no labor rate matched via ManufacturingOperations/process-defaults',
+            ? 'Matched WO operation crew snapshots to GBP effective labor rates; legacy process defaults are used only when crew is NULL.'
+            : 'no labor rate matched from WO operation crew or legacy process defaults',
       },
     },
   };

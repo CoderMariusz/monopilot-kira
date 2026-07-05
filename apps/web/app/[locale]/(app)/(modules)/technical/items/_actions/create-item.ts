@@ -10,6 +10,7 @@
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { validateActiveCategoryCode } from '../../../../../../../actions/reference/product-categories/validate-category-code';
 import { writeItemCostLedger } from '../../cost/_actions/write-cost-ledger';
 import { safeRevalidatePath } from './revalidate';
 import {
@@ -40,17 +41,20 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPermission(ctx, ITEMS_CREATE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
+      const categoryCheck = await validateActiveCategoryCode(client as QueryClient, input.categoryCode);
+      if (!categoryCheck.ok) return { ok: false, error: 'invalid_category' };
+
       const { rows } = await (client as QueryClient).query<{ id: string }>(
         `insert into public.items
            (org_id, item_code, item_type, name, status, uom_base, uom_secondary, product_group,
-           description, gs1_gtin, weight_mode, nominal_weight, tare_weight, gross_weight_max,
+           category_code, description, gs1_gtin, weight_mode, nominal_weight, tare_weight, gross_weight_max,
             variance_tolerance_pct, shelf_life_days, shelf_life_mode,
             output_uom, net_qty_per_each, each_per_box, boxes_per_pallet, list_price_gbp, created_by)
          values
-           (app.current_org_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9,
-            $10, $11::numeric, $12::numeric, $13::numeric, $14::numeric,
-            $15::integer, $16,
-            $17, $18::numeric, $19::integer, $20::integer, $21::numeric, $22::uuid)
+           (app.current_org_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+            $11, $12::numeric, $13::numeric, $14::numeric, $15::numeric,
+            $16::integer, $17,
+            $18, $19::numeric, $20::integer, $21::integer, $22::numeric, $23::uuid)
          returning id`,
         [
           input.itemCode,
@@ -60,6 +64,7 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
           input.uomBase,
           input.uomSecondary ?? null,
           input.productGroup ?? null,
+          input.categoryCode ?? null,
           input.description ?? null,
           input.gs1Gtin ?? null,
           input.weightMode,

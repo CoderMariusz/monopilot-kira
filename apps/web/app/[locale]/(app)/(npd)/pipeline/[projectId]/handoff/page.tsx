@@ -105,6 +105,12 @@ const DEFAULT_LABELS: HandoffLabels = {
   generateNoRecipe: 'Lock a recipe first, then generate the production BOM.',
   generatePacksPerBoxRequired: 'Set packs-per-box on the FG before generating the production BOM.',
   generateError: 'Could not generate the production BOM. Try again.',
+  generatePackagingUnlinked:
+    'Packaging components must be linked to items before generating the production BOM: {components}',
+  generateWarningNoLine:
+    'Production BOM created, but no production line is set on the project — routing was not materialized.',
+  generateWarningNoProcesses:
+    'Production BOM created, but no NPD processes were found to build a routing.',
   promoteSuccessTitle: 'Production BOM created',
   promoteSuccessBody: 'Production FG {code} was created and its BOM auto-built.',
   promoteSuccessViewBom: 'Open production BOM',
@@ -215,9 +221,21 @@ export default async function HandoffPage(propsInput: unknown = {}) {
     // ACTIVE_SHARED_BOM / FACTORY_SPEC gates flip to met and Promote enables.
     // Idempotent — a later promote reuses the BOM (and any manual corrections).
     const result = await generateProductionBom({ projectId });
-    if (!result.ok) return { ok: false, error: result.error };
-    const { productionCode, bomHeaderId, yieldPromptRequired } = result.data;
-    return { ok: true, productionCode, bomHeaderId, yieldPromptRequired };
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: result.error,
+        unlinkedComponents: 'unlinkedComponents' in result ? result.unlinkedComponents : undefined,
+      };
+    }
+    const { productionCode, bomHeaderId, yieldPromptRequired, warnings } = result.data;
+    return {
+      ok: true,
+      productionCode,
+      bomHeaderId,
+      yieldPromptRequired,
+      warnings: (warnings ?? []).map((w) => w.code),
+    };
   }
 
   async function updateYieldAction(call: UpdateBomYieldCall): Promise<UpdateBomYieldOutcome> {

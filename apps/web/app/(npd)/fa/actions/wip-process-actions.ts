@@ -27,6 +27,7 @@ const addWipProcessSchema = z.object({
   throughputPerHour: z.coerce.number().finite().nonnegative().optional().default(0),
   throughputUom: z.enum(['kg', 'pack', 'each', 'l']).optional().default('kg'),
   setupCost: z.coerce.number().finite().nonnegative().optional().default(0),
+  yieldPct: z.coerce.number().finite().positive().max(100).optional().default(100),
 });
 
 const updateWipProcessSchema = z.object({
@@ -38,6 +39,7 @@ const updateWipProcessSchema = z.object({
   throughputPerHour: z.coerce.number().finite().nonnegative().optional(),
   throughputUom: z.enum(['kg', 'pack', 'each', 'l']).optional(),
   setupCost: z.coerce.number().finite().nonnegative().optional(),
+  yieldPct: z.coerce.number().finite().positive().max(100).optional(),
 });
 
 const removeWipProcessSchema = z.object({
@@ -78,7 +80,7 @@ export async function addWipProcess(input: AddWipProcessInput): Promise<ActionRe
     const inserted = await ctx.client.query<{ id: string }>(
       `insert into public.npd_wip_processes
          (org_id, prod_detail_id, process_name, display_order, duration_hours, additional_cost,
-          creates_wip_item, throughput_per_hour, throughput_uom, setup_cost)
+          creates_wip_item, throughput_per_hour, throughput_uom, setup_cost, yield_pct)
        values
          (
            app.current_org_id(),
@@ -95,7 +97,8 @@ export async function addWipProcess(input: AddWipProcessInput): Promise<ActionRe
            $5::boolean,
            $6::numeric,
            $7,
-           $8::numeric
+           $8::numeric,
+           $9::numeric
          )
        returning id`,
       [
@@ -107,6 +110,7 @@ export async function addWipProcess(input: AddWipProcessInput): Promise<ActionRe
         parsed.data.throughputPerHour,
         parsed.data.throughputUom,
         parsed.data.setupCost,
+        parsed.data.yieldPct,
       ],
     );
 
@@ -138,6 +142,7 @@ export async function updateWipProcess(input: UpdateWipProcessInput): Promise<Ac
               throughput_per_hour = coalesce($6::numeric, throughput_per_hour),
               throughput_uom = coalesce($7::text, throughput_uom),
               setup_cost = coalesce($8::numeric, setup_cost),
+              yield_pct = coalesce($9::numeric, yield_pct),
               wip_item_id = case when $5::boolean is false then null else wip_item_id end,
               updated_at = now()
         where id = $1::uuid
@@ -152,6 +157,7 @@ export async function updateWipProcess(input: UpdateWipProcessInput): Promise<Ac
         parsed.data.throughputPerHour ?? null,
         parsed.data.throughputUom ?? null,
         parsed.data.setupCost ?? null,
+        parsed.data.yieldPct ?? null,
       ],
     );
 

@@ -82,6 +82,7 @@ export const DEFAULT_DEACTIVATE_LABELS: DeactivateLabels = {
     invalid_input: 'Please check the values and try again.',
     not_found: 'That item no longer exists.',
     persistence_failed: 'Could not save. Please try again.',
+    invalid_category: 'Choose an active product category or leave blank.',
   },
 };
 

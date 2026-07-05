@@ -72,13 +72,20 @@ type ItemRow = {
 };
 
 type PilotRunQtyRow = {
+  id: string;
   batch_size_kg: string | null;
   planned_date: string | null;
   line: string | null;
+  production_line_id: string | null;
+};
+
+type ProjectLineRow = {
+  production_line_id: string | null;
 };
 
 type LineRow = {
   id: string;
+  code: string | null;
   site_id: string | null;
 };
 
@@ -217,9 +224,11 @@ async function hasActiveProductionBom(ctx: OrgCtx, productCode: string): Promise
 
 async function loadLatestPilotRunPlan(ctx: OrgCtx, projectId: string): Promise<PilotRunQtyRow | null> {
   const { rows } = await ctx.client.query<PilotRunQtyRow>(
-    `select batch_size_kg::text as batch_size_kg,
+    `select id::text as id,
+            batch_size_kg::text as batch_size_kg,
             planned_date::text as planned_date,
-            line
+            line,
+            production_line_id::text as production_line_id
        from public.pilot_runs
       where org_id = app.current_org_id()
         and project_id = $1::uuid
@@ -230,17 +239,63 @@ async function loadLatestPilotRunPlan(ctx: OrgCtx, projectId: string): Promise<P
   return rows[0] ?? null;
 }
 
+async function loadProjectProductionLineId(ctx: OrgCtx, projectId: string): Promise<string | null> {
+  const { rows } = await ctx.client.query<ProjectLineRow>(
+    `select production_line_id::text as production_line_id
+       from public.npd_projects
+      where id = $1::uuid
+        and org_id = app.current_org_id()
+      limit 1`,
+    [projectId],
+  );
+  return rows[0]?.production_line_id ?? null;
+}
+
+async function resolveProductionLineById(ctx: OrgCtx, lineId: string): Promise<LineRow | null> {
+  const lineRes = await ctx.client.query<LineRow>(
+    `select id::text as id,
+            code,
+            site_id::text as site_id
+       from public.production_lines
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and coalesce(status, 'active') <> 'archived'
+      limit 1`,
+    [lineId],
+  );
+  return lineRes.rows[0] ?? null;
+}
+
 async function resolveProductionLine(ctx: OrgCtx, lineCode: string): Promise<LineRow | null> {
   const lineRes = await ctx.client.query<LineRow>(
-    `select id::text as id, site_id::text as site_id
+    `select id::text as id,
+            code,
+            site_id::text as site_id
        from public.production_lines
       where org_id = app.current_org_id()
         and code = $1
-        and status = 'active'
+        and coalesce(status, 'active') <> 'archived'
       limit 1`,
     [lineCode],
   );
   return lineRes.rows[0] ?? null;
+}
+
+async function persistPilotRunLineIds(
+  ctx: OrgCtx,
+  pilotRunId: string,
+  productionLineId: string,
+  lineCode: string,
+): Promise<void> {
+  await ctx.client.query(
+    `update public.pilot_runs
+        set production_line_id = $2::uuid,
+            line = $3,
+            updated_at = now()
+      where id = $1::uuid
+        and org_id = app.current_org_id()`,
+    [pilotRunId, productionLineId, lineCode],
+  );
 }
 
 /** Read the linked pilot WO for display (idempotent with closeout evidence). */
@@ -296,10 +351,11 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
         return { ok: true as const, data: existing, created: false };
       }
 
-      const [lockedRecipe, activeBom, pilotRun] = await Promise.all([
+      const [lockedRecipe, activeBom, pilotRun, projectProductionLineId] = await Promise.all([
         hasLockedRecipe(ctx, projectId),
         hasActiveProductionBom(ctx, productCode),
         loadLatestPilotRunPlan(ctx, projectId),
+        loadProjectProductionLineId(ctx, projectId),
       ]);
 
       if (!lockedRecipe && !activeBom) {
@@ -332,12 +388,26 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
       }
 
       const targetWoNumber = buildPilotWoNumber(productCode);
-      const lineCode = pilotRun?.line?.trim();
-      if (!lineCode) return { ok: false as const, error: 'line_required' as const };
 
-      const productionLine = await resolveProductionLine(ctx, lineCode);
+      const resolvedLineId =
+        pilotRun?.production_line_id?.trim()
+        || projectProductionLineId?.trim()
+        || null;
+
+      let productionLine: LineRow | null = null;
+      if (resolvedLineId && isUuid(resolvedLineId)) {
+        productionLine = await resolveProductionLineById(ctx, resolvedLineId);
+      }
+
+      const lineCode = pilotRun?.line?.trim();
+      if (!productionLine && lineCode) {
+        productionLine = await resolveProductionLine(ctx, lineCode);
+      }
+
       if (!productionLine) return { ok: false as const, error: 'line_required' as const };
       if (!productionLine.site_id) return { ok: false as const, error: 'no_active_site' as const };
+
+      const legacyLineCode = productionLine.code ?? lineCode ?? productionLine.id;
 
       const createResult = await createWorkOrderChainForContext(ctx, {
         productId: item.id,
@@ -368,6 +438,10 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
 
       const link = { id: createResult.fgWorkOrder.id, woNumber: createResult.fgWorkOrder.woNumber };
       await linkPilotWoToProduct(ctx, productCode, link.id);
+
+      if (pilotRun?.id) {
+        await persistPilotRunLineIds(ctx, pilotRun.id, productionLine.id, legacyLineCode);
+      }
 
       revalidateLocalized(`/pipeline/${projectId}/pilot`);
       revalidateLocalized('/planning/work-orders');

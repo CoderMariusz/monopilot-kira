@@ -60,6 +60,7 @@ import {
   type SupplierSpecRowActionsLabels,
 } from './_components/supplier-spec-row-actions.client';
 import { listSuppliers } from '../../../planning/suppliers/_actions/actions';
+import { listActiveProductCategories } from '../../../../../../../actions/reference/product-categories/list';
 import type { DeactivateLabels } from '../_components/deactivate-modal';
 import { buildTransitionLabels } from '../_components/item-transition-labels';
 import { buildWizardLabels } from '../_components/item-wizard-labels';
@@ -213,6 +214,13 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     varianceTolerance: t('detail.overview.varianceTolerance'),
     shelfLife: t('detail.overview.shelfLife'),
     costPerKg: t('detail.overview.costPerKg'),
+    effectiveCost: ovHas('detail.overview.effectiveCost') ? t('detail.overview.effectiveCost') : 'Effective cost',
+    effectiveCostSourceLabels: {
+      cost_history: ovHas('detail.overview.effectiveCostSource.cost_history') ? t('detail.overview.effectiveCostSource.cost_history') : 'Cost history',
+      supplier_spec: ovHas('detail.overview.effectiveCostSource.supplier_spec') ? t('detail.overview.effectiveCostSource.supplier_spec') : 'Supplier spec',
+      list_price: ovHas('detail.overview.effectiveCostSource.list_price') ? t('detail.overview.effectiveCostSource.list_price') : 'List price',
+      none: ovHas('detail.overview.effectiveCostSource.none') ? t('detail.overview.effectiveCostSource.none') : 'None',
+    },
     listPrice: ovHas('detail.overview.listPrice') ? t('detail.overview.listPrice') : 'List price (GBP / base UoM)',
     updated: t('detail.overview.updated'),
     none: t('detail.overview.none'),
@@ -263,6 +271,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
       invalid_input: t('errors.invalid_input'),
       not_found: t('errors.not_found'),
       persistence_failed: t('errors.persistence_failed'),
+      invalid_category: t.has('errors.invalid_category') ? t('errors.invalid_category') : 'Choose an active product category or leave blank.',
     },
   };
 
@@ -279,6 +288,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     supplierSpecsData,
     canCreateBom,
     suppliersResult,
+    categoriesResult,
   ] = await Promise.all([
     buildDataTabLabels(locale),
     buildAllergensTabLabels(locale),
@@ -293,6 +303,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     // Read-only reuse of the planning suppliers master for the "+ Add supplier"
     // Select. The action re-validates RBAC server-side before any write.
     listSuppliers({ limit: 200 }),
+    canEdit ? listActiveProductCategories() : Promise.resolve({ ok: false as const, error: 'persistence_failed' as const }),
   ]);
 
   // ── "+ Add supplier" modal: lets an item NOT born in NPD attach/approve a
@@ -301,6 +312,10 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
   const supplierOptions: SupplierOption[] = suppliersResult.ok
     ? suppliersResult.data.map((s) => ({ id: s.id, code: s.code, name: s.name, currency: s.currency }))
     : [];
+  const categoryOptions =
+    categoriesResult.ok === true
+      ? categoriesResult.data.map((c) => ({ value: c.code, label: c.label }))
+      : [];
 
   const a = (key: string, fallback: string, namespace = 'add'): string => {
     const dotted = `detail.dataTabs.supplier.${namespace}.${key}`;
@@ -457,6 +472,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
           wizardLabels={wizardLabels}
           deactivateLabels={deactivateLabels}
           transitionLabels={transitionLabels}
+          categoryOptions={categoryOptions}
         />
       </header>
 

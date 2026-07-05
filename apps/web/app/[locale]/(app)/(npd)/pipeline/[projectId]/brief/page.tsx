@@ -45,6 +45,7 @@ import type {
   UploadAttachmentOutcome,
 } from './_components/project-brief-screen';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { listActiveProductCategories } from '../../../../../../../actions/reference/product-categories/list';
 import {
   hasPermission,
   type OrgContextLike,
@@ -227,10 +228,13 @@ export default async function ProjectBriefPage(propsInput: unknown = {}) {
 
   const attachments =
     !injected && loaded.state === 'ready' && projectId ? await readAttachments(projectId) : [];
-  const [stageSections, closeSectionLabel, stageDeptLabels] = await Promise.all([
+  const [stageSections, closeSectionLabel, stageDeptLabels, categoryOptions] = await Promise.all([
     readStageSections(projectId),
     getCloseSectionLabel(locale),
     getStageDeptSectionLabels(locale),
+    listActiveProductCategories().then((result) =>
+      result.ok ? result.data.map((row) => ({ value: row.label, label: row.label })) : [],
+    ),
   ]);
 
   return (
@@ -244,6 +248,7 @@ export default async function ProjectBriefPage(propsInput: unknown = {}) {
         attachments={attachments}
         onUploadAttachment={uploadAttachmentAction}
         onDeleteAttachment={deleteAttachmentAction}
+        categoryOptions={categoryOptions}
       />
       {stageSections ? (
         <StageDeptSections

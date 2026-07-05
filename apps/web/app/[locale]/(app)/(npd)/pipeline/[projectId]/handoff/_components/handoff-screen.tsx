@@ -136,6 +136,11 @@ export type HandoffLabels = {
   /** Special-cased error when the FG has no packs-per-box set (S0a contract). */
   generatePacksPerBoxRequired: string;
   generateError: string;
+  /** W5 hard gate: packaging components not linked to items ({components} placeholder). */
+  generatePackagingUnlinked?: string;
+  /** W5 routing-bridge warnings (BOM succeeded, routing skipped). */
+  generateWarningNoLine?: string;
+  generateWarningNoProcesses?: string;
   // Post-promote success panel (auto-built production BOM result).
   promoteSuccessTitle: string;
   /** Body with the {code} placeholder for the generated production FG code. */
@@ -193,6 +198,10 @@ export type GenerateCall = { projectId: string };
 export type GenerateOutcome = {
   ok: boolean;
   error?: string;
+  /** W5: packaging component names blocking the hard gate (error === 'packaging_unlinked'). */
+  unlinkedComponents?: string[];
+  /** W5: routing-bridge warning codes on success ('no_line' | 'no_processes'). */
+  warnings?: string[];
   /** On success, the materialized production-BOM result (mirror of promote). */
   productionCode?: string | null;
   bomHeaderId?: string | null;
@@ -333,6 +342,8 @@ export function HandoffScreen({
   // "Generate production BOM" step (deadlock break) — its own pending + error state.
   const [generating, setGenerating] = React.useState(false);
   const [generateError, setGenerateError] = React.useState<string | null>(null);
+  const [generateUnlinked, setGenerateUnlinked] = React.useState<string[]>([]);
+  const [generateWarnings, setGenerateWarnings] = React.useState<string[]>([]);
   // Auto-built production-BOM result + the inline yield-prompt sub-state.
   const [promoteSuccess, setPromoteSuccess] = React.useState<PromoteSuccess | null>(null);
   const [yieldInput, setYieldInput] = React.useState('');
@@ -460,17 +471,24 @@ export function HandoffScreen({
     if (!onGenerate || generating) return;
     setGenerating(true);
     setGenerateError(null);
+    setGenerateUnlinked([]);
+    setGenerateWarnings([]);
     try {
       const result = await onGenerate({ projectId: data!.projectId });
       if (!result.ok) {
-        // Special-case no_recipe + packs_per_box_required (S0a contract);
-        // everything else falls back to the generic copy.
+        // Special-case no_recipe + packs_per_box_required (S0a contract) and the
+        // W5 packaging hard gate; everything else falls back to the generic copy.
+        if (result.error === 'packaging_unlinked') {
+          setGenerateUnlinked(result.unlinkedComponents ?? []);
+        }
         setGenerateError(
           result.error === 'no_recipe' ? 'no_recipe'
           : result.error === 'packs_per_box_required' ? 'packs_per_box_required'
+          : result.error === 'packaging_unlinked' ? 'packaging_unlinked'
           : 'error',
         );
       } else {
+        setGenerateWarnings(result.warnings ?? []);
         // The BOM now exists. Surface the same auto-built result panel + yield
         // prompt the promote flow uses (so a yield-less recipe can be corrected
         // here too), then refresh the RSC tree so the gate probe re-runs, the BOM
@@ -799,8 +817,26 @@ export function HandoffScreen({
                         ? labels.generateNoRecipe
                         : generateError === 'packs_per_box_required'
                         ? labels.generatePacksPerBoxRequired
+                        : generateError === 'packaging_unlinked'
+                        ? (labels.generatePackagingUnlinked ?? 'Packaging components must be linked to items before generating the production BOM: {components}')
+                            .replace('{components}', generateUnlinked.join(', '))
                         : labels.generateError}
                     </div>
+                  </div>
+                ) : null}
+                {generateWarnings.length > 0 ? (
+                  <div
+                    role="status"
+                    data-testid="handoff-generate-warnings"
+                    className="alert alert-amber"
+                  >
+                    {generateWarnings.map((code) => (
+                      <div key={code} className="alert-title">
+                        {code === 'no_line'
+                          ? (labels.generateWarningNoLine ?? 'Production BOM created, but no production line is set on the project — routing was not materialized.')
+                          : (labels.generateWarningNoProcesses ?? 'Production BOM created, but no NPD processes were found to build a routing.')}
+                      </div>
+                    ))}
                   </div>
                 ) : null}
               </div>

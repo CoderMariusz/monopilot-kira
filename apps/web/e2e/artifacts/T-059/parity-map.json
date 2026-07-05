@@ -5,9 +5,9 @@
   "mapping": [
     {
       "prototype": "KanbanView columns from window.NPD_STAGES",
-      "production": "8 stage columns brief→recipe→packaging→trial→sensory→pilot→approval→handoff from STAGE_ORDER",
+      "production": "10 stage columns brief→recipe→packaging→costing_nutrition→trial→sensory→pilot→approval→handoff→launched from STAGE_ORDER",
       "lines": "36-52",
-      "deviation": "PACKAGING/SENSORY/PILOT are rendered for parity but never hold a real card — npd_projects.current_stage CHECK (mig 085) only persists brief/recipe/trial/approval/handoff; columns show \"—\""
+      "deviation": "PACKAGING/SENSORY/PILOT columns may show \"—\" until a project reaches that stage"
     },
     {
       "prototype": "kanban-col-head label + .count",

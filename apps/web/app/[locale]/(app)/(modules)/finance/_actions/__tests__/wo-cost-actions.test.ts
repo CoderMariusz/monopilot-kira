@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { listCompletedWoCosts } from '../wo-cost-actions';
+import { computeWoActualCost, listCompletedWoCosts } from '../wo-cost-actions';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const ZERO_WO_ID = '33333333-3333-4333-8333-333333333333';
 const COSTED_WO_ID = '44444444-4444-4444-8444-444444444444';
+const CREW_WO_ID = '55555555-5555-4555-8555-555555555555';
 
 type QueryCall = { sql: string; params: unknown[] };
 
@@ -41,7 +42,7 @@ const client = {
             product_name: 'Finished good',
             started_at: '2026-06-11T08:00:00.000Z',
             completed_at: '2026-06-11T09:00:00.000Z',
-            output_kg: '10.000',
+            output_kg: woId === CREW_WO_ID ? '20.000' : '10.000',
             waste_kg: '0',
           },
         ],
@@ -50,6 +51,7 @@ const client = {
     }
 
     if (normalized.includes('from public.wo_material_consumption')) {
+      if (params?.[0] === CREW_WO_ID) return { rows: [], rowCount: 0 };
       if (params?.[0] === COSTED_WO_ID) {
         return {
           rows: [
@@ -77,6 +79,24 @@ const client = {
     }
 
     if (normalized.includes('from public.wo_operations')) {
+      if (params?.[0] === CREW_WO_ID) {
+        return {
+          rows: [
+            {
+              operation_name: 'CUTTING',
+              row_key: null,
+              cost_mode: 'per_hour',
+              cost_rate: '100.0000',
+              currency: 'GBP',
+              staffing_count: '1',
+              setup_cost: null,
+              expected_duration_minutes: '90',
+              has_labor_rate: true,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
       if (params?.[0] === COSTED_WO_ID) {
         return {
           rows: [
@@ -171,5 +191,30 @@ describe('listCompletedWoCosts', () => {
     expect(materialsQuery?.sql).toContain('from public.item_cost_history');
     expect(materialsQuery?.sql).toContain('when lower(c.uom) = \'each\' and i.net_qty_per_each is not null');
     expect(materialsQuery?.sql).toContain('bool_or(qty_kg is null) as unresolved_uom');
+  });
+});
+
+describe('computeWoActualCost crew labor path', () => {
+  it('uses the WO operation crew-rate result directly and keeps the null-crew fallback branch in SQL', async () => {
+    const result = await computeWoActualCost(CREW_WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.laborBasis).toBe('planned_duration');
+    expect(result.data.plannedRuntimeMin).toBe('90');
+    expect(result.data.labor).toMatchObject({
+      runtimeMin: '90.000',
+      staffing: '1',
+      ratePerHour: '100.0000',
+      cost: '150.0000',
+    });
+    expect(result.data.totalCost).toBe('150.0000');
+
+    const processQuery = calls.find((call) => call.sql.includes('from public.wo_operations'));
+    expect(processQuery?.sql).toContain('jsonb_to_recordset');
+    expect(processQuery?.sql).toContain('where op.crew is not null');
+    expect(processQuery?.sql).toContain('where op.crew is null');
+    expect(processQuery?.sql).toContain('public.npd_process_defaults');
   });
 });

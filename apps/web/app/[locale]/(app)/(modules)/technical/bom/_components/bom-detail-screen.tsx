@@ -33,8 +33,8 @@ import Link from 'next/link';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@monopilot/ui/Tabs';
 
-import { BomLineRowActions } from './bom-line-row-actions';
 import { BomCoProductRowActions } from './bom-coproduct-row-actions.client';
+import { BomComponentLines } from './bom-component-lines.client';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied' | 'not_found';
 
@@ -49,13 +49,19 @@ export type BomStatus =
 export type BomLineView = {
   id: string;
   lineNo: number;
+  /** items.id of the primary component — keys the WIP sub-BOM lazy-load. */
+  itemId?: string | null;
   componentCode: string;
+  componentName?: string | null;
   componentType: string | null;
   quantity: string;
   uom: string;
   scrapPct: string;
   manufacturingOperationName: string | null;
   isPhantom: boolean;
+  /** Resolved substitute (bom_lines.substitute_item_id); null when unset. */
+  substituteCode?: string | null;
+  substituteName?: string | null;
 };
 
 export type BomCoProductView = {
@@ -111,6 +117,10 @@ export type BomDetailData = {
   yieldPct: string;
   effectiveFrom: string;
   notes: string | null;
+  /** Selected version's line basis — drives the "per box (× N packs)" annotation. */
+  lineBasis?: 'per_base' | 'per_box';
+  /** FG packs per box (items.each_per_box) — the N in the per-box annotation. */
+  eachPerBox?: number | null;
   lines: BomLineView[];
   coProducts: BomCoProductView[];
   versions: BomVersionView[];
@@ -147,6 +157,19 @@ export type BomDetailLabels = {
   colOperation: string;
   colActions: string;
   phantomBadge: string;
+  /** Per-box basis annotation: "per box (× {n} packs)". */
+  perBoxBasis: string;
+  /** Muted secondary per-pack value: "{value} / pack". */
+  perPackValue: string;
+  /** Substitute prefix on RM/PM lines: "Substitute:". */
+  substituteLabel: string;
+  /** WIP row expand/collapse toggle accessible label. */
+  expandWip: string;
+  collapseWip: string;
+  /** WIP sub-BOM loading + empty + error copy. */
+  wipSubBomLoading: string;
+  wipSubBomEmpty: string;
+  wipSubBomError: string;
   // co-products
   colCoProduct: string;
   colAllocation: string;
@@ -384,54 +407,15 @@ export function BomDetailScreen({
                 <div className="empty-state-body">{labels.emptyComponents}</div>
               </div>
             ) : (
-              <table aria-label={labels.tabComponents}>
-                <thead>
-                  <tr>
-                    <th scope="col">{labels.colLine}</th>
-                    <th scope="col">{labels.colComponent}</th>
-                    <th scope="col">{labels.colType}</th>
-                    <th scope="col" style={{ textAlign: 'right' }}>{labels.colQty}</th>
-                    <th scope="col">{labels.colUom}</th>
-                    <th scope="col" style={{ textAlign: 'right' }}>{labels.colScrap}</th>
-                    <th scope="col">{labels.colOperation}</th>
-                    {data.canEditLines ? (
-                      <th scope="col" style={{ textAlign: 'right' }}>{labels.colActions}</th>
-                    ) : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.lines.map((l) => (
-                    <tr key={l.id} data-testid="bom-line-row">
-                      <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{l.lineNo}</td>
-                      <td className="mono">
-                        {l.componentCode}
-                        {l.isPhantom ? <span className="badge badge-gray" style={{ marginLeft: 8 }}>{labels.phantomBadge}</span> : null}
-                      </td>
-                      <td>{l.componentType ?? '—'}</td>
-                      <td className="mono tabular-nums" style={{ textAlign: 'right' }}>{l.quantity}</td>
-                      <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{l.uom}</td>
-                      <td className="mono tabular-nums" style={{ textAlign: 'right' }}>{Number(l.scrapPct).toFixed(1)}%</td>
-                      <td>{l.manufacturingOperationName ?? '—'}</td>
-                      {data.canEditLines && data.selectedHeaderId ? (
-                        <td style={{ textAlign: 'right' }}>
-                          <BomLineRowActions
-                            target={{
-                              bomHeaderId: data.selectedHeaderId,
-                              lineId: l.id,
-                              componentCode: l.componentCode,
-                              quantity: l.quantity,
-                              uom: l.uom,
-                              notes: l.manufacturingOperationName ?? null,
-                            }}
-                            editable={data.isEditable ?? false}
-                            canEdit={data.canEditLines}
-                          />
-                        </td>
-                      ) : null}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <BomComponentLines
+                lines={data.lines}
+                labels={labels}
+                lineBasis={data.lineBasis ?? 'per_base'}
+                eachPerBox={data.eachPerBox ?? null}
+                canEditLines={data.canEditLines ?? false}
+                selectedHeaderId={data.selectedHeaderId}
+                isEditable={data.isEditable ?? false}
+              />
             )}
           </div>
         </TabsContent>

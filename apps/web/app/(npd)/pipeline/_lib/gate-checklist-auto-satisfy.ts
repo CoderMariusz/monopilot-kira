@@ -28,6 +28,7 @@ const INGREDIENTS_PRESENT_TEXTS = new Set([
   'key ingredients identified',
   'detailed ingredient specification',
   'initial shared bom ready and linked to npd project',
+  'recipe has at least one ingredient',
 ]);
 
 function normalizeItemText(itemText: string): string {

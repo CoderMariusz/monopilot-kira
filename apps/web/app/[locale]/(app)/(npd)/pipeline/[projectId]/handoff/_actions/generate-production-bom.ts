@@ -23,10 +23,17 @@
 import { z } from 'zod';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { materializeNpdBom } from '../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom';
+import { materializeNpdRouting } from '../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-routing';
 import { hasHandoffPermission } from './get-handoff';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
 const Input = z.object({ projectId: z.string().uuid() });
+
+export type GenerateProductionBomRoutingWarningCode = 'no_processes' | 'no_line';
+
+export type GenerateProductionBomRoutingWarning = {
+  code: GenerateProductionBomRoutingWarningCode;
+};
 
 export type GenerateProductionBomError =
   | 'invalid_input'
@@ -34,6 +41,7 @@ export type GenerateProductionBomError =
   | 'no_recipe'
   | 'production_code_conflict'
   | 'packs_per_box_required'
+  | 'packaging_unlinked'
   | 'bom_materialization_failed'
   | 'persistence_failed';
 
@@ -44,15 +52,62 @@ export type GenerateProductionBomResult =
         productionCode: string | null;
         bomHeaderId: string | null;
         yieldPromptRequired: boolean;
+        warnings: GenerateProductionBomRoutingWarning[];
       };
     }
-  | { ok: false; error: GenerateProductionBomError; message?: string };
+  | {
+      ok: false;
+      error: GenerateProductionBomError;
+      message?: string;
+      /** Present when error === 'packaging_unlinked'. */
+      unlinkedComponents?: string[];
+    };
 
 const PERMISSION = 'npd.handoff.promote';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }>;
 };
+
+type PackagingUnlinkedRow = { component_name: string };
+
+async function findUnlinkedPackagingComponents(client: QueryClient, projectId: string): Promise<string[]> {
+  const { rows } = await client.query<PackagingUnlinkedRow>(
+    `select component_name
+       from public.packaging_components
+      where org_id = app.current_org_id()
+        and project_id = $1::uuid
+        and item_id is null
+      order by display_order, component_name`,
+    [projectId],
+  );
+  return rows.map((row) => row.component_name);
+}
+
+type InnerGenerateResult =
+  | {
+      ok: true;
+      productionCode: string | null;
+      bomHeaderId: string | null;
+      yieldPromptRequired: boolean;
+      warnings: GenerateProductionBomRoutingWarning[];
+    }
+  | {
+      ok: false;
+      error: GenerateProductionBomError;
+      message?: string;
+      unlinkedComponents?: string[];
+    };
+
+function packagingUnlinkedFailure(unlinkedComponents: string[]): InnerGenerateResult {
+  const names = unlinkedComponents.join(', ');
+  return {
+    ok: false,
+    error: 'packaging_unlinked',
+    unlinkedComponents,
+    message: `packaging components not linked to items: ${names}`,
+  };
+}
 
 export async function generateProductionBom(raw: unknown): Promise<GenerateProductionBomResult> {
   const parsed = Input.safeParse(raw);
@@ -67,6 +122,11 @@ export async function generateProductionBom(raw: unknown): Promise<GenerateProdu
         return { ok: false as const, error: 'forbidden' as const };
       }
 
+      const unlinkedComponents = await findUnlinkedPackagingComponents(ctx.client, projectId);
+      if (unlinkedComponents.length > 0) {
+        return packagingUnlinkedFailure(unlinkedComponents);
+      }
+
       const materialized = await materializeNpdBom(ctx, { projectId });
       if (materialized.code === 'PRODUCTION_CODE_CONFLICT') {
         return { ok: false as const, error: 'production_code_conflict' as const };
@@ -79,11 +139,20 @@ export async function generateProductionBom(raw: unknown): Promise<GenerateProdu
         return { ok: false as const, error: 'no_recipe' as const };
       }
 
+      const warnings: GenerateProductionBomRoutingWarning[] = [];
+      const routing = await materializeNpdRouting(ctx.client, projectId);
+      if (!routing.ok && routing.code !== 'routing_exists') {
+        if (routing.code === 'no_processes' || routing.code === 'no_line') {
+          warnings.push({ code: routing.code });
+        }
+      }
+
       return {
         ok: true as const,
         productionCode: materialized.productionCode ?? materialized.productCode,
         bomHeaderId: materialized.bomHeaderId,
         yieldPromptRequired: materialized.yieldPromptRequired,
+        warnings,
       };
     });
 
@@ -97,6 +166,7 @@ export async function generateProductionBom(raw: unknown): Promise<GenerateProdu
         productionCode: result.productionCode,
         bomHeaderId: result.bomHeaderId,
         yieldPromptRequired: result.yieldPromptRequired,
+        warnings: result.warnings,
       },
     };
   } catch (error) {

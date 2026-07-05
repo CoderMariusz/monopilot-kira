@@ -178,6 +178,62 @@ describe('wip definition actions', () => {
     expect(notificationSql).toContain('p.created_by_user is not null');
   });
 
+  it('persists per-process yield percentages from WIP definition saves', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/insert into public\.items/i.test(text)) return { rows: [{ id: itemId }], rowCount: 1 };
+      if (/insert into public\.wip_definitions/i.test(text)) return { rows: [{ id: definitionId, version: 1 }], rowCount: 1 };
+      if (/insert into public\.wip_definition_processes/i.test(text)) return { rows: [{ id: processId }], rowCount: 1 };
+      return { rows: [], rowCount: 1 };
+    });
+
+    const result = await saveWipDefinition({
+      name: 'Sauce base',
+      baseUom: 'kg',
+      yieldPct: 100,
+      reusable: true,
+      ingredients: [],
+      processes: [{
+        processName: 'Smoke',
+        displayOrder: 1,
+        durationHours: 1,
+        additionalCost: 0,
+        throughputPerHour: 10,
+        throughputUom: 'kg',
+        setupCost: 0,
+        yieldPct: 95,
+        roles: [],
+      }],
+    } as Parameters<typeof saveWipDefinition>[0]);
+
+    expect(result).toEqual({ ok: true, id: definitionId, version: 1 });
+    const processInsert = queryMock.mock.calls.find((call) => /insert into public\.wip_definition_processes/i.test(String(call[0])));
+    expect(String(processInsert?.[0])).toMatch(/yield_pct/i);
+    expect(processInsert?.[1]?.[8]).toBe(95);
+  });
+
+  it('returns per-process yield percentages when loading WIP definition detail', async () => {
+    const { getWipDefinition } = await import('./wip-definition-actions');
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from public\.wip_definitions d/i.test(text) && /limit 1/i.test(text)) {
+        return { rows: [{ id: definitionId, name: 'Sauce base', item_code: 'WIP-1' }] };
+      }
+      if (/from public\.wip_definition_ingredients/i.test(text)) return { rows: [] };
+      if (/from public\.wip_definition_processes/i.test(text) && /yield_pct as "yieldPct"/i.test(text)) {
+        return { rows: [{ id: processId, processName: 'Smoke', yieldPct: '95.000' }] };
+      }
+      if (/from public\.wip_definition_roles/i.test(text)) return { rows: [] };
+      if (/from public\.formulation_ingredients/i.test(text)) return { rows: [] };
+      return { rows: [], rowCount: 1 };
+    });
+
+    const result = await getWipDefinition(definitionId);
+
+    expect(result.ok).toBe(true);
+    expect((result as { processes: Array<Record<string, unknown>> }).processes[0]?.yieldPct).toBe('95.000');
+  });
+
   it('blocks archive with a typed 409 while non-launched projects reference the definition', async () => {
     queryMock.mockImplementation(async (sql: string) => {
       if (/count\(distinct f\.project_id\)/i.test(String(sql))) return { rows: [{ count: '1' }] };

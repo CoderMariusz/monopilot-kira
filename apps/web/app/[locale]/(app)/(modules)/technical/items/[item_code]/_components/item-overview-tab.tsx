@@ -33,6 +33,9 @@ export type ItemOverviewLabels = {
   shelfLife: string;
   costPerKg: string;
   listPrice: string;
+  effectiveCost: string;
+  /** Optional localized labels for v_item_effective_cost.source tiers. */
+  effectiveCostSourceLabels?: Record<string, string>;
   updated: string;
   none: string;
   // Pack hierarchy (migration 267).
@@ -80,6 +83,13 @@ const STATUS_LABEL_FALLBACK: Record<ItemDetail['status'], string> = {
   blocked: 'Blocked',
 };
 
+const EFFECTIVE_COST_SOURCE_LABEL_FALLBACK: Record<string, string> = {
+  cost_history: 'Cost history',
+  supplier_spec: 'Supplier spec',
+  list_price: 'List price',
+  none: 'None',
+};
+
 function fmtNum(value: string | null, none: string): string {
   if (value === null) return none;
   const n = Number(value);
@@ -98,10 +108,24 @@ function fmtQty(value: string | null): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(3);
 }
 
+function fmtEffectiveCost(item: ItemDetail, none: string, sourceLabels: Record<string, string>): string {
+  if (item.effectiveCostAmount === null) return none;
+  const amount = fmtNum(item.effectiveCostAmount, none);
+  if (amount === none) return none;
+  const currency = item.effectiveCostCurrency ?? 'GBP';
+  const sourceKey = item.effectiveCostSource ?? 'none';
+  const sourceLabel = sourceLabels[sourceKey] ?? sourceKey;
+  return `${amount} ${currency} (${sourceLabel})`;
+}
+
 export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: ItemOverviewLabels }) {
   const none = labels.none;
   const typeLabel = labels.typeLabels?.[item.itemType] ?? TYPE_LABEL_FALLBACK[item.itemType];
   const statusLabel = labels.statusLabels?.[item.status] ?? STATUS_LABEL_FALLBACK[item.status];
+  const effectiveCostSourceLabels = {
+    ...EFFECTIVE_COST_SOURCE_LABEL_FALLBACK,
+    ...(labels.effectiveCostSourceLabels ?? {}),
+  };
   const shelf =
     item.shelfLifeDays === null
       ? none
@@ -148,6 +172,11 @@ export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: It
           <Row label={labels.netQtyPerEach} value={hasNet ? `${fmtQty(item.netQtyPerEach)} ${item.uomBase}` : none} mono />
           <Row label={labels.eachPerBox} value={item.eachPerBox != null ? String(item.eachPerBox) : none} mono />
           <Row label={labels.boxesPerPallet} value={item.boxesPerPallet != null ? String(item.boxesPerPallet) : none} mono />
+          <Row
+            label={labels.effectiveCost}
+            value={fmtEffectiveCost(item, none, effectiveCostSourceLabels)}
+            mono
+          />
           <Row label={labels.costPerKg} value={fmtNum(item.costPerKg, none)} mono />
           <Row label={labels.listPrice} value={fmtNum(item.listPriceGbp, none)} mono />
           <Row label={labels.weightMode} value={item.weightMode} mono />

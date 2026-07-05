@@ -59,6 +59,8 @@ export type TrialScreenData = {
   lines: ProductionLineOption[];
   /** Existing capacity blocks keyed by trial batch id. */
   capacityBookings: Record<string, TrialCapacityBookingView>;
+  /** W5 — default line from npd_projects.production_line_id (user may override). */
+  defaultProductionLineId: string | null;
 };
 
 export type TrialLabels = {
@@ -498,6 +500,7 @@ export function TrialScreen({
           trialId={bookingTrialId}
           lines={data.lines}
           existingBooking={bookingExisting}
+          defaultProductionLineId={data.defaultProductionLineId}
           onSubmit={handleBookLineTime}
         />
       ) : null}

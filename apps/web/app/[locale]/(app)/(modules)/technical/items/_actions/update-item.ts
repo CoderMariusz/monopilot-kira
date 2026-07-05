@@ -9,6 +9,7 @@
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { validateActiveCategoryCode } from '../../../../../../../actions/reference/product-categories/validate-category-code';
 import { safeRevalidatePath } from './revalidate';
 import {
   hasPermission,
@@ -49,6 +50,9 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPermission(ctx, ITEMS_EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
 
+      const categoryCheck = await validateActiveCategoryCode(client as QueryClient, input.categoryCode);
+      if (!categoryCheck.ok) return { ok: false, error: 'invalid_category' };
+
       const before = await (client as QueryClient).query<BeforeRow>(
         `select name, item_type, status, uom_base, weight_mode,
                 nominal_weight, tare_weight, gross_weight_max, gs1_gtin,
@@ -75,19 +79,20 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
                 weight_mode = $6,
                 description = $7,
                 product_group = $8,
-                uom_secondary = $9,
-                gs1_gtin = $10,
-                nominal_weight = $11::numeric,
-                tare_weight = $12::numeric,
-                gross_weight_max = $13::numeric,
-                variance_tolerance_pct = $14::numeric,
-                shelf_life_days = $15::integer,
-                shelf_life_mode = $16,
-                output_uom = $17,
-                net_qty_per_each = $18::numeric,
-                each_per_box = $19::integer,
-                boxes_per_pallet = $20::integer,
-                list_price_gbp = $21::numeric
+                category_code = $9,
+                uom_secondary = $10,
+                gs1_gtin = $11,
+                nominal_weight = $12::numeric,
+                tare_weight = $13::numeric,
+                gross_weight_max = $14::numeric,
+                variance_tolerance_pct = $15::numeric,
+                shelf_life_days = $16::integer,
+                shelf_life_mode = $17,
+                output_uom = $18,
+                net_qty_per_each = $19::numeric,
+                each_per_box = $20::integer,
+                boxes_per_pallet = $21::integer,
+                list_price_gbp = $22::numeric
           where org_id = app.current_org_id()
             and id = $1::uuid
         returning id`,
@@ -100,6 +105,7 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
           input.weightMode,
           input.description ?? null,
           input.productGroup ?? null,
+          input.categoryCode ?? null,
           input.uomSecondary ?? null,
           input.gs1Gtin ?? null,
           input.nominalWeight ?? null,

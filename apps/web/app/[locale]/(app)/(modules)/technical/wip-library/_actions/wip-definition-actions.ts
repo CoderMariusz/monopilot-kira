@@ -52,6 +52,8 @@ type ExistingDefinition = {
   reusable: boolean;
 };
 
+type SaveWipDefinitionData = typeof saveWipDefinitionInputSchema._output;
+
 export async function listWipDefinitions(input?: ListWipDefinitionsInput): Promise<ActionResult<{ definitions: unknown[] }>> {
   const parsed = listWipDefinitionsInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'Invalid WIP definition filter', code: 'VALIDATION_ERROR' };
@@ -127,22 +129,23 @@ export async function getWipDefinition(id: string): Promise<ActionResult<{ defin
 export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<ActionResult<{ id: string; version: number }>> {
   const parsed = saveWipDefinitionInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'Invalid WIP definition input', code: 'VALIDATION_ERROR' };
+  const data = preserveProcessYieldPct(parsed.data, input);
 
   return withOrgContext<ActionResult<{ id: string; version: number }>>(async (ctx) => {
-    const requiredPermission = parsed.data.id ? EDIT_PERMISSION : CREATE_PERMISSION;
+    const requiredPermission = data.id ? EDIT_PERMISSION : CREATE_PERMISSION;
     if (!(await hasPermission(ctx, requiredPermission))) {
       return { ok: false, error: `${requiredPermission} is required`, code: 'FORBIDDEN', status: 403 };
     }
 
-    const existing = parsed.data.id ? await loadExistingDefinition(ctx, parsed.data.id) : null;
-    if (parsed.data.id && !existing) return { ok: false, error: 'WIP definition not found', code: 'NOT_FOUND', status: 404 };
+    const existing = data.id ? await loadExistingDefinition(ctx, data.id) : null;
+    if (data.id && !existing) return { ok: false, error: 'WIP definition not found', code: 'NOT_FOUND', status: 404 };
 
     const beforeContent = existing ? await loadDefinitionContent(ctx, existing.id, existing) : null;
-    const afterContent = canonicalInputContent(parsed.data);
+    const afterContent = canonicalInputContent(data);
     const contentChanged = !beforeContent || JSON.stringify(beforeContent) !== JSON.stringify(afterContent);
     const nextVersion = existing ? existing.version + (contentChanged ? 1 : 0) : 1;
 
-    const itemId = existing?.item_id ?? await ensureDefinitionItem(ctx, parsed.data.name, parsed.data.baseUom);
+    const itemId = existing?.item_id ?? await ensureDefinitionItem(ctx, data.name, data.baseUom);
     // U3: the "reusable" toggle IS the publication decision — a reusable
     // definition must be pickable, and the recipe picker requires 'active'.
     // Without this, library-authored definitions were draft dead-ends
@@ -164,11 +167,11 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
           returning id, version`,
           [
             existing.id,
-            parsed.data.name,
-            parsed.data.description ?? null,
-            parsed.data.baseUom,
-            parsed.data.yieldPct,
-            parsed.data.reusable,
+            data.name,
+            data.description ?? null,
+            data.baseUom,
+            data.yieldPct,
+            data.reusable,
             itemId,
             nextVersion,
           ],
@@ -180,19 +183,19 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
              (app.current_org_id(), $1::uuid, $2, $3, $4, $5::numeric, 1,
               case when $6::boolean then 'active' else 'draft' end, $6::boolean, $7::uuid)
            returning id, version`,
-          [itemId, parsed.data.name, parsed.data.description ?? null, parsed.data.baseUom, parsed.data.yieldPct, parsed.data.reusable, ctx.userId],
+          [itemId, data.name, data.description ?? null, data.baseUom, data.yieldPct, data.reusable, ctx.userId],
         );
 
     const definitionId = saved.rows[0]?.id;
     if (!definitionId) throw new Error('Could not save WIP definition');
 
-    await replaceDefinitionIngredients(ctx, definitionId, parsed.data.ingredients);
-    await replaceDefinitionProcesses(ctx, definitionId, parsed.data.processes);
-    await refreshWipItemAllergens(ctx, itemId, parsed.data.ingredients.map((ingredient) => ingredient.itemId));
+    await replaceDefinitionIngredients(ctx, definitionId, data.ingredients);
+    await replaceDefinitionProcesses(ctx, definitionId, data.processes);
+    await refreshWipItemAllergens(ctx, itemId, data.ingredients.map((ingredient) => ingredient.itemId));
 
     if (existing && contentChanged) {
       await emitDefinitionUpdated(ctx, definitionId, nextVersion);
-      await fanOutDefinitionNotifications(ctx, definitionId, parsed.data.name, nextVersion);
+      await fanOutDefinitionNotifications(ctx, definitionId, data.name, nextVersion);
     }
 
     return { ok: true, id: definitionId, version: nextVersion };
@@ -267,9 +270,10 @@ export async function publishWipDefinitionFromComponent(input: PublishWipDefinit
       throughput_per_hour: string | number | null;
       throughput_uom: string | null;
       setup_cost: string | number;
+      yield_pct: string | number;
     }>(
       `select id, process_name, display_order, duration_hours, additional_cost,
-              throughput_per_hour, throughput_uom, setup_cost
+              throughput_per_hour, throughput_uom, setup_cost, yield_pct
          from public.npd_wip_processes
         where org_id = app.current_org_id()
           and prod_detail_id = $1::uuid
@@ -281,9 +285,9 @@ export async function publishWipDefinitionFromComponent(input: PublishWipDefinit
       const copied = await ctx.client.query<{ id: string }>(
         `insert into public.wip_definition_processes
            (org_id, wip_definition_id, process_name, display_order, duration_hours, additional_cost,
-            throughput_per_hour, throughput_uom, setup_cost)
+            throughput_per_hour, throughput_uom, setup_cost, yield_pct)
          values
-           (app.current_org_id(), $1::uuid, $2, $3::int, $4::numeric, $5::numeric, $6::numeric, $7, $8::numeric)
+           (app.current_org_id(), $1::uuid, $2, $3::int, $4::numeric, $5::numeric, $6::numeric, $7, $8::numeric, $9::numeric)
          returning id`,
         [
           definitionId,
@@ -294,6 +298,7 @@ export async function publishWipDefinitionFromComponent(input: PublishWipDefinit
           process.throughput_per_hour,
           process.throughput_uom,
           process.setup_cost,
+          process.yield_pct ?? 100,
         ],
       );
       const copiedId = copied.rows[0]?.id;
@@ -507,6 +512,24 @@ async function loadExistingDefinition(ctx: OrgContextLike, id: string): Promise<
   return rows[0] ?? null;
 }
 
+function preserveProcessYieldPct(data: SaveWipDefinitionData, raw: SaveWipDefinitionInput): SaveWipDefinitionData {
+  const rawProcesses = Array.isArray((raw as { processes?: unknown[] }).processes)
+    ? (raw as { processes: Array<Record<string, unknown>> }).processes
+    : [];
+  return {
+    ...data,
+    processes: data.processes.map((process, index) => ({
+      ...process,
+      yieldPct: normalizeProcessYieldPct(rawProcesses[index]?.yieldPct),
+    })),
+  };
+}
+
+function normalizeProcessYieldPct(value: unknown): number {
+  const numeric = Number(value ?? 100);
+  return Number.isFinite(numeric) && numeric > 0 && numeric <= 100 ? numeric : 100;
+}
+
 async function loadDefinitionProcesses(ctx: OrgContextLike, definitionId: string): Promise<unknown[]> {
   const processes = await ctx.client.query<{ id: string } & Record<string, unknown>>(
     `select id,
@@ -516,7 +539,8 @@ async function loadDefinitionProcesses(ctx: OrgContextLike, definitionId: string
             additional_cost as "additionalCost",
             throughput_per_hour as "throughputPerHour",
             throughput_uom as "throughputUom",
-            setup_cost as "setupCost"
+            setup_cost as "setupCost",
+            yield_pct as "yieldPct"
        from public.wip_definition_processes
       where org_id = app.current_org_id()
         and wip_definition_id = $1::uuid
@@ -615,6 +639,7 @@ function canonicalContent(input: Record<string, unknown>): unknown {
       throughputPerHour: process.throughputPerHour == null ? null : Number(process.throughputPerHour).toFixed(4),
       throughputUom: process.throughputUom ?? null,
       setupCost: Number(process.setupCost ?? 0).toFixed(4),
+      yieldPct: Number(process.yieldPct ?? 100).toFixed(3),
       roles: (process.roles as Array<Record<string, unknown>> | undefined ?? []).map((role) => ({
         roleGroup: role.roleGroup,
         headcount: Number(role.headcount ?? 1),
@@ -684,6 +709,7 @@ async function replaceDefinitionProcesses(
     throughputPerHour?: number | null;
     throughputUom?: string | null;
     setupCost: number;
+    yieldPct?: number;
     roles: Array<{ roleGroup: string; headcount: number; ratePerHour?: number | null }>;
   }>,
 ): Promise<void> {
@@ -697,9 +723,9 @@ async function replaceDefinitionProcesses(
     const inserted = await ctx.client.query<{ id: string }>(
       `insert into public.wip_definition_processes
          (org_id, wip_definition_id, process_name, display_order, duration_hours, additional_cost,
-          throughput_per_hour, throughput_uom, setup_cost)
+          throughput_per_hour, throughput_uom, setup_cost, yield_pct)
        values
-         (app.current_org_id(), $1::uuid, $2, $3::int, $4::numeric, $5::numeric, $6::numeric, $7, $8::numeric)
+         (app.current_org_id(), $1::uuid, $2, $3::int, $4::numeric, $5::numeric, $6::numeric, $7, $8::numeric, $9::numeric)
        returning id`,
       [
         definitionId,
@@ -710,6 +736,7 @@ async function replaceDefinitionProcesses(
         process.throughputPerHour ?? null,
         process.throughputUom ?? null,
         process.setupCost,
+        process.yieldPct ?? 100,
       ],
     );
     const processId = inserted.rows[0]?.id;

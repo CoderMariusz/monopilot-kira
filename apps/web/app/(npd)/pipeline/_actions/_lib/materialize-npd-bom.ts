@@ -56,6 +56,7 @@ type WipDefinitionIngredientRow = {
 type PackagingComponentRow = {
   component_name: string;
   item_id: string;
+  substitute_item_id: string | null;
   qty: string;
   scrap_pct: string;
 };
@@ -70,6 +71,27 @@ type ItemRow = {
 type BomHeaderRow = {
   id: string;
   version: number;
+};
+
+type ExpectedBomLine = {
+  line_no: number;
+  item_id: string | null;
+  substitute_item_id: string | null;
+  component_code: string;
+  component_type: 'RM' | 'WIP' | 'PM';
+  quantity: string;
+  uom: string;
+  scrap_pct: string;
+  manufacturing_operation_name: string;
+  sequence: number;
+  is_phantom: boolean;
+  source: string;
+};
+
+type ProductProcessYields = {
+  all: number[];
+  byIngredientItemId: Map<string, number[]>;
+  byWipItemId: Map<string, number[]>;
 };
 
 type FactorySpecRow = {
@@ -129,21 +151,7 @@ export async function materializeNpdBom(
   const plainIngredients = ingredients.filter((ingredient) => !ingredient.wip_definition_id);
   const wipIngredients = ingredients.filter((ingredient) => !!ingredient.wip_definition_id);
 
-  // v2 anchor #2: a production BOM is built PER BOX, so packs-per-box must be set before we can
-  // create one. This gate MUST run BEFORE ensureFgItemAndProduct/stampProductCloseoutInputs:
-  // those WRITE (insert the FG item + product row, stamp npd_locked_for_release_at) and this
-  // function RETURNS (not throws) on the missing-packs path, so withOrgContext would COMMIT those
-  // writes — leaving the project locked-for-release with NO BOM and unrevertable
-  // (revertNpdGate → NPD_RELEASE_LOCKED). Only required when actually CREATING new lines: an
-  // existing BOM is reused unchanged (idempotent re-run from promote), so this never blocks then.
   const existingBom = await loadExistingActiveNpdBom(ctx, project.id, productionCode);
-  if (!existingBom && ingredients.length > 0 && Number(project.packs_per_case ?? 0) <= 0) {
-    return {
-      code: 'PACKS_PER_BOX_REQUIRED',
-      ...emptyResult(project.id, project.product_code, productionCode),
-    };
-  }
-
   const wipComponents = await resolveWipComponents(ctx, wipIngredients);
   if (wipComponents.some((component) => !component.itemId)) {
     return {
@@ -152,12 +160,36 @@ export async function materializeNpdBom(
     };
   }
 
+  const packagingComponents = await loadPackagingComponents(ctx, project.id);
+  const processYields = await loadProductProcessYields(ctx, productionCode);
+  const expectedLines = buildExpectedBomLines(
+    project,
+    plainIngredients,
+    wipComponents,
+    packagingComponents,
+    processYields,
+  );
+  const existingBomMatches = existingBom
+    ? await npdBomContentMatches(ctx, existingBom.id, formulation, expectedLines)
+    : false;
+
+  // v2 anchor #2: a production BOM is built PER BOX, so packs-per-box must be set before we can
+  // create or regenerate one. This gate MUST run BEFORE ensureFgItemAndProduct/stampProductCloseoutInputs:
+  // those WRITE and this function RETURNS (not throws) on the missing-packs path, so withOrgContext
+  // would COMMIT those writes. An unchanged active BOM is still reused idempotently.
+  if (!existingBomMatches && expectedLines.length > 0 && Number(project.packs_per_case ?? 0) <= 0) {
+    return {
+      code: 'PACKS_PER_BOX_REQUIRED',
+      ...emptyResult(project.id, project.product_code, productionCode),
+    };
+  }
+
   const item = await ensureFgItemAndProduct(ctx, project, formulation);
   await stampProductCloseoutInputs(ctx, project, item);
   await ensureWipDefinitionBoms(ctx, wipComponents);
 
-  const bom = existingBom ?? (ingredients.length > 0
-    ? await createActiveNpdBom(ctx, project, formulation, plainIngredients, wipComponents)
+  const bom = existingBomMatches && existingBom ? existingBom : (expectedLines.length > 0
+    ? await createActiveNpdBom(ctx, project, formulation, expectedLines, existingBom)
     : null);
 
   const existingSpec = bom ? await loadApprovedFactorySpec(ctx, item.id) : null;
@@ -202,7 +234,7 @@ export async function materializeNpdBom(
     bomHeaderId: bom?.id ?? null,
     factorySpecId: existingSpec?.id ?? createdSpec?.id ?? null,
     yieldPromptRequired: !formulation.target_yield_pct,
-    createdBom: !existingBom && !!bom,
+    createdBom: !(existingBomMatches && existingBom) && !!bom,
     createdFactorySpec: !!createdSpec,
   };
 }
@@ -284,7 +316,9 @@ async function ensureFgItemAndProduct(
   formulation: LockedFormulationRow | null,
 ): Promise<ItemRow> {
   const productCode = deriveProductionCode(project.product_code as string);
-  const outputUom = project.pack_weight_g != null ? 'each' : 'base';
+  const outputUom = project.pack_weight_g != null
+    ? (Number(project.packs_per_case ?? 0) > 0 ? 'box' : 'each')
+    : 'base';
   const netQtyPerEach = project.pack_weight_g != null ? Number(project.pack_weight_g) / 1000.0 : null;
   const inserted = await ctx.client.query<ItemRow>(
     `insert into public.items
@@ -305,6 +339,13 @@ async function ensureFgItemAndProduct(
       `update public.items set each_per_box = $2 where org_id = app.current_org_id() and item_code = $1 and coalesce(each_per_box, 0) <> $2`,
       [productCode, project.packs_per_case],
     );
+    await ctx.client.query(
+      `update public.items set output_uom = 'box'
+        where org_id = app.current_org_id()
+          and item_code = $1
+          and output_uom is distinct from 'box'`,
+      [productCode],
+    );
   }
   // Pair each_per_box with net_qty_per_each (kg per pack) so per-box WO consumption scaling
   // (kg_per_box = each_per_box × net_qty_per_each, slice S2-WO) has both factors even for an
@@ -321,7 +362,17 @@ async function ensureFgItemAndProduct(
     // kg"). Upgrade base→each here; never clobber an already-chosen 'box'/'each'.
     await ctx.client.query(
       `update public.items set output_uom = 'each'
-        where org_id = app.current_org_id() and item_code = $1 and output_uom = 'base'`,
+        where org_id = app.current_org_id()
+          and item_code = $1
+          and output_uom = 'base'
+          and coalesce(each_per_box, 0) <= 0`,
+      [productCode],
+    );
+    await ctx.client.query(
+      `update public.items set uom_base = 'kg'
+        where org_id = app.current_org_id()
+          and item_code = $1
+          and uom_base in ('szt', 'g')`,
       [productCode],
     );
   }
@@ -452,8 +503,8 @@ async function createActiveNpdBom(
   ctx: OrgContextLike,
   project: ProjectRow,
   formulation: LockedFormulationRow,
-  ingredients: IngredientRow[],
-  wipComponents: Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number }>,
+  lines: ExpectedBomLine[],
+  supersedesBom: BomHeaderRow | null,
 ): Promise<BomHeaderRow> {
   const productCode = deriveProductionCode(project.product_code as string);
   const version = await nextBomVersion(ctx, productCode);
@@ -463,16 +514,17 @@ async function createActiveNpdBom(
     ({ rows } = await ctx.client.query<BomHeaderRow>(
       `insert into public.bom_headers
          (org_id, product_id, item_id, npd_project_id, origin_module, status, version, yield_pct,
-          line_basis, effective_from, notes, created_by_user, app_version)
+          supersedes_bom_header_id, line_basis, effective_from, notes, created_by_user, app_version)
        values
          (app.current_org_id(), $1, (select id from public.items where org_id = app.current_org_id() and item_code = $1), $2::uuid, 'npd', 'draft', $3, $4::numeric,
-          'per_box', current_date, $5, $6::uuid, 'npd-release-materialize-v1')
+          $5::uuid, 'per_box', current_date, $6, $7::uuid, 'npd-release-materialize-v1')
        returning id, version`,
       [
         productCode,
         project.id,
         version,
         yieldPct,
+        supersedesBom?.id ?? null,
         `Materialized from locked NPD formulation version ${formulation.version_number}.`,
         ctx.userId,
       ],
@@ -483,82 +535,28 @@ async function createActiveNpdBom(
   const header = rows[0];
   if (!header) throw new Error('bom_headers insert returned no row');
 
-  const packsPerBox = Number(project.packs_per_case ?? 0);
-  for (let index = 0; index < ingredients.length; index++) {
-    const ingredient = ingredients[index]!;
-    // per-box, yield 100 for now (per-component yield wired in S4)
-    const quantity = computeBomLineQty(Number(ingredient.qty_kg ?? 0), packsPerBox).toFixed(6);
+  for (const line of lines) {
     await ctx.client.query(
       `insert into public.bom_lines
          (org_id, bom_header_id, line_no, item_id, substitute_item_id, component_code, component_type, quantity, uom,
           scrap_pct, manufacturing_operation_name, sequence, is_phantom, source)
        values
-         (app.current_org_id(), $1::uuid, $2, $3::uuid, $4::uuid, $5, 'RM', $6::numeric, 'kg',
-          0.00, $7, $8, false, 'npd_locked_formulation')`,
+         (app.current_org_id(), $1::uuid, $2, $3::uuid, $4::uuid, $5, $6, $7::numeric, $8,
+          $9::numeric, $10, $11, $12::boolean, $13)`,
       [
         header.id,
-        index + 1,
-        ingredient.item_id,
-        ingredient.substitute_item_id,
-        ingredient.rm_code,
-        quantity,
-        'NPD formulation',
-        ingredient.sequence,
-      ],
-    );
-  }
-
-  for (let index = 0; index < wipComponents.length; index++) {
-    const component = wipComponents[index]!;
-    const lineNo = ingredients.length + index + 1;
-    // WIP formulation rows are per pack, same as RM rows. FG BOMs are per box, so
-    // quantity = row qty_kg * packs_per_case. FG-level yield stays on the header;
-    // line quantities are not pre-divided, matching existing RM handling.
-    const quantity = computeBomLineQty(Number(component.qtyKg), packsPerBox).toFixed(6);
-    await ctx.client.query(
-      `insert into public.bom_lines
-         (org_id, bom_header_id, line_no, item_id, component_code, component_type, quantity, uom,
-          scrap_pct, manufacturing_operation_name, sequence, is_phantom, source)
-       values
-         (app.current_org_id(), $1::uuid, $2, $3::uuid, $4, 'WIP', $5::numeric, 'kg',
-          0.00, $6, $7, false, 'npd_locked_formulation_wip')`,
-      [
-        header.id,
-        lineNo,
-        component.itemId,
-        component.itemCode,
-        quantity,
-        'NPD WIP formulation',
-        component.sequence,
-      ],
-    );
-  }
-
-  const packagingComponents = await loadPackagingComponents(ctx, project.id);
-  for (let index = 0; index < packagingComponents.length; index++) {
-    const component = packagingComponents[index]!;
-    const lineNo = ingredients.length + wipComponents.length + index + 1;
-    const pmQty = (Number(component.qty) * packsPerBox).toFixed(6);
-    // Packaging components lose a fraction to damage/setup during packing (owner: "scrap per
-    // packaging component"). Carry the component's scrap_pct onto the PM BOM line so the WO
-    // material requirement (createWorkOrder) inflates required_qty by 1 / (1 - scrap_pct/100).
-    const scrapPct = clampScrapPct(component.scrap_pct);
-    await ctx.client.query(
-      `insert into public.bom_lines
-         (org_id, bom_header_id, line_no, item_id, component_code, component_type, quantity, uom,
-          scrap_pct, manufacturing_operation_name, sequence, is_phantom, source)
-       values
-         (app.current_org_id(), $1::uuid, $2, $3::uuid, $4, 'PM', $5::numeric, 'each',
-          $8::numeric, $6, $7, false, 'npd_packaging_components')`,
-      [
-        header.id,
-        lineNo,
-        component.item_id,
-        component.component_name,
-        pmQty,
-        'NPD packaging',
-        lineNo,
-        scrapPct,
+        line.line_no,
+        line.item_id,
+        line.substitute_item_id,
+        line.component_code,
+        line.component_type,
+        line.quantity,
+        line.uom,
+        line.scrap_pct,
+        line.manufacturing_operation_name,
+        line.sequence,
+        line.is_phantom,
+        line.source,
       ],
     );
   }
@@ -573,7 +571,214 @@ async function createActiveNpdBom(
     [header.id, ctx.userId],
   );
 
+  if (supersedesBom) {
+    await ctx.client.query(
+      `update public.bom_headers
+          set status = 'superseded',
+              effective_to = current_date,
+              updated_at = now()
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and status = 'active'`,
+      [supersedesBom.id],
+    );
+  }
+
   return header;
+}
+
+function buildExpectedBomLines(
+  project: ProjectRow,
+  ingredients: IngredientRow[],
+  wipComponents: Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number }>,
+  packagingComponents: PackagingComponentRow[],
+  processYields: ProductProcessYields,
+): ExpectedBomLine[] {
+  const packsPerBox = Number(project.packs_per_case ?? 0);
+  const lines: ExpectedBomLine[] = [];
+  for (let index = 0; index < ingredients.length; index++) {
+    const ingredient = ingredients[index]!;
+    const quantity = computeBomLineQty(
+      Number(ingredient.qty_kg ?? 0),
+      packsPerBox,
+      compoundedYieldPctForComponent(processYields, ingredient.item_id),
+    ).toFixed(6);
+    lines.push({
+      line_no: index + 1,
+      item_id: ingredient.item_id,
+      substitute_item_id: ingredient.substitute_item_id,
+      component_code: ingredient.rm_code,
+      component_type: 'RM',
+      quantity,
+      uom: 'kg',
+      scrap_pct: '0.00',
+      manufacturing_operation_name: 'NPD formulation',
+      sequence: ingredient.sequence,
+      is_phantom: false,
+      source: 'npd_locked_formulation',
+    });
+  }
+
+  for (let index = 0; index < wipComponents.length; index++) {
+    const component = wipComponents[index]!;
+    const quantity = computeBomLineQty(
+      Number(component.qtyKg),
+      packsPerBox,
+      compoundedYieldPctForComponent(processYields, component.itemId),
+    ).toFixed(6);
+    lines.push({
+      line_no: ingredients.length + index + 1,
+      item_id: component.itemId,
+      substitute_item_id: null,
+      component_code: component.itemCode,
+      component_type: 'WIP',
+      quantity,
+      uom: 'kg',
+      scrap_pct: '0.00',
+      manufacturing_operation_name: 'NPD WIP formulation',
+      sequence: component.sequence,
+      is_phantom: false,
+      source: 'npd_locked_formulation_wip',
+    });
+  }
+
+  for (let index = 0; index < packagingComponents.length; index++) {
+    const component = packagingComponents[index]!;
+    const lineNo = ingredients.length + wipComponents.length + index + 1;
+    lines.push({
+      line_no: lineNo,
+      item_id: component.item_id,
+      substitute_item_id: component.substitute_item_id,
+      component_code: component.component_name,
+      component_type: 'PM',
+      quantity: (Number(component.qty) * packsPerBox).toFixed(6),
+      uom: 'each',
+      scrap_pct: clampScrapPct(component.scrap_pct),
+      manufacturing_operation_name: 'NPD packaging',
+      sequence: lineNo,
+      is_phantom: false,
+      source: 'npd_packaging_components',
+    });
+  }
+  return lines;
+}
+
+async function loadProductProcessYields(ctx: OrgContextLike, productCode: string): Promise<ProductProcessYields> {
+  const { rows } = await ctx.client.query<{
+    prod_detail_id: string;
+    ingredient_item_id: string | null;
+    wip_item_id: string | null;
+    display_order: number;
+    yield_pct: string | number | null;
+  }>(
+    `select pd.id::text as prod_detail_id,
+            pd.item_id::text as ingredient_item_id,
+            wp.wip_item_id::text as wip_item_id,
+            wp.display_order,
+            wp.yield_pct::text as yield_pct
+       from public.prod_detail pd
+       join public.npd_wip_processes wp
+         on wp.org_id = pd.org_id
+        and wp.prod_detail_id = pd.id
+      where pd.org_id = app.current_org_id()
+        and pd.product_code = $1
+      order by pd.component_index asc, wp.display_order asc`,
+    [productCode],
+  );
+
+  const byDetail = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const list = byDetail.get(row.prod_detail_id) ?? [];
+    list.push(row);
+    byDetail.set(row.prod_detail_id, list);
+  }
+
+  const all = rows.map((row) => Number(row.yield_pct ?? 100));
+  const byIngredientItemId = new Map<string, number[]>();
+  const byWipItemId = new Map<string, number[]>();
+  for (const detailRows of byDetail.values()) {
+    const sorted = [...detailRows].sort((a, b) => Number(a.display_order) - Number(b.display_order));
+    const ingredientItemId = sorted.find((row) => row.ingredient_item_id)?.ingredient_item_id;
+    if (ingredientItemId) {
+      byIngredientItemId.set(ingredientItemId, sorted.map((row) => Number(row.yield_pct ?? 100)));
+    }
+    for (let index = 0; index < sorted.length; index++) {
+      const row = sorted[index]!;
+      if (row.wip_item_id) {
+        byWipItemId.set(row.wip_item_id, sorted.slice(index).map((suffix) => Number(suffix.yield_pct ?? 100)));
+      }
+    }
+  }
+
+  return { all, byIngredientItemId, byWipItemId };
+}
+
+function compoundedYieldPctForComponent(processYields: ProductProcessYields, itemId: string | null): number {
+  const yields = itemId
+    ? processYields.byIngredientItemId.get(itemId) ?? processYields.byWipItemId.get(itemId) ?? processYields.all
+    : processYields.all;
+  if (yields.length === 0) return 100;
+  return yields.reduce((factor, yieldPct) => {
+    if (!Number.isFinite(yieldPct) || yieldPct <= 0 || yieldPct > 100) return factor;
+    return factor * (yieldPct / 100);
+  }, 1) * 100;
+}
+
+async function npdBomContentMatches(
+  ctx: OrgContextLike,
+  bomHeaderId: string,
+  formulation: LockedFormulationRow,
+  expectedLines: ExpectedBomLine[],
+): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ matches: boolean }>(
+    `with expected as (
+       select *
+         from jsonb_to_recordset($2::jsonb)
+              as x(line_no int, item_id uuid, substitute_item_id uuid, component_code text, component_type text,
+                   quantity numeric, uom text, scrap_pct numeric, manufacturing_operation_name text,
+                   sequence int, is_phantom boolean, source text)
+     ),
+     header_ok as (
+       select true as ok
+         from public.bom_headers
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and line_basis = 'per_box'
+          and yield_pct = $3::numeric
+     ),
+     line_diff as (
+       (
+         select line_no, item_id, substitute_item_id, component_code, component_type, quantity, uom,
+                scrap_pct, manufacturing_operation_name, sequence, is_phantom, source
+           from public.bom_lines
+          where org_id = app.current_org_id()
+            and bom_header_id = $1::uuid
+       )
+       except
+       select line_no, item_id, substitute_item_id, component_code, component_type, quantity, uom,
+              scrap_pct, manufacturing_operation_name, sequence, is_phantom, source
+         from expected
+       union all
+       select line_no, item_id, substitute_item_id, component_code, component_type, quantity, uom,
+              scrap_pct, manufacturing_operation_name, sequence, is_phantom, source
+         from expected
+       except
+       (
+         select line_no, item_id, substitute_item_id, component_code, component_type, quantity, uom,
+                scrap_pct, manufacturing_operation_name, sequence, is_phantom, source
+           from public.bom_lines
+          where org_id = app.current_org_id()
+            and bom_header_id = $1::uuid
+       )
+     )
+     select exists(select 1 from header_ok) and not exists(select 1 from line_diff) as matches`,
+    [
+      bomHeaderId,
+      JSON.stringify(expectedLines),
+      normalizeBomYieldPct(formulation.target_yield_pct),
+    ],
+  );
+  return rows[0]?.matches === true;
 }
 
 async function resolveWipComponents(
@@ -835,6 +1040,7 @@ async function loadPackagingComponents(ctx: OrgContextLike, projectId: string): 
   const { rows } = await ctx.client.query<PackagingComponentRow>(
     `select pc.component_name,
             pc.item_id::text as item_id,
+            pc.substitute_item_id::text as substitute_item_id,
             coalesce(pc.qty_per_pack, 1)::text as qty,
             coalesce(pc.scrap_pct, 0)::text as scrap_pct
        from public.packaging_components pc
@@ -867,12 +1073,11 @@ function normalizeBomYieldPct(targetYieldPct: string | null): string {
 }
 
 /**
- * Per-box, yield-adjusted BOM line quantity.
- * formulation_ingredients.qty_kg is per PACK. A box holds packsPerBox packs, so the
- * nominal per-box quantity = qtyKgPerPack × packsPerBox. Real consumption divides by the
- * component yield fraction (yield loss inflates usage). yieldPct defaults to 100 (no loss);
- * a real per-component yield arrives with the NPD v2 WIP routing (slice S4). An out-of-range
- * yield (<=0 or >100) is treated as 100 (no-op) so the formula is always safe.
+ * Per-box, compounded-yield-adjusted BOM line quantity.
+ * formulation_ingredients.qty_kg is per PACK. A box holds packsPerBox packs, and real
+ * consumption divides by the compounded process yield fraction for the process where the
+ * component enters plus downstream processes. Components without process linkage use all
+ * product processes, which is the safest interpretation of the product chain.
  */
 export function computeBomLineQty(qtyKgPerPack: number, packsPerBox: number, yieldPct = 100): number {
   const nominalPerBox = qtyKgPerPack * packsPerBox;

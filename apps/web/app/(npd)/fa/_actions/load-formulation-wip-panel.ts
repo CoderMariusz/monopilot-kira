@@ -18,6 +18,10 @@ import {
   updateWipProcess,
 } from '../actions/wip-process-actions';
 import { getProcessDefault } from '../../../[locale]/(app)/(admin)/settings/process-defaults/_actions/process-defaults-actions';
+import { getActiveSiteId } from '../../../../lib/site/site-context';
+import { setProductionLine } from './set-production-line';
+import { isW5HiddenProductionColumn } from '../_components/w5-production-constants';
+import type { FaProductionLineOption } from '../_components/w5-production-constants';
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {
@@ -115,6 +119,41 @@ async function readDeptColumns(ctx: OrgContextLike, deptCode: string): Promise<F
     [deptCode],
   );
   return rows.map((row, i) => mapDeptColumn(row, i));
+}
+
+export type { FaProductionLineOption } from '../_components/w5-production-constants';
+
+async function readProductionLineOptions(ctx: OrgContextLike): Promise<FaProductionLineOption[]> {
+  const activeSiteId = (await getActiveSiteId({ client: ctx.client })) ?? null;
+  const { rows } = await ctx.client.query<{ id: string; code: string; name: string }>(
+    `select pl.id::text,
+            pl.code,
+            pl.name
+       from public.production_lines pl
+      where pl.org_id = app.current_org_id()
+        and coalesce(pl.status, 'active') <> 'archived'
+        and ($1::uuid is null or pl.site_id = $1::uuid or pl.site_id is null)
+      order by pl.code`,
+    [activeSiteId],
+  );
+  return rows.map((row) => ({ id: row.id, code: row.code, name: row.name }));
+}
+
+async function readIngredientQtyKgPerPack(ctx: OrgContextLike, projectId: string): Promise<number | null> {
+  const { rows } = await ctx.client.query<{ total_qty_kg: string | null }>(
+    `select coalesce(sum(fi.qty_kg), 0)::text as total_qty_kg
+       from public.formulations f
+       join public.formulation_versions fv
+         on fv.id = f.current_version_id
+        and fv.formulation_id = f.id
+       left join public.formulation_ingredients fi
+         on fi.version_id = fv.id
+      where f.org_id = app.current_org_id()
+        and f.project_id = $1::uuid`,
+    [projectId],
+  );
+  const total = Number(rows[0]?.total_qty_kg ?? 0);
+  return Number.isFinite(total) && total > 0 ? total : null;
 }
 
 async function readCurrentFormulationIngredientCount(ctx: OrgContextLike, projectId: string): Promise<number> {
@@ -266,20 +305,29 @@ export type FormulationWipPanelData =
       componentProcesses: Record<string, ComponentProcess[] | ComponentProcessBundle>;
       operationOptions: OperationOption[];
       canWrite: boolean;
+      projectId: string;
+      productionLineId: string | null;
+      productionLineOptions: FaProductionLineOption[];
+      ingredientQtyKgPerPack: number | null;
       actions: {
         onAddProcess: typeof addWipProcess;
         onUpdateProcess: typeof updateWipProcess;
         onRemoveProcess: typeof removeWipProcess;
         onSaveProcessRoles: typeof saveWipProcessRoles;
         onGetProcessDefault: typeof getProcessDefault;
+        onSetProductionLine: typeof setProductionLine;
       };
     };
 
 export async function loadFormulationWipPanel(projectId: string): Promise<FormulationWipPanelData> {
   return withOrgContext<FormulationWipPanelData>(async (rawCtx) => {
     const ctx = rawCtx as OrgContextLike;
-    const { rows } = await ctx.client.query<{ product_code: string | null }>(
-      `select product_code
+    const { rows } = await ctx.client.query<{
+      product_code: string | null;
+      production_line_id: string | null;
+    }>(
+      `select product_code,
+              production_line_id::text as production_line_id
          from public.npd_projects
         where id = $1::uuid
           and org_id = app.current_org_id()
@@ -288,15 +336,23 @@ export async function loadFormulationWipPanel(projectId: string): Promise<Formul
     );
     const productCode = rows[0]?.product_code ?? null;
     if (!productCode) return { state: 'no_fg_linked' };
+    const productionLineId = rows[0]?.production_line_id ?? null;
 
-    const [production, prodRows, canWrite, formulationIngredientCount] = await Promise.all([
-      readDeptColumns(ctx, 'Production'),
-      readProdDetailRows(ctx, productCode),
-      hasPermission(ctx, 'npd.production.write'),
-      readCurrentFormulationIngredientCount(ctx, projectId),
-    ]);
+    const [production, prodRows, canWrite, formulationIngredientCount, productionLineOptions, ingredientQtyKgPerPack] =
+      await Promise.all([
+        readDeptColumns(ctx, 'Production'),
+        readProdDetailRows(ctx, productCode),
+        hasPermission(ctx, 'npd.production.write'),
+        readCurrentFormulationIngredientCount(ctx, projectId),
+        readProductionLineOptions(ctx),
+        readIngredientQtyKgPerPack(ctx, projectId),
+      ]);
 
-    const productionFiltered = production.filter((col) => !isLegacyProcessColumn(col.key));
+    const productionFiltered = production.filter(
+      (col) =>
+        !isLegacyProcessColumn(col.key) &&
+        !isW5HiddenProductionColumn(col.key, col.dropdownSource),
+    );
     const dropdowns = await readDropdowns(ctx, productionFiltered);
     const [componentProcesses, operationOptions] = await Promise.all([
       loadComponentProcesses(prodRows),
@@ -313,12 +369,17 @@ export async function loadFormulationWipPanel(projectId: string): Promise<Formul
       componentProcesses,
       operationOptions,
       canWrite,
+      projectId,
+      productionLineId,
+      productionLineOptions,
+      ingredientQtyKgPerPack,
       actions: {
         onAddProcess: addWipProcess,
         onUpdateProcess: updateWipProcess,
         onRemoveProcess: removeWipProcess,
         onSaveProcessRoles: saveWipProcessRoles,
         onGetProcessDefault: getProcessDefault,
+        onSetProductionLine: setProductionLine,
       },
     };
   });

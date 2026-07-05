@@ -46,6 +46,8 @@ function createCandidateHandler(codeMaskRow: QueryResult['rows'][number] | null)
     if (sql.includes('update public.org_document_settings')) {
       return { rows: codeMaskRow ? [codeMaskRow] : [] };
     }
+    if (sql.includes('from public.npd_field_catalog')) return { rows: [] };
+    if (sql.includes('from information_schema.columns')) return { rows: [] };
     if (sql.includes('from public.formulations')) return { rows: [] };
     if (sql.includes('from public.npd_projects')) return { rows: [] };
     if (sql.includes('from public.product')) return { rows: [] };

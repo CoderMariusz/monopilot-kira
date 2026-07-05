@@ -101,6 +101,7 @@ export type WizardFormState = {
   itemType: (typeof ITEM_TYPES)[number];
   status: (typeof ITEM_STATUSES)[number];
   productGroup: string;
+  categoryCode: string;
   // A11 — optional supplier link. Stores the supplier CODE (not name/id); an empty
   // string means "no supplier" and the payload omits supplierCode (it is optional).
   supplierCode: string;
@@ -130,6 +131,7 @@ export function emptyWizardForm(): WizardFormState {
     itemType: 'rm',
     status: 'active',
     productGroup: '',
+    categoryCode: '',
     supplierCode: '',
     uomBase: 'kg',
     uomSecondary: '',
@@ -325,6 +327,7 @@ export function ItemWizard({
   initialForm,
   labels = DEFAULT_WIZARD_LABELS,
   supplierOptions = [],
+  categoryOptions = [],
   supplierIdByCode = {},
   onSaved,
 }: {
@@ -341,6 +344,8 @@ export function ItemWizard({
    * an empty list so the field renders only the "none" choice (e.g. RTL/edit).
    */
   supplierOptions?: SelectOption[];
+  /** Active product categories (code → label), resolved server-side by the page. */
+  categoryOptions?: SelectOption[];
   /**
    * Supplier CODE → supplier UUID lookup for the SAME org supplier list. The
    * wizard's select works in CODE space (matching create-mode + the createItem
@@ -392,6 +397,10 @@ export function ItemWizard({
   const supplierSelectOptions: SelectOption[] = React.useMemo(
     () => [{ value: '', label: labels.supplierNone }, ...supplierOptions],
     [labels.supplierNone, supplierOptions],
+  );
+  const categorySelectOptions: SelectOption[] = React.useMemo(
+    () => [{ value: '', label: labels.uomNone }, ...categoryOptions],
+    [labels.uomNone, categoryOptions],
   );
   const outputUomOptions: SelectOption[] = React.useMemo(
     () => OUTPUT_UOMS.map((value) => ({ value, label: labels.outputUomLabels[value] })),
@@ -492,6 +501,7 @@ export function ItemWizard({
       weightMode: form.weightMode,
       description: trimOrUndefined(form.description),
       productGroup: trimOrUndefined(form.productGroup),
+      categoryCode: trimOrUndefined(form.categoryCode),
       uomSecondary: trimOrUndefined(form.uomSecondary),
       gs1Gtin: trimOrUndefined(form.gs1Gtin),
       nominalWeight: numOrUndefined(form.nominalWeight),
@@ -727,6 +737,17 @@ export function ItemWizard({
               />
             </Field>
           </div>
+          {categoryOptions.length > 0 ? (
+            <Field label={labels.fields.category}>
+              <LabeledSelect
+                value={form.categoryCode}
+                onValueChange={(v) => update('categoryCode', v)}
+                options={categorySelectOptions}
+                placeholder={labels.uomNone}
+                ariaLabel={labels.fields.category}
+              />
+            </Field>
+          ) : null}
           <div className="ff-inline">
             <Field label={labels.fields.uomBase} required>
               <LabeledSelect

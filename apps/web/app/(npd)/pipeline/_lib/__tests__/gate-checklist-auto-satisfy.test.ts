@@ -22,6 +22,9 @@ describe('matchGateChecklistAutoKind', () => {
     expect(matchGateChecklistAutoKind('Initial shared BOM ready and linked to NPD project')).toBe(
       'ingredients_present',
     );
+    expect(matchGateChecklistAutoKind('Recipe has at least one ingredient')).toBe(
+      'ingredients_present',
+    );
   });
 
   it('returns null for unrelated advisory items', () => {

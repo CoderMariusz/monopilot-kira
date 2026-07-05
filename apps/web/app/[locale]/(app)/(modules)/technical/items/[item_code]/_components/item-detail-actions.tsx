@@ -14,6 +14,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
+import { type SelectOption } from '@monopilot/ui/Select';
 
 import type { ItemDetail } from '../../_actions/get-item';
 import {
@@ -40,6 +41,7 @@ function detailToForm(item: ItemDetail): WizardFormState {
     itemType: item.itemType,
     status: item.status,
     productGroup: item.productGroup ?? '',
+    categoryCode: item.categoryCode ?? '',
     // A11 — supplier link. The detail-page edit wizard is NOT wired with the org
     // supplier list (no supplierOptions/supplierIdByCode below), so its supplier
     // picker shows only the "none" row and never attaches a spec — richer
@@ -74,6 +76,7 @@ export function ItemDetailActions({
   wizardLabels,
   deactivateLabels,
   transitionLabels = DEFAULT_TRANSITION_LABELS,
+  categoryOptions = [],
 }: {
   item: ItemDetail;
   canEdit: boolean;
@@ -83,6 +86,7 @@ export function ItemDetailActions({
   wizardLabels?: ItemWizardLabels;
   deactivateLabels?: DeactivateLabels;
   transitionLabels?: StatusTransitionLabels;
+  categoryOptions?: SelectOption[];
 }) {
   const router = useRouter();
   const [editOpen, setEditOpen] = React.useState(false);
@@ -141,6 +145,7 @@ export function ItemDetailActions({
           mode={{ kind: 'edit', itemId: item.id }}
           initialForm={detailToForm(item)}
           labels={wizardLabels}
+          categoryOptions={categoryOptions}
           onSaved={() => router.refresh()}
         />
       ) : null}

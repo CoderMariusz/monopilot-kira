@@ -55,6 +55,11 @@ export async function FormulationWipPanel({
         labels={labels}
         state="ready"
         canWrite={data.canWrite}
+        projectId={data.projectId}
+        productionLineId={data.productionLineId}
+        productionLineOptions={data.productionLineOptions}
+        ingredientQtyKgPerPack={data.ingredientQtyKgPerPack}
+        onSetProductionLine={data.actions.onSetProductionLine}
         componentProcesses={data.componentProcesses}
         operationOptions={data.operationOptions}
         onAddProcess={data.actions.onAddProcess}

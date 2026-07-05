@@ -13,7 +13,7 @@
   "i18n_namespace": "npd.dashboardPipeline",
   "labels": {
     "title": "Pipeline (recent)",
-    "subtitle": "Recent FA gate movement",
+    "subtitle": "Recent FG gate movement",
     "viewAll": "View all",
     "empty": "No recent projects in the pipeline yet.",
     "statusTodo": "Pending",
@@ -21,7 +21,7 @@
     "statusBlocked": "Blocked",
     "statusDone": "Done"
   },
-  "generated_at": "2026-06-26T11:20:39.206Z",
+  "generated_at": "2026-07-03T01:01:18.511Z",
   "states": {
     "ready": {
       "card": true,
@@ -30,9 +30,9 @@
       "region": true,
       "viewAllLink": true,
       "rowLinks": [
-        "/fa/FA5101",
-        "/fa/FA5102",
-        "/fa/FA5103"
+        "/pipeline/p-001",
+        "/pipeline/p-002",
+        "/pipeline/p-003"
       ],
       "badges": 3,
       "badgeDots": true,
