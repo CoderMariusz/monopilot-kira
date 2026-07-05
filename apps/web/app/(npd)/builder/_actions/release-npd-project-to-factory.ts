@@ -183,7 +183,11 @@ export async function releaseNpdProjectToFactory(
       appVersion: APP_VERSION,
       error: error instanceof Error ? error.message : String(error),
     });
-    return { ok: false, error: 'PERSISTENCE_FAILED', status: 500 };
+    // Truthful copy (walk-6 HIGH-2): carry the DB failure identity to the caller
+    // so the promote banner can show WHAT failed instead of a bare wrapper code.
+    const pg = error as { code?: string; constraint?: string; message?: string };
+    const detail = [pg.code, pg.constraint ?? pg.message?.slice(0, 160)].filter(Boolean).join(' ');
+    return { ok: false, error: 'PERSISTENCE_FAILED', status: 500, message: detail || undefined };
   }
 }
 

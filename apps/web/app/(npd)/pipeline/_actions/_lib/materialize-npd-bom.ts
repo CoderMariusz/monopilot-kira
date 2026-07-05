@@ -98,6 +98,8 @@ type ProductProcessYields = {
 
 type FactorySpecRow = {
   id: string;
+  /** Bound BOM header — null on legacy rows; used to detect regen drift. */
+  bom_header_id?: string | null;
 };
 
 type PilotEvidenceRow = {
@@ -195,9 +197,26 @@ export async function materializeNpdBom(
     : null);
 
   const existingSpec = bom ? await loadApprovedFactorySpec(ctx, item.id) : null;
-  const createdSpec = !existingSpec && bom
-    ? await createApprovedFactorySpec(ctx, project, item.id, bom)
-    : null;
+  let createdSpec: FactorySpecRow | null = null;
+  if (bom && !existingSpec) {
+    createdSpec = await createApprovedFactorySpec(ctx, project, item.id, bom);
+  } else if (bom && existingSpec && existingSpec.bom_header_id != null && existingSpec.bom_header_id !== bom.id) {
+    // Regen produced a NEW BOM version while the frozen approved spec still
+    // points at the superseded header — check_factory_release_consistency
+    // rejects the release on that mismatch (walk-6 HIGH-1). Mirror the BOM's
+    // clone-on-write: supersede the stale spec FIRST (frees the partial-unique
+    // approved slot), then mint the next spec version bound to the new BOM.
+    await ctx.client.query(
+      `update public.factory_specs
+          set status = 'superseded',
+              updated_at = now()
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and status = 'approved_for_factory'`,
+      [existingSpec.id],
+    );
+    createdSpec = await createApprovedFactorySpec(ctx, project, item.id, bom);
+  }
 
   // Recompute the allergen cascade over the just-materialized BOM and stamp the
   // close-out timestamp — closeOutLegacyStagesForLaunch requires
@@ -1123,7 +1142,7 @@ function formatBomHeaderInsertError(error: unknown): string {
 
 async function loadApprovedFactorySpec(ctx: OrgContextLike, fgItemId: string): Promise<FactorySpecRow | null> {
   const { rows } = await ctx.client.query<FactorySpecRow>(
-    `select id
+    `select id, bom_header_id
        from public.factory_specs
       where org_id = app.current_org_id()
         and fg_item_id = $1::uuid

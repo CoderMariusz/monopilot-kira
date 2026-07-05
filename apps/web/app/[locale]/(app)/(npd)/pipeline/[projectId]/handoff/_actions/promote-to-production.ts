@@ -155,7 +155,10 @@ export async function promoteToProduction(raw: unknown): Promise<PromoteToProduc
           // Honest: do NOT fake a BOM. The release pipeline is the BOM owner.
           throw new PromoteAbort('release_blocked', release.blockers?.map((b) => b.code).join(',') ?? undefined);
         }
-        throw new PromoteAbort('persistence_failed');
+        throw new PromoteAbort(
+          'persistence_failed',
+          'message' in release ? (release as { message?: string }).message : undefined,
+        );
       }
 
       const releasedToFactory = true;

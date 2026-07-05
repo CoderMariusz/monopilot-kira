@@ -74,7 +74,7 @@ function createBomMaterializationClient(targetYieldPct: string | null) {
     if (sql.startsWith('insert into public.bom_lines')) return [];
     if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
     if (sql.startsWith('update public.bom_headers')) return [];
-    if (sql.startsWith('select id from public.factory_specs')) return [];
+    if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
     if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
     throw new Error(`Unhandled SQL: ${sql}`);
   });
@@ -131,12 +131,13 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
       if (sql.startsWith('insert into public.bom_lines')) return [];
       if (sql.startsWith('update public.bom_headers')) return [];
-      if (sql.startsWith('select id from public.factory_specs')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
       if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
       // allergen cascade recompute over the materialized BOM (no parents in fixture)
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
 
@@ -207,7 +208,8 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       if (sql.startsWith('with expected as')) return [{ matches: true }];
-      if (sql.startsWith('select id from public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('update public.factory_specs')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
 
@@ -237,6 +239,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('select h.id, h.version')) return []; // no existing BOM
       if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
 
@@ -276,7 +279,8 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       if (sql.startsWith('with expected as')) return [{ matches: true }];
-      if (sql.startsWith('select id from public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('update public.factory_specs')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
 
@@ -315,9 +319,10 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
       if (sql.startsWith('insert into public.bom_lines')) return [];
       if (sql.startsWith('update public.bom_headers')) return [];
-      if (sql.startsWith('select id from public.factory_specs')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
       if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
       if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
 
@@ -360,9 +365,10 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
       if (sql.startsWith('insert into public.bom_lines')) return [];
       if (sql.startsWith('update public.bom_headers')) return [];
-      if (sql.startsWith('select id from public.factory_specs')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
       if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
       if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
 
@@ -401,9 +407,10 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
       if (sql.startsWith('insert into public.bom_lines')) return [];
       if (sql.startsWith('update public.bom_headers')) return [];
-      if (sql.startsWith('select id from public.factory_specs')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
       if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
       if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
 
@@ -452,9 +459,10 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('insert into public.bom_headers')) return [{ id: SPEC, version: 3 }];
       if (sql.startsWith('insert into public.bom_lines')) return [];
       if (sql.startsWith('update public.bom_headers')) return [];
-      if (sql.startsWith('select id from public.factory_specs')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
       if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
       if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
 
@@ -496,9 +504,10 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('insert into public.bom_headers')) return [{ id: '99999999-9999-4999-8999-999999999999', version: 3 }];
       if (sql.startsWith('insert into public.bom_lines')) return [];
       if (sql.startsWith('update public.bom_headers')) return [];
-      if (sql.startsWith('select id from public.factory_specs')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
       if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
       if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
 
@@ -542,8 +551,9 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
       if (sql.startsWith('insert into public.bom_lines')) return [];
       if (sql.startsWith('update public.bom_headers')) return [];
-      if (sql.startsWith('select id from public.factory_specs')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
       if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('update public.factory_specs')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
 
