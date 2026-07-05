@@ -228,7 +228,8 @@ export async function createWorkOrderCore(
          from public.bom_lines bl
          left join public.items i
            on i.org_id = app.current_org_id()
-          and i.item_code = bl.component_code
+          and (i.id = bl.item_id
+               or (bl.item_id is null and i.item_code = bl.component_code))
         where bl.org_id = app.current_org_id()
           and bl.bom_header_id = $4::uuid
         order by bl.line_no

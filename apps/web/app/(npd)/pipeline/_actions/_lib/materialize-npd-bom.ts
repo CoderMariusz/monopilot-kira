@@ -1057,12 +1057,15 @@ function clampScrapPct(raw: string | null | undefined): string {
 
 async function loadPackagingComponents(ctx: OrgContextLike, projectId: string): Promise<PackagingComponentRow[]> {
   const { rows } = await ctx.client.query<PackagingComponentRow>(
-    `select pc.component_name,
+    `select coalesce(i.item_code, pc.component_name) as component_name,
             pc.item_id::text as item_id,
             pc.substitute_item_id::text as substitute_item_id,
             coalesce(pc.qty_per_pack, 1)::text as qty,
             coalesce(pc.scrap_pct, 0)::text as scrap_pct
        from public.packaging_components pc
+       left join public.items i
+         on i.org_id = pc.org_id
+        and i.id = pc.item_id
       where pc.project_id = $1::uuid
         and pc.org_id = app.current_org_id()
         and pc.item_id is not null

@@ -67,12 +67,12 @@ function createBomMaterializationClient(targetYieldPct: string | null) {
     if (sql.startsWith('select id, wo_reference, status')) return [];
     if (sql.startsWith('update public.product')) return [];
     if (sql.startsWith('select h.id, h.version')) return [];
-    if (sql.startsWith('select pc.component_name')) return [];
+    if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
     if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
     if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
     if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
     if (sql.startsWith('insert into public.bom_lines')) return [];
-    if (sql.startsWith('select pc.component_name')) return [];
+    if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
     if (sql.startsWith('update public.bom_headers')) return [];
     if (sql.startsWith('select id from public.factory_specs')) return [];
     if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
@@ -125,7 +125,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('select id, wo_reference, status')) return [{ id: '77777777-7777-4777-8777-777777777777', wo_reference: 'WO-1', status: 'completed' }];
       if (sql.startsWith('update public.product')) return [];
       if (sql.startsWith('select h.id, h.version')) return [];
-      if (sql.startsWith('select pc.component_name')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
       if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
@@ -135,7 +135,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
       // allergen cascade recompute over the materialized BOM (no parents in fixture)
       if (sql.startsWith('select id from public.items where org_id')) return [];
-      if (sql.startsWith('select pc.component_name')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('with recursive parents as')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
@@ -204,7 +204,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('update public.product')) return [];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select h.id, h.version')) return [{ id: BOM, version: 2 }];
-      if (sql.startsWith('select pc.component_name')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       if (sql.startsWith('with expected as')) return [{ matches: true }];
       if (sql.startsWith('select id from public.factory_specs')) return [{ id: SPEC }];
@@ -235,7 +235,7 @@ describe('materializeNpdBom', () => {
         return [{ rm_code: 'RM-001', item_id: null, qty_kg: '1.250000', sequence: 1 }];
       }
       if (sql.startsWith('select h.id, h.version')) return []; // no existing BOM
-      if (sql.startsWith('select pc.component_name')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
@@ -273,7 +273,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('update public.product')) return [];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select h.id, h.version')) return [{ id: BOM, version: 2 }];
-      if (sql.startsWith('select pc.component_name')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       if (sql.startsWith('with expected as')) return [{ matches: true }];
       if (sql.startsWith('select id from public.factory_specs')) return [{ id: SPEC }];
@@ -297,7 +297,7 @@ describe('materializeNpdBom', () => {
         return [{ rm_code: 'RM-PORK', item_id: null, substitute_item_id: null, qty_kg: '0.300000', sequence: 1 }];
       }
       if (sql.startsWith('select h.id, h.version')) return [];
-      if (sql.startsWith('select pc.component_name')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) {
         return [
           { prod_detail_id: 'pd-1', ingredient_item_id: null, wip_item_id: null, display_order: 1, yield_pct: '95.000' },
@@ -338,7 +338,7 @@ describe('materializeNpdBom', () => {
         return [{ rm_code: 'RM-PORK', item_id: null, substitute_item_id: null, qty_kg: '0.300000', sequence: 1 }];
       }
       if (sql.startsWith('select h.id, h.version')) return [];
-      if (sql.startsWith('select pc.component_name')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) {
         // TWO components, each with its own 95% process chain — an unlinked RM
         // must NOT be divided by 0.95^4 (the union), nor by either chain.
@@ -384,7 +384,7 @@ describe('materializeNpdBom', () => {
         return [{ rm_code: 'RM-PORK', item_id: null, substitute_item_id: null, qty_kg: '0.300000', sequence: 1 }];
       }
       if (sql.startsWith('select h.id, h.version')) return [];
-      if (sql.startsWith('select pc.component_name')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       // Pre-existing item: INSERT hits ON CONFLICT DO NOTHING, loadItem returns the row.
       if (sql.startsWith('insert into public.items')) return [];
@@ -438,7 +438,7 @@ describe('materializeNpdBom', () => {
         return [{ rm_code: 'RM-001', item_id: ITEM, substitute_item_id: null, qty_kg: '1.250000', sequence: 1 }];
       }
       if (sql.startsWith('select h.id, h.version')) return [{ id: BOM, version: 2 }];
-      if (sql.startsWith('select pc.component_name')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       if (sql.startsWith('with expected as')) return [{ matches: false }];
       if (sql.startsWith('insert into public.items')) return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
@@ -480,7 +480,7 @@ describe('materializeNpdBom', () => {
       }
       if (sql.startsWith('select rm_code,')) return [];
       if (sql.startsWith('select h.id, h.version')) return [];
-      if (sql.startsWith('select pc.component_name')) {
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) {
         return [{ component_name: 'BOX', item_id: PM_ITEM, substitute_item_id: PM_SUB, qty: '1.000000', scrap_pct: '2.000' }];
       }
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];

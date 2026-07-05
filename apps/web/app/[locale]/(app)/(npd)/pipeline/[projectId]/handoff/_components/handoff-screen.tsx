@@ -940,7 +940,13 @@ export function HandoffScreen({
 
       {promoteError ? (
         <div role="alert" data-testid="handoff-promote-error" className="alert alert-red">
-          <div className="alert-title">{labels.promoteError}</div>
+          <div className="alert-title">
+            {labels.promoteError}
+            {/* Truthful copy (walk-3 F3): surface the REAL failure code — a
+                static "check the gates" on an all-green project hid the actual
+                server error and sent the user chasing satisfied gates. */}
+            {promoteError !== 'error' ? ` (${promoteError})` : null}
+          </div>
         </div>
       ) : null}
 

@@ -268,7 +268,10 @@ export function CreateWoModal({
     } else {
       try {
         const baseQty = toBaseQty(product.snapshot, Number(quantity.trim()), orderUom);
-        plannedBase = String(baseQty);
+        // Box/each → base multiplication can yield an unterminating float
+        // (2 × 12 × 0.3 = 7.199999999999999) which the server schema rejects
+        // (≤4 decimals) — round to the schema's precision before submit.
+        plannedBase = baseQty.toFixed(4).replace(/\.?0+$/, '');
       } catch (err) {
         setFormError(
           err instanceof TypedError

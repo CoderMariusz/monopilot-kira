@@ -372,10 +372,10 @@ async function persistPromotedItemPricesAndCost(
          on i.org_id = cb.org_id
         and i.item_code = cb.product_code
       where cb.org_id = app.current_org_id()
-        and cb.product_code = $2
+        and cb.product_code = $1
         and lower(cb.scenario) = 'target'
       limit 1`,
-    [projectId, productCode],
+    [productCode],
   );
   const snapshot = rows[0];
   if (!snapshot?.total_cost_per_pack || !snapshot.pack_weight_kg) return;

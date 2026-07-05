@@ -2195,7 +2195,8 @@
             "empty": "Brak wersji BOM",
             "emptyBody": "Ta pozycja nie ma wspólnej wersji BOM. Pierwszą wersję tworzy NPD lub Technologia.",
             "error": "Nie udało się załadować wersji BOM. Spróbuj ponownie.",
-            "createCta": "+ Nowy BOM"
+            "createCta": "+ Nowy BOM",
+            "openBom": "Otwórz BOM"
           },
           "cost": {
             "current": "Bieżący koszt",
@@ -6585,7 +6586,8 @@
       "generatePackagingUnlinked": "Komponenty opakowania muszą być powiązane z pozycjami przed wygenerowaniem BOM produkcyjnego: {components}",
       "generateWarningNoLine": "BOM produkcyjny utworzony, ale nie ustawiono linii produkcyjnej w projekcie — marszruta nie została utworzona.",
       "generateWarningNoProcesses": "BOM produkcyjny utworzony, ale nie znaleziono procesów NPD do utworzenia marszruty.",
-      "generateWarningRoutingDraft": "Marszruta utworzona jako SZKIC — zatwierdź i aktywuj ją w Techniczne → Marszruty, aby zlecenia produkcyjne pobrały kroki produkcji."
+      "generateWarningRoutingDraft": "Marszruta utworzona jako SZKIC — zatwierdź i aktywuj ją w Techniczne → Marszruty, aby zlecenia produkcyjne pobrały kroki produkcji.",
+      "generatePacksPerBoxRequired": "Ustaw liczbę paczek na karton na FG przed wygenerowaniem BOM produkcyjnego."
     },
     "pipelineCreate": {
       "title": "Utwórz projekt NPD",

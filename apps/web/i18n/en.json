@@ -4139,7 +4139,8 @@
       "generatePackagingUnlinked": "Packaging components must be linked to items before generating the production BOM: {components}",
       "generateWarningNoLine": "Production BOM created, but no production line is set on the project — routing was not materialized.",
       "generateWarningNoProcesses": "Production BOM created, but no NPD processes were found to build a routing.",
-      "generateWarningRoutingDraft": "Routing created as DRAFT — approve and activate it in Technical → Routings so work orders pick up the production steps."
+      "generateWarningRoutingDraft": "Routing created as DRAFT — approve and activate it in Technical → Routings so work orders pick up the production steps.",
+      "generatePacksPerBoxRequired": "Set packs-per-box on the FG before generating the production BOM."
     },
     "pipelineCreate": {
       "title": "Create NPD project",
@@ -4733,7 +4734,8 @@
             "empty": "No BOM versions yet",
             "emptyBody": "This item has no shared BOM version. NPD or Technical creates the first version.",
             "error": "Unable to load BOM versions. Please try again.",
-            "createCta": "+ New BOM"
+            "createCta": "+ New BOM",
+            "openBom": "Open BOM"
           },
           "cost": {
             "current": "Current cost",
