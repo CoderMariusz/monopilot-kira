@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Raport fali W5 — Technical↔BOM↔NPD: jeden system, udowodniony przeglądarką (2026-07-06)</title>
+<style>
+  :root { --ink:#1a1f2e; --mut:#6b7280; --ok:#0a7d33; --warn:#b45309; --bad:#b91c1c; --card:#f8fafc; --line:#e5e7eb; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); max-width: 1100px; margin: 32px auto; padding: 0 20px; line-height: 1.55; }
+  h1 { font-size: 1.5rem; border-bottom: 3px solid var(--ink); padding-bottom: 8px; }
+  h2 { font-size: 1.15rem; margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: .9rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
+  code { background: var(--card); padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+  .ok { color: var(--ok); font-weight: 600; } .warn { color: var(--warn); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:.8rem; font-weight:600; }
+  .pill.g { background:#dcfce7; color:var(--ok);} .pill.y { background:#fef3c7; color:var(--warn);}
+  .card { background: var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 18px; margin:12px 0; }
+  .small { font-size:.85rem; color:var(--mut); }
+</style>
+</head>
+<body>
+
+<h1>Wave W5 — Technical↔BOM↔NPD alignment <span class="pill g">DOWÓD KOŃCOWY: PASS (spacer #7)</span></h1>
+<p class="small">2026-07-05/06 · commity <code>6e1b2cb5 → 65e360fb → af04ac5d → 62dab89a → 2c8dfdfa → 417a0a0f → c543f619 → 12047b8c</code> · migracje <b>436–439 LIVE</b> (następna: <b>440</b>) · 7 torów budowy + 3 naprawcze + review Opusa + <b>7 spacerów Gate-5b</b> · rulingi T1–T12 + R1–R3 w charterze <code>_meta/plans/2026-07-05-technical-bom-alignment-charter.md</code></p>
+
+<h2>1. Co zbudowała fala (Twoje rulingi → system)</h2>
+<table>
+<tr><th>Ruling</th><th>Dostarczone</th></tr>
+<tr><td>T1/T2 drabinka paczek</td><td>FG z NPD = <b>kg jako base</b>, „Karton · 1 = 12 × 0.300 kg = 3.600 kg"; korekta legacy „0.300 szt"; przełączenie na box ATOMOWE z oboma współczynnikami (CHECK mig 267).</td></tr>
+<tr><td>R2 yield na procesie</td><td><code>yield_pct</code> na każdym procesie (NPD + biblioteka WIP + routing); ilość w BOM = qty/paczkę ÷ Π(uzysków łańcucha) × paczki/karton — Twój wzorzec 0.300/0.95/0.95 = <b>3.9889 kg/karton</b> udowodniony na prodzie. Produkt wieloskładnikowy NIE dziedziczy uzysków cudzych łańcuchów (HIGH z review — bez powiązania brak korekty).</td></tr>
+<tr><td>T3 twarda bramka opakowań</td><td>Generowanie BOM i promocja blokują z NAZWAMI niepodlinkowanych komponentów („…: W51 box") — koniec cichego gubienia box/label.</td></tr>
+<tr><td>T4 nieświeży BOM</td><td>Regeneracja tworzy NOWĄ wersję (stara → superseded, poprawna kolejność pod unikatem „jeden aktywny"); factory spec jest re-mintowany i przypinany do nowej wersji (zamek <code>spec_bom_mismatch</code> rozbrojony).</td></tr>
+<tr><td>T5 substytuty + drzewo</td><td>Substytuty RM i PM kopiowane do linii BOM i renderowane; wiersze WIP rozwijane do pod-BOM; adnotacja „na karton (× 12 paczek)" + wartość per paczkę.</td></tr>
+<tr><td>T6/R1/R3 model zasobów</td><td><b>JEDEN picker linii</b> (Production detail → UUID; Trial/Pilot dziedziczą); procesy NPD → <b>szkic marszruty</b> przy handoffie (kroki, czasy z throughput, obsada z ról, linia) → zatwierdzenie/aktywacja w Techniczne → WO kopiuje operacje Z OBSADĄ; robocizna = obsada × stawki ze Staffing (join niewrażliwy na wielkość liter po W5.7); ręczne <code>cost_per_hour</code> na operacji wycofane; maszyny zdegradowane do rejestru Maintenance.</td></tr>
+<tr><td>T7 kategorie</td><td>Słownik <code>Reference.ProductCategories</code> (CRUD w Settings, kod niezmienny, dezaktywacja); kreator NPD + brief + kartoteka czytają słownik; kolumna „Category" na liście BOM przestała pokazywać department_number; backfill kodu na item przy promocji (także dla wycofanych kategorii).</td></tr>
+<tr><td>T8 ceny/koszt</td><td>Promocja zapisuje list price + snapshot kosztu (waterfall ÷ waga paczki → item_cost_history); strona itemu pokazuje <b>koszt efektywny ze źródłem</b> (FG0013: 5.8377 GBP/kg, lista 12.00).</td></tr>
+<tr><td>T12 szybkie</td><td>Checklist „Recipe has at least one ingredient" auto-odhacza; „volument box" → „Volume per box"; klucz nav; PL etykiety produkcji.</td></tr>
+</table>
+
+<h2>2. Pętla spacer→naprawa→spacer (7 spacerów)</h2>
+<table>
+<tr><th>Spacer</th><th>Wynik</th><th>Sedno</th></tr>
+<tr><td>#1 (65e360fb)</td><td class="warn">6/10 PASS</td><td>Kategorie/linia/auto-tick/koszty OK; F1 yield renderował 100 (DB=95, loader nie SELECTował kolumny — 4 ogniwa), F2 „Wyślij do zatwierdzenia" = czarna dziura (approveProjectGate przestał przesuwać projekt).</td></tr>
+<tr><td>#2 (af04ac5d)</td><td class="warn">bramka OK, nowy HIGH</td><td>Zatwierdzenia przesuwają (G3→G4→handoff), twarda bramka wymienia „W51 box"; ale flip na output_uom='box' bez współczynników łamał CHECK — Generate BOM martwe.</td></tr>
+<tr><td>#3 (62dab89a)</td><td class="warn">Generate OK, 3 zastane</td><td>BOM 3.9889 kg/karton + marszruta aktywowana; ale WO wywalało się (linia PM z NAZWĄ zamiast kodu → NOT NULL) + float 7.19999… + promote padał na nieużytym parametrze $1 (log Vercela).</td></tr>
+<tr><td>#4 (2c8dfdfa)</td><td class="warn">nowy zamek</td><td>Regeneracja aktywowała nowy nagłówek PRZED superseded starego → unikat 23505.</td></tr>
+<tr><td>#5</td><td class="bad">nieważny</td><td>Walker kliknął w STARY deploy (build W5.5 jeszcze trwał) — lekcja procesowa: weryfikacja deploy-ID, nie ślepe czekanie.</td></tr>
+<tr><td>#6 (417a0a0f)</td><td class="warn">23505 naprawione, ostatni zamek</td><td>Trigger spójności: zatwierdzony factory spec wskazywał BOM v1, a regen mintował v2 → deadlock; szczegół błędu ginął w opakowaniu.</td></tr>
+<tr><td><b>#7 (c543f619)</b></td><td class="ok"><b>PASS 6/6</b></td><td><b>Promocja → spec v3 przypięty do BOM v2 (v1 superseded) → item: koszt 5.8377 £/kg, cena 12, drabinka 3.600 kg → BOM: 3.988920 kg RM + 12 szt. W51-BOX na karton → WO-202607-0008 (2 kartony): 7.978 kg + 24 szt. + 2 operacje z obsadą → WYDANE. Zero override'ów. Dane właściciela nietknięte.</b></td></tr>
+</table>
+
+<h2>3. Review Opusa (L8) — SHIP-WITH-FIXES, wszystkie naprawione przed spacerami</h2>
+<p>HIGH: przeszacowanie yield dla niepowiązanych składników w produktach wieloskładnikowych (0.95^2×N) — naprawione + test 3.600 vs błędne. MED: routing-szkic bez ścieżki aktywacji w UI — jawny komunikat; MED: dryf kategorii (etykieta w NPD vs kod na itemie) — backfill przy promocji. Czyste wymiary: regulacje (BOM immutability, obie bramki opakowań, e-sign nietknięty), RLS/RBAC (mig 437 wzorcowa), WAC niezanieczyszczony.</p>
+
+<h2>4. T9 — minimalny zestaw pól produktu (typologia, do Twojego zatwierdzenia „na piśmie")</h2>
+<table>
+<tr><th>Pole</th><th>Źródło prawdy</th><th>Skąd się bierze</th></tr>
+<tr><td>Kod / nazwa / typ / status</td><td>items</td><td>kreator itemu lub promocja NPD</td></tr>
+<tr><td>Kategoria</td><td>items.category_code → Reference.ProductCategories</td><td>dropdown (NPD/kreator); backfill przy promocji</td></tr>
+<tr><td>Base UoM</td><td>items.uom_base (FG z NPD = kg)</td><td>kreator; promocja koryguje legacy szt/g</td></tr>
+<tr><td>Drabinka: net/each, each/box (+box/paleta opc.)</td><td>items (net_qty_per_each, each_per_box)</td><td>NPD: waga paczki + paczki/karton; atomowo przy promocji</td></tr>
+<tr><td>Tryb wagi + brutto/tara/max</td><td>items (tylko catch-weight)</td><td>kreator (ukryte dla fixed)</td></tr>
+<tr><td>Shelf life</td><td>items.shelf_life_days</td><td>kreator / promocja</td></tr>
+<tr><td>List price</td><td>items.list_price_gbp</td><td>target retail z NPD przy promocji; edytowalne</td></tr>
+<tr><td>Koszt</td><td><b>liczony</b>: v_item_effective_cost (historia → spec dostawcy → lista)</td><td>snapshot waterfalla przy promocji; potem WAC</td></tr>
+<tr><td>Alergeny</td><td>item_allergen_profiles + kaskada</td><td>z receptury, nigdy ręcznie na FG</td></tr>
+<tr><td>Opcjonalne</td><td>GTIN, D365, tolerancje, product_group (do wygaszenia na rzecz kategorii)</td><td>—</td></tr>
+</table>
+
+<h2>5. Otwarte po fali (F7/W6)</h2>
+<ul>
+<li><b>Do Twojego rulingu (M-1):</b> dwa równoległe mechanizmy G4 — checklista bramki (22 pozycje, twardo blokuje) vs kryteria C1-C7 na etapie Approval (przechodzą i przesuwają). Który jest prawdą o „G4 done"?</li>
+<li>Proces „Smoking" miał pustą obsadę (Packing pełną) — auto-derywacja ról z linii objęła tylko jeden proces; do sprawdzenia w edytorze procesów.</li>
+<li>LOW-y: surowy szablon ICU „Zarejestrowano # zatwierdzeń"; modal pilot-run pisze jeszcze kod linii (nie UUID); umiejscowienie akcji kategorii w <code>apps/web/actions/</code>; kolumny lifecycle wo_operations wciąż uśpione (przyszły shop-floor tracking).</li>
+<li>Duża sprzątka dual-store product/fg_npd_ext vs items = W6 (T11, za Twoją zgodą odłożona).</li>
+</ul>
+
+<h2>6. Higiena</h2>
+<div class="card">
+<p>Dane testowe W51 w całości usunięte (projekt NPD-032, FG0013, W51-BOX, BOM v1+v2, spec ×3, marszruta, WO-202607-0008, kategoria testowa) — weryfikacja 0/0/0/0/0/0; dane właściciela (NPD-019, NPD-015/Kabanosy, WIP-20260703-0001) potwierdzone nietknięte w KAŻDYM spacerze; zero użytych bypassów; migracje 436–439 re-entrant (dowód podwójnym wykonaniem), aplikowane przez MCP przed pushem. Wpadki procesu (uczciwie): spacer #5 kliknął w stary deploy (nowa zasada: weryfikacja deploy-ID przed klikiem); jeden walker umarł na długim sleepie (subagent nie budzi się sam — orchestrator trzyma zegar); L5 nadpisał wkład L6 we wspólnym pliku (zszyte ręcznie na gate).</p>
+<p class="small">Zrzuty spacerów <code>w5-*/w52-*/w53-*/w54-*/w55-*/w56-*/w57-*.png</code> w katalogu repo · charter + kontrakt w <code>_meta/plans/2026-07-05-*</code> · poprzedni raport (W4) <code>_meta/reports/2026-07-04-w4-npd-walk-until-clean-report.html</code>.</p>
+</div>
+
+</body>
+</html>
