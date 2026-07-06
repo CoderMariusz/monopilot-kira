@@ -1,17 +1,14 @@
 'use server';
 
+import { hasAnyPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 const FORBIDDEN = 'forbidden' as const;
 
+const DEACTIVATE_PERMISSIONS = ['org.access.admin', 'settings.users.deactivate'] as const;
+
 type QueryClient = {
   query<T = unknown>(sql: string, values?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
-};
-
-type PermissionContext = {
-  client: QueryClient;
-  userId: string;
-  orgId: string;
 };
 
 export type DeactivateUserInput = {
@@ -31,53 +28,36 @@ function normalizeId(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function requirePermission(permission: string) {
-  return async ({ client, userId, orgId }: PermissionContext): Promise<void> => {
-    const { rows } = await client.query<{ ok: boolean }>(
-      `select true as ok
-         from public.user_roles ur
-         join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-         left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-        where ur.user_id = $1::uuid
-          and ur.org_id = $2::uuid
-          and (
-            rp.permission is not null
-            or r.code = $3
-            or r.slug = $3
-            or r.permissions ? $3
-          )
-        limit 1`,
-      [userId, orgId, permission],
-    );
-
-    if (rows.length === 0) {
-      throw FORBIDDEN;
-    }
-  };
-}
-
-/** Throws FORBIDDEN unless the caller holds at least one of the given permissions. */
-async function requireAnyPermission(ctx: PermissionContext, permissions: [string, ...string[]]): Promise<void> {
-  for (const permission of permissions) {
-    const { rows } = await ctx.client.query<{ ok: boolean }>(
-      `select true as ok
-         from public.user_roles ur
-         join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-         left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-        where ur.user_id = $1::uuid
-          and ur.org_id = $2::uuid
-          and (
-            rp.permission is not null
-            or r.code = $3
-            or r.slug = $3
-            or r.permissions ? $3
-          )
-        limit 1`,
-      [ctx.userId, ctx.orgId, permission],
-    );
-    if (rows.length > 0) return; // any match is sufficient
-  }
-  throw FORBIDDEN;
+async function isLastOwnerViolation(
+  client: QueryClient,
+  targetUserId: string,
+  orgId: string,
+): Promise<boolean> {
+  const { rows } = await client.query<{ last_owner_violation: boolean }>(
+    `with locked_owner_roles as (
+        select ur.user_id
+          from public.user_roles ur
+          join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+         where ur.org_id = $2::uuid
+           and (r.code = 'owner' or r.slug = 'owner')
+         for update of ur
+      ),
+      target_is_owner as (
+        select exists (
+          select 1
+            from locked_owner_roles lor
+           where lor.user_id = $1::uuid
+        ) as value
+      ),
+      owner_count as (
+        select count(distinct user_id)::int as value
+          from locked_owner_roles
+      )
+      select coalesce((select value from target_is_owner), false)
+           and coalesce((select value from owner_count), 0) <= 1 as last_owner_violation`,
+    [targetUserId, orgId],
+  );
+  return rows[0]?.last_owner_violation === true;
 }
 
 export async function deactivateUser(input: DeactivateUserInput): Promise<DeactivateUserResult> {
@@ -88,12 +68,17 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
 
   return withOrgContext(async ({ userId, orgId, client }) => {
     try {
-      // Accepts either the legacy broad grant (org.access.admin) OR the narrower
-      // seeded grant (settings.users.deactivate) — OR-union per F2 carry-over.
-      await requireAnyPermission({ client, userId, orgId }, ['org.access.admin', 'settings.users.deactivate']);
+      const permCtx = { client, userId, orgId };
+      if (!(await hasAnyPermission(permCtx, [...DEACTIVATE_PERMISSIONS]))) {
+        return { ok: false, error: 'forbidden' };
+      }
 
       if (targetUserId === userId) {
         return { ok: false, error: 'self_deactivation' };
+      }
+
+      if (await isLastOwnerViolation(client, targetUserId, orgId)) {
+        return { ok: false, error: 'forbidden' };
       }
 
       const { rows } = await client.query<{ id: string }>(

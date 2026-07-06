@@ -180,8 +180,7 @@ async function runAuditQuery(client: QueryClient, input: AuditQueryInput): Promi
   const tableFilter = input.tableContains?.trim() ? `%${input.tableContains.trim()}%` : null;
   const search = input.search?.trim() ? `%${input.search.trim()}%` : null;
 
-  // Shared predicate. occurred_at range FIRST → partition pruning.
-  const where = `
+  const auditLogWhere = `
       al.occurred_at >= $1::timestamptz
       and al.occurred_at <= $2::timestamptz
       and ($3::text is null or coalesce(u.name, u.email::text, al.actor_user_id::text) = $3)
@@ -197,40 +196,84 @@ async function runAuditQuery(client: QueryClient, input: AuditQueryInput): Promi
         or coalesce(al.after_state::text, '') ilike $6
       )`;
 
+  const auditEventsWhere = `
+      ae.occurred_at >= $7::timestamptz
+      and ae.occurred_at <= $8::timestamptz
+      and ($9::text is null or coalesce(u.name, u.email::text, ae.actor_user_id::text) = $9)
+      and ($10::text is null or ae.action = $10)
+      and ($11::text is null or ae.resource_type ilike $11)
+      and (
+        $12::text is null
+        or ae.resource_type ilike $12
+        or ae.resource_id ilike $12
+        or coalesce(u.name, '') ilike $12
+        or coalesce(u.email::text, '') ilike $12
+        or coalesce(ae.before_state::text, '') ilike $12
+        or coalesce(ae.after_state::text, '') ilike $12
+      )`;
+
   const baseParams = [fromTs, toTs, userFilter, actionFilter, tableFilter, search] as const;
+  const allParams = [...baseParams, ...baseParams, limit, offset] as const;
 
   const { rows: countRows } = await client.query<{ total: string | number }>(
     `select count(*)::bigint as total
-       from public.audit_log al
-       left join public.users u on u.id = al.actor_user_id
-      where ${where}`,
-    [...baseParams],
+       from (
+         select al.id
+           from public.audit_log al
+           left join public.users u on u.id = al.actor_user_id
+          where ${auditLogWhere}
+         union all
+         select ('events:' || ae.id::text) as id
+           from public.audit_events ae
+           left join public.users u on u.id = ae.actor_user_id
+          where ${auditEventsWhere}
+       ) combined`,
+    [...baseParams, ...baseParams],
   );
   const totalCount = Number(countRows[0]?.total ?? 0);
 
   const { rows } = await client.query<AuditRow>(
-    `select
-        al.id::text as id,
-        al.occurred_at,
-        u.name as actor_name,
-        u.email::text as actor_email,
-        al.actor_type,
-        al.action,
-        al.resource_type,
-        al.resource_id,
-        al.before_state,
-        al.after_state,
-        al.request_id::text as request_id
-       from public.audit_log al
-       left join public.users u on u.id = al.actor_user_id
-      where ${where}
-      order by al.occurred_at desc
-      limit $7 offset $8`,
-    [...baseParams, limit, offset],
+    `select *
+       from (
+         select
+            al.id::text as id,
+            al.occurred_at,
+            u.name as actor_name,
+            u.email::text as actor_email,
+            al.actor_type,
+            al.action,
+            al.resource_type,
+            al.resource_id,
+            al.before_state,
+            al.after_state,
+            al.request_id::text as request_id
+           from public.audit_log al
+           left join public.users u on u.id = al.actor_user_id
+          where ${auditLogWhere}
+         union all
+         select
+            ('events:' || ae.id::text) as id,
+            ae.occurred_at,
+            u.name as actor_name,
+            u.email::text as actor_email,
+            ae.actor_type,
+            ae.action,
+            ae.resource_type,
+            ae.resource_id,
+            ae.before_state,
+            ae.after_state,
+            ae.request_id::text as request_id
+           from public.audit_events ae
+           left join public.users u on u.id = ae.actor_user_id
+          where ${auditEventsWhere}
+       ) combined
+      order by combined.occurred_at desc
+      limit $13 offset $14`,
+    allParams,
   );
 
-  // Genuine partition-scan evidence via EXPLAIN on the same predicate.
-  const { partitions, explainText } = await explainScannedPartitions(client, where, [...baseParams]);
+  // Genuine partition-scan evidence via EXPLAIN on the audit_log predicate only.
+  const { partitions, explainText } = await explainScannedPartitions(client, auditLogWhere, [...baseParams]);
 
   const entries = rows.map(mapAuditRow);
 

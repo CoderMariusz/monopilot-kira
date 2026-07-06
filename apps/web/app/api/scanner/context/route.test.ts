@@ -57,6 +57,16 @@ describe('scanner context route site access', () => {
     expect(requireScannerSessionMock).not.toHaveBeenCalled();
   });
 
+  it('rejects non-uuid lineId with 400 before database casts', async () => {
+    const { POST } = await import('./route');
+
+    const response = await POST(request({ lineId: 'not-a-uuid' }) as never);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'invalid_line' });
+    expect(requireScannerSessionMock).not.toHaveBeenCalled();
+  });
+
   it('normalizes an unassigned site to the same 404 shape as a missing site', async () => {
     fakeClient.query.mockImplementation(async (sql: string) => {
       if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return { rows: [] };
@@ -77,5 +87,30 @@ describe('scanner context route site access', () => {
       fakeClient.query.mock.calls.find((call) => String(call[0]).includes('app.user_can_see_site'))?.[0],
     );
     expect(siteGateSql).toContain('app.user_can_see_site(s.site_id)');
+  });
+
+  it('rejects pinning a line that is not visible for the effective site', async () => {
+    const siteId = '50000000-0000-4000-8000-000000000001';
+    const lineId = '60000000-0000-4000-8000-000000000001';
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return { rows: [] };
+      if (sql.includes('insert into app.session_org_contexts')) return { rows: [] };
+      if (sql.includes('select app.set_org_context')) return { rows: [] };
+      if (sql.includes('delete from app.session_org_contexts')) return { rows: [] };
+      if (sql.includes('app.user_can_see_site(s.site_id)')) return { rows: [{ allowed: true }] };
+      if (sql.includes('from public.production_lines pl')) return { rows: [] };
+      if (sql.includes('insert into public.scanner_audit_log')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const { POST } = await import('./route');
+    const response = await POST(request({ siteId, lineId }) as never);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'line_not_found' });
+    const lineGateSql = String(
+      fakeClient.query.mock.calls.find((call) => String(call[0]).includes('from public.production_lines pl'))?.[0],
+    );
+    expect(lineGateSql).toContain('pl.site_id = $2::uuid');
   });
 });

@@ -1,9 +1,12 @@
 import { NextRequest } from 'next/server';
 
+import { hasPermission } from '../../../../lib/auth/has-permission';
 import { writeScannerSessionAudit } from '../../../../lib/scanner/audit';
 import { requireScannerSession } from '../../../../lib/scanner/guard';
 import { isRecord, jsonError, jsonOk, readJson, stringField } from '../../../../lib/scanner/route-utils';
 import { withTxnOrgContext } from '../../../../lib/scanner/txn-org-context';
+
+const WAREHOUSE_STOCK_MOVE_PERMISSION = 'warehouse.stock.move';
 
 export async function POST(request: NextRequest) {
   const body = await readJson(request);
@@ -14,6 +17,12 @@ export async function POST(request: NextRequest) {
   if (!lpId || typeof acquire !== 'boolean') return jsonError('missing_fields', 400);
 
   const result = await requireScannerSession(request, body, 'scanner.lock_lp', async ({ client, session }) => {
+    const permCtx = { client, userId: session.user_id, orgId: session.org_id };
+    if (!(await hasPermission(permCtx, WAREHOUSE_STOCK_MOVE_PERMISSION))) {
+      await writeScannerSessionAudit(client, session, 'scanner.lock_lp', 'forbidden', { lpId, acquire });
+      return jsonError('forbidden', 403);
+    }
+
     if (acquire) {
       // mig 191:76 documents a 5-minute service-side auto-release: a stale
       // lock (held > 5 min) is stealable by the next requester. The CTE

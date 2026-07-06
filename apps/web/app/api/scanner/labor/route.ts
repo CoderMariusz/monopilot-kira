@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { hasPermission } from '../../../../lib/auth/has-permission';
 import { requireScannerSession } from '../../../../lib/scanner/guard';
 import {
   isRecord,
@@ -12,6 +13,8 @@ import {
 import { withTxnOrgContext } from '../../../../lib/scanner/txn-org-context';
 import { withScannerOrg } from '../../../../lib/scanner/with-scanner-org';
 import { isUuid } from '../site-access';
+
+const PRODUCTION_LABOR_WRITE_PERMISSION = 'production.consumption.write';
 
 type LaborAction = 'in' | 'out';
 type LaborState = 'clocked_in' | 'clocked_out';
@@ -46,9 +49,21 @@ async function clockIn(
   await client.query(
     `insert into public.wo_labor_log
        (org_id, wo_id, user_id, line_id, source, started_at, ended_at)
-     values (app.current_org_id(), $1::uuid, $2::uuid, $3, $4, pg_catalog.now(), null)`,
+     values (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, pg_catalog.now(), null)`,
     [input.woId, input.userId, input.lineId, 'scanner'],
   );
+}
+
+async function canUseProductionLine(client: LaborQueryClient, lineId: string): Promise<boolean> {
+  const result = await client.query<{ allowed: boolean }>(
+    `select app.user_can_see_site(pl.site_id) as allowed
+       from public.production_lines pl
+      where pl.org_id = app.current_org_id()
+        and pl.id = $1::uuid
+      limit 1`,
+    [lineId],
+  );
+  return result.rows[0]?.allowed === true;
 }
 
 async function clockOut(
@@ -143,15 +158,33 @@ export async function POST(request: NextRequest) {
     const woId = stringField(body, 'woId');
     const lineId = nullableStringField(body, 'lineId');
 
-    if (!isLaborAction(action) || !isUuid(woId) || (lineId === undefined && 'lineId' in body)) {
+    if (
+      !isLaborAction(action) ||
+      !isUuid(woId) ||
+      (lineId === undefined && 'lineId' in body) ||
+      (lineId != null && !isUuid(lineId))
+    ) {
       return invalidRequest();
     }
 
     const result = await requireScannerSession(request, body, 'scanner.labor', async ({ client, session }) =>
       withScannerOrg(client, session, async ({ client: scopedClient, session: scopedSession }) =>
         withTxnOrgContext(scopedClient, scopedSession.org_id, scopedSession.user_id, async () => {
+          const permCtx = {
+            client: scopedClient,
+            userId: scopedSession.user_id,
+            orgId: scopedSession.org_id,
+          };
+          if (!(await hasPermission(permCtx, PRODUCTION_LABOR_WRITE_PERMISSION))) {
+            return jsonError('forbidden', 403);
+          }
+
           const allowed = await canSeeWorkOrder(scopedClient, woId);
           if (!allowed) return jsonError('not_found', 404);
+          if (action === 'in' && lineId) {
+            const lineAllowed = await canUseProductionLine(scopedClient, lineId);
+            if (!lineAllowed) return jsonError('not_found', 404);
+          }
           if (action === 'in') {
             await clockIn(scopedClient, {
               userId: scopedSession.user_id,

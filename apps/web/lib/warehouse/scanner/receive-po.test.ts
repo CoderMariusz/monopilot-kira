@@ -59,6 +59,16 @@ describe('scanner receive PO service', () => {
     expect(listCall?.params).toEqual([ORG_A, expect.any(Array)]);
   });
 
+  it('rejects receive without warehouse.grn.receive', async () => {
+    const client = makeReceiveClient({ grantedReceivePermission: false });
+
+    await expect(receiveScannerPoLine(client, session, input)).rejects.toMatchObject({
+      code: 'forbidden',
+      status: 403,
+    });
+    expect(client.statements).not.toContain('begin');
+  });
+
   it('creates a GRN, GRN item, LP, LP genesis history, audit row, and rolls PO status up', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1790000000000);
     vi.spyOn(Math, 'random').mockReturnValue(0.1234);
@@ -611,6 +621,7 @@ function makeReceiveClient(options: {
   destinationWarehouseId?: string | null;
   warehouse?: { id: string; default_location_id: string | null };
   noWarehouse?: boolean;
+  grantedReceivePermission?: boolean;
 }): FakeClient {
   const calls: FakeClient['calls'] = [];
   const statements: string[] = [];
@@ -698,6 +709,10 @@ function makeReceiveClient(options: {
       }
       if (normalized.includes('from public.tenant_variations')) {
         return { rows: [{ require_qc: options.requireGrnQc ?? false }] as T[], rowCount: 1 };
+      }
+      if (normalized.includes('from public.user_roles') && normalized.includes('app.current_user_is_platform_admin')) {
+        const granted = options.grantedReceivePermission !== false;
+        return { rows: granted ? ([{ ok: true }] as T[]) : ([] as T[]), rowCount: granted ? 1 : 0 };
       }
       if (normalized.includes('insert into public.quality_inspections')) {
         return { rows: [{ id: 'insp-1' }] as T[], rowCount: 1 };

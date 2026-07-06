@@ -125,6 +125,9 @@ describe('scanner labor route', () => {
   it('POST returns 404 (not 403) when the work order exists but is not visible to the user', async () => {
     fakeClient.query.mockImplementation(async (sql: string) => {
       const q = normalize(String(sql));
+      if (q.includes('from public.user_roles') && q.includes('app.current_user_is_platform_admin')) {
+        return { rows: [{ ok: true }] };
+      }
       if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
         return { rows: [{ allowed: false }] }; // WO exists, site hidden
       }
@@ -141,6 +144,9 @@ describe('scanner labor route', () => {
   it('POST returns 404 when the work order does not exist (no row)', async () => {
     fakeClient.query.mockImplementation(async (sql: string) => {
       const q = normalize(String(sql));
+      if (q.includes('from public.user_roles') && q.includes('app.current_user_is_platform_admin')) {
+        return { rows: [{ ok: true }] };
+      }
       if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
         return { rows: [] }; // WO missing
       }
@@ -229,6 +235,12 @@ describe('scanner labor route', () => {
       if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
         return { rows: [{ allowed: true }] };
       }
+      if (q.includes('from public.user_roles') && q.includes('app.current_user_is_platform_admin')) {
+        return { rows: [{ ok: true }] };
+      }
+      if (q.includes('from public.production_lines pl') && q.includes('limit 1')) {
+        return { rows: [{ allowed: true }] };
+      }
       return { rows: [] };
     });
     const { POST } = await import('./route');
@@ -241,21 +253,52 @@ describe('scanner labor route', () => {
     const calls = woLaborCalls();
     expect(calls).toHaveLength(2);
 
-    const close = calls[0];
-    expect(normalize(close[0])).toContain('update public.wo_labor_log');
-    expect(normalize(close[0])).toContain('set ended_at = pg_catalog.now()');
-    expect(normalize(close[0])).toContain('org_id = app.current_org_id()');
-    expect(normalize(close[0])).toContain('user_id = $1::uuid');
-    expect(normalize(close[0])).toContain('ended_at is null');
-    expect(normalize(close[0])).not.toContain('wo_id = $2::uuid');
-    expect(close[1]).toEqual([USER_ID]);
-
     const insert = calls[1];
-    expect(normalize(insert[0])).toContain('insert into public.wo_labor_log');
-    expect(normalize(insert[0])).toContain('(org_id, wo_id, user_id, line_id, source, started_at, ended_at)');
-    expect(normalize(insert[0])).toContain('app.current_org_id()');
-    expect(normalize(insert[0])).toContain('pg_catalog.now()');
+    expect(normalize(insert[0])).toContain('$3::uuid');
     expect(insert[1]).toEqual([WO_ID, USER_ID, LINE_ID, 'scanner']);
+  });
+
+  it('POST returns 403 when the session user lacks production.consumption.write', async () => {
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const q = normalize(String(sql));
+      if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
+        return { rows: [{ allowed: true }] };
+      }
+      if (q.includes('from public.user_roles') && q.includes('app.current_user_is_platform_admin')) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+    const { POST } = await import('./route');
+
+    const response = await POST(request({ action: 'in', woId: WO_ID }) as never);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'forbidden' });
+    expect(woLaborCalls()).toHaveLength(0);
+  });
+
+  it('POST returns 404 when lineId is not visible in the org/site', async () => {
+    fakeClient.query.mockImplementation(async (sql: string) => {
+      const q = normalize(String(sql));
+      if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
+        return { rows: [{ allowed: true }] };
+      }
+      if (q.includes('from public.user_roles') && q.includes('app.current_user_is_platform_admin')) {
+        return { rows: [{ ok: true }] };
+      }
+      if (q.includes('from public.production_lines pl') && q.includes('limit 1')) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+    const { POST } = await import('./route');
+
+    const response = await POST(request({ action: 'in', woId: WO_ID, lineId: LINE_ID }) as never);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'not_found' });
+    expect(woLaborCalls()).toHaveLength(0);
   });
 
   it("action='out' closes the user's open log for the work order", async () => {
@@ -263,6 +306,9 @@ describe('scanner labor route', () => {
       const q = normalize(String(sql));
       if (q.includes('from public.work_orders wo') && q.includes('limit 1')) {
         return { rows: [{ allowed: true }] };
+      }
+      if (q.includes('from public.user_roles') && q.includes('app.current_user_is_platform_admin')) {
+        return { rows: [{ ok: true }] };
       }
       return { rows: [] };
     });

@@ -1,5 +1,8 @@
+import { hasPermission } from '../../auth/has-permission';
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../scanner/txn-org-context';
 import { bookReceiptWacAfterGrnItem } from '../../finance/book-receipt-wac';
+
+const WAREHOUSE_GRN_RECEIVE_PERMISSION = 'warehouse.grn.receive';
 
 import {
   computeExpiryDate,
@@ -250,6 +253,15 @@ export async function receiveScannerPoLine(
   input: ReceiveLineInput,
 ): Promise<ReceiveLineResult> {
   validateReceiveInput(input);
+
+  if (
+    !(await hasPermission(
+      { client, userId: session.user_id, orgId: session.org_id },
+      WAREHOUSE_GRN_RECEIVE_PERMISSION,
+    ))
+  ) {
+    throw new ReceivePoError('forbidden', 403);
+  }
 
   const replay = await findReplay(client, session, input.clientOpId);
   if (replay) return replay;

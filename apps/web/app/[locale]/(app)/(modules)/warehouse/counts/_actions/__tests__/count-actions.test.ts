@@ -86,10 +86,17 @@ vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
+const verifyPin = vi.fn(async () => true as true | false | 'locked');
+vi.mock('../../../../../../../../../../packages/auth/src/verify-pin.js', () => ({
+  verifyPin: (...args: unknown[]) => verifyPin(...(args as [])),
+}));
+
 vi.mock('../../../../../../../../lib/warehouse/lp-create', () => ({
   makeLpNumber: vi.fn(() => 'LP-ADJ-0001'),
   makeStockMoveNumber: vi.fn((transactionId: string) => `SM-${transactionId.replaceAll('-', '').slice(0, 20).toUpperCase()}`),
 }));
+
+const SUPERVISOR_ID = '99999999-9999-4999-8999-999999999999';
 
 vi.mock('@monopilot/e-sign', () => ({
   signEvent: vi.fn(async () => ({
@@ -132,6 +139,14 @@ function makeClient(): QueryClient {
       const n = normalize(sql);
 
       if (n.includes('from public.user_roles')) {
+        const requestedUserId = params[0];
+        if (requestedUserId === SUPERVISOR_ID) {
+          return { rows: [{ ok: true }], rowCount: 1 };
+        }
+        return { rows: [{ ok: true }], rowCount: 1 };
+      }
+
+      if (n.includes('from public.user_pins')) {
         return { rows: [{ ok: true }], rowCount: 1 };
       }
 
@@ -349,7 +364,19 @@ beforeEach(async () => {
   vi.mocked(revalidatePath).mockClear();
   vi.mocked(revalidateLocalized).mockClear();
   vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
+  verifyPin.mockReset();
+  verifyPin.mockResolvedValue(true);
 });
+
+function decreaseVarianceInput(overrides: Partial<Parameters<typeof approveAndApplyVariance>[0]> = {}) {
+  return {
+    countLineId: COUNT_LINE_ID,
+    signature: { password: '123456' },
+    supervisorUserId: SUPERVISOR_ID,
+    supervisorPin: '654321',
+    ...overrides,
+  };
+}
 
 describe('stock count actions', () => {
   it('revalidates the sessions list after creating a count session', async () => {
@@ -537,10 +564,7 @@ describe('stock count actions', () => {
   it('approveAndApplyVariance with negative variance reduces on-hand LP quantity', async () => {
     applyLine = makeApplyLine({ variance_qty: '-2', counted_qty: '3', lp_id: LP_ID });
 
-    const result = await approveAndApplyVariance({
-      countLineId: COUNT_LINE_ID,
-      signature: { password: '123456' },
-    });
+    const result = await approveAndApplyVariance(decreaseVarianceInput());
 
     expect(result).toMatchObject({
       direction: 'decrease',
@@ -559,12 +583,7 @@ describe('stock count actions', () => {
     activeHold = true;
     applyLine = makeApplyLine({ variance_qty: '-2', counted_qty: '3', lp_id: LP_ID });
 
-    await expect(
-      approveAndApplyVariance({
-        countLineId: COUNT_LINE_ID,
-        signature: { password: '123456' },
-      }),
-    ).rejects.toMatchObject({ code: 'QA_HOLD_ACTIVE' });
+    await expect(approveAndApplyVariance(decreaseVarianceInput())).rejects.toMatchObject({ code: 'QA_HOLD_ACTIVE' });
 
     expect(queries.some((q) => normalize(q.sql).includes('from public.v_active_holds'))).toBe(true);
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
@@ -594,10 +613,7 @@ describe('stock count actions', () => {
       },
     ];
 
-    const result = await approveAndApplyVariance({
-      countLineId: COUNT_LINE_ID,
-      signature: { password: '123456' },
-    });
+    const result = await approveAndApplyVariance(decreaseVarianceInput());
 
     expect(result).toMatchObject({
       direction: 'decrease',
@@ -632,6 +648,19 @@ describe('stock count actions', () => {
     const shrinkageSelect = queries.find((q) => normalize(q.sql).startsWith('select lp.id::text') && normalize(q.sql).includes('for update'));
     expect(normalize(shrinkageSelect!.sql)).toContain('lp.warehouse_id = $4::uuid');
     expect(shrinkageSelect!.params[3]).toBe(WAREHOUSE_ID);
+    expect(verifyPin).toHaveBeenCalledWith(SUPERVISOR_ID, '654321', { client });
+  });
+
+  it("shrinkage apply rejects without supervisor PIN as 'supervisor_pin_required'", async () => {
+    systemQty = '9';
+    applyLine = makeApplyLine({ system_qty: '9', counted_qty: '2', variance_qty: '-7', lp_id: null });
+
+    await expect(
+      approveAndApplyVariance({ countLineId: COUNT_LINE_ID, signature: { password: '123456' } }),
+    ).rejects.toThrow('supervisor_pin_required');
+
+    const { signEvent } = await import('@monopilot/e-sign');
+    expect(signEvent).not.toHaveBeenCalled();
   });
 
   it("apply blocked on cancelled session with 'count_session_not_open'", async () => {

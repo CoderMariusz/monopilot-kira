@@ -126,6 +126,8 @@ export type CountSignature = {
 export type ApproveAndApplyVarianceInput = {
   countLineId: string;
   signature: CountSignature;
+  supervisorUserId?: string;
+  supervisorPin?: string;
 };
 
 export type ApplyVarianceResult = {

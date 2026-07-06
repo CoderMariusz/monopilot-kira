@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { signEvent, type ESignTxOptions } from '@monopilot/e-sign';
+import { verifyPin } from '../../../../../../../../../packages/auth/src/verify-pin.js';
 import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { creditWacAtAvgCost, debitWac } from '../../../../../../../lib/finance/upsert-wac';
@@ -32,6 +33,7 @@ import {
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const WAREHOUSE_STOCK_ADJUST_PERMISSION = 'warehouse.stock.adjust';
+const WAREHOUSE_STOCK_ADJUST_APPROVE_PERMISSION = 'warehouse.stock.adjust';
 const STOCK_COUNT_ADJUST_INTENT = 'warehouse.stock.adjust';
 const STOCK_COUNT_REASON = 'stock_count_variance';
 const DESTROYED_STATUS = 'destroyed';
@@ -208,6 +210,48 @@ async function assertCanAdjustStock(ctx: WarehouseContext): Promise<void> {
   if (!(await hasWarehousePermission(ctx, WAREHOUSE_STOCK_ADJUST_PERMISSION))) {
     throw new Error('forbidden');
   }
+}
+
+/**
+ * Pin-enrollment check, mirrored from direct-adjust-actions.ts `supervisorHasPin`
+ * and lib/scanner/auth.ts `userHasPin` so the supervisor SoD gate fails closed
+ * with `supervisor_pin_not_enrolled` rather than a generic invalid-pin.
+ */
+async function supervisorHasPin(client: QueryClient, supervisorUserId: string): Promise<boolean> {
+  const { rows } = await client.query<{ ok: boolean }>(
+    `select true as ok from public.user_pins where user_id = $1::uuid limit 1`,
+    [supervisorUserId],
+  );
+  return rows.length > 0;
+}
+
+async function assertSupervisorApproval(
+  ctx: WarehouseContext,
+  input: ApproveAndApplyVarianceInput,
+): Promise<string> {
+  const supervisorId = input.supervisorUserId?.trim() ?? '';
+  const supervisorPin = input.supervisorPin?.trim() ?? '';
+  if (!supervisorId || !supervisorPin) {
+    throw new Error('supervisor_pin_required');
+  }
+  if (supervisorId === ctx.userId) {
+    throw new Error('supervisor_self_approval');
+  }
+  if (!(await supervisorHasPin(ctx.client, supervisorId))) {
+    throw new Error('supervisor_pin_not_enrolled');
+  }
+  const supervisorPinResult = await verifyPin(supervisorId, supervisorPin, { client: ctx.client });
+  if (supervisorPinResult === 'locked') {
+    throw new Error('supervisor_pin_locked');
+  }
+  if (supervisorPinResult !== true) {
+    throw new Error('supervisor_pin_invalid');
+  }
+  const supervisorCtx: WarehouseContext = { userId: supervisorId, orgId: ctx.orgId, client: ctx.client };
+  if (!(await hasWarehousePermission(supervisorCtx, WAREHOUSE_STOCK_ADJUST_APPROVE_PERMISSION))) {
+    throw new Error('supervisor_forbidden');
+  }
+  return supervisorId;
 }
 
 /**
@@ -1093,6 +1137,12 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
     const adjustmentQty = absDecimal(recomputedVarianceQty);
     if (varianceMicro === 0n) throw new Error('variance_is_zero');
 
+    if (varianceMicro < 0n) {
+      if (!input.supervisorUserId?.trim() || !input.supervisorPin?.trim()) {
+        throw new Error('supervisor_pin_required');
+      }
+    }
+
     let shrinkageLegs: ShrinkageLeg[] | null = null;
     if (varianceMicro < 0n) {
       shrinkageLegs = await selectLpsForShrinkage(ctx.client, {
@@ -1129,6 +1179,11 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
       },
       { client: ctx.client as unknown as ESignTxOptions['client'] },
     );
+
+    let supervisorUserId: string | null = null;
+    if (varianceMicro < 0n) {
+      supervisorUserId = await assertSupervisorApproval(ctx, input);
+    }
 
     let adjustedLpId: string | null = null;
     const direction = varianceMicro > 0n ? 'increase' : 'decrease';

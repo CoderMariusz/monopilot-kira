@@ -19,6 +19,9 @@ export async function POST(request: NextRequest) {
   if (siteId !== undefined && siteId !== null && !isUuid(siteId)) {
     return jsonError('invalid_site', 400);
   }
+  if (lineId !== undefined && lineId !== null && !isUuid(lineId)) {
+    return jsonError('invalid_line', 400);
+  }
 
   const result = await requireScannerSession(request, body, 'scanner.context', async ({ client, session }) => {
     if (siteId !== undefined && siteId !== null) {
@@ -40,6 +43,32 @@ export async function POST(request: NextRequest) {
       if (siteAccess === 'not_found') {
         await writeScannerSessionAudit(client, session, 'scanner.context', 'site_not_found', { siteId });
         return jsonError('site_not_found', 404);
+      }
+    }
+
+    if (lineId !== undefined && lineId !== null) {
+      const effectiveSiteId = siteId !== undefined ? siteId : session.site_id;
+      if (!effectiveSiteId) {
+        await writeScannerSessionAudit(client, session, 'scanner.context', 'line_site_required', { lineId });
+        return jsonError('line_site_required', 400);
+      }
+
+      const lineAccess = await withTxnOrgContext(client, session.org_id, session.user_id, async () => {
+        const { rows } = await client.query<{ allowed: boolean }>(
+          `select app.user_can_see_site(pl.site_id) as allowed
+             from public.production_lines pl
+            where pl.org_id = app.current_org_id()
+              and pl.id = $1::uuid
+              and pl.site_id = $2::uuid
+            limit 1`,
+          [lineId, effectiveSiteId],
+        );
+        if (!rows[0]) return 'not_found' as const;
+        return rows[0].allowed ? ('ok' as const) : ('not_found' as const);
+      });
+      if (lineAccess === 'not_found') {
+        await writeScannerSessionAudit(client, session, 'scanner.context', 'line_not_found', { lineId, siteId: effectiveSiteId });
+        return jsonError('line_not_found', 404);
       }
     }
 
