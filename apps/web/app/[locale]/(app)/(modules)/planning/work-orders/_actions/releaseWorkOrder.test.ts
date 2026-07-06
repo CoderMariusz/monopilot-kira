@@ -87,7 +87,6 @@ function makeClient(): QueryClient {
               scheduled_start_time: null,
               scheduled_end_time: null,
               production_line_id: null,
-              machine_id: null,
               priority: 'normal',
               source_of_demand: 'manual',
               source_reference: 'FG-NPD-004',

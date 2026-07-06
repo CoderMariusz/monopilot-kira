@@ -38,7 +38,6 @@ const ITEMS: RoutingItemOption[] = [
   { id: '11111111-1111-1111-1111-111111111111', itemCode: 'FG-2001', name: 'Sausage' },
 ];
 const LINES: ResourceOption[] = [{ id: 'l1', code: 'LINE-A', name: 'Line A' }];
-const MACHINES: ResourceOption[] = [{ id: 'm1', code: 'CUT-02', name: 'Cutter 2' }];
 const OP_NAMES = ['Cutting', 'Smoking'];
 
 const ROUTINGS = {
@@ -69,7 +68,6 @@ describe('RoutingsManager — design-system parity (lane A2)', () => {
       <RoutingsManager
         items={ITEMS}
         lines={LINES}
-        machines={MACHINES}
         operationNames={OP_NAMES}
         canWrite
         canApprove
@@ -96,7 +94,6 @@ describe('RoutingsManager — design-system parity (lane A2)', () => {
       <RoutingsManager
         items={ITEMS}
         lines={LINES}
-        machines={MACHINES}
         operationNames={OP_NAMES}
         canWrite
         canApprove
@@ -114,7 +111,6 @@ describe('RoutingsManager — design-system parity (lane A2)', () => {
       <RoutingsManager
         items={ITEMS}
         lines={LINES}
-        machines={MACHINES}
         operationNames={OP_NAMES}
         canWrite={false}
         canApprove={false}
@@ -134,7 +130,6 @@ describe('RoutingsManager — design-system parity (lane A2)', () => {
       <RoutingsManager
         items={ITEMS}
         lines={LINES}
-        machines={MACHINES}
         operationNames={OP_NAMES}
         canWrite
         canApprove

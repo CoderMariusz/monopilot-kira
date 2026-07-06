@@ -8,7 +8,7 @@
  * Schema authority: packages/db/migrations/163-routings.sql.
  * Validation: PRD §12.5 V-TEC-ROUT.
  *   - V-TEC-60: op_no sequence contiguous starting at 1, no gaps.
- *   - V-TEC-61: each op has line_id OR machine_id (at least one).
+ *   - V-TEC-61: each op has line_id (required).
  *   - V-TEC-62: run_time_per_unit_sec > 0 for production ops.
  *   - V-TEC-63: manufacturing_operation_name ∈ the manufacturing-operations
  *     reference (the canonical store is "Reference"."ManufacturingOperations",
@@ -74,8 +74,7 @@ export const RoutingOperationInput = z.object({
   opNo: z.number().int().min(1),
   opCode: z.string().trim().min(1).max(64),
   opName: z.string().trim().min(1).max(256),
-  lineId: z.string().uuid().optional().nullable(),
-  machineId: z.string().uuid().optional().nullable(),
+  lineId: z.string().uuid(),
   setupTimeMin: z.number().int().min(0).optional().default(0),
   // run_time_per_unit_sec NUMERIC(10,2) — optional column, but V-TEC-62 requires
   // it > 0 for production ops (enforced in the service, not just zod).
@@ -138,8 +137,7 @@ export type RoutingSummary = {
     opNo: number;
     opCode: string;
     opName: string;
-    lineId: string | null;
-    machineId: string | null;
+    lineId: string;
     setupTimeMin: number;
     runTimePerUnitSec: string | null;
     costPerHour: string | null;
@@ -171,12 +169,12 @@ export function validateOperationSet(
   }
 
   for (const op of sorted) {
-    // V-TEC-61: at least one of line_id / machine_id.
-    if (!op.lineId && !op.machineId) {
+    // V-TEC-61: line_id required.
+    if (!op.lineId) {
       return {
         ok: false,
         error: 'v_tec_61_no_resource',
-        message: `op ${op.opNo} must bind a line_id or machine_id (V-TEC-61)`,
+        message: `op ${op.opNo} must bind a line_id (V-TEC-61)`,
       };
     }
     // V-TEC-62: run_time_per_unit_sec > 0 for production ops.

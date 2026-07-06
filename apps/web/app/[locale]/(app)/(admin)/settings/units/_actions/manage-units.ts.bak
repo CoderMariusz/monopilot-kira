@@ -75,7 +75,7 @@ export type SoftDeleteUnitResult =
   | { ok: false; error: UnitsActionError; message?: string };
 
 async function hasManagePermission(ctx: OrgActionContext): Promise<boolean> {
-  // Canonical dual-store RBAC check (matches actions/infra/line.ts,
+  // Canonical dual-store RBAC check (matches actions/infra/machine.ts, line.ts,
   // warehouse.ts): LEFT JOIN the normalized role_permissions AND fall back to the
   // legacy roles.permissions jsonb store + the admin role code/slug allowlist, so a
   // grant that lives only in jsonb (or an admin role) is never wrongly denied.

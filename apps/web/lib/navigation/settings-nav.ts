@@ -35,16 +35,14 @@ export const SETTINGS_NAV_GROUPS = [
     item("compliance", "Compliance profile", "✓", false, "/settings/compliance"),
     item("sites", "Sites & lines", "▤"),
     // Working infra screens that were URL-only dead-ends (2026-06-11 clickthrough §1).
-    // NOTE: /settings/infra/machines is deliberately NOT added — the newer
-    // /settings/machines CRUD screen (Data group) supersedes it.
     item("lines", "Production lines", "≣", false, "/settings/infra/lines"),
     item("warehouses", "Warehouses", "▥", false, "/settings/infra/warehouses"),
     item("locations", "Locations", "⌖", false, "/settings/infra/locations"),
     // E1 — label printers (printers + print_jobs, mig 304). Sits with the other
-    // infra master screens so it is not a URL-only dead-end (the lines/machines lesson).
+    // infra master screens so it is not a URL-only dead-end.
     item("printers", "Printers", "🖨", false, "/settings/infra/printers"),
     // E5 — yard dock doors (dock_doors, mig 317). Sits with the other infra
-    // master screens so it is not a URL-only dead-end (the lines/machines lesson).
+    // master screens so it is not a URL-only dead-end.
     item("docks", "Dock doors", "⚓", false, "/settings/infra/docks"),
     item("shifts", "Shifts & calendar", "⧗"),
     // E4B — hourly labor rates by role/group (feeds WO labor cost). Sits with the
@@ -78,13 +76,12 @@ export const SETTINGS_NAV_GROUPS = [
     // operations stays reachable below as the name/suffix vocabulary sub-screen.
     item("processes", "Processes", "⟶", true, "/settings/process-defaults"),
     item("manufacturing-ops", "  └ Manufacturing operations", "⚒", true, "/settings/reference/manufacturing-operations"),
-    item("machines", "Machines", "⚙"),
     item("product-categories", "Product categories", "🏷", true, "/settings/reference/product-categories"),
     item("partners", "Suppliers & customers", "↔"),
     item("units", "Units & conversions", "⚖"),
     // E2B — cold-chain product temperature ranges (mig 315). Master config that
     // drives the GRN delivery-condition check, so it sits with the other Data
-    // master screens (not a URL-only dead-end — the lines/machines lesson).
+    // master screens.
     item("temp-ranges", "Temperature ranges", "❄", false, "/settings/quality/temp-ranges"),
     item("import-export", "Import / Export", "⇅", true),
   ]),

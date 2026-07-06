@@ -42,7 +42,7 @@ const FALLBACK: SignoffLabels = {
   permissionDenied: 'You need org admin access to view sign-off policies.',
   empty: 'No sign-off policies configured yet.',
   typeLabels: {
-    'production.changeover.allergen': 'Allergen machine changeover',
+    'production.changeover.allergen': 'Allergen line changeover',
   },
   productionApprovalsTitle: 'Production approvals',
   thresholdLabel: 'Over-consumption tolerance (%)',

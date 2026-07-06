@@ -31,7 +31,7 @@ export async function listPlanningWorkOrders(params: {
            wo.planned_quantity::text as planned_quantity,
            wo.produced_quantity::text as produced_quantity,
            wo.uom, wo.status, wo.scheduled_start_time, wo.scheduled_end_time,
-           wo.production_line_id, wo.machine_id, wo.priority, wo.source_of_demand,
+           wo.production_line_id, wo.priority, wo.source_of_demand,
            wo.source_reference, wo.ext_jsonb->>'notes' as notes, wo.created_at, wo.updated_at,
            coalesce(mat.material_count, 0) as material_count,
            coalesce(op.operation_count, 0) as operation_count,

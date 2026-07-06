@@ -31,7 +31,7 @@ const LABELS: WoDetailLabels = {
   headerActions: { start: 'Start', pause: 'Pause', resume: 'Resume', waste: 'Waste', catchWeight: 'Catch-weight', complete: 'Complete', cancel: 'Cancel', close: 'Close' },
   tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', labor: 'Labor', history: 'Event log' },
   overview: {
-    summaryTitle: 'Work order summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line', machine: 'Machine',
+    summaryTitle: 'Work order summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line',
     planned: 'Planned qty', output: 'Output', plannedWindow: 'Planned window', actualStart: 'Actual start', elapsed: 'Elapsed',
     allergens: 'Allergens', bomVersion: 'BOM v', consumption: 'Consumption', consumptionKpi: 'Consumption', outputKpi: 'Output',
     allergenYes: 'Allergen profile present', allergenNo: 'None', elapsedMin: 'min',
@@ -111,7 +111,6 @@ const DATA: WorkOrderDetailData = {
     status: 'in_progress',
     lineId: 'bbbbbbbb-2222-2222-2222-222222222222',
     lineCode: 'LINE-1',
-    machineId: null,
     plannedQty: 1000,
     uom: 'kg',
     outputKg: 250,

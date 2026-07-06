@@ -32,7 +32,6 @@ type Wo = Extract<GetPlanningWorkOrderResult, { ok: true }>['workOrder'];
 
 const resources: ProductionResources = {
   lines: [{ id: 'line-1', code: 'L1', name: 'Line One' }],
-  machines: [{ id: 'mac-1', code: 'M1', name: 'Mincer', machineType: 'mincer' }],
 };
 
 const editModalLabels: NonNullable<WoDetailLabels['edit']>['modal'] = {
@@ -101,7 +100,6 @@ function makeWo(over: Partial<Wo> = {}): Wo {
     scheduledStartTime: '2026-07-05T00:00:00.000Z',
     scheduledEndTime: null,
     productionLineId: 'line-1',
-    machineId: 'mac-1',
     priority: 'normal',
     sourceOfDemand: 'manual',
     sourceReference: null,
@@ -179,7 +177,7 @@ describe('WO DRAFT edit affordance (Wave R1)', () => {
     fireEvent.click(screen.getByTestId('edit-wo-submit'));
     await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
     const payload = update.mock.calls[0][0];
-    expect(payload).toMatchObject({ id: 'wo-1', plannedQuantity: '300', productionLineId: 'line-1', machineId: 'mac-1', notes: 'keep cold' });
+    expect(payload).toMatchObject({ id: 'wo-1', plannedQuantity: '300', productionLineId: 'line-1', notes: 'keep cold' });
     expect(payload.productId).toBeUndefined();
     // Schedule is sent as an ISO datetime (the modal parses the date input at LOCAL
     // midnight before toISOString — same intentional behaviour as create-wo). The

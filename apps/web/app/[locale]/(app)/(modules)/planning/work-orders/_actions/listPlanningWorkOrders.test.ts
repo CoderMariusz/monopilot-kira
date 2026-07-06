@@ -51,7 +51,6 @@ describe('listPlanningWorkOrders', () => {
             scheduled_start_time: '2026-06-09T08:00:00.000Z',
             scheduled_end_time: null,
             production_line_id: null,
-            machine_id: null,
             priority: 'normal',
             source_of_demand: 'manual',
             source_reference: 'FG-NPD-004',

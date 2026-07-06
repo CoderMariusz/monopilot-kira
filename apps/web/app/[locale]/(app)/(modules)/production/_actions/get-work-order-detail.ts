@@ -59,11 +59,6 @@ export type WoDetailHeader = {
   /** production_lines.code/name — null when no line is assigned. */
   lineCode: string | null;
   lineName: string | null;
-  machineId: string | null;
-  /** machines.code / machines.name (mig 042) — null when no machine is assigned
-   *  or the machine row is missing. The UI must render these, never the uuid. */
-  machineCode: string | null;
-  machineName: string | null;
   plannedQty: number;
   uom: string;
   outputKg: number;
@@ -300,9 +295,6 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         production_line_id: string | null;
         line_code: string | null;
         line_name: string | null;
-        machine_id: string | null;
-        machine_code: string | null;
-        machine_name: string | null;
         planned_quantity: string | number | null;
         uom: string | null;
         bom_version: number | null;
@@ -341,9 +333,6 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
                   end
                 ) as status,
                 w.production_line_id::text as production_line_id,
-                w.machine_id::text as machine_id,
-                mc.code as machine_code,
-                mc.name as machine_name,
                 w.planned_quantity,
                 w.uom,
                 (select max(bom_version) from public.wo_materials m
@@ -376,8 +365,6 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
              on i.org_id = w.org_id and i.id = w.product_id
            left join public.production_lines pl
              on pl.org_id = w.org_id and pl.id = w.production_line_id
-           left join public.machines mc
-             on mc.org_id = w.org_id and mc.id = w.machine_id
            left join public.bom_headers bh
              on bh.org_id = w.org_id
             and bh.id = coalesce(w.active_bom_header_id, w.bom_id)
@@ -714,9 +701,6 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         lineId: h.production_line_id,
         lineCode: h.line_code,
         lineName: h.line_name,
-        machineId: h.machine_id,
-        machineCode: h.machine_code,
-        machineName: h.machine_name,
         plannedQty: Number(h.planned_quantity ?? 0),
         uom: h.uom ?? 'kg',
         outputKg: Number(h.output_kg ?? 0),

@@ -332,7 +332,6 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       wo: t('overview.wo'),
       product: t('overview.product'),
       line: t('overview.line'),
-      machine: t('overview.machine'),
       planned: t('overview.planned'),
       output: t('overview.output'),
       plannedWindow: t('overview.plannedWindow'),

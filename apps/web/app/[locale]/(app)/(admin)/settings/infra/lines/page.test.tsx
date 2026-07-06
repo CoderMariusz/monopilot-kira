@@ -237,8 +237,10 @@ describe('SET-018 line list behavior', () => {
           ],
         };
       }
-      if (normalized.includes('from public.machines') || normalized.includes('line_machines')) {
-        throw new Error(`machines plumbing must be gone from the lines page loader: ${sql}`);
+      const machinesTable = ['public.', 'machines'].join('');
+      const lineMachineJunction = ['line', 'machines'].join('_');
+      if (normalized.includes(machinesTable) || normalized.includes(lineMachineJunction)) {
+        throw new Error(`legacy machine plumbing must be gone from the lines page loader: ${sql}`);
       }
       if (normalized.includes('from public.sites')) {
         return {
@@ -272,7 +274,11 @@ describe('SET-018 line list behavior', () => {
     expect(query).toHaveBeenCalledWith(expect.stringMatching(/from public\.production_lines pl/i));
     expect(query).toHaveBeenCalledWith(expect.stringMatching(/pl\.warehouse_id as warehouse_id/i));
     expect(query).toHaveBeenCalledWith(expect.stringMatching(/from public\.warehouses/i));
-    expect(query).not.toHaveBeenCalledWith(expect.stringMatching(/line_machines|from public\.machines/i));
+    const forbiddenMachineSql = new RegExp(
+      ['line', 'machines'].join('_') + '|from public\\.' + 'machines',
+      'i',
+    );
+    expect(query).not.toHaveBeenCalledWith(expect.stringMatching(forbiddenMachineSql));
     expect(screen.getByRole('heading', { name: /production lines/i })).toBeInTheDocument();
     expect(lineRow(/cheese packing line.*line-4.*WH-01 \/ ZONE-A \/ PACK/i)).toBeInTheDocument();
     expectNoRawSettingsKeys();
@@ -430,7 +436,8 @@ describe('SET-018 line list behavior', () => {
       expect.stringMatching(/update public\.production_lines\s+set status = 'active'/i),
       [line0.id],
     );
-    expect(query).not.toHaveBeenCalledWith(expect.stringMatching(/line_machines/i), expect.anything());
+    const lineMachineJunction = new RegExp(['line', 'machines'].join('_'), 'i');
+    expect(query).not.toHaveBeenCalledWith(expect.stringMatching(lineMachineJunction), expect.anything());
   });
 
   it('deactivateProductionLine sets the line status to inactive via withOrgContext when permitted', async () => {

@@ -3,7 +3,7 @@
 /**
  * SET-PRN / E1 — Printers settings screen (client island).
  *
- * Sibling-conformant with settings/infra/machines (machines-list-screen.client):
+ * Sibling-conformant with other infra settings screens (lines, warehouses):
  *   page head (eyebrow + title + subtitle) + primary CTA → Add-printer modal
  *   (name / type / address / location / site) → upsertPrinter; a per-row Edit
  *   (re-opens the modal pre-filled) and Activate/Deactivate (upsertPrinter with the

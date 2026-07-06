@@ -148,7 +148,6 @@ export type CreateWoModalProps = {
     quantityEnteredUom?: 'base' | 'each' | 'box';
     scheduledStartTime?: string;
     productionLineId?: string;
-    machineId?: string;
     notes?: string;
   }) => Promise<CreateWorkOrderResult>;
   /** Called after a successful create so the list can refresh. */
@@ -178,7 +177,6 @@ export function CreateWoModal({
   const [quantity, setQuantity] = React.useState('');
   const [scheduledStart, setScheduledStart] = React.useState('');
   const [lineId, setLineId] = React.useState('');
-  const [machineId, setMachineId] = React.useState('');
   const [notes, setNotes] = React.useState('');
 
   const [pending, setPending] = React.useState(false);
@@ -193,7 +191,6 @@ export function CreateWoModal({
       setQuantity('');
       setScheduledStart('');
       setLineId('');
-      setMachineId('');
       setNotes('');
       setPending(false);
       setFormError(null);
@@ -296,7 +293,6 @@ export function CreateWoModal({
         // the user picked must be preserved in their own timezone.
         scheduledStartTime: scheduledStart ? new Date(scheduledStart + 'T00:00:00').toISOString() : undefined,
         productionLineId: lineId || undefined,
-        machineId: machineId || undefined,
         notes: notes.trim() || undefined,
       });
 
@@ -465,33 +461,19 @@ export function CreateWoModal({
             />
           </label>
 
-          {/* Line / machine selects — from real masters */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-slate-700">{labels.lineLabel}</span>
-              <Select
-                value={lineId}
-                onValueChange={setLineId}
-                aria-label={labels.lineLabel}
-                options={[
-                  { value: '', label: labels.noneOption },
-                  ...resources.lines.map((l) => ({ value: l.id, label: `${l.code} — ${l.name}` })),
-                ]}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-slate-700">{labels.machineLabel}</span>
-              <Select
-                value={machineId}
-                onValueChange={setMachineId}
-                aria-label={labels.machineLabel}
-                options={[
-                  { value: '', label: labels.noneOption },
-                  ...resources.machines.map((m) => ({ value: m.id, label: `${m.code} — ${m.name}` })),
-                ]}
-              />
-            </label>
-          </div>
+          {/* Line select — from real production_lines master */}
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-slate-700">{labels.lineLabel}</span>
+            <Select
+              value={lineId}
+              onValueChange={setLineId}
+              aria-label={labels.lineLabel}
+              options={[
+                { value: '', label: labels.noneOption },
+                ...resources.lines.map((l) => ({ value: l.id, label: `${l.code} — ${l.name}` })),
+              ]}
+            />
+          </label>
 
           {/* Notes */}
           <label className="flex flex-col gap-1">

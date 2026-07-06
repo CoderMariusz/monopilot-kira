@@ -26,7 +26,7 @@ export async function getPlanningWorkOrder(params: { id: string }): Promise<GetP
         `select wo.id, wo.wo_number, wo.product_id, i.item_code, wo.item_type_at_creation,
                 wo.planned_quantity::text as planned_quantity, wo.produced_quantity::text as produced_quantity,
                 wo.uom, wo.status, wo.scheduled_start_time, wo.scheduled_end_time,
-                wo.production_line_id, wo.machine_id, wo.priority, wo.source_of_demand,
+                wo.production_line_id, wo.priority, wo.source_of_demand,
                 wo.source_reference, wo.ext_jsonb->>'notes' as notes, wo.created_at, wo.updated_at
            from public.work_orders wo
            left join public.items i on i.id = wo.product_id and i.org_id = app.current_org_id()
@@ -50,7 +50,7 @@ export async function getPlanningWorkOrder(params: { id: string }): Promise<GetP
           [params.id],
         ),
         client.query<WOOperationRow>(
-          `select id, wo_id, sequence, operation_name, machine_id, line_id, expected_duration_minutes,
+          `select id, wo_id, sequence, operation_name, line_id, expected_duration_minutes,
                   expected_yield_percent::text as expected_yield_percent, actual_duration,
                   actual_yield::text as actual_yield, status, notes
              from public.wo_operations

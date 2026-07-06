@@ -194,8 +194,7 @@ function Dialog({
 type OpForm = {
   opName: string;
   opCode: string;
-  resourceKind: 'line' | 'machine';
-  resourceId: string;
+  lineId: string;
   setupTimeMin: string;
   runTimePerUnitSec: string;
   costPerHour: string;
@@ -206,8 +205,7 @@ function emptyOp(): OpForm {
   return {
     opName: '',
     opCode: '',
-    resourceKind: 'line',
-    resourceId: '',
+    lineId: '',
     setupTimeMin: '0',
     runTimePerUnitSec: '',
     costPerHour: '',
@@ -216,12 +214,10 @@ function emptyOp(): OpForm {
 }
 
 function opFormFromRouting(op: RoutingSummary['operations'][number]): OpForm {
-  const resourceKind = op.machineId ? 'machine' : 'line';
   return {
     opName: op.opName,
     opCode: op.opCode,
-    resourceKind,
-    resourceId: resourceKind === 'machine' ? (op.machineId ?? '') : (op.lineId ?? ''),
+    lineId: op.lineId,
     setupTimeMin: String(op.setupTimeMin),
     runTimePerUnitSec: op.runTimePerUnitSec ?? '',
     costPerHour: op.costPerHour ?? '',
@@ -232,7 +228,6 @@ function opFormFromRouting(op: RoutingSummary['operations'][number]): OpForm {
 function RoutingEditModal({
   itemId,
   lines,
-  machines,
   operationNames,
   onClose,
   onSaved,
@@ -241,7 +236,6 @@ function RoutingEditModal({
 }: {
   itemId: string;
   lines: ResourceOption[];
-  machines: ResourceOption[];
   operationNames: string[];
   onClose: () => void;
   onSaved: () => void;
@@ -256,7 +250,6 @@ function RoutingEditModal({
   const [pending, startTransition] = React.useTransition();
 
   const lineOptions = lines.map((l) => ({ value: l.id, label: `${l.code} · ${l.name}` }));
-  const machineOptions = machines.map((m) => ({ value: m.id, label: `${m.code} · ${m.name}` }));
   const opNameOptions = operationNames.map((n) => ({ value: n, label: n }));
 
   function updateOp(index: number, patch: Partial<OpForm>) {
@@ -278,8 +271,7 @@ function RoutingEditModal({
       opNo: i + 1,
       opCode: op.opCode || `OP-${String(i + 1).padStart(2, '0')}`,
       opName: op.opName,
-      lineId: op.resourceKind === 'line' ? op.resourceId || null : null,
-      machineId: op.resourceKind === 'machine' ? op.resourceId || null : null,
+      lineId: op.lineId,
       setupTimeMin: Number(op.setupTimeMin) || 0,
       runTimePerUnitSec: op.runTimePerUnitSec || null,
       costPerHour: op.costPerHour || null,
@@ -314,9 +306,7 @@ function RoutingEditModal({
     >
       <p className="helper mb-3">{labels.modalIntro}</p>
       <form id="technical-routing-form" className="flex flex-col gap-4" onSubmit={onSubmit}>
-        {ops.map((op, index) => {
-          const resourceOptions = op.resourceKind === 'line' ? lineOptions : machineOptions;
-          return (
+        {ops.map((op, index) => (
             <div key={index} className="card" style={{ padding: 12 }}>
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-semibold">
@@ -354,23 +344,12 @@ function RoutingEditModal({
                     placeholder={labels.fOpCodePlaceholder}
                   />
                 </Field>
-                <Field label={labels.fResourceType}>
+                <Field label={labels.fLine}>
                   <Select
-                    value={op.resourceKind}
-                    onValueChange={(v) => updateOp(index, { resourceKind: v as 'line' | 'machine', resourceId: '' })}
-                    options={[
-                      { value: 'line', label: labels.fResourceTypeLine },
-                      { value: 'machine', label: labels.fResourceTypeMachine },
-                    ]}
-                    aria-label={`${labels.operationLabel}${index + 1} ${labels.fResourceType}`}
-                  />
-                </Field>
-                <Field label={op.resourceKind === 'line' ? labels.fLine : labels.fMachine}>
-                  <Select
-                    value={op.resourceId}
-                    onValueChange={(v) => updateOp(index, { resourceId: v })}
-                    options={resourceOptions}
-                    placeholder={resourceOptions.length ? labels.fSelect : labels.fNoneConfigured}
+                    value={op.lineId}
+                    onValueChange={(v) => updateOp(index, { lineId: v })}
+                    options={lineOptions}
+                    placeholder={lineOptions.length ? labels.fSelect : labels.fNoneConfigured}
                     aria-label={`${labels.operationLabel}${index + 1} ${labels.fLine}`}
                   />
                 </Field>
@@ -415,8 +394,7 @@ function RoutingEditModal({
                 </div>
               </div>
             </div>
-          );
-        })}
+          ))}
         <button
           type="button"
           className="text-sm font-medium hover:underline"
@@ -630,7 +608,6 @@ function RoutingRowActions({
 export function RoutingsManager({
   items,
   lines,
-  machines,
   operationNames,
   canWrite,
   canApprove,
@@ -638,7 +615,6 @@ export function RoutingsManager({
 }: {
   items: RoutingItemOption[];
   lines: ResourceOption[];
-  machines: ResourceOption[];
   operationNames: string[];
   canWrite: boolean;
   canApprove: boolean;
@@ -794,7 +770,6 @@ export function RoutingsManager({
         <RoutingEditModal
           itemId={selectedId}
           lines={lines}
-          machines={machines}
           operationNames={operationNames}
           existing={null}
           labels={labels}
@@ -810,7 +785,6 @@ export function RoutingsManager({
         <RoutingEditModal
           itemId={selectedId}
           lines={lines}
-          machines={machines}
           operationNames={operationNames}
           existing={editing}
           labels={labels}

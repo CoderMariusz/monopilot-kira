@@ -46,8 +46,6 @@ const EXPECTED_SETTINGS_NAV = [
       // separate "Process defaults" entry was folded into it.
       { key: "processes", label: "Processes", icon: "⟶", highlight: true },
       { key: "manufacturing-ops", label: "  └ Manufacturing operations", icon: "⚒", highlight: true },
-      // Wave-7 machines CRUD screen (supersedes /settings/infra/machines).
-      { key: "machines", label: "Machines", icon: "⚙" },
       // Product categories reference — shipped after this contract; synced 2026-07-06 (W2-T1).
       { key: "product-categories", label: "Product categories", icon: "🏷", highlight: true },
       { key: "partners", label: "Suppliers & customers", icon: "↔" },

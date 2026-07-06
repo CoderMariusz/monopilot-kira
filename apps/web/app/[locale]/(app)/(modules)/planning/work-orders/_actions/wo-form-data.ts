@@ -13,9 +13,9 @@
  *      output of a production run and must be able to anchor its own work order,
  *      so it is plannable too. The shared `searchItems` action (npd) cannot back
  *      this picker, so this is a tiny dedicated read.
- *   2. listProductionResources — the line/machine selects load from the real
- *      public.production_lines / public.machines masters (seeded by migration
- *      259), never a hardcoded list.
+ *   2. listProductionResources — the line select loads from the real
+ *      public.production_lines master (seeded by migration 259), never a hardcoded
+ *      list.
  *
  * Both run inside withOrgContext as app_user with app.set_org_context applied, so
  * RLS (org_id = app.current_org_id()) scopes every row. No service-role bypass,
@@ -49,16 +49,8 @@ export type ProductionLineOption = {
   name: string;
 };
 
-export type ProductionMachineOption = {
-  id: string;
-  code: string;
-  name: string;
-  machineType: string;
-};
-
 export type ProductionResources = {
   lines: ProductionLineOption[];
-  machines: ProductionMachineOption[];
 };
 
 const searchInput = z.object({
@@ -124,34 +116,19 @@ export async function searchFgProducts(input: SearchFgProductsInput = {}): Promi
   });
 }
 
-/** Load the org's active production lines + machines for the create-modal selects. */
+/** Load the org's active production lines for the create-modal select. */
 export async function listProductionResources(): Promise<ProductionResources> {
   return withOrgContext<ProductionResources>(async (ctx) => {
     const client = ctx.client as unknown as QueryClient;
-    const [lines, machines] = await Promise.all([
-      client.query<{ id: string; code: string; name: string }>(
-        `select id, code, name
-           from public.production_lines
-          where org_id = app.current_org_id()
-            and status = 'active'
-          order by code`,
-      ),
-      client.query<{ id: string; code: string; name: string; machine_type: string }>(
-        `select id, code, name, machine_type
-           from public.machines
-          where org_id = app.current_org_id()
-            and status = 'active'
-          order by code`,
-      ),
-    ]);
+    const { rows } = await client.query<{ id: string; code: string; name: string }>(
+      `select id, code, name
+         from public.production_lines
+        where org_id = app.current_org_id()
+          and status = 'active'
+        order by code`,
+    );
     return {
-      lines: lines.rows.map((r) => ({ id: r.id, code: r.code, name: r.name })),
-      machines: machines.rows.map((r) => ({
-        id: r.id,
-        code: r.code,
-        name: r.name,
-        machineType: r.machine_type,
-      })),
+      lines: rows.map((r) => ({ id: r.id, code: r.code, name: r.name })),
     };
   });
 }

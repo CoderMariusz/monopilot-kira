@@ -1207,13 +1207,13 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
             `insert into public.work_orders
                (id, org_id, wo_number, product_id, item_type_at_creation, active_bom_header_id,
                 active_factory_spec_id,
-                planned_quantity, uom, status, scheduled_start_time, production_line_id, machine_id,
+                planned_quantity, uom, status, scheduled_start_time, production_line_id,
                 source_of_demand, source_reference, qty_entered, qty_entered_uom, uom_snapshot,
                 ext_jsonb, created_by, updated_by, site_id)
              values
                ($1::uuid, app.current_org_id(), $2, $3::uuid, 'fg', $4::uuid,
                 $11::uuid,
-                $5::numeric, $10, 'DRAFT', null, null, null,
+                $5::numeric, $10, 'DRAFT', null, null,
                 'manual', $6, null, null, $9::jsonb, $7::jsonb, $8::uuid, $8::uuid, $12::uuid)
              returning id`,
             [
@@ -1274,10 +1274,10 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
         );
         await c.query(
           `insert into public.wo_operations
-             (org_id, site_id, wo_id, sequence, operation_name, machine_id, line_id,
+             (org_id, site_id, wo_id, sequence, operation_name, line_id,
               expected_duration_minutes, status, notes)
            select app.current_org_id(), ro.site_id, $1::uuid, ro.op_no, ro.op_name,
-                  ro.machine_id, ro.line_id,
+                  ro.line_id,
                   case
                     when ro.run_time_per_unit_sec is null and ro.setup_time_min is null
                       then null

@@ -9,7 +9,7 @@
  *   prototypes/design/Monopilot Design System/technical/modals.jsx:271-304 (RoutingStepAddModal)
  *   prototypes/design/Monopilot Design System/technical/other-screens.jsx:536-585 (CostingScreen breakdown)
  *
- * Covers: routing version list, the create modal (ordered ops + line/machine
+ * Covers: routing version list, the create modal (ordered ops + line
  * Select, never raw <select>), the NUMERIC-exact cost preview + resource
  * utilization, and the empty / permission-denied states.
  */
@@ -45,7 +45,6 @@ const ITEMS: RoutingItemOption[] = [
   { id: '11111111-1111-1111-1111-111111111111', itemCode: 'FG-2001', name: 'Sausage' },
 ];
 const LINES: ResourceOption[] = [{ id: 'l1', code: 'LINE-A', name: 'Line A' }];
-const MACHINES: ResourceOption[] = [{ id: 'm1', code: 'CUT-02', name: 'Cutter 2' }];
 const OP_NAMES = ['Cutting', 'Smoking'];
 
 const ROUTINGS = {
@@ -92,7 +91,6 @@ const ROUTINGS_WITH_EDITABLE_OPERATIONS = {
             opCode: 'MIX-10',
             opName: 'Mix brine',
             lineId: 'l1',
-            machineId: null,
             setupTimeMin: 45,
             runTimePerUnitSec: '12.50',
             costPerHour: '80.00',
@@ -131,7 +129,6 @@ describe('RoutingsManager — T-051/T-052 (routings + cost preview)', () => {
       <RoutingsManager
         items={ITEMS}
         lines={LINES}
-        machines={MACHINES}
         operationNames={OP_NAMES}
         canWrite
         canApprove
@@ -154,7 +151,7 @@ describe('RoutingsManager — T-051/T-052 (routings + cost preview)', () => {
     listRoutings.mockResolvedValue(ROUTINGS);
     routingCostPreview.mockResolvedValue(COST_PREVIEW);
     render(
-      <RoutingsManager items={ITEMS} lines={LINES} machines={MACHINES} operationNames={OP_NAMES} canWrite canApprove />,
+      <RoutingsManager items={ITEMS} lines={LINES} operationNames={OP_NAMES} canWrite canApprove />,
     );
 
     await screen.findByRole('table', { name: 'Routing versions' });
@@ -171,13 +168,13 @@ describe('RoutingsManager — T-051/T-052 (routings + cost preview)', () => {
     expect(screen.getByText('Resource utilization (cost share)')).toBeInTheDocument();
   });
 
-  it('edit modal: + New routing opens the operation editor with line/machine Selects (no raw <select>) and calls createRouting', async () => {
+  it('edit modal: + New routing opens the operation editor with line Select (no raw <select>) and calls createRouting', async () => {
     const user = userEvent.setup();
     listRoutings.mockResolvedValue(ROUTINGS);
     routingCostPreview.mockResolvedValue(COST_PREVIEW);
     createRouting.mockResolvedValue({ ok: true, data: { id: 'r2', itemId: ITEMS[0].id, version: 3, status: 'draft' } });
     render(
-      <RoutingsManager items={ITEMS} lines={LINES} machines={MACHINES} operationNames={OP_NAMES} canWrite canApprove />,
+      <RoutingsManager items={ITEMS} lines={LINES} operationNames={OP_NAMES} canWrite canApprove />,
     );
 
     await screen.findByRole('table', { name: 'Routing versions' });
@@ -206,7 +203,7 @@ describe('RoutingsManager — T-051/T-052 (routings + cost preview)', () => {
     routingCostPreview.mockResolvedValue(COST_PREVIEW);
     updateRouting.mockResolvedValue({ ok: true, data: { id: 'r-edit' } });
     render(
-      <RoutingsManager items={ITEMS} lines={LINES} machines={MACHINES} operationNames={OP_NAMES} canWrite canApprove />,
+      <RoutingsManager items={ITEMS} lines={LINES} operationNames={OP_NAMES} canWrite canApprove />,
     );
 
     const table = await screen.findByRole('table', { name: 'Routing versions' });
@@ -245,7 +242,6 @@ describe('RoutingsManager — T-051/T-052 (routings + cost preview)', () => {
       <RoutingsManager
         items={ITEMS}
         lines={LINES}
-        machines={MACHINES}
         operationNames={OP_NAMES}
         canWrite={false}
         canApprove={false}
@@ -266,7 +262,7 @@ describe('RoutingsManager — T-051/T-052 (routings + cost preview)', () => {
   it('state: empty routings renders the empty message', async () => {
     listRoutings.mockResolvedValue({ ok: true, data: { routings: [] } });
     render(
-      <RoutingsManager items={ITEMS} lines={LINES} machines={MACHINES} operationNames={OP_NAMES} canWrite canApprove />,
+      <RoutingsManager items={ITEMS} lines={LINES} operationNames={OP_NAMES} canWrite canApprove />,
     );
     // Empty routings now render a design-system .empty-state (title + body).
     expect(await screen.findByText('No routings yet')).toBeInTheDocument();
@@ -293,7 +289,7 @@ describe('W9-L5 FIX 3 — routings label bundle survives the RSC boundary (2026-
 
     const { ROUTINGS_DEFAULT_LABELS } = await import('../routings-labels');
     const entries = Object.entries(ROUTINGS_DEFAULT_LABELS);
-    expect(entries.length).toBeGreaterThanOrEqual(72);
+    expect(entries.length).toBeGreaterThanOrEqual(68);
     for (const [key, value] of entries) {
       expect(value, `default label "${key}" must be a non-empty string`).toBeTruthy();
     }
@@ -303,7 +299,7 @@ describe('W9-L5 FIX 3 — routings label bundle survives the RSC boundary (2026-
     const user = userEvent.setup();
     listRoutings.mockResolvedValue(ROUTINGS);
     render(
-      <RoutingsManager items={ITEMS} lines={LINES} machines={MACHINES} operationNames={OP_NAMES} canWrite canApprove />,
+      <RoutingsManager items={ITEMS} lines={LINES} operationNames={OP_NAMES} canWrite canApprove />,
     );
 
     // Non-empty list chrome: table label, column headers, CTA.
@@ -313,11 +309,8 @@ describe('W9-L5 FIX 3 — routings label bundle survives the RSC boundary (2026-
     }
     await user.click(screen.getByRole('button', { name: '+ New routing' }));
 
-    // The op-row resource selector aria-label interpolates operationLabel +
-    // index + fResourceType — was "undefined1 undefined" before the fix.
-    // (The Select component puts aria-label on its wrapper div, so assert on
-    // the attribute rather than an accessible role name.)
-    expect(document.querySelector('[aria-label="Operation 1 Resource type"]')).not.toBeNull();
+    // The op-row line selector aria-label interpolates operationLabel + index + fLine.
+    expect(document.querySelector('[aria-label="Operation 1 Line"]')).not.toBeNull();
     expect(document.querySelector('[aria-label*="undefined"]')).toBeNull();
     expect(screen.getByText('Operation name')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save routing' })).toBeInTheDocument();

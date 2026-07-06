@@ -6,7 +6,7 @@
  *
  * Data authority: packages/db/migrations/163-routings.sql (routings +
  * routing_operations). There is no dedicated `tooling_setups` table; a tooling /
- * equipment setup is a routing operation that binds a line/machine + setup time.
+ * equipment setup is a routing operation that binds a production line + setup time.
  *
  * RBAC: there is no dedicated `technical.tooling.*` string in the PRD §3
  * `technical.*` family (Wave0 enum-lock — new strings are forbidden). Tooling
@@ -40,7 +40,7 @@ export type ToolingSetupRow = {
   setupTimeMin: number;
   /** NUMERIC(10,4) cost-per-hour returned verbatim as a string; never a JS float. */
   costPerHour: string | null;
-  resourceKind: 'machine' | 'line' | null;
+  resourceKind: 'line' | null;
   resourceCode: string | null;
   resourceName: string | null;
   itemCode: string;

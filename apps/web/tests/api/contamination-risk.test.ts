@@ -104,7 +104,7 @@ run('T-019 contamination-risk matrix CRUD + gaps (RLS + RBAC, real DB)', () => {
     }
   });
 
-  it('targeting neither line nor machine → invalid_input (mirrors DB CHECK)', async () => {
+  it('missing lineId → invalid_input', async () => {
     const res = await inCtx(seed.adminAUserId, seed.orgAId, (ctx) =>
       upsertRisk(ctx, { allergenCode: 'milk', riskLevel: 'low' }),
     );

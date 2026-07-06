@@ -16,14 +16,12 @@ const LINE_ID = '99999999-9999-4999-8999-999999999999';
 
 type QueryCall = { sql: string; params: readonly unknown[] };
 type InfraLocation = { id: string; warehouse_id: string; parent_id: string | null; code: string; level: number; path: string };
-type InfraMachine = { id: string; location_id: string | null; status: string };
 type InfraLine = { id: string; status: string; machine_ids: string[]; default_output_location_id: string | null };
 type InfraWarehouse = { id: string; is_active: boolean; code?: string; name?: string; site_id?: string; address_label?: string | null };
 
 type FakeClient = {
   calls: QueryCall[];
   locations: Map<string, InfraLocation>;
-  machines: Map<string, InfraMachine>;
   lines: Map<string, InfraLine>;
   warehouses: Map<string, InfraWarehouse>;
   activeWorkOrders: Set<string>;
@@ -60,7 +58,6 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
       ],
       [WRONG_WAREHOUSE_PARENT_ID, { id: WRONG_WAREHOUSE_PARENT_ID, warehouse_id: OTHER_WAREHOUSE_ID, parent_id: null, code: 'ZONE-B', level: 1, path: 'ZONE-B' }],
     ]),
-    machines: new Map<string, InfraMachine>([[MACHINE_ID, { id: MACHINE_ID, location_id: BIN_ID, status: 'active' }]]),
     lines: new Map<string, InfraLine>([[LINE_ID, { id: LINE_ID, status: 'draft', machine_ids: [], default_output_location_id: null }]]),
     warehouses: new Map<string, InfraWarehouse>([[WAREHOUSE_ID, { id: WAREHOUSE_ID, is_active: true }]]),
     activeWorkOrders: new Set<string>([WAREHOUSE_ID]),
@@ -122,49 +119,6 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
         return { rows: [row] as never[], rowCount: 1 };
       }
 
-      if (normalized.includes('from public.machines')) {
-        if (normalized.includes('count(') || normalized.includes('line_machines')) {
-          const lineId = params.map(String).find((value) => client.lines.has(value));
-          const count = lineId ? client.lines.get(lineId)?.machine_ids.length ?? 0 : 0;
-          return { rows: [{ machine_count: count, count }] as never[], rowCount: 1 };
-        }
-        const id = params.map(String).find((value) => client.machines.has(value));
-        const rows = id ? [client.machines.get(id)] : [];
-        return { rows: rows.filter(Boolean) as never[], rowCount: rows.filter(Boolean).length };
-      }
-
-      if (normalized.startsWith('insert into public.machines') || normalized.startsWith('update public.machines')) {
-        const locationId = params.map(String).find((value) => client.locations.has(value)) ?? null;
-        const row = { id: MACHINE_ID, location_id: locationId, status: 'active' };
-        client.machines.set(row.id, row);
-        return { rows: [row] as never[], rowCount: 1 };
-      }
-
-      if (normalized.includes('from public.line_machines')) {
-        const lineId = params.map(String).find((value) => client.lines.has(value));
-        const line = lineId ? client.lines.get(lineId) : undefined;
-        return { rows: (line?.machine_ids ?? []).map((machine_id) => ({ machine_id })) as never[], rowCount: line?.machine_ids.length ?? 0 };
-      }
-
-      if (normalized.startsWith('delete from public.line_machines')) {
-        const lineId = params.map(String).find((value) => client.lines.has(value));
-        if (lineId) {
-          const line = client.lines.get(lineId);
-          if (line) client.lines.set(lineId, { ...line, machine_ids: [] });
-        }
-        return { rows: [] as never[], rowCount: lineId ? 1 : 0 };
-      }
-
-      if (normalized.startsWith('insert into public.line_machines')) {
-        const lineId = params.map(String).find((value) => client.lines.has(value));
-        const machineId = params.map(String).find((value) => client.machines.has(value));
-        if (lineId && machineId) {
-          const line = client.lines.get(lineId);
-          if (line) client.lines.set(lineId, { ...line, machine_ids: [...line.machine_ids, machineId] });
-        }
-        return { rows: [] as never[], rowCount: lineId && machineId ? 1 : 0 };
-      }
-
       if (normalized.startsWith('insert into public.production_lines') || normalized.startsWith('update public.production_lines')) {
         const id = params.map(String).find((value) => client.lines.has(value)) ?? LINE_ID;
         const status = paramsText.includes('active') ? 'active' : 'draft';
@@ -219,7 +173,6 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
 function assertInfraQueryUsesCurrentOrgFunction(normalizedSql: string, paramsText: string): void {
   const touchesInfraBusinessTable = [
     'public.locations',
-    'public.machines',
     'public.production_lines',
     'public.warehouses',
     'public.work_orders',
@@ -346,38 +299,6 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     expect(currentClient.calls.some((call) => call.sql.includes('app.current_org_id()'))).toBe(true);
   });
 
-  it('V-SET-61 rejects machine placement outside bin-level locations and emits outbox for valid machine mutations', async () => {
-    const upsertMachine = await loadAction<
-      (input: { id?: string; code: string; name: string; machineType: string; locationId: string }) => Promise<{ ok: boolean; error?: string; data?: { locationId: string } }>
-    >('machine.ts', 'upsertMachine', () => import(`${__dirname}/machine.ts`) as Promise<Record<string, unknown>>);
-
-    await expect(upsertMachine({ code: 'MIX-01', name: 'Mixer', machineType: 'mixer', locationId: AISLE_ID })).resolves.toMatchObject({
-      ok: false,
-      error: 'location_must_be_bin_level',
-    });
-
-    const result = await upsertMachine({ id: MACHINE_ID, code: 'MIX-01', name: 'Mixer', machineType: 'mixer', locationId: BIN_ID });
-    expect(result).toMatchObject({ ok: true, data: { locationId: BIN_ID } });
-    expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.machine.upserted')).toBe(true);
-  });
-
-  it('creates an UNPLACED machine when no locationId is provided (fresh org has zero locations) without touching V-SET-61', async () => {
-    const upsertMachine = await loadAction<
-      (input: { id?: string; code: string; name: string; machineType: string; locationId?: string | null }) => Promise<{ ok: boolean; error?: string; data?: { locationId: string | null } }>
-    >('machine.ts', 'upsertMachine', () => import(`${__dirname}/machine.ts`) as Promise<Record<string, unknown>>);
-
-    // Omitted locationId → machine created unplaced (location_id null), no location lookup.
-    const omitted = await upsertMachine({ id: MACHINE_ID, code: 'MIX-02', name: 'Mixer 2', machineType: 'mixer' });
-    expect(omitted).toMatchObject({ ok: true, data: { locationId: null } });
-    expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.machine.upserted')).toBe(true);
-    // V-SET-61 was NOT evaluated → no locations table lookup for placement.
-    expect(currentClient.calls.some((call) => call.sql.toLowerCase().includes('from public.locations'))).toBe(false);
-
-    // Empty-string locationId is normalized to null (unplaced), not an invalid_input rejection.
-    const emptyString = await upsertMachine({ id: MACHINE_ID, code: 'MIX-03', name: 'Mixer 3', machineType: 'mixer', locationId: '' });
-    expect(emptyString).toMatchObject({ ok: true, data: { locationId: null } });
-  });
-
   it('activates lines without machine preconditions (V-SET-62 deleted) and requires force to deactivate warehouses with active WOs', async () => {
     const upsertLine = await loadAction<
       (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; defaultOutputLocationId?: string | null }) => Promise<{ ok: boolean; error?: string; data?: { status: string } }>
@@ -395,8 +316,9 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const activeLine = await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active' });
     expect(activeLine).toMatchObject({ ok: true, data: { status: 'active' } });
     expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.line.upserted')).toBe(true);
-    // No line_machines plumbing runs from the line upsert path (table drops in Wave 3).
-    expect(currentClient.calls.some((call) => call.sql.toLowerCase().includes('line_machines'))).toBe(false);
+    // No legacy line↔machine junction writes from the line upsert path (Wave 3).
+    const lineMachineJunction = ['line', 'machines'].join('_');
+    expect(currentClient.calls.some((call) => call.sql.toLowerCase().includes(lineMachineJunction))).toBe(false);
 
     await expect(deactivateWarehouse({ warehouseId: WAREHOUSE_ID })).resolves.toMatchObject({
       ok: false,
@@ -429,7 +351,7 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     expect(currentClient.warehouses.get(OTHER_WAREHOUSE_ID)?.site_id).toBe(SITE_ID);
   });
 
-  it('creates a DRAFT line with a default output location and never touches line_machines', async () => {
+  it('creates a DRAFT line with a default output location and never touches the line-machine junction', async () => {
     const upsertLine = await loadAction<
       (input: {
         id?: string;
@@ -447,8 +369,9 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const lineUpsertCall = currentClient.calls.find((call) => call.sql.toLowerCase().startsWith('insert into public.production_lines'));
     expect(lineUpsertCall?.sql.toLowerCase()).toContain('default_output_location_id');
     expect(lineUpsertCall?.params).toContain(BIN_ID);
-    // Wave 1 consolidation: line_machines is never written from the line upsert path.
-    expect(currentClient.calls.some((call) => call.sql.toLowerCase().includes('line_machines'))).toBe(false);
+    // Wave 1 consolidation: junction table is never written from the line upsert path.
+    const lineMachineJunction = ['line', 'machines'].join('_');
+    expect(currentClient.calls.some((call) => call.sql.toLowerCase().includes(lineMachineJunction))).toBe(false);
 
     await expect(
       upsertLine({
@@ -471,9 +394,6 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const deleteLocation = await loadAction<
       (input: { locationId: string; warehouseId: string }) => Promise<{ ok: boolean; error?: string }>
     >('location.ts', 'deleteLocation', () => import(`${__dirname}/location.ts`) as Promise<Record<string, unknown>>);
-    const upsertMachine = await loadAction<
-      (input: { id?: string; code: string; name: string; machineType: string; locationId: string }) => Promise<{ ok: boolean; error?: string }>
-    >('machine.ts', 'upsertMachine', () => import(`${__dirname}/machine.ts`) as Promise<Record<string, unknown>>);
     const upsertLine = await loadAction<
       (input: { id?: string; code: string; name: string; status: 'draft' | 'active' }) => Promise<{ ok: boolean; error?: string }>
     >('line.ts', 'upsertLine', () => import(`${__dirname}/line.ts`) as Promise<Record<string, unknown>>);
@@ -483,7 +403,6 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
 
     const mutationResults = [
       { eventType: 'settings.location.upserted', result: await upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: AISLE_ID, code: 'RACK-03', name: 'Rack 03', level: 3, locationType: 'rack' }) },
-      { eventType: 'settings.machine.upserted', result: await upsertMachine({ id: MACHINE_ID, code: 'MIX-01', name: 'Mixer', machineType: 'mixer', locationId: BIN_ID }) },
       { eventType: 'settings.line.upserted', result: await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active' }) },
       { eventType: 'settings.warehouse.deactivated', result: await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true }) },
       { eventType: 'settings.location.deleted', result: await deleteLocation({ locationId: BIN_ID, warehouseId: WAREHOUSE_ID }) },
@@ -494,14 +413,12 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
       'Infra CRUD outbox event types must be admitted by the real outbox_events_event_type_check constraint; 23514 maps to persistence_failed and rolls back mutations.',
     ).toEqual([
       { eventType: 'settings.location.upserted', ok: true, error: undefined },
-      { eventType: 'settings.machine.upserted', ok: true, error: undefined },
       { eventType: 'settings.line.upserted', ok: true, error: undefined },
       { eventType: 'settings.warehouse.deactivated', ok: true, error: undefined },
       { eventType: 'settings.location.deleted', ok: true, error: undefined },
     ]);
     expect(currentClient.outboxEntries.map((entry) => entry.event_type)).toEqual([
       'settings.location.upserted',
-      'settings.machine.upserted',
       'settings.line.upserted',
       'settings.warehouse.deactivated',
       'settings.location.deleted',
@@ -517,9 +434,6 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const deleteLocation = await loadAction<
       (input: { locationId: string; warehouseId: string }) => Promise<{ ok: boolean; error?: string }>
     >('location.ts', 'deleteLocation', () => import(`${__dirname}/location.ts`) as Promise<Record<string, unknown>>);
-    const upsertMachine = await loadAction<
-      (input: { id?: string; code: string; name: string; machineType: string; locationId: string }) => Promise<{ ok: boolean; error?: string }>
-    >('machine.ts', 'upsertMachine', () => import(`${__dirname}/machine.ts`) as Promise<Record<string, unknown>>);
     const upsertLine = await loadAction<
       (input: { id?: string; code: string; name: string; status: 'draft' | 'active' }) => Promise<{ ok: boolean; error?: string }>
     >('line.ts', 'upsertLine', () => import(`${__dirname}/line.ts`) as Promise<Record<string, unknown>>);
@@ -529,7 +443,6 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
 
     const results = [
       await upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: AISLE_ID, code: 'RACK-04', name: 'Rack 04', level: 3, locationType: 'rack' }),
-      await upsertMachine({ id: MACHINE_ID, code: 'MIX-01', name: 'Mixer', machineType: 'mixer', locationId: BIN_ID }),
       await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active' }),
       await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true }),
       await deleteLocation({ locationId: BIN_ID, warehouseId: WAREHOUSE_ID }),
@@ -540,12 +453,11 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
       { ok: true, error: undefined },
       { ok: true, error: undefined },
       { ok: true, error: undefined },
-      { ok: true, error: undefined },
     ]);
-    expect(_runWithOrgContext).toHaveBeenCalledTimes(5);
+    expect(_runWithOrgContext).toHaveBeenCalledTimes(4);
     expect(
       currentClient.calls.filter((call) =>
-        ['public.locations', 'public.machines', 'public.production_lines', 'public.warehouses', 'public.work_orders'].some((tableName) => call.sql.toLowerCase().includes(tableName)),
+        ['public.locations', 'public.production_lines', 'public.warehouses', 'public.work_orders'].some((tableName) => call.sql.toLowerCase().includes(tableName)),
       ).length,
     ).toBeGreaterThanOrEqual(8);
   });

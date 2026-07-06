@@ -1,6 +1,6 @@
 /**
  * 13-MAINTENANCE — RTL tests for the /maintenance MWO list client island
- * (Wave-8 lane CL1). Covers: list rendering with machine join, status-tab
+ * (Wave-8 lane CL1). Covers: list rendering with equipment join, status-tab
  * filtering, honest empty states, the create modal payload, per-status
  * transition buttons + RBAC-gated visibility, and the PM schedule view.
  */
@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { MwoListScreen, type MwoListLabels } from '../mwo-list.client';
-import type { MachineOption, MwoListRow, MwoState, PmScheduleRow } from '../../_actions/mwo-actions';
+import type { EquipmentOption, MwoListRow, MwoState, PmScheduleRow } from '../../_actions/mwo-actions';
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -17,7 +17,7 @@ vi.mock('next/navigation', () => ({
 
 const LABELS: MwoListLabels = {
   countLine: '2 total · 1 open · 1 in progress',
-  searchPlaceholder: 'Search MWO #, machine, title…',
+  searchPlaceholder: 'Search MWO #, equipment, title…',
   rowsLabel: '{count} rows',
   emptyAll: 'No maintenance work orders yet.',
   emptyFiltered: 'No work orders match the current tab or search.',
@@ -51,7 +51,7 @@ const LABELS: MwoListLabels = {
   overdue: 'Overdue',
   col: {
     mwo: 'MWO #',
-    machine: 'Machine',
+    equipment: 'Equipment',
     title: 'Title',
     priority: 'Priority',
     status: 'Status',
@@ -64,9 +64,9 @@ const LABELS: MwoListLabels = {
   create: {
     button: '+ New MWO',
     title: 'Create maintenance work order',
-    machine: 'Machine',
-    machinePlaceholder: 'Select a machine…',
-    noMachines: 'No machines registered.',
+    equipment: 'Equipment',
+    equipmentPlaceholder: 'Select equipment…',
+    noEquipment: 'No equipment registered.',
     titleField: 'Title',
     titlePlaceholder: 'Short summary',
     description: 'Problem description',
@@ -76,7 +76,7 @@ const LABELS: MwoListLabels = {
     submit: 'Create MWO',
     submitting: 'Creating…',
     cancel: 'Cancel',
-    errorRequired: 'Machine and title are required.',
+    errorRequired: 'Equipment and title are required.',
     errorFailed: 'Could not create the work order.',
   },
   transition: {
@@ -123,9 +123,9 @@ const OPEN_ROW: MwoListRow = {
   state: 'open',
   priority: 'high',
   source: 'manual_request',
-  machineId: 'mmmmmmm1',
-  machineCode: 'MIX-01',
-  machineName: 'Mixer 1',
+  equipmentId: 'eeeeeee1',
+  equipmentCode: 'EQ-01',
+  equipmentName: 'Mixer 1',
   dueDate: '2026-06-20',
   createdAt: '2026-06-11T08:00:00.000Z',
   startedAt: null,
@@ -139,8 +139,8 @@ const IN_PROGRESS_ROW: MwoListRow = {
   title: 'Oven belt slipping',
   state: 'in_progress',
   priority: 'critical',
-  machineCode: 'OVN-02',
-  machineName: 'Oven 2',
+  equipmentCode: 'EQ-02',
+  equipmentName: 'Oven 2',
   startedAt: '2026-06-11T09:00:00.000Z',
 };
 
@@ -153,8 +153,8 @@ const STATUS_COUNTS: Record<MwoState, number> = {
   cancelled: 0,
 };
 
-const MACHINES: MachineOption[] = [
-  { id: '99999999-9999-4999-8999-999999999999', code: 'MIX-01', name: 'Mixer 1', machineType: 'mixer' },
+const EQUIPMENT: EquipmentOption[] = [
+  { id: '99999999-9999-4999-8999-999999999999', code: 'EQ-01', name: 'Mixer 1', equipmentType: 'mixer' },
 ];
 
 const PM_ROWS: PmScheduleRow[] = [
@@ -181,7 +181,7 @@ function renderScreen(overrides: Partial<Parameters<typeof MwoListScreen>[0]> = 
       rows={[OPEN_ROW, IN_PROGRESS_ROW]}
       statusCounts={STATUS_COUNTS}
       pmSchedules={PM_ROWS}
-      machines={MACHINES}
+      equipment={EQUIPMENT}
       labels={LABELS}
       permissions={PERMS}
       createMwoAction={createMwoAction}
@@ -197,11 +197,11 @@ beforeEach(() => {
 });
 
 describe('MwoListScreen — list + tabs', () => {
-  it('renders MWO rows with the machine join (code + name)', () => {
+  it('renders MWO rows with the equipment join (code + name)', () => {
     renderScreen();
 
     expect(screen.getByText('MWO-2026-00001')).toBeInTheDocument();
-    expect(screen.getByText('MIX-01')).toBeInTheDocument();
+    expect(screen.getByText('EQ-01')).toBeInTheDocument();
     expect(screen.getByText('Mixer 1')).toBeInTheDocument();
     expect(screen.getByText('Oven belt slipping')).toBeInTheDocument();
   });
@@ -250,8 +250,8 @@ describe('MwoListScreen — create modal', () => {
     fireEvent.click(screen.getByTestId('mwo-create-open'));
     expect(screen.getByTestId('mwo-create-modal')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByTestId('mwo-create-machine'), {
-      target: { value: MACHINES[0].id },
+    fireEvent.change(screen.getByTestId('mwo-create-equipment'), {
+      target: { value: EQUIPMENT[0].id },
     });
     fireEvent.change(screen.getByTestId('mwo-create-title'), {
       target: { value: 'Belt tension check' },
@@ -265,7 +265,7 @@ describe('MwoListScreen — create modal', () => {
 
     await waitFor(() => {
       expect(createMwoAction).toHaveBeenCalledWith({
-        machineId: MACHINES[0].id,
+        equipmentId: EQUIPMENT[0].id,
         title: 'Belt tension check',
         description: 'Belt slips under load',
         priority: 'critical',
@@ -276,7 +276,7 @@ describe('MwoListScreen — create modal', () => {
     expect(screen.queryByTestId('mwo-create-modal')).not.toBeInTheDocument();
   });
 
-  it('blocks submit without machine/title and never calls the action', async () => {
+  it('blocks submit without equipment/title and never calls the action', async () => {
     const { createMwoAction } = renderScreen();
 
     fireEvent.click(screen.getByTestId('mwo-create-open'));
@@ -288,11 +288,11 @@ describe('MwoListScreen — create modal', () => {
     expect(createMwoAction).not.toHaveBeenCalled();
   });
 
-  it('shows the honest no-machines notice and disables submit', () => {
-    renderScreen({ machines: [] });
+  it('shows the honest no-equipment notice and disables submit', () => {
+    renderScreen({ equipment: [] });
 
     fireEvent.click(screen.getByTestId('mwo-create-open'));
-    expect(screen.getByTestId('mwo-create-no-machines')).toBeInTheDocument();
+    expect(screen.getByTestId('mwo-create-no-equipment')).toBeInTheDocument();
     expect(screen.getByTestId('mwo-create-submit')).toBeDisabled();
   });
 });

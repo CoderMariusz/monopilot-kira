@@ -16,7 +16,6 @@ const OVERRIDE_TYPE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const REASON_CODE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const RMA_REASON_CODE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const BOM_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
-const MACHINE_ID = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
 
 let duplicateLineCodeAtSelectedSite = false;
 

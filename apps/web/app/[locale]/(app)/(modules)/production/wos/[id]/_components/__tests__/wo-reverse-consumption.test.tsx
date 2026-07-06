@@ -191,7 +191,7 @@ const SCREEN_LABELS: WoDetailLabels = {
   changeoverGate: { title: 't', body: 'b', link: 'l' },
   headerActions: { start: 'Start', pause: 'Pause', resume: 'Resume', waste: 'Waste', catchWeight: 'Catch-weight', complete: 'Complete', cancel: 'Cancel', close: 'Close' },
   tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', labor: 'Labor', history: 'Event log' },
-  overview: { summaryTitle: 'Summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line', machine: 'Machine', planned: 'Planned', output: 'Output', plannedWindow: 'Window', actualStart: 'Start', elapsed: 'Elapsed', allergens: 'Allergens', bomVersion: 'BOM v', consumption: 'Consumption', consumptionKpi: 'Consumption', outputKpi: 'Output', allergenYes: 'Yes', allergenNo: 'No', elapsedMin: 'min' },
+  overview: { summaryTitle: 'Summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line', planned: 'Planned', output: 'Output', plannedWindow: 'Window', actualStart: 'Start', elapsed: 'Elapsed', allergens: 'Allergens', bomVersion: 'BOM v', consumption: 'Consumption', consumptionKpi: 'Consumption', outputKpi: 'Output', allergenYes: 'Yes', allergenNo: 'No', elapsedMin: 'min' },
   consumption: { title: 'Consumption', empty: 'none', addAction: 'Scan LP', col: { code: 'Code', component: 'Component', planned: 'Planned', consumed: 'Consumed', remaining: 'Remaining', progress: 'Progress' }, record: { trigger: 'Record', rowTrigger: 'Record', title: 't', subtitle: 's', material: 'm', materialPlaceholder: 'p', qty: 'q', qtyHint: 'h', lp: 'lp', lpLoading: 'l', lpEmpty: 'e', lpError: 'err', lpNone: 'none', lpSuggested: 'sug', reasonCode: 'r', reasonPlaceholder: 'rp', submit: 'sub', submitting: 'subbing', cancel: 'c', warningOver: 'w', warningClose: 'wc', errors: { forbidden: 'f', lp_unavailable: 'a', lp_not_released: 'nr', lp_expired: 'ex', lp_locked: 'lo', quality_hold_active: 'qh', reason_required: 'rr', invalid_material: 'im', invalid_qty: 'iq', generic: 'g' } } },
   output: { title: 'Registered output', empty: 'No output registered yet.', addAction: 'Register output', col: { type: 'Type', product: 'Product', qty: 'Qty', batch: 'Batch / lot', expiry: 'Expiry', qa: 'QA', lp: 'LP' }, qaPass: 'QA pass', qaFail: 'QA fail', qaDenied: 'denied', qaInvalidState: 'inv', qaError: 'err', voidAction: 'Void output…', noConsumptionBadge: 'No consumption', noConsumptionTooltip: 'No material consumption recorded for this WO — the output will have no genealogy/traceability link. Register consumption first, or continue.', noConsumptionContinue: 'Continue anyway' },
   waste: { title: 'Waste events', empty: 'none', addAction: 'Log waste', voidAction: 'Void entry…', totalLabel: 'Total: {kg} kg', col: { time: 'Time', category: 'Category', qty: 'Qty', reason: 'Reason' } },
@@ -242,7 +242,7 @@ const ACTIONS: WoDetailActions = {
 
 const HEADER = {
   id: 'wo1', woNumber: 'WO-0042', productId: 'p', itemCode: 'FG-1', productName: 'Prod', status: 'in_progress' as const,
-  lineId: 'L', lineCode: 'LINE-1', machineId: null, plannedQty: 1000, uom: 'kg', outputKg: 250, consumptionPct: 65, outputPct: 25,
+  lineId: 'L', lineCode: 'LINE-1', plannedQty: 1000, uom: 'kg', outputKg: 250, consumptionPct: 65, outputPct: 25,
   allergenGate: true, scheduledStart: null, scheduledEnd: null, startedAt: null, completedAt: null, elapsedMin: 120, bomVersion: 7,
 };
 

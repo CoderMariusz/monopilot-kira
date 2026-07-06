@@ -7,7 +7,7 @@
  * Proves V-TEC-60..63, the supersede-not-delete pattern, RBAC and RLS isolation.
  *
  *   - AC1 V-TEC-60: ops [1,2,4] → v_tec_60_sequence_gap (no write).
- *   - AC2 V-TEC-61: op without line_id and machine_id → v_tec_61_no_resource.
+ *   - AC2 V-TEC-61: op without line_id → v_tec_61_no_resource.
  *   - AC3 V-TEC-62: run_time_per_unit_sec=0 for a production op → v_tec_62_zero_run_time.
  *   - AC4 V-TEC-63: manufacturing_operation_name not in the reference → v_tec_63_unknown_operation.
  *   - Happy path: create draft → approve → publish (supersedes prior active).
@@ -49,9 +49,7 @@ const seed = {
   itemAId: randomUUID(),
   itemBId: randomUUID(),
   lineAId: randomUUID(),
-  machineAId: randomUUID(),
   lineBId: randomUUID(),
-  machineBId: randomUUID(),
 };
 
 const OP_MIX = 'Mixing';
@@ -140,18 +138,12 @@ async function seedFixtures(): Promise<void> {
     [seed.itemAId, seed.orgAId, `FG-${seed.itemAId.slice(0, 8)}`, seed.itemBId, seed.orgBId, `FG-${seed.itemBId.slice(0, 8)}`],
   );
 
-  // Resource rows (machines + production_lines) for the FK + V-TEC-61 binding.
+  // Production lines for the FK + V-TEC-61 binding.
   await owner.query(
     `insert into public.production_lines (id, org_id, code, name, status)
      values ($1, $2, $3, 'Line A', 'active'), ($4, $5, $6, 'Line B', 'active')
      on conflict (id) do nothing`,
     [seed.lineAId, seed.orgAId, `LINE-${seed.lineAId.slice(0, 6)}`, seed.lineBId, seed.orgBId, `LINE-${seed.lineBId.slice(0, 6)}`],
-  );
-  await owner.query(
-    `insert into public.machines (id, org_id, code, name, machine_type, status)
-     values ($1, $2, $3, 'Mixer A', 'mixer', 'active'), ($4, $5, $6, 'Mixer B', 'mixer', 'active')
-     on conflict (id) do nothing`,
-    [seed.machineAId, seed.orgAId, `MC-${seed.machineAId.slice(0, 6)}`, seed.machineBId, seed.orgBId, `MC-${seed.machineBId.slice(0, 6)}`],
   );
 
   // Manufacturing-operations reference rows (V-TEC-63 source of truth), org A only.
@@ -171,7 +163,6 @@ async function cleanup(): Promise<void> {
   await owner.query(`delete from public.routing_operations where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.routings where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from "Reference"."ManufacturingOperations" where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
-  await owner.query(`delete from public.machines where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.production_lines where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.items where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.user_roles where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
@@ -191,7 +182,6 @@ function validOp(opNo: number, name: string, extra: Record<string, unknown> = {}
     opCode: `OP${opNo}`,
     opName: `Operation ${opNo}`,
     lineId: seed.lineAId,
-    machineId: seed.machineAId,
     setupTimeMin: 10,
     runTimePerUnitSec: '5.0',
     costPerHour: '60.0',
@@ -230,15 +220,16 @@ run('03-technical routings CRUD (V-TEC-60..63, RLS + RBAC, real DB)', () => {
     expect(persisted.rowCount).toBe(0);
   });
 
-  it('AC2 V-TEC-61: rejects an op with neither line_id nor machine_id', async () => {
+  it('AC2 V-TEC-61: rejects an op without line_id', async () => {
+    const { lineId: _omit, ...opWithoutLine } = validOp(1, OP_MIX);
     const result = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
       createRouting({
         itemId: seed.itemAId,
-        operations: [validOp(1, OP_MIX, { lineId: null, machineId: null })],
+        operations: [opWithoutLine],
       }),
     );
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toBe('v_tec_61_no_resource');
+    if (!result.ok) expect(result.error).toBe('invalid_input');
   });
 
   it('AC3 V-TEC-62: rejects run_time_per_unit_sec=0 for a production op', async () => {
@@ -357,7 +348,6 @@ run('03-technical routings CRUD (V-TEC-60..63, RLS + RBAC, real DB)', () => {
             opCode: 'OP1',
             opName: 'Op',
             lineId: seed.lineBId,
-            machineId: seed.machineBId,
             setupTimeMin: 5,
             runTimePerUnitSec: '5.0',
             costPerHour: '60.0',

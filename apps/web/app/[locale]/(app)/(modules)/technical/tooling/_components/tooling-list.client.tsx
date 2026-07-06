@@ -8,7 +8,7 @@
  *   (`tooling_screen`, list-with-actions) — PageHeader + filter pills + a table
  *   (Code / Name / Type / ... / Updated / Status). Translated to shadcn
  *   primitives (Badge / Table / Button / Input). The "Type" column maps to the
- *   resource kind (machine / line) per the prototype index translation note
+ *   production line resource kind per the prototype index translation note
  *   ("Type badge → from enum"). The prototype's red "stock < min" reorder logic
  *   has no equivalent in routing-derived data, so Status maps to the owning
  *   routing's lifecycle (draft / approved / active / superseded) — a real derived
@@ -21,7 +21,7 @@
  *
  * The five UI states (loading / empty / error / permission-denied / populated)
  * are handled by the owning Server Component page; this island renders the
- * populated list + the client-side filter/search interaction (no CLS, no
+ * populated list + the client-side search interaction (no CLS, no
  * client-trusted mutation).
  */
 
@@ -33,9 +33,6 @@ import type { ToolingSetupRow } from '../_actions/shared';
 export type ToolingListLabels = {
   searchPlaceholder: string;
   createCta: string;
-  filterAll: string;
-  filterMachine: string;
-  filterLine: string;
   colCode: string;
   colName: string;
   colType: string;
@@ -46,12 +43,9 @@ export type ToolingListLabels = {
   colUpdated: string;
   colStatus: string;
   noMatches: string;
-  typeMachine: string;
   typeLine: string;
   setupUnit: string;
 };
-
-type Filter = 'all' | 'machine' | 'line';
 
 const STATUS_TONE: Record<string, string> = {
   draft: 'badge-gray',
@@ -82,22 +76,11 @@ export function ToolingList({
   routingsHref: string;
   labels: ToolingListLabels;
 }) {
-  const [filter, setFilter] = React.useState<Filter>('all');
   const [query, setQuery] = React.useState('');
-
-  const counts = React.useMemo(
-    () => ({
-      all: setups.length,
-      machine: setups.filter((s) => s.resourceKind === 'machine').length,
-      line: setups.filter((s) => s.resourceKind === 'line').length,
-    }),
-    [setups],
-  );
 
   const rows = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return setups.filter((s) => {
-      if (filter !== 'all' && s.resourceKind !== filter) return false;
       if (!q) return true;
       return (
         s.opCode.toLowerCase().includes(q) ||
@@ -107,32 +90,11 @@ export function ToolingList({
         s.itemCode.toLowerCase().includes(q)
       );
     });
-  }, [setups, filter, query]);
-
-  const pills: Array<[Filter, string, number]> = [
-    ['all', labels.filterAll, counts.all],
-    ['machine', labels.filterMachine, counts.machine],
-    ['line', labels.filterLine, counts.line],
-  ];
+  }, [setups, query]);
 
   return (
     <div data-prototype-label="tooling_screen" data-testid="tooling-list" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="pills" role="tablist" aria-label="Filter tooling setups">
-          {pills.map(([key, label, count]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={filter === key}
-              data-testid={`tooling-filter-${key}`}
-              onClick={() => setFilter(key)}
-              className={`pill${filter === key ? ' on' : ''}`}
-            >
-              {label} <span className="opacity-60">{count}</span>
-            </button>
-          ))}
-        </div>
         <div className="ml-auto flex items-center gap-2">
           <label htmlFor="tooling-search" className="sr-only">
             {labels.searchPlaceholder}
@@ -182,10 +144,8 @@ export function ToolingList({
                   <td className="mono">{s.opCode}</td>
                   <td style={{ fontWeight: 500 }}>{s.opName}</td>
                   <td>
-                    {s.resourceKind ? (
-                      <span className={`badge ${s.resourceKind === 'machine' ? 'badge-blue' : 'badge-gray'}`}>
-                        {s.resourceKind === 'machine' ? labels.typeMachine : labels.typeLine}
-                      </span>
+                    {s.resourceKind === 'line' ? (
+                      <span className="badge badge-gray">{labels.typeLine}</span>
                     ) : (
                       '—'
                     )}

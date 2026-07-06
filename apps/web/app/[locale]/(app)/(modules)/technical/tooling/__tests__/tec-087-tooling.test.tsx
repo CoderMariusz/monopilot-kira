@@ -5,11 +5,11 @@
  *
  * Prototype: prototypes/design/Monopilot Design System/technical/
  * other-screens.jsx:314-352 (`tooling_screen`). Asserts the structural parity of
- * the list (filter pills, search, Create CTA, the column set) plus the
- * interaction parity (filter pills narrow the list; search filters rows) and the
- * permission gate (Create CTA hidden without write permission). The owning page
- * is an async RSC reading Supabase via withOrgContext, so it is exercised live;
- * here we test the presentational client island that composes it.
+ * the list (search, Create CTA, the column set) plus the interaction parity
+ * (search filters rows) and the permission gate (Create CTA hidden without write
+ * permission). The owning page is an async RSC reading Supabase via
+ * withOrgContext, so it is exercised live; here we test the presentational client
+ * island that composes it.
  */
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
@@ -24,9 +24,6 @@ afterEach(cleanup);
 const LABELS: ToolingListLabels = {
   searchPlaceholder: 'Search setups',
   createCta: 'New setup',
-  filterAll: 'All',
-  filterMachine: 'Machine',
-  filterLine: 'Line',
   colCode: 'Code',
   colName: 'Name',
   colType: 'Type',
@@ -37,7 +34,6 @@ const LABELS: ToolingListLabels = {
   colUpdated: 'Updated',
   colStatus: 'Status',
   noMatches: 'No setups match',
-  typeMachine: 'Machine',
   typeLine: 'Line',
   setupUnit: 'min',
 };
@@ -50,9 +46,9 @@ const SETUPS: ToolingSetupRow[] = [
     manufacturingOperationName: 'Mixing',
     setupTimeMin: 15,
     costPerHour: '42.5000',
-    resourceKind: 'machine',
-    resourceCode: 'MX-01',
-    resourceName: 'Mixer 200L',
+    resourceKind: 'line',
+    resourceCode: 'LN-A',
+    resourceName: 'Line A',
     itemCode: 'FG5101',
     itemName: 'Sausage 450g',
     routingVersion: 2,
@@ -67,8 +63,8 @@ const SETUPS: ToolingSetupRow[] = [
     setupTimeMin: 30,
     costPerHour: null,
     resourceKind: 'line',
-    resourceCode: 'LN-A',
-    resourceName: 'Line A',
+    resourceCode: 'LN-B',
+    resourceName: 'Line B',
     itemCode: 'FG5210',
     itemName: 'Ham slices',
     routingVersion: 1,
@@ -78,23 +74,17 @@ const SETUPS: ToolingSetupRow[] = [
 ];
 
 describe('TEC-087 Tooling list (parity: other-screens.jsx:314-352)', () => {
-  it('renders the prototype column set, filter pills and a row per setup', () => {
+  it('renders the prototype column set and a row per setup', () => {
     render(<ToolingList setups={SETUPS} canWrite routingsHref="../routings" labels={LABELS} />);
 
-    // Filter pills (All / Machine / Line) with counts — prototype pills row.
-    expect(screen.getByTestId('tooling-filter-all')).toHaveTextContent('All');
-    expect(screen.getByTestId('tooling-filter-machine')).toHaveTextContent('Machine');
-    expect(screen.getByTestId('tooling-filter-line')).toHaveTextContent('Line');
-
-    // Columns.
     const table = screen.getByRole('table', { name: 'Tooling and equipment setups' });
     ['Code', 'Name', 'Type', 'Resource', 'Item', 'Setup', 'Cost / hr', 'Updated', 'Status'].forEach((col) => {
       expect(within(table).getByText(col)).toBeInTheDocument();
     });
 
-    // One row per setup + verbatim NUMERIC cost rendering (never a float).
     expect(screen.getAllByTestId('tooling-row')).toHaveLength(2);
     expect(screen.getByText('42.5000')).toBeInTheDocument();
+    expect(screen.getAllByText('Line')).toHaveLength(2);
   });
 
   it('shows the Create CTA when the caller has write permission', () => {
@@ -107,14 +97,6 @@ describe('TEC-087 Tooling list (parity: other-screens.jsx:314-352)', () => {
   it('hides the Create CTA when the caller lacks write permission (RBAC gate)', () => {
     render(<ToolingList setups={SETUPS} canWrite={false} routingsHref="../routings" labels={LABELS} />);
     expect(screen.queryByTestId('tooling-create-cta')).not.toBeInTheDocument();
-  });
-
-  it('filters rows by resource kind when a pill is clicked', () => {
-    render(<ToolingList setups={SETUPS} canWrite routingsHref="../routings" labels={LABELS} />);
-    fireEvent.click(screen.getByTestId('tooling-filter-machine'));
-    const rows = screen.getAllByTestId('tooling-row');
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toHaveTextContent('OP-10');
   });
 
   it('filters rows by the search query', () => {

@@ -25,7 +25,6 @@ const Input = z.object({
     .refine((value) => Number(value) > 0),
   scheduledStartTime: z.string().datetime({ offset: true }).optional(),
   productionLineId: z.string().uuid().optional(),
-  machineId: z.string().uuid().optional(),
   notes: z.string().trim().max(2000).optional(),
 });
 
@@ -178,7 +177,6 @@ async function createWorkOrderChainInContext(
       plannedQuantity: requiredQty,
       scheduledStartTime: input.scheduledStartTime,
       productionLineId: input.productionLineId,
-      machineId: input.machineId,
       notes: `Upstream WIP for ${input.documentNumber}`,
     });
     if (!created.ok) return chainCoreFailure(created.error);
@@ -193,7 +191,6 @@ async function createWorkOrderChainInContext(
     plannedQuantity: input.plannedQuantity,
     scheduledStartTime: input.scheduledStartTime,
     productionLineId: input.productionLineId,
-    machineId: input.machineId,
     notes: input.notes,
   });
   if (!fgCreated.ok) return chainCoreFailure(fgCreated.error);
@@ -278,7 +275,6 @@ async function loadWorkOrderByNumber(ctx: OrgActionContext, woNumber: string): P
     scheduled_start_time: string | null;
     scheduled_end_time: string | null;
     production_line_id: string | null;
-    machine_id: string | null;
     priority: string;
     source_of_demand: string;
     source_reference: string | null;
@@ -298,7 +294,6 @@ async function loadWorkOrderByNumber(ctx: OrgActionContext, woNumber: string): P
             wo.scheduled_start_time::text as scheduled_start_time,
             wo.scheduled_end_time::text as scheduled_end_time,
             wo.production_line_id::text as production_line_id,
-            wo.machine_id::text as machine_id,
             wo.priority,
             wo.source_of_demand,
             wo.source_reference,
@@ -329,7 +324,6 @@ async function loadWorkOrderByNumber(ctx: OrgActionContext, woNumber: string): P
     scheduledStartTime: row.scheduled_start_time,
     scheduledEndTime: row.scheduled_end_time,
     productionLineId: row.production_line_id,
-    machineId: row.machine_id,
     priority: row.priority,
     sourceOfDemand: row.source_of_demand,
     sourceReference: row.source_reference,

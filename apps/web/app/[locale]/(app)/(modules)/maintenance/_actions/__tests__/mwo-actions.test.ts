@@ -14,7 +14,7 @@ import { createMwo, listMwos, listPmSchedules, transitionMwo } from '../mwo-acti
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
-const MACHINE_ID = '33333333-3333-4333-8333-333333333333';
+const EQUIPMENT_ID = '33333333-3333-4333-8333-333333333333';
 const MWO_ID = '44444444-4444-4444-8444-444444444444';
 
 type QueryClient = {
@@ -25,7 +25,7 @@ type QueryClient = {
 };
 
 let grantedPermissions: Set<string>;
-let machineExists = true;
+let equipmentExists = true;
 let currentState = 'open';
 let client: QueryClient;
 
@@ -58,7 +58,7 @@ function makeClient(): QueryClient {
       }
 
       // listMwos: main list read.
-      if (normalized.includes('from public.maintenance_work_orders w') && normalized.includes('left join public.machines m')) {
+      if (normalized.includes('from public.maintenance_work_orders w') && normalized.includes('left join public.equipment e')) {
         return {
           rows: [
             {
@@ -69,9 +69,9 @@ function makeClient(): QueryClient {
               state: 'open',
               priority: 'high',
               source: 'manual_request',
-              machine_id: MACHINE_ID,
-              machine_code: 'MIX-01',
-              machine_name: 'Mixer 1',
+              equipment_id: EQUIPMENT_ID,
+              equipment_code: 'EQ-01',
+              equipment_name: 'Mixer 1',
               due_date: '2026-06-20',
               created_at: new Date('2026-06-11T08:00:00Z'),
               started_at: null,
@@ -82,11 +82,11 @@ function makeClient(): QueryClient {
         };
       }
 
-      // createMwo: machine org-scope validation.
-      if (normalized.includes('from public.machines') && normalized.includes('id = $1::uuid')) {
+      // createMwo: equipment org-scope validation.
+      if (normalized.includes('from public.equipment') && normalized.includes('id = $1::uuid')) {
         return {
-          rows: machineExists ? [{ id: MACHINE_ID, code: 'MIX-01', name: 'Mixer 1' }] : [],
-          rowCount: machineExists ? 1 : 0,
+          rows: equipmentExists ? [{ id: EQUIPMENT_ID, equipment_code: 'EQ-01', name: 'Mixer 1' }] : [],
+          rowCount: equipmentExists ? 1 : 0,
         };
       }
 
@@ -112,9 +112,9 @@ function makeClient(): QueryClient {
               state: 'open',
               priority: params?.[2],
               source: params?.[1],
-              machine_id: params?.[3],
-              machine_code: null,
-              machine_name: null,
+              equipment_id: params?.[3],
+              equipment_code: null,
+              equipment_name: null,
               due_date: params?.[6],
               created_at: new Date('2026-06-11T09:00:00Z'),
               started_at: null,
@@ -144,9 +144,9 @@ function makeClient(): QueryClient {
               state: to,
               priority: 'high',
               source: 'manual_request',
-              machine_id: MACHINE_ID,
-              machine_code: null,
-              machine_name: null,
+              equipment_id: EQUIPMENT_ID,
+              equipment_code: null,
+              equipment_name: null,
               due_date: null,
               created_at: new Date('2026-06-11T08:00:00Z'),
               started_at: to === 'in_progress' ? new Date('2026-06-11T10:00:00Z') : null,
@@ -198,7 +198,7 @@ beforeEach(() => {
     'mnt.mwo.execute',
     'mnt.mwo.cancel',
   ]);
-  machineExists = true;
+  equipmentExists = true;
   currentState = 'open';
   client = makeClient();
 });
@@ -214,7 +214,7 @@ describe('listMwos', () => {
     expect(calls()[0].sql).toContain('from public.user_roles');
   });
 
-  it('returns machine-joined rows + zero-filled status counts', async () => {
+  it('returns equipment-joined rows + zero-filled status counts', async () => {
     const result = await listMwos();
 
     expect(result.ok).toBe(true);
@@ -225,8 +225,8 @@ describe('listMwos', () => {
       title: 'Mixer bearing noise',
       state: 'open',
       priority: 'high',
-      machineCode: 'MIX-01',
-      machineName: 'Mixer 1',
+      equipmentCode: 'EQ-01',
+      equipmentName: 'Mixer 1',
       dueDate: '2026-06-20',
     });
     expect(result.data.statusCounts).toEqual({
@@ -239,18 +239,18 @@ describe('listMwos', () => {
     });
   });
 
-  it('passes status + machine filters through to SQL params', async () => {
-    await listMwos({ status: 'in_progress', machineId: MACHINE_ID });
+  it('passes status + equipment filters through to SQL params', async () => {
+    await listMwos({ status: 'in_progress', equipmentId: EQUIPMENT_ID });
 
-    const list = calls().find((c) => c.sql.includes('left join public.machines m'));
+    const list = calls().find((c) => c.sql.includes('left join public.equipment e'));
     expect(list?.params?.[0]).toBe('in_progress');
-    expect(list?.params?.[1]).toBe(MACHINE_ID);
+    expect(list?.params?.[1]).toBe(EQUIPMENT_ID);
   });
 });
 
 describe('createMwo', () => {
   const input = {
-    machineId: MACHINE_ID,
+    equipmentId: EQUIPMENT_ID,
     title: 'Mixer bearing noise',
     description: 'Loud noise from rear bearing',
     priority: 'high' as const,
@@ -275,8 +275,8 @@ describe('createMwo', () => {
       mwoNumber: 'MWO-2026-00002',
       state: 'open',
       priority: 'high',
-      machineId: MACHINE_ID,
-      machineCode: 'MIX-01',
+      equipmentId: EQUIPMENT_ID,
+      equipmentCode: 'EQ-01',
       title: 'Mixer bearing noise',
     });
 
@@ -284,7 +284,7 @@ describe('createMwo', () => {
     expect(insert?.params?.[0]).toBe('MWO-2026-00002');
     expect(insert?.params?.[1]).toBe('manual_request');
     expect(insert?.params?.[2]).toBe('high');
-    expect(insert?.params?.[3]).toBe(MACHINE_ID);
+    expect(insert?.params?.[3]).toBe(EQUIPMENT_ID);
     expect(insert?.params?.[5]).toBe('Mixer bearing noise');
     expect(insert?.params?.[8]).toBe('Loud noise from rear bearing');
     expect(insert?.sql).toContain("'open'");
@@ -298,15 +298,15 @@ describe('createMwo', () => {
 
     const outbox = calls().find((c) => c.sql.startsWith('insert into public.outbox_events'));
     expect(outbox?.params?.[0]).toBe('maintenance.mwo.created');
-    expect(String(outbox?.params?.[2])).toContain('"machine_code":"MIX-01"');
+    expect(String(outbox?.params?.[2])).toContain('"equipment_code":"EQ-01"');
   });
 
-  it('rejects an unknown/foreign machine with not_found and never inserts', async () => {
-    machineExists = false;
+  it('rejects unknown/foreign equipment with not_found and never inserts', async () => {
+    equipmentExists = false;
 
     const result = await createMwo(input);
 
-    expect(result).toEqual({ ok: false, reason: 'not_found', message: 'machine not found' });
+    expect(result).toEqual({ ok: false, reason: 'not_found', message: 'equipment not found' });
     expect(calls().some((c) => c.sql.startsWith('insert into'))).toBe(false);
   });
 

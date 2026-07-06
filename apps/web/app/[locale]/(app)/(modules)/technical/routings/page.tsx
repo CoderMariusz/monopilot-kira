@@ -3,10 +3,10 @@
  * resource utilization (TEC-062, T-052) page.
  *
  * Real Supabase-backed (org-scoped via withOrgContext + RLS). The server
- * component loads the item list + line/machine/operation references + the
+ * component loads the item list + line/operation references + the
  * routing RBAC gates; the client island renders the item picker, the routing
  * version list, the create/edit modal (ordered operations bound to a real
- * line/machine FK and a manufacturing-operation name), and the NUMERIC-exact
+ * line FK and a manufacturing-operation name), and the NUMERIC-exact
  * cost preview + resource utilization view. Loading / empty / error /
  * permission-denied states are all rendered.
  *
@@ -55,7 +55,7 @@ function buildLabels(t: Translator): RoutingsLabels {
 
 export default async function TechnicalRoutingsPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  const { items, lines, machines, operationNames, canWrite, canApprove, state } = await listRoutingItems();
+  const { items, lines, operationNames, canWrite, canApprove, state } = await listRoutingItems();
   const t = await getTranslations('technical.routings');
   const labels = buildLabels(t);
 
@@ -88,7 +88,6 @@ export default async function TechnicalRoutingsPage({ params }: { params: Promis
         <RoutingsManager
           items={items}
           lines={lines}
-          machines={machines}
           operationNames={operationNames}
           canWrite={canWrite}
           canApprove={canApprove}

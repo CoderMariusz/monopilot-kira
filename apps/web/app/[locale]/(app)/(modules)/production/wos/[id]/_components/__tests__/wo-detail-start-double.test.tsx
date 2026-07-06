@@ -42,7 +42,7 @@ const LABELS = {
   },
   tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', labor: 'Labor', history: 'Event log' },
   overview: {
-    summaryTitle: 'Work order summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line', machine: 'Machine',
+    summaryTitle: 'Work order summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line',
     planned: 'Planned qty', output: 'Output', plannedWindow: 'Planned window', actualStart: 'Actual start', elapsed: 'Elapsed',
     allergens: 'Allergens', bomVersion: 'BOM v', consumption: 'Consumption', consumptionKpi: 'Consumption', outputKpi: 'Output',
     allergenYes: 'Allergen profile present', allergenNo: 'None', elapsedMin: 'min',
@@ -93,7 +93,7 @@ const DATA = {
     // A released-but-not-started WO: no execution row yet, so the desktop
     // "status" the screen shows is planned; the null runtime status is carried
     // by the ACTION context (below), which is what gates the header buttons.
-    status: 'planned', lineId: 'bbbbbbbb-2222-2222-2222-222222222222', lineCode: 'LINE-1', machineId: null,
+    status: 'planned', lineId: 'bbbbbbbb-2222-2222-2222-222222222222', lineCode: 'LINE-1',
     plannedQty: 1000, uom: 'kg', outputKg: 0, consumptionPct: 0, outputPct: 0, allergenGate: true,
     scheduledStart: '2026-06-10T06:00:00.000Z', scheduledEnd: '2026-06-10T14:00:00.000Z', startedAt: null,
     completedAt: null, elapsedMin: null, bomVersion: 7,

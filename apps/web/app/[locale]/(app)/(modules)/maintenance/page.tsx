@@ -25,7 +25,7 @@ import {
   createMwo,
   getMwoPermissions,
   getMwoOverviewStats,
-  listMachinesForMwo,
+  listEquipmentForMwo,
   listMwos,
   listPmSchedules,
   transitionMwo,
@@ -104,7 +104,7 @@ function buildLabels(t: MaintenanceTranslator): MwoListLabels {
     },
     col: {
       mwo: t('col.mwo'),
-      machine: t('col.machine'),
+      equipment: t('col.equipment'),
       title: t('col.title'),
       priority: t('col.priority'),
       status: t('col.status'),
@@ -121,9 +121,9 @@ function buildLabels(t: MaintenanceTranslator): MwoListLabels {
     create: {
       button: t('create.button'),
       title: t('create.title'),
-      machine: t('create.machine'),
-      machinePlaceholder: t('create.machinePlaceholder'),
-      noMachines: t('create.noMachines'),
+      equipment: t('create.equipment'),
+      equipmentPlaceholder: t('create.equipmentPlaceholder'),
+      noEquipment: t('create.noEquipment'),
       titleField: t('create.titleField'),
       titlePlaceholder: t('create.titlePlaceholder'),
       description: t('create.description'),
@@ -212,10 +212,10 @@ async function ListContent({ locale }: { locale: string }) {
     );
   }
 
-  // Secondary reads — non-fatal: an empty machines list degrades the create
-  // modal to its honest "no machines" notice; PM list shows its empty state.
-  const [machinesResult, pmResult] = await Promise.all([listMachinesForMwo(), listPmSchedules()]);
-  const machines = machinesResult.ok ? machinesResult.data : [];
+  // Secondary reads — non-fatal: an empty equipment list degrades the create
+  // modal to its honest "no equipment" notice; PM list shows its empty state.
+  const [equipmentResult, pmResult] = await Promise.all([listEquipmentForMwo(), listPmSchedules()]);
+  const equipment = equipmentResult.ok ? equipmentResult.data : [];
   const pmSchedules = pmResult.ok ? pmResult.data : [];
 
   const { rows, statusCounts } = mwoResult.data;
@@ -232,7 +232,7 @@ async function ListContent({ locale }: { locale: string }) {
       statusCounts={statusCounts}
       overviewStats={overviewStats}
       pmSchedules={pmSchedules}
-      machines={machines}
+      equipment={equipment}
       labels={labels}
       permissions={{
         canCreate: permissions.canCreate,

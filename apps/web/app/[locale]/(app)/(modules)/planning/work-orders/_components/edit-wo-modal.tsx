@@ -7,12 +7,12 @@
  * ["Delete","danger"],["Release","primary"]]) — the DRAFT "Edit" affordance. There
  * is no dedicated edit-WO modal in the prototype; the create surface is reused. This
  * MIRRORS create-wo-modal.tsx (same FG-restricted ItemPicker, same conversion-preview
- * quantity pattern, same line/machine @monopilot/ui Selects, same schedule + notes),
+ * quantity pattern, same line @monopilot/ui Select, same schedule + notes),
  * prefilled from the loaded WO and restricted to the updateWorkOrder contract fields.
  *
  * Contract (Codex planning lane, imported never authored):
  *   updateWorkOrder({ id, productId?, plannedQuantity?, scheduledStartTime?,
- *                     productionLineId?, machineId?, notes? })
+ *                     productionLineId?, notes? })
  *   — DRAFT only; changing product/qty RE-SNAPSHOTS materials + operations
  *     server-side. We surface that honestly (EN+PL) so planning knows components
  *     and operations will be rebuilt.
@@ -111,7 +111,6 @@ export type EditWoModalProps = {
     plannedQuantity: string;
     scheduledStartTime: string | null;
     productionLineId: string | null;
-    machineId: string | null;
     notes: string | null;
   };
   searchFgProductsAction: (input: SearchFgProductsInput) => Promise<FgProductOption[]>;
@@ -121,7 +120,6 @@ export type EditWoModalProps = {
     plannedQuantity?: string;
     scheduledStartTime?: string;
     productionLineId?: string;
-    machineId?: string;
     notes?: string;
   }) => Promise<EditWoResult>;
   onSaved: () => void;
@@ -157,7 +155,6 @@ export function EditWoModal({
   const [quantity, setQuantity] = React.useState(initial.plannedQuantity);
   const [scheduledStart, setScheduledStart] = React.useState(toDateInput(initial.scheduledStartTime));
   const [lineId, setLineId] = React.useState(initial.productionLineId ?? '');
-  const [machineId, setMachineId] = React.useState(initial.machineId ?? '');
   const [notes, setNotes] = React.useState(initial.notes ?? '');
   const [pending, setPending] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
@@ -169,7 +166,6 @@ export function EditWoModal({
       setQuantity(initial.plannedQuantity);
       setScheduledStart(toDateInput(initial.scheduledStartTime));
       setLineId(initial.productionLineId ?? '');
-      setMachineId(initial.machineId ?? '');
       setNotes(initial.notes ?? '');
       setPending(false);
       setFormError(null);
@@ -180,7 +176,6 @@ export function EditWoModal({
     initial.plannedQuantity,
     initial.scheduledStartTime,
     initial.productionLineId,
-    initial.machineId,
     initial.notes,
   ]);
 
@@ -290,7 +285,6 @@ export function EditWoModal({
         plannedQuantity: plannedBase,
         scheduledStartTime: scheduledStart ? new Date(scheduledStart + 'T00:00:00').toISOString() : undefined,
         productionLineId: lineId || undefined,
-        machineId: machineId || undefined,
         // Send the (possibly empty) string so the action can tell "cleared"
         // ('' -> JSON null) from "unchanged". `|| undefined` silently dropped a
         // clear: the action read undefined as "keep" and the old note survived.
@@ -398,26 +392,15 @@ export function EditWoModal({
             <Input type="date" value={scheduledStart} data-testid="edit-wo-scheduled-start" onChange={(e) => setScheduledStart(e.target.value)} />
           </label>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-slate-700">{labels.lineLabel}</span>
-              <Select
-                value={lineId}
-                onValueChange={setLineId}
-                aria-label={labels.lineLabel}
-                options={[{ value: '', label: labels.noneOption }, ...resources.lines.map((l) => ({ value: l.id, label: `${l.code} — ${l.name}` }))]}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-slate-700">{labels.machineLabel}</span>
-              <Select
-                value={machineId}
-                onValueChange={setMachineId}
-                aria-label={labels.machineLabel}
-                options={[{ value: '', label: labels.noneOption }, ...resources.machines.map((m) => ({ value: m.id, label: `${m.code} — ${m.name}` }))]}
-              />
-            </label>
-          </div>
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-slate-700">{labels.lineLabel}</span>
+            <Select
+              value={lineId}
+              onValueChange={setLineId}
+              aria-label={labels.lineLabel}
+              options={[{ value: '', label: labels.noneOption }, ...resources.lines.map((l) => ({ value: l.id, label: `${l.code} — ${l.name}` }))]}
+            />
+          </label>
 
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium text-slate-700">{labels.notesLabel}</span>

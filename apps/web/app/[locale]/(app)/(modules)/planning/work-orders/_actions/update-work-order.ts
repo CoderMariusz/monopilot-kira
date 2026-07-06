@@ -26,7 +26,6 @@ type WorkOrderForUpdateRow = {
   planned_quantity: string;
   scheduled_start_time: string | Date | null;
   production_line_id: string | null;
-  machine_id: string | null;
   notes: string | null;
 };
 
@@ -56,14 +55,13 @@ const UpdateWorkOrderInput = z.object({
   scheduledStartTime: z.string().datetime({ offset: true }).nullable().optional(),
   // null = explicitly clear the field; undefined = keep the current value.
   productionLineId: z.string().uuid().nullable().optional(),
-  machineId: z.string().uuid().nullable().optional(),
   notes: z.string().trim().max(2000).optional(),
 });
 
 async function fetchWorkOrderForUpdate(ctx: OrgActionContext, id: string): Promise<WorkOrderForUpdateRow | null> {
   const { rows } = await ctx.client.query<WorkOrderForUpdateRow>(
     `select id, status, product_id, planned_quantity::text as planned_quantity,
-            scheduled_start_time, production_line_id, machine_id, ext_jsonb->>'notes' as notes
+            scheduled_start_time, production_line_id, ext_jsonb->>'notes' as notes
        from public.work_orders
       where org_id = app.current_org_id()
         and id = $1::uuid
@@ -96,18 +94,6 @@ async function ensureProductionLineInOrg(ctx: OrgActionContext, lineId: string):
         and id = $1::uuid
       limit 1`,
     [lineId],
-  );
-  return rows.length > 0;
-}
-
-async function ensureMachineInOrg(ctx: OrgActionContext, machineId: string): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ id: string }>(
-    `select id
-       from public.machines
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-      limit 1`,
-    [machineId],
   );
   return rows.length > 0;
 }
@@ -199,10 +185,10 @@ async function resnapshotWorkOrder(
 
   await ctx.client.query(
     `insert into public.wo_operations
-       (org_id, site_id, wo_id, sequence, operation_name, machine_id, line_id,
+       (org_id, site_id, wo_id, sequence, operation_name, line_id,
         expected_duration_minutes, status, notes)
      select app.current_org_id(), ro.site_id, $1::uuid, ro.op_no, ro.op_name,
-            ro.machine_id, ro.line_id,
+            ro.line_id,
             case
               when ro.run_time_per_unit_sec is null and ro.setup_time_min is null
                 then null
@@ -239,7 +225,6 @@ export async function updateWorkOrder(params: {
   plannedQuantity?: string;
   scheduledStartTime?: string | null;
   productionLineId?: string;
-  machineId?: string;
   notes?: string;
 }): Promise<UpdateWorkOrderResult> {
   const parsed = UpdateWorkOrderInput.safeParse(params);
@@ -255,9 +240,6 @@ export async function updateWorkOrder(params: {
       if (current.status !== 'DRAFT') return { ok: false, error: 'invalid_state' };
 
       if (input.productionLineId && !(await ensureProductionLineInOrg(ctx, input.productionLineId))) {
-        return { ok: false, error: 'forbidden' };
-      }
-      if (input.machineId && !(await ensureMachineInOrg(ctx, input.machineId))) {
         return { ok: false, error: 'forbidden' };
       }
 
@@ -284,23 +266,22 @@ export async function updateWorkOrder(params: {
       const updated = await ctx.client.query<WorkOrderRow>(
         `update public.work_orders wo
             set product_id = $2::uuid,
-                active_bom_header_id = case when $9::boolean then $10::uuid else wo.active_bom_header_id end,
-                active_factory_spec_id = case when $9::boolean then $11::uuid else wo.active_factory_spec_id end,
+                active_bom_header_id = case when $8::boolean then $9::uuid else wo.active_bom_header_id end,
+                active_factory_spec_id = case when $8::boolean then $10::uuid else wo.active_factory_spec_id end,
                 planned_quantity = $3::numeric,
-                uom = case when $9::boolean then $12 else wo.uom end,
-                scheduled_start_time = case when $15::boolean then $4::timestamptz else wo.scheduled_start_time end,
-                production_line_id = case when $16::boolean then $5::uuid else wo.production_line_id end,
-                machine_id = case when $17::boolean then $6::uuid else wo.machine_id end,
-                uom_snapshot = case when $9::boolean then $13::jsonb else wo.uom_snapshot end,
+                uom = case when $8::boolean then $11 else wo.uom end,
+                scheduled_start_time = case when $14::boolean then $4::timestamptz else wo.scheduled_start_time end,
+                production_line_id = case when $15::boolean then $5::uuid else wo.production_line_id end,
+                uom_snapshot = case when $8::boolean then $12::jsonb else wo.uom_snapshot end,
                 ext_jsonb = case
                   -- clear: drop the key. jsonb_set(target,path,NULL) returns NULL
                   -- for the WHOLE jsonb, which violates ext_jsonb NOT NULL — so a
                   -- cleared note must REMOVE 'notes', not jsonb_set it to NULL.
-                  when $14::boolean and $7::text is null then coalesce(wo.ext_jsonb, '{}'::jsonb) - 'notes'
-                  when $14::boolean then jsonb_set(coalesce(wo.ext_jsonb, '{}'::jsonb), '{notes}', to_jsonb($7::text), true)
+                  when $13::boolean and $6::text is null then coalesce(wo.ext_jsonb, '{}'::jsonb) - 'notes'
+                  when $13::boolean then jsonb_set(coalesce(wo.ext_jsonb, '{}'::jsonb), '{notes}', to_jsonb($6::text), true)
                   else wo.ext_jsonb
                 end,
-                updated_by = $8::uuid,
+                updated_by = $7::uuid,
                 updated_at = now()
           where wo.org_id = app.current_org_id()
             and wo.id = $1::uuid
@@ -309,7 +290,7 @@ export async function updateWorkOrder(params: {
                   (select i.item_code from public.items i where i.id = wo.product_id and i.org_id = app.current_org_id()) as item_code,
                   wo.item_type_at_creation, wo.planned_quantity::text as planned_quantity,
                   wo.produced_quantity::text as produced_quantity, wo.uom, wo.status,
-                  wo.scheduled_start_time, wo.scheduled_end_time, wo.production_line_id, wo.machine_id,
+                  wo.scheduled_start_time, wo.scheduled_end_time, wo.production_line_id,
                   wo.priority, wo.source_of_demand, wo.source_reference, wo.ext_jsonb->>'notes' as notes,
                   wo.created_at, wo.updated_at`,
         [
@@ -318,18 +299,16 @@ export async function updateWorkOrder(params: {
           nextPlannedQuantity,                                                               // $3
           input.scheduledStartTime ?? null,                                                  // $4
           input.productionLineId !== undefined ? input.productionLineId : null,              // $5 (value; null when clearing)
-          input.machineId !== undefined ? input.machineId : null,                            // $6 (value; null when clearing)
-          input.notes === undefined ? current.notes : input.notes === '' ? null : input.notes, // $7
-          ctx.userId,                                                                        // $8
-          mustResnapshot,                                                                    // $9
-          bom?.id ?? null,                                                                   // $10
-          spec?.id ?? null,                                                                  // $11
-          uomSnapshot?.uomBase ?? null,                                                      // $12
-          dbUomSnapshot ? JSON.stringify(dbUomSnapshot) : null,                              // $13
-          input.notes !== undefined,                                                         // $14
-          input.scheduledStartTime !== undefined,                                            // $15
-          input.productionLineId !== undefined,                                              // $16 — explicit set/clear flag
-          input.machineId !== undefined,                                                     // $17 — explicit set/clear flag
+          input.notes === undefined ? current.notes : input.notes === '' ? null : input.notes, // $6
+          ctx.userId,                                                                        // $7
+          mustResnapshot,                                                                    // $8
+          bom?.id ?? null,                                                                   // $9
+          spec?.id ?? null,                                                                  // $10
+          uomSnapshot?.uomBase ?? null,                                                      // $11
+          dbUomSnapshot ? JSON.stringify(dbUomSnapshot) : null,                              // $12
+          input.notes !== undefined,                                                         // $13
+          input.scheduledStartTime !== undefined,                                            // $14
+          input.productionLineId !== undefined,                                              // $15 — explicit set/clear flag
         ],
       );
       const workOrder = updated.rows[0];

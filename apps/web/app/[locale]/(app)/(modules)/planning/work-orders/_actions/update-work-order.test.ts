@@ -9,7 +9,6 @@ const WO_ID = '33333333-3333-4333-8333-333333333333';
 const PRODUCT_A_ID = '44444444-4444-4444-8444-444444444444';
 const PRODUCT_B_ID = '55555555-5555-4555-8555-555555555555';
 const LINE_ID = '66666666-6666-4666-8666-666666666666';
-const MACHINE_ID = '77777777-7777-4777-8777-777777777777';
 const BOM_A_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const BOM_B_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const SPEC_B_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -19,11 +18,9 @@ let allowPermission = true;
 let currentStatus = 'DRAFT';
 let productInOrg = true;
 let lineInOrg = true;
-let machineInOrg = true;
 let raceUpdate = false;
 let currentScheduledStartTime: string | null = null;
 let currentLineId: string | null = null;
-let currentMachineId: string | null = null;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -58,7 +55,6 @@ function workOrderRow(overrides: Partial<Record<string, unknown>> = {}) {
     scheduled_start_time: null,
     scheduled_end_time: null,
     production_line_id: null,
-    machine_id: null,
     priority: 'normal',
     source_of_demand: 'manual',
     source_reference: 'FG-A',
@@ -86,7 +82,6 @@ function makeClient(): QueryClient {
               planned_quantity: '100.000',
               scheduled_start_time: currentScheduledStartTime,
               production_line_id: currentLineId,
-              machine_id: currentMachineId,
               notes: 'seed',
             },
           ],
@@ -95,9 +90,6 @@ function makeClient(): QueryClient {
       }
       if (normalized.includes('from public.production_lines')) {
         return { rows: lineInOrg ? [{ id: LINE_ID }] : [], rowCount: lineInOrg ? 1 : 0 };
-      }
-      if (normalized.includes('from public.machines')) {
-        return { rows: machineInOrg ? [{ id: MACHINE_ID }] : [], rowCount: machineInOrg ? 1 : 0 };
       }
       if (normalized.startsWith('select id, item_code, output_uom')) {
         return { rows: productInOrg ? [itemRow(String(params[0]))] : [], rowCount: productInOrg ? 1 : 0 };
@@ -115,20 +107,17 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('update public.work_orders')) {
         if (raceUpdate) return { rows: [], rowCount: 0 };
         // Simulate the boolean-flag CASE logic from the real SQL:
-        //   $16 (params[15]) → explicit production_line_id write flag
-        //   $17 (params[16]) → explicit machine_id write flag
-        const linePresent = params[15] === true;
-        const machinePresent = params[16] === true;
+        //   $15 (params[14]) → explicit production_line_id write flag
+        const linePresent = params[14] === true;
         return {
           rows: [
             workOrderRow({
               product_id: String(params[1]),
               item_code: String(params[1]) === PRODUCT_B_ID ? 'FG-B' : 'FG-A',
               planned_quantity: String(params[2]),
-              scheduled_start_time: params[14] === true ? (params[3] as string | null) : currentScheduledStartTime,
-              production_line_id: linePresent ? (params[4] as string | null) : null,
-              machine_id: machinePresent ? (params[5] as string | null) : null,
-              notes: params[6] as string | null,
+              scheduled_start_time: params[13] === true ? (params[3] as string | null) : currentScheduledStartTime,
+              production_line_id: linePresent ? (params[4] as string | null) : currentLineId,
+              notes: params[5] as string | null,
             }),
           ],
           rowCount: 1,
@@ -168,11 +157,9 @@ describe('updateWorkOrder', () => {
     currentStatus = 'DRAFT';
     productInOrg = true;
     lineInOrg = true;
-    machineInOrg = true;
     raceUpdate = false;
     currentScheduledStartTime = null;
     currentLineId = null;
-    currentMachineId = null;
     client = makeClient();
   });
 
@@ -181,7 +168,6 @@ describe('updateWorkOrder', () => {
       id: WO_ID,
       scheduledStartTime: '2026-06-20T08:00:00.000Z',
       productionLineId: LINE_ID,
-      machineId: MACHINE_ID,
       notes: 'moved',
     });
 
@@ -204,13 +190,9 @@ describe('updateWorkOrder', () => {
     await expect(updateWorkOrder({ id: WO_ID, productId: PRODUCT_B_ID })).resolves.toEqual({ ok: false, error: 'forbidden' });
   });
 
-  it('returns forbidden when line or machine is outside the org', async () => {
+  it('returns forbidden when the production line is outside the org', async () => {
     lineInOrg = false;
     await expect(updateWorkOrder({ id: WO_ID, productionLineId: LINE_ID })).resolves.toEqual({ ok: false, error: 'forbidden' });
-
-    lineInOrg = true;
-    machineInOrg = false;
-    await expect(updateWorkOrder({ id: WO_ID, machineId: MACHINE_ID })).resolves.toEqual({ ok: false, error: 'forbidden' });
   });
 
   it('re-snapshots materials, operations, and uom data for a new product and quantity', async () => {
@@ -254,7 +236,7 @@ describe('updateWorkOrder', () => {
         }),
       ]),
     );
-    expect(updateCall?.[1]?.[13]).toBe(false);
+    expect(updateCall?.[1]?.[12]).toBe(false);
   });
 
   it('keeps existing notes when notes is omitted without resnapshotting', async () => {
@@ -262,8 +244,8 @@ describe('updateWorkOrder', () => {
 
     expect(result.ok).toBe(true);
     const params = updateWorkOrderCall();
-    expect(params[6]).toBe('seed');
-    expect(params[13]).toBe(false);
+    expect(params[5]).toBe('seed');
+    expect(params[12]).toBe(false);
   });
 
   it('clears scheduled start time when null is explicitly present', async () => {
@@ -278,10 +260,10 @@ describe('updateWorkOrder', () => {
       .mocked(client.query)
       .mock.calls.find(([sql]) => String(sql).replace(/\s+/g, ' ').trim().toLowerCase().startsWith('update public.work_orders'));
     expect(String(call?.[0])).toContain(
-      'scheduled_start_time = case when $15::boolean then $4::timestamptz else wo.scheduled_start_time end',
+      'scheduled_start_time = case when $14::boolean then $4::timestamptz else wo.scheduled_start_time end',
     );
     expect(call?.[1]?.[3]).toBeNull();
-    expect(call?.[1]?.[14]).toBe(true);
+    expect(call?.[1]?.[13]).toBe(true);
   });
 
   it('keeps scheduled start time when it is omitted', async () => {
@@ -294,7 +276,7 @@ describe('updateWorkOrder', () => {
     expect(result.workOrder.scheduledStartTime).toBe('2026-06-20T08:00:00.000Z');
     const params = updateWorkOrderCall();
     expect(params[3]).toBeNull();
-    expect(params[14]).toBe(false);
+    expect(params[13]).toBe(false);
   });
 
   it('clears notes to JSON null when notes is an empty string', async () => {
@@ -302,8 +284,8 @@ describe('updateWorkOrder', () => {
 
     expect(result.ok).toBe(true);
     const params = updateWorkOrderCall();
-    expect(params[6]).toBeNull();
-    expect(params[13]).toBe(true);
+    expect(params[5]).toBeNull();
+    expect(params[12]).toBe(true);
   });
 
   it('re-checks draft status in the UPDATE for races before snapshot writes', async () => {
@@ -335,8 +317,8 @@ describe('updateWorkOrder', () => {
     const params = updateWorkOrderCall();
     // $5 (idx 4) = null (explicit clear)
     expect(params[4]).toBeNull();
-    // $16 (idx 15) = true (explicitly provided)
-    expect(params[15]).toBe(true);
+    // $15 (idx 14) = true (explicitly provided)
+    expect(params[14]).toBe(true);
   });
 
   it('keeps existing production_line_id when productionLineId is omitted', async () => {
@@ -346,33 +328,7 @@ describe('updateWorkOrder', () => {
 
     expect(result.ok).toBe(true);
     const params = updateWorkOrderCall();
-    // $16 (idx 15) = false (not provided)
-    expect(params[15]).toBe(false);
-  });
-
-  it('clears machine_id to NULL when null is explicitly passed', async () => {
-    currentMachineId = MACHINE_ID;
-
-    const result = await updateWorkOrder({ id: WO_ID, machineId: null });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error(result.error);
-    expect(result.workOrder.machineId).toBeNull();
-    const params = updateWorkOrderCall();
-    // $6 (idx 5) = null (explicit clear)
-    expect(params[5]).toBeNull();
-    // $17 (idx 16) = true (explicitly provided)
-    expect(params[16]).toBe(true);
-  });
-
-  it('keeps existing machine_id when machineId is omitted', async () => {
-    currentMachineId = MACHINE_ID;
-
-    const result = await updateWorkOrder({ id: WO_ID, notes: 'no machine change' });
-
-    expect(result.ok).toBe(true);
-    const params = updateWorkOrderCall();
-    // $17 (idx 16) = false (not provided)
-    expect(params[16]).toBe(false);
+    // $15 (idx 14) = false (not provided)
+    expect(params[14]).toBe(false);
   });
 });

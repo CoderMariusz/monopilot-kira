@@ -42,7 +42,6 @@ const seed = {
   itemAId: randomUUID(),
   itemBId: randomUUID(),
   lineAId: randomUUID(),
-  machineAId: randomUUID(),
   routingAId: randomUUID(),
   legacyRoutingAId: randomUUID(),
   routingBId: randomUUID(),
@@ -121,12 +120,6 @@ async function seedFixtures(): Promise<void> {
      on conflict (id) do nothing`,
     [seed.lineAId, seed.orgAId, `CPL-${seed.lineAId.slice(0, 6)}`],
   );
-  await owner.query(
-    `insert into public.machines (id, org_id, code, name, machine_type, status)
-     values ($1, $2, $3, 'CP Machine A', 'mixer', 'active')
-     on conflict (id) do nothing`,
-    [seed.machineAId, seed.orgAId, `CPM-${seed.machineAId.slice(0, 6)}`],
-  );
 
   await owner.query(
     `insert into public.labor_rates (org_id, role_group, rate_per_hour, currency, effective_from)
@@ -147,13 +140,12 @@ async function seedFixtures(): Promise<void> {
   );
   await owner.query(
     `insert into public.routing_operations
-       (org_id, routing_id, op_no, op_code, op_name, line_id, machine_id, setup_time_min, run_time_per_unit_sec, cost_per_hour, crew)
-     values ($1, $2, 1, 'MIX', 'Mixing', $3, $4, 30, 10.00, 999.0000, $5::jsonb)`,
+       (org_id, routing_id, op_no, op_code, op_name, line_id, setup_time_min, run_time_per_unit_sec, cost_per_hour, crew)
+     values ($1, $2, 1, 'MIX', 'Mixing', $3, 30, 10.00, 999.0000, $4::jsonb)`,
     [
       seed.orgAId,
       seed.routingAId,
       seed.lineAId,
-      seed.machineAId,
       JSON.stringify([
         { role_group: 'operator', headcount: 2 },
         { role_group: 'supervisor', headcount: 1 },
@@ -170,9 +162,9 @@ async function seedFixtures(): Promise<void> {
   );
   await owner.query(
     `insert into public.routing_operations
-       (org_id, routing_id, op_no, op_code, op_name, line_id, machine_id, setup_time_min, run_time_per_unit_sec, cost_per_hour, crew)
-     values ($1, $2, 1, 'LEG', 'Legacy', $3, $4, 30, 10.00, 60.0000, '[]'::jsonb)`,
-    [seed.orgAId, seed.legacyRoutingAId, seed.lineAId, seed.machineAId],
+       (org_id, routing_id, op_no, op_code, op_name, line_id, setup_time_min, run_time_per_unit_sec, cost_per_hour, crew)
+     values ($1, $2, 1, 'LEG', 'Legacy', $3, 30, 10.00, 60.0000, '[]'::jsonb)`,
+    [seed.orgAId, seed.legacyRoutingAId, seed.lineAId],
   );
 
   // Routing B (org B) — used by the cross-org RLS assertion.
@@ -188,7 +180,6 @@ async function cleanup(): Promise<void> {
   await owner.query(`delete from public.labor_rates where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.routing_operations where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.routings where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
-  await owner.query(`delete from public.machines where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.production_lines where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.items where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.user_roles where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);

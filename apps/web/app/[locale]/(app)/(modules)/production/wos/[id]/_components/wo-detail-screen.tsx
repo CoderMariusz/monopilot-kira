@@ -183,7 +183,6 @@ export type WoDetailLabels = {
     wo: string;
     product: string;
     line: string;
-    machine: string;
     planned: string;
     output: string;
     plannedWindow: string;
@@ -847,15 +846,6 @@ export function WoDetailScreen({
                 mono={!h.productName}
               />
               <Fact label={labels.overview.line} value={h.lineCode ?? '—'} mono />
-              <Fact
-                label={labels.overview.machine}
-                value={
-                  h.machineCode
-                    ? `${h.machineCode}${h.machineName ? ` — ${h.machineName}` : ''}`
-                    : '—'
-                }
-                mono={!h.machineName}
-              />
               <Fact label={labels.overview.planned} value={`${fmtQty(h.plannedQty)} ${h.uom}`} mono />
               <Fact label={labels.overview.output} value={`${fmtQty(h.outputKg)} ${h.uom}`} mono />
               <Fact label={labels.overview.plannedWindow} value={`${fmtDate(h.scheduledStart)} → ${fmtDate(h.scheduledEnd)}`} mono />

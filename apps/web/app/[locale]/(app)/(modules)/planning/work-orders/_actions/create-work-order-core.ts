@@ -41,7 +41,6 @@ export type CreateWorkOrderCoreParams = {
   quantityEnteredUom?: 'base' | 'each' | 'box';
   scheduledStartTime?: string;
   productionLineId?: string;
-  machineId?: string;
   notes?: string;
 };
 
@@ -170,17 +169,17 @@ export async function createWorkOrderCore(
       `insert into public.work_orders
          (id, org_id, wo_number, product_id, item_type_at_creation, active_bom_header_id,
           active_factory_spec_id,
-          planned_quantity, uom, status, scheduled_start_time, production_line_id, machine_id,
+          planned_quantity, uom, status, scheduled_start_time, production_line_id,
           source_of_demand, source_reference, qty_entered, qty_entered_uom, uom_snapshot,
           ext_jsonb, created_by, updated_by, site_id)
        values
-         ($1::uuid, app.current_org_id(), $2, $3::uuid, $18, $4::uuid,
-          $12::uuid,
-          $5::numeric, $16, 'DRAFT', $6::timestamptz, $7::uuid, $8::uuid,
-          'manual', $9, $13::numeric, $14, $15::jsonb, $10::jsonb, $11::uuid, $11::uuid, $17::uuid)
-       returning id, wo_number, product_id, $9::text as item_code, item_type_at_creation,
+         ($1::uuid, app.current_org_id(), $2, $3::uuid, $17, $4::uuid,
+          $11::uuid,
+          $5::numeric, $15, 'DRAFT', $6::timestamptz, $7::uuid,
+          'manual', $8, $12::numeric, $13, $14::jsonb, $9::jsonb, $10::uuid, $10::uuid, $16::uuid)
+       returning id, wo_number, product_id, $8::text as item_code, item_type_at_creation,
                  planned_quantity::text as planned_quantity, produced_quantity::text as produced_quantity,
-                 uom, status, scheduled_start_time, scheduled_end_time, production_line_id, machine_id,
+                 uom, status, scheduled_start_time, scheduled_end_time, production_line_id,
                  priority, source_of_demand, source_reference, ext_jsonb->>'notes' as notes, created_at, updated_at`,
       [
         woId,
@@ -190,7 +189,6 @@ export async function createWorkOrderCore(
         plannedBaseQty,
         input.scheduledStartTime ?? null,
         input.productionLineId ?? null,
-        input.machineId ?? null,
         input.itemCode,
         JSON.stringify({ notes: input.notes ?? null, app_version: APP_VERSION }),
         ctx.userId,
@@ -243,10 +241,10 @@ export async function createWorkOrderCore(
 
   await ctx.client.query(
     `insert into public.wo_operations
-       (org_id, site_id, wo_id, sequence, operation_name, machine_id, line_id,
+       (org_id, site_id, wo_id, sequence, operation_name, line_id,
         expected_duration_minutes, status, notes, crew)
      select app.current_org_id(), ro.site_id, $1::uuid, ro.op_no, ro.op_name,
-            ro.machine_id, ro.line_id,
+            ro.line_id,
             case
               when ro.run_time_per_unit_sec is null and ro.setup_time_min is null
                 then null

@@ -3,7 +3,7 @@
  *
  * Real Supabase-backed list of the org's tooling / equipment setups — derived
  * from the canonical routings data (migration 163: routings + routing_operations,
- * every op that binds a line/machine + setup time). Org-scoped via
+ * every op that binds a production line + setup time). Org-scoped via
  * withOrgContext + RLS (`app.current_org_id()`); no hardcoded data.
  *
  * Prototype parity:
@@ -31,9 +31,6 @@ function buildLabels(t: Translator): ToolingListLabels {
   return {
     searchPlaceholder: t('list.searchPlaceholder'),
     createCta: t('list.createCta'),
-    filterAll: t('list.filter.all'),
-    filterMachine: t('list.filter.machine'),
-    filterLine: t('list.filter.line'),
     colCode: t('list.col.code'),
     colName: t('list.col.name'),
     colType: t('list.col.type'),
@@ -44,7 +41,6 @@ function buildLabels(t: Translator): ToolingListLabels {
     colUpdated: t('list.col.updated'),
     colStatus: t('list.col.status'),
     noMatches: t('list.noMatches'),
-    typeMachine: t('list.type.machine'),
     typeLine: t('list.type.line'),
     setupUnit: t('list.setupUnit'),
   };

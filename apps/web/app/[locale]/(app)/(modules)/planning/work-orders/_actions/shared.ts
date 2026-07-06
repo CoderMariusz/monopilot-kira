@@ -50,7 +50,6 @@ export type WOHeader = {
   scheduledStartTime: string | null;
   scheduledEndTime: string | null;
   productionLineId: string | null;
-  machineId: string | null;
   priority: string;
   sourceOfDemand: string;
   sourceReference: string | null;
@@ -85,7 +84,6 @@ export type WOOperation = {
   woId: string;
   sequence: number;
   operationName: string;
-  machineId: string | null;
   lineId: string | null;
   expectedDurationMinutes: number | null;
   expectedYieldPercent: string | null;
@@ -203,7 +201,6 @@ export const CreateWorkOrderInput = z.object({
   quantityEnteredUom: z.enum(['base', 'each', 'box']).optional(),
   scheduledStartTime: z.string().datetime({ offset: true }).optional(),
   productionLineId: z.string().uuid().optional(),
-  machineId: z.string().uuid().optional(),
   notes: z.string().trim().max(2000).optional(),
 }).refine((value) => !value.quantityEntered || !!value.quantityEnteredUom, {
   path: ['quantityEnteredUom'],
@@ -230,7 +227,6 @@ export function mapWoHeader(row: WorkOrderRow): WOHeader {
     scheduledStartTime: toNullableIso(row.scheduled_start_time),
     scheduledEndTime: toNullableIso(row.scheduled_end_time),
     productionLineId: row.production_line_id,
-    machineId: row.machine_id,
     priority: row.priority,
     sourceOfDemand: row.source_of_demand,
     sourceReference: row.source_reference,
@@ -264,7 +260,6 @@ export function mapOperation(row: WOOperationRow): WOOperation {
     woId: row.wo_id,
     sequence: Number(row.sequence),
     operationName: row.operation_name,
-    machineId: row.machine_id,
     lineId: row.line_id,
     expectedDurationMinutes: row.expected_duration_minutes,
     expectedYieldPercent: row.expected_yield_percent === null ? null : String(row.expected_yield_percent),
@@ -351,7 +346,6 @@ export type WorkOrderRow = {
   scheduled_start_time: Date | string | null;
   scheduled_end_time: Date | string | null;
   production_line_id: string | null;
-  machine_id: string | null;
   priority: string;
   source_of_demand: string;
   source_reference: string | null;
@@ -388,7 +382,6 @@ export type WOOperationRow = {
   wo_id: string;
   sequence: number;
   operation_name: string;
-  machine_id: string | null;
   line_id: string | null;
   expected_duration_minutes: number | null;
   expected_yield_percent: string | null;

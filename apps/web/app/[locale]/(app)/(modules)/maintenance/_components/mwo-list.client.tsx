@@ -6,21 +6,21 @@
  * Prototype parity (1:1 where the slice covers it):
  *   - status tabs with per-tab counts (TabsCounted)
  *       → prototypes/design/Monopilot Design System/maintenance/work-orders.jsx:66-141
- *   - search box (MWO #, machine, title) + "+ New mWO" header action
+ *   - search box (MWO #, equipment, title) + "+ New mWO" header action
  *       → work-orders.jsx:131-136
- *   - dense table: mWO # (mono), asset/machine, priority badge, status badge,
+ *   - dense table: mWO # (mono), asset/equipment, priority badge, status badge,
  *     source chip, per-status row action (open→Start, in_progress→Complete)
  *       → work-orders.jsx:200-231
- *   - create modal (machine select, priority, problem description, due date)
+ *   - create modal (equipment select, priority, problem description, due date)
  *       → modals.jsx:186-233 (MwoCreateModal)
  *   - PM schedules list view (read-only) → pm-schedules.jsx:3-277 (list view only)
  *
  * Documented deviations (slice scope, per lane CL1):
  *   - type/source filter bar, §3.3 grouped-by-status accordion, overdue/My-work
  *     tabs, WR triage/assign modals, export — deferred to later 13-c slices.
- *   - mWO type radio is not offered: this slice creates 'reactive' machine MWOs
+ *   - mWO type radio is not offered: this slice creates 'reactive' equipment MWOs
  *     only (PM/calibration/sanitation types are engine-created later).
- *   - asset select = public.machines (the real registry), not MNT_ASSETS.
+ *   - asset select = public.equipment (the real registry), not MNT_ASSETS.
  *
  * Presentational: rows, counts, labels, RBAC flags and the server actions all
  * arrive from the server page; this component owns only tab/search/modal state.
@@ -40,7 +40,7 @@ import { PmScheduleList } from './mwo-pm-schedule-list';
 import { RowActions } from './mwo-row-actions';
 import { MwoTransitionModal } from './mwo-transition-modal';
 import type {
-  MachineOption,
+  EquipmentOption,
   MwoListRow,
   MwoOverviewStats,
   MwoPriority,
@@ -104,7 +104,7 @@ export type MwoListLabels = {
   };
   col: {
     mwo: string;
-    machine: string;
+    equipment: string;
     title: string;
     priority: string;
     status: string;
@@ -117,9 +117,9 @@ export type MwoListLabels = {
   create: {
     button: string;
     title: string;
-    machine: string;
-    machinePlaceholder: string;
-    noMachines: string;
+    equipment: string;
+    equipmentPlaceholder: string;
+    noEquipment: string;
     titleField: string;
     titlePlaceholder: string;
     description: string;
@@ -175,7 +175,7 @@ type CreateResult =
   | { ok: false; reason: 'forbidden' | 'not_found' | 'invalid_transition' | 'error'; message?: string };
 
 export type CreateMwoAction = (input: {
-  machineId: string;
+  equipmentId: string;
   title: string;
   description?: string;
   priority: MwoPriority;
@@ -210,7 +210,7 @@ export function MwoListScreen({
   statusCounts,
   overviewStats,
   pmSchedules,
-  machines,
+  equipment,
   labels,
   permissions,
   createMwoAction,
@@ -220,7 +220,7 @@ export function MwoListScreen({
   statusCounts: Record<MwoState, number>;
   overviewStats?: MwoOverviewStats;
   pmSchedules: PmScheduleRow[];
-  machines: MachineOption[];
+  equipment: EquipmentOption[];
   labels: MwoListLabels;
   permissions: MwoActionPermissions;
   createMwoAction: CreateMwoAction;
@@ -260,8 +260,8 @@ export function MwoListScreen({
         (q === '' ||
           r.mwoNumber.toLowerCase().includes(q) ||
           r.title.toLowerCase().includes(q) ||
-          (r.machineCode ?? '').toLowerCase().includes(q) ||
-          (r.machineName ?? '').toLowerCase().includes(q)),
+          (r.equipmentCode ?? '').toLowerCase().includes(q) ||
+          (r.equipmentName ?? '').toLowerCase().includes(q)),
     );
   }, [rows, tab, search]);
 
@@ -275,9 +275,9 @@ export function MwoListScreen({
         'state',
         'priority',
         'source',
-        'machine_id',
-        'machine_code',
-        'machine_name',
+        'equipment_id',
+        'equipment_code',
+        'equipment_name',
         'due_date',
         'created_at',
         'started_at',
@@ -290,9 +290,9 @@ export function MwoListScreen({
         r.state,
         r.priority,
         r.source,
-        r.machineId,
-        r.machineCode,
-        r.machineName,
+        r.equipmentId,
+        r.equipmentCode,
+        r.equipmentName,
         r.dueDate,
         r.createdAt,
         r.startedAt,
@@ -419,7 +419,7 @@ export function MwoListScreen({
                 <TableHeader>
                   <TableRow>
                     <TableHead scope="col">{labels.col.mwo}</TableHead>
-                    <TableHead scope="col">{labels.col.machine}</TableHead>
+                    <TableHead scope="col">{labels.col.equipment}</TableHead>
                     <TableHead scope="col">{labels.col.title}</TableHead>
                     <TableHead scope="col">{labels.col.priority}</TableHead>
                     <TableHead scope="col">{labels.col.status}</TableHead>
@@ -436,13 +436,13 @@ export function MwoListScreen({
                       <TableRow key={r.id} data-testid={`mwo-row-${r.id}`}>
                         <TableCell className="font-mono text-sm font-semibold text-slate-900">{r.mwoNumber}</TableCell>
                         <TableCell className="text-xs text-slate-600">
-                          {r.machineCode ? (
+                          {r.equipmentCode ? (
                             <div className="flex flex-col">
-                              <span className="font-mono text-xs font-semibold text-slate-900">{r.machineCode}</span>
-                              <span className="text-[11px] text-slate-500">{r.machineName}</span>
+                              <span className="font-mono text-xs font-semibold text-slate-900">{r.equipmentCode}</span>
+                              <span className="text-[11px] text-slate-500">{r.equipmentName}</span>
                             </div>
                           ) : (
-                            <span className="text-slate-400" title={r.machineId ?? undefined}>—</span>
+                            <span className="text-slate-400" title={r.equipmentId ?? undefined}>—</span>
                           )}
                         </TableCell>
                         <TableCell className="max-w-[280px] truncate text-sm text-slate-700" title={r.title}>
@@ -486,7 +486,7 @@ export function MwoListScreen({
 
       {createOpen ? (
         <MwoCreateModal
-          machines={machines}
+          equipment={equipment}
           labels={labels}
           createMwoAction={createMwoAction}
           onClose={() => setCreateOpen(false)}

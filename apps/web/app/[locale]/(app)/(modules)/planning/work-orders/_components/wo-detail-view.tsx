@@ -134,7 +134,6 @@ export function WoDetailView({
     plannedQuantity?: string;
     scheduledStartTime?: string;
     productionLineId?: string;
-    machineId?: string;
     notes?: string;
   }) => Promise<EditWoResult>;
   deleteDraftWorkOrderAction?: (params: { id: string }) => Promise<DeleteDraftWorkOrderResult>;
@@ -231,7 +230,6 @@ export function WoDetailView({
             plannedQuantity: wo.plannedQuantity,
             scheduledStartTime: wo.scheduledStartTime,
             productionLineId: wo.productionLineId,
-            machineId: wo.machineId,
             notes: wo.notes,
           }}
           searchFgProductsAction={searchFgProductsAction}

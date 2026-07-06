@@ -9,7 +9,7 @@
  *   (`AllergenScreen`, allergen_matrix_screen) — sticky-header product/line ×
  *   allergen grid with color-coded presence cells and the Contains / May contain /
  *   Absent legend. The prototype's product rows become production-line rows (the
- *   contamination matrix is line/machine-scoped per migration 161); cell color
+ *   contamination matrix is line-scoped per migration 161); cell color
  *   maps to risk_level (high=red, medium=amber, low/segregated=neutral).
  *
  * The grid is the contamination-risk matrix; a second card lists manufacturing-op

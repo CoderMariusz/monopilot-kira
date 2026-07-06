@@ -558,13 +558,6 @@ export const GROUP_E_UI: ParityGroup = {
       expectText: /location/i,
     },
     {
-      set_task_id: 'SET-082',
-      route: '/en/settings/infra/machines',
-      label: 'machine-list',
-      prototype_anchor: `${PROTO}/access-screens.jsx:154-239`,
-      expectText: /machine/i,
-    },
-    {
       set_task_id: 'SET-083',
       route: '/en/settings/infra/lines',
       label: 'line-list',

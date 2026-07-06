@@ -25,7 +25,7 @@ const LABELS: SignoffLabels = {
   readOnly: 'Admin only.',
   permissionDenied: 'Org admin access required.',
   empty: 'No policies.',
-  typeLabels: { 'production.changeover.allergen': 'Allergen machine changeover' },
+  typeLabels: { 'production.changeover.allergen': 'Allergen line changeover' },
   productionApprovalsTitle: 'Production approvals',
   thresholdLabel: 'Over-consumption tolerance (%)',
   thresholdHelp: 'Above this tolerance requires supervisor PIN approval.',
@@ -62,7 +62,7 @@ describe('SignoffPoliciesScreen', () => {
         setOverconsumeThresholds={vi.fn()}
       />,
     );
-    expect(screen.getByText('Allergen machine changeover')).toBeInTheDocument();
+    expect(screen.getByText('Allergen line changeover')).toBeInTheDocument();
     expect(screen.getByText('Distinct users')).toBeInTheDocument();
     expect(screen.getByText('Over-consumption tolerance (%)')).toBeInTheDocument();
     expect(screen.getByText('Above this tolerance requires supervisor PIN approval.')).toBeInTheDocument();

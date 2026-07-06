@@ -5,9 +5,9 @@
  *
  * Builds on the EXISTING orphan schema from migration 201
  * (maintenance_work_orders, 6-state CHECK requested|approved|open|in_progress|
- * completed|cancelled; maintenance_schedules) + migration 290 (machine_id soft
- * uuid -> public.machines, title, due_date). This slice covers manual MWOs on
- * machines only: createMwo creates state='open' rows; the requested/approved
+ * completed|cancelled; maintenance_schedules) + migration 290 (title, due_date).
+ * This slice covers manual MWOs on equipment only: createMwo creates state='open'
+ * rows; the requested/approved
  * triage states belong to the future PM-engine/WR slice (D-MNT-9) and are only
  * listed/cancellable here, never created.
  *
@@ -20,7 +20,7 @@
  *
  * RBAC — FIRST ENFORCEMENT of the migration-202 mnt.* seed (audit: seeded,
  * zero enforcement until now):
- *   read (list MWOs / machines / PM schedules) → mnt.asset.read (the module
+ *   read (list MWOs / equipment / PM schedules) → mnt.asset.read (the module
  *     nav gate, module-registry.ts MODULE_PERMISSION_KEYS.maintenance)
  *   createMwo                                  → mnt.mwo.request
  *   transition start/complete                  → mnt.mwo.execute
@@ -112,9 +112,9 @@ export type MwoListRow = {
   state: MwoState;
   priority: MwoPriority;
   source: MwoSource;
-  machineId: string | null;
-  machineCode: string | null;
-  machineName: string | null;
+  equipmentId: string | null;
+  equipmentCode: string | null;
+  equipmentName: string | null;
   dueDate: string | null;
   createdAt: string;
   startedAt: string | null;
@@ -131,11 +131,11 @@ export type MwoOverviewStats = {
   ratio: { planned: number; unplanned: number };
 };
 
-export type MachineOption = {
+export type EquipmentOption = {
   id: string;
   code: string;
   name: string;
-  machineType: string;
+  equipmentType: string;
 };
 
 export type PmScheduleRow = {
@@ -164,12 +164,12 @@ const listSchema = z.object({
   status: z
     .enum(['all', 'requested', 'approved', 'open', 'in_progress', 'completed', 'cancelled'])
     .optional(),
-  machineId: uuidSchema.optional(),
+  equipmentId: uuidSchema.optional(),
   limit: z.number().int().min(1).max(200).optional(),
 });
 
 const createSchema = z.object({
-  machineId: uuidSchema,
+  equipmentId: uuidSchema,
   title: z.string().trim().min(3).max(200),
   description: z.string().trim().max(4000).optional(),
   priority: z.enum(['low', 'medium', 'high', 'critical']),
@@ -218,9 +218,9 @@ type MwoDbRow = {
   state: MwoState;
   priority: MwoPriority;
   source: MwoSource;
-  machine_id: string | null;
-  machine_code: string | null;
-  machine_name: string | null;
+  equipment_id: string | null;
+  equipment_code: string | null;
+  equipment_name: string | null;
   due_date: string | null;
   created_at: Date | string;
   started_at: Date | string | null;
@@ -237,9 +237,9 @@ function mapRow(r: MwoDbRow): MwoListRow {
     state: r.state,
     priority: r.priority,
     source: r.source,
-    machineId: r.machine_id,
-    machineCode: r.machine_code,
-    machineName: r.machine_name,
+    equipmentId: r.equipment_id,
+    equipmentCode: r.equipment_code,
+    equipmentName: r.equipment_name,
     dueDate: r.due_date,
     createdAt: toIso(r.created_at) ?? '',
     startedAt: toIso(r.started_at),
@@ -330,7 +330,7 @@ export async function getMwoOverviewStats(): Promise<MwoOverviewStats> {
 
 /** MWO list + per-state counts for the status tabs. Read gate: mnt.asset.read. */
 export async function listMwos(
-  input: { status?: 'all' | MwoState; machineId?: string; limit?: number } = {},
+  input: { status?: 'all' | MwoState; equipmentId?: string; limit?: number } = {},
 ): Promise<ActionResult<MwoListData>> {
   try {
     const parsed = listSchema.parse(input);
@@ -365,22 +365,22 @@ export async function listMwos(
                 w.state,
                 w.priority,
                 w.source,
-                w.machine_id::text,
-                m.code as machine_code,
-                m.name as machine_name,
+                w.equipment_id::text,
+                e.equipment_code,
+                e.name as equipment_name,
                 w.due_date::text,
                 w.created_at,
                 w.started_at,
                 w.completed_at
            from public.maintenance_work_orders w
-           left join public.machines m
-             on m.id = w.machine_id and m.org_id = w.org_id
+           left join public.equipment e
+             on e.id = w.equipment_id and e.org_id = w.org_id
           where w.org_id = app.current_org_id()
             and ($1::text = 'all' or w.state = $1)
-            and ($2::uuid is null or w.machine_id = $2::uuid)
+            and ($2::uuid is null or w.equipment_id = $2::uuid)
           order by w.created_at desc
           limit $3::int`,
-        [parsed.status ?? 'all', parsed.machineId ?? null, parsed.limit ?? 200],
+        [parsed.status ?? 'all', parsed.equipmentId ?? null, parsed.limit ?? 200],
       );
 
       return { ok: true, data: { rows: rows.map(mapRow), statusCounts } };
@@ -391,31 +391,36 @@ export async function listMwos(
 }
 
 /**
- * Active machines for the create-modal dropdown (org-scoped via RLS +
+ * Active equipment for the create-modal dropdown (org-scoped via RLS +
  * explicit org predicate). Read gate: mnt.asset.read.
  */
-export async function listMachinesForMwo(): Promise<ActionResult<MachineOption[]>> {
+export async function listEquipmentForMwo(): Promise<ActionResult<EquipmentOption[]>> {
   try {
-    return await withOrgContext(async (ctx: MaintenanceContext): Promise<ActionResult<MachineOption[]>> => {
+    return await withOrgContext(async (ctx: MaintenanceContext): Promise<ActionResult<EquipmentOption[]>> => {
       if (!(await hasPermission(ctx, MNT_READ_PERMISSION))) {
         return { ok: false, reason: 'forbidden' };
       }
       const { rows } = await ctx.client.query<{
         id: string;
-        code: string;
+        equipment_code: string;
         name: string;
-        machine_type: string;
+        equipment_type: string;
       }>(
-        `select id::text, code, name, machine_type
-           from public.machines
+        `select id::text, equipment_code, name, equipment_type
+           from public.equipment
           where org_id = app.current_org_id()
-            and status = 'active'
-          order by code
+            and active = true
+          order by equipment_code
           limit 500`,
       );
       return {
         ok: true,
-        data: rows.map((r) => ({ id: r.id, code: r.code, name: r.name, machineType: r.machine_type })),
+        data: rows.map((r) => ({
+          id: r.id,
+          code: r.equipment_code,
+          name: r.name,
+          equipmentType: r.equipment_type,
+        })),
       };
     });
   } catch (err) {
@@ -424,14 +429,13 @@ export async function listMachinesForMwo(): Promise<ActionResult<MachineOption[]
 }
 
 /**
- * Create a manual MWO on a machine (state='open', type='reactive').
- * Gate: mnt.mwo.request. The machine is validated org-scoped (soft uuid per
- * migration 290 — no DB FK). MWO number = MWO-YYYY-NNNNN, allocated under a
- * per-org advisory xact lock so concurrent creates never collide on the
- * (org_id, mwo_number) unique constraint.
+ * Create a manual MWO on equipment (state='open', type='reactive').
+ * Gate: mnt.mwo.request. The equipment row is validated org-scoped. MWO number
+ * = MWO-YYYY-NNNNN, allocated under a per-org advisory xact lock so concurrent
+ * creates never collide on the (org_id, mwo_number) unique constraint.
  */
 export async function createMwo(input: {
-  machineId: string;
+  equipmentId: string;
   title: string;
   description?: string;
   priority: MwoPriority;
@@ -445,17 +449,17 @@ export async function createMwo(input: {
         return { ok: false, reason: 'forbidden' };
       }
 
-      // Validate the soft machine link inside the org scope.
-      const machine = await ctx.client.query<{ id: string; code: string; name: string }>(
-        `select id::text, code, name
-           from public.machines
+      // Validate the equipment link inside the org scope.
+      const equipment = await ctx.client.query<{ id: string; equipment_code: string; name: string }>(
+        `select id::text, equipment_code, name
+           from public.equipment
           where org_id = app.current_org_id()
             and id = $1::uuid
           limit 1`,
-        [parsed.machineId],
+        [parsed.equipmentId],
       );
-      const machineRow = machine.rows[0];
-      if (!machineRow) return { ok: false, reason: 'not_found', message: 'machine not found' };
+      const equipmentRow = equipment.rows[0];
+      if (!equipmentRow) return { ok: false, reason: 'not_found', message: 'equipment not found' };
 
       // Per-org number allocation — advisory xact lock (released on commit),
       // NO "FOR UPDATE + aggregate" (that combination is rejected by Postgres).
@@ -478,7 +482,7 @@ export async function createMwo(input: {
       const inserted = await ctx.client.query<MwoDbRow>(
         `insert into public.maintenance_work_orders (
            org_id, mwo_number, state, source, type, priority,
-           machine_id, downtime_event_id, title, due_date,
+           equipment_id, downtime_event_id, title, due_date,
            requester_user_id, requester_reason, created_by, updated_by
          )
          values (
@@ -487,13 +491,13 @@ export async function createMwo(input: {
            $8::uuid, $9, $8::uuid, $8::uuid
          )
          returning id::text, mwo_number, title, requester_reason, state, priority, source,
-                   machine_id::text, null as machine_code, null as machine_name,
+                   equipment_id::text, null as equipment_code, null as equipment_name,
                    due_date::text, created_at, started_at, completed_at`,
         [
           mwoNumber,
           source,
           parsed.priority,
-          parsed.machineId,
+          parsed.equipmentId,
           parsed.downtimeEventId ?? null,
           parsed.title,
           parsed.dueDate ?? null,
@@ -510,8 +514,8 @@ export async function createMwo(input: {
         payload: {
           mwo_id: created.id,
           mwo_number: created.mwo_number,
-          machine_id: parsed.machineId,
-          machine_code: machineRow.code,
+          equipment_id: parsed.equipmentId,
+          equipment_code: equipmentRow.equipment_code,
           priority: parsed.priority,
           source,
           downtime_event_id: parsed.downtimeEventId ?? null,
@@ -520,7 +524,11 @@ export async function createMwo(input: {
 
       return {
         ok: true,
-        data: mapRow({ ...created, machine_code: machineRow.code, machine_name: machineRow.name }),
+        data: mapRow({
+          ...created,
+          equipment_code: equipmentRow.equipment_code,
+          equipment_name: equipmentRow.name,
+        }),
       };
     });
   } catch (err) {
@@ -585,7 +593,7 @@ export async function transitionMwo(input: {
             and w.id = $1::uuid
             and w.state = $5
           returning w.id::text, w.mwo_number, w.title, w.requester_reason, w.state, w.priority,
-                    w.source, w.machine_id::text, null as machine_code, null as machine_name,
+                    w.source, w.equipment_id::text, null as equipment_code, null as equipment_name,
                     w.due_date::text, w.created_at, w.started_at, w.completed_at`,
         [parsed.mwoId, parsed.to, parsed.note ?? null, ctx.userId, row.state],
       );
@@ -603,7 +611,7 @@ export async function transitionMwo(input: {
           payload: {
             mwo_id: next.id,
             mwo_number: next.mwo_number,
-            machine_id: next.machine_id,
+            equipment_id: next.equipment_id,
             from_state: row.state,
             completion_notes: parsed.note ?? null,
           },

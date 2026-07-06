@@ -2,13 +2,13 @@
  * T-019 — Allergen contamination-risk matrix CRUD + coverage-gap report.
  *
  * Backs /api/technical/allergens/contamination-risk. The cross-contamination
- * grid maps a (line and/or machine) × allergen_code to a risk level — see
- * migration 161 (allergen_contamination_risk).
+ * grid maps a line × allergen_code to a risk level — see migration 161
+ * (allergen_contamination_risk).
  *
  * Invariants (PRD §10.5/§10.8):
  *   - risk_level ∈ {high, medium, low, segregated} (V-TEC enum). 'extreme' → 422.
  *   - org-scoped under RLS; writes gated on technical.allergens.edit.
- *   - upsert by the natural key (org_id, line_id, machine_id, allergen_code):
+ *   - upsert by the natural key (org_id, line_id, allergen_code):
  *     a re-POST of the same key UPDATES the existing row (no duplicate).
  *   - coverage gap = the EU-14 allergen codes (from "Reference"."Allergens")
  *     that have NO risk entry for the given line (V-TEC-43 dashboard input).
@@ -28,24 +28,12 @@ import {
 } from './shared';
 import { z } from 'zod';
 
-export const UpsertRiskInput = z
-  .object({
-    lineId: z.string().uuid().optional(),
-    machineId: z.string().uuid().optional(),
-    allergenCode: z.string().trim().min(1).max(64),
-    riskLevel: z.enum(RISK_LEVELS),
-    mitigation: z.string().trim().max(2000).optional(),
-  })
-  .superRefine((val, ctx) => {
-    // Mirror the DB CHECK: a risk row must target a line and/or a machine.
-    if (!val.lineId && !val.machineId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['lineId'],
-        message: 'a contamination-risk row must target a line and/or a machine',
-      });
-    }
-  });
+export const UpsertRiskInput = z.object({
+  lineId: z.string().uuid(),
+  allergenCode: z.string().trim().min(1).max(64),
+  riskLevel: z.enum(RISK_LEVELS),
+  mitigation: z.string().trim().max(2000).optional(),
+});
 export type UpsertRiskInputType = z.input<typeof UpsertRiskInput>;
 
 export const DeleteRiskInput = z.object({ id: z.string().uuid() });
@@ -53,8 +41,7 @@ export type DeleteRiskInputType = z.input<typeof DeleteRiskInput>;
 
 export type RiskRow = {
   id: string;
-  lineId: string | null;
-  machineId: string | null;
+  lineId: string;
   allergenCode: string;
   riskLevel: string;
   mitigation: string | null;
@@ -75,16 +62,13 @@ export async function upsertRisk(
   }
 
   try {
-    // Manual upsert by the natural key (the table only has a PK on id). NULL-safe
-    // equality so a line-only row and a machine-only row don't collide.
     const { rows: existing } = await ctx.client.query<{ id: string }>(
       `select id from public.allergen_contamination_risk
         where org_id = $1::uuid
-          and allergen_code = $2
-          and line_id is not distinct from $3::uuid
-          and machine_id is not distinct from $4::uuid
+          and line_id = $2::uuid
+          and allergen_code = $3
         limit 1`,
-      [ctx.orgId, input.allergenCode, input.lineId ?? null, input.machineId ?? null],
+      [ctx.orgId, input.lineId, input.allergenCode],
     );
 
     let row: RiskRow | undefined;
@@ -95,7 +79,7 @@ export async function upsertRisk(
         `update public.allergen_contamination_risk
             set risk_level = $2, mitigation = $3, last_assessed_at = pg_catalog.now(), assessed_by = $4::uuid
           where org_id = $1::uuid and id = $5::uuid
-          returning id, line_id as "lineId", machine_id as "machineId",
+          returning id, line_id as "lineId",
                     allergen_code as "allergenCode", risk_level as "riskLevel", mitigation`,
         [ctx.orgId, input.riskLevel, input.mitigation ?? null, ctx.userId, priorId],
       );
@@ -103,11 +87,11 @@ export async function upsertRisk(
     } else {
       const { rows } = await ctx.client.query<RiskRow>(
         `insert into public.allergen_contamination_risk
-           (org_id, line_id, machine_id, allergen_code, risk_level, mitigation, last_assessed_at, assessed_by)
-         values (app.current_org_id(), $1::uuid, $2::uuid, $3, $4, $5, pg_catalog.now(), $6::uuid)
-         returning id, line_id as "lineId", machine_id as "machineId",
+           (org_id, line_id, allergen_code, risk_level, mitigation, last_assessed_at, assessed_by)
+         values (app.current_org_id(), $1::uuid, $2, $3, $4, pg_catalog.now(), $5::uuid)
+         returning id, line_id as "lineId",
                    allergen_code as "allergenCode", risk_level as "riskLevel", mitigation`,
-        [input.lineId ?? null, input.machineId ?? null, input.allergenCode, input.riskLevel, input.mitigation ?? null, ctx.userId],
+        [input.lineId, input.allergenCode, input.riskLevel, input.mitigation ?? null, ctx.userId],
       );
       row = rows[0];
     }
@@ -148,7 +132,7 @@ export async function deleteRisk(
     const { rows: deleted } = await ctx.client.query<RiskRow>(
       `delete from public.allergen_contamination_risk
         where org_id = $1::uuid and id = $2::uuid
-        returning id, line_id as "lineId", machine_id as "machineId",
+        returning id, line_id as "lineId",
                   allergen_code as "allergenCode", risk_level as "riskLevel", mitigation`,
       [ctx.orgId, input.id],
     );
@@ -189,7 +173,7 @@ export async function listRiskForLine(
   if (!lineParse.success) return { ok: false, error: 'invalid_input' };
 
   const { rows: entries } = await ctx.client.query<RiskRow>(
-    `select id, line_id as "lineId", machine_id as "machineId",
+    `select id, line_id as "lineId",
             allergen_code as "allergenCode", risk_level as "riskLevel", mitigation
        from public.allergen_contamination_risk
       where org_id = $1::uuid and line_id = $2::uuid
@@ -216,7 +200,7 @@ export async function listRiskForLine(
 
 export async function listAllRisk(ctx: OrgActionContext): Promise<AllergenResult<RiskRow[]>> {
   const { rows } = await ctx.client.query<RiskRow>(
-    `select id, line_id as "lineId", machine_id as "machineId",
+    `select id, line_id as "lineId",
             allergen_code as "allergenCode", risk_level as "riskLevel", mitigation
        from public.allergen_contamination_risk
       where org_id = $1::uuid

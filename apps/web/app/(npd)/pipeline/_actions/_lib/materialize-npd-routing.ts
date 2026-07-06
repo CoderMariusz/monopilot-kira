@@ -3,8 +3,7 @@
  *
  * V-TEC deviations for NPD-origin drafts:
  * - V-TEC-61 is satisfied with the project-level production_line_id copied onto
- *   every operation; machine_id remains optional because W5 demotes machines out
- *   of the NPD product flow.
+ *   every operation.
  * - V-TEC-62 is relaxed when a process has no throughput_per_hour. Technical
  *   handoff still creates the draft operation, but run_time_per_unit_sec is NULL
  *   so the Technical routing editor can complete timing before activation.
@@ -104,7 +103,7 @@ export async function materializeNpdRouting(
 
   await sql.query(
     `insert into public.routing_operations
-       (org_id, routing_id, op_no, op_code, op_name, line_id, machine_id,
+       (org_id, routing_id, op_no, op_code, op_name, line_id,
         setup_time_min, run_time_per_unit_sec, manufacturing_operation_name, crew, yield_pct)
      with processes as (
        select wp.id,
@@ -143,7 +142,6 @@ export async function materializeNpdRouting(
             'NPD-' || lpad(p.op_no::text, 3, '0'),
             p.process_name,
             $3::uuid,
-            null::uuid,
             0,
             case
               when p.throughput_per_hour is null or p.throughput_per_hour <= 0 then null

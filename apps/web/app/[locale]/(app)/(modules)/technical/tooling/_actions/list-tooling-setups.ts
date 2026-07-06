@@ -5,7 +5,7 @@
  *
  * "Tooling / equipment setups" are the real per-operation resource bindings that
  * already live in the routings data (migration 163: routings + routing_operations).
- * Each routing operation that binds a production line or machine and carries a
+ * Each routing operation that binds a production line and carries a
  * setup time IS an equipment setup — there is no separate `tooling_setups` table
  * in the schema, so this surface reads the canonical routing data rather than
  * inventing storage (red-line: do not invent fields beyond the prototype).
@@ -41,7 +41,7 @@ type OpRow = {
   manufacturing_operation_name: string | null;
   setup_time_min: number;
   cost_per_hour: string | null;
-  resource_kind: 'machine' | 'line' | null;
+  resource_kind: 'line' | null;
   resource_code: string | null;
   resource_name: string | null;
   item_code: string;
@@ -58,8 +58,8 @@ export async function listToolingSetups(): Promise<ListToolingSetupsResult> {
       const ctx: OrgActionContext = { userId, orgId, client: qc };
 
       const [opResult, canWrite] = await Promise.all([
-        // Every routing operation that binds a line OR a machine is an equipment
-        // setup. We surface the resource (line/machine code+name), the setup time,
+        // Every routing operation that binds a production line is an equipment
+        // setup. We surface the line code+name, the setup time,
         // the operation name and the owning item so the list mirrors the prototype
         // tooling table (Code / Name / Type / ... / Updated / Status).
         qc.query<OpRow>(
@@ -72,12 +72,11 @@ export async function listToolingSetups(): Promise<ListToolingSetupsResult> {
              ro.setup_time_min,
              ro.cost_per_hour::text as cost_per_hour,
              case
-               when ro.machine_id is not null then 'machine'
                when ro.line_id is not null then 'line'
                else null
              end as resource_kind,
-             coalesce(m.code, pl.code) as resource_code,
-             coalesce(m.name, pl.name) as resource_name,
+             pl.code as resource_code,
+             pl.name as resource_name,
              i.item_code,
              i.name as item_name,
              r.version as routing_version,
@@ -88,12 +87,10 @@ export async function listToolingSetups(): Promise<ListToolingSetupsResult> {
              on r.id = ro.routing_id and r.org_id = app.current_org_id()
            join public.items i
              on i.id = r.item_id and i.org_id = app.current_org_id()
-           left join public.machines m
-             on m.id = ro.machine_id and m.org_id = app.current_org_id()
-           left join public.production_lines pl
+           join public.production_lines pl
              on pl.id = ro.line_id and pl.org_id = app.current_org_id()
            where ro.org_id = app.current_org_id()
-             and (ro.machine_id is not null or ro.line_id is not null)
+             and ro.line_id is not null
            order by i.item_code asc, r.version desc, ro.op_no asc`,
         ),
         hasPermission(ctx, TOOLING_WRITE_PERMISSION),

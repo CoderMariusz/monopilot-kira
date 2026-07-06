@@ -243,7 +243,7 @@ async function readUnitsData(): Promise<{ units: UnitOfMeasure[]; customConversi
         ),
         // Real RBAC: canEdit derives from the seeded `settings.units.manage`
         // permission, never a hardcoded flag. Canonical dual-store check (matches
-        // actions/infra/line.ts / warehouse.ts AND the manage-units
+        // actions/infra/machine.ts / line.ts / warehouse.ts AND the manage-units
         // action): LEFT JOIN normalized role_permissions + fall back to the legacy
         // roles.permissions jsonb store and the admin role code/slug allowlist, so a
         // jsonb-only grant keeps the UI and the action in agreement.

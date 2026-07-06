@@ -82,12 +82,11 @@ function makeClient(): QueryClient {
               item_type_at_creation: 'fg',
               planned_quantity: String(params[4]),
               produced_quantity: null,
-              uom: String(params[15]),
+              uom: String(params[14]),
               status: 'DRAFT',
               scheduled_start_time: params[5] === null ? null : String(params[5]),
               scheduled_end_time: null,
               production_line_id: params[6] === null ? null : String(params[6]),
-              machine_id: null,
               priority: 'normal',
               source_of_demand: 'manual',
               source_reference: 'FG-NPD-004',
@@ -350,8 +349,8 @@ describe('createWorkOrder', () => {
     );
     expect(headerCall).toBeDefined();
     const [, params] = headerCall as [string, readonly unknown[]];
-    // site_id is the 17th bind ($17::uuid) — must be the resolved SITE_ID, not null.
-    expect(params[16]).toBe(SITE_ID);
+    // site_id is the 16th bind ($16::uuid) — must be the resolved SITE_ID, not null.
+    expect(params[15]).toBe(SITE_ID);
   });
 
   it('uses an explicit document number and site without advancing the WO sequence', async () => {
@@ -383,7 +382,7 @@ describe('createWorkOrder', () => {
     expect(headerCall).toBeDefined();
     const [, params] = headerCall as [string, readonly unknown[]];
     expect(params[1]).toBe('WO-pilot-FG-NPD-004');
-    expect(params[16]).toBe(explicitSiteId);
+    expect(params[15]).toBe(explicitSiteId);
   });
 
   it('refuses an explicit site outside the current org before inserting the WO', async () => {

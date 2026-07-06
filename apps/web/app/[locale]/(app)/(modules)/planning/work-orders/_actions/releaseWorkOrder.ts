@@ -132,7 +132,7 @@ export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseW
                     (select i.item_code from public.items i where i.id = wo.product_id and i.org_id = app.current_org_id()) as item_code,
                     wo.item_type_at_creation, wo.planned_quantity::text as planned_quantity,
                     wo.produced_quantity::text as produced_quantity, wo.uom, wo.status,
-                    wo.scheduled_start_time, wo.scheduled_end_time, wo.production_line_id, wo.machine_id,
+                    wo.scheduled_start_time, wo.scheduled_end_time, wo.production_line_id,
                     wo.priority, wo.source_of_demand, wo.source_reference, wo.ext_jsonb->>'notes' as notes,
                     wo.created_at, wo.updated_at`,
         [params.id, ctx.userId],

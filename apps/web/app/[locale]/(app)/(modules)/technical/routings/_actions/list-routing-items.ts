@@ -6,8 +6,8 @@
  * Lists the org's items for the routing page's item picker and resolves the
  * caller's routing-authoring (`technical.bom.create`) and approve
  * (`technical.bom.approve`) permissions (routings reuse the BOM RBAC family —
- * see _actions/shared.ts). Also lists the org's production lines + machines so
- * the routing-edit modal can bind each operation to a real line/equipment FK
+ * see _actions/shared.ts). Also lists the org's production lines so
+ * the routing-edit modal can bind each operation to a real line FK
  * (never free text). Org-scoped via withOrgContext + RLS (`app.current_org_id()`).
  */
 
@@ -28,7 +28,6 @@ export type ListRoutingItemsState = 'ready' | 'empty' | 'error';
 export type ListRoutingItemsResult = {
   items: RoutingItemOption[];
   lines: ResourceOption[];
-  machines: ResourceOption[];
   operationNames: string[];
   canWrite: boolean;
   canApprove: boolean;
@@ -48,24 +47,17 @@ export async function listRoutingItems(): Promise<ListRoutingItemsResult> {
       const qc = client as QueryClient;
       const ctx: OrgActionContext = { userId, orgId, client: qc };
 
-      const [itemRows, lineRows, machineRows, opRows, canWrite, canApprove] = await Promise.all([
+      const [itemRows, lineRows, opRows, canWrite, canApprove] = await Promise.all([
         qc.query<ItemRow>(
           `select id, item_code, name from public.items
             where org_id = app.current_org_id() order by item_code asc limit $1`,
           [ITEM_LOOKUP_LIMIT],
         ),
-        // Production lines + machines live in 02-settings (production_lines / machines).
+        // Production lines live in 02-settings (production_lines).
         // Tolerate their absence so the page still renders if a fresh org has none.
         qc
           .query<ResourceRow>(
             `select id, code, name from public.production_lines
-              where org_id = app.current_org_id() and status = 'active' order by code asc limit $1`,
-            [RESOURCE_LOOKUP_LIMIT],
-          )
-          .catch(() => ({ rows: [] as ResourceRow[] })),
-        qc
-          .query<ResourceRow>(
-            `select id, code, name from public.machines
               where org_id = app.current_org_id() and status = 'active' order by code asc limit $1`,
             [RESOURCE_LOOKUP_LIMIT],
           )
@@ -90,7 +82,6 @@ export async function listRoutingItems(): Promise<ListRoutingItemsResult> {
       return {
         items,
         lines: lineRows.rows.map((r) => ({ id: String(r.id), code: r.code, name: r.name })),
-        machines: machineRows.rows.map((r) => ({ id: String(r.id), code: r.code, name: r.name })),
         operationNames: opRows.rows.map((r) => r.operation_name),
         canWrite,
         canApprove,
@@ -104,7 +95,6 @@ export async function listRoutingItems(): Promise<ListRoutingItemsResult> {
     return {
       items: [],
       lines: [],
-      machines: [],
       operationNames: [],
       canWrite: false,
       canApprove: false,

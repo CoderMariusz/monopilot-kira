@@ -34,7 +34,6 @@ async function updateWorkOrderAction(params: {
   plannedQuantity?: string;
   scheduledStartTime?: string;
   productionLineId?: string;
-  machineId?: string;
   notes?: string;
 }) {
   'use server';

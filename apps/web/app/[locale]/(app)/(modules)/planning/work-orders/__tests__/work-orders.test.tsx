@@ -97,7 +97,6 @@ const detailLabels: WoDetailLabels = {
 
 const resources = {
   lines: [{ id: 'line-1', code: 'LINE-01', name: 'Line One' }],
-  machines: [{ id: 'mach-1', code: 'MIX-1', name: 'Mixer One', machineType: 'mixer' }],
 };
 
 function makeRow(over: Partial<Extract<ListPlanningWorkOrdersResult, { ok: true }>['workOrders'][number]>) {
@@ -114,7 +113,6 @@ function makeRow(over: Partial<Extract<ListPlanningWorkOrdersResult, { ok: true 
     scheduledStartTime: '2026-06-10T06:00:00.000Z',
     scheduledEndTime: null,
     productionLineId: 'line-1',
-    machineId: 'mach-1',
     priority: 'normal',
     sourceOfDemand: 'manual',
     sourceReference: 'FG-001',
@@ -713,7 +711,7 @@ describe('WoDetailView — 7 tabs from fixture (parity: wo-detail.jsx:107-585)',
       { id: 'm1', woId: 'wo-1', productId: 'p1', materialName: 'Demo Flour', requiredQty: '700', consumedQty: '0', reservedQty: '0', uom: 'kg', sequence: 1, materialSource: 'stock', bomItemId: null, bomVersion: 1, notes: null },
     ],
     operations: [
-      { id: 'o1', woId: 'wo-1', sequence: 1, operationName: 'Mix', machineId: 'mach-1', lineId: 'line-1', expectedDurationMinutes: 90, expectedYieldPercent: '98.5', actualDuration: null, actualYield: null, status: 'pending', notes: null },
+      { id: 'o1', woId: 'wo-1', sequence: 1, operationName: 'Mix', lineId: 'line-1', expectedDurationMinutes: 90, expectedYieldPercent: '98.5', actualDuration: null, actualYield: null, status: 'pending', notes: null },
     ],
     schedules: [
       { id: 's1', plannedWoId: 'wo-1', productId: 'p1', outputRole: 'primary', expectedQty: '1000', uom: 'kg', allocationPct: '100.00', disposition: 'to_stock', downstreamWoId: null, notes: null },

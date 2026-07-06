@@ -125,7 +125,6 @@ export type WoListViewProps = {
     plannedQuantity: string;
     scheduledStartTime?: string;
     productionLineId?: string;
-    machineId?: string;
     notes?: string;
   }) => Promise<CreateWorkOrderResult>;
   releaseWorkOrderAction: (params: { id: string }) => Promise<ReleaseWorkOrderResult>;

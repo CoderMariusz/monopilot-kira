@@ -2,25 +2,25 @@
 
 import { useState, useTransition } from 'react';
 
-import type { MachineOption, MwoPriority } from '../_actions/mwo-actions';
+import type { EquipmentOption, MwoPriority } from '../_actions/mwo-actions';
 import type { CreateMwoAction, MwoListLabels } from './mwo-list.client';
 import { ModalShell } from './mwo-modal-shell';
 
-/** MODAL: create MWO (modals.jsx:186-233, machine-scoped reactive subset). */
+/** MODAL: create MWO (modals.jsx:186-233, equipment-scoped reactive subset). */
 export function MwoCreateModal({
-  machines,
+  equipment,
   labels,
   createMwoAction,
   onClose,
   onCreated,
 }: {
-  machines: MachineOption[];
+  equipment: EquipmentOption[];
   labels: MwoListLabels;
   createMwoAction: CreateMwoAction;
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [machineId, setMachineId] = useState('');
+  const [equipmentId, setEquipmentId] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<MwoPriority>('medium');
@@ -29,14 +29,14 @@ export function MwoCreateModal({
   const [submitting, startSubmit] = useTransition();
 
   const submit = () => {
-    if (!machineId || title.trim().length < 3) {
+    if (!equipmentId || title.trim().length < 3) {
       setError(labels.create.errorRequired);
       return;
     }
     setError(null);
     startSubmit(async () => {
       const result = await createMwoAction({
-        machineId,
+        equipmentId,
         title: title.trim(),
         description: description.trim() || undefined,
         priority,
@@ -51,22 +51,22 @@ export function MwoCreateModal({
     <ModalShell title={labels.create.title} testId="mwo-create-modal" onClose={onClose}>
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">{labels.create.machine}</span>
-          {machines.length === 0 ? (
-            <span data-testid="mwo-create-no-machines" className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
-              {labels.create.noMachines}
+          <span className="font-medium text-slate-700">{labels.create.equipment}</span>
+          {equipment.length === 0 ? (
+            <span data-testid="mwo-create-no-equipment" className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+              {labels.create.noEquipment}
             </span>
           ) : (
             <select
-              value={machineId}
-              onChange={(e) => setMachineId(e.target.value)}
-              data-testid="mwo-create-machine"
+              value={equipmentId}
+              onChange={(e) => setEquipmentId(e.target.value)}
+              data-testid="mwo-create-equipment"
               className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
             >
-              <option value="">{labels.create.machinePlaceholder}</option>
-              {machines.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.code} · {m.name}
+              <option value="">{labels.create.equipmentPlaceholder}</option>
+              {equipment.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.code} · {e.name}
                 </option>
               ))}
             </select>
@@ -143,7 +143,7 @@ export function MwoCreateModal({
           <button
             type="button"
             onClick={submit}
-            disabled={submitting || machines.length === 0}
+            disabled={submitting || equipment.length === 0}
             data-testid="mwo-create-submit"
             className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
           >

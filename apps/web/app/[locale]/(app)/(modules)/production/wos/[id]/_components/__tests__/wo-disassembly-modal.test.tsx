@@ -71,7 +71,7 @@ const LABELS = {
   headerActions: { start: 'Start', pause: 'Pause', resume: 'Resume', waste: 'Waste', catchWeight: 'Catch-weight', complete: 'Complete', cancel: 'Cancel', close: 'Close' },
   tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', labor: 'Labor', history: 'Event log' },
   overview: {
-    summaryTitle: 'Work order summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line', machine: 'Machine',
+    summaryTitle: 'Work order summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line',
     planned: 'Planned qty', output: 'Output', plannedWindow: 'Planned window', actualStart: 'Actual start', elapsed: 'Elapsed',
     allergens: 'Allergens', bomVersion: 'BOM v', consumption: 'Consumption', consumptionKpi: 'Consumption', outputKpi: 'Output',
     allergenYes: 'Allergen profile present', allergenNo: 'None', elapsedMin: 'min',
@@ -121,7 +121,7 @@ function makeData(overrides: Partial<WorkOrderDetailData> & { bomType: 'forward'
     header: {
       id: WO_ID, woNumber: 'WO-DIS-001', productId: 'p0000000-0000-0000-0000-000000000000',
       itemCode: 'FG-CARCASS', productName: 'Pork carcass', status: 'in_progress',
-      lineId: null, lineCode: null, machineId: null, machineCode: null, machineName: null,
+      lineId: null, lineCode: null,
       plannedQty: 100, uom: 'kg', outputKg: 0, consumptionPct: 100, outputPct: 0, allergenGate: false,
       scheduledStart: null, scheduledEnd: null, startedAt: '2026-06-20T06:00:00.000Z', completedAt: null,
       elapsedMin: 60, bomVersion: 1, weightMode: 'fixed', bomType,

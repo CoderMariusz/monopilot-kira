@@ -45,11 +45,7 @@ export type RoutingsLabels = {
   fOperationNamePlaceholder: string;
   fOpCode: string;
   fOpCodePlaceholder: string;
-  fResourceType: string;
-  fResourceTypeLine: string;
-  fResourceTypeMachine: string;
   fLine: string;
-  fMachine: string;
   fSelect: string;
   fNoneConfigured: string;
   fManufacturingOp: string;
@@ -116,18 +112,14 @@ export const ROUTINGS_DEFAULT_LABELS: RoutingsLabels = {
   modalNewTitle: 'New routing',
   modalEditTitlePrefix: 'Edit routing v',
   modalIntro:
-    'Operations run in order (op 1 → n). Each operation binds a line or a machine (V-TEC-61) and a manufacturing-operation name from the reference (V-TEC-63).',
+    'Operations run in order (op 1 → n). Each operation binds a production line (V-TEC-61) and a manufacturing-operation name from the reference (V-TEC-63).',
   operationLabel: 'Operation ',
   remove: 'Remove',
   fOperationName: 'Operation name',
   fOperationNamePlaceholder: 'e.g. Smoking — phase 2',
   fOpCode: 'Op code',
   fOpCodePlaceholder: 'auto',
-  fResourceType: 'Resource type',
-  fResourceTypeLine: 'Production line',
-  fResourceTypeMachine: 'Machine / equipment',
   fLine: 'Line',
-  fMachine: 'Machine',
   fSelect: 'Select…',
   fNoneConfigured: 'None configured',
   fManufacturingOp: 'Manufacturing operation',
@@ -158,7 +150,7 @@ export const ROUTINGS_DEFAULT_LABELS: RoutingsLabels = {
   errAlreadyExists: 'A routing with that version already exists for this item.',
   errInvalidState: 'Only a draft routing may be edited or transitioned that way.',
   errSequenceGap: 'Operation numbers must be contiguous from 1 (V-TEC-60).',
-  errNoResource: 'Every operation must bind a line or machine (V-TEC-61).',
+  errNoResource: 'Every operation must bind a production line (V-TEC-61).',
   errZeroRunTime: 'Production operations need a run time greater than 0 (V-TEC-62).',
   errUnknownOperation: 'An operation name is not in the manufacturing-operations reference (V-TEC-63).',
   errGeneric: 'Could not save the routing. Please try again.',

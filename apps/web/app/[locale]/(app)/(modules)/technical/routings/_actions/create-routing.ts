@@ -120,18 +120,17 @@ export async function createRouting(rawInput: unknown): Promise<CreateRoutingRes
       for (const op of input.operations) {
         await qc.query(
           `insert into public.routing_operations
-             (org_id, routing_id, op_no, op_code, op_name, line_id, machine_id,
+             (org_id, routing_id, op_no, op_code, op_name, line_id,
               setup_time_min, run_time_per_unit_sec, manufacturing_operation_name, crew, yield_pct, created_by)
            values
-             (app.current_org_id(), $1::uuid, $2::integer, $3, $4, $5::uuid, $6::uuid,
-              $7::integer, $8::numeric, $9, $10::jsonb, $11::numeric, $12::uuid)`,
+             (app.current_org_id(), $1::uuid, $2::integer, $3, $4, $5::uuid,
+              $6::integer, $7::numeric, $8, $9::jsonb, $10::numeric, $11::uuid)`,
           [
             routing.id,
             op.opNo,
             op.opCode,
             op.opName,
-            op.lineId ?? null,
-            op.machineId ?? null,
+            op.lineId,
             op.setupTimeMin,
             op.runTimePerUnitSec ?? null,
             op.manufacturingOperationName,
@@ -157,7 +156,7 @@ export async function createRouting(rawInput: unknown): Promise<CreateRoutingRes
   } catch (err) {
     // 23505 = routings_org_item_version_unique or routing_operations_routing_op_no_unique.
     if (isPgError(err) && err.code === '23505') return { ok: false, error: 'already_exists' };
-    // 23514 = a CHECK (setup/run/cost nonnegative); 23503 = bad line/machine FK.
+    // 23514 = a CHECK (setup/run/cost nonnegative); 23503 = bad line FK.
     if (isPgError(err) && (err.code === '23514' || err.code === '23503')) {
       return { ok: false, error: 'invalid_input' };
     }
