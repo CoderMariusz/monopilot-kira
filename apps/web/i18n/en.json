@@ -5884,11 +5884,11 @@
     },
     "tooling": {
       "title": "Tooling & equipment setups",
-      "subtitle": "Equipment and tooling setups derived from routing operations — each operation that binds a line or machine with a setup time.",
+      "subtitle": "Equipment and tooling setups derived from routing operations — each operation that binds a line with a setup time.",
       "error": "Unable to load tooling setups. Please try again.",
       "empty": {
         "title": "No tooling setups yet",
-        "body": "No routing operations bind a line or machine in this organization yet.",
+        "body": "No routing operations bind a line in this organization yet.",
         "bodyCanWrite": "Author a routing with line/machine-bound operations to populate the equipment setup list."
       },
       "list": {
@@ -6380,7 +6380,7 @@
     },
     "routings": {
       "title": "Routings",
-      "subtitle": "Ordered manufacturing operations per item, bound to lines and machines — drives the cost preview and resource utilization.",
+      "subtitle": "Ordered manufacturing operations per item, bound to lines — drives the cost preview and resource utilization.",
       "breadcrumbRoot": "Technical",
       "empty": {
         "title": "No routings yet",
@@ -6414,7 +6414,7 @@
         "publish": "Publish",
         "modalNewTitle": "New routing",
         "modalEditTitlePrefix": "Edit routing v",
-        "modalIntro": "Operations run in order (op 1 → n). Each operation binds a line or a machine (V-TEC-61) and a manufacturing-operation name from the reference (V-TEC-63).",
+        "modalIntro": "Operations run in order (op 1 → n). Each operation binds a line (V-TEC-61) and a manufacturing-operation name from the reference (V-TEC-63).",
         "operationLabel": "Operation ",
         "remove": "Remove",
         "fOperationName": "Operation name",
@@ -6456,7 +6456,7 @@
         "errAlreadyExists": "A routing with that version already exists for this item.",
         "errInvalidState": "Only a draft routing may be edited or transitioned that way.",
         "errSequenceGap": "Operation numbers must be contiguous from 1 (V-TEC-60).",
-        "errNoResource": "Every operation must bind a line or machine (V-TEC-61).",
+        "errNoResource": "Every operation must bind a line (V-TEC-61).",
         "errZeroRunTime": "Production operations need a run time greater than 0 (V-TEC-62).",
         "errUnknownOperation": "An operation name is not in the manufacturing-operations reference (V-TEC-63).",
         "errGeneric": "Could not save the routing. Please try again."
