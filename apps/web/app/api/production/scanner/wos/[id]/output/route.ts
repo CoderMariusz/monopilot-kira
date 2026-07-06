@@ -23,6 +23,7 @@ import {
   scannerOk,
   scannerTransactionId,
   scannerValidationError,
+  scannerWorkOrderVisibleOnLineSql,
   type RouteContext,
 } from '../../../_support';
 
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
            from public.work_orders
           where org_id = app.current_org_id()
             and id = $1::uuid
-            and ($2::uuid is null or production_line_id = $2::uuid)
+            and ${scannerWorkOrderVisibleOnLineSql(2)}
             and app.user_can_see_site(site_id)
           limit 1`,
         [woId, session.line_id],

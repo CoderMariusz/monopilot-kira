@@ -66,6 +66,7 @@ interface ScannerProdLabelsShape {
     consumed: string;
     allergenTitle: string;
     allergenBody: string;
+    stationOps: string;
   };
   consume: {
     title: string;
@@ -283,6 +284,7 @@ const en: ScannerProdLabelsShape = {
     consumed: "consumed",
     allergenTitle: "Allergen gate",
     allergenBody: "Allergen controls apply to this work order.",
+    stationOps: "Your station",
   },
   consume: {
     title: "Consume",
@@ -495,6 +497,7 @@ const pl: ScannerProdLabelsShape = {
     consumed: "skonsumowane",
     allergenTitle: "Brama alergenowa",
     allergenBody: "Na tym WO obowiązują kontrole alergenów.",
+    stationOps: "Twoja stacja",
   },
   consume: {
     title: "Konsumpcja",

@@ -15,6 +15,15 @@ export type WoStatus =
   | "done"
   | "cancelled";
 
+export type WoStationOperation = {
+  id: string;
+  sequence: number;
+  operationName: string;
+  status: string;
+  lineId: string | null;
+  lineCode: string | null;
+};
+
 export type WoListItem = {
   id: string;
   woNumber: string;
@@ -33,6 +42,8 @@ export type WoListItem = {
   lineId: string | null;
   /** human-readable production-line code, e.g. "L1" */
   lineCode: string | null;
+  /** Routing operations staged on the scanner session line (multi-station WO). */
+  stationOperations?: WoStationOperation[];
 };
 
 export type WoListResponse = { ok: true; wos: WoListItem[] } | ApiError;
@@ -62,6 +73,7 @@ export type WoDetailResponse =
   | {
       ok: true;
       header: WoHeader;
+      stationOperations: WoStationOperation[];
       materials: WoMaterial[];
       allergenGate: boolean;
     }

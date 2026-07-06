@@ -2,7 +2,16 @@ import { NextRequest } from 'next/server';
 
 import { requireScannerSession } from '../../../../../../lib/scanner/guard';
 import { withTxnOrgContext } from '../../../../../../lib/scanner/txn-org-context';
-import { auditAttempt, getWoId, scannerError, scannerOk, type RouteContext } from '../../_support';
+import { auditAttempt, getWoId, scannerError, scannerOk, scannerStationOperationsSql, scannerWoVisibleOnLineSql, type RouteContext } from '../../_support';
+
+type StationOperationRow = {
+  id: string;
+  sequence: number;
+  operationName: string;
+  status: string;
+  lineId: string | null;
+  lineCode: string | null;
+};
 
 type HeaderRow = {
   id: string;
@@ -17,6 +26,7 @@ type HeaderRow = {
   scheduled_start: Date | string | null;
   line_id: string | null;
   line_code: string | null;
+  station_operations: StationOperationRow[] | string | null;
   produced_base_kg: string;
   produced_units: string | null;
   allergen_flag: boolean;
@@ -44,6 +54,20 @@ function iso(value: Date | string | null): string | null {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
+function parseStationOperations(value: StationOperationRow[] | string | null): StationOperationRow[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? (parsed as StationOperationRow[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export async function GET(request: NextRequest, context: RouteContext) {
   const woId = await getWoId(context);
 
@@ -67,6 +91,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
                 wo.scheduled_start_time as scheduled_start,
                 wo.production_line_id as line_id,
                 line.code as line_code,
+                ${scannerStationOperationsSql(2)} as station_operations,
                 coalesce((
                   select sum(out.qty_kg)::text
                     from public.wo_outputs out
@@ -112,7 +137,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
               wo.status = 'RELEASED'
               or exec.status in ('in_progress', 'paused')
             )
-            and ($2::uuid is null or wo.production_line_id = $2::uuid)
+            and ${scannerWoVisibleOnLineSql(2)}
           limit 1`,
           [woId, session.line_id],
         );
@@ -161,6 +186,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         ]);
 
         await auditAttempt(client, session, 'production.scanner.wos.detail', 'ok', { woId });
+        const stationOperations = parseStationOperations(header.station_operations);
         return scannerOk({
           header: {
             id: header.id,
@@ -178,6 +204,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
             producedBaseKg: header.produced_base_kg,
             producedUnits: header.produced_units,
           },
+          stationOperations,
           allergenGate: header.allergen_flag,
           materials: materialsRes.rows.map((row) => ({
             id: row.id,

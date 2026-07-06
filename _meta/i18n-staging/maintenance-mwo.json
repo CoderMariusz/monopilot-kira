@@ -109,7 +109,8 @@
         "interval": "Interval",
         "nextDue": "Next due",
         "lastCompleted": "Last completed",
-        "active": "Active"
+        "active": "Active",
+        "actions": "Actions"
       },
       "type": {
         "preventive": "Preventive",
@@ -123,7 +124,10 @@
         "usage_cycles": "cycles"
       },
       "activeYes": "Active",
-      "activeNo": "Inactive"
+      "activeNo": "Inactive",
+      "generateMwo": "Generate MWO",
+      "generating": "Generating…",
+      "generateFailed": "Could not generate the MWO from this schedule."
     }
   },
   "pl": {
@@ -236,7 +240,8 @@
         "interval": "Interwał",
         "nextDue": "Najbliższy termin",
         "lastCompleted": "Ostatnio wykonano",
-        "active": "Aktywny"
+        "active": "Aktywny",
+        "actions": "Akcje"
       },
       "type": {
         "preventive": "Zapobiegawczy",
@@ -250,7 +255,10 @@
         "usage_cycles": "cykli"
       },
       "activeYes": "Aktywny",
-      "activeNo": "Nieaktywny"
+      "activeNo": "Nieaktywny",
+      "generateMwo": "Utwórz MWO",
+      "generating": "Tworzenie…",
+      "generateFailed": "Nie udało się utworzyć MWO z tego harmonogramu."
     }
   }
 }

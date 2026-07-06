@@ -130,4 +130,46 @@ describe("WoListScreen — My line filter", () => {
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/en/scanner/login"));
   });
+
+  it('"My line" keeps a WO whose routing op matches the session line even when header line differs', async () => {
+    seedSession();
+    const multiLineWo = {
+      id: "wo-c",
+      woNumber: "WO-2026-0003",
+      status: "released",
+      itemCode: "PIZZA",
+      productName: "Margherita",
+      plannedQty: "50",
+      qtyEntered: null,
+      qtyEnteredUom: null,
+      uomSnapshot: null,
+      scheduledStart: null,
+      lineId: "line-oven",
+      lineCode: "OVEN",
+      stationOperations: [
+        {
+          id: "op-pack",
+          sequence: 3,
+          operationName: "Pack",
+          status: "pending",
+          lineId: "line-1",
+          lineCode: "PACK",
+        },
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, wos: [multiLineWo, ...WOS] }),
+      }),
+    );
+
+    renderScreen();
+
+    await waitFor(() => expect(screen.getByText("WO-2026-0003")).toBeInTheDocument());
+    expect(screen.getByText("Pack")).toBeInTheDocument();
+    expect(screen.queryByText("WO-2026-0002")).not.toBeInTheDocument();
+  });
 });

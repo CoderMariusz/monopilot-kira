@@ -175,6 +175,7 @@ const PERMS = { canCreate: true, canExecute: true, canCancel: true };
 
 function renderScreen(overrides: Partial<Parameters<typeof MwoListScreen>[0]> = {}) {
   const createMwoAction = vi.fn().mockResolvedValue({ ok: true, data: OPEN_ROW });
+  const generateMwoFromPmScheduleAction = vi.fn().mockResolvedValue({ ok: true, data: OPEN_ROW });
   const transitionMwoAction = vi.fn().mockResolvedValue({ ok: true, data: { ...OPEN_ROW, state: 'in_progress' } });
   const utils = render(
     <MwoListScreen
@@ -185,11 +186,12 @@ function renderScreen(overrides: Partial<Parameters<typeof MwoListScreen>[0]> = 
       labels={LABELS}
       permissions={PERMS}
       createMwoAction={createMwoAction}
+      generateMwoFromPmScheduleAction={generateMwoFromPmScheduleAction}
       transitionMwoAction={transitionMwoAction}
       {...overrides}
     />,
   );
-  return { ...utils, createMwoAction, transitionMwoAction };
+  return { ...utils, createMwoAction, generateMwoFromPmScheduleAction, transitionMwoAction };
 }
 
 beforeEach(() => {

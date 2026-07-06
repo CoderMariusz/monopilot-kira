@@ -89,7 +89,12 @@ export function WoListScreen({
     // the client-side guard for sessions with a line (and shows nothing when the
     // session has no line bound — there is no "my line" to match).
     if (filter === "my_line") {
-      rows = sessionLineId ? rows.filter((w) => w.lineId === sessionLineId) : [];
+      rows = sessionLineId
+        ? rows.filter(
+            (w) =>
+              w.lineId === sessionLineId || (w.stationOperations?.length ?? 0) > 0,
+          )
+        : [];
     }
     if (filter === "active") rows = rows.filter((w) => w.status === "inprog");
     if (q) {
@@ -182,6 +187,11 @@ export function WoListScreen({
                 <div style={{ marginTop: 4 }}>
                   <StatusChip status={w.status} label={statusLabel(w.status, labels)} />
                 </div>
+                {(w.stationOperations?.length ?? 0) > 0 ? (
+                  <div style={{ marginTop: 4, fontSize: 11, color: T.hint }}>
+                    {w.stationOperations!.map((op) => op.operationName).join(" · ")}
+                  </div>
+                ) : null}
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: 12, color: T.green, fontWeight: 700 }}>{qtyText(w, labels)}</div>

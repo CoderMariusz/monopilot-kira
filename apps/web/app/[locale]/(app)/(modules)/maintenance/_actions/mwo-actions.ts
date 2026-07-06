@@ -178,6 +178,10 @@ const createSchema = z.object({
   downtimeEventId: uuidSchema.optional(),
 });
 
+const generateFromScheduleSchema = z.object({
+  scheduleId: uuidSchema,
+});
+
 const transitionSchema = z.object({
   mwoId: uuidSchema,
   to: z.enum(['in_progress', 'completed', 'cancelled']),
@@ -245,6 +249,33 @@ function mapRow(r: MwoDbRow): MwoListRow {
     startedAt: toIso(r.started_at),
     completedAt: toIso(r.completed_at),
   };
+}
+
+type PlannedMwoType = 'preventive' | 'calibration' | 'sanitation' | 'inspection';
+
+function scheduleTypeToMwoType(scheduleType: PmScheduleRow['scheduleType']): PlannedMwoType {
+  return scheduleType;
+}
+
+function scheduleTypeToSource(scheduleType: PmScheduleRow['scheduleType']): MwoSource {
+  return scheduleType === 'calibration' ? 'calibration_alert' : 'pm_schedule';
+}
+
+async function allocateMwoNumber(ctx: MaintenanceContext): Promise<string> {
+  await ctx.client.query(
+    `select pg_advisory_xact_lock(hashtextextended('mwo_number:' || app.current_org_id()::text, 0))`,
+  );
+  const seq = await ctx.client.query<{ mwo_number: string }>(
+    `select 'MWO-' || to_char(pg_catalog.now(), 'YYYY') || '-' ||
+            lpad((coalesce(max(nullif(right(w.mwo_number, 5), '')::int), 0) + 1)::text, 5, '0')
+            as mwo_number
+       from public.maintenance_work_orders w
+      where w.org_id = app.current_org_id()
+        and w.mwo_number like 'MWO-' || to_char(pg_catalog.now(), 'YYYY') || '-%'`,
+  );
+  const mwoNumber = seq.rows[0]?.mwo_number;
+  if (!mwoNumber) throw new Error('mwo number allocation returned no row');
+  return mwoNumber;
 }
 
 // ── actions ───────────────────────────────────────────────────────────────────
@@ -461,21 +492,7 @@ export async function createMwo(input: {
       const equipmentRow = equipment.rows[0];
       if (!equipmentRow) return { ok: false, reason: 'not_found', message: 'equipment not found' };
 
-      // Per-org number allocation — advisory xact lock (released on commit),
-      // NO "FOR UPDATE + aggregate" (that combination is rejected by Postgres).
-      await ctx.client.query(
-        `select pg_advisory_xact_lock(hashtextextended('mwo_number:' || app.current_org_id()::text, 0))`,
-      );
-      const seq = await ctx.client.query<{ mwo_number: string }>(
-        `select 'MWO-' || to_char(pg_catalog.now(), 'YYYY') || '-' ||
-                lpad((coalesce(max(nullif(right(w.mwo_number, 5), '')::int), 0) + 1)::text, 5, '0')
-                as mwo_number
-           from public.maintenance_work_orders w
-          where w.org_id = app.current_org_id()
-            and w.mwo_number like 'MWO-' || to_char(pg_catalog.now(), 'YYYY') || '-%'`,
-      );
-      const mwoNumber = seq.rows[0]?.mwo_number;
-      if (!mwoNumber) throw new Error('mwo number allocation returned no row');
+      const mwoNumber = await allocateMwoNumber(ctx);
 
       const source: MwoSource = parsed.downtimeEventId ? 'auto_downtime' : 'manual_request';
 
@@ -528,6 +545,157 @@ export async function createMwo(input: {
           ...created,
           equipment_code: equipmentRow.equipment_code,
           equipment_name: equipmentRow.name,
+        }),
+      };
+    });
+  } catch (err) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Generate a planned MWO from a due PM schedule (PM→MWO bridge).
+ * Gate: mnt.mwo.request. Validates schedule is active, calendar-due, and has no
+ * open backlog MWO already linked. Emits source in PLANNED_MWO_SOURCES so the
+ * planned-vs-unplanned KPI is no longer structurally zero.
+ */
+export async function generateMwoFromPmSchedule(input: {
+  scheduleId: string;
+}): Promise<ActionResult<MwoListRow>> {
+  try {
+    const parsed = generateFromScheduleSchema.parse(input);
+    return await withOrgContext(async (ctx: MaintenanceContext): Promise<ActionResult<MwoListRow>> => {
+      if (!(await hasPermission(ctx, MNT_MWO_REQUEST_PERMISSION))) {
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      const scheduleRes = await ctx.client.query<{
+        id: string;
+        schedule_type: PmScheduleRow['scheduleType'];
+        site_id: string | null;
+        equipment_id: string;
+        equipment_code: string;
+        equipment_name: string;
+        next_due_date: string | null;
+        warning_days: number;
+        active: boolean;
+      }>(
+        `select s.id::text,
+                s.schedule_type,
+                s.site_id::text,
+                s.equipment_id::text,
+                e.equipment_code,
+                e.name as equipment_name,
+                s.next_due_date::text,
+                coalesce(s.warning_days, 7)::int as warning_days,
+                s.active
+           from public.maintenance_schedules s
+           join public.equipment e
+             on e.id = s.equipment_id
+            and e.org_id = s.org_id
+          where s.org_id = app.current_org_id()
+            and s.id = $1::uuid
+          limit 1`,
+        [parsed.scheduleId],
+      );
+      const schedule = scheduleRes.rows[0];
+      if (!schedule) return { ok: false, reason: 'not_found', message: 'schedule not found' };
+      if (!schedule.active) {
+        return { ok: false, reason: 'error', message: 'schedule is inactive' };
+      }
+      if (!schedule.next_due_date) {
+        return { ok: false, reason: 'error', message: 'schedule has no next due date' };
+      }
+
+      const dueCheck = await ctx.client.query<{ due: boolean }>(
+        `select ($1::date <= (pg_catalog.current_date + make_interval(days => $2::int))) as due`,
+        [schedule.next_due_date, schedule.warning_days],
+      );
+      if (!dueCheck.rows[0]?.due) {
+        return { ok: false, reason: 'error', message: 'schedule is not yet due' };
+      }
+
+      // Serialize concurrent generates for the same schedule before the duplicate
+      // check so two callers cannot both pass and insert open backlog MWOs.
+      await ctx.client.query(
+        `select pg_advisory_xact_lock(hashtext(app.current_org_id()::text || ':' || $1::text))`,
+        [parsed.scheduleId],
+      );
+
+      const existing = await ctx.client.query<{ id: string }>(
+        `select id::text
+           from public.maintenance_work_orders w
+          where w.org_id = app.current_org_id()
+            and w.schedule_id = $1::uuid
+            and w.state = any($2::text[])
+          limit 1`,
+        [parsed.scheduleId, OPEN_BACKLOG_STATES],
+      );
+      if (existing.rows[0]) {
+        return {
+          ok: false,
+          reason: 'error',
+          message: 'an open MWO already exists for this schedule',
+        };
+      }
+
+      const mwoType = scheduleTypeToMwoType(schedule.schedule_type);
+      const source = scheduleTypeToSource(schedule.schedule_type);
+      const priority: MwoPriority = schedule.schedule_type === 'calibration' ? 'high' : 'medium';
+      const title = `PM: ${schedule.equipment_code} — ${schedule.schedule_type.replace('_', ' ')}`;
+      const mwoNumber = await allocateMwoNumber(ctx);
+
+      const inserted = await ctx.client.query<MwoDbRow>(
+        `insert into public.maintenance_work_orders (
+           org_id, site_id, mwo_number, state, source, type, priority,
+           equipment_id, schedule_id, title, due_date,
+           requester_user_id, requester_reason, created_by, updated_by
+         )
+         values (
+           app.current_org_id(), $1::uuid, $2, 'open', $3, $4, $5,
+           $6::uuid, $7::uuid, $8, $9::date,
+           $10::uuid, $11, $10::uuid, $10::uuid
+         )
+         returning id::text, mwo_number, title, requester_reason, state, priority, source,
+                   equipment_id::text, null as equipment_code, null as equipment_name,
+                   due_date::text, created_at, started_at, completed_at`,
+        [
+          schedule.site_id,
+          mwoNumber,
+          source,
+          mwoType,
+          priority,
+          schedule.equipment_id,
+          parsed.scheduleId,
+          title,
+          schedule.next_due_date,
+          ctx.userId,
+          `Generated from PM schedule ${parsed.scheduleId}`,
+        ],
+      );
+      const created = inserted.rows[0];
+      if (!created) throw new Error('mwo insert did not return a row');
+
+      await writeOutbox(ctx, {
+        eventType: 'maintenance.mwo.created',
+        aggregateId: created.id,
+        payload: {
+          mwo_id: created.id,
+          mwo_number: created.mwo_number,
+          equipment_id: schedule.equipment_id,
+          equipment_code: schedule.equipment_code,
+          schedule_id: parsed.scheduleId,
+          priority,
+          source,
+        },
+      });
+
+      return {
+        ok: true,
+        data: mapRow({
+          ...created,
+          equipment_code: schedule.equipment_code,
+          equipment_name: schedule.equipment_name,
         }),
       };
     });

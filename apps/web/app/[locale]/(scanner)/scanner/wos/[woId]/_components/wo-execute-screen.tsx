@@ -29,7 +29,7 @@ import type { ScannerLabels } from "../../../../_components/scanner-labels";
 import type { ScannerProdLabels } from "../../../../_components/scanner-prod-labels";
 import { StatusChip, statusLabel } from "../../_components/status-chip";
 import { useWoFetch } from "../../_components/use-wo-fetch";
-import type { ApiError, WoDetailResponse, WoHeader, WoMaterial } from "../../_components/wo-types";
+import type { ApiError, WoDetailResponse, WoHeader, WoMaterial, WoStationOperation } from "../../_components/wo-types";
 import { toBaseQty, type OutputUom } from "../../../../../../../lib/uom/convert";
 
 type LoadState = "loading" | "ready" | "error" | "notfound";
@@ -56,6 +56,7 @@ export function WoExecuteScreen({
 
   const [state, setState] = useState<LoadState>("loading");
   const [header, setHeader] = useState<WoHeader | null>(null);
+  const [stationOperations, setStationOperations] = useState<WoStationOperation[]>([]);
   const [materials, setMaterials] = useState<WoMaterial[]>([]);
   const [allergenGate, setAllergenGate] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -89,6 +90,7 @@ export function WoExecuteScreen({
       return;
     }
     setHeader(data.header);
+    setStationOperations(data.stationOperations ?? []);
     setMaterials([...(data.materials ?? [])].sort((a, b) => a.sequence - b.sequence));
     setAllergenGate(!!data.allergenGate);
     setState("ready");
@@ -246,6 +248,17 @@ export function WoExecuteScreen({
                   <div style={{ marginTop: 8 }}>
                     <StatusChip status={header.status} label={statusLabel(header.status, labels)} />
                   </div>
+                  {stationOperations.length > 0 ? (
+                    <div
+                      data-testid="wo-station-operations"
+                      style={{ marginTop: 8, fontSize: 12, color: T.hint }}
+                    >
+                      {L.stationOps}:{" "}
+                      {stationOperations
+                        .map((op) => `${op.sequence}. ${op.operationName}`)
+                        .join(" · ")}
+                    </div>
+                  ) : null}
                 </div>
               </div>
               <div style={metaGridStyle}>

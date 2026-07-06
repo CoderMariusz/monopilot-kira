@@ -161,6 +161,10 @@ export type MwoListLabels = {
     intervalUnit: Record<PmScheduleRow['intervalBasis'], string>;
     activeYes: string;
     activeNo: string;
+    generateMwo: string;
+    generating: string;
+    generateFailed: string;
+    colActions: string;
   };
 };
 
@@ -181,6 +185,8 @@ export type CreateMwoAction = (input: {
   priority: MwoPriority;
   dueDate?: string;
 }) => Promise<CreateResult>;
+
+export type GenerateMwoFromPmScheduleAction = (input: { scheduleId: string }) => Promise<CreateResult>;
 
 export type TransitionMwoAction = (input: {
   mwoId: string;
@@ -214,6 +220,7 @@ export function MwoListScreen({
   labels,
   permissions,
   createMwoAction,
+  generateMwoFromPmScheduleAction,
   transitionMwoAction,
 }: {
   rows: MwoListRow[];
@@ -224,6 +231,7 @@ export function MwoListScreen({
   labels: MwoListLabels;
   permissions: MwoActionPermissions;
   createMwoAction: CreateMwoAction;
+  generateMwoFromPmScheduleAction: GenerateMwoFromPmScheduleAction;
   transitionMwoAction: TransitionMwoAction;
 }) {
   const router = useRouter();
@@ -343,7 +351,13 @@ export function MwoListScreen({
       </div>
 
       {view === 'pm' ? (
-        <PmScheduleList pmSchedules={pmSchedules} labels={labels} />
+        <PmScheduleList
+          pmSchedules={pmSchedules}
+          labels={labels}
+          canGenerate={permissions.canCreate}
+          generateMwoFromPmScheduleAction={generateMwoFromPmScheduleAction}
+          onGenerated={() => router.refresh()}
+        />
       ) : (
         <>
           <p data-testid="mwo-count-line" className="text-xs text-slate-500">

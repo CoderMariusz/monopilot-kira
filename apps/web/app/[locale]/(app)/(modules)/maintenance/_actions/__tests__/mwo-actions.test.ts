@@ -10,12 +10,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createMwo, listMwos, listPmSchedules, transitionMwo } from '../mwo-actions';
+import { createMwo, generateMwoFromPmSchedule, listMwos, listPmSchedules, transitionMwo } from '../mwo-actions';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const EQUIPMENT_ID = '33333333-3333-4333-8333-333333333333';
 const MWO_ID = '44444444-4444-4444-8444-444444444444';
+const SCHEDULE_ID = '55555555-5555-4555-8555-555555555555';
+const SITE_ID = '77777777-7777-4777-8777-777777777777';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -27,6 +29,7 @@ type QueryClient = {
 let grantedPermissions: Set<string>;
 let equipmentExists = true;
 let currentState = 'open';
+let duplicateOpenMwo = false;
 let client: QueryClient;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
@@ -100,22 +103,39 @@ function makeClient(): QueryClient {
         return { rows: [{ mwo_number: 'MWO-2026-00002' }], rowCount: 1 };
       }
 
-      // createMwo: insert.
+      // createMwo / generateMwoFromPmSchedule: insert.
       if (normalized.startsWith('insert into public.maintenance_work_orders')) {
+        const hasSiteId = normalized.includes('site_id');
+        const typeIdx = hasSiteId ? 3 : 2;
+        const plannedType = String(params?.[typeIdx] ?? '');
+        const isPlannedInsert = ['preventive', 'calibration', 'sanitation', 'inspection'].includes(plannedType);
+        const equipmentParam = isPlannedInsert ? (hasSiteId ? params?.[5] : params?.[4]) : params?.[3];
         return {
           rows: [
             {
               id: MWO_ID,
               mwo_number: 'MWO-2026-00002',
-              title: params?.[5],
-              requester_reason: params?.[8],
+              title: isPlannedInsert
+                ? hasSiteId
+                  ? params?.[7]
+                  : params?.[6]
+                : params?.[5],
+              requester_reason: isPlannedInsert
+                ? hasSiteId
+                  ? params?.[10]
+                  : params?.[9]
+                : params?.[8],
               state: 'open',
-              priority: params?.[2],
-              source: params?.[1],
-              equipment_id: params?.[3],
+              priority: isPlannedInsert ? (hasSiteId ? params?.[4] : params?.[3]) : params?.[2],
+              source: hasSiteId ? params?.[2] : params?.[1],
+              equipment_id: equipmentParam,
               equipment_code: null,
               equipment_name: null,
-              due_date: params?.[6],
+              due_date: isPlannedInsert
+                ? hasSiteId
+                  ? params?.[8]
+                  : params?.[7]
+                : params?.[6],
               created_at: new Date('2026-06-11T09:00:00Z'),
               started_at: null,
               completed_at: null,
@@ -163,11 +183,11 @@ function makeClient(): QueryClient {
       }
 
       // listPmSchedules.
-      if (normalized.includes('from public.maintenance_schedules s')) {
+      if (normalized.includes('from public.maintenance_schedules s') && normalized.includes('order by s.next_due_date')) {
         return {
           rows: [
             {
-              id: '55555555-5555-4555-8555-555555555555',
+              id: SCHEDULE_ID,
               schedule_type: 'preventive',
               interval_basis: 'calendar_days',
               interval_value: 30,
@@ -180,6 +200,38 @@ function makeClient(): QueryClient {
           ],
           rowCount: 1,
         };
+      }
+
+      // generateMwoFromPmSchedule: schedule lookup.
+      if (normalized.includes('from public.maintenance_schedules s') && normalized.includes('join public.equipment e')) {
+        return {
+          rows: [
+            {
+              id: SCHEDULE_ID,
+              schedule_type: 'preventive',
+              site_id: SITE_ID,
+              equipment_id: EQUIPMENT_ID,
+              equipment_code: 'EQ-01',
+              equipment_name: 'Mixer 1',
+              next_due_date: '2026-07-01',
+              warning_days: 7,
+              active: true,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      // generateMwoFromPmSchedule: due window check.
+      if (normalized.includes('make_interval(days =>')) {
+        return { rows: [{ due: true }], rowCount: 1 };
+      }
+
+      // generateMwoFromPmSchedule: duplicate guard.
+      if (normalized.includes('w.schedule_id = $1::uuid')) {
+        return duplicateOpenMwo
+          ? { rows: [{ id: MWO_ID }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
       }
 
       return { rows: [], rowCount: 0 };
@@ -200,6 +252,7 @@ beforeEach(() => {
   ]);
   equipmentExists = true;
   currentState = 'open';
+  duplicateOpenMwo = false;
   client = makeClient();
 });
 
@@ -441,5 +494,70 @@ describe('listPmSchedules', () => {
       active: true,
       equipmentCode: 'EQ-01',
     });
+  });
+});
+
+describe('generateMwoFromPmSchedule', () => {
+  it('creates a planned preventive MWO with source=pm_schedule and schedule_id link', async () => {
+    const result = await generateMwoFromPmSchedule({ scheduleId: SCHEDULE_ID });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data).toMatchObject({
+      mwoNumber: 'MWO-2026-00002',
+      state: 'open',
+      equipmentId: EQUIPMENT_ID,
+      equipmentCode: 'EQ-01',
+    });
+
+    const insert = calls().find((c) => c.sql.startsWith('insert into public.maintenance_work_orders'));
+    expect(insert?.params?.[0]).toBe(SITE_ID);
+    expect(insert?.params?.[2]).toBe('pm_schedule');
+    expect(insert?.params?.[3]).toBe('preventive');
+    expect(insert?.params?.[6]).toBe(SCHEDULE_ID);
+
+    const outbox = calls().find((c) => c.sql.startsWith('insert into public.outbox_events'));
+    expect(String(outbox?.params?.[2])).toContain('"source":"pm_schedule"');
+    expect(String(outbox?.params?.[2])).toContain(`"schedule_id":"${SCHEDULE_ID}"`);
+  });
+
+  it('takes a schedule-scoped advisory lock before the duplicate check and number allocation', async () => {
+    await generateMwoFromPmSchedule({ scheduleId: SCHEDULE_ID });
+
+    const sqls = calls().map((c) => c.sql);
+    const scheduleLockIdx = sqls.findIndex(
+      (s) => s.includes('pg_advisory_xact_lock') && s.includes("app.current_org_id()::text || ':'"),
+    );
+    const duplicateIdx = sqls.findIndex((s) => s.includes('w.schedule_id = $1::uuid'));
+    const numberLockIdx = sqls.findIndex((s) => s.includes("hashtextextended('mwo_number:'"));
+
+    expect(scheduleLockIdx).toBeGreaterThanOrEqual(0);
+    expect(scheduleLockIdx).toBeLessThan(duplicateIdx);
+    expect(scheduleLockIdx).toBeLessThan(numberLockIdx);
+
+    const scheduleLock = calls()[scheduleLockIdx];
+    expect(scheduleLock?.params?.[0]).toBe(SCHEDULE_ID);
+  });
+
+  it('rejects when an open backlog MWO already exists for the schedule', async () => {
+    duplicateOpenMwo = true;
+
+    const result = await generateMwoFromPmSchedule({ scheduleId: SCHEDULE_ID });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'an open MWO already exists for this schedule',
+    });
+    expect(calls().some((c) => c.sql.includes("'mwo-' || to_char"))).toBe(false);
+    expect(calls().some((c) => c.sql.startsWith('insert into public.maintenance_work_orders'))).toBe(false);
+  });
+
+  it('forbids callers without mnt.mwo.request', async () => {
+    grantedPermissions.delete('mnt.mwo.request');
+
+    const result = await generateMwoFromPmSchedule({ scheduleId: SCHEDULE_ID });
+
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
   });
 });

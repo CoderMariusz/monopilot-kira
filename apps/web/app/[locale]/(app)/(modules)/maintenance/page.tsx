@@ -23,6 +23,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import {
   createMwo,
+  generateMwoFromPmSchedule,
   getMwoPermissions,
   getMwoOverviewStats,
   listEquipmentForMwo,
@@ -174,6 +175,10 @@ function buildLabels(t: MaintenanceTranslator): MwoListLabels {
       },
       activeYes: t('pm.activeYes'),
       activeNo: t('pm.activeNo'),
+      generateMwo: t('pm.generateMwo'),
+      generating: t('pm.generating'),
+      generateFailed: t('pm.generateFailed'),
+      colActions: t('pm.col.actions'),
     },
   };
 }
@@ -240,6 +245,7 @@ async function ListContent({ locale }: { locale: string }) {
         canCancel: permissions.canCancel,
       }}
       createMwoAction={createMwo}
+      generateMwoFromPmScheduleAction={generateMwoFromPmSchedule}
       transitionMwoAction={transitionMwo}
     />
   );

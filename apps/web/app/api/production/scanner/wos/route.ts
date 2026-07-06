@@ -2,7 +2,22 @@ import { NextRequest } from 'next/server';
 
 import { requireScannerSession } from '../../../../../lib/scanner/guard';
 import { withTxnOrgContext } from '../../../../../lib/scanner/txn-org-context';
-import { auditAttempt, scannerError, scannerOk } from '../_support';
+import {
+  auditAttempt,
+  scannerError,
+  scannerOk,
+  scannerStationOperationsSql,
+  scannerWoVisibleOnLineSql,
+} from '../_support';
+
+type StationOperationRow = {
+  id: string;
+  sequence: number;
+  operationName: string;
+  status: string;
+  lineId: string | null;
+  lineCode: string | null;
+};
 
 type WoListRow = {
   id: string;
@@ -17,11 +32,26 @@ type WoListRow = {
   scheduled_start: Date | string | null;
   line_id: string | null;
   line_code: string | null;
+  station_operations: StationOperationRow[] | string | null;
 };
 
 function iso(value: Date | string | null): string | null {
   if (!value) return null;
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function parseStationOperations(value: StationOperationRow[] | string | null): StationOperationRow[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? (parsed as StationOperationRow[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 export async function GET(request: NextRequest) {
@@ -44,7 +74,8 @@ export async function GET(request: NextRequest) {
                 wo.uom_snapshot,
                 wo.scheduled_start_time as scheduled_start,
                 wo.production_line_id as line_id,
-                line.code as line_code
+                line.code as line_code,
+                ${scannerStationOperationsSql(1)} as station_operations
            from public.work_orders wo
            left join public.wo_executions exec
              on exec.wo_id = wo.id
@@ -61,7 +92,7 @@ export async function GET(request: NextRequest) {
               wo.status = 'RELEASED'
               or exec.status in ('in_progress', 'paused')
             )
-            and ($1::uuid is null or wo.production_line_id = $1::uuid)
+            and ${scannerWoVisibleOnLineSql(1)}
           order by (wo.scheduled_start_time is null) asc,
                    wo.scheduled_start_time asc,
                    wo.wo_number asc`,
@@ -71,20 +102,24 @@ export async function GET(request: NextRequest) {
 
       await auditAttempt(client, session, 'production.scanner.wos.list', 'ok', { count: rows.length });
       return scannerOk({
-        wos: rows.map((row) => ({
-          id: row.id,
-          woNumber: row.wo_number,
-          status: row.status,
-          itemCode: row.item_code,
-          productName: row.product_name,
-          plannedQty: row.planned_qty,
-          qtyEntered: row.qty_entered,
-          qtyEnteredUom: row.qty_entered_uom,
-          uomSnapshot: row.uom_snapshot,
-          scheduledStart: iso(row.scheduled_start),
-          lineId: row.line_id,
-          lineCode: row.line_code,
-        })),
+        wos: rows.map((row) => {
+          const stationOps = parseStationOperations(row.station_operations);
+          return {
+            id: row.id,
+            woNumber: row.wo_number,
+            status: row.status,
+            itemCode: row.item_code,
+            productName: row.product_name,
+            plannedQty: row.planned_qty,
+            qtyEntered: row.qty_entered,
+            qtyEnteredUom: row.qty_entered_uom,
+            uomSnapshot: row.uom_snapshot,
+            scheduledStart: iso(row.scheduled_start),
+            lineId: row.line_id,
+            lineCode: row.line_code,
+            stationOperations: stationOps,
+          };
+        }),
       });
     } catch (error) {
       await auditAttempt(client, session, 'production.scanner.wos.list', 'error', {

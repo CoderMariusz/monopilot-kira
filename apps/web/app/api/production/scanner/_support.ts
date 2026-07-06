@@ -99,6 +99,59 @@ export function requiredClientOpId(body: Record<string, unknown>): string | null
   return stringField(body, 'clientOpId');
 }
 
+/**
+ * Scanner WO visibility for a session-bound production line: match the WO header
+ * line OR any routing operation staged on that line (multi-station pizza flow).
+ */
+export function scannerWoVisibleOnLineSql(lineParamIndex: number, woAlias = 'wo'): string {
+  const p = `$${lineParamIndex}`;
+  return `(${p}::uuid is null or ${woAlias}.production_line_id = ${p}::uuid or exists (
+    select 1
+      from public.wo_operations wop
+     where wop.org_id = ${woAlias}.org_id
+       and wop.wo_id = ${woAlias}.id
+       and wop.line_id = ${p}::uuid
+  ))`;
+}
+
+/** Same predicate when the work_orders table is not aliased. */
+export function scannerWorkOrderVisibleOnLineSql(lineParamIndex: number): string {
+  const p = `$${lineParamIndex}`;
+  return `(${p}::uuid is null or production_line_id = ${p}::uuid or exists (
+    select 1
+      from public.wo_operations wop
+     where wop.org_id = work_orders.org_id
+       and wop.wo_id = work_orders.id
+       and wop.line_id = ${p}::uuid
+  ))`;
+}
+
+/** JSON aggregate of wo_operations rows for the scanner session line (detail/list). */
+export function scannerStationOperationsSql(lineParamIndex: number, woAlias = 'wo'): string {
+  const p = `$${lineParamIndex}`;
+  return `coalesce((
+    select json_agg(
+             json_build_object(
+               'id', wop.id::text,
+               'sequence', wop.sequence,
+               'operationName', wop.operation_name,
+               'status', wop.status,
+               'lineId', wop.line_id::text,
+               'lineCode', pl.code
+             )
+             order by wop.sequence
+           )
+      from public.wo_operations wop
+      left join public.production_lines pl
+        on pl.id = wop.line_id
+       and pl.org_id = wop.org_id
+     where wop.org_id = ${woAlias}.org_id
+       and wop.wo_id = ${woAlias}.id
+       and ${p}::uuid is not null
+       and wop.line_id = ${p}::uuid
+  ), '[]'::json)`;
+}
+
 export type ParsedClientOpId =
   | { ok: true; clientOpId: string }
   | { ok: false; error: 'missing_fields' | 'invalid_client_op_id' };
