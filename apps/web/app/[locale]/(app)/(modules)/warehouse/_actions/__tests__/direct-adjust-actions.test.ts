@@ -134,8 +134,15 @@ function makeClient(behavior: Behavior = {}): QueryClient {
       }
       if (n.startsWith('insert into public.stock_moves')) return { rows: [], rowCount: 1 };
       if (n.startsWith('insert into public.lp_state_history')) return { rows: [], rowCount: 1 };
-      if (n.startsWith('select ($2::numeric * coalesce') && n.includes('from public.item_wac_state wac')) {
-        const qty = Number(params?.[1] ?? 0);
+      if (n.includes('from public.items i') && n.includes('as qty_kg')) {
+        return { rows: [{ qty_kg: String(params?.[0] ?? '0'), resolved: true }], rowCount: 1 };
+      }
+      if (n.includes('with existing as materialized') && n.includes('avg_cost_used')) {
+        const qty = Number(params?.[2] ?? 0);
+        return { rows: [{ avg_cost_used: wacAvgCost, value_debited: String(qty * Number(wacAvgCost)) }], rowCount: 1 };
+      }
+      if (n.includes('with existing as materialized') && n.includes('delta_value')) {
+        const qty = Number(params?.[2] ?? 0);
         return { rows: [{ delta_value: String(qty * Number(wacAvgCost)) }], rowCount: 1 };
       }
       if (n.includes('insert into public.item_wac_state')) {
@@ -216,11 +223,22 @@ describe('applyDirectAdjustment — write paths', () => {
     const extParam = move!.params.find((p) => typeof p === 'string' && p.includes('stock_adjustment_id')) as string;
     expect(extParam).not.toContain('supervisor_approved_by');
 
-    const wacRead = findCall('from public.item_wac_state wac', 'wac.currency_id = (select id from public.currencies where code =');
+    const wacRead = findCall('with existing as materialized', 'delta_value');
     const wacWrite = findCall('insert into public.item_wac_state');
-    expect(wacRead?.params).toEqual([ITEM_ID, '3']);
-    expect(wacWrite?.params).toEqual([ORG_ID, ITEM_ID, '3', '12.75', USER_ID]);
+    expect(wacRead?.params).toEqual([ORG_ID, ITEM_ID, '3', 'GBP']);
+    expect(wacWrite?.params).toEqual([ORG_ID, ITEM_ID, '3', '12.75', USER_ID, null, 'GBP']);
     expect(calls.indexOf(wacWrite!)).toBeGreaterThan(calls.indexOf(findCall('insert into public.lp_state_history')!));
+  });
+
+  it('(a2) box UoM increase resolves kg before crediting WAC', async () => {
+    client = makeClient();
+    const result = await applyDirectAdjustment(input({ direction: 'increase', quantity: '2', uom: 'box' }));
+    expect(result.ok).toBe(true);
+
+    const resolve = findCall('from public.items i', 'as qty_kg');
+    expect(resolve?.params).toEqual(['2', 'box', ITEM_ID]);
+    const wacWrite = findCall('insert into public.item_wac_state');
+    expect(wacWrite?.params?.[2]).toBe('2');
   });
 
   it('(b) successful decrease writes a NEGATIVE move quantity and selects FEFO-ordered legs', async () => {
@@ -244,10 +262,11 @@ describe('applyDirectAdjustment — write paths', () => {
     expect(extParam).toContain('supervisor_approved_by');
     expect(extParam).toContain(SUPERVISOR_ID);
 
-    const wacRead = findCall('from public.item_wac_state wac', 'wac.currency_id = (select id from public.currencies where code =');
+    const wacRead = findCall('with existing as materialized', 'avg_cost_used');
     const wacWrite = findCall('insert into public.item_wac_state');
-    expect(wacRead?.params).toEqual([ITEM_ID, '-2']);
-    expect(wacWrite?.params).toEqual([ORG_ID, ITEM_ID, '-2', '-8.5', USER_ID]);
+    expect(wacRead?.params).toEqual([ORG_ID, ITEM_ID, '2', 'GBP']);
+    expect(wacWrite?.params?.[2]).toBe('-2');
+    expect(wacWrite?.params).toEqual([ORG_ID, ITEM_ID, '-2', '-8.5', USER_ID, null, 'GBP']);
     expect(calls.indexOf(wacWrite!)).toBeGreaterThan(calls.indexOf(findCall('insert into public.lp_state_history')!));
   });
 

@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { debitWac } from '../../../../../../../../lib/finance/upsert-wac';
 import {
   asTrimmed,
   hasWarehousePermission,
@@ -653,6 +654,14 @@ export async function destroyLp(lpIdInput: string, reasonInput: string, clientOp
           referenceId: lp.id,
           referenceType: 'license_plate',
           ext: { destroyed_lp_id: lp.id },
+        });
+        await debitWac(ctx.client, {
+          orgId: ctx.orgId,
+          siteId: lp.site_id,
+          itemId: lp.product_id,
+          qty: lp.quantity,
+          uom: lp.uom,
+          updatedBy: ctx.userId,
         });
       }
 

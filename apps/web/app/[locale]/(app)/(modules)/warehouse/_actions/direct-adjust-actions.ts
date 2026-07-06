@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { verifyPin } from '../../../../../../../../packages/auth/src/verify-pin.js';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { upsertWac } from '../../../../../../lib/finance/upsert-wac';
+import { creditWacAtAvgCost, debitWac } from '../../../../../../lib/finance/upsert-wac';
 import { microToDecimal, toMicro } from '../../../../../../lib/shared/decimal';
 import { makeLpNumber, makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import {
@@ -427,35 +427,34 @@ async function insertLpStateHistory(
   );
 }
 
-async function readWacDeltaValue(
+async function applyAdjustmentWac(
   ctx: WarehouseContext,
-  input: { itemId: string; signedDeltaQtyKg: string },
-): Promise<string> {
-  const { rows } = await ctx.client.query<{ delta_value: string }>(
-    `select ($2::numeric * coalesce((
-              select wac.avg_cost
-                from public.item_wac_state wac
-               where wac.org_id = app.current_org_id()
-                 and wac.item_id = $1::uuid
-                 and wac.currency_id = (select id from public.currencies where code = 'GBP')
-               limit 1
-            ), 0))::text as delta_value`,
-    [input.itemId, input.signedDeltaQtyKg],
-  );
-  return rows[0]?.delta_value ?? '0';
-}
-
-async function upsertAdjustmentWac(
-  ctx: WarehouseContext,
-  input: { itemId: string; signedDeltaQtyKg: string },
+  input: {
+    siteId: string | null;
+    itemId: string;
+    direction: 'increase' | 'decrease';
+    quantity: string;
+    uom: string;
+  },
 ): Promise<void> {
-  const deltaValue = await readWacDeltaValue(ctx, input);
-  await upsertWac(ctx.client, {
+  if (input.direction === 'increase') {
+    await creditWacAtAvgCost(ctx.client, {
+      orgId: ctx.orgId,
+      siteId: input.siteId,
+      itemId: input.itemId,
+      qty: input.quantity,
+      uom: input.uom,
+      updatedBy: ctx.userId,
+    });
+    return;
+  }
+
+  await debitWac(ctx.client, {
     orgId: ctx.orgId,
-    siteId: null,
+    siteId: input.siteId,
     itemId: input.itemId,
-    deltaQtyKg: input.signedDeltaQtyKg,
-    deltaValue,
+    qty: input.quantity,
+    uom: input.uom,
     updatedBy: ctx.userId,
   });
 }
@@ -639,9 +638,12 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
           transactionId: uuidFromSeed(`${parsed.data.clientOpId}:lp_state:${newLpId}`),
           ext: { stock_adjustment_id: adjustmentId, quantity_after: quantity, esign_ref: signatureReceipt.signatureId },
         });
-        await upsertAdjustmentWac(ctx, {
+        await applyAdjustmentWac(ctx, {
+          siteId,
           itemId: parsed.data.itemId,
-          signedDeltaQtyKg: quantity,
+          direction: parsed.data.direction,
+          quantity,
+          uom: parsed.data.uom,
         });
         return { ok: true, data: { adjustmentId, lpId: newLpId } };
       }
@@ -709,9 +711,12 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
         });
       }
 
-      await upsertAdjustmentWac(ctx, {
+      await applyAdjustmentWac(ctx, {
+        siteId: legs[0]?.lp.site_id ?? null,
         itemId: parsed.data.itemId,
-        signedDeltaQtyKg: microToDecimal(-toMicro(quantity)),
+        direction: parsed.data.direction,
+        quantity,
+        uom: parsed.data.uom,
       });
       // Non-null assertions are safe: legs.length was guarded > 0 before signEvent,
       // so the loop ran at least once and set both firstAdjustmentId and firstLpId.

@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { signEvent, type ESignTxOptions } from '@monopilot/e-sign';
 import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { creditWacAtAvgCost, debitWac } from '../../../../../../../lib/finance/upsert-wac';
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { makeLpNumber, makeStockMoveNumber } from '../../../../../../../lib/warehouse/lp-create';
 import { microToDecimal, toMicro } from '../../../../../../../lib/shared/decimal';
@@ -1216,6 +1217,41 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
       lpId: adjustedLpId,
       esignRef: signatureReceipt.signatureId,
     });
+
+    const varianceUom =
+      adjustmentLegs[0]?.uom ??
+      (await resolveAdjustmentUom(ctx.client, {
+        itemId: countLineForApply.item_id,
+        locationId: countLineForApply.location_id,
+        lpId: countLineForApply.lp_id,
+      }));
+    const varianceSiteId =
+      adjustmentLegs[0]?.siteId ??
+      (await resolveAdjustmentSiteId(ctx.client, {
+        sessionSiteId: countLineForApply.session_site_id,
+        warehouseId: countLineForApply.warehouse_id,
+        locationId: countLineForApply.location_id,
+        lpId: countLineForApply.lp_id,
+      }));
+    if (direction === 'increase') {
+      await creditWacAtAvgCost(ctx.client, {
+        orgId: ctx.orgId,
+        siteId: varianceSiteId,
+        itemId: countLineForApply.item_id,
+        qty: adjustmentQty,
+        uom: varianceUom,
+        updatedBy: ctx.userId,
+      });
+    } else {
+      await debitWac(ctx.client, {
+        orgId: ctx.orgId,
+        siteId: varianceSiteId,
+        itemId: countLineForApply.item_id,
+        qty: adjustmentQty,
+        uom: varianceUom,
+        updatedBy: ctx.userId,
+      });
+    }
 
     await ctx.client.query(
       `update public.count_lines

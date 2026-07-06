@@ -130,6 +130,16 @@ function makeClient(): QueryClient {
       if (q.startsWith('insert into public.lp_genealogy')) return { rows: [], rowCount: 1 };
       if (q.startsWith('insert into public.lp_state_history')) return { rows: [], rowCount: 1 };
       if (q.startsWith('insert into public.stock_moves')) return { rows: [], rowCount: 1 };
+      if (q.includes('from public.items i') && q.includes('as qty_kg')) {
+        return { rows: [{ qty_kg: String(params?.[0] ?? '0'), resolved: true }], rowCount: 1 };
+      }
+      if (q.includes('with existing as materialized') && q.includes('avg_cost_used')) {
+        const qty = Number(params?.[2] ?? 0);
+        return { rows: [{ avg_cost_used: '10', value_debited: String(qty * 10) }], rowCount: 1 };
+      }
+      if (q.includes('insert into public.item_wac_state')) {
+        return { rows: [{ totalQtyKg: '0', totalValue: '0', clamped: false }], rowCount: 1 };
+      }
 
       return { rows: [], rowCount: 0 };
     }),
@@ -253,6 +263,8 @@ describe('LP split/merge/destroy server actions', () => {
     const move = calls.find((call) => call.sql.startsWith('insert into public.stock_moves'));
     expect(move?.params?.[3]).toBe('adjustment');
     expect(move?.params?.[6]).toBe('-10.000000');
+    const wacWrite = calls.find((call) => call.sql.includes('insert into public.item_wac_state'));
+    expect(wacWrite?.params).toEqual([ORG_ID, PRODUCT_ID, '-10.000000', '-100', USER_ID, SITE_ID, 'GBP']);
   });
 
   it('destroyLp rejects LPs with reserved quantity before writes', async () => {

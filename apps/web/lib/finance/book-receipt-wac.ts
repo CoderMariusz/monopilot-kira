@@ -1,4 +1,4 @@
-import { resolveWacDeltaQtyKg, upsertWac } from './upsert-wac';
+import { resolveWacDeltaQtyKg, upsertWac, WAC_VALUATION_CURRENCY_CODE } from './upsert-wac';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -65,6 +65,7 @@ export async function bookReceiptWacAfterGrnItem(
     deltaQtyKg: receivedQtyKg,
     deltaValue: receivedValue,
     updatedBy: ctx.userId,
+    currencyCode: WAC_VALUATION_CURRENCY_CODE,
   });
   await client.query(
     `update public.grn_items
@@ -86,10 +87,15 @@ async function loadLineUnitPrice(
   client: QueryClient,
   orgId: string,
   poLineId: string,
-): Promise<{ item_id: string; unit_price: string } | null> {
-  const { rows } = await client.query<{ item_id: string; unit_price: string }>(
-    `select pol.item_id::text, pol.unit_price::text as unit_price
+): Promise<{ item_id: string; unit_price: string; currency: string } | null> {
+  const { rows } = await client.query<{ item_id: string; unit_price: string; currency: string }>(
+    `select pol.item_id::text,
+            pol.unit_price::text as unit_price,
+            po.currency
        from public.purchase_order_lines pol
+       join public.purchase_orders po
+         on po.org_id = pol.org_id
+        and po.id = pol.po_id
       where pol.org_id = $1::uuid
         and pol.id = $2::uuid
       limit 1`,

@@ -12,7 +12,61 @@ type UpsertWacInput = {
   deltaQtyKg: string;
   deltaValue: string;
   updatedBy: string;
+  /** ISO currency code for the WAC bucket; defaults to GBP when omitted. */
+  currencyCode?: string;
 };
+
+/** Org valuation currency for all WAC buckets (single-currency; no FX). */
+export const WAC_VALUATION_CURRENCY_CODE = 'GBP';
+
+const DEFAULT_WAC_CURRENCY_CODE = WAC_VALUATION_CURRENCY_CODE;
+
+/** Coherent clamp: zero value only when qty is zero; keep positive qty even at zero value. */
+const WAC_COHERENT_FINAL_CTE = `coherent as (
+       select greatest(raw_qty_kg, 0) as coerced_qty,
+              greatest(raw_value, 0) as coerced_value,
+              raw_qty_kg,
+              raw_value
+         from computed
+     ),
+     final as (
+       select coerced_qty as total_qty_kg,
+              case when coerced_qty = 0 then 0 else coerced_value end as total_value,
+              (
+                raw_qty_kg < 0
+                or raw_value < 0
+                or (greatest(raw_qty_kg, 0) = 0 and greatest(raw_value, 0) > 0)
+              ) as clamped
+         from coherent
+     )`;
+
+const WAC_COHERENT_CONFLICT_QTY = `(
+       with computed as (
+         select public.item_wac_state.total_qty_kg + $3::numeric as raw_qty_kg,
+                public.item_wac_state.total_value + $4::numeric as raw_value
+       ),
+       coherent as (
+         select greatest(raw_qty_kg, 0) as coerced_qty,
+                greatest(raw_value, 0) as coerced_value
+           from computed
+       )
+       select coerced_qty
+         from coherent
+     )`;
+
+const WAC_COHERENT_CONFLICT_VALUE = `(
+       with computed as (
+         select public.item_wac_state.total_qty_kg + $3::numeric as raw_qty_kg,
+                public.item_wac_state.total_value + $4::numeric as raw_value
+       ),
+       coherent as (
+         select greatest(raw_qty_kg, 0) as coerced_qty,
+                greatest(raw_value, 0) as coerced_value
+           from computed
+       )
+       select case when coerced_qty = 0 then 0 else coerced_value end
+         from coherent
+     )`;
 
 type WacUpdateResult = {
   totalQtyKg: string;
@@ -23,7 +77,7 @@ type WacUpdateResult = {
 
 export async function upsertWac(
   client: QueryClient,
-  { orgId, itemId, deltaQtyKg, deltaValue, updatedBy }: UpsertWacInput,
+  { orgId, siteId, itemId, deltaQtyKg, deltaValue, updatedBy, currencyCode = DEFAULT_WAC_CURRENCY_CODE }: UpsertWacInput,
 ): Promise<WacUpdateResult> {
   if (isZeroDecimalString(deltaQtyKg) && !isZeroDecimalString(deltaValue)) {
     console.warn('[wac] unresolved_uom', { orgId, itemId, deltaQtyKg, deltaValue });
@@ -34,8 +88,8 @@ export async function upsertWac(
          from public.item_wac_state
         where org_id = $1::uuid
           and item_id = $2::uuid
-          and currency_id = (select id from public.currencies where code = 'GBP')`,
-      [orgId, itemId],
+          and currency_id = (select id from public.currencies where code = $3::text)`,
+      [orgId, itemId, currencyCode],
     );
     return { ...(rows[0] ?? { totalQtyKg: '0', totalValue: '0', clamped: false }), excluded: 'unresolved_uom' };
   }
@@ -46,42 +100,41 @@ export async function upsertWac(
          from public.item_wac_state
         where org_id = $1::uuid
           and item_id = $2::uuid
-          and currency_id = (select id from public.currencies where code = 'GBP')
+          and currency_id = (select id from public.currencies where code = $7::text)
         for update
      ),
      computed as (
-       select greatest(coalesce((select total_qty_kg from existing), 0) + $3::numeric, 0) as total_qty_kg,
-              greatest(coalesce((select total_value from existing), 0) + $4::numeric, 0) as total_value,
-              (
-                coalesce((select total_qty_kg from existing), 0) + $3::numeric < 0
-                or coalesce((select total_value from existing), 0) + $4::numeric < 0
-              ) as clamped
+       select coalesce((select total_qty_kg from existing), 0) + $3::numeric as raw_qty_kg,
+              coalesce((select total_value from existing), 0) + $4::numeric as raw_value
      ),
+     ${WAC_COHERENT_FINAL_CTE},
      upserted as (
        insert into public.item_wac_state (
-         org_id, item_id, currency_id, total_qty_kg, total_value, updated_by, updated_at
+         org_id, site_id, item_id, currency_id, total_qty_kg, total_value, updated_by, updated_at
        )
        select $1::uuid,
+              $6::uuid,
               $2::uuid,
-              (select id from public.currencies where code = 'GBP'),
-              computed.total_qty_kg,
-              computed.total_value,
+              (select id from public.currencies where code = $7::text),
+              final.total_qty_kg,
+              final.total_value,
               $5::uuid,
               now()
-         from computed
+         from final
        on conflict (org_id, item_id, currency_id) do update set
-         total_qty_kg = greatest(public.item_wac_state.total_qty_kg + $3::numeric, 0),
-         total_value = greatest(public.item_wac_state.total_value + $4::numeric, 0),
+         site_id = coalesce(excluded.site_id, public.item_wac_state.site_id),
+         total_qty_kg = ${WAC_COHERENT_CONFLICT_QTY},
+         total_value = ${WAC_COHERENT_CONFLICT_VALUE},
          updated_by = $5::uuid,
          updated_at = now()
        returning total_qty_kg::text, total_value::text
      )
      select upserted.total_qty_kg as "totalQtyKg",
             upserted.total_value as "totalValue",
-            computed.clamped
+            final.clamped
        from upserted
-       cross join computed`,
-    [orgId, itemId, deltaQtyKg, deltaValue, updatedBy],
+       cross join final`,
+    [orgId, itemId, deltaQtyKg, deltaValue, updatedBy, siteId, currencyCode],
   );
   const result = rows[0] ?? { totalQtyKg: '0', totalValue: '0', clamped: false };
   if (result.clamped) {
@@ -337,6 +390,7 @@ export type DebitWacInput = {
   qty: string;
   uom: string;
   updatedBy: string;
+  currencyCode?: string;
 };
 
 export type DebitWacResult = WacDebitComputation & {
@@ -378,7 +432,7 @@ export async function computeWacDebitDelta(
   };
 }
 
-/** Applies a pre-computed debit delta to item_wac_state (org + GBP bucket). */
+/** Applies a pre-computed debit delta to item_wac_state. */
 export async function applyWacDebitDelta(
   client: QueryClient,
   input: DebitWacInput & WacDebitDelta,
@@ -390,7 +444,41 @@ export async function applyWacDebitDelta(
     deltaQtyKg: input.deltaQtyKg,
     deltaValue: input.deltaValue,
     updatedBy: input.updatedBy,
+    currencyCode: input.currencyCode,
   });
+}
+
+/** Credits WAC on stock gain (count/adjust increase) at the locked pool avg_cost. */
+export async function creditWacAtAvgCost(
+  client: QueryClient,
+  input: DebitWacInput,
+): Promise<{ applied: true; wac: WacUpdateResult } | { applied: false; excluded: 'unresolved_uom' }> {
+  const currencyCode = input.currencyCode ?? DEFAULT_WAC_CURRENCY_CODE;
+  const resolution = await resolveWacDeltaQtyKg(client, {
+    itemId: input.itemId,
+    qty: input.qty,
+    uom: input.uom,
+  });
+  if (!resolution.resolved) {
+    return { applied: false, excluded: 'unresolved_uom' };
+  }
+
+  const deltaValue = await readLockedWacCreditValue(client, {
+    orgId: input.orgId,
+    itemId: input.itemId,
+    qtyKg: resolution.qtyKg,
+    currencyCode,
+  });
+  const wac = await upsertWac(client, {
+    orgId: input.orgId,
+    siteId: input.siteId,
+    itemId: input.itemId,
+    deltaQtyKg: resolution.qtyKg,
+    deltaValue,
+    updatedBy: input.updatedBy,
+    currencyCode,
+  });
+  return { applied: true, wac };
 }
 
 /**
@@ -398,6 +486,7 @@ export async function applyWacDebitDelta(
  * total_value by (qty_kg × locked avg_cost). Skips unresolved UoM conversions.
  */
 export async function debitWac(client: QueryClient, input: DebitWacInput): Promise<DebitWacResult> {
+  const currencyCode = input.currencyCode ?? DEFAULT_WAC_CURRENCY_CODE;
   const resolution = await resolveWacDeltaQtyKg(client, {
     itemId: input.itemId,
     qty: input.qty,
@@ -410,90 +499,59 @@ export async function debitWac(client: QueryClient, input: DebitWacInput): Promi
     return { applied: false, excluded: 'zero_qty' };
   }
 
-  const { rows } = await client.query<{
-    qtyKg: string;
-    valueDebited: string;
-    avgCostUsed: string;
-    totalQtyKg: string;
-    totalValue: string;
-    clamped: boolean;
-  }>(
-    `with existing as materialized (
-       select total_qty_kg, total_value, avg_cost
-         from public.item_wac_state
-        where org_id = $1::uuid
-          and item_id = $2::uuid
-          and currency_id = (select id from public.currencies where code = 'GBP')
-        for update
-     ),
-     computed as (
-       select $3::numeric as qty_kg,
-              coalesce((select avg_cost from existing), 0) as avg_cost_used,
-              ($3::numeric * coalesce((select avg_cost from existing), 0)) as value_debited,
-              -$3::numeric as delta_qty_kg,
-              -($3::numeric * coalesce((select avg_cost from existing), 0)) as delta_value,
-              greatest(coalesce((select total_qty_kg from existing), 0) - $3::numeric, 0) as total_qty_kg,
-              greatest(coalesce((select total_value from existing), 0) - ($3::numeric * coalesce((select avg_cost from existing), 0)), 0) as total_value,
-              (
-                coalesce((select total_qty_kg from existing), 0) - $3::numeric < 0
-                or coalesce((select total_value from existing), 0) - ($3::numeric * coalesce((select avg_cost from existing), 0)) < 0
-              ) as clamped
-     ),
-     upserted as (
-       insert into public.item_wac_state (
-         org_id, item_id, currency_id, total_qty_kg, total_value, updated_by, updated_at
-       )
-       select $1::uuid,
-              $2::uuid,
-              (select id from public.currencies where code = 'GBP'),
-              computed.total_qty_kg,
-              computed.total_value,
-              $4::uuid,
-              now()
-         from computed
-       on conflict (org_id, item_id, currency_id) do update set
-         total_qty_kg = greatest(public.item_wac_state.total_qty_kg + computed.delta_qty_kg, 0),
-         total_value = greatest(public.item_wac_state.total_value + computed.delta_value, 0),
-         updated_by = $4::uuid,
-         updated_at = now()
-       returning total_qty_kg::text, total_value::text
-     )
-     select computed.qty_kg::text as "qtyKg",
-            computed.value_debited::text as "valueDebited",
-            computed.avg_cost_used::text as "avgCostUsed",
-            upserted.total_qty_kg as "totalQtyKg",
-            upserted.total_value as "totalValue",
-            computed.clamped
-       from computed
-       cross join upserted`,
-    [input.orgId, input.itemId, resolution.qtyKg, input.updatedBy],
-  );
-  const row = rows[0];
-  if (!row) {
-    throw new Error('[wac] debitWac: locked upsert returned no row');
-  }
-  if (row.clamped) {
+  const locked = await readLockedWacDebitAmounts(client, {
+    orgId: input.orgId,
+    itemId: input.itemId,
+    qtyKg: resolution.qtyKg,
+    currencyCode,
+  });
+  const wac = await upsertWac(client, {
+    orgId: input.orgId,
+    siteId: input.siteId,
+    itemId: input.itemId,
+    deltaQtyKg: locked.deltaQtyKg,
+    deltaValue: locked.deltaValue,
+    updatedBy: input.updatedBy,
+    currencyCode,
+  });
+  if (wac.clamped) {
     console.warn('[finance] item_wac_state clamped at zero', { orgId: input.orgId, itemId: input.itemId });
   }
   return {
     applied: true,
-    qtyKg: row.qtyKg,
-    valueDebited: row.valueDebited,
-    avgCostUsed: row.avgCostUsed,
-    deltaQtyKg: negateDecimalString(row.qtyKg),
-    deltaValue: negateDecimalString(row.valueDebited),
-    wac: {
-      totalQtyKg: row.totalQtyKg,
-      totalValue: row.totalValue,
-      clamped: row.clamped,
-    },
+    qtyKg: locked.qtyKg,
+    valueDebited: locked.valueDebited,
+    avgCostUsed: locked.avgCostUsed,
+    deltaQtyKg: locked.deltaQtyKg,
+    deltaValue: locked.deltaValue,
+    wac,
   };
+}
+
+async function readLockedWacCreditValue(
+  client: QueryClient,
+  input: { orgId: string; itemId: string; qtyKg: string; currencyCode: string },
+): Promise<string> {
+  const { rows } = await client.query<{ delta_value: string }>(
+    `with existing as materialized (
+       select avg_cost
+         from public.item_wac_state
+        where org_id = $1::uuid
+          and item_id = $2::uuid
+          and currency_id = (select id from public.currencies where code = $4::text)
+        for update
+     )
+     select ($3::numeric * coalesce((select avg_cost from existing), 0))::text as delta_value`,
+    [input.orgId, input.itemId, input.qtyKg, input.currencyCode],
+  );
+  return rows[0]?.delta_value ?? '0';
 }
 
 async function readLockedWacDebitAmounts(
   client: QueryClient,
-  input: { orgId: string; itemId: string; qtyKg: string },
+  input: { orgId: string; itemId: string; qtyKg: string; currencyCode?: string },
 ): Promise<WacDebitDelta> {
+  const currencyCode = input.currencyCode ?? DEFAULT_WAC_CURRENCY_CODE;
   const { rows } = await client.query<{
     avg_cost_used: string;
     value_debited: string;
@@ -503,12 +561,12 @@ async function readLockedWacDebitAmounts(
          from public.item_wac_state
         where org_id = $1::uuid
           and item_id = $2::uuid
-          and currency_id = (select id from public.currencies where code = 'GBP')
+          and currency_id = (select id from public.currencies where code = $4::text)
         for update
      )
      select coalesce((select avg_cost from existing), 0)::text as avg_cost_used,
             ($3::numeric * coalesce((select avg_cost from existing), 0))::text as value_debited`,
-    [input.orgId, input.itemId, input.qtyKg],
+    [input.orgId, input.itemId, input.qtyKg, currencyCode],
   );
   const avgCostUsed = rows[0]?.avg_cost_used ?? '0';
   const valueDebited = rows[0]?.value_debited ?? '0';

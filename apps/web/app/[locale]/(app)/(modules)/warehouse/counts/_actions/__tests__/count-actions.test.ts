@@ -290,6 +290,21 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
+      if (n.includes('from public.items i') && n.includes('as qty_kg')) {
+        return { rows: [{ qty_kg: String(params?.[0] ?? '0'), resolved: true }], rowCount: 1 };
+      }
+      if (n.includes('with existing as materialized') && n.includes('avg_cost_used')) {
+        const qty = Number(params?.[2] ?? 0);
+        return { rows: [{ avg_cost_used: '5', value_debited: String(qty * 5) }], rowCount: 1 };
+      }
+      if (n.includes('with existing as materialized') && n.includes('delta_value')) {
+        const qty = Number(params?.[2] ?? 0);
+        return { rows: [{ delta_value: String(qty * 5) }], rowCount: 1 };
+      }
+      if (n.includes('insert into public.item_wac_state')) {
+        return { rows: [{ totalQtyKg: String(params?.[2] ?? '0'), totalValue: String(params?.[3] ?? '0'), clamped: false }], rowCount: 1 };
+      }
+
       if (n.startsWith('update public.count_lines') && n.includes("status = 'applied'")) {
         return { rows: [], rowCount: 1 };
       }
@@ -500,6 +515,9 @@ describe('stock count actions', () => {
       null,
       USER_ID,
     ]);
+
+    const wacWrite = queries.find((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrite?.params).toEqual([ORG_ID, ITEM_ID, '4', '20', USER_ID, SITE_ID, 'GBP']);
   });
 
   it("stale-system rejection: live on-hand drift triggers 'stock_changed_recount_required'", async () => {
@@ -532,6 +550,9 @@ describe('stock count actions', () => {
 
     const lpUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
     expect(lpUpdate?.params).toEqual([LP_ID, '2', USER_ID, 'destroyed']);
+
+    const wacWrite = queries.find((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrite?.params?.[2]).toBe('-2');
   });
 
   it('approveAndApplyVariance blocks shrinkage when the LP has an active hold', async () => {

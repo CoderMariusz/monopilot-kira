@@ -5,9 +5,11 @@ import {
   applyShipmentWacCancelCredits,
   computeWacDebitReversalDelta,
   computeWacReversalDelta,
+  creditWacAtAvgCost,
   debitWac,
   resolveWacDeltaQtyKg,
   upsertWac,
+  WAC_VALUATION_CURRENCY_CODE,
 } from '../upsert-wac';
 
 import type { QueryClient } from '../../../app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/procurement-shared';
@@ -42,7 +44,7 @@ vi.mock('next/cache', () => ({
 }));
 
 describe('upsertWac', () => {
-  it('writes WAC totals without writing generated avg_cost or site_id', async () => {
+  it('writes WAC totals with site_id and currency bucket', async () => {
     const client = new WacMockClient();
 
     await upsertWac(client, {
@@ -59,10 +61,10 @@ describe('upsertWac', () => {
       totalValue: '100',
       avgCost: '10',
     });
-    expect(client.calls[0]?.params).toEqual([ORG_ID, ITEM_ID, '10', '100', USER_ID]);
-    expect(client.calls[0]?.sql).toContain("select id from public.currencies where code = 'GBP'");
+    expect(client.calls[0]?.params).toEqual([ORG_ID, ITEM_ID, '10', '100', USER_ID, SITE_ID, 'GBP']);
+    expect(client.calls[0]?.sql).toContain("select id from public.currencies where code = $7::text");
     expect(normalize(client.calls[0]?.sql ?? '')).not.toContain('avg_cost');
-    expect(wacWriteColumns(client.calls[0]?.sql ?? '')).not.toContain('site_id');
+    expect(wacWriteColumns(client.calls[0]?.sql ?? '')).toContain('site_id');
   });
 
   it('receive -> void returns WAC state to the prior value', async () => {
@@ -93,10 +95,9 @@ describe('upsertWac', () => {
     expect(result).toMatchObject({ totalQtyKg: '0', totalValue: '0', clamped: false });
     const updateSql = normalize(client.calls[1]?.sql ?? '');
     expect(updateSql).toContain('on conflict (org_id, item_id, currency_id) do update set');
-    expect(updateSql).toContain('total_qty_kg = greatest(public.item_wac_state.total_qty_kg + $3::numeric, 0)');
-    expect(updateSql).toContain('total_value = greatest(public.item_wac_state.total_value + $4::numeric, 0)');
+    expect(updateSql).toContain('site_id = coalesce(excluded.site_id');
+    expect(updateSql).toContain('case when coerced_qty = 0 then 0');
     expect(updateSql).not.toContain('avg_cost');
-    expect(updateSql).not.toContain('site_id');
   });
 
   it('conflict path adds the incoming first delta to the current row instead of replacing it', async () => {
@@ -114,8 +115,73 @@ describe('upsertWac', () => {
     expect(result).toMatchObject({ totalQtyKg: '20', totalValue: '200', clamped: false });
     const sql = normalize(client.calls[0]?.sql ?? '');
     expect(sql).toContain('on conflict (org_id, item_id, currency_id) do update set');
-    expect(sql).toContain('total_qty_kg = greatest(public.item_wac_state.total_qty_kg + $3::numeric, 0)');
-    expect(sql).toContain('total_value = greatest(public.item_wac_state.total_value + $4::numeric, 0)');
+    expect(sql).toContain('case when coerced_qty = 0 then 0');
+  });
+
+  it('coherent clamp: mismatched reversal zeros both qty and value instead of stranding one', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '3',
+      deltaValue: '12',
+      updatedBy: USER_ID,
+    });
+
+    const result = await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '-5',
+      deltaValue: '-10',
+      updatedBy: USER_ID,
+    });
+
+    expect(client.row).toMatchObject({
+      totalQtyKg: '0',
+      totalValue: '0',
+      avgCost: '0',
+    });
+    expect(result).toMatchObject({ totalQtyKg: '0', totalValue: '0', clamped: true });
+  });
+
+  it('coherent clamp: value-only over-reversal keeps qty when value hits zero', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '3',
+      deltaValue: '12',
+      updatedBy: USER_ID,
+    });
+
+    const result = await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '-2',
+      deltaValue: '-20',
+      updatedBy: USER_ID,
+    });
+
+    expect(client.row).toMatchObject({ totalQtyKg: '1', totalValue: '0' });
+    expect(result).toMatchObject({ totalQtyKg: '1', totalValue: '0', clamped: true });
+  });
+
+  it('zero-value positive-qty gain keeps qty in the WAC pool', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '5',
+      deltaValue: '0',
+      updatedBy: USER_ID,
+    });
+
+    expect(client.row).toMatchObject({ totalQtyKg: '5', totalValue: '0', avgCost: '0' });
   });
 
   it('clamp-at-zero: voiding more than running total clamps WAC to 0 and flags it', async () => {
@@ -266,7 +332,7 @@ describe('debitWac', () => {
     expect(client.row).toMatchObject({ totalQtyKg: '20', totalValue: '200' });
   });
 
-  it('reads avg_cost and decrements inside one locked item_wac_state statement', async () => {
+  it('reads avg_cost in a locked select then applies debit via upsertWac', async () => {
     const client = new WacMockClient();
     await upsertWac(client, {
       orgId: ORG_ID,
@@ -288,11 +354,94 @@ describe('debitWac', () => {
 
     const wacWrites = client.calls.filter((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
     expect(wacWrites).toHaveLength(2);
-    const debitSql = normalize(wacWrites[1]?.sql ?? '');
-    expect(debitSql).toContain('for update');
-    expect(debitSql).toContain('avg_cost');
-    expect(debitSql).toContain('on conflict (org_id, item_id, currency_id) do update set');
-    expect(client.calls.some((call) => normalize(call.sql).startsWith('select coalesce((') && normalize(call.sql).includes('avg_cost'))).toBe(false);
+    const lockedRead = client.calls.find((call) => normalize(call.sql).includes('for update') && normalize(call.sql).includes('avg_cost'));
+    expect(lockedRead).toBeDefined();
+    expect(client.row).toMatchObject({ totalQtyKg: '75', totalValue: '750', avgCost: '10' });
+  });
+});
+
+describe('creditWacAtAvgCost', () => {
+  it('reads avg_cost in a locked select then applies credit via upsertWac', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '100',
+      deltaValue: '1000',
+      updatedBy: USER_ID,
+    });
+
+    await creditWacAtAvgCost(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      qty: '10',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+
+    const wacWrites = client.calls.filter((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrites).toHaveLength(2);
+    const lockedRead = client.calls.find(
+      (call) => normalize(call.sql).includes('for update') && normalize(call.sql).includes('delta_value'),
+    );
+    expect(lockedRead).toBeDefined();
+    expect(client.row).toMatchObject({ totalQtyKg: '110', totalValue: '1100', avgCost: '10' });
+  });
+
+  it('zero avg_cost credit adds qty without zeroing it', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '5',
+      deltaValue: '0',
+      updatedBy: USER_ID,
+    });
+
+    await creditWacAtAvgCost(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      qty: '3',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+
+    expect(client.row).toMatchObject({ totalQtyKg: '8', totalValue: '0', avgCost: '0' });
+  });
+});
+
+describe('WAC valuation currency consistency', () => {
+  it('exports a single org valuation currency used by all WAC paths', () => {
+    expect(WAC_VALUATION_CURRENCY_CODE).toBe('GBP');
+  });
+
+  it('EUR PO receipt and subsequent debit book into the same GBP bucket', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      deltaQtyKg: '10',
+      deltaValue: '42',
+      updatedBy: USER_ID,
+      currencyCode: WAC_VALUATION_CURRENCY_CODE,
+    });
+    expect(client.calls[0]?.params?.[6]).toBe('GBP');
+
+    await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      qty: '4',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+    expect(client.calls.at(-1)?.params?.[6]).toBe('GBP');
+    expect(client.row).toMatchObject({ totalQtyKg: '6', totalValue: '25.2', avgCost: '4.2' });
   });
 });
 
@@ -503,7 +652,7 @@ describe('receivePoLineDesktop WAC integration', () => {
     const wacIndex = currentClient.calls.findIndex((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
     expect(lpIndex).toBeGreaterThanOrEqual(0);
     expect(wacIndex).toBeGreaterThan(lpIndex);
-    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '10', '42', USER_ID]);
+    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '10', '42', USER_ID, SITE_ID, 'GBP']);
   });
 
   it('unit-mixing case: box item with kg conversion computes WAC on kg basis', async () => {
@@ -521,7 +670,7 @@ describe('receivePoLineDesktop WAC integration', () => {
 
     expect(result).toMatchObject({ ok: true, lpId: 'lp-1' });
     const wacIndex = currentClient.calls.findIndex((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
-    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '48', '100', USER_ID]);
+    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '48', '100', USER_ID, SITE_ID, 'GBP']);
   });
 
   it('unresolved-UoM receipt does not corrupt WAC and flags grn_items ext_jsonb', async () => {
@@ -570,13 +719,14 @@ class WacMockClient {
       };
     }
     if (normalized.includes('with existing as materialized') && normalized.includes('avg_cost_used')) {
-      if (params.length === 4) {
-        return this.applyLockedDebit<T>(params);
-      }
       const avgCost = this.row && compareDecimal(this.row.totalQtyKg, '0') > 0 ? this.row.avgCost ?? '0' : '0';
       const qtyKg = String(params[2]);
       const valueDebited = multiplyDecimal(qtyKg, avgCost);
       return { rows: [{ avg_cost_used: avgCost, value_debited: valueDebited }] as T[] };
+    }
+    if (normalized.includes('with existing as materialized') && normalized.includes('delta_value')) {
+      const avgCost = this.row && compareDecimal(this.row.totalQtyKg, '0') > 0 ? this.row.avgCost ?? '0' : '0';
+      return { rows: [{ delta_value: multiplyDecimal(String(params[2]), avgCost) }] as T[] };
     }
     if (normalized.startsWith('select coalesce((') && normalized.includes('avg_cost')) {
       const avgCost = this.row && compareDecimal(this.row.totalQtyKg, '0') > 0 ? this.row.avgCost ?? '0' : '0';
@@ -588,61 +738,41 @@ class WacMockClient {
     const deltaQty = String(params[2]);
     const deltaValue = String(params[3]);
 
-    if (params.length !== 5) {
+    if (params.length !== 7) {
       throw new Error(`unexpected wac query with ${params.length} params: ${normalized}`);
     }
 
     if (!this.row) {
-      const totalQtyKg = maxDecimal(deltaQty, '0');
-      const totalValue = maxDecimal(deltaValue, '0');
+      const { totalQtyKg, totalValue } = coerceWacTotals(deltaQty, deltaValue);
       this.row = {
         totalQtyKg,
         totalValue,
         avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : '0',
       };
-      return { rows: [{ totalQtyKg, totalValue, clamped: compareDecimal(deltaQty, '0') < 0 || compareDecimal(deltaValue, '0') < 0 }] as T[], rowCount: 1 };
+      return {
+        rows: [{
+          totalQtyKg,
+          totalValue,
+          clamped: compareDecimal(deltaQty, '0') < 0 || compareDecimal(deltaValue, '0') < 0,
+        }] as T[],
+        rowCount: 1,
+      };
     }
 
     const unclampedQty = addDecimal(this.row.totalQtyKg, deltaQty);
     const unclampedValue = addDecimal(this.row.totalValue, deltaValue);
-    const totalQtyKg = maxDecimal(addDecimal(this.row.totalQtyKg, deltaQty), '0');
-    const totalValue = maxDecimal(addDecimal(this.row.totalValue, deltaValue), '0');
-    const clamped = compareDecimal(unclampedQty, '0') < 0 || compareDecimal(unclampedValue, '0') < 0;
+    const { totalQtyKg, totalValue, clamped } = coerceWacTotals(unclampedQty, unclampedValue);
+    const rawClamped = compareDecimal(unclampedQty, '0') < 0 || compareDecimal(unclampedValue, '0') < 0;
     this.row = {
       totalQtyKg,
       totalValue,
       avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : '0',
     };
-    return { rows: [{ totalQtyKg, totalValue, clamped }] as T[], rowCount: 1 };
+    return { rows: [{ totalQtyKg, totalValue, clamped: rawClamped || clamped }] as T[], rowCount: 1 };
   }
 
-  private applyLockedDebit<T>(params: readonly unknown[]): { rows: T[]; rowCount: number } {
-    const qtyKg = String(params[2]);
-    const avgCostUsed = this.row && compareDecimal(this.row.totalQtyKg, '0') > 0 ? this.row.avgCost ?? '0' : '0';
-    const valueDebited = multiplyDecimal(qtyKg, avgCostUsed);
-    const deltaQty = negateDecimal(qtyKg);
-    const deltaValue = negateDecimal(valueDebited);
-    const unclampedQty = addDecimal(this.row?.totalQtyKg ?? '0', deltaQty);
-    const unclampedValue = addDecimal(this.row?.totalValue ?? '0', deltaValue);
-    const totalQtyKg = maxDecimal(unclampedQty, '0');
-    const totalValue = maxDecimal(unclampedValue, '0');
-    const clamped = compareDecimal(unclampedQty, '0') < 0 || compareDecimal(unclampedValue, '0') < 0;
-    this.row = {
-      totalQtyKg,
-      totalValue,
-      avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : '0',
-    };
-    return {
-      rows: [{
-        qtyKg,
-        valueDebited,
-        avgCostUsed,
-        totalQtyKg,
-        totalValue,
-        clamped,
-      }] as T[],
-      rowCount: 1,
-    };
+  private applyLockedDebit<T>(_params: readonly unknown[]): { rows: T[]; rowCount: number } {
+    throw new Error('applyLockedDebit is no longer used');
   }
 }
 
@@ -702,7 +832,7 @@ class ReceiveMockClient implements QueryClient {
       };
     }
     if (normalized.startsWith('select pol.item_id::text, pol.unit_price::text as unit_price')) {
-      return { rows: [{ item_id: ITEM_ID, unit_price: this.unitPrice }] as T[] };
+      return { rows: [{ item_id: ITEM_ID, unit_price: this.unitPrice, currency: 'EUR' }] as T[] };
     }
     if (normalized.includes('from public.warehouses w')) {
       return { rows: [{ id: WAREHOUSE_ID, site_id: SITE_ID, default_location_id: LOCATION_ID }] as T[] };
@@ -795,6 +925,16 @@ function negateDecimal(value: string): string {
 
 function divideDecimal(left: string, right: string): string {
   return fromFixed((toFixed(left) * SCALE) / toFixed(right));
+}
+
+function coerceWacTotals(rawQty: string, rawValue: string): { totalQtyKg: string; totalValue: string; clamped: boolean } {
+  const coercedQty = maxDecimal(rawQty, '0');
+  const coercedValue = maxDecimal(rawValue, '0');
+  const strandedValue = compareDecimal(coercedQty, '0') === 0 && compareDecimal(coercedValue, '0') > 0;
+  const totalQtyKg = coercedQty;
+  const totalValue = compareDecimal(coercedQty, '0') === 0 ? '0' : coercedValue;
+  const clamped = strandedValue || compareDecimal(rawQty, '0') < 0 || compareDecimal(rawValue, '0') < 0;
+  return { totalQtyKg, totalValue, clamped };
 }
 
 class ResolveWacMockClient {
