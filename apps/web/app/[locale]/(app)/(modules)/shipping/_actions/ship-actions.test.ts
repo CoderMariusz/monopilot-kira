@@ -18,6 +18,8 @@ const LP_1 = '55555555-5555-4555-8555-555555555555';
 const LP_2 = '66666666-6666-4666-8666-666666666666';
 const PRODUCT_ID = '77777777-7777-4777-8777-777777777777';
 const PRODUCT_ID_2 = '88888888-8888-4888-8888-888888888888';
+const LINE_1 = '77777777-7777-4777-8777-777777777777';
+const LINE_2 = '88888888-8888-4888-8888-888888888888';
 const FIXED_NOW = '2026-06-23T12:34:56.000Z';
 
 let client: QueryClient;
@@ -45,6 +47,7 @@ let salesOrderUpdate: Record<string, unknown> | null = null;
 let remainingShipmentCount = 0;
 let bolUpdate: Record<string, unknown> | null = null;
 let podUpdate: Record<string, unknown> | null = null;
+let soLineAllocationDecrements: Array<{ line_id: string; qty: string }> = [];
 let outboxEvents: Array<{
   aggregateId: string;
   eventType: string;
@@ -121,6 +124,24 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('update public.inventory_allocations ia') && q.includes('closed_reason')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('select sbc.sales_order_line_id::text') && q.includes('sum(sbc.quantity)')) {
+        return {
+          rows: [
+            { sales_order_line_id: LINE_1, shipped_qty: '3.000' },
+            { sales_order_line_id: LINE_2, shipped_qty: '2.000' },
+          ],
+          rowCount: 2,
+        };
+      }
+
+      if (q.startsWith('update public.sales_order_lines') && q.includes('quantity_allocated = greatest')) {
+        soLineAllocationDecrements.push({
+          line_id: String(params[0]),
+          qty: String(params[1]),
+        });
         return { rows: [], rowCount: 1 };
       }
 
@@ -247,7 +268,7 @@ function makeClient(): QueryClient {
         return { rows: [{ id: params[0], sales_order_id: SO_ID }], rowCount: 1 };
       }
 
-      if (q.startsWith('select count(*)::int as remaining_count') && q.includes("status <> 'delivered'")) {
+      if (q.startsWith('select count(*)::int as remaining_count') && q.includes("status not in ('delivered', 'cancelled')")) {
         return { rows: [{ remaining_count: remainingShipmentCount }], rowCount: 1 };
       }
 
@@ -326,6 +347,7 @@ beforeEach(() => {
   remainingShipmentCount = 0;
   bolUpdate = null;
   podUpdate = null;
+  soLineAllocationDecrements = [];
   outboxEvents = [];
   queryLog = [];
   client = makeClient();
@@ -416,6 +438,10 @@ describe('shipShipment', () => {
       status: 'shipped',
       updated_by: USER_ID,
     });
+    expect(soLineAllocationDecrements).toEqual([
+      { line_id: LINE_1, qty: '3.000' },
+      { line_id: LINE_2, qty: '2.000' },
+    ]);
   });
 
   it('returns lp_blocked_for_ship and does not update LPs when a shipment LP is blocked', async () => {
@@ -593,5 +619,39 @@ describe('recordPod', () => {
       updated_by: USER_ID,
     });
     expect(normalize(String(podUpdate?.sql))).toContain('delivered_at = now()');
+  });
+
+  it('marks the SO delivered when no non-cancelled shipments remain undelivered', async () => {
+    shipmentStatus = 'shipped';
+    salesOrderStatus = 'partially_delivered';
+    remainingShipmentCount = 0;
+
+    const result = await recordPod({ shipmentId: SHIPMENT_ID });
+
+    expect(result).toEqual({ ok: true });
+    expect(salesOrderUpdate).toMatchObject({
+      sales_order_id: SO_ID,
+      status: 'delivered',
+    });
+    expect(
+      queryLog.some(({ sql }) =>
+        normalize(sql).includes("status not in ('delivered', 'cancelled')"),
+      ),
+    ).toBe(true);
+  });
+
+  it('marks the SO partially_delivered when a cancelled sibling would have trapped the count', async () => {
+    shipmentStatus = 'shipped';
+    salesOrderStatus = 'shipped';
+    // Only this shipment remains undelivered; cancelled siblings must not inflate the count.
+    remainingShipmentCount = 1;
+
+    const result = await recordPod({ shipmentId: SHIPMENT_ID });
+
+    expect(result).toEqual({ ok: true });
+    expect(salesOrderUpdate).toMatchObject({
+      sales_order_id: SO_ID,
+      status: 'partially_delivered',
+    });
   });
 });

@@ -353,6 +353,35 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
         [shipmentId, userId, SHIP_CLOSED_ALLOCATION_REASON],
       );
 
+      const { rows: shippedLineRows } = await ctx.client.query<{
+        sales_order_line_id: string;
+        shipped_qty: string;
+      }>(
+        `select sbc.sales_order_line_id::text,
+                sum(sbc.quantity)::text as shipped_qty
+           from public.shipment_box_contents sbc
+           join public.shipment_boxes sb on sb.id = sbc.shipment_box_id
+            and sb.org_id = app.current_org_id()
+            and sb.shipment_id = $1::uuid
+            and sb.deleted_at is null
+          where sbc.org_id = app.current_org_id()
+            and sbc.deleted_at is null
+            and sbc.quantity is not null
+            and sbc.quantity > 0
+          group by sbc.sales_order_line_id`,
+        [shipmentId],
+      );
+      for (const line of shippedLineRows) {
+        await ctx.client.query(
+          `update public.sales_order_lines
+              set quantity_allocated = greatest(0, quantity_allocated - $2::numeric),
+                  updated_by = $3::uuid
+            where org_id = app.current_org_id()
+              and id = $1::uuid`,
+          [line.sales_order_line_id, line.shipped_qty, userId],
+        );
+      }
+
       const { rowCount: snapshotRowCount } = await ctx.client.query(
         `update public.shipments
             set ext_data = coalesce(ext_data, '{}'::jsonb) || $2::jsonb,
@@ -556,7 +585,7 @@ export async function recordPod(input: RecordPodInput): Promise<RecordPodResult>
             where org_id = app.current_org_id()
               and sales_order_id = $1::uuid
               and deleted_at is null
-              and status <> 'delivered'`,
+              and status not in ('delivered', 'cancelled')`,
           [shipment.sales_order_id],
         );
 

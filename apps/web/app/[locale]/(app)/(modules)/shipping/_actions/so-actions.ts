@@ -553,6 +553,20 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       return { ok: false, error: 'invalid_input', message: 'Sales order requires at least one line' };
     }
 
+    const { rows: customerRows } = await ctx.client.query<{ id: string }>(
+      `select id::text
+         from public.customers
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and deleted_at is null
+          and is_active = true
+        limit 1`,
+      [input.customer_id],
+    );
+    if (!customerRows[0]) {
+      return { ok: false, error: 'invalid_input', message: 'Customer is inactive or not found' };
+    }
+
     const { rows: numberRows } = await ctx.client.query<{ so_number: string }>(
       `select public.next_sales_order_document_number($1::uuid) as so_number`,
       [orgId],

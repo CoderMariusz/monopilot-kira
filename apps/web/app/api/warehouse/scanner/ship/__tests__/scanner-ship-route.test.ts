@@ -95,6 +95,7 @@ function mockPackQueries(options: {
   allocationExists?: boolean;
   blockedForPack?: boolean;
   lpLookupId?: string | null;
+  shipmentStatus?: string;
 }) {
   state.fakeClient.query.mockImplementation(async (sql: string, params: readonly unknown[] = []) => {
     queryLog.push({ sql, params });
@@ -113,7 +114,14 @@ function mockPackQueries(options: {
 
     if (q.startsWith('select sh.id::text, sh.sales_order_id::text')) {
       return {
-        rows: [{ id: ids.shipment, sales_order_id: ids.salesOrder, site_id: ids.site }],
+        rows: [
+          {
+            id: ids.shipment,
+            sales_order_id: ids.salesOrder,
+            site_id: ids.site,
+            status: options.shipmentStatus ?? 'packing',
+          },
+        ],
         rowCount: 1,
       };
     }
@@ -352,6 +360,24 @@ describe('scanner ship routes', () => {
 
       expect(response.status).toBe(409);
       await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'lp_not_allocated' });
+      expect(insertedBoxes).toEqual([]);
+      expect(insertedContents).toEqual([]);
+    });
+
+    it('returns 409 invalid_state when the shipment is already shipped', async () => {
+      const { POST } = await import('../route');
+      mockPackQueries({ shipmentStatus: 'shipped' });
+
+      const response = await POST(
+        postRequest('/api/warehouse/scanner/ship', {
+          clientOpId: 'op-shipped',
+          shipmentId: ids.shipment,
+          lpId: 'LP-0001',
+        }) as never,
+      );
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'invalid_state' });
       expect(insertedBoxes).toEqual([]);
       expect(insertedContents).toEqual([]);
     });

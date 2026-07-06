@@ -28,6 +28,9 @@ export type PackLpResult = { ok: true; boxId: string } | { ok: false; error: str
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Aligned with OPEN_SHIPMENT_STATUSES in shipping/_actions/so-transitions.ts */
+const PACKABLE_SHIPMENT_STATUSES = new Set(['pending', 'packing']);
+
 function toNumber(value: unknown): number {
   if (typeof value === 'number') return value;
   if (typeof value === 'bigint') return Number(value);
@@ -58,10 +61,12 @@ export async function packLpIntoBoxCore(ctx: PackContext, input: PackLpInput): P
     id: string;
     sales_order_id: string;
     site_id: string | null;
+    status: string;
   }>(
     `select sh.id::text,
             sh.sales_order_id::text,
-            sh.site_id::text
+            sh.site_id::text,
+            sh.status
        from public.shipments sh
       where sh.org_id = app.current_org_id()
         and sh.id = $1::uuid
@@ -70,7 +75,9 @@ export async function packLpIntoBoxCore(ctx: PackContext, input: PackLpInput): P
     [input.shipmentId],
   );
   const shipment = shipmentRows[0];
-  if (!shipment?.sales_order_id) return { ok: false, error: 'invalid_state' };
+  if (!shipment?.sales_order_id || !PACKABLE_SHIPMENT_STATUSES.has(shipment.status)) {
+    return { ok: false, error: 'invalid_state' };
+  }
 
   const licensePlateId = await resolveLicensePlateId(ctx, input.lpId);
   if (!licensePlateId) return { ok: false, error: 'lp_not_found' };

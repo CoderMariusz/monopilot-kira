@@ -44,6 +44,8 @@ let candidateRows: Array<{
   days_to_expiry?: number | null;
 }> = [];
 let nearExpiryWarnDays: string = '7';
+let customerActive = true;
+let customerDeleted = false;
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
 const nextCacheMocks = vi.hoisted(() => ({ revalidateLocalized: vi.fn() }));
 
@@ -80,6 +82,12 @@ function makeClient(): QueryClient {
       }
       if (q.includes('next_sales_order_document_number')) {
         return { rows: [{ so_number: soNumber }], rowCount: 1 };
+      }
+      if (q.startsWith('select id::text') && q.includes('from public.customers')) {
+        if (!customerActive || customerDeleted) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [{ id: CUSTOMER_ID }], rowCount: 1 };
       }
       if (q.startsWith('insert into public.sales_orders')) {
         insertedSo = {
@@ -234,6 +242,8 @@ beforeEach(() => {
   lineSiteId = null;
   candidateRows = [];
   nearExpiryWarnDays = '7';
+  customerActive = true;
+  customerDeleted = false;
   queryLog = [];
   nextCacheMocks.revalidateLocalized.mockClear();
   client = makeClient();
@@ -354,6 +364,43 @@ describe('createSalesOrder', () => {
       unit_price_gbp: 0,
       line_total_gbp: 0,
     });
+  });
+
+  it('rejects SO creation for an inactive customer', async () => {
+    customerActive = false;
+
+    const result = await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [{ item_id: ITEM_ID, qty: '10', uom: 'kg' }],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'Customer is inactive or not found',
+    });
+    expect(insertedSo).toBeNull();
+    expect(insertedLines).toEqual([]);
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('from public.customers'))).toBe(true);
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('insert into public.sales_orders'))).toBe(false);
+  });
+
+  it('rejects SO creation for a soft-deleted customer', async () => {
+    customerDeleted = true;
+
+    const result = await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [{ item_id: ITEM_ID, qty: '10', uom: 'kg' }],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'Customer is inactive or not found',
+    });
+    expect(insertedSo).toBeNull();
   });
 });
 

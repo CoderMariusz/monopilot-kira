@@ -25,6 +25,7 @@ const LP_CODE = 'LP-0001';
 let client: QueryClient;
 let allowPermission = true;
 let salesOrderStatus = 'allocated';
+let shipmentStatus = 'packing';
 let generatedSscc = '';
 let insertedShipments: Array<Record<string, unknown>> = [];
 let insertedBoxes: Array<Record<string, unknown>> = [];
@@ -113,7 +114,7 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('select sh.id::text, sh.sales_order_id::text')) {
         return {
-          rows: [{ id: SHIPMENT_ID, sales_order_id: SO_ID, site_id: SITE_ID }],
+          rows: [{ id: SHIPMENT_ID, sales_order_id: SO_ID, site_id: SITE_ID, status: shipmentStatus }],
           rowCount: 1,
         };
       }
@@ -240,6 +241,7 @@ function makeClient(): QueryClient {
 beforeEach(() => {
   allowPermission = true;
   salesOrderStatus = 'allocated';
+  shipmentStatus = 'packing';
   generatedSscc = makeSscc();
   insertedShipments = [];
   insertedBoxes = [];
@@ -365,6 +367,19 @@ describe('packLpIntoBox', () => {
     expect(queryLog.some((entry) => normalize(entry.sql).startsWith('select sbc.id::text'))).toBe(false);
     expect(queryLog.some((entry) => normalize(entry.sql).startsWith('select ia.sales_order_line_id::text'))).toBe(false);
   });
+
+  it.each(['shipped', 'cancelled', 'delivered'] as const)(
+    'rejects packing when the shipment is %s',
+    async (status) => {
+      shipmentStatus = status;
+
+      const result = await packLpIntoBox({ shipmentId: SHIPMENT_ID, lpId: LP_ID });
+
+      expect(result).toEqual({ ok: false, error: 'invalid_state' });
+      expect(insertedBoxes).toEqual([]);
+      expect(insertedContents).toEqual([]);
+    },
+  );
 });
 
 describe('getShipment', () => {
