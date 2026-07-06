@@ -74,7 +74,14 @@ type PurchaseOrder = {
 
 export type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
 
-export type PurchaseOrderError = ProcurementError | 'last_line' | 'po_has_receipts' | 'po_open_quantity' | 'no_active_site' | 'ambiguous_site';
+export type PurchaseOrderError =
+  | ProcurementError
+  | 'last_line'
+  | 'po_has_receipts'
+  | 'po_open_quantity'
+  | 'no_active_site'
+  | 'ambiguous_site'
+  | 'supplier_blocked';
 
 export type PurchaseOrderResult<T> =
   | { ok: true; data: T }
@@ -159,6 +166,20 @@ export async function createPurchaseOrderCore(
   if (!siteResolution.ok) return { ok: false, error: siteResolution.reason };
   const siteId = siteResolution.siteId;
 
+  const { rows: supplierRows } = await ctx.client.query<{ status: string }>(
+    `select status
+       from public.suppliers
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [input.supplierId],
+  );
+  const supplier = supplierRows[0];
+  if (!supplier) return { ok: false, error: 'not_found' };
+  if (supplier.status === 'blocked') {
+    return { ok: false, error: 'supplier_blocked', code: 'supplier_blocked', message: 'Supplier is blocked' };
+  }
+
   async function insertHeader(poNumber: string) {
     return ctx.client.query<PurchaseOrderRow>(
       `insert into public.purchase_orders
@@ -172,7 +193,7 @@ export async function createPurchaseOrderCore(
         poNumber,
         input.supplierId,
         input.destinationWarehouseId ?? null,
-        input.status,
+        'draft',
         input.expectedDelivery ?? null,
         input.currency,
         input.notes ?? null,

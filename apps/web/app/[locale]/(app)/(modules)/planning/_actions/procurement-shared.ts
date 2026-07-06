@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 export const PLANNING_WRITE_PERMISSION = 'npd.planning.write';
+export const PLANNING_READ_PERMISSION = 'scheduler.run.read';
 
 export type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -138,7 +139,7 @@ export async function listOrgUnits(client: QueryClient): Promise<OrgUnitOption[]
     .filter((u) => u.code.length > 0);
 }
 
-export async function hasPlanningWritePermission(ctx: OrgActionContext): Promise<boolean> {
+async function hasPlanningPermission(ctx: OrgActionContext, permission: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
        from public.user_roles ur
@@ -151,9 +152,17 @@ export async function hasPlanningWritePermission(ctx: OrgActionContext): Promise
           or coalesce(r.permissions, '[]'::jsonb) ? $3
         )
       limit 1`,
-    [ctx.userId, ctx.orgId, PLANNING_WRITE_PERMISSION],
+    [ctx.userId, ctx.orgId, permission],
   );
   return rows.length > 0;
+}
+
+export async function hasPlanningWritePermission(ctx: OrgActionContext): Promise<boolean> {
+  return hasPlanningPermission(ctx, PLANNING_WRITE_PERMISSION);
+}
+
+export async function hasPlanningReadPermission(ctx: OrgActionContext): Promise<boolean> {
+  return hasPlanningPermission(ctx, PLANNING_READ_PERMISSION);
 }
 
 export async function writeProcurementAudit(

@@ -8,6 +8,7 @@ import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-lo
 import {
   PurchaseOrderStatusSchema,
   hasPlanningWritePermission,
+  hasPlanningReadPermission,
   isPgError,
   numeric3Schema,
   numeric4Schema,
@@ -84,7 +85,7 @@ type PurchaseOrder = {
 };
 
 type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
-type PurchaseOrderError = ProcurementError | 'last_line' | 'po_has_receipts' | 'po_open_quantity' | 'no_active_site' | 'ambiguous_site';
+type PurchaseOrderError = ProcurementError | 'last_line' | 'po_has_receipts' | 'po_open_quantity' | 'no_active_site' | 'ambiguous_site' | 'supplier_blocked';
 type PurchaseOrderResult<T> = { ok: true; data: T } | { ok: false; error: PurchaseOrderError; code?: PurchaseOrderError; message?: string };
 type PurchaseOrderListResult =
   | { ok: true; data: PurchaseOrder[]; archivedCount: number }
@@ -316,7 +317,10 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
   const archived = input.archived === true;
 
   try {
-    return await withOrgContext(async ({ client }): Promise<PurchaseOrderListResult> => {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderListResult> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningReadPermission(ctx))) return { ok: false, error: 'forbidden' };
+
       // F10 — PO screens are org-wide per the site-selector tooltip ("Filters work
       // orders, license plates and OEE only — other screens stay org-wide"). The
       // top-bar site is an OPTIONAL narrowing filter here, never a hard gate: when
@@ -379,7 +383,10 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
 
 export async function getPurchaseOrder(id: string): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
   try {
-    return await withOrgContext(async ({ client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningReadPermission(ctx))) return { ok: false, error: 'forbidden' };
+
       const c = client as QueryClient;
       const { rows } = await c.query<PurchaseOrderRow>(
         `select po.id, po.po_number, po.supplier_id, s.code as supplier_code, s.name as supplier_name,

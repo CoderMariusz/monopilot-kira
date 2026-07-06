@@ -6,6 +6,7 @@ import {
   SupplierCreateInput,
   SupplierStatusSchema,
   hasPlanningWritePermission,
+  hasPlanningReadPermission,
   pgErrorToResult,
   toIso,
   uuidSchema,
@@ -86,8 +87,11 @@ export async function listSuppliers(params: unknown = {}): Promise<SupplierResul
   const limit = typeof input.limit === 'number' && Number.isInteger(input.limit) ? Math.min(Math.max(input.limit, 1), 200) : 100;
 
   try {
-    return await withOrgContext(async ({ client }): Promise<SupplierResult<Supplier[]>> => {
-      const { rows } = await (client as QueryClient).query<SupplierRow>(
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier[]>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningReadPermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await ctx.client.query<SupplierRow>(
         `select id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at
            from public.suppliers
           where org_id = app.current_org_id()
@@ -107,8 +111,11 @@ export async function listSuppliers(params: unknown = {}): Promise<SupplierResul
 
 export async function getSupplier(id: string): Promise<SupplierResult<Supplier>> {
   try {
-    return await withOrgContext(async ({ client }): Promise<SupplierResult<Supplier>> => {
-      const { rows } = await (client as QueryClient).query<SupplierRow>(
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningReadPermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await ctx.client.query<SupplierRow>(
         `select id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at
            from public.suppliers
           where org_id = app.current_org_id()

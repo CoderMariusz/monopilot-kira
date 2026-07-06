@@ -134,6 +134,25 @@ describe('receive-po-line-core', () => {
     expect(allowed).toMatchObject({ ok: true, overReceived: true, qty: '10.5' });
   });
 
+  it('rejects receive when supplier is blocked', async () => {
+    const client = makeClient({ orderedQty: '10.000000', receivedQty: '0.000000', supplierStatus: 'blocked' });
+
+    const result = await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+      baseInput,
+      {
+        mode: 'desktop',
+        genesisReasonCode: 'desktop_receive_po',
+        genesisReasonText: 'Desktop PO receipt',
+        requireOverReceiveConfirm: true,
+      },
+    );
+
+    expect(result).toEqual({ ok: false, code: 'supplier_blocked', poId: PO_ID });
+    expect(client.calls.some((c) => c.sql.includes('insert into public.grn_items'))).toBe(false);
+  });
+
   it('rejects closed PO lines because load filters to open statuses only', async () => {
     const client = makeClient({ lineMissing: true });
 
@@ -164,6 +183,7 @@ function makeClient(options: {
   isReceived?: boolean;
   lineMissing?: boolean;
   throwOnGrnItemsWriteAfterCompleted?: boolean;
+  supplierStatus?: string;
 }): FakeClient {
   const calls: FakeClient['calls'] = [];
   let grnCompleted = false;
@@ -194,6 +214,7 @@ function makeClient(options: {
                   po_id: PO_ID,
                   item_id: ITEM_ID,
                   supplier_id: SUPPLIER_ID,
+                  supplier_status: options.supplierStatus ?? 'active',
                   destination_warehouse_id: null,
                   line_no: 1,
                   ordered_qty: options.orderedQty ?? '10.000000',

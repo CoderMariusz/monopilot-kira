@@ -18,13 +18,21 @@ const DESTINATION_WAREHOUSE_ID = '77777777-7777-4777-8777-777777777777';
 const SITE_ID = '88888888-8888-4888-8888-888888888888';
 
 let client: QueryClient;
-let allowPermission = true;
+let allowWritePermission = true;
+let allowReadPermission = true;
 let poExists = true;
 let generatedSeq = 7;
 let failNextAutoInsert = false;
 let currentStatus = 'draft';
 let activeReceivedCount = 0;
 let fullyReceived = false;
+let supplierStatus = 'active';
+
+function permissionAllowed(permission: unknown): boolean {
+  if (permission === 'npd.planning.write') return allowWritePermission;
+  if (permission === 'scheduler.run.read') return allowReadPermission;
+  return false;
+}
 
 const { getActiveSiteIdMock, resolveWriteSiteIdMock } = vi.hoisted(() => ({
   getActiveSiteIdMock: vi.fn(),
@@ -80,7 +88,10 @@ function makeClient(): QueryClient {
     query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
       const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
       if (normalized.includes('from public.user_roles')) {
-        return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+        return { rows: permissionAllowed(params[2]) ? [{ ok: true }] : [], rowCount: permissionAllowed(params[2]) ? 1 : 0 };
+      }
+      if (normalized.startsWith('select status from public.suppliers')) {
+        return { rows: [{ status: supplierStatus }], rowCount: 1 };
       }
       if (normalized.startsWith('update public.org_document_settings')) {
         return {
@@ -134,7 +145,9 @@ function makeClient(): QueryClient {
 
 describe('planning purchase order actions', () => {
   beforeEach(() => {
-    allowPermission = true;
+    allowWritePermission = true;
+    allowReadPermission = true;
+    supplierStatus = 'active';
     poExists = true;
     generatedSeq = 7;
     failNextAutoInsert = false;
@@ -144,6 +157,20 @@ describe('planning purchase order actions', () => {
     getActiveSiteIdMock.mockResolvedValue(SITE_ID);
     resolveWriteSiteIdMock.mockResolvedValue({ ok: true, siteId: SITE_ID });
     client = makeClient();
+  });
+
+  it('rejects list when caller lacks planning read permission', async () => {
+    allowReadPermission = false;
+    await expect(listPurchaseOrders({})).resolves.toEqual({ ok: false, error: 'forbidden' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.includes('from public.purchase_orders po'))).toBe(false);
+  });
+
+  it('rejects get when caller lacks planning read permission', async () => {
+    allowReadPermission = false;
+    await expect(getPurchaseOrder(PO_ID)).resolves.toEqual({ ok: false, error: 'forbidden' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.includes('from public.purchase_orders po'))).toBe(false);
   });
 
   it('lists purchase orders with supplier context', async () => {
@@ -311,8 +338,42 @@ describe('planning purchase order actions', () => {
     expect(result.data.poNumber).toMatch(/^PO-\d{6}-0008$/);
   });
 
+  it('forces draft status on create even when client sends a terminal status', async () => {
+    const result = await createPurchaseOrder({
+      poNumber: 'PO-TEST-RECEIVED',
+      supplierId: SUPPLIER_ID,
+      status: 'received',
+      lines: [{ itemId: ITEM_ID, qty: '10.000', uom: 'kg', unitPrice: '6.2000', lineNo: 1 }],
+    });
+
+    expect(result.ok).toBe(true);
+    const insertHeaderCall = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => String(sql).includes('insert into public.purchase_orders'));
+    expect(insertHeaderCall?.[1]?.[3]).toBe('draft');
+  });
+
+  it('rejects create when supplier is blocked', async () => {
+    supplierStatus = 'blocked';
+
+    const result = await createPurchaseOrder({
+      poNumber: 'PO-TEST-BLOCKED',
+      supplierId: SUPPLIER_ID,
+      lines: [{ itemId: ITEM_ID, qty: '10.000', uom: 'kg', unitPrice: '6.2000', lineNo: 1 }],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'supplier_blocked',
+      code: 'supplier_blocked',
+      message: 'Supplier is blocked',
+    });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.includes('insert into public.purchase_orders'))).toBe(false);
+  });
+
   it('rejects create when caller lacks planning write permission', async () => {
-    allowPermission = false;
+    allowWritePermission = false;
     await expect(
       createPurchaseOrder({
         poNumber: 'PO-TEST-001',

@@ -165,8 +165,9 @@ async function loadGrnLineForUpdate(ctx: WarehouseContext, grnItemId: string): P
 }
 
 async function rollupPurchaseOrderStatus(ctx: WarehouseContext, poId: string): Promise<void> {
-  const { rows } = await ctx.client.query<{ is_received: boolean }>(
-    `select bool_and(coalesce(rec.received_qty, 0) >= pol.qty) as is_received
+  const { rows } = await ctx.client.query<{ is_received: boolean; total_received: string }>(
+    `select bool_and(coalesce(rec.received_qty, 0) >= pol.qty) as is_received,
+            coalesce(sum(coalesce(rec.received_qty, 0)), 0)::text as total_received
        from public.purchase_order_lines pol
        left join (
          select po_line_id, sum(received_qty) as received_qty
@@ -180,7 +181,12 @@ async function rollupPurchaseOrderStatus(ctx: WarehouseContext, poId: string): P
         and pol.po_id = $1::uuid`,
     [poId],
   );
-  const status = rows[0]?.is_received ? 'received' : 'partially_received';
+  const rollup = rows[0];
+  const status = rollup?.is_received
+    ? 'received'
+    : Number(rollup?.total_received ?? 0) > 0
+      ? 'partially_received'
+      : 'confirmed';
   await ctx.client.query(
     `update public.purchase_orders
         set status = $2,

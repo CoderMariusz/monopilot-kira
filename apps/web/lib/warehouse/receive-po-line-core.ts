@@ -67,7 +67,8 @@ export type ReceivePoLineCoreFailure = {
     | 'over_receive_cap'
     | 'over_receive_confirm_required'
     | 'invalid_location'
-    | 'no_warehouse';
+    | 'no_warehouse'
+    | 'supplier_blocked';
   poId?: string;
   /** Populated for over_receive_cap to allow callers to log diagnostic context. */
   orderedQty?: string;
@@ -92,6 +93,7 @@ type LineForReceive = {
   po_id: string;
   item_id: string;
   supplier_id: string;
+  supplier_status: string;
   destination_warehouse_id: string | null;
   line_no: number;
   ordered_qty: string;
@@ -120,6 +122,9 @@ export async function executeReceivePoLineCore(
 
   const line = await loadLineForUpdate(client, ctx.orgId, input.poLineId);
   if (!line) return { ok: false, code: 'not_found' };
+  if (line.supplier_status === 'blocked') {
+    return { ok: false, code: 'supplier_blocked', poId: line.po_id };
+  }
 
   const qty = parseDecimal(input.qty);
   if (qty <= 0n) return { ok: false, code: 'invalid_qty', poId: line.po_id };
@@ -281,6 +286,7 @@ async function loadLineForUpdate(
             pol.po_id,
             pol.item_id,
             po.supplier_id,
+            s.status as supplier_status,
             po.destination_warehouse_id,
             pol.line_no,
             pol.qty::text as ordered_qty,
@@ -298,6 +304,9 @@ async function loadLineForUpdate(
        join public.purchase_orders po
          on po.id = pol.po_id
         and po.org_id = pol.org_id
+       join public.suppliers s
+         on s.id = po.supplier_id
+        and s.org_id = po.org_id
        left join public.items i
          on i.id = pol.item_id
         and i.org_id = pol.org_id

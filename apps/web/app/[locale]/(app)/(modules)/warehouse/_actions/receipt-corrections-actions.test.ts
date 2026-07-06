@@ -38,6 +38,8 @@ type State = {
   lpConsumptionRows: string[];
   lpHasChild: boolean;
   grnExtJsonb: unknown;
+  rollupTotalReceived: string;
+  rollupIsReceived: boolean;
 };
 
 let state: State;
@@ -138,7 +140,10 @@ function makeClient(): QueryClient {
       }
 
       if (n.includes('bool_and')) {
-        return { rows: [{ is_received: false }], rowCount: 1 };
+        return {
+          rows: [{ is_received: state.rollupIsReceived, total_received: state.rollupTotalReceived }],
+          rowCount: 1,
+        };
       }
 
       if (n.startsWith('update public.purchase_orders')) {
@@ -178,12 +183,25 @@ beforeEach(() => {
     lpConsumptionRows: [],
     lpHasChild: false,
     grnExtJsonb: null,
+    rollupTotalReceived: '0',
+    rollupIsReceived: false,
   };
   queries = [];
   client = makeClient();
 });
 
 describe('receipt corrections actions', () => {
+  it('cancelGrnLine rolls PO back to partially_received when other receipts remain', async () => {
+    state.rollupTotalReceived = '5.000000';
+    state.rollupIsReceived = false;
+
+    const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'entry_error' });
+    expect(result).toEqual({ ok: true });
+
+    const poRollup = queries.find((q) => normalize(q.sql).startsWith('update public.purchase_orders'));
+    expect(poRollup!.params).toEqual([PO_ID, 'partially_received', USER_ID]);
+  });
+
   it('cancelGrnLine returns the LP and zeroes it, flags the GRN line, and aggregate consumers exclude cancelled lines', async () => {
     const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'entry_error', note: 'Wrong receipt' });
     expect(result).toEqual({ ok: true });
@@ -198,7 +216,7 @@ describe('receipt corrections actions', () => {
 
     const poRollup = queries.find((q) => normalize(q.sql).startsWith('update public.purchase_orders'));
     expect(normalize(poRollup!.sql)).toContain("status in ('confirmed', 'partially_received', 'received')");
-    expect(poRollup!.params).toEqual([PO_ID, 'partially_received', USER_ID]);
+    expect(poRollup!.params).toEqual([PO_ID, 'confirmed', USER_ID]);
 
     const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
     expect(history!.params).toEqual(expect.arrayContaining([LP_ID, 'received', 'returned', 'receipt_cancelled']));

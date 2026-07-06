@@ -8,7 +8,8 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const SUPPLIER_ID = '33333333-3333-4333-8333-333333333333';
 
 let client: QueryClient;
-let allowPermission = true;
+let allowWritePermission = true;
+let allowReadPermission = true;
 let supplierExists = true;
 
 const revalidatePath = vi.fn();
@@ -38,12 +39,18 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+function permissionAllowed(permission: unknown): boolean {
+  if (permission === 'npd.planning.write') return allowWritePermission;
+  if (permission === 'scheduler.run.read') return allowReadPermission;
+  return false;
+}
+
 function makeClient(): QueryClient {
   return {
-    query: vi.fn(async (sql: string) => {
+    query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
       const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
       if (normalized.includes('from public.user_roles')) {
-        return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+        return { rows: permissionAllowed(params[2]) ? [{ ok: true }] : [], rowCount: permissionAllowed(params[2]) ? 1 : 0 };
       }
       if (normalized.startsWith('select id, code, name')) {
         return { rows: supplierExists ? [row()] : [], rowCount: supplierExists ? 1 : 0 };
@@ -70,10 +77,21 @@ function makeClient(): QueryClient {
 
 describe('planning suppliers actions', () => {
   beforeEach(() => {
-    allowPermission = true;
+    allowWritePermission = true;
+    allowReadPermission = true;
     supplierExists = true;
     client = makeClient();
     revalidatePath.mockClear();
+  });
+
+  it('rejects list when caller lacks planning read permission', async () => {
+    allowReadPermission = false;
+    await expect(listSuppliers({})).resolves.toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('rejects get when caller lacks planning read permission', async () => {
+    allowReadPermission = false;
+    await expect(getSupplier(SUPPLIER_ID)).resolves.toEqual({ ok: false, error: 'forbidden' });
   });
 
   it('lists suppliers under app.current_org_id scope', async () => {
@@ -82,7 +100,7 @@ describe('planning suppliers actions', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.data[0]).toEqual(expect.objectContaining({ code: 'SUP-TEST-01', leadTimeDays: 5 }));
-    expect(vi.mocked(client.query).mock.calls[0]?.[0]).toContain('app.current_org_id()');
+    expect(vi.mocked(client.query).mock.calls.find(([sql]) => String(sql).includes('from public.suppliers'))?.[0]).toContain('app.current_org_id()');
   });
 
   it('gets one supplier or not_found', async () => {
@@ -115,7 +133,7 @@ describe('planning suppliers actions', () => {
   });
 
   it('rejects create when caller lacks planning write permission', async () => {
-    allowPermission = false;
+    allowWritePermission = false;
     await expect(createSupplier({ code: 'SUP-TEST-01', name: 'Test Supplier' })).resolves.toEqual({ ok: false, error: 'forbidden' });
   });
 
@@ -144,7 +162,7 @@ describe('planning suppliers actions', () => {
   });
 
   it('rejects update when caller lacks planning write permission', async () => {
-    allowPermission = false;
+    allowWritePermission = false;
     await expect(updateSupplier({
       id: SUPPLIER_ID,
       code: 'SUP-TEST-02',
