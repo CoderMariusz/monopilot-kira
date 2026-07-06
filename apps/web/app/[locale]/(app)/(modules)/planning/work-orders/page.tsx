@@ -29,6 +29,7 @@ import { listPlanningWorkOrders } from './_actions/listPlanningWorkOrders';
 import { createWorkOrder } from './_actions/createWorkOrder';
 import { deleteDraftWorkOrder, releaseWorkOrder } from './_actions/releaseWorkOrder';
 import { searchFgProducts, listProductionResources } from './_actions/wo-form-data';
+import { previewWorkOrderChain } from './_actions/chain-preview';
 import { WoListView, type WoListLabels } from './_components/wo-list-view';
 import { makeImportLabel } from '../../../../../../lib/import/import-i18n-staging';
 import archiveTabsStaging from '../../../../../../../../_meta/i18n-staging/archive-tabs.json';
@@ -255,6 +256,7 @@ async function ListContent({
       createWorkOrderAction={createWorkOrder}
       releaseWorkOrderAction={releaseWorkOrder}
       deleteDraftWorkOrderAction={deleteDraftWorkOrder}
+      previewChainAction={previewWorkOrderChain}
     />
   );
 }

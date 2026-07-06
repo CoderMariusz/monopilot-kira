@@ -32,6 +32,8 @@ import Input from '@monopilot/ui/Input';
 import Textarea from '@monopilot/ui/Textarea';
 import { Select } from '@monopilot/ui/Select';
 
+import { WoChainPreview } from './wo-chain-preview';
+import type { PreviewWorkOrderChainResult } from '../_actions/chain-preview';
 import { ItemPicker, type ItemSearchFn } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
 import {
@@ -152,6 +154,12 @@ export type CreateWoModalProps = {
   }) => Promise<CreateWorkOrderResult>;
   /** Called after a successful create so the list can refresh. */
   onCreated: (result: Extract<CreateWorkOrderResult, { ok: true }>) => void;
+  /**
+   * Optional chain-preview seam. When wired, a read-only tree of the child WIP work
+   * orders that will be created appears below the form for multi-stage finished
+   * goods. Optional so existing callers/tests that don't pass it are unaffected.
+   */
+  previewChainAction?: (input: { productId: string; plannedQuantity: string }) => Promise<PreviewWorkOrderChainResult>;
 };
 
 const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
@@ -168,6 +176,7 @@ export function CreateWoModal({
   searchFgProductsAction,
   createWorkOrderAction,
   onCreated,
+  previewChainAction,
 }: CreateWoModalProps) {
   const [product, setProduct] = React.useState<PickedProduct | null>(null);
   // P0-UOM — the unit the quantity is entered in. Initialised to the picked
@@ -351,6 +360,20 @@ export function CreateWoModal({
   const qtyLabel = unitWord ? `${labels.quantityLabel} (${unitWord})` : labels.quantityLabel;
   const orderUnitLabel = labels.orderUnitLabel ?? 'Order unit';
 
+  // Base-qty for the chain preview (the dry-run action keys required WIP qty off the
+  // base qty, same as the create action). Empty until product + a valid qty exist.
+  const previewBaseQty = React.useMemo(() => {
+    if (!product) return '';
+    const raw = quantity.trim();
+    if (!QTY_PATTERN.test(raw) || Number(raw) <= 0) return '';
+    if (orderUom === 'base') return raw;
+    try {
+      return toBaseQty(product.snapshot, Number(raw), orderUom).toFixed(4).replace(/\.?0+$/, '');
+    } catch {
+      return '';
+    }
+  }, [product, quantity, orderUom]);
+
   let conversionPreview: string | null = null;
   if (product && orderUom !== 'base' && QTY_PATTERN.test(quantity.trim()) && Number(quantity) > 0) {
     try {
@@ -487,6 +510,16 @@ export function CreateWoModal({
               className="w-full text-sm"
             />
           </label>
+
+          {/* Multi-stage chain preview (read-only, dry run). Only when wired + a
+              product is picked; renders nothing for single-stage finished goods. */}
+          {previewChainAction && product ? (
+            <WoChainPreview
+              productId={product.id}
+              plannedQuantity={previewBaseQty}
+              previewChainAction={previewChainAction}
+            />
+          ) : null}
         </form>
       </Modal.Body>
       <Modal.Footer>

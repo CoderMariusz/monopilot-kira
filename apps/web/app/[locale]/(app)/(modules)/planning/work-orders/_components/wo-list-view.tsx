@@ -44,6 +44,7 @@ import { WoStatusBadge } from './wo-status-badge';
 import { CreateWoModal, type CreateWoLabels } from './create-wo-modal';
 import type { ListPlanningWorkOrdersResult, CreateWorkOrderResult, ReleaseWorkOrderResult, DeleteDraftWorkOrderResult } from '../_actions/shared';
 import type { FgProductOption, ProductionResources, SearchFgProductsInput } from '../_actions/wo-form-data';
+import type { PreviewWorkOrderChainResult } from '../_actions/chain-preview';
 
 type WoRow = Extract<ListPlanningWorkOrdersResult, { ok: true }>['workOrders'][number];
 
@@ -129,6 +130,8 @@ export type WoListViewProps = {
   }) => Promise<CreateWorkOrderResult>;
   releaseWorkOrderAction: (params: { id: string }) => Promise<ReleaseWorkOrderResult>;
   deleteDraftWorkOrderAction?: (params: { id: string }) => Promise<DeleteDraftWorkOrderResult>;
+  /** Optional chain-preview seam forwarded to the create modal (see create-wo-modal). */
+  previewChainAction?: (input: { productId: string; plannedQuantity: string }) => Promise<PreviewWorkOrderChainResult>;
 };
 
 function fmtDate(iso: string | null, locale: string): string {
@@ -150,6 +153,7 @@ export function WoListView({
   createWorkOrderAction,
   releaseWorkOrderAction,
   deleteDraftWorkOrderAction,
+  previewChainAction,
 }: WoListViewProps) {
   const router = useRouter();
   const basePath = `/${locale}/planning/work-orders`;
@@ -461,6 +465,7 @@ export function WoListView({
         searchFgProductsAction={searchFgProductsAction}
         createWorkOrderAction={createWorkOrderAction}
         onCreated={() => router.refresh()}
+        previewChainAction={previewChainAction}
       />
     </div>
   );
