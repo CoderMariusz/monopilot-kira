@@ -103,11 +103,9 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
           const txClient = client as QueryClient;
           await txClient.query('savepoint sp_supplier_spec');
           try {
-            // Route the wizard's supplier price into the canonical
-            // supplier_specs.unit_price (mig 405) so PO prefill reads "From
-            // supplier spec". When a supplier is attached the wizard's price field
-            // IS the supplier price (item-create-wizard.tsx priceFieldLabel); it
-            // still also lands on items.list_price_gbp as the list price.
+            // Route the wizard's supplier buy price into supplier_specs.unit_price (mig 405)
+            // so PO prefill reads "From supplier spec". list_price_gbp is the separate
+            // sell price and is written only on public.items.
             await txClient.query(
               `insert into public.supplier_specs
                  (org_id, item_id, supplier_code, supplier_id, supplier_status,
@@ -123,8 +121,8 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
                 input.supplierCode,
                 userId,
                 supplier.rows[0].id,
-                input.listPriceGbp ?? null,
-                input.listPriceGbp != null ? 'GBP' : null,
+                input.supplierUnitPrice ?? null,
+                input.supplierUnitPrice != null ? 'GBP' : null,
               ],
             );
             await txClient.query('release savepoint sp_supplier_spec');

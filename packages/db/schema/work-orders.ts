@@ -17,14 +17,14 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from './baseline.js';
-import { machines, productionLines } from './infra-master.js';
+import { productionLines } from './infra-master.js';
 
 // 04-Planning-Basic — work_orders + wo_materials + wo_operations.
 // PRD: docs/prd/04-PLANNING-BASIC-PRD.md §5.6, §5.7. Task T-004.
 // Wave0 lock: org_id (not tenant_id); RLS via app.current_org_id() (migration 176).
 // product_id / bom_id / routing_id / source_wo_id are soft cross-module references — no
 // Drizzle .references() so module schema files do not form a circular dependency on
-// 03-Technical. The hard FKs (production_lines / machines / users / organizations) live here.
+// 03-Technical. The hard FKs (production_lines / users / organizations) live here.
 
 export const workOrders = pgTable(
   'work_orders',
@@ -63,7 +63,6 @@ export const workOrders = pgTable(
     productionLineId: uuid('production_line_id').references(() => productionLines.id, {
       onDelete: 'set null',
     }),
-    machineId: uuid('machine_id').references(() => machines.id, { onDelete: 'set null' }),
 
     priority: varchar('priority', { length: 20 }).notNull().default('normal'),
     sourceOfDemand: text('source_of_demand').notNull().default('manual'),
@@ -107,9 +106,6 @@ export const workOrders = pgTable(
       .on(t.orgId, t.releasedToWarehouse)
       .where(sql`${t.releasedToWarehouse} = true`),
     productIdx: index('idx_work_orders_product').on(t.orgId, t.productId),
-    machineIdx: index('idx_work_orders_machine')
-      .on(t.machineId)
-      .where(sql`${t.machineId} is not null`),
     createdByIdx: index('idx_work_orders_created_by')
       .on(t.createdBy)
       .where(sql`${t.createdBy} is not null`),
@@ -229,7 +225,6 @@ export const woOperations = pgTable(
 
     sequence: integer('sequence').notNull(),
     operationName: varchar('operation_name', { length: 255 }).notNull(),
-    machineId: uuid('machine_id').references(() => machines.id, { onDelete: 'set null' }),
     lineId: uuid('line_id').references(() => productionLines.id, { onDelete: 'set null' }),
 
     expectedDurationMinutes: integer('expected_duration_minutes'),
@@ -255,9 +250,6 @@ export const woOperations = pgTable(
     lineIdx: index('idx_wo_operations_line')
       .on(t.lineId)
       .where(sql`${t.lineId} is not null`),
-    machineIdx: index('idx_wo_operations_machine')
-      .on(t.machineId)
-      .where(sql`${t.machineId} is not null`),
     sequenceCheck: check('wo_operations_sequence_check', sql`${t.sequence} >= 1`),
     statusCheck: check(
       'wo_operations_status_check',

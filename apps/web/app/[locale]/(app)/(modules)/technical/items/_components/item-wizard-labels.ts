@@ -52,6 +52,7 @@ export type ItemWizardLabels = {
     netQtyPerEach: string;
     eachPerBox: string;
     boxesPerPallet: string;
+    supplierUnitPrice: string;
     listPriceGbp: string;
   };
   /** Localized labels for the item-type select (rm/ingredient/…/co_product/byproduct/packaging). */
@@ -117,7 +118,8 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     netQtyPerEach: 'Net content per each',
     eachPerBox: 'Each per box',
     boxesPerPallet: 'Boxes per pallet',
-    listPriceGbp: 'List price',
+    supplierUnitPrice: 'Supplier price (GBP)',
+    listPriceGbp: 'List price (GBP)',
   },
   typeLabels: {
     rm: 'Raw material',
@@ -232,6 +234,7 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       netQtyPerEach: get('create.fields.netQtyPerEach', D.fields.netQtyPerEach),
       eachPerBox: get('create.fields.eachPerBox', D.fields.eachPerBox),
       boxesPerPallet: get('create.fields.boxesPerPallet', D.fields.boxesPerPallet),
+      supplierUnitPrice: get('create.fields.supplierUnitPrice', D.fields.supplierUnitPrice),
       listPriceGbp: get('create.fields.listPriceGbp', D.fields.listPriceGbp),
     },
     typeLabels: {

@@ -7,6 +7,11 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const ZERO_WO_ID = '33333333-3333-4333-8333-333333333333';
 const COSTED_WO_ID = '44444444-4444-4444-8444-444444444444';
 const CREW_WO_ID = '55555555-5555-4555-8555-555555555555';
+const DEFAULTS_WO_ID = '66666666-6666-4666-8666-666666666666';
+const SETUP_WO_ID = '77777777-7777-4777-8777-777777777777';
+const FRACTIONAL_WO_ID = '88888888-8888-4888-8888-888888888888';
+const DEDUP_MO_WO_ID = '99999999-9999-4999-8999-999999999999';
+const DEDUP_SETUP_WO_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 type QueryCall = { sql: string; params: unknown[] };
 
@@ -91,6 +96,96 @@ const client = {
               staffing_count: '1',
               setup_cost: null,
               expected_duration_minutes: '90',
+              has_labor_rate: true,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (params?.[0] === DEFAULTS_WO_ID) {
+        return {
+          rows: [
+            {
+              operation_name: 'MIXING',
+              row_key: 'pd-default-1',
+              cost_mode: 'per_hour',
+              cost_rate: '30.0000',
+              currency: 'GBP',
+              staffing_count: '2',
+              setup_cost: null,
+              expected_duration_minutes: '60',
+              has_labor_rate: true,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (params?.[0] === SETUP_WO_ID) {
+        return {
+          rows: [
+            {
+              operation_name: 'PACKING',
+              row_key: 'pd-setup-1',
+              cost_mode: 'per_hour',
+              cost_rate: '20.0000',
+              currency: 'GBP',
+              staffing_count: '1',
+              setup_cost: '12.5000',
+              expected_duration_minutes: '60',
+              has_labor_rate: true,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (params?.[0] === FRACTIONAL_WO_ID) {
+        return {
+          rows: [
+            {
+              operation_name: 'BLENDING',
+              row_key: 'pd-frac-1',
+              cost_mode: 'per_hour',
+              cost_rate: '125.0000',
+              currency: 'GBP',
+              staffing_count: '2.5',
+              setup_cost: null,
+              expected_duration_minutes: '60',
+              has_labor_rate: true,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (params?.[0] === DEDUP_MO_WO_ID) {
+        return {
+          rows: [
+            {
+              operation_name: 'MIXING',
+              row_key: 'pd-lowest-id',
+              cost_mode: 'per_hour',
+              cost_rate: '30.0000',
+              currency: 'GBP',
+              staffing_count: '2',
+              setup_cost: '10.0000',
+              expected_duration_minutes: '60',
+              has_labor_rate: true,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (params?.[0] === DEDUP_SETUP_WO_ID) {
+        return {
+          rows: [
+            {
+              operation_name: 'MIXING',
+              row_key: 'pd-shared',
+              cost_mode: 'per_hour',
+              cost_rate: '40.0000',
+              currency: 'GBP',
+              staffing_count: '2',
+              setup_cost: '15.0000',
+              expected_duration_minutes: '120',
               has_labor_rate: true,
             },
           ],
@@ -195,7 +290,7 @@ describe('listCompletedWoCosts', () => {
 });
 
 describe('computeWoActualCost crew labor path', () => {
-  it('uses the WO operation crew-rate result directly and keeps the null-crew fallback branch in SQL', async () => {
+  it('uses the WO operation crew-rate result directly and keeps totals unchanged', async () => {
     const result = await computeWoActualCost(CREW_WO_ID);
 
     expect(result.ok).toBe(true);
@@ -209,12 +304,95 @@ describe('computeWoActualCost crew labor path', () => {
       ratePerHour: '100.0000',
       cost: '150.0000',
     });
+    expect(result.data.setupCost).toBe('0.0000');
     expect(result.data.totalCost).toBe('150.0000');
 
     const processQuery = calls.find((call) => call.sql.includes('from public.wo_operations'));
     expect(processQuery?.sql).toContain('jsonb_to_recordset');
     expect(processQuery?.sql).toContain('where op.crew is not null');
+    expect(processQuery?.sql).toContain('defaults_op_rate');
+    expect(processQuery?.sql).toContain('public.npd_process_default_roles');
+    expect(processQuery?.sql).not.toContain('fallback_op_rate');
+    expect(processQuery?.sql).not.toContain('null::text as setup_cost');
+  });
+
+  it('costs a crew-less WO via npd_process_default_roles defaults', async () => {
+    const result = await computeWoActualCost(DEFAULTS_WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.labor).toMatchObject({
+      runtimeMin: '60.000',
+      staffing: '2',
+      ratePerHour: '15.0000',
+      cost: '30.0000',
+    });
+    expect(result.data.totalCost).toBe('30.0000');
+
+    const processQuery = calls.find((call) => call.sql.includes('defaults_op_rate'));
     expect(processQuery?.sql).toContain('where op.crew is null');
-    expect(processQuery?.sql).toContain('public.npd_process_defaults');
+    expect(processQuery?.sql).toContain('public.npd_process_default_roles');
+  });
+
+  it('includes npd_process_defaults.setup_cost in the WO total', async () => {
+    const result = await computeWoActualCost(SETUP_WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.setupCost).toBe('12.5000');
+    expect(result.data.labor?.cost).toBe('20.0000');
+    expect(result.data.totalCost).toBe('32.5000');
+  });
+
+  it('resolves duplicate active MO names to one process default via lowest-id lateral pick', async () => {
+    const result = await computeWoActualCost(DEDUP_MO_WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.labor).toMatchObject({
+      runtimeMin: '60.000',
+      staffing: '2',
+      ratePerHour: '15.0000',
+      cost: '30.0000',
+    });
+    expect(result.data.setupCost).toBe('10.0000');
+    expect(result.data.totalCost).toBe('40.0000');
+
+    const processQuery = calls.find((call) => call.sql.includes('defaults_op_rate'));
+    expect(processQuery?.sql).toContain('join lateral');
+    expect(processQuery?.sql).toContain('order by mo.id asc, pd.id asc');
+    expect(processQuery?.sql).toContain('limit 1');
+  });
+
+  it('charges setup once per distinct process_default_id when the same process spans two ops', async () => {
+    const result = await computeWoActualCost(DEDUP_SETUP_WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.setupCost).toBe('15.0000');
+    expect(result.data.labor?.cost).toBe('80.0000');
+    expect(result.data.totalCost).toBe('95.0000');
+
+    const processQuery = calls.find((call) => call.sql.includes('defaults_op_rate'));
+    expect(processQuery?.sql).toContain('distinct on (process_default_id)');
+  });
+
+  it('round-trips fractional default headcount without overstating labor', async () => {
+    const result = await computeWoActualCost(FRACTIONAL_WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.labor).toMatchObject({
+      runtimeMin: '60.000',
+      staffing: '2.5',
+      ratePerHour: '50.0000',
+      cost: '125.0000',
+    });
+    expect(result.data.totalCost).toBe('125.0000');
   });
 });

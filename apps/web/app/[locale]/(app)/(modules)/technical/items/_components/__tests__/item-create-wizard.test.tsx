@@ -118,9 +118,9 @@ describe('ItemWizard create mode (TEC-011)', () => {
 
     expect(screen.getByText(L.catchHint)).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: L.fields.nominalWeight })).toBeInTheDocument();
-    expect(screen.getByRole('spinbutton', { name: L.fields.tareWeight })).toBeInTheDocument();
-    expect(screen.getByRole('spinbutton', { name: L.fields.grossWeightMax })).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: L.fields.varianceTolerance })).toBeInTheDocument();
+    expect(screen.queryByRole('spinbutton', { name: L.fields.tareWeight })).not.toBeInTheDocument();
+    expect(screen.queryByRole('spinbutton', { name: L.fields.grossWeightMax })).not.toBeInTheDocument();
   });
 
   it('renders an OPTIONAL supplier dropdown in the classification step, populated from threaded options', async () => {
@@ -196,8 +196,6 @@ describe('ItemWizard create mode (TEC-011)', () => {
     await user.click(screen.getByRole('combobox', { name: L.fields.weightMode }));
     await user.click(screen.getByRole('option', { name: 'Catch weight' }));
     await user.type(screen.getByRole('spinbutton', { name: L.fields.nominalWeight }), '0.2500');
-    await user.type(screen.getByRole('spinbutton', { name: L.fields.tareWeight }), '0.0200');
-    await user.type(screen.getByRole('spinbutton', { name: L.fields.grossWeightMax }), '0.3000');
     await user.type(screen.getByRole('spinbutton', { name: L.fields.varianceTolerance }), '5');
     await user.click(screen.getByRole('button', { name: L.next })); // → review
     await user.click(screen.getByRole('button', { name: L.create }));
@@ -211,8 +209,6 @@ describe('ItemWizard create mode (TEC-011)', () => {
       weightMode: 'catch',
       gs1Gtin: '01234567890123',
       nominalWeight: 0.25,
-      tareWeight: 0.02,
-      grossWeightMax: 0.3,
       varianceTolerancePct: 5,
     });
   });
@@ -242,11 +238,17 @@ describe('ItemWizard create mode (TEC-011)', () => {
     await user.click(screen.getByRole('combobox', { name: L.fields.supplier }));
     await user.click(screen.getByRole('option', { name: 'SUP-001 — Acme Foods' }));
     await user.click(screen.getByRole('button', { name: L.next })); // → weight
-    await user.type(inputByName('listPriceGbp'), '5.20');
+    await user.type(inputByName('supplierUnitPrice'), '5.20');
+    await user.type(inputByName('listPriceGbp'), '12.50');
     await user.click(screen.getByRole('button', { name: L.next })); // → review
     await user.click(screen.getByRole('button', { name: L.create }));
 
     expect(createItem).toHaveBeenCalledTimes(1);
+    expect(createItem.mock.calls[0][0]).toMatchObject({
+      supplierCode: 'SUP-001',
+      supplierUnitPrice: 5.2,
+      listPriceGbp: 12.5,
+    });
     // No redundant post-success spec write on the create path.
     expect(createItemSupplierSpec).not.toHaveBeenCalled();
     // No false error surfaced.
@@ -267,8 +269,6 @@ describe('ItemWizard edit mode (TEC-013 reuse)', () => {
       name: 'Existing',
       weightMode: 'catch' as const,
       nominalWeight: '0.2500',
-      tareWeight: '0.0200',
-      grossWeightMax: '0.3000',
       gs1Gtin: '01234567890123',
     };
     renderWizard({
@@ -291,8 +291,6 @@ describe('ItemWizard edit mode (TEC-013 reuse)', () => {
       id: 'abc-id',
       name: 'Existing',
       nominalWeight: 0.25,
-      tareWeight: 0.02,
-      grossWeightMax: 0.3,
       gs1Gtin: '01234567890123',
     });
   });

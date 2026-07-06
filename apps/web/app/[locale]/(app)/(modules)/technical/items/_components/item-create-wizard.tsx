@@ -28,7 +28,6 @@
  */
 
 import React from 'react';
-import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
@@ -109,8 +108,6 @@ export type WizardFormState = {
   uomSecondary: string;
   weightMode: (typeof WEIGHT_MODES)[number];
   nominalWeight: string;
-  tareWeight: string;
-  grossWeightMax: string;
   gs1Gtin: string;
   varianceTolerancePct: string;
   shelfLifeDays: string;
@@ -120,6 +117,7 @@ export type WizardFormState = {
   netQtyPerEach: string;
   eachPerBox: string;
   boxesPerPallet: string;
+  supplierUnitPrice: string;
   listPriceGbp: string;
 };
 
@@ -137,8 +135,6 @@ export function emptyWizardForm(): WizardFormState {
     uomSecondary: '',
     weightMode: 'fixed',
     nominalWeight: '',
-    tareWeight: '',
-    grossWeightMax: '',
     gs1Gtin: '',
     varianceTolerancePct: '',
     shelfLifeDays: '',
@@ -147,6 +143,7 @@ export function emptyWizardForm(): WizardFormState {
     netQtyPerEach: '',
     eachPerBox: '',
     boxesPerPallet: '',
+    supplierUnitPrice: '',
     listPriceGbp: '',
   };
 }
@@ -357,7 +354,6 @@ export function ItemWizard({
   onSaved?: () => void;
 }) {
   const router = useRouter();
-  const tItems = useTranslations('items');
   const [stepIndex, setStepIndex] = React.useState(0);
   const [form, setForm] = React.useState<WizardFormState>(() => initialForm ?? emptyWizardForm());
   const [error, setError] = React.useState<string | null>(null);
@@ -457,9 +453,6 @@ export function ItemWizard({
     form.outputUom === 'base'
       ? labels.outputUomLabels.base
       : conversionHint ?? labels.outputUomLabels[form.outputUom];
-  const priceFieldLabel = form.supplierCode
-    ? tItems('supplier_price_gbp_label')
-    : tItems('list_price_gbp_list_label');
 
   function update<K extends keyof WizardFormState>(key: K, value: WizardFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -505,8 +498,6 @@ export function ItemWizard({
       uomSecondary: trimOrUndefined(form.uomSecondary),
       gs1Gtin: trimOrUndefined(form.gs1Gtin),
       nominalWeight: numOrUndefined(form.nominalWeight),
-      tareWeight: numOrUndefined(form.tareWeight),
-      grossWeightMax: numOrUndefined(form.grossWeightMax),
       varianceTolerancePct: numOrUndefined(form.varianceTolerancePct),
       shelfLifeDays: numOrUndefined(form.shelfLifeDays),
       shelfLifeMode: form.shelfLifeMode === '' ? undefined : form.shelfLifeMode,
@@ -547,7 +538,7 @@ export function ItemWizard({
           const specResult = await createItemSupplierSpec({
             itemCode: form.itemCode,
             supplierId,
-            unitPrice: form.listPriceGbp || undefined,
+            unitPrice: form.supplierUnitPrice || undefined,
             priceCurrency: 'GBP',
             approveNow: true,
           });
@@ -576,7 +567,9 @@ export function ItemWizard({
       const result = await createItem({
         itemCode: form.itemCode,
         ...common,
-        ...(supplierCode ? { supplierCode } : {}),
+        ...(supplierCode
+          ? { supplierCode, supplierUnitPrice: numOrUndefined(form.supplierUnitPrice) }
+          : {}),
       });
       if (result.ok) {
         onClose();
@@ -838,32 +831,6 @@ export function ItemWizard({
                     onChange={(e) => update('nominalWeight', e.currentTarget.value)}
                   />
                 </Field>
-                <Field label={labels.fields.tareWeight} htmlFor="wiz-tare-weight">
-                  <Input
-                    id="wiz-tare-weight"
-                    name="tareWeight"
-                    type="number"
-                    min={0}
-                    step="0.0001"
-                    aria-label={labels.fields.tareWeight}
-                    className="form-input"
-                    value={form.tareWeight}
-                    onChange={(e) => update('tareWeight', e.currentTarget.value)}
-                  />
-                </Field>
-                <Field label={labels.fields.grossWeightMax} htmlFor="wiz-gross-weight">
-                  <Input
-                    id="wiz-gross-weight"
-                    name="grossWeightMax"
-                    type="number"
-                    min={0}
-                    step="0.0001"
-                    aria-label={labels.fields.grossWeightMax}
-                    className="form-input"
-                    value={form.grossWeightMax}
-                    onChange={(e) => update('grossWeightMax', e.currentTarget.value)}
-                  />
-                </Field>
                 <Field label={labels.fields.varianceTolerance} htmlFor="wiz-variance">
                   <Input
                     id="wiz-variance"
@@ -894,14 +861,29 @@ export function ItemWizard({
                 onChange={(e) => update('shelfLifeDays', e.currentTarget.value)}
               />
             </Field>
-            <Field label={priceFieldLabel} htmlFor="wiz-list-price-gbp">
+            {form.supplierCode ? (
+              <Field label={labels.fields.supplierUnitPrice} htmlFor="wiz-supplier-unit-price">
+                <Input
+                  id="wiz-supplier-unit-price"
+                  name="supplierUnitPrice"
+                  type="number"
+                  min={0}
+                  step="0.0001"
+                  aria-label={labels.fields.supplierUnitPrice}
+                  className="form-input"
+                  value={form.supplierUnitPrice}
+                  onChange={(e) => update('supplierUnitPrice', e.currentTarget.value)}
+                />
+              </Field>
+            ) : null}
+            <Field label={labels.fields.listPriceGbp} htmlFor="wiz-list-price-gbp">
               <Input
                 id="wiz-list-price-gbp"
                 name="listPriceGbp"
                 type="number"
                 min={0}
                 step="0.0001"
-                aria-label={priceFieldLabel}
+                aria-label={labels.fields.listPriceGbp}
                 className="form-input"
                 value={form.listPriceGbp}
                 onChange={(e) => update('listPriceGbp', e.currentTarget.value)}
@@ -1021,8 +1003,11 @@ export function ItemWizard({
                 [labels.fields.weightMode, WEIGHT_MODE_LABELS[form.weightMode], false],
                 [labels.fields.gs1Gtin, form.gs1Gtin, true],
                 [labels.fields.nominalWeight, form.nominalWeight, true],
-                [labels.fields.tareWeight, form.tareWeight, true],
-                [labels.fields.grossWeightMax, form.grossWeightMax, true],
+                ...(form.supplierCode
+                  ? ([[labels.fields.supplierUnitPrice, form.supplierUnitPrice, true]] as Array<
+                      [string, string, boolean]
+                    >)
+                  : []),
                 [labels.fields.listPriceGbp, form.listPriceGbp, true],
               ] as Array<[string, string, boolean]>
             ).map(([label, value, mono], i, rows) => (

@@ -203,6 +203,7 @@ export const CreateItemInput = z
       z.string().trim().min(1).max(64).optional(),
     ),
     supplierCode: z.string().trim().min(1).optional(),
+    supplierUnitPrice: OptionalNumeric,
     // '' (the empty option) ⇒ undefined; otherwise must be canonical.
     uomSecondary: z.preprocess(
       (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),

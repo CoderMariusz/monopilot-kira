@@ -25,7 +25,7 @@ import { organizations, users } from './baseline.js';
  *
  * Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id().
  * site_id is the day-1 nullable column (no FK / registry). NUMERIC-exact for every hours
- * column. resource_id is a SOFT reference (production_lines / machines live in
+ * column. resource_id is a SOFT reference (production_lines live in
  * 03-technical infra-master; capacity planning does not FK across that boundary).
  */
 
@@ -85,7 +85,7 @@ export const capacityPlans = pgTable(
  * capacity_plan_lines — load vs available capacity for a single resource in a single
  * time bucket. available_hours = capacity offered; required_hours = projected load;
  * over_capacity is the generated stored flag (required > available). resource_id is a
- * SOFT reference to a production line / machine (03-technical infra-master).
+ * SOFT reference to a production line (03-technical infra-master).
  */
 export const capacityPlanLines = pgTable(
   'capacity_plan_lines',
@@ -98,7 +98,7 @@ export const capacityPlanLines = pgTable(
     planId: uuid('plan_id')
       .notNull()
       .references(() => capacityPlans.id, { onDelete: 'cascade' }),
-    // soft FK to production_lines / machines (03-technical infra-master); service-layer-validated.
+    // soft FK to production_lines (03-technical infra-master); service-layer-validated.
     resourceId: uuid('resource_id'),
     resourceKind: text('resource_kind').notNull().default('line'),
     bucketDate: date('bucket_date').notNull(),
@@ -121,7 +121,7 @@ export const capacityPlanLines = pgTable(
     ),
     resourceKindCheck: check(
       'capacity_plan_lines_resource_kind_check',
-      sql`${table.resourceKind} in ('line', 'machine', 'labour')`,
+      sql`${table.resourceKind} in ('line', 'labour')`,
     ),
     availableNonnegativeCheck: check(
       'capacity_plan_lines_available_nonnegative_check',

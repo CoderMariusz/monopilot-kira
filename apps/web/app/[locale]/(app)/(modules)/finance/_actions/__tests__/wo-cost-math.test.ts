@@ -77,4 +77,83 @@ describe('computeWoActualCostTotals', () => {
     expect(result.totalCost).toBe('0.0000');
     expect(result.costPerKgOutput).toBe('1.0000');
   });
+
+  it('keeps crew-populated WO totals byte-identical when setup cost is zero', () => {
+    const withoutSetup = computeWoActualCostTotals({
+      materials: [],
+      labor: { runtimeMin: '90.000000', staffing: '1', ratePerHour: '100.0000' },
+      machineCost: null,
+      setupCost: null,
+      wasteKg: '0.000',
+      outputKg: '20.000',
+    });
+    const withZeroSetup = computeWoActualCostTotals({
+      materials: [],
+      labor: { runtimeMin: '90.000000', staffing: '1', ratePerHour: '100.0000' },
+      machineCost: null,
+      setupCost: '0.0000',
+      wasteKg: '0.000',
+      outputKg: '20.000',
+    });
+
+    expect(withoutSetup.totalCost).toBe('150.0000');
+    expect(withZeroSetup.totalCost).toBe(withoutSetup.totalCost);
+    expect(withZeroSetup.labor).toEqual(withoutSetup.labor);
+  });
+
+  it('adds setupCost into the WO total when the process default has one', () => {
+    const result = computeWoActualCostTotals({
+      materials: [],
+      labor: { runtimeMin: '60.000000', staffing: '1', ratePerHour: '20.0000' },
+      machineCost: null,
+      setupCost: '12.5000',
+      wasteKg: '0.000',
+      outputKg: '10.000',
+    });
+
+    expect(result.setupCost).toBe('12.5000');
+    expect(result.labor?.cost).toBe('20.0000');
+    expect(result.totalCost).toBe('32.5000');
+  });
+
+  it('computes labor as aggregate rate × hours for fractional staffing without float drift', () => {
+    const result = computeWoActualCostTotals({
+      materials: [],
+      labor: { runtimeMin: '60.000000', staffing: '2.5', ratePerHour: '50.0000' },
+      machineCost: null,
+      setupCost: null,
+      wasteKg: '0.000',
+      outputKg: '10.000',
+    });
+
+    expect(result.labor).toEqual({
+      runtimeMin: '60.000',
+      staffing: '2.5',
+      ratePerHour: '50.0000',
+      cost: '125.0000',
+    });
+    expect(result.totalCost).toBe('125.0000');
+  });
+
+  it('keeps integer staffing labor identical to aggregate-rate × hours', () => {
+    const aggregate = computeWoActualCostTotals({
+      materials: [],
+      labor: { runtimeMin: '60.000000', staffing: '1', ratePerHour: '30.0000' },
+      machineCost: null,
+      setupCost: null,
+      wasteKg: '0.000',
+      outputKg: '10.000',
+    });
+    const perSeat = computeWoActualCostTotals({
+      materials: [],
+      labor: { runtimeMin: '60.000000', staffing: '2', ratePerHour: '15.0000' },
+      machineCost: null,
+      setupCost: null,
+      wasteKg: '0.000',
+      outputKg: '10.000',
+    });
+
+    expect(perSeat.labor?.cost).toBe('30.0000');
+    expect(perSeat.totalCost).toBe(aggregate.totalCost);
+  });
 });

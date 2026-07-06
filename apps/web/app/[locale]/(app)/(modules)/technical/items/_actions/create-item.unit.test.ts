@@ -143,10 +143,10 @@ describe('createItem supplier spec bootstrap', () => {
     ]);
   });
 
-  it('routes the supplier price into supplier_specs.unit_price (GBP) — F11', async () => {
+  it('routes the supplier buy price into supplier_specs.unit_price (GBP) — F11', async () => {
     const { createItem } = await import('./create-item');
 
-    const res = await createItem(createPayload({ supplierCode: 'SUP-1', listPriceGbp: 5.2 }));
+    const res = await createItem(createPayload({ supplierCode: 'SUP-1', supplierUnitPrice: 5.2 }));
 
     expect(res).toMatchObject({ ok: true });
     const specInsert = client.calls.find((call) =>
@@ -156,6 +156,22 @@ describe('createItem supplier spec bootstrap', () => {
     // Insert params (create-item.ts): [itemId, supplierCode, userId, supplierId, unitPrice, currency]
     expect(specInsert?.params[4]).toBe(5.2);
     expect(specInsert?.params[5]).toBe('GBP');
+  });
+
+  it('writes list_price_gbp separately from supplier_specs.unit_price — F11', async () => {
+    const { createItem } = await import('./create-item');
+
+    const res = await createItem(
+      createPayload({ supplierCode: 'SUP-1', supplierUnitPrice: 5.2, listPriceGbp: 12.5 }),
+    );
+
+    expect(res).toMatchObject({ ok: true });
+    const itemInsert = client.calls.find((call) => normalizeSql(call.sql).startsWith('insert into public.items'));
+    expect(itemInsert?.params[21]).toBe(12.5);
+    const specInsert = client.calls.find((call) =>
+      normalizeSql(call.sql).startsWith('insert into public.supplier_specs'),
+    );
+    expect(specInsert?.params[4]).toBe(5.2);
   });
 
   it('leaves supplier_specs.unit_price null when no price is supplied — F11', async () => {

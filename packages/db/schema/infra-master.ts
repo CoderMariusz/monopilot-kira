@@ -8,7 +8,6 @@ import {
   jsonb,
   numeric,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   unique,
@@ -94,28 +93,6 @@ export const locations = pgTable(
   }),
 );
 
-export const machines = pgTable(
-  'machines',
-  {
-    id: uuid('id').defaultRandom().primaryKey(),
-    orgId: uuid('org_id')
-      .notNull()
-      .references(() => organizations.id, { onDelete: 'cascade' }),
-    code: text('code').notNull(),
-    name: text('name').notNull(),
-    machineType: text('machine_type').notNull(),
-    status: text('status').notNull().default('active'),
-    capacityPerHour: numeric('capacity_per_hour', { precision: 18, scale: 6 }),
-    specs: jsonb('specs').notNull().default(sql`'{}'::jsonb`),
-    locationId: uuid('location_id').references(() => locations.id, { onDelete: 'set null' }),
-  },
-  (table) => ({
-    orgCodeUnique: unique('machines_org_code_unique').on(table.orgId, table.code),
-    orgIdx: index('machines_org_idx').on(table.orgId),
-    locationIdx: index('machines_location_idx').on(table.locationId),
-  }),
-);
-
 export const productionLines = pgTable(
   'production_lines',
   {
@@ -134,24 +111,6 @@ export const productionLines = pgTable(
     orgCodeUnique: unique('production_lines_org_code_unique').on(table.orgId, table.code),
     orgIdx: index('production_lines_org_idx').on(table.orgId),
     defaultLocationIdx: index('production_lines_default_location_idx').on(table.defaultLocationId),
-  }),
-);
-
-// RLS: forced by 051; global join rows keep app_user access, with anon/auth revoked.
-export const lineMachines = pgTable(
-  'line_machines',
-  {
-    lineId: uuid('line_id')
-      .notNull()
-      .references(() => productionLines.id, { onDelete: 'cascade' }),
-    machineId: uuid('machine_id')
-      .notNull()
-      .references(() => machines.id, { onDelete: 'cascade' }),
-    sequence: integer('sequence').notNull(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.lineId, table.machineId] }),
-    machineIdx: index('line_machines_machine_idx').on(table.machineId),
   }),
 );
 

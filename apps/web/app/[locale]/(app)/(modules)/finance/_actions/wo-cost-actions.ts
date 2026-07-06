@@ -9,8 +9,8 @@
  *   back to the denormalized `items.cost_per_kg`.
  * - Process costing: WO operation crew snapshots are the primary source.
  *   Operation-level hourly cost is Σ(crew.headcount × effective-dated
- *   labor_rates.rate_per_hour). The older ManufacturingOperations →
- *   npd_process_defaults chain is retained only when wo_operations.crew IS NULL.
+ *   labor_rates.rate_per_hour). When wo_operations.crew IS NULL, fall back to
+ *   npd_process_default_roles headcounts × labor_rates (Settings process defaults).
  * - Runtime: the OEE producer's exact window rule is reused for downtime overlap
  *   merging via totalDowntimeMinutes(); runtime = started/completed minus merged
  *   downtime for that WO. We do not write or read oee_snapshots here.
@@ -169,6 +169,15 @@ function divRound(numerator: bigint, denominator: bigint): bigint {
   return neg ? -rounded : rounded;
 }
 
+function divMicro(numerator: bigint, denominator: bigint): bigint {
+  if (denominator === 0n) return 0n;
+  const neg = (numerator < 0n) !== (denominator < 0n);
+  const absNum = numerator < 0n ? -numerator : numerator;
+  const absDen = denominator < 0n ? -denominator : denominator;
+  const rounded = (absNum * MICRO_SCALE + absDen / 2n) / absDen;
+  return neg ? -rounded : rounded;
+}
+
 function downtimeCostFromLaborRate(downtimeMin: number, laborRatePerHour: string | null): string {
   if (laborRatePerHour == null) return '0.0000';
   const downtimeMinutes = toMicro(Math.max(0, downtimeMin).toFixed(6));
@@ -185,6 +194,23 @@ function asDays(value: unknown, fallback: number): number {
 
 function hasComputedCostInputs(row: WoActualCost): boolean {
   return toMicro(row.totalCost) !== 0n;
+}
+
+function normalizeLaborInput(
+  runtimeMin: string,
+  staffingCount: string,
+  aggregatedRatePerHour: string,
+): { runtimeMin: string; staffing: string; ratePerHour: string } {
+  const staffingMicro = toMicro(staffingCount);
+  if (staffingMicro <= toMicro('1')) {
+    return { runtimeMin, staffing: staffingCount, ratePerHour: aggregatedRatePerHour };
+  }
+  const perSeatRate = divMicro(toMicro(aggregatedRatePerHour), staffingMicro);
+  return {
+    runtimeMin,
+    staffing: staffingCount,
+    ratePerHour: microToFixed(perSeatRate, 4),
+  };
 }
 
 async function computeWoActualCostInContext(
@@ -293,10 +319,11 @@ async function computeWoActualCostInContext(
        select op.sequence,
               op.operation_name,
               op.expected_duration_minutes,
-              null::uuid as mo_id,
+              null::uuid as process_default_id,
               sum(coalesce((crew.headcount)::numeric, 0) * coalesce(lr.rate_per_hour, 0)) as crew_rate_per_hour,
-              bool_or(lr.rate_per_hour is not null) as has_rate,
-              true as used_direct_crew
+              '1'::text as staffing_count,
+              0::numeric as setup_cost,
+              bool_or(lr.rate_per_hour is not null) as has_rate
          from op
          left join lateral jsonb_to_recordset(
            case
@@ -318,49 +345,52 @@ async function computeWoActualCostInContext(
         where op.crew is not null
         group by op.sequence, op.operation_name, op.expected_duration_minutes
      ),
-     fallback_op_rate as (
+     defaults_op_rate as (
        select op.sequence,
               op.operation_name,
               op.expected_duration_minutes,
-              mo.id as mo_id,
+              md.process_default_id,
               sum(coalesce(lr.rate_per_hour, 0) * coalesce(pdr.default_headcount, 0)) as crew_rate_per_hour,
-              bool_or(lr.rate_per_hour is not null) as has_rate,
-              false as used_direct_crew
+              coalesce(nullif(sum(pdr.default_headcount), 0), 1)::text as staffing_count,
+              md.setup_cost,
+              bool_or(lr.rate_per_hour is not null) as has_rate
          from op
-         left join lateral (
-           select id
+         join lateral (
+           select pd.id as process_default_id,
+                  coalesce(pd.setup_cost, 0)::numeric as setup_cost
              from "Reference"."ManufacturingOperations" mo
+             join public.npd_process_defaults pd
+               on pd.org_id = app.current_org_id()
+              and pd.operation_id = mo.id
             where mo.org_id = app.current_org_id()
-              and lower(mo.operation_name) = lower(op.operation_name)
-            order by mo.id
+              and lower(btrim(mo.operation_name)) = lower(btrim(op.operation_name))
+              and mo.is_active = true
+            order by mo.id asc, pd.id asc
             limit 1
-         ) mo on true
-         left join public.npd_process_defaults pd
-           on pd.org_id = app.current_org_id()
-          and pd.operation_id = mo.id
+         ) md on true
          left join public.npd_process_default_roles pdr
            on pdr.org_id = app.current_org_id()
-          and pdr.process_default_id = pd.id
+          and pdr.process_default_id = md.process_default_id
          left join lateral (
            select rate_per_hour
              from public.labor_rates lr
             where lr.org_id = app.current_org_id()
               and lower(lr.role_group) = lower(pdr.role_group)
               and lr.currency = 'GBP'
-                 and lr.effective_from <= $2::date
+              and lr.effective_from <= $2::date
             order by lr.effective_from desc
             limit 1
          ) lr on true
         where op.crew is null
-        group by op.sequence, op.operation_name, op.expected_duration_minutes, mo.id
+        group by op.sequence, op.operation_name, op.expected_duration_minutes, md.process_default_id, md.setup_cost
      ),
      op_rate as (
        select * from direct_op_rate
        union all
-       select * from fallback_op_rate
+       select * from defaults_op_rate
      )
      select (array_agg(operation_name order by sequence))[1] as operation_name,
-            (array_agg(mo_id::text order by sequence) filter (where mo_id is not null))[1] as row_key,
+            (array_agg(process_default_id::text order by sequence) filter (where process_default_id is not null))[1] as row_key,
             'per_hour'::text as cost_mode,
             case
               when coalesce(sum(expected_duration_minutes), 0) > 0
@@ -372,8 +402,18 @@ async function computeWoActualCostInContext(
               else null
             end as cost_rate,
             'GBP'::text as currency,
-            '1'::text as staffing_count,
-            null::text as setup_cost,
+            (array_agg(staffing_count order by sequence))[1] as staffing_count,
+            nullif((
+              select sum(distinct_setup.setup_cost)
+                from (
+                  select distinct on (process_default_id)
+                         process_default_id,
+                         setup_cost
+                    from op_rate
+                   where process_default_id is not null
+                   order by process_default_id
+                ) distinct_setup
+            ), 0)::text as setup_cost,
             nullif(sum(expected_duration_minutes), 0)::text as expected_duration_minutes,
             coalesce(bool_or(has_rate), false) as has_labor_rate
        from op_rate`,
@@ -399,13 +439,7 @@ async function computeWoActualCostInContext(
   const runtimeMin = clampRuntime(minutesBetween(wo.started_at, wo.completed_at), downtimeMin);
   const downtimeMinText = Math.max(0, downtimeMin).toFixed(6);
 
-  const costMode =
-    processRow?.cost_mode === 'per_run'
-      ? 'per_run'
-      : processRow?.cost_mode === 'per_hour'
-        ? 'per_hour'
-        : null;
-  const hasHourlyLabor = costMode === 'per_hour' && processRow?.cost_rate != null;
+  const hasHourlyLabor = processRow?.cost_rate != null;
   const laborRuntimeMin = processRow?.expected_duration_minutes ?? runtimeMin;
   const laborBasis = hasHourlyLabor
     ? processRow?.expected_duration_minutes != null
@@ -413,7 +447,6 @@ async function computeWoActualCostInContext(
       : 'actual_runtime'
     : null;
   const downtimeCost = hasHourlyLabor ? downtimeCostFromLaborRate(downtimeMin, processRow!.cost_rate!) : '0.0000';
-  const machineCost = costMode === 'per_run' && processRow?.cost_rate != null ? processRow.cost_rate : null;
   const resolvedMaterials = materials.rows.filter((row) => !row.unresolved_uom);
   const totals = computeWoActualCostTotals({
     materials: resolvedMaterials.map((row) => ({
@@ -422,13 +455,13 @@ async function computeWoActualCostInContext(
       costPerKg: row.cost_per_kg,
     })),
     labor: hasHourlyLabor
-      ? {
-          runtimeMin: laborRuntimeMin,
-          staffing: processRow?.staffing_count ?? '1',
-          ratePerHour: processRow!.cost_rate!,
-        }
+      ? normalizeLaborInput(
+          laborRuntimeMin,
+          processRow?.staffing_count ?? '1',
+          processRow!.cost_rate!,
+        )
       : null,
-    machineCost,
+    machineCost: null,
     setupCost: processRow?.setup_cost ?? null,
     wasteKg: wo.waste_kg,
     outputKg: wo.output_kg,
@@ -458,12 +491,12 @@ async function computeWoActualCostInContext(
       processResolution: {
         operationName: processRow?.operation_name ?? null,
         processRowKey: processRow?.row_key ?? null,
-        costMode,
+        costMode: hasHourlyLabor ? 'per_hour' : null,
         currency: processRow?.currency ?? null,
         note:
           processRow?.has_labor_rate
-            ? 'Matched WO operation crew snapshots to GBP effective labor rates; legacy process defaults are used only when crew is NULL.'
-            : 'no labor rate matched from WO operation crew or legacy process defaults',
+            ? 'Matched WO operation crew snapshots or Settings process-default roles to GBP effective labor rates.'
+            : 'no labor rate matched from WO operation crew or process-default roles',
       },
     },
   };

@@ -181,8 +181,8 @@ export const manufacturingOperationAllergenAdditions = pgTable(
 );
 
 /**
- * Cross-contamination risk matrix. line_id / machine_id are hard FKs to
- * 02-SETTINGS production_lines / machines; allergen_code is a soft reference.
+ * Cross-contamination risk matrix. line_id is a hard FK to production_lines;
+ * allergen_code is a soft reference.
  */
 export const allergenContaminationRisk = pgTable(
   'allergen_contamination_risk',
@@ -191,8 +191,7 @@ export const allergenContaminationRisk = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    lineId: uuid('line_id'),
-    machineId: uuid('machine_id'),
+    lineId: uuid('line_id').notNull(),
     allergenCode: text('allergen_code').notNull(),
     riskLevel: text('risk_level').notNull(),
     mitigation: text('mitigation'),
@@ -207,9 +206,11 @@ export const allergenContaminationRisk = pgTable(
     lineIdx: index('idx_allergen_contamination_risk_line')
       .on(table.lineId)
       .where(sql`${table.lineId} is not null`),
-    machineIdx: index('idx_allergen_contamination_risk_machine')
-      .on(table.machineId)
-      .where(sql`${table.machineId} is not null`),
+    lineKeyUnique: unique('idx_allergen_contamination_risk_line_key').on(
+      table.orgId,
+      table.lineId,
+      table.allergenCode,
+    ),
     allergenIdx: index('idx_allergen_contamination_risk_allergen').on(
       table.orgId,
       table.allergenCode,
@@ -225,9 +226,9 @@ export const allergenContaminationRisk = pgTable(
       'allergen_contamination_risk_risk_level_check',
       sql`${table.riskLevel} in ('high', 'medium', 'low', 'segregated')`,
     ),
-    targetCheck: check(
-      'allergen_contamination_risk_target_check',
-      sql`${table.lineId} is not null or ${table.machineId} is not null`,
+    lineRequiredCheck: check(
+      'allergen_contamination_risk_line_required_check',
+      sql`${table.lineId} is not null`,
     ),
   }),
 );

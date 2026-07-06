@@ -15,7 +15,7 @@ import {
 
 import { organizations, users } from './baseline.js';
 import { items } from './items.js';
-import { machines, productionLines } from './infra-master.js';
+import { productionLines } from './infra-master.js';
 
 /**
  * 03-Technical — routings (per item/FG, versioned with effective dates).
@@ -91,7 +91,6 @@ export const routingOperations = pgTable(
     opCode: text('op_code').notNull(),
     opName: text('op_name').notNull(),
     lineId: uuid('line_id').references(() => productionLines.id, { onDelete: 'set null' }),
-    machineId: uuid('machine_id').references(() => machines.id, { onDelete: 'set null' }),
     setupTimeMin: integer('setup_time_min').notNull().default(0),
     runTimePerUnitSec: numeric('run_time_per_unit_sec', { precision: 10, scale: 2 }),
     costPerHour: numeric('cost_per_hour', { precision: 10, scale: 4 }),
@@ -110,15 +109,16 @@ export const routingOperations = pgTable(
     lineIdx: index('idx_routing_operations_line')
       .on(table.lineId)
       .where(sql`${table.lineId} is not null`),
-    machineIdx: index('idx_routing_operations_machine')
-      .on(table.machineId)
-      .where(sql`${table.machineId} is not null`),
     createdByIdx: index('idx_routing_operations_created_by')
       .on(table.createdBy)
       .where(sql`${table.createdBy} is not null`),
     mfgOpNameIdx: index('idx_routing_operations_mfg_op_name')
       .on(table.orgId, table.manufacturingOperationName)
       .where(sql`${table.manufacturingOperationName} is not null`),
+    lineRequiredCheck: check(
+      'routing_operations_line_required_check',
+      sql`${table.lineId} is not null`,
+    ),
     opNoCheck: check('routing_operations_op_no_check', sql`${table.opNo} >= 1`),
     setupTimeNonnegativeCheck: check(
       'routing_operations_setup_time_nonnegative_check',

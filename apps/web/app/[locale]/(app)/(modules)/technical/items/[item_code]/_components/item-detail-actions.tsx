@@ -51,8 +51,6 @@ function detailToForm(item: ItemDetail): WizardFormState {
     uomSecondary: item.uomSecondary ?? '',
     weightMode: item.weightMode,
     nominalWeight: item.nominalWeight ?? '',
-    tareWeight: item.tareWeight ?? '',
-    grossWeightMax: item.grossWeightMax ?? '',
     gs1Gtin: item.gs1Gtin ?? '',
     varianceTolerancePct: item.varianceTolerancePct ?? '',
     shelfLifeDays: item.shelfLifeDays === null ? '' : String(item.shelfLifeDays),
@@ -63,6 +61,7 @@ function detailToForm(item: ItemDetail): WizardFormState {
     netQtyPerEach: item.netQtyPerEach ?? '',
     eachPerBox: item.eachPerBox == null ? '' : String(item.eachPerBox),
     boxesPerPallet: item.boxesPerPallet == null ? '' : String(item.boxesPerPallet),
+    supplierUnitPrice: '',
     listPriceGbp: item.listPriceGbp ?? '',
   };
 }
