@@ -18,8 +18,10 @@ import type pg from 'pg';
 
 import { signEvent } from '@monopilot/e-sign';
 
+import { assertWoNotOnHold } from './holds-guard';
 import {
   EventType,
+  QualityHoldError,
   type ProductionContext,
   type ProductionResult,
   fail,
@@ -55,6 +57,18 @@ export async function closeWo(
   if (!(await hasPermission(ctx, 'production.wo.close'))) return fail('forbidden');
   if (!input.reason || input.reason.trim().length === 0) {
     return fail('invalid_input', { message: 'e-sign reason is required (CFR-21 Part 11)' });
+  }
+
+  const woHoldGate = await assertWoNotOnHold(input.woId, { client: ctx.client });
+  if (!woHoldGate.ok) {
+    throw new QualityHoldError({
+      hold: woHoldGate.hold,
+      woId: input.woId,
+      blockedPath: 'close',
+      transactionId: input.transactionId,
+      lpId: null,
+      lotId: null,
+    });
   }
 
   // (0) ATOMICITY PRE-GATE (CFR-21 Part 11): validate the close transition is

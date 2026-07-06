@@ -92,6 +92,8 @@ export type WoActionsProviderProps = {
    */
   printFgLabelAction?: PrintFgLabelAction;
   canPrintFgLabel?: boolean;
+  /** Server-resolved output yield gate — governs Complete modal override UI. */
+  yieldGateGreen: boolean;
   children: React.ReactNode;
 };
 
@@ -127,6 +129,7 @@ export function WoActionsProvider(props: WoActionsProviderProps) {
         outputUom={props.outputUom ?? null}
         printFgLabelAction={props.printFgLabelAction}
         canPrintFgLabel={props.canPrintFgLabel ?? false}
+        yieldGateGreen={props.yieldGateGreen}
       />
     </Ctx.Provider>
   );
@@ -183,6 +186,7 @@ function WoActionModals({
   outputUom,
   printFgLabelAction,
   canPrintFgLabel,
+  yieldGateGreen,
 }: {
   locale: string;
   woId: string;
@@ -196,6 +200,7 @@ function WoActionModals({
   outputUom: OutputUomContext | null;
   printFgLabelAction?: PrintFgLabelAction;
   canPrintFgLabel: boolean;
+  yieldGateGreen: boolean;
 }) {
   const { labels, open, setOpen } = useWoActionsCtx();
   const { run } = useWoAction(locale, woId);
@@ -223,7 +228,7 @@ function WoActionModals({
       />
       <ResumeModal open={open === 'resume'} {...base} />
       <CancelModal open={open === 'cancel'} {...base} />
-      <CompleteModal open={open === 'complete'} {...base} />
+      <CompleteModal open={open === 'complete'} {...base} yieldGateGreen={yieldGateGreen} />
       <CloseModal open={open === 'close'} {...base} signerUserId={currentUserId} locale={locale} />
       <OutputModal
         open={open === 'output'}

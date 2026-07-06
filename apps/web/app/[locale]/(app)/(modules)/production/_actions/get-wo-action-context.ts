@@ -122,6 +122,8 @@ export type WoActionContextData = {
   lineId: string | null;
   /** The WO's assigned production line code (display only; null ⇒ none). */
   lineCode: string | null;
+  /** True when ≥1 active primary output has qty_kg > 0 (output yield gate green). */
+  yieldGateGreen: boolean;
 };
 
 export type WoActionContextResult =
@@ -255,7 +257,7 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
 
       const executionStatus = await readWoExecutionStatus(pctx, woId);
 
-      const [downtimeRes, wasteRes, linesRes, shifts] = await Promise.all([
+      const [downtimeRes, wasteRes, linesRes, shifts, yieldGateRes] = await Promise.all([
         c.query<{ id: string; code: string; name: string }>(
           `select id::text as id, code, name from public.downtime_categories
             where org_id = app.current_org_id() and is_active = true
@@ -275,6 +277,23 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
             limit 200`,
         ),
         readWoShiftOptions(c, ctx.orgId),
+        c.query<{ green: boolean }>(
+          `select exists(
+                    select 1 from public.wo_outputs o
+                     where o.org_id = app.current_org_id()
+                       and o.wo_id = $1::uuid
+                       and o.output_type = 'primary'
+                       and o.qty_kg > 0
+                       and o.correction_of_id is null
+                       and not exists (
+                         select 1
+                           from public.wo_outputs correction
+                          where correction.org_id = o.org_id
+                            and correction.correction_of_id = o.id
+                       )
+                  ) as green`,
+          [woId],
+        ),
       ]);
 
       return {
@@ -290,6 +309,7 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
           lines: linesRes.rows.map((r) => ({ id: r.id, code: r.code })),
           lineId: woRow.line_id,
           lineCode: woRow.line_code,
+          yieldGateGreen: yieldGateRes.rows[0]?.green === true,
         },
       };
     });

@@ -100,6 +100,7 @@ function Harness({
       lines={LINES}
       defaultLineId="LINE-1"
       defaultProductId="33333333-3333-3333-3333-333333333333"
+      yieldGateGreen
     >
       <WoActionTrigger kind="release" label="Release to production" />
       <WoActionTrigger kind="start" label="Start" />

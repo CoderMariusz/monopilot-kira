@@ -4,6 +4,7 @@ import type { ProductionContext, QueryClient } from '../shared';
 
 vi.mock('../holds-guard', () => ({
   holdsGuard: vi.fn(async () => null),
+  assertWoNotOnHold: vi.fn(async () => ({ ok: true })),
 }));
 
 vi.mock('../oee-snapshot-producer', () => ({
@@ -20,8 +21,9 @@ vi.mock('../wo-state-machine', () => ({
   })),
 }));
 
-import { holdsGuard } from '../holds-guard';
+import { holdsGuard, assertWoNotOnHold } from '../holds-guard';
 import { completeWo } from '../complete-cancel-wo';
+import { QualityHoldError } from '../shared';
 import { recordWoCompletionSnapshot } from '../oee-snapshot-producer';
 import { applyTransition } from '../wo-state-machine';
 
@@ -35,6 +37,8 @@ const TX_ID = '66666666-6666-4666-8666-666666666666';
 type QueryCall = { sql: string; params: readonly unknown[] };
 
 let queries: QueryCall[];
+let hasOverrideYieldPermission = true;
+let primaryOutputGreen = false;
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -57,7 +61,11 @@ function makeClient(): QueryClient {
       const normalized = normalize(sql);
 
       if (normalized.includes('from public.user_roles')) {
-        return { rows: [{ ok: true }] as T[], rowCount: 1 };
+        const permission = String(params[2] ?? '');
+        const allowed =
+          permission === 'production.wo.complete' ||
+          (permission === 'production.wo.override_yield' && hasOverrideYieldPermission);
+        return { rows: allowed ? [{ ok: true }] as T[] : [] as T[], rowCount: allowed ? 1 : 0 };
       }
 
       if (normalized.startsWith('select o.id') && normalized.includes('from public.wo_outputs o')) {
@@ -68,10 +76,14 @@ function makeClient(): QueryClient {
       }
 
       if (normalized.startsWith('select exists') && normalized.includes('from public.wo_outputs o')) {
-        return { rows: [{ green: activePrimaryVisibleTo(sql) }] as T[], rowCount: 1 };
+        return { rows: [{ green: primaryOutputGreen }] as T[], rowCount: 1 };
       }
 
       if (normalized.startsWith('insert into public.outbox_events')) {
+        return { rows: [] as T[], rowCount: 1 };
+      }
+
+      if (normalized.startsWith('update public.work_orders')) {
         return { rows: [] as T[], rowCount: 1 };
       }
 
@@ -87,7 +99,10 @@ function makeCtx(): ProductionContext {
 describe('completeWo yield gate', () => {
   beforeEach(() => {
     queries = [];
+    hasOverrideYieldPermission = true;
+    primaryOutputGreen = false;
     vi.clearAllMocks();
+    vi.mocked(assertWoNotOnHold).mockResolvedValue({ ok: true });
   });
 
   it('fails when the only primary output is voided by a correction counter-entry', async () => {
@@ -113,5 +128,99 @@ describe('completeWo yield gate', () => {
     expect(holdsGuard).not.toHaveBeenCalled();
     expect(applyTransition).not.toHaveBeenCalled();
     expect(recordWoCompletionSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('throws QualityHoldError when the WO itself is on an active hold', async () => {
+    vi.mocked(assertWoNotOnHold).mockResolvedValue({
+      ok: false,
+      error: 'quality_hold_active',
+      hold: { holdId: 'hold-1', lpId: null, lotId: null },
+    });
+
+    await expect(
+      completeWo(makeCtx(), { woId: WO_ID, transactionId: TX_ID }),
+    ).rejects.toBeInstanceOf(QualityHoldError);
+
+    expect(holdsGuard).not.toHaveBeenCalled();
+    expect(applyTransition).not.toHaveBeenCalled();
+  });
+
+  it('rejects free-text yield-gate override reason codes on the red path', async () => {
+    const result = await completeWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      overrideReasonCode: 'because I said so',
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'invalid_input',
+      details: { code: 'invalid_yield_gate_override_reason' },
+    });
+    expect(applyTransition).not.toHaveBeenCalled();
+  });
+
+  it('rejects taxonomy override codes without production.wo.override_yield', async () => {
+    hasOverrideYieldPermission = false;
+
+    const result = await completeWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      overrideReasonCode: 'scrap_total_loss',
+    });
+
+    expect(result).toMatchObject({ ok: false, error: 'forbidden' });
+    expect(applyTransition).not.toHaveBeenCalled();
+  });
+
+  it('allows a taxonomy override code when the supervisor permission is present', async () => {
+    const result = await completeWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      overrideReasonCode: 'scrap_total_loss',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(applyTransition).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        context: expect.objectContaining({ overrideReasonCode: 'scrap_total_loss' }),
+      }),
+    );
+    expect(recordWoCompletionSnapshot).toHaveBeenCalled();
+  });
+
+  it('completes on the green path without an override reason', async () => {
+    primaryOutputGreen = true;
+
+    const result = await completeWo(makeCtx(), { woId: WO_ID, transactionId: TX_ID });
+
+    expect(result.ok).toBe(true);
+    expect(applyTransition).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        context: expect.objectContaining({ overrideReasonCode: null }),
+      }),
+    );
+    expect(recordWoCompletionSnapshot).toHaveBeenCalled();
+  });
+
+  it('ignores a stray override reason on the green path', async () => {
+    primaryOutputGreen = true;
+
+    const result = await completeWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      overrideReasonCode: 'because I said so',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(applyTransition).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        context: expect.objectContaining({ overrideReasonCode: null }),
+      }),
+    );
+    expect(recordWoCompletionSnapshot).toHaveBeenCalled();
   });
 });

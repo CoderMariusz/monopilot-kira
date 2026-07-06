@@ -373,6 +373,8 @@ export type WoDetailActions = {
   /** D8 — production lines for the Pause line dropdown (mandatory, picker). */
   lines: WoLineOption[];
   modalLabels: WoModalLabels;
+  /** Server-resolved output yield gate (primary output qty_kg > 0). */
+  yieldGateGreen: boolean;
 };
 
 // Formatters live IN this client module — passing them as props from the RSC
@@ -1630,6 +1632,7 @@ export function WoDetailScreen({
       outputUom={outputUom}
       printFgLabelAction={printFgLabelAction}
       canPrintFgLabel={canPrintFgLabel}
+      yieldGateGreen={actions.yieldGateGreen}
     >
       {body}
     </WoActionsProvider>

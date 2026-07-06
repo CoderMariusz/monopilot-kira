@@ -16,6 +16,8 @@ import Textarea from '@monopilot/ui/Textarea';
 import { Button } from '@monopilot/ui/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
+import { YIELD_GATE_OVERRIDE_REASON_CODES } from '../../../../../../../../lib/production/yield-gate-override';
+
 import { freshTransactionId } from './use-wo-action';
 import type {
   RunWoAction,
@@ -349,21 +351,41 @@ export function CancelModal({ open, woId, labels, run, onClose }: BaseModalProps
 
 // ── Complete ────────────────────────────────────────────────────────────────
 
-export function CompleteModal({ open, woId, labels, run, onClose }: BaseModalProps) {
-  const [override, setOverride] = useState('');
+function formatYieldOverrideLabel(code: string): string {
+  return code
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+export function CompleteModal({
+  open,
+  woId,
+  labels,
+  run,
+  onClose,
+  yieldGateGreen,
+}: BaseModalProps & { yieldGateGreen: boolean }) {
+  const [overrideCode, setOverrideCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const canConfirm = yieldGateGreen ? !busy : overrideCode !== '' && !busy;
+
   async function handleConfirm() {
+    if (!canConfirm) return;
     setBusy(true);
     setError(null);
-    const result = await run('complete', {
+    const payload: { transactionId: string; overrideReasonCode?: string | null } = {
       transactionId: freshTransactionId(),
-      overrideReasonCode: override.trim() || null,
-    });
+    };
+    if (!yieldGateGreen) {
+      payload.overrideReasonCode = overrideCode;
+    }
+    const result = await run('complete', payload);
     setBusy(false);
     if (result.ok) {
-      setOverride('');
+      setOverrideCode('');
       onClose();
     } else {
       setError(mapError(labels, result.errorCode));
@@ -376,15 +398,28 @@ export function CompleteModal({ open, woId, labels, run, onClose }: BaseModalPro
       <Modal.Body>
         <p className="mb-3 text-sm text-slate-600">{labels.complete.subtitle}</p>
         {error ? <ErrorBanner message={error} testid="wo-complete-error" /> : null}
-        <FieldRow id="wo-complete-override" label={labels.complete.override} hint={labels.complete.overrideHint}>
-          <Input id="wo-complete-override" value={override} disabled={busy} onChange={(e) => setOverride(e.target.value)} data-testid="wo-complete-override" />
-        </FieldRow>
+        {!yieldGateGreen ? (
+          <FieldRow id="wo-complete-override" label={labels.complete.override} hint={labels.complete.overrideHint}>
+            <Select value={overrideCode} disabled={busy} onValueChange={setOverrideCode}>
+              <SelectTrigger id="wo-complete-override" data-testid="wo-complete-override">
+                <SelectValue placeholder={labels.complete.overridePlaceholder} />
+              </SelectTrigger>
+              <SelectContent>
+                {YIELD_GATE_OVERRIDE_REASON_CODES.map((code) => (
+                  <SelectItem key={code} value={code}>
+                    {formatYieldOverrideLabel(code)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FieldRow>
+        ) : null}
       </Modal.Body>
       <Modal.Footer>
         <Button type="button" data-testid="wo-complete-cancel" disabled={busy} onClick={onClose}>
           {labels.cancel}
         </Button>
-        <Button type="button" data-testid="wo-complete-confirm" disabled={busy} onClick={handleConfirm}>
+        <Button type="button" data-testid="wo-complete-confirm" disabled={!canConfirm} onClick={handleConfirm}>
           {busy ? labels.submitting : labels.confirm}
         </Button>
       </Modal.Footer>

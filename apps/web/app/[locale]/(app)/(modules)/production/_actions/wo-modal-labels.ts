@@ -85,6 +85,7 @@ export function buildWoModalLabels(t: Translator): WoModalLabels {
       subtitle: t('complete.subtitle'),
       override: t('complete.override'),
       overrideHint: t('complete.overrideHint'),
+      overridePlaceholder: t('complete.overridePlaceholder'),
     },
     close: {
       title: t('close.title'),

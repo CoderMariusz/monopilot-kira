@@ -7579,7 +7579,8 @@
           "title": "Complete work order",
           "subtitle": "Complete execution. The output yield gate must be green.",
           "override": "Override reason code",
-          "overrideHint": "Required only to override an unmet yield gate."
+          "overrideHint": "Required only to override an unmet yield gate.",
+          "overridePlaceholder": "Select an override reason…"
         },
         "close": {
           "title": "Close work order",

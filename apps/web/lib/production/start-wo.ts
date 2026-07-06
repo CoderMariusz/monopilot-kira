@@ -95,19 +95,28 @@ export async function startWo(
   );
   const wo = woRes.rows[0];
   if (!wo) return fail('not_found');
-  if (!wo.active_bom_header_id || !wo.active_factory_spec_id) {
+  const activeBomHeaderId = wo.active_bom_header_id;
+  const activeFactorySpecId = wo.active_factory_spec_id;
+  if (!activeBomHeaderId || !activeFactorySpecId) {
     return fail('wo_snapshot_missing', {
       message: 'WO has no factory-release snapshot; release the work order again in Planning to bind its approved BOM and factory spec before start.',
       details: {
         code: 'wo_snapshot_missing',
         missing: {
-          activeBomHeader: !wo.active_bom_header_id,
-          activeFactorySpec: !wo.active_factory_spec_id,
+          activeBomHeader: !activeBomHeaderId,
+          activeFactorySpec: !activeFactorySpecId,
         },
         remediation: 'release_work_order',
       },
     });
   }
+
+  const snapshotBinding = await validateReleasedSnapshotBindings(client, {
+    site_id: wo.site_id,
+    active_bom_header_id: activeBomHeaderId,
+    active_factory_spec_id: activeFactorySpecId,
+  });
+  if (!snapshotBinding.ok) return snapshotBinding;
 
   // (3) Allergen changeover gate — hard-block when this WO's line has an
   // incomplete allergen-relevant changeover. changeover_events has no boolean
@@ -169,7 +178,7 @@ export async function startWo(
   try {
     const snapshot = await createBomSnapshot(ctx, {
       woId: input.woId,
-      bomHeaderId: wo.active_bom_header_id,
+      bomHeaderId: activeBomHeaderId,
     });
     bomSnapshotId = snapshot.id;
   } catch (err) {
@@ -191,8 +200,8 @@ export async function startWo(
       lineId: input.lineId ?? null,
       shiftId: input.shiftId ?? null,
       bomSnapshotId,
-      activeBomHeaderId: wo.active_bom_header_id,
-      activeFactorySpecId: wo.active_factory_spec_id,
+      activeBomHeaderId,
+      activeFactorySpecId,
     },
   });
   if (!transition.ok) return transition;
@@ -260,8 +269,8 @@ export async function startWo(
     payload: {
       woId: input.woId,
       bomSnapshotId,
-      activeBomHeaderId: wo.active_bom_header_id,
-      activeFactorySpecId: wo.active_factory_spec_id,
+      activeBomHeaderId,
+      activeFactorySpecId,
       outputsMaterialized,
       startedAt: transition.data.startedAt,
     },
@@ -338,4 +347,84 @@ export async function findOpenLineChangeover(
     [lineKey, fallbackLineKey],
   );
   return res.rows[0]?.id ?? null;
+}
+
+type ReleasedSnapshotWo = {
+  site_id: string | null;
+  active_bom_header_id: string;
+  active_factory_spec_id: string;
+};
+
+type ReleasedSnapshotBindingRow = {
+  bom_exists: boolean;
+  spec_exists: boolean;
+  spec_site_id: string | null;
+  spec_bom_header_id: string | null;
+};
+
+/**
+ * Confirms the WO's factory-release snapshot still points at real BOM/spec rows and
+ * never binds a cross-site factory spec. START must not self-heal or re-base to the
+ * newest active BOM/spec — callers only reach here when the WO already carries snapshot ids.
+ */
+async function validateReleasedSnapshotBindings(
+  client: ProductionContext['client'],
+  wo: ReleasedSnapshotWo,
+): Promise<ProductionResult<void>> {
+  const bindingRes = await client.query<ReleasedSnapshotBindingRow>(
+    `select
+       exists (
+         select 1
+           from public.bom_headers bh
+          where bh.org_id = app.current_org_id()
+            and bh.id = $1::uuid
+       ) as bom_exists,
+       fs.id is not null as spec_exists,
+       fs.site_id::text as spec_site_id,
+       fs.bom_header_id::text as spec_bom_header_id
+     from (select 1) anchor
+     left join public.factory_specs fs
+       on fs.org_id = app.current_org_id()
+      and fs.id = $2::uuid`,
+    [wo.active_bom_header_id, wo.active_factory_spec_id],
+  );
+  const binding = bindingRes.rows[0];
+  if (!binding?.bom_exists || !binding.spec_exists) {
+    return fail('factory_release_incomplete', {
+      message: 'WO factory-release snapshot references a missing BOM or factory spec',
+      details: {
+        code: 'release_snapshot_orphan',
+        bomExists: binding?.bom_exists === true,
+        specExists: binding?.spec_exists === true,
+      },
+    });
+  }
+  if (
+    wo.site_id &&
+    binding.spec_site_id &&
+    binding.spec_site_id !== wo.site_id
+  ) {
+    return fail('factory_release_incomplete', {
+      message: 'WO factory-release snapshot binds a factory spec from a different site',
+      details: {
+        code: 'cross_site_factory_spec',
+        woSiteId: wo.site_id,
+        specSiteId: binding.spec_site_id,
+      },
+    });
+  }
+  if (
+    binding.spec_bom_header_id &&
+    binding.spec_bom_header_id !== wo.active_bom_header_id
+  ) {
+    return fail('factory_release_incomplete', {
+      message: 'WO factory-release snapshot BOM/spec bundle is inconsistent',
+      details: {
+        code: 'bom_spec_bundle_mismatch',
+        activeBomHeaderId: wo.active_bom_header_id,
+        specBomHeaderId: binding.spec_bom_header_id,
+      },
+    });
+  }
+  return { ok: true, data: undefined };
 }

@@ -17,6 +17,8 @@ let client: QueryClient;
 let woSiteId: string | null = SITE_ID;
 let activeBomHeaderId: string | null = BOM_HEADER_ID;
 let activeFactorySpecId: string | null = FACTORY_SPEC_ID;
+let factorySpecSiteId: string | null = SITE_ID;
+let factorySpecBomHeaderId: string | null = BOM_HEADER_ID;
 let placeholderSiteId: string | null | undefined;
 
 vi.mock('../../technical/bom/snapshot', () => ({
@@ -51,6 +53,19 @@ function makeClient(): QueryClient {
               active_factory_spec_id: activeFactorySpecId,
               allergen_profile_snapshot: null,
               production_line_id: null,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (q.includes('from public.bom_headers') || q.includes('from public.factory_specs')) {
+        return {
+          rows: [
+            {
+              bom_exists: activeBomHeaderId !== null,
+              spec_exists: activeFactorySpecId !== null,
+              spec_site_id: factorySpecSiteId,
+              spec_bom_header_id: factorySpecBomHeaderId,
             },
           ],
           rowCount: 1,
@@ -94,6 +109,8 @@ describe('startWo placeholder output site stamping', () => {
     woSiteId = SITE_ID;
     activeBomHeaderId = BOM_HEADER_ID;
     activeFactorySpecId = FACTORY_SPEC_ID;
+    factorySpecSiteId = SITE_ID;
+    factorySpecBomHeaderId = BOM_HEADER_ID;
     placeholderSiteId = undefined;
     client = makeClient();
   });
@@ -136,5 +153,23 @@ describe('startWo placeholder output site stamping', () => {
         normalize(String(call[0])).startsWith('update public.work_orders'),
       ),
     ).toBe(false);
+  });
+
+  it('rejects a cross-site factory spec binding on the WO snapshot', async () => {
+    const OTHER_SITE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    factorySpecSiteId = OTHER_SITE;
+
+    const result = await startWo(makeCtx(), { woId: WO_ID, transactionId: TXN_ID });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'factory_release_incomplete',
+      details: {
+        code: 'cross_site_factory_spec',
+        woSiteId: SITE_ID,
+        specSiteId: OTHER_SITE,
+      },
+    });
+    expect(placeholderSiteId).toBeUndefined();
   });
 });

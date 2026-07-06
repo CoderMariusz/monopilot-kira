@@ -89,6 +89,7 @@ function Harness({ uom }: { uom: OutputUomContext | null }) {
       currentUserId="22222222-2222-2222-2222-222222222222"
       downtimeCategories={[]} wasteCategories={[]} shifts={[]} lines={[]} defaultLineId={null}
       defaultProductId={PRODUCT_ID} outputUom={uom}
+      yieldGateGreen
     >
       <WoActionTrigger kind="output" label="Register output" testid="wo-action-output" />
     </WoActionsProvider>

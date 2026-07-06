@@ -5,7 +5,9 @@ import { runTransition } from '../_actions/route-helpers';
 
 const CompleteBody = z.object({
   transactionId: z.string().uuid(),
-  overrideReasonCode: z.string().min(1).max(64).optional().nullable(),
+  // Loose at the route — taxonomy + permission are enforced in completeWo only when
+  // the yield gate is not green (stray free-text on a green completion is ignored).
+  overrideReasonCode: z.string().max(64).optional().nullable(),
 });
 
 export async function POST(

@@ -305,7 +305,7 @@ export class ProductionActionError extends Error {
 export class QualityHoldError extends ProductionActionError {
   hold: ActiveHold;
   woId: string;
-  blockedPath: 'output' | 'waste' | 'complete' | 'consume';
+  blockedPath: 'output' | 'waste' | 'complete' | 'consume' | 'close';
   transactionId: string;
   lpId: string | null;
   lotId: string | null;
@@ -313,7 +313,7 @@ export class QualityHoldError extends ProductionActionError {
   constructor(args: {
     hold: ActiveHold;
     woId: string;
-    blockedPath: 'output' | 'waste' | 'complete' | 'consume';
+    blockedPath: 'output' | 'waste' | 'complete' | 'consume' | 'close';
     transactionId: string;
     lpId: string | null;
     lotId: string | null;

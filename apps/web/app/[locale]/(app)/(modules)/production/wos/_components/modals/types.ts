@@ -117,7 +117,7 @@ export type WoModalLabels = {
   };
   resume: { title: string; subtitle: string; duration: string; durationHint: string };
   cancelWo: { title: string; subtitle: string; reasonCode: string; notes: string };
-  complete: { title: string; subtitle: string; override: string; overrideHint: string };
+  complete: { title: string; subtitle: string; override: string; overrideHint: string; overridePlaceholder?: string };
   close: {
     title: string;
     subtitle: string;

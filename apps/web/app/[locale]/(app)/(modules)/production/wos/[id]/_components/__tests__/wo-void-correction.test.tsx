@@ -298,6 +298,7 @@ const ACTIONS: WoDetailActions = {
   shifts: [],
   lines: [],
   modalLabels: MODAL_LABELS,
+  yieldGateGreen: true,
 };
 
 const HEADER = {

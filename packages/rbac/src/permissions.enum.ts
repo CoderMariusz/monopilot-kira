@@ -203,6 +203,8 @@ export const Permission = {
   PRODUCTION_WO_RESUME: 'production.wo.resume',
   /** Production WO complete permission; PRD 08-PRODUCTION §3.2 (RBAC). */
   PRODUCTION_WO_COMPLETE: 'production.wo.complete',
+  /** Production output-yield-gate override permission (supervisor); PRD 08-PRODUCTION §10.3. */
+  PRODUCTION_WO_OVERRIDE_YIELD: 'production.wo.override_yield',
   /** Production WO financial close permission; PRD 08-PRODUCTION §3.2 (RBAC). */
   PRODUCTION_WO_CLOSE: 'production.wo.close',
   /** Production WO cancel permission; seeded by migration 225. */
@@ -675,7 +677,7 @@ export const ALL_TECHNICAL_PERMISSIONS = [
 
 /**
  * Production (08-production) module permission group; PRD 08-PRODUCTION §3.2 (RBAC) +
- * §12 (D365 DLQ) + §13 (OEE). 23 page/action permissions. Allergen gate is split into
+ * §12 (D365 DLQ) + §13 (OEE). 24 page/action permissions. Allergen gate is split into
  * first/second signer to enforce SoD (dual sign-off cannot share a permission grant).
  * Recognised by the ESLint enum-lock guard via the ALL_<MODULE>_PERMISSIONS export
  * convention (02-settings T-130). Seeded to roles by migration 185.
@@ -685,6 +687,7 @@ export const ALL_PRODUCTION_PERMISSIONS = [
   Permission.PRODUCTION_WO_PAUSE,
   Permission.PRODUCTION_WO_RESUME,
   Permission.PRODUCTION_WO_COMPLETE,
+  Permission.PRODUCTION_WO_OVERRIDE_YIELD,
   Permission.PRODUCTION_WO_CLOSE,
   Permission.PRODUCTION_WO_CANCEL,
   Permission.PRODUCTION_CONSUMPTION_WRITE,

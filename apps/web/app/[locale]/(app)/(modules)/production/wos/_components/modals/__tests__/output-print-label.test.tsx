@@ -119,6 +119,7 @@ function Harness({
       outputUom={BASE_UOM}
       printFgLabelAction={printLabelAction}
       canPrintFgLabel={canPrintFgLabel}
+      yieldGateGreen
     >
       <WoActionTrigger kind="output" label="Register output" testid="wo-action-output" />
     </WoActionsProvider>

@@ -820,6 +820,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       shifts: actionCtx.data.shifts,
       lines: actionCtx.data.lines,
       modalLabels,
+      yieldGateGreen: actionCtx.data.yieldGateGreen,
     };
   }
 

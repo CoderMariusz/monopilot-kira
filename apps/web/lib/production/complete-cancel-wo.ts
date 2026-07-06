@@ -21,7 +21,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { computeWacReversalDelta, upsertWac } from '../finance/upsert-wac';
-import { holdsGuard } from './holds-guard';
+import { assertWoNotOnHold, holdsGuard } from './holds-guard';
 import { recordWoCompletionSnapshot } from './oee-snapshot-producer';
 import {
   EventType,
@@ -34,6 +34,10 @@ import {
   writeOutbox,
 } from './shared';
 import { applyTransition } from './wo-state-machine';
+import {
+  isYieldGateOverrideReasonCode,
+  YIELD_GATE_OVERRIDE_REASON_CODES,
+} from './yield-gate-override';
 
 export type CompleteWoInput = {
   woId: string;
@@ -55,6 +59,18 @@ export async function completeWo(
   if (!(await hasPermission(ctx, 'production.wo.complete'))) return fail('forbidden');
 
   const client = ctx.client;
+
+  const woHoldGate = await assertWoNotOnHold(input.woId, { client });
+  if (!woHoldGate.ok) {
+    throw new QualityHoldError({
+      hold: woHoldGate.hold,
+      woId: input.woId,
+      blockedPath: 'complete',
+      transactionId: input.transactionId,
+      lpId: null,
+      lotId: null,
+    });
+  }
 
   // Output yield gate: collect the WO's registered outputs (with their LP/lot).
   const outputs = await client.query<{
@@ -117,11 +133,28 @@ export async function completeWo(
     [input.woId],
   );
   const primaryGreen = greenRes.rows[0]?.green === true;
-  if (!primaryGreen && !input.overrideReasonCode) {
-    return fail('closed_production_strict_failed', {
-      message: 'output yield gate not green — no primary output registered',
-      details: { code: 'output_yield_gate_failed', outputsRegistered: outputs.rows.length },
-    });
+  let persistedOverrideReasonCode: string | null = null;
+  if (!primaryGreen) {
+    const overrideCode = input.overrideReasonCode?.trim() ?? '';
+    if (!overrideCode) {
+      return fail('closed_production_strict_failed', {
+        message: 'output yield gate not green — no primary output registered',
+        details: { code: 'output_yield_gate_failed', outputsRegistered: outputs.rows.length },
+      });
+    }
+    if (!isYieldGateOverrideReasonCode(overrideCode)) {
+      return fail('invalid_input', {
+        message: 'yield-gate override reason code is not in the controlled taxonomy',
+        details: {
+          code: 'invalid_yield_gate_override_reason',
+          allowed: [...YIELD_GATE_OVERRIDE_REASON_CODES],
+        },
+      });
+    }
+    if (!(await hasPermission(ctx, 'production.wo.override_yield'))) {
+      return fail('forbidden');
+    }
+    persistedOverrideReasonCode = overrideCode;
   }
 
   const transition = await applyTransition(ctx, {
@@ -129,7 +162,7 @@ export async function completeWo(
     verb: 'complete',
     transactionId: input.transactionId,
     context: {
-      overrideReasonCode: input.overrideReasonCode ?? null,
+      overrideReasonCode: persistedOverrideReasonCode,
       outputsRegistered: outputs.rows.length,
     },
   });
@@ -185,7 +218,7 @@ export async function completeWo(
       woId: input.woId,
       completedAt: transition.data.completedAt,
       outputsRegistered: outputs.rows.length,
-      overrideReasonCode: input.overrideReasonCode ?? null,
+      overrideReasonCode: persistedOverrideReasonCode,
     },
   });
 

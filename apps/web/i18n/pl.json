@@ -9213,7 +9213,8 @@
           "title": "Zakończ zlecenie",
           "subtitle": "Zakończ realizację. Bramka uzysku musi być zielona.",
           "override": "Kod powodu obejścia",
-          "overrideHint": "Wymagane tylko do obejścia niespełnionej bramki uzysku."
+          "overrideHint": "Wymagane tylko do obejścia niespełnionej bramki uzysku.",
+          "overridePlaceholder": "Wybierz powód obejścia…"
         },
         "close": {
           "title": "Zamknij zlecenie",

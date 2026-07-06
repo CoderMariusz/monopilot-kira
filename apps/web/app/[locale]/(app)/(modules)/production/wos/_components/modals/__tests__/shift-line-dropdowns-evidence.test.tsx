@@ -107,6 +107,7 @@ function Harness({
       downtimeCategories={DOWNTIME_CATS} wasteCategories={WASTE_CATS}
       shifts={shifts} lines={lines} defaultLineId={defaultLineId}
       defaultProductId={PRODUCT_ID}
+      yieldGateGreen
     >
       <WoActionTrigger kind="pause" label="Pause" testid="wo-action-pause" />
       <WoActionTrigger kind="waste" label="Log waste" testid="wo-action-waste" />
