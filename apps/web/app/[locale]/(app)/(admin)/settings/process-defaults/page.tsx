@@ -1,19 +1,20 @@
 /**
- * NPD v2 S5a — `/settings/process-defaults` per-process production DEFAULTS page.
+ * W2-T1 — `/settings/process-defaults`: the unified Settings "Processes" page.
  *
- * Server Component: reads org-scoped per-operation defaults via the
- * `listProcessDefaults` Server Action (owned by the NPD v2 S5a backend lane —
- * `./_actions/process-defaults-actions`; imported, never re-authored — it
- * enforces the settings read permission). Mutations are delegated to
- * `upsertProcessDefaults` (same backend, enforces the settings write
- * permission). The settings.org.update permission is also resolved here so the
- * affordances render honestly enabled/disabled (the action re-checks it
- * regardless).
+ * Server Component: reads org-scoped per-operation process definitions via the
+ * `listProcessDefaults` Server Action (`./_actions/process-defaults-actions`;
+ * imported, never re-authored — it enforces the settings read permission) plus
+ * the labor-rate role groups WITH effective rates (`listLaborRateRoleGroupRates`)
+ * that drive the dropdown AND the live Σ(headcount × rate) crew-cost display.
+ * Mutations are delegated to `upsertProcessDefaults` (enforces the settings
+ * write permission; recomputes derived cost server-side unless overridden and
+ * auto-numbers the prefix per ManufacturingOperations.process_suffix). The
+ * npd.schema.edit permission is resolved here so the affordances render
+ * honestly enabled/disabled (the action re-checks it regardless).
  *
- * Owner decision D9: these per-operation defaults (standard cost + default
- * duration + roles[role_group, headcount]) pre-fill the NPD Production tab
- * later. Role RATES are NOT set here — they live in /settings/labor-rates; this
- * screen only picks a role_group + a default headcount.
+ * NOTE (W2-T2): this route renames to `/settings/processes` once the legacy
+ * reference-A screen there is retired; the settings nav already points its
+ * single "Processes" entry here.
  *
  * i18n resolved server-side from next-intl (settings.processDefaults.*, real
  * en+pl, ro/uk mirror EN). No inline JSX strings; no raw UUIDs.
@@ -28,7 +29,7 @@ import { getTranslations } from 'next-intl/server';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
-  listLaborRateRoleGroups,
+  listLaborRateRoleGroupRates,
   listProcessDefaults,
   upsertProcessDefaults as persistProcessDefaults,
 } from './_actions/process-defaults-actions';
@@ -36,13 +37,14 @@ import ProcessDefaultsScreen, {
   type ProcessDefaultRow,
   type ProcessDefaultsLabels,
   type PageState,
+  type RoleGroupRate,
   type UpsertProcessDefaultsInput,
   type UpsertProcessDefaultsResult,
 } from './process-defaults-screen.client';
 
 export const dynamic = 'force-dynamic';
 
-const MANAGE_PERMISSION = 'settings.org.update';
+const MANAGE_PERMISSION = 'npd.schema.edit';
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {
@@ -56,14 +58,14 @@ type ProcessDefaultsPageProps = {
   canManage?: boolean;
   state?: PageState;
   upsertProcessDefaults?: (input: UpsertProcessDefaultsInput) => Promise<UpsertProcessDefaultsResult>;
-  roleGroupOptions?: string[];
+  roleGroupRates?: RoleGroupRate[];
 };
 
 type LoaderResult = {
   state: PageState;
   rows: ProcessDefaultRow[];
   canManage: boolean;
-  roleGroupOptions: string[];
+  roleGroupRates: RoleGroupRate[];
 };
 
 const LABEL_KEYS: Array<keyof ProcessDefaultsLabels> = [
@@ -73,8 +75,12 @@ const LABEL_KEYS: Array<keyof ProcessDefaultsLabels> = [
   'sectionTitle',
   'provenance',
   'rolesNote',
+  'columnPrefix',
   'columnOperation',
   'columnStandardCost',
+  'columnSetupCost',
+  'columnThroughput',
+  'columnYield',
   'columnDuration',
   'columnRoles',
   'columnActions',
@@ -82,17 +88,33 @@ const LABEL_KEYS: Array<keyof ProcessDefaultsLabels> = [
   'noRoles',
   'durationUnit',
   'headcountUnit',
+  'overriddenBadge',
   'dialogEditTitle',
+  'fieldPrefix',
+  'fieldPrefixHelp',
   'fieldStandardCost',
   'fieldStandardCostHelp',
+  'overrideCost',
+  'computedCost',
   'fieldDuration',
   'fieldDurationHelp',
+  'fieldSetupCost',
+  'fieldSetupCostHelp',
+  'fieldThroughput',
+  'fieldThroughputUom',
+  'fieldThroughputHelp',
+  'fieldYield',
+  'fieldYieldHelp',
   'rolesTitle',
   'rolesEmpty',
   'fieldRoleGroup',
   'fieldHeadcount',
   'addRole',
   'removeRole',
+  'productRatesTitle',
+  'productRatesNote',
+  'productRatesEmpty',
+  'productRatesProduct',
   'save',
   'savePending',
   'cancel',
@@ -125,33 +147,25 @@ async function resolveCanManage(): Promise<boolean> {
 async function loadProcessDefaultsPageData(): Promise<LoaderResult> {
   // listProcessDefaults enforces the settings read permission (forbidden ⇒
   // permission-denied); canManage gates the per-operation Edit affordance
-  // (settings.org.update). Both reads are independent so a viewer who can read
+  // (npd.schema.edit). Both reads are independent so a viewer who can read
   // but not write still sees the table.
-  const [result, canManage, roleGroupsResult] = await Promise.all([
+  const [result, canManage, roleGroupRatesResult] = await Promise.all([
     listProcessDefaults(),
     resolveCanManage(),
-    listLaborRateRoleGroups(),
+    listLaborRateRoleGroupRates(),
   ]);
-  // Role-group options failing to load must not take the whole page down — the
-  // select just renders empty and the action still validates server-side.
-  const roleGroupOptions = roleGroupsResult.ok ? roleGroupsResult.data : [];
+  // Role-group rates failing to load must not take the whole page down — the
+  // select just renders empty (computed cost shows 0) and the action still
+  // validates + recomputes server-side.
+  const roleGroupRates = roleGroupRatesResult.ok ? roleGroupRatesResult.data : [];
   if (!result.ok) {
     if (result.error === 'forbidden') {
-      return { state: 'permission_denied', rows: [], canManage: false, roleGroupOptions };
+      return { state: 'permission_denied', rows: [], canManage: false, roleGroupRates };
     }
-    return { state: 'error', rows: [], canManage, roleGroupOptions };
+    return { state: 'error', rows: [], canManage, roleGroupRates };
   }
-  const rows: ProcessDefaultRow[] = result.data.map((row) => ({
-    operationId: row.operationId,
-    operationName: row.operationName,
-    standardCost: row.standardCost,
-    defaultDurationHours: row.defaultDurationHours,
-    roles: row.roles.map((role) => ({
-      roleGroup: role.roleGroup,
-      defaultHeadcount: role.defaultHeadcount,
-    })),
-  }));
-  return { state: rows.length === 0 ? 'empty' : 'ready', rows, canManage, roleGroupOptions };
+  const rows: ProcessDefaultRow[] = result.data;
+  return { state: rows.length === 0 ? 'empty' : 'ready', rows, canManage, roleGroupRates };
 }
 
 /**
@@ -166,7 +180,13 @@ async function upsertProcessDefaultsAdapter(
   return persistProcessDefaults({
     operationId: input.operationId,
     standardCost: input.standardCost,
+    costOverridden: input.costOverridden,
     defaultDurationHours: input.defaultDurationHours,
+    setupCost: input.setupCost,
+    throughputPerHour: input.throughputPerHour,
+    throughputUom: input.throughputUom,
+    yieldPct: input.yieldPct,
+    prefix: input.prefix,
     roles: input.roles.map((role) => ({
       roleGroup: role.roleGroup,
       defaultHeadcount: role.defaultHeadcount,
@@ -184,7 +204,7 @@ export default async function ProcessDefaultsPage(propsInput: unknown = {}) {
         state: props.state ?? ((props.rows?.length ?? 0) === 0 ? 'empty' : 'ready'),
         rows: props.rows ?? [],
         canManage: props.canManage ?? false,
-        roleGroupOptions: props.roleGroupOptions ?? [],
+        roleGroupRates: props.roleGroupRates ?? [],
       }
     : await loadProcessDefaultsPageData();
 
@@ -195,7 +215,7 @@ export default async function ProcessDefaultsPage(propsInput: unknown = {}) {
       canManage={props.canManage ?? loaded.canManage}
       state={props.state ?? loaded.state}
       upsertProcessDefaults={props.upsertProcessDefaults ?? upsertProcessDefaultsAdapter}
-      roleGroupOptions={props.roleGroupOptions ?? loaded.roleGroupOptions}
+      roleGroupRates={props.roleGroupRates ?? loaded.roleGroupRates}
     />
   );
 }

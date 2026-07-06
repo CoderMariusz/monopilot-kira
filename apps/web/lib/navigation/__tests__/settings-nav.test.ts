@@ -12,6 +12,8 @@ const EXPECTED_SETTINGS_NAV = [
     admin: true,
     items: [
       { key: "profile", label: "Company profile", icon: "◆" },
+      // Compliance profile shipped after this contract was written; synced 2026-07-06 (W2-T1).
+      { key: "compliance", label: "Compliance profile", icon: "✓" },
       { key: "sites", label: "Sites & lines", icon: "▤" },
       // LANE QF — infra screens surfaced from URL-only dead-ends (clickthrough §1).
       { key: "lines", label: "Production lines", icon: "≣" },
@@ -30,19 +32,24 @@ const EXPECTED_SETTINGS_NAV = [
     label: "Data",
     admin: true,
     items: [
-      { key: "products", label: "Products & SKUs", icon: "▢" },
+      // W2-T4 — "Products & SKUs" entry removed; /settings/products redirects to
+      // the Technical items list filtered to finished goods.
       { key: "npd-fields", label: "NPD fields", icon: "▦" },
       // NPD approval requirements (C1..C7 required toggles) — surfaced next to NPD fields.
       { key: "npd-approval", label: "Approval requirements", icon: "✔" },
       { key: "npd-checklist", label: "Gate checklists", icon: "☑" },
+      // NPD org-wide cost parameters — shipped after this contract; synced 2026-07-06 (W2-T1).
+      { key: "npd-cost-params", label: "Cost parameters", icon: "£" },
       { key: "boms", label: "BOMs & recipes", icon: "⛓" },
+      // W2-T1 — ONE unified Processes entry (npd_process_defaults backbone), with
+      // Manufacturing operations kept reachable as the vocabulary sub-link. The
+      // separate "Process defaults" entry was folded into it.
       { key: "processes", label: "Processes", icon: "⟶", highlight: true },
+      { key: "manufacturing-ops", label: "  └ Manufacturing operations", icon: "⚒", highlight: true },
       // Wave-7 machines CRUD screen (supersedes /settings/infra/machines).
       { key: "machines", label: "Machines", icon: "⚙" },
-      { key: "manufacturing-ops", label: "Manufacturing operations", icon: "⚒", highlight: true },
-      // NPD v2 S5a — per-process production DEFAULTS screen (shipped in the
-      // NPD-DYN wave); restores the stale contract to the live manifest.
-      { key: "process-defaults", label: "Process defaults", icon: "⚙" },
+      // Product categories reference — shipped after this contract; synced 2026-07-06 (W2-T1).
+      { key: "product-categories", label: "Product categories", icon: "🏷", highlight: true },
       { key: "partners", label: "Suppliers & customers", icon: "↔" },
       { key: "units", label: "Units & conversions", icon: "⚖" },
       // E2B — cold-chain product temperature ranges (mig 315).

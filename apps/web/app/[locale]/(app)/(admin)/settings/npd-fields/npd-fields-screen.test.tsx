@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  * NPD fields settings screen RTL test.
  *
- * Net-new admin screen: mirrors the settings/products PageHead + Section pattern,
+ * Net-new admin screen: mirrors the settings admin PageHead + Section pattern,
  * renders server-loader-shaped NPD department/field config, and wires mutations to
  * the reviewed server-action surface via injectable action props. No mocks of the
  * backend implementation are needed here.

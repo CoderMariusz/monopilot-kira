@@ -52,7 +52,10 @@ export const SETTINGS_NAV_GROUPS = [
     item("labor-rates", "Labor rates", "💰", false, "/settings/labor-rates"),
   ]),
   group("data", "Data", true, [
-    item("products", "Products & SKUs", "▢"),
+    // W2-T4 (2026-07-06 consolidation) — "Products & SKUs" entry removed: the
+    // settings screen was a third write path into public.items bypassing the
+    // technical-items wizard. /settings/products now redirects to the Technical
+    // items list filtered to finished goods.
     item("npd-fields", "NPD fields", "▦", false, "/settings/npd-fields"),
     // NPD approval requirements — per-org toggles for which approval criteria
     // (C1..C7) block product approval. Sits next to NPD fields so the screen is
@@ -67,17 +70,16 @@ export const SETTINGS_NAV_GROUPS = [
     // the costing waterfall. RBAC (npd.schema.edit) enforced server-side.
     item("npd-cost-params", "Cost parameters", "£", false, "/settings/npd-cost-params"),
     item("boms", "BOMs & recipes", "⛓"),
-    item("processes", "Processes", "⟶", true),
+    // W2-T1 (2026-07-06 consolidation) — ONE unified "Processes" entry. It points
+    // at the unified screen (npd_process_defaults backbone + ManufacturingOperations
+    // vocabulary) that replaced the separate "Process defaults" entry; the legacy
+    // reference-A screen at /settings/processes retires in W2-T2, after which the
+    // route renames and this becomes `/settings/processes` again. Manufacturing
+    // operations stays reachable below as the name/suffix vocabulary sub-screen.
+    item("processes", "Processes", "⟶", true, "/settings/process-defaults"),
+    item("manufacturing-ops", "  └ Manufacturing operations", "⚒", true, "/settings/reference/manufacturing-operations"),
     item("machines", "Machines", "⚙"),
-    item("manufacturing-ops", "Manufacturing operations", "⚒", true, "/settings/reference/manufacturing-operations"),
     item("product-categories", "Product categories", "🏷", true, "/settings/reference/product-categories"),
-    // NPD v2 S5a (owner decision D9) — per-process production DEFAULTS (standard
-    // cost + default duration + roles[role_group, headcount]) that pre-fill the
-    // NPD Production tab. Sits next to Manufacturing operations / Processes so the
-    // screen is not a URL-only dead-end. RBAC (settings.org.update) is enforced
-    // server-side on the page/actions; the nav stays ungated per the UI-128
-    // RBAC_TODO contract.
-    item("process-defaults", "Process defaults", "⚙", false, "/settings/process-defaults"),
     item("partners", "Suppliers & customers", "↔"),
     item("units", "Units & conversions", "⚖"),
     // E2B — cold-chain product temperature ranges (mig 315). Master config that

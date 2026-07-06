@@ -25,6 +25,7 @@ import { type SelectOption } from '@monopilot/ui/Select';
 import { listSuppliers } from '../../planning/suppliers/_actions/actions';
 import { listActiveProductCategories } from '../../../../../../actions/reference/product-categories/list';
 import { listItems } from './_actions/list-items';
+import { ITEM_TYPES, type ItemType } from './_actions/shared';
 import type { DeactivateLabels } from './_components/deactivate-modal';
 import { buildTransitionLabels } from './_components/item-transition-labels';
 import { buildWizardLabels } from './_components/item-wizard-labels';
@@ -71,12 +72,16 @@ function buildDeactivateLabels(t: Translator): DeactivateLabels {
 export default async function TechnicalItemsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ modal?: string }>;
+  searchParams?: Promise<{ modal?: string; type?: string }>;
 }) {
   // F6 — the "+ New item" CTA is rendered twice (header + empty-state). The
   // ?modal=create deep-link auto-open must be owned by exactly ONE instance
   // (the always-present header CTA) to avoid a double modal.
-  const autoOpenCreate = (await searchParams)?.modal === 'create';
+  const params = await searchParams;
+  const autoOpenCreate = params?.modal === 'create';
+  // W2-T4 — ?type=<item_type> deep-link pre-selects a type tab. The retired
+  // /settings/products screen redirects here with ?type=fg (finished goods).
+  const initialTab: ItemType | undefined = ITEM_TYPES.find((tab) => tab === params?.type);
   const { items, canCreate, canEdit, canDeactivate, state, limit, total, truncated } = await listItems();
   const t = await getTranslations('technical.items');
   const tItems = await getTranslations('items');
@@ -167,7 +172,11 @@ export default async function TechnicalItemsPage({
   };
 
   return (
-    <main data-screen="technical-items" className="flex w-full flex-col gap-4 px-6 py-6">
+    <main
+      data-screen="technical-items"
+      data-prototype-source="prototypes/design/Monopilot Design System/technical/other-screens.jsx:931-1073"
+      className="flex w-full flex-col gap-4 px-6 py-6"
+    >
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link href=".">{t('list.breadcrumbRoot')}</Link> / {t('list.breadcrumb')}
       </nav>
@@ -216,6 +225,7 @@ export default async function TechnicalItemsPage({
             </div>
           ) : null}
           <ItemsTableClient
+            initialTab={initialTab}
             items={items}
             canEdit={canEdit}
             canDeactivate={canDeactivate}

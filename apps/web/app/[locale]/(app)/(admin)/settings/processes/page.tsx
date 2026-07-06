@@ -1,67 +1,23 @@
-import {
-  SingleReferenceScreen,
-  type SingleReferenceScreenConfig,
-} from '../_components/single-reference-screen';
-
-export const dynamic = 'force-dynamic';
+/**
+ * W2-T2 (2026-07-06 consolidation) — legacy reference-A "Process steps" screen
+ * RETIRED (owner decision: no read-only grace). Its reference_tables
+ * (table_code='processes') + reference_schemas ('reference.processes') data is
+ * removed by migration 441-retire-reference-processes.sql.
+ *
+ * This route now redirects to the unified Processes screen (W2-T1,
+ * npd_process_defaults backbone) at /settings/process-defaults — same pattern
+ * as the schema-wizard legacy redirect. The settings nav already points its
+ * single "Processes" entry there. The physical rename of the unified screen
+ * onto this path is a follow-up owned with W2-T1's files (see
+ * process-defaults/page.tsx NOTE).
+ */
+import { redirect } from 'next/navigation';
 
 type PageProps = {
-  params: Promise<{ locale: string }>;
+  params?: Promise<{ locale: string }>;
 };
 
-// Schema-driven process steps reference (reference.processes — seeded by
-// seeds/reference-schemas.sql T-093). Parity source: the shared reference-data
-// screen at settings/reference (admin-screens.jsx:561-621 reference_data_screen).
-const PROCESSES_CONFIG: SingleReferenceScreenConfig = {
-  tableCode: 'processes',
-  labelNamespace: 'processes',
-  definition: {
-    code: 'processes',
-    name: 'Process steps',
-    desc: 'Schema-driven manufacturing process-step reference data.',
-    marker: 'TENANT',
-  },
-  fallbackColumns: [
-    { key: 'process_code', label: 'Process code', type: 'badge' },
-    { key: 'name', label: 'Name', type: 'text' },
-    // Category is a closed enum validated by the reference upsert Server Action
-    // (reference_schemas: reference.processes.category, validation_json.enum_values
-    // — packages/db/seeds/reference-schemas.sql:120 / migration 073). Free text
-    // would yield invalid_input, so render a dropdown limited to these values.
-    {
-      key: 'category',
-      label: 'Category',
-      type: 'badge',
-      enumOptions: ['preparation', 'processing', 'packaging', 'quality', 'logistics'],
-    },
-    {
-      key: 'cost_mode',
-      label: 'Cost mode',
-      type: 'badge',
-      enumOptions: ['per_hour', 'per_run'],
-      formOnly: true,
-    },
-    { key: 'cost_rate', label: 'Rate', type: 'number', formOnly: true },
-    // Currency is a closed pick (ISO-4217) — was free text, which let invalid codes
-    // through; render a dropdown like category/cost_mode (static enumOptions, since
-    // the shared reference screen has no dynamic source).
-    { key: 'currency', label: 'Currency', type: 'badge', enumOptions: ['GBP', 'EUR', 'USD', 'PLN'], formOnly: true },
-    // Migration 276 — machine assignment + staffing + setup cost (reference.processes
-    // jsonb keys, mirroring how 269 exposed cost_mode/cost_rate/currency).
-    // machine_id is a soft text reference to public.machines (code or id): the
-    // shared SingleReferenceScreen.enumOptions is a static string[] with no dynamic
-    // dropdown source, so the machine is entered as text here and managed in the
-    // dedicated Machines screen (/settings/machines). See deviation log in the
-    // K4 report — a dynamic machines dropdown would require a non-trivial
-    // enhancement to the concurrently-edited shared reference screen.
-    { key: 'machine_id', label: 'Machine (code/id)', type: 'text', formOnly: true },
-    { key: 'staffing_count', label: 'Staffing', type: 'number', formOnly: true },
-    { key: 'setup_cost', label: 'Setup cost', type: 'number', formOnly: true },
-    { key: 'process_cost', label: 'Cost', type: 'text', tableOnly: true },
-  ],
-};
-
-export default async function ProcessesSettingsPage({ params }: PageProps) {
-  const { locale } = await params;
-  return SingleReferenceScreen({ locale, config: PROCESSES_CONFIG });
+export default async function ProcessesLegacyRedirectPage({ params }: PageProps) {
+  const locale = (await params)?.locale ?? 'en';
+  redirect(`/${locale}/settings/process-defaults`);
 }

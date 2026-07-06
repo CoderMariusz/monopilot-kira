@@ -15,7 +15,6 @@ const LINE_ID = '99999999-9999-4999-8999-999999999999';
 const OVERRIDE_TYPE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const REASON_CODE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const RMA_REASON_CODE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
-const PRODUCT_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const BOM_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const MACHINE_ID = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
 
@@ -55,26 +54,6 @@ function makeClient(): FakeClient {
 
       if (normalized.startsWith('insert into public.outbox_events')) {
         return { rows: [] as never[], rowCount: 1 };
-      }
-
-      if (normalized.includes('from public.items i') && normalized.includes("i.item_type in ('fg', 'intermediate', 'co_product', 'byproduct')")) {
-        if (params[0] !== ORG_ID) return { rows: [] as never[], rowCount: 0 };
-        return {
-          rows: [
-            {
-              id: PRODUCT_ID,
-              sku: 'FG-YOG-001',
-              name: 'Greek yoghurt 150g',
-              category: 'Dairy',
-              unit: 'kg',
-              weight: '0.15',
-              bom_link: 'BOM-EEEEEEEE',
-              line: 'LINE-1',
-              status: 'active',
-            },
-          ] as never[],
-          rowCount: 1,
-        };
       }
 
       if (normalized.includes('from public.bom_headers h') && normalized.includes('left join public.bom_lines bl')) {
@@ -903,40 +882,8 @@ describe('settings shifts/devices wiring contract', () => {
     expect(crossOrgSites).toEqual([]);
   });
 
-  it('wires Products loader producer to the page consumer shape', async () => {
-    const client = makeClient();
-    const mod = await import('../app/[locale]/(app)/(admin)/settings/products/_actions/products');
-    const pageSource = readFileSync(
-      resolve(__dirname, '../app/[locale]/(app)/(admin)/settings/products/page.tsx'),
-      'utf8',
-    );
-
-    const products = await withFakeOrg(client, () => mod.getProducts());
-
-    expect(pageSource).toContain('getProducts()');
-    expect(pageSource).toContain('products={products}');
-    expect(products).toEqual([
-      {
-        id: PRODUCT_ID,
-        sku: 'FG-YOG-001',
-        name: 'Greek yoghurt 150g',
-        category: 'Dairy',
-        unit: 'kg',
-        weight: '0.15',
-        bomLink: 'BOM-EEEEEEEE',
-        status: 'active',
-      },
-    ]);
-    const sql = client.calls.map((call) => call.sql.replace(/\s+/g, ' ').trim()).join('\n');
-    expect(sql).toContain('from public.items i');
-    expect(sql).toContain('left join lateral');
-    expect(sql).toContain('from public.bom_headers h');
-    expect(sql).toContain('app.current_org_id()');
-    expect(client.calls.every((call) => call.params.includes(ORG_ID))).toBe(true);
-
-    const crossOrg = await withFakeOrg(client, () => mod.getProducts(OTHER_ORG_ID));
-    expect(crossOrg).toEqual([]);
-  });
+  // W2-T4 — the settings Products screen (third write path into public.items)
+  // was retired; /settings/products redirects to the Technical items list.
 
   it('wires BOMs loader producers to the page consumer shape', async () => {
     const client = makeClient();

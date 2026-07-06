@@ -152,6 +152,7 @@ export function ItemsTableClient({
   supplierOptions = [],
   categoryOptions = [],
   supplierIdByCode = {},
+  initialTab,
 }: {
   items: ItemListItem[];
   canEdit: boolean;
@@ -171,8 +172,10 @@ export function ItemsTableClient({
   categoryOptions?: SelectOption[];
   /** A11 — supplier CODE → UUID map so EDIT-mode save can call createItemSupplierSpec. */
   supplierIdByCode?: Record<string, string>;
+  /** W2-T4 — pre-selected type tab (deep-link ?type=fg from the retired settings Products screen). */
+  initialTab?: ItemType;
 }) {
-  const [tab, setTab] = React.useState<'all' | ItemType>('all');
+  const [tab, setTab] = React.useState<'all' | ItemType>(initialTab ?? 'all');
   const [status, setStatus] = React.useState<'all' | ItemStatus>('all');
   const [d365, setD365] = React.useState<string>('all');
   const [query, setQuery] = React.useState('');

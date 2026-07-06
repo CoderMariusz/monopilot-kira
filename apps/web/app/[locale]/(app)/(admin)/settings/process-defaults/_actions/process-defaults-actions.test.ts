@@ -15,6 +15,9 @@ const harness = vi.hoisted(() => ({
   processDefaultRows: [] as Array<Record<string, unknown>>,
   upsertRows: [] as Array<Record<string, unknown>>,
   roleGroupRows: [] as Array<Record<string, unknown>>,
+  productRateRows: [] as Array<Record<string, unknown>>,
+  existingPrefixRows: [] as Array<Record<string, unknown>>,
+  takenPrefixRows: [] as Array<Record<string, unknown>>,
 }));
 
 function makeClient() {
@@ -34,12 +37,24 @@ function makeClient() {
         return { rows: harness.processDefaultRows as T[], rowCount: harness.processDefaultRows.length };
       }
 
+      if (normalized.startsWith('select wp.process_name')) {
+        return { rows: harness.productRateRows as T[], rowCount: harness.productRateRows.length };
+      }
+
       if (normalized.startsWith('select id::text') && normalized.includes('from "reference"."manufacturingoperations"')) {
         return { rows: harness.operationRows as T[], rowCount: harness.operationRows.length };
       }
 
       if (normalized.includes('from public.labor_rates')) {
         return { rows: harness.roleGroupRows as T[], rowCount: harness.roleGroupRows.length };
+      }
+
+      if (normalized.startsWith('select prefix') && normalized.includes('operation_id = $1::uuid')) {
+        return { rows: harness.existingPrefixRows as T[], rowCount: harness.existingPrefixRows.length };
+      }
+
+      if (normalized.startsWith('select prefix') && normalized.includes("prefix ~ ('^' || $1 || '-[0-9]+$')")) {
+        return { rows: harness.takenPrefixRows as T[], rowCount: harness.takenPrefixRows.length };
       }
 
       if (normalized.includes('insert into public.npd_process_defaults')) {
@@ -69,33 +84,69 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
+/** Base valid upsert input (W2-T1 unified-screen shape). */
+function upsertInput(overrides: Record<string, unknown> = {}) {
+  return {
+    operationId: CUTTING_ID,
+    standardCost: 0,
+    costOverridden: false,
+    defaultDurationHours: 1,
+    setupCost: 0,
+    throughputPerHour: null,
+    throughputUom: null,
+    yieldPct: 100,
+    prefix: '',
+    roles: [] as Array<{ roleGroup: string; defaultHeadcount: number }>,
+    ...overrides,
+  };
+}
+
 describe('process defaults actions', () => {
   beforeEach(() => {
     harness.calls = [];
     harness.permissionGranted = true;
-    harness.operationRows = [{ id: CUTTING_ID }];
+    harness.operationRows = [{ id: CUTTING_ID, process_suffix: 'PREP' }];
     harness.processDefaultRows = [
       {
         operation_id: CUTTING_ID,
         operation_name: 'Cutting',
+        process_suffix: 'PREP',
+        configured: false,
+        prefix: null,
         standard_cost: '0',
+        cost_overridden: false,
         default_duration_hours: '0',
+        setup_cost: '0',
+        throughput_per_hour: null,
+        throughput_uom: null,
+        yield_pct: '100',
         roles: [],
       },
       {
         operation_id: MIXING_ID,
         operation_name: 'Mixing',
+        process_suffix: 'MIX',
+        configured: true,
+        prefix: 'MIX-01',
         standard_cost: '125.5000',
+        cost_overridden: true,
         default_duration_hours: '2.2500',
+        setup_cost: '10.0000',
+        throughput_per_hour: '250.0000',
+        throughput_uom: 'kg',
+        yield_pct: '97.500',
         roles: [{ roleGroup: 'operator', defaultHeadcount: 2 }],
       },
     ];
     harness.upsertRows = [{ id: PROCESS_DEFAULT_ID }];
     harness.roleGroupRows = [
-      { role_group: 'operator' },
-      { role_group: 'packer' },
-      { role_group: 'supervisor' },
+      { role_group: 'operator', rate_per_hour: '14.5000' },
+      { role_group: 'packer', rate_per_hour: '12.0000' },
+      { role_group: 'supervisor', rate_per_hour: '20.0000' },
     ];
+    harness.productRateRows = [];
+    harness.existingPrefixRows = [];
+    harness.takenPrefixRows = [];
     vi.clearAllMocks();
   });
 
@@ -112,7 +163,22 @@ describe('process defaults actions', () => {
     expect(call?.sql).toContain('effective_from <= current_date');
   });
 
-  it('listProcessDefaults includes active operations without configured defaults as zeros and empty roles', async () => {
+  it('listLaborRateRoleGroupRates returns groups WITH their effective hourly rate', async () => {
+    const { listLaborRateRoleGroupRates } = await import('./process-defaults-actions');
+
+    const res = await listLaborRateRoleGroupRates();
+
+    expect(res).toEqual({
+      ok: true,
+      data: [
+        { roleGroup: 'operator', ratePerHour: 14.5 },
+        { roleGroup: 'packer', ratePerHour: 12 },
+        { roleGroup: 'supervisor', ratePerHour: 20 },
+      ],
+    });
+  });
+
+  it('listProcessDefaults returns operations with suffix/prefix/cost-override/setup/throughput/yield', async () => {
     const { listProcessDefaults } = await import('./process-defaults-actions');
 
     const res = await listProcessDefaults();
@@ -123,16 +189,32 @@ describe('process defaults actions', () => {
         {
           operationId: CUTTING_ID,
           operationName: 'Cutting',
+          processSuffix: 'PREP',
+          prefix: null,
           standardCost: 0,
+          costOverridden: false,
           defaultDurationHours: 0,
+          setupCost: 0,
+          throughputPerHour: null,
+          throughputUom: null,
+          yieldPct: 100,
           roles: [],
+          productRates: [],
         },
         {
           operationId: MIXING_ID,
           operationName: 'Mixing',
+          processSuffix: 'MIX',
+          prefix: 'MIX-01',
           standardCost: 125.5,
+          costOverridden: true,
           defaultDurationHours: 2.25,
+          setupCost: 10,
+          throughputPerHour: 250,
+          throughputUom: 'kg',
+          yieldPct: 97.5,
           roles: [{ roleGroup: 'operator', defaultHeadcount: 2 }],
+          productRates: [],
         },
       ],
     });
@@ -144,30 +226,51 @@ describe('process defaults actions', () => {
     expect(listCall?.sql).toContain('and mo.is_active = true');
   });
 
-  it('upsertProcessDefaults upserts the parent, replace-sets roles, scopes by org, and is RBAC-gated', async () => {
-    const { upsertProcessDefaults } = await import('./process-defaults-actions');
-    harness.processDefaultRows = [
+  it('listProcessDefaults surfaces read-only per-product rates from npd_wip_processes by name', async () => {
+    harness.productRateRows = [
       {
-        operation_id: CUTTING_ID,
-        operation_name: 'Cutting',
-        standard_cost: '42.2500',
-        default_duration_hours: '1.5000',
+        process_name: 'mixing',
+        product_code: 'FG-0001',
+        throughput_per_hour: '120.0000',
+        throughput_uom: 'kg',
+        setup_cost: '5.0000',
+        yield_pct: '95.000',
+      },
+    ];
+    const { listProcessDefaults } = await import('./process-defaults-actions');
+
+    const res = await listProcessDefaults();
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const mixing = res.data.find((row) => row.operationName === 'Mixing');
+    expect(mixing?.productRates).toEqual([
+      { productCode: 'FG-0001', throughputPerHour: 120, throughputUom: 'kg', setupCost: 5, yieldPct: 95 },
+    ]);
+
+    const rateCall = harness.calls.find((entry) => entry.sql.includes('from public.npd_wip_processes'));
+    expect(rateCall?.sql).toContain('join public.prod_detail');
+    expect(rateCall?.sql).toContain('wp.org_id = app.current_org_id()');
+  });
+
+  it('upsertProcessDefaults upserts all fields, replace-sets roles, scopes by org, and is RBAC-gated', async () => {
+    const { upsertProcessDefaults } = await import('./process-defaults-actions');
+
+    const res = await upsertProcessDefaults(
+      upsertInput({
+        standardCost: 42.25,
+        costOverridden: true,
+        defaultDurationHours: 1.5,
+        setupCost: 7.5,
+        throughputPerHour: 300,
+        throughputUom: 'kg',
+        yieldPct: 96,
+        prefix: 'PREP-09',
         roles: [
           { roleGroup: 'operator', defaultHeadcount: 2 },
           { roleGroup: 'supervisor', defaultHeadcount: 1 },
         ],
-      },
-    ];
-
-    const res = await upsertProcessDefaults({
-      operationId: CUTTING_ID,
-      standardCost: 42.25,
-      defaultDurationHours: 1.5,
-      roles: [
-        { roleGroup: 'operator', defaultHeadcount: 2 },
-        { roleGroup: 'supervisor', defaultHeadcount: 1 },
-      ],
-    });
+      }),
+    );
 
     expect(res).toEqual({ ok: true });
 
@@ -180,9 +283,11 @@ describe('process defaults actions', () => {
     expect(operationCall?.params).toEqual([CUTTING_ID]);
 
     const upsertCall = harness.calls.find((entry) => entry.sql.includes('insert into public.npd_process_defaults'));
-    expect(upsertCall?.sql).toContain('values (app.current_org_id(), $1::uuid, $2::numeric, $3::numeric)');
     expect(upsertCall?.sql).toContain('on conflict (org_id, operation_id)');
-    expect(upsertCall?.params).toEqual([CUTTING_ID, 42.25, 1.5]);
+    expect(upsertCall?.sql).toContain('cost_overridden = excluded.cost_overridden');
+    expect(upsertCall?.sql).toContain('prefix = excluded.prefix');
+    // manual prefix wins — no auto-number scan
+    expect(upsertCall?.params).toEqual([CUTTING_ID, 42.25, true, 1.5, 7.5, 300, 'kg', 96, 'PREP-09']);
 
     const deleteCall = harness.calls.find((entry) => entry.sql.includes('delete from public.npd_process_default_roles'));
     expect(deleteCall?.sql).toContain('org_id = app.current_org_id()');
@@ -197,15 +302,79 @@ describe('process defaults actions', () => {
     expect(roleInsertCalls[1]?.params).toEqual([PROCESS_DEFAULT_ID, 'supervisor', 1]);
   });
 
+  it('upsertProcessDefaults COMPUTES standard_cost = Σ(headcount × rate) when not overridden', async () => {
+    const { upsertProcessDefaults } = await import('./process-defaults-actions');
+
+    const res = await upsertProcessDefaults(
+      upsertInput({
+        // tampered client value must be ignored when costOverridden is false
+        standardCost: 999,
+        costOverridden: false,
+        prefix: 'PREP-01',
+        roles: [
+          { roleGroup: 'operator', defaultHeadcount: 2 }, // 2 × 14.5 = 29
+          { roleGroup: 'packer', defaultHeadcount: 3 }, // 3 × 12 = 36
+        ],
+      }),
+    );
+
+    expect(res).toEqual({ ok: true });
+    const upsertCall = harness.calls.find((entry) => entry.sql.includes('insert into public.npd_process_defaults'));
+    expect(upsertCall?.params?.[1]).toBe(65); // Σ = 29 + 36
+    expect(upsertCall?.params?.[2]).toBe(false);
+  });
+
+  it('upsertProcessDefaults keeps the manual cost when costOverridden is true (survives rate changes)', async () => {
+    const { upsertProcessDefaults } = await import('./process-defaults-actions');
+
+    const res = await upsertProcessDefaults(
+      upsertInput({
+        standardCost: 77.77,
+        costOverridden: true,
+        prefix: 'PREP-01',
+        roles: [{ roleGroup: 'operator', defaultHeadcount: 2 }],
+      }),
+    );
+
+    expect(res).toEqual({ ok: true });
+    const upsertCall = harness.calls.find((entry) => entry.sql.includes('insert into public.npd_process_defaults'));
+    expect(upsertCall?.params?.[1]).toBe(77.77);
+    expect(upsertCall?.params?.[2]).toBe(true);
+  });
+
+  it('upsertProcessDefaults auto-numbers a blank prefix per the operation process_suffix (PREP-01 → PREP-02)', async () => {
+    harness.takenPrefixRows = [{ prefix: 'PREP-01' }];
+    const { upsertProcessDefaults } = await import('./process-defaults-actions');
+
+    const res = await upsertProcessDefaults(upsertInput({ prefix: '' }));
+
+    expect(res).toEqual({ ok: true });
+    const upsertCall = harness.calls.find((entry) => entry.sql.includes('insert into public.npd_process_defaults'));
+    expect(upsertCall?.params?.[8]).toBe('PREP-02');
+
+    const scanCall = harness.calls.find((entry) => entry.sql.includes("prefix ~ ('^' || $1 || '-[0-9]+$')"));
+    expect(scanCall?.sql).toContain('org_id = app.current_org_id()');
+    expect(scanCall?.params).toEqual(['PREP']);
+  });
+
+  it('upsertProcessDefaults keeps an already-assigned prefix when the input is blank', async () => {
+    harness.existingPrefixRows = [{ prefix: 'PREP-03' }];
+    const { upsertProcessDefaults } = await import('./process-defaults-actions');
+
+    const res = await upsertProcessDefaults(upsertInput({ prefix: '' }));
+
+    expect(res).toEqual({ ok: true });
+    const upsertCall = harness.calls.find((entry) => entry.sql.includes('insert into public.npd_process_defaults'));
+    expect(upsertCall?.params?.[8]).toBe('PREP-03');
+    expect(harness.calls.some((entry) => entry.sql.includes("prefix ~ ('^' || $1 || '-[0-9]+$')"))).toBe(false);
+  });
+
   it('upsertProcessDefaults rejects a roleGroup not present in labor_rates', async () => {
     const { upsertProcessDefaults } = await import('./process-defaults-actions');
 
-    const res = await upsertProcessDefaults({
-      operationId: CUTTING_ID,
-      standardCost: 10,
-      defaultDurationHours: 1,
-      roles: [{ roleGroup: 'welder', defaultHeadcount: 1 }],
-    });
+    const res = await upsertProcessDefaults(
+      upsertInput({ standardCost: 10, roles: [{ roleGroup: 'welder', defaultHeadcount: 1 }] }),
+    );
 
     expect(res).toEqual({
       ok: false,
@@ -217,12 +386,9 @@ describe('process defaults actions', () => {
   it('upsertProcessDefaults normalizes roleGroup casing to the canonical labor_rates value', async () => {
     const { upsertProcessDefaults } = await import('./process-defaults-actions');
 
-    const res = await upsertProcessDefaults({
-      operationId: CUTTING_ID,
-      standardCost: 10,
-      defaultDurationHours: 1,
-      roles: [{ roleGroup: 'OPERATOR', defaultHeadcount: 2 }],
-    });
+    const res = await upsertProcessDefaults(
+      upsertInput({ prefix: 'PREP-01', roles: [{ roleGroup: 'OPERATOR', defaultHeadcount: 2 }] }),
+    );
 
     expect(res).toEqual({ ok: true });
     const roleInsert = harness.calls.find((entry) =>
@@ -234,17 +400,25 @@ describe('process defaults actions', () => {
   it('upsertProcessDefaults rejects duplicate roleGroup input with a clean validation error', async () => {
     const { upsertProcessDefaults } = await import('./process-defaults-actions');
 
-    const res = await upsertProcessDefaults({
-      operationId: CUTTING_ID,
-      standardCost: 10,
-      defaultDurationHours: 1,
-      roles: [
-        { roleGroup: 'operator', defaultHeadcount: 1 },
-        { roleGroup: 'Operator', defaultHeadcount: 2 },
-      ],
-    });
+    const res = await upsertProcessDefaults(
+      upsertInput({
+        roles: [
+          { roleGroup: 'operator', defaultHeadcount: 1 },
+          { roleGroup: 'Operator', defaultHeadcount: 2 },
+        ],
+      }),
+    );
 
     expect(res).toEqual({ ok: false, error: 'Invalid process defaults input: roleGroup values must be unique.' });
+    expect(harness.calls).toEqual([]);
+  });
+
+  it('upsertProcessDefaults rejects an out-of-range yieldPct with a clean validation error', async () => {
+    const { upsertProcessDefaults } = await import('./process-defaults-actions');
+
+    const res = await upsertProcessDefaults(upsertInput({ yieldPct: 0 }));
+
+    expect(res.ok).toBe(false);
     expect(harness.calls).toEqual([]);
   });
 
@@ -252,12 +426,9 @@ describe('process defaults actions', () => {
     const { upsertProcessDefaults } = await import('./process-defaults-actions');
     harness.operationRows = [];
 
-    const res = await upsertProcessDefaults({
-      operationId: CUTTING_ID,
-      standardCost: 10,
-      defaultDurationHours: 1,
-      roles: [{ roleGroup: 'operator', defaultHeadcount: 1 }],
-    });
+    const res = await upsertProcessDefaults(
+      upsertInput({ standardCost: 10, roles: [{ roleGroup: 'operator', defaultHeadcount: 1 }] }),
+    );
 
     expect(res).toEqual({ ok: false, error: 'Manufacturing operation not found.' });
 
@@ -265,5 +436,36 @@ describe('process defaults actions', () => {
     expect(permissionCall?.params).toEqual([USER_ID, ORG_ID, 'npd.schema.edit']);
     expect(harness.calls.some((entry) => entry.sql.includes('insert into public.npd_process_defaults'))).toBe(false);
     expect(harness.calls.some((entry) => entry.sql.includes('delete from public.npd_process_default_roles'))).toBe(false);
+  });
+
+  it('getProcessDefault returns null for an operation with no configured default', async () => {
+    harness.processDefaultRows = [harness.processDefaultRows[0] as Record<string, unknown>];
+    const { getProcessDefault } = await import('./process-defaults-actions');
+
+    const res = await getProcessDefault(CUTTING_ID);
+
+    expect(res).toEqual({ ok: true, data: null });
+  });
+
+  it('getProcessDefault returns the configured row incl. the new W2-T1 fields', async () => {
+    harness.processDefaultRows = [harness.processDefaultRows[1] as Record<string, unknown>];
+    const { getProcessDefault } = await import('./process-defaults-actions');
+
+    const res = await getProcessDefault(MIXING_ID);
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data).toMatchObject({
+      operationId: MIXING_ID,
+      operationName: 'Mixing',
+      processSuffix: 'MIX',
+      prefix: 'MIX-01',
+      standardCost: 125.5,
+      costOverridden: true,
+      setupCost: 10,
+      throughputPerHour: 250,
+      throughputUom: 'kg',
+      yieldPct: 97.5,
+    });
   });
 });
