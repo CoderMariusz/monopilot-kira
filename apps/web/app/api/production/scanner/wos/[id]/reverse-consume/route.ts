@@ -16,6 +16,7 @@ import { findServerReplay } from '../../../../../../../lib/scanner/replay';
 import { isRecord, stringField } from '../../../../../../../lib/scanner/route-utils';
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../../../../../../lib/scanner/txn-org-context';
 import { makeStockMoveNumber } from '../../../../../../../lib/warehouse/lp-create';
+import { applyConsumptionWacReversal } from '../../../../../../../lib/finance/upsert-wac';
 import {
   auditAttempt,
   getWoId,
@@ -756,6 +757,34 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
 
       const correction = await insertCounterEntry(ctx, { original, reasonCode, note });
+
+      const wacReversal = await applyConsumptionWacReversal(ctx.client, {
+        orgId: ctx.orgId,
+        siteId: original.site_id,
+        itemId: original.component_id,
+        extJsonb: original.ext_jsonb,
+        fallbackQty: original.qty_consumed,
+        fallbackUom: original.uom,
+        updatedBy: ctx.userId,
+        logContext: { consumptionId: original.id, source: 'scannerReverseConsumption' },
+      });
+      if (wacReversal.applied) {
+        await ctx.client.query(
+          `update public.wo_material_consumption
+              set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $2::jsonb
+            where org_id = app.current_org_id()
+              and id = $1::uuid`,
+          [
+            correction.id,
+            JSON.stringify({
+              wac_qty_kg: wacReversal.deltaQtyKg,
+              wac_value: wacReversal.deltaValue,
+              wac_reversal_source: wacReversal.source,
+            }),
+          ],
+        );
+      }
+
       if (!(await decrementConsumedQty(ctx, original))) {
         throw new Error('reverse-consume: wo_materials decrement failed despite pre-validated row lock');
       }

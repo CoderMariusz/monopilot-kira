@@ -16,6 +16,8 @@ const SO_ID = '33333333-3333-4333-8333-333333333333';
 const SHIPMENT_ID = '44444444-4444-4444-8444-444444444444';
 const LP_1 = '55555555-5555-4555-8555-555555555555';
 const LP_2 = '66666666-6666-4666-8666-666666666666';
+const PRODUCT_ID = '77777777-7777-4777-8777-777777777777';
+const PRODUCT_ID_2 = '88888888-8888-4888-8888-888888888888';
 const FIXED_NOW = '2026-06-23T12:34:56.000Z';
 
 let client: QueryClient;
@@ -27,6 +29,8 @@ let boxCount = 1;
 let lpRows: Array<{
   lp_id: string;
   lp_number: string | null;
+  product_id: string;
+  uom: string;
   shipped_qty: string;
   prior_status: string;
   prior_reserved_qty: string;
@@ -36,6 +40,7 @@ let packedShipmentUpdate: Record<string, unknown> | null = null;
 let shippedShipmentUpdate: Record<string, unknown> | null = null;
 let shippedLpIds: string[] = [];
 let shippedLpSnapshot: Array<Record<string, unknown>> = [];
+let shippedExtData: Record<string, unknown> | null = null;
 let salesOrderUpdate: Record<string, unknown> | null = null;
 let remainingShipmentCount = 0;
 let bolUpdate: Record<string, unknown> | null = null;
@@ -181,9 +186,43 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.includes('from public.items i') && q.includes('as qty_kg')) {
+        return { rows: [{ qty_kg: String(params?.[0] ?? '0'), resolved: true }], rowCount: 1 };
+      }
+      if (q.includes('with existing as materialized') && q.includes('computed.qty_kg::text as "qtykg"')) {
+        const qtyKg = String(params?.[2] ?? '0');
+        const avgCost = '5';
+        return {
+          rows: [{
+            qtyKg,
+            valueDebited: String(Number(qtyKg) * Number(avgCost)),
+            avgCostUsed: avgCost,
+            totalQtyKg: '0',
+            totalValue: '0',
+            clamped: false,
+          }],
+          rowCount: 1,
+        };
+      }
+      if (q.startsWith('select coalesce((') && q.includes('avg_cost')) {
+        return { rows: [{ avg_cost: '5' }], rowCount: 1 };
+      }
+      if (q.startsWith('select ($1::numeric * $2::numeric)::text as value')) {
+        const left = Number(params?.[0] ?? 0);
+        const right = Number(params?.[1] ?? 0);
+        return { rows: [{ value: String(left * right) }], rowCount: 1 };
+      }
+      if (q.includes('insert into public.item_wac_state')) {
+        return { rows: [{ totalQtyKg: '0', totalValue: '0', clamped: false }], rowCount: 1 };
+      }
+
       if (q.startsWith('update public.shipments') && q.includes('ext_data = coalesce') && q.includes("and status = 'shipped'")) {
-        shippedLpSnapshot = (JSON.parse(params[1] as string) as { shipped_license_plates: Array<Record<string, unknown>> })
-          .shipped_license_plates;
+        const parsed = JSON.parse(params[1] as string) as {
+          shipped_license_plates: Array<Record<string, unknown>>;
+          wac_debits?: Array<Record<string, unknown>>;
+        };
+        shippedLpSnapshot = parsed.shipped_license_plates;
+        shippedExtData = parsed;
         return { rows: [], rowCount: 1 };
       }
 
@@ -258,14 +297,31 @@ beforeEach(() => {
   salesOrderStatus = 'manifested';
   boxCount = 1;
   lpRows = [
-    { lp_id: LP_1, lp_number: 'LP-0001', shipped_qty: '3.000', prior_status: 'available', prior_reserved_qty: '3.000' },
-    { lp_id: LP_2, lp_number: 'LP-0002', shipped_qty: '2.000', prior_status: 'available', prior_reserved_qty: '2.000' },
+    {
+      lp_id: LP_1,
+      lp_number: 'LP-0001',
+      product_id: PRODUCT_ID,
+      uom: 'kg',
+      shipped_qty: '3.000',
+      prior_status: 'available',
+      prior_reserved_qty: '3.000',
+    },
+    {
+      lp_id: LP_2,
+      lp_number: 'LP-0002',
+      product_id: PRODUCT_ID_2,
+      uom: 'kg',
+      shipped_qty: '2.000',
+      prior_status: 'available',
+      prior_reserved_qty: '2.000',
+    },
   ];
   blockedLpRows = [];
   packedShipmentUpdate = null;
   shippedShipmentUpdate = null;
   shippedLpIds = [];
   shippedLpSnapshot = [];
+  shippedExtData = null;
   salesOrderUpdate = null;
   remainingShipmentCount = 0;
   bolUpdate = null;
@@ -341,6 +397,11 @@ describe('shipShipment', () => {
     expect(shippedLpSnapshot).toEqual([
       { lp_id: LP_1, shipped_qty: '3.000', prior_status: 'available', prior_reserved_qty: '3.000' },
       { lp_id: LP_2, shipped_qty: '2.000', prior_status: 'available', prior_reserved_qty: '2.000' },
+    ]);
+    expect(queryLog.filter(({ sql }) => normalize(sql).includes('insert into public.item_wac_state'))).toHaveLength(2);
+    expect(shippedExtData?.wac_debits).toEqual([
+      { lp_id: LP_1, item_id: PRODUCT_ID, qty_kg: '3.000', wac_value: '15' },
+      { lp_id: LP_2, item_id: PRODUCT_ID_2, qty_kg: '2.000', wac_value: '10' },
     ]);
     expect(outboxEvents).toHaveLength(2);
     expect(outboxEvents.map((event) => event.eventType)).toEqual(['warehouse.lp.shipped', 'warehouse.lp.shipped']);

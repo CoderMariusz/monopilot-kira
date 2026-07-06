@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { debitWac } from '../../../../../../lib/finance/upsert-wac';
 import { LIVE_ALLOCATION_SQL, SHIP_CLOSED_ALLOCATION_REASON } from './so-transitions';
 import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext, writeShipmentStatusInContext } from './so-status-write';
 
@@ -64,6 +65,8 @@ function toNumber(value: unknown): number {
 type ShipmentLpRow = {
   lp_id: string;
   lp_number: string | null;
+  product_id: string;
+  uom: string;
   shipped_qty: string;
   prior_status: string;
   prior_reserved_qty: string;
@@ -73,6 +76,8 @@ async function fetchShipmentLps(ctx: ShippingContext, shipmentId: string): Promi
   const { rows } = await ctx.client.query<ShipmentLpRow>(
     `select lp.id::text as lp_id,
             coalesce(lp.lp_code, lp.lp_number) as lp_number,
+            lp.product_id::text as product_id,
+            lp.uom,
             sum(sbc.quantity)::text as shipped_qty,
             lp.status as prior_status,
             lp.reserved_qty::text as prior_reserved_qty
@@ -87,7 +92,7 @@ async function fetchShipmentLps(ctx: ShippingContext, shipmentId: string): Promi
         and sbc.quantity is not null
         and sbc.quantity > 0
         and sb.shipment_id = $1::uuid
-      group by lp.id, lp.lp_code, lp.lp_number, lp.status, lp.reserved_qty
+      group by lp.id, lp.lp_code, lp.lp_number, lp.product_id, lp.uom, lp.status, lp.reserved_qty
       order by lp.id::text`,
     [shipmentId],
   );
@@ -297,6 +302,38 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
       );
       if (updatedLpRows.length !== lpIds.length) throw new ActionError('persistence_failed');
 
+      const wacDebits: Array<{
+        lp_id: string;
+        item_id: string;
+        qty_kg?: string;
+        wac_value?: string;
+        wac_excluded?: string;
+      }> = [];
+      for (const lp of lpRows) {
+        const wacDebit = await debitWac(ctx.client, {
+          orgId,
+          siteId: null,
+          itemId: lp.product_id,
+          qty: lp.shipped_qty,
+          uom: lp.uom,
+          updatedBy: userId,
+        });
+        if (wacDebit.applied) {
+          wacDebits.push({
+            lp_id: lp.lp_id,
+            item_id: lp.product_id,
+            qty_kg: wacDebit.qtyKg,
+            wac_value: wacDebit.valueDebited,
+          });
+        } else if (wacDebit.excluded === 'unresolved_uom') {
+          wacDebits.push({
+            lp_id: lp.lp_id,
+            item_id: lp.product_id,
+            wac_excluded: 'unresolved_uom',
+          });
+        }
+      }
+
       await ctx.client.query(
         `update public.inventory_allocations ia
             set status = 'released',
@@ -334,6 +371,7 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
               prior_status: row.prior_status,
               prior_reserved_qty: row.prior_reserved_qty,
             })),
+            ...(wacDebits.length > 0 ? { wac_debits: wacDebits } : {}),
           }),
           userId,
         ],

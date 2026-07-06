@@ -44,6 +44,7 @@ import { createHash } from 'node:crypto';
 
 import { toMicro } from '../../../../../../lib/shared/decimal';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { debitWac } from '../../../../../../lib/finance/upsert-wac';
 import { assertWoNotOnHold } from '../../../../../../lib/production/holds-guard';
 import { assertLpConsumableForProduction } from '../../../../../../lib/production/lp-safety-guard';
 import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
@@ -673,6 +674,46 @@ export async function recordDesktopConsumption(
       const consumptionId = consumption.rows[0]?.id;
       if (!consumptionId) {
         throw new Error('recordDesktopConsumption: consumption insert returned no id');
+      }
+
+      const wacDebit = await debitWac(ctx.client, {
+        orgId,
+        siteId: null,
+        itemId: consumedItemId,
+        qty,
+        uom: material.uom,
+        updatedBy: userId,
+      });
+      if (wacDebit.applied) {
+        await ctx.client.query(
+          `update public.wo_material_consumption
+              set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $2::jsonb
+            where org_id = app.current_org_id()
+              and id = $1::uuid`,
+          [
+            consumptionId,
+            JSON.stringify({
+              wac_qty_kg: wacDebit.qtyKg,
+              wac_value: wacDebit.valueDebited,
+              wac_avg_cost: wacDebit.avgCostUsed,
+            }),
+          ],
+        );
+      } else if (wacDebit.excluded === 'unresolved_uom') {
+        await ctx.client.query(
+          `update public.wo_material_consumption
+              set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $2::jsonb
+            where org_id = app.current_org_id()
+              and id = $1::uuid`,
+          [
+            consumptionId,
+            JSON.stringify({
+              wac_excluded: 'unresolved_uom',
+              wac_uom: material.uom,
+              wac_qty: qty,
+            }),
+          ],
+        );
       }
 
       if (lpId && lpId !== NIL_UUID) {

@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server';
 
 import { assertWoNotOnHold } from '../../../../../../../lib/production/holds-guard';
 import { assertLpConsumableForProduction } from '../../../../../../../lib/production/lp-safety-guard';
+import { debitWac } from '../../../../../../../lib/finance/upsert-wac';
 import {
   APP_VERSION,
   emitConsumeBlocked,
@@ -504,6 +505,48 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const consumptionId = consumption.rows[0]?.id;
       if (!consumptionId) {
         throw new Error('scanner consume: consumption insert returned no id');
+      }
+
+      const wacDebit = await debitWac(client, {
+        orgId: session.org_id,
+        siteId: null,
+        itemId: consumedItemId,
+        qty,
+        uom: material.uom,
+        updatedBy: session.user_id,
+      });
+      if (wacDebit.applied) {
+        await client.query(
+          `update public.wo_material_consumption
+              set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $2::jsonb
+            where org_id = $1::uuid
+              and id = $3::uuid`,
+          [
+            session.org_id,
+            JSON.stringify({
+              wac_qty_kg: wacDebit.qtyKg,
+              wac_value: wacDebit.valueDebited,
+              wac_avg_cost: wacDebit.avgCostUsed,
+            }),
+            consumptionId,
+          ],
+        );
+      } else if (wacDebit.excluded === 'unresolved_uom') {
+        await client.query(
+          `update public.wo_material_consumption
+              set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $2::jsonb
+            where org_id = $1::uuid
+              and id = $3::uuid`,
+          [
+            session.org_id,
+            JSON.stringify({
+              wac_excluded: 'unresolved_uom',
+              wac_uom: material.uom,
+              wac_qty: qty,
+            }),
+            consumptionId,
+          ],
+        );
       }
 
       if (lpId && lpId !== NIL_UUID) {

@@ -17,6 +17,7 @@ import {
 } from './so-transitions';
 import { releaseShipmentLiveAllocationsInContext, voidShipmentBoxesInContext } from './so-shipment-release';
 import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext, writeShipmentStatusInContext } from './so-status-write';
+import { applyShipmentWacCancelCredits } from '../../../../../../lib/finance/upsert-wac';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -59,6 +60,7 @@ type ShipmentRow = {
   shipment_number: string | null;
   delivered_at: string | null;
   bol_signed_pdf_url: string | null;
+  ext_data: unknown;
 };
 
 type ShipmentLpRow = {
@@ -184,7 +186,8 @@ async function lockShipment(ctx: ShippingContext, shipmentId: string): Promise<S
             null::text as sales_order_status,
             sh.shipment_number,
             sh.delivered_at::text,
-            sh.bol_signed_pdf_url
+            sh.bol_signed_pdf_url,
+            sh.ext_data
        from public.shipments sh
       where sh.org_id = app.current_org_id()
         and sh.id = $1::uuid
@@ -630,6 +633,17 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
           if (rowCount !== 1) throw new ActionError('persistence_failed');
           await writeLpTransition(ctx, shipment, { ...lp, from_status: 'shipped' }, lp.from_status, parsed.reasonCode ?? null, parsed.note ?? null);
         }
+
+        const shipmentExtData =
+          shipment.ext_data != null && typeof shipment.ext_data === 'object' && !Array.isArray(shipment.ext_data)
+            ? (shipment.ext_data as { wac_debits?: unknown })
+            : null;
+        await applyShipmentWacCancelCredits(ctx.client, {
+          orgId,
+          siteId: lps[0]?.site_id ?? null,
+          wacDebits: shipmentExtData?.wac_debits,
+          updatedBy: userId,
+        });
       }
 
       await voidShipmentBoxesInContext(

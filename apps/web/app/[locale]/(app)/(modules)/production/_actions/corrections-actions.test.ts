@@ -265,12 +265,24 @@ function makeClient(): QueryClient {
         return { rows: [{ id: CORRECTION_ID }], rowCount: 1 };
       }
 
-      if (n.startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value')) {
-        return { rows: [{ value: String(Number(params[0] ?? 0) * Number(params[1] ?? 0)) }], rowCount: 1 };
+      if (n.includes('from public.items i') && n.includes('as qty_kg')) {
+        return { rows: [{ qty_kg: String(params[0]), resolved: true }], rowCount: 1 };
+      }
+
+      if (n.includes('with existing as materialized') && n.includes('avg_cost_used')) {
+        return { rows: [{ avg_cost_used: '10', value_debited: String(Number(params[2] ?? 0) * 10) }], rowCount: 1 };
       }
 
       if (n.includes('insert into public.item_wac_state')) {
         return { rows: [{ totalQtyKg: '0', totalValue: '0', clamped: false }], rowCount: 1 };
+      }
+
+      if (n.startsWith('update public.wo_material_consumption') && n.includes('ext_jsonb')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (n.startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value')) {
+        return { rows: [{ value: String(Number(params[0] ?? 0) * Number(params[1] ?? 0)) }], rowCount: 1 };
       }
 
       if (n.startsWith('insert into public.stock_moves')) {
@@ -450,6 +462,30 @@ describe('reverseConsumption', () => {
       }),
       expect.objectContaining({ client }),
     );
+  });
+
+  it('reverseConsumption credits WAC from the original consumption snapshot and stores the reversal on the counter-entry', async () => {
+    state.lpStatus = 'consumed';
+    state.lpQaStatus = 'released';
+    state.consumptionExtJsonb = { wac_qty_kg: '4.250', wac_value: '42.5', source: 'desktop' };
+
+    const result = await reverseConsumption({
+      consumptionId: CONSUMPTION_ID,
+      reasonCode: 'entry_error',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+    const wacWrite = queries.find((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrite?.params).toEqual([ORG_ID, COMPONENT_ID, '4.250', '42.5', USER_ID]);
+    const wacSnapshot = queries.find(
+      (q) => normalize(q.sql).startsWith('update public.wo_material_consumption') && normalize(q.sql).includes('ext_jsonb'),
+    );
+    expect(JSON.parse(String(wacSnapshot?.params[1]))).toMatchObject({
+      wac_qty_kg: '4.250',
+      wac_value: '42.5',
+      wac_reversal_source: 'snapshot',
+    });
   });
 
   it('restores a consumed LP whose QA is NOT released to received (non-pickable), preserving qa_status, with history reflecting the actual to_state', async () => {

@@ -1,4 +1,5 @@
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../scanner/txn-org-context';
+import { bookReceiptWacAfterGrnItem } from '../../finance/book-receipt-wac';
 
 import {
   computeExpiryDate,
@@ -282,6 +283,13 @@ export async function receiveScannerPoLine(
         genesisReasonCode: 'scanner_receive_po',
         genesisReasonText: 'Scanner PO receipt',
         requireOverReceiveConfirm: false,
+        afterGrnItemInserted(receipt) {
+          return bookReceiptWacAfterGrnItem(
+            client,
+            { orgId: session.org_id, userId: session.user_id, siteId: session.site_id },
+            receipt,
+          );
+        },
       },
     );
 

@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { computeWacReversalDelta, resolveWacDeltaQtyKg, upsertWac } from '../upsert-wac';
+import {
+  applyConsumptionWacReversal,
+  applyShipmentWacCancelCredits,
+  computeWacDebitReversalDelta,
+  computeWacReversalDelta,
+  debitWac,
+  resolveWacDeltaQtyKg,
+  upsertWac,
+} from '../upsert-wac';
 
 import type { QueryClient } from '../../../app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/procurement-shared';
 
@@ -164,6 +172,130 @@ describe('upsertWac', () => {
   });
 });
 
+describe('debitWac', () => {
+  it('debits qty and value at current avg_cost after a receipt', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '100',
+      deltaValue: '1000',
+      updatedBy: USER_ID,
+    });
+
+    const result = await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      qty: '40',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+
+    expect(result).toMatchObject({
+      applied: true,
+      qtyKg: '40',
+      valueDebited: '400',
+      avgCostUsed: '10',
+    });
+    expect(client.row).toMatchObject({
+      totalQtyKg: '60',
+      totalValue: '600',
+      avgCost: '10',
+    });
+  });
+
+  it('re-buy at a new price then consume moves avg_cost correctly', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '10',
+      deltaValue: '100',
+      updatedBy: USER_ID,
+    });
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '10',
+      deltaValue: '200',
+      updatedBy: USER_ID,
+    });
+    expect(client.row?.avgCost).toBe('15');
+
+    await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      qty: '5',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+
+    expect(client.row).toMatchObject({
+      totalQtyKg: '15',
+      totalValue: '225',
+      avgCost: '15',
+    });
+  });
+
+  it('skips debit when UoM cannot be resolved to kg', async () => {
+    const client = new DebitWacMockClient({ resolved: false });
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '20',
+      deltaValue: '200',
+      updatedBy: USER_ID,
+    });
+
+    const result = await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      qty: '5',
+      uom: 'each',
+      updatedBy: USER_ID,
+    });
+
+    expect(result).toEqual({ applied: false, excluded: 'unresolved_uom' });
+    expect(client.row).toMatchObject({ totalQtyKg: '20', totalValue: '200' });
+  });
+
+  it('reads avg_cost and decrements inside one locked item_wac_state statement', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '100',
+      deltaValue: '1000',
+      updatedBy: USER_ID,
+    });
+
+    await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      qty: '25',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+
+    const wacWrites = client.calls.filter((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrites).toHaveLength(2);
+    const debitSql = normalize(wacWrites[1]?.sql ?? '');
+    expect(debitSql).toContain('for update');
+    expect(debitSql).toContain('avg_cost');
+    expect(debitSql).toContain('on conflict (org_id, item_id, currency_id) do update set');
+    expect(client.calls.some((call) => normalize(call.sql).startsWith('select coalesce((') && normalize(call.sql).includes('avg_cost'))).toBe(false);
+  });
+});
+
 describe('resolveWacDeltaQtyKg', () => {
   beforeEach(() => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -239,6 +371,114 @@ describe('computeWacReversalDelta', () => {
   });
 });
 
+describe('computeWacDebitReversalDelta', () => {
+  it('credits the originally-booked debit snapshot back into WAC', () => {
+    expect(
+      computeWacDebitReversalDelta({
+        extJsonb: { wac_qty_kg: '2.500', wac_value: '25' },
+        fallbackQtyKg: '3.000',
+        fallbackValue: '30',
+      }),
+    ).toEqual({ deltaQtyKg: '2.500', deltaValue: '25', source: 'snapshot' });
+  });
+});
+
+describe('applyConsumptionWacReversal', () => {
+  it('consume then reverse nets item_wac_state to the pre-consume value', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '100',
+      deltaValue: '1000',
+      updatedBy: USER_ID,
+    });
+    const debit = await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      qty: '40',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+    expect(client.row).toMatchObject({ totalQtyKg: '60', totalValue: '600', avgCost: '10' });
+    expect(debit.applied).toBe(true);
+    if (!debit.applied) return;
+
+    const reversal = await applyConsumptionWacReversal(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      extJsonb: { wac_qty_kg: debit.qtyKg, wac_value: debit.valueDebited },
+      fallbackQty: '40',
+      fallbackUom: 'kg',
+      updatedBy: USER_ID,
+    });
+    expect(reversal).toMatchObject({ applied: true, deltaQtyKg: '40', deltaValue: '400' });
+    expect(client.row).toMatchObject({ totalQtyKg: '100', totalValue: '1000', avgCost: '10' });
+  });
+
+  it('skips reversal when the original consumption was wac_excluded', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '20',
+      deltaValue: '200',
+      updatedBy: USER_ID,
+    });
+
+    const reversal = await applyConsumptionWacReversal(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      extJsonb: { wac_excluded: 'unresolved_uom', wac_uom: 'each', wac_qty: '5' },
+      fallbackQty: '5',
+      fallbackUom: 'each',
+      updatedBy: USER_ID,
+    });
+
+    expect(reversal).toEqual({ applied: false, skipped: 'wac_excluded' });
+    expect(client.row).toMatchObject({ totalQtyKg: '20', totalValue: '200' });
+    expect(client.calls).toHaveLength(1);
+  });
+});
+
+describe('applyShipmentWacCancelCredits', () => {
+  it('ship then cancel nets item_wac_state to the pre-ship value', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '50',
+      deltaValue: '500',
+      updatedBy: USER_ID,
+    });
+    const debit = await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      qty: '12',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+    expect(client.row).toMatchObject({ totalQtyKg: '38', totalValue: '380', avgCost: '10' });
+    if (!debit.applied) throw new Error('expected debit to apply');
+
+    await applyShipmentWacCancelCredits(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      wacDebits: [{ lp_id: 'lp-1', item_id: ITEM_ID, qty_kg: debit.qtyKg, wac_value: debit.valueDebited }],
+      updatedBy: USER_ID,
+    });
+
+    expect(client.row).toMatchObject({ totalQtyKg: '50', totalValue: '500', avgCost: '10' });
+  });
+});
+
 describe('receivePoLineDesktop WAC integration', () => {
   beforeEach(() => {
     currentClient = new ReceiveMockClient();
@@ -283,6 +523,28 @@ describe('receivePoLineDesktop WAC integration', () => {
     const wacIndex = currentClient.calls.findIndex((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
     expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '48', '100', USER_ID]);
   });
+
+  it('unresolved-UoM receipt does not corrupt WAC and flags grn_items ext_jsonb', async () => {
+    currentClient = new ReceiveMockClient({ lineUom: 'each', wacResolved: false });
+    const { receivePoLineDesktop } = await import(
+      '../../../app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/receive-po-line'
+    );
+
+    const result = await receivePoLineDesktop({
+      poLineId: LINE_ID,
+      qty: '5.000',
+      batchNumber: 'B-EA',
+      bestBefore: '2026-07-01',
+    });
+
+    expect(result).toMatchObject({ ok: true, lpId: 'lp-1' });
+    const wacWrite = currentClient.calls.find((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrite).toBeUndefined();
+    const grnFlag = currentClient.calls.find(
+      (call) => normalize(call.sql).startsWith('update public.grn_items') && normalize(call.sql).includes('ext_jsonb'),
+    );
+    expect(JSON.parse(String(grnFlag?.params?.[2]))).toMatchObject({ wac_excluded: 'unresolved_uom' });
+  });
 });
 
 type MockCall = { sql: string; params?: readonly unknown[] };
@@ -293,7 +555,8 @@ class WacMockClient {
 
   async query<T = Record<string, unknown>>(sql: string, params: readonly unknown[] = []): Promise<{ rows: T[]; rowCount?: number | null }> {
     this.calls.push({ sql, params });
-    if (normalize(sql).startsWith('select total_qty_kg::text as "totalqtykg"')) {
+    const normalized = normalize(sql);
+    if (normalized.startsWith('select total_qty_kg::text as "totalqtykg"')) {
       return {
         rows: this.row
           ? [{ totalQtyKg: this.row.totalQtyKg, totalValue: this.row.totalValue, clamped: false }] as T[]
@@ -301,8 +564,33 @@ class WacMockClient {
         rowCount: this.row ? 1 : 0,
       };
     }
+    if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
+      return {
+        rows: [{ qty_kg: String(params[0]), resolved: true }] as T[],
+      };
+    }
+    if (normalized.includes('with existing as materialized') && normalized.includes('avg_cost_used')) {
+      if (params.length === 4) {
+        return this.applyLockedDebit<T>(params);
+      }
+      const avgCost = this.row && compareDecimal(this.row.totalQtyKg, '0') > 0 ? this.row.avgCost ?? '0' : '0';
+      const qtyKg = String(params[2]);
+      const valueDebited = multiplyDecimal(qtyKg, avgCost);
+      return { rows: [{ avg_cost_used: avgCost, value_debited: valueDebited }] as T[] };
+    }
+    if (normalized.startsWith('select coalesce((') && normalized.includes('avg_cost')) {
+      const avgCost = this.row && compareDecimal(this.row.totalQtyKg, '0') > 0 ? this.row.avgCost ?? '0' : '0';
+      return { rows: [{ avg_cost: avgCost }] as T[] };
+    }
+    if (normalized.startsWith('select ($1::numeric * $2::numeric)::text as value')) {
+      return { rows: [{ value: multiplyDecimal(String(params[0]), String(params[1])) }] as T[] };
+    }
     const deltaQty = String(params[2]);
     const deltaValue = String(params[3]);
+
+    if (params.length !== 5) {
+      throw new Error(`unexpected wac query with ${params.length} params: ${normalized}`);
+    }
 
     if (!this.row) {
       const totalQtyKg = maxDecimal(deltaQty, '0');
@@ -326,6 +614,35 @@ class WacMockClient {
       avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : '0',
     };
     return { rows: [{ totalQtyKg, totalValue, clamped }] as T[], rowCount: 1 };
+  }
+
+  private applyLockedDebit<T>(params: readonly unknown[]): { rows: T[]; rowCount: number } {
+    const qtyKg = String(params[2]);
+    const avgCostUsed = this.row && compareDecimal(this.row.totalQtyKg, '0') > 0 ? this.row.avgCost ?? '0' : '0';
+    const valueDebited = multiplyDecimal(qtyKg, avgCostUsed);
+    const deltaQty = negateDecimal(qtyKg);
+    const deltaValue = negateDecimal(valueDebited);
+    const unclampedQty = addDecimal(this.row?.totalQtyKg ?? '0', deltaQty);
+    const unclampedValue = addDecimal(this.row?.totalValue ?? '0', deltaValue);
+    const totalQtyKg = maxDecimal(unclampedQty, '0');
+    const totalValue = maxDecimal(unclampedValue, '0');
+    const clamped = compareDecimal(unclampedQty, '0') < 0 || compareDecimal(unclampedValue, '0') < 0;
+    this.row = {
+      totalQtyKg,
+      totalValue,
+      avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : '0',
+    };
+    return {
+      rows: [{
+        qtyKg,
+        valueDebited,
+        avgCostUsed,
+        totalQtyKg,
+        totalValue,
+        clamped,
+      }] as T[],
+      rowCount: 1,
+    };
   }
 }
 
@@ -470,6 +787,12 @@ function multiplyDecimal(left: string, right: string): string {
   return fromFixed((toFixed(left) * toFixed(right)) / SCALE);
 }
 
+function negateDecimal(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('-')) return trimmed.slice(1);
+  return `-${trimmed}`;
+}
+
 function divideDecimal(left: string, right: string): string {
   return fromFixed((toFixed(left) * SCALE) / toFixed(right));
 }
@@ -489,5 +812,24 @@ class ResolveWacMockClient {
       };
     }
     throw new Error(`unexpected query: ${normalized}`);
+  }
+}
+
+class DebitWacMockClient extends WacMockClient {
+  constructor(private readonly resolution: { resolved: boolean; qtyKg?: string }) {
+    super();
+  }
+
+  override async query<T = Record<string, unknown>>(sql: string, params: readonly unknown[] = []): Promise<{ rows: T[]; rowCount?: number | null }> {
+    const normalized = normalize(sql);
+    if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
+      return {
+        rows: [{
+          qty_kg: this.resolution.qtyKg ?? '0',
+          resolved: this.resolution.resolved,
+        }] as T[],
+      };
+    }
+    return super.query(sql, params);
   }
 }

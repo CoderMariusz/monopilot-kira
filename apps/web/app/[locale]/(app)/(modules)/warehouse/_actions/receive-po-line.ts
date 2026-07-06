@@ -2,7 +2,7 @@
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
-import { resolveWacDeltaQtyKg, upsertWac } from '../../../../../../lib/finance/upsert-wac';
+import { bookReceiptWacAfterGrnItem } from '../../../../../../lib/finance/book-receipt-wac';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import {
   executeReceivePoLineCore,
@@ -11,7 +11,7 @@ import {
   ReceivePoLineCoreError,
 } from '../../../../../../lib/warehouse/receive-po-line-core';
 
-import { hasWarehousePermission, type QueryClient } from './shared';
+import { hasWarehousePermission } from './shared';
 import type { DesktopReceiveInput, DesktopReceiveResult, PoReceiveDetail } from './receive-po-line.types';
 
 const WAREHOUSE_GRN_RECEIVE_PERMISSION = 'warehouse.grn.receive';
@@ -48,38 +48,8 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
           genesisReasonCode: 'desktop_receive_po',
           genesisReasonText: 'Desktop PO receipt',
           requireOverReceiveConfirm: true,
-          async afterGrnItemInserted(receipt) {
-            const line = await loadLineUnitPrice(client, orgId, receipt.poLineId);
-            if (!line) return;
-
-            const { qtyKg: receivedQtyKg } = await resolveWacDeltaQtyKg(client, {
-              itemId: line.item_id,
-              qty: receipt.qty,
-              uom: receipt.uom,
-            });
-            const receivedValue = await multiplyNumeric(client, receipt.qty, line.unit_price);
-            await upsertWac(client, {
-              orgId,
-              siteId: activeSiteId,
-              itemId: line.item_id,
-              deltaQtyKg: receivedQtyKg,
-              deltaValue: receivedValue,
-              updatedBy: userId,
-            });
-            await client.query(
-              `update public.grn_items
-                  set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $3::jsonb,
-                      updated_by = $2::uuid,
-                      updated_at = now()
-                where org_id = $1::uuid
-                  and id = $4::uuid`,
-              [
-                orgId,
-                userId,
-                JSON.stringify({ wac_qty_kg: receivedQtyKg, wac_value: receivedValue }),
-                receipt.grnItemId,
-              ],
-            );
+          afterGrnItemInserted(receipt) {
+            return bookReceiptWacAfterGrnItem(client, { orgId, userId, siteId: activeSiteId }, receipt);
           },
         },
       );
@@ -238,30 +208,6 @@ function validateReceiveInput(input: DesktopReceiveInput): DesktopReceiveResult 
   if (input.toLocationId && !isUuid(input.toLocationId)) return { ok: false, error: 'invalid_location' };
   if (input.warehouseId && !isUuid(input.warehouseId)) return { ok: false, error: 'no_warehouse' };
   return null;
-}
-
-async function loadLineUnitPrice(
-  client: QueryClient,
-  orgId: string,
-  poLineId: string,
-): Promise<{ item_id: string; unit_price: string } | null> {
-  const { rows } = await client.query<{ item_id: string; unit_price: string }>(
-    `select pol.item_id::text, pol.unit_price::text as unit_price
-       from public.purchase_order_lines pol
-      where pol.org_id = $1::uuid
-        and pol.id = $2::uuid
-      limit 1`,
-    [orgId, poLineId],
-  );
-  return rows[0] ?? null;
-}
-
-async function multiplyNumeric(client: QueryClient, left: string, right: string | null): Promise<string> {
-  const { rows } = await client.query<{ value: string }>(
-    `select ($1::numeric * coalesce($2::numeric, 0))::text as value`,
-    [left, right ?? '0'],
-  );
-  return rows[0]?.value ?? '0';
 }
 
 function revalidateReceivePaths(poId: string): void {

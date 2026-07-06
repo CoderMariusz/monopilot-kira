@@ -28,6 +28,7 @@ type ShipmentState = {
   shipment_number: string | null;
   delivered_at: string | null;
   bol_signed_pdf_url: string | null;
+  ext_data: unknown;
 };
 
 let client: QueryClient;
@@ -293,10 +294,37 @@ function makeClient(): QueryClient {
         return { rows: [{ id: shipment.id }], rowCount: 1 };
       }
 
+      if (q.includes('from public.items i') && q.includes('as qty_kg')) {
+        return { rows: [{ qty_kg: String(params?.[0] ?? '0'), resolved: true }], rowCount: 1 };
+      }
+      if (q.includes('with existing as materialized') && q.includes('computed.qty_kg::text as "qtykg"')) {
+        const qtyKg = String(params?.[2] ?? '0');
+        const avgCost = '5';
+        return {
+          rows: [{
+            qtyKg,
+            valueDebited: String(Number(qtyKg) * Number(avgCost)),
+            avgCostUsed: avgCost,
+            totalQtyKg: '0',
+            totalValue: '0',
+            clamped: false,
+          }],
+          rowCount: 1,
+        };
+      }
+
       if (q.startsWith('update public.shipments') && q.includes('ext_data = coalesce') && q.includes("and status = 'shipped'")) {
-        lpShipSnapshot = (JSON.parse(params[1] as string) as { shipped_license_plates: Array<Record<string, unknown>> })
-          .shipped_license_plates;
+        const parsed = JSON.parse(params[1] as string) as {
+          shipped_license_plates: Array<Record<string, unknown>>;
+          wac_debits?: Array<Record<string, unknown>>;
+        };
+        lpShipSnapshot = parsed.shipped_license_plates;
+        shipment = { ...shipment, ext_data: parsed };
         return { rows: [], rowCount: 1 };
+      }
+
+      if (q.includes('insert into public.item_wac_state')) {
+        return { rows: [{ totalQtyKg: '0', totalValue: '0', clamped: false }], rowCount: 1 };
       }
 
       if (q.startsWith('with remaining_shipments')) {
@@ -319,6 +347,12 @@ function makeClient(): QueryClient {
           ],
           rowCount: 1,
         };
+      }
+
+      if (q.startsWith('update public.shipments') && q.includes('set packed_at = null')) {
+        shipmentStatusUpdates.push('packing');
+        shipment = { ...shipment, status: 'packing' };
+        return { rows: [], rowCount: 1 };
       }
 
       if (q.startsWith('update public.sales_orders')) {
@@ -354,12 +388,6 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
 
-      if (q.startsWith('update public.shipments') && q.includes('set packed_at = null')) {
-        shipmentStatusUpdates.push('packing');
-        shipment = { ...shipment, status: 'packing' };
-        return { rows: [], rowCount: 1 };
-      }
-
       return { rows: [], rowCount: 0 };
     }),
   };
@@ -375,6 +403,9 @@ beforeEach(() => {
     shipment_number: 'SH-1',
     delivered_at: '2026-06-24T10:00:00.000Z',
     bol_signed_pdf_url: 'https://example.test/pod.pdf',
+    ext_data: {
+      wac_debits: [{ lp_id: LP_ID, item_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', qty_kg: '6.000', wac_value: '30' }],
+    },
   };
   lpStatus = 'shipped';
   lpQuantity = '4.000';
@@ -412,6 +443,14 @@ describe('cancelShipment', () => {
     expect(boxesVoided).toBe(1);
     expect(shipmentStatusUpdates).toContain('cancelled');
     expect(salesOrderStatusUpdates).toEqual(['confirmed']);
+    const wacCredit = queryLog.find(({ sql }) => normalize(sql).includes('insert into public.item_wac_state'));
+    expect(wacCredit?.params).toEqual([
+      ORG_ID,
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '6.000',
+      '30',
+      USER_ID,
+    ]);
   });
 
   it('ships by decrementing the LP quantity and cancel restores only that shipped delta once', async () => {

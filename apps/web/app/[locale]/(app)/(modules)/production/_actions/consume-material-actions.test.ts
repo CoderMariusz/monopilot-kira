@@ -168,6 +168,39 @@ function makeClient(): QueryClient {
       if (n.startsWith('insert into public.wo_material_consumption')) {
         return { rows: [{ id: CONSUMPTION_ID }], rowCount: 1 };
       }
+      if (n.includes('from public.items i') && n.includes('as qty_kg')) {
+        return { rows: [{ qty_kg: String(params[0]), resolved: true }], rowCount: 1 };
+      }
+      if (n.includes('with existing as materialized') && n.includes('computed.qty_kg::text as "qtykg"')) {
+        const qtyKg = String(params[2]);
+        const avgCost = '10';
+        const valueDebited = String(Number(qtyKg) * Number(avgCost));
+        return {
+          rows: [{
+            qtyKg,
+            valueDebited,
+            avgCostUsed: avgCost,
+            totalQtyKg: '0',
+            totalValue: '0',
+            clamped: false,
+          }],
+          rowCount: 1,
+        };
+      }
+      if (n.startsWith('select coalesce((') && n.includes('avg_cost')) {
+        return { rows: [{ avg_cost: '10' }], rowCount: 1 };
+      }
+      if (n.startsWith('select ($1::numeric * $2::numeric)::text as value')) {
+        const left = Number(params[0]);
+        const right = Number(params[1]);
+        return { rows: [{ value: String(left * right) }], rowCount: 1 };
+      }
+      if (n.includes('insert into public.item_wac_state')) {
+        return { rows: [{ totalQtyKg: '0', totalValue: '0', clamped: false }], rowCount: 1 };
+      }
+      if (n.startsWith('update public.wo_material_consumption') && n.includes('ext_jsonb')) {
+        return { rows: [], rowCount: 1 };
+      }
       // production.consume.blocked outbox emit (T-064 hold rejection path)
       if (n.startsWith('insert into public.outbox_events')) {
         return { rows: [], rowCount: 1 };
@@ -245,6 +278,16 @@ describe('recordDesktopConsumption — conditional UPDATE', () => {
     const update = queries.find((q) => normalize(q.sql).startsWith('update public.wo_materials'));
     expect(update?.params).toEqual([ORG_ID, WO_ID, MATERIAL_ID, '2.500']);
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).includes('insert into public.item_wac_state'))).toBe(true);
+    const wacSnapshot = queries.find(
+      (q) => normalize(q.sql).startsWith('update public.wo_material_consumption') && normalize(q.sql).includes('ext_jsonb'),
+    );
+    expect(wacSnapshot).toBeDefined();
+    expect(JSON.parse(String(wacSnapshot?.params[1]))).toMatchObject({
+      wac_qty_kg: '2.500',
+      wac_value: '25',
+      wac_avg_cost: '10',
+    });
   });
 
   it('writes stock_moves and lp_state_history when an LP is fully consumed (pg returns "0.000000")', async () => {

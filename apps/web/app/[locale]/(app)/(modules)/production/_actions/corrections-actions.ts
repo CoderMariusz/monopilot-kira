@@ -15,7 +15,7 @@ import {
 } from '../../../../../../lib/corrections/correct-ledger-entry';
 import { CONSUMPTION_CORRECT_PERMISSION } from '../../../../../../lib/corrections/constants';
 import { materialIdFromConsumptionExt } from '../../../../../../lib/corrections/material-scope';
-import { computeWacReversalDelta, upsertWac } from '../../../../../../lib/finance/upsert-wac';
+import { computeWacReversalDelta, applyConsumptionWacReversal, upsertWac } from '../../../../../../lib/finance/upsert-wac';
 import type { ProductionContext, QueryClient } from '../../../../../../lib/production/shared';
 import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 
@@ -1187,6 +1187,33 @@ export async function reverseConsumption(input: ReverseConsumptionInput): Promis
           }),
         },
       });
+
+      const wacReversal = await applyConsumptionWacReversal(ctx.client, {
+        orgId,
+        siteId: original.site_id,
+        itemId: original.component_id,
+        extJsonb: original.ext_jsonb,
+        fallbackQty: original.qty_consumed,
+        fallbackUom: original.uom,
+        updatedBy: userId,
+        logContext: { consumptionId: original.id },
+      });
+      if (wacReversal.applied) {
+        await ctx.client.query(
+          `update public.wo_material_consumption
+              set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $2::jsonb
+            where org_id = app.current_org_id()
+              and id = $1::uuid`,
+          [
+            correction.id,
+            JSON.stringify({
+              wac_qty_kg: wacReversal.deltaQtyKg,
+              wac_value: wacReversal.deltaValue,
+              wac_reversal_source: wacReversal.source,
+            }),
+          ],
+        );
+      }
 
       if (!(await decrementConsumedQty(ctx, original))) {
         // Unreachable in practice: the wo_materials rows are locked and the

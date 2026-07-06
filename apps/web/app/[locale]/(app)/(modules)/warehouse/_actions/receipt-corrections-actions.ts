@@ -423,30 +423,41 @@ export async function cancelGrnLine(input: unknown): Promise<
       );
 
       const wacSnapshot = readWacContributionSnapshot(line.ext_jsonb);
-      let deltaQtyKg: string;
-      let deltaValue: string;
+      let deltaQtyKg: string | undefined;
+      let deltaValue: string | undefined;
       if (wacSnapshot) {
         deltaQtyKg = negateDecimalString(wacSnapshot.wac_qty_kg);
         deltaValue = negateDecimalString(wacSnapshot.wac_value);
       } else {
         console.warn('[wac] reversal_fallback', { grnItemId: line.id });
-        const { qtyKg: receivedQtyKg } = await resolveWacDeltaQtyKg(ctx.client, {
+        const wacResolution = await resolveWacDeltaQtyKg(ctx.client, {
           itemId: line.item_id,
           qty: line.received_qty,
           uom: line.uom,
         });
-        const receivedValue = await multiplyNumeric(ctx.client, line.received_qty, line.unit_price);
-        deltaQtyKg = negateDecimalString(receivedQtyKg);
-        deltaValue = negateDecimalString(receivedValue);
+        if (!wacResolution.resolved) {
+          console.warn('[wac] reversal_skipped_unresolved_uom', {
+            grnItemId: line.id,
+            itemId: line.item_id,
+            uom: line.uom,
+            qty: line.received_qty,
+          });
+        } else {
+          const receivedValue = await multiplyNumeric(ctx.client, line.received_qty, line.unit_price);
+          deltaQtyKg = negateDecimalString(wacResolution.qtyKg);
+          deltaValue = negateDecimalString(receivedValue);
+        }
       }
-      await upsertWac(ctx.client, {
-        orgId,
-        siteId: null,
-        itemId: line.item_id,
-        deltaQtyKg,
-        deltaValue,
-        updatedBy: userId,
-      });
+      if (deltaQtyKg !== undefined && deltaValue !== undefined) {
+        await upsertWac(ctx.client, {
+          orgId,
+          siteId: null,
+          itemId: line.item_id,
+          deltaQtyKg,
+          deltaValue,
+          updatedBy: userId,
+        });
+      }
 
       if (line.po_id) await rollupPurchaseOrderStatus(ctx, line.po_id);
 
