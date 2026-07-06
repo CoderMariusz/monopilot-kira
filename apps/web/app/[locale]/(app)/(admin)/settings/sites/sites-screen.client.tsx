@@ -199,7 +199,6 @@ export default function SitesScreen({
     sites: sites.map((site) => ({ id: site.id, code: site.code, name: site.name, isDefault: site.settings.primary })),
     warehouses: [],
     locations: [],
-    machines: [],
   });
   const [lineFormOptionsLoaded, setLineFormOptionsLoaded] = React.useState(false);
 

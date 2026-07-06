@@ -30,7 +30,6 @@ function sourceRow() {
     notes: 'origin notes',
     pack_format: '200g sliced',
     sales_channel: 'Retail',
-    expected_volume: '1200 kg/week',
     target_retail_price_eur: '19.90',
     target_audience: 'Premium retail',
     marketing_claims: 'High protein',
@@ -98,7 +97,7 @@ describe('cloneProject', () => {
     const insertSql = String(insertCall[0]);
     expect(insertSql).toContain('insert into public.npd_projects');
     expect(insertSql).toContain('pack_weight_g, packs_per_case');
-    expect(insertSql).toContain('$17::integer');
+    expect(insertSql).toContain('$16::integer');
     expect(insertSql).toContain("'G0', 'brief', 'clone'");
     const insertParams = insertCall[1] as unknown[];
     expect(insertParams[0]).toBe(ORG_ID);
@@ -106,9 +105,9 @@ describe('cloneProject', () => {
     expect(insertParams[2]).toBe('Sliced Ham Standard (copy)'); // name suffixed
     expect(insertParams[3]).toBe('Meat · Cold cut'); // type carried
     expect(insertParams[4]).toBe('high'); // prio carried
-    expect(insertParams[16]).toBe(12); // packs_per_case carried
-    expect(insertParams[17]).toBe('NPD-001'); // clone_source = source code
-    expect(insertParams[18]).toBe(USER_ID); // created_by_user
+    expect(insertParams[15]).toBe(12); // packs_per_case carried
+    expect(insertParams[18]).toBe('NPD-001'); // clone_source = source code
+    expect(insertParams[19]).toBe(USER_ID); // created_by_user
 
     // The checklist copy is scoped to the source project and the caller org.
     const checklistSql = String(queryMock.mock.calls[5]![0]);
@@ -151,8 +150,8 @@ describe('cloneProject', () => {
     const insertParams = queryMock.mock.calls[4]![1] as unknown[];
     expect(insertParams[2]).toBe('Brand New Name'); // override name (no "(copy)")
     expect(insertParams[4]).toBe('low'); // override prio
-    expect(insertParams[11]).toBe(25); // override target_retail_price_eur
-    expect(insertParams[16]).toBe(24); // override packs_per_case
+    expect(insertParams[10]).toBe(25); // override target_retail_price_eur
+    expect(insertParams[15]).toBe(24); // override packs_per_case
   });
 
   it('rejects an over-length override before any query (INVALID_INPUT)', async () => {

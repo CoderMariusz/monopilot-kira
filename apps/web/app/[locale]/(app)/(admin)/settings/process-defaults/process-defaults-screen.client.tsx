@@ -135,12 +135,15 @@ export default function ProcessDefaultsScreen({
   canManage,
   upsertProcessDefaults,
   state = 'ready',
+  roleGroupOptions = [],
 }: {
   initialRows: ProcessDefaultRow[];
   labels: ProcessDefaultsLabels;
   canManage: boolean;
   upsertProcessDefaults: (input: UpsertProcessDefaultsInput) => Promise<UpsertProcessDefaultsResult>;
   state?: PageState;
+  /** Distinct labor_rates role groups (org-scoped, effective today) — the only valid roleGroup values. */
+  roleGroupOptions?: string[];
 }) {
   const [rows, setRows] = React.useState<ProcessDefaultRow[]>(() => [...initialRows]);
   const [draft, setDraft] = React.useState<Draft | null>(null);
@@ -386,16 +389,28 @@ export default function ProcessDefaultsScreen({
                           htmlFor={`process-default-role-group-${index}`}
                         >
                           {labels.fieldRoleGroup}
-                          <Input
+                          <select
                             id={`process-default-role-group-${index}`}
                             aria-label={`${labels.fieldRoleGroup} ${index + 1}`}
+                            className="form-input"
                             value={role.roleGroup}
                             onChange={(event) => {
                               const value = event.currentTarget.value;
                               patchRoleRow(index, { roleGroup: value });
                             }}
                             disabled={pending}
-                          />
+                          >
+                            <option value="">—</option>
+                            {/* legacy free-text value not in labor_rates: keep it renderable/selectable */}
+                            {role.roleGroup !== '' && !roleGroupOptions.includes(role.roleGroup) ? (
+                              <option value={role.roleGroup}>{role.roleGroup}</option>
+                            ) : null}
+                            {roleGroupOptions.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
                         </label>
                         <label
                           className="grid w-24 gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500"

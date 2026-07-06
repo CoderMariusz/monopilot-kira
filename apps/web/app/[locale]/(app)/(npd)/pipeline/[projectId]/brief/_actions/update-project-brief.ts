@@ -9,7 +9,6 @@ import {
   type OrgContextLike,
 } from '../../../../../../../(npd)/pipeline/_actions/shared';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
-import { expectedVolumeFromWeeklyPacks } from '../../../../../../../../lib/npd/brief-field-sync';
 
 const WRITE_PERMISSION = 'npd.core.write';
 
@@ -77,7 +76,6 @@ type ProjectBriefAuditRow = {
   weekly_volume_packs: string | null;
   runs_per_week: string | null;
   sales_channel: string | null;
-  expected_volume: string | null;
   target_retail_price_eur: string | null;
   target_audience: string | null;
   marketing_claims: string | null;
@@ -107,7 +105,6 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
                 weekly_volume_packs::text as weekly_volume_packs,
                 runs_per_week::text as runs_per_week,
                 sales_channel,
-                expected_volume,
                 target_retail_price_eur::text as target_retail_price_eur,
                 target_audience,
                 marketing_claims,
@@ -123,10 +120,6 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
       if (!beforeRow) return { ok: false, error: 'NOT_FOUND', status: 404 };
 
       const patch = parsed.data.patch;
-      const syncedExpectedVolume =
-        patch.weeklyVolumePacks !== undefined
-          ? expectedVolumeFromWeeklyPacks(patch.weeklyVolumePacks)
-          : undefined;
       const updated = await context.client.query<ProjectBriefAuditRow>(
         `update public.npd_projects
             set name                    = case when $2::boolean then $3 else name end,
@@ -137,16 +130,12 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
                 packs_per_case          = case when $12::boolean then $13::integer else packs_per_case end,
                 weekly_volume_packs     = case when $14::boolean then $15::numeric else weekly_volume_packs end,
                 runs_per_week           = case when $16::boolean then $17::numeric else runs_per_week end,
-                expected_volume         = case
-                                            when $14::boolean then $18::text
-                                            else expected_volume
-                                          end,
-                marketing_claims        = case when $19::boolean then $20 else marketing_claims end,
-                target_retail_price_eur = case when $21::boolean then $22::numeric else target_retail_price_eur end,
-                sales_channel           = case when $23::boolean then $24 else sales_channel end,
-                target_audience         = case when $25::boolean then $26 else target_audience end,
-                constraints             = case when $27::boolean then $28 else constraints end,
-                notes                   = case when $29::boolean then $30 else notes end
+                marketing_claims        = case when $18::boolean then $19 else marketing_claims end,
+                target_retail_price_eur = case when $20::boolean then $21::numeric else target_retail_price_eur end,
+                sales_channel           = case when $22::boolean then $23 else sales_channel end,
+                target_audience         = case when $24::boolean then $25 else target_audience end,
+                constraints             = case when $26::boolean then $27 else constraints end,
+                notes                   = case when $28::boolean then $29 else notes end
           where id = $1::uuid
             and org_id = app.current_org_id()
           returning id,
@@ -159,7 +148,6 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
                     weekly_volume_packs::text     as weekly_volume_packs,
                     runs_per_week::text           as runs_per_week,
                     sales_channel,
-                    expected_volume,
                     target_retail_price_eur::text as target_retail_price_eur,
                     target_audience,
                     marketing_claims,
@@ -183,7 +171,6 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
           patch.weeklyVolumePacks ?? null,
           patch.runsPerWeek !== undefined,
           patch.runsPerWeek ?? null,
-          syncedExpectedVolume ?? null,
           patch.marketingClaims !== undefined,
           patch.marketingClaims ?? null,
           patch.targetRetailPriceEur !== undefined,

@@ -68,6 +68,11 @@ import {
 import { CompositionBar, type CompositionBarLabels, type CompositionSegment } from './composition-bar';
 import { CostPanel, symbolFor, type CostBreakdown, type CostPanelLabels } from './cost-panel';
 import {
+  getProjectProcessCost,
+  type GetProjectProcessCostResult,
+  type ProjectProcessCostData,
+} from '../../costing/_actions/compute';
+import {
   NutritionPanel,
   NUTRIENT_ROW_ORDER,
   type NutritionPanelLabels,
@@ -432,6 +437,23 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 const DEFAULT_OVERHEAD_PCT = '8';
 
 /**
+ * W1-T2 — CostPanel "Processing" line label per mode. The panel bundle only
+ * carries the single 'Processing ({overheadPct}%)' template, so the mode
+ * qualifier is applied here:
+ *   - computed: the project HAS npd_wip_processes → Σ real process cost
+ *     (roles×headcount×rate via `getProjectProcessCost`).
+ *   - estimate: 0 processes → the % placeholder, labelled as an estimate.
+ * ponytail: English literals mirroring page.tsx DEFAULT_COST_LABELS (the
+ * npd.costPanel namespace has no message-file keys); fold into the i18n bundle
+ * when one exists.
+ */
+const PROCESSING_COMPUTED_LABEL = 'Processing (computed from {count} processes)';
+const PROCESSING_ESTIMATE_SUFFIX = ' — estimate until processes are chosen';
+
+/** Injectable seam for `getProjectProcessCost` (RTL tests / storybook). */
+export type LoadProcessCostAction = (input: { projectId: string }) => Promise<GetProjectProcessCostResult>;
+
+/**
  * Map the editor's editable rows + per-RM nutrition into recomputeCalc inputs.
  *
  * Costing v2: qtyKg drives the cost roll-up. Nutrition is a per-100g mass-weighted
@@ -468,16 +490,45 @@ function toRecomputeIngredients(
   });
 }
 
-/** calc roll-up → CostPanel breakdown (adds the overhead% the panel label needs). */
-function toCostBreakdown(calc: RecomputeResult, processingPct: string): CostBreakdown {
+/**
+ * calc roll-up → CostPanel breakdown (adds the overhead% the panel label needs).
+ *
+ * W1-T2: when `realProcessingPerKg` is set (the project has npd_wip_processes),
+ * the %-of-yielded placeholder is REPLACED by the Σ real process cost and the
+ * total / margin are re-derived from it (same Dec math as recomputeCalc:
+ * costPerKg = yielded + processing + packaging; margin = (rev − cost)/rev×100).
+ */
+function toCostBreakdown(
+  calc: RecomputeResult,
+  processingPct: string,
+  realProcessingPerKg?: string | null,
+): CostBreakdown {
+  if (realProcessingPerKg == null) {
+    return {
+      rawCost: calc.rawCost,
+      yieldedCost: calc.yieldedCost,
+      processing: calc.processing,
+      packaging: calc.packaging,
+      costPerKg: calc.costPerKg,
+      revenuePerKg: calc.revenuePerKg,
+      marginPct: calc.marginPct,
+      overheadPct: processingPct,
+    };
+  }
+  const processing = Dec.from(realProcessingPerKg);
+  const costPerKg = Dec.from(calc.yieldedCost).add(processing).add(Dec.from(calc.packaging));
+  const revenue = Dec.from(calc.revenuePerKg);
+  const marginPct = revenue.isZero()
+    ? calc.marginPct
+    : revenue.sub(costPerKg).div(revenue).mul(Dec.from('100')).toFixed(2);
   return {
     rawCost: calc.rawCost,
     yieldedCost: calc.yieldedCost,
-    processing: calc.processing,
+    processing: processing.toFixed(4),
     packaging: calc.packaging,
-    costPerKg: calc.costPerKg,
+    costPerKg: costPerKg.toFixed(4),
     revenuePerKg: calc.revenuePerKg,
-    marginPct: calc.marginPct,
+    marginPct,
     overheadPct: processingPct,
   };
 }
@@ -647,6 +698,7 @@ export function FormulationEditor({
   updatePackWeightAction,
   searchItemsAction,
   searchWipDefinitionsAction,
+  loadProcessCostAction,
   projectId,
   createDraftAction,
   onRefresh,
@@ -691,6 +743,8 @@ export function FormulationEditor({
   searchItemsAction?: ItemSearchFn;
   /** W3-L10: org-scoped reusable WIP definition search for the WIP picker. */
   searchWipDefinitionsAction?: SearchWipDefinitionsFn;
+  /** W1-T2: Σ real process cost loader (defaults to getProjectProcessCost). */
+  loadProcessCostAction?: LoadProcessCostAction;
   /** Server-side refresh (router.refresh) — called after a successful submit. */
   onRefresh?: () => void;
 }) {
@@ -739,6 +793,30 @@ export function FormulationEditor({
   const [targetPrice, setTargetPrice] = React.useState<string>(data?.targetPriceEur ?? '');
   const [yieldPct, setYieldPct] = React.useState<number>(parseYield(data?.targetYieldPct));
   const [processingPct, setProcessingPct] = React.useState<string>(data?.processingOverheadPct ?? DEFAULT_OVERHEAD_PCT);
+  // W1-T2: Σ real process cost (roles×headcount×rate — the SAME math as the
+  // costing screen, via getProjectProcessCost). null → lookup pending/failed or
+  // 0 processes → the % placeholder ("estimate") mode.
+  const [processCost, setProcessCost] = React.useState<ProjectProcessCostData | null>(null);
+  const processCostProjectId = data?.projectId ?? projectId ?? '';
+  React.useEffect(() => {
+    if (!processCostProjectId) {
+      setProcessCost(null);
+      return;
+    }
+    let cancelled = false;
+    const load = loadProcessCostAction ?? getProjectProcessCost;
+    load({ projectId: processCostProjectId })
+      .then((res) => {
+        if (!cancelled) setProcessCost(res.ok ? res.data : null);
+      })
+      .catch(() => {
+        if (!cancelled) setProcessCost(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [processCostProjectId, loadProcessCostAction]);
+  const realProcessCost = processCost && processCost.processCount > 0 ? processCost : null;
   // The loaded version is ALWAYS the server-resolved one (page reads ?version=).
   // Keeping versionId pinned to data.versionId means the save target and the
   // displayed rows are the same version — picking a version navigates (below),
@@ -2081,14 +2159,26 @@ export function FormulationEditor({
                 />
                 <CostPanel
                   state="ready"
-                  calc={toCostBreakdown(calc, processingPct)}
+                  calc={toCostBreakdown(calc, processingPct, realProcessCost?.processCostPerKgEur ?? null)}
                   targetPrice={targetPrice}
                   onTargetPriceChange={setTargetPrice}
                   yieldPct={yieldPct}
                   onYieldChange={setYieldPct}
                   processingPct={processingPct}
                   onProcessingChange={setProcessingPct}
-                  labels={panelLabels.cost}
+                  labels={
+                    /* W1-T2: Processing label says WHICH mode is shown — computed
+                       Σ (project has processes) vs % estimate placeholder. */
+                    realProcessCost
+                      ? {
+                          ...panelLabels.cost,
+                          processing: PROCESSING_COMPUTED_LABEL.replace(
+                            '{count}',
+                            String(realProcessCost.processCount),
+                          ),
+                        }
+                      : { ...panelLabels.cost, processing: `${panelLabels.cost.processing}${PROCESSING_ESTIMATE_SUFFIX}` }
+                  }
                   currency={currency}
                   /* Costing v2: packaging is NOT part of the recipe stage. */
                   includePackaging={false}

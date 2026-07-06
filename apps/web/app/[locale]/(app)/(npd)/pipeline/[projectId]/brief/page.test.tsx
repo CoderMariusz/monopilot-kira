@@ -30,7 +30,7 @@ const INLINE_MESSAGES: Record<string, Record<string, string>> = {
     fieldPackFormat: 'Pack format',
     fieldPacksPerCase: 'Packs per case',
     fieldSalesChannel: 'Sales channel',
-    fieldExpectedVolume: 'Expected volume',
+    fieldWeeklyVolumePacks: 'Weekly volume (packs/week)',
     fieldTargetAudience: 'Target audience',
     fieldMarketingClaims: 'Marketing claims',
     fieldConstraints: 'Constraints & requirements',
@@ -80,7 +80,9 @@ const READY: ProjectBriefView = {
   packFormat: '200g sliced pack',
   packWeightG: null,
   packsPerCase: 12,
-  expectedVolume: '1200',
+  weeklyVolumePacks: '1200',
+  runsPerWeek: null,
+  expectedVolume: null,
   marketingClaims: 'High protein · No phosphates',
   category: null,
   targetRetailPriceEur: '19.90',
@@ -117,7 +119,7 @@ describe('NPD project-stage Brief page (project.jsx:45-105)', () => {
     expect(screen.getByTestId('project-brief-field-target-launch-date')).toHaveTextContent('2026-09-01');
     expect(screen.getByTestId('project-brief-field-target-retail-price-eur')).toHaveTextContent('19.90');
     expect(screen.getByTestId('project-brief-field-pack-format')).toHaveTextContent('200g sliced pack');
-    expect(screen.getByTestId('project-brief-field-expected-volume')).toHaveTextContent('1200');
+    expect(screen.getByTestId('project-brief-field-weekly-volume-packs-week')).toHaveTextContent('1200');
     // full-width.
     expect(screen.getByTestId('project-brief-field-marketing-claims')).toHaveTextContent('High protein');
     expect(screen.getByTestId('project-brief-field-constraints-requirements')).toHaveTextContent('Shelf life');
@@ -143,7 +145,7 @@ describe('NPD project-stage Brief page (project.jsx:45-105)', () => {
     const card = screen.getByTestId('project-brief-screen');
     expect(card.textContent).not.toContain('cardTitle');
     expect(card.textContent).not.toContain('briefStage');
-    expect(card.textContent).toContain('Expected volume');
+    expect(card.textContent).toContain('Weekly volume (packs/week)');
   });
 
   it('UI state — loading renders the skeleton panel', async () => {

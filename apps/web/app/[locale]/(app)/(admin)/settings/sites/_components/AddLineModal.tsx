@@ -32,7 +32,6 @@ export function AddLineModal({
     code: '',
     name: '',
     status: 'active',
-    machineIds: [],
   });
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -41,13 +40,6 @@ export function AddLineModal({
   React.useEffect(() => {
     setLine((current) => ({ ...current, siteId }));
   }, [siteId]);
-
-  const toggleMachine = (machineId: string, checked: boolean) => {
-    setLine((current) => ({
-      ...current,
-      machineIds: checked ? [...current.machineIds, machineId] : current.machineIds.filter((id) => id !== machineId),
-    }));
-  };
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -63,7 +55,6 @@ export function AddLineModal({
         code: line.code.trim(),
         name: line.name.trim(),
         status: line.status,
-        machineIds: line.machineIds,
       });
       if (result.ok) {
         onSuccess();
@@ -89,11 +80,9 @@ export function AddLineModal({
               sites={options.sites}
               warehouses={options.warehouses}
               locations={options.locations}
-              machines={options.machines}
               pending={pending}
               siteReadOnlyLabel={siteLabel}
               onChange={setLine}
-              onMachineToggle={toggleMachine}
             />
           </div>
           {error ? (

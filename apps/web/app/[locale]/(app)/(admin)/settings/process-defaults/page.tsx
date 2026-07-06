@@ -28,6 +28,7 @@ import { getTranslations } from 'next-intl/server';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
+  listLaborRateRoleGroups,
   listProcessDefaults,
   upsertProcessDefaults as persistProcessDefaults,
 } from './_actions/process-defaults-actions';
@@ -55,12 +56,14 @@ type ProcessDefaultsPageProps = {
   canManage?: boolean;
   state?: PageState;
   upsertProcessDefaults?: (input: UpsertProcessDefaultsInput) => Promise<UpsertProcessDefaultsResult>;
+  roleGroupOptions?: string[];
 };
 
 type LoaderResult = {
   state: PageState;
   rows: ProcessDefaultRow[];
   canManage: boolean;
+  roleGroupOptions: string[];
 };
 
 const LABEL_KEYS: Array<keyof ProcessDefaultsLabels> = [
@@ -124,12 +127,19 @@ async function loadProcessDefaultsPageData(): Promise<LoaderResult> {
   // permission-denied); canManage gates the per-operation Edit affordance
   // (settings.org.update). Both reads are independent so a viewer who can read
   // but not write still sees the table.
-  const [result, canManage] = await Promise.all([listProcessDefaults(), resolveCanManage()]);
+  const [result, canManage, roleGroupsResult] = await Promise.all([
+    listProcessDefaults(),
+    resolveCanManage(),
+    listLaborRateRoleGroups(),
+  ]);
+  // Role-group options failing to load must not take the whole page down — the
+  // select just renders empty and the action still validates server-side.
+  const roleGroupOptions = roleGroupsResult.ok ? roleGroupsResult.data : [];
   if (!result.ok) {
     if (result.error === 'forbidden') {
-      return { state: 'permission_denied', rows: [], canManage: false };
+      return { state: 'permission_denied', rows: [], canManage: false, roleGroupOptions };
     }
-    return { state: 'error', rows: [], canManage };
+    return { state: 'error', rows: [], canManage, roleGroupOptions };
   }
   const rows: ProcessDefaultRow[] = result.data.map((row) => ({
     operationId: row.operationId,
@@ -141,7 +151,7 @@ async function loadProcessDefaultsPageData(): Promise<LoaderResult> {
       defaultHeadcount: role.defaultHeadcount,
     })),
   }));
-  return { state: rows.length === 0 ? 'empty' : 'ready', rows, canManage };
+  return { state: rows.length === 0 ? 'empty' : 'ready', rows, canManage, roleGroupOptions };
 }
 
 /**
@@ -174,6 +184,7 @@ export default async function ProcessDefaultsPage(propsInput: unknown = {}) {
         state: props.state ?? ((props.rows?.length ?? 0) === 0 ? 'empty' : 'ready'),
         rows: props.rows ?? [],
         canManage: props.canManage ?? false,
+        roleGroupOptions: props.roleGroupOptions ?? [],
       }
     : await loadProcessDefaultsPageData();
 
@@ -184,6 +195,7 @@ export default async function ProcessDefaultsPage(propsInput: unknown = {}) {
       canManage={props.canManage ?? loaded.canManage}
       state={props.state ?? loaded.state}
       upsertProcessDefaults={props.upsertProcessDefaults ?? upsertProcessDefaultsAdapter}
+      roleGroupOptions={props.roleGroupOptions ?? loaded.roleGroupOptions}
     />
   );
 }

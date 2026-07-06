@@ -33,7 +33,6 @@ const BEFORE = {
   pack_format: 'Tray',
   pack_weight_g: '250',
   sales_channel: 'Retail',
-  expected_volume: '1000 packs',
   target_retail_price_eur: '3.99',
   target_audience: 'Families',
   marketing_claims: 'Source of fibre',

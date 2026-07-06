@@ -11,7 +11,6 @@ import {
   trimOptionalString,
 } from './shared';
 import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
-import { expectedVolumeFromWeeklyPacks } from '../../../../lib/npd/brief-field-sync';
 
 /**
  * cloneProject — create a NEW NPD project seeded from an EXISTING one.
@@ -85,7 +84,6 @@ type SourceRow = {
   notes: string | null;
   pack_format: string | null;
   sales_channel: string | null;
-  expected_volume: string | null;
   target_retail_price_eur: string | number | null;
   target_audience: string | null;
   marketing_claims: string | null;
@@ -113,7 +111,7 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
       // 1. Load the source (org-scoped — RLS + explicit org_id guard).
       const { rows: sourceRows } = await ctx.client.query<SourceRow>(
         `select code, name, type, prio, owner, target_launch::text as target_launch, notes,
-                pack_format, sales_channel, expected_volume, weekly_volume_packs, runs_per_week,
+                pack_format, sales_channel, weekly_volume_packs, runs_per_week,
                 target_retail_price_eur,
                 target_audience, marketing_claims, constraints, pack_weight_g, packs_per_case
            from public.npd_projects
@@ -142,7 +140,6 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
         o?.runsPerWeek !== undefined && o.runsPerWeek !== null
           ? o.runsPerWeek
           : toNumericOrNull(source.runs_per_week);
-      const expectedVolume = expectedVolumeFromWeeklyPacks(weeklyVolumePacks) ?? source.expected_volume;
       const targetAudience = pick(o, 'targetAudience', source.target_audience);
       const marketingClaims = pick(o, 'marketingClaims', source.marketing_claims);
       const constraints = pick(o, 'constraints', source.constraints);
@@ -167,16 +164,16 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
       const { rows: insertRows } = await ctx.client.query<InsertRow>(
         `insert into public.npd_projects
            (org_id, code, name, type, prio, owner, target_launch, notes,
-            pack_format, sales_channel, expected_volume, target_retail_price_eur,
+            pack_format, sales_channel, target_retail_price_eur,
             target_audience, marketing_claims, constraints, pack_weight_g, packs_per_case,
             weekly_volume_packs, runs_per_week,
             current_gate, current_stage, start_from, clone_source, created_by_user, app_version)
          values
            ($1::uuid, $2, $3, $4, $5, $6, $7::date, $8,
-            $9, $10, $11, $12::numeric,
-            $13, $14, $15, $16::numeric, $17::integer,
-            $18::numeric, $19::numeric,
-            'G0', 'brief', 'clone', $20, $21::uuid, 'npd-project-actions-v1')
+            $9, $10, $11::numeric,
+            $12, $13, $14, $15::numeric, $16::integer,
+            $17::numeric, $18::numeric,
+            'G0', 'brief', 'clone', $19, $20::uuid, 'npd-project-actions-v1')
          returning id, code`,
         [
           ctx.orgId,
@@ -189,7 +186,6 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
           notes,
           packFormat,
           salesChannel,
-          expectedVolume,
           targetRetailPriceEur,
           targetAudience,
           marketingClaims,

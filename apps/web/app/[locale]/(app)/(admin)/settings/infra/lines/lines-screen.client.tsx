@@ -4,25 +4,11 @@ import React from 'react';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
-import { Checkbox } from '@monopilot/ui/Checkbox';
 import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, type SelectOption } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 export type LineStatus = 'draft' | 'active' | 'inactive';
-
-export type MachinePreview = {
-  id: string;
-  code: string;
-  name: string;
-  seq: number;
-};
-
-export type MachineOption = {
-  id: string;
-  code: string;
-  name: string;
-};
 
 export type SiteOption = {
   id: string;
@@ -53,7 +39,6 @@ export type ProductionLine = {
   defaultLocationBreadcrumb?: string | null;
   warehouseId?: string | null;
   warehouseName?: string | null;
-  machines: MachinePreview[];
 };
 
 export type ActivateLineInput = { lineId: string };
@@ -65,7 +50,6 @@ export type CreateLineInput = {
   code: string;
   name: string;
   status: 'draft' | 'active';
-  machineIds: string[];
 };
 export type CreateLineResult =
   | { ok: true; data: { id: string; status: 'draft' | 'active' } }
@@ -73,7 +57,7 @@ export type CreateLineResult =
 
 export type ActivateLineResult =
   | { ok: true; data: { lineId: string; status: 'active' } }
-  | { ok: false; code: 'NO_MACHINE'; validation: 'V-SET-62'; lineId: string; message: string }
+  | { ok: false; code: 'PERMISSION_DENIED'; lineId: string; message: string }
   | { ok: false; code: 'ACTIVATION_FAILED'; lineId: string; message: string };
 
 export type DeactivateLineResult =
@@ -92,7 +76,6 @@ export type LinesLabels = {
   columnLine: string;
   columnDefaultLocation: string;
   columnStatus: string;
-  columnMachines: string;
   warehouseFilter: string;
   allWarehouses: string;
   statusFilter: string;
@@ -109,17 +92,12 @@ export type LinesLabels = {
   fieldName: string;
   fieldSite: string;
   fieldStatus: string;
-  fieldMachines: string;
   createLine: string;
   createLinePending: string;
   cancel: string;
   createLineSuccess: string;
   createLineFailed: string;
-  noMachinesAvailable: string;
   insufficientPermission: string;
-  noMachineTitle: string;
-  noMachineCode: string;
-  noMachineBody: string;
   selectLine: string;
   loading: string;
   empty: string;
@@ -131,14 +109,13 @@ export type LinesLabels = {
 
 export const DEFAULT_LINES_LABELS: LinesLabels = {
   title: 'Production lines',
-  subtitle: 'Manage production lines and their assigned machine sequence.',
+  subtitle: 'Manage production lines.',
   sectionTitle: 'Production lines',
-  sectionSubtitle: 'Live production line rows with ordered machine sequence previews.',
+  sectionSubtitle: 'Live production line rows.',
   columnSelect: 'Select',
   columnLine: 'Line',
   columnDefaultLocation: 'Default location',
   columnStatus: 'Status',
-  columnMachines: 'Machine sequence preview',
   warehouseFilter: 'Warehouse',
   allWarehouses: 'All warehouses',
   statusFilter: 'Status',
@@ -155,17 +132,12 @@ export const DEFAULT_LINES_LABELS: LinesLabels = {
   fieldName: 'Name',
   fieldSite: 'Site',
   fieldStatus: 'Status',
-  fieldMachines: 'Machine sequence',
   createLine: 'Create line',
   createLinePending: 'Creating…',
   cancel: 'Cancel',
   createLineSuccess: 'Production line created.',
   createLineFailed: 'Production line could not be created.',
-  noMachinesAvailable: 'Create at least one machine before creating an active line.',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
-  noMachineTitle: 'No machines assigned',
-  noMachineCode: 'NO_MACHINE',
-  noMachineBody: 'Assign at least one machine before activating this line. V-SET-62',
   selectLine: 'Select {name}',
   loading: 'Loading production lines…',
   empty: 'No production lines are available for this workspace.',
@@ -180,7 +152,6 @@ export const LINE_LABEL_KEYS = Object.keys(DEFAULT_LINES_LABELS) as Array<keyof 
 export type LinesScreenProps = {
   labels?: LinesLabels;
   lines: ProductionLine[];
-  machines: MachineOption[];
   sites?: SiteOption[];
   warehouses?: WarehouseOption[];
   locations?: LocationOption[];
@@ -190,10 +161,6 @@ export type LinesScreenProps = {
   createLine: (input: CreateLineInput) => Promise<CreateLineResult> | CreateLineResult;
   state: LinesPageState;
 };
-
-function orderedMachines(line: ProductionLine) {
-  return [...line.machines].sort((left, right) => left.seq - right.seq || left.code.localeCompare(right.code));
-}
 
 function formatSelectLabel(template: string, line: ProductionLine) {
   return template.includes('{name}') ? template.replace('{name}', line.name) : `Select ${line.name}`;
@@ -207,13 +174,6 @@ function formatStatus(label: LinesLabels, status: LineStatus) {
 
 function statusVariant(status: LineStatus) {
   return status === 'active' ? 'success' : 'secondary';
-}
-
-function formatActivationError(result: Extract<ActivateLineResult, { ok: false }>, labels: LinesLabels) {
-  if (result.code === 'NO_MACHINE') {
-    return `${labels.noMachineCode}: ${result.message || labels.noMachineBody} ${result.validation}`;
-  }
-  return result.message || labels.error;
 }
 
 function defaultSiteId(sites: SiteOption[]) {
@@ -263,22 +223,18 @@ export function LineCreateFields({
   sites,
   warehouses,
   locations,
-  machines,
   pending,
   siteReadOnlyLabel,
   onChange,
-  onMachineToggle,
 }: {
   labels: LinesLabels;
   value: CreateLineInput;
   sites: SiteOption[];
   warehouses: WarehouseOption[];
   locations: LocationOption[];
-  machines: MachineOption[];
   pending: boolean;
   siteReadOnlyLabel?: string;
   onChange: (next: CreateLineInput) => void;
-  onMachineToggle: (machineId: string, checked: boolean) => void;
 }) {
   const createWarehouseOptions = React.useMemo<SelectOption[]>(() => [
     { value: 'none', label: labels.unavailable },
@@ -300,7 +256,7 @@ export function LineCreateFields({
 
   return (
     <>
-      {/* Modal field set: code, name, site, warehouse, default output location, status, machine sequence. */}
+      {/* Modal field set: code, name, site, warehouse, default output location, status. */}
       <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-line-code">
         {labels.fieldCode}
         <Input
@@ -406,20 +362,11 @@ export function LineCreateFields({
           </SelectContent>
         </Select>
       </div>
-      <fieldset className="grid gap-2 rounded-lg border border-slate-200 p-3">
-        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{labels.fieldMachines}</legend>
-        {machines.length > 0 ? machines.map((machine) => (
-          <label key={machine.id} className="flex items-center gap-2 text-sm text-slate-800">
-            <Checkbox checked={value.machineIds.includes(machine.id)} onCheckedChange={(checked) => onMachineToggle(machine.id, checked)} disabled={pending} />
-            <span><span className="font-mono text-xs text-slate-500">{machine.code}</span> {machine.name}</span>
-          </label>
-        )) : <p className="text-sm text-slate-600">{labels.noMachinesAvailable}</p>}
-      </fieldset>
     </>
   );
 }
 
-export default function LinesScreen({ labels: labelsProp, lines, machines, sites = [], warehouses = [], locations = [], canUpdateInfra, activateLine, deactivateLine, createLine, state }: LinesScreenProps) {
+export default function LinesScreen({ labels: labelsProp, lines, sites = [], warehouses = [], locations = [], canUpdateInfra, activateLine, deactivateLine, createLine, state }: LinesScreenProps) {
   const labels = labelsProp ?? DEFAULT_LINES_LABELS;
   const [rows, setRows] = React.useState<ProductionLine[]>(() => [...lines]);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
@@ -442,7 +389,6 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
     code: '',
     name: '',
     status: 'draft',
-    machineIds: [],
   }));
 
   React.useEffect(() => {
@@ -498,7 +444,7 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
       if ('data' in result) {
         setStatusById((current) => ({ ...current, [result.data.lineId]: result.data.status }));
       } else {
-        nextErrors[result.lineId] = formatActivationError(result, labels);
+        nextErrors[result.lineId] = result.message || labels.error;
       }
     }
 
@@ -524,20 +470,9 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
     setDeactivatePending(false);
   };
 
-  const toggleCreateMachine = (machineId: string, checked: boolean) => {
-    setNewLine((current) => ({
-      ...current,
-      machineIds: checked ? [...current.machineIds, machineId] : current.machineIds.filter((id) => id !== machineId),
-    }));
-  };
-
   const submitCreateLine = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canUpdateInfra || createPending) return;
-    if (newLine.status === 'active' && newLine.machineIds.length === 0) {
-      setCreateError(labels.noMachineBody);
-      return;
-    }
     setCreatePending(true);
     setCreateError(null);
     setCreateStatus(null);
@@ -550,19 +485,12 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
             code: newLine.code,
             name: newLine.name,
             status: newLine.status,
-            machineIds: newLine.machineIds,
           };
       const result = await createLine(createInput);
       if (!result.ok) {
         setCreateError(labels.createLineFailed);
         return;
       }
-      const selectedMachines = newLine.machineIds
-        .map((id, index) => {
-          const machine = machines.find((candidate) => candidate.id === id);
-          return machine ? { ...machine, seq: index + 1 } : null;
-        })
-        .filter((machine): machine is MachinePreview => machine !== null);
       const selectedWarehouse = newLine.warehouseId ? warehouses.find((warehouse) => warehouse.id === newLine.warehouseId) ?? null : null;
       setRows((current) => [
         {
@@ -578,7 +506,6 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
               ?? locations.find((location) => location.id === newLine.defaultOutputLocationId)?.name
               ?? null
             : null,
-          machines: selectedMachines,
         },
         ...current.filter((line) => line.id !== result.data.id),
       ]);
@@ -589,7 +516,6 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
         code: '',
         name: '',
         status: 'draft',
-        machineIds: [],
       });
       setCreateStatus(labels.createLineSuccess);
       setCreateDialogOpen(false);
@@ -693,16 +619,12 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
                 <TableHead scope="col" className="w-12 px-4 py-3"><span className="sr-only">{labels.columnSelect}</span></TableHead>
                 <TableHead scope="col" className="px-4 py-3">{labels.columnLine}</TableHead>
                 <TableHead scope="col" className="px-4 py-3">{labels.columnDefaultLocation}</TableHead>
-                <TableHead scope="col" className="px-4 py-3">{labels.columnMachines}</TableHead>
                 <TableHead scope="col" className="px-4 py-3">{labels.columnStatus}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="divide-y divide-slate-100">
               {visibleLines.map((line) => {
                 const status = statusById[line.id] ?? line.status;
-                const machines = orderedMachines(line);
-                const visibleMachines = machines.slice(0, 6);
-                const overflowCount = Math.max(machines.length - visibleMachines.length, 0);
                 const rowError = rowErrors[line.id];
 
                 return (
@@ -721,28 +643,12 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
                       <div className="mt-1 font-mono text-xs text-slate-500">{line.code}</div>
                       {rowError ? (
                         <div role="alert" className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
-                          <span className="font-semibold">{labels.noMachineTitle}</span>: {rowError}
+                          {rowError}
                         </div>
                       ) : null}
                     </TableCell>
                     <TableCell className="px-4 py-4 text-sm text-slate-700">
                       <span className="font-mono text-xs">{line.defaultLocationBreadcrumb || labels.unavailable}</span>
-                    </TableCell>
-                    <TableCell className="px-4 py-4">
-                      <div data-testid="settings-line-machine-preview" className="flex max-w-xl flex-wrap gap-2">
-                        {visibleMachines.length > 0 ? visibleMachines.map((machine) => (
-                          <Badge
-                            key={machine.id}
-                            data-testid="settings-line-machine-chip"
-                            variant="outline"
-                            className="gap-1 font-mono text-xs"
-                            title={machine.name}
-                          >
-                            <span className="font-semibold">{machine.seq}</span> {machine.code}
-                          </Badge>
-                        )) : <span className="text-xs text-slate-500">{labels.noMachineTitle}</span>}
-                        {overflowCount > 0 ? <Badge variant="secondary" className="font-mono text-xs">+{overflowCount} more</Badge> : null}
-                      </div>
                     </TableCell>
                     <TableCell className="px-4 py-4">
                       <Badge variant={statusVariant(status)}>{formatStatus(labels, status)}</Badge>
@@ -770,10 +676,8 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, sites
                 sites={sites}
                 warehouses={warehouses}
                 locations={locations}
-                machines={machines}
                 pending={createPending}
                 onChange={setNewLine}
-                onMachineToggle={toggleCreateMachine}
               />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="dry-run" onClick={() => setCreateDialogOpen(false)} disabled={createPending}>{labels.cancel}</Button>

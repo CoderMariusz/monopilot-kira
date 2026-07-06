@@ -377,7 +377,7 @@ function makeClient(): FakeClient {
 
       // createLine now delegates to the canonical infra upsertLine, whose INSERT is
       // (id, org_id, site_id, warehouse_id, default_output_location_id, code, name, status)
-      // with binds [id, siteId, warehouseId, defaultOutputLocationId, code, name, status, machineIds[]].
+      // with binds [id, siteId, warehouseId, defaultOutputLocationId, code, name, status].
       // A duplicate (site_id, code) is rejected by the DB unique index (SQLSTATE 23505),
       // not by an application-level pre-check — simulate that with a thrown pg error.
       if (normalized.startsWith('insert into public.production_lines')) {
@@ -394,23 +394,10 @@ function makeClient(): FakeClient {
               name: String(params[5] ?? 'Yoghurt line'),
               status: String(params[6] ?? 'active'),
               default_output_location_id: (params[3] as string | null) ?? null,
-              machine_ids: (params[7] as string[] | undefined) ?? [],
             },
           ] as never[],
           rowCount: 1,
         };
-      }
-
-      // upsertLine validates machine references, then rewrites line_machines rows.
-      if (normalized.startsWith('select id, status') && normalized.includes('from public.machines')) {
-        const ids = (params[0] as string[] | undefined) ?? [];
-        return { rows: ids.map((id) => ({ id, status: 'active' })) as never[], rowCount: ids.length };
-      }
-      if (normalized.startsWith('delete from public.line_machines')) {
-        return { rows: [] as never[], rowCount: 1 };
-      }
-      if (normalized.startsWith('insert into public.line_machines')) {
-        return { rows: [] as never[], rowCount: 1 };
       }
 
       if (normalized.startsWith('update public.sites') && normalized.includes('returning id::text')) {
@@ -855,16 +842,14 @@ describe('settings shifts/devices wiring contract', () => {
         haccp_valid_until: '2026-09-14',
       }),
     );
-    // An ACTIVE line requires at least one machine (canonical infra upsertLine rule:
-    // status='active' with zero machines => line_requires_machine). The contract test
-    // supplies a machine so the active-line happy path is exercised.
+    // An ACTIVE line has no machine precondition (V-SET-62 deleted in Wave 1
+    // consolidation) — createLine activates with zero machines.
     const createdLine = await withFakeOrg(client, () =>
       mod.createLine({
         site_id: SITE_ID,
         code: 'LINE-1',
         name: 'Yoghurt line',
         status: 'active',
-        machineIds: [MACHINE_ID],
       }),
     );
     const sameCodeDifferentSite = await withFakeOrg(client, () =>
@@ -873,7 +858,6 @@ describe('settings shifts/devices wiring contract', () => {
         code: 'LINE-1',
         name: 'Yoghurt line at another site',
         status: 'active',
-        machineIds: [MACHINE_ID],
       }),
     );
     duplicateLineCodeAtSelectedSite = true;
@@ -883,7 +867,6 @@ describe('settings shifts/devices wiring contract', () => {
         code: 'LINE-1',
         name: 'Duplicate yoghurt line',
         status: 'active',
-        machineIds: [MACHINE_ID],
       }),
     );
 

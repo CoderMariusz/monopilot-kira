@@ -93,7 +93,6 @@ export type CreateLineInput = {
   code: string;
   name: string;
   status?: 'draft' | 'active';
-  machineIds?: string[];
 };
 
 /** Input for {@link updateLine}. */
@@ -122,13 +121,11 @@ export type SitesSettingsData = {
 export type LineFormSiteOption = { id: string; code: string; name: string; isDefault?: boolean };
 export type LineFormWarehouseOption = { id: string; name: string };
 export type LineFormLocationOption = { id: string; code: string; name: string; warehouseId: string | null; path: string | null };
-export type LineFormMachineOption = { id: string; code: string; name: string };
 
 export type LineFormOptions = {
   sites: LineFormSiteOption[];
   warehouses: LineFormWarehouseOption[];
   locations: LineFormLocationOption[];
-  machines: LineFormMachineOption[];
 };
 
 type SiteDbRow = {
@@ -205,7 +202,6 @@ const CreateLineSchema = z
     code: CodeInput,
     name: NameInput,
     status: z.enum(CREATE_LINE_STATUSES).optional(),
-    machineIds: z.array(UuidInput).optional(),
   })
   .strict();
 
@@ -406,7 +402,7 @@ export async function readSitesSettingsData(): Promise<SitesSettingsData> {
 export async function getLineFormOptions(): Promise<LineFormOptions> {
   return withOrgContext<LineFormOptions>(async (ctx): Promise<LineFormOptions> => {
     const context = ctx as OrgContextLike;
-    const [sitesResult, warehousesResult, locationsResult, machinesResult] = await Promise.all([
+    const [sitesResult, warehousesResult, locationsResult] = await Promise.all([
       context.client.query<{ id: string; site_code: string; name: string; is_default: boolean }>(
         `select id::text, site_code, name, is_default
            from public.sites
@@ -426,12 +422,6 @@ export async function getLineFormOptions(): Promise<LineFormOptions> {
           where org_id = app.current_org_id()
           order by lower(code), lower(name), id`,
       ),
-      context.client.query<{ id: string; code: string; name: string }>(
-        `select id::text, code, name
-           from public.machines
-          where org_id = app.current_org_id()
-          order by lower(name), lower(code)`,
-      ),
     ]);
 
     return {
@@ -444,7 +434,6 @@ export async function getLineFormOptions(): Promise<LineFormOptions> {
         warehouseId: row.warehouse_id,
         path: row.path,
       })),
-      machines: machinesResult.rows.map((row) => ({ id: row.id, code: row.code, name: row.name })),
     };
   });
 }
@@ -611,7 +600,6 @@ export async function createLine(input: unknown): Promise<LineMutationResult> {
     code: data.code,
     name: data.name,
     status: data.status ?? 'draft',
-    machineIds: data.machineIds ?? [],
   });
 
   if (result.ok) {
@@ -627,7 +615,6 @@ export async function createLine(input: unknown): Promise<LineMutationResult> {
 type ExistingLineForUpsert = {
   warehouse_id: string | null;
   default_output_location_id: string | null;
-  machine_ids: string[] | null;
 };
 
 async function getExistingLineForUpsert(lineId: string): Promise<ExistingLineForUpsert | null> {
@@ -635,13 +622,10 @@ async function getExistingLineForUpsert(lineId: string): Promise<ExistingLineFor
     const context = ctx as OrgContextLike;
     const { rows } = await context.client.query<ExistingLineForUpsert>(
       `select pl.warehouse_id::text,
-              pl.default_output_location_id::text,
-              coalesce(array_agg(lm.machine_id::text order by lm.sequence) filter (where lm.machine_id is not null), array[]::text[]) as machine_ids
+              pl.default_output_location_id::text
          from public.production_lines pl
-         left join public.line_machines lm on lm.line_id = pl.id
         where pl.org_id = app.current_org_id()
           and pl.id = $1::uuid
-        group by pl.id, pl.warehouse_id, pl.default_output_location_id
         limit 1`,
       [lineId],
     );
@@ -666,7 +650,6 @@ export async function updateLine(input: unknown): Promise<LineMutationResult> {
     code: data.code,
     name: data.name,
     status: data.status === 'active' ? 'active' : 'draft',
-    machineIds: existing.machine_ids ?? [],
   });
 
   if (result.ok) {

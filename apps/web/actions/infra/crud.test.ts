@@ -378,23 +378,25 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     expect(emptyString).toMatchObject({ ok: true, data: { locationId: null } });
   });
 
-  it('V-SET-62/V-SET-63 block empty line activation and require force to deactivate warehouses with active WOs', async () => {
+  it('activates lines without machine preconditions (V-SET-62 deleted) and requires force to deactivate warehouses with active WOs', async () => {
     const upsertLine = await loadAction<
-      (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; machineIds: string[]; defaultOutputLocationId?: string | null }) => Promise<{ ok: boolean; error?: string; data?: { status: string } }>
+      (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; defaultOutputLocationId?: string | null }) => Promise<{ ok: boolean; error?: string; data?: { status: string } }>
     >('line.ts', 'upsertLine', () => import(`${__dirname}/line.ts`) as Promise<Record<string, unknown>>);
     const deactivateWarehouse = await loadAction<
       (input: { warehouseId: string; force?: boolean }) => Promise<{ ok: boolean; error?: string; warning?: { code: string; activeWorkOrders?: number }; data?: { isActive: boolean } }>
     >('warehouse.ts', 'deactivateWarehouse', () => import(`${__dirname}/warehouse.ts`) as Promise<Record<string, unknown>>);
 
-    await expect(upsertLine({ code: 'LINE-1', name: 'Line 1', status: 'active', machineIds: [] })).resolves.toMatchObject({
-      ok: false,
-      error: 'line_requires_machine',
+    // Wave 1 consolidation: an ACTIVE line no longer requires a machine.
+    await expect(upsertLine({ code: 'LINE-1', name: 'Line 1', status: 'active' })).resolves.toMatchObject({
+      ok: true,
+      data: { status: 'active' },
     });
 
-    const activeLine = await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active', machineIds: [MACHINE_ID] });
+    const activeLine = await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active' });
     expect(activeLine).toMatchObject({ ok: true, data: { status: 'active' } });
-    expect(currentClient.lines.get(LINE_ID)?.machine_ids).toEqual([MACHINE_ID]);
     expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.line.upserted')).toBe(true);
+    // No line_machines plumbing runs from the line upsert path (table drops in Wave 3).
+    expect(currentClient.calls.some((call) => call.sql.toLowerCase().includes('line_machines'))).toBe(false);
 
     await expect(deactivateWarehouse({ warehouseId: WAREHOUSE_ID })).resolves.toMatchObject({
       ok: false,
@@ -427,29 +429,26 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     expect(currentClient.warehouses.get(OTHER_WAREHOUSE_ID)?.site_id).toBe(SITE_ID);
   });
 
-  it('creates a DRAFT line with zero machines and writes line_machines (delete-then-insert with sequence) when machines are assigned', async () => {
+  it('creates a DRAFT line with a default output location and never touches line_machines', async () => {
     const upsertLine = await loadAction<
       (input: {
         id?: string;
         code: string;
         name: string;
         status: 'draft' | 'active';
-        machineIds: string[];
         warehouseId?: string | null;
         defaultOutputLocationId?: string | null;
       }) => Promise<{ ok: boolean; error?: string; data?: { status: string } }>
     >('line.ts', 'upsertLine', () => import(`${__dirname}/line.ts`) as Promise<Record<string, unknown>>);
 
-    // Draft line with no machines is allowed (machine is only required at activation, V-SET-62).
-    const draft = await upsertLine({ id: LINE_ID, code: 'LINE-DRAFT', name: 'Draft line', status: 'draft', machineIds: [], warehouseId: WAREHOUSE_ID, defaultOutputLocationId: BIN_ID });
+    const draft = await upsertLine({ id: LINE_ID, code: 'LINE-DRAFT', name: 'Draft line', status: 'draft', warehouseId: WAREHOUSE_ID, defaultOutputLocationId: BIN_ID });
     expect(draft).toMatchObject({ ok: true, data: { status: 'draft' } });
-    expect(currentClient.lines.get(LINE_ID)?.machine_ids).toEqual([]);
     expect(currentClient.lines.get(LINE_ID)?.default_output_location_id).toBe(BIN_ID);
     const lineUpsertCall = currentClient.calls.find((call) => call.sql.toLowerCase().startsWith('insert into public.production_lines'));
     expect(lineUpsertCall?.sql.toLowerCase()).toContain('default_output_location_id');
     expect(lineUpsertCall?.params).toContain(BIN_ID);
-    // delete-then-insert: line_machines cleared even with zero machines.
-    expect(currentClient.calls.some((call) => call.sql.toLowerCase().startsWith('delete from public.line_machines'))).toBe(true);
+    // Wave 1 consolidation: line_machines is never written from the line upsert path.
+    expect(currentClient.calls.some((call) => call.sql.toLowerCase().includes('line_machines'))).toBe(false);
 
     await expect(
       upsertLine({
@@ -457,20 +456,10 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
         code: 'LINE-DRAFT',
         name: 'Draft line',
         status: 'draft',
-        machineIds: [],
         warehouseId: WAREHOUSE_ID,
         defaultOutputLocationId: WRONG_WAREHOUSE_PARENT_ID,
       }),
     ).resolves.toMatchObject({ ok: false, error: 'invalid_location_reference' });
-
-    // Assigning a machine writes line_machines with a sequence.
-    const assigned = await upsertLine({ id: LINE_ID, code: 'LINE-DRAFT', name: 'Draft line', status: 'draft', machineIds: [MACHINE_ID] });
-    expect(assigned).toMatchObject({ ok: true });
-    expect(currentClient.lines.get(LINE_ID)?.machine_ids).toEqual([MACHINE_ID]);
-    const insertCall = currentClient.calls.find((call) => call.sql.toLowerCase().startsWith('insert into public.line_machines'));
-    expect(insertCall, 'line_machines insert must include a sequence column + value').toBeTruthy();
-    expect(insertCall?.sql.toLowerCase()).toContain('sequence');
-    expect(insertCall?.params).toContain(1);
   });
 
   it('Outbox on mutations persists only event types accepted by outbox_events_event_type_check', async () => {
@@ -486,7 +475,7 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
       (input: { id?: string; code: string; name: string; machineType: string; locationId: string }) => Promise<{ ok: boolean; error?: string }>
     >('machine.ts', 'upsertMachine', () => import(`${__dirname}/machine.ts`) as Promise<Record<string, unknown>>);
     const upsertLine = await loadAction<
-      (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: boolean; error?: string }>
+      (input: { id?: string; code: string; name: string; status: 'draft' | 'active' }) => Promise<{ ok: boolean; error?: string }>
     >('line.ts', 'upsertLine', () => import(`${__dirname}/line.ts`) as Promise<Record<string, unknown>>);
     const deactivateWarehouse = await loadAction<
       (input: { warehouseId: string; force?: boolean }) => Promise<{ ok: boolean; error?: string }>
@@ -495,7 +484,7 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const mutationResults = [
       { eventType: 'settings.location.upserted', result: await upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: AISLE_ID, code: 'RACK-03', name: 'Rack 03', level: 3, locationType: 'rack' }) },
       { eventType: 'settings.machine.upserted', result: await upsertMachine({ id: MACHINE_ID, code: 'MIX-01', name: 'Mixer', machineType: 'mixer', locationId: BIN_ID }) },
-      { eventType: 'settings.line.upserted', result: await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active', machineIds: [MACHINE_ID] }) },
+      { eventType: 'settings.line.upserted', result: await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active' }) },
       { eventType: 'settings.warehouse.deactivated', result: await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true }) },
       { eventType: 'settings.location.deleted', result: await deleteLocation({ locationId: BIN_ID, warehouseId: WAREHOUSE_ID }) },
     ].map(({ eventType, result }) => ({ eventType, ok: result.ok, error: result.ok ? undefined : result.error }));
@@ -532,7 +521,7 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
       (input: { id?: string; code: string; name: string; machineType: string; locationId: string }) => Promise<{ ok: boolean; error?: string }>
     >('machine.ts', 'upsertMachine', () => import(`${__dirname}/machine.ts`) as Promise<Record<string, unknown>>);
     const upsertLine = await loadAction<
-      (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: boolean; error?: string }>
+      (input: { id?: string; code: string; name: string; status: 'draft' | 'active' }) => Promise<{ ok: boolean; error?: string }>
     >('line.ts', 'upsertLine', () => import(`${__dirname}/line.ts`) as Promise<Record<string, unknown>>);
     const deactivateWarehouse = await loadAction<
       (input: { warehouseId: string; force?: boolean }) => Promise<{ ok: boolean; error?: string }>
@@ -541,7 +530,7 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const results = [
       await upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: AISLE_ID, code: 'RACK-04', name: 'Rack 04', level: 3, locationType: 'rack' }),
       await upsertMachine({ id: MACHINE_ID, code: 'MIX-01', name: 'Mixer', machineType: 'mixer', locationId: BIN_ID }),
-      await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active', machineIds: [MACHINE_ID] }),
+      await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active' }),
       await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true }),
       await deleteLocation({ locationId: BIN_ID, warehouseId: WAREHOUSE_ID }),
     ];

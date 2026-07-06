@@ -2,10 +2,12 @@
  * @vitest-environment jsdom
  * T-107 / SET-018 — Line List screen.
  *
- * RED phase: pin machine-sequence preview chips, V-SET-62 NO_MACHINE row error,
- * bulk activation continuation, RBAC disabled state, and localized AppShell route.
- * A missing production page renders an empty placeholder so RED fails on behavior
- * assertions instead of module-resolution noise.
+ * Pins bulk activation/deactivation (with per-row error continuation), RBAC
+ * disabled state, line creation with no machine plumbing (V-SET-62 deleted in
+ * Wave 1 consolidation — a line activates with zero preconditions), and the
+ * localized AppShell route. A missing production page renders an empty
+ * placeholder so failures land on behavior assertions instead of
+ * module-resolution noise.
  */
 import React from 'react';
 import { existsSync } from 'node:fs';
@@ -17,10 +19,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const labels: Record<string, string> = {
   title: 'Production lines',
-  subtitle: 'Manage production lines and their assigned machine sequence.',
+  subtitle: 'Manage production lines.',
   columnLine: 'Line',
   columnStatus: 'Status',
-  columnMachines: 'Machine sequence preview',
   addLine: 'Add line',
   dialogAddTitle: 'Add production line',
   fieldCode: 'Code',
@@ -29,20 +30,15 @@ const labels: Record<string, string> = {
   warehouseFilter: 'Warehouse',
   allWarehouses: 'All warehouses',
   fieldStatus: 'Status',
-  fieldMachines: 'Machine sequence',
   createLine: 'Create line',
   createLinePending: 'Creating…',
   cancel: 'Cancel',
   createLineSuccess: 'Production line created.',
   createLineFailed: 'Production line could not be created.',
-  noMachinesAvailable: 'Create at least one machine before creating an active line.',
   bulkActivate: 'Bulk Activate',
   bulkDeactivate: 'Bulk Deactivate',
   bulkDeactivatePending: 'Deactivating…',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
-  noMachineTitle: 'No machines assigned',
-  noMachineCode: 'NO_MACHINE',
-  noMachineBody: 'Assign at least one machine before activating this line. V-SET-62',
   unavailable: '—',
 };
 
@@ -67,13 +63,6 @@ vi.mock('next/navigation', () => ({
 
 type LineStatus = 'draft' | 'active';
 
-type MachinePreview = {
-  id: string;
-  code: string;
-  name: string;
-  seq: number;
-};
-
 type ProductionLine = {
   id: string;
   code: string;
@@ -81,13 +70,6 @@ type ProductionLine = {
   status: LineStatus;
   warehouseId?: string | null;
   warehouseName?: string | null;
-  machines: MachinePreview[];
-};
-
-type MachineOption = {
-  id: string;
-  code: string;
-  name: string;
 };
 
 type WarehouseOption = {
@@ -99,7 +81,7 @@ type ActivateLineInput = { lineId: string };
 
 type ActivateLineResult =
   | { ok: true; data: { lineId: string; status: 'active' } }
-  | { ok: false; code: 'NO_MACHINE'; validation: 'V-SET-62'; lineId: string; message: string };
+  | { ok: false; code: 'PERMISSION_DENIED' | 'ACTIVATION_FAILED'; lineId: string; message: string };
 
 type DeactivateLineInput = { lineId: string };
 
@@ -110,12 +92,11 @@ type DeactivateLineResult =
 type LinesPageProps = {
   params?: Promise<{ locale: string }>;
   lines?: ProductionLine[];
-  machines?: MachineOption[];
   warehouses?: WarehouseOption[];
   canUpdateInfra?: boolean;
   activateLine?: (input: ActivateLineInput) => Promise<ActivateLineResult>;
   deactivateLine?: (input: DeactivateLineInput) => Promise<DeactivateLineResult>;
-  createLine?: (input: { code: string; name: string; siteId?: string | null; warehouseId?: string | null; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: true; data: { id: string; status: 'draft' | 'active' } } | { ok: false; error?: string }>;
+  createLine?: (input: { code: string; name: string; siteId?: string | null; warehouseId?: string | null; status: 'draft' | 'active' }) => Promise<{ ok: true; data: { id: string; status: 'draft' | 'active' } } | { ok: false; error?: string }>;
 };
 
 type LinesPage = (props: LinesPageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -139,7 +120,6 @@ const line0: ProductionLine = {
   code: 'LINE-0',
   name: 'Unassigned line',
   status: 'draft',
-  machines: [],
 };
 
 const line4: ProductionLine = {
@@ -147,12 +127,6 @@ const line4: ProductionLine = {
   code: 'LINE-4',
   name: 'Cheese packing line',
   status: 'draft',
-  machines: [
-    { id: 'm-04-1', code: 'MIX-01', name: 'Mixer 01', seq: 1 },
-    { id: 'm-04-2', code: 'CUT-02', name: 'Cutter 02', seq: 2 },
-    { id: 'm-04-3', code: 'PACK-03', name: 'Packer 03', seq: 3 },
-    { id: 'm-04-4', code: 'PAL-04', name: 'Palletizer 04', seq: 4 },
-  ],
 };
 
 const line8: ProductionLine = {
@@ -160,23 +134,9 @@ const line8: ProductionLine = {
   code: 'LINE-8',
   name: 'Yogurt high-speed line',
   status: 'draft',
-  machines: [
-    { id: 'm-08-8', code: 'WRAP-08', name: 'Wrapper 08', seq: 8 },
-    { id: 'm-08-4', code: 'FILL-04', name: 'Filler 04', seq: 4 },
-    { id: 'm-08-1', code: 'DEPAL-01', name: 'Depalletizer 01', seq: 1 },
-    { id: 'm-08-6', code: 'CHECK-06', name: 'Checkweigher 06', seq: 6 },
-    { id: 'm-08-2', code: 'WASH-02', name: 'Washer 02', seq: 2 },
-    { id: 'm-08-7', code: 'LABEL-07', name: 'Labeler 07', seq: 7 },
-    { id: 'm-08-3', code: 'PAST-03', name: 'Pasteurizer 03', seq: 3 },
-    { id: 'm-08-5', code: 'SEAL-05', name: 'Sealer 05', seq: 5 },
-  ],
 };
 
 const lines = [line0, line4, line8];
-const availableMachines: MachineOption[] = [
-  { id: '00000000-0000-4000-8000-000000000501', code: 'MIX-01', name: 'Mixer 01' },
-  { id: '00000000-0000-4000-8000-000000000502', code: 'PACK-02', name: 'Packer 02' },
-];
 const availableWarehouses: WarehouseOption[] = [
   { id: '00000000-0000-4000-8000-000000000301', name: 'Raw materials - Krakow' },
   { id: '00000000-0000-4000-8000-000000000302', name: 'Finished goods - Krakow' },
@@ -202,7 +162,6 @@ async function renderLinesPage(overrides: Partial<LinesPageProps> = {}) {
   const props: LinesPageProps = {
     params: Promise.resolve({ locale: 'en' }),
     lines,
-    machines: availableMachines,
     warehouses: availableWarehouses,
     canUpdateInfra: true,
     activateLine: vi.fn(async (input: ActivateLineInput) => ({
@@ -226,10 +185,6 @@ function linesTable() {
 
 function lineRow(name: RegExp | string) {
   return within(linesTable()).getByRole('row', { name });
-}
-
-function machinePreview(row: HTMLElement) {
-  return within(row).getByTestId('settings-line-machine-preview');
 }
 
 function expectNoRawSettingsKeys() {
@@ -278,31 +233,12 @@ describe('SET-018 line list behavior', () => {
               location_name: 'Packing',
               warehouse_id: '00000000-0000-4000-8000-000000000301',
               warehouse_name: 'Raw materials — Kraków',
-              machine_id: line4.machines[0].id,
-              machine_code: line4.machines[0].code,
-              machine_name: line4.machines[0].name,
-              machine_seq: line4.machines[0].seq,
-            },
-            {
-              line_id: line4.id,
-              line_code: line4.code,
-              line_name: line4.name,
-              line_status: line4.status,
-              default_location_id: '00000000-0000-4000-8000-000000000201',
-              location_path: 'WH-01 / ZONE-A / PACK',
-              location_name: 'Packing',
-              warehouse_id: '00000000-0000-4000-8000-000000000301',
-              warehouse_name: 'Raw materials — Kraków',
-              machine_id: line4.machines[1].id,
-              machine_code: line4.machines[1].code,
-              machine_name: line4.machines[1].name,
-              machine_seq: line4.machines[1].seq,
             },
           ],
         };
       }
-      if (normalized.includes('from public.machines')) {
-        return { rows: availableMachines };
+      if (normalized.includes('from public.machines') || normalized.includes('line_machines')) {
+        throw new Error(`machines plumbing must be gone from the lines page loader: ${sql}`);
       }
       if (normalized.includes('from public.sites')) {
         return {
@@ -315,6 +251,9 @@ describe('SET-018 line list behavior', () => {
             },
           ],
         };
+      }
+      if (normalized.includes('from public.locations')) {
+        return { rows: [] };
       }
       if (normalized.includes('from public.warehouses')) {
         return { rows: availableWarehouses };
@@ -333,53 +272,21 @@ describe('SET-018 line list behavior', () => {
     expect(query).toHaveBeenCalledWith(expect.stringMatching(/from public\.production_lines pl/i));
     expect(query).toHaveBeenCalledWith(expect.stringMatching(/pl\.warehouse_id as warehouse_id/i));
     expect(query).toHaveBeenCalledWith(expect.stringMatching(/from public\.warehouses/i));
+    expect(query).not.toHaveBeenCalledWith(expect.stringMatching(/line_machines|from public\.machines/i));
     expect(screen.getByRole('heading', { name: /production lines/i })).toBeInTheDocument();
     expect(lineRow(/cheese packing line.*line-4.*WH-01 \/ ZONE-A \/ PACK/i)).toBeInTheDocument();
-    expect(within(machinePreview(lineRow(/cheese packing line.*line-4/i))).getAllByTestId('settings-line-machine-chip')).toHaveLength(2);
     expectNoRawSettingsKeys();
   });
 
-  it('renders ordered machine sequence preview chips and limits overflow to six chips plus a +N more indicator', async () => {
-    await renderLinesPage();
-    expectNoRawSettingsKeys();
-
-    expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('app-sidebar')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('app-topbar')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /production lines/i })).toBeInTheDocument();
-
-    const fourMachinePreview = machinePreview(lineRow(/cheese packing line.*line-4/i));
-    expect(within(fourMachinePreview).getAllByTestId('settings-line-machine-chip').map((chip) => chip.textContent)).toEqual([
-      expect.stringMatching(/^1\s+MIX-01/i),
-      expect.stringMatching(/^2\s+CUT-02/i),
-      expect.stringMatching(/^3\s+PACK-03/i),
-      expect.stringMatching(/^4\s+PAL-04/i),
-    ]);
-    expect(within(fourMachinePreview).queryByText(/more/i)).not.toBeInTheDocument();
-
-    const eightMachinePreview = machinePreview(lineRow(/yogurt high-speed line.*line-8/i));
-    expect(within(eightMachinePreview).getAllByTestId('settings-line-machine-chip').map((chip) => chip.textContent)).toEqual([
-      expect.stringMatching(/^1\s+DEPAL-01/i),
-      expect.stringMatching(/^2\s+WASH-02/i),
-      expect.stringMatching(/^3\s+PAST-03/i),
-      expect.stringMatching(/^4\s+FILL-04/i),
-      expect.stringMatching(/^5\s+SEAL-05/i),
-      expect.stringMatching(/^6\s+CHECK-06/i),
-    ]);
-    expect(within(eightMachinePreview).getByText('+2 more')).toBeInTheDocument();
-    expect(within(eightMachinePreview).queryByText(/LABEL-07|WRAP-08/i)).not.toBeInTheDocument();
-  });
-
-  it('surfaces V-SET-62 NO_MACHINE inline for one selected row while continuing successful bulk activations', async () => {
+  it('surfaces a per-row activation error inline while continuing successful bulk activations', async () => {
     const user = userEvent.setup();
     const activateLine = vi.fn(async (input: ActivateLineInput): Promise<ActivateLineResult> => {
       if (input.lineId === line0.id) {
         return {
           ok: false,
-          code: 'NO_MACHINE',
-          validation: 'V-SET-62',
+          code: 'ACTIVATION_FAILED',
           lineId: input.lineId,
-          message: 'NO_MACHINE: Assign at least one machine before activating this line.',
+          message: 'Unable to activate production line. Try again after the backend is available.',
         };
       }
       return { ok: true, data: { lineId: input.lineId, status: 'active' } };
@@ -394,10 +301,10 @@ describe('SET-018 line list behavior', () => {
     expect(activateLine).toHaveBeenCalledWith({ lineId: line0.id });
     expect(activateLine).toHaveBeenCalledWith({ lineId: line4.id });
 
-    const noMachineRow = lineRow(/unassigned line.*line-0/i);
-    expect(within(noMachineRow).getByRole('alert')).toHaveTextContent(/NO_MACHINE|V-SET-62|assign at least one machine/i);
-    expect(noMachineRow).toHaveTextContent(/draft/i);
-    expect(noMachineRow).not.toHaveTextContent(/active/i);
+    const failedRow = lineRow(/unassigned line.*line-0/i);
+    expect(within(failedRow).getByRole('alert')).toHaveTextContent(/unable to activate production line/i);
+    expect(failedRow).toHaveTextContent(/draft/i);
+    expect(failedRow).not.toHaveTextContent(/active/i);
     expect(lineRow(/cheese packing line.*line-4.*active/i)).toBeInTheDocument();
   });
 
@@ -475,7 +382,7 @@ describe('SET-018 line list behavior', () => {
     expect(screen.getByRole('option', { name: /finished goods - krakow/i })).toBeInTheDocument();
   });
 
-  it('opens Add line modal and creates a production line with selected machine sequence', async () => {
+  it('opens Add line modal and creates an ACTIVE production line with zero machines (V-SET-62 deleted)', async () => {
     const user = userEvent.setup();
     const createLine = vi.fn(async () => ({
       ok: true as const,
@@ -492,8 +399,6 @@ describe('SET-018 line list behavior', () => {
     await user.type(within(dialog).getByLabelText(/^name$/i), 'New packing line');
     await user.click(within(dialog).getByRole('combobox', { name: /^status$/i }));
     await user.click(screen.getAllByRole('option', { name: /^active$/i }).at(-1) as HTMLElement);
-    await user.click(within(dialog).getByLabelText(/mixer 01/i));
-    await user.click(within(dialog).getByLabelText(/packer 02/i));
     await user.click(within(dialog).getByRole('button', { name: /^create line$/i }));
 
     await waitFor(() => expect(createLine).toHaveBeenCalledWith({
@@ -502,32 +407,16 @@ describe('SET-018 line list behavior', () => {
       siteId: null,
       warehouseId: availableWarehouses[1].id,
       status: 'active',
-      machineIds: [availableMachines[0].id, availableMachines[1].id],
     }));
     expect(lineRow(/new packing line.*line-new.*active/i)).toBeInTheDocument();
-    expect(within(machinePreview(lineRow(/new packing line/i))).getAllByTestId('settings-line-machine-chip').map((chip) => chip.textContent)).toEqual([
-      expect.stringMatching(/^1\s+MIX-01/i),
-      expect.stringMatching(/^2\s+PACK-02/i),
-    ]);
   });
 
-  it('returns V-SET-62 NO_MACHINE only for the explicit no-machine validation branch', async () => {
+  it('activateProductionLine activates a line with zero machines and no precondition query', async () => {
     const query = vi.fn(async (sql: string) => {
       const normalized = sql.toLowerCase();
       if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] };
-      if (normalized.includes('from public.production_lines pl')) {
-        return {
-          rows: [
-            {
-              id: line0.id,
-              code: line0.code,
-              name: line0.name,
-              machine_ids: [],
-            },
-          ],
-        };
-      }
-      throw new Error(`Unexpected SQL in no-machine test: ${sql}`);
+      if (normalized.includes('update public.production_lines')) return { rows: [], rowCount: 1 };
+      throw new Error(`Unexpected SQL in activation test: ${sql}`);
     });
     orgContextMock.withOrgContext.mockImplementation(async (callback: (ctx: unknown) => Promise<unknown>) =>
       callback({ userId: '00000000-0000-4000-8000-000000000001', orgId: '00000000-0000-4000-8000-000000000002', client: { query } }),
@@ -536,14 +425,12 @@ describe('SET-018 line list behavior', () => {
     const { activateProductionLine } = await loadLinesPageModule();
     const result = await activateProductionLine({ lineId: line0.id });
 
-    expect(result).toEqual({
-      ok: false,
-      code: 'NO_MACHINE',
-      validation: 'V-SET-62',
-      lineId: line0.id,
-      message: expect.stringMatching(/assign at least one machine/i),
-    });
-    expect(query).not.toHaveBeenCalledWith(expect.stringMatching(/update public\.production_lines/i), expect.anything());
+    expect(result).toEqual({ ok: true, data: { lineId: line0.id, status: 'active' } });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringMatching(/update public\.production_lines\s+set status = 'active'/i),
+      [line0.id],
+    );
+    expect(query).not.toHaveBeenCalledWith(expect.stringMatching(/line_machines/i), expect.anything());
   });
 
   it('deactivateProductionLine sets the line status to inactive via withOrgContext when permitted', async () => {
@@ -588,7 +475,7 @@ describe('SET-018 line list behavior', () => {
     expect(query).not.toHaveBeenCalledWith(expect.stringMatching(/update public\.production_lines/i), expect.anything());
   });
 
-  it('returns a distinct permission error from the server action instead of masquerading as V-SET-62', async () => {
+  it('returns a distinct permission error from the activation server action', async () => {
     const query = vi.fn(async (sql: string) => {
       expect(sql).toMatch(/from public\.user_roles/i);
       return { rows: [] };
@@ -606,7 +493,6 @@ describe('SET-018 line list behavior', () => {
       lineId: line0.id,
       message: expect.stringMatching(/settings\.infra\.update/i),
     });
-    expect(result).not.toMatchObject({ code: 'NO_MACHINE', validation: 'V-SET-62' });
   });
 
   it('returns a generic activation error when withOrgContext throws without leaking raw failure details', async () => {
@@ -624,16 +510,15 @@ describe('SET-018 line list behavior', () => {
       lineId: line4.id,
       message: expect.stringMatching(/unable to activate production line/i),
     });
-    expect(result).not.toMatchObject({ code: 'NO_MACHINE', validation: 'V-SET-62' });
-    expect(serialized).not.toMatch(/V-SET-62|NO_MACHINE|raw-runtime-detail|credential-marker|deadlock detected/i);
+    expect(serialized).not.toMatch(/raw-runtime-detail|credential-marker|deadlock detected/i);
   });
 
   it('returns a generic activation error when the activation query throws without leaking raw failure details', async () => {
     const query = vi.fn(async (sql: string) => {
       const normalized = sql.toLowerCase();
       if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] };
-      if (normalized.includes('from public.production_lines pl')) {
-        throw new Error('select failed for public.production_lines using raw-query-detail credential-marker');
+      if (normalized.includes('update public.production_lines')) {
+        throw new Error('update failed for public.production_lines using raw-query-detail credential-marker');
       }
       throw new Error(`Unexpected SQL in activation failure test: ${sql}`);
     });
@@ -651,7 +536,6 @@ describe('SET-018 line list behavior', () => {
       lineId: line4.id,
       message: expect.stringMatching(/unable to activate production line/i),
     });
-    expect(result).not.toMatchObject({ code: 'NO_MACHINE', validation: 'V-SET-62' });
-    expect(serialized).not.toMatch(/V-SET-62|NO_MACHINE|public\.production_lines|raw-query-detail|credential-marker/i);
+    expect(serialized).not.toMatch(/public\.production_lines|raw-query-detail|credential-marker/i);
   });
 });

@@ -27,6 +27,24 @@ type ProcessDefaultDbRow = {
 };
 
 type ProcessDefaultIdRow = { id: string };
+type RoleGroupRow = { role_group: string };
+
+/**
+ * Distinct labor-rate role groups for the org, effective today. One row per
+ * case-insensitive group; the returned casing is the most recently effective
+ * row's — that exact string is what gets persisted so the costing joins
+ * (exact-match in npd costing, lower() in WO costing) both resolve a rate.
+ */
+async function selectLaborRateRoleGroups({ client }: OrgContextLike): Promise<string[]> {
+  const { rows } = await client.query<RoleGroupRow>(
+    `select distinct on (lower(role_group)) role_group
+       from public.labor_rates
+      where org_id = app.current_org_id()
+        and effective_from <= current_date
+      order by lower(role_group), effective_from desc`,
+  );
+  return rows.map((row) => row.role_group);
+}
 
 const UpsertProcessDefaultsInput = z
   .object({
@@ -163,6 +181,18 @@ type UpsertProcessDefaultsResult = { ok: true } | { ok: false; error: string };
 type GetProcessDefaultResult =
   | { ok: true; data: ProcessDefaultRow | null }
   | { ok: false; error: string };
+type ListLaborRateRoleGroupsResult = { ok: true; data: string[] } | { ok: false; error: string };
+
+export async function listLaborRateRoleGroups(): Promise<ListLaborRateRoleGroupsResult> {
+  try {
+    const data = await withOrgContext<string[]>(async (ctx): Promise<string[]> =>
+      selectLaborRateRoleGroups(ctx as OrgContextLike),
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed to load role groups.' };
+  }
+}
 
 export async function listProcessDefaults(): Promise<ListProcessDefaultsResult> {
   try {
@@ -221,6 +251,22 @@ export async function upsertProcessDefaults(input: unknown): Promise<UpsertProce
     );
     if (!operationRows[0]) throw new Error('Manufacturing operation not found.');
 
+    // Validate every submitted roleGroup against the org's labor-rate role
+    // groups (case-insensitively — the costing joins are), and persist the
+    // canonical labor_rates casing so exact-match joins also resolve.
+    let roles = parsed.roles;
+    if (roles.length > 0) {
+      const roleGroups = await selectLaborRateRoleGroups(context);
+      const canonicalByLower = new Map(roleGroups.map((group) => [group.toLowerCase(), group]));
+      roles = roles.map((role) => {
+        const canonical = canonicalByLower.get(role.roleGroup.toLowerCase());
+        if (!canonical) {
+          throw new Error(`Unknown role group: ${role.roleGroup}. Configure it in labor rates first.`);
+        }
+        return { roleGroup: canonical, defaultHeadcount: role.defaultHeadcount };
+      });
+    }
+
     const { rows: defaultRows } = await context.client.query<ProcessDefaultIdRow>(
       `insert into public.npd_process_defaults
          (org_id, operation_id, standard_cost, default_duration_hours)
@@ -243,7 +289,7 @@ export async function upsertProcessDefaults(input: unknown): Promise<UpsertProce
       [processDefaultId],
     );
 
-    for (const role of parsed.roles) {
+    for (const role of roles) {
       await context.client.query(
         `insert into public.npd_process_default_roles
            (org_id, process_default_id, role_group, default_headcount)

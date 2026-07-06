@@ -14,6 +14,7 @@ const harness = vi.hoisted(() => ({
   operationRows: [] as Array<Record<string, unknown>>,
   processDefaultRows: [] as Array<Record<string, unknown>>,
   upsertRows: [] as Array<Record<string, unknown>>,
+  roleGroupRows: [] as Array<Record<string, unknown>>,
 }));
 
 function makeClient() {
@@ -35,6 +36,10 @@ function makeClient() {
 
       if (normalized.startsWith('select id::text') && normalized.includes('from "reference"."manufacturingoperations"')) {
         return { rows: harness.operationRows as T[], rowCount: harness.operationRows.length };
+      }
+
+      if (normalized.includes('from public.labor_rates')) {
+        return { rows: harness.roleGroupRows as T[], rowCount: harness.roleGroupRows.length };
       }
 
       if (normalized.includes('insert into public.npd_process_defaults')) {
@@ -86,7 +91,25 @@ describe('process defaults actions', () => {
       },
     ];
     harness.upsertRows = [{ id: PROCESS_DEFAULT_ID }];
+    harness.roleGroupRows = [
+      { role_group: 'operator' },
+      { role_group: 'packer' },
+      { role_group: 'supervisor' },
+    ];
     vi.clearAllMocks();
+  });
+
+  it('listLaborRateRoleGroups returns org-scoped distinct role groups effective today', async () => {
+    const { listLaborRateRoleGroups } = await import('./process-defaults-actions');
+
+    const res = await listLaborRateRoleGroups();
+
+    expect(res).toEqual({ ok: true, data: ['operator', 'packer', 'supervisor'] });
+
+    const call = harness.calls.find((entry) => entry.sql.includes('from public.labor_rates'));
+    expect(call?.sql).toContain('distinct on (lower(role_group))');
+    expect(call?.sql).toContain('org_id = app.current_org_id()');
+    expect(call?.sql).toContain('effective_from <= current_date');
   });
 
   it('listProcessDefaults includes active operations without configured defaults as zeros and empty roles', async () => {
@@ -172,6 +195,40 @@ describe('process defaults actions', () => {
     expect(roleInsertCalls[0]?.sql).toContain('values (app.current_org_id(), $1::uuid, $2::text, $3::int)');
     expect(roleInsertCalls[0]?.params).toEqual([PROCESS_DEFAULT_ID, 'operator', 2]);
     expect(roleInsertCalls[1]?.params).toEqual([PROCESS_DEFAULT_ID, 'supervisor', 1]);
+  });
+
+  it('upsertProcessDefaults rejects a roleGroup not present in labor_rates', async () => {
+    const { upsertProcessDefaults } = await import('./process-defaults-actions');
+
+    const res = await upsertProcessDefaults({
+      operationId: CUTTING_ID,
+      standardCost: 10,
+      defaultDurationHours: 1,
+      roles: [{ roleGroup: 'welder', defaultHeadcount: 1 }],
+    });
+
+    expect(res).toEqual({
+      ok: false,
+      error: 'Unknown role group: welder. Configure it in labor rates first.',
+    });
+    expect(harness.calls.some((entry) => entry.sql.includes('insert into public.npd_process_defaults'))).toBe(false);
+  });
+
+  it('upsertProcessDefaults normalizes roleGroup casing to the canonical labor_rates value', async () => {
+    const { upsertProcessDefaults } = await import('./process-defaults-actions');
+
+    const res = await upsertProcessDefaults({
+      operationId: CUTTING_ID,
+      standardCost: 10,
+      defaultDurationHours: 1,
+      roles: [{ roleGroup: 'OPERATOR', defaultHeadcount: 2 }],
+    });
+
+    expect(res).toEqual({ ok: true });
+    const roleInsert = harness.calls.find((entry) =>
+      entry.sql.includes('insert into public.npd_process_default_roles'),
+    );
+    expect(roleInsert?.params).toEqual([PROCESS_DEFAULT_ID, 'operator', 2]);
   });
 
   it('upsertProcessDefaults rejects duplicate roleGroup input with a clean validation error', async () => {

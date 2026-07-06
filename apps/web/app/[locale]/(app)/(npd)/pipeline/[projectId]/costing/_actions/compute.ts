@@ -19,6 +19,8 @@
 
 import { z } from 'zod';
 
+import { Dec } from '@monopilot/domain';
+
 import { hasPermission } from '../../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import {
@@ -346,35 +348,7 @@ export async function computeAndSaveInitialBreakdown(raw: unknown): Promise<Comp
             order by display_order, component_name`,
           [parsed.data.projectId],
         ),
-        client.query<ProcessRow>(
-          `select wp.id::text as process_id,
-                  wp.duration_hours::text as duration_hours,
-                  wp.additional_cost::text as additional_cost,
-                  wp.throughput_per_hour::text as throughput_per_hour,
-                  wp.throughput_uom::text as throughput_uom,
-                  wp.setup_cost::text as setup_cost,
-                  coalesce(wpr.rate_per_hour, lr.rate_per_hour)::text as rate_per_hour,
-                  wpr.headcount::text as headcount
-             from public.prod_detail pd
-             join public.npd_wip_processes wp
-               on wp.prod_detail_id = pd.id
-              and wp.org_id = pd.org_id
-             left join public.npd_wip_process_roles wpr
-               on wpr.process_id = wp.id
-              and wpr.org_id = wp.org_id
-             left join lateral (
-               select rate_per_hour
-                 from public.labor_rates lr
-                where lr.org_id = wp.org_id
-                  and lr.role_group = wpr.role_group
-                order by lr.effective_from desc
-                limit 1
-             ) lr on true
-            where pd.product_code = $1
-              and pd.org_id = app.current_org_id()
-            order by pd.component_index, wp.display_order, wpr.role_group`,
-          [recipe.product_code],
-        ),
+        loadFgProcesses(client, recipe.product_code),
         client.query<{ value_int: number | null; value_text: string | null }>(
           `select value_int, value_text
              from "Reference"."AlertThresholds"
@@ -454,6 +428,163 @@ export async function computeAndSaveInitialBreakdown(raw: unknown): Promise<Comp
     });
     return { ok: false, error: 'persistence_failed' };
   }
+}
+
+// ── W1-T2 — shared FG process cost (roles×headcount×rate) ────────────────────
+
+const ProcessCostInput = z.object({ projectId: z.string().uuid() });
+
+export type ProjectProcessCostData = {
+  /** Number of npd_wip_processes attached to the project's FG prod_detail. */
+  processCount: number;
+  /** Σ real process labour cost PER PACK (engine `processLabourEur`), 4 dp. */
+  processCostPerPackEur: string;
+  /** Σ real process labour cost PER KG (perPack / packWeightKg), 4 dp. */
+  processCostPerKgEur: string;
+};
+
+export type GetProjectProcessCostResult =
+  | { ok: true; data: ProjectProcessCostData }
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed'; message?: string };
+
+const ZERO_PROCESS_COST: ProjectProcessCostData = {
+  processCount: 0,
+  processCostPerPackEur: '0.0000',
+  processCostPerKgEur: '0.0000',
+};
+
+/**
+ * W1-T2 — Σ real process cost for a project's FG, shared with the formulation
+ * live panel. Loads the SAME npd_wip_processes rows as
+ * `computeAndSaveInitialBreakdown` (via `loadFgProcesses`) and isolates the
+ * labour term by running `computeNpdCostEngine` with neutral inputs — the
+ * roles×headcount×rate math is NOT re-implemented here.
+ *
+ * `processCount === 0` (including no FG mapped yet) is a SUCCESS: the caller
+ * falls back to the % placeholder mode.
+ */
+export async function getProjectProcessCost(raw: unknown): Promise<GetProjectProcessCostResult> {
+  const parsed = ProcessCostInput.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  }
+
+  try {
+    return await withOrgContext(async ({ orgId, userId, client }) => {
+      if (!(await hasPermission({ userId, orgId, client }, 'npd.costing'))) {
+        return { ok: false as const, error: 'forbidden' as const };
+      }
+
+      const project = await client.query<{
+        product_code: string | null;
+        pack_weight_kg: string | null;
+        avg_batch_qty: string | null;
+        fg_base_uom: string | null;
+      }>(
+        `select coalesce(f.product_code, p.product_code) as product_code,
+                (p.pack_weight_g / 1000)::text as pack_weight_kg,
+                p.avg_batch_qty::text as avg_batch_qty,
+                coalesce(i.uom_base, i.output_uom, 'kg') as fg_base_uom
+           from public.npd_projects p
+           left join public.formulations f
+             on f.project_id = p.id
+            and f.org_id = p.org_id
+           left join public.items i
+             on i.org_id = p.org_id
+            and i.item_code = coalesce(f.product_code, p.product_code)
+          where p.id = $1::uuid
+            and p.org_id = app.current_org_id()
+          limit 1`,
+        [parsed.data.projectId],
+      );
+      const row = project.rows[0] ?? null;
+      if (!row) return { ok: false as const, error: 'not_found' as const };
+      if (!row.product_code) return { ok: true as const, data: ZERO_PROCESS_COST };
+
+      const processes = groupProcesses((await loadFgProcesses(client, row.product_code)).rows);
+      if (processes.length === 0) return { ok: true as const, data: ZERO_PROCESS_COST };
+
+      // Neutral inputs: only `processes`, packWeightKg, avgBatchQty and fgBaseUom
+      // feed the labour term; everything else zeroes the other waterfall steps.
+      const result = computeNpdCostEngine({
+        ingredients: [],
+        yieldPct: '100',
+        packWeightKg: row.pack_weight_kg,
+        packsPerCase: '1',
+        avgBatchQty: row.avg_batch_qty,
+        fgBaseUom: row.fg_base_uom,
+        weeklyVolumePacks: '1',
+        runsPerWeek: '1',
+        targetPriceEur: '0',
+        packagingComponents: [],
+        processes,
+        overheadPerKg: '0',
+        logisticsPerBox: '0',
+      });
+      const perPack = result.params.processLabourEur;
+      const hasPackWeight = row.pack_weight_kg !== null && decimalGt(row.pack_weight_kg, '0');
+      // ponytail: without a pack weight the per-kg basis is undefined — per-pack
+      // is the best-effort figure (kg-throughput processes already yield 0 then).
+      const perKg = hasPackWeight
+        ? Dec.from(perPack).div(Dec.from(row.pack_weight_kg)).toFixed(4)
+        : perPack;
+
+      return {
+        ok: true as const,
+        data: {
+          processCount: processes.length,
+          processCostPerPackEur: perPack,
+          processCostPerKgEur: perKg,
+        },
+      };
+    });
+  } catch (err) {
+    console.error('[getProjectProcessCost] failed', {
+      projectId: parsed.data.projectId,
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+/**
+ * FG process rows (roles×headcount×rate inputs) — extracted VERBATIM from the
+ * `computeAndSaveInitialBreakdown` bootstrap so the formulation live panel and
+ * the costing screen read the exact same rows (W1-T2). No logic change.
+ */
+function loadFgProcesses(
+  client: { query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }> },
+  productCode: string,
+): Promise<{ rows: ProcessRow[] }> {
+  return client.query<ProcessRow>(
+    `select wp.id::text as process_id,
+            wp.duration_hours::text as duration_hours,
+            wp.additional_cost::text as additional_cost,
+            wp.throughput_per_hour::text as throughput_per_hour,
+            wp.throughput_uom::text as throughput_uom,
+            wp.setup_cost::text as setup_cost,
+            coalesce(wpr.rate_per_hour, lr.rate_per_hour)::text as rate_per_hour,
+            wpr.headcount::text as headcount
+       from public.prod_detail pd
+       join public.npd_wip_processes wp
+         on wp.prod_detail_id = pd.id
+        and wp.org_id = pd.org_id
+       left join public.npd_wip_process_roles wpr
+         on wpr.process_id = wp.id
+        and wpr.org_id = wp.org_id
+       left join lateral (
+         select rate_per_hour
+           from public.labor_rates lr
+          where lr.org_id = wp.org_id
+            and lr.role_group = wpr.role_group
+          order by lr.effective_from desc
+          limit 1
+       ) lr on true
+      where pd.product_code = $1
+        and pd.org_id = app.current_org_id()
+      order by pd.component_index, wp.display_order, wpr.role_group`,
+    [productCode],
+  );
 }
 
 /** Resolve the warn-threshold percent (as a decimal string) from a row. */

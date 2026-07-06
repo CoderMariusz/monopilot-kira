@@ -14,7 +14,6 @@ import LinesScreen, {
   type LinesPageState,
   type LineStatus,
   type LocationOption,
-  type MachineOption,
   type ProductionLine,
   type SiteOption,
   type WarehouseOption,
@@ -27,14 +26,13 @@ const UPDATE_PERMISSION = 'settings.infra.update';
 
 const DEFAULT_LABELS: LinesLabels = {
   title: 'Production lines',
-  subtitle: 'Manage production lines and their assigned machine sequence.',
+  subtitle: 'Manage production lines.',
   sectionTitle: 'Production lines',
-  sectionSubtitle: 'Live production line rows with ordered machine sequence previews.',
+  sectionSubtitle: 'Live production line rows.',
   columnSelect: 'Select',
   columnLine: 'Line',
   columnDefaultLocation: 'Default location',
   columnStatus: 'Status',
-  columnMachines: 'Machine sequence preview',
   warehouseFilter: 'Warehouse',
   allWarehouses: 'All warehouses',
   statusFilter: 'Status',
@@ -51,17 +49,12 @@ const DEFAULT_LABELS: LinesLabels = {
   fieldName: 'Name',
   fieldSite: 'Site',
   fieldStatus: 'Status',
-  fieldMachines: 'Machine sequence',
   createLine: 'Create line',
   createLinePending: 'Creating…',
   cancel: 'Cancel',
   createLineSuccess: 'Production line created.',
   createLineFailed: 'Production line could not be created.',
-  noMachinesAvailable: 'Create at least one machine before creating an active line.',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
-  noMachineTitle: 'No machines assigned',
-  noMachineCode: 'NO_MACHINE',
-  noMachineBody: 'Assign at least one machine before activating this line. V-SET-62',
   selectLine: 'Select {name}',
   loading: 'Loading production lines…',
   empty: 'No production lines are available for this workspace.',
@@ -92,16 +85,6 @@ type LineRow = {
   location_name: string | null;
   warehouse_id: string | null;
   warehouse_name: string | null;
-  machine_id: string | null;
-  machine_code: string | null;
-  machine_name: string | null;
-  machine_seq: number | string | null;
-};
-
-type MachineOptionRow = {
-  id: string;
-  code: string;
-  name: string;
 };
 
 type SiteOptionRow = {
@@ -124,13 +107,6 @@ type LocationOptionRow = {
   path: string | null;
 };
 
-type LineActivationRow = {
-  id: string;
-  code: string;
-  name: string;
-  machine_ids: string[] | null;
-};
-
 type PermissionDeniedActivationResult = {
   ok: false;
   code: 'PERMISSION_DENIED';
@@ -141,7 +117,6 @@ type PermissionDeniedActivationResult = {
 type LinesPageProps = {
   params?: Promise<{ locale: string }>;
   lines?: ProductionLine[];
-  machines?: MachineOption[];
   sites?: SiteOption[];
   warehouses?: WarehouseOption[];
   locations?: LocationOption[];
@@ -175,37 +150,15 @@ function normalizeStatus(value: string): LineStatus {
 }
 
 function toProductionLines(rows: LineRow[]): ProductionLine[] {
-  const byId = new Map<string, ProductionLine>();
-
-  for (const row of rows) {
-    const existing = byId.get(row.line_id);
-    const line = existing ?? {
-      id: row.line_id,
-      code: row.line_code,
-      name: row.line_name,
-      status: normalizeStatus(row.line_status),
-      defaultLocationId: row.default_location_id,
-      defaultLocationBreadcrumb: row.location_path ?? row.location_name,
-      warehouseId: row.warehouse_id,
-      warehouseName: row.warehouse_name,
-      machines: [],
-    } satisfies ProductionLine;
-
-    if (row.machine_id && row.machine_code && row.machine_name) {
-      line.machines.push({
-        id: row.machine_id,
-        code: row.machine_code,
-        name: row.machine_name,
-        seq: Number(row.machine_seq ?? 0) || 0,
-      });
-    }
-
-    byId.set(row.line_id, line);
-  }
-
-  return Array.from(byId.values()).map((line) => ({
-    ...line,
-    machines: line.machines.sort((left, right) => left.seq - right.seq || left.code.localeCompare(right.code)),
+  return rows.map((row) => ({
+    id: row.line_id,
+    code: row.line_code,
+    name: row.line_name,
+    status: normalizeStatus(row.line_status),
+    defaultLocationId: row.default_location_id,
+    defaultLocationBreadcrumb: row.location_path ?? row.location_name,
+    warehouseId: row.warehouse_id,
+    warehouseName: row.warehouse_name,
   }));
 }
 
@@ -233,7 +186,6 @@ async function loadLocationOptions(context: OrgContextLike): Promise<LocationOpt
 type LinesRuntime = {
   state: LinesPageState;
   lines: ProductionLine[];
-  machines: MachineOption[];
   sites: SiteOption[];
   warehouses: WarehouseOption[];
   locations: LocationOption[];
@@ -248,9 +200,9 @@ async function loadLines(): Promise<LinesRuntime> {
         hasPermission(context, READ_PERMISSION),
         hasPermission(context, UPDATE_PERMISSION),
       ]);
-      if (!canRead) return { state: 'permission_denied', lines: [], machines: [], sites: [], warehouses: [], locations: [], canUpdateInfra: false };
+      if (!canRead) return { state: 'permission_denied', lines: [], sites: [], warehouses: [], locations: [], canUpdateInfra: false };
 
-      const [linesResult, machinesResult, sitesResult, warehousesResult] = await Promise.all([
+      const [linesResult, sitesResult, warehousesResult] = await Promise.all([
         context.client.query<LineRow>(
           `select pl.id as line_id,
                   pl.code as line_code,
@@ -263,11 +215,7 @@ async function loadLines(): Promise<LinesRuntime> {
                   case
                     when pl.warehouse_id is not null then plw.name
                     else lw.name
-                  end as warehouse_name,
-                  m.id as machine_id,
-                  m.code as machine_code,
-                  m.name as machine_name,
-                  lm.sequence as machine_seq
+                  end as warehouse_name
              from public.production_lines pl
              left join public.locations l
                on l.id = pl.default_location_id
@@ -278,19 +226,8 @@ async function loadLines(): Promise<LinesRuntime> {
              left join public.warehouses lw
                on lw.id = l.warehouse_id
               and lw.org_id = app.current_org_id()
-             left join public.line_machines lm
-               on lm.line_id = pl.id
-             left join public.machines m
-               on m.id = lm.machine_id
-              and m.org_id = app.current_org_id()
             where pl.org_id = app.current_org_id()
-            order by lower(pl.name), lower(pl.code), lm.sequence nulls last, lower(m.code)`,
-        ),
-        context.client.query<MachineOptionRow>(
-          `select id, code, name
-             from public.machines
-            where org_id = app.current_org_id()
-            order by lower(name), lower(code)`,
+            order by lower(pl.name), lower(pl.code)`,
         ),
         context.client.query<SiteOptionRow>(
           `select id::text, site_code, name, is_default
@@ -311,7 +248,6 @@ async function loadLines(): Promise<LinesRuntime> {
       return {
         state: lines.length === 0 ? 'empty' : 'ready',
         lines,
-        machines: machinesResult.rows.map((row) => ({ id: row.id, code: row.code, name: row.name })),
         sites: sitesResult.rows.map((row) => ({ id: row.id, code: row.site_code, name: row.name, isDefault: row.is_default })),
         warehouses: warehousesResult.rows.map((row) => ({ id: row.id, name: row.name })),
         locations,
@@ -320,10 +256,16 @@ async function loadLines(): Promise<LinesRuntime> {
     });
   } catch (error) {
     console.error('[settings/infra/lines] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
-    return { state: 'error', lines: [], machines: [], sites: [], warehouses: [], locations: [], canUpdateInfra: false };
+    return { state: 'error', lines: [], sites: [], warehouses: [], locations: [], canUpdateInfra: false };
   }
 }
 
+/**
+ * Activates a single production line (status → 'active'). The former V-SET-62
+ * "at least one machine" precondition was deleted (Wave 1 consolidation) — a
+ * line can now be activated with no further requirements. RBAC is re-verified
+ * server-side on every call (`settings.infra.update`).
+ */
 export async function activateProductionLine(input: ActivateLineInput): Promise<ActivateLineResult | PermissionDeniedActivationResult> {
   'use server';
 
@@ -339,37 +281,21 @@ export async function activateProductionLine(input: ActivateLineInput): Promise<
         };
       }
 
-      const { rows } = await context.client.query<LineActivationRow>(
-        `select pl.id,
-                pl.code,
-                pl.name,
-                coalesce(array_agg(lm.machine_id order by lm.sequence) filter (where lm.machine_id is not null), array[]::uuid[]) as machine_ids
-           from public.production_lines pl
-           left join public.line_machines lm on lm.line_id = pl.id
-          where pl.org_id = app.current_org_id()
-            and pl.id = $1::uuid
-          group by pl.id, pl.code, pl.name
-          limit 1`,
-        [input.lineId],
-      );
-      const line = rows[0];
-      if (!line || !line.machine_ids || line.machine_ids.length < 1) {
-        return {
-          ok: false,
-          code: 'NO_MACHINE',
-          validation: 'V-SET-62',
-          lineId: input.lineId,
-          message: DEFAULT_LABELS.noMachineBody,
-        };
-      }
-
-      await context.client.query(
+      const { rowCount } = await context.client.query(
         `update public.production_lines
             set status = 'active'
           where org_id = app.current_org_id()
             and id = $1::uuid`,
         [input.lineId],
       );
+      if (!rowCount) {
+        return {
+          ok: false,
+          code: 'ACTIVATION_FAILED',
+          lineId: input.lineId,
+          message: 'Unable to activate production line. Try again after the backend is available.',
+        };
+      }
 
       return { ok: true, data: { lineId: input.lineId, status: 'active' } };
     });
@@ -386,10 +312,10 @@ export async function activateProductionLine(input: ActivateLineInput): Promise<
 
 /**
  * Deactivates a single production line (status → 'inactive'). Mirrors
- * {@link activateProductionLine} but does not run the V-SET-62 machine check
- * (a line can always be deactivated). RBAC is re-verified server-side on every
- * call (`settings.infra.update`) and the bulk handler in the client invokes it
- * once per selected row, mirroring the bulk-activate flow.
+ * {@link activateProductionLine} (a line can always be deactivated). RBAC is
+ * re-verified server-side on every call (`settings.infra.update`) and the bulk
+ * handler in the client invokes it once per selected row, mirroring the
+ * bulk-activate flow.
  */
 export async function deactivateProductionLine(input: DeactivateLineInput): Promise<DeactivateLineResult> {
   'use server';
@@ -436,7 +362,6 @@ export default async function LinesPage(propsInput: unknown = {}) {
     ? {
         state: props.state ?? (suppliedLines.length === 0 ? 'empty' : 'ready'),
         lines: suppliedLines,
-        machines: props.machines ?? [],
         sites: props.sites ?? [],
         warehouses: props.warehouses ?? [],
         locations: props.locations ?? [],
@@ -458,7 +383,6 @@ export default async function LinesPage(propsInput: unknown = {}) {
   return React.createElement(LinesScreen, {
     labels,
     lines: runtime.lines,
-    machines: runtime.machines,
     sites: runtime.sites,
     warehouses: runtime.warehouses,
     locations: runtime.locations,

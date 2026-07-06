@@ -28,6 +28,7 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
 vi.mock('./_actions/process-defaults-actions', () => ({
   listProcessDefaults: vi.fn(),
   upsertProcessDefaults: vi.fn(),
+  listLaborRateRoleGroups: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({ redirect: vi.fn(), notFound: vi.fn() }));
@@ -58,6 +59,7 @@ type ProcessDefaultsPageProps = {
   canManage?: boolean;
   state?: PageState;
   upsertProcessDefaults?: (input: UpsertInput) => Promise<UpsertResult>;
+  roleGroupOptions?: string[];
 };
 
 type ProcessDefaultsPage = (props: ProcessDefaultsPageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -96,6 +98,7 @@ async function renderPage(overrides: Partial<ProcessDefaultsPageProps> = {}) {
     canManage: true,
     state: 'ready',
     upsertProcessDefaults,
+    roleGroupOptions: ['operator', 'packer', 'supervisor'],
     ...overrides,
   };
   const node = await Page(props);
@@ -181,6 +184,13 @@ describe('NPD v2 S5a process-defaults screen', () => {
     expect(within(dialog).getByLabelText(/default duration/i)).toBeInTheDocument();
     // existing role row is pre-filled from the operation's roles
     expect(within(dialog).getAllByTestId('process-default-role-row').length).toBe(1);
+    // role group is a dropdown sourced from labor_rates role groups, not free text
+    const roleSelect = within(dialog).getByLabelText(/role \/ group 1/i);
+    expect(roleSelect.tagName).toBe('SELECT');
+    const optionLabels = within(roleSelect as HTMLElement)
+      .getAllByRole('option')
+      .map((option) => option.textContent);
+    expect(optionLabels).toEqual(expect.arrayContaining(['operator', 'packer', 'supervisor']));
     // add a role row, then remove it back to one
     await user.click(within(dialog).getByTestId('process-default-add-role'));
     expect(within(dialog).getAllByTestId('process-default-role-row').length).toBe(2);
@@ -202,9 +212,9 @@ describe('NPD v2 S5a process-defaults screen', () => {
     await user.clear(duration);
     await user.type(duration, '3');
 
-    // Baking starts with no roles — add one.
+    // Baking starts with no roles — add one (picked from the labor_rates dropdown).
     await user.click(within(dialog).getByTestId('process-default-add-role'));
-    await user.type(within(dialog).getByLabelText(/role \/ group 1/i), 'packer');
+    await user.selectOptions(within(dialog).getByLabelText(/role \/ group 1/i), 'packer');
     const headcount = within(dialog).getByLabelText(/headcount 1/i);
     await user.clear(headcount);
     await user.type(headcount, '3');

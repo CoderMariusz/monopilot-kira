@@ -19,7 +19,6 @@ type OrgActionContext = {
 
 type LineStatus = 'draft' | 'active';
 type LineRow = { id: string; code: string; name: string; status: LineStatus; default_output_location_id: string | null };
-type MachineRow = { id: string; status: string };
 type WarehouseRow = { id: string };
 type LocationWarehouseRow = { warehouse_id: string | null };
 
@@ -31,7 +30,6 @@ type ParsedLineInput = {
   code: string;
   name: string;
   status: LineStatus;
-  machineIds: string[];
 };
 
 export type UpsertLineResult =
@@ -41,8 +39,6 @@ export type UpsertLineResult =
       error:
         | 'invalid_input'
         | 'forbidden'
-        | 'line_requires_machine'
-        | 'invalid_machine_reference'
         | 'invalid_warehouse_reference'
         | 'invalid_location_reference'
         | 'persistence_failed';
@@ -59,22 +55,16 @@ const LineInput = z.object({
   code: z.string().trim().min(1).max(64).transform((value) => value.toUpperCase()).pipe(z.string().regex(/^[A-Z0-9][A-Z0-9_-]{0,63}$/)),
   name: z.string().trim().min(1).max(128),
   status: z.enum(['draft', 'active']),
-  machineIds: z.array(UuidInput).transform((ids) => Array.from(new Set(ids))),
 });
 
 export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
   const input = parseLineInput(rawInput);
   if (!input) return { ok: false, error: 'invalid_input' };
-  if (input.status === 'active' && input.machineIds.length < 1) return { ok: false, error: 'line_requires_machine' };
 
   try {
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<UpsertLineResult> => {
       if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
 
-      if (input.machineIds.length > 0) {
-        const machines = await getMachines(client, input.machineIds);
-        if (machines.length !== new Set(input.machineIds).size) return { ok: false, error: 'invalid_machine_reference' };
-      }
       if (input.warehouseId) {
         const warehouse = await getWarehouse(client, input.warehouseId);
         if (!warehouse) return { ok: false, error: 'invalid_warehouse_reference' };
@@ -95,25 +85,11 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
            code = excluded.code,
            name = excluded.name,
            status = excluded.status
-         returning id, code, name, status, default_output_location_id, $8::uuid[] as machine_ids`,
-        [input.id, input.siteId, input.warehouseId, input.defaultOutputLocationId, input.code, input.name, input.status, input.machineIds],
+         returning id, code, name, status, default_output_location_id`,
+        [input.id, input.siteId, input.warehouseId, input.defaultOutputLocationId, input.code, input.name, input.status],
       );
       const row = rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
-
-      await client.query(
-        `delete from public.line_machines
-          where line_id = $1::uuid`,
-        [row.id],
-      );
-      for (const [index, machineId] of input.machineIds.entries()) {
-        await client.query(
-          `insert into public.line_machines
-             (line_id, machine_id, sequence)
-           values ($1::uuid, $2::uuid, $3::integer)`,
-          [row.id, machineId, index + 1],
-        );
-      }
 
       await writeSettingsInfraOutbox(client, {
         orgId,
@@ -125,7 +101,6 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
           status: row.status,
           warehouse_id: input.warehouseId,
           default_output_location_id: input.defaultOutputLocationId,
-          machine_ids: input.machineIds,
           actor_user_id: userId,
         },
       });
@@ -150,19 +125,7 @@ function parseLineInput(raw: unknown): ParsedLineInput | null {
     code: parsed.data.code,
     name: parsed.data.name,
     status: parsed.data.status,
-    machineIds: parsed.data.machineIds,
   };
-}
-
-async function getMachines(client: QueryClient, machineIds: string[]): Promise<MachineRow[]> {
-  const { rows } = await client.query<MachineRow>(
-    `select id, status
-       from public.machines
-      where org_id = app.current_org_id()
-        and id = any($1::uuid[])`,
-    [machineIds],
-  );
-  return rows;
 }
 
 async function getWarehouse(client: QueryClient, warehouseId: string): Promise<WarehouseRow | null> {
