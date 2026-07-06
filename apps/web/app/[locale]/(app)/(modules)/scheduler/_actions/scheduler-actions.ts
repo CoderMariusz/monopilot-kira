@@ -5,20 +5,23 @@ import {
   hasPermission,
   type OrgActionContext,
 } from '../../planning/work-orders/_actions/shared';
-import { sequenceWorkOrders } from './sequence-solver';
+import { sequenceWorkOrders, DEFAULT_SEQUENCE_SOLVER_CONFIG } from './sequence-solver';
 import type {
   ApplyScheduleResult,
   ChangeoverMatrixEntry,
   JsonValue,
   ListChangeoverMatrixResult,
   SchedulerAssignment,
+  SchedulerConfigRow,
   SchedulerRunResult,
   SchedulerRunRow,
+  SequenceSolverConfig,
   UpsertChangeoverMatrixEntryResult,
   WorkOrderForScheduling,
 } from './scheduler-types';
 
 const SCHEDULER_RUN_DISPATCH_PERMISSION = 'scheduler.run.dispatch';
+const SCHEDULER_ASSIGNMENT_APPROVE_PERMISSION = 'scheduler.assignment.approve';
 const SCHEDULER_MATRIX_READ_PERMISSION = 'scheduler.matrix.read';
 const SCHEDULER_MATRIX_EDIT_PERMISSION = 'scheduler.matrix.edit';
 const OPTIMIZER_VERSION = 'e8-greedy-v1';
@@ -112,16 +115,6 @@ function isUuid(value: string | null | undefined): value is string {
   return !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function normalizeRunInput(input: { lineId?: string; horizonDays?: number } | undefined):
-  | { ok: true; lineId: string | null; horizonDays: number }
-  | { ok: false } {
-  const horizonDays = Math.trunc(input?.horizonDays ?? 7);
-  if (horizonDays < 1 || horizonDays > 30) return { ok: false };
-  const lineId = input?.lineId?.trim() || null;
-  if (lineId !== null && !isUuid(lineId)) return { ok: false };
-  return { ok: true, lineId, horizonDays };
-}
-
 function isObjectJson(value: JsonValue | null): value is { [key: string]: JsonValue } {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -132,6 +125,61 @@ function wasApplied(run: SchedulerRunRow): boolean {
 
 function totalChangeover(assignments: Array<{ cumulative_changeover_cost: number }>): number {
   return assignments.at(-1)?.cumulative_changeover_cost ?? 0;
+}
+
+function numericWeight(value: string | number | null | undefined, fallback: number): number {
+  const parsed = Number(value ?? fallback);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function solverConfigFromRow(row: SchedulerConfigRow | null): SequenceSolverConfig {
+  if (!row) return DEFAULT_SEQUENCE_SOLVER_CONFIG;
+  const capacity = row.capacity_hours_per_day === null ? null : numericWeight(row.capacity_hours_per_day, 0);
+  return {
+    sequencingStrategy: row.sequencing_strategy,
+    changeoverWeight: numericWeight(row.changeover_weight, 1),
+    duedateWeight: numericWeight(row.duedate_weight, 1),
+    utilizationWeight: numericWeight(row.utilization_weight, 1),
+    capacityHoursPerDay: capacity,
+    respectPmWindows: row.respect_pm_windows,
+  };
+}
+
+async function loadSchedulerConfig(
+  ctx: OrgActionContext,
+  lineId: string | null,
+): Promise<SchedulerConfigRow | null> {
+  const { rows } = await ctx.client.query<SchedulerConfigRow>(
+    `select
+       id::text,
+       org_id::text,
+       site_id::text,
+       line_id,
+       default_horizon_days,
+       optimizer_version,
+       sequencing_strategy,
+       capacity_hours_per_day::text,
+       changeover_weight::text,
+       duedate_weight::text,
+       utilization_weight::text,
+       respect_pm_windows,
+       allow_alternate_routings,
+       params,
+       created_by::text,
+       updated_by::text,
+       created_at,
+       updated_at
+     from public.scheduler_config
+    where org_id = app.current_org_id()
+      and (
+        ($1::text is not null and line_id = $1::text)
+        or line_id is null
+      )
+    order by line_id nulls last
+    limit 1`,
+    [lineId],
+  );
+  return rows[0] ?? null;
 }
 
 async function loadActiveVersionId(ctx: OrgActionContext): Promise<string | null> {
@@ -192,7 +240,9 @@ async function loadOpenWorkOrders(
        wo.scheduled_start_time,
        wo.scheduled_end_time,
        coalesce(wo.planned_end_date, wo.scheduled_end_time, wo.planned_start_date, wo.created_at) as due_date,
-       coalesce(ap.allergen_ids, '{}'::text[]) as allergen_ids
+       coalesce(ap.allergen_ids, '{}'::text[]) as allergen_ids,
+       coalesce(routing_dur.routing_duration_ms, 0)::text as routing_duration_ms,
+       coalesce(process_dur.process_duration_ms, 0)::text as process_duration_ms
      from public.work_orders wo
      left join public.items i
        on i.org_id = wo.org_id
@@ -203,6 +253,48 @@ async function loadOpenWorkOrders(
         where iap.org_id = wo.org_id
           and iap.item_id = wo.product_id
      ) ap on true
+     left join lateral (
+       select
+         round(
+           (
+             coalesce(sum(ro.setup_time_min), 0) * 60000
+             + coalesce(
+                 sum(ro.run_time_per_unit_sec::numeric * wo.planned_quantity::numeric) * 1000,
+                 0
+               )
+           )
+         )::bigint as routing_duration_ms
+         from public.routings r
+         join public.routing_operations ro
+           on ro.routing_id = r.id
+          and ro.org_id = r.org_id
+        where r.org_id = wo.org_id
+          and r.item_id = wo.product_id
+          and r.status in ('active', 'approved')
+          and (
+            wo.production_line_id is null
+            or ro.line_id = wo.production_line_id
+          )
+     ) routing_dur on true
+     left join lateral (
+       select
+         round(
+           coalesce(
+             nullif(max(p.duration_hours::numeric), 0) * 3600000,
+             case
+               when max(p.throughput_per_hour::numeric) > 0
+                 then (wo.planned_quantity::numeric / max(p.throughput_per_hour::numeric)) * 3600000
+               else null
+             end
+           )
+         )::bigint as process_duration_ms
+         from public.npd_wip_processes p
+         join public.prod_detail pd
+           on pd.id = p.prod_detail_id
+          and pd.org_id = p.org_id
+        where p.org_id = wo.org_id
+          and pd.item_id = wo.product_id
+     ) process_dur on true
     where wo.org_id = app.current_org_id()
       and wo.status = any($1::varchar[])
       and coalesce(wo.planned_start_date, wo.scheduled_start_time, wo.created_at) < $2::timestamptz
@@ -554,8 +646,8 @@ async function upsertMatrixByPair(
 }
 
 export async function runScheduler(input?: { lineId?: string; horizonDays?: number }): Promise<SchedulerRunResult> {
-  const normalized = normalizeRunInput(input);
-  if (!normalized.ok) return { ok: false, error: 'invalid_input' };
+  const lineId = input?.lineId?.trim() || null;
+  if (lineId !== null && !isUuid(lineId)) return { ok: false, error: 'invalid_input' };
 
   try {
     return await withOrgContext(async (ctx: OrgActionContext): Promise<SchedulerRunResult> => {
@@ -563,22 +655,29 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
         return { ok: false, error: 'forbidden' };
       }
 
+      const schedulerConfig = await loadSchedulerConfig(ctx, lineId);
+      const horizonDays = Math.trunc(
+        input?.horizonDays ?? schedulerConfig?.default_horizon_days ?? 7,
+      );
+      if (horizonDays < 1 || horizonDays > 30) return { ok: false, error: 'invalid_input' };
+
       const started = Date.now();
       const [workOrders, matrix] = await Promise.all([
-        loadOpenWorkOrders(ctx, normalized.lineId, normalized.horizonDays),
-        loadChangeoverMatrixForRun(ctx, normalized.lineId),
+        loadOpenWorkOrders(ctx, lineId, horizonDays),
+        loadChangeoverMatrixForRun(ctx, lineId),
       ]);
-      const sequenced = sequenceWorkOrders(workOrders, matrix);
+      const solverConfig = solverConfigFromRow(schedulerConfig);
+      const sequenced = sequenceWorkOrders(workOrders, matrix, solverConfig);
       const solveDurationMs = Date.now() - started;
       const run = await insertSchedulerRun(ctx, {
-        lineId: normalized.lineId,
-        horizonDays: normalized.horizonDays,
+        lineId,
+        horizonDays,
         workOrderCount: workOrders.length,
         assignmentCount: sequenced.length,
         totalChangeoverCost: totalChangeover(sequenced),
         solveDurationMs,
       });
-      const assignments = await insertSchedulerAssignments(ctx, run.run_id, normalized.lineId, sequenced);
+      const assignments = await insertSchedulerAssignments(ctx, run.run_id, lineId, sequenced);
       await emitSchedulerRunCompletedEvent(ctx, run.run_id, {
         work_orders: workOrders.length,
         assignments: assignments.length,
@@ -597,17 +696,19 @@ export async function applySchedule(runId: string): Promise<ApplyScheduleResult>
 
   try {
     return await withOrgContext(async (ctx: OrgActionContext): Promise<ApplyScheduleResult> => {
-      if (!(await hasPermission(ctx, SCHEDULER_RUN_DISPATCH_PERMISSION))) {
+      if (!(await hasPermission(ctx, SCHEDULER_ASSIGNMENT_APPROVE_PERMISSION))) {
         return { ok: false, error: 'forbidden' };
       }
 
       const run = await loadRun(ctx, runId, true);
       if (!run) return { ok: false, error: 'not_found' };
 
+      if (run.requested_by && run.requested_by === ctx.userId) {
+        return { ok: false, error: 'sod_violation' };
+      }
+
       const assignments = await loadAssignments(ctx, runId);
       if (wasApplied(run)) return { ok: true, run, assignments, applied: false, stale: [] };
-
-      // TODO: enforce separate approver-role SoD once scheduler roles are split.
       const appliedAssignments: SchedulerAssignment[] = [];
       const staleAssignments: SchedulerAssignment[] = [];
       for (const assignment of assignments) {

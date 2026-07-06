@@ -141,6 +141,31 @@ export interface WorkOrderForScheduling {
   scheduled_end_time: string | Date | null;
   due_date: string | Date;
   allergen_ids: string[];
+  /** Sum of routing setup + run time for the WO product (ms), when masters exist. */
+  routing_duration_ms: string | number | null;
+  /** npd_wip_processes duration or qty/throughput derived run time (ms). */
+  process_duration_ms: string | number | null;
+}
+
+/** Maintenance PM block passed into the solver when 13-maintenance windows are loaded. */
+export interface PmWindow {
+  line_id: string | null;
+  start_at: string;
+  end_at: string;
+}
+
+export interface SequenceSolverConfig {
+  /** `greedy` = due-date order only; `allergen_optimized` = changeover-aware; `local_search` falls back to allergen_optimized until implemented. */
+  sequencingStrategy: SchedulerConfigRow['sequencing_strategy'];
+  changeoverWeight: number;
+  duedateWeight: number;
+  /** Penalizes changeover minutes relative to productive run time when picking the next WO. */
+  utilizationWeight: number;
+  /** Per-line daily capacity cap (hours); rolls overflow to the next UTC day. */
+  capacityHoursPerDay: number | null;
+  /** When true, `pmWindows` block scheduling overlaps; no effect when the window list is empty. */
+  respectPmWindows: boolean;
+  pmWindows?: PmWindow[];
 }
 
 export interface SequencedAssignment {
@@ -167,7 +192,7 @@ export type ApplyScheduleResult =
       applied: boolean | SchedulerAssignment[];
       stale: SchedulerAssignment[];
     }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'sod_violation' | 'persistence_failed' };
 
 export type ListChangeoverMatrixResult =
   | { ok: true; entries: ChangeoverMatrixEntry[] }

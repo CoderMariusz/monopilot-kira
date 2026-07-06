@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { sequenceWorkOrders } from '../sequence-solver';
+import { DEFAULT_SEQUENCE_SOLVER_CONFIG, sequenceWorkOrders } from '../sequence-solver';
+import { ATP_STEP_MINUTES, CLEANING_STEP_MINUTES } from '../changeover-matrix-lookup';
 import type { ChangeoverMatrixEntry, WorkOrderForScheduling } from '../scheduler-types';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -13,6 +14,8 @@ function wo(input: {
   scheduledStart?: string;
   scheduledEnd?: string;
   lineId?: string;
+  routingDurationMs?: number | string | null;
+  processDurationMs?: number | string | null;
 }): WorkOrderForScheduling {
   return {
     id: input.id,
@@ -32,10 +35,17 @@ function wo(input: {
     scheduled_end_time: input.scheduledEnd ?? null,
     due_date: input.due,
     allergen_ids: input.allergens,
+    routing_duration_ms: input.routingDurationMs ?? null,
+    process_duration_ms: input.processDurationMs ?? null,
   };
 }
 
-function matrix(from: string, to: string, minutes: number): ChangeoverMatrixEntry {
+function matrix(
+  from: string,
+  to: string,
+  minutes: number,
+  over: Partial<ChangeoverMatrixEntry> = {},
+): ChangeoverMatrixEntry {
   return {
     id: `${from || 'none'}-${to || 'none'}`,
     org_id: ORG_ID,
@@ -51,17 +61,24 @@ function matrix(from: string, to: string, minutes: number): ChangeoverMatrixEntr
     notes: null,
     created_at: '2026-06-01T00:00:00.000Z',
     updated_at: '2026-06-01T00:00:00.000Z',
+    ...over,
   };
 }
 
 function naiveDueDateTotal(wos: WorkOrderForScheduling[], entries: ChangeoverMatrixEntry[]): number {
-  const costs = new Map(entries.map((entry) => [`${entry.allergen_from}\u0000${entry.allergen_to}`, Number(entry.changeover_minutes)]));
   const ordered = [...wos].sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
   let total = 0;
   for (let index = 1; index < ordered.length; index += 1) {
-    const from = [...ordered[index - 1].allergen_ids].sort().join('|');
-    const to = [...ordered[index].allergen_ids].sort().join('|');
-    total += costs.get(`${from}\u0000${to}`) ?? 0;
+    const from = [...ordered[index - 1].allergen_ids].sort();
+    const to = [...ordered[index].allergen_ids].sort();
+    let step = 0;
+    for (const fromCode of from) {
+      for (const toCode of to) {
+        const hit = entries.find((entry) => entry.allergen_from === fromCode && entry.allergen_to === toCode);
+        if (hit) step = Math.max(step, Number(hit.changeover_minutes));
+      }
+    }
+    total += step;
   }
   return total;
 }
@@ -96,9 +113,10 @@ describe('sequenceWorkOrders', () => {
     const b = wo({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', due: '2026-06-02T08:00:00.000Z', allergens: ['nuts'] });
     const c = wo({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', due: '2026-06-03T08:00:00.000Z', allergens: ['milk', 'soy'] });
     const entries = [
-      matrix('milk|soy', 'nuts', 20),
-      matrix('milk|soy', 'milk|soy', 0),
-      matrix('nuts', 'milk|soy', 5),
+      matrix('milk', 'nuts', 20),
+      matrix('soy', 'nuts', 20),
+      matrix('milk', 'soy', 0),
+      matrix('soy', 'milk', 0),
     ];
 
     const first = sequenceWorkOrders([a, b, c], entries).map((assignment) => assignment.wo_id);
@@ -124,9 +142,9 @@ describe('sequenceWorkOrders', () => {
     const b = wo({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', due: '2026-06-02T08:00:00.000Z', allergens: ['nuts'] });
     const c = wo({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', due: '2026-06-03T08:00:00.000Z', allergens: ['milk'] });
     const entries = [
-      matrix('milk', 'nuts', 60),
-      matrix('nuts', 'milk', 60),
-      matrix('milk', 'milk', 0),
+      matrix('milk', 'nuts', 60, { requires_cleaning: false }),
+      matrix('nuts', 'milk', 60, { requires_cleaning: false }),
+      matrix('milk', 'milk', 0, { requires_cleaning: false }),
     ];
 
     const greedy = sequenceWorkOrders([a, b, c], entries);
@@ -184,10 +202,161 @@ describe('sequenceWorkOrders', () => {
       '2026-06-24T14:00:00.000Z',
     );
     expect(result.find((assignment) => assignment.wo_id === b.id)?.planned_end_at).toBe(
-      '2026-06-24T14:00:00.000Z',
+      '2026-06-24T15:00:00.000Z',
     );
     expect(result.find((assignment) => assignment.wo_id === c.id)?.planned_start_at).toBe(
       '2026-06-24T12:00:00.000Z',
     );
+  });
+
+  it('derives a positive duration for open WOs from routing/process masters', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const openWo = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-03T08:00:00.000Z',
+      allergens: ['milk'],
+      routingDurationMs: 2 * 60 * 60 * 1000,
+    });
+
+    const result = sequenceWorkOrders([openWo], []);
+    const start = new Date(result[0].planned_start_at).getTime();
+    const end = new Date(result[0].planned_end_at ?? '').getTime();
+
+    expect(end - start).toBe(2 * 60 * 60 * 1000);
+  });
+
+  it('avoids segregated allergen transitions when a same-profile alternative exists', () => {
+    const anchor = wo({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', due: '2026-06-01T08:00:00.000Z', allergens: ['milk'] });
+    const same = wo({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', due: '2026-06-02T08:00:00.000Z', allergens: ['milk'] });
+    const segregated = wo({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', due: '2026-06-03T08:00:00.000Z', allergens: ['nuts'] });
+    const entries = [
+      matrix('milk', 'milk', 0),
+      matrix('milk', 'nuts', 5, { risk_level: 'segregated' }),
+      matrix('nuts', 'milk', 5, { risk_level: 'segregated' }),
+    ];
+
+    const result = sequenceWorkOrders([segregated, same, anchor], entries);
+
+    expect(result.map((assignment) => assignment.wo_id)).toEqual([anchor.id, same.id, segregated.id]);
+  });
+
+  it('rejects segregated adjacency even when it would minimize changeover minutes', () => {
+    const milkA = wo({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', due: '2026-06-01T08:00:00.000Z', allergens: ['milk'] });
+    const milkB = wo({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', due: '2026-06-02T08:00:00.000Z', allergens: ['milk'] });
+    const nuts = wo({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', due: '2026-06-03T08:00:00.000Z', allergens: ['nuts'] });
+    const entries = [
+      matrix('milk', 'milk', 0),
+      matrix('milk', 'nuts', 1, { risk_level: 'segregated' }),
+      matrix('nuts', 'milk', 1, { risk_level: 'segregated' }),
+      matrix('milk', 'nuts', 100, { risk_level: 'low' }),
+    ];
+
+    const result = sequenceWorkOrders([nuts, milkB, milkA], entries);
+
+    expect(result.map((assignment) => assignment.wo_id)).toEqual([milkA.id, milkB.id, nuts.id]);
+  });
+
+  it('schedules mandatory cleaning and ATP step time before the next WO', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const first = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T09:00:00.000Z',
+    });
+    const second = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['soy'],
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T09:00:00.000Z',
+    });
+    const entries = [
+      matrix('milk', 'soy', 10, { requires_cleaning: true, requires_atp: true, risk_level: 'high' }),
+    ];
+
+    const result = sequenceWorkOrders([first, second], entries);
+    const gapMinutes =
+      (new Date(result[1].planned_start_at).getTime() - new Date(result[0].planned_end_at ?? '').getTime()) /
+      (60 * 1000);
+
+    expect(gapMinutes).toBe(10 + CLEANING_STEP_MINUTES + ATP_STEP_MINUTES);
+    expect(result[1].changeover_cost).toBe(10 + CLEANING_STEP_MINUTES + ATP_STEP_MINUTES);
+  });
+
+  it('orders by due date only when sequencingStrategy is greedy', () => {
+    const anchor = wo({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', due: '2026-06-01T08:00:00.000Z', allergens: ['milk'] });
+    const cheaperLater = wo({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', due: '2026-06-03T08:00:00.000Z', allergens: ['soy'] });
+    const expensiveEarlier = wo({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', due: '2026-06-02T08:00:00.000Z', allergens: ['nuts'] });
+    const entries = [matrix('milk', 'soy', 0), matrix('milk', 'nuts', 60)];
+
+    const result = sequenceWorkOrders([cheaperLater, expensiveEarlier, anchor], entries, {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      sequencingStrategy: 'greedy',
+    });
+
+    expect(result.map((assignment) => assignment.wo_id)).toEqual([anchor.id, expensiveEarlier.id, cheaperLater.id]);
+  });
+
+  it('rolls work past the daily capacity bucket when capacityHoursPerDay is set', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const first = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T12:00:00.000Z',
+    });
+    const second = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['soy'],
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T10:00:00.000Z',
+    });
+
+    const result = sequenceWorkOrders([first, second], [], {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      capacityHoursPerDay: 4,
+    });
+
+    expect(result[1].planned_start_at).toBe('2026-06-25T00:00:00.000Z');
+  });
+
+  it('avoids PM windows when respectPmWindows is enabled', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const first = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T09:00:00.000Z',
+    });
+    const second = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['soy'],
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T09:00:00.000Z',
+    });
+
+    const result = sequenceWorkOrders([first, second], [], {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      respectPmWindows: true,
+      pmWindows: [
+        {
+          line_id: LINE_ID,
+          start_at: '2026-06-24T13:00:00.000Z',
+          end_at: '2026-06-24T15:00:00.000Z',
+        },
+      ],
+    });
+
+    expect(result[1].planned_start_at).toBe('2026-06-24T15:00:00.000Z');
   });
 });

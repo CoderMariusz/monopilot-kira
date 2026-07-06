@@ -1,36 +1,38 @@
+import {
+  allergenProfileKey,
+  effectiveChangeoverMinutes,
+  normalizedAllergenIds,
+  resolveChangeoverTransition,
+  transitionScore,
+} from './changeover-matrix-lookup';
 import type {
   ChangeoverMatrixEntry,
+  PmWindow,
   SequencedAssignment,
+  SequenceSolverConfig,
   WorkOrderForScheduling,
 } from './scheduler-types';
 
-function allergenProfileKey(wo: WorkOrderForScheduling): string {
-  return wo.allergen_ids
-    .map((id) => id.trim())
-    .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b))
-    .join('|');
-}
+const DEFAULT_MIN_DURATION_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Default solver config. `sequencingStrategy: 'local_search'` is stored in DB but
+ * not implemented yet — it falls back to `allergen_optimized`. `pmWindows` is
+ * optional caller input (maintenance integration loads these when available).
+ */
+export const DEFAULT_SEQUENCE_SOLVER_CONFIG: SequenceSolverConfig = {
+  sequencingStrategy: 'allergen_optimized',
+  changeoverWeight: 1,
+  duedateWeight: 1,
+  utilizationWeight: 1,
+  capacityHoursPerDay: null,
+  respectPmWindows: true,
+  pmWindows: [],
+};
 
 function dueTime(wo: WorkOrderForScheduling): number {
   return new Date(wo.due_date).getTime();
-}
-
-function minutes(value: string | number | null | undefined): number {
-  const parsed = Number(value ?? 0);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function matrixKey(from: string, to: string): string {
-  return `${from}\u0000${to}`;
-}
-
-function buildCostLookup(matrix: ChangeoverMatrixEntry[]): Map<string, number> {
-  const lookup = new Map<string, number>();
-  for (const entry of matrix) {
-    lookup.set(matrixKey(entry.allergen_from, entry.allergen_to), minutes(entry.changeover_minutes));
-  }
-  return lookup;
 }
 
 function compareByDueDateThenId(a: WorkOrderForScheduling, b: WorkOrderForScheduling): number {
@@ -45,7 +47,22 @@ function timestampMs(value: string | Date | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-function durationMs(wo: WorkOrderForScheduling): number | null {
+function numericMs(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function routingDurationMs(wo: WorkOrderForScheduling): number | null {
+  return numericMs(wo.routing_duration_ms);
+}
+
+function processDurationMs(wo: WorkOrderForScheduling): number | null {
+  return numericMs(wo.process_duration_ms);
+}
+
+/** Derive WO run duration: scheduled/planned window, then routing, then process masters, else 1h floor. */
+export function durationMs(wo: WorkOrderForScheduling): number {
   const pairs: Array<[string | Date | null, string | Date | null]> = [
     [wo.scheduled_start_time, wo.scheduled_end_time],
     [wo.planned_start_date, wo.planned_end_date],
@@ -53,19 +70,180 @@ function durationMs(wo: WorkOrderForScheduling): number | null {
   for (const [startValue, endValue] of pairs) {
     const start = timestampMs(startValue);
     const end = timestampMs(endValue);
-    if (start === null || end === null || end < start) continue;
+    if (start === null || end === null || end <= start) continue;
     return end - start;
   }
+
+  const routing = routingDurationMs(wo);
+  if (routing !== null) return routing;
+
+  const process = processDurationMs(wo);
+  if (process !== null) return process;
+
+  return DEFAULT_MIN_DURATION_MS;
+}
+
+function changeoverBetween(
+  fromWo: WorkOrderForScheduling,
+  toWo: WorkOrderForScheduling,
+  matrix: ChangeoverMatrixEntry[],
+  changeoverWeight: number,
+): { cost: number; transitionMinutes: number; feasible: boolean } {
+  const transition = resolveChangeoverTransition(
+    normalizedAllergenIds(fromWo.allergen_ids),
+    normalizedAllergenIds(toWo.allergen_ids),
+    toWo.production_line_id,
+    matrix,
+  );
+  return {
+    cost: transitionScore(transition, changeoverWeight),
+    transitionMinutes: effectiveChangeoverMinutes(transition),
+    feasible: transition.feasible,
+  };
+}
+
+function dueDatePenalty(candidate: WorkOrderForScheduling, anchorDueMs: number, duedateWeight: number): number {
+  if (duedateWeight <= 0) return 0;
+  return ((dueTime(candidate) - anchorDueMs) / DAY_MS) * duedateWeight;
+}
+
+function utilizationPenalty(
+  transitionMinutes: number,
+  candidate: WorkOrderForScheduling,
+  utilizationWeight: number,
+): number {
+  if (utilizationWeight <= 0) return 0;
+  const runMinutes = durationMs(candidate) / (60 * 1000);
+  if (runMinutes <= 0) return 0;
+  return (transitionMinutes / runMinutes) * utilizationWeight;
+}
+
+function startOfUtcDay(ms: number): number {
+  const day = new Date(ms);
+  day.setUTCHours(0, 0, 0, 0);
+  return day.getTime();
+}
+
+function dayBucketKey(lineKey: string, ms: number): string {
+  return `${lineKey}|${new Date(ms).toISOString().slice(0, 10)}`;
+}
+
+function pmWindowBlocks(
+  lineKey: string,
+  startMs: number,
+  endMs: number,
+  windows: PmWindow[],
+): PmWindow | null {
+  for (const window of windows) {
+    if (window.line_id !== null && window.line_id !== lineKey) continue;
+    const windowStart = timestampMs(window.start_at);
+    const windowEnd = timestampMs(window.end_at);
+    if (windowStart === null || windowEnd === null || windowEnd <= windowStart) continue;
+    if (startMs < windowEnd && endMs > windowStart) return window;
+  }
   return null;
+}
+
+function resolvePlannedStart(
+  lineKey: string,
+  earliestMs: number,
+  runDurationMs: number,
+  config: SequenceSolverConfig,
+  dayUsageHours: Map<string, number>,
+): number {
+  const capacityMs =
+    config.capacityHoursPerDay !== null && config.capacityHoursPerDay > 0
+      ? config.capacityHoursPerDay * 60 * 60 * 1000
+      : null;
+  const pmWindows = config.respectPmWindows ? (config.pmWindows ?? []) : [];
+  let start = earliestMs;
+
+  for (let guard = 0; guard < 400; guard += 1) {
+    const end = start + runDurationMs;
+
+    const blocker = pmWindows.length > 0 ? pmWindowBlocks(lineKey, start, end, pmWindows) : null;
+    if (blocker) {
+      const windowEnd = timestampMs(blocker.end_at);
+      if (windowEnd === null) break;
+      start = Math.max(start, windowEnd);
+      continue;
+    }
+
+    if (capacityMs !== null) {
+      const bucketKey = dayBucketKey(lineKey, start);
+      const usedMs = (dayUsageHours.get(bucketKey) ?? 0) * 60 * 60 * 1000;
+      const remainingMs = capacityMs - usedMs;
+      if (remainingMs <= 0 || runDurationMs > remainingMs) {
+        start = startOfUtcDay(start) + DAY_MS;
+        continue;
+      }
+    }
+
+    if (capacityMs !== null) {
+      const bucketKey = dayBucketKey(lineKey, start);
+      dayUsageHours.set(bucketKey, (dayUsageHours.get(bucketKey) ?? 0) + runDurationMs / (60 * 60 * 1000));
+    }
+    return start;
+  }
+
+  return earliestMs;
+}
+
+function pickNextIndex(
+  tail: WorkOrderForScheduling,
+  unscheduled: WorkOrderForScheduling[],
+  matrix: ChangeoverMatrixEntry[],
+  config: SequenceSolverConfig,
+): number {
+  const useChangeover = config.sequencingStrategy !== 'greedy';
+  let bestIndex = -1;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < unscheduled.length; index += 1) {
+    const candidate = unscheduled[index];
+    const { cost, transitionMinutes, feasible } = changeoverBetween(
+      tail,
+      candidate,
+      matrix,
+      config.changeoverWeight,
+    );
+    if (useChangeover && !feasible) continue;
+
+    let score = useChangeover
+      ? cost + dueDatePenalty(candidate, dueTime(tail), config.duedateWeight)
+      : dueDatePenalty(candidate, dueTime(tail), config.duedateWeight);
+    if (useChangeover) {
+      score += utilizationPenalty(transitionMinutes, candidate, config.utilizationWeight);
+    }
+
+    const tieCandidate =
+      bestIndex === -1 ? candidate : unscheduled[bestIndex];
+    const dueDelta = compareByDueDateThenId(candidate, tieCandidate);
+    if (score < bestScore || (score === bestScore && dueDelta < 0)) {
+      bestIndex = index;
+      bestScore = score;
+    }
+  }
+
+  if (bestIndex === -1) {
+    bestIndex = 0;
+    for (let index = 1; index < unscheduled.length; index += 1) {
+      if (compareByDueDateThenId(unscheduled[index], unscheduled[bestIndex]) < 0) {
+        bestIndex = index;
+      }
+    }
+  }
+
+  return bestIndex;
 }
 
 export function sequenceWorkOrders(
   wos: WorkOrderForScheduling[],
   matrix: ChangeoverMatrixEntry[],
+  config: SequenceSolverConfig = DEFAULT_SEQUENCE_SOLVER_CONFIG,
 ): SequencedAssignment[] {
   if (wos.length === 0) return [];
 
-  const costLookup = buildCostLookup(matrix);
   const unscheduled = [...wos].sort(compareByDueDateThenId);
   const sequence: WorkOrderForScheduling[] = [];
 
@@ -75,22 +253,7 @@ export function sequenceWorkOrders(
 
   while (unscheduled.length > 0) {
     const tail = sequence[sequence.length - 1];
-    const fromKey = allergenProfileKey(tail);
-    let bestIndex = 0;
-    let bestCost = Number.POSITIVE_INFINITY;
-
-    for (let index = 0; index < unscheduled.length; index += 1) {
-      const candidate = unscheduled[index];
-      const toKey = allergenProfileKey(candidate);
-      const cost = costLookup.get(matrixKey(fromKey, toKey)) ?? 0;
-      const best = unscheduled[bestIndex];
-      const dueDelta = compareByDueDateThenId(candidate, best);
-      if (cost < bestCost || (cost === bestCost && dueDelta < 0)) {
-        bestIndex = index;
-        bestCost = cost;
-      }
-    }
-
+    const bestIndex = pickNextIndex(tail, unscheduled, matrix, config);
     const [next] = unscheduled.splice(bestIndex, 1);
     sequence.push(next);
   }
@@ -98,15 +261,21 @@ export function sequenceWorkOrders(
   let cumulative = 0;
   const now = Date.now();
   const plannedEndByLine = new Map<string, number>();
+  const dayUsageHours = new Map<string, number>();
 
   return sequence.map((workOrder, index) => {
     const previous = index === 0 ? null : sequence[index - 1];
-    const fromKey = previous ? allergenProfileKey(previous) : '';
-    const toKey = allergenProfileKey(workOrder);
-    const changeoverCost = previous ? costLookup.get(matrixKey(fromKey, toKey)) ?? 0 : 0;
+    const profile = normalizedAllergenIds(workOrder.allergen_ids);
+    const toKey = allergenProfileKey(profile);
+    const { transitionMinutes } = previous
+      ? changeoverBetween(previous, workOrder, matrix, config.changeoverWeight)
+      : { transitionMinutes: 0 };
+    const changeoverCost = transitionMinutes;
     const lineKey = workOrder.production_line_id ?? '__unassigned__';
-    const plannedStart = Math.max(now, plannedEndByLine.get(lineKey) ?? now);
-    const plannedEnd = Math.max(plannedStart, plannedStart + (durationMs(workOrder) ?? 0));
+    const earliestStart = Math.max(now, (plannedEndByLine.get(lineKey) ?? now) + changeoverCost * 60 * 1000);
+    const runDuration = durationMs(workOrder);
+    const plannedStart = resolvePlannedStart(lineKey, earliestStart, runDuration, config, dayUsageHours);
+    const plannedEnd = plannedStart + runDuration;
     plannedEndByLine.set(lineKey, plannedEnd);
     cumulative += changeoverCost;
 

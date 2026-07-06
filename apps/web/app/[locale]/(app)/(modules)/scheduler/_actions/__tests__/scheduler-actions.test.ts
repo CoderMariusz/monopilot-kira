@@ -10,8 +10,9 @@ type QueryClient = {
 };
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
-const USER_ID = '22222222-2222-4222-8222-222222222222';
-const RUN_ID = '33333333-3333-4333-8333-333333333333';
+const REQUESTER_USER_ID = '22222222-2222-4222-8222-222222222222';
+const APPROVER_USER_ID = '33333333-3333-4333-8333-333333333333';
+const RUN_ID = '44444444-4444-4444-8444-444444444444';
 const LINE_ID = '44444444-4444-4444-8444-444444444444';
 const LINE_OVERRIDE_ID = '99999999-9999-4999-8999-999999999999';
 const WO_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -19,6 +20,7 @@ const WO_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 let client: QueryClient;
 let allowPermission = true;
+let currentUserId = REQUESTER_USER_ID;
 let calls: Array<{ sql: string; params: readonly unknown[] }> = [];
 let insertedAssignmentPayload: Array<Record<string, unknown>> = [];
 let runAlreadyApplied = false;
@@ -28,7 +30,7 @@ let staleWoIds = new Set<string>();
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, client }),
+    action({ userId: currentUserId, orgId: ORG_ID, client }),
   ),
 }));
 
@@ -43,7 +45,7 @@ function runRow(outputSummary: SchedulerRunRow['output_summary'] = { assignment_
     run_id: RUN_ID,
     org_id: ORG_ID,
     site_id: null,
-    requested_by: USER_ID,
+    requested_by: REQUESTER_USER_ID,
     status: 'completed',
     horizon_days: 7,
     line_ids: [LINE_ID],
@@ -138,6 +140,8 @@ function wo(input: { id: string; due: string; allergens: string[] }): WorkOrderF
     scheduled_end_time: null,
     due_date: input.due,
     allergen_ids: input.allergens,
+    routing_duration_ms: '3600000',
+    process_duration_ms: null,
   };
 }
 
@@ -149,6 +153,34 @@ function makeClient(): QueryClient {
 
       if (q.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+      }
+
+      if (q.includes('from public.scheduler_config')) {
+        return {
+          rows: [
+            {
+              id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              org_id: ORG_ID,
+              site_id: null,
+              line_id: null,
+              default_horizon_days: 14,
+              optimizer_version: 'v2',
+              sequencing_strategy: 'allergen_optimized',
+              capacity_hours_per_day: '16.00',
+              changeover_weight: '2.0000',
+              duedate_weight: '1.0000',
+              utilization_weight: '1.0000',
+              respect_pm_windows: true,
+              allow_alternate_routings: false,
+              params: {},
+              created_by: null,
+              updated_by: null,
+              created_at: '2026-06-01T00:00:00.000Z',
+              updated_at: '2026-06-01T00:00:00.000Z',
+            },
+          ],
+          rowCount: 1,
+        };
       }
 
       if (q.includes('from public.work_orders wo') && q.includes('item_allergen_profiles')) {
@@ -224,7 +256,7 @@ function makeClient(): QueryClient {
                 {
                   ...found,
                   status: 'approved',
-                  approved_by: USER_ID,
+                  approved_by: APPROVER_USER_ID,
                   approved_at: '2026-06-01T12:00:00.000Z',
                   updated_at: '2026-06-01T12:00:00.000Z',
                 } satisfies SchedulerAssignment,
@@ -253,6 +285,7 @@ function makeClient(): QueryClient {
 
 beforeEach(() => {
   allowPermission = true;
+  currentUserId = REQUESTER_USER_ID;
   calls = [];
   insertedAssignmentPayload = [];
   runAlreadyApplied = false;
@@ -284,7 +317,7 @@ describe('runScheduler', () => {
     expect(insertedAssignmentPayload.map((row) => row.wo_id)).toEqual([WO_A, WO_B]);
     expect(insertedAssignmentPayload.map((row) => row.sequence_index)).toEqual([1, 2]);
     expect(insertedAssignmentPayload[1]).toEqual(
-      expect.objectContaining({ changeover_minutes: 30, optimizer_score: 30, line_id: LINE_ID }),
+      expect.objectContaining({ changeover_minutes: 45, optimizer_score: 45, line_id: LINE_ID }),
     );
     expect(calls.find((call) => normalize(call.sql).includes('from public.user_roles'))?.params[2]).toBe('scheduler.run.dispatch');
     expect(
@@ -307,12 +340,24 @@ describe('runScheduler', () => {
     expect(matrixCall?.params[0]).toBeNull();
     expect(normalize(matrixCall?.sql ?? '')).toContain('($1::text is null and cm.line_id is null)');
     expect(insertedAssignmentPayload[1]).toEqual(
-      expect.objectContaining({ changeover_minutes: 30, optimizer_score: 30 }),
+      expect.objectContaining({ changeover_minutes: 45, optimizer_score: 45 }),
     );
+  });
+
+  it('reads scheduler_config when building the solver input', async () => {
+    const result = await runScheduler({ lineId: LINE_ID });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(calls.some((call) => normalize(call.sql).includes('from public.scheduler_config'))).toBe(true);
   });
 });
 
 describe('applySchedule', () => {
+  beforeEach(() => {
+    currentUserId = APPROVER_USER_ID;
+  });
+
   it('is idempotent when the run output_summary already has applied_at', async () => {
     runAlreadyApplied = true;
 
@@ -356,7 +401,7 @@ describe('applySchedule', () => {
     expect(normalize(workOrderUpdate?.sql ?? '')).toContain("wo.status in ('draft', 'released')");
   });
 
-  it("stamps applied assignments as approved by the applying user", async () => {
+  it('stamps applied assignments as approved by the distinct approver user', async () => {
     const result = await applySchedule(RUN_ID);
 
     expect(result.ok).toBe(true);
@@ -366,13 +411,22 @@ describe('applySchedule', () => {
     expect(applied[0]).toEqual(
       expect.objectContaining({
         status: 'approved',
-        approved_by: USER_ID,
+        approved_by: APPROVER_USER_ID,
         approved_at: '2026-06-01T12:00:00.000Z',
       }),
     );
     const assignmentUpdate = calls.find((call) => normalize(call.sql).startsWith('update public.scheduler_assignments'));
     expect(normalize(assignmentUpdate?.sql ?? '')).toContain("status = 'approved'");
-    expect(assignmentUpdate?.params[1]).toBe(USER_ID);
+    expect(assignmentUpdate?.params[1]).toBe(APPROVER_USER_ID);
+  });
+
+  it('rejects apply when the approver is the same user who requested the run (SoD)', async () => {
+    currentUserId = REQUESTER_USER_ID;
+
+    const result = await applySchedule(RUN_ID);
+
+    expect(result).toEqual({ ok: false, error: 'sod_violation' });
+    expect(calls.some((call) => normalize(call.sql).startsWith('update public.work_orders'))).toBe(false);
   });
 
   it('filters rejected and cancelled assignments out of the apply set', async () => {
@@ -403,9 +457,10 @@ describe('scheduler RBAC gates', () => {
     );
 
     calls = [];
+    currentUserId = APPROVER_USER_ID;
     await applySchedule(RUN_ID);
     expect(calls.find((call) => normalize(call.sql).includes('from public.user_roles'))?.params[2]).toBe(
-      'scheduler.run.dispatch',
+      'scheduler.assignment.approve',
     );
 
     calls = [];
