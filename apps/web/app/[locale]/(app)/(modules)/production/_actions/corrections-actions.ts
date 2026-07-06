@@ -15,7 +15,7 @@ import {
 } from '../../../../../../lib/corrections/correct-ledger-entry';
 import { CONSUMPTION_CORRECT_PERMISSION } from '../../../../../../lib/corrections/constants';
 import { materialIdFromConsumptionExt } from '../../../../../../lib/corrections/material-scope';
-import { computeWacReversalDelta, applyConsumptionWacReversal, upsertWac } from '../../../../../../lib/finance/upsert-wac';
+import { computeWacReversalDelta, applyConsumptionWacReversal, isWacExcluded, upsertWac } from '../../../../../../lib/finance/upsert-wac';
 import type { ProductionContext, QueryClient } from '../../../../../../lib/production/shared';
 import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 
@@ -168,14 +168,6 @@ function negateDecimalString(value: string): string {
   const trimmed = value.trim();
   if (trimmed.startsWith('-')) return trimmed.slice(1);
   return `-${trimmed}`;
-}
-
-async function multiplyNumeric(ctx: ProductionContext, left: string, right: string | null): Promise<string> {
-  const { rows } = await ctx.client.query<{ value: string }>(
-    `select ($1::numeric * coalesce($2::numeric, 0))::text as value`,
-    [left, right ?? '0'],
-  );
-  return rows[0]?.value ?? '0';
 }
 
 function isZeroDecimalString(value: string): boolean {
@@ -1044,28 +1036,25 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
         },
       });
 
-      let wacReversal = computeWacReversalDelta({
-        extJsonb: original.ext_jsonb,
-        fallbackQtyKg: original.qty_kg,
-        fallbackValue: '0',
-      });
-      if (wacReversal.source === 'fallback') {
-        console.warn('[wac] reversal_fallback', { woOutputId: original.id });
-        const fallbackValue = await multiplyNumeric(ctx, original.qty_kg, original.cost_per_kg);
-        wacReversal = computeWacReversalDelta({
+      if (!isWacExcluded(original.ext_jsonb)) {
+        const wacReversal = computeWacReversalDelta({
           extJsonb: original.ext_jsonb,
           fallbackQtyKg: original.qty_kg,
-          fallbackValue,
+          fallbackValue: '0',
         });
+        if (wacReversal.source === 'snapshot') {
+          await upsertWac(ctx.client, {
+            orgId,
+            siteId: original.site_id,
+            itemId: original.product_id,
+            deltaQtyKg: wacReversal.deltaQtyKg,
+            deltaValue: wacReversal.deltaValue,
+            updatedBy: userId,
+          });
+        } else {
+          console.warn('[wac] void_skipped_no_snapshot', { woOutputId: original.id });
+        }
       }
-      await upsertWac(ctx.client, {
-        orgId,
-        siteId: original.site_id,
-        itemId: original.product_id,
-        deltaQtyKg: wacReversal.deltaQtyKg,
-        deltaValue: wacReversal.deltaValue,
-        updatedBy: userId,
-      });
 
       await writeOutputVoidStockMove(ctx, { original, lp, correctionId: correction.id, reasonCode, note });
       await markLpVoided(ctx, original.lp_id);

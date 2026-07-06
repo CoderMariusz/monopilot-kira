@@ -3,9 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type OrgContextLike, type QueryClient } from '../shared';
 
 const writeItemCostLedgerMock = vi.hoisted(() => vi.fn());
+const upsertWacMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../../../app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger', () => ({
   writeItemCostLedger: writeItemCostLedgerMock,
+}));
+
+vi.mock('../../finance/upsert-wac', () => ({
+  upsertWac: upsertWacMock,
 }));
 
 import { DisassemblyAbort, registerDisassemblyOutput } from './register-disassembly-output';
@@ -13,6 +18,7 @@ import { DisassemblyAbort, registerDisassemblyOutput } from './register-disassem
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const SITE_ID = '22222222-2222-4222-8222-222222222223';
+const OTHER_SITE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab';
 const WO_ID = '33333333-3333-4333-8333-333333333333';
 const BOM_ID = '44444444-4444-4444-8444-444444444444';
 const INPUT_LP_ID = '55555555-5555-4555-8555-555555555555';
@@ -35,7 +41,10 @@ let activeHold: { hold_id: string; reference_type: string; reference_id: string 
 let coProducts: CoProductFixture[];
 let consumedQty: string;
 let consumedQtyHasUnsupported: boolean;
-let inputCostPerKg: string;
+let consumptionWacValue: string | null;
+let consumptionWacQtyKg: string | null;
+let woSiteId: string;
+let warehouseSiteParam: string | null | undefined;
 let existingDisassemblyOutputs: Array<{ lp_id: string; lp_number: string }>;
 
 class MockClient implements QueryClient {
@@ -64,7 +73,7 @@ class MockClient implements QueryClient {
           {
             id: WO_ID,
             wo_number: 'WO-DIS-001',
-            site_id: SITE_ID,
+            site_id: woSiteId,
             uom: 'kg',
             bom_header_id: BOM_ID,
             bom_type: bomType,
@@ -97,10 +106,22 @@ class MockClient implements QueryClient {
         rows: [
           {
             id: INPUT_LP_ID,
-            cost_per_kg: inputCostPerKg,
             currency: 'PLN',
           },
         ] as T[],
+        rowCount: 1,
+      };
+    }
+
+    if (
+      normalized.includes('from public.wo_material_consumption c') &&
+      normalized.includes("ext_jsonb->>'wac_value'")
+    ) {
+      if (!consumptionWacValue || !consumptionWacQtyKg) {
+        return { rows: [{ wac_value: null, wac_qty_kg: null }] as T[], rowCount: 1 };
+      }
+      return {
+        rows: [{ wac_value: consumptionWacValue, wac_qty_kg: consumptionWacQtyKg }] as T[],
         rowCount: 1,
       };
     }
@@ -124,6 +145,7 @@ class MockClient implements QueryClient {
     }
 
     if (normalized.includes('from public.warehouses')) {
+      warehouseSiteParam = params[0] as string | null;
       return {
         rows: [
           {
@@ -154,8 +176,13 @@ class MockClient implements QueryClient {
     if (
       normalized.startsWith('insert into public.lp_genealogy') ||
       normalized.startsWith('insert into public.lp_state_history') ||
-      normalized.startsWith('insert into public.outbox_events')
+      normalized.startsWith('insert into public.outbox_events') ||
+      normalized.startsWith('update public.work_orders')
     ) {
+      return { rows: [] as T[], rowCount: 1 };
+    }
+
+    if (normalized.includes('insert into public.item_wac_state')) {
       return { rows: [] as T[], rowCount: 1 };
     }
 
@@ -205,7 +232,10 @@ describe('registerDisassemblyOutput', () => {
     activeHold = null;
     consumedQty = '100';
     consumedQtyHasUnsupported = false;
-    inputCostPerKg = '5.000000';
+    consumptionWacValue = '500.000000';
+    consumptionWacQtyKg = '100';
+    woSiteId = SITE_ID;
+    warehouseSiteParam = undefined;
     existingDisassemblyOutputs = [];
     coProducts = [
       { co_product_item_id: ITEM_A, allocation_pct: '50.000', is_byproduct: false },
@@ -213,6 +243,8 @@ describe('registerDisassemblyOutput', () => {
       { co_product_item_id: ITEM_C, allocation_pct: '20.000', is_byproduct: false },
     ];
     writeItemCostLedgerMock.mockReset();
+    upsertWacMock.mockReset();
+    upsertWacMock.mockResolvedValue({ totalQtyKg: '0', totalValue: '0', clamped: false });
     writeItemCostLedgerMock.mockResolvedValue({
       ok: true,
       data: {
@@ -244,7 +276,15 @@ describe('registerDisassemblyOutput', () => {
 
     const lpInserts = callsStartingWith('insert into public.license_plates');
     expect(lpInserts).toHaveLength(3);
+    expect(lpInserts.every((call) => call.params[0] === SITE_ID)).toBe(true);
     expect(lpInserts.map((call) => call.params[8])).toEqual([INPUT_LP_ID, INPUT_LP_ID, INPUT_LP_ID]);
+
+    expect(upsertWacMock).toHaveBeenCalledTimes(3);
+    expect(upsertWacMock.mock.calls[0]?.[1]).toMatchObject({
+      siteId: SITE_ID,
+      deltaQtyKg: '10.000',
+      deltaValue: '250.000000',
+    });
 
     const genealogyInserts = callsStartingWith('insert into public.lp_genealogy');
     expect(genealogyInserts).toHaveLength(3);
@@ -266,6 +306,71 @@ describe('registerDisassemblyOutput', () => {
 
     const outboxInserts = callsStartingWith('insert into public.outbox_events');
     expect(outboxInserts).toHaveLength(3);
+  });
+
+  it('returns allocation-pct-invalid when co-product allocation does not sum to 100', async () => {
+    coProducts = [
+      { co_product_item_id: ITEM_A, allocation_pct: '50.000', is_byproduct: false },
+      { co_product_item_id: ITEM_B, allocation_pct: '30.000', is_byproduct: false },
+      { co_product_item_id: ITEM_C, allocation_pct: '15.000', is_byproduct: false },
+    ];
+
+    const result = await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs: [
+        { coProductItemId: ITEM_A, qtyKg: '10.000' },
+        { coProductItemId: ITEM_B, qtyKg: '20.000' },
+        { coProductItemId: ITEM_C, qtyKg: '20.000' },
+      ],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'allocation-pct-invalid' });
+    expect(callsStartingWith('insert into public.license_plates')).toHaveLength(0);
+    expect(upsertWacMock).not.toHaveBeenCalled();
+  });
+
+  it('flags mass-balance warning when output kg exceeds consumed input beyond tolerance', async () => {
+    consumedQty = '100';
+    const outputs = [
+      { coProductItemId: ITEM_A, qtyKg: '50.000' },
+      { coProductItemId: ITEM_B, qtyKg: '30.000' },
+      { coProductItemId: ITEM_C, qtyKg: '25.000' },
+    ];
+
+    const result = await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected success');
+    expect(result.mass_balance_warning).toEqual({
+      input_kg: '100.000000',
+      output_kg: '105.000000',
+      warn_pct: 0.02,
+    });
+    expect(client.calls.some((call) => normalizeSql(call.sql).includes('over_production_flagged'))).toBe(true);
+  });
+
+  it('persists WAC snapshot on wo_outputs for symmetric void reversal', async () => {
+    await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs: [
+        { coProductItemId: ITEM_A, qtyKg: '10.000' },
+        { coProductItemId: ITEM_B, qtyKg: '20.000' },
+        { coProductItemId: ITEM_C, qtyKg: '20.000' },
+      ],
+    });
+
+    const woOutputInserts = callsStartingWith('insert into public.wo_outputs');
+    const ext = JSON.parse(String(woOutputInserts[0]?.params[9]));
+    expect(ext).toMatchObject({
+      wac_qty_kg: '10.000',
+      wac_value: '250.000000',
+    });
   });
 
   it('returns co-product-mismatch when an output item is not on the BOM', async () => {
@@ -342,7 +447,8 @@ describe('registerDisassemblyOutput', () => {
 
   it('allocates cost from consumed qty when input LP residual is zero', async () => {
     consumedQty = '20';
-    inputCostPerKg = '3.5';
+    consumptionWacValue = '70.000000';
+    consumptionWacQtyKg = '20';
     coProducts = [
       { co_product_item_id: ITEM_A, allocation_pct: '50.000', is_byproduct: false },
       { co_product_item_id: ITEM_B, allocation_pct: '50.000', is_byproduct: false },
@@ -530,7 +636,8 @@ describe('registerDisassemblyOutput', () => {
   it('allocates cost from kg-converted consumption when kg and each rows are present', async () => {
     consumedQty = '120';
     consumedQtyHasUnsupported = false;
-    inputCostPerKg = '2.5';
+    consumptionWacValue = '300.000000';
+    consumptionWacQtyKg = '120';
     coProducts = [
       { co_product_item_id: ITEM_A, allocation_pct: '50.000', is_byproduct: false },
       { co_product_item_id: ITEM_B, allocation_pct: '50.000', is_byproduct: false },
@@ -574,5 +681,95 @@ describe('registerDisassemblyOutput', () => {
     );
     expect(lockIdx).toBeGreaterThanOrEqual(0);
     expect(replayIdx).toBeGreaterThan(lockIdx);
+  });
+
+  it('values input from consumption WAC snapshot instead of current item cost', async () => {
+    consumedQty = '100';
+    consumptionWacValue = '1200.000000';
+    consumptionWacQtyKg = '100';
+    coProducts = [
+      { co_product_item_id: ITEM_A, allocation_pct: '100.000', is_byproduct: false },
+    ];
+
+    const result = await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs: [{ coProductItemId: ITEM_A, qtyKg: '100.000' }],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected success');
+
+    expect(upsertWacMock.mock.calls[0]?.[1]).toMatchObject({
+      deltaQtyKg: '100.000',
+      deltaValue: '1200.000000',
+    });
+  });
+
+  it('returns input-wac-snapshot-missing when consumption has no WAC snapshot', async () => {
+    consumptionWacValue = null;
+    consumptionWacQtyKg = null;
+
+    const result = await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs: [
+        { coProductItemId: ITEM_A, qtyKg: '10.000' },
+        { coProductItemId: ITEM_B, qtyKg: '20.000' },
+        { coProductItemId: ITEM_C, qtyKg: '20.000' },
+      ],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'input-wac-snapshot-missing' });
+    expect(callsStartingWith('insert into public.license_plates')).toHaveLength(0);
+  });
+
+  it('resolves warehouse using WO site_id rather than scanner session site', async () => {
+    woSiteId = OTHER_SITE_ID;
+
+    await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs: [
+        { coProductItemId: ITEM_A, qtyKg: '10.000' },
+        { coProductItemId: ITEM_B, qtyKg: '20.000' },
+        { coProductItemId: ITEM_C, qtyKg: '20.000' },
+      ],
+    });
+
+    expect(warehouseSiteParam).toBe(OTHER_SITE_ID);
+    const lpInserts = callsStartingWith('insert into public.license_plates');
+    expect(lpInserts[0]?.params[0]).toBe(OTHER_SITE_ID);
+  });
+
+  it('assigns allocation remainder to the last output so totals are exact', async () => {
+    consumptionWacValue = '300.000000';
+    consumptionWacQtyKg = '100';
+    coProducts = [
+      { co_product_item_id: ITEM_A, allocation_pct: '33.333', is_byproduct: false },
+      { co_product_item_id: ITEM_B, allocation_pct: '33.333', is_byproduct: false },
+      { co_product_item_id: ITEM_C, allocation_pct: '33.334', is_byproduct: false },
+    ];
+
+    const result = await registerDisassemblyOutput(makeCtx(), {
+      woId: WO_ID,
+      inputLpId: INPUT_LP_ID,
+      outputs: [
+        { coProductItemId: ITEM_A, qtyKg: '10.000' },
+        { coProductItemId: ITEM_B, qtyKg: '10.000' },
+        { coProductItemId: ITEM_C, qtyKg: '10.000' },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected success');
+
+    const allocatedCosts = callsStartingWith('insert into public.wo_outputs').map((call) => {
+      const ext = JSON.parse(String(call.params[9])) as { allocated_cost: string };
+      return ext.allocated_cost;
+    });
+    const allocatedTotal = allocatedCosts.reduce((sum, cost) => sum + Number(cost), 0);
+    expect(allocatedTotal).toBe(300);
+    expect(Number(allocatedCosts[2])).toBeGreaterThan(Number(allocatedCosts[0]));
   });
 });

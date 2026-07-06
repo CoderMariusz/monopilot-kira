@@ -968,7 +968,7 @@ describe('voidWoOutput', () => {
     expect(queries.some((q) => normalize(q.sql).startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value'))).toBe(false);
   });
 
-  it('voidWoOutput falls back to recomputed WAC reversal when no snapshot exists', async () => {
+  it('voidWoOutput skips WAC reversal when no snapshot exists', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const result = await voidWoOutput({
@@ -978,15 +978,21 @@ describe('voidWoOutput', () => {
     });
 
     expect(result).toEqual({ ok: true });
-    const wacWrite = queries.find((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
-    expect(wacWrite?.params).toEqual([
-      ORG_ID,
-      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      '-12.345',
-      '-43.2075',
-      USER_ID,
-    ]);
-    expect(console.warn).toHaveBeenCalledWith('[wac] reversal_fallback', { woOutputId: OUTPUT_ID });
+    expect(queries.some((q) => normalize(q.sql).includes('insert into public.item_wac_state'))).toBe(false);
+    expect(console.warn).toHaveBeenCalledWith('[wac] void_skipped_no_snapshot', { woOutputId: OUTPUT_ID });
+  });
+
+  it('voidWoOutput skips WAC reversal when output was flagged wac_excluded', async () => {
+    state.outputExtJsonb = { wac_excluded: 'un_costed' };
+
+    const result = await voidWoOutput({
+      outputId: OUTPUT_ID,
+      reasonCode: 'entry_error',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(queries.some((q) => normalize(q.sql).includes('insert into public.item_wac_state'))).toBe(false);
   });
 
   it('unlinks the voided output LP from lp_genealogy so the genealogy reader no longer returns it as a child', async () => {

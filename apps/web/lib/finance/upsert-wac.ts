@@ -245,7 +245,8 @@ export function computeWacDebitReversalDelta(input: {
 
 export function isWacExcluded(extJsonb: unknown): boolean {
   if (extJsonb == null || typeof extJsonb !== 'object' || Array.isArray(extJsonb)) return false;
-  return (extJsonb as { wac_excluded?: unknown }).wac_excluded === 'unresolved_uom';
+  const excluded = (extJsonb as { wac_excluded?: unknown }).wac_excluded;
+  return excluded === 'unresolved_uom' || excluded === 'un_costed';
 }
 
 export type WacConsumptionReversalResult =

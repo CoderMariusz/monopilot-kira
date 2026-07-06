@@ -40,6 +40,7 @@
  */
 import { z } from 'zod';
 
+import { resolveOutputWacContribution } from '../../finance/resolve-output-wac';
 import { upsertWac } from '../../finance/upsert-wac';
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../uom/convert';
 import { makeLpNumber, makeStockMoveNumber } from '../../warehouse/lp-create';
@@ -825,28 +826,52 @@ export async function registerOutput(
     ],
   );
 
-  const outputValue = await multiplyNumeric(ctx, resolvedQtyKg, item.cost_per_kg);
-  await upsertWac(ctx.client, {
-    orgId: ctx.orgId,
-    siteId: ctx.siteId ?? null,
-    itemId: input.product_id,
-    deltaQtyKg: resolvedQtyKg,
-    deltaValue: outputValue,
-    updatedBy: input.operator_id ?? ctx.userId,
+  const wacContribution = await resolveOutputWacContribution(ctx.client, {
+    woId,
+    qtyKg: resolvedQtyKg,
+    standardCostPerKg: item.cost_per_kg,
   });
-  await ctx.client.query(
-    `update public.wo_outputs
-        set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $2::jsonb,
-            updated_by = $3::uuid,
-            updated_at = now()
-      where org_id = app.current_org_id()
-        and id = $1::uuid`,
-    [
-      outputId,
-      JSON.stringify({ wac_qty_kg: resolvedQtyKg, wac_value: outputValue }),
-      input.operator_id ?? ctx.userId,
-    ],
-  );
+  if (!wacContribution.applied) {
+    await ctx.client.query(
+      `update public.wo_outputs
+          set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $2::jsonb,
+              updated_by = $3::uuid,
+              updated_at = now()
+        where org_id = app.current_org_id()
+          and id = $1::uuid`,
+      [
+        outputId,
+        JSON.stringify({ wac_excluded: wacContribution.excluded }),
+        input.operator_id ?? ctx.userId,
+      ],
+    );
+  } else {
+    await upsertWac(ctx.client, {
+      orgId: ctx.orgId,
+      siteId: wo.site_id,
+      itemId: input.product_id,
+      deltaQtyKg: wacContribution.deltaQtyKg,
+      deltaValue: wacContribution.deltaValue,
+      updatedBy: input.operator_id ?? ctx.userId,
+    });
+    await ctx.client.query(
+      `update public.wo_outputs
+          set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $2::jsonb,
+              updated_by = $3::uuid,
+              updated_at = now()
+        where org_id = app.current_org_id()
+          and id = $1::uuid`,
+      [
+        outputId,
+        JSON.stringify({
+          wac_qty_kg: wacContribution.deltaQtyKg,
+          wac_value: wacContribution.deltaValue,
+          wac_cost_source: wacContribution.source,
+        }),
+        input.operator_id ?? ctx.userId,
+      ],
+    );
+  }
 
   // 9. outbox (same txn).
   await emitOutbox(ctx, {
@@ -884,15 +909,6 @@ export async function registerOutput(
     label_pdf_url: null, // T-033
   };
 }
-
-async function multiplyNumeric(ctx: OrgContextLike, left: string, right: string | null): Promise<string> {
-  const { rows } = await ctx.client.query<{ value: string }>(
-    `select ($1::numeric * coalesce($2::numeric, 0))::text as value`,
-    [left, right ?? '0'],
-  );
-  return rows[0]?.value ?? '0';
-}
-
 function resolveQtyKg(wo: WoRow, input: RegisterOutputInputType): string {
   if (input.actualWeightKg) return input.actualWeightKg;
   if (input.qtyUnits && input.unitsUom) {

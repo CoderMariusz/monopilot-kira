@@ -135,6 +135,33 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('insert into public.lp_state_history')) {
         return { rows: [], rowCount: 1 };
       }
+      if (normalized.includes('with cfg as')) {
+        return {
+          rows: [
+            {
+              expected_input_kg: null,
+              posted_consumption_kg: '0',
+              effective_yield_pct: '100',
+              block_pct: '0',
+              warn: false,
+              block: false,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (normalized.includes('with material_wac as')) {
+        return {
+          rows: [{ material_cost: '0', prior_wac_booked: '0', output_baseline_kg: String(params[1] ?? '0') }],
+          rowCount: 1,
+        };
+      }
+      if (normalized.includes('select case') && normalized.includes('cost_per_kg')) {
+        return { rows: [{ cost_per_kg: null, output_value: null }], rowCount: 1 };
+      }
+      if (normalized.startsWith('select ($1::numeric * $2::numeric)::text as output_value')) {
+        return { rows: [{ output_value: String(Number(params[0]) * Number(params[1])) }], rowCount: 1 };
+      }
       if (normalized.startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value')) {
         return { rows: [{ value: String(Number(params[0] ?? 0) * Number(params[1] ?? 0)) }], rowCount: 1 };
       }
@@ -241,7 +268,7 @@ describe('registerOutput UOM quantity resolution', () => {
 
     expect(wacSnapshotUpdate?.params).toEqual([
       '66666666-6666-4666-8666-666666666666',
-      JSON.stringify({ wac_qty_kg: '111.000', wac_value: '277.5' }),
+      JSON.stringify({ wac_qty_kg: '111.000', wac_value: '277.5', wac_cost_source: 'standard' }),
       USER_ID,
     ]);
   });

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { writeItemCostLedger } from '../../../app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger';
+import { upsertWac } from '../../finance/upsert-wac';
 import { holdsGuard } from '../holds-guard';
 import { makeLpNumber } from '../../warehouse/lp-create';
 import {
@@ -53,7 +54,7 @@ export class DisassemblyAbort extends Error {
 }
 
 export type RegisterDisassemblyOutputResult =
-  | { ok: true; outputs: Array<{ lpId: string; lpCode: string }> }
+  | { ok: true; outputs: Array<{ lpId: string; lpCode: string }>; mass_balance_warning?: DisassemblyMassBalanceWarning }
   | { ok: false; reason: 'no_warehouse_for_site'; message: string }
   | { ok: false; error: string };
 
@@ -74,8 +75,12 @@ type CoProductRow = {
 
 type InputLpRow = {
   id: string;
-  cost_per_kg: string | null;
   currency: string | null;
+};
+
+type InputConsumptionWacRow = {
+  wac_value: string;
+  wac_qty_kg: string;
 };
 
 type ExistingOutputRow = {
@@ -86,8 +91,17 @@ type ExistingOutputRow = {
 type SiteWarehouseTarget = { id: string; default_location_id: string | null };
 
 const SCALE = 1_000_000n;
+const ALLOCATION_TARGET = 100n * SCALE;
+const ALLOCATION_TOLERANCE = 10_000n; // 0.01 percent points
+const DISASSEMBLY_MASS_BALANCE_WARN_PCT = 0.02;
 const NO_WAREHOUSE_FOR_SITE_MESSAGE =
   'No warehouse is configured for your site — set one in Settings -> Sites';
+
+export type DisassemblyMassBalanceWarning = {
+  input_kg: string;
+  output_kg: string;
+  warn_pct: number;
+};
 
 function decimalToFixed(value: string): bigint {
   const [intPart = '0', fracRaw = ''] = value.split('.');
@@ -109,6 +123,41 @@ function multiplyFixed(left: bigint, right: bigint): bigint {
 function divideFixed(left: bigint, right: bigint): bigint {
   if (right <= 0n) throw new Error('invalid_decimal_divisor');
   return (left * SCALE + right / 2n) / right;
+}
+
+function validateCoProductAllocationSum(coProducts: CoProductRow[]): boolean {
+  let sum = 0n;
+  for (const row of coProducts) {
+    sum += decimalToFixed(row.allocation_pct);
+  }
+  const diff = sum >= ALLOCATION_TARGET ? sum - ALLOCATION_TARGET : ALLOCATION_TARGET - sum;
+  return diff <= ALLOCATION_TOLERANCE;
+}
+
+function evaluateDisassemblyMassBalance(
+  inputKg: bigint,
+  outputKg: bigint,
+): DisassemblyMassBalanceWarning | undefined {
+  if (inputKg <= 0n) return undefined;
+  const diff = outputKg >= inputKg ? outputKg - inputKg : inputKg - outputKg;
+  const warnThreshold = (inputKg * 2n + 50n) / 100n;
+  if (diff <= warnThreshold) return undefined;
+  return {
+    input_kg: fixedToDecimal(inputKg),
+    output_kg: fixedToDecimal(outputKg),
+    warn_pct: DISASSEMBLY_MASS_BALANCE_WARN_PCT,
+  };
+}
+
+async function flagDisassemblyMassBalanceWarning(ctx: OrgContextLike, woId: string): Promise<void> {
+  await ctx.client.query(
+    `update public.work_orders
+        set over_production_flagged = true,
+            over_production_flagged_at = coalesce(over_production_flagged_at, now())
+      where id = $1::uuid
+        and org_id = app.current_org_id()`,
+    [woId],
+  );
 }
 
 async function loadWoBom(ctx: OrgContextLike, woId: string): Promise<WoBomRow | null> {
@@ -252,14 +301,10 @@ async function loadExistingDisassemblyOutputs(
 async function loadInputLp(ctx: OrgContextLike, inputLpId: string): Promise<InputLpRow | null> {
   const { rows } = await ctx.client.query<InputLpRow>(
     `select lp.id::text as id,
-            coalesce(ch.cost_per_kg::text, item.cost_per_kg::text) as cost_per_kg,
             coalesce(trim(ch.currency::text), 'GBP') as currency
        from public.license_plates lp
-       left join public.items item
-         on item.org_id = lp.org_id
-        and item.id = lp.product_id
        left join lateral (
-         select cost_per_kg, currency
+         select currency
            from public.item_cost_history
           where org_id = app.current_org_id()
             and item_id = lp.product_id
@@ -275,6 +320,32 @@ async function loadInputLp(ctx: OrgContextLike, inputLpId: string): Promise<Inpu
   return rows[0] ?? null;
 }
 
+async function loadInputConsumptionWacSnapshot(
+  ctx: OrgContextLike,
+  woId: string,
+  inputLpId: string,
+): Promise<InputConsumptionWacRow | null> {
+  const { rows } = await ctx.client.query<InputConsumptionWacRow>(
+    `select sum(nullif(c.ext_jsonb->>'wac_value', '')::numeric)::text as wac_value,
+            sum(nullif(c.ext_jsonb->>'wac_qty_kg', '')::numeric)::text as wac_qty_kg
+       from public.wo_material_consumption c
+      where c.org_id = app.current_org_id()
+        and c.wo_id = $1::uuid
+        and c.lp_id = $2::uuid
+        and c.correction_of_id is null`,
+    [woId, inputLpId],
+  );
+  const row = rows[0];
+  if (!row?.wac_value || !row.wac_qty_kg || isZeroDecimal(row.wac_value) || isZeroDecimal(row.wac_qty_kg)) {
+    return null;
+  }
+  return row;
+}
+
+function isZeroDecimal(value: string): boolean {
+  return /^-?0+(?:\.0+)?$/.test(value.trim());
+}
+
 async function nextOutputSequence(ctx: OrgContextLike, woId: string): Promise<number> {
   const { rows } = await ctx.client.query<{ seq: string }>(
     `select count(*)::text as seq
@@ -286,12 +357,12 @@ async function nextOutputSequence(ctx: OrgContextLike, woId: string): Promise<nu
   return Number(rows[0]?.seq ?? '0') + 1;
 }
 
-async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<SiteWarehouseTarget | null> {
-  // Resilient resolution (see register-output.ts): prefer a site-linked
-  // warehouse, then the org default, then the org's first warehouse — so
-  // disassembly output never 409s 'no_warehouse_for_site' just because the
-  // WO/session has no site or no warehouse is site-linked. Null only when the
-  // org has zero warehouses.
+async function resolveWarehouseForSite(
+  ctx: OrgContextLike,
+  siteId: string | null,
+): Promise<SiteWarehouseTarget | null> {
+  // Resolve warehouse for the WO site (not the scanner session site) so LP
+  // site_id and warehouse/location stay on the same site as the work order.
   const { rows } = await ctx.client.query<SiteWarehouseTarget>(
     `select w.id,
             (select l.id
@@ -307,7 +378,7 @@ async function resolveWarehouseForSessionSite(ctx: OrgContextLike): Promise<Site
                w.name asc,
                w.id asc
       limit 1`,
-    [ctx.siteId ?? null],
+    [siteId],
   );
   return rows[0] ?? null;
 }
@@ -316,6 +387,7 @@ async function createDisassemblyOutputLp(
   ctx: OrgContextLike,
   warehouse: SiteWarehouseTarget,
   input: {
+    siteId: string | null;
     woId: string;
     inputLpId: string;
     coProductItemId: string;
@@ -339,7 +411,7 @@ async function createDisassemblyOutputLp(
      )
      returning id`,
     [
-      ctx.siteId,
+      input.siteId,
       warehouse.id,
       warehouse.default_location_id,
       lpCode,
@@ -397,6 +469,8 @@ async function insertWoOutput(
     inputLpId: string;
     allocationPct: string;
     allocatedCost: string;
+    wacQtyKg: string;
+    wacValue: string;
   },
 ): Promise<string> {
   const { rows } = await ctx.client.query<{ id: string }>(
@@ -423,6 +497,8 @@ async function insertWoOutput(
         disassembly_input_lp_id: input.inputLpId,
         allocation_pct: input.allocationPct,
         allocated_cost: input.allocatedCost,
+        wac_qty_kg: input.wacQtyKg,
+        wac_value: input.wacValue,
       }),
     ],
   );
@@ -450,6 +526,9 @@ export async function registerDisassemblyOutput(
 
   const coProducts = await loadCoProducts(ctx, wo.bom_header_id);
   const coProductByItem = new Map(coProducts.map((row) => [row.co_product_item_id, row]));
+  if (!validateCoProductAllocationSum(coProducts)) {
+    return { ok: false, error: 'allocation-pct-invalid' };
+  }
   const outputItemIds = new Set(input.outputs.map((output) => output.coProductItemId));
   if (
     outputItemIds.size !== input.outputs.length ||
@@ -460,15 +539,18 @@ export async function registerDisassemblyOutput(
   }
 
   const inputLp = await loadInputLp(ctx, input.inputLpId);
-  if (!inputLp || !inputLp.cost_per_kg) return { ok: false, error: 'input-cost-missing' };
+  if (!inputLp) return { ok: false, error: 'not-found' };
+
+  const consumptionWac = await loadInputConsumptionWacSnapshot(ctx, input.woId, input.inputLpId);
+  if (!consumptionWac) return { ok: false, error: 'input-wac-snapshot-missing' };
 
   const consumedQtyResult = await loadConsumedQtyKg(ctx, input.woId, input.inputLpId);
   if (!consumedQtyResult.ok) return consumedQtyResult;
   const consumedQty = consumedQtyResult.qtyKg;
   if (consumedQty <= 0n) return { ok: false, error: 'input-not-consumed' };
 
-  const inputCostPerKg = decimalToFixed(inputLp.cost_per_kg);
-  if (inputCostPerKg < 0n) return { ok: false, error: 'input-cost-invalid' };
+  const totalInputCost = decimalToFixed(consumptionWac.wac_value);
+  if (totalInputCost < 0n) return { ok: false, error: 'input-cost-invalid' };
 
   const status = await readWoExecutionStatus(ctx, input.woId);
   if (status === null || !OUTPUT_RECORDABLE_STATES.has(status)) {
@@ -502,7 +584,7 @@ export async function registerDisassemblyOutput(
     };
   }
 
-  const warehouse = await resolveWarehouseForSessionSite(ctx);
+  const warehouse = await resolveWarehouseForSite(ctx, wo.site_id);
   if (!warehouse) {
     return {
       ok: false,
@@ -511,10 +593,19 @@ export async function registerDisassemblyOutput(
     };
   }
 
-  const totalInputCost = multiplyFixed(consumedQty, inputCostPerKg);
+  let totalOutputQty = 0n;
+  for (const output of input.outputs) {
+    totalOutputQty += decimalToFixed(output.qtyKg);
+  }
+  const massBalanceWarning = evaluateDisassemblyMassBalance(consumedQty, totalOutputQty);
+  if (massBalanceWarning) {
+    await flagDisassemblyMassBalanceWarning(ctx, input.woId);
+  }
+
   const firstSequence = await nextOutputSequence(ctx, input.woId);
   const results: Array<{ lpId: string; lpCode: string }> = [];
   let allocatedSoFar = 0n;
+  const lastOutputIndex = input.outputs.length - 1;
 
   for (const [index, output] of input.outputs.entries()) {
     const coProduct = coProductByItem.get(output.coProductItemId);
@@ -522,7 +613,7 @@ export async function registerDisassemblyOutput(
 
     const allocationPct = decimalToFixed(coProduct.allocation_pct);
     const allocatedCost =
-      index === input.outputs.length - 1
+      index === lastOutputIndex
         ? totalInputCost - allocatedSoFar
         : divideFixed(multiplyFixed(totalInputCost, allocationPct), decimalToFixed('100'));
     if (allocatedCost < 0n) throw new DisassemblyAbort('cost-allocation-invalid');
@@ -530,6 +621,7 @@ export async function registerDisassemblyOutput(
 
     const batchNumber = `${wo.wo_number}-OUT-${String(firstSequence + index).padStart(3, '0')}`;
     const createdLp = await createDisassemblyOutputLp(ctx, warehouse, {
+      siteId: wo.site_id,
       woId: input.woId,
       inputLpId: input.inputLpId,
       coProductItemId: output.coProductItemId,
@@ -539,6 +631,9 @@ export async function registerDisassemblyOutput(
       actorUserId,
     });
 
+    const outputQty = decimalToFixed(output.qtyKg);
+    const outputCostPerKg = divideFixed(allocatedCost, outputQty);
+    const wacValue = fixedToDecimal(allocatedCost);
     const transactionId = randomUUID();
     const outputType = coProduct.is_byproduct ? 'by_product' : 'co_product';
     const outputId = await insertWoOutput(ctx, {
@@ -552,11 +647,20 @@ export async function registerDisassemblyOutput(
       actorUserId,
       inputLpId: input.inputLpId,
       allocationPct: coProduct.allocation_pct,
-      allocatedCost: fixedToDecimal(allocatedCost),
+      allocatedCost: wacValue,
+      wacQtyKg: output.qtyKg,
+      wacValue,
     });
 
-    const outputQty = decimalToFixed(output.qtyKg);
-    const outputCostPerKg = divideFixed(allocatedCost, outputQty);
+    await upsertWac(ctx.client, {
+      orgId: ctx.orgId,
+      siteId: wo.site_id,
+      itemId: output.coProductItemId,
+      deltaQtyKg: output.qtyKg,
+      deltaValue: wacValue,
+      updatedBy: actorUserId,
+    });
+
     const costResult = await writeItemCostLedger(ctx.client, {
       orgId: ctx.orgId,
       userId: actorUserId,
@@ -588,6 +692,7 @@ export async function registerDisassemblyOutput(
         units_uom: null,
         actual_weight_kg: output.qtyKg,
         catch_weight_variance_warning: false,
+        mass_balance_warning: massBalanceWarning ?? null,
         actor_user_id: ctx.userId,
       },
       dedupKey: `${PRODUCTION_OUTPUT_RECORDED_EVENT}:${transactionId}`,
@@ -596,5 +701,9 @@ export async function registerDisassemblyOutput(
     results.push({ lpId: createdLp.id, lpCode: createdLp.lpCode });
   }
 
-  return { ok: true, outputs: results };
+  return {
+    ok: true,
+    outputs: results,
+    ...(massBalanceWarning ? { mass_balance_warning: massBalanceWarning } : {}),
+  };
 }
