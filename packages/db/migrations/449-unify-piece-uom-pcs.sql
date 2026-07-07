@@ -41,7 +41,12 @@ select pg_temp._migrate_piece_uom(
 );
 select pg_temp._migrate_piece_uom(
   'bom_lines.uom',
-  $$update public.bom_lines set uom = 'pcs' where uom in ('szt', 'ea')$$
+  $$update public.bom_lines set uom = 'pcs'
+    where uom in ('szt', 'ea')
+      -- bom_lines_reject_approved_header_update: lines under technical_approved/
+      -- active headers are immutable (mig 090). 0 such rows at authoring time;
+      -- skip-with-notice below if any ever appear (escalate to owner).
+      and bom_header_id in (select id from public.bom_headers where status not in ('technical_approved', 'active'))$$
 );
 select pg_temp._migrate_piece_uom(
   'bom_co_products.uom',
@@ -85,11 +90,12 @@ select pg_temp._migrate_piece_uom(
 );
 select pg_temp._migrate_piece_uom(
   'grn_items.uom',
-  $$update public.grn_items set uom = 'pcs' where uom in ('szt', 'ea')$$
-);
-select pg_temp._migrate_piece_uom(
-  'sales_order_lines.uom',
-  $$update public.sales_order_lines set uom = 'pcs' where uom in ('szt', 'ea')$$
+  $$update public.grn_items set uom = 'pcs'
+    where uom in ('szt', 'ea')
+      -- V-WH-GRN-001: completed/cancelled GRN items are frozen history (trigger
+      -- grn_items_block_completed_grn raises). Same ruling as bom_snapshots:
+      -- leave frozen rows as-is; app normalizes piece codes on read.
+      and grn_id in (select id from public.grns where status not in ('completed', 'cancelled'))$$
 );
 select pg_temp._migrate_piece_uom(
   'schedule_outputs.uom',
@@ -276,7 +282,12 @@ select pg_temp._migrate_piece_uom(
 );
 select pg_temp._migrate_piece_uom(
   'final-sweep: bom_lines.uom',
-  $$update public.bom_lines set uom = 'pcs' where uom in ('szt', 'ea')$$
+  $$update public.bom_lines set uom = 'pcs'
+    where uom in ('szt', 'ea')
+      -- bom_lines_reject_approved_header_update: lines under technical_approved/
+      -- active headers are immutable (mig 090). 0 such rows at authoring time;
+      -- skip-with-notice below if any ever appear (escalate to owner).
+      and bom_header_id in (select id from public.bom_headers where status not in ('technical_approved', 'active'))$$
 );
 select pg_temp._migrate_piece_uom(
   'final-sweep: bom_co_products.uom',
@@ -320,11 +331,12 @@ select pg_temp._migrate_piece_uom(
 );
 select pg_temp._migrate_piece_uom(
   'final-sweep: grn_items.uom',
-  $$update public.grn_items set uom = 'pcs' where uom in ('szt', 'ea')$$
-);
-select pg_temp._migrate_piece_uom(
-  'final-sweep: sales_order_lines.uom',
-  $$update public.sales_order_lines set uom = 'pcs' where uom in ('szt', 'ea')$$
+  $$update public.grn_items set uom = 'pcs'
+    where uom in ('szt', 'ea')
+      -- V-WH-GRN-001: completed/cancelled GRN items are frozen history (trigger
+      -- grn_items_block_completed_grn raises). Same ruling as bom_snapshots:
+      -- leave frozen rows as-is; app normalizes piece codes on read.
+      and grn_id in (select id from public.grns where status not in ('completed', 'cancelled'))$$
 );
 select pg_temp._migrate_piece_uom(
   'final-sweep: schedule_outputs.uom',
@@ -401,5 +413,19 @@ select pg_temp._migrate_piece_uom(
     where uom_snapshot is not null
       and uom_snapshot->>'uom_base' in ('szt', 'ea')$$
 );
+
+-- ── Frozen-row visibility: report legacy piece codes left in immutable rows ──
+do $$
+declare v_grn integer; v_bom integer;
+begin
+  select count(*) into v_grn from public.grn_items gi
+    join public.grns g on g.id = gi.grn_id
+   where gi.uom in ('szt', 'ea') and g.status in ('completed', 'cancelled');
+  select count(*) into v_bom from public.bom_lines bl
+    join public.bom_headers bh on bh.id = bl.bom_header_id
+   where bl.uom in ('szt', 'ea') and bh.status in ('technical_approved', 'active');
+  raise notice '449: frozen legacy rows left as-is (normalize-on-read) — grn_items: %, bom_lines(locked): %', v_grn, v_bom;
+end
+$$;
 
 commit;
