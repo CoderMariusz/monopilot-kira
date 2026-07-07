@@ -19,7 +19,10 @@
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
-import { seedHandoffChecklist } from '../../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
+import {
+  GATE_APPROVE_PERMISSION,
+  seedHandoffChecklist,
+} from '../../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import { probeReleaseGates, type ReleaseGateStatus } from './release-gate-status';
 
 const Input = z.object({
@@ -59,6 +62,8 @@ export type HandoffData = {
   ready: boolean;
   /** True once the factory release has been recorded for this project. */
   promoted: boolean;
+  /** True when the caller may revert a release-locked project (npd.gate.approve). */
+  canRevertToNpd: boolean;
   checklist: HandoffChecklistItemDto[];
   destinationBom: HandoffDestinationBomDto;
   /**
@@ -302,6 +307,7 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
       const promoted =
         release?.release_status === 'released_to_factory' ||
         checklist.promote_to_production_date !== null;
+      const canRevertToNpd = await hasHandoffPermission(ctx, GATE_APPROVE_PERMISSION);
 
       return {
         ok: true as const,
@@ -312,6 +318,7 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
           promoteToProductionDate: checklist.promote_to_production_date,
           ready,
           promoted,
+          canRevertToNpd,
           checklist: items,
           releaseGates,
           releaseGatesMet,

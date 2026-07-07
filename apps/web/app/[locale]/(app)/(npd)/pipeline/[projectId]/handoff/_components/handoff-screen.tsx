@@ -77,6 +77,8 @@ export type HandoffScreenData = {
   releaseGates: HandoffReleaseGateView[];
   /** True ⇔ every release gate is met. */
   releaseGatesMet: boolean;
+  /** True when the caller may revert a release-locked project (npd.gate.approve). */
+  canRevertToNpd: boolean;
 };
 
 export type HandoffLabels = {
@@ -129,6 +131,16 @@ export type HandoffLabels = {
   releaseToFactoryError: string;
   releasedToFactoryTitle: string;
   releasedToFactoryBody: string;
+  revertToNpd: string;
+  revertingToNpd: string;
+  revertModalTitle: string;
+  revertModalBody: string;
+  revertReasonLabel: string;
+  revertReasonPlaceholder: string;
+  revertCancel: string;
+  revertConfirm: string;
+  revertError: string;
+  revertErrorForbidden: string;
   // "Generate production BOM" step — breaks the handoff deadlock (the
   // ACTIVE_SHARED_BOM / FACTORY_SPEC gates were only ever satisfied INSIDE
   // promote, so promote could never be reached). Generate builds the BOM first.
@@ -226,6 +238,12 @@ export type ToggleChecklistCall = { itemId: string; isChecked: boolean };
 export type ToggleChecklistOutcome = { ok: boolean; error?: string };
 export type UpdateBomYieldCall = { bomHeaderId: string; yieldPct: number };
 export type UpdateBomYieldOutcome = { ok: boolean; error?: string };
+export type RevertToNpdCall = { projectId: string; reason: string };
+export type RevertToNpdOutcome = {
+  ok: boolean;
+  error?: string;
+  message?: string;
+};
 
 function yieldErrorMessage(labels: HandoffLabels, code: string): string {
   switch (code) {
@@ -341,6 +359,7 @@ export function HandoffScreen({
   onGenerate,
   onToggleChecklistItem,
   onUpdateBomYield,
+  onRevertToNpd,
 }: {
   state?: PageState;
   data: HandoffScreenData | null;
@@ -351,6 +370,7 @@ export function HandoffScreen({
   onGenerate?: (call: GenerateCall) => Promise<GenerateOutcome>;
   onToggleChecklistItem?: (call: ToggleChecklistCall) => Promise<ToggleChecklistOutcome>;
   onUpdateBomYield?: (call: UpdateBomYieldCall) => Promise<UpdateBomYieldOutcome>;
+  onRevertToNpd?: (call: RevertToNpdCall) => Promise<RevertToNpdOutcome>;
 }) {
   const router = useRouter();
   const [optimistic, setOptimistic] = React.useState<Record<string, boolean>>({});
@@ -372,6 +392,10 @@ export function HandoffScreen({
   const [yieldSaved, setYieldSaved] = React.useState(false);
   const [yieldDismissed, setYieldDismissed] = React.useState(false);
   const [yieldError, setYieldError] = React.useState<string | null>(null);
+  const [revertModalOpen, setRevertModalOpen] = React.useState(false);
+  const [revertReason, setRevertReason] = React.useState('');
+  const [revertingToNpd, setRevertingToNpd] = React.useState(false);
+  const [revertError, setRevertError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setOptimistic({});
@@ -385,7 +409,24 @@ export function HandoffScreen({
     setYieldSaved(false);
     setYieldDismissed(false);
     setYieldError(null);
+    setRevertModalOpen(false);
+    setRevertReason('');
+    setRevertingToNpd(false);
+    setRevertError(null);
   }, [data?.checklistId]);
+
+  const revertTitleId = React.useId();
+
+  React.useEffect(() => {
+    if (!revertModalOpen) return;
+    setRevertReason('');
+    setRevertError(null);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setRevertModalOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [revertModalOpen]);
 
   if (state !== 'ready' || !data) {
     return (
@@ -404,7 +445,8 @@ export function HandoffScreen({
     );
   }
 
-  const { checklist, destinationBom, promoted, releaseGates } = data;
+  const { checklist, destinationBom, promoted, releaseGates, canRevertToNpd } = data;
+  const showRevertToNpd = promoted && canRevertToNpd && !!onRevertToNpd;
 
   // Optimistic checklist projection (server is the source of truth).
   const effectiveChecklist = checklist.map((item) => ({
@@ -593,6 +635,34 @@ export function HandoffScreen({
     const stamp = isoDateStamp();
     const packet = buildHandoffPacket(data, effectiveChecklist, new Date().toISOString());
     downloadJson(packet, handoffPacketFilename(data, stamp));
+  }
+
+  function mapRevertError(error: string, message?: string | null): string {
+    if (error === 'forbidden') return labels.revertErrorForbidden;
+    if (error === 'active_work_orders' && message) return message;
+    if (message) return message;
+    return labels.revertError;
+  }
+
+  async function handleRevertConfirm() {
+    if (!onRevertToNpd || revertingToNpd) return;
+    const reason = revertReason.trim();
+    if (!reason) return;
+    setRevertingToNpd(true);
+    setRevertError(null);
+    try {
+      const result = await onRevertToNpd({ projectId: data!.projectId, reason });
+      if (!result.ok) {
+        setRevertError(mapRevertError(result.error ?? 'error', result.message));
+        return;
+      }
+      setRevertModalOpen(false);
+      router.refresh();
+    } catch {
+      setRevertError(labels.revertError);
+    } finally {
+      setRevertingToNpd(false);
+    }
   }
 
   const steps = [
@@ -1014,6 +1084,18 @@ export function HandoffScreen({
 
       {/* Footer actions — prototype lines 530-533. */}
       <div className="flex justify-end gap-2">
+        {showRevertToNpd ? (
+          <button
+            type="button"
+            className="btn btn-danger"
+            data-testid="handoff-revert-to-npd-btn"
+            disabled={revertingToNpd}
+            aria-disabled={revertingToNpd}
+            onClick={() => setRevertModalOpen(true)}
+          >
+            {revertingToNpd ? labels.revertingToNpd : labels.revertToNpd}
+          </button>
+        ) : null}
         <button
           type="button"
           className="btn btn-secondary"
@@ -1044,6 +1126,89 @@ export function HandoffScreen({
           {promoting ? labels.promoting : labels.promote}
         </button>
       </div>
+
+      {revertModalOpen ? (
+        <div
+          className="modal-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !revertingToNpd) setRevertModalOpen(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={revertTitleId}
+            className="modal-box outline-none"
+            data-testid="handoff-revert-modal"
+          >
+            <div className="modal-head">
+              <h2 id={revertTitleId} className="modal-title">
+                {labels.revertModalTitle}
+              </h2>
+              <button
+                type="button"
+                aria-label={labels.revertCancel}
+                className="modal-close"
+                disabled={revertingToNpd}
+                onClick={() => setRevertModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className="helper">{labels.revertModalBody}</p>
+              <label className="mt-3 flex flex-col gap-1 text-sm">
+                <span className="font-medium">
+                  {labels.revertReasonLabel}{' '}
+                  <span className="helper" style={{ fontWeight: 400 }}>
+                    *
+                  </span>
+                </span>
+                <textarea
+                  data-testid="handoff-revert-reason"
+                  value={revertReason}
+                  onChange={(event) => setRevertReason(event.target.value)}
+                  placeholder={labels.revertReasonPlaceholder}
+                  rows={3}
+                  disabled={revertingToNpd}
+                  className="rounded-md border px-2.5 py-1.5 focus:outline-none"
+                  style={{ borderColor: 'var(--border)' }}
+                />
+              </label>
+              {revertError ? (
+                <div
+                  role="alert"
+                  className="alert alert-red mt-3"
+                  style={{ fontSize: 12 }}
+                  data-testid="handoff-revert-error"
+                >
+                  {revertError}
+                </div>
+              ) : null}
+            </div>
+            <div className="modal-foot">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={revertingToNpd}
+                onClick={() => setRevertModalOpen(false)}
+              >
+                {labels.revertCancel}
+              </button>
+              <button
+                type="button"
+                data-testid="handoff-revert-confirm"
+                className="btn btn-danger btn-sm"
+                disabled={revertingToNpd || !revertReason.trim()}
+                aria-busy={revertingToNpd}
+                onClick={() => void handleRevertConfirm()}
+              >
+                {revertingToNpd ? labels.revertingToNpd : labels.revertConfirm}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

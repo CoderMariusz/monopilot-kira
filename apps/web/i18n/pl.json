@@ -6643,7 +6643,17 @@
       "generateWarningNoLine": "BOM produkcyjny utworzony, ale nie ustawiono linii produkcyjnej w projekcie — marszruta nie została utworzona.",
       "generateWarningNoProcesses": "BOM produkcyjny utworzony, ale nie znaleziono procesów NPD do utworzenia marszruty.",
       "generateWarningRoutingDraft": "Marszruta utworzona jako SZKIC — zatwierdź i aktywuj ją w Techniczne → Marszruty, aby zlecenia produkcyjne pobrały kroki produkcji.",
-      "generatePacksPerBoxRequired": "Ustaw liczbę paczek na karton na FG przed wygenerowaniem BOM produkcyjnego."
+      "generatePacksPerBoxRequired": "Ustaw liczbę paczek na karton na FG przed wygenerowaniem BOM produkcyjnego.",
+      "revertToNpd": "Przywróć do NPD",
+      "revertingToNpd": "Przywracanie…",
+      "revertModalTitle": "Przywróć do NPD",
+      "revertModalBody": "Odblokowuje projekt z powrotem do etapu przekazania. Zwolniona specyfikacja fabryczna może zostać wycofana. Podaj powód do ścieżki audytu.",
+      "revertReasonLabel": "Powód",
+      "revertReasonPlaceholder": "Dlaczego to wydanie jest cofane?",
+      "revertCancel": "Anuluj",
+      "revertConfirm": "Przywróć do NPD",
+      "revertError": "Nie udało się przywrócić do NPD. Spróbuj ponownie.",
+      "revertErrorForbidden": "Nie masz uprawnień do cofnięcia tego projektu."
     },
     "pipelineCreate": {
       "title": "Utwórz projekt NPD",
