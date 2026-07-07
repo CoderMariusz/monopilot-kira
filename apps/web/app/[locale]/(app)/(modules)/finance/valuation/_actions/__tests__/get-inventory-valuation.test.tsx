@@ -108,7 +108,7 @@ describe('getInventoryValuation', () => {
     expect(valuationCalls.some((call) => call.sql.includes('count(*)::int as lp_count'))).toBe(true);
     expect(valuationCalls.some((call) => call.sql.includes('left join public.item_wac_state wac'))).toBe(true);
     expect(valuationCalls.some((call) => call.sql.includes('where lp.org_id = app.current_org_id()'))).toBe(true);
-    expect(valuationCalls.some((call) => call.sql.includes("when lp.uom = 'each'"))).toBe(true);
+    expect(valuationCalls.some((call) => call.sql.includes("when lower(lp.uom) = 'each'"))).toBe(true);
     expect(valuationCalls.some((call) => call.sql.includes('sum(base_qty_kg * wac)'))).toBe(true);
     expect(valuationCalls.some((call) => call.sql.includes('sum(base_qty_kg)::text as qty_on_hand'))).toBe(true);
   });
@@ -146,8 +146,8 @@ describe('getInventoryValuation', () => {
     expect(result.data.unvalued).toEqual({ lpCount: 0, qty: '0.000000' });
 
     const valuedCall = calls.find((call) => call.sql.includes('group by item_id'));
-    expect(valuedCall?.sql).toContain("when lp.uom = 'box'");
-    expect(valuedCall?.sql).toContain('lp.quantity * i.each_per_box * i.net_qty_per_each');
+    expect(valuedCall?.sql).toContain("when lower(lp.uom) = 'box'");
+    expect(valuedCall?.sql).toContain('lp.quantity * i.each_per_box::numeric * i.net_qty_per_each');
   });
 
   it('excludes unconvertible UoM and missing-cost LPs into the unvalued bucket', async () => {
@@ -186,5 +186,33 @@ describe('getInventoryValuation', () => {
     const unvaluedCall = calls.find((call) => call.sql.includes('count(*)::int as lp_count'));
     expect(unvaluedCall?.sql).toContain('or base_qty_kg is null');
     expect(unvaluedCall?.sql).toContain('wac is null');
+  });
+
+  it('excludes LPs whose item base UoM is not kg (mirrors resolveWacDeltaQtyKg)', async () => {
+    valuedRows = [];
+    unvaluedRow = { lp_count: 1, qty: '25' };
+
+    const result = await getInventoryValuation();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.rows).toEqual([]);
+    expect(result.data.grandTotals).toEqual([]);
+    expect(result.data.unvalued).toEqual({ lpCount: 1, qty: '25.000000' });
+
+    const valuationCalls = calls.filter((call) => call.sql.includes('with lp_valuation as'));
+    expect(valuationCalls).toHaveLength(2);
+
+    const cteSql = valuationCalls[0]?.sql ?? '';
+    expect(cteSql).toContain("when lower(lp.uom) = 'kg' then lp.quantity");
+    expect(cteSql).toContain(
+      "when lower(lp.uom) = 'base' and lower(coalesce(i.uom_base, '')) = 'kg' then lp.quantity",
+    );
+    expect(cteSql).toContain(
+      "when lower(lp.uom) = lower(coalesce(i.uom_base, '')) and lower(coalesce(i.uom_base, '')) = 'kg' then lp.quantity",
+    );
+    expect(cteSql).not.toContain("coalesce(i.uom_base, 'kg')");
+    expect(cteSql).not.toContain("lp.uom = 'base' then lp.quantity");
   });
 });

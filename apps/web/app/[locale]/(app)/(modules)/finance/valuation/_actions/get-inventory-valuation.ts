@@ -47,14 +47,18 @@ with lp_valuation as (
          wac.avg_cost as wac,
          c.code as currency,
          case
-           when lp.uom = coalesce(i.uom_base, 'kg') or lp.uom = 'base' then lp.quantity
-           when lp.uom = 'each'
+           when lower(lp.uom) = 'kg' then lp.quantity
+           when lower(lp.uom) = 'base'
+             and lower(coalesce(i.uom_base, '')) = 'kg' then lp.quantity
+           when lower(lp.uom) = lower(coalesce(i.uom_base, ''))
+             and lower(coalesce(i.uom_base, '')) = 'kg' then lp.quantity
+           when lower(lp.uom) = 'each'
              and i.net_qty_per_each is not null
              then lp.quantity * i.net_qty_per_each
-           when lp.uom = 'box'
+           when lower(lp.uom) = 'box'
              and i.net_qty_per_each is not null
              and i.each_per_box is not null
-             then lp.quantity * i.each_per_box * i.net_qty_per_each
+             then lp.quantity * i.each_per_box::numeric * i.net_qty_per_each
            else null
          end as base_qty_kg
     from public.license_plates lp
