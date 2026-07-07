@@ -20,6 +20,7 @@ export const packagingComponents = pgTable(
     tier: text('tier').notNull(),
     componentName: text('component_name').notNull(),
     material: text('material'),
+    supplierId: uuid('supplier_id'),
     supplierCode: text('supplier_code'),
     spec: text('spec'),
     costPerUnit: numeric('cost_per_unit', { precision: 12, scale: 4 }),

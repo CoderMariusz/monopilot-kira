@@ -30,6 +30,9 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
   }
   const input = parsed.data;
   const rawRecord = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  if (!input.id && input.supplierCode?.trim() && !input.supplierId) {
+    return { ok: false, error: 'invalid_input', message: 'Supplier must be selected from the supplier master' };
+  }
   const unifiedWastePct =
     rawRecord.wastePct !== undefined
       ? input.wastePct
@@ -53,7 +56,6 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
       if (proj.rows.length === 0) return { ok: false as const, error: 'not_found' as const };
 
       const material = input.material ?? null;
-      const supplierCode = input.supplierCode ?? null;
       const spec = input.spec ?? null;
       const costPerUnit = input.costPerUnit ?? null;
       const scrapPct = unifiedWastePct;
@@ -74,10 +76,48 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
         if (item.rows.length === 0) return { ok: false as const, error: 'invalid_input' as const };
       }
 
+      let beforeRow: { supplier_id: string | null; supplier_code: string | null } | null = null;
+      if (input.id) {
+        const before = await queryClient.query<{ supplier_id: string | null; supplier_code: string | null }>(
+          `select supplier_id::text as supplier_id, supplier_code
+             from public.packaging_components
+            where id = $1::uuid and org_id = app.current_org_id() limit 1`,
+          [input.id],
+        );
+        if (before.rows.length === 0) return { ok: false as const, error: 'not_found' as const };
+        beforeRow = before.rows[0] ?? null;
+      }
+
+      let supplierId: string | null = input.supplierId ?? null;
+      let supplierCode: string | null = null;
+
+      if (supplierId) {
+        const supplier = await queryClient.query<{ id: string; code: string | null }>(
+          `select id::text, code
+             from public.suppliers
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+              and deleted_at is null
+              and status = 'active'
+            limit 1`,
+          [supplierId],
+        );
+        if (supplier.rows.length === 0) return { ok: false as const, error: 'invalid_input' as const };
+        supplierCode = supplier.rows[0]?.code ?? null;
+      } else if (input.legacySupplierCode?.trim()) {
+        const legacy = input.legacySupplierCode.trim();
+        if (!input.id || beforeRow?.supplier_id) {
+          return { ok: false as const, error: 'invalid_input' as const };
+        }
+        supplierCode = legacy;
+      } else if (input.supplierCode?.trim() && !input.id) {
+        return { ok: false as const, error: 'invalid_input' as const };
+      }
+
       if (input.id) {
         // ─── UPDATE ───────────────────────────────────────────────────────────
         const before = await queryClient.query<Record<string, unknown>>(
-          `select id, tier, component_name, material, supplier_code, spec, item_id,
+          `select id, tier, component_name, material, supplier_id, supplier_code, spec, item_id,
                   cost_per_unit::text as cost_per_unit, scrap_pct, waste_pct, qty_per_pack, status, display_order
              from public.packaging_components
             where id = $1::uuid and org_id = app.current_org_id() limit 1`,
@@ -90,16 +130,17 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
               set tier          = $2,
                   component_name = $3,
                   material       = $4,
-                  supplier_code  = $5,
-                  spec           = $6,
-                  cost_per_unit  = $7::numeric,
-                  scrap_pct      = $8::numeric,
-                  waste_pct      = $9::numeric,
-                  qty_per_pack   = $10::numeric,
-                  status         = $11,
-                  display_order  = $12,
-                  item_id        = $13::uuid,
-                  updated_by     = $14::uuid
+                  supplier_id    = $5::uuid,
+                  supplier_code  = $6,
+                  spec           = $7,
+                  cost_per_unit  = $8::numeric,
+                  scrap_pct      = $9::numeric,
+                  waste_pct      = $10::numeric,
+                  qty_per_pack   = $11::numeric,
+                  status         = $12,
+                  display_order  = $13,
+                  item_id        = $14::uuid,
+                  updated_by     = $15::uuid
             where id = $1::uuid and org_id = app.current_org_id()
             returning id`,
           [
@@ -107,6 +148,7 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
             input.tier,
             input.componentName,
             material,
+            supplierId,
             supplierCode,
             spec,
             costPerUnit,
@@ -132,6 +174,7 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
             tier: input.tier,
             componentName: input.componentName,
             material,
+            supplierId,
             supplierCode,
             spec,
             costPerUnit,
@@ -151,17 +194,18 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
       // ─── INSERT ─────────────────────────────────────────────────────────────
       const inserted = await queryClient.query<{ id: string }>(
         `insert into public.packaging_components
-           (org_id, project_id, tier, component_name, material, supplier_code, spec,
+           (org_id, project_id, tier, component_name, material, supplier_id, supplier_code, spec,
             cost_per_unit, scrap_pct, waste_pct, qty_per_pack, status, display_order, item_id, created_by, updated_by)
          values
-           (app.current_org_id(), $1::uuid, $2, $3, $4, $5, $6,
-            $7::numeric, $8::numeric, $9::numeric, $10::numeric, $11, $12, $13::uuid, $14::uuid, $15::uuid)
+           (app.current_org_id(), $1::uuid, $2, $3, $4, $5::uuid, $6, $7,
+            $8::numeric, $9::numeric, $10::numeric, $11::numeric, $12, $13, $14::uuid, $15::uuid, $16::uuid)
          returning id`,
         [
           input.projectId,
           input.tier,
           input.componentName,
           material,
+          supplierId,
           supplierCode,
           spec,
           costPerUnit,
@@ -189,6 +233,7 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
           tier: input.tier,
           componentName: input.componentName,
           material,
+          supplierId,
           supplierCode,
           spec,
           costPerUnit,

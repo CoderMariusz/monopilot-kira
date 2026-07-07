@@ -46,6 +46,18 @@ function fakeClient() {
         const perm = params[2] as string;
         return { rows: ctx.grantedPerms.has(perm) ? [{ ok: true }] : [] };
       }
+      // Supplier FK validation probe.
+      if (s.includes('from public.suppliers')) {
+        const supplierId = params[0];
+        if (supplierId === SUPPLIER_ID) {
+          return { rows: [{ id: SUPPLIER_ID, code: 'Coveris' }] };
+        }
+        return { rows: [] };
+      }
+      // Legacy supplier probe before update.
+      if (s.startsWith('select supplier_id::text as supplier_id')) {
+        return { rows: [{ supplier_id: null, supplier_code: 'Coveris' }] };
+      }
       // Project existence probe.
       if (s.includes('from public.npd_projects')) {
         return { rows: ctx.projectExists ? [{ id: 'proj', product_code: 'FA1', product_name: 'Ham' }] : [] };
@@ -103,6 +115,7 @@ import { PACKAGING_READ_PERMISSION, PACKAGING_WRITE_PERMISSION } from '../shared
 
 const PROJECT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const COMPONENT_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const SUPPLIER_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 
 beforeEach(() => {
   ctx.grantedPerms = new Set<string>();
@@ -149,7 +162,7 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
     tier: 'primary' as const,
     componentName: 'MAP tray',
     material: 'PET / PE 300µm',
-    supplierCode: 'Coveris',
+    supplierId: SUPPLIER_ID,
     spec: '160×110×35mm',
     costPerUnit: '0.18',
     status: 'approved' as const,
@@ -182,9 +195,41 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
     expect(insert).toBeTruthy();
     // cost_per_unit was passed as the decimal STRING '0.18' (never a number).
     expect(insert!.params).toContain('0.18');
+    expect(insert!.params).toContain(SUPPLIER_ID);
+    expect(insert!.params).toContain('Coveris');
 
     const audit = ctx.calls.find((c) => /insert into\s+public\.audit_log/i.test(c.sql));
     expect(audit).toBeTruthy();
+  });
+
+  it('rejects a supplierId that is not in public.suppliers', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    const res = await upsertPackagingComponent({
+      ...valid,
+      supplierId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    });
+    expect(res).toEqual({ ok: false, error: 'invalid_input' });
+    expect(ctx.calls.some((c) => /insert into public\.packaging_components/i.test(c.sql))).toBe(false);
+  });
+
+  it('rejects free-text supplierCode on insert (supplier FK required)', async () => {
+    const res = await upsertPackagingComponent({ ...valid, supplierId: null, supplierCode: 'Coveris' });
+    expect(res).toMatchObject({ ok: false, error: 'invalid_input' });
+    expect(ctx.calls).toHaveLength(0);
+  });
+
+  it('preserves a legacy supplier_code on update when legacySupplierCode is sent', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    const res = await upsertPackagingComponent({
+      ...valid,
+      id: COMPONENT_ID,
+      supplierId: null,
+      legacySupplierCode: 'Coveris',
+    });
+    expect(res).toEqual({ ok: true, data: { id: 'new-component-id' } });
+    const update = ctx.calls.find((c) => /update public\.packaging_components/i.test(c.sql));
+    expect(update?.params).toContain('Coveris');
+    expect(update?.params).toContain(null);
   });
 
   it('returns persistence_failed without audit when insert returns no id (rollback path)', async () => {
@@ -206,7 +251,7 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
     expect(insert).toBeTruthy();
     // The column is in the INSERT list and bound ::numeric.
     expect(insert!.sql).toContain('scrap_pct');
-    expect(insert!.sql).toMatch(/\$8::numeric/);
+    expect(insert!.sql).toMatch(/\$9::numeric/);
     // Default value 0 is among the bound params.
     expect(insert!.params).toContain(0);
   });
@@ -238,9 +283,9 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
     const update = ctx.calls.find((c) => /update public\.packaging_components/i.test(c.sql));
     expect(update).toBeTruthy();
     expect(update!.sql).toContain('scrap_pct');
-    expect(update!.sql).toMatch(/scrap_pct\s*=\s*\$8::numeric/);
+    expect(update!.sql).toMatch(/scrap_pct\s*=\s*\$9::numeric/);
     expect(update!.sql).toContain('waste_pct');
-    expect(update!.sql).toMatch(/waste_pct\s*=\s*\$9::numeric/);
+    expect(update!.sql).toMatch(/waste_pct\s*=\s*\$10::numeric/);
     expect(update!.params.filter((param) => param === 3)).toHaveLength(2);
   });
 
@@ -252,7 +297,7 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
     const insert = ctx.calls.find((c) => /insert into public\.packaging_components/i.test(c.sql));
     expect(insert).toBeTruthy();
     expect(insert!.sql).toContain('waste_pct');
-    expect(insert!.sql).toMatch(/\$9::numeric/);
+    expect(insert!.sql).toMatch(/\$10::numeric/);
     expect(insert!.params).toContain(0);
   });
 

@@ -40,6 +40,8 @@ const LABELS = {
   fieldComponent: 'Component name',
   fieldMaterial: 'Material',
   fieldSupplier: 'Supplier',
+  supplierPlaceholder: 'Select a supplier',
+  supplierLegacyHint: '{name} (legacy)',
   fieldSpec: 'Spec',
   fieldCostUnit: 'Cost per unit (€)',
   fieldStatus: 'Status',

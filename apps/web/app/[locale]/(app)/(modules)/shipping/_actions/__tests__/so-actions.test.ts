@@ -49,6 +49,7 @@ let candidateRows: Array<{
 let nearExpiryWarnDays: string = '7';
 let customerActive = true;
 let customerDeleted = false;
+let orgUnitCodes = ['kg', 'g', 'l', 'ml', 'pcs', 'pack', 'box', 'pallet', 'case'];
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
 let listTotal = 1;
 const nextCacheMocks = vi.hoisted(() => ({ revalidateLocalized: vi.fn() }));
@@ -117,6 +118,12 @@ function makeClient(): QueryClient {
         const targetCurrency = params[3];
         const filtered = customerPriceRows.filter((row) => row.currency === targetCurrency);
         return { rows: filtered, rowCount: filtered.length };
+      }
+      if (q.includes('from public.unit_of_measure')) {
+        return {
+          rows: orgUnitCodes.map((code) => ({ code, name: code, category: 'mass' })),
+          rowCount: orgUnitCodes.length,
+        };
       }
       if (q.startsWith('insert into public.sales_order_lines')) {
         const quantityOrdered = params[4] as string;
@@ -291,6 +298,7 @@ beforeEach(() => {
   nearExpiryWarnDays = '7';
   customerActive = true;
   customerDeleted = false;
+  orgUnitCodes = ['kg', 'g', 'l', 'ml', 'pcs', 'pack', 'box', 'pallet', 'case'];
   queryLog = [];
   listTotal = 1;
   nextCacheMocks.revalidateLocalized.mockClear();
@@ -590,6 +598,41 @@ describe('createSalesOrder', () => {
       message: 'Customer is inactive or not found',
     });
     expect(insertedSo).toBeNull();
+  });
+
+  it('rejects SO creation when a line UoM is not in the org unit registry', async () => {
+    const result = await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [{ item_id: ITEM_ID, qty: '10', uom: 'bogus-unit' }],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'Unknown unit of measure',
+    });
+    expect(insertedSo).toBeNull();
+    expect(insertedLines).toHaveLength(0);
+  });
+
+  it('rejects SO creation when the org unit registry is empty', async () => {
+    orgUnitCodes = [];
+
+    const result = await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [{ item_id: ITEM_ID, qty: '10', uom: 'bogus-unit' }],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'persistence_failed',
+      message: 'Unit of measure registry is not configured; seed units before creating sales orders',
+    });
+    expect(insertedSo).toBeNull();
+    expect(insertedLines).toHaveLength(0);
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('insert into public.sales_orders'))).toBe(false);
   });
 
   it('rejects SO creation when a line references an unknown item without inserting a header', async () => {

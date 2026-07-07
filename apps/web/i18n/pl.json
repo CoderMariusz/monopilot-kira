@@ -6550,6 +6550,8 @@
       "fieldComponent": "Nazwa elementu",
       "fieldMaterial": "Materiał",
       "fieldSupplier": "Dostawca",
+      "supplierPlaceholder": "Wybierz dostawcę",
+      "supplierLegacyHint": "{name} (stary wpis)",
       "fieldSpec": "Specyfikacja",
       "fieldCostUnit": "Koszt jednostkowy (£)",
       "fieldStatus": "Status",

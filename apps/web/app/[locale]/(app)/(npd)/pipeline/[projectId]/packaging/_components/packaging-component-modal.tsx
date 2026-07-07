@@ -18,6 +18,7 @@ import Modal from '@monopilot/ui/Modal';
 import { Select } from '@monopilot/ui/Select';
 
 import { ItemPicker, type ItemSearchFn } from '../../../../_components/item-picker';
+import type { PackagingSupplierOption } from '../_actions/packaging-form-data';
 import type { PackagingLabels, MutationOutcome, UpsertCall } from './packaging-screen';
 import type {
   PackagingComponentRow,
@@ -28,7 +29,9 @@ import type {
 type FormState = {
   componentName: string;
   material: string;
-  supplierCode: string;
+  /** Selected supplier FK, legacy sentinel, or empty. */
+  supplierId: string;
+  legacySupplierCode: string | null;
   spec: string;
   costPerUnit: string;
   /** % lost during packing (0..100), kept as the input string. */
@@ -42,11 +45,16 @@ type FormState = {
   itemCode: string | null;
 };
 
+const LEGACY_SUPPLIER_VALUE = '__legacy__';
+
 function rowToForm(row: PackagingComponentRow | null, defaultTier: PackagingTier): FormState {
+  const legacyCode =
+    row?.supplierId == null && row?.supplierCode?.trim() ? row.supplierCode.trim() : null;
   return {
     componentName: row?.componentName ?? '',
     material: row?.material ?? '',
-    supplierCode: row?.supplierCode ?? '',
+    supplierId: row?.supplierId ?? (legacyCode ? LEGACY_SUPPLIER_VALUE : ''),
+    legacySupplierCode: legacyCode,
     spec: row?.spec ?? '',
     costPerUnit: row?.costPerUnit ?? '',
     wastePct: row?.wastePct != null ? String(row.wastePct) : '0',
@@ -73,6 +81,7 @@ export function PackagingComponentModal({
   onUpsert,
   onMutated,
   searchItemsAction,
+  suppliers = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -85,6 +94,8 @@ export function PackagingComponentModal({
   onMutated?: () => void;
   /** Optional org-scoped item search seam; when present, the catalog picker renders. */
   searchItemsAction?: ItemSearchFn;
+  /** Active suppliers from the org master (public.suppliers). */
+  suppliers?: PackagingSupplierOption[];
 }) {
   const [form, setForm] = React.useState<FormState>(() => rowToForm(editing, defaultTier));
   const [saving, setSaving] = React.useState(false);
@@ -115,17 +126,38 @@ export function PackagingComponentModal({
     supplierCode?: string | null;
     unitPrice?: string | null;
   }) {
+    const matchedSupplier = item.supplierCode
+      ? suppliers.find((s) => s.code === item.supplierCode)
+      : undefined;
     setForm((prev) => ({
       ...prev,
       itemId: item.id,
       itemCode: item.itemCode,
       componentName: item.name || prev.componentName,
       material: prev.material || item.itemCode,
-      supplierCode: item.supplierCode ?? prev.supplierCode,
+      supplierId: matchedSupplier?.id ?? prev.supplierId,
+      legacySupplierCode: matchedSupplier ? null : item.supplierCode ?? prev.legacySupplierCode,
       costPerUnit: item.unitPrice ?? item.costPerKgEur ?? prev.costPerUnit,
     }));
     setError(null);
   }
+
+  const supplierOptions = React.useMemo(() => {
+    const base = suppliers.map((s) => ({
+      value: s.id,
+      label: s.name && s.name !== s.code ? `${s.code} — ${s.name}` : s.code,
+    }));
+    if (form.legacySupplierCode && form.supplierId === LEGACY_SUPPLIER_VALUE) {
+      return [
+        {
+          value: LEGACY_SUPPLIER_VALUE,
+          label: labels.supplierLegacyHint.replace('{name}', form.legacySupplierCode),
+        },
+        ...base,
+      ];
+    }
+    return base;
+  }, [suppliers, form.legacySupplierCode, form.supplierId, labels.supplierLegacyHint]);
 
   function clearPickedItem() {
     setForm((prev) => ({ ...prev, itemId: null, itemCode: null }));
@@ -165,7 +197,10 @@ export function PackagingComponentModal({
         tier: form.tier,
         componentName: name,
         material: form.material.trim() || null,
-        supplierCode: form.supplierCode.trim() || null,
+        supplierId:
+          form.supplierId && form.supplierId !== LEGACY_SUPPLIER_VALUE ? form.supplierId : null,
+        legacySupplierCode:
+          form.supplierId === LEGACY_SUPPLIER_VALUE ? form.legacySupplierCode : null,
         spec: form.spec.trim() || null,
         costPerUnit: cost || null,
         scrapPct: wastePct,
@@ -268,10 +303,17 @@ export function PackagingComponentModal({
             </label>
             <label>
               <span>{labels.fieldSupplier}</span>
-              <Input
-                name="supplierCode"
-                value={form.supplierCode}
-                onChange={(e) => set('supplierCode', e.target.value)}
+              <Select
+                aria-label={labels.fieldSupplier}
+                value={form.supplierId}
+                options={supplierOptions}
+                placeholder={labels.supplierPlaceholder}
+                onValueChange={(value) => {
+                  set('supplierId', value);
+                  if (value !== LEGACY_SUPPLIER_VALUE) {
+                    set('legacySupplierCode', null);
+                  }
+                }}
                 data-testid="field-supplier"
               />
             </label>

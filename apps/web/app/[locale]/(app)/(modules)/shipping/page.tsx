@@ -29,7 +29,8 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listSalesOrders, createSalesOrder } from './_actions/so-actions';
-import { listSoCustomers, searchSoItems } from './_actions/so-form-data';
+import { listSoCustomers, listSoUnits, searchSoItems } from './_actions/so-form-data';
+import { buildUomDropdown, type UomDropdown } from '../planning/_actions/uom-dropdown';
 import { createCustomer } from './customers/_actions/customer-actions';
 import { SoListView, type SoListFilters, type SoListLabels } from './_components/so-list-view';
 import { ShippingTabs } from './shipments/_components/shipping-tabs';
@@ -85,14 +86,23 @@ function ListSkeleton() {
   );
 }
 
-function uomOptionLabels(locale: string): SoListLabels['create']['uomOptions'] {
+function uomFallbackLabels(locale: string): {
+  placeholder: string;
+  options: { kg: string; g: string; l: string; ml: string; pcs: string; pack: string; box: string; pallet: string };
+} {
   if (locale === 'pl') {
-    return { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'szt', pack: 'opak.', box: 'karton', pallet: 'paleta' };
+    return {
+      placeholder: 'Jednostka',
+      options: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'szt', pack: 'opak.', box: 'karton', pallet: 'paleta' },
+    };
   }
-  return { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'pcs', pack: 'pack', box: 'box', pallet: 'pallet' };
+  return {
+    placeholder: 'Unit',
+    options: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'pcs', pack: 'pack', box: 'box', pallet: 'pallet' },
+  };
 }
 
-function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string): SoListLabels {
+function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: string, uom: UomDropdown): SoListLabels {
   return {
     createSo: t('list.createSo'),
     searchPlaceholder: t('list.searchPlaceholder'),
@@ -153,8 +163,9 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       lineItem: t('create.lineItem'),
       lineQty: t('create.lineQty'),
       lineUom: t('create.lineUom'),
-      uomPlaceholder: t('create.uomPlaceholder'),
-      uomOptions: uomOptionLabels(locale),
+      uomPlaceholder: uom.placeholder,
+      uomOptions: uom.options,
+      uomUnits: uom.units,
       qtyPlaceholder: t('create.qtyPlaceholder'),
       submit: t('create.submit'),
       submitting: t('create.submitting'),
@@ -192,7 +203,7 @@ async function ListContent({
   filters: SoListFilters;
 }) {
   const t = await getTranslations('Shipping.salesOrders');
-  const [listResult, customers] = await Promise.all([
+  const [listResult, customers, orgUnits] = await Promise.all([
     listSalesOrders({
       page,
       status: filters.status || undefined,
@@ -200,7 +211,10 @@ async function ListContent({
       customerCode: filters.customerCode || undefined,
     }),
     listSoCustomers(),
+    listSoUnits(),
   ]);
+  const uom = buildUomDropdown(orgUnits, uomFallbackLabels(locale));
+  const labels = buildLabels(t, locale, uom);
 
   if (!listResult.ok) {
     if (listResult.error === 'forbidden') {
@@ -237,7 +251,7 @@ async function ListContent({
       filters={filters}
       customers={customers}
       autoOpenCreate={autoOpenCreate}
-      labels={buildLabels(t, locale)}
+      labels={labels}
       searchSoItemsAction={searchSoItems}
       createCustomerAction={createCustomer}
       createSalesOrderAction={createSalesOrder}
