@@ -13,6 +13,7 @@ import type { EquipmentOption, MwoListRow, MwoState, PmScheduleRow } from '../..
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh, push: vi.fn() }),
+  useParams: () => ({ locale: 'en' }),
 }));
 
 const LABELS: MwoListLabels = {

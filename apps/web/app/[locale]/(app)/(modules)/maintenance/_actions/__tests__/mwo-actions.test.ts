@@ -10,7 +10,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createMwo, generateMwoFromPmSchedule, listMwos, listPmSchedules, transitionMwo } from '../mwo-actions';
+import { createMwo, generateMwoFromPmSchedule, getMwoById, getMwoOverviewStats, listMwos, listPmSchedules, transitionMwo } from '../mwo-actions';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -30,6 +30,7 @@ let grantedPermissions: Set<string>;
 let equipmentExists = true;
 let currentState = 'open';
 let duplicateOpenMwo = false;
+let overviewPlanned = 0;
 let client: QueryClient;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
@@ -55,13 +56,43 @@ function makeClient(): QueryClient {
         return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
       }
 
+      // getMwoById detail read (schedule join — must precede other MWO reads).
+      if (normalized.includes('left join public.maintenance_schedules s')) {
+        return {
+          rows: [
+            {
+              id: MWO_ID,
+              mwo_number: 'MWO-2026-00001',
+              title: 'PM: EQ-01 — preventive',
+              requester_reason: 'Generated from PM schedule',
+              state: 'open',
+              priority: 'medium',
+              source: 'pm_schedule',
+              equipment_id: EQUIPMENT_ID,
+              equipment_code: 'EQ-01',
+              equipment_name: 'Mixer 1',
+              due_date: '2026-07-01',
+              created_at: new Date('2026-06-11T08:00:00Z'),
+              started_at: null,
+              completed_at: null,
+              schedule_id: SCHEDULE_ID,
+              schedule_type: 'preventive',
+              schedule_next_due: '2026-07-01',
+              schedule_interval_basis: 'calendar_days',
+              schedule_interval_value: 30,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
       // listMwos: per-state tab counts.
       if (normalized.includes('group by w.state')) {
         return { rows: [{ state: 'open', n: 2 }, { state: 'completed', n: 1 }], rowCount: 2 };
       }
 
       // listMwos: main list read.
-      if (normalized.includes('from public.maintenance_work_orders w') && normalized.includes('left join public.equipment e')) {
+      if (normalized.includes('from public.maintenance_work_orders w') && normalized.includes('left join public.equipment e') && normalized.includes("($1::text = 'all'")) {
         return {
           rows: [
             {
@@ -77,6 +108,52 @@ function makeClient(): QueryClient {
               equipment_name: 'Mixer 1',
               due_date: '2026-06-20',
               created_at: new Date('2026-06-11T08:00:00Z'),
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      // getMwoOverviewStats + fetchMwoListRow after PM generate.
+      if (normalized.includes('count(*) filter') && normalized.includes('as planned')) {
+        return {
+          rows: [
+            {
+              d0_7: overviewPlanned,
+              d8_30: 0,
+              d31_plus: 0,
+              planned: overviewPlanned,
+              unplanned: 0,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      if (
+        normalized.includes('from public.maintenance_work_orders w') &&
+        normalized.includes('left join public.equipment e') &&
+        normalized.includes('and w.id = $1::uuid') &&
+        !normalized.includes('for update') &&
+        !normalized.includes('left join public.maintenance_schedules s')
+      ) {
+        return {
+          rows: [
+            {
+              id: MWO_ID,
+              mwo_number: 'MWO-2026-00002',
+              title: 'PM: EQ-01 — preventive',
+              requester_reason: `Generated from PM schedule ${SCHEDULE_ID}`,
+              state: 'open',
+              priority: 'medium',
+              source: 'pm_schedule',
+              equipment_id: EQUIPMENT_ID,
+              equipment_code: 'EQ-01',
+              equipment_name: 'Mixer 1',
+              due_date: '2026-07-01',
+              created_at: new Date('2026-06-11T09:00:00Z'),
               started_at: null,
               completed_at: null,
             },
@@ -223,7 +300,7 @@ function makeClient(): QueryClient {
       }
 
       // generateMwoFromPmSchedule: due window check.
-      if (normalized.includes('make_interval(days =>')) {
+      if (normalized.includes('select ($1::date') && normalized.includes('make_interval(days =>')) {
         return { rows: [{ due: true }], rowCount: 1 };
       }
 
@@ -253,6 +330,7 @@ beforeEach(() => {
   equipmentExists = true;
   currentState = 'open';
   duplicateOpenMwo = false;
+  overviewPlanned = 0;
   client = makeClient();
 });
 
@@ -497,6 +575,27 @@ describe('listPmSchedules', () => {
   });
 });
 
+describe('getMwoOverviewStats', () => {
+  it('counts planned open MWOs from pm_schedule source', async () => {
+    overviewPlanned = 2;
+
+    const result = await getMwoOverviewStats();
+
+    expect(result.ratio).toEqual({ planned: 2, unplanned: 0 });
+  });
+
+  it('returns zeros when read permission is missing', async () => {
+    grantedPermissions.delete('mnt.asset.read');
+
+    const result = await getMwoOverviewStats();
+
+    expect(result).toEqual({
+      backlog: { d0_7: 0, d8_30: 0, d31_plus: 0 },
+      ratio: { planned: 0, unplanned: 0 },
+    });
+  });
+});
+
 describe('generateMwoFromPmSchedule', () => {
   it('creates a planned preventive MWO with source=pm_schedule and schedule_id link', async () => {
     const result = await generateMwoFromPmSchedule({ scheduleId: SCHEDULE_ID });
@@ -553,10 +652,51 @@ describe('generateMwoFromPmSchedule', () => {
     expect(calls().some((c) => c.sql.startsWith('insert into public.maintenance_work_orders'))).toBe(false);
   });
 
+  it('increments planned KPI after generate and drops it after completion', async () => {
+    overviewPlanned = 1;
+    let stats = await getMwoOverviewStats();
+    expect(stats.ratio.planned).toBe(1);
+
+    currentState = 'in_progress';
+    await transitionMwo({ mwoId: MWO_ID, to: 'completed' });
+
+    overviewPlanned = 0;
+    stats = await getMwoOverviewStats();
+    expect(stats.ratio.planned).toBe(0);
+  });
+
   it('forbids callers without mnt.mwo.request', async () => {
     grantedPermissions.delete('mnt.mwo.request');
 
     const result = await generateMwoFromPmSchedule({ scheduleId: SCHEDULE_ID });
+
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});
+
+describe('getMwoById', () => {
+  it('returns MWO detail with linked PM schedule source', async () => {
+    const result = await getMwoById(MWO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data).toMatchObject({
+      mwoNumber: 'MWO-2026-00001',
+      source: 'pm_schedule',
+      scheduleId: SCHEDULE_ID,
+    });
+    expect(result.data?.pmSource).toMatchObject({
+      scheduleId: SCHEDULE_ID,
+      scheduleType: 'preventive',
+      intervalBasis: 'calendar_days',
+      intervalValue: 30,
+    });
+  });
+
+  it('forbids callers without mnt.asset.read', async () => {
+    grantedPermissions.clear();
+
+    const result = await getMwoById(MWO_ID);
 
     expect(result).toEqual({ ok: false, reason: 'forbidden' });
   });

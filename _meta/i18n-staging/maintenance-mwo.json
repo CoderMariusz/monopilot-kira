@@ -128,6 +128,19 @@
       "generateMwo": "Generate MWO",
       "generating": "Generating…",
       "generateFailed": "Could not generate the MWO from this schedule."
+    },
+    "detail": {
+      "backToList": "Back to work orders",
+      "overviewTitle": "Work order overview",
+      "pmSourceTitle": "Source PM schedule",
+      "pmSourceEmpty": "This work order was not generated from a PM schedule.",
+      "pmScheduleType": "Schedule type",
+      "pmNextDue": "Next due",
+      "pmInterval": "Interval",
+      "description": "Description",
+      "denied": "You do not have permission to view this work order.",
+      "error": "Could not load the work order. Please try again.",
+      "notFound": "Work order not found."
     }
   },
   "pl": {
@@ -259,6 +272,19 @@
       "generateMwo": "Utwórz MWO",
       "generating": "Tworzenie…",
       "generateFailed": "Nie udało się utworzyć MWO z tego harmonogramu."
+    },
+    "detail": {
+      "backToList": "Wróć do zleceń",
+      "overviewTitle": "Przegląd zlecenia",
+      "pmSourceTitle": "Źródłowy harmonogram PM",
+      "pmSourceEmpty": "To zlecenie nie zostało utworzone z harmonogramu PM.",
+      "pmScheduleType": "Typ harmonogramu",
+      "pmNextDue": "Najbliższy termin",
+      "pmInterval": "Interwał",
+      "description": "Opis",
+      "denied": "Nie masz uprawnień do przeglądania tego zlecenia.",
+      "error": "Nie udało się wczytać zlecenia. Spróbuj ponownie.",
+      "notFound": "Nie znaleziono zlecenia."
     }
   }
 }

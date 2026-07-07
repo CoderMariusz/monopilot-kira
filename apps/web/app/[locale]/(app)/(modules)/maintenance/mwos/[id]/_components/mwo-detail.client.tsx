@@ -1,0 +1,191 @@
+'use client';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
+import { Badge } from '@monopilot/ui/Badge';
+import { Card } from '@monopilot/ui/Card';
+
+import { MwoTransitionModal } from '../../../_components/mwo-transition-modal';
+import { PRIORITY_VARIANT, STATE_VARIANT, fmtDate, fmtDateTime } from '../../../_components/mwo-list.client';
+import type { MwoListLabels, TransitionMwoAction } from '../../../_components/mwo-list.client';
+import type { MwoDetailRow, MwoTransition } from '../../../_actions/mwo-actions';
+
+export type MwoDetailLabels = MwoListLabels & {
+  detail: {
+    breadcrumbList: string;
+    backToList: string;
+    overviewTitle: string;
+    pmSourceTitle: string;
+    pmSourceEmpty: string;
+    pmScheduleType: string;
+    pmNextDue: string;
+    pmInterval: string;
+    description: string;
+    denied: string;
+    error: string;
+    notFound: string;
+  };
+};
+
+export function MwoDetailClient({
+  locale,
+  mwo,
+  labels,
+  permissions,
+  transitionMwoAction,
+}: {
+  locale: string;
+  mwo: MwoDetailRow;
+  labels: MwoDetailLabels;
+  permissions: { canExecute: boolean; canCancel: boolean };
+  transitionMwoAction: TransitionMwoAction;
+}) {
+  const router = useRouter();
+  const [pendingTransition, setPendingTransition] = useState<MwoTransition | null>(null);
+  const d = labels.detail;
+
+  const terminal = mwo.state === 'completed' || mwo.state === 'cancelled';
+
+  return (
+    <div className="flex flex-col gap-4" data-testid="mwo-detail">
+      <Link
+        href={`/${locale}/maintenance`}
+        className="text-sm font-medium text-slate-600 hover:text-slate-900"
+        data-testid="mwo-detail-back"
+      >
+        ← {d.backToList}
+      </Link>
+
+      <Card className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-slate-900">{d.overviewTitle}</h2>
+        </div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-mono text-lg font-semibold text-slate-900">{mwo.mwoNumber}</p>
+            <h1 className="text-base font-medium text-slate-800">{mwo.title}</h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={STATE_VARIANT[mwo.state]}>{labels.status[mwo.state]}</Badge>
+            <Badge variant={PRIORITY_VARIANT[mwo.priority]}>{labels.priority[mwo.priority]}</Badge>
+            <span className="text-xs text-slate-500">{labels.source[mwo.source]}</span>
+          </div>
+        </div>
+
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <dt className="text-xs text-slate-500">{labels.col.equipment}</dt>
+            <dd className="text-sm text-slate-900">
+              {mwo.equipmentCode ? (
+                <>
+                  <span className="font-mono font-semibold">{mwo.equipmentCode}</span>
+                  {mwo.equipmentName ? (
+                    <span className="ml-1 text-slate-600">— {mwo.equipmentName}</span>
+                  ) : null}
+                </>
+              ) : (
+                '—'
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-500">{labels.col.due}</dt>
+            <dd className="font-mono text-sm text-slate-900">{fmtDate(mwo.dueDate)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-500">{labels.col.created}</dt>
+            <dd className="font-mono text-sm text-slate-900">{fmtDateTime(mwo.createdAt)}</dd>
+          </div>
+          {mwo.description ? (
+            <div className="sm:col-span-2 lg:col-span-4">
+              <dt className="text-xs text-slate-500">{d.description}</dt>
+              <dd className="text-sm text-slate-700">{mwo.description}</dd>
+            </div>
+          ) : null}
+        </dl>
+
+        {!terminal ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {mwo.state === 'open' && permissions.canExecute ? (
+              <button
+                type="button"
+                data-testid="mwo-detail-start"
+                onClick={() => setPendingTransition('in_progress')}
+                className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                {labels.action.start}
+              </button>
+            ) : null}
+            {mwo.state === 'in_progress' && permissions.canExecute ? (
+              <button
+                type="button"
+                data-testid="mwo-detail-complete"
+                onClick={() => setPendingTransition('completed')}
+                className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-500"
+              >
+                {labels.action.complete}
+              </button>
+            ) : null}
+            {permissions.canCancel ? (
+              <button
+                type="button"
+                data-testid="mwo-detail-cancel"
+                onClick={() => setPendingTransition('cancelled')}
+                className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:border-red-200 hover:text-red-600"
+              >
+                {labels.action.cancel}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </Card>
+
+      {mwo.pmSource ? (
+        <Card
+          className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm"
+          data-testid="mwo-pm-source"
+        >
+          <h2 className="mb-3 text-sm font-semibold text-slate-900">{d.pmSourceTitle}</h2>
+          <dl className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-slate-500">{d.pmScheduleType}</dt>
+              <dd>
+                <Badge variant="secondary">{labels.pm.type[mwo.pmSource.scheduleType]}</Badge>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">{d.pmNextDue}</dt>
+              <dd className="font-mono text-sm text-slate-900">{fmtDate(mwo.pmSource.nextDueDate)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">{d.pmInterval}</dt>
+              <dd className="font-mono text-sm text-slate-900">
+                {mwo.pmSource.intervalValue} {labels.pm.intervalUnit[mwo.pmSource.intervalBasis]}
+              </dd>
+            </div>
+          </dl>
+        </Card>
+      ) : (
+        <p className="text-sm text-slate-500" data-testid="mwo-pm-source-empty">
+          {d.pmSourceEmpty}
+        </p>
+      )}
+
+      {pendingTransition ? (
+        <MwoTransitionModal
+          row={mwo}
+          to={pendingTransition}
+          labels={labels}
+          transitionMwoAction={transitionMwoAction}
+          onClose={() => setPendingTransition(null)}
+          onDone={() => {
+            setPendingTransition(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
