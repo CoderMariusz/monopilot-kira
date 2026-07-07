@@ -164,7 +164,7 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
           ? o.packsPerCase
           : toNumericOrNull(source.packs_per_case);
       const outputUnit =
-        o?.outputUnit !== undefined ? o.outputUnit : source.output_unit;
+        o?.outputUnit != null ? o.outputUnit : source.output_unit;
 
       if (
         boxesOutputUnitRequiresPackFactors({
@@ -363,8 +363,7 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
 }
 
 function parseOptionalOutputUnit(value: unknown): NpdBriefOutputUnit | null | undefined {
-  if (value === undefined) return undefined;
-  if (value === null || value === '') return null;
+  if (value === undefined || value === null || value === '') return null;
   if (value === 'kg' || value === 'pieces' || value === 'boxes') return value;
   return undefined;
 }

@@ -106,8 +106,8 @@ describe('cloneProject', () => {
     expect(insertParams[3]).toBe('Meat · Cold cut'); // type carried
     expect(insertParams[4]).toBe('high'); // prio carried
     expect(insertParams[15]).toBe(12); // packs_per_case carried
-    expect(insertParams[18]).toBe('NPD-001'); // clone_source = source code
-    expect(insertParams[19]).toBe(USER_ID); // created_by_user
+    expect(insertParams[19]).toBe('NPD-001'); // clone_source = source code
+    expect(insertParams[20]).toBe(USER_ID); // created_by_user
 
     // The checklist copy is scoped to the source project and the caller org.
     const checklistSql = String(queryMock.mock.calls[5]![0]);
