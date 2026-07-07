@@ -82,6 +82,8 @@ export type {
 } from './allergen-cascade-rebuild.js';
 export { npdProjects } from './npd-projects.js';
 export type { NewNpdProject, NpdProject } from './npd-projects.js';
+export { npdWipProcesses } from './npd-wip-processes.js';
+export type { NewNpdWipProcess, NpdWipProcess } from './npd-wip-processes.js';
 export { npdDepartmentField, npdDepartments, npdFieldCatalog } from './npd-dynamic-fields.js';
 export type {
   NewNpdDepartment,
