@@ -55,8 +55,13 @@ vi.mock('../../../../../lib/scanner/with-scanner-org', () => ({
 // Review fix F2: the write routes gate on warehouse.stock.move via
 // lib/production/shared hasPermission — toggled per test (default allowed).
 let allowStockMove = true;
+let allowInventoryRead = true;
 vi.mock('../../../../../lib/production/shared', () => ({
-  hasPermission: vi.fn(async () => allowStockMove),
+  hasPermission: vi.fn(async (_ctx, permission: string) => {
+    if (permission === 'warehouse.inventory.read') return allowInventoryRead;
+    if (permission === 'warehouse.stock.move') return allowStockMove;
+    return true;
+  }),
   ProductionActionError: class ProductionActionError extends Error {},
   QualityHoldError: class QualityHoldError extends Error {},
 }));
@@ -173,6 +178,43 @@ describe('warehouse scanner routes', () => {
     vi.clearAllMocks();
     fakeClient.query.mockReset();
     allowStockMove = true;
+    allowInventoryRead = true;
+  });
+
+  it('lp lookup returns 403 when caller lacks warehouse.inventory.read', async () => {
+    const { GET } = await import('../lp/route');
+    allowInventoryRead = false;
+
+    const response = await GET(getRequest('/api/warehouse/scanner/lp?code=LP-001') as never);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'forbidden' });
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('insert into public.scanner_audit_log'))).toBe(
+      true,
+    );
+  });
+
+  it('po list returns 403 when caller lacks warehouse.inventory.read', async () => {
+    const { GET } = await import('../pos/route');
+    allowInventoryRead = false;
+
+    const response = await GET(getRequest('/api/warehouse/scanner/pos') as never);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'forbidden' });
+  });
+
+  it('po detail returns 403 when caller lacks warehouse.inventory.read', async () => {
+    const { GET } = await import('../pos/[id]/route');
+    allowInventoryRead = false;
+
+    const response = await GET(
+      getRequest('/api/warehouse/scanner/pos/00000000-0000-4000-8000-0000000000a1') as never,
+      { params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000a1' }) },
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'forbidden' });
   });
 
   it('lp lookup returns LP detail with genealogy', async () => {
