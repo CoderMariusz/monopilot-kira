@@ -17,6 +17,7 @@ import {
   saveWipProcessRoles,
   updateWipProcess,
 } from '../actions/wip-process-actions';
+import { assignIngredientProcess } from '../actions/assign-ingredient-process';
 import { getProcessDefault } from '../../../[locale]/(app)/(admin)/settings/process-defaults/_actions/process-defaults-actions';
 import { getActiveSiteId } from '../../../../lib/site/site-context';
 import { setProductionLine } from './set-production-line';
@@ -157,19 +158,52 @@ async function readIngredientQtyKgPerPack(ctx: OrgContextLike, projectId: string
 }
 
 async function readCurrentFormulationIngredientCount(ctx: OrgContextLike, projectId: string): Promise<number> {
-  const { rows } = await ctx.client.query<{ ingredient_count: string | number | null }>(
-    `select count(fi.id) as ingredient_count
+  const ingredients = await readFormulationIngredients(ctx, projectId);
+  return ingredients.length;
+}
+
+type FormulationIngredientRow = {
+  id: string;
+  rmCode: string;
+  itemId: string | null;
+  npdWipProcessId: string | null;
+  sequence: number;
+};
+
+async function readFormulationIngredients(
+  ctx: OrgContextLike,
+  projectId: string,
+): Promise<FormulationIngredientRow[]> {
+  const { rows } = await ctx.client.query<{
+    id: string;
+    rm_code: string;
+    item_id: string | null;
+    npd_wip_process_id: string | null;
+    sequence: number | string;
+  }>(
+    `select fi.id::text,
+            fi.rm_code,
+            fi.item_id::text,
+            fi.npd_wip_process_id::text,
+            fi.sequence
        from public.formulations f
        join public.formulation_versions fv
          on fv.id = f.current_version_id
         and fv.formulation_id = f.id
-       left join public.formulation_ingredients fi
+       join public.formulation_ingredients fi
          on fi.version_id = fv.id
       where f.org_id = app.current_org_id()
-        and f.project_id = $1::uuid`,
+        and f.project_id = $1::uuid
+      order by fi.sequence asc`,
     [projectId],
   );
-  return Number(rows[0]?.ingredient_count ?? 0);
+  return rows.map((row) => ({
+    id: row.id,
+    rmCode: row.rm_code,
+    itemId: row.item_id,
+    npdWipProcessId: row.npd_wip_process_id,
+    sequence: Number(row.sequence),
+  }));
 }
 
 async function readProductValues(ctx: OrgContextLike, productCode: string): Promise<Record<string, unknown>> {
@@ -299,6 +333,7 @@ export type FormulationWipPanelData =
       state: 'ready';
       productCode: string;
       formulationIngredientCount: number;
+      formulationIngredients: FormulationIngredientRow[];
       columns: FaProductionColumn[];
       rows: ProdDetailRow[];
       dropdowns: Record<string, string[]>;
@@ -316,6 +351,7 @@ export type FormulationWipPanelData =
         onSaveProcessRoles: typeof saveWipProcessRoles;
         onGetProcessDefault: typeof getProcessDefault;
         onSetProductionLine: typeof setProductionLine;
+        onAssignIngredientProcess: typeof assignIngredientProcess;
       };
     };
 
@@ -338,15 +374,16 @@ export async function loadFormulationWipPanel(projectId: string): Promise<Formul
     if (!productCode) return { state: 'no_fg_linked' };
     const productionLineId = rows[0]?.production_line_id ?? null;
 
-    const [production, prodRows, canWrite, formulationIngredientCount, productionLineOptions, ingredientQtyKgPerPack] =
+    const [production, prodRows, canWrite, formulationIngredients, productionLineOptions, ingredientQtyKgPerPack] =
       await Promise.all([
         readDeptColumns(ctx, 'Production'),
         readProdDetailRows(ctx, productCode),
         hasPermission(ctx, 'npd.production.write'),
-        readCurrentFormulationIngredientCount(ctx, projectId),
+        readFormulationIngredients(ctx, projectId),
         readProductionLineOptions(ctx),
         readIngredientQtyKgPerPack(ctx, projectId),
       ]);
+    const formulationIngredientCount = formulationIngredients.length;
 
     const productionFiltered = production.filter(
       (col) =>
@@ -363,6 +400,7 @@ export async function loadFormulationWipPanel(projectId: string): Promise<Formul
       state: 'ready',
       productCode,
       formulationIngredientCount,
+      formulationIngredients,
       columns: productionFiltered,
       rows: prodRows,
       dropdowns,
@@ -380,6 +418,7 @@ export async function loadFormulationWipPanel(projectId: string): Promise<Formul
         onSaveProcessRoles: saveWipProcessRoles,
         onGetProcessDefault: getProcessDefault,
         onSetProductionLine: setProductionLine,
+        onAssignIngredientProcess: assignIngredientProcess,
       },
     };
   });
