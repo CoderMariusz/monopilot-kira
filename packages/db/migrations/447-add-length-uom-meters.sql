@@ -57,3 +57,25 @@ begin
   end loop;
 end
 $$;
+
+-- ============================================================
+-- 4. Canonicalize pre-existing m/cm rows (unique key is (org_id, code), so an
+--    org that created 'm'/'cm' under another category made the seed's
+--    ON CONFLICT DO NOTHING skip the canonical length row — upsert them here).
+-- ============================================================
+do $$
+declare v_count int;
+begin
+  update public.unit_of_measure
+     set category = 'length',
+         name = case code when 'm' then 'Metre' else 'Centimetre' end,
+         factor_to_base = case code when 'm' then 1 else 0.01 end,
+         is_base = (code = 'm')
+   where code in ('m', 'cm')
+     and (category is distinct from 'length'
+          or factor_to_base is distinct from (case code when 'm' then 1 else 0.01 end)
+          or is_base is distinct from (code = 'm'));
+  get diagnostics v_count = row_count;
+  raise notice 'migration 447: canonicalized % pre-existing m/cm rows', v_count;
+end
+$$;
