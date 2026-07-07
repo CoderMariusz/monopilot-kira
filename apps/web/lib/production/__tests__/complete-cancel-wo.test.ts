@@ -83,6 +83,10 @@ function makeClient(): QueryClient {
         return { rows: [] as T[], rowCount: 1 };
       }
 
+      if (normalized.startsWith('insert into public.audit_events')) {
+        return { rows: [] as T[], rowCount: 1 };
+      }
+
       if (normalized.startsWith('update public.work_orders')) {
         return { rows: [] as T[], rowCount: 1 };
       }
@@ -166,7 +170,7 @@ describe('completeWo yield gate', () => {
     const result = await completeWo(makeCtx(), {
       woId: WO_ID,
       transactionId: TX_ID,
-      overrideReasonCode: 'scrap_total_loss',
+      overrideReasonCode: 'scrap_quality',
     });
 
     expect(result).toMatchObject({ ok: false, error: 'forbidden' });
@@ -177,17 +181,48 @@ describe('completeWo yield gate', () => {
     const result = await completeWo(makeCtx(), {
       woId: WO_ID,
       transactionId: TX_ID,
-      overrideReasonCode: 'scrap_total_loss',
+      overrideReasonCode: 'scrap_quality',
     });
 
     expect(result.ok).toBe(true);
     expect(applyTransition).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        context: expect.objectContaining({ overrideReasonCode: 'scrap_total_loss' }),
+        context: expect.objectContaining({ overrideReasonCode: 'scrap_quality' }),
       }),
     );
     expect(recordWoCompletionSnapshot).toHaveBeenCalled();
+  });
+
+  it('records yield-gate override reason and actor in audit_events and outbox', async () => {
+    const result = await completeWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      overrideReasonCode: 'equipment_failure',
+    });
+
+    expect(result.ok).toBe(true);
+
+    const auditInsert = queries.find((q) =>
+      normalize(q.sql).startsWith('insert into public.audit_events'),
+    );
+    expect(auditInsert).toBeDefined();
+    expect(auditInsert!.params).toEqual(
+      expect.arrayContaining([
+        USER_ID,
+        WO_ID,
+        expect.stringContaining('"overrideReasonCode":"equipment_failure"'),
+        TX_ID,
+      ]),
+    );
+    expect(auditInsert!.params[2]).toContain(`"overriddenByUserId":"${USER_ID}"`);
+
+    const outboxInsert = queries.find((q) =>
+      normalize(q.sql).startsWith('insert into public.outbox_events'),
+    );
+    expect(outboxInsert).toBeDefined();
+    expect(outboxInsert!.params[3]).toContain('"overrideReasonCode":"equipment_failure"');
+    expect(outboxInsert!.params[3]).toContain(`"actor_user_id":"${USER_ID}"`);
   });
 
   it('completes on the green path without an override reason', async () => {

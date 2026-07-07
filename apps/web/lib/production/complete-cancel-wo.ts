@@ -45,6 +45,48 @@ export type CompleteWoInput = {
   overrideReasonCode?: string | null;
 };
 
+async function writeYieldGateOverrideAudit(
+  ctx: ProductionContext,
+  params: { woId: string; overrideReasonCode: string; transactionId: string },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.audit_events (
+       org_id,
+       actor_user_id,
+       actor_type,
+       action,
+       resource_type,
+       resource_id,
+       before_state,
+       after_state,
+       request_id,
+       retention_class
+     )
+     values (
+       app.current_org_id(),
+       $1::uuid,
+       'user',
+       'production.wo.yield_gate_overridden',
+       'work_order',
+       $2,
+       '{}'::jsonb,
+       $3::jsonb,
+       $4::uuid,
+       'operational'
+     )`,
+    [
+      ctx.userId,
+      params.woId,
+      JSON.stringify({
+        overrideReasonCode: params.overrideReasonCode,
+        overriddenByUserId: ctx.userId,
+        transactionId: params.transactionId,
+      }),
+      params.transactionId,
+    ],
+  );
+}
+
 export type CompleteWoData = {
   woId: string;
   status: 'completed';
@@ -167,6 +209,14 @@ export async function completeWo(
     },
   });
   if (!transition.ok) return transition;
+
+  if (persistedOverrideReasonCode) {
+    await writeYieldGateOverrideAudit(ctx, {
+      woId: input.woId,
+      overrideReasonCode: persistedOverrideReasonCode,
+      transactionId: input.transactionId,
+    });
+  }
 
   // Persist actual_qty + produced_quantity from primary outputs so yield_percent
   // (generated column, mig 176) is no longer permanently NULL.
