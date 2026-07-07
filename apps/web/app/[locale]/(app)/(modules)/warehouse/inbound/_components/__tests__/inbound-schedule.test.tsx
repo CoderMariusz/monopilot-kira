@@ -23,13 +23,15 @@ import {
   type InboundLabels,
   type InboundRow,
 } from '../inbound-schedule.client';
-import { partitionInbound } from '../../page';
+import { partitionInbound } from '../../partition-inbound';
 import { getWhInboundTranslator } from '../../wh-inbound-labels';
+import { getWhReceiveTranslator } from '../../../receive-po/wh-receive-labels';
 
 const TODAY = '2026-06-11';
 
 function buildLabels(locale: string): InboundLabels {
   const t = getWhInboundTranslator(locale);
+  const receiveT = getWhReceiveTranslator(locale);
   return {
     sections: {
       today: t('inbound.sections.today'),
@@ -46,6 +48,7 @@ function buildLabels(locale: string): InboundLabels {
       expected: t('inbound.columns.expected'),
       status: t('inbound.columns.status'),
       lines: t('inbound.columns.lines'),
+      receive: receiveT('inbound.receiveDesktop'),
     },
     type: { po: t('inbound.type.po'), to: t('inbound.type.to') },
     status: {
@@ -183,6 +186,32 @@ describe('InboundScheduleClient', () => {
     );
     expect(screen.getByTestId('inbound-lines-po-1')).toHaveTextContent('7');
     expect(screen.getByTestId('inbound-lines-to-1')).toHaveTextContent('—');
+  });
+
+  it('exposes a receive link for PO and in-transit TO rows when receiveHref is set', () => {
+    render(
+      <InboundScheduleClient
+        today={[
+          poRow({
+            id: 'po-1',
+            receiveHref: '/en/warehouse/receive-po/p1',
+          }),
+          toRow({
+            id: 'to-1',
+            receiveHref: '/en/planning/transfer-orders/t1',
+          }),
+        ]}
+        overdue={[]}
+        upcoming={[]}
+        labels={EN}
+      />,
+    );
+
+    expect(screen.getByTestId('inbound-receive-po-1')).toHaveAttribute('href', '/en/warehouse/receive-po/p1');
+    expect(screen.getByTestId('inbound-receive-to-1')).toHaveAttribute(
+      'href',
+      '/en/planning/transfer-orders/t1',
+    );
   });
 
   it('renders honest per-section empty states when a section has no rows', () => {

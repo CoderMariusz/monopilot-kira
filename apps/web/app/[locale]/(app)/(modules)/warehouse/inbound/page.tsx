@@ -41,6 +41,7 @@ import {
   type InboundLabels,
   type InboundRow,
 } from './_components/inbound-schedule.client';
+import { partitionInbound } from './partition-inbound';
 
 // Org-scoped DB read per request — never statically prerendered.
 export const dynamic = 'force-dynamic';
@@ -57,60 +58,6 @@ function dateKey(iso: string | null): string | null {
   if (!iso) return null;
   const key = iso.slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(key) ? key : null;
-}
-
-function wholeDaysBetween(fromKey: string, toKey: string): number {
-  const from = Date.parse(`${fromKey}T00:00:00Z`);
-  const to = Date.parse(`${toKey}T00:00:00Z`);
-  if (Number.isNaN(from) || Number.isNaN(to)) return 0;
-  return Math.round((to - from) / 86_400_000);
-}
-
-export type InboundPartition = {
-  today: InboundRow[];
-  overdue: InboundRow[];
-  upcoming: InboundRow[];
-};
-
-/**
- * Partition open inbound rows against `today` (YYYY-MM-DD, server-provided):
- *   - today    : expectedDate === today
- *   - overdue  : expectedDate !== null && expectedDate < today  (date-desc-ish:
- *                most-overdue first → soonest-overdue date asc puts oldest first)
- *   - upcoming : expectedDate === null OR expectedDate > today, sorted
- *                soonest-first with no-date rows last.
- *
- * Exported so the RTL test asserts the partition directly off fixture dates
- * without a DB. Pure: no `Date.now()`, the clock is the `today` argument.
- */
-export function partitionInbound(rows: InboundRow[], today: string): InboundPartition {
-  const todayRows: InboundRow[] = [];
-  const overdue: InboundRow[] = [];
-  const upcoming: InboundRow[] = [];
-
-  for (const row of rows) {
-    const key = row.expectedDate;
-    if (key !== null && key === today) {
-      todayRows.push(row);
-    } else if (key !== null && key < today) {
-      overdue.push({ ...row, overdueDays: wholeDaysBetween(key, today) });
-    } else {
-      // key === null (no date) OR key > today.
-      upcoming.push(row);
-    }
-  }
-
-  // Overdue: oldest (most overdue) first.
-  overdue.sort((a, b) => (a.expectedDate! < b.expectedDate! ? -1 : a.expectedDate! > b.expectedDate! ? 1 : 0));
-  // Upcoming: soonest first, no-date rows last.
-  upcoming.sort((a, b) => {
-    if (a.expectedDate === null && b.expectedDate === null) return 0;
-    if (a.expectedDate === null) return 1;
-    if (b.expectedDate === null) return -1;
-    return a.expectedDate < b.expectedDate ? -1 : a.expectedDate > b.expectedDate ? 1 : 0;
-  });
-
-  return { today: todayRows, overdue, upcoming };
 }
 
 function buildLabels(locale: string): InboundLabels {
@@ -237,6 +184,10 @@ async function InboundContent({ locale }: { locale: string }) {
           type: 'to' as const,
           docNumber: to.toNumber,
           href: `/${locale}/planning/transfer-orders/${to.id}`,
+          receiveHref:
+            to.status === 'in_transit'
+              ? `/${locale}/planning/transfer-orders/${to.id}`
+              : null,
           party: route(to.fromWarehouseId, to.toWarehouseId),
           status: to.status,
           expectedDate: dateKey(to.scheduledDate),

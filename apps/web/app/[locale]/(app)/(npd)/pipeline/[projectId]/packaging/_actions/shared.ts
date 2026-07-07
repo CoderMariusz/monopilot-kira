@@ -93,6 +93,10 @@ export type PackagingComponentRow = {
   artworkFileId: string | null;
   artworkStatus: string | null;
   displayOrder: number;
+  /** Optional FK to a catalog packaging item — preserved through edit saves. */
+  itemId: string | null;
+  /** Catalog code of the linked item (display-only in the edit modal). */
+  itemCode: string | null;
 };
 
 // ─── Discriminated-union results ──────────────────────────────────────────────
