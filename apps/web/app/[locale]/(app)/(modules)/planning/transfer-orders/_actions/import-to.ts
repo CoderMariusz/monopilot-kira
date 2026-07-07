@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
 import { hasPlanningWritePermission, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
 import { createTransferOrder } from './actions';
 
@@ -401,8 +402,14 @@ function firstText(rows: ValidImportRow[], pick: (entry: ValidImportRow) => stri
 }
 
 function isValidUomForItem(uom: string, item: ItemLookupRow, units: Set<string>): boolean {
-  const itemUoms = new Set([normalizeText(item.uom_base), normalizeText(item.uom_secondary)].filter((value) => value.length > 0));
-  return itemUoms.has(uom) || units.has(uom);
+  const normalizedUom = normalizePieceUom(uom) ?? uom;
+  const itemUoms = new Set(
+    [normalizeText(item.uom_base), normalizeText(item.uom_secondary)]
+      .filter((value) => value.length > 0)
+      .map((value) => normalizePieceUom(value) ?? value),
+  );
+  const orgUnits = new Set([...units].map((code) => normalizePieceUom(code) ?? code));
+  return itemUoms.has(normalizedUom) || orgUnits.has(normalizedUom);
 }
 
 function normalizeText(value: string | undefined | null): string {

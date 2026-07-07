@@ -119,7 +119,7 @@ async function seedBom(productCode: string): Promise<void> {
         (org_id, bom_header_id, line_no, component_code, component_type, quantity, uom, manufacturing_operation_name, source)
       values
         ($1, $2, 1, 'RM-T045-CSV', 'RM', 1.250000, 'kg', 'Mixing', 'prod_detail'),
-        ($1, $2, 2, 'PM-T045-CSV', 'PM', 2.000000, 'ea', 'Packing', 'manual')
+        ($1, $2, 2, 'PM-T045-CSV', 'PM', 2.000000, 'pcs', 'Packing', 'manual')
     `,
     [orgId, headerId],
   );

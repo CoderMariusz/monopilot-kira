@@ -14,6 +14,8 @@
  * return zero rows via RLS.
  */
 
+import { pieceUomsEqual } from '../../../../../../../../lib/uom/piece';
+
 export type QueryClient = {
   query<T = Record<string, unknown>>(
     sql: string,
@@ -154,10 +156,14 @@ export function diffSnapshotVsCurrent(frozen: unknown, current: unknown): Snapsh
   return paths.map((path) => {
     const inA = path in a;
     const inB = path in b;
+    const isUomPath = /\.uom$/.test(path) || /\[\d+\]\.uom$/.test(path);
     if (inA && inB) {
-      return a[path] === b[path]
-        ? { kind: 'noop' as const, path, frozen: a[path]!, current: b[path]! }
-        : { kind: 'chg' as const, path, frozen: a[path]!, current: b[path]! };
+      const frozenVal = a[path]!;
+      const currentVal = b[path]!;
+      const equal = isUomPath ? pieceUomsEqual(frozenVal, currentVal) : frozenVal === currentVal;
+      return equal
+        ? { kind: 'noop' as const, path, frozen: frozenVal, current: currentVal }
+        : { kind: 'chg' as const, path, frozen: frozenVal, current: currentVal };
     }
     if (inA) return { kind: 'rem' as const, path, frozen: a[path]!, current: '(removed)' };
     return { kind: 'add' as const, path, frozen: '—', current: b[path]! };

@@ -167,4 +167,12 @@ describe('TEC-025 pure JSON-flatten diff', () => {
     expect(byKind('add')).toContain('lines[1].code');
     expect(byKind('rem')).toContain('process.smoke');
   });
+
+  it('treats legacy ea vs pcs line uom as noop after piece normalization', () => {
+    const diff = diffSnapshotVsCurrent(
+      { lines: [{ code: 'RM-1', uom: 'ea' }] },
+      { lines: [{ code: 'RM-1', uom: 'pcs' }] },
+    );
+    expect(diff.find((d) => d.path === 'lines[0].uom')).toMatchObject({ kind: 'noop' });
+  });
 });

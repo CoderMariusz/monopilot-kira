@@ -48,7 +48,7 @@ const DATA: GraphData = {
     { id: 'l3', code: 'WIP-002', type: 'WIP', quantity: '0.02', uom: 'kg', operationName: 'Smoke' },
   ],
   parents: [
-    { productId: 'FG-9999', productName: 'Zestaw mieszany', version: 1, quantity: '2', uom: 'szt' },
+    { productId: 'FG-9999', productName: 'Zestaw mieszany', version: 1, quantity: '2', uom: 'pcs' },
   ],
 };
 

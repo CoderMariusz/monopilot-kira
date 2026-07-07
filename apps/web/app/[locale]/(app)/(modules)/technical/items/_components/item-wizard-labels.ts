@@ -61,7 +61,7 @@ export type ItemWizardLabels = {
   typeLabels: Record<ItemType, string>;
   /** Localized labels for the item lifecycle status (draft/active/deprecated/blocked). */
   statusLabels: Record<ItemStatus, string>;
-  /** Localized labels for the canonical base-UoM list (kg/g/l/ml/szt). */
+  /** Localized labels for the canonical base-UoM list (kg/g/l/ml/pcs). */
   uomLabels: Record<(typeof CANONICAL_UOMS)[number], string>;
   /** Empty-option label for the optional secondary UoM select. */
   uomNone: string;
@@ -151,7 +151,7 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     g: 'g',
     l: 'l',
     ml: 'ml',
-    szt: 'pcs (each)',
+    pcs: 'pcs (each)',
     m: 'm',
     cm: 'cm',
   },
@@ -300,7 +300,7 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       g: get('create.uomLabels.g', D.uomLabels.g),
       l: get('create.uomLabels.l', D.uomLabels.l),
       ml: get('create.uomLabels.ml', D.uomLabels.ml),
-      szt: get('create.uomLabels.szt', D.uomLabels.szt),
+      pcs: get('create.uomLabels.pcs', D.uomLabels.pcs),
       m: get('create.uomLabels.m', D.uomLabels.m),
       cm: get('create.uomLabels.cm', D.uomLabels.cm),
     },

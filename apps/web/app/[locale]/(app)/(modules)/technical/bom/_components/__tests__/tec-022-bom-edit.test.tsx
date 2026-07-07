@@ -148,7 +148,7 @@ describe('ComponentAddModal (TEC-022 parity + behavior)', () => {
 
   it('infers component_type for a packaging item (packaging → PM)', async () => {
     const user = userEvent.setup();
-    const PM_ITEM = { ...ITEM, id: '22222222-2222-2222-2222-222222222222', itemCode: 'PM-2001', name: 'Pouch', itemType: 'packaging' as const, uomBase: 'ea' };
+    const PM_ITEM = { ...ITEM, id: '22222222-2222-2222-2222-222222222222', itemCode: 'PM-2001', name: 'Pouch', itemType: 'packaging' as const, uomBase: 'pcs' };
     mocks.listItems.mockResolvedValue({ items: [PM_ITEM], canCreate: true, canEdit: true, canDeactivate: true, state: 'ready' });
     mocks.validateBomComponent.mockResolvedValue({ ok: true, verdict: usableVerdict(true) });
     render(<ComponentAddModal open onClose={vi.fn()} context={DRAFT_CTX} />);

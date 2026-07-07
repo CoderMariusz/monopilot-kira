@@ -81,7 +81,7 @@ describe('PackagingComponentModal — catalog item picker', () => {
         itemType: 'packaging',
         status: 'active',
         costPerKgEur: '0.08',
-        uomBase: 'ea',
+        uomBase: 'pcs',
       },
     ]);
 

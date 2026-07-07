@@ -12,7 +12,7 @@
  *
  * Asserts:
  *   - BASE/SECONDARY UoM are CLOSED Select dropdowns (no free-text input) offering
- *     kg/g/l/ml/m/cm/szt (szt labelled "pcs (each)"); secondary adds the empty —.
+ *     kg/g/l/ml/pcs/m/cm (pcs labelled "pcs (each)"); secondary adds the empty —.
  *   - Output-unit Select offers Base / Each / Box.
  *   - Conditional reveal: 'each' shows Net content per each; 'box' adds Each per box;
  *     'base' shows neither.
@@ -63,7 +63,7 @@ function renderWizard(initial?: Partial<ReturnType<typeof emptyWizardForm>>) {
 }
 
 describe('UoM is a closed Select — no free text', () => {
-  it('base UoM offers kg/g/l/ml/m/cm/szt (szt labelled "pcs (each)") and is a combobox, not a text input', async () => {
+  it('base UoM offers kg/g/l/ml/pcs/m/cm (pcs labelled "pcs (each)") and is a combobox, not a text input', async () => {
     const user = userEvent.setup();
     renderWizard();
     await user.click(screen.getByRole('button', { name: L.next })); // → classification

@@ -183,7 +183,7 @@ const DATA: BomDetailData = {
       parentVersion: 1,
       parentStatus: 'active',
       quantity: '2.000000',
-      uom: 'szt',
+      uom: 'pcs',
     },
   ],
   detailHrefBase: '/technical/bom',

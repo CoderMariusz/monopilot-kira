@@ -111,11 +111,14 @@ function formatCost(costPerKg: string | null): string {
   return Number.isFinite(n) ? n.toFixed(2) : '—';
 }
 
-// F7 — 'szt' is the Polish storage value for "each/piece" (CANONICAL_UOMS keeps
-// it for parity). It must NOT leak the Polish word into the /en list; render the
-// neutral English abbreviation instead (matches the create wizard's "pcs (each)").
-function formatUom(uomBase: string): string {
-  return uomBase === 'szt' ? 'pcs' : uomBase;
+import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
+
+function formatUom(uomBase: string, uomLabels?: ItemWizardLabels['uomLabels']): string {
+  const canonical = normalizePieceUom(uomBase) ?? uomBase;
+  if (uomLabels && canonical in uomLabels) {
+    return uomLabels[canonical as keyof typeof uomLabels];
+  }
+  return canonical;
 }
 
 function formatUpdated(updatedAt: string): string {
@@ -304,7 +307,7 @@ export function ItemsTableClient({
                   <td>
                     <span className={`badge ${TYPE_TONE[item.itemType]}`}>{typeLabel(item.itemType)}</span>
                   </td>
-                  <td className="mono">{formatUom(item.uomBase)}</td>
+                  <td className="mono">{formatUom(item.uomBase, wizardLabels.uomLabels)}</td>
                   <td className="mono tabular-nums">{formatCost(item.costPerKg)}</td>
                   <td>
                     {item.allergens.length === 0 ? (

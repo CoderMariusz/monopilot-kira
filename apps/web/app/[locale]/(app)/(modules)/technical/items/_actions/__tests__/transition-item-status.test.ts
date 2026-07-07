@@ -125,6 +125,17 @@ describe('transitionItemStatus (Wave 8b Lane IA)', () => {
     expect(updateCalls()).toHaveLength(0);
   });
 
+  it('activation gate: legacy szt/ea normalize to pcs and allow draft → active', async () => {
+    ctx.row = { status: 'draft', uom_base: 'szt' };
+    const sztResult = await transitionItemStatus({ id: ITEM_ID, toStatus: 'active' });
+    expect(sztResult).toEqual({ ok: true, data: { id: ITEM_ID, status: 'active' } });
+
+    ctx.row = { status: 'draft', uom_base: 'ea' };
+    ctx.calls = [];
+    const eaResult = await transitionItemStatus({ id: ITEM_ID, toStatus: 'active' });
+    expect(eaResult).toEqual({ ok: true, data: { id: ITEM_ID, status: 'active' } });
+  });
+
   it('not found and idempotent re-apply', async () => {
     ctx.row = null;
     const missing = await transitionItemStatus({ id: ITEM_ID, toStatus: 'active' });

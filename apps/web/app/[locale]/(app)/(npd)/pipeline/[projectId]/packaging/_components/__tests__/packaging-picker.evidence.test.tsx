@@ -51,7 +51,7 @@ describe('Packaging picker — parity evidence', () => {
   it('captures the modal with the catalog picker and a linked item', async () => {
     const user = userEvent.setup();
     const searchItemsAction = vi.fn().mockResolvedValue([
-      { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', itemCode: 'PM-2001', name: 'Vacuum pouch', itemType: 'packaging', status: 'active', costPerKgEur: '0.08', uomBase: 'ea' },
+      { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', itemCode: 'PM-2001', name: 'Vacuum pouch', itemType: 'packaging', status: 'active', costPerKgEur: '0.08', uomBase: 'pcs' },
     ]);
     const { container } = render(
       <PackagingComponentModal open onOpenChange={vi.fn()} projectId="p1" editing={null} defaultTier="primary"

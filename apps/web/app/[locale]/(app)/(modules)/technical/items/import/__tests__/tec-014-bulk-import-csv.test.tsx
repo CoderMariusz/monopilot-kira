@@ -94,7 +94,7 @@ const PREVIEW: ItemImportPreview = {
       field: 'name',
       before: 'Old',
       after: 'New',
-      parsed: { itemCode: 'FG5101', name: 'New', itemType: 'fg', uomBase: 'ea' },
+      parsed: { itemCode: 'FG5101', name: 'New', itemType: 'fg', uomBase: 'pcs' },
       issues: [],
     },
   ],
