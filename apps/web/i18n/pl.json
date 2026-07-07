@@ -5785,7 +5785,10 @@
         "weight": "Waga (g)",
         "packs_per_case": "Sztuk w kartonie",
         "benchmark": "Benchmark",
-        "price_brief": "Cena (Brief)"
+        "price_brief": "Cena (Brief)",
+        "runs_per_week": "Przebiegi na tydzień",
+        "article_number": "Numer artykułu",
+        "volument_box": "Objętość na opakowanie"
       }
     },
     "faProcurementTab": {
@@ -5957,7 +5960,10 @@
         "yield_line": "Wydajność linii %",
         "resource_requirement": "Obsada",
         "rate": "Tempo",
-        "intermediate_code_final": "Końcowy kod PR (auto)"
+        "intermediate_code_final": "Końcowy kod PR (auto)",
+        "staffing": "Obsada",
+        "closed_production": "Zamknięta produkcja",
+        "dieset": "Matryca"
       },
       "processes": {
         "sectionTitle": "Procesy",
@@ -6943,7 +6949,12 @@
         "pageTitle": "Rozwój nowych produktów",
         "pageSubtitle": "Nadzór nad lejkiem — projekty w przepływie Stage-Gate.",
         "breadcrumbRoot": "NPD",
-        "breadcrumbCurrent": "Lejek"
+        "breadcrumbCurrent": "Lejek",
+        "tabAnalytics": "Analityka",
+        "exportCsv": "Eksport CSV",
+        "analyticsStage": "Etap",
+        "analyticsCount": "Liczba",
+        "analyticsConversion": "Konwersja"
       },
       "kpi": {
         "activeLabel": "Aktywne projekty",

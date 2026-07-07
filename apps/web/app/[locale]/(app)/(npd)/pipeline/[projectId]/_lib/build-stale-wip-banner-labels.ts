@@ -23,8 +23,19 @@ export async function buildStaleWipBannerLabels(locale: string): Promise<StaleWi
         return fallback;
       }
     };
+    const pickRaw = (key: keyof StaleWipDefinitionBannerLabels, fallback: string) => {
+      try {
+        if (typeof t.raw === 'function') {
+          const value = t.raw(key);
+          return value === key ? fallback : String(value);
+        }
+        return pick(key, fallback);
+      } catch {
+        return fallback;
+      }
+    };
     return {
-      updatedMessage: pick('updatedMessage', DEFAULT_LABELS.updatedMessage),
+      updatedMessage: pickRaw('updatedMessage', DEFAULT_LABELS.updatedMessage),
       acceptButton: pick('acceptButton', DEFAULT_LABELS.acceptButton),
       accepting: pick('accepting', DEFAULT_LABELS.accepting),
       acceptSuccess: pick('acceptSuccess', DEFAULT_LABELS.acceptSuccess),

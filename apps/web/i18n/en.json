@@ -3314,7 +3314,10 @@
         "weight": "Weights (g)",
         "packs_per_case": "Packs per case",
         "benchmark": "Benchmark",
-        "price_brief": "Price (Brief)"
+        "price_brief": "Price (Brief)",
+        "runs_per_week": "Runs per week",
+        "article_number": "Article number",
+        "volument_box": "Volume per box"
       }
     },
     "faProcurementTab": {
@@ -3487,7 +3490,10 @@
         "yield_line": "Yield Line %",
         "resource_requirement": "Staffing",
         "rate": "Rate",
-        "intermediate_code_final": "PR Code Final (auto)"
+        "intermediate_code_final": "PR Code Final (auto)",
+        "staffing": "Staffing",
+        "closed_production": "Closed production",
+        "dieset": "Dieset"
       },
       "processes": {
         "sectionTitle": "Processes",
@@ -4495,7 +4501,12 @@
         "pageTitle": "New Product Development",
         "pageSubtitle": "Pipeline oversight — projects across the Stage-Gate flow.",
         "breadcrumbRoot": "NPD",
-        "breadcrumbCurrent": "Pipeline"
+        "breadcrumbCurrent": "Pipeline",
+        "tabAnalytics": "Analytics",
+        "exportCsv": "Export CSV",
+        "analyticsStage": "Stage",
+        "analyticsCount": "Count",
+        "analyticsConversion": "Conversion"
       },
       "kpi": {
         "activeLabel": "Active projects",
