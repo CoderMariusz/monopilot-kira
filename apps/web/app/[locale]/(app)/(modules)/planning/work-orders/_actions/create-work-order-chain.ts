@@ -9,6 +9,7 @@ import {
   PLANNING_WO_WRITE_PERMISSION,
   hasPermission,
   type OrgActionContext,
+  type ScheduleOutput,
   type WOMaterial,
   type WOHeader,
 } from './shared';
@@ -52,6 +53,8 @@ type ChainResult =
       wipWorkOrders: WOHeader[];
       dependencies: Array<{ parentWoId: string; childWoId: string; materialLink: string | null; requiredQty: string | null }>;
       created: boolean;
+      fgMaterials: WOMaterial[];
+      fgPrimarySchedule: ScheduleOutput;
     }
   | { ok: false; error: ChainErrorCode; planningError?: string; message?: string };
 
@@ -148,12 +151,15 @@ async function createWorkOrderChainInContext(
   const existingFg = await loadWorkOrderByNumber(ctx, input.documentNumber);
   if (existingFg) {
     const existing = await loadExistingChain(ctx, existingFg.id);
+    const fgArtifacts = await loadFgWoArtifacts(ctx, existingFg.id);
     return {
       ok: true,
       fgWorkOrder: existingFg,
       wipWorkOrders: existing.wipWorkOrders,
       dependencies: existing.dependencies,
       created: false,
+      fgMaterials: fgArtifacts.materials,
+      fgPrimarySchedule: fgArtifacts.primarySchedule,
     };
   }
 
@@ -221,6 +227,96 @@ async function createWorkOrderChainInContext(
     wipWorkOrders,
     dependencies,
     created: true,
+    fgMaterials: fgCreated.materials,
+    fgPrimarySchedule: fgCreated.primarySchedule,
+  };
+}
+
+async function loadFgWoArtifacts(
+  ctx: OrgActionContext,
+  fgWoId: string,
+): Promise<{ materials: WOMaterial[]; primarySchedule: ScheduleOutput }> {
+  const materialsResult = await ctx.client.query<{
+    id: string;
+    wo_id: string;
+    product_id: string | null;
+    material_name: string;
+    required_qty: string;
+    consumed_qty: string;
+    reserved_qty: string;
+    uom: string;
+    sequence: number;
+    material_source: string;
+    bom_item_id: string | null;
+    bom_version: number | null;
+    notes: string | null;
+  }>(
+    `select id::text as id, wo_id::text as wo_id, product_id::text as product_id,
+            material_name, required_qty::text as required_qty,
+            consumed_qty::text as consumed_qty, reserved_qty::text as reserved_qty,
+            uom, sequence, material_source, bom_item_id::text as bom_item_id,
+            bom_version, notes
+       from public.wo_materials
+      where org_id = app.current_org_id()
+        and wo_id = $1::uuid
+      order by sequence`,
+    [fgWoId],
+  );
+  const scheduleResult = await ctx.client.query<{
+    id: string;
+    planned_wo_id: string;
+    product_id: string;
+    output_role: string;
+    expected_qty: string;
+    uom: string;
+    allocation_pct: string;
+    disposition: string;
+    downstream_wo_id: string | null;
+    notes: string | null;
+  }>(
+    `select id::text as id, planned_wo_id::text as planned_wo_id, product_id::text as product_id,
+            output_role, expected_qty::text as expected_qty, uom,
+            allocation_pct::text as allocation_pct, disposition,
+            downstream_wo_id::text as downstream_wo_id, notes
+       from public.schedule_outputs
+      where org_id = app.current_org_id()
+        and planned_wo_id = $1::uuid
+        and output_role = 'primary'
+      limit 1`,
+    [fgWoId],
+  );
+  const scheduleRow = scheduleResult.rows[0];
+  if (!scheduleRow) {
+    throw new WorkOrderChainError('persistence_failed', 'fg_primary_schedule_missing');
+  }
+  return {
+    materials: materialsResult.rows.map((row) => ({
+      id: row.id,
+      woId: row.wo_id,
+      productId: row.product_id,
+      materialName: row.material_name,
+      requiredQty: row.required_qty,
+      consumedQty: row.consumed_qty,
+      reservedQty: row.reserved_qty,
+      uom: row.uom,
+      sequence: row.sequence,
+      materialSource: row.material_source,
+      bomItemId: row.bom_item_id,
+      bomVersion: row.bom_version,
+      notes: row.notes,
+    })),
+    primarySchedule: {
+      id: scheduleRow.id,
+      plannedWoId: scheduleRow.planned_wo_id,
+      productId: scheduleRow.product_id,
+      outputRole: scheduleRow.output_role,
+      expectedQty: scheduleRow.expected_qty,
+      uom: scheduleRow.uom,
+      allocationPct: scheduleRow.allocation_pct,
+      disposition: scheduleRow.disposition,
+      downstreamWoId: scheduleRow.downstream_wo_id,
+      notes: scheduleRow.notes,
+    },
   };
 }
 

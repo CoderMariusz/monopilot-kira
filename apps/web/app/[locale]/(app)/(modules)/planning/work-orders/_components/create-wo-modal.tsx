@@ -131,6 +131,8 @@ export type CreateWoLabels = {
     not_released_to_factory?: string;
   };
   noBomWarning: string;
+  /** Shown when a multi-stage FG creates upstream WIP work orders alongside the root. */
+  chainCreatedWarning?: string;
   /** P0-UOM — surfaced when createWorkOrder warns the FG has no approved factory spec. */
   noFactorySpecWarning?: string;
 };
@@ -313,9 +315,18 @@ export function CreateWoModal({
       }
 
       // Success. Surface the create warnings (no active BOM / no approved factory
-      // spec) so planning knows the WO can't be released-to-start until Technical
-      // creates them, then hand off to the caller.
-      if (result.warning === 'no_active_bom') {
+      // spec / multi-stage chain) so planning knows the WO can't be released-to-start
+      // until Technical creates them, then hand off to the caller.
+      if (result.chain && result.chain.totalCount > 1) {
+        const root = result.workOrder.woNumber;
+        setWarning(
+          labels.chainCreatedWarning
+            ? labels.chainCreatedWarning
+                .replace('{count}', String(result.chain.totalCount))
+                .replace('{root}', root)
+            : `${result.chain.totalCount} work orders created — root ${root}.`,
+        );
+      } else if (result.warning === 'no_active_bom') {
         setWarning(labels.noBomWarning);
       } else if (result.warning === 'no_approved_factory_spec') {
         setWarning(labels.noFactorySpecWarning ?? labels.noBomWarning);

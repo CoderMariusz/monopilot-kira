@@ -8297,6 +8297,7 @@
           "ambiguous_site": "Select a site in the top bar before creating a work order."
         },
         "noBomWarning": "Work order created, but the product has no active BOM — no materials were generated.",
+        "chainCreatedWarning": "{count} work orders created — root {root}.",
         "quantityUom": {
           "base": "kg",
           "each": "each",

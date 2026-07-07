@@ -216,6 +216,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         ),
       },
       noBomWarning: t('create.noBomWarning'),
+      chainCreatedWarning: opt('create.chainCreatedWarning', '{count} work orders created — root {root}.'),
       noFactorySpecWarning: opt(
         'create.noFactorySpecWarning',
         'Created — but this product has no approved factory spec yet. Create it in Technical before release-to-start.',

@@ -162,6 +162,19 @@ export type GetPlanningWorkOrderResult =
     }
   | { ok: false; error: PlanningWorkOrderError };
 
+export type CreateWorkOrderChainSummary = {
+  /** Upstream WIP work orders created alongside the FG root. */
+  wipWorkOrders: WOHeader[];
+  dependencies: Array<{
+    parentWoId: string;
+    childWoId: string;
+    materialLink: string | null;
+    requiredQty: string | null;
+  }>;
+  /** FG root + upstream WIP stages. */
+  totalCount: number;
+};
+
 export type CreateWorkOrderResult =
   | {
       ok: true;
@@ -170,6 +183,8 @@ export type CreateWorkOrderResult =
       primarySchedule: ScheduleOutput;
       conversion?: UomConversionResult;
       warning?: 'no_active_bom' | 'no_approved_factory_spec';
+      /** Present when the FG BOM has WIP lines and createWorkOrderChain ran. */
+      chain?: CreateWorkOrderChainSummary;
     }
   | { ok: false; error: PlanningWorkOrderError; issues?: z.ZodIssue[] };
 
