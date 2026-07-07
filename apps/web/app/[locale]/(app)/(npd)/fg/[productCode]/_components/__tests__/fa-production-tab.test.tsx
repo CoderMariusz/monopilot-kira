@@ -686,6 +686,10 @@ describe('FaProductionTab — S5b per-component process list', () => {
         operationName: 'Cook',
         standardCost: 7.5,
         defaultDurationHours: 1.5,
+        throughputPerHour: 120,
+        throughputUom: 'pack',
+        setupCost: 42,
+        yieldPct: 95,
         roles: [{ roleGroup: 'Operator', defaultHeadcount: 2 }],
       },
     }));
@@ -708,6 +712,10 @@ describe('FaProductionTab — S5b per-component process list', () => {
         processName: 'Cook',
         durationHours: 1.5,
         additionalCost: 7.5,
+        throughputPerHour: 120,
+        throughputUom: 'pack',
+        setupCost: 42,
+        yieldPct: 95,
         createsWipItem: false,
       }),
     );

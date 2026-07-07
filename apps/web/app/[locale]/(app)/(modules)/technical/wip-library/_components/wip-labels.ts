@@ -81,6 +81,7 @@ export type WipLibraryLabels = {
   processThroughput: string;
   processThroughputUom: string;
   processSetupCost: string;
+  processYieldPct: string;
   processEdit: string;
   processRemove: string;
   processRolesHeader: string;
@@ -187,6 +188,7 @@ export const WIP_LIBRARY_DEFAULT_LABELS: WipLibraryLabels = {
   processThroughput: 'Throughput / hour',
   processThroughputUom: 'Throughput UoM',
   processSetupCost: 'Setup cost',
+  processYieldPct: 'Yield %',
   processEdit: 'Edit',
   processRemove: 'Remove',
   processRolesHeader: 'Roles',
@@ -294,6 +296,7 @@ export const WIP_LABEL_KEY_MAP: Record<keyof WipLibraryLabels, string> = {
   processThroughput: 'process.throughput',
   processThroughputUom: 'process.throughputUom',
   processSetupCost: 'process.setupCost',
+  processYieldPct: 'process.yieldPct',
   processEdit: 'process.edit',
   processRemove: 'process.remove',
   processRolesHeader: 'process.rolesHeader',

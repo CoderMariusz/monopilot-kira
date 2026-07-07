@@ -118,6 +118,7 @@ export function mapProcess(row: unknown): WipProcessRow | null {
           ? asString(r.throughput_uom)
           : null,
     setupCost: asNumber(r.setupCost ?? r.setup_cost),
+    yieldPct: asNullableNumber(r.yieldPct ?? r.yield_pct) ?? undefined,
     roles,
   };
 }
@@ -158,6 +159,7 @@ export function toSaveProcesses(rows: WipProcessRow[]) {
     throughputPerHour: row.throughputPerHour,
     throughputUom: row.throughputUom,
     setupCost: row.setupCost,
+    yieldPct: row.yieldPct,
     roles: row.roles.map((role) => ({
       roleGroup: role.roleGroup,
       headcount: role.headcount,

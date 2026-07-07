@@ -63,6 +63,7 @@ export type WipProcessRow = {
   throughputPerHour: number | null;
   throughputUom: string | null;
   setupCost: number;
+  yieldPct?: number;
   roles: WipProcessRoleRow[];
 };
 

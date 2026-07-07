@@ -90,6 +90,7 @@ import {
   saveWipProcessRoles,
 } from '../../../../../../(npd)/fa/actions/wip-process-actions';
 import { getProcessDefault } from '../../../../(admin)/settings/process-defaults/_actions/process-defaults-actions';
+import { wipProcessPrefillFromDefault } from '../../../../../../(npd)/fa/_lib/wip-process-prefill';
 import { isLegacyProcessColumn } from './legacy-process-column';
 import { isW5HiddenProductionColumn } from '../../../../../../(npd)/fa/_components/w5-production-constants';
 import { ProductionLinePicker } from '../../../../../../(npd)/fa/_components/production-line-picker';
@@ -121,6 +122,10 @@ type ProcessDefaultPayload = {
   operationName: string;
   standardCost: number;
   defaultDurationHours: number;
+  setupCost?: number;
+  throughputPerHour?: number | null;
+  throughputUom?: string | null;
+  yieldPct?: number;
   roles: { roleGroup: string; defaultHeadcount: number }[];
 };
 
@@ -1118,15 +1123,17 @@ function ComponentProcesses({
       const def = await getDefault(op.id);
       const payload = def.ok ? def.data : null;
       const processName = payload?.operationName ?? op.operationName;
-      const durationHours = payload?.defaultDurationHours ?? 0;
-      const additionalCost = payload?.standardCost ?? 0;
+      const prefill = wipProcessPrefillFromDefault(payload);
       const added = await addProcess({
         prodDetailId,
         processName,
-        durationHours,
-        additionalCost,
+        durationHours: prefill.durationHours,
+        additionalCost: prefill.additionalCost,
+        throughputPerHour: prefill.throughputPerHour,
+        throughputUom: prefill.throughputUom,
+        setupCost: prefill.setupCost,
+        yieldPct: prefill.yieldPct,
         createsWipItem: false,
-        yieldPct: 100,
       });
       if (!added.ok) {
         setError(labels.addError);

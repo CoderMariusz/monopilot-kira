@@ -81,14 +81,29 @@ const SUMMARY_ROW = {
  * RBAC permission probe and the second is the product summary read.
  */
 function wireOrgContext(
-  opts: { canRead?: boolean; row?: Record<string, unknown> | null } = {},
+  opts: {
+    canRead?: boolean;
+    row?: Record<string, unknown> | null;
+    processYields?: Array<{ display_order: number; yield_pct: string | number }>;
+  } = {},
 ) {
-  const { canRead = true, row = SUMMARY_ROW } = opts;
+  const { canRead = true, row = SUMMARY_ROW, processYields = [] } = opts;
   withOrgContextMock.mockImplementation(async (cb: (ctx: unknown) => Promise<unknown>) => {
     const client = {
       query: vi.fn(async (sql: string) => {
         if (/role_permissions|permissions|user_roles/i.test(sql)) {
           return { rows: canRead ? [{ ok: true }] : [] };
+        }
+        if (/npd_wip_processes/i.test(sql)) {
+          return {
+            rows: processYields.map((p, index) => ({
+              prod_detail_id: 'pd-1',
+              ingredient_item_id: null,
+              wip_item_id: null,
+              display_order: p.display_order ?? index,
+              yield_pct: p.yield_pct,
+            })),
+          };
         }
         if (/from\s+public\.(product|fa)/i.test(sql) && /product_code/i.test(sql)) {
           return { rows: row ? [row] : [] };
@@ -163,6 +178,23 @@ describe('T-137 FA right panel — parity (fa-screens.jsx:404-452)', () => {
     expect(within(panel).getByText('FA0043')).toBeInTheDocument();
     expect(within(panel).getByText('Smoked Almond Yoghurt')).toBeInTheDocument();
     expect(within(panel).getByTestId('fa-right-panel-days-to-launch')).toHaveTextContent(/42/);
+  });
+
+  it('shows compounded total yield when a single-component process chain exists', async () => {
+    wireOrgContext({
+      processYields: [
+        { display_order: 0, yield_pct: 30 },
+        { display_order: 1, yield_pct: 95 },
+        { display_order: 2, yield_pct: 95 },
+      ],
+    });
+    await renderPanel();
+    expect(screen.getByTestId('fa-right-panel-total-yield')).toHaveTextContent('27.07%');
+  });
+
+  it('shows an em dash for total yield when no processes exist', async () => {
+    await renderPanel();
+    expect(screen.getByTestId('fa-right-panel-total-yield')).toHaveTextContent('—');
   });
 
   it('renders the Built-status card with "Not built" when built=false', async () => {

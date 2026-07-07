@@ -8,6 +8,7 @@ import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
 import { getProcessDefault } from '../../../../(admin)/settings/process-defaults/_actions/process-defaults-actions';
+import { wipProcessPrefillFromDefault } from '../../../../../../(npd)/fa/_lib/wip-process-prefill';
 import type { OperationOption, WipProcessRow } from '../_lib/wip-definition-contract';
 import type { WipLibraryLabels } from './wip-labels';
 
@@ -276,7 +277,7 @@ function ProcessEditDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1 sm:col-span-2">
+          <div className="grid gap-1">
             <label className="text-xs font-medium text-slate-700">{labels.processSetupCost}</label>
             <Input
               type="number"
@@ -285,6 +286,19 @@ function ProcessEditDialog({
               value={String(draft.setupCost)}
               disabled={disabled}
               onChange={(e) => setDraft({ ...draft, setupCost: Number(e.target.value) || 0 })}
+            />
+          </div>
+          <div className="grid gap-1">
+            <label className="text-xs font-medium text-slate-700">{labels.processYieldPct}</label>
+            <Input
+              data-testid="wip-process-yield-pct"
+              type="number"
+              min={0.001}
+              max={100}
+              step="0.001"
+              value={String(draft.yieldPct ?? 100)}
+              disabled={disabled}
+              onChange={(e) => setDraft({ ...draft, yieldPct: Number(e.target.value) || 0 })}
             />
           </div>
         </div>
@@ -335,7 +349,16 @@ function ProcessEditDialog({
           <Button type="button" className="btn--ghost" onClick={onClose}>
             {labels.processCancel}
           </Button>
-          <Button type="button" disabled={disabled} onClick={() => onSubmit(draft)}>
+          <Button
+            type="button"
+            data-testid="wip-process-save"
+            disabled={disabled}
+            onClick={() => {
+              const parsedYield = Number(draft.yieldPct ?? 100);
+              if (!Number.isFinite(parsedYield) || parsedYield <= 0 || parsedYield > 100) return;
+              onSubmit({ ...draft, yieldPct: parsedYield });
+            }}
+          >
             {labels.processSave}
           </Button>
         </div>
@@ -365,6 +388,7 @@ export function WipProcessChainEditor({
     const def = await getProcessDefault(op.id);
     const payload = def.ok ? def.data : null;
     const processName = payload?.operationName ?? op.operationName;
+    const prefill = wipProcessPrefillFromDefault(payload);
     const roles =
       payload?.roles.map((r: { roleGroup: string; defaultHeadcount: number }) => ({
         roleGroup: r.roleGroup,
@@ -376,11 +400,12 @@ export function WipProcessChainEditor({
       {
         processName,
         displayOrder: processes.length,
-        durationHours: payload?.defaultDurationHours ?? 0,
-        additionalCost: payload?.standardCost ?? 0,
-        throughputPerHour: 0,
-        throughputUom: 'kg',
-        setupCost: 0,
+        durationHours: prefill.durationHours,
+        additionalCost: prefill.additionalCost,
+        throughputPerHour: prefill.throughputPerHour,
+        throughputUom: prefill.throughputUom,
+        setupCost: prefill.setupCost,
+        yieldPct: prefill.yieldPct,
         roles,
       },
     ]);

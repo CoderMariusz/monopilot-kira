@@ -35,6 +35,10 @@ import {
 } from '../../../../../../../components/npd/validation-status-panel';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import {
+  compoundedYieldPctForProduct,
+  loadProductProcessYields,
+} from '../../../../../../(npd)/pipeline/_actions/_lib/product-process-yields';
 
 const READ_PERMISSION = 'npd.fa.read';
 
@@ -59,6 +63,8 @@ type FaSummary = {
   daysToLaunch: number | null;
   launchDate: string | null;
   lastUpdated: string | null;
+  /** Compounded Π(process yield_pct) for single-component products; null when N/A. */
+  totalYieldPct: number | null;
   /** Server-computed V01-V08 validation results (real product row). */
   validation: ValidationRule[];
 };
@@ -184,6 +190,8 @@ async function readSummary(
   if (!json || Object.keys(json).length === 0) return null;
 
   const packSizes = await readPackSizes(ctx);
+  const processYields = await loadProductProcessYields(ctx, productCode);
+  const totalYieldPct = compoundedYieldPctForProduct(processYields);
   const daysRaw = json.days_to_launch;
   return {
     productCode: str(json.product_code),
@@ -193,6 +201,7 @@ async function readSummary(
     daysToLaunch: typeof daysRaw === 'number' ? daysRaw : daysRaw == null ? null : Number(daysRaw),
     launchDate: json.launch_date == null ? null : String(json.launch_date),
     lastUpdated: json.created_at == null ? null : String(json.created_at),
+    totalYieldPct,
     validation: computeValidation(json, packSizes, validationTitles),
   };
 }
@@ -231,6 +240,7 @@ type FaRightPanelLabels = {
   daysToLaunch: string;
   launchDate: string;
   lastUpdated: string;
+  totalYield: string;
   builtTitle: string;
   built: string;
   notBuilt: string;
@@ -272,6 +282,7 @@ const DEFAULT_LABELS: FaRightPanelLabels = {
   daysToLaunch: 'Days to launch',
   launchDate: 'Launch date',
   lastUpdated: 'Last updated',
+  totalYield: 'Total yield',
   builtTitle: 'Built status',
   built: 'Built',
   notBuilt: 'Not built',
@@ -324,6 +335,7 @@ async function buildLabels(locale: string): Promise<FaRightPanelLabels> {
       daysToLaunch: pick('daysToLaunch', d.daysToLaunch),
       launchDate: pick('launchDate', d.launchDate),
       lastUpdated: pick('lastUpdated', d.lastUpdated),
+      totalYield: pick('totalYield', d.totalYield),
       builtTitle: pick('builtTitle', d.builtTitle),
       built: pick('built', d.built),
       notBuilt: pick('notBuilt', d.notBuilt),
@@ -516,6 +528,16 @@ export async function FaRightPanel(props: FaRightPanelProps) {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
               <dt>{labels.launchDate}</dt>
               <dd className="mono" style={{ fontWeight: 500, color: 'var(--text)' }}>{launchDate ?? '—'}</dd>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <dt>{labels.totalYield}</dt>
+              <dd
+                className="mono"
+                style={{ fontWeight: 500, color: 'var(--text)' }}
+                data-testid="fa-right-panel-total-yield"
+              >
+                {fa.totalYieldPct == null ? '—' : `${fa.totalYieldPct.toFixed(2)}%`}
+              </dd>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
               <dt>{labels.lastUpdated}</dt>
