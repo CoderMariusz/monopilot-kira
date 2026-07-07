@@ -1979,8 +1979,13 @@ export function FaProductionTab({
                 >
                   <strong className="font-semibold">{labels.aggregateTitle}:</strong>{' '}
                   <span className="font-mono">
-                    {labels.fields.dieset}: {uniqueJoin(rows, 'dieset')} ·{' '}
-                    {labels.fields.intermediate_code_final}: {uniqueJoin(rows, 'intermediate_code_final')}
+                    {/* R4.2 (F2): aggregate only over VISIBLE columns — `ordered`
+                        already applies the legacy + hidden-column filters, so
+                        dieset/staffing/etc. can't leak back here (and a missing
+                        labels.fields entry can't render "undefined:"). */}
+                    {ordered
+                      .map((col) => `${fieldLabel(col, labels)}: ${uniqueJoin(rows, col.key)}`)
+                      .join(' · ')}
                   </span>
                 </div>
               ) : null}

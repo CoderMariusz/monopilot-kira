@@ -40,6 +40,7 @@ const productCode = `FA${Math.floor(Math.random() * 1_000_000_000)}`;
 let owner: pg.Pool;
 let itemAId = '';
 let itemBId = '';
+let packagingItemId = '';
 let crossOrgItemId = '';
 
 async function ensureAppUser(): Promise<void> {
@@ -115,6 +116,13 @@ async function seedAll(): Promise<void> {
     [seed.orgAId, seed.writerUserId],
   );
   itemBId = b.rows[0].id;
+  // R4.2 — packaging is a valid production component (packaging-as-a-process).
+  const p = await owner.query<{ id: string }>(
+    `insert into public.items (org_id, item_code, item_type, name, uom_base, created_by)
+     values ($1, 'PK8803', 'packaging', 'MAP Tray', 'each', $2) returning id`,
+    [seed.orgAId, seed.writerUserId],
+  );
+  packagingItemId = p.rows[0].id;
   const c = await owner.query<{ id: string }>(
     `insert into public.items (org_id, item_code, item_type, name, uom_base, created_by)
      values ($1, 'PR8899', 'intermediate', 'Cross Org Item', 'kg', $2) returning id`,
@@ -202,6 +210,27 @@ run('Lane-B production components — REAL DB integration', () => {
       [seed.orgAId, productCode, itemAId],
     );
     expect(after.rows[0].count).toBe('1');
+  });
+
+  it('R4.2: accepts a packaging item as a production component', async () => {
+    const { addProdDetailComponent, removeProdDetailComponent } = await import('../add-prod-detail-component');
+
+    const result = await withActionActor(seed.writerUserId, seed.orgAId, () =>
+      addProdDetailComponent({ productCode, itemId: packagingItemId }),
+    );
+    expect(result).toMatchObject({ intermediateCode: 'PK8803', itemId: packagingItemId });
+
+    const row = await owner.query<{ item_id: string }>(
+      `select item_id::text from public.prod_detail
+        where org_id = $1 and product_code = $2 and item_id = $3`,
+      [seed.orgAId, productCode, packagingItemId],
+    );
+    expect(row.rowCount).toBe(1);
+
+    // Clean up so the later remove/index assertions stay unaffected.
+    await withActionActor(seed.writerUserId, seed.orgAId, () =>
+      removeProdDetailComponent({ productCode, prodDetailId: result.id }),
+    );
   });
 
   it('rejects a cross-org item and a non-writer; removes a row when permitted', async () => {

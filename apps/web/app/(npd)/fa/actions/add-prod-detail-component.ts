@@ -97,7 +97,7 @@ export async function addProdDetailComponent(
          from public.items i
         where i.org_id = app.current_org_id()
           and i.id = $1::uuid
-          and i.item_type in ('rm', 'ingredient', 'intermediate', 'co_product')
+          and i.item_type in ('rm', 'ingredient', 'intermediate', 'co_product', 'byproduct', 'packaging')
         limit 1`,
       [itemId],
     );
