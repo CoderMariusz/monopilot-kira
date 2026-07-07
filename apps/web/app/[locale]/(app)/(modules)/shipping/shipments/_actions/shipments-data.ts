@@ -9,11 +9,12 @@
  *
  *   1. re-exports the action row/detail types so the client views depend on a
  *      _components-local barrel, not a deep relative path into pack-actions;
- *   2. adds ONE small org-scoped RBAC capability probe (getCreateShipmentCapability)
- *      so the SO-detail [Create shipment] button renders disabled + tooltip rather
- *      than failing on click when the user lacks ship.pack.close. The reviewed
- *      createShipment remains the source of truth and re-checks server-side; this is
- *      advisory UI gating only and is NEVER client-trusted.
+ *   2. adds small org-scoped RBAC capability probes (getCreateShipmentCapability,
+ *      getCancelShipmentCapability, getRecordPodCapability) so the shipment-detail
+ *      controls render disabled + tooltip rather than failing on click when the user
+ *      lacks ship.pack.close / ship.so.cancel / ship.bol.sign. The reviewed actions
+ *      remain the source of truth and re-check server-side; these are advisory UI
+ *      gating only and are NEVER client-trusted.
  *
  * Runs inside withOrgContext (RLS: org_id = app.current_org_id()); no service-role
  * bypass, no mocks. Falls back deny-safe (all-false) on read failure.
@@ -69,6 +70,10 @@ const SHIP_PACK_CLOSE = 'ship.pack.close';
  *  cancelShipment requires this permission; see cancelShipment.ts SHIP_SO_CANCEL). */
 const SHIP_SO_CANCEL = 'ship.so.cancel';
 
+/** ship.bol.sign — gates the shipment-detail [Record POD] button (the reviewed
+ *  recordPod requires this permission; see ship-actions.ts SHIP_BOL_SIGN). */
+const SHIP_BOL_SIGN = 'ship.bol.sign';
+
 export type CreateShipmentCapability = {
   /** Whether the caller holds ship.pack.close (create + pack permission). */
   canCreate: boolean;
@@ -77,6 +82,11 @@ export type CreateShipmentCapability = {
 export type CancelShipmentCapability = {
   /** Whether the caller holds ship.so.cancel (shipment cancel permission). */
   canCancel: boolean;
+};
+
+export type RecordPodCapability = {
+  /** Whether the caller holds ship.bol.sign (record-POD permission). */
+  canPod: boolean;
 };
 
 /**
@@ -136,5 +146,35 @@ export async function getCancelShipmentCapability(): Promise<CancelShipmentCapab
     });
   } catch {
     return { canCancel: false };
+  }
+}
+
+/**
+ * Server-side RBAC probe for the shipment-detail [Record POD] button. Mirrors
+ * getCreateShipmentCapability / the hasPermission() shape inside ship-actions.ts
+ * (ship.bol.sign). Deny-safe on failure. NEVER client-trusted — the reviewed
+ * recordPod re-checks server-side and blocks non-shipped status regardless.
+ */
+export async function getRecordPodCapability(): Promise<RecordPodCapability> {
+  try {
+    return await withOrgContext<RecordPodCapability>(async (ctx) => {
+      const { rows } = await (ctx.client as unknown as QueryClient).query<{ ok: boolean }>(
+        `select true as ok
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+            and (
+              rp.permission is not null
+              or coalesce(r.permissions, '[]'::jsonb) ? $3
+            )
+          limit 1`,
+        [ctx.userId, ctx.orgId, SHIP_BOL_SIGN],
+      );
+      return { canPod: rows.length > 0 };
+    });
+  } catch {
+    return { canPod: false };
   }
 }

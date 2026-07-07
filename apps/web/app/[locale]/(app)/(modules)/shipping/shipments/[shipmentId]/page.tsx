@@ -27,7 +27,11 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 import { getShipment, packLpIntoBox } from '../../_actions/pack-actions';
 import { shipShipment, sealShipment, generateBol, recordPod } from '../../_actions/ship-actions';
 import { cancelShipment } from '../../_actions/cancelShipment';
-import { getCreateShipmentCapability, getCancelShipmentCapability } from '../_actions/shipments-data';
+import {
+  getCreateShipmentCapability,
+  getCancelShipmentCapability,
+  getRecordPodCapability,
+} from '../_actions/shipments-data';
 import { ShipmentPackView, type ShipmentPackLabels, type PackLpResult } from '../_components/shipment-pack-view';
 import type { CancelShipmentInput, CancelShipmentResult } from '../_components/cancel-shipment-modal';
 import type {
@@ -49,7 +53,7 @@ async function packLpAction(input: { shipmentId: string; lpId: string; boxId?: s
 /**
  * Thin client-facing adapters for the reviewed ship-actions.ts seams (shipShipment /
  * generateBol / recordPod). The actions are imported VERBATIM and never authored here;
- * RBAC (ship.pack.close for ship/BOL, ship.dashboard.view for POD) is re-checked inside
+ * RBAC (ship.pack.close for ship/BOL, ship.bol.sign for POD) is re-checked inside
  * each action and a forbidden caller gets { ok:false, error:'forbidden' } rendered inline.
  */
 async function shipShipmentAction(shipmentId: string): Promise<ShipShipmentResult> {
@@ -322,10 +326,11 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
 
 async function PackContent({ locale, shipmentId }: { locale: string; shipmentId: string }) {
   const t = await getTranslations('Shipping.shipments');
-  const [result, caps, cancelCaps] = await Promise.all([
+  const [result, caps, cancelCaps, podCaps] = await Promise.all([
     getShipment(shipmentId),
     getCreateShipmentCapability(),
     getCancelShipmentCapability(),
+    getRecordPodCapability(),
   ]);
 
   if (!result.ok) {
@@ -347,15 +352,19 @@ async function PackContent({ locale, shipmentId }: { locale: string; shipmentId:
   }
 
   const data = result.data;
-  // canShip mirrors ship.pack.close (same permission createShipment / shipShipment /
-  // generateBol require). canPod = true here BY CONSTRUCTION: getShipment already
-  // requires ship.dashboard.view (recordPod's permission), so reaching this branch
-  // proves the caller holds it. Both are advisory only — each action re-checks
-  // server-side and a forbidden caller gets { ok:false, error:'forbidden' } inline.
+  // canShip mirrors ship.pack.close (same permission shipShipment / generateBol require).
+  // canPod mirrors ship.bol.sign (recordPod's permission). Both are advisory only —
+  // each action re-checks server-side and a forbidden caller gets
+  // { ok:false, error:'forbidden' } inline.
   return (
     <ShipmentPackView
       locale={locale}
-      caps={{ canPack: caps.canCreate, canShip: caps.canCreate, canPod: true, canCancel: cancelCaps.canCancel }}
+      caps={{
+        canPack: caps.canCreate,
+        canShip: caps.canCreate,
+        canPod: podCaps.canPod,
+        canCancel: cancelCaps.canCancel,
+      }}
       detail={{
         shipment: { ...data.shipment, weight: null },
         boxes: data.boxes,

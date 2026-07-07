@@ -750,9 +750,9 @@ describe('RecordPodModal — signed POD url → recordPod', () => {
     expect(screen.getByTestId('shipment-stage-delivered')).toHaveAttribute('data-active', 'true');
   });
 
-  it('disables the POD trigger with a permission tooltip when the user cannot record delivery', () => {
-    // Use a shipped shipment so the status gate is satisfied and the PERMISSION reason
-    // is the one surfaced (permission is checked before status).
+  it('disables the POD trigger with a permission tooltip when the user lacks ship.bol.sign', () => {
+    // Shipment read (ship.dashboard.view) without ship.bol.sign: the page must pass
+    // canPod:false so the trigger is disabled before submit, not only on recordPod.
     renderPack(
       makeDetail({ shipment: { ...rows[0], status: 'shipped', shippedAt: '2026-06-21T14:00:00Z' } }),
       { canPack: true, canPod: false },
