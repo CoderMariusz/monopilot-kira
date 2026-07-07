@@ -10,9 +10,11 @@ import {
 } from '../../../../../../../(npd)/pipeline/_actions/shared';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import {
+  boxesOutputUnitRequiresPackFactors,
   deriveFgNetQtyPerEachKg,
   deriveFgOutputUom,
   type NpdBriefOutputUnit,
+  wantsBoxOutputUomUpgrade,
 } from '../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom';
 
 const WRITE_PERMISSION = 'npd.core.write';
@@ -133,6 +135,21 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
       if (!beforeRow) return { ok: false, error: 'NOT_FOUND', status: 404 };
 
       const patch = parsed.data.patch;
+      const effectiveOutputUnit =
+        patch.outputUnit !== undefined ? patch.outputUnit : beforeRow.output_unit;
+      const effectivePackWeightG =
+        patch.packWeightG !== undefined ? patch.packWeightG : beforeRow.pack_weight_g;
+      const effectivePacksPerCase =
+        patch.packsPerCase !== undefined ? patch.packsPerCase : beforeRow.packs_per_case;
+      if (
+        boxesOutputUnitRequiresPackFactors({
+          output_unit: effectiveOutputUnit,
+          pack_weight_g: effectivePackWeightG,
+          packs_per_case: effectivePacksPerCase,
+        })
+      ) {
+        return { ok: false, error: 'INVALID_INPUT', status: 400 };
+      }
       const updated = await context.client.query<ProjectBriefAuditRow>(
         `update public.npd_projects
             set name                    = case when $2::boolean then $3 else name end,
@@ -272,8 +289,10 @@ async function syncFgOutputUomFromBrief(
   const outputUom = deriveFgOutputUom(row);
   const netQtyPerEach = deriveFgNetQtyPerEachKg(row.pack_weight_g);
   const packsPerCase = row.packs_per_case;
+  const boxUpgrade = wantsBoxOutputUomUpgrade(row.output_unit);
 
   if (
+    boxUpgrade &&
     outputUom === 'box' &&
     packsPerCase != null &&
     packsPerCase > 0 &&
@@ -293,6 +312,20 @@ async function syncFgOutputUomFromBrief(
       [projectId, packsPerCase, netQtyPerEach],
     );
     return;
+  }
+
+  if (packsPerCase != null && packsPerCase > 0 && !boxUpgrade) {
+    await context.client.query(
+      `update public.items
+          set each_per_box = $2::int,
+              net_qty_per_each = coalesce(net_qty_per_each, $3::numeric)
+        where org_id = app.current_org_id()
+          and npd_project_id = $1::uuid
+          and item_type = 'fg'
+          and (coalesce(each_per_box, 0) <> $2
+               or (net_qty_per_each is null and $3::numeric is not null))`,
+      [projectId, packsPerCase, netQtyPerEach],
+    );
   }
 
   await context.client.query(

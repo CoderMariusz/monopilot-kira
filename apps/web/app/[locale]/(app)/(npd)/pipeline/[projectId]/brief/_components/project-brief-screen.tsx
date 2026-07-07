@@ -136,6 +136,7 @@ export type ProjectBriefLabels = {
   saveChanges: string;
   saved: string;
   errInvalidInput: string;
+  errOutputUnitBoxesPackFactors: string;
   errForbidden: string;
   errNotFound: string;
   errPersistence: string;
@@ -429,6 +430,16 @@ function EditBriefCard({
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (status === 'saving' || !dirty) return;
+      if (
+        form.outputUnit === 'boxes' &&
+        (form.packWeightG.trim() === '' ||
+          form.packsPerCase.trim() === '' ||
+          Number(form.packsPerCase) <= 0)
+      ) {
+        setStatus('error');
+        setError(labels.errOutputUnitBoxesPackFactors);
+        return;
+      }
       setStatus('saving');
       setError(null);
       try {

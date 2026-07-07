@@ -174,4 +174,12 @@ describe('updateProjectBrief', () => {
     );
     expect(baseUpgrade?.params).toEqual([PROJECT]);
   });
+
+  it('rejects boxes output unit without pack factors before persisting', async () => {
+    const result = await updateProjectBrief({
+      projectId: PROJECT,
+      patch: { outputUnit: 'boxes', packWeightG: null, packsPerCase: 0 },
+    });
+    expect(result).toEqual({ ok: false, error: 'INVALID_INPUT', status: 400 });
+  });
 });

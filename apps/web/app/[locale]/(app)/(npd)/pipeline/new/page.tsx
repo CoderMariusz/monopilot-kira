@@ -54,6 +54,10 @@ const DEFAULT_LABELS: WizardLabels = {
   fieldPackWeightPlaceholder: 'e.g. 200',
   fieldPacksPerCase: 'Packs per case',
   fieldPacksPerCasePlaceholder: 'e.g. 12',
+  fieldOutputUnit: 'Output unit',
+  fieldOutputUnitKg: 'kg',
+  fieldOutputUnitPieces: 'pieces',
+  fieldOutputUnitBoxes: 'boxes',
   fieldWeeklyVolumePacks: 'Weekly volume (packs/week)',
   fieldWeeklyVolumePacksPlaceholder: 'e.g. 5000',
   fieldRunsPerWeek: 'Runs per week (estimate)',
@@ -106,6 +110,8 @@ const DEFAULT_LABELS: WizardLabels = {
   creating: 'Creating…',
   errorGeneric: 'Could not create the project. Try again.',
   errorForbidden: 'You do not have permission to create projects.',
+  errorBoxesOutputUnit:
+    'Output unit "boxes" requires pack weight (g) and packs per case greater than 0.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof WizardLabels>;

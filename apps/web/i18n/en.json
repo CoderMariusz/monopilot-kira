@@ -3829,6 +3829,7 @@
       "saving": "Saving…",
       "cancel": "Cancel",
       "errInvalidInput": "Some fields are invalid. Check the values and try again.",
+      "errOutputUnitBoxesPackFactors": "Output unit \"boxes\" requires pack weight (g) and packs per case greater than 0.",
       "errForbidden": "You do not have permission to edit this brief.",
       "errNotFound": "This project could not be found.",
       "errPersistence": "Could not save the brief. Please try again.",
@@ -4310,7 +4311,12 @@
       "fieldWeeklyVolumePacksPlaceholder": "e.g. 5000",
       "fieldRunsPerWeek": "Runs per week (estimate)",
       "fieldRunsPerWeekPlaceholder": "e.g. 3",
-      "fieldRunsPerWeekHelp": "Planning estimate only — revise later on the project brief as volumes firm up."
+      "fieldRunsPerWeekHelp": "Planning estimate only — revise later on the project brief as volumes firm up.",
+      "fieldOutputUnit": "Output unit",
+      "fieldOutputUnitKg": "kg",
+      "fieldOutputUnitPieces": "pieces",
+      "fieldOutputUnitBoxes": "boxes",
+      "errorBoxesOutputUnit": "Output unit \"boxes\" requires pack weight (g) and packs per case greater than 0."
     },
     "faBomTab": {
       "title": "BOM (computed view)",
