@@ -1,8 +1,18 @@
+import { EventType } from '../../../../packages/outbox/src/events.enum';
+
 type QueryClient = {
   query<T = Record<string, unknown>>(
     sql: string,
     params?: readonly unknown[],
   ): Promise<{ rows: T[]; rowCount?: number | null }>;
+};
+
+export const WAC_OUTBOX_APP_VERSION = 'finance-wac-v1';
+
+export type WacAnomalySourceRef = {
+  aggregateType: string;
+  aggregateId: string;
+  dedupKey: string;
 };
 
 type UpsertWacInput = {
@@ -14,6 +24,8 @@ type UpsertWacInput = {
   updatedBy: string;
   /** ISO currency code for the WAC bucket; defaults to GBP when omitted. */
   currencyCode?: string;
+  /** Links a clamp anomaly to the stock move that caused it. */
+  sourceRef?: WacAnomalySourceRef;
 };
 
 /** Org valuation currency for all WAC buckets (single-currency; no FX). */
@@ -73,11 +85,15 @@ type WacUpdateResult = {
   totalValue: string;
   clamped: boolean;
   excluded?: 'unresolved_uom';
+  availableQtyKg?: string;
+  availableValue?: string;
+  rawQtyKg?: string;
+  rawValue?: string;
 };
 
 export async function upsertWac(
   client: QueryClient,
-  { orgId, siteId, itemId, deltaQtyKg, deltaValue, updatedBy, currencyCode = DEFAULT_WAC_CURRENCY_CODE }: UpsertWacInput,
+  { orgId, siteId, itemId, deltaQtyKg, deltaValue, updatedBy, currencyCode = DEFAULT_WAC_CURRENCY_CODE, sourceRef }: UpsertWacInput,
 ): Promise<WacUpdateResult> {
   if (isZeroDecimalString(deltaQtyKg) && !isZeroDecimalString(deltaValue)) {
     console.warn('[wac] unresolved_uom', { orgId, itemId, deltaQtyKg, deltaValue });
@@ -131,14 +147,30 @@ export async function upsertWac(
      )
      select upserted.total_qty_kg as "totalQtyKg",
             upserted.total_value as "totalValue",
-            final.clamped
+            final.clamped,
+            coalesce((select total_qty_kg::text from existing), '0') as "availableQtyKg",
+            coalesce((select total_value::text from existing), '0') as "availableValue",
+            (select raw_qty_kg::text from computed) as "rawQtyKg",
+            (select raw_value::text from computed) as "rawValue"
        from upserted
        cross join final`,
     [orgId, itemId, deltaQtyKg, deltaValue, updatedBy, siteId, currencyCode],
   );
   const result = rows[0] ?? { totalQtyKg: '0', totalValue: '0', clamped: false };
   if (result.clamped) {
-    console.warn('[finance] item_wac_state clamped at zero', { orgId, itemId });
+    await recordWacUnderflowAnomaly(client, {
+      orgId,
+      siteId,
+      itemId,
+      currencyCode,
+      deltaQtyKg,
+      deltaValue,
+      availableQtyKg: result.availableQtyKg ?? '0',
+      availableValue: result.availableValue ?? '0',
+      rawQtyKg: result.rawQtyKg ?? '0',
+      rawValue: result.rawValue ?? '0',
+      sourceRef,
+    });
   }
   return result;
 }
@@ -392,6 +424,7 @@ export type DebitWacInput = {
   uom: string;
   updatedBy: string;
   currencyCode?: string;
+  sourceRef?: WacAnomalySourceRef;
 };
 
 export type DebitWacResult = WacDebitComputation & {
@@ -514,10 +547,8 @@ export async function debitWac(client: QueryClient, input: DebitWacInput): Promi
     deltaValue: locked.deltaValue,
     updatedBy: input.updatedBy,
     currencyCode,
+    sourceRef: input.sourceRef,
   });
-  if (wac.clamped) {
-    console.warn('[finance] item_wac_state clamped at zero', { orgId: input.orgId, itemId: input.itemId });
-  }
   return {
     applied: true,
     qtyKg: locked.qtyKg,
@@ -578,4 +609,60 @@ async function readLockedWacDebitAmounts(
     deltaQtyKg: negateDecimalString(input.qtyKg),
     deltaValue: negateDecimalString(valueDebited),
   };
+}
+
+async function recordWacUnderflowAnomaly(
+  client: QueryClient,
+  input: {
+    orgId: string;
+    siteId: string | null;
+    itemId: string;
+    currencyCode: string;
+    deltaQtyKg: string;
+    deltaValue: string;
+    availableQtyKg: string;
+    availableValue: string;
+    rawQtyKg: string;
+    rawValue: string;
+    sourceRef?: WacAnomalySourceRef;
+  },
+): Promise<void> {
+  const aggregateType = input.sourceRef?.aggregateType ?? 'item';
+  const aggregateId = input.sourceRef?.aggregateId ?? input.itemId;
+  const dedupKey = input.sourceRef
+    ? `${input.sourceRef.dedupKey}:wac-underflow`
+    : `finance-wac-v1:${input.orgId}:${input.itemId}:${input.deltaQtyKg}:${input.deltaValue}:wac-underflow`;
+
+  await client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version, dedup_key)
+     values ($1::uuid, $2, $3, $4::uuid, $5::jsonb, $6, $7)
+     on conflict (org_id, dedup_key) where dedup_key is not null do nothing`,
+    [
+      input.orgId,
+      EventType.FINANCE_WAC_UNDERFLOW,
+      aggregateType,
+      aggregateId,
+      JSON.stringify({
+        org_id: input.orgId,
+        item_id: input.itemId,
+        site_id: input.siteId,
+        currency_code: input.currencyCode,
+        available_qty_kg: input.availableQtyKg,
+        available_value: input.availableValue,
+        delta_qty_kg: input.deltaQtyKg,
+        delta_value: input.deltaValue,
+        attempted_post_qty_kg: input.rawQtyKg,
+        attempted_post_value: input.rawValue,
+        source_ref: input.sourceRef
+          ? {
+              aggregate_type: input.sourceRef.aggregateType,
+              aggregate_id: input.sourceRef.aggregateId,
+            }
+          : null,
+      }),
+      WAC_OUTBOX_APP_VERSION,
+      dedupKey,
+    ],
+  );
 }

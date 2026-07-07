@@ -9,6 +9,7 @@ import {
   debitWac,
   resolveWacDeltaQtyKg,
   upsertWac,
+  WAC_OUTBOX_APP_VERSION,
   WAC_VALUATION_CURRENCY_CODE,
 } from '../upsert-wac';
 
@@ -23,6 +24,7 @@ const SUPPLIER_ID = '00000000-0000-4000-8000-0000000000d1';
 const WAREHOUSE_ID = '00000000-0000-4000-8000-0000000000e1';
 const SITE_ID = '00000000-0000-4000-8000-0000000000e2';
 const LOCATION_ID = '00000000-0000-4000-8000-0000000000f1';
+const CONSUMPTION_ID = '00000000-0000-4000-8000-000000000101';
 
 let currentClient: ReceiveMockClient;
 
@@ -184,7 +186,7 @@ describe('upsertWac', () => {
     expect(client.row).toMatchObject({ totalQtyKg: '5', totalValue: '0', avgCost: '0' });
   });
 
-  it('clamp-at-zero: voiding more than running total clamps WAC to 0 and flags it', async () => {
+  it('clamp-at-zero: voiding more than running total clamps WAC to 0 and records outbox anomaly', async () => {
     const client = new WacMockClient();
     await upsertWac(client, {
       orgId: ORG_ID,
@@ -210,6 +212,23 @@ describe('upsertWac', () => {
       avgCost: '0',
     });
     expect(result).toMatchObject({ totalQtyKg: '0', totalValue: '0', clamped: true });
+    expect(client.outboxEvents).toHaveLength(1);
+    expect(client.outboxEvents[0]).toMatchObject({
+      eventType: 'finance.wac.underflow',
+      aggregateType: 'item',
+      aggregateId: ITEM_ID,
+      appVersion: WAC_OUTBOX_APP_VERSION,
+    });
+    expect(JSON.parse(client.outboxEvents[0]?.payload ?? '{}')).toMatchObject({
+      org_id: ORG_ID,
+      item_id: ITEM_ID,
+      available_qty_kg: '3',
+      available_value: '12',
+      delta_qty_kg: '-5',
+      delta_value: '-20',
+      attempted_post_qty_kg: '-2',
+      attempted_post_value: '-8',
+    });
   });
 
   it('excludes unresolved-UoM zero-quantity value deltas from WAC state', async () => {
@@ -239,6 +258,52 @@ describe('upsertWac', () => {
 });
 
 describe('debitWac', () => {
+  it('over-debit clamps the pool, writes finance.wac.underflow, and still applies debit', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      deltaQtyKg: '10',
+      deltaValue: '100',
+      updatedBy: USER_ID,
+    });
+
+    const result = await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      qty: '15',
+      uom: 'kg',
+      updatedBy: USER_ID,
+      sourceRef: {
+        aggregateType: 'wo_material_consumption',
+        aggregateId: CONSUMPTION_ID,
+        dedupKey: `production-consume:${CONSUMPTION_ID}`,
+      },
+    });
+
+    expect(result.applied).toBe(true);
+    if (!result.applied) return;
+    expect(client.row).toMatchObject({ totalQtyKg: '0', totalValue: '0', avgCost: '0' });
+    expect(result.wac).toMatchObject({ totalQtyKg: '0', totalValue: '0', clamped: true });
+    expect(client.outboxEvents).toHaveLength(1);
+    expect(client.outboxEvents[0]).toMatchObject({
+      eventType: 'finance.wac.underflow',
+      aggregateType: 'wo_material_consumption',
+      aggregateId: CONSUMPTION_ID,
+      dedupKey: `production-consume:${CONSUMPTION_ID}:wac-underflow`,
+    });
+    expect(JSON.parse(client.outboxEvents[0]?.payload ?? '{}')).toMatchObject({
+      available_qty_kg: '10',
+      available_value: '100',
+      delta_qty_kg: '-15',
+      delta_value: '-150',
+      attempted_post_qty_kg: '-5',
+      attempted_post_value: '-50',
+    });
+  });
+
   it('debits qty and value at current avg_cost after a receipt', async () => {
     const client = new WacMockClient();
     await upsertWac(client, {
@@ -737,11 +802,30 @@ type MockCall = { sql: string; params?: readonly unknown[] };
 
 class WacMockClient {
   calls: MockCall[] = [];
+  outboxEvents: Array<{
+    eventType: string;
+    aggregateType: string;
+    aggregateId: string;
+    payload: string;
+    appVersion: string;
+    dedupKey: string;
+  }> = [];
   row: { totalQtyKg: string; totalValue: string; avgCost: string | null } | null = null;
 
   async query<T = Record<string, unknown>>(sql: string, params: readonly unknown[] = []): Promise<{ rows: T[]; rowCount?: number | null }> {
     this.calls.push({ sql, params });
     const normalized = normalize(sql);
+    if (normalized.startsWith('insert into public.outbox_events')) {
+      this.outboxEvents.push({
+        eventType: String(params[1]),
+        aggregateType: String(params[2]),
+        aggregateId: String(params[3]),
+        payload: String(params[4]),
+        appVersion: String(params[5]),
+        dedupKey: String(params[6]),
+      });
+      return { rows: [], rowCount: 1 };
+    }
     if (normalized.startsWith('select total_qty_kg::text as "totalqtykg"')) {
       return {
         rows: this.row
@@ -780,7 +864,10 @@ class WacMockClient {
     }
 
     if (!this.row) {
+      const availableQtyKg = '0';
+      const availableValue = '0';
       const { totalQtyKg, totalValue } = coerceWacTotals(deltaQty, deltaValue);
+      const rawClamped = compareDecimal(deltaQty, '0') < 0 || compareDecimal(deltaValue, '0') < 0;
       this.row = {
         totalQtyKg,
         totalValue,
@@ -790,14 +877,20 @@ class WacMockClient {
         rows: [{
           totalQtyKg,
           totalValue,
-          clamped: compareDecimal(deltaQty, '0') < 0 || compareDecimal(deltaValue, '0') < 0,
+          clamped: rawClamped,
+          availableQtyKg,
+          availableValue,
+          rawQtyKg: deltaQty,
+          rawValue: deltaValue,
         }] as T[],
         rowCount: 1,
       };
     }
 
-    const unclampedQty = addDecimal(this.row.totalQtyKg, deltaQty);
-    const unclampedValue = addDecimal(this.row.totalValue, deltaValue);
+    const availableQtyKg = this.row.totalQtyKg;
+    const availableValue = this.row.totalValue;
+    const unclampedQty = addDecimal(availableQtyKg, deltaQty);
+    const unclampedValue = addDecimal(availableValue, deltaValue);
     const { totalQtyKg, totalValue, clamped } = coerceWacTotals(unclampedQty, unclampedValue);
     const rawClamped = compareDecimal(unclampedQty, '0') < 0 || compareDecimal(unclampedValue, '0') < 0;
     this.row = {
@@ -805,7 +898,18 @@ class WacMockClient {
       totalValue,
       avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : '0',
     };
-    return { rows: [{ totalQtyKg, totalValue, clamped: rawClamped || clamped }] as T[], rowCount: 1 };
+    return {
+      rows: [{
+        totalQtyKg,
+        totalValue,
+        clamped: rawClamped || clamped,
+        availableQtyKg,
+        availableValue,
+        rawQtyKg: unclampedQty,
+        rawValue: unclampedValue,
+      }] as T[],
+      rowCount: 1,
+    };
   }
 
   private applyLockedDebit<T>(_params: readonly unknown[]): { rows: T[]; rowCount: number } {

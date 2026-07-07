@@ -683,6 +683,11 @@ export async function recordDesktopConsumption(
         qty,
         uom: material.uom,
         updatedBy: userId,
+        sourceRef: {
+          aggregateType: 'wo_material_consumption',
+          aggregateId: consumptionId,
+          dedupKey: `production-consume:${consumptionId}`,
+        },
       });
       if (wacDebit.applied) {
         await ctx.client.query(
