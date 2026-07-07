@@ -15,6 +15,14 @@
 import React from 'react';
 
 import { downloadCsv } from '../../../../../../../lib/shared/download';
+import {
+  resolveEntityImportSpec,
+  resolvePreviewColumns,
+  type EntityImportSpecId,
+  type PreviewColumnDescriptor,
+} from '../_lib/entity-import-registry';
+import type { ToImportRow } from '../../transfer-orders/_actions/import-to';
+import type { WoImportRow } from '../../work-orders/_actions/import-wo';
 import { buildEntityTemplateCsv, type EntityCsvSpec } from '../_lib/parse-entity-csv';
 import {
   EntityImportWizard,
@@ -22,7 +30,6 @@ import {
   type EntityCommitResult,
   type EntityImportWizardLabels,
   type EntityValidationResult,
-  type PreviewColumn,
 } from './entity-import-wizard.client';
 
 export type EntityImportCardLabels = {
@@ -34,15 +41,14 @@ export type EntityImportCardLabels = {
   wizard: EntityImportWizardLabels;
 };
 
-export type EntityImportCardProps<TRow, TCreated> = {
+export type EntityImportCardProps<TRow extends ToImportRow | WoImportRow, TCreated> = {
   locale: string;
   testid: string;
   labels: EntityImportCardLabels;
-  spec: EntityCsvSpec<TRow>;
+  entityKind: EntityImportSpecId;
   showConversion: boolean;
-  previewColumns: PreviewColumn<TRow>[];
-  createdNumber: (created: TCreated) => string;
-  createdHref: (created: TCreated, listBase: string) => string;
+  previewColumnDescriptors: PreviewColumnDescriptor[];
+  createdNumberField: string;
   listPath: string;
   templateFilename: string;
   errorReportFilename: string;
@@ -51,16 +57,17 @@ export type EntityImportCardProps<TRow, TCreated> = {
   commitAction: (rows: TRow[], options: { mode: CommitMode }) => Promise<EntityCommitResult<TCreated>>;
 };
 
-export function EntityImportCard<TRow, TCreated>(props: EntityImportCardProps<TRow, TCreated>) {
+export function EntityImportCard<TRow extends ToImportRow | WoImportRow, TCreated>(
+  props: EntityImportCardProps<TRow, TCreated>,
+) {
   const {
     locale,
     testid,
     labels,
-    spec,
+    entityKind,
     showConversion,
-    previewColumns,
-    createdNumber,
-    createdHref,
+    previewColumnDescriptors,
+    createdNumberField,
     listPath,
     templateFilename,
     errorReportFilename,
@@ -69,6 +76,16 @@ export function EntityImportCard<TRow, TCreated>(props: EntityImportCardProps<TR
     commitAction,
   } = props;
   const [open, setOpen] = React.useState(autoOpen);
+  const spec = React.useMemo((): EntityCsvSpec<TRow> => {
+    if (entityKind === 'to') {
+      return resolveEntityImportSpec('to') as unknown as EntityCsvSpec<TRow>;
+    }
+    return resolveEntityImportSpec('wo') as unknown as EntityCsvSpec<TRow>;
+  }, [entityKind]);
+  const previewColumns = React.useMemo(
+    () => resolvePreviewColumns<TRow>(previewColumnDescriptors),
+    [previewColumnDescriptors],
+  );
 
   const onDownloadTemplate = React.useCallback(() => {
     downloadCsv(buildEntityTemplateCsv(spec), templateFilename);
@@ -120,8 +137,7 @@ export function EntityImportCard<TRow, TCreated>(props: EntityImportCardProps<TR
             spec={spec}
             showConversion={showConversion}
             previewColumns={previewColumns}
-            createdNumber={createdNumber}
-            createdHref={createdHref}
+            createdNumberField={createdNumberField}
             listPath={listPath}
             errorReportFilename={errorReportFilename}
             validateAction={validateAction}

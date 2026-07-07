@@ -45,6 +45,16 @@ import {
 type Step = 'upload' | 'validate' | 'preview' | 'result';
 const STEP_ORDER: Step[] = ['upload', 'validate', 'preview', 'result'];
 
+function createdDocNumber(created: unknown, numberField: string): string {
+  const value = (created as Record<string, unknown>)[numberField];
+  return value == null ? '' : String(value);
+}
+
+function createdDocHref(created: unknown, numberField: string, listBase: string): string {
+  const number = createdDocNumber(created, numberField);
+  return `${listBase}?q=${encodeURIComponent(number)}`;
+}
+
 export type CommitMode = 'all_or_nothing' | 'skip_invalid';
 
 /** Optional per-row UoM conversion the backend may return (WO importer). */
@@ -134,9 +144,8 @@ export type EntityImportWizardProps<TRow, TCreated> = {
   showConversion: boolean;
   /** Preview-step group-table columns (without the trailing line count). */
   previewColumns: PreviewColumn<TRow>[];
-  /** Map a created document to its display number + the list-detail href. */
-  createdNumber: (created: TCreated) => string;
-  createdHref: (created: TCreated, listBase: string) => string;
+  /** Field on each created row holding the document number (RSC-serializable; no fn props). */
+  createdNumberField: string;
   /** Path the result links + "Go to list" CTA point at (e.g. transfer-orders). */
   listPath: string;
   errorReportFilename: string;
@@ -198,8 +207,7 @@ export function EntityImportWizard<TRow, TCreated>(props: EntityImportWizardProp
     spec,
     showConversion,
     previewColumns,
-    createdNumber,
-    createdHref,
+    createdNumberField,
     listPath,
     errorReportFilename,
     validateAction,
@@ -527,12 +535,12 @@ export function EntityImportWizard<TRow, TCreated>(props: EntityImportWizardProp
           {result.created.length > 0 ? (
             <ul className="mt-2 flex flex-col gap-1" data-testid={`${testid}-import-created-list`}>
               {result.created.map((created) => {
-                const number = createdNumber(created);
+                const number = createdDocNumber(created, createdNumberField);
                 return (
                   <li key={number}>
                     <a
                       className="link mono text-sm"
-                      href={createdHref(created, listBase)}
+                      href={createdDocHref(created, createdNumberField, listBase)}
                       data-testid={`${testid}-import-created-link`}
                     >
                       {number}

@@ -82,10 +82,11 @@ export type GateView = {
 };
 
 /** Server Action contract (owned by T-058 — imported by the parent, passed in here as a prop). */
-export type ToggleGateChecklistItemAction = (
-  itemId: string,
-  done: boolean,
-) => Promise<{ ok: true } | { ok: false; code: string }>;
+export type ToggleGateChecklistItemAction = (input: {
+  projectId: string;
+  itemId: string;
+  done: boolean;
+}) => Promise<{ ok: true } | { ok: false; code: string }>;
 
 export type OpenModalFn = (
   modal: 'gateApproval' | 'advanceGate',
@@ -501,7 +502,7 @@ export function GateChecklistPanel({
     setOverrides((prev) => ({ ...prev, [item.id]: next }));
     setPendingIds((prev) => new Set(prev).add(item.id));
     try {
-      const res = await toggleGateChecklistItem(item.id, next);
+      const res = await toggleGateChecklistItem({ projectId: project.id, itemId: item.id, done: next });
       if (!res.ok) {
         // Roll back the optimistic override on failure.
         setOverrides((prev) => {

@@ -113,12 +113,21 @@ function getImportMessage(redirectUrl: string): string {
 // ---------------------------------------------------------------------------
 async function loadAction() {
   return (await import('../import-location-csv')) as {
-    importLocationCsvAction(
-      selectedWarehouseId: string,
-      locale: string,
-      formData: FormData,
-    ): Promise<void>;
+    importLocationCsvAction(formData: FormData): Promise<void>;
   };
+}
+
+function importFormData(
+  csv: string | null,
+  opts: { warehouseId?: string; locale?: string } = {},
+): FormData {
+  const formData = new FormData();
+  formData.append('warehouseId', opts.warehouseId ?? 'all');
+  formData.append('locale', opts.locale ?? 'en');
+  if (csv !== null) {
+    formData.append('csvFile', new File([csv], 'locations.csv', { type: 'text/csv' }));
+  }
+  return formData;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,12 +155,11 @@ describe('SET-014 locations CSV import action', () => {
       `Zone B,${WAREHOUSE_ID},,1,zone_b`,
     ].join('\n');
 
-    const formData = new FormData();
-    formData.append('csvFile', new File([csv], 'locations.csv', { type: 'text/csv' }));
+    const formData = importFormData(csv);
 
     let caught: Error | null = null;
     try {
-      await importLocationCsvAction('all', 'en', formData);
+      await importLocationCsvAction(formData);
     } catch (err) {
       caught = err as Error;
     }
@@ -204,12 +212,11 @@ describe('SET-014 locations CSV import action', () => {
       `Bin 01,${WAREHOUSE_ID},zone_a,2,zone_a.bin_01`,
     ].join('\n');
 
-    const formData = new FormData();
-    formData.append('csvFile', new File([csv], 'locations.csv', { type: 'text/csv' }));
+    const formData = importFormData(csv);
 
     let caught: Error | null = null;
     try {
-      await importLocationCsvAction('all', 'en', formData);
+      await importLocationCsvAction(formData);
     } catch (err) {
       caught = err as Error;
     }
@@ -228,12 +235,11 @@ describe('SET-014 locations CSV import action', () => {
       `Orphan Bin,${WAREHOUSE_ID},nonexistent_parent,2,nonexistent_parent.bin`,
     ].join('\n');
 
-    const formData = new FormData();
-    formData.append('csvFile', new File([csv], 'locations.csv', { type: 'text/csv' }));
+    const formData = importFormData(csv);
 
     let caught: Error | null = null;
     try {
-      await importLocationCsvAction('all', 'en', formData);
+      await importLocationCsvAction(formData);
     } catch (err) {
       caught = err as Error;
     }
@@ -250,12 +256,11 @@ describe('SET-014 locations CSV import action', () => {
   it('redirects with error when no file is submitted', async () => {
     const { importLocationCsvAction } = await loadAction();
 
-    const formData = new FormData();
-    // No csvFile appended
+    const formData = importFormData(null);
 
     let caught: Error | null = null;
     try {
-      await importLocationCsvAction('all', 'en', formData);
+      await importLocationCsvAction(formData);
     } catch (err) {
       caught = err as Error;
     }
@@ -269,12 +274,11 @@ describe('SET-014 locations CSV import action', () => {
     const { importLocationCsvAction } = await loadAction();
     const csv = 'name,warehouseId,parentPath,level,path';
 
-    const formData = new FormData();
-    formData.append('csvFile', new File([csv], 'locations.csv', { type: 'text/csv' }));
+    const formData = importFormData(csv);
 
     let caught: Error | null = null;
     try {
-      await importLocationCsvAction('all', 'en', formData);
+      await importLocationCsvAction(formData);
     } catch (err) {
       caught = err as Error;
     }
@@ -292,12 +296,11 @@ describe('SET-014 locations CSV import action', () => {
       `Zone X,${WAREHOUSE_ID},,1,zone_x`,
     ].join('\n');
 
-    const formData = new FormData();
-    formData.append('csvFile', new File([csv], 'locations.csv', { type: 'text/csv' }));
+    const formData = importFormData(csv, { warehouseId: WAREHOUSE_ID });
 
     let caught: Error | null = null;
     try {
-      await importLocationCsvAction(WAREHOUSE_ID, 'en', formData);
+      await importLocationCsvAction(formData);
     } catch (err) {
       caught = err as Error;
     }
@@ -314,12 +317,11 @@ describe('SET-014 locations CSV import action', () => {
       `"Cold, Dark Storage",${WAREHOUSE_ID},,1,cold_dark`,
     ].join('\n');
 
-    const formData = new FormData();
-    formData.append('csvFile', new File([csv], 'locations.csv', { type: 'text/csv' }));
+    const formData = importFormData(csv);
 
     let caught: Error | null = null;
     try {
-      await importLocationCsvAction('all', 'en', formData);
+      await importLocationCsvAction(formData);
     } catch (err) {
       caught = err as Error;
     }

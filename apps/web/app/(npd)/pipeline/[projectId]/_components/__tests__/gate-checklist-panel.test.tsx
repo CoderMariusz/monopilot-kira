@@ -16,7 +16,7 @@
  *  - requiresApproval: primary footer button label switches to "Request Approval" and clicking it
  *    invokes openModal('gateApproval', { project }).
  *  - The five required UI states (ready / loading / empty / error / permission_denied).
- *  - Optimistic toggle: clicking a checkbox calls toggleGateChecklistItem(itemId, !done) and reflects
+ *  - Optimistic toggle: clicking a checkbox calls toggleGateChecklistItem({ projectId, itemId, done }) and reflects
  *    the new state immediately; rollback on failure.
  *  - i18n: component renders LABELS (message values), never inline English literals.
  *  - RBAC: checkboxes/attach disabled/omitted when canWrite is false (server-resolved gate).
@@ -348,7 +348,7 @@ describe('GateChecklistPanel — terminal G4 / Mark as Launched', () => {
 });
 
 describe('GateChecklistPanel — optimistic toggle + RBAC', () => {
-  it('calls toggleGateChecklistItem(itemId, !done) and reflects new state optimistically', async () => {
+  it('calls toggleGateChecklistItem({ projectId, itemId, done }) and reflects new state optimistically', async () => {
     const user = userEvent.setup();
     const toggle = vi.fn().mockResolvedValue({ ok: true });
     renderPanel({ toggleGateChecklistItem: toggle });
@@ -358,7 +358,7 @@ describe('GateChecklistPanel — optimistic toggle + RBAC', () => {
     const cb = within(blocker).getByRole('checkbox');
     expect(cb).toHaveAttribute('aria-checked', 'false');
     await user.click(cb);
-    expect(toggle).toHaveBeenCalledWith('g2-b3', true);
+    expect(toggle).toHaveBeenCalledWith({ projectId: PROJECT.id, itemId: 'g2-b3', done: true });
     // Optimistically marked done → blocker badge gone, advance button enabled.
     expect(screen.queryByTestId('gate-blocker-alert')).toBeNull();
   });
