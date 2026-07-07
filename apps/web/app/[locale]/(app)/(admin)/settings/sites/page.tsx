@@ -6,9 +6,11 @@ import {
   getLinesForSite,
   readSitesSettingsData,
   updateLine,
+  updateSiteSettings,
   type CreateLineInput,
   type CreateSiteInput,
   type LineRow,
+  type SiteSettings,
   type UpdateLineInput,
 } from './_actions/sites';
 import SitesScreen, { type SitesModalLabels, type SitesScreenLabels } from './sites-screen.client';
@@ -60,12 +62,16 @@ async function buildModalLabels(locale: string): Promise<SitesModalLabels> {
     addSiteTitle: t('modal.addSiteTitle'),
     addLineTitle: t('modal.addLineTitle'),
     editLineTitle: t('modal.editLineTitle'),
+    editSiteSettingsTitle: t('modal.editSiteSettingsTitle'),
     fieldSiteCode: t('modal.fieldSiteCode'),
     fieldName: t('modal.fieldName'),
     fieldTimezone: t('modal.fieldTimezone'),
     fieldCountry: t('modal.fieldCountry'),
     fieldLegalEntity: t('modal.fieldLegalEntity'),
     fieldPrimary: t('modal.fieldPrimary'),
+    fieldOperatingHours: t('modal.fieldOperatingHours'),
+    fieldHaccpEnabled: t('modal.fieldHaccpEnabled'),
+    fieldHaccpValidUntil: t('modal.fieldHaccpValidUntil'),
     fieldLineCode: t('modal.fieldLineCode'),
     fieldStatus: t('modal.fieldStatus'),
     statusActive: t('modal.statusActive'),
@@ -77,6 +83,7 @@ async function buildModalLabels(locale: string): Promise<SitesModalLabels> {
     saving: t('modal.saving'),
     errorRequired: t('modal.errorRequired'),
     errorDuplicate: t('modal.errorDuplicate'),
+    errorForbidden: t('modal.errorForbidden'),
     errorGeneric: t('modal.errorGeneric'),
   };
 }
@@ -123,6 +130,11 @@ export default async function SitesSettingsPage({ params }: PageProps = {}) {
     return updateLine(input);
   }
 
+  async function updateSiteSettingsAction(orgId: string, siteId: string, settings: Partial<SiteSettings>) {
+    'use server';
+    return updateSiteSettings(orgId, siteId, settings);
+  }
+
   return (
     <SitesScreen
       sites={data.sites}
@@ -135,6 +147,7 @@ export default async function SitesSettingsPage({ params }: PageProps = {}) {
       createSiteAction={createSiteAction}
       createLineAction={createLineAction}
       updateLineAction={updateLineAction}
+      updateSiteSettingsAction={updateSiteSettingsAction}
     />
   );
 }

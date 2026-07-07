@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { PageHead, Section } from '../_components';
+import { UnitRowActions } from './_components/UnitRowActions';
 import { UnitsManager, type UnitsManagerLabels } from './_components/UnitsManager';
 
 const PROTOTYPE_SOURCE = 'prototypes/design/Monopilot Design System/settings/data-screens.jsx:151-187';
@@ -63,6 +64,12 @@ type UnitsLabels = {
   errorForbidden: string;
   errorInvalidInput: string;
   errorGeneric: string;
+  editUnit: string;
+  deleteUnit: string;
+  editUnitTitle: string;
+  confirmDeleteUnit: string;
+  errorInUse: string;
+  errorNotFound: string;
 };
 
 type UnitsPageProps = {
@@ -129,6 +136,12 @@ const DEFAULT_LABELS: UnitsLabels = {
   errorForbidden: 'You do not have permission to manage units.',
   errorInvalidInput: 'Please check the values and try again.',
   errorGeneric: 'Could not save. Please try again.',
+  editUnit: 'Edit',
+  deleteUnit: 'Delete',
+  editUnitTitle: 'Edit unit',
+  confirmDeleteUnit: 'Delete unit {code}? This cannot be undone.',
+  errorInUse: 'This unit is referenced elsewhere and cannot be deleted.',
+  errorNotFound: 'Unit not found.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof UnitsLabels>;
@@ -298,6 +311,12 @@ function toManagerLabels(labels: UnitsLabels): UnitsManagerLabels {
     errorForbidden: labels.errorForbidden,
     errorInvalidInput: labels.errorInvalidInput,
     errorGeneric: labels.errorGeneric,
+    editUnit: labels.editUnit,
+    deleteUnit: labels.deleteUnit,
+    editUnitTitle: labels.editUnitTitle,
+    confirmDeleteUnit: labels.confirmDeleteUnit,
+    errorInUse: labels.errorInUse,
+    errorNotFound: labels.errorNotFound,
   };
 }
 
@@ -314,9 +333,20 @@ function categoryLabel(category: UnitCategory, labels: UnitsLabels): string {
   }
 }
 
-function UnitsSection({ category, units, labels }: { category: UnitCategory; units: UnitOfMeasure[]; labels: UnitsLabels }) {
+function UnitsSection({
+  category,
+  units,
+  labels,
+  canEdit,
+}: {
+  category: UnitCategory;
+  units: UnitOfMeasure[];
+  labels: UnitsLabels;
+  canEdit: boolean;
+}) {
   const baseUnit = units.find((unit) => unit.isBase);
   const title = categoryLabel(category, labels);
+  const managerLabels = toManagerLabels(labels);
   // Parity: prototype renders each category as a `Section` (.sg-section frame +
   // .sg-section-head 14px/600) wrapping a bare prototype-style <table>
   // (grey th, td borders, "Base" badge). data-screens.jsx:163-180.
@@ -349,8 +379,21 @@ function UnitsSection({ category, units, labels }: { category: UnitCategory; uni
                   <span className="muted">—</span>
                 </td>
               )}
-              <td className="muted" aria-label={`${unit.code} actions menu`}>
-                ⋮
+              <td>
+                {canEdit ? (
+                  <UnitRowActions
+                    unit={{
+                      id: unit.id,
+                      code: unit.code,
+                      name: unit.name,
+                      factorToBase: unit.factorToBase,
+                      isBase: unit.isBase,
+                    }}
+                    labels={managerLabels}
+                  />
+                ) : (
+                  <span className="muted">—</span>
+                )}
               </td>
             </tr>
           ))}
@@ -458,7 +501,7 @@ export default async function UnitsPage(propsInput: unknown) {
       {state === 'ready' ? (
         <>
           {visibleCategories.map((category) => (
-            <UnitsSection key={category} category={category} units={groups[category]} labels={labels} />
+            <UnitsSection key={category} category={category} units={groups[category]} labels={labels} canEdit={canEdit} />
           ))}
           <CustomConversionsSection conversions={customConversions} labels={labels} canEdit={canEdit} unitCodes={unitCodes} />
         </>

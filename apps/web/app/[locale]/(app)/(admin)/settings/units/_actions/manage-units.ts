@@ -17,7 +17,13 @@
 import { z } from 'zod';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
-import { CreateUnitInput, type CreateUnitInputType, type UnitCategory } from './units-validation';
+import {
+  CreateUnitInput,
+  UpdateUnitInput,
+  type CreateUnitInputType,
+  type UnitCategory,
+  type UpdateUnitInputType,
+} from './units-validation';
 
 export type { CreateUnitInputType };
 
@@ -39,6 +45,7 @@ export type UnitsActionError =
   | 'already_exists'
   | 'not_found'
   | 'invalid_reference'
+  | 'in_use'
   | 'persistence_failed';
 
 export type CreateUnitResult =
@@ -61,6 +68,10 @@ const SoftDeleteUnitInput = z.object({ id: z.string().uuid() });
 
 export type SoftDeleteUnitResult =
   | { ok: true; data: { id: string } }
+  | { ok: false; error: UnitsActionError; message?: string };
+
+export type UpdateUnitResult =
+  | { ok: true; data: { id: string; code: string; name: string; factorToBase: number } }
   | { ok: false; error: UnitsActionError; message?: string };
 
 async function hasManagePermission(ctx: OrgActionContext): Promise<boolean> {
@@ -122,6 +133,62 @@ async function writeOutbox(
 
 function isPgError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
+}
+
+async function loadUnitRow(
+  client: QueryClient,
+  id: string,
+): Promise<{ id: string; code: string; name: string; factor_to_base: string; is_base: boolean } | null> {
+  const { rows } = await client.query<{
+    id: string;
+    code: string;
+    name: string;
+    factor_to_base: string;
+    is_base: boolean;
+  }>(
+    `select id::text,
+            code,
+            name,
+            factor_to_base::text,
+            is_base
+       from public.unit_of_measure
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and deleted_at is null
+      limit 1`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+/** Referential safety: unit codes are matched as strings across items, conversions, etc. */
+async function isUnitCodeInUse(client: QueryClient, code: string): Promise<boolean> {
+  const { rows } = await client.query<{ in_use: boolean }>(
+    `select exists (
+       select 1
+         from public.items i
+        where i.org_id = app.current_org_id()
+          and (i.uom_base = $1 or i.uom_secondary = $1)
+       union all
+       select 1
+         from public.uom_custom_conversions c
+        where c.org_id = app.current_org_id()
+          and c.deleted_at is null
+          and (c.from_unit_code = $1 or c.to_unit_code = $1)
+       union all
+       select 1
+         from public.spare_parts sp
+        where sp.org_id = app.current_org_id()
+          and sp.unit_of_measure = $1
+       union all
+       select 1
+         from public.calibration_instruments ci
+        where ci.org_id = app.current_org_id()
+          and ci.unit_of_measure = $1
+     ) as in_use`,
+    [code],
+  );
+  return rows[0]?.in_use === true;
 }
 
 export async function createUnit(rawInput: unknown): Promise<CreateUnitResult> {
@@ -221,6 +288,71 @@ export async function createCustomConversion(rawInput: unknown): Promise<CreateC
   }
 }
 
+export async function updateUnit(rawInput: unknown): Promise<UpdateUnitResult> {
+  const parsed = UpdateUnitInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input: UpdateUnitInputType = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<UpdateUnitResult> => {
+      const queryClient = client as QueryClient;
+      const ctx: OrgActionContext = { userId, orgId, client: queryClient };
+      if (!(await hasManagePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const existing = await loadUnitRow(queryClient, input.id);
+      if (!existing) return { ok: false, error: 'not_found' };
+
+      const { rows } = await queryClient.query<{ id: string; code: string; name: string; factor_to_base: string }>(
+        `update public.unit_of_measure
+            set name = $2,
+                factor_to_base = $3::numeric,
+                updated_at = now()
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and deleted_at is null
+        returning id::text, code, name, factor_to_base::text`,
+        [input.id, input.name, input.factorToBase],
+      );
+      const updated = rows[0];
+      if (!updated) return { ok: false, error: 'not_found' };
+
+      await writeAudit(queryClient, {
+        orgId,
+        actorUserId: userId,
+        action: 'unit.updated',
+        resourceId: input.id,
+        beforeState: {
+          code: existing.code,
+          name: existing.name,
+          factorToBase: existing.factor_to_base,
+        },
+        afterState: {
+          code: updated.code,
+          name: updated.name,
+          factorToBase: updated.factor_to_base,
+        },
+      });
+
+      revalidateLocalized('/settings/units');
+      return {
+        ok: true,
+        data: {
+          id: updated.id,
+          code: updated.code,
+          name: updated.name,
+          factorToBase: Number(updated.factor_to_base),
+        },
+      };
+    });
+  } catch (err) {
+    if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
+    console.error('[settings/units] updateUnit persistence_failed', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
 export async function softDeleteUnit(rawInput: unknown): Promise<SoftDeleteUnitResult> {
   const parsed = SoftDeleteUnitInput.safeParse(rawInput);
   if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
@@ -228,10 +360,18 @@ export async function softDeleteUnit(rawInput: unknown): Promise<SoftDeleteUnitR
 
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<SoftDeleteUnitResult> => {
-      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      const queryClient = client as QueryClient;
+      const ctx: OrgActionContext = { userId, orgId, client: queryClient };
       if (!(await hasManagePermission(ctx))) return { ok: false, error: 'forbidden' };
 
-      const { rows, rowCount } = await client.query<{ id: string }>(
+      const existing = await loadUnitRow(queryClient, input.id);
+      if (!existing) return { ok: false, error: 'not_found' };
+      if (existing.is_base) return { ok: false, error: 'invalid_input', message: 'Cannot delete a base unit.' };
+      if (await isUnitCodeInUse(queryClient, existing.code)) {
+        return { ok: false, error: 'in_use', message: `Unit "${existing.code}" is referenced elsewhere and cannot be deleted.` };
+      }
+
+      const { rows, rowCount } = await queryClient.query<{ id: string }>(
         `update public.unit_of_measure
             set deleted_at = now()
           where org_id = app.current_org_id()
@@ -242,15 +382,15 @@ export async function softDeleteUnit(rawInput: unknown): Promise<SoftDeleteUnitR
       );
       if ((rowCount ?? rows.length) < 1 || !rows[0]) return { ok: false, error: 'not_found' };
 
-      await writeAudit(client as QueryClient, {
+      await writeAudit(queryClient, {
         orgId,
         actorUserId: userId,
         action: 'unit.soft_deleted',
         resourceId: input.id,
-        beforeState: { id: input.id },
+        beforeState: { id: input.id, code: existing.code },
         afterState: { id: input.id, deleted: true },
       });
-      await writeOutbox(client as QueryClient, {
+      await writeOutbox(queryClient, {
         orgId,
         eventType: 'unit_of_measure.soft_deleted',
         aggregateId: input.id,
