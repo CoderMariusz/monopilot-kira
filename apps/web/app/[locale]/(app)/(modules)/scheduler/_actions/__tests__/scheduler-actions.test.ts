@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ChangeoverMatrixEntry, SchedulerAssignment, SchedulerRunRow, WorkOrderForScheduling } from '../scheduler-types';
 
@@ -25,6 +25,8 @@ let calls: Array<{ sql: string; params: readonly unknown[] }> = [];
 let insertedAssignmentPayload: Array<Record<string, unknown>> = [];
 let runAlreadyApplied = false;
 let includeLineSpecificOverride = false;
+let includeSchedulerConfig = true;
+let schedulerConfigRows: Array<Record<string, unknown>> = [];
 let assignmentRows: SchedulerAssignment[] = [];
 let staleWoIds = new Set<string>();
 
@@ -35,6 +37,7 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 }));
 
 import { applySchedule, listChangeoverMatrix, runScheduler, upsertChangeoverMatrixEntry } from '../scheduler-actions';
+import { DEFAULT_SEQUENCE_SOLVER_CONFIG, sequenceWorkOrders } from '../sequence-solver';
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -156,30 +159,12 @@ function makeClient(): QueryClient {
       }
 
       if (q.includes('from public.scheduler_config')) {
+        if (!includeSchedulerConfig) {
+          return { rows: [], rowCount: 0 };
+        }
         return {
-          rows: [
-            {
-              id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-              org_id: ORG_ID,
-              site_id: null,
-              line_id: null,
-              default_horizon_days: 14,
-              optimizer_version: 'v2',
-              sequencing_strategy: 'allergen_optimized',
-              capacity_hours_per_day: '16.00',
-              changeover_weight: '2.0000',
-              duedate_weight: '1.0000',
-              utilization_weight: '1.0000',
-              respect_pm_windows: true,
-              allow_alternate_routings: false,
-              params: { pm_block_hours: 3 },
-              created_by: null,
-              updated_by: null,
-              created_at: '2026-06-01T00:00:00.000Z',
-              updated_at: '2026-06-01T00:00:00.000Z',
-            },
-          ],
-          rowCount: 1,
+          rows: schedulerConfigRows,
+          rowCount: schedulerConfigRows.length,
         };
       }
 
@@ -306,6 +291,29 @@ beforeEach(() => {
   insertedAssignmentPayload = [];
   runAlreadyApplied = false;
   includeLineSpecificOverride = false;
+  includeSchedulerConfig = true;
+  schedulerConfigRows = [
+    {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      org_id: ORG_ID,
+      site_id: null,
+      line_id: null,
+      default_horizon_days: 14,
+      optimizer_version: 'v2',
+      sequencing_strategy: 'allergen_optimized',
+      capacity_hours_per_day: '16.00',
+      changeover_weight: '2.0000',
+      duedate_weight: '1.0000',
+      utilization_weight: '1.0000',
+      respect_pm_windows: true,
+      allow_alternate_routings: false,
+      params: { pm_block_hours: 3 },
+      created_by: null,
+      updated_by: null,
+      created_at: '2026-06-01T00:00:00.000Z',
+      updated_at: '2026-06-01T00:00:00.000Z',
+    },
+  ];
   assignmentRows = [
     assignmentRow({
       id: '88888888-8888-4888-8888-888888888888',
@@ -317,6 +325,10 @@ beforeEach(() => {
   ];
   staleWoIds = new Set<string>();
   client = makeClient();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('runScheduler', () => {
@@ -376,6 +388,45 @@ describe('runScheduler', () => {
     expect(
       calls.some((call) => normalize(call.sql).includes('from public.maintenance_work_orders')),
     ).toBe(true);
+  });
+
+  it('keeps no-config runs byte-identical to the default solver and skips PM window loading', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    includeSchedulerConfig = false;
+    const defaultPmWindows = DEFAULT_SEQUENCE_SOLVER_CONFIG.pmWindows;
+
+    const workOrders = [
+      wo({ id: WO_A, due: '2026-06-01T08:00:00.000Z', allergens: ['milk'] }),
+      wo({ id: WO_B, due: '2026-06-02T08:00:00.000Z', allergens: ['nuts'] }),
+    ];
+    const matrix = [matrixEntry()];
+    const expected = sequenceWorkOrders(workOrders, matrix, {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      pmWindows: [],
+    });
+
+    const result = await runScheduler({ lineId: LINE_ID, horizonDays: 7 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(
+      calls.some(
+        (call) =>
+          normalize(call.sql).includes('from public.maintenance_work_orders') ||
+          normalize(call.sql).includes('from public.maintenance_schedules'),
+      ),
+    ).toBe(false);
+    expect(DEFAULT_SEQUENCE_SOLVER_CONFIG.pmWindows).toBe(defaultPmWindows);
+    expect(insertedAssignmentPayload.map((row) => row.planned_start_at)).toEqual(
+      expected.map((row) => row.planned_start_at),
+    );
+    expect(insertedAssignmentPayload.map((row) => row.planned_end_at)).toEqual(
+      expected.map((row) => row.planned_end_at),
+    );
+    expect(insertedAssignmentPayload.map((row) => row.sequence_index)).toEqual(
+      expected.map((row) => row.sequence_index),
+    );
   });
 });
 

@@ -415,4 +415,60 @@ describe('sequenceWorkOrders', () => {
 
     expect(withNullCapacity).toEqual(baseline);
   });
+
+  it('applies per-line capacity buckets independently on multi-line runs', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const LINE_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const LINE_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const lineAFirst = wo({
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      lineId: LINE_A,
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T12:00:00.000Z',
+    });
+    const lineASecond = wo({
+      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['soy'],
+      lineId: LINE_A,
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T10:00:00.000Z',
+    });
+    const lineBFirst = wo({
+      id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      due: '2026-06-03T08:00:00.000Z',
+      allergens: ['nuts'],
+      lineId: LINE_B,
+      scheduledStart: '2026-06-03T08:00:00.000Z',
+      scheduledEnd: '2026-06-03T12:00:00.000Z',
+    });
+    const lineBSecond = wo({
+      id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      due: '2026-06-04T08:00:00.000Z',
+      allergens: ['wheat'],
+      lineId: LINE_B,
+      scheduledStart: '2026-06-04T08:00:00.000Z',
+      scheduledEnd: '2026-06-04T10:00:00.000Z',
+    });
+
+    const result = sequenceWorkOrders(
+      [lineAFirst, lineASecond, lineBFirst, lineBSecond],
+      [],
+      {
+        ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+        capacityHoursPerDay: null,
+        capacityHoursPerDayByLine: {
+          [LINE_A]: 4,
+          [LINE_B]: 8,
+        },
+      },
+    );
+
+    const byWo = Object.fromEntries(result.map((row) => [row.wo_id, row.planned_start_at]));
+    expect(byWo[lineASecond.id]).toBe('2026-06-25T00:00:00.000Z');
+    expect(byWo[lineBSecond.id]).toBe('2026-06-24T16:00:00.000Z');
+  });
 });
