@@ -85,6 +85,7 @@ let hasActiveBom = true;
 let supplierSpecUnitPrice: string | null = '6.2500';
 /** list_price_gbp the items single-row mock returns (null = column absent/null). */
 let itemListPriceGbp: string | null = '5.0000';
+let supplierCurrency = 'GBP';
 const createPurchaseOrderCoreMock = vi.fn();
 
 const WO_OTHER = '55555555-5555-4555-8555-555555555555';
@@ -206,6 +207,9 @@ function makeClient(): QueryClient {
           };
         }
         return { rows: conversionRows as never[], rowCount: conversionRows.length };
+      }
+      if (normalized.includes('from public.suppliers') && normalized.includes('select currency')) {
+        return { rows: [{ currency: supplierCurrency }], rowCount: 1 };
       }
       if (normalized.includes('from public.suppliers s') && normalized.includes('join public.supplier_specs ss')) {
         expect(params[1]).toBe(SUPPLIER_ID);
@@ -453,6 +457,7 @@ beforeEach(() => {
   hasActiveBom = true;
   supplierSpecUnitPrice = '6.2500';
   itemListPriceGbp = '5.0000';
+  supplierCurrency = 'GBP';
   createPurchaseOrderCoreMock.mockReset();
   createPurchaseOrderCoreMock.mockResolvedValue({ ok: true, data: { id: PO_ID } });
 });
@@ -1192,6 +1197,19 @@ describe('convertPlannedToPo', () => {
       const fallbackSql = executed.find((sql) => sql.includes('list_price_gbp'))!;
       expect(fallbackSql).toBeTruthy();
       expect(fallbackSql).toContain('app.current_org_id()');
+    });
+
+    it('(b2) uses supplier currency on PO header when list_price_gbp fallback applies', async () => {
+      supplierCurrency = 'EUR';
+      supplierSpecUnitPrice = null;
+      conversionRows = [baseConversionRow];
+
+      await convertPlannedToPo([PO_PLANNED_ID]);
+
+      expect(createPurchaseOrderCoreMock.mock.calls[0]?.[1]).toMatchObject({
+        currency: 'EUR',
+        lines: [{ itemId: FLOUR_ID, unitPrice: '5.0000' }],
+      });
     });
 
     it('(c) keeps unitPrice \'0\' and emits missing-spec warning only when neither spec nor list price exists', async () => {

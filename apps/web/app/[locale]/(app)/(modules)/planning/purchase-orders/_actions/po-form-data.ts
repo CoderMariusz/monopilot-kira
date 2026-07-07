@@ -164,7 +164,7 @@ export async function getItemSupplierPrice(
       if (item?.unit_price) {
         return {
           unitPrice: item.unit_price,
-          currency: 'GBP',
+          currency: supplier?.currency ?? 'GBP',
           source: 'list_price',
         };
       }

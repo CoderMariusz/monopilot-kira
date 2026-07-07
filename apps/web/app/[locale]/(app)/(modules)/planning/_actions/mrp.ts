@@ -861,6 +861,18 @@ async function fetchPlannedOrdersForConversion(
   return rows;
 }
 
+async function fetchSupplierCurrency(c: QueryClient, supplierId: string): Promise<string> {
+  const { rows } = await c.query<{ currency: string | null }>(
+    `select currency
+       from public.suppliers
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [supplierId],
+  );
+  return rows[0]?.currency ?? 'GBP';
+}
+
 async function resolvePlannedOrderSupplierSpecPrice(
   c: QueryClient,
   row: PlannedOrderForConversion,
@@ -890,7 +902,7 @@ async function resolvePlannedOrderSupplierSpecPrice(
   if (specPrice) return { unitPrice: specPrice, resolved: true, source: 'spec' };
 
   // Fall back to the item's list_price_gbp — same column and org scoping as
-  // po-form-data.ts:154-168 (GBP-only environment, PO currency stays 'GBP').
+  // po-form-data.ts list-price fallback (PO currency comes from the supplier).
   const { rows: itemRows } = await c.query<{ unit_price: string | null }>(
     `select list_price_gbp::text as unit_price
        from public.items
@@ -1102,6 +1114,7 @@ export async function convertPlannedToPo(plannedOrderIds: string[]): Promise<Mrp
       const priceWarnings: Array<{ id: string; reason: string }> = [];
       const outerCtx = { userId, orgId, client: c };
       for (const [supplierId, rows] of bySupplier) {
+        const supplierCurrency = await fetchSupplierCurrency(c, supplierId);
         const prices = await Promise.all(rows.map((row) => resolvePlannedOrderSupplierSpecPrice(c, row)));
         prices.forEach((price, index) => {
           if (price.source === 'none') {
@@ -1115,7 +1128,7 @@ export async function convertPlannedToPo(plannedOrderIds: string[]): Promise<Mrp
           supplierId,
           status: 'draft',
           expectedDelivery: rows[0]?.due_date,
-          currency: 'GBP',
+          currency: supplierCurrency,
           notes: 'Created from MRP planned orders',
           lines: rows.map((row, index) => ({
             itemId: row.item_id,

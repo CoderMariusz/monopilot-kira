@@ -113,7 +113,7 @@ describe('getItemSupplierPrice', () => {
     expect(queryMock.mock.calls[1]?.[1]).toEqual(['item-1', 'SUP-001', 'EUR', '2026-06-30']);
   });
 
-  it('falls back to items.list_price_gbp when no active approved spec price exists', async () => {
+  it('falls back to items.list_price_gbp with supplier PO currency (not hardcoded GBP)', async () => {
     queryMock
       .mockResolvedValueOnce({ rows: [{ code: 'SUP-001', currency: 'EUR' }] })
       .mockResolvedValueOnce({ rows: [] })
@@ -121,7 +121,7 @@ describe('getItemSupplierPrice', () => {
 
     const result = await getItemSupplierPrice({ itemId: 'item-1', supplierId: 'supplier-1' });
 
-    expect(result).toEqual({ ok: true, data: { unitPrice: '4.9900', currency: 'GBP', source: 'list_price' } });
+    expect(result).toEqual({ ok: true, data: { unitPrice: '4.9900', currency: 'EUR', source: 'list_price' } });
     expect(String(queryMock.mock.calls[2]?.[0] ?? '')).toContain('list_price_gbp::text as unit_price');
   });
 
