@@ -30,6 +30,8 @@ import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
 import { Select } from '@monopilot/ui/Select';
 
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+
 import {
   barGeometry,
   barInterval,
@@ -52,6 +54,7 @@ export type ScheduleBoardLabels = {
   unscheduledTitle: string;
   unscheduledEmpty: string;
   scheduleCta: string;
+  unscheduledPagination: ListPaginationLabels;
   modal: {
     title: string;
     line: string;
@@ -141,6 +144,13 @@ export function ScheduleBoardView({
   ];
 
   const statusLabel = (status: string) => labels.status[status.toLowerCase()] ?? status;
+
+  const unscheduledPagination = data.unscheduledPagination;
+  const unscheduledShown = unscheduledPagination.offset + data.unscheduled.length;
+  const unscheduledPageHref = (page: number) =>
+    page <= 1
+      ? `/${locale}/planning/schedule`
+      : `/${locale}/planning/schedule?uPage=${page}`;
 
   const openModal = (wo: ScheduleBoardWo) => {
     setSelected(wo);
@@ -297,7 +307,7 @@ export function ScheduleBoardView({
         <h2 className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">
           {labels.unscheduledTitle}
           <span className="ml-2 rounded bg-slate-100 px-1.5 text-xs font-normal text-slate-600">
-            {data.unscheduled.length}
+            {unscheduledPagination.total}
           </span>
         </h2>
         {data.unscheduled.length === 0 ? (
@@ -321,6 +331,18 @@ export function ScheduleBoardView({
             ))}
           </ul>
         )}
+        <ListPaginationFooter
+          shown={unscheduledShown}
+          total={unscheduledPagination.total}
+          previousHref={
+            unscheduledPagination.page > 1 ? unscheduledPageHref(unscheduledPagination.page - 1) : null
+          }
+          nextHref={
+            unscheduledPagination.hasMore ? unscheduledPageHref(unscheduledPagination.page + 1) : null
+          }
+          labels={labels.unscheduledPagination}
+          testId="schedule-unscheduled-pagination"
+        />
       </section>
 
       {/* Reschedule modal — the honest replacement for gantt.jsx:152 "Edit schedule". */}

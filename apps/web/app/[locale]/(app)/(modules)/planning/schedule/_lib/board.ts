@@ -6,6 +6,8 @@
  * both the Server Action and the client component (and tests) can import them.
  */
 
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
+
 /** WO statuses that appear on the board (planning-phase + running). */
 export const BOARD_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS'] as const;
 
@@ -56,6 +58,7 @@ export type ScheduleBoardData = {
   lines: ScheduleBoardLine[];
   scheduled: ScheduleBoardWo[];
   unscheduled: ScheduleBoardWo[];
+  unscheduledPagination: PaginatedResult<ScheduleBoardWo>;
   capacityBlocks: ScheduleCapacityBlock[];
 };
 

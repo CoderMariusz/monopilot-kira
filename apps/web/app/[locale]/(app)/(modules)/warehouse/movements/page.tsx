@@ -7,8 +7,8 @@
  *   movements/_components/movement-list.client.tsx.
  *
  * Data: the reviewed listStockMoves action (imported, never authored), run inside
- * withOrgContext (RLS-scoped). The whole set is loaded once and the tab grouping
- * (transfers = transfer + putaway) happens client-side, matching the prototype.
+ * withOrgContext (RLS-scoped). Rows are server-paginated; tab grouping
+ * (transfers = transfer + putaway) still happens client-side on the current page.
  * RBAC enforced server-side; a `forbidden` result renders the permission panel.
  *
  * UI states: loading (Suspense skeleton), empty + empty-filtered (in the client
@@ -25,7 +25,10 @@ import { MovementListClient, type MovementListLabels } from './_components/movem
 
 export const dynamic = 'force-dynamic';
 
-type PageProps = { params: Promise<{ locale: string }> };
+type PageProps = {
+  params: Promise<{ locale: string }>;
+  searchParams?: Promise<{ page?: string }>;
+};
 
 const PROTOTYPE_ANCHOR =
   'prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx:3-200';
@@ -69,7 +72,17 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): MovementListLabels
       date: t('movements.columns.date'),
       reason: t('movements.columns.reason'),
     },
+    pagination: {
+      showing: t('movements.pagination.showing'),
+      previous: t('movements.pagination.previous'),
+      next: t('movements.pagination.next'),
+    },
   };
+}
+
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
 function ListSkeleton() {
@@ -82,9 +95,15 @@ function ListSkeleton() {
   );
 }
 
-async function ListContent({ locale }: { locale: string }) {
+async function ListContent({
+  locale,
+  page,
+}: {
+  locale: string;
+  page: number;
+}) {
   const t = getWhcTranslator(locale);
-  const result = await listStockMoves({ limit: 500 });
+  const result = await listStockMoves({ page });
 
   if (!result.ok) {
     if (result.reason === 'forbidden') {
@@ -111,11 +130,20 @@ async function ListContent({ locale }: { locale: string }) {
     );
   }
 
-  return <MovementListClient rows={result.data} labels={buildLabels(t)} locale={locale} />;
+  return (
+    <MovementListClient
+      rows={result.data.items}
+      pagination={result.data}
+      labels={buildLabels(t)}
+      locale={locale}
+    />
+  );
 }
 
-export default async function MovementsListPage({ params }: PageProps) {
+export default async function MovementsListPage({ params, searchParams }: PageProps) {
   const { locale } = await params;
+  const sp: { page?: string } = searchParams ? await searchParams : {};
+  const page = parsePage(sp.page);
   const t = getWhcTranslator(locale);
 
   return (
@@ -133,8 +161,8 @@ export default async function MovementsListPage({ params }: PageProps) {
           { label: t('movements.breadcrumb.movements') },
         ]}
       />
-      <Suspense fallback={<ListSkeleton />}>
-        <ListContent locale={locale} />
+      <Suspense key={page} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} page={page} />
       </Suspense>
     </main>
   );

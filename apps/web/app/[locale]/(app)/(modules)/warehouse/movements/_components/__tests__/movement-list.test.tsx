@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MovementListClient, type MovementListLabels } from '../movement-list.client';
 import { getWhcTranslator } from '../../../wh-c-labels';
+import { normalizePage, toPaginatedResult } from '../../../../../../../lib/shared/pagination';
 import type { StockMoveListItem } from '../../../_actions/shared';
 
 function buildLabels(locale: string): MovementListLabels {
@@ -57,6 +58,11 @@ function buildLabels(locale: string): MovementListLabels {
       date: t('movements.columns.date'),
       reason: t('movements.columns.reason'),
     },
+    pagination: {
+      showing: t('movements.pagination.showing'),
+      previous: t('movements.pagination.previous'),
+      next: t('movements.pagination.next'),
+    },
   };
 }
 
@@ -79,8 +85,16 @@ function makeRow(over: Partial<StockMoveListItem>): StockMoveListItem {
   };
 }
 
-function renderList(rows: StockMoveListItem[]) {
-  return render(<MovementListClient rows={rows} labels={EN} locale="en" />);
+function renderList(rows: StockMoveListItem[], total = rows.length, page = 1) {
+  const normalized = normalizePage({ page, defaultLimit: 50 });
+  return render(
+    <MovementListClient
+      rows={rows}
+      pagination={toPaginatedResult(rows, total, normalized)}
+      labels={EN}
+      locale="en"
+    />,
+  );
 }
 
 describe('MovementListClient (WH-006 parity)', () => {
@@ -182,6 +196,14 @@ describe('MovementListClient (WH-006 parity)', () => {
     renderList([makeRow({ id: 'z', lpId: 'lp-uuid-zzz', lpNumber: null })]);
     expect(screen.queryByTestId('movement-lp-link-z')).not.toBeInTheDocument();
     expect(screen.queryByText('lp-uuid-zzz')).not.toBeInTheDocument();
+  });
+
+  it('renders pagination footer with total count and next link when more pages exist', () => {
+    renderList([makeRow({ id: 'a' })], 120);
+
+    expect(screen.getByTestId('movement-pagination-showing')).toHaveTextContent('Showing 1 of 120');
+    expect(screen.getByTestId('movement-pagination-next')).toHaveAttribute('href', '/en/warehouse/movements?page=2');
+    expect(screen.getByTestId('movement-pagination-prev-disabled')).toBeInTheDocument();
   });
 
   it('resolves every staged i18n key in en and pl (no leaked dotted keys)', () => {

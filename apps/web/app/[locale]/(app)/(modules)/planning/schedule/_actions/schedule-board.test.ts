@@ -93,7 +93,21 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
       if (normalized.includes('from public.work_orders')) {
-        // getScheduleBoard scheduled/unscheduled reads
+        if (normalized.includes('count(*)')) {
+          return { rows: [{ total: 75 }], rowCount: 1 };
+        }
+        if (normalized.includes('scheduled_start_time is null')) {
+          const limit = Number(params[2] ?? 50);
+          const offset = Number(params[3] ?? 0);
+          const rows = Array.from({ length: Math.min(limit, Math.max(0, 75 - offset)) }, (_, index) => ({
+            ...WO_ROW,
+            id: `unsched-${offset + index + 1}`,
+            wo_number: `WO-U-${offset + index + 1}`,
+            scheduled_start_time: null,
+            scheduled_end_time: null,
+          }));
+          return { rows, rowCount: rows.length };
+        }
         return { rows: [WO_ROW], rowCount: 1 };
       }
       return { rows: [], rowCount: 0 };
@@ -293,7 +307,7 @@ describe('getScheduleBoard', () => {
     const workOrderReads = vi
       .mocked(client.query)
       .mock.calls.filter(([sql]) => String(sql).includes('from public.work_orders wo'));
-    expect(workOrderReads).toHaveLength(2);
+    expect(workOrderReads).toHaveLength(3);
     expect(workOrderReads[0]?.[0]).toContain('wo.site_id = $4::uuid');
     expect(workOrderReads[0]?.[1]).toEqual([
       ['DRAFT', 'RELEASED', 'IN_PROGRESS'],
@@ -301,8 +315,30 @@ describe('getScheduleBoard', () => {
       expect.any(String),
       SITE_ID,
     ]);
-    expect(workOrderReads[1]?.[0]).toContain('wo.site_id = $2::uuid');
-    expect(workOrderReads[1]?.[1]).toEqual([['DRAFT', 'RELEASED', 'IN_PROGRESS'], SITE_ID]);
+    expect(workOrderReads[1]?.[0]).toContain('count(*)');
+    expect(workOrderReads[2]?.[0]).toContain('limit $3::integer offset $4::integer');
+    expect(workOrderReads[2]?.[1]).toEqual([['DRAFT', 'RELEASED', 'IN_PROGRESS'], SITE_ID, 50, 0]);
+    expect(result.data.unscheduledPagination).toMatchObject({
+      total: 75,
+      page: 1,
+      limit: 50,
+      offset: 0,
+      hasMore: true,
+    });
+  });
+
+  it('paginates unscheduled work orders with offset/limit', async () => {
+    const result = await getScheduleBoard({ unscheduledPage: 2 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.unscheduled).toHaveLength(25);
+    expect(result.data.unscheduledPagination).toMatchObject({
+      total: 75,
+      page: 2,
+      offset: 50,
+      hasMore: false,
+    });
   });
 
   it('fails closed with no active site before running board reads', async () => {
@@ -316,6 +352,14 @@ describe('getScheduleBoard', () => {
       lines: [],
       scheduled: [],
       unscheduled: [],
+      unscheduledPagination: {
+        items: [],
+        total: 0,
+        page: 1,
+        limit: 50,
+        offset: 0,
+        hasMore: false,
+      },
       noActiveSite: true,
     });
     expect(client.query).toHaveBeenCalledTimes(1);

@@ -23,6 +23,12 @@
 import { z } from 'zod';
 
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
+import {
+  DEFAULT_UNSCHEDULED_PAGE_SIZE,
+  emptyPaginatedResult,
+  normalizePage,
+  toPaginatedResult,
+} from '../../../../../../../lib/shared/pagination';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   PLANNING_WO_WRITE_PERMISSION,
@@ -117,7 +123,15 @@ const WO_SELECT = `
      and i.org_id = wo.org_id
    where wo.org_id = app.current_org_id()`;
 
-export async function getScheduleBoard(): Promise<GetScheduleBoardResult> {
+export async function getScheduleBoard(input?: {
+  unscheduledPage?: number;
+}): Promise<GetScheduleBoardResult> {
+  const unscheduledPage = normalizePage({
+    page: input?.unscheduledPage,
+    defaultLimit: DEFAULT_UNSCHEDULED_PAGE_SIZE,
+    maxLimit: DEFAULT_UNSCHEDULED_PAGE_SIZE,
+  });
+
   try {
     return await withOrgContext(async (ctx: OrgActionContext): Promise<GetScheduleBoardResult> => {
       if (!(await hasPermission(ctx, SCHEDULE_READ_PERMISSION))) {
@@ -138,6 +152,7 @@ export async function getScheduleBoard(): Promise<GetScheduleBoardResult> {
             lines: [],
             scheduled: [],
             unscheduled: [],
+            unscheduledPagination: emptyPaginatedResult(unscheduledPage),
             capacityBlocks: [],
             noActiveSite: true,
           } as ScheduleBoardData & { noActiveSite: true },
@@ -163,14 +178,32 @@ export async function getScheduleBoard(): Promise<GetScheduleBoardResult> {
         [[...BOARD_STATUSES], windowStart.toISOString(), windowEnd.toISOString(), s],
       );
 
-      const unscheduledResult = await ctx.client.query<WoRow>(
-        `${WO_SELECT}
+      const [unscheduledCountResult, unscheduledResult] = await Promise.all([
+        ctx.client.query<{ total: number }>(
+          `select count(*)::int as total
+             from public.work_orders wo
+            where wo.org_id = app.current_org_id()
+              and wo.status = any($1::text[])
+              and wo.site_id = $2::uuid
+              and wo.scheduled_start_time is null`,
+          [[...BOARD_STATUSES], s],
+        ),
+        ctx.client.query<WoRow>(
+          `${WO_SELECT}
      and wo.status = any($1::text[])
      and wo.site_id = $2::uuid
      and wo.scheduled_start_time is null
    order by wo.created_at desc
-   limit 50`,
-        [[...BOARD_STATUSES], s],
+   limit $3::integer offset $4::integer`,
+          [[...BOARD_STATUSES], s, unscheduledPage.limit, unscheduledPage.offset],
+        ),
+      ]);
+
+      const unscheduledItems = unscheduledResult.rows.map(mapBoardWo);
+      const unscheduledPagination = toPaginatedResult(
+        unscheduledItems,
+        Number(unscheduledCountResult.rows[0]?.total ?? 0),
+        unscheduledPage,
       );
 
       const capacityBlocksResult = await ctx.client.query<CapacityBlockRow>(
@@ -202,7 +235,8 @@ export async function getScheduleBoard(): Promise<GetScheduleBoardResult> {
           windowEnd: windowEnd.toISOString(),
           lines: linesResult.rows,
           scheduled: scheduledResult.rows.map(mapBoardWo),
-          unscheduled: unscheduledResult.rows.map(mapBoardWo),
+          unscheduled: unscheduledItems,
+          unscheduledPagination,
           capacityBlocks: capacityBlocksResult.rows.map(mapCapacityBlock),
         },
       };

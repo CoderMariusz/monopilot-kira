@@ -8227,7 +8227,12 @@
       "unscheduled": {
         "title": "Unscheduled work orders",
         "empty": "Every open work order has a scheduled start.",
-        "cta": "Schedule"
+        "cta": "Schedule",
+        "pagination": {
+          "showing": "Showing {shown} of {total}",
+          "previous": "Previous",
+          "next": "Next"
+        }
       },
       "modal": {
         "title": "Reschedule",
@@ -10110,6 +10115,11 @@
         "setup": "Setup",
         "machine": "Machine",
         "waste": "Waste"
+      },
+      "pagination": {
+        "showing": "Showing {shown} of {total}",
+        "previous": "Previous",
+        "next": "Next"
       }
     }
   },

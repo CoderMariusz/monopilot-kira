@@ -1,11 +1,17 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import {
+  DEFAULT_MOVEMENT_PAGE_SIZE,
+  emptyPaginatedResult,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../lib/shared/pagination';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import {
   WAREHOUSE_READ_PERMISSION,
   WAREHOUSE_STOCK_MOVE_PERMISSION,
-  asLimit,
   asTrimmed,
   hasWarehousePermission,
   moveNumberFromTransactionId,
@@ -46,34 +52,10 @@ import {
  *                      (the from-location is unknown → null); the synthetic
  *                      move # is derived from the history row id.
  *
- * Ordered by timestamp desc across both ledgers, then limited.
+ * Ordered by timestamp desc across both ledgers, then paginated with a total count.
  */
-export async function listStockMoves(input: StockMoveListInput = {}): Promise<WarehouseResult<StockMoveListItem[]>> {
-  const moveType = asTrimmed(input.moveType);
-  const limit = asLimit(input.limit);
-
-  try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<StockMoveListItem[]>> => {
-      const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasWarehousePermission(ctx, WAREHOUSE_READ_PERMISSION))) return { ok: false, reason: 'forbidden' };
-      const s = await getActiveSiteId({ client: ctx.client });
-      if (!s) return { ok: true, data: [], noActiveSite: true } as WarehouseResult<StockMoveListItem[]> & { noActiveSite: true };
-
-      const { rows } = await ctx.client.query<{
-        id: string;
-        move_number: string;
-        lp_id: string;
-        lp_number: string | null;
-        move_type: string;
-        from_location_code: string | null;
-        to_location_code: string | null;
-        quantity: string | null;
-        uom: string | null;
-        move_date: string | Date;
-        reason_text: string | null;
-        source: 'stock_move' | 'lp_state';
-      }>(
-        `with unified as (
+const UNIFIED_MOVEMENTS_CTE = `
+         with unified as (
            -- (a) the explicit stock-move ledger — putaway / transfer / issue / adjustment.
            select sm.id::text                       as id,
                   sm.move_number                     as move_number,
@@ -92,7 +74,7 @@ export async function listStockMoves(input: StockMoveListInput = {}): Promise<Wa
              left join public.locations fl on fl.org_id = app.current_org_id() and fl.id = sm.from_location_id
              left join public.locations tl on tl.org_id = app.current_org_id() and tl.id = sm.to_location_id
             where sm.org_id = app.current_org_id()
-              and sm.site_id = $3::uuid
+              and sm.site_id = $4::uuid
 
            union all
 
@@ -111,8 +93,6 @@ export async function listStockMoves(input: StockMoveListInput = {}): Promise<Wa
                     when h.to_state = 'blocked' then 'adjustment'
                     else coalesce(h.from_state, '∅') || '→' || h.to_state
                   end                                   as move_type,
-                  -- lp_state_history has no location columns; the 'to' is the LP's
-                  -- current location, the 'from' is unknown.
                   null                                  as from_location_code,
                   tl2.code                              as to_location_code,
                   lp2.quantity::text                    as quantity,
@@ -124,21 +104,76 @@ export async function listStockMoves(input: StockMoveListInput = {}): Promise<Wa
              left join public.license_plates lp2 on lp2.org_id = app.current_org_id() and lp2.id = h.lp_id
              left join public.locations tl2 on tl2.org_id = app.current_org_id() and tl2.id = lp2.location_id
             where h.org_id = app.current_org_id()
-              and h.site_id = $3::uuid
-         )
+              and h.site_id = $4::uuid
+         )`;
+
+export async function listStockMoves(
+  input: StockMoveListInput = {},
+): Promise<WarehouseResult<PaginatedResult<StockMoveListItem>>> {
+  const moveType = asTrimmed(input.moveType);
+  const page = normalizePage({
+    page: input.page,
+    offset: input.offset,
+    limit: input.limit,
+    defaultLimit: DEFAULT_MOVEMENT_PAGE_SIZE,
+    maxLimit: 500,
+  });
+
+  try {
+    return await withOrgContext(
+      async ({ userId, orgId, client }): Promise<WarehouseResult<PaginatedResult<StockMoveListItem>>> => {
+      const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasWarehousePermission(ctx, WAREHOUSE_READ_PERMISSION))) return { ok: false, reason: 'forbidden' };
+      const s = await getActiveSiteId({ client: ctx.client });
+      if (!s) {
+        return {
+          ok: true,
+          data: emptyPaginatedResult(page),
+          noActiveSite: true,
+        } as WarehouseResult<PaginatedResult<StockMoveListItem>> & { noActiveSite: true };
+      }
+
+      const [countResult, dataResult] = await Promise.all([
+        ctx.client.query<{ total: number }>(
+          `${UNIFIED_MOVEMENTS_CTE}
+         select count(*)::int as total
+           from unified
+          where ($1::text is null or move_type = $1)`,
+          [moveType, page.limit, page.offset, s],
+        ),
+        ctx.client.query<{
+        id: string;
+        move_number: string;
+        lp_id: string;
+        lp_number: string | null;
+        move_type: string;
+        from_location_code: string | null;
+        to_location_code: string | null;
+        quantity: string | null;
+        uom: string | null;
+        move_date: string | Date;
+        reason_text: string | null;
+        source: 'stock_move' | 'lp_state';
+      }>(
+        `${UNIFIED_MOVEMENTS_CTE}
          select id, move_number, lp_id, lp_number, move_type,
                 from_location_code, to_location_code, quantity, uom,
                 move_date, reason_text, source
            from unified
           where ($1::text is null or move_type = $1)
           order by move_date desc, id desc
-          limit $2::integer`,
-        [moveType, limit, s],
-      );
+          limit $2::integer offset $3::integer`,
+          [moveType, page.limit, page.offset, s],
+        ),
+      ]);
+
+      const rows = dataResult.rows;
+      const total = Number(countResult.rows[0]?.total ?? 0);
 
       return {
         ok: true,
-        data: rows.map((row) => ({
+        data: toPaginatedResult(
+          rows.map((row) => ({
           id: row.id,
           moveNumber: row.move_number,
           lpId: row.lp_id,
@@ -152,8 +187,12 @@ export async function listStockMoves(input: StockMoveListInput = {}): Promise<Wa
           reasonText: row.reason_text,
           source: row.source,
         })),
+          total,
+          page,
+        ),
       };
-    });
+    },
+    );
   } catch (error) {
     console.error('[warehouse] listStockMoves failed', error);
     return { ok: false, reason: 'error' };
