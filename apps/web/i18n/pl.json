@@ -8252,7 +8252,12 @@
       "unscheduled": {
         "title": "Niezaplanowane zlecenia",
         "empty": "Każde otwarte zlecenie ma zaplanowany start.",
-        "cta": "Zaplanuj"
+        "cta": "Zaplanuj",
+        "pagination": {
+          "showing": "Wyświetlono {shown} z {total}",
+          "previous": "Poprzednia",
+          "next": "Następna"
+        }
       },
       "modal": {
         "title": "Przeplanuj",
@@ -10135,6 +10140,11 @@
         "setup": "Przezbrojenie",
         "machine": "Maszyna",
         "waste": "Odpad"
+      },
+      "pagination": {
+        "showing": "Wyświetlono {shown} z {total}",
+        "previous": "Poprzednia",
+        "next": "Następna"
       }
     }
   },

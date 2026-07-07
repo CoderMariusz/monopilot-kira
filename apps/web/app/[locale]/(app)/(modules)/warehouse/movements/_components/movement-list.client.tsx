@@ -30,7 +30,9 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
 import { downloadCsv, toCsv } from '../../../../../../../lib/shared/download';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 import type { StockMoveListItem } from '../../_actions/shared';
 
 export type MovementTab = 'all' | 'receipts' | 'consume' | 'transfers' | 'adjustments';
@@ -70,6 +72,7 @@ export type MovementListLabels = {
     date: string;
     reason: string;
   };
+  pagination: ListPaginationLabels;
 };
 
 function matchesTab(row: StockMoveListItem, tab: MovementTab): boolean {
@@ -104,10 +107,12 @@ function CsvExportIcon() {
 
 export function MovementListClient({
   rows,
+  pagination,
   labels,
   locale,
 }: {
   rows: StockMoveListItem[];
+  pagination: PaginatedResult<StockMoveListItem>;
   labels: MovementListLabels;
   locale: string;
 }) {
@@ -152,6 +157,13 @@ export function MovementListClient({
     ]);
     downloadCsv(toCsv(header, csvRows), `warehouse-movements-${tab}.csv`);
   }
+
+  const shown = pagination.offset + rows.length;
+  const previousHref =
+    pagination.page > 1 ? `/${locale}/warehouse/movements?page=${pagination.page - 1}` : null;
+  const nextHref = pagination.hasMore
+    ? `/${locale}/warehouse/movements?page=${pagination.page + 1}`
+    : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -287,6 +299,14 @@ export function MovementListClient({
             </TableBody>
           </Table>
         )}
+        <ListPaginationFooter
+          shown={shown}
+          total={pagination.total}
+          previousHref={previousHref}
+          nextHref={nextHref}
+          labels={labels.pagination}
+          testId="movement-pagination"
+        />
       </Card>
     </div>
   );

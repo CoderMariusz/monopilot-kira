@@ -25,6 +25,12 @@
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
+import {
+  DEFAULT_FINANCE_WO_COST_PAGE_SIZE,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../lib/shared/pagination';
 import { totalDowntimeMinutes } from '../../../../../../lib/production/oee-snapshot-producer';
 import { microToFixed, toMicro, MICRO_SCALE } from '../../../../../../lib/shared/decimal';
 import {
@@ -34,6 +40,23 @@ import {
 } from './wo-cost-math';
 
 const FINANCE_COSTS_READ_PERMISSION = 'fin.costs.read';
+
+const COMPLETED_WO_FROM = `
+             from public.work_orders wo
+             left join public.wo_executions x
+               on x.org_id = app.current_org_id()
+              and x.wo_id = wo.id`;
+
+const COMPLETED_WO_WHERE = `
+            where wo.org_id = app.current_org_id()
+              and (
+                wo.status in ('COMPLETED', 'CLOSED')
+                or x.status in ('completed', 'closed')
+              )
+              and coalesce(x.completed_at, wo.completed_at) >= pg_catalog.now() - ($1::int * interval '1 day')`;
+
+const COMPLETED_WO_ORDER = `
+            order by coalesce(x.completed_at, wo.completed_at) desc nulls last, wo.wo_number desc`;
 
 export type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -92,6 +115,7 @@ export type WoCostSummaryRow = WoActualCost & {
 export type CompletedWoCostsSummary = {
   days: number;
   rows: WoCostSummaryRow[];
+  pagination: PaginatedResult<WoCostSummaryRow>;
 };
 
 export type CompletedWoWasteCostSummary = {
@@ -515,9 +539,16 @@ export async function computeWoActualCost(woId: string): Promise<FinanceActionRe
 }
 
 export async function listCompletedWoCosts(
-  input: { days?: number } = {},
+  input: { days?: number; page?: number; offset?: number; limit?: number } = {},
 ): Promise<FinanceActionResult<CompletedWoCostsSummary>> {
   const days = asDays(input.days, 30);
+  const page = normalizePage({
+    page: input.page,
+    offset: input.offset,
+    limit: input.limit,
+    defaultLimit: DEFAULT_FINANCE_WO_COST_PAGE_SIZE,
+    maxLimit: DEFAULT_FINANCE_WO_COST_PAGE_SIZE,
+  });
   try {
     return await withOrgContext(
       async ({ userId, orgId, client }): Promise<FinanceActionResult<CompletedWoCostsSummary>> => {
@@ -526,33 +557,34 @@ export async function listCompletedWoCosts(
           return { ok: false, reason: 'forbidden' };
         }
 
-        const rows = await ctx.client.query<{ wo_id: string; completed_at: string | Date | null }>(
-          `select wo.id::text as wo_id,
-                  coalesce(x.completed_at, wo.completed_at) as completed_at
-             from public.work_orders wo
-             left join public.wo_executions x
-               on x.org_id = app.current_org_id()
-              and x.wo_id = wo.id
-            where wo.org_id = app.current_org_id()
-              and (
-                wo.status in ('COMPLETED', 'CLOSED')
-                or x.status in ('completed', 'closed')
-              )
-              and coalesce(x.completed_at, wo.completed_at) >= pg_catalog.now() - ($1::int * interval '1 day')
-            order by coalesce(x.completed_at, wo.completed_at) desc nulls last, wo.wo_number desc
-            limit 25`,
-          [days],
-        );
+        const [countResult, rowsResult] = await Promise.all([
+          ctx.client.query<{ total: number }>(
+            `select count(*)::int as total
+               ${COMPLETED_WO_FROM}
+              ${COMPLETED_WO_WHERE}`,
+            [days],
+          ),
+          ctx.client.query<{ wo_id: string; completed_at: string | Date | null }>(
+            `select wo.id::text as wo_id,
+                    coalesce(x.completed_at, wo.completed_at) as completed_at
+               ${COMPLETED_WO_FROM}
+              ${COMPLETED_WO_WHERE}
+              ${COMPLETED_WO_ORDER}
+              limit $2::integer offset $3::integer`,
+            [days, page.limit, page.offset],
+          ),
+        ]);
 
         const costRows: WoCostSummaryRow[] = [];
-        for (const row of rows.rows) {
+        for (const row of rowsResult.rows) {
           const result = await computeWoActualCostInContext(ctx, row.wo_id);
           if (result.ok) {
             costRows.push({ ...result.data, completedAt: iso(row.completed_at) });
           }
         }
 
-        return { ok: true, data: { days, rows: costRows } };
+        const pagination = toPaginatedResult(costRows, Number(countResult.rows[0]?.total ?? 0), page);
+        return { ok: true, data: { days, rows: pagination.items, pagination } };
       },
     );
   } catch (error) {
@@ -573,22 +605,21 @@ export async function summarizeCompletedWoWasteCost(
           return { ok: false, reason: 'forbidden' };
         }
 
-        const rows = await ctx.client.query<{ wo_id: string }>(
-          `select wo.id::text as wo_id
-             from public.work_orders wo
-             left join public.wo_executions x
-               on x.org_id = app.current_org_id()
-              and x.wo_id = wo.id
-            where wo.org_id = app.current_org_id()
-              and (
-                wo.status in ('COMPLETED', 'CLOSED')
-                or x.status in ('completed', 'closed')
-              )
-              and coalesce(x.completed_at, wo.completed_at) >= pg_catalog.now() - ($1::int * interval '1 day')
-            order by coalesce(x.completed_at, wo.completed_at) desc nulls last, wo.wo_number desc
-            limit 25`,
-          [days],
-        );
+        const [countResult, rows] = await Promise.all([
+          ctx.client.query<{ total: number }>(
+            `select count(*)::int as total
+               ${COMPLETED_WO_FROM}
+              ${COMPLETED_WO_WHERE}`,
+            [days],
+          ),
+          ctx.client.query<{ wo_id: string }>(
+            `select wo.id::text as wo_id
+               ${COMPLETED_WO_FROM}
+              ${COMPLETED_WO_WHERE}
+              ${COMPLETED_WO_ORDER}`,
+            [days],
+          ),
+        ]);
 
         let wasteCost = 0n;
         let woCount = 0;
@@ -600,7 +631,10 @@ export async function summarizeCompletedWoWasteCost(
           }
         }
 
-        return { ok: true, data: { days, woCount, wasteCost: microToFixed(wasteCost, 4) } };
+        return {
+          ok: true,
+          data: { days, woCount: Number(countResult.rows[0]?.total ?? woCount), wasteCost: microToFixed(wasteCost, 4) },
+        };
       },
     );
   } catch (error) {

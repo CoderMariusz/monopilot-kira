@@ -10,8 +10,13 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams?: Promise<{ days?: string }>;
+  searchParams?: Promise<{ days?: string; page?: string }>;
 };
+
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
 
 function FinanceSkeleton({ labels }: { labels: FinanceWoCostLabels }) {
   return <FinanceWoCostTable result={{ state: 'loading' }} labels={labels} />;
@@ -54,12 +59,25 @@ async function buildLabels(): Promise<FinanceWoCostLabels> {
       machine: t('breakdown.machine'),
       waste: t('breakdown.waste'),
     },
+    pagination: {
+      showing: t('pagination.showing'),
+      previous: t('pagination.previous'),
+      next: t('pagination.next'),
+    },
   };
 }
 
-async function FinanceContent({ labels, windowDays }: { labels: FinanceWoCostLabels; windowDays: 30 | 90 | 365 }) {
+async function FinanceContent({
+  labels,
+  windowDays,
+  page,
+}: {
+  labels: FinanceWoCostLabels;
+  windowDays: 30 | 90 | 365;
+  page: number;
+}) {
   const [result, wasteSummary] = await Promise.all([
-    listCompletedWoCosts({ days: windowDays }),
+    listCompletedWoCosts({ days: windowDays, page }),
     summarizeCompletedWoWasteCost({ days: windowDays }),
   ]);
   const wasteCost =
@@ -91,8 +109,9 @@ async function FinanceContent({ labels, windowDays }: { labels: FinanceWoCostLab
 
 export default async function FinanceRoutePage({ params, searchParams }: PageProps) {
   const { locale } = await params;
-  const sp: { days?: string } = searchParams ? await searchParams : {};
+  const sp: { days?: string; page?: string } = searchParams ? await searchParams : {};
   const windowDays = parseWindowDays(sp.days);
+  const page = parsePage(sp.page);
   const labels = await buildLabels();
 
   return (
@@ -110,8 +129,8 @@ export default async function FinanceRoutePage({ params, searchParams }: PagePro
           Inventory valuation
         </Link>
       </div>
-      <Suspense key={windowDays} fallback={<FinanceSkeleton labels={labels} />}>
-        <FinanceContent labels={labels} windowDays={windowDays} />
+      <Suspense key={`${windowDays}-${page}`} fallback={<FinanceSkeleton labels={labels} />}>
+        <FinanceContent labels={labels} windowDays={windowDays} page={page} />
       </Suspense>
     </main>
   );

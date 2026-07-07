@@ -20,6 +20,7 @@ import ukMessages from '../../../../../../../i18n/uk.json';
 import { ScheduleBoardView, type ScheduleBoardLabels } from '../_components/schedule-board-view';
 import type { ScheduleBoardData, ScheduleBoardWo } from '../_lib/board';
 import type { RescheduleWorkOrderResult } from '../_actions/schedule-board';
+import { normalizePage, toPaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -44,6 +45,7 @@ const labels: ScheduleBoardLabels = {
   unscheduledTitle: en.unscheduled.title,
   unscheduledEmpty: en.unscheduled.empty,
   scheduleCta: en.unscheduled.cta,
+  unscheduledPagination: en.unscheduled.pagination,
   modal: { ...en.modal, errors: en.modal.errors },
 };
 
@@ -68,6 +70,26 @@ function wo(over: Partial<ScheduleBoardWo> & { id: string; woNumber: string }): 
 }
 
 function makeData(over: Partial<ScheduleBoardData> = {}): ScheduleBoardData {
+  const unscheduled = over.unscheduled ?? [
+    wo({
+      id: 'd0000000-0000-4000-8000-00000000000d',
+      woNumber: 'WO-U',
+      productionLineId: null,
+      scheduledStart: null,
+      scheduledEnd: null,
+    }),
+  ];
+  const unscheduledPagination =
+    over.unscheduledPagination ??
+    ({
+      items: unscheduled,
+      total: unscheduled.length,
+      page: 1,
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+    } as ScheduleBoardData['unscheduledPagination']);
+
   return {
     windowStart: WINDOW_START,
     windowEnd: WINDOW_END,
@@ -76,7 +98,6 @@ function makeData(over: Partial<ScheduleBoardData> = {}): ScheduleBoardData {
       { id: LINE_2, code: 'LINE-02', name: 'Line Two' },
     ],
     scheduled: [
-      // WO-A and WO-B overlap on LINE-01 → both conflict.
       wo({ id: 'a0000000-0000-4000-8000-00000000000a', woNumber: 'WO-A' }),
       wo({
         id: 'b0000000-0000-4000-8000-00000000000b',
@@ -85,7 +106,6 @@ function makeData(over: Partial<ScheduleBoardData> = {}): ScheduleBoardData {
         scheduledStart: '2026-06-12T12:00:00.000Z',
         scheduledEnd: '2026-06-12T20:00:00.000Z',
       }),
-      // WO-C alone on LINE-02 → no conflict.
       wo({
         id: 'c0000000-0000-4000-8000-00000000000c',
         woNumber: 'WO-C',
@@ -94,18 +114,13 @@ function makeData(over: Partial<ScheduleBoardData> = {}): ScheduleBoardData {
         scheduledEnd: '2026-06-13T14:00:00.000Z',
       }),
     ],
-    unscheduled: [
-      wo({
-        id: 'd0000000-0000-4000-8000-00000000000d',
-        woNumber: 'WO-U',
-        productionLineId: null,
-        scheduledStart: null,
-        scheduledEnd: null,
-      }),
-    ],
+    unscheduled,
+    unscheduledPagination,
     capacityBlocks: [],
     lineDayUtilization: [],
     ...over,
+    unscheduled,
+    unscheduledPagination,
   };
 }
 

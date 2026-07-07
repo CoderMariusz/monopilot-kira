@@ -27,7 +27,38 @@ const client = {
       return { rows: [{ ok: true }], rowCount: 1 };
     }
 
-    if (normalized.includes('select wo.id::text as wo_id') && normalized.includes('limit 25')) {
+    if (normalized.includes('select count(*)::int as total') && normalized.includes('from public.work_orders')) {
+      return { rows: [{ total: 30 }], rowCount: 1 };
+    }
+
+    if (normalized.includes('select wo.id::text as wo_id') && normalized.includes('limit $2::integer offset $3::integer')) {
+      const limit = Number(params?.[1] ?? 25);
+      const offset = Number(params?.[2] ?? 0);
+      if (offset === 0) {
+        return {
+          rows: [
+            { wo_id: ZERO_WO_ID, completed_at: '2026-06-10T10:00:00.000Z' },
+            { wo_id: COSTED_WO_ID, completed_at: '2026-06-11T10:00:00.000Z' },
+          ],
+          rowCount: 2,
+        };
+      }
+      const allRows = Array.from({ length: 30 }, (_, index) => ({
+        wo_id: `wo-page-${index + 1}`,
+        completed_at: `2026-06-${String((index % 28) + 1).padStart(2, '0')}T10:00:00.000Z`,
+      }));
+      return {
+        rows: allRows.slice(offset, offset + limit),
+        rowCount: Math.min(limit, Math.max(0, 30 - offset)),
+      };
+    }
+
+    if (
+      normalized.includes('select wo.id::text as wo_id') &&
+      normalized.includes('from public.work_orders') &&
+      !normalized.includes('wo.wo_number') &&
+      !normalized.includes('limit $2::integer offset $3::integer')
+    ) {
       return {
         rows: [
           { wo_id: ZERO_WO_ID, completed_at: '2026-06-10T10:00:00.000Z' },
@@ -270,6 +301,13 @@ describe('listCompletedWoCosts', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.rows).toHaveLength(2);
+    expect(result.data.pagination).toMatchObject({
+      total: 30,
+      page: 1,
+      limit: 25,
+      offset: 0,
+      hasMore: true,
+    });
     expect(result.data.rows[0]).toMatchObject({ woId: ZERO_WO_ID, zeroCost: true, totalCost: '0.0000' });
 
     const costed = result.data.rows.find((row) => row.woId === COSTED_WO_ID);
@@ -283,6 +321,27 @@ describe('listCompletedWoCosts', () => {
     expect(costed?.downtimeCost).toBe('10.0000');
     expect(costed?.totalCost).toBe('22.4000');
     expect(calls.some((call) => call.sql.includes('where wo.org_id = app.current_org_id()'))).toBe(true);
+  });
+
+  it('paginates completed WO costs so rows beyond the first page are reachable', async () => {
+    const result = await listCompletedWoCosts({ days: 30, page: 2 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.pagination).toMatchObject({
+      total: 30,
+      page: 2,
+      offset: 25,
+      hasMore: false,
+    });
+    expect(result.data.rows.length).toBeLessThanOrEqual(5);
+
+    const listQuery = calls.find(
+      (call) =>
+        call.sql.includes('select wo.id::text as wo_id') &&
+        call.sql.includes('limit $2::integer offset $3::integer'),
+    );
+    expect(listQuery?.params).toEqual([30, 25, 25]);
   });
 
   it('converts consumed material UoM to kg and excludes unresolved rows from costing', async () => {

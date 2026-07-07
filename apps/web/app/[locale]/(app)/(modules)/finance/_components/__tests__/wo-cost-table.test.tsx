@@ -42,6 +42,11 @@ const labels: FinanceWoCostLabels = {
     machine: 'Machine',
     waste: 'Waste',
   },
+  pagination: {
+    showing: 'Showing {shown} of {total}',
+    previous: 'Previous',
+    next: 'Next',
+  },
 };
 
 const readyResult = {
@@ -73,6 +78,14 @@ const readyResult = {
         },
       },
     ],
+    pagination: {
+      items: [],
+      total: 1,
+      page: 1,
+      limit: 25,
+      offset: 0,
+      hasMore: false,
+    },
   },
 };
 
@@ -92,7 +105,7 @@ describe('FinanceWoCostTable', () => {
     rerender(<FinanceWoCostTable result={{ state: 'loading' }} labels={labels} />);
     expect(screen.getByTestId('finance-loading')).toHaveAttribute('aria-busy', 'true');
 
-    rerender(<FinanceWoCostTable result={{ state: 'ready', summary: { days: 30, rows: [] } }} labels={labels} />);
+    rerender(<FinanceWoCostTable result={{ state: 'ready', summary: { days: 30, rows: [], pagination: { items: [], total: 0, page: 1, limit: 25, offset: 0, hasMore: false } } }} labels={labels} />);
     expect(screen.getByTestId('finance-empty')).toHaveTextContent(labels.empty);
   });
 
@@ -112,6 +125,32 @@ describe('FinanceWoCostTable', () => {
     expect(within(expanded).getByText('5.0000')).toBeInTheDocument();
     expect(within(expanded).getByText('Downtime cost')).toBeInTheDocument();
     expect(within(expanded).getByText('7.5000')).toBeInTheDocument();
+  });
+
+  it('shows pagination footer when more completed WOs exist than the page size', () => {
+    render(
+      <FinanceWoCostTable
+        result={{
+          state: 'ready',
+          summary: {
+            days: 30,
+            rows: readyResult.summary.rows,
+            pagination: {
+              items: readyResult.summary.rows,
+              total: 40,
+              page: 1,
+              limit: 25,
+              offset: 0,
+              hasMore: true,
+            },
+          },
+        }}
+        labels={labels}
+      />,
+    );
+
+    expect(screen.getByTestId('finance-wo-costs-pagination-showing')).toHaveTextContent('Showing 1 of 40');
+    expect(screen.getByTestId('finance-wo-costs-pagination-next')).toHaveAttribute('href', '/en/finance?page=2');
   });
 
   it('re-fetches the server component by calling router.refresh on Refresh', () => {

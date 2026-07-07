@@ -200,7 +200,12 @@ export type GrnDetail = GrnListItem & {
   licensePlates: Array<{ id: string; lpNumber: string; status: string; quantity: string; uom: string }>;
 };
 
-export type StockMoveListInput = { moveType?: string; limit?: number };
+export type StockMoveListInput = {
+  moveType?: string;
+  limit?: number;
+  page?: number;
+  offset?: number;
+};
 
 /**
  * Which ledger a unified movement row came from. `stock_move` = the explicit

@@ -93,7 +93,21 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
       if (normalized.includes('from public.work_orders')) {
-        // getScheduleBoard scheduled/unscheduled reads
+        if (normalized.includes('count(*)')) {
+          return { rows: [{ total: 75 }], rowCount: 1 };
+        }
+        if (normalized.includes('scheduled_start_time is null')) {
+          const limit = Number(params[2] ?? 50);
+          const offset = Number(params[3] ?? 0);
+          const rows = Array.from({ length: Math.min(limit, Math.max(0, 75 - offset)) }, (_, index) => ({
+            ...WO_ROW,
+            id: `unsched-${offset + index + 1}`,
+            wo_number: `WO-U-${offset + index + 1}`,
+            scheduled_start_time: null,
+            scheduled_end_time: null,
+          }));
+          return { rows, rowCount: rows.length };
+        }
         return { rows: [WO_ROW], rowCount: 1 };
       }
       if (normalized.includes('from public.scheduler_config')) {
@@ -299,7 +313,7 @@ describe('getScheduleBoard', () => {
     const workOrderReads = vi
       .mocked(client.query)
       .mock.calls.filter(([sql]) => String(sql).includes('from public.work_orders wo'));
-    expect(workOrderReads).toHaveLength(2);
+    expect(workOrderReads).toHaveLength(3);
     expect(workOrderReads[0]?.[0]).toContain('wo.site_id = $4::uuid');
     expect(workOrderReads[0]?.[1]).toEqual([
       ['DRAFT', 'RELEASED', 'IN_PROGRESS'],
@@ -307,8 +321,92 @@ describe('getScheduleBoard', () => {
       expect.any(String),
       SITE_ID,
     ]);
-    expect(workOrderReads[1]?.[0]).toContain('wo.site_id = $2::uuid');
-    expect(workOrderReads[1]?.[1]).toEqual([['DRAFT', 'RELEASED', 'IN_PROGRESS'], SITE_ID]);
+    expect(workOrderReads[1]?.[0]).toContain('count(*)');
+    expect(workOrderReads[2]?.[0]).toContain('limit $3::integer offset $4::integer');
+    expect(workOrderReads[2]?.[1]).toEqual([['DRAFT', 'RELEASED', 'IN_PROGRESS'], SITE_ID, 50, 0]);
+    expect(result.data.unscheduledPagination).toMatchObject({
+      total: 75,
+      page: 1,
+      limit: 50,
+      offset: 0,
+      hasMore: true,
+    });
+  });
+
+  it('paginates unscheduled work orders with offset/limit', async () => {
+    const result = await getScheduleBoard({ unscheduledPage: 2 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.unscheduled).toHaveLength(25);
+    expect(result.data.unscheduledPagination).toMatchObject({
+      total: 75,
+      page: 2,
+      offset: 50,
+      hasMore: false,
+    });
+  });
+
+  it('orders unscheduled pagination by created_at desc, id desc for stable OFFSET pages', async () => {
+    const sharedCreatedAt = '2026-06-01T12:00:00.000Z';
+    const totalUnscheduled = 60;
+    client = {
+      query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+        const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
+        if (normalized.includes('from public.user_roles')) {
+          return { rows: [{ ok: true }], rowCount: 1 };
+        }
+        if (normalized.includes('from public.production_lines') && normalized.includes('order by code')) {
+          return { rows: [{ id: LINE_ID, code: 'LINE-01', name: 'Line One' }], rowCount: 1 };
+        }
+        if (normalized.includes('from public.work_orders')) {
+          if (normalized.includes('count(*)')) {
+            return { rows: [{ total: totalUnscheduled }], rowCount: 1 };
+          }
+          if (normalized.includes('scheduled_start_time is null')) {
+            expect(normalized).toContain('order by wo.created_at desc, wo.id desc');
+            const limit = Number(params[2] ?? 50);
+            const offset = Number(params[3] ?? 0);
+            const allRows = Array.from({ length: totalUnscheduled }, (_, index) => {
+              const seq = index + 1;
+              const id = `00000000-0000-4000-8000-${String(seq).padStart(12, '0')}`;
+              return {
+                ...WO_ROW,
+                id,
+                wo_number: `WO-U-${seq}`,
+                created_at: sharedCreatedAt,
+                scheduled_start_time: null,
+                scheduled_end_time: null,
+              };
+            }).sort((left, right) => right.id.localeCompare(left.id));
+            const rows = allRows.slice(offset, offset + limit);
+            return { rows, rowCount: rows.length };
+          }
+          return { rows: [], rowCount: 0 };
+        }
+        if (normalized.includes('from public.planning_capacity_blocks')) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+
+    const page1 = await getScheduleBoard({ unscheduledPage: 1 });
+    expect(page1.ok).toBe(true);
+    if (!page1.ok) throw new Error(page1.error);
+
+    const page2 = await getScheduleBoard({ unscheduledPage: 2 });
+    expect(page2.ok).toBe(true);
+    if (!page2.ok) throw new Error(page2.error);
+
+    const page1Ids = page1.data.unscheduled.map((wo) => wo.id);
+    const page2Ids = page2.data.unscheduled.map((wo) => wo.id);
+    expect(page1Ids).toHaveLength(50);
+    expect(page2Ids).toHaveLength(10);
+    expect(new Set([...page1Ids, ...page2Ids]).size).toBe(totalUnscheduled);
+    for (const id of page1Ids) {
+      expect(page2Ids).not.toContain(id);
+    }
   });
 
   it('includes per-line/day capacity utilization from scheduler_config', async () => {
@@ -342,6 +440,14 @@ describe('getScheduleBoard', () => {
       lines: [],
       scheduled: [],
       unscheduled: [],
+      unscheduledPagination: {
+        items: [],
+        total: 0,
+        page: 1,
+        limit: 50,
+        offset: 0,
+        hasMore: false,
+      },
       noActiveSite: true,
     });
     expect(client.query).toHaveBeenCalledTimes(1);

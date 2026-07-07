@@ -3,8 +3,9 @@
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-import type { CompletedWoCostsSummary } from '../_actions/wo-cost-actions';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../lib/shared/list-pagination-footer';
 import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../lib/shared/download';
+import type { CompletedWoCostsSummary } from '../_actions/wo-cost-actions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
 export type FinanceWoCostLabels = {
@@ -37,6 +38,7 @@ export type FinanceWoCostLabels = {
     machine: string;
     waste: string;
   };
+  pagination: ListPaginationLabels;
 };
 
 export type FinanceWoCostTableProps = {
@@ -95,12 +97,23 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
   }
 
   const rows = result.summary.rows;
+  const pagination = result.summary.pagination;
   const currentWindow = String(result.summary.days);
+  const shown = pagination.offset + rows.length;
+
+  const pageHref = (page: number) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (page <= 1) next.delete('page');
+    else next.set('page', String(page));
+    const query = next.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  };
 
   const setWindow = (nextValue: string) => {
     const next = new URLSearchParams(searchParams.toString());
     if (nextValue === '30') next.delete('days');
     else next.set('days', nextValue);
+    next.delete('page');
     const query = next.toString();
     router.push(query ? `${pathname}?${query}` : pathname);
   };
@@ -284,6 +297,14 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
               ))}
             </tbody>
           </table>
+          <ListPaginationFooter
+            shown={shown}
+            total={pagination.total}
+            previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+            nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+            labels={labels.pagination}
+            testId="finance-wo-costs-pagination"
+          />
         </div>
       )}
     </section>

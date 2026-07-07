@@ -243,7 +243,12 @@
       "emptyFiltered": "No stock movements match this filter. Try clearing the search or pick a different tab.",
       "denied": "You do not have permission to view stock movements. Ask an administrator for the warehouse.inventory.read permission.",
       "error": "We could not load stock movements right now. Refresh to try again.",
-      "none": "—"
+      "none": "—",
+      "pagination": {
+        "showing": "Showing {shown} of {total}",
+        "previous": "Previous",
+        "next": "Next"
+      }
     },
     "reservations": {
       "title": "Reservations (LP hard-locks)",
@@ -547,7 +552,12 @@
       "emptyFiltered": "Żaden ruch nie pasuje do filtra. Wyczyść wyszukiwanie lub wybierz inną zakładkę.",
       "denied": "Nie masz uprawnień do podglądu ruchów magazynowych. Poproś administratora o uprawnienie warehouse.inventory.read.",
       "error": "Nie udało się teraz wczytać ruchów magazynowych. Odśwież, aby spróbować ponownie.",
-      "none": "—"
+      "none": "—",
+      "pagination": {
+        "showing": "Wyświetlono {shown} z {total}",
+        "previous": "Poprzednia",
+        "next": "Następna"
+      }
     },
     "reservations": {
       "title": "Rezerwacje (twarde blokady LP)",

@@ -35,6 +35,12 @@ function makeClient(): QueryClient {
       if (q.includes('from public.user_roles')) {
         return { rows: [{ ok: true }], rowCount: 1 };
       }
+      if (q.includes('count(*)')) {
+        return { rows: [{ total: 0 }], rowCount: 1 };
+      }
+      if (q.includes('from unified')) {
+        return { rows: [], rowCount: 0 };
+      }
       return { rows: [], rowCount: 0 };
     }),
   };
@@ -45,8 +51,12 @@ function mainQueryCalls() {
     .mocked(client.query)
     .mock.calls.filter(([sql]) => {
       const q = normalize(String(sql));
-      return q.includes('from public.grns g') || q.includes('from public.stock_moves sm');
+      return q.includes('from public.grns g') || q.includes('with unified as');
     });
+}
+
+function stockMoveDataQuery() {
+  return mainQueryCalls().find(([sql]) => normalize(String(sql)).includes('limit $2::integer offset $3::integer'));
 }
 
 beforeEach(() => {
@@ -77,18 +87,24 @@ describe('warehouse list action site scoping', () => {
     const result = await listStockMoves();
 
     expect(result.ok).toBe(true);
-    const [sql, params] = mainQueryCalls()[0];
+    const dataQuery = stockMoveDataQuery();
+    expect(dataQuery).toBeDefined();
+    const [sql, params] = dataQuery as [string, unknown[]];
     const normalized = normalize(String(sql));
-    expect(normalized).toContain('sm.site_id = $3::uuid');
-    expect(normalized).toContain('h.site_id = $3::uuid');
-    expect(params).toEqual([null, 100, SITE_ID]);
+    expect(normalized).toContain('sm.site_id = $4::uuid');
+    expect(normalized).toContain('h.site_id = $4::uuid');
+    expect(params).toEqual([null, 50, 0, SITE_ID]);
     expect(getActiveSiteIdMock).toHaveBeenCalledWith({ client });
   });
 
   it('listStockMoves fails closed when no active site resolves before running the stock move list query', async () => {
     getActiveSiteIdMock.mockResolvedValue(null);
 
-    await expect(listStockMoves()).resolves.toEqual({ ok: true, data: [], noActiveSite: true });
+    await expect(listStockMoves()).resolves.toEqual({
+      ok: true,
+      data: { items: [], total: 0, page: 1, limit: 50, offset: 0, hasMore: false },
+      noActiveSite: true,
+    });
     expect(mainQueryCalls()).toHaveLength(0);
   });
 });

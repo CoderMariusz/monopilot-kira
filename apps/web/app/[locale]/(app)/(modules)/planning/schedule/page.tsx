@@ -27,7 +27,13 @@ export const dynamic = 'force-dynamic';
 
 type SchedulePageProps = {
   params: Promise<{ locale: string }>;
+  searchParams?: Promise<{ uPage?: string }>;
 };
+
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
 
 function BoardSkeleton() {
   return (
@@ -38,9 +44,9 @@ function BoardSkeleton() {
   );
 }
 
-async function BoardContent({ locale }: { locale: string }) {
+async function BoardContent({ locale, unscheduledPage }: { locale: string; unscheduledPage: number }) {
   const t = await getTranslations('Planning');
-  const result = await getScheduleBoard();
+  const result = await getScheduleBoard({ unscheduledPage });
 
   if (!result.ok && result.error === 'forbidden') {
     return (
@@ -81,6 +87,11 @@ async function BoardContent({ locale }: { locale: string }) {
     unscheduledTitle: t('schedule.unscheduled.title'),
     unscheduledEmpty: t('schedule.unscheduled.empty'),
     scheduleCta: t('schedule.unscheduled.cta'),
+    unscheduledPagination: {
+      showing: t('schedule.unscheduled.pagination.showing'),
+      previous: t('schedule.unscheduled.pagination.previous'),
+      next: t('schedule.unscheduled.pagination.next'),
+    },
     modal: {
       title: t('schedule.modal.title'),
       line: t('schedule.modal.line'),
@@ -116,8 +127,10 @@ async function BoardContent({ locale }: { locale: string }) {
   );
 }
 
-export default async function PlanningSchedulePage({ params }: SchedulePageProps) {
+export default async function PlanningSchedulePage({ params, searchParams }: SchedulePageProps) {
   const { locale } = await params;
+  const sp: { uPage?: string } = searchParams ? await searchParams : {};
+  const unscheduledPage = parsePage(sp.uPage);
   const t = await getTranslations('Planning');
 
   return (
@@ -135,8 +148,8 @@ export default async function PlanningSchedulePage({ params }: SchedulePageProps
           { label: t('schedule.breadcrumb') },
         ]}
       />
-      <Suspense fallback={<BoardSkeleton />}>
-        <BoardContent locale={locale} />
+      <Suspense key={unscheduledPage} fallback={<BoardSkeleton />}>
+        <BoardContent locale={locale} unscheduledPage={unscheduledPage} />
       </Suspense>
     </main>
   );
