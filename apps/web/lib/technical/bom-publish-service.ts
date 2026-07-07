@@ -21,6 +21,12 @@ export type PublishBomVersionParams = {
   bomHeaderId: string;
   productId: string;
   version: number;
+  /**
+   * When false (default), an already-active version returns `conflict` — matching the
+   * legacy publishBom Server Action. Opt in only when idempotent re-publish is intended
+   * (e.g. ECO apply-on-close retry after a prior successful publish).
+   */
+  allowAlreadyActive?: boolean;
 };
 
 export type PublishBomVersionResult =
@@ -76,15 +82,18 @@ export async function publishBomVersion(
   }
 
   if (header.status === 'active') {
-    return {
-      ok: true,
-      data: {
-        bomHeaderId: header.id,
-        productId: params.productId,
-        version: params.version,
-        supersededHeaderIds: [],
-      },
-    };
+    if (params.allowAlreadyActive) {
+      return {
+        ok: true,
+        data: {
+          bomHeaderId: header.id,
+          productId: params.productId,
+          version: params.version,
+          supersededHeaderIds: [],
+        },
+      };
+    }
+    return { ok: false, error: 'conflict', message: 'version already active' };
   }
 
   if (header.status !== 'technical_approved') {

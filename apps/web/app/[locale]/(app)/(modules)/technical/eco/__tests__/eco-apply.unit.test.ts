@@ -77,6 +77,7 @@ vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
 }));
 
 import { applyEcoOnClose, validateEcoSupersessionLink } from '../../../../../../../../lib/technical/eco-apply-service';
+import { publishBomVersion } from '../../../../../../../../lib/technical/bom-publish-service';
 
 beforeEach(() => {
   ctx.grantedPerms = new Set(['technical.bom.version_publish']);
@@ -158,5 +159,36 @@ describe('applyEcoOnClose', () => {
     });
     expect(invalid.ok).toBe(false);
     if (!invalid.ok) expect(invalid.error).toBe('supersession_invalid');
+  });
+
+  it('publishBomVersion returns conflict for an already-active version by default', async () => {
+    const client = fakeClient();
+    const activeBom = ctx.boms.get('dddddddd-dddd-4ddd-8ddd-dddddddddddd')!;
+    const result = await publishBomVersion(
+      { orgId: ctx.orgId, userId: ctx.userId, client },
+      {
+        bomHeaderId: activeBom.id as string,
+        productId: activeBom.product_id as string,
+        version: activeBom.version as number,
+      },
+    );
+    expect(result).toEqual({ ok: false, error: 'conflict', message: 'version already active' });
+  });
+
+  it('publishBomVersion allows idempotent re-publish only when allowAlreadyActive is set', async () => {
+    const client = fakeClient();
+    const activeBom = ctx.boms.get('dddddddd-dddd-4ddd-8ddd-dddddddddddd')!;
+    const result = await publishBomVersion(
+      { orgId: ctx.orgId, userId: ctx.userId, client },
+      {
+        bomHeaderId: activeBom.id as string,
+        productId: activeBom.product_id as string,
+        version: activeBom.version as number,
+        allowAlreadyActive: true,
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.supersededHeaderIds).toEqual([]);
   });
 });

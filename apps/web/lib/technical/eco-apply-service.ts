@@ -21,6 +21,17 @@ import {
 
 export type EcoApplyError = 'supersession_required' | 'supersession_invalid' | 'forbidden' | 'persistence_failed';
 
+/** Thrown after apply-on-close has performed writes so withOrgContext rolls back. */
+export class EcoApplyAbort extends Error {
+  constructor(
+    readonly code: EcoApplyError,
+    readonly detail?: string,
+  ) {
+    super(detail ?? code);
+    this.name = 'EcoApplyAbort';
+  }
+}
+
 export type EcoApplyResult =
   | {
       ok: true;
@@ -160,6 +171,8 @@ export async function applyEcoOnClose(ctx: OrgActionContext, changeOrderId: stri
     if (bomValidation) return { ok: false, error: 'supersession_invalid', message: bomValidation };
 
     if (supersedingBom.status === 'technical_approved') {
+      // publishBomVersion defaults to conflict on already-active; ECO close skips publish
+      // when the linked superseding BOM is already active (idempotent path below).
       const publish = await publishBomVersion(ctx, {
         bomHeaderId: supersedingBom.id,
         productId: supersedingBom.product_id!,
@@ -167,7 +180,7 @@ export async function applyEcoOnClose(ctx: OrgActionContext, changeOrderId: stri
       });
       if (!publish.ok) {
         if (publish.error === 'forbidden') return { ok: false, error: 'forbidden', message: publish.message };
-        return { ok: false, error: 'supersession_invalid', message: publish.message ?? publish.error };
+        throw new EcoApplyAbort('supersession_invalid', publish.message ?? publish.error);
       }
       return {
         ok: true,

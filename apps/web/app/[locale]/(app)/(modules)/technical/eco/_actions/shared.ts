@@ -170,6 +170,17 @@ export function isPgError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
 }
 
+/** Thrown after closeChangeOrder has performed writes so withOrgContext rolls back. */
+export class EcoCloseAbort extends Error {
+  constructor(
+    readonly code: EcoActionError,
+    readonly detail?: string,
+  ) {
+    super(detail ?? code);
+    this.name = 'EcoCloseAbort';
+  }
+}
+
 export async function writeEcoAudit(
   client: QueryClient,
   params: {

@@ -1,9 +1,10 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { applyEcoOnClose } from '../../../../../../../lib/technical/eco-apply-service';
+import { applyEcoOnClose, EcoApplyAbort } from '../../../../../../../lib/technical/eco-apply-service';
 import {
   ECO_WRITE_PERMISSION,
+  EcoCloseAbort,
   hasPermission,
   type MutateEcoResult,
   type OrgActionContext,
@@ -21,6 +22,25 @@ export async function closeChangeOrder(rawInput: unknown): Promise<MutateEcoResu
       const qc = client as QueryClient;
       const ctx: OrgActionContext = { userId, orgId, client: qc };
       if (!(await hasPermission(ctx, ECO_WRITE_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+      const { rows: locked } = await qc.query<{ id: string; status: string }>(
+        `select id, status
+           from public.technical_change_orders
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and status = 'implementing'
+          for update`,
+        [parsed.data.id],
+      );
+      const lockedOrder = locked[0];
+      if (!lockedOrder) {
+        const exists = await qc.query<{ id: string }>(
+          `select id from public.technical_change_orders where org_id = app.current_org_id() and id = $1::uuid`,
+          [parsed.data.id],
+        );
+        if (!exists.rows[0]) return { ok: false, error: 'not_found' };
+        return { ok: false, error: 'invalid_state' };
+      }
 
       const apply = await applyEcoOnClose(ctx, parsed.data.id);
       if (!apply.ok) {
@@ -44,12 +64,7 @@ export async function closeChangeOrder(rawInput: unknown): Promise<MutateEcoResu
       );
       const order = rows[0];
       if (!order) {
-        const exists = await qc.query<{ id: string }>(
-          `select id from public.technical_change_orders where org_id = app.current_org_id() and id = $1::uuid`,
-          [parsed.data.id],
-        );
-        if (!exists.rows[0]) return { ok: false, error: 'not_found' };
-        return { ok: false, error: 'invalid_state' };
+        throw new EcoCloseAbort('invalid_state', 'change order is no longer implementing');
       }
 
       await qc.query(
@@ -74,6 +89,12 @@ export async function closeChangeOrder(rawInput: unknown): Promise<MutateEcoResu
       return { ok: true, data: { id: order.id, status: 'closed' } };
     });
   } catch (error) {
+    if (error instanceof EcoCloseAbort) {
+      return { ok: false, error: error.code, message: error.detail };
+    }
+    if (error instanceof EcoApplyAbort) {
+      return { ok: false, error: error.code, message: error.detail };
+    }
     console.error('[technical/eco] closeChangeOrder failed', {
       err: error instanceof Error ? error.message : String(error),
     });
