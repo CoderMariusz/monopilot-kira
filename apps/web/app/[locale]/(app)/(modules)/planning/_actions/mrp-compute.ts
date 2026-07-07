@@ -536,7 +536,7 @@ function buildSuggestedAction(
     type: item.item_type === 'intermediate' || item.item_type === 'fg' ? 'make' : 'buy',
     qty: ceilMicroToWholeUnits(qtyMicro).toString(),
     dueDate: hasLead || !singleBucketMode ? dueDate : null,
-    releaseDate,
+    ...(releaseDate ? { releaseDate } : {}),
     supplierId: threshold?.preferred_supplier_id ?? null,
   };
 }

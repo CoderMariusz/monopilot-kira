@@ -593,7 +593,7 @@ async function persistMrpRun(
         row.bucketDate,
         row.grossRequirement,
         row.scheduledReceipts,
-        row.projectedAvailable,
+        row.net,
         netRequirement,
         row.uomBase,
         isShort ? 'shortage' : null,
