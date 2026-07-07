@@ -16,6 +16,10 @@ import {
   trimOptionalString,
 } from './shared';
 import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
+import {
+  boxesOutputUnitRequiresPackFactors,
+  type NpdBriefOutputUnit,
+} from './_lib/materialize-npd-bom';
 
 export type CreateProjectInput = {
   name: string;
@@ -30,6 +34,7 @@ export type CreateProjectInput = {
   /** Costing v2: pack net weight in grams (the recipe batch size). */
   packWeightG?: number | null;
   packsPerCase?: number | null;
+  outputUnit?: NpdBriefOutputUnit | null;
   weeklyVolumePacks?: number | null;
   runsPerWeek?: number | null;
   salesChannel?: string | null;
@@ -81,13 +86,13 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
            (org_id, code, name, type, prio, owner, target_launch, notes,
             pack_format, sales_channel, target_retail_price_eur,
             target_audience, marketing_claims, constraints, pack_weight_g, packs_per_case,
-            weekly_volume_packs, runs_per_week,
+            output_unit, weekly_volume_packs, runs_per_week,
             current_gate, current_stage, start_from, clone_source, created_by_user, app_version)
          values
            ($1::uuid, $2, $3, $4, $5, $6, $7::date, $8,
             $9, $10, $11::numeric,
-            $12, $13, $14, $15::numeric, $16::integer, $17::numeric, $18::numeric,
-            'G0', 'brief', $19, $20, $21::uuid, 'npd-project-actions-v1')
+            $12, $13, $14, $15::numeric, $16::integer, $17, $18::numeric, $19::numeric,
+            'G0', 'brief', $20, $21, $22::uuid, 'npd-project-actions-v1')
          returning id, code`,
         [
           context.orgId,
@@ -106,6 +111,7 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
           input.constraints ?? null,
           input.packWeightG ?? null,
           input.packsPerCase ?? null,
+          input.outputUnit ?? null,
           input.weeklyVolumePacks ?? null,
           input.runsPerWeek ?? null,
           input.startFrom,
@@ -175,6 +181,7 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   const targetRetailPriceEur = parseOptionalNonNegNumber(input.targetRetailPriceEur);
   const packWeightG = parseOptionalNonNegNumber(input.packWeightG);
   const packsPerCase = parseOptionalNonNegInteger(input.packsPerCase);
+  const outputUnit = parseOptionalOutputUnit(input.outputUnit);
   const weeklyVolumePacks = parseOptionalNonNegNumber(input.weeklyVolumePacks);
   const runsPerWeek = parseOptionalNonNegNumber(input.runsPerWeek);
   const startFrom = parseStartFrom(input.startFrom);
@@ -186,8 +193,18 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
     packFormat === undefined || salesChannel === undefined ||
     targetAudience === undefined || marketingClaims === undefined || constraints === undefined ||
     targetRetailPriceEur === undefined || packWeightG === undefined || packsPerCase === undefined ||
-    weeklyVolumePacks === undefined || runsPerWeek === undefined ||
+    outputUnit === undefined || weeklyVolumePacks === undefined || runsPerWeek === undefined ||
     cloneSource === undefined
+  ) {
+    return null;
+  }
+
+  if (
+    boxesOutputUnitRequiresPackFactors({
+      output_unit: outputUnit,
+      pack_weight_g: packWeightG != null ? String(packWeightG) : null,
+      packs_per_case: packsPerCase,
+    })
   ) {
     return null;
   }
@@ -195,10 +212,16 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   return {
     name, type, prio, owner, targetLaunch, notes,
     packFormat, salesChannel, targetRetailPriceEur,
-    targetAudience, marketingClaims, constraints, packWeightG, packsPerCase,
+    targetAudience, marketingClaims, constraints, packWeightG, packsPerCase, outputUnit,
     weeklyVolumePacks, runsPerWeek,
     startFrom, cloneSource, templateId,
   };
+}
+
+function parseOptionalOutputUnit(value: unknown): NpdBriefOutputUnit | null | undefined {
+  if (value === undefined || value === null || value === '') return null;
+  if (value === 'kg' || value === 'pieces' || value === 'boxes') return value;
+  return undefined;
 }
 
 function parseOptionalNonNegInteger(value: unknown): number | null | undefined {

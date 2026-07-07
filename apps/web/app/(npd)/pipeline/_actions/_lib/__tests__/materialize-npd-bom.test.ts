@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeBomLineQty, materializeNpdBom } from '../materialize-npd-bom';
+import { computeBomLineQty, deriveFgOutputUom, materializeNpdBom } from '../materialize-npd-bom';
 import { type QueryClient } from '../../shared';
 
 const PROJECT = '11111111-1111-4111-8111-111111111111';
@@ -79,6 +79,21 @@ function createBomMaterializationClient(targetYieldPct: string | null) {
     throw new Error(`Unhandled SQL: ${sql}`);
   });
 }
+
+describe('deriveFgOutputUom', () => {
+  it.each([
+  { output_unit: 'kg' as const, pack_weight_g: '200', packs_per_case: 4, expected: 'base' },
+  { output_unit: 'pieces' as const, pack_weight_g: '200', packs_per_case: 4, expected: 'each' },
+  { output_unit: 'boxes' as const, pack_weight_g: '200', packs_per_case: 4, expected: 'box' },
+  { output_unit: 'boxes' as const, pack_weight_g: null, packs_per_case: 4, expected: 'base' },
+  { output_unit: 'boxes' as const, pack_weight_g: '200', packs_per_case: 0, expected: 'each' },
+  { output_unit: null, pack_weight_g: null, packs_per_case: null, expected: 'base' },
+  { output_unit: null, pack_weight_g: '200', packs_per_case: 0, expected: 'each' },
+  { output_unit: null, pack_weight_g: '200', packs_per_case: 4, expected: 'box' },
+  ])('maps $output_unit / inferred pack fields to $expected', ({ output_unit, pack_weight_g, packs_per_case, expected }) => {
+    expect(deriveFgOutputUom({ output_unit, pack_weight_g, packs_per_case })).toBe(expected);
+  });
+});
 
 describe('computeBomLineQty', () => {
   it('multiplies per-pack qty by packs-per-box', () => {
@@ -163,6 +178,99 @@ describe('materializeNpdBom', () => {
     expect(itemsInsert?.params).toContain(4);
     expect(client.calls.some((call) => normalize(call.sql).startsWith('update public.bom_headers'))).toBe(true);
     expect(client.calls.some((call) => normalize(call.sql).startsWith('insert into public.factory_specs'))).toBe(true);
+  });
+
+  it('uses explicit output_unit on FG insert instead of legacy inference', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) {
+        return [{ ...projectRow(), output_unit: 'pieces' }];
+      }
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '98.500' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [{ rm_code: 'RM-001', item_id: null, qty_kg: '1.250000', sequence: 1 }];
+      }
+      if (sql.startsWith('insert into public.items')) {
+        return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
+      }
+      if (sql.startsWith('update public.items')) return [];
+      if (sql.startsWith('select 1 from public.product')) return [];
+      if (sql.startsWith('insert into public.product')) return [];
+      if (sql.startsWith('update public.formulations')) return [];
+      if (sql.startsWith('select id, wo_reference, status')) return [];
+      if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
+      if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
+      if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
+      if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
+      if (sql.startsWith('insert into public.bom_lines')) return [];
+      if (sql.startsWith('update public.bom_headers')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
+      if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    });
+
+    await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    const itemsInsert = client.calls.find((c) => normalize(c.sql).startsWith('insert into public.items'));
+    expect(itemsInsert?.params[2]).toBe('each');
+  });
+
+  it('keeps explicit pieces output_uom when packs_per_case is set (no box-upgrade flip)', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) {
+        return [{ ...projectRow(), output_unit: 'pieces' }];
+      }
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '98.500' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [{ rm_code: 'RM-001', item_id: null, qty_kg: '1.250000', sequence: 1 }];
+      }
+      if (sql.startsWith('insert into public.items')) return [];
+      if (sql.startsWith('select id, item_code, name, shelf_life_days')) {
+        return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
+      }
+      if (sql.startsWith('update public.items')) return [];
+      if (sql.startsWith('select 1 from public.product')) return [];
+      if (sql.startsWith('insert into public.product')) return [];
+      if (sql.startsWith('update public.formulations')) return [];
+      if (sql.startsWith('select id, wo_reference, status')) return [];
+      if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
+      if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
+      if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
+      if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
+      if (sql.startsWith('insert into public.bom_lines')) return [];
+      if (sql.startsWith('update public.bom_headers')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
+      if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    });
+
+    await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    const boxUpgrade = client.calls.find((call) => {
+      const sql = normalize(call.sql);
+      return sql.startsWith('update public.items') && sql.includes("then 'box'");
+    });
+    expect(boxUpgrade).toBeUndefined();
+
+    const factorSync = client.calls.find((call) => {
+      const sql = normalize(call.sql);
+      return sql.startsWith('update public.items') && sql.includes('each_per_box = $2') && !sql.includes("then 'box'");
+    });
+    expect(factorSync).toBeDefined();
+    expect(factorSync?.params).toEqual(['FG-001', 4, 0.2]);
   });
 
   it.each([

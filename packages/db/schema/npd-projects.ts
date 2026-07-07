@@ -27,6 +27,8 @@ export const npdProjects = pgTable(
     // Costing v2 (mig 246): pack net weight in grams = the recipe's batch size.
     // Cost per kg = (raw cost per pack) / (pack_weight_g / 1000).
     packWeightG: numeric('pack_weight_g', { precision: 12, scale: 3 }),
+    /** Explicit FG output unit at materialize (R3.2). NULL = legacy inference. */
+    outputUnit: text('output_unit'),
     packFormat: text('pack_format'),
     salesChannel: text('sales_channel'),
     expectedVolume: text('expected_volume'),
@@ -74,6 +76,10 @@ export const npdProjects = pgTable(
     startFromCheck: check(
       'npd_projects_start_from_check',
       sql`${table.startFrom} is null or ${table.startFrom} in ('blank', 'clone', 'template')`,
+    ),
+    outputUnitCheck: check(
+      'npd_projects_output_unit_check',
+      sql`${table.outputUnit} is null or ${table.outputUnit} in ('kg', 'pieces', 'boxes')`,
     ),
   }),
 );

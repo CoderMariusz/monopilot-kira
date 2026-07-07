@@ -45,7 +45,29 @@ const WIZARD_FIELD_FALLBACKS = {
   fieldRunsPerWeekPlaceholder: 'e.g. 3',
   fieldRunsPerWeekHelp:
     'Planning estimate only — revise later on the project brief as volumes firm up.',
+  fieldOutputUnit: 'Output unit',
+  fieldOutputUnitKg: 'kg',
+  fieldOutputUnitPieces: 'pieces',
+  fieldOutputUnitBoxes: 'boxes',
+  errorBoxesOutputUnit:
+    'Output unit "boxes" requires pack weight (g) and packs per case greater than 0.',
 } as const;
+
+const OUTPUT_UNIT_VALUES = ['kg', 'pieces', 'boxes'] as const;
+type OutputUnitValue = (typeof OUTPUT_UNIT_VALUES)[number];
+
+function outputUnitLabel(value: string, labels: WizardLabels): string {
+  switch (value) {
+    case 'kg':
+      return labels.fieldOutputUnitKg;
+    case 'pieces':
+      return labels.fieldOutputUnitPieces;
+    case 'boxes':
+      return labels.fieldOutputUnitBoxes;
+    default:
+      return value;
+  }
+}
 
 function wizardLabel(labels: WizardLabels, key: keyof typeof WIZARD_FIELD_FALLBACKS): string {
   const value = labels[key];
@@ -77,6 +99,7 @@ export type WizardCloneAction = (input: {
     packWeightG: number | null;
   /** Packs per case — optional non-negative integer; omitted when empty. */
   packsPerCase?: number | null;
+  outputUnit?: OutputUnitValue | null;
   weeklyVolumePacks?: number | null;
   runsPerWeek?: number | null;
   salesChannel: string | null;
@@ -99,6 +122,7 @@ export type WizardCreateAction = (input: {
   packWeightG: number | null;
   /** Packs per case — optional non-negative integer; omitted when empty. */
   packsPerCase?: number | null;
+  outputUnit?: OutputUnitValue | null;
   /** Weekly volume in packs — optional non-negative decimal. */
   weeklyVolumePacks?: number | null;
   /** Production runs per week — optional non-negative decimal. */
@@ -134,6 +158,10 @@ export type WizardLabels = {
   fieldPackWeightPlaceholder: string;
   fieldPacksPerCase: string;
   fieldPacksPerCasePlaceholder: string;
+  fieldOutputUnit: string;
+  fieldOutputUnitKg: string;
+  fieldOutputUnitPieces: string;
+  fieldOutputUnitBoxes: string;
   fieldWeeklyVolumePacks: string;
   fieldWeeklyVolumePacksPlaceholder: string;
   fieldRunsPerWeek: string;
@@ -186,6 +214,7 @@ export type WizardLabels = {
   creating: string;
   errorGeneric: string;
   errorForbidden: string;
+  errorBoxesOutputUnit: string;
 };
 
 /** Category options are loaded server-side from Reference.ProductCategories. */
@@ -201,6 +230,7 @@ type FormState = {
   packFormat: string;
   packWeightG: string;
   packsPerCase: string;
+  outputUnit: string;
   weeklyVolumePacks: string;
   runsPerWeek: string;
   salesChannel: string;
@@ -221,6 +251,7 @@ const INITIAL_FORM = (defaultCategory: string): FormState => ({
   packFormat: '',
   packWeightG: '',
   packsPerCase: '',
+  outputUnit: '',
   weeklyVolumePacks: '',
   runsPerWeek: '',
   salesChannel: SALES_CHANNEL_VALUES[0],
@@ -263,6 +294,20 @@ function parseOptionalInteger(value: string): number | undefined {
 function packsPerCaseField(value: string): { packsPerCase?: number } {
   const parsed = parseOptionalInteger(value);
   return parsed === undefined ? {} : { packsPerCase: parsed };
+}
+
+/** Spread helper: include `outputUnit` only when the user picked a valid value. */
+function outputUnitField(value: string): { outputUnit?: OutputUnitValue } {
+  const trimmed = value.trim();
+  if (trimmed === '' || !OUTPUT_UNIT_VALUES.includes(trimmed as OutputUnitValue)) return {};
+  return { outputUnit: trimmed as OutputUnitValue };
+}
+
+function boxesOutputUnitInvalid(form: FormState): boolean {
+  if (form.outputUnit !== 'boxes') return false;
+  const packWeight = form.packWeightG.trim();
+  const packsPerCase = form.packsPerCase.trim();
+  return packWeight === '' || packsPerCase === '' || Number(packsPerCase) <= 0;
 }
 
 export function CreateProjectWizard({
@@ -326,6 +371,15 @@ export function CreateProjectWizard({
   const onCreate = React.useCallback(async () => {
     setServerError(null);
 
+    if (boxesOutputUnitInvalid(form)) {
+      setServerError(
+        labels.errorBoxesOutputUnit.includes('npd.projectWizard')
+          ? WIZARD_FIELD_FALLBACKS.errorBoxesOutputUnit
+          : labels.errorBoxesOutputUnit,
+      );
+      return;
+    }
+
     // Clone path: seed a new project from the picked source, applying the brief edits.
     if (form.startFrom === 'clone') {
       if (!cloneAction || form.cloneSourceId.trim().length === 0) {
@@ -343,6 +397,7 @@ export function CreateProjectWizard({
             packFormat: nullable(form.packFormat),
         packWeightG: parseEur(form.packWeightG),
         ...packsPerCaseField(form.packsPerCase),
+        ...outputUnitField(form.outputUnit),
         weeklyVolumePacks: parseEur(form.weeklyVolumePacks),
         runsPerWeek: parseEur(form.runsPerWeek),
         salesChannel: form.salesChannel,
@@ -381,6 +436,7 @@ export function CreateProjectWizard({
         packFormat: nullable(form.packFormat),
         packWeightG: parseEur(form.packWeightG),
         ...packsPerCaseField(form.packsPerCase),
+        ...outputUnitField(form.outputUnit),
         weeklyVolumePacks: parseEur(form.weeklyVolumePacks),
         runsPerWeek: parseEur(form.runsPerWeek),
         salesChannel: form.salesChannel,
@@ -588,6 +644,19 @@ export function CreateProjectWizard({
                 placeholder={labels.fieldPacksPerCasePlaceholder}
                 value={form.packsPerCase}
                 onChange={(e) => update('packsPerCase', e.target.value)}
+              />
+            </div>
+            <div className="ff">
+              <label htmlFor="wiz-output-unit">{labels.fieldOutputUnit}</label>
+              <Select
+                id="wiz-output-unit"
+                aria-label={labels.fieldOutputUnit}
+                value={form.outputUnit}
+                options={OUTPUT_UNIT_VALUES.map((value) => ({
+                  value,
+                  label: outputUnitLabel(value, labels),
+                }))}
+                onValueChange={(v) => update('outputUnit', v)}
               />
             </div>
           </div>

@@ -11,6 +11,10 @@ import {
   trimOptionalString,
 } from './shared';
 import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
+import {
+  boxesOutputUnitRequiresPackFactors,
+  type NpdBriefOutputUnit,
+} from './_lib/materialize-npd-bom';
 
 /**
  * cloneProject — create a NEW NPD project seeded from an EXISTING one.
@@ -44,6 +48,7 @@ export type CloneProjectOverrides = {
   packFormat?: string | null;
   packWeightG?: number | null;
   packsPerCase?: number | null;
+  outputUnit?: NpdBriefOutputUnit | null;
   weeklyVolumePacks?: number | null;
   runsPerWeek?: number | null;
   salesChannel?: string | null;
@@ -90,6 +95,7 @@ type SourceRow = {
   constraints: string | null;
   pack_weight_g: string | number | null;
   packs_per_case: string | number | null;
+  output_unit: NpdBriefOutputUnit | null;
   weekly_volume_packs: string | number | null;
   runs_per_week: string | number | null;
 };
@@ -113,7 +119,8 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
         `select code, name, type, prio, owner, target_launch::text as target_launch, notes,
                 pack_format, sales_channel, weekly_volume_packs, runs_per_week,
                 target_retail_price_eur,
-                target_audience, marketing_claims, constraints, pack_weight_g, packs_per_case
+                target_audience, marketing_claims, constraints, pack_weight_g, packs_per_case,
+                output_unit
            from public.npd_projects
           where id = $1::uuid
             and org_id = app.current_org_id()
@@ -156,6 +163,18 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
         o?.packsPerCase !== undefined && o.packsPerCase !== null
           ? o.packsPerCase
           : toNumericOrNull(source.packs_per_case);
+      const outputUnit =
+        o?.outputUnit !== undefined ? o.outputUnit : source.output_unit;
+
+      if (
+        boxesOutputUnitRequiresPackFactors({
+          output_unit: outputUnit,
+          pack_weight_g: packWeightG != null ? String(packWeightG) : null,
+          packs_per_case: packsPerCase,
+        })
+      ) {
+        return { ok: false, error: 'INVALID_INPUT' };
+      }
 
       // 3. Allocate a fresh org-scoped NPD-NNN code (same sequence as create).
       const code = await allocateProjectCode(ctx);
@@ -166,14 +185,14 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
            (org_id, code, name, type, prio, owner, target_launch, notes,
             pack_format, sales_channel, target_retail_price_eur,
             target_audience, marketing_claims, constraints, pack_weight_g, packs_per_case,
-            weekly_volume_packs, runs_per_week,
+            output_unit, weekly_volume_packs, runs_per_week,
             current_gate, current_stage, start_from, clone_source, created_by_user, app_version)
          values
            ($1::uuid, $2, $3, $4, $5, $6, $7::date, $8,
             $9, $10, $11::numeric,
-            $12, $13, $14, $15::numeric, $16::integer,
-            $17::numeric, $18::numeric,
-            'G0', 'brief', 'clone', $19, $20::uuid, 'npd-project-actions-v1')
+            $12, $13, $14, $15::numeric, $16::integer, $17,
+            $18::numeric, $19::numeric,
+            'G0', 'brief', 'clone', $20, $21::uuid, 'npd-project-actions-v1')
          returning id, code`,
         [
           ctx.orgId,
@@ -192,6 +211,7 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
           constraints,
           packWeightG,
           packsPerCase,
+          outputUnit,
           weeklyVolumePacks,
           runsPerWeek,
           source.code,
@@ -315,6 +335,7 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
   const targetRetailPriceEur = parseOptionalNonNeg(raw.targetRetailPriceEur);
   const packWeightG = parseOptionalNonNeg(raw.packWeightG);
   const packsPerCase = parseOptionalNonNegInteger(raw.packsPerCase);
+  const outputUnit = parseOptionalOutputUnit(raw.outputUnit);
   const weeklyVolumePacks = parseOptionalNonNeg(raw.weeklyVolumePacks);
   const runsPerWeek = parseOptionalNonNeg(raw.runsPerWeek);
   const prio = raw.prio === undefined || raw.prio === null ? null : parsePriority(raw.prio);
@@ -324,7 +345,8 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
     salesChannel === undefined || targetAudience === undefined ||
     marketingClaims === undefined || constraints === undefined || notes === undefined ||
     targetLaunch === undefined || targetRetailPriceEur === undefined || packWeightG === undefined ||
-    packsPerCase === undefined || weeklyVolumePacks === undefined || runsPerWeek === undefined ||
+    packsPerCase === undefined || outputUnit === undefined || weeklyVolumePacks === undefined ||
+    runsPerWeek === undefined ||
     prio === null
   ) {
     return null;
@@ -335,9 +357,16 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
     overrides: {
       name, type, prio, targetLaunch, packFormat, salesChannel,
       targetAudience, marketingClaims, constraints, notes, targetRetailPriceEur, packWeightG, packsPerCase,
-      weeklyVolumePacks, runsPerWeek,
+      outputUnit, weeklyVolumePacks, runsPerWeek,
     },
   };
+}
+
+function parseOptionalOutputUnit(value: unknown): NpdBriefOutputUnit | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (value === 'kg' || value === 'pieces' || value === 'boxes') return value;
+  return undefined;
 }
 
 function parseOptionalDate(value: unknown): string | null | undefined {

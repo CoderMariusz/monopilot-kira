@@ -22,7 +22,60 @@ type MaterializeNpdBomInput = {
 type ProjectRow = GateProjectRow & {
   pack_weight_g: string | null;
   packs_per_case: number | null;
+  output_unit: NpdBriefOutputUnit | null;
 };
+
+/** Brief-level output unit choice (npd_projects.output_unit). */
+export type NpdBriefOutputUnit = 'kg' | 'pieces' | 'boxes';
+
+export type NpdFgUomInput = {
+  output_unit: NpdBriefOutputUnit | null;
+  pack_weight_g: string | null;
+  packs_per_case: number | null;
+};
+
+/** User-visible validation message when brief output_unit=boxes lacks pack factors. */
+export const NPD_BOXES_OUTPUT_UNIT_PACK_FACTORS_MESSAGE =
+  'Output unit "boxes" requires pack weight (g) and packs per case greater than 0.';
+
+/** True when the brief explicitly chose boxes but pack weight / packs-per-case are insufficient. */
+export function boxesOutputUnitRequiresPackFactors(project: NpdFgUomInput): boolean {
+  return (
+    project.output_unit === 'boxes' &&
+    (project.pack_weight_g == null ||
+      project.pack_weight_g === '' ||
+      Number(project.packs_per_case ?? 0) <= 0)
+  );
+}
+
+/** Pack factors satisfy items_output_uom_pack_factors_check for output_uom='box'. */
+export function canWriteBoxOutputUom(project: NpdFgUomInput): boolean {
+  return project.pack_weight_g != null && Number(project.packs_per_case ?? 0) > 0;
+}
+
+/** Box-upgrade may flip output_uom to 'box' — explicit kg/pieces must never be overridden. */
+export function wantsBoxOutputUomUpgrade(outputUnit: NpdBriefOutputUnit | null | undefined): boolean {
+  return outputUnit == null || outputUnit === 'boxes';
+}
+
+/** Map brief output_unit → items.output_uom. NULL output_unit keeps legacy inference. */
+export function deriveFgOutputUom(project: NpdFgUomInput): 'base' | 'each' | 'box' {
+  if (project.output_unit === 'kg') return 'base';
+  if (project.output_unit === 'pieces') return 'each';
+  if (project.output_unit === 'boxes') {
+    if (canWriteBoxOutputUom(project)) return 'box';
+    // Missing pack factors — cannot satisfy items_output_uom_pack_factors_check for 'box'.
+    // Fall through to legacy inference so callers never write an invalid box row (walk-2 H-1).
+  }
+  if (project.pack_weight_g != null) {
+    return Number(project.packs_per_case ?? 0) > 0 ? 'box' : 'each';
+  }
+  return 'base';
+}
+
+export function deriveFgNetQtyPerEachKg(packWeightG: string | null): number | null {
+  return packWeightG != null ? Number(packWeightG) / 1000.0 : null;
+}
 
 type LockedFormulationRow = {
   formulation_id: string;
@@ -259,7 +312,7 @@ export async function materializeNpdBom(
 
 async function loadProject(ctx: OrgContextLike, projectId: string): Promise<ProjectRow | null> {
   const { rows } = await ctx.client.query<ProjectRow>(
-    `select id, code, name, type, current_gate, current_stage, product_code, pack_weight_g::text as pack_weight_g, packs_per_case
+    `select id, code, name, type, current_gate, current_stage, product_code, pack_weight_g::text as pack_weight_g, packs_per_case, output_unit
        from public.npd_projects
       where org_id = app.current_org_id()
         and id = $1::uuid
@@ -334,10 +387,8 @@ async function ensureFgItemAndProduct(
   formulation: LockedFormulationRow | null,
 ): Promise<ItemRow> {
   const productCode = deriveProductionCode(project.product_code as string);
-  const outputUom = project.pack_weight_g != null
-    ? (Number(project.packs_per_case ?? 0) > 0 ? 'box' : 'each')
-    : 'base';
-  const netQtyPerEach = project.pack_weight_g != null ? Number(project.pack_weight_g) / 1000.0 : null;
+  const outputUom = deriveFgOutputUom(project);
+  const netQtyPerEach = deriveFgNetQtyPerEachKg(project.pack_weight_g);
   const inserted = await ctx.client.query<ItemRow>(
     `insert into public.items
        (org_id, item_code, item_type, name, status, uom_base, shelf_life_days, output_uom,
@@ -353,27 +404,41 @@ async function ensureFgItemAndProduct(
   if (!item) throw new Error(`failed to ensure FG item ${productCode}`);
 
   if (project.packs_per_case != null && project.packs_per_case > 0) {
-    // ONE atomic statement: items_output_uom_pack_factors_check (mig 267) demands
-    // net_qty_per_each AND each_per_box be NOT NULL the moment output_uom becomes
-    // 'box' — flipping the uom in a separate UPDATE from the factors violated the
-    // CHECK for a pre-existing FG created before its pack weight was set (walk-2
-    // H-1). If neither the stored nor the incoming pack weight is known, keep the
-    // current output_uom rather than write an unsatisfiable 'box'.
-    await ctx.client.query(
-      `update public.items
-          set each_per_box = $2::int,
-              net_qty_per_each = coalesce(net_qty_per_each, $3::numeric),
-              output_uom = case
-                when coalesce(net_qty_per_each, $3::numeric) is not null then 'box'
-                else output_uom
-              end
-        where org_id = app.current_org_id()
-          and item_code = $1
-          and (coalesce(each_per_box, 0) <> $2
-               or output_uom is distinct from 'box'
-               or (net_qty_per_each is null and $3::numeric is not null))`,
-      [productCode, project.packs_per_case, netQtyPerEach],
-    );
+    if (wantsBoxOutputUomUpgrade(project.output_unit)) {
+      // ONE atomic statement: items_output_uom_pack_factors_check (mig 267) demands
+      // net_qty_per_each AND each_per_box be NOT NULL the moment output_uom becomes
+      // 'box' — flipping the uom in a separate UPDATE from the factors violated the
+      // CHECK for a pre-existing FG created before its pack weight was set (walk-2
+      // H-1). If neither the stored nor the incoming pack weight is known, keep the
+      // current output_uom rather than write an unsatisfiable 'box'.
+      await ctx.client.query(
+        `update public.items
+            set each_per_box = $2::int,
+                net_qty_per_each = coalesce(net_qty_per_each, $3::numeric),
+                output_uom = case
+                  when coalesce(net_qty_per_each, $3::numeric) is not null then 'box'
+                  else output_uom
+                end
+          where org_id = app.current_org_id()
+            and item_code = $1
+            and (coalesce(each_per_box, 0) <> $2
+                 or output_uom is distinct from 'box'
+                 or (net_qty_per_each is null and $3::numeric is not null))`,
+        [productCode, project.packs_per_case, netQtyPerEach],
+      );
+    } else {
+      // Explicit kg/pieces: sync pack factors for WO scaling but NEVER touch output_uom.
+      await ctx.client.query(
+        `update public.items
+            set each_per_box = $2::int,
+                net_qty_per_each = coalesce(net_qty_per_each, $3::numeric)
+          where org_id = app.current_org_id()
+            and item_code = $1
+            and (coalesce(each_per_box, 0) <> $2
+                 or (net_qty_per_each is null and $3::numeric is not null))`,
+        [productCode, project.packs_per_case, netQtyPerEach],
+      );
+    }
   }
   // Pair each_per_box with net_qty_per_each (kg per pack) so per-box WO consumption scaling
   // (kg_per_box = each_per_box × net_qty_per_each, slice S2-WO) has both factors even for an
@@ -387,15 +452,18 @@ async function ensureFgItemAndProduct(
     // not silently treated as bulk kg. The INSERT above is "on conflict do nothing", so an FG item
     // first created as a draft before its pack weight was set keeps output_uom='base' and the WO
     // modal then shows "Quantity (kg)" with no each/box conversion (owner: "FG-NPD-012 → automatically
-    // kg"). Upgrade base→each here; never clobber an already-chosen 'box'/'each'.
-    await ctx.client.query(
-      `update public.items set output_uom = 'each'
-        where org_id = app.current_org_id()
-          and item_code = $1
-          and output_uom = 'base'
-          and coalesce(each_per_box, 0) <= 0`,
-      [productCode],
-    );
+    // kg"). Upgrade base→each here when the brief now implies 'each'; never clobber 'box'/'each' or
+    // an explicit kg (base) choice.
+    if (outputUom === 'each') {
+      await ctx.client.query(
+        `update public.items set output_uom = 'each'
+          where org_id = app.current_org_id()
+            and item_code = $1
+            and output_uom = 'base'
+            and coalesce(each_per_box, 0) <= 0`,
+        [productCode],
+      );
+    }
     await ctx.client.query(
       `update public.items set uom_base = 'kg'
         where org_id = app.current_org_id()

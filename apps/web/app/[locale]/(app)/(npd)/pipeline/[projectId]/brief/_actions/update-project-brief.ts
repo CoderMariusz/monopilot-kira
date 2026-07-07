@@ -9,6 +9,13 @@ import {
   type OrgContextLike,
 } from '../../../../../../../(npd)/pipeline/_actions/shared';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
+import {
+  boxesOutputUnitRequiresPackFactors,
+  deriveFgNetQtyPerEachKg,
+  deriveFgOutputUom,
+  type NpdBriefOutputUnit,
+  wantsBoxOutputUomUpgrade,
+} from '../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom';
 
 const WRITE_PERMISSION = 'npd.core.write';
 
@@ -35,6 +42,11 @@ const optionalDecimal = z
   .nullable()
   .optional();
 
+const optionalOutputUnit = z
+  .enum(['kg', 'pieces', 'boxes'])
+  .nullable()
+  .optional();
+
 const patchSchema = z
   .object({
     productName: optionalText(160),
@@ -43,6 +55,7 @@ const patchSchema = z
     packFormat: optionalText(160),
     packWeightG: optionalDecimal,
     packsPerCase: z.number().int().min(0).nullable().optional(),
+    outputUnit: optionalOutputUnit,
     weeklyVolumePacks: optionalDecimal,
     runsPerWeek: optionalDecimal,
     marketingClaims: optionalText(600),
@@ -73,6 +86,7 @@ type ProjectBriefAuditRow = {
   pack_format: string | null;
   pack_weight_g: string | null;
   packs_per_case: number | null;
+  output_unit: NpdBriefOutputUnit | null;
   weekly_volume_packs: string | null;
   runs_per_week: string | null;
   sales_channel: string | null;
@@ -102,6 +116,7 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
                 pack_format,
                 pack_weight_g::text           as pack_weight_g,
                 packs_per_case,
+                output_unit,
                 weekly_volume_packs::text as weekly_volume_packs,
                 runs_per_week::text as runs_per_week,
                 sales_channel,
@@ -120,6 +135,21 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
       if (!beforeRow) return { ok: false, error: 'NOT_FOUND', status: 404 };
 
       const patch = parsed.data.patch;
+      const effectiveOutputUnit =
+        patch.outputUnit !== undefined ? patch.outputUnit : beforeRow.output_unit;
+      const effectivePackWeightG =
+        patch.packWeightG !== undefined ? patch.packWeightG : beforeRow.pack_weight_g;
+      const effectivePacksPerCase =
+        patch.packsPerCase !== undefined ? patch.packsPerCase : beforeRow.packs_per_case;
+      if (
+        boxesOutputUnitRequiresPackFactors({
+          output_unit: effectiveOutputUnit,
+          pack_weight_g: effectivePackWeightG,
+          packs_per_case: effectivePacksPerCase,
+        })
+      ) {
+        return { ok: false, error: 'INVALID_INPUT', status: 400 };
+      }
       const updated = await context.client.query<ProjectBriefAuditRow>(
         `update public.npd_projects
             set name                    = case when $2::boolean then $3 else name end,
@@ -128,14 +158,15 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
                 pack_format             = case when $8::boolean then $9 else pack_format end,
                 pack_weight_g           = case when $10::boolean then $11::numeric else pack_weight_g end,
                 packs_per_case          = case when $12::boolean then $13::integer else packs_per_case end,
-                weekly_volume_packs     = case when $14::boolean then $15::numeric else weekly_volume_packs end,
-                runs_per_week           = case when $16::boolean then $17::numeric else runs_per_week end,
-                marketing_claims        = case when $18::boolean then $19 else marketing_claims end,
-                target_retail_price_eur = case when $20::boolean then $21::numeric else target_retail_price_eur end,
-                sales_channel           = case when $22::boolean then $23 else sales_channel end,
-                target_audience         = case when $24::boolean then $25 else target_audience end,
-                constraints             = case when $26::boolean then $27 else constraints end,
-                notes                   = case when $28::boolean then $29 else notes end
+                output_unit             = case when $14::boolean then $15 else output_unit end,
+                weekly_volume_packs     = case when $16::boolean then $17::numeric else weekly_volume_packs end,
+                runs_per_week           = case when $18::boolean then $19::numeric else runs_per_week end,
+                marketing_claims        = case when $20::boolean then $21 else marketing_claims end,
+                target_retail_price_eur = case when $22::boolean then $23::numeric else target_retail_price_eur end,
+                sales_channel           = case when $24::boolean then $25 else sales_channel end,
+                target_audience         = case when $26::boolean then $27 else target_audience end,
+                constraints             = case when $28::boolean then $29 else constraints end,
+                notes                   = case when $30::boolean then $31 else notes end
           where id = $1::uuid
             and org_id = app.current_org_id()
           returning id,
@@ -145,6 +176,7 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
                     pack_format,
                     pack_weight_g::text           as pack_weight_g,
                     packs_per_case,
+                    output_unit,
                     weekly_volume_packs::text     as weekly_volume_packs,
                     runs_per_week::text           as runs_per_week,
                     sales_channel,
@@ -167,6 +199,8 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
           patch.packWeightG ?? null,
           patch.packsPerCase !== undefined,
           patch.packsPerCase ?? null,
+          patch.outputUnit !== undefined,
+          patch.outputUnit ?? null,
           patch.weeklyVolumePacks !== undefined,
           patch.weeklyVolumePacks ?? null,
           patch.runsPerWeek !== undefined,
@@ -202,19 +236,14 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
         );
       }
 
-      // Keep items.each_per_box in sync when packs_per_case changes (mirrors
-      // materialize-npd-bom.ts) so WO snapshots created before the next materialize
-      // are not stale. No-op (0 rows) until the FG item exists.
-      if (afterRow.packs_per_case != null && afterRow.packs_per_case > 0) {
-        await context.client.query(
-          `update public.items
-              set each_per_box = $2
-            where org_id = app.current_org_id()
-              and npd_project_id = $1::uuid
-              and item_type = 'fg'
-              and coalesce(each_per_box, 0) <> $2`,
-          [parsed.data.projectId, afterRow.packs_per_case],
-        );
+      // Keep the FG item's pack hierarchy in sync when brief pack fields change
+      // (mirrors materialize-npd-bom.ts) so WO snapshots are not stale post-handoff.
+      if (
+        patch.packWeightG !== undefined ||
+        patch.packsPerCase !== undefined ||
+        patch.outputUnit !== undefined
+      ) {
+        await syncFgOutputUomFromBrief(context, parsed.data.projectId, afterRow);
       }
 
       await context.client.query(
@@ -249,5 +278,78 @@ function safeRevalidatePath(path: string): void {
     revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
+  }
+}
+
+async function syncFgOutputUomFromBrief(
+  context: OrgContextLike,
+  projectId: string,
+  row: Pick<ProjectBriefAuditRow, 'pack_weight_g' | 'packs_per_case' | 'output_unit'>,
+): Promise<void> {
+  const outputUom = deriveFgOutputUom(row);
+  const netQtyPerEach = deriveFgNetQtyPerEachKg(row.pack_weight_g);
+  const packsPerCase = row.packs_per_case;
+  const boxUpgrade = wantsBoxOutputUomUpgrade(row.output_unit);
+
+  if (
+    boxUpgrade &&
+    outputUom === 'box' &&
+    packsPerCase != null &&
+    packsPerCase > 0 &&
+    netQtyPerEach != null
+  ) {
+    await context.client.query(
+      `update public.items
+          set each_per_box = $2::int,
+              net_qty_per_each = $3::numeric,
+              output_uom = 'box'
+        where org_id = app.current_org_id()
+          and npd_project_id = $1::uuid
+          and item_type = 'fg'
+          and (coalesce(each_per_box, 0) <> $2
+               or net_qty_per_each is distinct from $3::numeric
+               or output_uom is distinct from 'box')`,
+      [projectId, packsPerCase, netQtyPerEach],
+    );
+    return;
+  }
+
+  if (packsPerCase != null && packsPerCase > 0 && !boxUpgrade) {
+    await context.client.query(
+      `update public.items
+          set each_per_box = $2::int,
+              net_qty_per_each = coalesce(net_qty_per_each, $3::numeric)
+        where org_id = app.current_org_id()
+          and npd_project_id = $1::uuid
+          and item_type = 'fg'
+          and (coalesce(each_per_box, 0) <> $2
+               or (net_qty_per_each is null and $3::numeric is not null))`,
+      [projectId, packsPerCase, netQtyPerEach],
+    );
+  }
+
+  await context.client.query(
+    `update public.items
+        set output_uom = $2,
+            net_qty_per_each = $3::numeric
+      where org_id = app.current_org_id()
+        and npd_project_id = $1::uuid
+        and item_type = 'fg'
+        and (output_uom is distinct from $2
+             or net_qty_per_each is distinct from $3::numeric)`,
+    [projectId, outputUom, netQtyPerEach],
+  );
+
+  if (outputUom === 'each') {
+    await context.client.query(
+      `update public.items
+          set output_uom = 'each'
+        where org_id = app.current_org_id()
+          and npd_project_id = $1::uuid
+          and item_type = 'fg'
+          and output_uom = 'base'
+          and coalesce(each_per_box, 0) <= 0`,
+      [projectId],
+    );
   }
 }

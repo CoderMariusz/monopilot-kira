@@ -73,6 +73,10 @@ const LABELS: WizardLabels = {
   fieldPackWeightPlaceholder: 'lbl.fieldPackWeightPlaceholder',
   fieldPacksPerCase: 'lbl.fieldPacksPerCase',
   fieldPacksPerCasePlaceholder: 'lbl.fieldPacksPerCasePlaceholder',
+  fieldOutputUnit: 'lbl.fieldOutputUnit',
+  fieldOutputUnitKg: 'lbl.fieldOutputUnitKg',
+  fieldOutputUnitPieces: 'lbl.fieldOutputUnitPieces',
+  fieldOutputUnitBoxes: 'lbl.fieldOutputUnitBoxes',
   fieldWeeklyVolumePacks: 'lbl.fieldWeeklyVolumePacks',
   fieldWeeklyVolumePacksPlaceholder: 'lbl.fieldWeeklyVolumePacksPlaceholder',
   fieldRunsPerWeek: 'lbl.fieldRunsPerWeek',
@@ -122,6 +126,7 @@ const LABELS: WizardLabels = {
   creating: 'lbl.creating',
   errorGeneric: 'lbl.errorGeneric',
   errorForbidden: 'lbl.errorForbidden',
+  errorBoxesOutputUnit: 'lbl.errorBoxesOutputUnit',
 };
 
 const defaultAction = vi.fn(async () => ({ ok: true as const, data: { id: 'pid-7', code: 'NPD-007' } }));
@@ -230,6 +235,12 @@ describe('CreateProjectWizard — parity, navigation, validation', () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/pipeline/pid-clone'));
   });
 
+  it('renders the output unit field on the Basics step (first brief-capture path)', () => {
+    renderWizard();
+    expect(screen.getByLabelText('lbl.fieldOutputUnit')).toBeInTheDocument();
+    expect(document.getElementById('wiz-output-unit-trigger')).toBeInTheDocument();
+  });
+
   it('Back returns to the previous step', () => {
     renderWizard();
     fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'X' } });
@@ -276,7 +287,7 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
     await waitFor(() => expect(createAction).toHaveBeenCalledTimes(1));
     expect(createAction.mock.calls[0]![0]).toEqual({
       name: 'Sliced Ham 200g',
-      type: 'Meat · Cold cut',
+      type: '',
       targetLaunch: '2026-09-01',
       packFormat: '200g sliced pack',
       packWeightG: 200,
@@ -356,6 +367,23 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
 
     await waitFor(() => expect(cloneAction).toHaveBeenCalledTimes(1));
     expect(cloneAction.mock.calls[0]![0].overrides).toMatchObject({ packsPerCase: 24 });
+  });
+
+  it('blocks create when boxes output unit lacks pack factors', async () => {
+    const createAction = vi.fn(async () => ({ ok: true as const, data: { id: 'p', code: 'NPD-001' } }));
+    renderWizard({ createAction });
+    fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Boxy' } });
+    fireEvent.click(document.getElementById('wiz-output-unit-trigger')!);
+    await waitFor(() => expect(screen.getByRole('option', { name: 'lbl.fieldOutputUnitBoxes' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('option', { name: 'lbl.fieldOutputUnitBoxes' }));
+    fireEvent.click(screen.getByTestId('wizard-continue'));
+    fireEvent.click(screen.getByTestId('wizard-continue'));
+    fireEvent.click(screen.getByTestId('wizard-continue'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('wizard-create'));
+    });
+    expect(createAction).not.toHaveBeenCalled();
+    expect(screen.getByText('lbl.errorBoxesOutputUnit')).toBeInTheDocument();
   });
 });
 

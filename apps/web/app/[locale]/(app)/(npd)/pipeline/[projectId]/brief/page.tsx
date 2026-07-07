@@ -79,6 +79,10 @@ const DEFAULT_LABELS: ProjectBriefLabels = {
   fieldPackFormat: 'Pack format',
   fieldPackWeight: 'Pack weight (g)',
   fieldPacksPerCase: 'Packs per case',
+  fieldOutputUnit: 'Output unit',
+  fieldOutputUnitKg: 'kg',
+  fieldOutputUnitPieces: 'pieces',
+  fieldOutputUnitBoxes: 'boxes',
   fieldWeeklyVolumePacks: 'Weekly volume (packs/week)',
   fieldRunsPerWeek: 'Runs per week (estimate)',
   fieldRunsPerWeekHelp:
@@ -106,6 +110,8 @@ const DEFAULT_LABELS: ProjectBriefLabels = {
   saveChanges: 'Save changes',
   saved: 'Saved',
   errInvalidInput: 'Some fields are invalid. Check the values and try again.',
+  errOutputUnitBoxesPackFactors:
+    'Output unit "boxes" requires pack weight (g) and packs per case greater than 0.',
   errForbidden: 'You do not have permission to edit this brief.',
   errNotFound: 'This project could not be found.',
   errPersistence: 'Could not save the brief. Please try again.',
