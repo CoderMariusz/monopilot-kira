@@ -70,7 +70,7 @@ describe('customer-item-prices actions', () => {
     const result = await createCustomerItemPrice({
       customerId: CUSTOMER_ID,
       itemId: ITEM_ID,
-      unitPrice: 12.5,
+      unitPrice: '12.5',
       currency: 'GBP',
       effectiveFrom: '2026-07-01',
       effectiveTo: null,
@@ -81,7 +81,7 @@ describe('customer-item-prices actions', () => {
     expect(insert?.params).toEqual([
       CUSTOMER_ID,
       ITEM_ID,
-      12.5,
+      '12.5',
       'GBP',
       '2026-07-01',
       null,
@@ -105,7 +105,7 @@ describe('customer-item-prices actions', () => {
       id: PRICE_ID,
       customerId: CUSTOMER_ID,
       itemId: ITEM_ID,
-      unitPrice: 15,
+      unitPrice: '15',
       currency: 'GBP',
       effectiveFrom: '2026-07-01',
       effectiveTo: '2026-12-31',
@@ -138,12 +138,69 @@ describe('customer-item-prices actions', () => {
     const result = await createCustomerItemPrice({
       customerId: CUSTOMER_ID,
       itemId: ITEM_ID,
-      unitPrice: 10,
+      unitPrice: '10',
       currency: 'GBP',
       effectiveFrom: '2026-07-01',
     });
 
     expect(result).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('createCustomerItemPrice rejects invalid calendar dates', async () => {
+    mockOrgContext(() => ({ rows: [] }));
+
+    const result = await createCustomerItemPrice({
+      customerId: CUSTOMER_ID,
+      itemId: ITEM_ID,
+      unitPrice: '10',
+      currency: 'GBP',
+      effectiveFrom: '2026-99-99',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input' });
+  });
+
+  it('createCustomerItemPrice rejects effective_to before effective_from', async () => {
+    mockOrgContext(() => ({ rows: [] }));
+
+    const result = await createCustomerItemPrice({
+      customerId: CUSTOMER_ID,
+      itemId: ITEM_ID,
+      unitPrice: '10',
+      currency: 'GBP',
+      effectiveFrom: '2026-12-31',
+      effectiveTo: '2026-01-01',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input' });
+  });
+
+  it('createCustomerItemPrice rejects unit_price that exceeds numeric(12,4)', async () => {
+    mockOrgContext(() => ({ rows: [] }));
+
+    const result = await createCustomerItemPrice({
+      customerId: CUSTOMER_ID,
+      itemId: ITEM_ID,
+      unitPrice: '123456789.1234',
+      currency: 'GBP',
+      effectiveFrom: '2026-07-01',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input' });
+  });
+
+  it('createCustomerItemPrice rejects JS number unit_price payloads', async () => {
+    mockOrgContext(() => ({ rows: [] }));
+
+    const result = await createCustomerItemPrice({
+      customerId: CUSTOMER_ID,
+      itemId: ITEM_ID,
+      unitPrice: 12.5,
+      currency: 'GBP',
+      effectiveFrom: '2026-07-01',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input' });
   });
 
   it('deactivateCustomerItemPrice rejects writes without settings.org.update', async () => {

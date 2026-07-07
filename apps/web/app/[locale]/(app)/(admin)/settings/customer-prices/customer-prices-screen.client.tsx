@@ -94,7 +94,7 @@ type CustomerPricesScreenProps = {
   createCustomerItemPrice: (input: {
     customerId: string;
     itemId: string;
-    unitPrice: number;
+    unitPrice: string;
     currency: string;
     effectiveFrom: string;
     effectiveTo?: string | null;
@@ -103,7 +103,7 @@ type CustomerPricesScreenProps = {
     id: string;
     customerId: string;
     itemId: string;
-    unitPrice: number;
+    unitPrice: string;
     currency: string;
     effectiveFrom: string;
     effectiveTo?: string | null;
@@ -128,6 +128,19 @@ function emptyDraft(): Draft {
 
 function formatOptionLabel(option: CustomerPriceOption): string {
   return `${option.code} — ${option.name}`;
+}
+
+const NUMERIC_12_4_RE = /^\d{1,8}(\.\d{1,4})?$/;
+
+function isValidUnitPriceInput(value: string): boolean {
+  const trimmed = value.trim();
+  return /^\d+(\.\d+)?$/.test(trimmed) && NUMERIC_12_4_RE.test(trimmed);
+}
+
+function isValidIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 function priceStatus(
@@ -204,7 +217,7 @@ export default function CustomerPricesScreen({
     setDraft({
       customerId: row.customerId,
       itemId: row.itemId,
-      unitPrice: String(row.unitPrice),
+      unitPrice: row.unitPrice,
       currency: row.currency,
       effectiveFrom: row.effectiveFrom,
       effectiveTo: row.effectiveTo ?? '',
@@ -217,19 +230,19 @@ export default function CustomerPricesScreen({
     event.preventDefault();
     if (!canManage || pending) return;
 
-    const unitPrice = Number(draft.unitPrice);
+    const unitPrice = draft.unitPrice.trim();
     if (
       draft.customerId === ''
       || draft.itemId === ''
-      || !Number.isFinite(unitPrice)
-      || unitPrice < 0
+      || !isValidUnitPriceInput(unitPrice)
       || draft.effectiveFrom === ''
+      || !isValidIsoDate(draft.effectiveFrom)
       || !CURRENCIES.includes(draft.currency as (typeof CURRENCIES)[number])
     ) {
       setActionError(labels.invalidInput);
       return;
     }
-    if (draft.effectiveTo !== '' && draft.effectiveTo < draft.effectiveFrom) {
+    if (draft.effectiveTo !== '' && (!isValidIsoDate(draft.effectiveTo) || draft.effectiveTo < draft.effectiveFrom)) {
       setActionError(labels.invalidInput);
       return;
     }
@@ -572,7 +585,7 @@ export default function CustomerPricesScreen({
                         <span className="mono">{row.itemCode}</span>
                         <span className="muted block text-xs">{row.itemName}</span>
                       </TableCell>
-                      <TableCell className="mono num text-right">{moneyFmt.format(row.unitPrice)}</TableCell>
+                      <TableCell className="mono num text-right">{moneyFmt.format(Number(row.unitPrice))}</TableCell>
                       <TableCell className="mono">{row.currency}</TableCell>
                       <TableCell className="mono">{row.effectiveFrom}</TableCell>
                       <TableCell className="mono">{row.effectiveTo ?? '—'}</TableCell>

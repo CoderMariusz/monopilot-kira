@@ -100,7 +100,7 @@ type CustomerPricesPageProps = {
   createCustomerItemPrice?: (input: {
     customerId: string;
     itemId: string;
-    unitPrice: number;
+    unitPrice: string;
     currency: string;
     effectiveFrom: string;
     effectiveTo?: string | null;
@@ -109,7 +109,7 @@ type CustomerPricesPageProps = {
     id: string;
     customerId: string;
     itemId: string;
-    unitPrice: number;
+    unitPrice: string;
     currency: string;
     effectiveFrom: string;
     effectiveTo?: string | null;
@@ -133,7 +133,7 @@ const prices: CustomerPriceRow[] = [
     itemId: ITEM_ID,
     itemCode: 'FG-001',
     itemName: 'Sample FG',
-    unitPrice: 9.99,
+    unitPrice: '9.99',
     currency: 'GBP',
     effectiveFrom: '2026-01-01',
     effectiveTo: null,
@@ -219,7 +219,7 @@ describe('C7b customer-prices screen', () => {
     await waitFor(() => expect(createCustomerItemPrice).toHaveBeenCalledTimes(1));
     expect(createCustomerItemPrice).toHaveBeenCalledWith(
       expect.objectContaining({
-        unitPrice: 12.5,
+        unitPrice: '12.5',
         currency: expect.any(String),
         effectiveFrom: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       }),
@@ -238,7 +238,7 @@ describe('C7b customer-prices screen', () => {
     await user.click(within(dialog).getByRole('button', { name: /save price/i }));
     await waitFor(() => expect(updateCustomerItemPrice).toHaveBeenCalledTimes(1));
     expect(updateCustomerItemPrice).toHaveBeenCalledWith(
-      expect.objectContaining({ id: PRICE_ID, unitPrice: 11.25 }),
+      expect.objectContaining({ id: PRICE_ID, unitPrice: '11.25' }),
     );
   });
 

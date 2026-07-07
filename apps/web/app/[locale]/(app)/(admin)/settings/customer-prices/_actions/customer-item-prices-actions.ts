@@ -46,14 +46,36 @@ type OptionDbRow = {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// NUMERIC(12,4): max 8 integer digits, max 4 fractional digits — string only.
+const NUMERIC_12_4_RE = /^\d{1,8}(\.\d{1,4})?$/;
 const UuidInput = z.string().trim().regex(UUID_RE);
-const DateInput = z.string().trim().regex(DATE_RE);
+
+function isValidIsoDate(value: string): boolean {
+  if (!DATE_RE.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+const DateInput = z
+  .string()
+  .trim()
+  .regex(DATE_RE)
+  .refine(isValidIsoDate, { message: 'must be a valid calendar date' });
+
+// NUMERIC-exact: unit_price is accepted only as a decimal STRING, bound ::numeric.
+const UnitPriceInput = z
+  .string()
+  .trim()
+  .regex(/^\d+(\.\d+)?$/, 'unit_price must be a non-negative decimal string')
+  .refine((value) => NUMERIC_12_4_RE.test(value), {
+    message: 'unit_price exceeds numeric(12,4) bounds',
+  });
 
 const CustomerItemPriceBodyInput = z
   .object({
     customerId: UuidInput,
     itemId: UuidInput,
-    unitPrice: z.number().finite().nonnegative(),
+    unitPrice: UnitPriceInput,
     currency: z.enum(ALLOWED_CURRENCIES),
     effectiveFrom: DateInput,
     effectiveTo: DateInput.nullable().optional(),
@@ -90,9 +112,8 @@ function revalidateCustomerPricesRoute() {
   }
 }
 
-function parsePrice(value: string | number): number {
-  const parsed = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+function toUnitPriceString(value: string | number): string {
+  return typeof value === 'string' ? value : String(value);
 }
 
 function toCustomerPriceRow(row: CustomerPriceDbRow): CustomerPriceRow {
@@ -104,7 +125,7 @@ function toCustomerPriceRow(row: CustomerPriceDbRow): CustomerPriceRow {
     itemId: row.item_id,
     itemCode: row.item_code ?? '',
     itemName: row.item_name ?? '',
-    unitPrice: parsePrice(row.unit_price),
+    unitPrice: toUnitPriceString(row.unit_price),
     currency: row.currency,
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to,

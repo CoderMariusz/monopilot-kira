@@ -6,7 +6,8 @@ export type CustomerPriceRow = {
   itemId: string;
   itemCode: string;
   itemName: string;
-  unitPrice: number;
+  /** NUMERIC(12,4) — decimal string end-to-end (never a JS float). */
+  unitPrice: string;
   currency: string;
   effectiveFrom: string;
   effectiveTo: string | null;
