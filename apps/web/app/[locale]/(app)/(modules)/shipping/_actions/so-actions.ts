@@ -514,12 +514,17 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
 
     const orgUnits = await listOrgUnits(ctx.client);
     const validUomCodes = new Set(orgUnits.map((unit) => unit.code));
-    if (validUomCodes.size > 0) {
-      for (const line of input.lines) {
-        const uom = line.uom.trim();
-        if (!validUomCodes.has(uom)) {
-          return { ok: false, error: 'invalid_input', message: 'Unknown unit of measure' };
-        }
+    if (validUomCodes.size === 0) {
+      return {
+        ok: false,
+        error: 'persistence_failed',
+        message: 'Unit of measure registry is not configured; seed units before creating sales orders',
+      };
+    }
+    for (const line of input.lines) {
+      const uom = line.uom.trim();
+      if (!validUomCodes.has(uom)) {
+        return { ok: false, error: 'invalid_input', message: 'Unknown unit of measure' };
       }
     }
 

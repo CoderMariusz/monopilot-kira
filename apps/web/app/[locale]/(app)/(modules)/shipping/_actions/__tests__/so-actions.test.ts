@@ -530,6 +530,25 @@ describe('createSalesOrder', () => {
     expect(insertedLines).toHaveLength(0);
   });
 
+  it('rejects SO creation when the org unit registry is empty', async () => {
+    orgUnitCodes = [];
+
+    const result = await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [{ item_id: ITEM_ID, qty: '10', uom: 'bogus-unit' }],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'persistence_failed',
+      message: 'Unit of measure registry is not configured; seed units before creating sales orders',
+    });
+    expect(insertedSo).toBeNull();
+    expect(insertedLines).toHaveLength(0);
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('insert into public.sales_orders'))).toBe(false);
+  });
+
   it('rejects SO creation when a line references an unknown item without inserting a header', async () => {
     const UNKNOWN_ITEM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const baseQuery = client.query;
