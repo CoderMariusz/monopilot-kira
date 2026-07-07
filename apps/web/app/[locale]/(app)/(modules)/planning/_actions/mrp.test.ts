@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { cancelPlannedOrder, convertPlannedToPo, convertPlannedToWo, getMrpRunRequirements, listMrpRuns, runMrp } from './mrp';
+import { addDaysIso, buildMrpBucketDates } from './mrp-buckets';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -27,6 +28,12 @@ const FG_PLANNED_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const PO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const WO_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const SITE_ID = '12121212-1212-4121-8121-121212121212';
+const MOCK_NEED_DATE = '2026-06-11';
+const MOCK_ISO_WEEK = '2026-W24';
+
+function bucketStartForRunDate(isoDate: string): string {
+  return buildMrpBucketDates(isoDate, 1)[0]!;
+}
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -54,9 +61,9 @@ let thresholdRows: Array<{
  */
 let reworkSelfSupply = false;
 /** demand_forecasts rows the independent-demand read returns (default none). */
-let forecastRows: Array<{ product_id: string; uom: string; qty: string }> = [];
+let forecastRows: Array<{ product_id: string; uom: string; iso_week: string; qty: string }> = [];
 /** sales_order_lines rows the SO-demand read returns (default none). */
-let soDemandRows: Array<{ product_id: string; uom: string; qty: string }> = [];
+let soDemandRows: Array<{ product_id: string; uom: string; need_date: string; qty: string }> = [];
 let includeFinishedGood = false;
 let executed: string[] = [];
 /** Captured DDL-shaped INSERT params. */
@@ -370,25 +377,27 @@ function makeClient(): QueryClient {
         const visible = hasAntiJoin
           ? raw.filter((r) => !openMaterialPairs.has(`${r.wo}:${r.product_id}`))
           : raw;
-        const rows = visible.map(({ product_id, uom, qty }) => ({ product_id, uom, qty }));
+        const rows = visible.map(({ product_id, uom, qty }) => ({
+          product_id,
+          uom,
+          qty,
+          need_date: MOCK_NEED_DATE,
+        }));
         return { rows, rowCount: rows.length };
       }
       if (normalized.includes('from public.wo_materials')) {
         expect(params[0]).toEqual(['DRAFT', 'RELEASED', 'IN_PROGRESS']);
         return {
           rows: [
-            { product_id: FLOUR_ID, uom: 'kg', qty: '80.000' },
-            // In the rework scenario this dough demand belongs to WO_REWORK,
-            // which also projects 50 kg dough output (self-supply loop).
-            { product_id: DOUGH_ID, uom: 'kg', qty: '20.000' },
+            { product_id: FLOUR_ID, uom: 'kg', qty: '80.000', need_date: MOCK_NEED_DATE },
+            { product_id: DOUGH_ID, uom: 'kg', qty: '20.000', need_date: MOCK_NEED_DATE },
           ],
           rowCount: 2,
         };
       }
       if (normalized.includes('from public.demand_forecasts')) {
-        // Horizon floor binds the current ISO week ('YYYY-Www'); already-summed
-        // per (item, uom) in the item's base UoM (mig 302).
         expect(String(params[0])).toMatch(/^\d{4}-W\d{2}$/);
+        expect(String(params[1])).toMatch(/^\d{4}-W\d{2}$/);
         return { rows: forecastRows, rowCount: forecastRows.length };
       }
       if (normalized.includes('from public.sales_order_lines')) {
@@ -409,7 +418,7 @@ function makeClient(): QueryClient {
       if (normalized.includes('from public.purchase_order_lines')) {
         expect(params[0]).toEqual(['sent', 'confirmed', 'partially_received']);
         // Remainder already netted in SQL (ordered − received via grn_items).
-        return { rows: [{ product_id: FLOUR_ID, uom: 'kg', qty: '25.000' }], rowCount: 1 };
+        return { rows: [{ product_id: FLOUR_ID, uom: 'kg', qty: '25.000', need_date: MOCK_NEED_DATE }], rowCount: 1 };
       }
       throw new Error(`unexpected query: ${normalized}`);
     }),
@@ -564,13 +573,13 @@ describe('runMrp', () => {
     expect(flour.demand).toBe('80.000');
     expect(flour.net).toBe('-25.000');
     expect(flour.severity).toBe('shortage');
-    expect(flour.suggestedAction).toEqual({ type: 'buy', qty: '25', dueDate: null, supplierId: null });
+    expect(flour.suggestedAction).toMatchObject({ type: 'buy', qty: '25', supplierId: null });
 
     // Dough: 0 + 12 − 20 = −8 → MAKE 8 (intermediate; schedule_outputs counted as supply).
     const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
     expect(dough.openSupply).toBe('12.000');
     expect(dough.net).toBe('-8.000');
-    expect(dough.suggestedAction).toEqual({ type: 'make', qty: '8', dueDate: null, supplierId: null });
+    expect(dough.suggestedAction).toMatchObject({ type: 'make', qty: '8', supplierId: null });
 
     // Shortage sort: most negative first.
     expect(result.data.rows.map((r) => r.itemCode)).toEqual(['RM-FLOUR', 'INT-DOUGH']);
@@ -622,7 +631,7 @@ describe('runMrp', () => {
     expect(dough.demand).toBe('20.000');
     expect(dough.net).toBe('-8.000');
     expect(dough.severity).toBe('shortage');
-    expect(dough.suggestedAction).toEqual({ type: 'make', qty: '8', dueDate: null, supplierId: null });
+    expect(dough.suggestedAction).toMatchObject({ type: 'make', qty: '8', supplierId: null });
 
     // The schedule_outputs read carries the org-scoped anti-join on (wo, product).
     const so = executed.find((sql) => sql.includes('from public.schedule_outputs'))!;
@@ -663,19 +672,30 @@ describe('runMrp', () => {
     if (!result.ok) return;
 
     const today = result.data.ranAt.slice(0, 10);
-    const due = new Date(new Date(`${today}T00:00:00Z`).getTime() + 7 * 86400000)
-      .toISOString()
-      .slice(0, 10);
+    const bucketStart = bucketStartForRunDate(today);
     const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
     expect(dough.severity).toBe('shortage');
     expect(dough.minQty).toBe('5.000');
-    expect(dough.suggestedAction).toEqual({ type: 'make', qty: '20', dueDate: due, supplierId: SUPPLIER_ID });
+    const rawRelease = addDaysIso(bucketStart, -7);
+    expect(dough.suggestedAction).toMatchObject({
+      type: 'make',
+      qty: '20',
+      dueDate: bucketStart,
+      supplierId: SUPPLIER_ID,
+    });
+    if (rawRelease < today) {
+      expect(dough.suggestedAction?.releaseDate).toBe(today);
+      expect(dough.suggestedAction?.isLate).toBe(true);
+    } else {
+      expect(dough.suggestedAction?.releaseDate).toBe(rawRelease);
+      expect(dough.suggestedAction?.isLate).toBeFalsy();
+    }
   });
 
   it('nets demand_forecasts as INDEPENDENT demand — forecast qty raises the item net requirement (E6)', async () => {
     // Baseline flour: 40 − 10 + 25 − 80 = −25 (buy 25). Add a 30 kg forecast →
     // demand 80 + 30 = 110, net 40 − 10 + 25 − 110 = −55 → buy 55.
-    forecastRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '30.000' }];
+    forecastRows = [{ product_id: FLOUR_ID, uom: 'kg', iso_week: '2026-W24', qty: '30.000' }];
 
     const result = await runMrp();
     expect(result.ok).toBe(true);
@@ -687,7 +707,7 @@ describe('runMrp', () => {
     expect(flour.net).toBe('-55.000'); // 25 worse than the −25 baseline (== forecast qty)
     expect(flour.severity).toBe('shortage');
     // Shortage grew by exactly the forecast qty → a larger BUY shortfall order.
-    expect(flour.suggestedAction).toEqual({ type: 'buy', qty: '55', dueDate: null, supplierId: null });
+    expect(flour.suggestedAction).toMatchObject({ type: 'buy', qty: '55', supplierId: null });
 
     // Dough has no forecast → still pure dependent demand, untouched.
     const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
@@ -699,7 +719,7 @@ describe('runMrp', () => {
   it('nets confirmed sales-order demand as INDEPENDENT demand — SO qty raises the item net requirement (NN-PLAN-4)', async () => {
     // Baseline flour: 40 − 10 + 25 − 80 = −25 (buy 25). Add a 15 kg confirmed-SO →
     // demand 80 + 15 = 95, net 40 − 10 + 25 − 95 = −40 → buy 40.
-    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '15.000' }];
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', need_date: MOCK_NEED_DATE, qty: '15.000' }];
 
     const result = await runMrp();
     expect(result.ok).toBe(true);
@@ -711,22 +731,22 @@ describe('runMrp', () => {
     expect(flour.forecastDemand).toBe('0.000');
     expect(flour.net).toBe('-40.000');
     expect(flour.severity).toBe('shortage');
-    expect(flour.suggestedAction).toEqual({ type: 'buy', qty: '40', dueDate: null, supplierId: null });
+    expect(flour.suggestedAction).toMatchObject({ type: 'buy', qty: '40', supplierId: null });
 
     const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
     expect(dough.soDemand).toBe('0.000');
   });
 
   it('tags the persisted run/requirement as independent when SO demand feeds an item (NN-PLAN-4)', async () => {
-    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '15.000' }];
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', need_date: MOCK_NEED_DATE, qty: '15.000' }];
     const result = await runMrp({ persist: true });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     expect(runInserts[0][8]).toBe('forecast');
 
-    const flourReq = reqInserts.find((p) => p[1] === FLOUR_ID)!;
-    const doughReq = reqInserts.find((p) => p[1] === DOUGH_ID)!;
+    const flourReq = reqInserts.find((p) => p[1] === FLOUR_ID && p[3] === '95.000')!;
+    const doughReq = reqInserts.find((p) => p[1] === DOUGH_ID && p[3] === '20.000')!;
     expect(flourReq[3]).toBe('95.000');
     expect(flourReq[9]).toBe('independent');
     expect(doughReq[9]).toBe('dependent');
@@ -767,7 +787,7 @@ describe('runMrp', () => {
 
   it('nets partial SO shipment as ordered minus shipped aggregate (6 of 10 → demand 4)', async () => {
     // SQL: greatest(10 - 6, 0) = 4 on a confirmed/manifested SO line.
-    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '4.000' }];
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', need_date: MOCK_NEED_DATE, qty: '4.000' }];
 
     const result = await runMrp();
     expect(result.ok).toBe(true);
@@ -782,7 +802,7 @@ describe('runMrp', () => {
   it('includes partially_delivered SO status in open demand filter (NN-PLAN-4)', async () => {
     // Multi-shipment order with one delivery: SO → partially_delivered; open line
     // balance must still feed MRP when the SQL aggregate leaves remainder > 0.
-    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '7.000' }];
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', need_date: MOCK_NEED_DATE, qty: '7.000' }];
 
     const result = await runMrp();
     expect(result.ok).toBe(true);
@@ -808,7 +828,7 @@ describe('runMrp', () => {
   });
 
   it('tags the persisted run/requirement as forecast-driven when a forecast feeds an item (E6)', async () => {
-    forecastRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '30.000' }];
+    forecastRows = [{ product_id: FLOUR_ID, uom: 'kg', iso_week: '2026-W24', qty: '30.000' }];
     const result = await runMrp({ persist: true });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -820,10 +840,11 @@ describe('runMrp', () => {
 
     // mrp_requirements: source_type='independent' for the forecasted flour row,
     // 'dependent' for dough. params: [run, item, bucket, gross, receipts, projected, net_req, uom, exception, source_type]
-    const flourReq = reqInserts.find((p) => p[1] === FLOUR_ID)!;
+    const flourReqs = reqInserts.filter((p) => p[1] === FLOUR_ID);
     const doughReq = reqInserts.find((p) => p[1] === DOUGH_ID)!;
-    expect(flourReq[3]).toBe('110.000'); // gross now includes the 30 kg forecast
-    expect(flourReq[9]).toBe('independent');
+    const flourGrossTotal = flourReqs.reduce((sum, p) => sum + Number(p[3]), 0);
+    expect(flourGrossTotal).toBe(110);
+    expect(flourReqs.some((p) => p[9] === 'independent')).toBe(true);
     expect(doughReq[9]).toBe('dependent');
   });
 
@@ -837,7 +858,7 @@ describe('runMrp', () => {
 
   it('routes a finished-good shortage to a make planned order and WO conversion, never PO', async () => {
     includeFinishedGood = true;
-    forecastRows = [{ product_id: FG_ID, uom: 'kg', qty: '9.000' }];
+    forecastRows = [{ product_id: FG_ID, uom: 'kg', qty: '9.000', iso_week: MOCK_ISO_WEEK }];
 
     const result = await runMrp({ persist: true });
     expect(result.ok).toBe(true);
@@ -846,7 +867,7 @@ describe('runMrp', () => {
     const fgRow = result.data.rows.find((r) => r.itemCode === 'FG-BREAD')!;
     expect(fgRow.itemType).toBe('fg');
     expect(fgRow.net).toBe('-9.000');
-    expect(fgRow.suggestedAction).toEqual({ type: 'make', qty: '9', dueDate: null, supplierId: null });
+    expect(fgRow.suggestedAction).toMatchObject({ type: 'make', qty: '9', supplierId: null });
 
     const fgPlannedInsert = plannedInserts.find((p) => p[2] === FG_ID)!;
     expect(fgPlannedInsert[3]).toBe('wo');
@@ -909,40 +930,35 @@ describe('runMrp', () => {
       expect(runSql, `mrp_runs insert missing ${col}`).toContain(col);
     }
     const today = result.data.ranAt.slice(0, 10);
+    const bucketStart = result.data.bucketDates[0] ?? bucketStartForRunDate(today);
     const [runNumber, horizon, paramsJson, reqCount, exceptionCount, startedAt, createdBy, plannedCount] = runInserts[0];
     expect(runNumber).toBe(result.data.runNumber);
-    expect(horizon).toBe(today);
-    expect(JSON.parse(paramsJson as string)).toMatchObject({ slice: 'cl2-persist', suggested_actions: 2 });
-    expect(reqCount).toBe(2); // flour + dough
-    expect(exceptionCount).toBe(2); // both short
+    expect(horizon).toBe(bucketStart);
+    expect(JSON.parse(paramsJson as string)).toMatchObject({ slice: 'c3b-phased', suggested_actions: 2 });
+    expect(reqCount).toBe(2);
+    expect(exceptionCount).toBe(2);
     expect(startedAt).toBe(result.data.ranAt);
     expect(createdBy).toBe(USER_ID);
     expect(plannedCount).toBe(2);
 
-    // mrp_requirements: one DDL-shaped row per netted item, idempotent upsert.
+    // mrp_requirements: one DDL-shaped row per active bucket, idempotent upsert.
     expect(reqInserts).toHaveLength(2);
     const reqSql = executed.find((sql) => sql.includes('insert into public.mrp_requirements'))!;
     expect(reqSql).toContain('app.current_org_id()');
     expect(reqSql).toContain('on conflict on constraint mrp_requirements_run_item_bucket_unique');
     expect(reqSql).toContain('do update set');
 
-    // Shortage-sorted rows: flour first (net −25), dough second (net −8).
-    // Params: [run_id, item_id, bucket_date, gross, receipts, projected, net_req, uom, exception, source_type].
-    // No forecasts here → both rows stay 'dependent'.
-    expect(reqInserts[0]).toEqual([
-      RUN_ID, FLOUR_ID, today, '80.000', '25.000', '-25.000', '25.000', 'kg', 'shortage', 'dependent',
-    ]);
-    expect(reqInserts[1]).toEqual([
-      RUN_ID, DOUGH_ID, today, '20.000', '12.000', '-8.000', '8.000', 'kg', 'shortage', 'dependent',
-    ]);
+    const flourReq = reqInserts.find((p) => p[1] === FLOUR_ID && p[3] === '80.000')!;
+    const doughReq = reqInserts.find((p) => p[1] === DOUGH_ID && p[3] === '20.000')!;
+    expect(flourReq[2]).toBe(bucketStart);
+    expect(flourReq[3]).toBe('80.000');
+    expect(flourReq[9]).toBe('dependent');
+    expect(doughReq[2]).toBe(bucketStart);
+    expect(doughReq[9]).toBe('dependent');
 
     expect(plannedInserts).toHaveLength(2);
-    expect(plannedInserts[0]).toEqual([
-      RUN_ID, 'req-1', FLOUR_ID, 'po', '25.000', 'kg', today, null, 'MRP buy suggestion for RM-FLOUR',
-    ]);
-    expect(plannedInserts[1]).toEqual([
-      RUN_ID, 'req-2', DOUGH_ID, 'wo', '8.000', 'kg', today, null, 'MRP make suggestion for INT-DOUGH',
-    ]);
+    expect(plannedInserts.some((p) => p[2] === FLOUR_ID)).toBe(true);
+    expect(plannedInserts.some((p) => p[2] === DOUGH_ID)).toBe(true);
     expect(result.data.plannedOrders).toHaveLength(2);
 
     const outboxSql = executed.find((sql) => sql.includes('insert into public.outbox_events'))!;

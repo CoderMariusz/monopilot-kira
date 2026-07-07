@@ -6,12 +6,11 @@
  *
  *   - runMrp({ persist: true }) additionally writes ONE mrp_runs header row
  *     (status='completed', org-unique run_number, requirement/exception counts)
- *     and one mrp_requirements row PER ITEM (bucket_date = today, bom_level 0 —
- *     this slice nets a single bucket with no BOM explosion; the (run_id,
+ *     and one mrp_requirements row PER ITEM PER WEEKLY BUCKET (bom_level 0 —
+ *     this slice nets weekly buckets with no BOM explosion; the (run_id,
  *     item_id, bucket_date, bom_level) unique key makes the per-run write
- *     idempotent via ON CONFLICT DO UPDATE). mrp_planned_orders is NOT written
- *     in this slice — planned_order_count stays 0 (honest) and the on-screen
- *     suggestion count goes into params_jsonb instead.
+ *     idempotent via ON CONFLICT DO UPDATE). mrp_planned_orders carry
+ *     due_date (shortage bucket) + release_date (due − lead time).
  *   - reorder_thresholds (mig 178) now feeds the netting: below-min severity +
  *     reorder-lot suggestions + due dates from suppliers.lead_time_days (mig
  *     261) via preferred_supplier_id. Semantics documented in mrp-compute.ts.
@@ -57,14 +56,18 @@ import { APP_VERSION, isPgError } from '../work-orders/_actions/shared';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { hasPlanningWritePermission, writeProcurementAudit, type OrgActionContext } from './procurement-shared';
 import {
-  computeMrp,
+  computeMrpPhased,
+  MRP_DEFAULT_HORIZON_WEEKS,
+  type MrpBucketRow,
+  type MrpForecastQtyBucket,
   type MrpItemRow,
   type MrpKpis,
   type MrpOnHandBucket,
-  type MrpQtyBucket,
   type MrpRow,
   type MrpThresholdRow,
+  type MrpTimedQtyBucket,
 } from './mrp-compute';
+import { addDaysIso } from './mrp-buckets';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -96,8 +99,10 @@ const OPEN_SO_DEMAND_STATUSES = [
   'shipped',
   'partially_delivered',
 ];
+/** Weekly bucket size for time-phased netting (roadmap 5.1). */
+const MRP_BUCKET_DAYS = 7;
 /** Planning horizon for SO need-by dates — mirrors forecasts.ts DEFAULT_HORIZON_WEEKS. */
-const MRP_PLANNING_HORIZON_WEEKS = 12;
+const MRP_PLANNING_HORIZON_WEEKS = MRP_DEFAULT_HORIZON_WEEKS;
 /** Item types planned by MRP. FG shortages can create planned WOs when an active BOM exists. */
 const MRP_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'packaging', 'fg'];
 const MRP_COMPLETED_EVENT = 'planning.mrp.completed';
@@ -122,10 +127,10 @@ function currentIsoWeek(now: Date = new Date()): string {
   return `${isoYear}-W${String(week).padStart(2, '0')}`;
 }
 
-/** today (yyyy-mm-dd) + N days, UTC-safe. */
-function addDaysIso(todayIso: string, days: number): string {
-  const base = new Date(`${todayIso}T00:00:00Z`);
-  return new Date(base.getTime() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+/** Last ISO week label covered by the planning horizon (inclusive). */
+function horizonEndIsoWeek(todayIso: string): string {
+  const end = addDaysIso(todayIso, MRP_PLANNING_HORIZON_WEEKS * 7);
+  return currentIsoWeek(new Date(`${end}T00:00:00Z`));
 }
 
 /** Planning horizon end date (today + MRP_PLANNING_HORIZON_WEEKS). */
@@ -137,6 +142,10 @@ export type MrpRunData = {
   /** ISO timestamp of this run. */
   ranAt: string;
   rows: MrpRow[];
+  /** Weekly bucket start dates (Mondays), oldest-first. */
+  bucketDates: string[];
+  /** Per-item per-bucket projected-available-balance ledger. */
+  bucketRows: MrpBucketRow[];
   kpis: MrpKpis;
   /** Set ONLY when the run was persisted to mrp_runs ({ persist: true }). */
   runId: string | null;
@@ -185,6 +194,9 @@ export type MrpPlannedOrder = {
   qty: string;
   uom: string;
   needBy: string;
+  releaseBy: string | null;
+  /** True when lead time forces release before today (expedite). */
+  isLate?: boolean;
   supplierId: string | null;
   status: string;
 };
@@ -264,6 +276,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
       // Single run timestamp — the netting bucket date AND the forecast horizon floor.
       const startedAt = new Date();
       const today = startedAt.toISOString().slice(0, 10);
+      const horizonEnd = planningHorizonEnd(today);
 
       // 1) Item master — the MRP-planned item universe (pack hierarchy for UoM conversion).
       const items = await c.query<MrpItemRow>(
@@ -286,9 +299,10 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
           group by product_id, uom`,
       );
 
-      // 3) Demand — unconsumed BOM-snapshot materials on open WOs.
-      const demand = await c.query<MrpQtyBucket>(
+      // 3) Demand — unconsumed BOM-snapshot materials on open WOs, dated by WO start.
+      const demand = await c.query<MrpTimedQtyBucket>(
         `select m.product_id, m.uom,
+                coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date::text as need_date,
                 sum(greatest(m.required_qty - m.consumed_qty, 0))::text as qty
            from public.wo_materials m
            join public.work_orders w
@@ -296,38 +310,29 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
             and w.org_id = app.current_org_id()
             and w.status = any($1::text[])
           where m.org_id = app.current_org_id()
-          group by m.product_id, m.uom`,
-        [OPEN_WO_STATUSES],
+            and coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date <= $3::date
+          group by m.product_id, m.uom,
+                   coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date`,
+        [OPEN_WO_STATUSES, startedAt.toISOString(), horizonEnd],
       );
 
-      // 3b) Independent (forecast) demand — demand_forecasts (mig 302), summed per
-      //     item across the run horizon (every ISO-week at or after the current one;
-      //     elapsed weeks are never re-netted). qty is ALREADY in the item's base
-      //     UoM (uom = items.uom_base snapshot at write time) → no lib/uom
-      //     conversion; the same MrpQtyBucket {product_id, uom, qty} shape as the
-      //     other grouped demand reads so computeMrp nets it identically.
-      const forecastDemand = await c.query<MrpQtyBucket>(
-        `select f.item_id as product_id, f.uom,
+      // 3b) Independent (forecast) demand — demand_forecasts (mig 302), per ISO week.
+      const forecastDemand = await c.query<MrpForecastQtyBucket>(
+        `select f.item_id as product_id, f.uom, f.iso_week,
                 sum(f.qty)::text as qty
            from public.demand_forecasts f
           where f.org_id = app.current_org_id()
             and f.iso_week >= $1
-          group by f.item_id, f.uom`,
-        [currentIsoWeek(startedAt)],
+            and f.iso_week <= $2
+          group by f.item_id, f.uom, f.iso_week`,
+        [currentIsoWeek(startedAt), horizonEndIsoWeek(today)],
       );
 
-      // 3c) Independent (sales-order) demand — open SO lines on post-confirm orders
-      //     whose need-by date (promised_ship_date → required_delivery_date → order_date)
-      //     falls on or before the planning horizon end. Remainder qty is ordered minus
-      //     the real shipped aggregate from shipment_box_contents (same join path as
-      //     ship-actions confirm); sales_order_lines.quantity_shipped is not maintained.
-      //     UoM comes from ext_data.order_uom with items.uom_base fallback (same shape
-      //     as so-actions fetch). each/box lines convert in computeMrp via the shared
-      //     pack-hierarchy machinery.
-      const horizonEnd = planningHorizonEnd(today);
-      const soDemand = await c.query<MrpQtyBucket>(
+      // 3c) Independent (sales-order) demand — open SO lines bucketed by need-by date.
+      const soDemand = await c.query<MrpTimedQtyBucket>(
         `select sol.product_id as product_id,
                 coalesce(sol.ext_data->>'order_uom', i.uom_base) as uom,
+                coalesce(so.promised_ship_date, so.required_delivery_date, so.order_date)::text as need_date,
                 sum(greatest(sol.quantity_ordered - coalesce(shipped.shipped_qty, 0), 0))::text as qty
            from public.sales_order_lines sol
            join public.sales_orders so
@@ -361,14 +366,16 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
           where sol.org_id = app.current_org_id()
             and sol.deleted_at is null
             and coalesce(so.promised_ship_date, so.required_delivery_date, so.order_date) <= $2::date
-          group by sol.product_id, coalesce(sol.ext_data->>'order_uom', i.uom_base)`,
+          group by sol.product_id,
+                   coalesce(sol.ext_data->>'order_uom', i.uom_base),
+                   coalesce(so.promised_ship_date, so.required_delivery_date, so.order_date)`,
         [OPEN_SO_DEMAND_STATUSES, horizonEnd],
       );
 
-      // 4) Open-PO remainder — ordered minus received (grn_items on non-cancelled GRNs;
-      //    same aggregate shape as purchase-orders/_actions/actions.ts fetchLines).
-      const poSupply = await c.query<MrpQtyBucket>(
+      // 4) Open-PO remainder — bucketed by expected delivery (in-horizon only).
+      const poSupply = await c.query<MrpTimedQtyBucket>(
         `select l.item_id as product_id, l.uom,
+                coalesce(po.expected_delivery, $2::date)::text as need_date,
                 sum(greatest(l.qty - coalesce(rec.received_qty, 0), 0))::text as qty
            from public.purchase_order_lines l
            join public.purchase_orders po
@@ -388,22 +395,16 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
               group by gi.po_line_id
            ) rec on rec.po_line_id = l.id
           where l.org_id = app.current_org_id()
-          group by l.item_id, l.uom`,
-        [OPEN_PO_STATUSES],
+            and coalesce(po.expected_delivery, $2::date) <= $3::date
+          group by l.item_id, l.uom, coalesce(po.expected_delivery, $2::date)`,
+        [OPEN_PO_STATUSES, today, horizonEnd],
       );
 
-      // 5) Planned production supply — schedule_outputs (planning-owned projection)
-      //    of open WOs, to-stock only (direct_continue feeds a downstream WO, not
-      //    stock; pending_decision is excluded conservatively).
-      // NOTE: IN_PROGRESS outputs are counted as supply; this is a documented transient over-count resolved at WO close.
-      //
-      //    Self-supply guard (Codex batch-D F2): a WO that CONSUMES product X to
-      //    MAKE product X (rework / regrind) must not offset its own open material
-      //    demand with its own projected output — that nets the loop to ~zero and
-      //    hides the real shortage. Anti-join: drop any schedule_outputs row whose
-      //    WO still has an open wo_materials demand row for the SAME product.
-      const productionSupply = await c.query<MrpQtyBucket>(
-        `select so.product_id, so.uom, sum(so.expected_qty)::text as qty
+      // 5) Planned production supply — schedule_outputs dated by WO start (in-horizon only).
+      const productionSupply = await c.query<MrpTimedQtyBucket>(
+        `select so.product_id, so.uom,
+                coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date::text as need_date,
+                sum(so.expected_qty)::text as qty
            from public.schedule_outputs so
            join public.work_orders w
              on w.id = so.planned_wo_id
@@ -411,6 +412,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
             and w.status = any($1::text[])
           where so.org_id = app.current_org_id()
             and so.disposition = 'to_stock'
+            and coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date <= $3::date
             and not exists (
               select 1
                 from public.wo_materials m
@@ -419,8 +421,9 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
                  and m.product_id = so.product_id
                  and m.required_qty > m.consumed_qty
             )
-          group by so.product_id, so.uom`,
-        [OPEN_WO_STATUSES],
+          group by so.product_id, so.uom,
+                   coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date`,
+        [OPEN_WO_STATUSES, startedAt.toISOString(), horizonEnd],
       );
 
       // 6) Reorder thresholds (mig 178) + the preferred supplier's lead time
@@ -439,7 +442,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
           where rt.org_id = app.current_org_id()`,
       );
 
-      const { rows, kpis } = computeMrp({
+      const { rows, kpis, bucketDates, bucketRows } = computeMrpPhased({
         items: items.rows,
         onHand: onHand.rows,
         demand: demand.rows,
@@ -449,6 +452,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
         productionSupply: productionSupply.rows,
         thresholds: thresholds.rows,
         today,
+        horizonWeeks: MRP_PLANNING_HORIZON_WEEKS,
       });
 
       let runId: string | null = null;
@@ -458,6 +462,8 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
           today,
           startedAt,
           rows,
+          bucketRows,
+          bucketDates,
           kpis,
         });
         runId = persisted.runId;
@@ -467,7 +473,10 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
       const plannedOrders =
         persist && runId ? await listPlannedOrdersForRun(c, runId) : [];
 
-      return { ok: true, data: { ranAt: startedAt.toISOString(), rows, kpis, runId, runNumber, plannedOrders } };
+      return {
+        ok: true,
+        data: { ranAt: startedAt.toISOString(), rows, bucketDates, bucketRows, kpis, runId, runNumber, plannedOrders },
+      };
     });
   } catch (err) {
     console.error('[planning/mrp] runMrp failed', err);
@@ -504,11 +513,19 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
 async function persistMrpRun(
   c: QueryClient,
   userId: string,
-  input: { today: string; startedAt: Date; rows: MrpRow[]; kpis: MrpKpis },
+  input: {
+    today: string;
+    startedAt: Date;
+    rows: MrpRow[];
+    bucketRows: MrpBucketRow[];
+    bucketDates: string[];
+    kpis: MrpKpis;
+  },
 ): Promise<{ runId: string; runNumber: string }> {
-  const { today, startedAt, rows, kpis } = input;
-  const suggestionCount = rows.filter((r) => r.suggestedAction !== null).length;
+  const { today, startedAt, rows, bucketRows, bucketDates, kpis } = input;
+  const suggestionCount = bucketRows.filter((r) => r.suggestedAction !== null).length;
   const runNumber = `MRP-${today.replace(/-/g, '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  const horizonEnd = bucketDates.length > 0 ? addDaysIso(bucketDates[bucketDates.length - 1]!, MRP_BUCKET_DAYS - 1) : today;
   // Attribute the run as forecast-driven when any item carried independent
   // (demand_forecasts or sales-order) demand — a value mrp_runs_demand_source_check permits.
   const hasIndependentDemand = rows.some(
@@ -522,41 +539,41 @@ async function persistMrpRun(
         bucket_days, params_jsonb, requirement_count, planned_order_count,
         exception_count, started_at, completed_at, created_by)
      values
-       (app.current_org_id(), $1, 'completed', $9, $2::date, $2::date,
-        1, $3::jsonb, $4::integer, $8::integer,
+       (app.current_org_id(), $1, 'completed', $9, $2::date, $10::date,
+        $11::integer, $3::jsonb, $4::integer, $8::integer,
         $5::integer, $6::timestamptz, now(), $7::uuid)
      returning id, run_number`,
     [
       runNumber,
-      today,
+      bucketDates[0] ?? today,
       JSON.stringify({
-        slice: 'cl2-persist',
+        slice: 'c3b-phased',
         item_types: MRP_ITEM_TYPES,
+        horizon_weeks: MRP_PLANNING_HORIZON_WEEKS,
         suggested_actions: suggestionCount,
         items_below_min: kpis.itemsBelowMin,
         coverage_pct: kpis.coveragePct,
       }),
-      rows.length,
-      kpis.itemsShort,
+      bucketRows.length,
+      bucketRows.filter((r) => r.severity === 'shortage').length,
       startedAt.toISOString(),
       userId,
       suggestionCount,
       demandSource,
+      horizonEnd,
+      MRP_BUCKET_DAYS,
     ],
   );
   const run = header.rows[0];
   if (!run) throw new Error('mrp_runs insert returned no row');
 
   const requirementIds = new Map<string, string>();
-  for (const row of rows) {
-    // row.net is a canonical 3-dp decimal string from microToFixed — the sign
-    // test is exact on the string; |net| is a pure prefix strip (no floats).
+  for (const row of bucketRows) {
     const isShort = row.net.startsWith('-');
     const netRequirement = isShort ? row.net.slice(1) : '0';
-    // Independent demand (forecast / sales-order) attribution — mrp_requirements_source_type_check
-    // allows only 'independent' | 'dependent'. Any independent contribution → independent.
     const sourceType =
       row.forecastDemand !== '0.000' || row.soDemand !== '0.000' ? 'independent' : 'dependent';
+    const reqKey = `${row.itemId}:${row.bucketDate}`;
     const requirement = await c.query<{ id: string }>(
       `insert into public.mrp_requirements
          (org_id, run_id, item_id, bom_level, bucket_date, gross_requirement,
@@ -578,9 +595,9 @@ async function persistMrpRun(
       [
         run.id,
         row.itemId,
-        today,
-        row.demand,
-        row.openSupply,
+        row.bucketDate,
+        row.grossRequirement,
+        row.scheduledReceipts,
         row.net,
         netRequirement,
         row.uomBase,
@@ -588,12 +605,12 @@ async function persistMrpRun(
         sourceType,
       ],
     );
-    if (requirement.rows[0]) requirementIds.set(row.itemId, requirement.rows[0].id);
+    if (requirement.rows[0]) requirementIds.set(reqKey, requirement.rows[0].id);
   }
 
-  await persistPlannedOrders(c, run.id, today, rows, requirementIds);
+  await persistPlannedOrders(c, run.id, bucketRows, requirementIds);
   await emitMrpCompletedEvent(c, userId, run.id, {
-    requirements: rows.length,
+    requirements: bucketRows.length,
     planned_orders: suggestionCount,
   });
 
@@ -625,8 +642,7 @@ function toBaseQtyString(row: MrpRow): string {
 async function persistPlannedOrders(
   c: QueryClient,
   runId: string,
-  today: string,
-  rows: MrpRow[],
+  bucketRows: MrpBucketRow[],
   requirementIds: Map<string, string>,
 ): Promise<void> {
   await c.query(
@@ -637,26 +653,32 @@ async function persistPlannedOrders(
     [runId],
   );
 
-  for (const row of rows) {
+  for (const row of bucketRows) {
     if (!row.suggestedAction) continue;
-    const dueDate = row.suggestedAction.dueDate ?? today;
+    const dueDate = row.suggestedAction.dueDate ?? row.bucketDate;
+    const releaseDate = row.suggestedAction.releaseDate ?? null;
+    const reqKey = `${row.itemId}:${row.bucketDate}`;
+    const notes = row.suggestedAction.isLate
+      ? `expedite: release clamped to planning start — MRP ${row.suggestedAction.type} suggestion for ${row.itemCode} (${row.bucketDate})`
+      : `MRP ${row.suggestedAction.type} suggestion for ${row.itemCode} (${row.bucketDate})`;
     await c.query(
       `insert into public.mrp_planned_orders
          (org_id, run_id, requirement_id, item_id, order_type, quantity, uom,
-          due_date, supplier_id, release_status, notes)
+          due_date, release_date, supplier_id, release_status, notes)
        values
          (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5::numeric, $6,
-          $7::date, $8::uuid, 'suggested', $9)`,
+          $7::date, $8::date, $9::uuid, 'suggested', $10)`,
       [
         runId,
-        requirementIds.get(row.itemId) ?? null,
+        requirementIds.get(reqKey) ?? null,
         row.itemId,
         toDbOrderType(row.suggestedAction.type),
         toBaseQtyString(row),
         row.uomBase,
         dueDate,
+        releaseDate,
         row.suggestedAction.supplierId,
-        `MRP ${row.suggestedAction.type} suggestion for ${row.itemCode}`,
+        notes,
       ],
     );
   }
@@ -691,12 +713,15 @@ async function listPlannedOrdersForRun(c: QueryClient, runId: string): Promise<M
     quantity: string;
     uom: string;
     due_date: string;
+    release_date: string | null;
     supplier_id: string | null;
     release_status: string;
+    notes: string | null;
   }>(
     `select po.id, po.item_id, i.item_code, i.name as item_name,
             po.order_type, po.quantity::text as quantity, po.uom,
-            po.due_date::text as due_date, po.supplier_id, po.release_status
+            po.due_date::text as due_date, po.release_date::text as release_date,
+            po.supplier_id, po.release_status, po.notes
        from public.mrp_planned_orders po
        left join public.items i
          on i.org_id = app.current_org_id()
@@ -715,6 +740,8 @@ async function listPlannedOrdersForRun(c: QueryClient, runId: string): Promise<M
     qty: row.quantity,
     uom: row.uom,
     needBy: row.due_date,
+    releaseBy: row.release_date,
+    isLate: row.notes?.startsWith('expedite:') ?? false,
     supplierId: row.supplier_id,
     status: row.release_status,
   }));
