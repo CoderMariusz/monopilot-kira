@@ -256,7 +256,7 @@ function makeClient(): QueryClient {
               measured_value: '69.9999',
               uom: 'C',
               action_taken: 'Batch quarantined and root cause reviewed',
-              disposition: 'Released after QA review',
+              disposition: 'corrected',
               hold_id: HOLD_ID,
               hold_number: 'HLD-00001000',
               hold_reference_type: 'lp',
@@ -433,7 +433,7 @@ describe('quality HACCP server actions', () => {
   it('resolveCcpDeviation requires e-sign and flips the deviation to resolved', async () => {
     const result = await resolveCcpDeviation(DEVIATION_ID, {
       actionTaken: 'Batch quarantined and root cause reviewed',
-      disposition: 'Released after QA review',
+      disposition: 'corrected',
       signature: { password: 'pin-1234' },
     });
 
@@ -451,6 +451,7 @@ describe('quality HACCP server actions', () => {
           ccpCode: 'CCP-COOK',
           monitoringLogId: LOG_ID,
           measuredValue: '69.9999',
+          disposition: 'corrected',
         },
         reason: 'CCP deviation resolution',
       },
@@ -460,7 +461,7 @@ describe('quality HACCP server actions', () => {
     expect(update?.[1]).toEqual([
       DEVIATION_ID,
       'Batch quarantined and root cause reviewed',
-      'Released after QA review',
+      'corrected',
       USER_ID,
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     ]);

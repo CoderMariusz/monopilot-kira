@@ -11,8 +11,8 @@
  * translator satisfy it, so the RSC page and the RTL tests assert the same
  * resolved strings.
  */
-import type { DeviationStatus, DeviationStatusFilter } from './ccp-deviations-contracts';
-import { DEVIATION_STATUS_FILTERS } from './ccp-deviations-contracts';
+import type { DeviationDisposition, DeviationStatus, DeviationStatusFilter } from './ccp-deviations-contracts';
+import { DEVIATION_DISPOSITIONS, DEVIATION_STATUS_FILTERS } from './ccp-deviations-contracts';
 
 export type Translator = (key: string, values?: Record<string, string | number>) => string;
 
@@ -57,6 +57,8 @@ export type DeviationResolveLabels = {
   disposition: string;
   dispositionHelp: string;
   dispositionPlaceholder: string;
+  dispositionOptions: Record<DeviationDisposition, string>;
+  holdPrompt: { title: string; body: string; linkLabel: string };
   esign: { title: string; meaning: string; password: string; passwordHelp: string; passwordPlaceholder: string };
   cancel: string;
   submit: string;
@@ -114,6 +116,14 @@ export function buildDeviationResolveLabels(t: Translator): DeviationResolveLabe
     disposition: t('resolveModal.disposition'),
     dispositionHelp: t('resolveModal.dispositionHelp'),
     dispositionPlaceholder: t('resolveModal.dispositionPlaceholder'),
+    dispositionOptions: Object.fromEntries(
+      DEVIATION_DISPOSITIONS.map((d) => [d, t(`resolveModal.dispositionOptions.${d}`)]),
+    ) as Record<DeviationDisposition, string>,
+    holdPrompt: {
+      title: t('resolveModal.holdPrompt.title'),
+      body: t('resolveModal.holdPrompt.body'),
+      linkLabel: t('resolveModal.holdPrompt.linkLabel'),
+    },
     esign: {
       title: t('resolveModal.esign.title'),
       meaning: t('resolveModal.esign.meaning'),

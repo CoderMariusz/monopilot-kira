@@ -10336,8 +10336,18 @@
         "actionTakenHelp": "Opisz działanie korygujące wykonane dla tego odchylenia.",
         "actionTakenPlaceholder": "Opisz podjęte działanie korygujące…",
         "disposition": "Decyzja",
-        "dispositionHelp": "Co zdecydowano w sprawie wyrobu lub procesu.",
-        "dispositionPlaceholder": "np. Wyrób przerobiony / zezłomowany / zwolniony po przeglądzie…",
+        "dispositionHelp": "Wybierz decyzję HACCP dla tego odchylenia.",
+        "dispositionPlaceholder": "Wybierz decyzję…",
+        "dispositionOptions": {
+          "corrected": "Skorygowano — proces naprawiony, bez wpływu na wyrób",
+          "product_held": "Wyrób wstrzymany — kwarantanna; zwolnij blokadę osobno",
+          "disposed": "Zutylizowano — wyrób skażony lub zezłomowany"
+        },
+        "holdPrompt": {
+          "title": "Powiązana blokada jakości",
+          "body": "Dla tego odchylenia utworzono blokadę. Rozwiązanie odchylenia rejestruje tylko działanie korygujące — zwolnij lub rozpatrz blokadę osobno.",
+          "linkLabel": "Otwórz blokadę {holdNumber}"
+        },
         "esign": {
           "title": "Podpis elektroniczny",
           "meaning": "Podpis potwierdza, że rozwiązałeś to odchylenie CCP (21 CFR Part 11).",

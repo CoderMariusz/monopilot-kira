@@ -10360,8 +10360,18 @@
         "actionTakenHelp": "Describe the corrective action carried out for this deviation.",
         "actionTakenPlaceholder": "Describe the corrective action taken…",
         "disposition": "Disposition",
-        "dispositionHelp": "What was decided for the affected product or process.",
-        "dispositionPlaceholder": "e.g. Product reworked / scrapped / released after review…",
+        "dispositionHelp": "Select the HACCP disposition for this deviation.",
+        "dispositionPlaceholder": "Select disposition…",
+        "dispositionOptions": {
+          "corrected": "Corrected — process fixed, no product impact",
+          "product_held": "Product held — quarantine; release the linked hold separately",
+          "disposed": "Disposed — product condemned or scrapped"
+        },
+        "holdPrompt": {
+          "title": "Linked quality hold",
+          "body": "A hold was created for this deviation. Resolving the deviation records corrective action only — release or disposition the hold separately.",
+          "linkLabel": "Open hold {holdNumber}"
+        },
         "esign": {
           "title": "Electronic signature",
           "meaning": "Signing records that you resolved this CCP deviation (21 CFR Part 11).",
