@@ -1,4 +1,11 @@
 import { cascadeAllergensForChangedItem } from '../../../../../lib/technical/allergens/cascade';
+import {
+  AUDIT_BOM_PUBLISH,
+  EVENT_FG_BOM_RELEASED,
+  validateBomApprovalGuards,
+  writeAudit,
+  writeOutbox,
+} from '../../../../[locale]/(app)/(modules)/technical/bom/_actions/shared';
 import { type GateProjectRow } from './gate-helpers';
 import {
   compoundedYieldPctForComponent,
@@ -6,6 +13,17 @@ import {
   type ProductProcessYields,
 } from './product-process-yields';
 import { type OrgContextLike } from '../shared';
+
+/** Thrown when NPD FG BOM activation fails canonical V-TEC-13/14 guards (publishBom parity). */
+export class NpdBomActivationValidationError extends Error {
+  readonly code: 'V-TEC-13' | 'V-TEC-14';
+
+  constructor(code: 'V-TEC-13' | 'V-TEC-14', message: string) {
+    super(message);
+    this.name = 'NpdBomActivationValidationError';
+    this.code = code;
+  }
+}
 
 // FG-002 rename DEFERRED. The production-vs-NPD code split (FG-NPD-002 → FG-002) is
 // entangled with the product→items merge (owner decision #1): the release-gate probe
@@ -829,6 +847,18 @@ async function createActiveNpdBom(
     );
   }
 
+  // Canonical publishBom guards (V-TEC-13 cycle + V-TEC-14 RM usability) — same
+  // checks as approveBom, run before the NPD draft→active flip.
+  const guard = await validateBomApprovalGuards(
+    ctx.client,
+    productCode,
+    lines.map((line) => ({ itemId: line.item_id, componentCode: line.component_code })),
+    { cycleBlockedMessage: 'BOM has a cycle; cannot activate' },
+  );
+  if (!guard.ok) {
+    throw new NpdBomActivationValidationError(guard.code, guard.message);
+  }
+
   // ORDER MATTERS (walk-4 blocker): bom_headers_active_version_idx is a partial
   // UNIQUE on (org_id, product_id) WHERE status='active' — the OLD active header
   // must be superseded BEFORE the new one flips to active, or the flip violates
@@ -855,6 +885,32 @@ async function createActiveNpdBom(
         and id = $1::uuid`,
     [header.id, ctx.userId],
   );
+
+  const supersededHeaderIds = supersedesBom ? [supersedesBom.id] : [];
+  await writeAudit(ctx.client, {
+    orgId: ctx.orgId,
+    actorUserId: ctx.userId,
+    action: AUDIT_BOM_PUBLISH,
+    resourceId: header.id,
+    beforeState: {
+      status: 'draft',
+      supersededVersions: supersedesBom ? [supersedesBom.version] : [],
+    },
+    afterState: { status: 'active', productId: productCode, version: header.version },
+  });
+  await writeOutbox(ctx.client, {
+    orgId: ctx.orgId,
+    eventType: EVENT_FG_BOM_RELEASED,
+    aggregateType: 'bom_header',
+    aggregateId: header.id,
+    payload: {
+      product_id: productCode,
+      version: header.version,
+      status: 'active',
+      superseded_header_ids: supersededHeaderIds,
+      actor_user_id: ctx.userId,
+    },
+  });
 
   return header;
 }

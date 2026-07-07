@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeBomLineQty, deriveFgOutputUom, materializeNpdBom } from '../materialize-npd-bom';
+import {
+  computeBomLineQty,
+  deriveFgOutputUom,
+  materializeNpdBom,
+  NpdBomActivationValidationError,
+} from '../materialize-npd-bom';
 import { type QueryClient } from '../../shared';
+
+const FG_BOM_RELEASED_EVENT = 'fg.bom.released';
 
 const PROJECT = '11111111-1111-4111-8111-111111111111';
 const USER = '22222222-2222-4222-8222-222222222222';
@@ -25,6 +32,32 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+/** Default rows for canonical BOM activation guards (cycle, RM usability, outbox, audit). */
+function bomActivationGuardDefaults(sql: string, params: readonly unknown[]): unknown[] | null {
+  if (sql.includes("h.status = 'active' and h.item_id is not null")) return [];
+  if (sql.startsWith('select distinct allergen_code') && sql.includes("presence = 'free_from'")) return [];
+  if (sql.startsWith('select id, status, updated_at from public.items')) {
+    return [{ id: params[0] ?? RM_FLOUR, status: 'active', updated_at: new Date().toISOString() }];
+  }
+  if (sql.startsWith('select supplier_code, supplier_status')) {
+    return [{
+      supplier_code: 'SUP-1',
+      supplier_status: 'approved',
+      lifecycle_status: 'active',
+      review_status: 'approved',
+      effective_from: '2020-01-01',
+      expiry_date: '2030-01-01',
+      cost_review_blocked: false,
+      spec_review_blocked: false,
+      updated_at: new Date().toISOString(),
+    }];
+  }
+  if (sql.startsWith('select allergen_code, intensity from public.item_allergen_profiles')) return [];
+  if (sql.startsWith('insert into public.outbox_events')) return [];
+  if (sql.startsWith('insert into public.audit_log')) return [];
+  return null;
+}
+
 function createClient(
   handler: (sql: string, params: readonly unknown[]) => unknown[],
   options?: { hasProcessAssignments?: boolean },
@@ -44,6 +77,8 @@ function createClient(
         if (!(error instanceof Error && error.message.startsWith('Unhandled SQL'))) {
           throw error;
         }
+        const guardFallback = bomActivationGuardDefaults(normalized, params);
+        if (guardFallback) return { rows: guardFallback as never[] };
         if (normalized.includes('group by wp.wip_definition_id')) {
           return { rows: [] as never[] };
         }
@@ -1329,5 +1364,104 @@ describe('materializeNpdBom', () => {
     expect(fgLineInserts[0]?.params[4]).toBe('RM-FLOUR');
     expect(fgLineInserts[0]?.params[5]).toBe('RM');
     expect(client.calls.some((call) => normalize(call.sql).includes('wp.wip_definition_id = $2::uuid'))).toBe(false);
+  });
+
+  it('rejects FG BOM activation when lines would create a cycle (V-TEC-13)', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '100' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [{
+          rm_code: 'FG-001',
+          item_id: ITEM,
+          substitute_item_id: null,
+          qty_kg: '1.000000',
+          sequence: 1,
+          wip_definition_id: null,
+          npd_wip_process_id: null,
+        }];
+      }
+      if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
+      if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
+      if (sql.startsWith('insert into public.items')) return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
+      if (sql.startsWith('update public.items')) return [];
+      if (sql.startsWith('select 1 from public.product')) return [];
+      if (sql.startsWith('insert into public.product')) return [];
+      if (sql.startsWith('update public.formulations')) return [];
+      if (sql.startsWith('select id, wo_reference, status')) return [];
+      if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
+      if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
+      if (sql.startsWith('insert into public.bom_lines')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    });
+
+    await expect(materializeNpdBom(ctx(client), { projectId: PROJECT })).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof NpdBomActivationValidationError &&
+        error.code === 'V-TEC-13' &&
+        error.message.includes('cycle'),
+    );
+
+    const activeFlip = client.calls.find(
+      (call) => normalize(call.sql).includes("set status = 'active'") && normalize(call.sql).includes('approved_by'),
+    );
+    expect(activeFlip).toBeUndefined();
+  });
+
+  it('emits fg.bom.released when a new FG BOM is activated', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '98.500' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [{ rm_code: 'RM-001', item_id: RM_FLOUR, qty_kg: '1.250000', sequence: 1 }];
+      }
+      if (sql.startsWith('insert into public.items')) {
+        return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
+      }
+      if (sql.startsWith('update public.items')) return [];
+      if (sql.startsWith('select 1 from public.product')) return [];
+      if (sql.startsWith('insert into public.product')) return [];
+      if (sql.startsWith('update public.formulations')) return [];
+      if (sql.startsWith('select id, wo_reference, status')) return [];
+      if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
+      if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
+      if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
+      if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
+      if (sql.startsWith('insert into public.bom_lines')) return [];
+      if (sql.startsWith('update public.bom_headers')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
+      if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    });
+
+    await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    const outboxInsert = client.calls.find((call) => normalize(call.sql).startsWith('insert into public.outbox_events'));
+    expect(outboxInsert).toBeDefined();
+    expect(outboxInsert?.params[1]).toBe(FG_BOM_RELEASED_EVENT);
+    expect(outboxInsert?.params[2]).toBe('bom_header');
+    expect(outboxInsert?.params[3]).toBe(BOM);
+    const payload = JSON.parse(String(outboxInsert?.params[4]));
+    expect(payload).toMatchObject({
+      product_id: 'FG-001',
+      version: 1,
+      status: 'active',
+      superseded_header_ids: [],
+      actor_user_id: USER,
+    });
   });
 });

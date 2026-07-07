@@ -24,19 +24,19 @@
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { publishBomVersion } from '../../../../../../../lib/technical/bom-publish-service';
 import { safeRevalidatePath } from './revalidate';
-import { buildGraph, detectCycle } from './cycle-detection';
 import {
   AUDIT_BOM_APPROVE,
   BOM_APPROVE_PERMISSION,
   BOM_VERSION_PUBLISH_PERMISSION,
   type BomWorkflowResult,
   BomVersionRefInput,
+  EVENT_FG_BOM_RELEASED,
   formatRmUsabilityFailures,
   hasPermission,
   isPgError,
   type OrgActionContext,
   type QueryClient,
-  validateBomLineRmUsability,
+  validateBomApprovalGuards,
   writeAudit,
 } from './shared';
 
@@ -75,37 +75,24 @@ export async function approveBom(rawInput: unknown): Promise<BomWorkflowResult> 
         return { ok: false, error: 'conflict', message: `cannot approve from status ${header.status}` };
       }
 
-      // Re-validate cycle-freeness at approve time (red-line).
-      const { rows: edgeRows } = await c.query<{ parent: string; component: string }>(
-        `select i.item_code as parent, l.component_code as component
-           from public.bom_headers h
-           join public.items i on i.id = h.item_id and i.org_id = h.org_id
-           join public.bom_lines l on l.bom_header_id = h.id and l.org_id = h.org_id
-          where h.org_id = app.current_org_id() and h.status = 'active' and h.item_id is not null`,
-      );
       const { rows: thisLines } = await c.query<{ item_id: string | null; component_code: string }>(
         `select item_id, component_code from public.bom_lines
           where org_id = app.current_org_id() and bom_header_id = $1`,
         [header.id],
       );
-      const components = thisLines.map((l) => l.component_code);
-      if (productId && (components.includes(productId) || detectCycle(buildGraph(edgeRows), productId, components))) {
-        return { ok: false, error: 'validation_failed', code: 'V-TEC-13', message: 'BOM has a cycle; cannot approve' };
-      }
-
-      const rmUsabilityFailures = await validateBomLineRmUsability(
+      const guard = await validateBomApprovalGuards(
         c,
-        thisLines.map((l) => ({ itemId: l.item_id, componentCode: l.component_code })),
-        'factory_spec_approval',
         productId,
+        thisLines.map((l) => ({ itemId: l.item_id, componentCode: l.component_code })),
+        { cycleBlockedMessage: 'BOM has a cycle; cannot approve' },
       );
-      if (rmUsabilityFailures.length > 0) {
+      if (!guard.ok) {
         return {
           ok: false,
           error: 'validation_failed',
-          code: 'V-TEC-14',
-          message: formatRmUsabilityFailures(rmUsabilityFailures),
-          rmUsabilityFailures,
+          code: guard.code,
+          message: guard.message,
+          ...(guard.rmUsabilityFailures ? { rmUsabilityFailures: guard.rmUsabilityFailures } : {}),
         };
       }
 

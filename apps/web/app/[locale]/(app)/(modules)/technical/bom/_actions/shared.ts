@@ -37,6 +37,7 @@ import {
   type RmUsabilityContext,
   type RmUsabilityReasonCode,
 } from '../../../../../../../lib/technical/rm-usability';
+import { buildGraph, detectCycle } from './cycle-detection';
 
 // ── RBAC permission strings (packages/rbac/src/permissions.enum.ts) ───────────
 export const BOM_CREATE_PERMISSION = 'technical.bom.create';
@@ -314,6 +315,55 @@ export async function validateBomLineRmUsability(
 
 export function formatRmUsabilityFailures(failures: readonly BomRmUsabilityFailure[]): string {
   return failures.map((failure) => `${failure.componentCode}: ${failure.reasons.join(', ')}`).join('; ');
+}
+
+/** Result of canonical V-TEC-13 (cycle) + V-TEC-14 (RM usability) approval guards. */
+export type BomApprovalGuardResult =
+  | { ok: true }
+  | { ok: false; code: 'V-TEC-13' | 'V-TEC-14'; message: string; rmUsabilityFailures?: BomRmUsabilityFailure[] };
+
+/**
+ * Shared approve-time guards: cycle-freeness over ACTIVE BOMs (V-TEC-13) and
+ * RM usability at factory_spec_approval context (V-TEC-14). Used by approveBom
+ * and NPD BOM activation (createActiveNpdBom).
+ */
+export async function validateBomApprovalGuards(
+  c: QueryClient,
+  productId: string,
+  lines: readonly BomLineUsabilityInput[],
+  options: {
+    cycleBlockedMessage: string;
+    rmUsabilityContext?: RmUsabilityContext;
+  },
+): Promise<BomApprovalGuardResult> {
+  const components = lines.map((line) => line.componentCode);
+  const { rows: edgeRows } = await c.query<{ parent: string; component: string }>(
+    `select i.item_code as parent, l.component_code as component
+       from public.bom_headers h
+       join public.items i on i.id = h.item_id and i.org_id = h.org_id
+       join public.bom_lines l on l.bom_header_id = h.id and l.org_id = h.org_id
+      where h.org_id = app.current_org_id() and h.status = 'active' and h.item_id is not null`,
+  );
+  if (productId && (components.includes(productId) || detectCycle(buildGraph(edgeRows), productId, components))) {
+    return { ok: false, code: 'V-TEC-13', message: options.cycleBlockedMessage };
+  }
+
+  const rmUsabilityFailures = await validateBomLineRmUsability(
+    c,
+    lines,
+    options.rmUsabilityContext ?? 'factory_spec_approval',
+    productId,
+  );
+  if (rmUsabilityFailures.length > 0) {
+    return {
+      ok: false,
+      code: 'V-TEC-14',
+      message: formatRmUsabilityFailures(rmUsabilityFailures),
+      rmUsabilityFailures,
+    };
+  }
+
+  return { ok: true };
 }
 
 function toIso(value: string | Date | null | undefined): string | null {
