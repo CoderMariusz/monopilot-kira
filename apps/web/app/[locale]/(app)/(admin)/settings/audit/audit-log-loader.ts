@@ -215,59 +215,106 @@ async function runAuditQuery(client: QueryClient, input: AuditQueryInput): Promi
   const baseParams = [fromTs, toTs, userFilter, actionFilter, tableFilter, search] as const;
   const allParams = [...baseParams, ...baseParams, limit, offset] as const;
 
+  const combinedAuditCte = `
+    with audit_log_rows as (
+      select
+         al.id::text as id,
+         al.occurred_at,
+         u.name as actor_name,
+         u.email::text as actor_email,
+         al.actor_type,
+         al.action,
+         al.resource_type,
+         al.resource_id,
+         al.before_state,
+         al.after_state,
+         al.request_id::text as request_id,
+         1 as source_priority,
+         al.id::text as source_id
+        from public.audit_log al
+        left join public.users u on u.id = al.actor_user_id
+       where ${auditLogWhere}
+    ),
+    audit_events_rows as (
+      select
+         ('events:' || ae.id::text) as id,
+         ae.occurred_at,
+         u.name as actor_name,
+         u.email::text as actor_email,
+         ae.actor_type,
+         ae.action,
+         ae.resource_type,
+         ae.resource_id,
+         ae.before_state,
+         ae.after_state,
+         ae.request_id::text as request_id,
+         2 as source_priority,
+         ae.id::text as source_id
+        from public.audit_events ae
+        left join public.users u on u.id = ae.actor_user_id
+       where ${auditEventsWhere}
+    ),
+    combined as (
+      select * from audit_log_rows
+      union all
+      select * from audit_events_rows
+    ),
+    deduped as (
+      select distinct on (
+        coalesce(request_id, ''),
+        action,
+        resource_type,
+        resource_id,
+        occurred_at
+      )
+        id,
+        occurred_at,
+        actor_name,
+        actor_email,
+        actor_type,
+        action,
+        resource_type,
+        resource_id,
+        before_state,
+        after_state,
+        request_id,
+        source_priority,
+        source_id
+      from combined
+      order by
+        coalesce(request_id, ''),
+        action,
+        resource_type,
+        resource_id,
+        occurred_at,
+        source_priority asc,
+        source_id desc
+    )`;
+
   const { rows: countRows } = await client.query<{ total: string | number }>(
-    `select count(*)::bigint as total
-       from (
-         select al.id
-           from public.audit_log al
-           left join public.users u on u.id = al.actor_user_id
-          where ${auditLogWhere}
-         union all
-         select ('events:' || ae.id::text) as id
-           from public.audit_events ae
-           left join public.users u on u.id = ae.actor_user_id
-          where ${auditEventsWhere}
-       ) combined`,
+    `${combinedAuditCte}
+     select count(*)::bigint as total
+       from deduped`,
     [...baseParams, ...baseParams],
   );
   const totalCount = Number(countRows[0]?.total ?? 0);
 
   const { rows } = await client.query<AuditRow>(
-    `select *
-       from (
-         select
-            al.id::text as id,
-            al.occurred_at,
-            u.name as actor_name,
-            u.email::text as actor_email,
-            al.actor_type,
-            al.action,
-            al.resource_type,
-            al.resource_id,
-            al.before_state,
-            al.after_state,
-            al.request_id::text as request_id
-           from public.audit_log al
-           left join public.users u on u.id = al.actor_user_id
-          where ${auditLogWhere}
-         union all
-         select
-            ('events:' || ae.id::text) as id,
-            ae.occurred_at,
-            u.name as actor_name,
-            u.email::text as actor_email,
-            ae.actor_type,
-            ae.action,
-            ae.resource_type,
-            ae.resource_id,
-            ae.before_state,
-            ae.after_state,
-            ae.request_id::text as request_id
-           from public.audit_events ae
-           left join public.users u on u.id = ae.actor_user_id
-          where ${auditEventsWhere}
-       ) combined
-      order by combined.occurred_at desc
+    `${combinedAuditCte}
+     select
+        id,
+        occurred_at,
+        actor_name,
+        actor_email,
+        actor_type,
+        action,
+        resource_type,
+        resource_id,
+        before_state,
+        after_state,
+        request_id
+       from deduped
+      order by occurred_at desc, source_priority asc, source_id desc
       limit $13 offset $14`,
     allParams,
   );
