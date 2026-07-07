@@ -31,6 +31,18 @@ const SITE_ID = '12121212-1212-4121-8121-121212121212';
 const MOCK_NEED_DATE = '2026-06-11';
 const MOCK_ISO_WEEK = '2026-W24';
 
+const OPEN_SO_DEMAND_STATUS_EXPECTATION = [
+  'confirmed',
+  'allocated',
+  'partially_picked',
+  'picked',
+  'partially_packed',
+  'packed',
+  'manifested',
+  'shipped',
+  'partially_delivered',
+] as const;
+
 function bucketStartForRunDate(isoDate: string): string {
   return buildMrpBucketDates(isoDate, 1)[0]!;
 }
@@ -64,6 +76,10 @@ let reworkSelfSupply = false;
 let forecastRows: Array<{ product_id: string; uom: string; iso_week: string; qty: string }> = [];
 /** sales_order_lines rows the SO-demand read returns (default none). */
 let soDemandRows: Array<{ product_id: string; uom: string; need_date: string; qty: string }> = [];
+/** Undated confirmed SO line count returned by the warning probe (default none). */
+let undatedSoLinesMock = 0;
+/** When set, flour item carries pack hierarchy for box-UoM SO demand tests. */
+let flourPackHierarchy = false;
 let includeFinishedGood = false;
 let executed: string[] = [];
 /** Captured DDL-shaped INSERT params. */
@@ -317,8 +333,8 @@ function makeClient(): QueryClient {
             item_type: 'rm',
             uom_base: 'kg',
             output_uom: 'base',
-            net_qty_per_each: null,
-            each_per_box: null,
+            net_qty_per_each: flourPackHierarchy ? '50' : null,
+            each_per_box: flourPackHierarchy ? '1' : null,
           },
           {
             id: DOUGH_ID,
@@ -401,18 +417,12 @@ function makeClient(): QueryClient {
         return { rows: forecastRows, rowCount: forecastRows.length };
       }
       if (normalized.includes('from public.sales_order_lines')) {
-        expect(params[0]).toEqual([
-          'confirmed',
-          'allocated',
-          'partially_picked',
-          'picked',
-          'partially_packed',
-          'packed',
-          'manifested',
-          'shipped',
-          'partially_delivered',
-        ]);
+        if (normalized.includes('count(distinct sol.id)')) {
+          return { rows: [{ undated_lines: String(undatedSoLinesMock) }], rowCount: 1 };
+        }
+        expect(params[0]).toEqual([...OPEN_SO_DEMAND_STATUS_EXPECTATION]);
         expect(String(params[1])).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(String(params[2])).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         return { rows: soDemandRows, rowCount: soDemandRows.length };
       }
       if (normalized.includes('from public.purchase_order_lines')) {
@@ -433,6 +443,8 @@ beforeEach(() => {
   reworkSelfSupply = false;
   forecastRows = [];
   soDemandRows = [];
+  undatedSoLinesMock = 0;
+  flourPackHierarchy = false;
   thresholdRows = [];
   includeFinishedGood = false;
   executed = [];
@@ -768,7 +780,7 @@ describe('runMrp', () => {
 
   it('reads sales_order_lines with post-confirm statuses and a horizon-end bind (NN-PLAN-4)', async () => {
     await runMrp();
-    const soSql = executed.find((sql) => sql.includes('from public.sales_order_lines'))!;
+    const soSql = executed.find((sql) => sql.includes('from public.sales_order_lines') && sql.includes('need_date'))!;
     expect(soSql).toContain('app.current_org_id()');
     expect(soSql).toContain('sales_orders so');
     expect(soSql).toContain("so.status = any($1::text[])");
@@ -778,11 +790,85 @@ describe('runMrp', () => {
     expect(soSql).toContain("sh.status in ('shipped', 'delivered')");
     expect(soSql).toContain('quantity_ordered - coalesce(shipped.shipped_qty, 0)');
     expect(soSql).not.toContain('sol.quantity_shipped');
-    expect(soSql).toContain("coalesce(so.promised_ship_date, so.required_delivery_date, so.order_date)");
-    expect(soSql).toContain('<= $2::date');
+    expect(soSql).toContain('sbc.quantity / (i_s.net_qty_per_each * i_s.each_per_box)');
     expect(soSql).toContain("coalesce(sol.ext_data->>'order_uom', i.uom_base)");
+    expect(soSql).toContain('when so.promised_ship_date is null and so.required_delivery_date is null');
+    expect(soSql).toContain('then $3::date');
+    expect(soSql).toContain('<= $2::date');
     expect(soSql).not.toContain("'draft'");
     expect(soSql).not.toContain("'cancelled'");
+  });
+
+  /**
+   * Mirrors the shipped-subquery CASE in mrp.ts — keeps SQL parity testable without a live DB.
+   */
+  function shippedBaseToOrderUom(
+    shippedBaseQty: number,
+    orderUom: string,
+    item: { uom_base: string; net_qty_per_each: number | null; each_per_box: number | null },
+  ): number | null {
+    if (orderUom === item.uom_base || orderUom === 'base') return shippedBaseQty;
+    if (orderUom === 'each') {
+      if (!item.net_qty_per_each || item.net_qty_per_each <= 0) return null;
+      return shippedBaseQty / item.net_qty_per_each;
+    }
+    if (orderUom === 'box') {
+      if (!item.net_qty_per_each || !item.each_per_box || item.net_qty_per_each <= 0 || item.each_per_box <= 0) {
+        return null;
+      }
+      return shippedBaseQty / (item.net_qty_per_each * item.each_per_box);
+    }
+    return null;
+  }
+
+  it('converts shipped base qty to box order_uom before netting open SO demand (P2-05)', () => {
+    const item = { uom_base: 'kg', net_qty_per_each: 50, each_per_box: 1 };
+    const orderedBoxes = 10;
+    const shippedKg = 50; // one full box in inventory/base UoM
+    const shippedInOrderUom = shippedBaseToOrderUom(shippedKg, 'box', item);
+    expect(shippedInOrderUom).toBe(1);
+    expect(Math.max(orderedBoxes - (shippedInOrderUom ?? 0), 0)).toBe(9);
+  });
+
+  it('nets box-UoM SO remainder after shipped conversion through computeMrpPhased (P2-05)', async () => {
+    // SQL remainder: 10 box ordered − 1 box shipped (50 kg) = 9 box → 450 kg base demand.
+    flourPackHierarchy = true;
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'box', need_date: MOCK_NEED_DATE, qty: '9.000' }];
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.soDemand).toBe('450.000');
+    expect(flour.demand).toBe('530.000'); // 80 dependent + 450 SO
+  });
+
+  it('buckets undated confirmed SO demand on the run date and surfaces a warning (P2-06)', async () => {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', need_date: todayIso, qty: '12.000' }];
+    undatedSoLinesMock = 1;
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.warnings).toEqual({ undatedSoLines: 1 });
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.soDemand).toBe('12.000');
+    const firstBucket = result.data.bucketRows.find((r) => r.itemCode === 'RM-FLOUR' && r.bucketIndex === 0)!;
+    expect(firstBucket.soDemand).toBe('12.000');
+  });
+
+  it('does not count draft/cancelled SO statuses in open demand filters (P2-06 guard)', async () => {
+    await runMrp();
+    const soSql = executed.find((sql) => sql.includes('from public.sales_order_lines') && sql.includes('need_date'))!;
+    expect(soSql).toContain("so.status = any($1::text[])");
+    expect(soSql).not.toContain("'draft'");
+    expect(soSql).not.toContain("'cancelled'");
+    expect(OPEN_SO_DEMAND_STATUS_EXPECTATION).not.toContain('draft');
+    expect(OPEN_SO_DEMAND_STATUS_EXPECTATION).not.toContain('cancelled');
+    expect(OPEN_SO_DEMAND_STATUS_EXPECTATION).not.toContain('delivered');
   });
 
   it('nets partial SO shipment as ordered minus shipped aggregate (6 of 10 → demand 4)', async () => {
