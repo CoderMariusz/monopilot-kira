@@ -17,7 +17,7 @@ type OrgActionContext = {
   client: QueryClient;
 };
 
-type LineStatus = 'draft' | 'active';
+type LineStatus = 'draft' | 'active' | 'inactive';
 type LineRow = { id: string; code: string; name: string; status: LineStatus; default_output_location_id: string | null };
 type WarehouseRow = { id: string };
 type LocationWarehouseRow = { warehouse_id: string | null };
@@ -54,7 +54,7 @@ const LineInput = z.object({
   defaultOutputLocationId: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
   code: z.string().trim().min(1).max(64).transform((value) => value.toUpperCase()).pipe(z.string().regex(/^[A-Z0-9][A-Z0-9_-]{0,63}$/)),
   name: z.string().trim().min(1).max(128),
-  status: z.enum(['draft', 'active']),
+  status: z.enum(['draft', 'active', 'inactive']),
 });
 
 export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {

@@ -33,26 +33,33 @@ const DEFAULT_LABELS: LinesLabels = {
   columnLine: 'Line',
   columnDefaultLocation: 'Default location',
   columnStatus: 'Status',
+  columnActions: 'Actions',
+  editLine: 'Edit',
   warehouseFilter: 'Warehouse',
   allWarehouses: 'All warehouses',
   statusFilter: 'Status',
   statusAll: 'All statuses',
   statusActive: 'Active',
   statusDraft: 'Draft',
+  statusInactive: 'Inactive',
   bulkActivate: 'Bulk Activate',
   bulkActivatePending: 'Activating…',
   bulkDeactivate: 'Bulk Deactivate',
   bulkDeactivatePending: 'Deactivating…',
   addLine: 'Add line',
   dialogAddTitle: 'Add production line',
+  dialogEditTitle: 'Edit production line',
   fieldCode: 'Code',
   fieldName: 'Name',
   fieldSite: 'Site',
   fieldStatus: 'Status',
   createLine: 'Create line',
   createLinePending: 'Creating…',
+  updateLine: 'Save changes',
+  updateLinePending: 'Saving…',
   cancel: 'Cancel',
   createLineSuccess: 'Production line created.',
+  updateLineSuccess: 'Production line updated.',
   createLineFailed: 'Production line could not be created.',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
   selectLine: 'Select {name}',
@@ -80,6 +87,7 @@ type LineRow = {
   line_code: string;
   line_name: string;
   line_status: LineStatus | string;
+  site_id: string | null;
   default_location_id: string | null;
   location_path: string | null;
   location_name: string | null;
@@ -155,6 +163,7 @@ function toProductionLines(rows: LineRow[]): ProductionLine[] {
     code: row.line_code,
     name: row.line_name,
     status: normalizeStatus(row.line_status),
+    siteId: row.site_id,
     defaultLocationId: row.default_location_id,
     defaultLocationBreadcrumb: row.location_path ?? row.location_name,
     warehouseId: row.warehouse_id,
@@ -208,6 +217,7 @@ async function loadLines(): Promise<LinesRuntime> {
                   pl.code as line_code,
                   pl.name as line_name,
                   pl.status as line_status,
+                  pl.site_id::text as site_id,
                   pl.default_location_id,
                   l.path as location_path,
                   l.name as location_name,

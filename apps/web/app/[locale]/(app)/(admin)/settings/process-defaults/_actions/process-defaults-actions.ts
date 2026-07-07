@@ -67,7 +67,7 @@ async function selectLaborRateRoleGroupRates({ client }: OrgContextLike): Promis
        from public.labor_rates
       where org_id = app.current_org_id()
         and effective_from <= current_date
-      order by lower(role_group), effective_from desc`,
+      order by lower(role_group), effective_from desc, created_at desc`,
   );
   return rows.map((row) => ({ roleGroup: row.role_group, ratePerHour: Number(row.rate_per_hour) }));
 }

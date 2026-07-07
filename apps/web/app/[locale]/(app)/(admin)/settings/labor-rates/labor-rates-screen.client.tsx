@@ -10,10 +10,12 @@
  *   (loading / empty-with-CTA / error / data + permission-denied).
  *
  * HISTORY MODEL (hard rule): a new effective date = a NEW row. Historical rates
- * are preserved and are NEVER edited in place — so there is intentionally no
- * per-row Edit affordance. The modal always CREATES (the backend upsert only
- * collapses onto an existing row when both it and the new date are today/future,
- * which is the "fix a not-yet-active rate" case, not a history rewrite).
+ * are preserved and are NEVER edited in place — there is intentionally no
+ * per-row Edit affordance. Use "Correct" to supersede a row: the modal opens
+ * prefilled and saving INSERTs a new row (same effective_from allowed); latest
+ * created_at wins for equal dates. The backend upsert only collapses onto an
+ * existing row when both it and the new date are today/future AND an id is
+ * passed — the "fix a not-yet-active rate" case, not a history rewrite.
  *
  * No raw UUIDs: rows are keyed by id (data-* hook) but render role/rate/currency/
  * date only. RBAC (settings.org.update) is resolved server-side and threaded in as
@@ -38,6 +40,7 @@ export type LaborRateRow = {
   ratePerHour: number;
   currency: string;
   effectiveFrom: string;
+  createdAt?: string;
 };
 
 export type UpsertLaborRateInput = {
@@ -65,11 +68,14 @@ export type LaborRatesLabels = {
   columnCurrency: string;
   columnEffectiveFrom: string;
   columnStatus: string;
+  columnActions: string;
+  correctRate: string;
   statusCurrent: string;
   statusFuture: string;
   statusSuperseded: string;
   historyNote: string;
   dialogAddTitle: string;
+  dialogCorrectTitle: string;
   fieldRole: string;
   fieldRoleHelp: string;
   fieldRate: string;
@@ -81,6 +87,7 @@ export type LaborRatesLabels = {
   savePending: string;
   cancel: string;
   createSuccess: string;
+  correctSuccess: string;
   saveFailed: string;
   invalidInput: string;
   insufficientPermission: string;
@@ -117,8 +124,15 @@ function rateStatus(row: LaborRateRow, rows: LaborRateRow[], today: string): 'cu
   const peers = rows.filter(
     (r) => r.roleGroup === row.roleGroup && r.currency === row.currency && r.effectiveFrom <= today,
   );
-  const latest = peers.reduce((max, r) => (r.effectiveFrom > max ? r.effectiveFrom : max), '');
-  return row.effectiveFrom === latest ? 'current' : 'superseded';
+  const latestEffective = peers.reduce((max, r) => (r.effectiveFrom > max ? r.effectiveFrom : max), '');
+  if (row.effectiveFrom < latestEffective) return 'superseded';
+  const sameDatePeers = peers.filter((r) => r.effectiveFrom === latestEffective);
+  const winner = sameDatePeers.reduce((best, r) => {
+    const bestTs = best.createdAt ?? '';
+    const rowTs = r.createdAt ?? '';
+    return rowTs > bestTs ? r : best;
+  });
+  return winner.id === row.id ? 'current' : 'superseded';
 }
 
 function StateNotice({ state, labels }: { state: PageState; labels: LaborRatesLabels }) {
@@ -144,6 +158,7 @@ export default function LaborRatesScreen({
 }) {
   const [rows, setRows] = React.useState<LaborRateRow[]>(() => [...initialRates]);
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [dialogMode, setDialogMode] = React.useState<'add' | 'correct'>('add');
   const [draft, setDraft] = React.useState<Draft>(emptyDraft);
   const [pending, setPending] = React.useState(false);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
@@ -155,7 +170,21 @@ export default function LaborRatesScreen({
 
   function openAdd() {
     if (!canManage) return;
+    setDialogMode('add');
     setDraft(emptyDraft());
+    setActionError(null);
+    setDialogOpen(true);
+  }
+
+  function openCorrect(rate: LaborRateRow) {
+    if (!canManage) return;
+    setDialogMode('correct');
+    setDraft({
+      roleGroup: rate.roleGroup,
+      rate: String(rate.ratePerHour),
+      currency: rate.currency,
+      effectiveFrom: rate.effectiveFrom,
+    });
     setActionError(null);
     setDialogOpen(true);
   }
@@ -188,15 +217,20 @@ export default function LaborRatesScreen({
         ratePerHour: rateValue,
         currency: draft.currency,
         effectiveFrom: draft.effectiveFrom,
+        createdAt: new Date().toISOString(),
       };
       setRows((current) => {
         const without = current.filter((row) => row.id !== saved.id);
         return [saved, ...without].sort(
-          (a, b) => a.roleGroup.localeCompare(b.roleGroup) || b.effectiveFrom.localeCompare(a.effectiveFrom),
+          (a, b) =>
+            a.roleGroup.localeCompare(b.roleGroup)
+            || b.effectiveFrom.localeCompare(a.effectiveFrom)
+            || (b.createdAt ?? '').localeCompare(a.createdAt ?? ''),
         );
       });
-      setStatusMessage(labels.createSuccess);
+      setStatusMessage(dialogMode === 'correct' ? labels.correctSuccess : labels.createSuccess);
       setDialogOpen(false);
+      setDialogMode('add');
       setDraft(emptyDraft());
     } catch {
       setActionError(labels.saveFailed);
@@ -258,9 +292,9 @@ export default function LaborRatesScreen({
           <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
             <div className="flex items-start justify-between gap-3">
               <h2 id="labor-rate-dialog-title" className="text-lg font-semibold text-slate-950">
-                {labels.dialogAddTitle}
+                {dialogMode === 'correct' ? labels.dialogCorrectTitle : labels.dialogAddTitle}
               </h2>
-              <Button type="button" variant="dry-run" aria-label={labels.cancel} onClick={() => setDialogOpen(false)} disabled={pending}>
+              <Button type="button" variant="dry-run" aria-label={labels.cancel} onClick={() => { setDialogOpen(false); setDialogMode('add'); }} disabled={pending}>
                 x
               </Button>
             </div>
@@ -335,7 +369,7 @@ export default function LaborRatesScreen({
                 <span className="text-[11px] font-normal normal-case text-slate-500">{labels.fieldEffectiveFromHelp}</span>
               </label>
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="dry-run" onClick={() => setDialogOpen(false)} disabled={pending}>
+                <Button type="button" variant="dry-run" onClick={() => { setDialogOpen(false); setDialogMode('add'); }} disabled={pending}>
                   {labels.cancel}
                 </Button>
                 <Button
@@ -364,6 +398,7 @@ export default function LaborRatesScreen({
                   <TableHead scope="col" className="px-4 py-3">{labels.columnCurrency}</TableHead>
                   <TableHead scope="col" className="px-4 py-3">{labels.columnEffectiveFrom}</TableHead>
                   <TableHead scope="col" className="px-4 py-3">{labels.columnStatus}</TableHead>
+                  <TableHead scope="col" className="px-4 py-3">{labels.columnActions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-slate-100">
@@ -389,6 +424,19 @@ export default function LaborRatesScreen({
                         >
                           {statusLabel(status)}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
+                        <Button
+                          type="button"
+                          variant="dry-run"
+                          className="btn-secondary"
+                          disabled={!canManage}
+                          title={!canManage ? labels.insufficientPermission : undefined}
+                          aria-label={canManage ? `${labels.correctRate} ${rate.roleGroup}` : `${labels.correctRate} — ${labels.insufficientPermission}`}
+                          onClick={() => openCorrect(rate)}
+                        >
+                          {labels.correctRate}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );

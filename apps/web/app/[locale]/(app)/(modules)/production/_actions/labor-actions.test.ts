@@ -6,6 +6,7 @@ import {
   getWoLaborSummary,
   upsertLaborRate,
 } from './labor-actions';
+import { pickPrecedingLaborRate } from './labor-rate-pick';
 import type { QueryClient } from '../../../../../../lib/production/shared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -58,11 +59,11 @@ function makeClient(): QueryClient {
       queries.push({ sql, params });
       const n = normalize(sql);
 
-      if (n.startsWith('select true as ok') && n.includes('from public.user_roles')) {
+      if (n.includes('from public.user_roles ur') && n.includes(') as ok')) {
         const permission = String(params[2] ?? '');
         return state.permissions.has(permission)
           ? { rows: [{ ok: true }], rowCount: 1 }
-          : { rows: [], rowCount: 0 };
+          : { rows: [{ ok: false }], rowCount: 1 };
       }
       if (n.startsWith('update public.wo_labor_log') && n.includes('and ($2::uuid is null or wo_id = $2::uuid)')) {
         return {
@@ -188,6 +189,33 @@ describe('getWoLaborSummary', () => {
   });
 });
 
+describe('pickPrecedingLaborRate', () => {
+  it('picks the row with the latest created_at when effective_from matches', () => {
+    const winner = pickPrecedingLaborRate([
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        siteId: null,
+        roleGroup: 'operator',
+        ratePerHour: 20,
+        currency: 'USD',
+        effectiveFrom: '2026-01-01',
+        createdAt: '2026-01-01T10:00:00.000Z',
+      },
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        siteId: null,
+        roleGroup: 'operator',
+        ratePerHour: 22.5,
+        currency: 'USD',
+        effectiveFrom: '2026-01-01',
+        createdAt: '2026-06-01T10:00:00.000Z',
+      },
+    ]);
+
+    expect(winner?.id).toBe('22222222-2222-4222-8222-222222222222');
+  });
+});
+
 describe('upsertLaborRate', () => {
   it('inserts a new row when the existing effective_from is in the past', async () => {
     state.existingRate = { id: RATE_ID, effective_from: '2026-01-01' };
@@ -204,8 +232,37 @@ describe('upsertLaborRate', () => {
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.labor_rates'))).toBe(false);
     const insert = queries.find((q) => normalize(q.sql).startsWith('insert into public.labor_rates'));
     expect(insert?.params).toEqual(['operator', '25.5000', 'GBP', '2026-06-23', USER_ID]);
-    expect(normalize(insert?.sql ?? '')).toContain(
-      'on conflict on constraint labor_rates_org_role_eff_unique do update set rate_per_hour = excluded.rate_per_hour, currency = excluded.currency, created_by = excluded.created_by',
-    );
+    expect(normalize(insert?.sql ?? '')).not.toContain('on conflict');
+  });
+
+  it('inserts a superseding row for a correction without id (same effective_from)', async () => {
+    const result = await upsertLaborRate({
+      roleGroup: 'operator',
+      ratePerHour: 23,
+      currency: 'USD',
+      effectiveFrom: '2026-01-01',
+    });
+
+    expect(result).toEqual({ ok: true, id: NEW_RATE_ID });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.labor_rates'))).toBe(false);
+    const insert = queries.find((q) => normalize(q.sql).startsWith('insert into public.labor_rates'));
+    expect(insert?.params).toEqual(['operator', '23.0000', 'USD', '2026-01-01', USER_ID]);
+    expect(normalize(insert?.sql ?? '')).not.toContain('on conflict');
+  });
+
+  it('updates in place when id is passed for a future-dated row', async () => {
+    state.existingRate = { id: RATE_ID, effective_from: '2026-06-25' };
+
+    const result = await upsertLaborRate({
+      id: RATE_ID,
+      roleGroup: 'operator',
+      ratePerHour: 24,
+      currency: 'USD',
+      effectiveFrom: '2026-06-25',
+    });
+
+    expect(result).toEqual({ ok: true, id: RATE_ID });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.labor_rates'))).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.labor_rates'))).toBe(false);
   });
 });

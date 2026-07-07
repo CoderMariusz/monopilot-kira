@@ -259,7 +259,7 @@ async function getCurrentLaborRate(ctx: OrgContextLike, roleGroup: string): Prom
       where org_id = app.current_org_id()
         and role_group = $1
         and effective_from <= current_date
-      order by effective_from desc
+      order by effective_from desc, created_at desc
       limit 1`,
     [roleGroup],
   );

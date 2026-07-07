@@ -74,6 +74,7 @@ export type LaborRateRow = {
   ratePerHour: number;
   currency: string;
   effectiveFrom: string;
+  createdAt: string;
 };
 
 export type ListLaborRatesResult =
@@ -89,6 +90,7 @@ type LaborRateDbRow = {
   rate_per_hour: string;
   currency: string;
   effective_from: string;
+  created_at: string;
 };
 type LaborSummaryRow = {
   log_id: string;
@@ -153,6 +155,7 @@ function mapLaborRate(row: LaborRateDbRow): LaborRateRow {
     ratePerHour: Number(Dec.from(row.rate_per_hour).toFixed(4)),
     currency: row.currency,
     effectiveFrom: row.effective_from,
+    createdAt: row.created_at,
   };
 }
 
@@ -403,11 +406,6 @@ export async function upsertLaborRate(input: UpsertLaborRateInput): Promise<Upse
         `insert into public.labor_rates
            (org_id, role_group, rate_per_hour, currency, effective_from, created_by)
          values (app.current_org_id(), $1, $2::numeric, $3, $4::date, $5::uuid)
-         on conflict on constraint labor_rates_org_role_eff_unique
-         do update set
-           rate_per_hour = excluded.rate_per_hour,
-           currency = excluded.currency,
-           created_by = excluded.created_by
          returning id::text as id`,
         [roleGroup, rate, currency, effectiveFrom, userId],
       );
@@ -435,10 +433,11 @@ export async function listLaborRates(): Promise<ListLaborRatesResult> {
                 role_group,
                 rate_per_hour::text as rate_per_hour,
                 currency,
-                to_char(effective_from, 'YYYY-MM-DD') as effective_from
+                to_char(effective_from, 'YYYY-MM-DD') as effective_from,
+                to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at
            from public.labor_rates
           where org_id = app.current_org_id()
-          order by role_group asc, effective_from desc`,
+          order by role_group asc, effective_from desc, created_at desc`,
       );
 
       return { ok: true, rates: rows.map(mapLaborRate) };

@@ -12,6 +12,7 @@ const SETUP_WO_ID = '77777777-7777-4777-8777-777777777777';
 const FRACTIONAL_WO_ID = '88888888-8888-4888-8888-888888888888';
 const DEDUP_MO_WO_ID = '99999999-9999-4999-8999-999999999999';
 const DEDUP_SETUP_WO_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const CORRECTION_WO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 type QueryCall = { sql: string; params: unknown[] };
 
@@ -56,7 +57,7 @@ const client = {
     }
 
     if (normalized.includes('from public.wo_material_consumption')) {
-      if (params?.[0] === CREW_WO_ID) return { rows: [], rowCount: 0 };
+      if (params?.[0] === CREW_WO_ID || params?.[0] === CORRECTION_WO_ID) return { rows: [], rowCount: 0 };
       if (params?.[0] === COSTED_WO_ID) {
         return {
           rows: [
@@ -84,6 +85,24 @@ const client = {
     }
 
     if (normalized.includes('from public.wo_operations')) {
+      if (params?.[0] === CORRECTION_WO_ID) {
+        return {
+          rows: [
+            {
+              operation_name: 'CUTTING',
+              row_key: null,
+              cost_mode: 'per_hour',
+              cost_rate: '75.0000',
+              currency: 'GBP',
+              staffing_count: '1',
+              setup_cost: null,
+              expected_duration_minutes: '60',
+              has_labor_rate: true,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
       if (params?.[0] === CREW_WO_ID) {
         return {
           rows: [
@@ -314,6 +333,31 @@ describe('computeWoActualCost crew labor path', () => {
     expect(processQuery?.sql).toContain('public.npd_process_default_roles');
     expect(processQuery?.sql).not.toContain('fallback_op_rate');
     expect(processQuery?.sql).not.toContain('null::text as setup_cost');
+  });
+
+  it('crew labor-rate lookup orders by created_at so same-date corrections win', async () => {
+    const sameDateRates = [
+      { effective_from: '2026-06-01', created_at: '2026-06-01T10:00:00.000Z', rate_per_hour: '50' },
+      { effective_from: '2026-06-01', created_at: '2026-06-01T14:00:00.000Z', rate_per_hour: '75' },
+    ];
+    const winner = [...sameDateRates].sort((a, b) => {
+      const byDate = b.effective_from.localeCompare(a.effective_from);
+      return byDate !== 0 ? byDate : b.created_at.localeCompare(a.created_at);
+    })[0];
+    expect(winner.rate_per_hour).toBe('75');
+
+    const result = await computeWoActualCost(CORRECTION_WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.labor).toMatchObject({
+      runtimeMin: '60.000',
+      ratePerHour: '75.0000',
+      cost: '75.0000',
+    });
+
+    const processQuery = calls.find((call) => call.sql.includes('from public.wo_operations'));
+    expect(processQuery?.sql).toContain('order by lr.effective_from desc, lr.created_at desc');
   });
 
   it('costs a crew-less WO via npd_process_default_roles defaults', async () => {

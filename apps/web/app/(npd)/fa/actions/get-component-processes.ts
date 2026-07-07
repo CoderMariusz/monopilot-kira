@@ -158,7 +158,7 @@ export async function getComponentProcesses(prodDetailId: string): Promise<
                     where org_id = $2::uuid
                       and role_group = any($1::text[])
                       and effective_from <= current_date
-                    order by role_group asc, effective_from desc`,
+                    order by role_group asc, effective_from desc, created_at desc`,
                   [roleGroups, ctx.orgId],
                 )
               : { rows: [] as LaborRateRow[] };
@@ -224,7 +224,7 @@ export async function getComponentProcesses(prodDetailId: string): Promise<
                 where org_id = $2::uuid
                   and role_group = any($1::text[])
                   and effective_from <= current_date
-                order by role_group asc, effective_from desc`,
+                order by role_group asc, effective_from desc, created_at desc`,
               [roleGroups, ctx.orgId],
             )
           : { rows: [] };

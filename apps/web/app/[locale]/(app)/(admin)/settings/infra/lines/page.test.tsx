@@ -39,6 +39,10 @@ const labels: Record<string, string> = {
   bulkDeactivate: 'Bulk Deactivate',
   bulkDeactivatePending: 'Deactivating…',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
+  editLine: 'Edit',
+  dialogEditTitle: 'Edit production line',
+  updateLine: 'Save changes',
+  updateLineSuccess: 'Production line updated.',
   unavailable: '—',
 };
 
@@ -96,7 +100,7 @@ type LinesPageProps = {
   canUpdateInfra?: boolean;
   activateLine?: (input: ActivateLineInput) => Promise<ActivateLineResult>;
   deactivateLine?: (input: DeactivateLineInput) => Promise<DeactivateLineResult>;
-  createLine?: (input: { code: string; name: string; siteId?: string | null; warehouseId?: string | null; status: 'draft' | 'active' }) => Promise<{ ok: true; data: { id: string; status: 'draft' | 'active' } } | { ok: false; error?: string }>;
+  createLine?: (input: { id?: string | null; code: string; name: string; siteId?: string | null; warehouseId?: string | null; defaultOutputLocationId?: string | null; status: 'draft' | 'active' | 'inactive' }) => Promise<{ ok: true; data: { id: string; status: 'draft' | 'active' | 'inactive' } } | { ok: false; error?: string }>;
 };
 
 type LinesPage = (props: LinesPageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -415,6 +419,40 @@ describe('SET-018 line list behavior', () => {
       status: 'active',
     }));
     expect(lineRow(/new packing line.*line-new.*active/i)).toBeInTheDocument();
+  });
+
+  it('opens Edit on a row, prefills the create dialog and passes id to upsertLine', async () => {
+    const user = userEvent.setup();
+    const createLine = vi.fn(async (input) => ({
+      ok: true as const,
+      data: { id: line4.id, status: input.status },
+    }));
+    await renderLinesPage({
+      createLine,
+      lines: [{
+        ...line4,
+        warehouseId: availableWarehouses[0].id,
+        warehouseName: availableWarehouses[0].name,
+        defaultLocationId: null,
+      }],
+    });
+
+    const row = lineRow(/cheese packing line.*line-4/i);
+    await user.click(within(row).getByRole('button', { name: /edit cheese packing line/i }));
+    const dialog = await screen.findByRole('dialog', { name: /edit production line/i });
+    expect(within(dialog).getByLabelText(/^code$/i)).toHaveValue('LINE-4');
+    expect(within(dialog).getByLabelText(/^name$/i)).toHaveValue('Cheese packing line');
+    await user.clear(within(dialog).getByLabelText(/^name$/i));
+    await user.type(within(dialog).getByLabelText(/^name$/i), 'Cheese packing line updated');
+    await user.click(within(dialog).getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(createLine).toHaveBeenCalledWith(expect.objectContaining({
+      id: line4.id,
+      code: 'LINE-4',
+      name: 'Cheese packing line updated',
+      status: 'draft',
+    })));
+    expect(lineRow(/cheese packing line updated.*line-4/i)).toBeInTheDocument();
   });
 
   it('activateProductionLine activates a line with zero machines and no precondition query', async () => {

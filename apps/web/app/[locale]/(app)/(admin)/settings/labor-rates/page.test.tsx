@@ -27,6 +27,53 @@ vi.mock('../../../(modules)/production/_actions/labor-actions', () => ({
 
 vi.mock('next/navigation', () => ({ redirect: vi.fn(), notFound: vi.fn() }));
 
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async () => (labelKey: string) => {
+    const map: Record<string, string> = {
+      eyebrow: 'Labor',
+      title: 'Labor rates',
+      subtitle: 'Hourly labor rates by role or group.',
+      sectionTitle: 'Configured rates',
+      provenance: 'Rates are stored per organization.',
+      addRate: 'New rate',
+      emptyCta: 'Add the first rate',
+      columnRole: 'Role / group',
+      columnRate: 'Rate / h',
+      columnCurrency: 'Currency',
+      columnEffectiveFrom: 'Effective from',
+      columnStatus: 'Status',
+      columnActions: 'Actions',
+      correctRate: 'Correct',
+      statusCurrent: 'Current',
+      statusFuture: 'Scheduled',
+      statusSuperseded: 'Superseded',
+      historyNote: 'Each effective date is a separate row — older rates stay for historical cost accuracy and are never edited in place. Use Correct to supersede a rate with a new row.',
+      dialogAddTitle: 'New labor rate',
+      dialogCorrectTitle: 'Correct labor rate',
+      fieldRole: 'Role / group',
+      fieldRoleHelp: 'Matches a role slug, code or name (e.g. operator, packer).',
+      fieldRate: 'Rate per hour',
+      fieldRateHelp: 'Hourly cost in the chosen currency.',
+      fieldCurrency: 'Currency',
+      fieldEffectiveFrom: 'Effective from',
+      fieldEffectiveFromHelp: 'A new effective date creates a new rate row; the previous rate is kept.',
+      save: 'Add rate',
+      savePending: 'Adding…',
+      cancel: 'Cancel',
+      createSuccess: 'Labor rate added.',
+      correctSuccess: 'Corrected labor rate saved as a new row.',
+      saveFailed: 'The rate could not be saved. Check the fields and try again.',
+      invalidInput: 'Enter a role, a non-negative rate, a valid currency and date.',
+      insufficientPermission: 'settings.org.update permission is required to manage labor rates.',
+      loading: 'Loading labor rates…',
+      empty: 'No labor rates configured yet.',
+      error: 'Labor rates could not be loaded. Please retry shortly.',
+      forbidden: 'You do not have permission to view labor rates.',
+    };
+    return map[labelKey] ?? labelKey;
+  }),
+}));
+
 const RATE_CURRENT = '11111111-1111-4111-8111-111111111111';
 const RATE_OLD = '22222222-2222-4222-8222-222222222222';
 const NEW_RATE = '33333333-3333-4333-8333-333333333333';
@@ -37,6 +84,7 @@ type LaborRateRow = {
   ratePerHour: number;
   currency: string;
   effectiveFrom: string;
+  createdAt?: string;
 };
 type UpsertInput = {
   id?: string | null;
@@ -59,8 +107,8 @@ type LaborRatesPageProps = {
 type LaborRatesPage = (props: LaborRatesPageProps) => React.ReactNode | Promise<React.ReactNode>;
 
 const rates: LaborRateRow[] = [
-  { id: RATE_CURRENT, roleGroup: 'operator', ratePerHour: 22.5, currency: 'USD', effectiveFrom: '2026-01-01' },
-  { id: RATE_OLD, roleGroup: 'operator', ratePerHour: 20, currency: 'USD', effectiveFrom: '2025-01-01' },
+  { id: RATE_CURRENT, roleGroup: 'operator', ratePerHour: 22.5, currency: 'USD', effectiveFrom: '2026-01-01', createdAt: '2026-06-01T10:00:00.000Z' },
+  { id: RATE_OLD, roleGroup: 'operator', ratePerHour: 20, currency: 'USD', effectiveFrom: '2025-01-01', createdAt: '2025-01-01T10:00:00.000Z' },
 ];
 
 async function loadPage(): Promise<LaborRatesPage> {
@@ -125,11 +173,11 @@ describe('E4B labor-rates screen', () => {
     expectNoRawUuids();
   });
 
-  it('makes the history model explicit (no in-place edit of historical rates)', async () => {
+  it('makes the history model explicit and exposes per-row Correct (no in-place edit)', async () => {
     await renderPage();
     expect(screen.getByTestId('labor-rates-history-note')).toBeInTheDocument();
-    // there is intentionally NO per-row edit affordance
     expect(screen.queryByRole('button', { name: /^edit/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /correct operator/i }).length).toBeGreaterThan(0);
   });
 
   it('renders the loading state', async () => {
@@ -186,6 +234,28 @@ describe('E4B labor-rates screen', () => {
         effectiveFrom: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       }),
     );
+    expect(upsertLaborRate).toHaveBeenCalledWith(expect.not.objectContaining({ id: expect.anything() }));
+  });
+
+  it('Correct opens the prefilled dialog and creates a superseding row without id', async () => {
+    const user = userEvent.setup();
+    const { upsertLaborRate } = await renderPage();
+    const row = screen.getAllByTestId('settings-labor-rate-row')[0];
+    await user.click(within(row).getByRole('button', { name: /correct operator/i }));
+    const dialog = screen.getByRole('dialog', { name: /correct labor rate/i });
+    expect(within(dialog).getByLabelText(/role \/ group/i)).toHaveValue('operator');
+    expect(within(dialog).getByLabelText(/rate per hour/i)).toHaveValue(22.5);
+    await user.clear(within(dialog).getByLabelText(/rate per hour/i));
+    await user.type(within(dialog).getByLabelText(/rate per hour/i), '24');
+    await user.click(within(dialog).getByRole('button', { name: /add rate/i }));
+    await waitFor(() => expect(upsertLaborRate).toHaveBeenCalledTimes(1));
+    expect(upsertLaborRate).toHaveBeenCalledWith({
+      roleGroup: 'operator',
+      ratePerHour: 24,
+      currency: 'USD',
+      effectiveFrom: '2026-01-01',
+    });
+    expect(upsertLaborRate).not.toHaveBeenCalledWith(expect.objectContaining({ id: RATE_CURRENT }));
   });
 
   it('surfaces a save error when upsertLaborRate returns forbidden', async () => {

@@ -35,6 +35,7 @@ export type ProductionLine = {
   code: string;
   name: string;
   status: LineStatus;
+  siteId?: string | null;
   defaultLocationId?: string | null;
   defaultLocationBreadcrumb?: string | null;
   warehouseId?: string | null;
@@ -44,15 +45,16 @@ export type ProductionLine = {
 export type ActivateLineInput = { lineId: string };
 export type DeactivateLineInput = { lineId: string };
 export type CreateLineInput = {
+  id?: string | null;
   siteId?: string | null;
   warehouseId?: string | null;
   defaultOutputLocationId?: string | null;
   code: string;
   name: string;
-  status: 'draft' | 'active';
+  status: LineStatus;
 };
 export type CreateLineResult =
-  | { ok: true; data: { id: string; status: 'draft' | 'active' } }
+  | { ok: true; data: { id: string; status: LineStatus } }
   | { ok: false; error?: string };
 
 export type ActivateLineResult =
@@ -76,26 +78,33 @@ export type LinesLabels = {
   columnLine: string;
   columnDefaultLocation: string;
   columnStatus: string;
+  columnActions: string;
+  editLine: string;
   warehouseFilter: string;
   allWarehouses: string;
   statusFilter: string;
   statusAll: string;
   statusActive: string;
   statusDraft: string;
+  statusInactive: string;
   bulkActivate: string;
   bulkActivatePending: string;
   bulkDeactivate: string;
   bulkDeactivatePending: string;
   addLine: string;
   dialogAddTitle: string;
+  dialogEditTitle: string;
   fieldCode: string;
   fieldName: string;
   fieldSite: string;
   fieldStatus: string;
   createLine: string;
   createLinePending: string;
+  updateLine: string;
+  updateLinePending: string;
   cancel: string;
   createLineSuccess: string;
+  updateLineSuccess: string;
   createLineFailed: string;
   insufficientPermission: string;
   selectLine: string;
@@ -116,26 +125,33 @@ export const DEFAULT_LINES_LABELS: LinesLabels = {
   columnLine: 'Line',
   columnDefaultLocation: 'Default location',
   columnStatus: 'Status',
+  columnActions: 'Actions',
+  editLine: 'Edit',
   warehouseFilter: 'Warehouse',
   allWarehouses: 'All warehouses',
   statusFilter: 'Status',
   statusAll: 'All statuses',
   statusActive: 'Active',
   statusDraft: 'Draft',
+  statusInactive: 'Inactive',
   bulkActivate: 'Bulk Activate',
   bulkActivatePending: 'Activating…',
   bulkDeactivate: 'Bulk Deactivate',
   bulkDeactivatePending: 'Deactivating…',
   addLine: 'Add line',
   dialogAddTitle: 'Add production line',
+  dialogEditTitle: 'Edit production line',
   fieldCode: 'Code',
   fieldName: 'Name',
   fieldSite: 'Site',
   fieldStatus: 'Status',
   createLine: 'Create line',
   createLinePending: 'Creating…',
+  updateLine: 'Save changes',
+  updateLinePending: 'Saving…',
   cancel: 'Cancel',
   createLineSuccess: 'Production line created.',
+  updateLineSuccess: 'Production line updated.',
   createLineFailed: 'Production line could not be created.',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
   selectLine: 'Select {name}',
@@ -169,6 +185,7 @@ function formatSelectLabel(template: string, line: ProductionLine) {
 function formatStatus(label: LinesLabels, status: LineStatus) {
   if (status === 'active') return label.statusActive;
   if (status === 'draft') return label.statusDraft;
+  if (status === 'inactive') return label.statusInactive;
   return status;
 }
 
@@ -225,6 +242,7 @@ export function LineCreateFields({
   locations,
   pending,
   siteReadOnlyLabel,
+  editing,
   onChange,
 }: {
   labels: LinesLabels;
@@ -234,6 +252,7 @@ export function LineCreateFields({
   locations: LocationOption[];
   pending: boolean;
   siteReadOnlyLabel?: string;
+  editing?: boolean;
   onChange: (next: CreateLineInput) => void;
 }) {
   const createWarehouseOptions = React.useMemo<SelectOption[]>(() => [
@@ -352,13 +371,22 @@ export function LineCreateFields({
       </div>
       <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
         <span id="new-line-status-label">{labels.fieldStatus}</span>
-        <Select value={value.status} onValueChange={(next) => onChange({ ...value, status: next === 'active' ? 'active' : 'draft' })}>
+        <Select
+          value={value.status}
+          onValueChange={(next) => onChange({
+            ...value,
+            status: next === 'active' ? 'active' : next === 'inactive' ? 'inactive' : 'draft',
+          })}
+        >
           <SelectTrigger aria-label={labels.fieldStatus}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="draft">{labels.statusDraft}</SelectItem>
             <SelectItem value="active">{labels.statusActive}</SelectItem>
+            {editing && value.status === 'inactive' ? (
+              <SelectItem value="inactive">{labels.statusInactive}</SelectItem>
+            ) : null}
           </SelectContent>
         </Select>
       </div>
@@ -377,6 +405,7 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
   const [pending, setPending] = React.useState(false);
   const [deactivatePending, setDeactivatePending] = React.useState(false);
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
+  const [dialogMode, setDialogMode] = React.useState<'create' | 'edit'>('create');
   const [createPending, setCreatePending] = React.useState(false);
   const [createStatus, setCreateStatus] = React.useState<string | null>(null);
   const [createError, setCreateError] = React.useState<string | null>(null);
@@ -476,39 +505,48 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
     setCreatePending(true);
     setCreateError(null);
     setCreateStatus(null);
+    const editing = dialogMode === 'edit';
     try {
       const createInput: CreateLineInput = newLine.defaultOutputLocationId
         ? newLine
         : {
+            id: editing ? newLine.id : undefined,
             siteId: newLine.siteId,
             warehouseId: newLine.warehouseId,
             code: newLine.code,
             name: newLine.name,
             status: newLine.status,
           };
+      if (editing && newLine.id) {
+        createInput.id = newLine.id;
+        if (newLine.defaultOutputLocationId) {
+          createInput.defaultOutputLocationId = newLine.defaultOutputLocationId;
+        }
+      }
       const result = await createLine(createInput);
       if (!result.ok) {
         setCreateError(labels.createLineFailed);
         return;
       }
       const selectedWarehouse = newLine.warehouseId ? warehouses.find((warehouse) => warehouse.id === newLine.warehouseId) ?? null : null;
-      setRows((current) => [
-        {
-          id: result.data.id,
-          code: newLine.code.trim().toUpperCase(),
-          name: newLine.name.trim(),
-          status: result.data.status,
-          warehouseId: newLine.warehouseId ?? null,
-          warehouseName: selectedWarehouse?.name ?? null,
-          defaultLocationId: newLine.defaultOutputLocationId ?? null,
-          defaultLocationBreadcrumb: newLine.defaultOutputLocationId
-            ? locations.find((location) => location.id === newLine.defaultOutputLocationId)?.path
-              ?? locations.find((location) => location.id === newLine.defaultOutputLocationId)?.name
-              ?? null
-            : null,
-        },
-        ...current.filter((line) => line.id !== result.data.id),
-      ]);
+      const savedLine: ProductionLine = {
+        id: result.data.id,
+        code: newLine.code.trim().toUpperCase(),
+        name: newLine.name.trim(),
+        status: result.data.status,
+        siteId: newLine.siteId ?? null,
+        warehouseId: newLine.warehouseId ?? null,
+        warehouseName: selectedWarehouse?.name ?? null,
+        defaultLocationId: newLine.defaultOutputLocationId ?? null,
+        defaultLocationBreadcrumb: newLine.defaultOutputLocationId
+          ? locations.find((location) => location.id === newLine.defaultOutputLocationId)?.path
+            ?? locations.find((location) => location.id === newLine.defaultOutputLocationId)?.name
+            ?? null
+          : null,
+      };
+      setRows((current) => editing
+        ? current.map((line) => (line.id === savedLine.id ? { ...line, ...savedLine } : line))
+        : [savedLine, ...current.filter((line) => line.id !== result.data.id)]);
       setNewLine({
         siteId: defaultSiteId(sites),
         warehouseId: defaultWarehouseId(warehouses, warehouseFilter),
@@ -517,8 +555,9 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
         name: '',
         status: 'draft',
       });
-      setCreateStatus(labels.createLineSuccess);
+      setCreateStatus(editing ? labels.updateLineSuccess : labels.createLineSuccess);
       setCreateDialogOpen(false);
+      setDialogMode('create');
     } finally {
       setCreatePending(false);
     }
@@ -526,12 +565,33 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
 
   const openCreateDialog = () => {
     if (!canUpdateInfra) return;
+    setDialogMode('create');
     setNewLine((current) => ({
       ...current,
+      id: undefined,
       siteId: current.siteId ?? defaultSiteId(sites),
       warehouseId: defaultWarehouseId(warehouses, warehouseFilter) ?? current.warehouseId ?? null,
       defaultOutputLocationId: null,
+      code: '',
+      name: '',
+      status: 'draft',
     }));
+    setCreateDialogOpen(true);
+  };
+
+  const openEditDialog = (line: ProductionLine) => {
+    if (!canUpdateInfra) return;
+    setDialogMode('edit');
+    setCreateError(null);
+    setNewLine({
+      id: line.id,
+      siteId: line.siteId ?? defaultSiteId(sites),
+      warehouseId: line.warehouseId ?? null,
+      defaultOutputLocationId: line.defaultLocationId ?? null,
+      code: line.code,
+      name: line.name,
+      status: line.status,
+    });
     setCreateDialogOpen(true);
   };
 
@@ -620,6 +680,7 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
                 <TableHead scope="col" className="px-4 py-3">{labels.columnLine}</TableHead>
                 <TableHead scope="col" className="px-4 py-3">{labels.columnDefaultLocation}</TableHead>
                 <TableHead scope="col" className="px-4 py-3">{labels.columnStatus}</TableHead>
+                <TableHead scope="col" className="px-4 py-3">{labels.columnActions}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="divide-y divide-slate-100">
@@ -653,6 +714,18 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
                     <TableCell className="px-4 py-4">
                       <Badge variant={statusVariant(status)}>{formatStatus(labels, status)}</Badge>
                     </TableCell>
+                    <TableCell className="px-4 py-4">
+                      <Button
+                        type="button"
+                        variant="dry-run"
+                        className="btn-secondary"
+                        disabled={!canUpdateInfra}
+                        aria-label={canUpdateInfra ? `${labels.editLine} ${line.name}` : `${labels.editLine} — ${labels.insufficientPermission}`}
+                        onClick={() => openEditDialog(line)}
+                      >
+                        {labels.editLine}
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -663,11 +736,13 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
       ) : renderState()}
 
       {createDialogOpen ? (
-        <div role="dialog" aria-modal="true" aria-labelledby="add-line-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
+        <div role="dialog" aria-modal="true" aria-labelledby="line-dialog-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
           <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
             <div className="flex items-start justify-between gap-3">
-              <h2 id="add-line-title" className="text-lg font-semibold text-slate-950">{labels.dialogAddTitle}</h2>
-              <Button type="button" variant="dry-run" aria-label={labels.cancel} onClick={() => setCreateDialogOpen(false)} disabled={createPending}>x</Button>
+              <h2 id="line-dialog-title" className="text-lg font-semibold text-slate-950">
+                {dialogMode === 'edit' ? labels.dialogEditTitle : labels.dialogAddTitle}
+              </h2>
+              <Button type="button" variant="dry-run" aria-label={labels.cancel} onClick={() => { setCreateDialogOpen(false); setDialogMode('create'); }} disabled={createPending}>x</Button>
             </div>
             <form onSubmit={(event) => void submitCreateLine(event)} className="mt-4 space-y-4">
               <LineCreateFields
@@ -677,12 +752,22 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
                 warehouses={warehouses}
                 locations={locations}
                 pending={createPending}
+                editing={dialogMode === 'edit'}
                 onChange={setNewLine}
               />
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="dry-run" onClick={() => setCreateDialogOpen(false)} disabled={createPending}>{labels.cancel}</Button>
-                <Button type="submit" className="btn-primary" disabled={!canUpdateInfra || createPending} aria-label={canUpdateInfra ? labels.createLine : `${labels.createLine} — ${labels.insufficientPermission}`}>
-                  {createPending ? labels.createLinePending : labels.createLine}
+                <Button type="button" variant="dry-run" onClick={() => { setCreateDialogOpen(false); setDialogMode('create'); }} disabled={createPending}>{labels.cancel}</Button>
+                <Button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={!canUpdateInfra || createPending}
+                  aria-label={canUpdateInfra
+                    ? (dialogMode === 'edit' ? labels.updateLine : labels.createLine)
+                    : `${dialogMode === 'edit' ? labels.updateLine : labels.createLine} — ${labels.insufficientPermission}`}
+                >
+                  {createPending
+                    ? (dialogMode === 'edit' ? labels.updateLinePending : labels.createLinePending)
+                    : (dialogMode === 'edit' ? labels.updateLine : labels.createLine)}
                 </Button>
               </div>
             </form>

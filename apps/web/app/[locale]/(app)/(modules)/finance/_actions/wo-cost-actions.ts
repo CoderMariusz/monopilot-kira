@@ -339,7 +339,7 @@ async function computeWoActualCostInContext(
               and lower(lr.role_group) = lower(crew.role_group)
               and lr.currency = 'GBP'
               and lr.effective_from <= $2::date
-            order by lr.effective_from desc
+            order by lr.effective_from desc, lr.created_at desc
             limit 1
          ) lr on true
         where op.crew is not null
@@ -378,7 +378,7 @@ async function computeWoActualCostInContext(
               and lower(lr.role_group) = lower(pdr.role_group)
               and lr.currency = 'GBP'
               and lr.effective_from <= $2::date
-            order by lr.effective_from desc
+            order by lr.effective_from desc, lr.created_at desc
             limit 1
          ) lr on true
         where op.crew is null

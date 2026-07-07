@@ -9,7 +9,8 @@
  * honestly enabled/disabled (the action re-checks it regardless).
  *
  * HISTORY MODEL: a new effective date adds a NEW rate row — historical rates are
- * preserved and never edited in place. The screen therefore offers create-only.
+ * preserved and never edited in place. "Correct" supersede inserts a new row
+ * (same effective_from allowed; latest created_at wins).
  *
  * i18n resolved server-side from production next-intl (settings.laborRates.*, real
  * en+pl, ro/uk mirror EN). No inline JSX strings; no raw UUIDs.
@@ -74,11 +75,14 @@ const LABEL_KEYS: Array<keyof LaborRatesLabels> = [
   'columnCurrency',
   'columnEffectiveFrom',
   'columnStatus',
+  'columnActions',
+  'correctRate',
   'statusCurrent',
   'statusFuture',
   'statusSuperseded',
   'historyNote',
   'dialogAddTitle',
+  'dialogCorrectTitle',
   'fieldRole',
   'fieldRoleHelp',
   'fieldRate',
@@ -90,6 +94,7 @@ const LABEL_KEYS: Array<keyof LaborRatesLabels> = [
   'savePending',
   'cancel',
   'createSuccess',
+  'correctSuccess',
   'saveFailed',
   'invalidInput',
   'insufficientPermission',
@@ -132,6 +137,7 @@ async function loadLaborRatesPageData(): Promise<LoaderResult> {
     ratePerHour: rate.ratePerHour,
     currency: rate.currency,
     effectiveFrom: rate.effectiveFrom,
+    createdAt: rate.createdAt,
   }));
   return { state: rates.length === 0 ? 'empty' : 'ready', rates, canManage };
 }
