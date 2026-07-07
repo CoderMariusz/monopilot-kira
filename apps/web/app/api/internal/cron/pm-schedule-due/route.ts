@@ -1,9 +1,12 @@
 /**
- * POST /api/internal/cron/pm-schedule-due
+ * GET|POST /api/internal/cron/pm-schedule-due
  *
  * Daily PM schedule due engine (PRD §8 pm_schedule_due_engine_v1). Walks every
  * org, sets org context per org, scans due maintenance_schedules, and generates
  * open planned MWOs idempotently (no duplicate open backlog per schedule).
+ *
+ * Vercel Cron invokes configured paths with HTTP GET (vercel.json); POST is
+ * retained for manual/ops invocations.
  *
  * Auth: x-vercel-cron: 1 OR Authorization: Bearer ${CRON_SECRET} (constant time).
  */
@@ -37,7 +40,7 @@ function authorizeCron(req: Request): boolean {
   return false;
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function handlePmScheduleDue(req: Request): Promise<Response> {
   if (!authorizeCron(req)) return json({ error: 'unauthorized' }, 401);
 
   let pool: ReturnType<typeof getSystemActorConnection>;
@@ -69,4 +72,14 @@ export async function POST(req: Request): Promise<Response> {
   } finally {
     await pool.end();
   }
+}
+
+/** Vercel Cron entry point (vercel.json schedules HTTP GET). */
+export async function GET(req: Request): Promise<Response> {
+  return handlePmScheduleDue(req);
+}
+
+/** Manual / ops invocation (Bearer CRON_SECRET). */
+export async function POST(req: Request): Promise<Response> {
+  return handlePmScheduleDue(req);
 }

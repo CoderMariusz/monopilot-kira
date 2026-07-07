@@ -4,6 +4,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  advancePmScheduleOnMwoCompletion,
   generateMwoFromPmScheduleCore,
   listDuePmScheduleIds,
   runPmScheduleDueEngine,
@@ -22,6 +23,8 @@ type QueryClient = {
 };
 
 let duplicateOpenMwo = false;
+let scheduleNextDueDate = '2026-07-01';
+const SCHEDULE_INTERVAL_DAYS = 30;
 let client: QueryClient;
 
 function normalize(sql: string): string {
@@ -34,7 +37,11 @@ function makeClient(): QueryClient {
       const n = normalize(sql);
 
       if (n.startsWith('select s.id::text from public.maintenance_schedules')) {
-        return { rows: [{ id: SCHEDULE_ID }], rowCount: 1 };
+        const warningDays = 7;
+        const dueCutoff = new Date('2026-07-08T00:00:00.000Z');
+        const dueDate = new Date(`${scheduleNextDueDate}T00:00:00.000Z`);
+        const isDue = dueDate <= dueCutoff;
+        return isDue ? { rows: [{ id: SCHEDULE_ID }], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
 
       if (n.includes('from public.maintenance_schedules s') && n.includes('order by s.next_due_date')) {
@@ -50,13 +57,21 @@ function makeClient(): QueryClient {
               site_id: SITE_ID,
               equipment_id: EQUIPMENT_ID,
               equipment_code: 'EQ-01',
-              next_due_date: '2026-07-01',
+              next_due_date: scheduleNextDueDate,
               warning_days: 7,
               active: true,
             },
           ],
           rowCount: 1,
         };
+      }
+
+      if (n.startsWith('update public.maintenance_schedules s')) {
+        const intervalDays = Number(params?.[1] === null ? SCHEDULE_INTERVAL_DAYS : SCHEDULE_INTERVAL_DAYS);
+        const current = new Date(`${scheduleNextDueDate}T00:00:00.000Z`);
+        current.setUTCDate(current.getUTCDate() + intervalDays);
+        scheduleNextDueDate = current.toISOString().slice(0, 10);
+        return { rows: [{ id: SCHEDULE_ID }], rowCount: 1 };
       }
 
       if (n.includes('pg_advisory_xact_lock')) {
@@ -88,6 +103,7 @@ function makeClient(): QueryClient {
 
 beforeEach(() => {
   duplicateOpenMwo = false;
+  scheduleNextDueDate = '2026-07-01';
   client = makeClient();
 });
 
@@ -146,5 +162,51 @@ describe('listDuePmScheduleIds', () => {
   it('returns calendar-due active schedule ids', async () => {
     const ids = await listDuePmScheduleIds({ orgId: ORG_ID, actorUserId: null, client });
     expect(ids).toEqual([SCHEDULE_ID]);
+  });
+});
+
+describe('advancePmScheduleOnMwoCompletion', () => {
+  it('rolls calendar-day next_due_date forward by interval_value', async () => {
+    const result = await advancePmScheduleOnMwoCompletion(
+      { orgId: ORG_ID, actorUserId: 'actor-1', client },
+      SCHEDULE_ID,
+    );
+
+    expect(result).toEqual({ advanced: true });
+    expect(scheduleNextDueDate).toBe('2026-07-31');
+    const update = vi.mocked(client.query).mock.calls.find((c) =>
+      normalize(c[0]).startsWith('update public.maintenance_schedules s'),
+    );
+    expect(update?.[1]?.[0]).toBe(SCHEDULE_ID);
+    expect(update?.[1]?.[1]).toBe('actor-1');
+  });
+});
+
+describe('complete then due-scan', () => {
+  it('does not regenerate an MWO for the same period after schedule advancement', async () => {
+    const first = await runPmScheduleDueEngine({
+      orgId: ORG_ID,
+      actorUserId: null,
+      client,
+    });
+    expect(first).toMatchObject({ schedulesScanned: 1, created: 1 });
+
+    duplicateOpenMwo = false;
+    await advancePmScheduleOnMwoCompletion(
+      { orgId: ORG_ID, actorUserId: 'actor-1', client },
+      SCHEDULE_ID,
+    );
+
+    const second = await runPmScheduleDueEngine({
+      orgId: ORG_ID,
+      actorUserId: null,
+      client,
+    });
+    expect(second).toMatchObject({
+      schedulesScanned: 0,
+      created: 0,
+      skippedOpen: 0,
+    });
+    expect(scheduleNextDueDate).toBe('2026-07-31');
   });
 });

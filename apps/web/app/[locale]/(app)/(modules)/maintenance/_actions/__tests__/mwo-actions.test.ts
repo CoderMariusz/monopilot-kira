@@ -29,6 +29,8 @@ type QueryClient = {
 let grantedPermissions: Set<string>;
 let equipmentExists = true;
 let currentState = 'open';
+let mwoScheduleId: string | null = null;
+let mwoSource: 'manual_request' | 'pm_schedule' | 'calibration_alert' = 'manual_request';
 let duplicateOpenMwo = false;
 let overviewPlanned = 0;
 let client: QueryClient;
@@ -224,7 +226,15 @@ function makeClient(): QueryClient {
 
       // transitionMwo: FOR UPDATE state read.
       if (normalized.includes('for update')) {
-        return { rows: [{ id: MWO_ID, state: currentState }], rowCount: 1 };
+        return {
+          rows: [{ id: MWO_ID, state: currentState, schedule_id: mwoScheduleId, source: mwoSource }],
+          rowCount: 1,
+        };
+      }
+
+      // transitionMwo: advance PM schedule on completion.
+      if (normalized.startsWith('update public.maintenance_schedules s')) {
+        return { rows: [{ id: String(params?.[0]) }], rowCount: 1 };
       }
 
       // transitionMwo: guarded update.
@@ -329,6 +339,8 @@ beforeEach(() => {
   ]);
   equipmentExists = true;
   currentState = 'open';
+  mwoScheduleId = null;
+  mwoSource = 'manual_request';
   duplicateOpenMwo = false;
   overviewPlanned = 0;
   client = makeClient();
@@ -486,6 +498,24 @@ describe('transitionMwo', () => {
     const outbox = calls().find((c) => c.sql.startsWith('insert into public.outbox_events'));
     expect(outbox?.params?.[0]).toBe('maintenance.mwo.completed');
     expect(String(outbox?.params?.[2])).toContain('"completion_notes":"bearing replaced"');
+    expect(calls().some((c) => c.sql.startsWith('update public.maintenance_schedules s'))).toBe(false);
+  });
+
+  it('advances the linked PM schedule when completing a schedule-sourced MWO', async () => {
+    currentState = 'in_progress';
+    mwoScheduleId = SCHEDULE_ID;
+    mwoSource = 'pm_schedule';
+
+    const result = await transitionMwo({ mwoId: MWO_ID, to: 'completed', note: 'PM done' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+
+    const scheduleUpdate = calls().find((c) => c.sql.startsWith('update public.maintenance_schedules s'));
+    expect(scheduleUpdate?.params?.[0]).toBe(SCHEDULE_ID);
+    expect(scheduleUpdate?.params?.[1]).toBe(USER_ID);
+    expect(scheduleUpdate?.sql).toContain("interval_basis = 'calendar_days'");
+    expect(scheduleUpdate?.sql).toContain('last_completed_at');
   });
 
   it('rejects the illegal completed → in_progress transition without updating', async () => {

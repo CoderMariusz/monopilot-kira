@@ -286,3 +286,31 @@ export async function runPmScheduleDueEngine(
 
   return summary;
 }
+
+/**
+ * After a schedule-sourced MWO completes, stamp last_completed_at and roll
+ * calendar-day schedules forward so the due engine does not regenerate for the
+ * same period.
+ */
+export async function advancePmScheduleOnMwoCompletion(
+  ctx: PmMwoTxnContext,
+  scheduleId: string,
+): Promise<{ advanced: boolean }> {
+  const result = await ctx.client.query<{ id: string }>(
+    `update public.maintenance_schedules s
+        set last_completed_at = pg_catalog.now(),
+            next_due_date = case
+              when s.interval_basis = 'calendar_days' and s.next_due_date is not null
+                then (s.next_due_date + make_interval(days => s.interval_value::int))::date
+              else s.next_due_date
+            end,
+            updated_by = $2::uuid,
+            updated_at = pg_catalog.now()
+      where s.org_id = app.current_org_id()
+        and s.id = $1::uuid
+        and s.active = true
+      returning s.id::text`,
+    [scheduleId, ctx.actorUserId],
+  );
+  return { advanced: (result.rowCount ?? result.rows.length) > 0 };
+}

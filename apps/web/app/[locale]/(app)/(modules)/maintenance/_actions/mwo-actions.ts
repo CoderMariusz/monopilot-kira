@@ -40,6 +40,7 @@ import { z } from 'zod';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
+  advancePmScheduleOnMwoCompletion,
   generateMwoFromPmScheduleCore,
   OPEN_BACKLOG_STATES as PM_OPEN_BACKLOG_STATES,
 } from '../../../../../../lib/maintenance/pm-mwo-generate';
@@ -732,8 +733,13 @@ export async function transitionMwo(input: {
         return { ok: false, reason: 'forbidden' };
       }
 
-      const current = await ctx.client.query<{ id: string; state: MwoState }>(
-        `select id::text, state
+      const current = await ctx.client.query<{
+        id: string;
+        state: MwoState;
+        schedule_id: string | null;
+        source: MwoSource;
+      }>(
+        `select id::text, state, schedule_id::text, source
            from public.maintenance_work_orders
           where org_id = app.current_org_id()
             and id = $1::uuid
@@ -780,6 +786,13 @@ export async function transitionMwo(input: {
       }
 
       if (parsed.to === 'completed') {
+        if (row.schedule_id && PLANNED_MWO_SOURCES.includes(row.source)) {
+          await advancePmScheduleOnMwoCompletion(
+            { orgId: ctx.orgId, actorUserId: ctx.userId, client: ctx.client },
+            row.schedule_id,
+          );
+        }
+
         await writeOutbox(ctx, {
           eventType: 'maintenance.mwo.completed',
           aggregateId: next.id,
