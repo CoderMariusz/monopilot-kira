@@ -17,6 +17,7 @@ import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from './baseline.js';
 import { items } from './items.js';
+import { npdWipProcesses } from './npd-wip-processes.js';
 import { npdProjects } from './npd-projects.js';
 import { product } from './product.js';
 
@@ -117,6 +118,11 @@ export const formulationIngredients = pgTable(
     // rm_code stays the human display code; item_id wires the real item.
     itemId: uuid('item_id').references(() => items.id, { onDelete: 'set null' }),
     substituteItemId: uuid('substitute_item_id').references(() => items.id, { onDelete: 'set null' }),
+    // DB FK (migration 430 composite org_id + wip_definition_id) intentionally not mirrored in Drizzle.
+    wipDefinitionId: uuid('wip_definition_id'),
+    npdWipProcessId: uuid('npd_wip_process_id').references(() => npdWipProcesses.id, {
+      onDelete: 'set null',
+    }),
     qtyKg: numeric('qty_kg'),
     pct: numeric('pct'),
     costPerKgEur: numeric('cost_per_kg_eur'),
@@ -138,6 +144,9 @@ export const formulationIngredients = pgTable(
     substituteItemIdIdx: index('formulation_ingredients_substitute_item_id_idx')
       .on(table.substituteItemId)
       .where(sql`${table.substituteItemId} is not null`),
+    npdWipProcessIdIdx: index('formulation_ingredients_npd_wip_process_id_idx')
+      .on(table.npdWipProcessId)
+      .where(sql`${table.npdWipProcessId} is not null`),
     rmCodeNonemptyCheck: check(
       'formulation_ingredients_rm_code_nonempty_check',
       sql`length(trim(${table.rmCode})) > 0`,

@@ -38,6 +38,7 @@ describe('getComponentProcesses', () => {
             throughput_uom: null,
             setup_cost: null,
             yield_pct: '95',
+            line_id: '88888888-8888-4888-8888-888888888888',
           }],
         };
       }
@@ -71,6 +72,7 @@ describe('getComponentProcesses', () => {
         throughputUom: 'kg',
         setupCost: 0,
         yieldPct: 95,
+        lineId: '88888888-8888-4888-8888-888888888888',
         roles: [{ roleGroup: 'operator', headcount: 2, ratePerHour: 20 }],
         processCost: 65,
       }],

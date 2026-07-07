@@ -13,6 +13,7 @@ export type ComponentProcess = {
   throughputUom: string;
   setupCost: number;
   yieldPct: number;
+  lineId: string | null;
   roles: ComponentProcessRole[];
   processCost: number;
 };
@@ -97,6 +98,7 @@ export function mapDefinitionProcessesToComponentProcesses(
       throughputUom: process.throughput_uom ?? 'kg',
       setupCost: Number(process.setup_cost ?? 0),
       yieldPct: 100,
+      lineId: null,
       roles: processRoles,
       processCost: computeWipProcessCost(
         processRoles.map((role) => ({

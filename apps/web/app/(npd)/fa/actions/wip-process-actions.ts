@@ -28,6 +28,7 @@ const addWipProcessSchema = z.object({
   throughputUom: z.enum(['kg', 'pack', 'each', 'l']).optional().default('kg'),
   setupCost: z.coerce.number().finite().nonnegative().optional().default(0),
   yieldPct: z.coerce.number().finite().positive().max(100).optional().default(100),
+  lineId: z.string().uuid().nullable().optional(),
 });
 
 const updateWipProcessSchema = z.object({
@@ -40,6 +41,7 @@ const updateWipProcessSchema = z.object({
   throughputUom: z.enum(['kg', 'pack', 'each', 'l']).optional(),
   setupCost: z.coerce.number().finite().nonnegative().optional(),
   yieldPct: z.coerce.number().finite().positive().max(100).optional(),
+  lineId: z.string().uuid().nullable().optional(),
 });
 
 const removeWipProcessSchema = z.object({
@@ -77,10 +79,17 @@ export async function addWipProcess(input: AddWipProcessInput): Promise<ActionRe
       return { ok: false, error: `${PRODUCTION_WRITE_PERMISSION} is required to add a WIP process` };
     }
 
+    if (parsed.data.lineId) {
+      const lineVisible = await isActiveProductionLineVisible(ctx, parsed.data.lineId);
+      if (!lineVisible) {
+        return { ok: false, error: 'Production line is not visible in this organisation' };
+      }
+    }
+
     const inserted = await ctx.client.query<{ id: string }>(
       `insert into public.npd_wip_processes
          (org_id, prod_detail_id, process_name, display_order, duration_hours, additional_cost,
-          creates_wip_item, throughput_per_hour, throughput_uom, setup_cost, yield_pct)
+          creates_wip_item, throughput_per_hour, throughput_uom, setup_cost, yield_pct, line_id)
        values
          (
            app.current_org_id(),
@@ -98,7 +107,8 @@ export async function addWipProcess(input: AddWipProcessInput): Promise<ActionRe
            $6::numeric,
            $7,
            $8::numeric,
-           $9::numeric
+           $9::numeric,
+           $10::uuid
          )
        returning id`,
       [
@@ -111,6 +121,7 @@ export async function addWipProcess(input: AddWipProcessInput): Promise<ActionRe
         parsed.data.throughputUom,
         parsed.data.setupCost,
         parsed.data.yieldPct,
+        parsed.data.lineId ?? null,
       ],
     );
 
@@ -133,6 +144,14 @@ export async function updateWipProcess(input: UpdateWipProcessInput): Promise<Ac
       return { ok: false, error: `${PRODUCTION_WRITE_PERMISSION} is required to update a WIP process` };
     }
 
+    if (parsed.data.lineId) {
+      const lineVisible = await isActiveProductionLineVisible(ctx, parsed.data.lineId);
+      if (!lineVisible) {
+        return { ok: false, error: 'Production line is not visible in this organisation' };
+      }
+    }
+
+    const hasLineId = parsed.data.lineId !== undefined;
     const updated = await ctx.client.query<{ id: string; process_name: string; creates_wip_item: boolean }>(
       `update public.npd_wip_processes
           set process_name = coalesce($2::text, process_name),
@@ -143,6 +162,7 @@ export async function updateWipProcess(input: UpdateWipProcessInput): Promise<Ac
               throughput_uom = coalesce($7::text, throughput_uom),
               setup_cost = coalesce($8::numeric, setup_cost),
               yield_pct = coalesce($9::numeric, yield_pct),
+              line_id = case when $10::boolean then $11::uuid else line_id end,
               wip_item_id = case when $5::boolean is false then null else wip_item_id end,
               updated_at = now()
         where id = $1::uuid
@@ -158,6 +178,8 @@ export async function updateWipProcess(input: UpdateWipProcessInput): Promise<Ac
         parsed.data.throughputUom ?? null,
         parsed.data.setupCost ?? null,
         parsed.data.yieldPct ?? null,
+        hasLineId,
+        parsed.data.lineId ?? null,
       ],
     );
 
@@ -444,4 +466,17 @@ function sanitizeProcessName(processName: string): string {
     .replace(/[^A-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
   return sanitized || 'PROCESS';
+}
+
+async function isActiveProductionLineVisible(ctx: OrgContextLike, lineId: string): Promise<boolean> {
+  const lineCheck = await ctx.client.query<{ id: string }>(
+    `select id::text as id
+       from public.production_lines
+      where id = $1::uuid
+        and org_id = app.current_org_id()
+        and status = 'active'
+      limit 1`,
+    [lineId],
+  );
+  return lineCheck.rowCount === 1 && Boolean(lineCheck.rows[0]);
 }

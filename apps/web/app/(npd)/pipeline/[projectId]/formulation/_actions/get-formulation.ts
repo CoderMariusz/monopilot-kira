@@ -36,6 +36,7 @@ type IngredientRow = {
   substitute_item_id: string | null;
   substitute_item_code: string | null;
   substitute_item_name: string | null;
+  npd_wip_process_id: string | null;
   qty_kg: string | null;
   pct: string | null;
   cost_per_kg_eur: string | null;
@@ -243,6 +244,7 @@ const INGREDIENT_SELECT = `
   fi.substitute_item_id::text,
   substitute.item_code as substitute_item_code,
   substitute.name as substitute_item_name,
+  fi.npd_wip_process_id::text,
   fi.qty_kg::text,
   fi.pct::text,
   fi.cost_per_kg_eur::text,

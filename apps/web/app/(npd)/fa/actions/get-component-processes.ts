@@ -33,6 +33,7 @@ type ProcessRow = {
   throughput_uom: string | null;
   setup_cost: number | string | null;
   yield_pct: number | string | null;
+  line_id: string | null;
 };
 
 type RoleRow = {
@@ -190,7 +191,8 @@ export async function getComponentProcesses(prodDetailId: string): Promise<
                 throughput_per_hour,
                 throughput_uom,
                 setup_cost,
-                yield_pct
+                yield_pct,
+                line_id::text
            from public.npd_wip_processes
           where org_id = $2::uuid
             and prod_detail_id = $1::uuid
@@ -262,6 +264,7 @@ export async function getComponentProcesses(prodDetailId: string): Promise<
           throughputUom: process.throughput_uom ?? 'kg',
           setupCost: Number(process.setup_cost ?? 0),
           yieldPct: Number(process.yield_pct ?? 100),
+          lineId: process.line_id,
           roles: processRoles,
           processCost: computeWipProcessCost(
             processRoles.map((role) => ({
