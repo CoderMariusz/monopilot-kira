@@ -7,6 +7,8 @@ import { z } from 'zod';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 
+import type { CcpDeviationDisposition } from './ccp-deviation-types';
+
 type QueryClient = {
   query<T = Record<string, unknown>>(
     sql: string,
@@ -19,7 +21,6 @@ type ActionFailure = { ok: false; reason: 'forbidden' | 'error'; message?: strin
 type ActionResult<T> = { ok: true; data: T } | ActionFailure;
 
 type DeviationStatus = 'open' | 'resolved';
-export type CcpDeviationDisposition = 'corrected' | 'product_held' | 'disposed';
 type HoldReferenceType = 'lp' | 'batch' | 'wo' | 'po' | 'grn';
 
 type CcpDeviationRow = {
