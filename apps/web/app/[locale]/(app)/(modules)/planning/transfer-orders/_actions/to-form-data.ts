@@ -28,7 +28,7 @@
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import { listOrgUnits, type OrgUnitOption, type QueryClient } from '../../_actions/procurement-shared';
 
 export type WarehouseOption = {

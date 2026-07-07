@@ -43,7 +43,7 @@ import { ToStatusBadge } from './to-status-badge';
 import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
 import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 import { CreateToModal, type CreateToLabels } from './create-to-modal';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import type { WarehouseOption, SearchTransferItemsInput } from '../_actions/to-form-data';
 
 export type TransferOrderRow = {

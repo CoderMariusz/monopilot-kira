@@ -33,7 +33,7 @@ import {
   type ItemPickerLabels,
   type ItemSearchFn,
 } from '../../../../_components/item-picker';
-import type { ItemPickerOption } from '../../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../../(npd)/fa/actions/search-items-types';
 import { symbolFor } from './cost-panel';
 
 export type IngredientField = 'rmCode' | 'name' | 'qtyKg' | 'pct' | 'costPerKgEur' | 'itemId' | 'substituteItemId';

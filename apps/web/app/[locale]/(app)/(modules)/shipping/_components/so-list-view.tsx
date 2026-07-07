@@ -45,7 +45,7 @@ import { EmptyState } from '@monopilot/ui/EmptyState';
 
 import { SoStatusBadge } from './so-status-badge';
 import { CreateSoModal, type CreateCustomerResult, type CreateSoLabels, type CreateSoResult } from './create-so-modal';
-import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items-types';
 import type { SoCustomerOption } from '../_actions/so-form-data';
 import { downloadCsv, toCsv } from '../../../../../../lib/shared/download';
 

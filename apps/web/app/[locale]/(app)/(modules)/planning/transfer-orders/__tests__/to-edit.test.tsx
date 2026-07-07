@@ -19,7 +19,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ToDetailView, type ToDetailLabels, type TransferOrderDetail } from '../_components/to-detail-view';
 import type { WarehouseOption } from '../_actions/to-form-data';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({

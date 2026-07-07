@@ -7,7 +7,7 @@
  * identically; tests import them from this module directly.
  */
 
-import type { FactoryReleaseStatus } from './factory-release-status';
+import type { FactoryReleaseStatus } from './factory-release-status-types';
 
 export const FACTORY_USABLE_RELEASE_STATUSES = ['approved_for_factory', 'released_to_factory'] as const;
 

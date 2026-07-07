@@ -4,7 +4,8 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
-import { searchItems, type ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import { searchItems } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import { ItemPicker } from '../../../../(npd)/_components/item-picker';
 import { createFactorySpec } from '../actions/create-factory-spec';
 

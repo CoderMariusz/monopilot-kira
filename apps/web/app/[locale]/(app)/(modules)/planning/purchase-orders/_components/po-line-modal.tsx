@@ -26,7 +26,7 @@ import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
 
 import { ItemPicker } from '../../../../(npd)/_components/item-picker';
-import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items-types';
 import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
 import type { GetItemSupplierPriceAction } from './create-po-modal';
 

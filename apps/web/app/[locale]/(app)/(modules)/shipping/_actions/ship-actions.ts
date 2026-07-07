@@ -7,6 +7,14 @@ import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { debitWac } from '../../../../../../lib/finance/upsert-wac';
 import { LIVE_ALLOCATION_SQL, SHIP_CLOSED_ALLOCATION_REASON } from './so-transitions';
 import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext, writeShipmentStatusInContext } from './so-status-write';
+import type {
+  GenerateBolInput,
+  GenerateBolResult,
+  RecordPodInput,
+  RecordPodResult,
+  SealShipmentResult,
+  ShipShipmentResult,
+} from './ship-actions-types';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -16,23 +24,6 @@ type QueryClient = {
 };
 
 type ShippingContext = { userId: string; orgId: string; client: QueryClient };
-
-export type ShipShipmentResult = { ok: true } | { ok: false; error: string };
-export type SealShipmentResult = { ok: true } | { ok: false; error: string };
-
-export type GenerateBolInput = {
-  shipmentId: string;
-  carrier?: string;
-  serviceLevel?: string;
-  trackingNumber?: string;
-};
-export type GenerateBolResult = { ok: true; bolRef: string } | { ok: false; error: string };
-
-export type RecordPodInput = {
-  shipmentId: string;
-  signedPdfUrl?: string;
-};
-export type RecordPodResult = { ok: true } | { ok: false; error: string };
 
 const SHIP_PACK_CLOSE = 'ship.pack.close';
 const SHIP_SHIP_CONFIRM = 'ship.ship.confirm';

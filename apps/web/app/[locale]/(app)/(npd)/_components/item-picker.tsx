@@ -26,7 +26,7 @@ import { createPortal } from 'react-dom';
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
 
-import type { ItemPickerOption } from '../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../(npd)/fa/actions/search-items-types';
 
 export type ItemPickerLabels = {
   /** Trigger button text (e.g. "+ Add production component"). */

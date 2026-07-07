@@ -53,7 +53,7 @@ import type {
   EligibleSupervisor,
 } from '../_actions/adjust-form-types';
 import type { WarehouseResult } from '../../_actions/shared';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import { toDirectAdjustErrorCode, type DirectAdjustErrorCode } from './adjust-client-result';
 
 const REASON_CODES: readonly DirectAdjustReasonCode[] = [

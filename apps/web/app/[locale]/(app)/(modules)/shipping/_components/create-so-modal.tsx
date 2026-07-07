@@ -38,7 +38,7 @@ import Textarea from '@monopilot/ui/Textarea';
 import { Select } from '@monopilot/ui/Select';
 
 import { ItemPicker } from '../../../(npd)/_components/item-picker';
-import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items-types';
 import type { SoCustomerOption } from '../_actions/so-form-data';
 import { UomSelect, type UomOptionLabels } from '../../../../../../components/forms/uom-select';
 

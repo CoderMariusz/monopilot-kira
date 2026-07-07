@@ -28,7 +28,7 @@ import Input from '@monopilot/ui/Input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { ItemPicker, type ItemSearchFn } from '../../../../(npd)/_components/item-picker';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 

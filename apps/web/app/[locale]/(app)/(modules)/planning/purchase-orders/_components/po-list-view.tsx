@@ -58,7 +58,7 @@ import {
   type GetItemSupplierPriceAction,
 } from './create-po-modal';
 import type { SiteSwitcherOption } from '../../../../../../../components/shell/site-switcher';
-import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items-types';
 import type { PoSupplierOption } from '../_actions/po-form-data';
 import type { CreateExportJobInput, CreateExportJobResult } from '../_actions/create-export-job';
 

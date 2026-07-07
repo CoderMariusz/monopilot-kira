@@ -29,7 +29,7 @@ import { ItemPicker } from '../../../../(npd)/_components/item-picker';
 import type {
   ItemPickerOption,
   SearchItemsInput,
-} from '../../../../../../(npd)/fa/actions/search-items';
+} from '../../../../../../(npd)/fa/actions/search-items-types';
 import type {
   ReorderThresholdRow,
   ThresholdResult,

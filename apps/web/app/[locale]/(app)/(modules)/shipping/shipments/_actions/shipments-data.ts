@@ -25,10 +25,7 @@ import type {
   ShipmentRow as ActionShipmentRow,
   ShipmentDetail as ActionShipmentDetail,
   ShipmentBoxDetail as ActionShipmentBoxDetail,
-} from '../../_actions/pack-actions';
-
-export type { ShipmentStatus } from '../../_actions/so-transitions';
-export type { ShipmentBoxContentDetail } from '../../_actions/pack-actions';
+} from '../../_actions/pack-actions-types';
 
 /**
  * View box for the pack screen. The reviewed getShipment box (ActionShipmentBoxDetail)

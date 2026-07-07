@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import type { FactoryReleaseStatusValue } from '../../../app/(npd)/builder/_lib/factory-release-status';
+import type { FactoryReleaseStatusValue } from '../../../app/(npd)/builder/_lib/factory-release-status-types';
 import {
   FACTORY_SPEC_STATUSES,
   initialSpecStatusFromNpdBuilder,

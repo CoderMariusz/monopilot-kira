@@ -32,7 +32,7 @@ import Textarea from '@monopilot/ui/Textarea';
 import { Select } from '@monopilot/ui/Select';
 
 import { ItemPicker, type ItemSearchFn } from '../../../../(npd)/_components/item-picker';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import {
   toBaseQty,
   snapshotFromItemRow,

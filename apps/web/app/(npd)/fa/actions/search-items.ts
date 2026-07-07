@@ -17,6 +17,7 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { ValidationError } from './errors';
+import type { ItemPickerOption, SearchItemsInput } from './search-items-types';
 
 type QueryResult<T = Record<string, unknown>> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {
@@ -39,22 +40,6 @@ const SEARCHABLE_ITEM_TYPES = ['fg', 'rm', 'ingredient', 'intermediate', 'co_pro
  *  explicitly). */
 const DEFAULT_COMPONENT_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'co_product', 'byproduct'] as const;
 
-export type ItemPickerOption = {
-  id: string;
-  itemCode: string;
-  name: string;
-  itemType: string;
-  status: string;
-  costPerKgEur: string | null;
-  listPriceGbp?: string | null;
-  /** Supplier code from the item's active+approved supplier spec (for prefill). */
-  supplierCode?: string | null;
-  /** Effective supplier price: supplier_specs.unit_price ?? items.list_price_gbp. */
-  unitPrice?: string | null;
-  /** Base unit of measure from the items master (e.g. 'kg'). */
-  uomBase: string;
-};
-
 const searchInputSchema = z.object({
   query: z.string().trim().max(120).optional().default(''),
   /** Restrict to a subset of searchable types; defaults to component types only
@@ -63,8 +48,6 @@ const searchInputSchema = z.object({
   limit: z.number().int().min(1).max(50).optional().default(20),
   supplierCode: z.string().trim().min(1).max(80).optional(),
 });
-
-export type SearchItemsInput = z.input<typeof searchInputSchema>;
 
 type ItemRow = {
   id: string;

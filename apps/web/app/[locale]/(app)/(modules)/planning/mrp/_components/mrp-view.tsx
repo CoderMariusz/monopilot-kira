@@ -33,7 +33,7 @@ import type {
   MrpRunResult,
   MrpRunsListResult,
   MrpRunSummary,
-} from '../../_actions/mrp';
+} from '../../_actions/mrp.types';
 import { cancelPlannedOrder, convertPlannedToPo, convertPlannedToWo } from '../../_actions/mrp';
 import type { MrpRow, MrpSeverity } from '../../_actions/mrp-compute';
 

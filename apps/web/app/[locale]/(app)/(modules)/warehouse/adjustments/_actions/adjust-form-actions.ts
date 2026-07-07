@@ -38,10 +38,8 @@ import {
   type WarehouseContext,
   type WarehouseResult,
 } from '../../_actions/shared';
-import {
-  searchItems,
-  type ItemPickerOption,
-} from '../../../../../../(npd)/fa/actions/search-items';
+import { searchItems } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 // Types live in a non-'use server' sibling — a 'use server' module may export
 // ONLY async functions (exporting a type breaks `next build`).
 import type { DirectAdjustFormContext, EligibleSupervisor, DecreaseLpOption } from './adjust-form-types';

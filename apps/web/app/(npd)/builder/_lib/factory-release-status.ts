@@ -3,35 +3,15 @@
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
-
-export type FactoryReleaseStatusValue =
-  | 'pending_npd_release'
-  | 'pending_technical_approval'
-  | 'approved_for_factory'
-  | 'released_to_factory'
-  | 'blocked';
-
-export type ReleaseBlocker = {
-  type: string;
-  message: string;
-  remediationHref: string;
-};
-
-export type FactoryReleaseStatus = {
-  id: string;
-  orgId: string;
-  projectId: string;
-  productCode: string;
-  releaseStatus: FactoryReleaseStatusValue;
-  factoryAvailableAt: string | null;
-  factoryApprovedBy: string | null;
-  releaseEventId: number | null;
-  activeBomHeaderId: string | null;
-  activeFactorySpecId: string | null;
-  releaseBlockers: ReleaseBlocker[];
-  requestedBy: string | null;
-  requestedAt: string | null;
-};
+import type {
+  BlockInput,
+  BundleInput,
+  D365ExportInput,
+  FactoryReleaseStatus,
+  FactoryReleaseStatusValue,
+  GetFactoryReleaseStatusInput,
+  ReleaseBlocker,
+} from './factory-release-status-types';
 
 type ReleaseRow = {
   id: string;
@@ -78,10 +58,6 @@ const BlockerSchema = z.object({
 const BlockInputSchema = BundleInputSchema.extend({
   blockers: z.array(BlockerSchema).min(1),
 });
-
-export type BundleInput = z.infer<typeof BundleInputSchema>;
-export type BlockInput = z.infer<typeof BlockInputSchema>;
-export type D365ExportInput = z.infer<typeof D365ExportInputSchema>;
 
 function toIso(value: Date | string | null): string | null {
   if (!value) return null;
@@ -210,7 +186,7 @@ async function fetchReleaseRow(
   return rows[0] ? mapReleaseRow(rows[0]) : null;
 }
 
-export async function getFactoryReleaseStatus(rawInput: z.infer<typeof GetInputSchema>): Promise<FactoryReleaseStatus | null> {
+export async function getFactoryReleaseStatus(rawInput: GetFactoryReleaseStatusInput): Promise<FactoryReleaseStatus | null> {
   const input = GetInputSchema.parse(rawInput);
   return withOrgContext(async ({ client }) => fetchReleaseRow(client, input.projectId, input.productCode));
 }
