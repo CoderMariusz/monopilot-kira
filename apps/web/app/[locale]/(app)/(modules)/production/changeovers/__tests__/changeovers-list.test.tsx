@@ -74,11 +74,22 @@ function renderList(props: Partial<React.ComponentProps<typeof ChangeoversList>>
   const searchItemsAction =
     props.searchItemsAction ??
     vi.fn().mockResolvedValue([{ id: 'fg-1', itemCode: 'FG9999', name: 'New FG', itemType: 'fg', status: 'active', costPerKgEur: null, uomBase: 'kg' }]);
+  const rows = props.rows ?? ROWS;
+  const pagination = props.pagination ?? {
+    items: rows,
+    total: rows.length,
+    page: 1,
+    limit: 50,
+    offset: 0,
+    hasMore: false,
+  };
   render(
     <ChangeoversList
-      rows={ROWS}
+      rows={rows}
+      pagination={pagination}
       lines={LINES}
       initialFilter="all"
+      locale="en"
       labels={all.list}
       createLabels={all.create}
       signLabels={all.sign}
@@ -115,11 +126,14 @@ describe('ChangeoversList — rows + filters', () => {
   });
 
   it('a filter with no matching rows shows the empty state', () => {
+    const rows = [ROWS[0]];
     render(
       <ChangeoversList
-        rows={[ROWS[0]]}
+        rows={rows}
+        pagination={{ items: rows, total: rows.length, page: 1, limit: 50, offset: 0, hasMore: false }}
         lines={LINES}
         initialFilter="complete"
+        locale="en"
         labels={all.list}
         createLabels={all.create}
         signLabels={all.sign}

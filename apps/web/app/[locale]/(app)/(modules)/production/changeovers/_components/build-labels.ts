@@ -46,6 +46,11 @@ export function buildChangeoversLabels(t: T): ChangeoversScreenLabels {
       },
       signerNone: t('list.signerNone'),
       reviewButton: t('list.reviewButton'),
+      pagination: {
+        showing: t('list.pagination.showing'),
+        previous: t('list.pagination.previous'),
+        next: t('list.pagination.next'),
+      },
     },
     create: {
       title: t('create.title'),

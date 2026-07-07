@@ -31,7 +31,7 @@
  *     on_hold/cancelled); "assigned" collapses into pending per the contract.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -49,6 +49,9 @@ import type {
   ResolveInspectionWoOutputAction,
   SearchInspectionAssigneesAction,
 } from './inspection-contracts';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import { buildListPageHref } from '../../../../../../../lib/shared/list-page-href';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 export type InspectionStatusTab =
   | 'all'
@@ -68,6 +71,22 @@ export const INSPECTION_STATUS_TABS: InspectionStatusTab[] = [
   'on_hold',
   'cancelled',
 ];
+
+export type InspectionListFilters = {
+  status: string;
+  search: string;
+};
+
+function listQuery(filters: InspectionListFilters): Record<string, string | undefined> {
+  return {
+    status: filters.status || undefined,
+    q: filters.search || undefined,
+  };
+}
+
+function hasActiveFilters(filters: InspectionListFilters): boolean {
+  return Boolean(filters.status || filters.search);
+}
 
 const STATUS_VARIANT: Record<InspectionStatus, BadgeVariant> = {
   pending: 'muted',
@@ -98,12 +117,8 @@ export type InspectionsListLabels = {
     due: string;
     created: string;
   };
+  pagination: ListPaginationLabels;
 };
-
-function matchesTab(row: InspectionListRow, tab: InspectionStatusTab): boolean {
-  if (tab === 'all') return true;
-  return row.status === tab;
-}
 
 function dateOnly(value?: string | null): string {
   return value ? value.slice(0, 10) : '—';
@@ -127,6 +142,8 @@ function passRate(total: number, passed: number): string {
 
 export function InspectionsListClient({
   rows,
+  pagination,
+  filters,
   labels,
   createLabels,
   locale,
@@ -137,6 +154,8 @@ export function InspectionsListClient({
   searchAssigneesAction,
 }: {
   rows: InspectionListRow[];
+  pagination: PaginatedResult<InspectionListRow>;
+  filters: InspectionListFilters;
   labels: InspectionsListLabels;
   createLabels: InspectionCreateLabels;
   locale: string;
@@ -147,26 +166,32 @@ export function InspectionsListClient({
   searchAssigneesAction: SearchInspectionAssigneesAction;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<InspectionStatusTab>('all');
-  const [search, setSearch] = useState('');
+  const basePath = `/${locale}/quality/inspections`;
+  const activeTab: InspectionStatusTab = (filters.status as InspectionStatusTab) || 'all';
+  const pageHref = (page: number) => buildListPageHref(basePath, listQuery(filters), page);
+  const shown = pagination.offset + rows.length;
+  const [searchDraft, setSearchDraft] = useState(filters.search);
   const [createOpen, setCreateOpen] = useState(false);
-  const totalInspections = rows.length;
+  const totalInspections = pagination.total;
   const passedInspections = rows.filter((r) => r.status === 'passed').length;
 
-  const tabCount = (k: InspectionStatusTab): number => rows.filter((r) => matchesTab(r, k)).length;
+  useEffect(() => {
+    setSearchDraft(filters.search);
+  }, [filters.search]);
 
-  const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter(
-      (r) =>
-        matchesTab(r, tab) &&
-        (q === '' ||
-          r.inspectionNumber.toLowerCase().includes(q) ||
-          (r.referenceDisplay ?? '').toLowerCase().includes(q) ||
-          (r.productCode ?? '').toLowerCase().includes(q) ||
-          (r.productName ?? '').toLowerCase().includes(q)),
-    );
-  }, [rows, tab, search]);
+  useEffect(() => {
+    if (searchDraft === filters.search) return;
+    const timer = window.setTimeout(() => {
+      router.push(buildListPageHref(basePath, listQuery({ ...filters, search: searchDraft }), 1));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [basePath, filters, router, searchDraft]);
+
+  function navigate(next: Partial<InspectionListFilters>) {
+    router.push(buildListPageHref(basePath, listQuery({ ...filters, ...next }), 1));
+  }
+
+  const tabCount = (k: InspectionStatusTab): number => (k === activeTab ? pagination.total : 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -206,7 +231,7 @@ export function InspectionsListClient({
         className="flex flex-wrap gap-1 border-b border-slate-200"
       >
         {INSPECTION_STATUS_TABS.map((k) => {
-          const on = tab === k;
+          const on = activeTab === k;
           return (
             <button
               key={k}
@@ -214,7 +239,7 @@ export function InspectionsListClient({
               type="button"
               aria-selected={on}
               data-testid={`inspection-tab-${k}`}
-              onClick={() => setTab(k)}
+              onClick={() => navigate({ status: k === 'all' ? '' : k })}
               className={[
                 'flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition',
                 on
@@ -223,9 +248,11 @@ export function InspectionsListClient({
               ].join(' ')}
             >
               {labels.tab[k]}
-              <span className="rounded-full bg-slate-100 px-1.5 text-[11px] tabular-nums text-slate-600">
-                {tabCount(k)}
-              </span>
+              {tabCount(k) > 0 ? (
+                <span className="rounded-full bg-slate-100 px-1.5 text-[11px] tabular-nums text-slate-600">
+                  {tabCount(k)}
+                </span>
+              ) : null}
             </button>
           );
         })}
@@ -235,15 +262,15 @@ export function InspectionsListClient({
       <Card className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
         <input
           type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchDraft}
+          onChange={(e) => setSearchDraft(e.target.value)}
           placeholder={labels.searchPlaceholder}
           aria-label={labels.searchLabel}
           data-testid="inspections-list-search"
           className="w-full max-w-xs rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
         />
         <span className="ml-auto text-xs text-slate-500" data-testid="inspections-list-rows">
-          {labels.rowsLabel.replace('{count}', String(visible.length))}
+          {labels.rowsLabel.replace('{count}', String(pagination.total))}
         </span>
       </Card>
 
@@ -258,14 +285,7 @@ export function InspectionsListClient({
             data-state="empty"
             className="px-4 py-10 text-center text-sm text-slate-500"
           >
-            {labels.emptyAll}
-          </p>
-        ) : visible.length === 0 ? (
-          <p
-            data-testid="inspections-list-empty-filtered"
-            className="px-4 py-10 text-center text-sm text-slate-500"
-          >
-            {labels.emptyFiltered}
+            {hasActiveFilters(filters) ? labels.emptyFiltered : labels.emptyAll}
           </p>
         ) : (
           <Table aria-label={labels.columns.inspectionNumber}>
@@ -281,7 +301,7 @@ export function InspectionsListClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visible.map((r) => (
+              {rows.map((r) => (
                 <TableRow
                   key={r.id}
                   data-testid={`inspection-row-${r.id}`}
@@ -324,6 +344,14 @@ export function InspectionsListClient({
             </TableBody>
           </Table>
         )}
+        <ListPaginationFooter
+          shown={shown}
+          total={pagination.total}
+          previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+          nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+          labels={labels.pagination}
+          testId="inspections-list-pagination"
+        />
       </Card>
 
       <InspectionCreateModal

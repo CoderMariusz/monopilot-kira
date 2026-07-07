@@ -70,6 +70,10 @@ function makeClient(): QueryClient {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
       }
 
+      if (q.startsWith('select count(*)::int as total') && q.includes('from public.quality_inspections qi')) {
+        return { rows: [{ total: 1 }], rowCount: 1 };
+      }
+
       if (q.startsWith('select qi.id::text') && q.includes('from public.quality_inspections qi')) {
         return {
           rows: [
@@ -201,7 +205,7 @@ describe('quality inspection server actions', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.reason);
-    expect(result.data[0]).toEqual(
+    expect(result.data.items[0]).toEqual(
       expect.objectContaining({
         inspectionNumber: 'INSP-00000001',
         referenceDisplay: 'LP-0001',
@@ -209,8 +213,10 @@ describe('quality inspection server actions', () => {
         assignedTo: { id: ASSIGNED_ID, email: 'qa@example.test', name: 'QA User' },
       }),
     );
-    const listCall = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('select qi.id::text'));
-    expect(listCall?.[1]).toEqual(['pending', 'LP-0001', 25, SITE_ID]);
+    const listCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('limit $4::int offset $5::int'),
+    );
+    expect(listCall?.[1]).toEqual(['pending', 'LP-0001', SITE_ID, 25, 0]);
   });
 
   it('enforces assignment permission when creating inspections', async () => {

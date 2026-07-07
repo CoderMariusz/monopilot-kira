@@ -21,6 +21,11 @@ import {
 } from './so-transitions';
 import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext } from './so-status-write';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+import {
+  DEFAULT_SO_LIST_PAGE_SIZE,
+  normalizePage,
+  toPaginatedResult,
+} from '../../../../../../lib/shared/pagination';
 import type {
   ActionFailure,
   ActionResult,
@@ -391,50 +396,7 @@ async function transitionSalesOrderStatusInContext(
   return fetchSalesOrder(ctx, id);
 }
 
-export async function listSalesOrders(params: { status?: string; search?: string } = {}): Promise<ListSalesOrdersResult> {
-  return withOrgContext(async ({ userId, orgId, client }): Promise<ListSalesOrdersResult> => {
-    const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
-    const forbidden = await requirePermission(ctx, SHIP_SO_READ);
-    if (forbidden) return forbidden;
-
-    const { rows } = await ctx.client.query<{
-      id: string;
-      so_number: string | null;
-      status: SalesOrderStatus;
-      customer_name: string | null;
-      customer_code: string | null;
-      line_count: number | string | bigint | null;
-      total: string | null;
-      expected_ship_date: string | Date | null;
-      created_at: string | Date;
-    }>(
-      `select so.id::text,
-              so.order_number as so_number,
-              so.status,
-              c.name as customer_name,
-              c.customer_code,
-              (
-                select count(*)::int
-                  from public.sales_order_lines sol
-                 where sol.org_id = app.current_org_id()
-                   and sol.sales_order_id = so.id
-                   and sol.deleted_at is null
-              ) as line_count,
-              coalesce(
-                so.total_amount_gbp,
-                (
-                  select sum(coalesce(sol.line_total_gbp, sol.quantity_ordered * sol.unit_price_gbp))
-                    from public.sales_order_lines sol
-                   where sol.org_id = app.current_org_id()
-                     and sol.sales_order_id = so.id
-                     and sol.deleted_at is null
-                ),
-                0
-              )::text as total,
-              so.created_at,
-              so.promised_ship_date as expected_ship_date
-         from public.sales_orders so
-         left join public.customers c on c.id = so.customer_id and c.org_id = app.current_org_id()
+const SO_LIST_WHERE = `
         where so.org_id = app.current_org_id()
           and so.deleted_at is null
           and ($1::text is null or so.status = $1)
@@ -444,11 +406,96 @@ export async function listSalesOrders(params: { status?: string; search?: string
             or c.name ilike '%' || $2 || '%'
             or c.customer_code ilike '%' || $2 || '%'
           )
-        order by so.created_at desc, so.order_number desc
-        limit 200`,
-      [params.status?.trim() || null, params.search?.trim() || null],
-    );
-    return { ok: true, data: rows.map(mapSalesOrderListRow) };
+          and ($3::text is null or c.customer_code = $3)`;
+
+export async function listSalesOrders(params: {
+  status?: string;
+  search?: string;
+  customerCode?: string;
+  page?: number;
+  offset?: number;
+  limit?: number;
+} = {}): Promise<ListSalesOrdersResult> {
+  const page = normalizePage({
+    page: params.page,
+    offset: params.offset,
+    limit: params.limit,
+    defaultLimit: DEFAULT_SO_LIST_PAGE_SIZE,
+    maxLimit: 200,
+  });
+
+  return withOrgContext(async ({ userId, orgId, client }): Promise<ListSalesOrdersResult> => {
+    const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
+    const forbidden = await requirePermission(ctx, SHIP_SO_READ);
+    if (forbidden) return forbidden;
+
+    const baseParams = [
+      params.status?.trim() || null,
+      params.search?.trim() || null,
+      params.customerCode?.trim() || null,
+    ] as const;
+
+    const [countResult, dataResult] = await Promise.all([
+      ctx.client.query<{ total: number }>(
+        `select count(*)::int as total
+           from public.sales_orders so
+           left join public.customers c on c.id = so.customer_id and c.org_id = app.current_org_id()
+         ${SO_LIST_WHERE}`,
+        [...baseParams],
+      ),
+      ctx.client.query<{
+        id: string;
+        so_number: string | null;
+        status: SalesOrderStatus;
+        customer_name: string | null;
+        customer_code: string | null;
+        line_count: number | string | bigint | null;
+        total: string | null;
+        expected_ship_date: string | Date | null;
+        created_at: string | Date;
+      }>(
+        `select so.id::text,
+                so.order_number as so_number,
+                so.status,
+                c.name as customer_name,
+                c.customer_code,
+                (
+                  select count(*)::int
+                    from public.sales_order_lines sol
+                   where sol.org_id = app.current_org_id()
+                     and sol.sales_order_id = so.id
+                     and sol.deleted_at is null
+                ) as line_count,
+                coalesce(
+                  so.total_amount_gbp,
+                  (
+                    select sum(coalesce(sol.line_total_gbp, sol.quantity_ordered * sol.unit_price_gbp))
+                      from public.sales_order_lines sol
+                     where sol.org_id = app.current_org_id()
+                       and sol.sales_order_id = so.id
+                       and sol.deleted_at is null
+                  ),
+                  0
+                )::text as total,
+                so.created_at,
+                so.promised_ship_date as expected_ship_date
+           from public.sales_orders so
+           left join public.customers c on c.id = so.customer_id and c.org_id = app.current_org_id()
+         ${SO_LIST_WHERE}
+          order by so.created_at desc, so.order_number desc, so.id desc
+          limit $4::int offset $5::int`,
+        [...baseParams, page.limit, page.offset],
+      ),
+    ]);
+
+    return {
+      ok: true,
+      data: toPaginatedResult(
+        dataResult.rows.map(mapSalesOrderListRow),
+        Number(countResult.rows[0]?.total ?? 0),
+        page,
+      ),
+    };
   });
 }
 

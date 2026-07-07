@@ -26,6 +26,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
 import { Select } from '@monopilot/ui/Select';
@@ -34,6 +35,9 @@ import { EmptyState } from '@monopilot/ui/EmptyState';
 import { ShipmentStatusBadge } from './shipment-status-badge';
 import type { ShipmentRow } from '../_actions/shipments-data';
 import { downloadCsv, toCsv } from '../../../../../../../lib/shared/download';
+import { buildListPageHref } from '../../../../../../../lib/shared/list-page-href';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 const LABEL_WEIGHT = { en: 'Weight', pl: 'Waga' } as const;
 const LABEL_CARRIER = { en: 'Carrier', pl: 'Przewoźnik' } as const;
@@ -71,26 +75,36 @@ export type ShipmentsListLabels = {
   empty: { title: string; body: string };
   weightUnit: string;
   noWeight: string;
+  pagination: ListPaginationLabels;
 };
 
 export type ShipmentsListViewProps = {
   locale: string;
   shipments: ShipmentRow[];
+  pagination: PaginatedResult<ShipmentRow>;
+  statusFilter: string;
   labels: ShipmentsListLabels;
 };
 
-export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListViewProps) {
-  const [statusFilter, setStatusFilter] = React.useState('');
+export function ShipmentsListView({
+  locale,
+  shipments,
+  pagination,
+  statusFilter,
+  labels,
+}: ShipmentsListViewProps) {
+  const router = useRouter();
+  const basePath = `/${locale}/shipping/shipments`;
+  const pageHref = (page: number) =>
+    buildListPageHref(basePath, { status: statusFilter || undefined }, page);
+  const shown = pagination.offset + shipments.length;
   const [exportError, setExportError] = React.useState<string | null>(null);
-
   const statusLabel = (s: string) => labels.status[s.toLowerCase()] ?? s;
-
-  const visible = React.useMemo(() => {
-    if (!statusFilter) return shipments;
-    return shipments.filter((sh) => sh.status.toLowerCase() === statusFilter);
-  }, [shipments, statusFilter]);
-
   const localeKey = locale === 'pl' ? 'pl' : 'en';
+
+  function applyStatusFilter(next: string) {
+    router.push(buildListPageHref(basePath, { status: next || undefined }, 1));
+  }
 
   function weightText(value: string | null): string {
     if (value == null || value === '') return labels.noWeight;
@@ -148,7 +162,7 @@ export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListVi
         LABEL_OTIF,
         labels.columns.actions,
       ];
-      const rows = visible.map((sh) => [
+      const rows = shipments.map((sh) => [
         sh.shipmentNumber || '—',
         sh.salesOrderNumber ?? '—',
         customerText(sh.customerName, sh.customerCode),
@@ -174,7 +188,7 @@ export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListVi
         <div className="w-56">
           <Select
             value={statusFilter}
-            onValueChange={setStatusFilter}
+            onValueChange={applyStatusFilter}
             aria-label={labels.statusFilterLabel}
             options={[
               { value: '', label: labels.allStatuses },
@@ -187,7 +201,7 @@ export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListVi
             Export CSV
           </Button>
           <span className="text-xs text-slate-500" data-testid="shipments-rows-count">
-            {labels.rowsCount.replace('{n}', String(visible.length))}
+            {labels.rowsCount.replace('{n}', String(pagination.total))}
           </span>
         </div>
       </div>
@@ -197,7 +211,7 @@ export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListVi
         </p>
       ) : null}
 
-      {visible.length === 0 ? (
+      {shipments.length === 0 ? (
         <EmptyState icon="🚚" title={labels.empty.title} body={labels.empty.body} action={<span />} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -217,7 +231,7 @@ export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListVi
               </tr>
             </thead>
             <tbody>
-              {visible.map((sh) => {
+              {shipments.map((sh) => {
                 const otif = otifBadge(sh);
                 return (
                   <tr key={sh.id} data-testid={`shipment-row-${sh.id}`} className="border-b border-slate-100 last:border-0">
@@ -265,6 +279,14 @@ export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListVi
               })}
             </tbody>
           </table>
+          <ListPaginationFooter
+            shown={shown}
+            total={pagination.total}
+            previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+            nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+            labels={labels.pagination}
+            testId="shipments-list-pagination"
+          />
         </div>
       )}
     </div>

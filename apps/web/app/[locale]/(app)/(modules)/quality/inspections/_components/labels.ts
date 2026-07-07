@@ -60,6 +60,11 @@ export function buildInspectionsListLabels(t: QaInspectionsTranslator): Inspecti
       due: t('list.columns.due'),
       created: t('list.columns.created'),
     },
+    pagination: {
+      showing: t('list.pagination.showing'),
+      previous: t('list.pagination.previous'),
+      next: t('list.pagination.next'),
+    },
   };
 }
 

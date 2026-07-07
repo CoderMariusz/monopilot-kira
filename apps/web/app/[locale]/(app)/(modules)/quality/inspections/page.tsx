@@ -33,7 +33,7 @@ import {
   searchInspectionAssignees,
 } from '../_actions/inspection-actions';
 import { getQaInspectionsTranslator } from '../qa-inspections-labels';
-import { InspectionsListClient } from './_components/inspections-list.client';
+import { InspectionsListClient, type InspectionListFilters } from './_components/inspections-list.client';
 import { buildInspectionsListLabels, buildInspectionCreateLabels } from './_components/labels';
 import type {
   CreateInspectionAction,
@@ -46,7 +46,24 @@ import type {
 
 export const dynamic = 'force-dynamic';
 
-type PageProps = { params: Promise<{ locale: string }> };
+type PageProps = {
+  params: Promise<{ locale: string }>;
+  searchParams?: Promise<{ page?: string; status?: string; q?: string }>;
+};
+
+function parseInspectionFilters(sp: { status?: string; q?: string }): InspectionListFilters {
+  const status = sp.status?.trim() ?? '';
+  const allowed = new Set(['pending', 'in_progress', 'passed', 'failed', 'on_hold', 'cancelled']);
+  return {
+    status: status && allowed.has(status) ? status : '',
+    search: sp.q?.trim() ?? '',
+  };
+}
+
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
 
 const PROTOTYPE_ANCHOR =
   'prototypes/design/Monopilot Design System/quality/inspection-screens.jsx:3-97';
@@ -66,9 +83,21 @@ function ListSkeleton() {
   );
 }
 
-async function ListContent({ locale }: { locale: string }) {
+async function ListContent({
+  locale,
+  page,
+  filters,
+}: {
+  locale: string;
+  page: number;
+  filters: InspectionListFilters;
+}) {
   const t = getQaInspectionsTranslator(locale);
-  const result = await listInspections({ limit: 200 });
+  const result = await listInspections({
+    page,
+    status: filters.status || undefined,
+    search: filters.search || undefined,
+  });
 
   if (!result.ok) {
     if (result.reason === 'forbidden') {
@@ -97,11 +126,13 @@ async function ListContent({ locale }: { locale: string }) {
 
   // The action row is structurally a superset of the island's InspectionListRow
   // (extra productId is harmless); pass it through defensively.
-  const rows: InspectionListRow[] = (result.data ?? []) as unknown as InspectionListRow[];
+  const rows: InspectionListRow[] = (result.data.items ?? []) as unknown as InspectionListRow[];
 
   return (
     <InspectionsListClient
       rows={rows}
+      pagination={{ ...result.data, items: rows }}
+      filters={filters}
       labels={buildInspectionsListLabels(t)}
       createLabels={buildInspectionCreateLabels(t)}
       locale={locale}
@@ -114,8 +145,12 @@ async function ListContent({ locale }: { locale: string }) {
   );
 }
 
-export default async function InspectionsListPage({ params }: PageProps) {
+export default async function InspectionsListPage({ params, searchParams }: PageProps) {
   const { locale } = await params;
+  const sp: { page?: string; status?: string; q?: string } = searchParams ? await searchParams : {};
+  const page = parsePage(sp.page);
+  const filters = parseInspectionFilters(sp);
+  const suspenseKey = `${page}:${filters.status}:${filters.search}`;
   const t = getQaInspectionsTranslator(locale);
 
   return (
@@ -133,8 +168,8 @@ export default async function InspectionsListPage({ params }: PageProps) {
           { label: t('list.breadcrumb.inspections') },
         ]}
       />
-      <Suspense fallback={<ListSkeleton />}>
-        <ListContent locale={locale} />
+      <Suspense key={suspenseKey} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} page={page} filters={filters} />
       </Suspense>
     </main>
   );

@@ -55,6 +55,11 @@ function resolveFilter(raw: string | undefined): ChangeoverFilterStatus {
   return raw && (FILTER_VALUES as string[]).includes(raw) ? (raw as ChangeoverFilterStatus) : 'all';
 }
 
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
 /**
  * C4 action seams (changeover-actions.ts). Wrapped as Server Actions so the
  * client islands can call them. The wrappers normalise C4's return shape onto the
@@ -100,14 +105,20 @@ function ChangeoversSkeleton() {
   );
 }
 
-async function ChangeoversContent({ filter }: { filter: ChangeoverFilterStatus }) {
+async function ChangeoversContent({ filter, page, locale }: { filter: ChangeoverFilterStatus; page: number; locale: string }) {
   const t = await getTranslations('production.changeovers');
   const labels = buildChangeoversLabels(t);
 
   let listResult: Awaited<ReturnType<typeof listChangeovers>>;
   let lines: Awaited<ReturnType<typeof listChangeoverLines>>;
   try {
-    [listResult, lines] = await Promise.all([listChangeovers({ limit: 100 }), listChangeoverLines()]);
+    [listResult, lines] = await Promise.all([
+      listChangeovers({
+        page,
+        status: filter === 'all' ? undefined : filter,
+      }),
+      listChangeoverLines(),
+    ]);
   } catch (error) {
     console.error('[production/changeovers] load failed:', error);
     return (
@@ -192,8 +203,10 @@ async function ChangeoversContent({ filter }: { filter: ChangeoverFilterStatus }
   return (
     <ChangeoversList
       rows={rows}
+      pagination={{ ...listResult.pagination, items: rows }}
       lines={lines}
       initialFilter={filter}
+      locale={locale}
       labels={labels.list}
       createLabels={labels.create}
       signLabels={labels.sign}
@@ -207,12 +220,13 @@ async function ChangeoversContent({ filter }: { filter: ChangeoverFilterStatus }
 export default async function ChangeoversPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; lineId?: string }>;
+  searchParams: Promise<{ status?: string; lineId?: string; page?: string }>;
 }) {
   const locale = await getLocale();
   const t = await getTranslations('production.changeovers');
   const sp = await searchParams;
   const filter = resolveFilter(sp.status);
+  const page = parsePage(sp.page);
 
   return (
     <main
@@ -228,8 +242,8 @@ export default async function ChangeoversPage({
           { label: t('breadcrumb.changeovers') },
         ]}
       />
-      <Suspense fallback={<ChangeoversSkeleton />}>
-        <ChangeoversContent filter={filter} />
+      <Suspense key={`${page}:${filter}`} fallback={<ChangeoversSkeleton />}>
+        <ChangeoversContent filter={filter} page={page} locale={locale} />
       </Suspense>
     </main>
   );

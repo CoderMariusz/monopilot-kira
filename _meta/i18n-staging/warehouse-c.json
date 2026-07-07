@@ -45,7 +45,12 @@
       "emptyAll": "No goods receipts yet — receive goods from a PO or TO to create your first GRN.",
       "emptyFiltered": "No goods receipts match this filter. Try clearing the search or pick a different tab.",
       "denied": "You do not have permission to view goods receipts. Ask an administrator for the warehouse.inventory.read permission.",
-      "error": "We could not load goods receipts right now. Refresh to try again."
+      "error": "We could not load goods receipts right now. Refresh to try again.",
+      "pagination": {
+        "showing": "Showing {shown} of {total}",
+        "previous": "Previous",
+        "next": "Next"
+      }
     },
     "grnDetail": {
       "breadcrumb": {
@@ -377,7 +382,12 @@
       "emptyAll": "Brak przyjęć towaru — przyjmij towar z PO lub TO, aby utworzyć pierwsze GRN.",
       "emptyFiltered": "Żadne przyjęcie nie pasuje do filtra. Wyczyść wyszukiwanie lub wybierz inną zakładkę.",
       "denied": "Nie masz uprawnień do podglądu przyjęć towaru. Poproś administratora o uprawnienie warehouse.inventory.read.",
-      "error": "Nie udało się teraz wczytać przyjęć towaru. Odśwież, aby spróbować ponownie."
+      "error": "Nie udało się teraz wczytać przyjęć towaru. Odśwież, aby spróbować ponownie.",
+      "pagination": {
+        "showing": "Wyświetlono {shown} z {total}",
+        "previous": "Poprzednia",
+        "next": "Następna"
+      }
     },
     "grnDetail": {
       "breadcrumb": {

@@ -3,8 +3,14 @@
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import {
+  DEFAULT_GRN_PAGE_SIZE,
+  emptyPaginatedResult,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../lib/shared/pagination';
+import {
   WAREHOUSE_READ_PERMISSION,
-  asLimit,
   asTrimmed,
   hasWarehousePermission,
   toIso,
@@ -50,54 +56,88 @@ function mapGrn(row: GrnRow, itemCountOverride?: number): GrnListItem {
   };
 }
 
-export async function listGrns(input: GrnListInput = {}): Promise<WarehouseResult<GrnListItem[]>> {
+export async function listGrns(input: GrnListInput = {}): Promise<WarehouseResult<PaginatedResult<GrnListItem>>> {
   const status = asTrimmed(input.status);
   const sourceType = asTrimmed(input.sourceType);
   const search = asTrimmed(input.search);
-  const limit = asLimit(input.limit);
+  const page = normalizePage({
+    page: input.page,
+    offset: input.offset,
+    limit: input.limit,
+    defaultLimit: DEFAULT_GRN_PAGE_SIZE,
+    maxLimit: 200,
+  });
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<GrnListItem[]>> => {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<PaginatedResult<GrnListItem>>> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_READ_PERMISSION))) return { ok: false, reason: 'forbidden' };
       const s = await getActiveSiteId({ client: ctx.client });
-      if (!s) return { ok: true, data: [], noActiveSite: true } as WarehouseResult<GrnListItem[]> & { noActiveSite: true };
+      if (!s) {
+        return {
+          ok: true,
+          data: emptyPaginatedResult(page),
+          noActiveSite: true,
+        } as WarehouseResult<PaginatedResult<GrnListItem>> & { noActiveSite: true };
+      }
 
-      const { rows } = await ctx.client.query<GrnRow>(
-        `select g.id::text,
-                g.grn_number,
-                g.source_type,
-                g.status,
-                g.supplier_id::text,
-                s.name as supplier_name,
-                g.warehouse_id::text,
-                w.code as warehouse_code,
-                g.receipt_date,
-                g.completed_at,
-                g.po_id::text,
-                (select count(*)
-                   from public.grn_items gi
-                  where gi.org_id = app.current_org_id()
-                    and gi.grn_id = g.id
-                    and gi.cancelled_at is null) as item_count
-           from public.grns g
-           left join public.suppliers s on s.org_id = app.current_org_id() and s.id = g.supplier_id
-           left join public.warehouses w on w.org_id = app.current_org_id() and w.id = g.warehouse_id
-          where g.org_id = app.current_org_id()
-            and g.site_id = $5::uuid
-            and ($1::text is null or g.status = $1)
-            and ($2::text is null or g.source_type = $2)
-            and (
-              $3::text is null
-              or g.grn_number ilike '%' || $3 || '%'
-              or s.name ilike '%' || $3 || '%'
-            )
-          order by g.receipt_date desc, g.grn_number desc
-          limit $4::integer`,
-        [status, sourceType, search, limit, s],
-      );
+      const baseParams = [status, sourceType, search, s] as const;
 
-      return { ok: true, data: rows.map(mapGrn) };
+      const [countResult, dataResult] = await Promise.all([
+        ctx.client.query<{ total: number }>(
+          `select count(*)::int as total
+             from public.grns g
+             left join public.suppliers s on s.org_id = app.current_org_id() and s.id = g.supplier_id
+            where g.org_id = app.current_org_id()
+              and g.site_id = $4::uuid
+              and ($1::text is null or g.status = $1)
+              and ($2::text is null or g.source_type = $2)
+              and (
+                $3::text is null
+                or g.grn_number ilike '%' || $3 || '%'
+                or s.name ilike '%' || $3 || '%'
+              )`,
+          [...baseParams],
+        ),
+        ctx.client.query<GrnRow>(
+          `select g.id::text,
+                  g.grn_number,
+                  g.source_type,
+                  g.status,
+                  g.supplier_id::text,
+                  s.name as supplier_name,
+                  g.warehouse_id::text,
+                  w.code as warehouse_code,
+                  g.receipt_date,
+                  g.completed_at,
+                  g.po_id::text,
+                  (select count(*)
+                     from public.grn_items gi
+                    where gi.org_id = app.current_org_id()
+                      and gi.grn_id = g.id
+                      and gi.cancelled_at is null) as item_count
+             from public.grns g
+             left join public.suppliers s on s.org_id = app.current_org_id() and s.id = g.supplier_id
+             left join public.warehouses w on w.org_id = app.current_org_id() and w.id = g.warehouse_id
+            where g.org_id = app.current_org_id()
+              and g.site_id = $4::uuid
+              and ($1::text is null or g.status = $1)
+              and ($2::text is null or g.source_type = $2)
+              and (
+                $3::text is null
+                or g.grn_number ilike '%' || $3 || '%'
+                or s.name ilike '%' || $3 || '%'
+              )
+            order by g.receipt_date desc, g.grn_number desc, g.id desc
+            limit $5::integer offset $6::integer`,
+          [...baseParams, page.limit, page.offset],
+        ),
+      ]);
+
+      return {
+        ok: true,
+        data: toPaginatedResult(dataResult.rows.map(mapGrn), Number(countResult.rows[0]?.total ?? 0), page),
+      };
     });
   } catch (error) {
     console.error('[warehouse] listGrns failed', error);

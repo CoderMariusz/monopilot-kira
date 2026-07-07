@@ -32,6 +32,11 @@ export type ChangeoverListLabels = {
   status: Record<'pending' | 'first_signed' | 'complete', string>;
   signerNone: string;
   reviewButton: string;
+  pagination: {
+    showing: string;
+    previous: string;
+    next: string;
+  };
 };
 
 export type ChangeoverCreateLabels = {

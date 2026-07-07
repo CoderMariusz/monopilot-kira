@@ -1,3 +1,4 @@
+import type { PaginatedResult } from '../../../../../../lib/shared/pagination';
 import type { SalesOrderStatus } from './so-transitions';
 
 type TransitionTarget = SalesOrderStatus;
@@ -80,6 +81,6 @@ export type AllocateSalesOrderSuccess = {
   nearExpiryWarning?: NearExpiryAllocationWarning;
 };
 
-export type ListSalesOrdersResult = ActionResult<SalesOrderListRow[]>;
+export type ListSalesOrdersResult = ActionResult<PaginatedResult<SalesOrderListRow>>;
 export type GetSalesOrderResult = ActionResult<SalesOrder | null>;
 export type CreateSalesOrderResult = ActionResult<SalesOrder | null, ActionFailure>;

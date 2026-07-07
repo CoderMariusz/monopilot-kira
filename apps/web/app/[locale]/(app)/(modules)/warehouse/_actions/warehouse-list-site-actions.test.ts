@@ -79,7 +79,11 @@ describe('warehouse list action site scoping', () => {
   it('listGrns fails closed when no active site resolves before running the GRN list query', async () => {
     getActiveSiteIdMock.mockResolvedValue(null);
 
-    await expect(listGrns()).resolves.toEqual({ ok: true, data: [], noActiveSite: true });
+    await expect(listGrns()).resolves.toEqual({
+      ok: true,
+      data: { items: [], total: 0, page: 1, limit: 50, offset: 0, hasMore: false },
+      noActiveSite: true,
+    });
     expect(mainQueryCalls()).toHaveLength(0);
   });
 

@@ -24,8 +24,9 @@
  * the source filter is a shadcn Select.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
@@ -33,10 +34,31 @@ import { Select } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import type { GrnListItem } from '../../_actions/shared';
+import { buildListPageHref } from '../../../../../../../lib/shared/list-page-href';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 export type GrnListTab = 'all' | 'draft' | 'completed' | 'cancelled';
 
 export const GRN_LIST_TABS: GrnListTab[] = ['all', 'draft', 'completed', 'cancelled'];
+
+export type GrnListFilters = {
+  status: string;
+  search: string;
+  sourceType: string;
+};
+
+function listQuery(filters: GrnListFilters): Record<string, string | undefined> {
+  return {
+    status: filters.status || undefined,
+    q: filters.search || undefined,
+    source: filters.sourceType || undefined,
+  };
+}
+
+function hasActiveFilters(filters: GrnListFilters): boolean {
+  return Boolean(filters.status || filters.search || filters.sourceType);
+}
 
 const STATUS_VARIANT: Record<string, BadgeVariant> = {
   draft: 'warning',
@@ -64,49 +86,56 @@ export type GrnListLabels = {
     status: string;
     items: string;
   };
+  pagination: ListPaginationLabels;
 };
-
-function matchesTab(row: GrnListItem, tab: GrnListTab): boolean {
-  return tab === 'all' ? true : row.status === tab;
-}
 
 export function GrnListClient({
   rows,
+  pagination,
+  filters,
   sourceTypes,
   labels,
   locale,
 }: {
   rows: GrnListItem[];
+  pagination: PaginatedResult<GrnListItem>;
+  filters: GrnListFilters;
   /** distinct source_type values present in the data, for the filter select. */
   sourceTypes: string[];
   labels: GrnListLabels;
   locale: string;
 }) {
-  const [tab, setTab] = useState<GrnListTab>('all');
-  const [search, setSearch] = useState('');
-  const [source, setSource] = useState<string>('');
+  const router = useRouter();
+  const basePath = `/${locale}/warehouse/grns`;
+  const activeTab: GrnListTab = (filters.status as GrnListTab) || 'all';
+  const pageHref = (page: number) => buildListPageHref(basePath, listQuery(filters), page);
+  const shown = pagination.offset + rows.length;
+  const [searchDraft, setSearchDraft] = useState(filters.search);
 
-  const tabCount = (k: GrnListTab): number =>
-    k === 'all' ? rows.length : rows.filter((r) => r.status === k).length;
+  useEffect(() => {
+    setSearchDraft(filters.search);
+  }, [filters.search]);
 
-  const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter(
-      (r) =>
-        matchesTab(r, tab) &&
-        (source === '' || r.sourceType === source) &&
-        (q === '' ||
-          r.grnNumber.toLowerCase().includes(q) ||
-          (r.supplierName ?? '').toLowerCase().includes(q)),
-    );
-  }, [rows, tab, search, source]);
+  useEffect(() => {
+    if (searchDraft === filters.search) return;
+    const timer = window.setTimeout(() => {
+      router.push(buildListPageHref(basePath, listQuery({ ...filters, search: searchDraft }), 1));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [basePath, filters, router, searchDraft]);
+
+  function navigate(next: Partial<GrnListFilters>) {
+    router.push(buildListPageHref(basePath, listQuery({ ...filters, ...next }), 1));
+  }
+
+  const tabCount = (k: GrnListTab): number => (k === activeTab ? pagination.total : 0);
 
   return (
     <div className="flex flex-col gap-4">
       {/* Status tabs with counts (parity grn-screens.jsx:36-41). */}
       <div role="tablist" aria-label={labels.col.status} className="flex flex-wrap gap-1 border-b border-slate-200">
         {GRN_LIST_TABS.map((k) => {
-          const on = tab === k;
+          const on = activeTab === k;
           return (
             <button
               key={k}
@@ -114,7 +143,7 @@ export function GrnListClient({
               type="button"
               aria-selected={on}
               data-testid={`grn-tab-${k}`}
-              onClick={() => setTab(k)}
+              onClick={() => navigate({ status: k === 'all' ? '' : k })}
               className={[
                 'flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition',
                 on
@@ -123,9 +152,11 @@ export function GrnListClient({
               ].join(' ')}
             >
               {labels.tab[k]}
-              <span className="rounded-full bg-slate-100 px-1.5 text-[11px] tabular-nums text-slate-600">
-                {tabCount(k)}
-              </span>
+              {tabCount(k) > 0 ? (
+                <span className="rounded-full bg-slate-100 px-1.5 text-[11px] tabular-nums text-slate-600">
+                  {tabCount(k)}
+                </span>
+              ) : null}
             </button>
           );
         })}
@@ -135,8 +166,8 @@ export function GrnListClient({
       <Card className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
         <input
           type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchDraft}
+          onChange={(e) => setSearchDraft(e.target.value)}
           placeholder={labels.searchPlaceholder}
           aria-label={labels.searchLabel}
           data-testid="grn-list-search"
@@ -145,8 +176,8 @@ export function GrnListClient({
         <div className="w-44" data-testid="grn-source-filter">
           <Select
             aria-label={labels.sourceFilterLabel}
-            value={source}
-            onValueChange={setSource}
+            value={filters.sourceType}
+            onValueChange={(value) => navigate({ sourceType: value })}
             options={[
               { value: '', label: labels.sourceAll },
               ...sourceTypes.map((s) => ({ value: s, label: s.toUpperCase() })),
@@ -154,7 +185,7 @@ export function GrnListClient({
           />
         </div>
         <span className="ml-auto text-xs text-slate-500" data-testid="grn-list-rows">
-          {labels.rowsLabel.replace('{count}', String(visible.length))}
+          {labels.rowsLabel.replace('{count}', String(pagination.total))}
         </span>
       </Card>
 
@@ -165,11 +196,7 @@ export function GrnListClient({
       >
         {rows.length === 0 ? (
           <p data-testid="grn-list-empty" className="px-4 py-10 text-center text-sm text-slate-500">
-            {labels.emptyAll}
-          </p>
-        ) : visible.length === 0 ? (
-          <p data-testid="grn-list-empty-filtered" className="px-4 py-10 text-center text-sm text-slate-500">
-            {labels.emptyFiltered}
+            {hasActiveFilters(filters) ? labels.emptyFiltered : labels.emptyAll}
           </p>
         ) : (
           <Table aria-label={labels.col.grn}>
@@ -185,7 +212,7 @@ export function GrnListClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visible.map((r) => (
+              {rows.map((r) => (
                 <TableRow key={r.id} data-testid={`grn-row-${r.id}`}>
                   <TableCell className="font-mono text-sm font-semibold text-sky-700">
                     <Link
@@ -221,6 +248,14 @@ export function GrnListClient({
             </TableBody>
           </Table>
         )}
+        <ListPaginationFooter
+          shown={shown}
+          total={pagination.total}
+          previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+          nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+          labels={labels.pagination}
+          testId="grn-list-pagination"
+        />
       </Card>
     </div>
   );

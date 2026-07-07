@@ -18,6 +18,12 @@
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
+  DEFAULT_ECO_PAGE_SIZE,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../../lib/shared/pagination';
+import {
   ECO_APPROVE_PERMISSION,
   ECO_STATUSES,
   ECO_WRITE_PERMISSION,
@@ -35,6 +41,7 @@ export type EcoPageState = 'ready' | 'empty' | 'error' | 'forbidden';
 
 export type EcoPageData = {
   changeOrders: EcoSummary[];
+  pagination: PaginatedResult<EcoSummary>;
   items: EcoItemOption[];
   counts: Record<EcoStatus, number> & { all: number };
   canWrite: boolean;
@@ -61,14 +68,18 @@ type ItemRow = { id: string; item_code: string; name: string };
 type CountRow = { status: string; n: string | number };
 
 const ITEM_LOOKUP_LIMIT = 500;
-const LIST_LIMIT = 100;
 
 function isEcoStatus(value: string): value is EcoStatus {
   return (ECO_STATUSES as readonly string[]).includes(value);
 }
 
-export async function loadEcoPage(rawStatus?: string): Promise<EcoPageData> {
+export async function loadEcoPage(rawStatus?: string, rawPage?: number): Promise<EcoPageData> {
   const status = rawStatus && isEcoStatus(rawStatus) ? rawStatus : undefined;
+  const page = normalizePage({
+    page: rawPage,
+    defaultLimit: DEFAULT_ECO_PAGE_SIZE,
+    maxLimit: 200,
+  });
 
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<EcoPageData> => {
@@ -91,6 +102,7 @@ export async function loadEcoPage(rawStatus?: string): Promise<EcoPageData> {
       if (!canWrite) {
         return {
           changeOrders: [],
+          pagination: toPaginatedResult([], 0, page),
           items: [],
           counts: emptyCounts,
           canWrite,
@@ -99,7 +111,9 @@ export async function loadEcoPage(rawStatus?: string): Promise<EcoPageData> {
         };
       }
 
-      const [orderRows, itemRows, countRows] = await Promise.all([
+      const baseParams = [status ?? null] as const;
+
+      const [orderRows, itemRows, countRows, filteredCountResult] = await Promise.all([
         qc.query<EcoRow>(
           `select co.id,
                   co.code,
@@ -117,9 +131,9 @@ export async function loadEcoPage(rawStatus?: string): Promise<EcoPageData> {
              from public.technical_change_orders co
             where co.org_id = app.current_org_id()
               and ($1::text is null or co.status = $1)
-            order by co.updated_at desc
-            limit $2::integer`,
-          [status ?? null, LIST_LIMIT],
+            order by co.updated_at desc, co.id desc
+            limit $2::integer offset $3::integer`,
+          [...baseParams, page.limit, page.offset],
         ),
         qc.query<ItemRow>(
           `select id, item_code, name from public.items
@@ -131,6 +145,13 @@ export async function loadEcoPage(rawStatus?: string): Promise<EcoPageData> {
              from public.technical_change_orders
             where org_id = app.current_org_id()
             group by status`,
+        ),
+        qc.query<{ total: number }>(
+          `select count(*)::int as total
+             from public.technical_change_orders co
+            where co.org_id = app.current_org_id()
+              and ($1::text is null or co.status = $1)`,
+          [...baseParams],
         ),
       ]);
 
@@ -156,6 +177,12 @@ export async function loadEcoPage(rawStatus?: string): Promise<EcoPageData> {
         lineCount: Number(row.line_count),
       }));
 
+      const pagination = toPaginatedResult(
+        changeOrders,
+        Number(filteredCountResult.rows[0]?.total ?? 0),
+        page,
+      );
+
       const items: EcoItemOption[] = itemRows.rows.map((r) => ({
         id: String(r.id),
         itemCode: r.item_code,
@@ -163,12 +190,13 @@ export async function loadEcoPage(rawStatus?: string): Promise<EcoPageData> {
       }));
 
       return {
-        changeOrders,
+        changeOrders: pagination.items,
+        pagination,
         items,
         counts,
         canWrite,
         canApprove,
-        state: changeOrders.length ? 'ready' : 'empty',
+        state: pagination.total === 0 ? 'empty' : 'ready',
       };
     });
   } catch (error) {
@@ -177,6 +205,7 @@ export async function loadEcoPage(rawStatus?: string): Promise<EcoPageData> {
     });
     return {
       changeOrders: [],
+      pagination: toPaginatedResult([], 0, page),
       items: [],
       counts: { draft: 0, approved: 0, implementing: 0, closed: 0, all: 0 },
       canWrite: false,
