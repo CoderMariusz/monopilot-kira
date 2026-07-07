@@ -51,6 +51,9 @@ export type ItemDetail = {
   boxesPerPallet: number | null;
   costPerKg: string | null;
   listPriceGbp: string | null;
+  /** Cheapest active+approved supplier_specs.unit_price when multiple exist. */
+  supplierUnitPrice: string | null;
+  supplierPriceCurrency: string | null;
   effectiveCostAmount: string | null;
   effectiveCostCurrency: string | null;
   effectiveCostSource: string | null;
@@ -87,6 +90,8 @@ type ItemDetailRow = {
   boxes_per_pallet: number | null;
   cost_per_kg: string | null;
   list_price_gbp: string | null;
+  supplier_unit_price: string | null;
+  supplier_price_currency: string | null;
   effective_cost_amount: string | null;
   effective_cost_currency: string | null;
   effective_cost_source: string | null;
@@ -127,6 +132,8 @@ function mapDetail(row: ItemDetailRow): ItemDetail | null {
     boxesPerPallet: row.boxes_per_pallet,
     costPerKg: row.cost_per_kg,
     listPriceGbp: row.list_price_gbp,
+    supplierUnitPrice: row.supplier_unit_price,
+    supplierPriceCurrency: row.supplier_price_currency,
     effectiveCostAmount: row.effective_cost_amount,
     effectiveCostCurrency: row.effective_cost_currency,
     effectiveCostSource: row.effective_cost_source,
@@ -148,11 +155,25 @@ export async function getItem(itemCode: string): Promise<GetItemResult> {
                   i.variance_tolerance_pct, i.shelf_life_days, i.shelf_life_mode,
                   i.output_uom, i.net_qty_per_each, i.each_per_box, i.boxes_per_pallet,
                   i.cost_per_kg, i.list_price_gbp::text as list_price_gbp,
+                  buy.unit_price::text as supplier_unit_price,
+                  buy.price_currency as supplier_price_currency,
                   vec.amount::text as effective_cost_amount,
                   vec.currency as effective_cost_currency,
                   vec.source as effective_cost_source,
                   i.updated_at
              from public.items i
+             left join lateral (
+               select ss.unit_price, ss.price_currency
+                 from public.supplier_specs ss
+                where ss.org_id = i.org_id
+                  and ss.item_id = i.id
+                  and public.supplier_spec_resolved_lifecycle(ss.lifecycle_status, ss.expiry_date) = 'active'
+                  and ss.review_status = 'approved'
+                  and ss.unit_price is not null
+                order by ss.unit_price asc, ss.effective_from desc nulls last, ss.updated_at desc nulls last,
+                         ss.supplier_code asc, ss.id asc
+                limit 1
+             ) buy on true
              left join public.v_item_effective_cost vec
                on vec.org_id = i.org_id
               and vec.item_id = i.id

@@ -2178,8 +2178,9 @@
           "varianceTolerance": "Tolerancja odchylenia",
           "shelfLife": "Termin przydatności",
           "shelfLifeDays": "{days} d",
-          "costPerKg": "Koszt / bazowa JM",
-          "listPrice": "Cena katalogowa (GBP / bazowa JM)",
+          "costPerKg": "Koszt standardowy",
+          "supplierPrice": "Cena dostawcy (zakup)",
+          "listPrice": "Cena sprzedaży (katalogowa)",
           "updated": "Zaktualizowano",
           "none": "—",
           "outputUom": "Jednostka wyjściowa",
@@ -2192,7 +2193,7 @@
             "each": "Sztuka",
             "box": "Karton"
           },
-          "effectiveCost": "Koszt efektywny",
+          "effectiveCost": "Koszt efektywny (źródło)",
           "effectiveCostSource": {
             "cost_history": "Historia kosztów",
             "supplier_spec": "Specyfikacja dostawcy",
@@ -2420,6 +2421,9 @@
           "ready": "Gotowe do utworzenia. Zostanie zapisany wpis audytowy.",
           "packaging": "Hierarchia opakowań"
         },
+        "warnings": {
+          "supplierSpecNotSaved": "Pozycja utworzona, ale cena dostawcy NIE została zapisana."
+        },
         "errors": {
           "codeRequired": "Kod pozycji jest wymagany (min. 1 znak).",
           "nameRequired": "Nazwa jest wymagana (min. 1 znak).",
@@ -2481,6 +2485,7 @@
       },
       "errors": {
         "already_exists": "Pozycja o tym kodzie już istnieje w tej organizacji.",
+        "already_exists_named": "Pozycja {itemCode} już istnieje w tej organizacji. Mogła powstać podczas wcześniejszej próby, która nie zakończyła się poprawnie.",
         "forbidden": "Nie masz uprawnień do wykonania tej akcji.",
         "invalid_input": "Sprawdź wartości i spróbuj ponownie.",
         "not_found": "Ta pozycja już nie istnieje.",

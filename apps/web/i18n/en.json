@@ -4717,8 +4717,9 @@
           "varianceTolerance": "Variance tolerance",
           "shelfLife": "Shelf life",
           "shelfLifeDays": "{days} d",
-          "costPerKg": "Cost / base UoM",
-          "listPrice": "List price (GBP / base UoM)",
+          "costPerKg": "Standard cost",
+          "supplierPrice": "Supplier price (buy)",
+          "listPrice": "Sell price (list)",
           "updated": "Updated",
           "none": "—",
           "outputUom": "Output unit",
@@ -4731,7 +4732,7 @@
             "each": "Each (piece)",
             "box": "Box"
           },
-          "effectiveCost": "Effective cost",
+          "effectiveCost": "Effective cost (source)",
           "effectiveCostSource": {
             "cost_history": "Cost history",
             "supplier_spec": "Supplier spec",
@@ -4959,6 +4960,9 @@
           "ready": "Ready to create. An audit record will be logged.",
           "packaging": "Pack hierarchy"
         },
+        "warnings": {
+          "supplierSpecNotSaved": "Item created but supplier price NOT saved."
+        },
         "errors": {
           "codeRequired": "Item code is required (min 1 char).",
           "nameRequired": "Name is required (min 1 char).",
@@ -5020,6 +5024,7 @@
       },
       "errors": {
         "already_exists": "An item with that code already exists in this organization.",
+        "already_exists_named": "Item {itemCode} already exists in this organization. It may have been created by an earlier attempt that did not finish cleanly.",
         "forbidden": "You do not have permission to perform this action.",
         "invalid_input": "Please check the values and try again.",
         "not_found": "That item no longer exists.",

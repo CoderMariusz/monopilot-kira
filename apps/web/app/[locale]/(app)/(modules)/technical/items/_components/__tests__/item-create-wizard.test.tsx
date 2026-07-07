@@ -298,6 +298,53 @@ describe('ItemWizard create mode (TEC-011)', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onSaved).toHaveBeenCalledTimes(1);
   });
+
+  it('shows a loud warning when create succeeds but supplier price save fails (R1.5b)', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onSaved = vi.fn();
+    createItem.mockResolvedValue({
+      ok: true,
+      data: { id: 'x', itemCode: 'RM-2002' },
+      warning: { code: 'supplier_spec_failed' },
+    });
+    renderWizard({
+      open: true,
+      onClose,
+      onSaved,
+      mode: { kind: 'create' },
+      supplierOptions: [{ value: 'SUP-001', label: 'SUP-001 — Acme Foods' }],
+      supplierIdByCode: { 'SUP-001': '00000000-0000-4000-8000-000000000001' },
+    });
+    await fillBasicAndAdvance(user);
+    await user.click(screen.getByRole('combobox', { name: L.fields.supplier }));
+    await user.click(screen.getByRole('option', { name: 'SUP-001 — Acme Foods' }));
+    await user.click(screen.getByRole('button', { name: L.next }));
+    await user.type(inputByName('supplierUnitPrice'), '5.20');
+    await user.click(screen.getByRole('button', { name: L.next }));
+    await user.click(screen.getByRole('button', { name: L.create }));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onSaved).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalled();
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('supplier price NOT saved');
+    expect(alert).not.toHaveTextContent('duplicate key value');
+  });
+
+  it('names the existing item code on already_exists (R1.6)', async () => {
+    const user = userEvent.setup();
+    createItem.mockResolvedValue({ ok: false, error: 'already_exists', itemCode: 'RM-2002' });
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user);
+    await user.click(screen.getByRole('button', { name: L.next }));
+    await user.click(screen.getByRole('button', { name: L.next }));
+    await user.click(screen.getByRole('button', { name: L.create }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('RM-2002');
+    expect(alert).toHaveTextContent('earlier attempt');
+  });
 });
 
 describe('ItemWizard edit mode (TEC-013 reuse)', () => {

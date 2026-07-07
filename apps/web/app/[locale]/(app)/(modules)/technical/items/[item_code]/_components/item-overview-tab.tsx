@@ -32,6 +32,7 @@ export type ItemOverviewLabels = {
   varianceTolerance: string;
   shelfLife: string;
   costPerKg: string;
+  supplierPrice: string;
   listPrice: string;
   effectiveCost: string;
   /** Optional localized labels for v_item_effective_cost.source tiers. */
@@ -118,6 +119,14 @@ function fmtEffectiveCost(item: ItemDetail, none: string, sourceLabels: Record<s
   return `${amount} ${currency} (${sourceLabel})`;
 }
 
+function fmtSupplierPrice(item: ItemDetail, none: string): string {
+  if (item.supplierUnitPrice === null) return none;
+  const amount = fmtNum(item.supplierUnitPrice, none);
+  if (amount === none) return none;
+  const currency = item.supplierPriceCurrency ?? 'GBP';
+  return `${amount} ${currency}`;
+}
+
 export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: ItemOverviewLabels }) {
   const none = labels.none;
   const typeLabel = labels.typeLabels?.[item.itemType] ?? TYPE_LABEL_FALLBACK[item.itemType];
@@ -178,6 +187,7 @@ export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: It
             mono
           />
           <Row label={labels.costPerKg} value={fmtNum(item.costPerKg, none)} mono />
+          <Row label={labels.supplierPrice} value={fmtSupplierPrice(item, none)} mono />
           <Row label={labels.listPrice} value={fmtNum(item.listPriceGbp, none)} mono />
           <Row label={labels.weightMode} value={item.weightMode} mono />
           <Row label={labels.nominalWeight} value={fmtNum(item.nominalWeight, none)} mono />

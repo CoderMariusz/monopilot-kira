@@ -225,9 +225,13 @@ export const CreateItemInput = z
   .superRefine(refinePackHierarchy);
 export type CreateItemInputType = z.input<typeof CreateItemInput>;
 
+export type CreateItemWarning = {
+  code: 'supplier_spec_failed';
+};
+
 export type CreateItemResult =
-  | { ok: true; data: { id: string; itemCode: string } }
-  | { ok: false; error: ItemsActionError; message?: string };
+  | { ok: true; data: { id: string; itemCode: string }; warning?: CreateItemWarning }
+  | { ok: false; error: ItemsActionError; message?: string; itemCode?: string };
 
 // ── Update input ──────────────────────────────────────────────────────────────
 // item_code is immutable here (it is the org-scoped natural key); update mutates

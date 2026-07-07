@@ -16,6 +16,7 @@ import { safeRevalidatePath } from './revalidate';
 import {
   CreateItemInput,
   type CreateItemResult,
+  type CreateItemWarning,
   hasPermission,
   isPgError,
   ITEMS_CREATE_PERMISSION,
@@ -85,6 +86,8 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
       const inserted = rows[0];
       if (!inserted) throw new CreateItemAbort({ ok: false, error: 'persistence_failed' });
 
+      let supplierSpecWarning: CreateItemWarning | undefined;
+
       if (input.supplierCode) {
         const supplier = await (client as QueryClient).query<{ id: string }>(
           `select id
@@ -128,10 +131,12 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
             await txClient.query('release savepoint sp_supplier_spec');
           } catch (err) {
             await txClient.query('rollback to savepoint sp_supplier_spec');
-            console.warn('[technical/items] createItem supplier_spec_failed', {
+            const message = err instanceof Error ? err.message : String(err);
+            supplierSpecWarning = { code: 'supplier_spec_failed' };
+            console.error('[technical/items] createItem supplier_spec_failed', {
               itemId: inserted.id,
               supplierCode: input.supplierCode,
-              err: err instanceof Error ? err.message : String(err),
+              err: message,
             });
           }
         }
@@ -168,12 +173,19 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
       });
 
       safeRevalidatePath('/technical/items');
-      return { ok: true, data: { id: inserted.id, itemCode: input.itemCode } };
+      return {
+        ok: true,
+        data: { id: inserted.id, itemCode: input.itemCode },
+        ...(supplierSpecWarning ? { warning: supplierSpecWarning } : {}),
+      };
     });
   } catch (err) {
     if (err instanceof CreateItemAbort) return err.result;
     // 23505 unique_violation = items_org_item_code_unique; 23514 check_violation.
-    if (isPgError(err) && err.code === '23505') return { ok: false, error: 'already_exists' };
+    if (isPgError(err) && err.code === '23505') {
+      const itemCode = parsed.success ? parsed.data.itemCode : undefined;
+      return { ok: false, error: 'already_exists', ...(itemCode ? { itemCode } : {}) };
+    }
     if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
     console.error('[technical/items] createItem persistence_failed', {
       err: err instanceof Error ? err.message : String(err),

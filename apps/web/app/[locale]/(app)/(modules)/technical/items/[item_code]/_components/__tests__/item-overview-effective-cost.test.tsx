@@ -35,6 +35,8 @@ const baseItem: ItemDetail = {
   boxesPerPallet: null,
   costPerKg: '4.50',
   listPriceGbp: '12.20',
+  supplierUnitPrice: '5.10',
+  supplierPriceCurrency: 'GBP',
   effectiveCostAmount: '4.8200',
   effectiveCostCurrency: 'GBP',
   effectiveCostSource: 'cost_history',
@@ -59,9 +61,10 @@ const labels: ItemOverviewLabels = {
   gs1Gtin: 'GS1 GTIN',
   varianceTolerance: 'Variance tolerance',
   shelfLife: 'Shelf life',
-  effectiveCost: 'Effective cost',
-  costPerKg: 'Stored cost / kg',
-  listPrice: 'List price',
+  effectiveCost: 'Effective cost (source)',
+  costPerKg: 'Standard cost',
+  supplierPrice: 'Supplier price (buy)',
+  listPrice: 'Sell price (list)',
   updated: 'Updated',
   none: '—',
   outputUom: 'Output unit',
@@ -78,10 +81,26 @@ describe('ItemOverviewTab — effective cost', () => {
   it('shows effective cost with source tier and keeps raw cost_per_kg', () => {
     render(<ItemOverviewTab item={baseItem} labels={labels} />);
 
-    expect(screen.getByText('Effective cost')).toBeInTheDocument();
+    expect(screen.getByText('Effective cost (source)')).toBeInTheDocument();
     expect(screen.getByText('4.82 GBP (Cost history)')).toBeInTheDocument();
-    expect(screen.getByText('Stored cost / kg')).toBeInTheDocument();
+    expect(screen.getByText('Standard cost')).toBeInTheDocument();
     expect(screen.getByText('4.5')).toBeInTheDocument();
+    expect(screen.getByText('Supplier price (buy)')).toBeInTheDocument();
+    expect(screen.getByText('5.1 GBP')).toBeInTheDocument();
+    expect(screen.getByText('Sell price (list)')).toBeInTheDocument();
+    expect(screen.getByText('12.2')).toBeInTheDocument();
+  });
+
+  it('renders em dash when supplier buy price is absent', () => {
+    render(
+      <ItemOverviewTab
+        item={{ ...baseItem, supplierUnitPrice: null, supplierPriceCurrency: null }}
+        labels={labels}
+      />,
+    );
+
+    const supplierRow = screen.getByText('Supplier price (buy)').closest('div');
+    expect(supplierRow).toHaveTextContent('—');
   });
 
   it('renders em dash when effective cost is absent', () => {
@@ -92,7 +111,7 @@ describe('ItemOverviewTab — effective cost', () => {
       />,
     );
 
-    const effectiveRow = screen.getByText('Effective cost').closest('div');
+    const effectiveRow = screen.getByText('Effective cost (source)').closest('div');
     expect(effectiveRow).toHaveTextContent('—');
   });
 });

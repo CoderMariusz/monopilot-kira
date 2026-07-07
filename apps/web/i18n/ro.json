@@ -2164,8 +2164,9 @@
           "varianceTolerance": "Variance tolerance",
           "shelfLife": "Shelf life",
           "shelfLifeDays": "{days} d",
-          "costPerKg": "Cost / UM de bază",
-          "listPrice": "List price (GBP / base UoM)",
+          "costPerKg": "Cost standard",
+          "supplierPrice": "Preț furnizor (cumpărare)",
+          "listPrice": "Preț vânzare (listă)",
           "updated": "Updated",
           "none": "—",
           "outputUom": "Output unit",
@@ -2178,7 +2179,7 @@
             "each": "Each (piece)",
             "box": "Box"
           },
-          "effectiveCost": "Effective cost",
+          "effectiveCost": "Cost efectiv (sursă)",
           "effectiveCostSource": {
             "cost_history": "Cost history",
             "supplier_spec": "Supplier spec",
@@ -2406,6 +2407,9 @@
           "ready": "Ready to create. An audit record will be logged.",
           "packaging": "Pack hierarchy"
         },
+        "warnings": {
+          "supplierSpecNotSaved": "Articol creat, dar prețul furnizorului NU a fost salvat."
+        },
         "errors": {
           "codeRequired": "Item code is required (min 1 char).",
           "nameRequired": "Name is required (min 1 char).",
@@ -2467,6 +2471,7 @@
       },
       "errors": {
         "already_exists": "An item with that code already exists in this organization.",
+        "already_exists_named": "Articolul {itemCode} există deja în această organizație. Poate fi rezultatul unei încercări anterioare care nu s-a finalizat corect.",
         "forbidden": "You do not have permission to perform this action.",
         "invalid_input": "Please check the values and try again.",
         "not_found": "That item no longer exists.",

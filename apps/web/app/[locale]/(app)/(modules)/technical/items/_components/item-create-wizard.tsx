@@ -370,6 +370,7 @@ export function ItemWizard({
     () => hasShelfLifeSeed(initialForm ?? emptyWizardForm()),
   );
   const [error, setError] = React.useState<string | null>(null);
+  const [warning, setWarning] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
   // Reseed the form whenever the dialog (re)opens so an Edit-mode reuse picks up
@@ -385,6 +386,7 @@ export function ItemWizard({
       setHasShelfLife(hasShelfLifeSeed(seed));
       setStepIndex(0);
       setError(null);
+      setWarning(null);
     }
     wasOpen.current = open;
   }, [open, initialForm]);
@@ -544,7 +546,7 @@ export function ItemWizard({
       if (isEdit) {
         const result = await updateItem({ id: (mode as { itemId: string }).itemId, ...common });
         if (!result.ok) {
-          setError(labels.actionErrors[result.error]);
+          setError(labels.formatActionError(result.error));
           return;
         }
         // Only (re)attach when a supplier is chosen AND it differs from the one the
@@ -594,11 +596,18 @@ export function ItemWizard({
           : {}),
       });
       if (result.ok) {
+        if (result.warning?.code === 'supplier_spec_failed') {
+          setWarning(labels.warnings.supplierSpecNotSaved);
+          setError(null);
+          onSaved?.();
+          router.refresh();
+          return;
+        }
         onClose();
         onSaved?.();
         router.refresh();
       } else {
-        setError(labels.actionErrors[result.error]);
+        setError(labels.formatActionError(result.error, { itemCode: result.itemCode ?? form.itemCode }));
       }
     });
   }
@@ -1068,6 +1077,12 @@ export function ItemWizard({
             <span>{labels.review.ready}</span>
           </div>
         </div>
+      ) : null}
+
+      {warning ? (
+        <p role="alert" className="alert alert-amber" style={{ marginTop: 12, marginBottom: 0 }}>
+          {warning}
+        </p>
       ) : null}
 
       {error ? (

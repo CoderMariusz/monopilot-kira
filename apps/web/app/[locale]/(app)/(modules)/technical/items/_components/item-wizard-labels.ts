@@ -75,6 +75,9 @@ export type ItemWizardLabels = {
   /** Wizard-only helper shown under the "Intermediate" item type — "= WIP (work in progress)". */
   intermediateHint: string;
   review: { ready: string; packaging: string };
+  warnings: {
+    supplierSpecNotSaved: string;
+  };
   errors: {
     codeRequired: string;
     nameRequired: string;
@@ -83,6 +86,10 @@ export type ItemWizardLabels = {
     eachPerBoxRequired: string;
   };
   actionErrors: Record<ItemsActionError, string>;
+  /** Generic already_exists when item code is unknown (fallback). */
+  actionErrorsGeneric: { already_exists: string };
+  formatActionError: (error: ItemsActionError, ctx?: { itemCode?: string }) => string;
+  formatSupplierSpecWarning: () => string;
 };
 
 export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
@@ -157,6 +164,9 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
   catchHint: 'Catch weight requires nominal weight, gross weight max and a variance tolerance.',
   intermediateHint: '= WIP (work in progress)',
   review: { ready: 'Ready to create. An audit record will be logged.', packaging: 'Pack hierarchy' },
+  warnings: {
+    supplierSpecNotSaved: 'Item created but supplier price NOT saved.',
+  },
   errors: {
     codeRequired: 'Item code is required (min 1 char).',
     nameRequired: 'Name is required (min 1 char).',
@@ -165,13 +175,28 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     eachPerBoxRequired: 'Each per box is required (> 0) for Box output.',
   },
   actionErrors: {
-    already_exists: 'An item with that code already exists in this organization.',
+    already_exists:
+      'Item {itemCode} already exists in this organization. It may have been created by an earlier attempt that did not finish cleanly.',
     forbidden: 'You do not have permission to perform this action.',
     invalid_input: 'Please check the values and try again.',
     not_found: 'That item no longer exists.',
     persistence_failed: 'Could not save. Please try again.',
     invalid_category: 'Choose an active product category or leave blank.',
   },
+  actionErrorsGeneric: {
+    already_exists: 'An item with that code already exists in this organization.',
+  },
+  formatActionError: (error, ctx) => {
+    if (error === 'already_exists') {
+      const code = ctx?.itemCode?.trim();
+      if (code) {
+        return DEFAULT_WIZARD_LABELS.actionErrors.already_exists.replace('{itemCode}', code);
+      }
+      return DEFAULT_WIZARD_LABELS.actionErrorsGeneric.already_exists;
+    }
+    return DEFAULT_WIZARD_LABELS.actionErrors[error];
+  },
+  formatSupplierSpecWarning: () => DEFAULT_WIZARD_LABELS.warnings.supplierSpecNotSaved,
 };
 
 /** Structural translator shape — avoids importing next-intl/server here (this
@@ -196,6 +221,18 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
     }
   };
   const get = (key: string, fallback: string) => (has(key) ? t(key) : fallback);
+
+  const actionErrors: ItemWizardLabels['actionErrors'] = {
+    already_exists: get('errors.already_exists_named', D.actionErrors.already_exists),
+    forbidden: t('errors.forbidden'),
+    invalid_input: t('errors.invalid_input'),
+    not_found: t('errors.not_found'),
+    persistence_failed: t('errors.persistence_failed'),
+    invalid_category: get('errors.invalid_category', D.actionErrors.invalid_category),
+  };
+  const actionErrorsGeneric: ItemWizardLabels['actionErrorsGeneric'] = {
+    already_exists: get('errors.already_exists', D.actionErrorsGeneric.already_exists),
+  };
 
   return {
     title: t('create.title'),
@@ -277,6 +314,9 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       ready: t('create.review.ready'),
       packaging: get('create.review.packaging', D.review.packaging),
     },
+    warnings: {
+      supplierSpecNotSaved: get('create.warnings.supplierSpecNotSaved', D.warnings.supplierSpecNotSaved),
+    },
     errors: {
       codeRequired: t('create.errors.codeRequired'),
       nameRequired: t('create.errors.nameRequired'),
@@ -284,13 +324,20 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       netRequired: get('create.errors.netRequired', D.errors.netRequired),
       eachPerBoxRequired: get('create.errors.eachPerBoxRequired', D.errors.eachPerBoxRequired),
     },
-    actionErrors: {
-      already_exists: t('errors.already_exists'),
-      forbidden: t('errors.forbidden'),
-      invalid_input: t('errors.invalid_input'),
-      not_found: t('errors.not_found'),
-      persistence_failed: t('errors.persistence_failed'),
-      invalid_category: get('errors.invalid_category', D.actionErrors.invalid_category),
+    actionErrors,
+    actionErrorsGeneric,
+    formatActionError(error, ctx) {
+      if (error === 'already_exists') {
+        const code = ctx?.itemCode?.trim();
+        if (code) {
+          return actionErrors.already_exists.replace('{itemCode}', code);
+        }
+        return actionErrorsGeneric.already_exists;
+      }
+      return actionErrors[error];
+    },
+    formatSupplierSpecWarning() {
+      return get('create.warnings.supplierSpecNotSaved', D.warnings.supplierSpecNotSaved);
     },
   };
 }

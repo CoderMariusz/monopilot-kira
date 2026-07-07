@@ -199,13 +199,17 @@ describe('createItem supplier spec bootstrap', () => {
     ).toHaveLength(2);
   });
 
-  it('keeps item creation successful and continues after supplier_specs insert failure', async () => {
+  it('keeps item creation successful and surfaces supplier_specs insert failure as a warning', async () => {
     client.throwSupplierSpecInsert = true;
     const { createItem } = await import('./create-item');
 
     const res = await createItem(createPayload({ supplierCode: 'SUP-1' }));
 
-    expect(res).toEqual({ ok: true, data: { id: ITEM_ID, itemCode: 'RM-1' } });
+    expect(res).toEqual({
+      ok: true,
+      data: { id: ITEM_ID, itemCode: 'RM-1' },
+      warning: { code: 'supplier_spec_failed' },
+    });
     const supplierSpecInsertIndex = client.calls.findIndex((call) =>
       normalizeSql(call.sql).startsWith('insert into public.supplier_specs'),
     );
