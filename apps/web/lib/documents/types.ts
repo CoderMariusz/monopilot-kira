@@ -87,3 +87,7 @@ export type DeliveryNoteDocumentData = {
   totalBoxes: number;
   generatedAt: string;
 };
+
+export type DeliveryNoteDocumentResult =
+  | { ok: true; data: DeliveryNoteDocumentData }
+  | { ok: false; reason: 'forbidden' | 'not_found' | 'error' };

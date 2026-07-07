@@ -3,7 +3,7 @@
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { assembleDeliveryNoteDocument } from '../../../../../../lib/documents/delivery-note-document';
-import type { DeliveryNoteDocumentData } from '../../../../../../lib/documents/types';
+import type { DeliveryNoteDocumentResult } from '../../../../../../lib/documents/types';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 
 type QueryClient = {
@@ -14,10 +14,6 @@ type QueryClient = {
 };
 
 type ShippingContext = { userId: string; orgId: string; client: QueryClient };
-
-export type DeliveryNoteDocumentResult =
-  | { ok: true; data: DeliveryNoteDocumentData }
-  | { ok: false; reason: 'forbidden' | 'not_found' | 'error' };
 
 /** ship.dashboard.view — shipping read permission for printable documents. */
 const SHIP_DASHBOARD_VIEW = 'ship.dashboard.view';
