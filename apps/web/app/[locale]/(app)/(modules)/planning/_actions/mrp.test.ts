@@ -830,6 +830,15 @@ describe('runMrp', () => {
     expect(Math.max(orderedBoxes - (shippedInOrderUom ?? 0), 0)).toBe(9);
   });
 
+  it('converts shipped base qty to each order_uom before netting open SO demand (P2-05)', () => {
+    const item = { uom_base: 'kg', net_qty_per_each: 50, each_per_box: 1 };
+    const orderedEach = 10;
+    const shippedKg = 50; // one full each in inventory/base UoM
+    const shippedInOrderUom = shippedBaseToOrderUom(shippedKg, 'each', item);
+    expect(shippedInOrderUom).toBe(1);
+    expect(Math.max(orderedEach - (shippedInOrderUom ?? 0), 0)).toBe(9);
+  });
+
   it('nets box-UoM SO remainder after shipped conversion through computeMrpPhased (P2-05)', async () => {
     // SQL remainder: 10 box ordered − 1 box shipped (50 kg) = 9 box → 450 kg base demand.
     flourPackHierarchy = true;
@@ -842,6 +851,46 @@ describe('runMrp', () => {
     const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
     expect(flour.soDemand).toBe('450.000');
     expect(flour.demand).toBe('530.000'); // 80 dependent + 450 SO
+  });
+
+  it('nets each-UoM SO remainder after shipped conversion through computeMrpPhased (P2-05)', async () => {
+    // SQL remainder: 10 each ordered − 1 each shipped (50 kg) = 9 each → 450 kg base demand.
+    flourPackHierarchy = true;
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'each', need_date: MOCK_NEED_DATE, qty: '9.000' }];
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.soDemand).toBe('450.000');
+    expect(flour.demand).toBe('530.000'); // 80 dependent + 450 SO
+    expect(flour.excludedUoms).toEqual([]);
+  });
+
+  it('excludes box/each SO demand when pack metadata is missing (shipped CASE null → coalesce 0, compute excludedUoms)', async () => {
+    // flourPackHierarchy stays false → net_qty_per_each/each_per_box are null on the item.
+    // Shipped subquery CASE returns NULL; outer SQL coalesce(shipped.shipped_qty, 0) treats shipped as 0,
+    // so the mocked SO remainder is the full ordered qty — but computeMrpPhased cannot normalize
+    // box/each to base and must surface excludedUoms instead of silently netting a wrong number.
+    const itemNoPack = { uom_base: 'kg', net_qty_per_each: null, each_per_box: null };
+    expect(shippedBaseToOrderUom(50, 'box', itemNoPack)).toBeNull();
+    expect(shippedBaseToOrderUom(50, 'each', itemNoPack)).toBeNull();
+
+    soDemandRows = [
+      { product_id: FLOUR_ID, uom: 'box', need_date: MOCK_NEED_DATE, qty: '10.000' },
+      { product_id: FLOUR_ID, uom: 'each', need_date: MOCK_NEED_DATE, qty: '5.000' },
+    ];
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.excludedUoms).toEqual(['box', 'each']);
+    expect(flour.soDemand).toBe('0.000');
+    expect(flour.demand).toBe('80.000'); // dependent only — SO rows excluded, not mixed in
+    expect(flour.net).toBe('-25.000'); // baseline without SO demand
   });
 
   it('buckets undated confirmed SO demand on the run date and surfaces a warning (P2-06)', async () => {
