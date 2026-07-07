@@ -35,6 +35,7 @@ export const npdWipProcesses = pgTable(
     additionalCost: numeric('additional_cost', { precision: 14, scale: 4 }).notNull().default('0'),
     createsWipItem: boolean('creates_wip_item').notNull().default(false),
     wipItemId: uuid('wip_item_id').references(() => items.id, { onDelete: 'set null' }),
+    // DB FK (migration 430 composite org_id + wip_definition_id) intentionally not mirrored in Drizzle.
     wipDefinitionId: uuid('wip_definition_id'),
     throughputPerHour: numeric('throughput_per_hour', { precision: 14, scale: 4 }),
     throughputUom: text('throughput_uom'),

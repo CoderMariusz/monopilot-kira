@@ -474,7 +474,7 @@ async function isActiveProductionLineVisible(ctx: OrgContextLike, lineId: string
        from public.production_lines
       where id = $1::uuid
         and org_id = app.current_org_id()
-        and coalesce(status, 'active') <> 'archived'
+        and status = 'active'
       limit 1`,
     [lineId],
   );

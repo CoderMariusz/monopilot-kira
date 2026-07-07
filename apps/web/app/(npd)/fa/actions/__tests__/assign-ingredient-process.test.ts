@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 describe('assignIngredientProcess', () => {
-  it('assigns an ingredient to a process in the same project', async () => {
+  it('assigns an ingredient to a process for the same product', async () => {
     queryMock.mockImplementation(async (sql: string) => {
       const text = String(sql);
       if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
@@ -70,7 +70,7 @@ describe('assignIngredientProcess', () => {
     expect(updateCall?.[1]).toEqual([ingredientId, null]);
   });
 
-  it('rejects cross-project ingredient and process pairing', async () => {
+  it('rejects ingredient paired with a process for a different product', async () => {
     queryMock.mockImplementation(async (sql: string) => {
       const text = String(sql);
       if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
@@ -85,7 +85,34 @@ describe('assignIngredientProcess', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: 'Ingredient and process must belong to the same project formulation',
+      error: 'Ingredient and process must belong to the same product',
+    });
+    expect(
+      queryMock.mock.calls.some((call) => /update\s+public\.formulation_ingredients/i.test(String(call[0]))),
+    ).toBe(false);
+  });
+
+  it('rejects cross-org process even when product_code matches', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
+      if (/select\s+true\s+as\s+ok/i.test(text)) {
+        expect(text).toMatch(/np\.org_id\s*=\s*app\.current_org_id\(\)/i);
+        expect(text).toMatch(/wp\.org_id\s*=\s*app\.current_org_id\(\)/i);
+        expect(text).toMatch(/pd\.org_id\s*=\s*app\.current_org_id\(\)/i);
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const result = await assignIngredientProcess({
+      ingredientId,
+      npdWipProcessId: foreignProcessId,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Ingredient and process must belong to the same product',
     });
     expect(
       queryMock.mock.calls.some((call) => /update\s+public\.formulation_ingredients/i.test(String(call[0]))),

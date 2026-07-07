@@ -132,7 +132,7 @@ async function readProductionLineOptions(ctx: OrgContextLike): Promise<FaProduct
             pl.name
        from public.production_lines pl
       where pl.org_id = app.current_org_id()
-        and coalesce(pl.status, 'active') <> 'archived'
+        and pl.status = 'active'
         and ($1::uuid is null or pl.site_id = $1::uuid or pl.site_id is null)
       order by pl.code`,
     [activeSiteId],

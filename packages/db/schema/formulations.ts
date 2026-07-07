@@ -118,6 +118,7 @@ export const formulationIngredients = pgTable(
     // rm_code stays the human display code; item_id wires the real item.
     itemId: uuid('item_id').references(() => items.id, { onDelete: 'set null' }),
     substituteItemId: uuid('substitute_item_id').references(() => items.id, { onDelete: 'set null' }),
+    // DB FK (migration 430 composite org_id + wip_definition_id) intentionally not mirrored in Drizzle.
     wipDefinitionId: uuid('wip_definition_id'),
     npdWipProcessId: uuid('npd_wip_process_id').references(() => npdWipProcesses.id, {
       onDelete: 'set null',
