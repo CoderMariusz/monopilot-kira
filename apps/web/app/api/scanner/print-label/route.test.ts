@@ -74,8 +74,8 @@ function setupQueries(options: { lpFound?: boolean } = {}) {
               site_id: SITE_ID,
               lp_code: 'LP-0001',
               item_id: ITEM_ID,
-              gs1_gtin: '01234567890123',
-              batch_lot: 'LOT-A',
+              gs1_gtin: '00614141123452',
+              batch_lot: 'LOTA',
               expiry_date: '2026-07-31',
               catch_weight_kg: '12.500000',
             }]
@@ -178,8 +178,8 @@ describe('scanner print-label route', () => {
       entity_id: LP_ID,
       lp_code: 'LP-0001',
       item_id: ITEM_ID,
-      gs1_gtin: '01234567890123',
-      lot: 'LOT-A',
+      gs1_gtin: '00614141123452',
+      lot: 'LOTA',
       expiry_date: '2026-07-31',
       catch_weight_kg: '12.500000',
     });

@@ -37,6 +37,7 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): GrnPrintLabels {
       batch: t('grnDetail.columns.batch'),
       expiry: t('grnDetail.columns.expiry'),
       lp: t('grnDetail.columns.lp'),
+      gtin: t('grnDetail.columns.gtin', { defaultValue: 'GTIN' }),
     },
     totals: {
       title: t('grnPrint.totals.title'),

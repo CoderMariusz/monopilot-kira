@@ -1,5 +1,8 @@
 'use client';
 
+import { Code128Barcode } from '../../../../../../../lib/barcode/code128-barcode';
+import { resolveSsccBarcode } from '@monopilot/gs1/barcode-resolve';
+
 /**
  * Wave-shipping — Shipment pack screen (client view).
  *
@@ -346,6 +349,17 @@ export function ShipmentPackView({
                         </span>
                       </span>
                     </div>
+                    {box.sscc ? (
+                      <div className="mb-3 max-w-xs" data-testid={`shipment-box-${box.boxNumber}-sscc-barcode`}>
+                        <Code128Barcode
+                          value={box.sscc}
+                          field="sscc"
+                          symbology="GS1-128"
+                          resolved={resolveSsccBarcode(box.sscc)}
+                          barHeight={36}
+                        />
+                      </div>
+                    ) : null}
                     {box.contents.length === 0 ? (
                       <div className="py-2 text-center text-xs text-slate-400">{labels.boxes.contentsEmpty}</div>
                     ) : (

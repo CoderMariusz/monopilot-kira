@@ -19,6 +19,8 @@ export type DocumentLine = {
   batchNumber: string | null;
   expiryDate: string | null;
   lpNumber: string | null;
+  /** Item GTIN-14 when the received product has gs1_gtin (for print barcodes). */
+  gs1Gtin: string | null;
   cancelled: boolean;
 };
 

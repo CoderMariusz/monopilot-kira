@@ -1,6 +1,7 @@
 'use client';
 
 import type { GrnDocumentData } from '../../../../../../../../../lib/documents/types';
+import { Code128Barcode } from '../../../../../../../../../lib/barcode/code128-barcode';
 
 export type GrnPrintLabels = {
   title: string;
@@ -28,6 +29,7 @@ export type GrnPrintLabels = {
     batch: string;
     expiry: string;
     lp: string;
+    gtin: string;
   };
   totals: {
     title: string;
@@ -174,7 +176,8 @@ export function GrnPrintView({ document, labels }: { document: GrnDocumentData; 
                   <th className="py-2 pr-2 text-right">{labels.columns.received}</th>
                   <th className="py-2 pr-2">{labels.columns.batch}</th>
                   <th className="py-2 pr-2">{labels.columns.expiry}</th>
-                  <th className="py-2 text-right">{labels.columns.lp}</th>
+                  <th className="py-2 pr-2 text-right">{labels.columns.lp}</th>
+                  <th className="py-2 text-right">{labels.columns.gtin}</th>
                 </tr>
               </thead>
               <tbody>
@@ -201,6 +204,21 @@ export function GrnPrintView({ document, labels }: { document: GrnDocumentData; 
                     <td className="py-2 pr-2 font-mono text-xs">{line.batchNumber ?? none}</td>
                     <td className="py-2 pr-2 font-mono text-xs">{line.expiryDate ?? none}</td>
                     <td className="py-2 text-right font-mono text-xs">{line.lpNumber ?? none}</td>
+                    <td className="py-2 text-right">
+                      {line.gs1Gtin && !line.cancelled ? (
+                        <div className="ml-auto w-36 print:w-40">
+                          <Code128Barcode
+                            data-testid={`grn-print-gtin-barcode-${line.lineNumber}`}
+                            value={line.gs1Gtin}
+                            field="ean"
+                            symbology="ean13"
+                            barHeight={28}
+                          />
+                        </div>
+                      ) : (
+                        <span className="font-mono text-xs text-slate-400">{none}</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

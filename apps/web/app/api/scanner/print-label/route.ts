@@ -1,6 +1,8 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
+import { buildGs1Element, type Gs1BuildInput } from '@monopilot/gs1/build';
+
 import { requireScannerSession } from '../../../../lib/scanner/guard';
 import { isRecord, jsonOk, readJson, stringField } from '../../../../lib/scanner/route-utils';
 import { withTxnOrgContext } from '../../../../lib/scanner/txn-org-context';
@@ -84,7 +86,30 @@ async function loadLicensePlateForLabel(client: QueryClient, entityId: string): 
   return rows[0] ?? null;
 }
 
+function toGs1Expiry(value: string | null): string | undefined {
+  if (!value) return undefined;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return undefined;
+  return `${match[1].slice(2)}${match[2]}${match[3]}`;
+}
+
+function toGs1NetWeightKg(catchWeightKg: string | null): number | undefined {
+  if (!catchWeightKg) return undefined;
+  const parsed = Number(catchWeightKg);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function buildLpPayload(lp: LicensePlateLabelRow): Record<string, unknown> {
+  const gs1Input: Gs1BuildInput = {};
+  if (lp.gs1_gtin) gs1Input.gtin = lp.gs1_gtin;
+  if (lp.batch_lot) gs1Input.lot = lp.batch_lot;
+  const expiry = toGs1Expiry(lp.expiry_date);
+  if (expiry) gs1Input.expiry = expiry;
+  const netWeightKg = toGs1NetWeightKg(lp.catch_weight_kg);
+  if (netWeightKg !== undefined) gs1Input.netWeightKg = netWeightKg;
+  const hasGs1Input = Object.keys(gs1Input).length > 0;
+  const gs1Element = hasGs1Input ? buildGs1Element(gs1Input) : null;
+
   const payload: Record<string, unknown> = {
     entity_type: 'lp',
     entity_id: lp.entity_id,
@@ -94,7 +119,9 @@ function buildLpPayload(lp: LicensePlateLabelRow): Record<string, unknown> {
     lot: lp.batch_lot,
     expiry_date: lp.expiry_date,
     catch_weight_kg: lp.catch_weight_kg,
-    gs1_element_string: null,
+    gs1_element_string: gs1Element?.raw ?? null,
+    gs1_raw: gs1Element?.raw ?? null,
+    gs1_human: gs1Element?.human ?? null,
     gs1_fields: {
       gtin: lp.gs1_gtin,
       lot: lp.batch_lot,
@@ -104,7 +131,6 @@ function buildLpPayload(lp: LicensePlateLabelRow): Record<string, unknown> {
     },
   };
 
-  // TODO wire buildGs1Element once packages/gs1/src/build.ts exists.
   if (!lp.gs1_gtin) payload.gtin_missing = true;
   return payload;
 }

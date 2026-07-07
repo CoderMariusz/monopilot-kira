@@ -62,6 +62,8 @@ export default defineConfig({
       { find: /^@monopilot\/ui\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ui/src/$1') },
       { find: /^@monopilot\/db\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/db/src/$1') },
       { find: '@monopilot/ui', replacement: path.resolve(__dirname, '../../packages/ui/src') },
+      { find: '@monopilot/gs1', replacement: path.resolve(__dirname, '../../packages/gs1/src') },
+      { find: /^@monopilot\/gs1\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/gs1/src/$1') },
       // Force all packages to use the web app's React 19 so there's only one
       // React instance — even zustand (resolved as a react-18 peer variant) must
       // bind to this single react-19. Resolve the real entry to survive pnpm's
@@ -111,7 +113,7 @@ export default defineConfig({
       },
     },
     globals: true,
-    include: ['app/**/*.test.tsx', 'components/**/*.test.tsx'],
+    include: ['app/**/*.test.tsx', 'components/**/*.test.tsx', 'lib/**/*.test.tsx'],
     setupFiles: ['../../packages/ui/test/setup.ts', './test-setup.ui.ts'],
   },
 });

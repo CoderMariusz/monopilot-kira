@@ -24,6 +24,7 @@ export type GrnLineRow = {
   batch_number: string | null;
   expiry_date: string | Date | null;
   lp_number: string | null;
+  gs1_gtin: string | null;
   cancelled: boolean;
 };
 
@@ -79,6 +80,7 @@ export function mapGrnLineRow(row: GrnLineRow): DocumentLine {
     batchNumber: row.batch_number,
     expiryDate: toIso(row.expiry_date)?.slice(0, 10) ?? null,
     lpNumber: row.lp_number,
+    gs1Gtin: row.gs1_gtin,
     cancelled: row.cancelled === true,
   };
 }
@@ -161,6 +163,7 @@ export async function assembleGrnDocument(
             gi.batch_number,
             gi.expiry_date,
             lp.lp_number,
+            i.gs1_gtin,
             (gi.cancelled_at is not null) as cancelled
        from public.grn_items gi
        left join public.items i
