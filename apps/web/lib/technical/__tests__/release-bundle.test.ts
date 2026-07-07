@@ -65,7 +65,12 @@ function createClient(options: { bomStatus: string; specBomVersion?: number; bom
       const n = normalize(sql);
 
       if (n.includes('from public.user_roles')) return { rows: [{ ok: true }] as T[] };
-      if (n.includes('from public.factory_specs') && n.startsWith('select')) return { rows: [{ ...spec }] as T[] };
+      if (n.includes('from public.factory_specs') && n.startsWith('select')) {
+        if (n.includes('for update')) {
+          return { rows: (spec.status === 'in_review' ? [{ ...spec }] : []) as T[] };
+        }
+        return { rows: [{ ...spec }] as T[] };
+      }
       if (n.includes('from public.bom_headers') && n.startsWith('select')) return { rows: [{ ...bom }] as T[] };
       if (n.includes('from public.bom_lines') && n.includes('count(*)::int as blocked')) {
         return { rows: [{ blocked: 0 }] as T[] };
@@ -167,5 +172,42 @@ describe('release bundle approval BOM status compatibility', () => {
     expect(vi.mocked(signEvent)).not.toHaveBeenCalled();
     expect(calls.some((call) => normalize(call.sql).startsWith('update public.factory_specs'))).toBe(false);
     expect(calls.some((call) => normalize(call.sql).startsWith('update public.bom_headers'))).toBe(false);
+  });
+
+  it('does not supersede prior factory-usable specs when the target approval update fails', async () => {
+    const { client, calls, spec } = createClient({ bomStatus: 'active' });
+    const originalQuery = client.query.bind(client);
+    client.query = async (sql, params) => {
+      const n = normalize(sql);
+      if (
+        n.startsWith('update public.factory_specs') &&
+        n.includes("set status = 'approved_for_factory'")
+      ) {
+        return { rows: [] };
+      }
+      return originalQuery(sql, params);
+    };
+
+    const result = await approveReleaseBundle(ctx(client), approveInput);
+
+    expect(result).toMatchObject({ ok: false, error: 'invalid_state', message: 'factory_spec no longer in_review' });
+    expect(spec.status).toBe('in_review');
+    expect(calls.some((call) => normalize(call.sql).includes("set status = 'superseded'"))).toBe(false);
+  });
+
+  it('supersedes prior factory-usable specs only after the target approval update succeeds', async () => {
+    const { client, calls } = createClient({ bomStatus: 'active' });
+
+    const result = await approveReleaseBundle(ctx(client), approveInput);
+
+    expect(result.ok).toBe(true);
+    const approveIdx = calls.findIndex(
+      (call) =>
+        normalize(call.sql).startsWith('update public.factory_specs') &&
+        normalize(call.sql).includes("set status = 'approved_for_factory'"),
+    );
+    const supersedeIdx = calls.findIndex((call) => normalize(call.sql).includes("set status = 'superseded'"));
+    expect(approveIdx).toBeGreaterThanOrEqual(0);
+    expect(supersedeIdx).toBeGreaterThan(approveIdx);
   });
 });

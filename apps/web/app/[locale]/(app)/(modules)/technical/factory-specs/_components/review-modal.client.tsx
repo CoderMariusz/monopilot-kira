@@ -139,6 +139,7 @@ export function FactorySpecRowActions({
   const bomPending = spec.bomStatus != null && ['draft', 'in_review'].includes(spec.bomStatus);
   const isReleased = spec.status === 'released_to_factory';
   const isApproved = spec.status === 'approved_for_factory';
+  const requiresNpdHandoff = spec.fgNpdProjectId != null;
   const [cloneOpen, setCloneOpen] = React.useState(false);
 
   return (
@@ -156,8 +157,18 @@ export function FactorySpecRowActions({
         <RecallSpecButton specId={spec.id} specCode={spec.specCode} canRecall={canRecall} />
       ) : null}
 
-      {isApproved ? (
+      {isApproved && !requiresNpdHandoff ? (
         <ReleaseSpecButton specId={spec.id} specCode={spec.specCode} canRelease={canApprove} />
+      ) : null}
+
+      {isApproved && requiresNpdHandoff ? (
+        <span
+          className="text-xs text-muted-foreground"
+          data-testid={`factory-spec-handoff-required-${spec.id}`}
+          title={t('release.handoffTooltip')}
+        >
+          {t('release.handoffRequired')}
+        </span>
       ) : null}
 
       {isImmutable && canApprove ? (

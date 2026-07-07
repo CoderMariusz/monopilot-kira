@@ -146,6 +146,18 @@ async function loadFactorySpec(client: QueryClient, id: string): Promise<Factory
   return rows[0] ?? null;
 }
 
+async function lockFactorySpecForApproval(client: QueryClient, id: string): Promise<FactorySpecRow | null> {
+  const { rows } = await client.query<FactorySpecRow>(
+    `select id, fg_item_id, status, bom_header_id, bom_version
+       from public.factory_specs
+      where id = $1::uuid
+        and org_id = app.current_org_id()
+      for update`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
 async function loadBom(client: QueryClient, id: string): Promise<BomRow | null> {
   const { rows } = await client.query<BomRow>(
     `select id, status, version, product_id, npd_project_id
@@ -410,17 +422,17 @@ export async function approveReleaseBundle(
   }
 
   try {
-    // Supersede any prior factory-usable version for this FG so the partial-unique
-    // indexes (one approved / one released per FG) allow the new approval.
-    await ctx.client.query(
-      `update public.factory_specs
-          set status = 'superseded'
-        where org_id = app.current_org_id()
-          and fg_item_id = $1::uuid
-          and status in ('approved_for_factory', 'released_to_factory')
-          and id <> $2::uuid`,
-      [spec.fg_item_id, spec.id],
-    );
+    const lockedSpec = await lockFactorySpecForApproval(ctx.client, spec.id);
+    if (!lockedSpec || lockedSpec.status !== 'in_review') {
+      return { ok: false, error: 'invalid_state', message: 'factory_spec no longer in_review' };
+    }
+    if (lockedSpec.bom_header_id !== bom.id || lockedSpec.bom_version !== bom.version) {
+      return {
+        ok: false,
+        error: 'invalid_state',
+        message: `factory_spec is paired to BOM ${lockedSpec.bom_header_id ?? 'none'} v${lockedSpec.bom_version ?? 'none'}; expected BOM ${bom.id} v${bom.version}`,
+      };
+    }
 
     // Approve the factory_spec version (in place is legal here: in_review is mutable; the
     // migration-165 trigger only guards already-approved rows).
@@ -432,13 +444,13 @@ export async function approveReleaseBundle(
               approved_by = $4::uuid,
               approved_at = now()
         where id = $1::uuid
+          and org_id = app.current_org_id()
           and status = 'in_review'
         returning id`,
       [spec.id, bom.id, bom.version, ctx.userId],
     );
     if (updatedSpec.rows.length === 0) {
-      // Concurrent transition / state changed under us.
-      return { ok: false, error: 'invalid_state', message: 'factory_spec no longer in_review' };
+      throw new Error('factory_spec_no_longer_in_review');
     }
 
     const approvedBomStatus: 'technical_approved' | 'active' = bom.status === 'active' ? 'active' : 'technical_approved';
@@ -455,9 +467,21 @@ export async function approveReleaseBundle(
         [bom.id, ctx.userId],
       );
       if (updatedBom.rows.length === 0) {
-        throw new Error('bom_no_longer_approvable'); // forces rollback → neither released
+        throw new Error('bom_no_longer_approvable');
       }
     }
+
+    // Supersede only after the target spec + BOM updates succeeded so a failed
+    // approval cannot orphan the currently usable version.
+    await ctx.client.query(
+      `update public.factory_specs
+          set status = 'superseded'
+        where org_id = app.current_org_id()
+          and fg_item_id = $1::uuid
+          and status in ('approved_for_factory', 'released_to_factory')
+          and id <> $2::uuid`,
+      [spec.fg_item_id, spec.id],
+    );
 
     // AC1 — emit the canonical Technical event. The outbox INSERT is in the same txn as
     // the state change (atomic; rollback drops the event with the state).
@@ -513,15 +537,17 @@ export async function approveReleaseBundle(
       },
     };
   } catch (err) {
+    if (err instanceof Error && err.message === 'factory_spec_no_longer_in_review') {
+      return { ok: false, error: 'invalid_state', message: 'factory_spec no longer in_review' };
+    }
     if (isPgError(err) && err.code === '23514') {
-      // A CHECK (e.g. the migration-165 clone-on-write trigger) rejected the write.
-      return { ok: false, error: 'invalid_state' };
+      throw err;
     }
     console.error('[technical/release-bundle] approve persistence_failed', {
       factorySpecId: input.factorySpecId,
       err: err instanceof Error ? err.message : String(err),
     });
-    return { ok: false, error: 'persistence_failed' };
+    throw err;
   }
 }
 

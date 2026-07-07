@@ -22,13 +22,27 @@ import {
   type QueryClient,
 } from '../../../lib/technical/release-bundle-service';
 
-export async function approveReleaseBundleAction(rawInput: unknown): Promise<ApproveBundleResult> {
-  const result = await withOrgContext(async ({ userId, orgId, client }) =>
-    approveReleaseBundle({ userId, orgId, client: client as QueryClient }, rawInput),
-  );
+function isPgError(err: unknown): err is { code: string } {
+  return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
+}
 
-  if (result.ok) {
-    safeRevalidateBundlePaths(result.data.factorySpecId);
+export async function approveReleaseBundleAction(rawInput: unknown): Promise<ApproveBundleResult> {
+  try {
+    const result = await withOrgContext(async ({ userId, orgId, client }) =>
+      approveReleaseBundle({ userId, orgId, client: client as QueryClient }, rawInput),
+    );
+
+    if (result.ok) {
+      safeRevalidateBundlePaths(result.data.factorySpecId);
+    }
+    return result;
+  } catch (err) {
+    if (isPgError(err) && err.code === '23514') {
+      return { ok: false, error: 'invalid_state' };
+    }
+    console.error('[approveReleaseBundleAction] persistence_failed', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, error: 'persistence_failed' };
   }
-  return result;
 }

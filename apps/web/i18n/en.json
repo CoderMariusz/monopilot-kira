@@ -6798,7 +6798,9 @@
         "errors": {
           "forbidden": "You do not have permission to release this specification.",
           "generic": "Unable to release this specification. Please retry."
-        }
+        },
+        "handoffRequired": "Release via NPD handoff",
+        "handoffTooltip": "NPD-backed products must be released from NPD Handoff, not Technical."
       },
       "recall": {
         "action": "Recall to draft",

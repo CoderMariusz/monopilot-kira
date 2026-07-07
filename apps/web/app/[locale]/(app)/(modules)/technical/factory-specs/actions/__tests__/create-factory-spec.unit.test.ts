@@ -27,6 +27,7 @@ type FakeClient = {
   bom: { id: string; product_id: string | null; version: number; status: string } | null;
   nextVersion: number;
   priorReleasedSpecId: string | null;
+  fgNpdProjectId: string | null;
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
@@ -49,7 +50,7 @@ function normalizeSql(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function makeClient(overrides: Partial<Pick<FakeClient, 'hasPermission' | 'item' | 'spec' | 'bom' | 'nextVersion' | 'priorReleasedSpecId'>> = {}): FakeClient {
+function makeClient(overrides: Partial<Pick<FakeClient, 'hasPermission' | 'item' | 'spec' | 'bom' | 'nextVersion' | 'priorReleasedSpecId' | 'fgNpdProjectId'>> = {}): FakeClient {
   const client: FakeClient = {
     calls: [],
     hasPermission: overrides.hasPermission ?? true,
@@ -73,12 +74,19 @@ function makeClient(overrides: Partial<Pick<FakeClient, 'hasPermission' | 'item'
         : overrides.bom,
     nextVersion: overrides.nextVersion ?? 4,
     priorReleasedSpecId: overrides.priorReleasedSpecId ?? null,
+    fgNpdProjectId: overrides.fgNpdProjectId ?? null,
     async query(sql, params = []) {
       client.calls.push({ sql, params });
       const normalized = normalizeSql(sql);
 
       if (normalized.includes('from public.user_roles')) {
         return { rows: (client.hasPermission ? [{ ok: true }] : []) as never[], rowCount: client.hasPermission ? 1 : 0 };
+      }
+      if (normalized.includes('from public.items') && normalized.includes('npd_project_id')) {
+        return {
+          rows: [{ npd_project_id: client.fgNpdProjectId }] as never[],
+          rowCount: 1,
+        };
       }
       if (normalized.includes('from public.items') && normalized.includes('id = $1::uuid')) {
         return { rows: (client.item ? [client.item] : []) as never[], rowCount: client.item ? 1 : 0 };
@@ -129,6 +137,9 @@ function makeClient(overrides: Partial<Pick<FakeClient, 'hasPermission' | 'item'
       }
       if (normalized.startsWith('insert into public.outbox_events')) {
         return { rows: [{ id: 42 }] as never[], rowCount: 1 };
+      }
+      if (normalized.includes('from public.outbox_events') && normalized.includes('dedup_key')) {
+        return { rows: [] as never[], rowCount: 0 };
       }
       if (normalized.startsWith('update public.factory_release_status')) {
         return { rows: [] as never[], rowCount: 1 };
@@ -348,9 +359,39 @@ describe('releaseFactorySpecToFactory', () => {
     expect(result).toEqual({ ok: true, data: { specId: SPEC_ID, status: 'released_to_factory' } });
     expect(client.spec?.status).toBe('released_to_factory');
     const outbox = client.calls.find((call) => normalizeSql(call.sql).startsWith('insert into public.outbox_events'));
-    expect(outbox?.params?.[1]).toBe('fg.released_to_factory');
+    expect(outbox?.params?.[0]).toBe('fg.released_to_factory');
+    expect(outbox?.params?.[1]).toBe('FG5101');
     const audit = client.calls.find((call) => String(call.params[2]) === 'factory_spec.released_to_factory');
     expect(audit).toBeTruthy();
+  });
+
+  it('rejects release for NPD-backed FG items', async () => {
+    const client = makeClient({
+      fgNpdProjectId: '99999999-9999-4999-8999-999999999999',
+      spec: {
+        id: SPEC_ID,
+        status: 'approved_for_factory',
+        fg_item_id: FG_ITEM_ID,
+        fg_item_code: 'FG5101',
+        bom_header_id: BOM_ID,
+        bom_version: 8,
+        approved_by: USER_ID,
+        approved_at: '2026-07-07T00:00:00.000Z',
+      },
+    });
+    runWithOrgContext.mockImplementationOnce(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+    const { releaseFactorySpecToFactory } = await import('../factory-spec-flow');
+
+    const result = await releaseFactorySpecToFactory({ specId: SPEC_ID });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'npd_handoff_required',
+      message: 'NPD-backed specifications must be released via NPD Handoff',
+    });
+    expect(client.calls.some((call) => normalizeSql(call.sql).includes('released_to_factory'))).toBe(false);
   });
 
   it('rejects release when the spec is still draft', async () => {

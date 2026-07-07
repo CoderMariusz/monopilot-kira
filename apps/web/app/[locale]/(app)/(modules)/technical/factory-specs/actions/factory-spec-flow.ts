@@ -6,15 +6,18 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { guardBusinessFieldEdit, guardStatusTransition } from '../../../../../../../lib/technical/factory-spec-release-guards';
+import {
+  insertReleasedToFactoryEvent,
+  supersedePriorReleasedFactorySpecs,
+  syncFactoryReleaseStatusForReleasedSpec,
+  transitionFactorySpecToReleased,
+} from '../../../../../../../lib/technical/factory-release-persistence';
 import { safeRevalidatePath } from '../_actions/revalidate';
 import {
   canApproveFactorySpec,
   type OrgActionContext,
   type QueryClient,
 } from '../_actions/shared';
-
-const RELEASED_TO_FACTORY_EVENT = 'fg.released_to_factory' as const;
-const RELEASE_APP_VERSION = 'technical-factory-spec-release-v1';
 
 const SubmitFactorySpecInput = z.object({
   specId: z.string().uuid(),
@@ -63,7 +66,13 @@ export type ReleaseFactorySpecResult =
   | { ok: true; data: { specId: string; status: 'released_to_factory' } }
   | {
       ok: false;
-      error: 'invalid_input' | 'forbidden' | 'not_found' | 'invalid_state' | 'persistence_failed';
+      error:
+        | 'invalid_input'
+        | 'forbidden'
+        | 'not_found'
+        | 'invalid_state'
+        | 'npd_handoff_required'
+        | 'persistence_failed';
       message?: string;
     };
 
@@ -312,6 +321,18 @@ export async function linkFactorySpecBom(rawInput: unknown): Promise<LinkFactory
   }
 }
 
+async function loadFgNpdProjectId(client: QueryClient, fgItemId: string): Promise<string | null> {
+  const { rows } = await client.query<{ npd_project_id: string | null }>(
+    `select i.npd_project_id::text as npd_project_id
+       from public.items i
+      where i.id = $1::uuid
+        and i.org_id = app.current_org_id()
+      limit 1`,
+    [fgItemId],
+  );
+  return rows[0]?.npd_project_id ?? null;
+}
+
 export async function releaseFactorySpecToFactory(rawInput: unknown): Promise<ReleaseFactorySpecResult> {
   const parsed = ReleaseFactorySpecInput.safeParse(rawInput);
   if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
@@ -338,74 +359,34 @@ export async function releaseFactorySpecToFactory(rawInput: unknown): Promise<Re
         return { ok: false, error: 'invalid_state', message: 'factory_spec has no paired BOM bundle' };
       }
 
+      const npdProjectId = await loadFgNpdProjectId(db, spec.fg_item_id);
+      if (npdProjectId) {
+        return {
+          ok: false,
+          error: 'npd_handoff_required',
+          message: 'NPD-backed specifications must be released via NPD Handoff',
+        };
+      }
+
       const transition = guardStatusTransition(spec.status, 'released_to_factory');
       if (!transition.ok) {
         return { ok: false, error: 'invalid_state', message: transition.message };
       }
 
-      await db.query(
-        `update public.factory_specs
-            set status = 'superseded'
-          where org_id = app.current_org_id()
-            and fg_item_id = $1::uuid
-            and status = 'released_to_factory'
-            and id <> $2::uuid`,
-        [spec.fg_item_id, spec.id],
-      );
+      const releaseCtx = { orgId, userId, client: db };
+      const releaseEventId = await insertReleasedToFactoryEvent(releaseCtx, {
+        productCode: spec.fg_item_code,
+        activeBomHeaderId: spec.bom_header_id,
+        activeFactorySpecId: spec.id,
+      });
 
-      const { rows } = await db.query<{ id: string }>(
-        `update public.factory_specs
-            set status = 'released_to_factory',
-                released_by = $2::uuid,
-                released_at = coalesce(released_at, now())
-          where id = $1::uuid
-            and org_id = app.current_org_id()
-            and status = 'approved_for_factory'
-          returning id`,
-        [spec.id, userId],
-      );
-      if (!rows[0]) {
-        return { ok: false, error: 'invalid_state', message: 'factory_spec no longer approved_for_factory' };
-      }
-
-      const releaseEvent = await db.query<{ id: string | number }>(
-        `insert into public.outbox_events
-           (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-         values
-           ($1::uuid, $2, 'factory_spec', $3, $4::jsonb, $5)
-         returning id`,
-        [
-          orgId,
-          RELEASED_TO_FACTORY_EVENT,
-          spec.id,
-          JSON.stringify({
-            factorySpecId: spec.id,
-            fgItemId: spec.fg_item_id,
-            fgItemCode: spec.fg_item_code,
-            bomHeaderId: spec.bom_header_id,
-            bomVersion: spec.bom_version,
-            releasedBy: userId,
-          }),
-          RELEASE_APP_VERSION,
-        ],
-      );
-      const releaseEventId = releaseEvent.rows[0]?.id;
-
-      await db.query(
-        `update public.factory_release_status
-            set release_status = 'released_to_factory',
-                active_bom_header_id = coalesce(active_bom_header_id, $1::uuid),
-                active_factory_spec_id = $2::uuid,
-                factory_available_at = coalesce(factory_available_at, now()),
-                factory_approved_by = coalesce(factory_approved_by, $3::uuid),
-                release_event_id = coalesce(release_event_id, $4::bigint),
-                release_blockers = '[]'::jsonb,
-                updated_at = now()
-          where org_id = app.current_org_id()
-            and active_factory_spec_id = $2::uuid
-            and release_status in ('approved_for_factory', 'released_to_factory')`,
-        [spec.bom_header_id, spec.id, userId, releaseEventId ?? null],
-      );
+      await supersedePriorReleasedFactorySpecs(db, spec.fg_item_id, spec.id);
+      await transitionFactorySpecToReleased(releaseCtx, { factorySpecId: spec.id });
+      await syncFactoryReleaseStatusForReleasedSpec(releaseCtx, {
+        activeBomHeaderId: spec.bom_header_id,
+        activeFactorySpecId: spec.id,
+        releaseEventId,
+      });
 
       await writeAuditEvent(db, {
         orgId,
@@ -413,7 +394,7 @@ export async function releaseFactorySpecToFactory(rawInput: unknown): Promise<Re
         action: 'factory_spec.released_to_factory',
         resourceId: spec.id,
         beforeState: { status: spec.status },
-        afterState: { status: 'released_to_factory', releaseEventId: releaseEventId ?? null },
+        afterState: { status: 'released_to_factory', releaseEventId },
       });
 
       safeRevalidatePath('/technical/factory-specs');
