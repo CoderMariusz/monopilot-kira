@@ -30,8 +30,10 @@ const ctx = {
   componentExists: true,
   // Whether packaging item lookup returns a packaging row.
   packagingItemExists: true,
+  insertReturnsId: true,
   calls: [] as Call[],
 };
+const transactionEvents: string[] = [];
 
 function fakeClient() {
   return {
@@ -58,7 +60,7 @@ function fakeClient() {
       }
       // INSERT / UPDATE / DELETE returning id.
       if (s.includes('returning id')) {
-        return { rows: [{ id: 'new-component-id' }] };
+        return { rows: ctx.insertReturnsId ? [{ id: 'new-component-id' }] : [] };
       }
       // Listing query.
       if (s.includes('from public.packaging_components')) {
@@ -74,8 +76,21 @@ function fakeClient() {
 }
 
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
-  withOrgContext: async (action: (c: unknown) => Promise<unknown>) =>
-    action({ orgId: ctx.orgId, userId: ctx.userId, sessionToken: 't', client: fakeClient() }),
+  withOrgContext: async (action: (c: unknown) => Promise<unknown>) => {
+    try {
+      const result = await action({
+        orgId: ctx.orgId,
+        userId: ctx.userId,
+        sessionToken: 't',
+        client: fakeClient(),
+      });
+      transactionEvents.push('COMMIT');
+      return result;
+    } catch (error) {
+      transactionEvents.push('ROLLBACK');
+      throw error;
+    }
+  },
 }));
 
 // next/cache revalidatePath is a no-op in this unit context.
@@ -94,7 +109,9 @@ beforeEach(() => {
   ctx.projectExists = true;
   ctx.componentExists = true;
   ctx.packagingItemExists = true;
+  ctx.insertReturnsId = true;
   ctx.calls = [];
+  transactionEvents.length = 0;
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -168,6 +185,16 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
 
     const audit = ctx.calls.find((c) => /insert into\s+public\.audit_log/i.test(c.sql));
     expect(audit).toBeTruthy();
+  });
+
+  it('returns persistence_failed without audit when insert returns no id (rollback path)', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    ctx.insertReturnsId = false;
+    const res = await upsertPackagingComponent(valid);
+    expect(res).toEqual({ ok: false, error: 'persistence_failed' });
+    expect(ctx.calls.some((c) => /insert into\s+public\.audit_log/i.test(c.sql))).toBe(false);
+    expect(transactionEvents).toContain('ROLLBACK');
+    expect(transactionEvents).not.toContain('COMMIT');
   });
 
   it('defaults scrap_pct to 0 when omitted and binds it ::numeric in the INSERT', async () => {

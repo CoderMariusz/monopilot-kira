@@ -25,17 +25,26 @@ const ctx = {
   orgId: '00000000-0000-4000-8000-00000000000a',
   handler: (() => ({ rows: [] })) as Handler,
 };
+const transactionEvents: string[] = [];
 
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
-  withOrgContext: async (action: (c: unknown) => Promise<unknown>) =>
-    action({
-      userId: ctx.userId,
-      orgId: ctx.orgId,
-      sessionToken: 'test',
-      client: {
-        query: async (sql: string, params?: readonly unknown[]) => ctx.handler(sql, params),
-      },
-    }),
+  withOrgContext: async (action: (c: unknown) => Promise<unknown>) => {
+    try {
+      const result = await action({
+        userId: ctx.userId,
+        orgId: ctx.orgId,
+        sessionToken: 'test',
+        client: {
+          query: async (sql: string, params?: readonly unknown[]) => ctx.handler(sql, params),
+        },
+      });
+      transactionEvents.push('COMMIT');
+      return result;
+    } catch (error) {
+      transactionEvents.push('ROLLBACK');
+      throw error;
+    }
+  },
 }));
 
 import { logTrialBatch } from '../log-trial-batch';
@@ -102,6 +111,7 @@ function grantHandler(opts: {
 
 beforeEach(() => {
   ctx.handler = () => ({ rows: [] });
+  transactionEvents.length = 0;
 });
 
 describe('exact permission strings', () => {
@@ -147,6 +157,25 @@ describe('logTrialBatch — validation + RBAC + duplicate', () => {
     ctx.handler = grantHandler({ perm: TRIAL_WRITE_PERMISSION, insertId: 'tb-42' });
     const r = await logTrialBatch(VALID);
     expect(r).toEqual({ ok: true, data: { id: 'tb-42', trialNo: 'T-012', result: 'pass' } });
+  });
+
+  it('returns persistence_failed without writing audit when insert returns no id (rollback path)', async () => {
+    let auditWrites = 0;
+    ctx.handler = (sql) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.npd_projects')) return { rows: [{ id: PROJECT }] };
+      if (sql.includes('insert into public.trial_batches')) return { rows: [] };
+      if (sql.includes('insert into public.audit_log')) {
+        auditWrites += 1;
+        return { rows: [] };
+      }
+      return { rows: [] };
+    };
+    const r = await logTrialBatch(VALID);
+    expect(r).toEqual({ ok: false, error: 'persistence_failed' });
+    expect(auditWrites).toBe(0);
+    expect(transactionEvents).toContain('ROLLBACK');
+    expect(transactionEvents).not.toContain('COMMIT');
   });
 });
 

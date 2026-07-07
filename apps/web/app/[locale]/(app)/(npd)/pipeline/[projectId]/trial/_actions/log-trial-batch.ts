@@ -173,7 +173,7 @@ export async function logTrialBatch(raw: unknown): Promise<LogTrialBatchResult> 
         ],
       );
       const id = inserted.rows[0]?.id;
-      if (!id) return { ok: false as const, error: 'persistence_failed' as const };
+      if (!id) throw new Error('trial_batch_insert_returned_no_id');
 
       await writeAudit(client, {
         orgId,

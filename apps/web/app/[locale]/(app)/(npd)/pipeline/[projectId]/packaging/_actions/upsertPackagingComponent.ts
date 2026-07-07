@@ -176,7 +176,7 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
         ],
       );
       const id = inserted.rows[0]?.id;
-      if (!id) return { ok: false as const, error: 'persistence_failed' as const };
+      if (!id) throw new Error('packaging_component_insert_returned_no_id');
 
       await writeAudit(queryClient, {
         orgId,
