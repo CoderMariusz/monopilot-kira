@@ -3,17 +3,19 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
+import { hasAnyPermission } from '../../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
-// The accept/revoke control is an allergen write, so it must accept the SAME
-// permission that gates the surface (npd.allergen.write — resolved in
-// read-allergen-cascade.ts canWrite). Without it, an org super-user / NPD writer
-// who holds npd.allergen.write (and sees the checkbox) but lacks technical.write/
-// quality.write got the checkbox rendered yet every save returned FORBIDDEN
-// ("Could not update the declaration. Try again."). technical.write/quality.write
-// stay valid so quality/technical leads keep their existing access.
-const WRITE_PERMISSIONS = ['npd.allergen.write', 'technical.write', 'quality.write'] as const;
+// Accept/revoke is gated by npd.allergen.accept_declaration (NN-TEC-5) plus the legacy
+// allergen-write family that also gates the cascade surface (npd.allergen.write) and
+// quality/technical leads (technical.write / quality.write — legacy slug permissions).
+const DECLARATION_WRITE_PERMISSIONS = [
+  'npd.allergen.write',
+  'npd.allergen.accept_declaration',
+  'technical.write',
+  'quality.write',
+] as const;
 
 const inputSchema = z.object({
   productCode: z.string().trim().min(1),
@@ -62,7 +64,13 @@ async function updateAllergenDeclaration(productCode: string, accepted: boolean)
     const queryClient = client as QueryClient;
 
     try {
-      const actorRole = await requireAllergenDeclarationWrite(queryClient, userId, orgId);
+      const canWrite = await hasAnyPermission(
+        { client: queryClient, userId, orgId },
+        [...DECLARATION_WRITE_PERMISSIONS],
+      );
+      if (!canWrite) throw new AuthorizationError();
+
+      const actorRole = await resolveActorRole(queryClient, userId, orgId);
       const current = await queryClient.query<ProductStateRow>(
         `select product_code,
                 allergens_declaration_accepted,
@@ -148,32 +156,16 @@ async function updateAllergenDeclaration(productCode: string, accepted: boolean)
   });
 }
 
-async function requireAllergenDeclarationWrite(
-  client: QueryClient,
-  userId: string,
-  orgId: string,
-): Promise<string> {
+async function resolveActorRole(client: QueryClient, userId: string, orgId: string): Promise<string> {
   const { rows } = await client.query<PermissionRow>(
     `select coalesce(r.code, r.slug) as actor_role
        from public.user_roles ur
        join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-       left join public.role_permissions rp
-         on rp.role_id = r.id
-        and rp.permission = any($3::text[])
       where ur.user_id = $1::uuid
         and ur.org_id = $2::uuid
-        and (
-          r.code = 'npd_manager'
-          or r.slug = 'npd_manager'
-          or rp.permission is not null
-          or coalesce(r.permissions, '[]'::jsonb) ?| $3::text[]
-          or r.code = any($3::text[])
-          or r.slug = any($3::text[])
-        )
-      order by case when r.code = 'npd_manager' or r.slug = 'npd_manager' then 0 else 1 end,
-               r.code
+      order by r.code
       limit 1`,
-    [userId, orgId, WRITE_PERMISSIONS],
+    [userId, orgId],
   );
 
   const actorRole = rows[0]?.actor_role?.trim();

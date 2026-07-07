@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { ALL_PERMISSIONS } from '../../../../packages/rbac/src/permissions.enum';
 
 import {
+  diffEnforcedPermissions,
+} from './collect-server-enforcement-permissions';
+import {
   ENFORCED_PERMISSIONS,
   ENFORCED_PERMISSIONS_LIST,
   isEnforcedPermission,
@@ -54,5 +57,16 @@ describe('enforced-permissions', () => {
 
   it('settings.users.deactivate IS in the set (server gate: deactivate.ts requireAnyPermission OR-list — wave F3 G2)', () => {
     expect(ENFORCED_PERMISSIONS.has('settings.users.deactivate')).toBe(true);
+  });
+
+  it('stays aligned with server-side hasPermission call sites (NN-SET-4 drift guard)', () => {
+    const { missingFromEnforcedList } = diffEnforcedPermissions(ENFORCED_PERMISSIONS_LIST, ALL_PERMISSIONS);
+
+    expect(
+      missingFromEnforcedList,
+      missingFromEnforcedList.length > 0
+        ? `Add to ENFORCED_PERMISSIONS_LIST: ${missingFromEnforcedList.join(', ')}`
+        : undefined,
+    ).toEqual([]);
   });
 });
