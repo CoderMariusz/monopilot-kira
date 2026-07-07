@@ -119,6 +119,8 @@ export const Permission = {
   NPD_RISK_WRITE: 'npd.risk.write',
   /** NPD allergen declaration write permission; PRD 01-NPD §2.2, §13 (allergen cascade). */
   NPD_ALLERGEN_WRITE: 'npd.allergen.write',
+  /** NPD allergen declaration accept/revoke permission; NN-TEC-5 (replaces npd_manager role bypass). */
+  NPD_ALLERGEN_ACCEPT_DECLARATION: 'npd.allergen.accept_declaration',
   /** NPD compliance document write permission; PRD 01-NPD §2.2, §18. */
   NPD_COMPLIANCE_DOC_WRITE: 'npd.compliance_doc.write',
   /** NPD formulation draft creation permission; PRD 01-NPD §2.2, §18. */
@@ -630,9 +632,11 @@ export const ALL_NPD_PERMISSIONS = [
   Permission.NPD_RULE_EDIT,
   Permission.NPD_RISK_WRITE,
   Permission.NPD_ALLERGEN_WRITE,
+  Permission.NPD_ALLERGEN_ACCEPT_DECLARATION,
   Permission.NPD_COMPLIANCE_DOC_WRITE,
   Permission.NPD_FORMULATION_CREATE_DRAFT,
   Permission.NPD_FORMULATION_LOCK,
+  Permission.NPD_FORMULATION_UNLOCK,
   Permission.NPD_RECIPE_SUBMIT_FOR_TRIAL,
   Permission.NPD_PILOT_PROMOTE_TO_BOM,
   Permission.NPD_PLANNING_WRITE,
