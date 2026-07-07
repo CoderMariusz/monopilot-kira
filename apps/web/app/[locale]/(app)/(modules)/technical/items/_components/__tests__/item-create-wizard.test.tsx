@@ -186,6 +186,47 @@ describe('ItemWizard create mode (TEC-011)', () => {
     expect(createItem.mock.calls[0][0]).not.toHaveProperty('supplierCode');
   });
 
+  // R1.3 — "Has shelf life" tickbox. Fresh create starts UNCHECKED with both shelf
+  // fields disabled; unchecking after entering values clears them so the payload
+  // drops shelfLifeDays + shelfLifeMode (both nullable end-to-end).
+  it('defaults the shelf-life tickbox off and disables both shelf fields on a fresh create', async () => {
+    const user = userEvent.setup();
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user); // → classification
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+
+    expect(screen.getByRole('checkbox', { name: L.fields.hasShelfLife })).not.toBeChecked();
+    expect(screen.getByRole('spinbutton', { name: L.fields.shelfLifeDays })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: L.fields.shelfLifeMode })).toBeDisabled();
+  });
+
+  it('clears shelfLifeDays + shelfLifeMode from the payload when the tickbox is unchecked after entry', async () => {
+    const user = userEvent.setup();
+    createItem.mockResolvedValue({ ok: true, data: { id: 'x', itemCode: 'RM-2002' } });
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user); // → classification
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+
+    // Turn it on, enter both shelf fields.
+    await user.click(screen.getByRole('checkbox', { name: L.fields.hasShelfLife }));
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.shelfLifeDays }), '30');
+    await user.click(screen.getByRole('combobox', { name: L.fields.shelfLifeMode }));
+    await user.click(screen.getByRole('option', { name: 'Use by' }));
+
+    // Turn it off → fields disabled + cleared.
+    await user.click(screen.getByRole('checkbox', { name: L.fields.hasShelfLife }));
+    const days = screen.getByRole('spinbutton', { name: L.fields.shelfLifeDays }) as HTMLInputElement;
+    expect(days).toBeDisabled();
+    expect(days.value).toBe('');
+
+    await user.click(screen.getByRole('button', { name: L.next })); // → review
+    await user.click(screen.getByRole('button', { name: L.create }));
+
+    expect(createItem).toHaveBeenCalledTimes(1);
+    expect(createItem.mock.calls[0][0].shelfLifeDays).toBeUndefined();
+    expect(createItem.mock.calls[0][0].shelfLifeMode).toBeUndefined();
+  });
+
   it('submits createItem with the assembled payload from the review step', async () => {
     const user = userEvent.setup();
     createItem.mockResolvedValue({ ok: true, data: { id: 'x', itemCode: 'RM-2002' } });

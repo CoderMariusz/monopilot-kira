@@ -148,6 +148,11 @@ export function emptyWizardForm(): WizardFormState {
   };
 }
 
+// R1.3 — a seed row "has shelf life" iff either shelf field carries a value.
+function hasShelfLifeSeed(f: WizardFormState): boolean {
+  return f.shelfLifeDays.trim().length > 0 || f.shelfLifeMode !== '';
+}
+
 function trimOrUndefined(value: string): string | undefined {
   const t = value.trim();
   return t.length ? t : undefined;
@@ -215,15 +220,17 @@ function LabeledSelect({
   options,
   ariaLabel,
   placeholder,
+  disabled,
 }: {
   value: string;
   onValueChange: (v: string) => void;
   options: SelectOption[];
   ariaLabel: string;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   return (
-    <Select value={value} onValueChange={onValueChange} options={options}>
+    <Select value={value} onValueChange={onValueChange} options={options} disabled={disabled}>
       <SelectTrigger aria-label={ariaLabel}>
         <SelectValue placeholder={placeholder ?? ariaLabel} />
       </SelectTrigger>
@@ -356,6 +363,12 @@ export function ItemWizard({
   const router = useRouter();
   const [stepIndex, setStepIndex] = React.useState(0);
   const [form, setForm] = React.useState<WizardFormState>(() => initialForm ?? emptyWizardForm());
+  // R1.3 — shelf life is optional/nullable end-to-end. The tickbox defaults CHECKED
+  // only when the seed row already carries a value (edit of an item that has one);
+  // a fresh Create starts UNCHECKED so both shelf fields render disabled + cleared.
+  const [hasShelfLife, setHasShelfLife] = React.useState<boolean>(
+    () => hasShelfLifeSeed(initialForm ?? emptyWizardForm()),
+  );
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
@@ -367,7 +380,9 @@ export function ItemWizard({
   const wasOpen = React.useRef(false);
   React.useEffect(() => {
     if (open && !wasOpen.current) {
-      setForm(initialForm ?? emptyWizardForm());
+      const seed = initialForm ?? emptyWizardForm();
+      setForm(seed);
+      setHasShelfLife(hasShelfLifeSeed(seed));
       setStepIndex(0);
       setError(null);
     }
@@ -456,6 +471,13 @@ export function ItemWizard({
 
   function update<K extends keyof WizardFormState>(key: K, value: WizardFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  // R1.3 — unchecking "Has shelf life" clears BOTH shelf fields so the submit
+  // payload drops them (numOrUndefined + shelfLifeMode==='' already → undefined).
+  function toggleShelfLife(checked: boolean) {
+    setHasShelfLife(checked);
+    if (!checked) setForm((prev) => ({ ...prev, shelfLifeDays: '', shelfLifeMode: '' }));
   }
 
   function goNext() {
@@ -848,6 +870,17 @@ export function ItemWizard({
               </div>
             </div>
           ) : null}
+          {/* R1.3 — shelf life is optional. This tickbox disables + clears both
+              shelf fields (days + mode) so submit sends them undefined. */}
+          <label className="flex items-center gap-2" style={{ marginBottom: 10, fontSize: 13 }}>
+            <input
+              type="checkbox"
+              name="hasShelfLife"
+              checked={hasShelfLife}
+              onChange={(e) => toggleShelfLife(e.currentTarget.checked)}
+            />
+            <span>{labels.fields.hasShelfLife}</span>
+          </label>
           <div className="ff-inline">
             <Field label={labels.fields.shelfLifeDays} htmlFor="wiz-shelf-days">
               <Input
@@ -855,6 +888,7 @@ export function ItemWizard({
                 name="shelfLifeDays"
                 type="number"
                 min={0}
+                disabled={!hasShelfLife}
                 aria-label={labels.fields.shelfLifeDays}
                 className="form-input"
                 value={form.shelfLifeDays}
@@ -898,6 +932,7 @@ export function ItemWizard({
                 onValueChange={(v) => update('shelfLifeMode', v as WizardFormState['shelfLifeMode'])}
                 options={SHELF_MODE_OPTIONS}
                 placeholder="—"
+                disabled={!hasShelfLife}
                 ariaLabel={labels.fields.shelfLifeMode}
               />
             </Field>

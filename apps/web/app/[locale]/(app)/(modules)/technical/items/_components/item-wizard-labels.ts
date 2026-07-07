@@ -44,6 +44,8 @@ export type ItemWizardLabels = {
     grossWeightMax: string;
     gs1Gtin: string;
     varianceTolerance: string;
+    // R1.3 — "Has shelf life" tickbox (shelf life is optional/nullable end-to-end).
+    hasShelfLife: string;
     shelfLifeDays: string;
     shelfLifeMode: string;
     // Pack hierarchy / output unit.
@@ -111,6 +113,7 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     grossWeightMax: 'Gross weight max',
     gs1Gtin: 'GS1 GTIN',
     varianceTolerance: 'Variance tolerance (%)',
+    hasShelfLife: 'Has shelf life',
     shelfLifeDays: 'Shelf life (days)',
     shelfLifeMode: 'Shelf-life mode',
     packaging: 'Packaging / output unit',
@@ -227,6 +230,7 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       grossWeightMax: t('create.fields.grossWeightMax'),
       gs1Gtin: t('create.fields.gs1Gtin'),
       varianceTolerance: t('create.fields.varianceTolerance'),
+      hasShelfLife: get('create.fields.hasShelfLife', D.fields.hasShelfLife),
       shelfLifeDays: t('create.fields.shelfLifeDays'),
       shelfLifeMode: t('create.fields.shelfLifeMode'),
       packaging: get('create.fields.packaging', D.fields.packaging),

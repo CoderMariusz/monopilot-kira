@@ -2391,6 +2391,7 @@
           "grossWeightMax": "Gross weight max",
           "gs1Gtin": "GS1 GTIN",
           "varianceTolerance": "Variance tolerance (%)",
+          "hasShelfLife": "Has shelf life",
           "shelfLifeDays": "Shelf life (days)",
           "shelfLifeMode": "Shelf-life mode",
           "packaging": "Packaging / output unit",

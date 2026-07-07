@@ -2405,6 +2405,7 @@
           "grossWeightMax": "Maks. masa brutto",
           "gs1Gtin": "GS1 GTIN",
           "varianceTolerance": "Tolerancja odchylenia (%)",
+          "hasShelfLife": "Ma termin przydatności",
           "shelfLifeDays": "Termin przydatności (dni)",
           "shelfLifeMode": "Tryb terminu przydatności",
           "packaging": "Opakowanie / jednostka wyjściowa",
