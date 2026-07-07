@@ -440,17 +440,20 @@ async function loadLockedFormulation(ctx: OrgContextLike, projectId: string): Pr
 
 async function loadIngredients(ctx: OrgContextLike, versionId: string): Promise<IngredientRow[]> {
   const { rows } = await ctx.client.query<IngredientRow>(
-    `select rm_code,
-            item_id::text as item_id,
-            substitute_item_id::text as substitute_item_id,
-            qty_kg::text as qty_kg,
-            sequence,
-            wip_definition_id::text as wip_definition_id,
-            npd_wip_process_id::text as npd_wip_process_id
-       from public.formulation_ingredients
-      where version_id = $1::uuid
-        and coalesce(qty_kg, 0) > 0
-      order by sequence asc`,
+    `select fi.rm_code,
+            fi.item_id::text as item_id,
+            fi.substitute_item_id::text as substitute_item_id,
+            fi.qty_kg::text as qty_kg,
+            fi.sequence,
+            fi.wip_definition_id::text as wip_definition_id,
+            fi.npd_wip_process_id::text as npd_wip_process_id
+       from public.formulation_ingredients fi
+       join public.formulation_versions fv on fv.id = fi.version_id
+       join public.formulations f on f.id = fv.formulation_id
+      where f.org_id = app.current_org_id()
+        and fi.version_id = $1::uuid
+        and coalesce(fi.qty_kg, 0) > 0
+      order by fi.sequence asc`,
     [versionId],
   );
   return rows;
@@ -485,7 +488,10 @@ async function loadProcessDerivedWipStages(
         and pd.org_id = wp.org_id
        join public.formulation_ingredients fi
          on fi.npd_wip_process_id = wp.id
+       join public.formulation_versions fv on fv.id = fi.version_id
+       join public.formulations f on f.id = fv.formulation_id
       where wp.org_id = app.current_org_id()
+        and f.org_id = app.current_org_id()
         and pd.product_code = $2
         and fi.version_id = $1::uuid
         and wp.creates_wip_item = true
@@ -533,13 +539,16 @@ async function detectAmbiguousWipConsumption(
     `select wp.wip_definition_id::text as wip_definition_id,
             array_agg(distinct wp.id::text order by wp.id::text) as process_ids
        from public.formulation_ingredients fi
+       join public.formulation_versions fv on fv.id = fi.version_id
+       join public.formulations f on f.id = fv.formulation_id
        join public.npd_wip_processes wp
          on wp.id = fi.npd_wip_process_id
         and wp.org_id = app.current_org_id()
        join public.prod_detail pd
          on pd.id = wp.prod_detail_id
         and pd.org_id = wp.org_id
-      where fi.version_id = $1::uuid
+      where f.org_id = app.current_org_id()
+        and fi.version_id = $1::uuid
         and pd.product_code = $2
         and fi.npd_wip_process_id is not null
         and wp.wip_definition_id is not null
@@ -563,7 +572,10 @@ async function formulationHasProcessAssignments(
     `select exists (
        select 1
          from public.formulation_ingredients fi
-        where fi.version_id = $1::uuid
+         join public.formulation_versions fv on fv.id = fi.version_id
+         join public.formulations f on f.id = fv.formulation_id
+        where f.org_id = app.current_org_id()
+          and fi.version_id = $1::uuid
           and fi.npd_wip_process_id is not null
      ) as has_assignments`,
     [versionId],
@@ -1113,6 +1125,8 @@ async function loadProcessAssignedIngredients(
             'kg' as uom,
             fi.sequence
        from public.formulation_ingredients fi
+       join public.formulation_versions fv on fv.id = fi.version_id
+       join public.formulations f on f.id = fv.formulation_id
        join public.npd_wip_processes wp
          on wp.id = fi.npd_wip_process_id
         and wp.org_id = app.current_org_id()
@@ -1122,7 +1136,8 @@ async function loadProcessAssignedIngredients(
        left join public.items i
          on i.org_id = app.current_org_id()
         and i.item_code = fi.rm_code
-      where fi.version_id = $1::uuid
+      where f.org_id = app.current_org_id()
+        and fi.version_id = $1::uuid
         and wp.wip_definition_id = $2::uuid
         and pd.product_code = $3
         and fi.npd_wip_process_id is not null
