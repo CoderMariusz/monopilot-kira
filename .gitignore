@@ -68,3 +68,14 @@ apps/web/e2e/.auth/
 # codex scratch
 .codex-*.md
 .codex-*.log
+
+# orchestration + evidence artifacts (never commit)
+.agent-out.md
+.agent-prompt.md
+.review-out.md
+.review-prompt.md
+.fix-out.md
+.fix-prompt.md
+.recheck-out.md
+.review-err.log
+*.png
