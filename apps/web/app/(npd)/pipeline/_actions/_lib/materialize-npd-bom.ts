@@ -1192,6 +1192,20 @@ async function ensureActiveWipBom(
     return existing;
   }
 
+  // bom_headers.product_id FKs product_legacy(product_code); WIP items created via
+  // "Publish as WIP definition" have no product row yet — ensure it exactly like the
+  // FG path does, or the header insert dies with 23503 (found live on FG0014, R4.5).
+  await ctx.client.query(
+    `insert into public.product
+       (org_id, product_code, product_name, shelf_life, done_mrp, closed_mrp, created_by_user, app_version)
+     select app.current_org_id(), $1, $2, '30', true, 'Yes', $3::uuid, 'npd-wip-materialize-v2'
+      where not exists (
+        select 1 from public.product
+         where org_id = app.current_org_id() and product_code = $1
+      )`,
+    [definition.item_code, definition.name, ctx.userId],
+  );
+
   const version = await nextBomVersion(ctx, definition.item_code);
   const { rows } = await ctx.client.query<BomHeaderRow>(
     `insert into public.bom_headers
