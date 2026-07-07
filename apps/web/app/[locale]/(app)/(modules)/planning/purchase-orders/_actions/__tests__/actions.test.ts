@@ -13,6 +13,8 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const PO_ID = '33333333-3333-4333-8333-333333333333';
 const LINE_ID = '44444444-4444-4444-8444-444444444444';
 const SUPPLIER_ID = '55555555-5555-4555-8555-555555555555';
+const OTHER_ACTIVE_SUPPLIER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const BLOCKED_SUPPLIER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const ITEM_ID = '66666666-6666-4666-8666-666666666666';
 
 let client: QueryClient;
@@ -26,6 +28,7 @@ let raceOnHeaderUpdate = false;
 let raceOnLineMutation = false;
 let duplicateAppendOnce = false;
 let lineCount = 2;
+const supplierStatuses: Record<string, string> = {};
 const INITIAL_LINES = [
   {
     id: LINE_ID,
@@ -97,8 +100,28 @@ function makeClient(): QueryClient {
       if (normalized.includes('from public.purchase_orders po') && normalized.includes('for update of po')) {
         return { rows: poExists ? [header()] : [], rowCount: poExists ? 1 : 0 };
       }
+      if (normalized.startsWith('select id, status') && normalized.includes('from public.suppliers')) {
+        const supplierId = String(params[0]);
+        if (!supplierExists && supplierId === SUPPLIER_ID) {
+          return { rows: [], rowCount: 0 };
+        }
+        if (!(supplierId in supplierStatuses)) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [{ id: supplierId, status: supplierStatuses[supplierId] }], rowCount: 1 };
+      }
+      if (normalized.includes('from public.suppliers') && normalized.includes('left join')) {
+        return { rows: [], rowCount: 0 };
+      }
       if (normalized.includes('from public.suppliers')) {
-        return { rows: supplierExists ? [{ id: SUPPLIER_ID }] : [], rowCount: supplierExists ? 1 : 0 };
+        const supplierId = String(params[0] ?? SUPPLIER_ID);
+        if (!supplierExists && supplierId === SUPPLIER_ID) {
+          return { rows: [], rowCount: 0 };
+        }
+        if (!(supplierId in supplierStatuses)) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [{ id: supplierId, status: supplierStatuses[supplierId] }], rowCount: 1 };
       }
       if (normalized.includes('from public.items')) {
         return { rows: itemExists ? [{ id: ITEM_ID }] : [], rowCount: itemExists ? 1 : 0 };
@@ -172,6 +195,9 @@ describe('planning purchase order draft edit actions', () => {
     raceOnLineMutation = false;
     duplicateAppendOnce = false;
     lineCount = 2;
+    supplierStatuses[SUPPLIER_ID] = 'active';
+    supplierStatuses[OTHER_ACTIVE_SUPPLIER_ID] = 'active';
+    supplierStatuses[BLOCKED_SUPPLIER_ID] = 'blocked';
     lines = INITIAL_LINES.map((line) => ({ ...line }));
     revalidatePath.mockClear();
     client = makeClient();
@@ -208,7 +234,29 @@ describe('planning purchase order draft edit actions', () => {
 
     it('returns not_found for a supplier outside the current org', async () => {
       supplierExists = false;
+      delete supplierStatuses[SUPPLIER_ID];
       await expect(updatePurchaseOrder({ id: PO_ID, supplierId: SUPPLIER_ID })).resolves.toEqual({ ok: false, error: 'not_found' });
+    });
+
+    it('rejects swapping a draft PO supplier to a blocked supplier', async () => {
+      const result = await updatePurchaseOrder({ id: PO_ID, supplierId: BLOCKED_SUPPLIER_ID });
+
+      expect(result).toEqual({
+        ok: false,
+        error: 'supplier_blocked',
+        code: 'supplier_blocked',
+        message: 'Supplier is blocked',
+      });
+      const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+      expect(calls.some((sql) => sql.startsWith('update public.purchase_orders'))).toBe(false);
+    });
+
+    it('allows swapping a draft PO supplier to an active supplier', async () => {
+      const result = await updatePurchaseOrder({ id: PO_ID, supplierId: OTHER_ACTIVE_SUPPLIER_ID });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.error);
+      expect(result.data.supplierId).toBe(OTHER_ACTIVE_SUPPLIER_ID);
     });
 
     it('returns invalid_state when status changes between read and write', async () => {

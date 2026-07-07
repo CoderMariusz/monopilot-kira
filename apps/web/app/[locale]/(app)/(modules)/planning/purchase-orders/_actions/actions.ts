@@ -274,16 +274,21 @@ async function getPurchaseOrderReceiptState(client: QueryClient, poId: string): 
   };
 }
 
-async function ensureSupplierInOrg(client: QueryClient, supplierId: string): Promise<boolean> {
-  const { rows } = await client.query<{ id: string }>(
-    `select id
+type SupplierOrgCheck = 'ok' | 'not_found' | 'supplier_blocked';
+
+async function ensureSupplierInOrg(client: QueryClient, supplierId: string): Promise<SupplierOrgCheck> {
+  const { rows } = await client.query<{ id: string; status: string }>(
+    `select id, status
        from public.suppliers
       where org_id = app.current_org_id()
         and id = $1::uuid
       limit 1`,
     [supplierId],
   );
-  return rows.length > 0;
+  const supplier = rows[0];
+  if (!supplier) return 'not_found';
+  if (supplier.status === 'blocked') return 'supplier_blocked';
+  return 'ok';
 }
 
 async function ensureItemInOrg(client: QueryClient, itemId: string): Promise<boolean> {
@@ -445,8 +450,12 @@ export async function updatePurchaseOrder(rawInput: unknown): Promise<PurchaseOr
       if (!before) return { ok: false, error: 'not_found' };
       if (before.status !== 'draft') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
 
-      if (input.supplierId && !(await ensureSupplierInOrg(ctx.client, input.supplierId))) {
-        return { ok: false, error: 'not_found' };
+      if (input.supplierId) {
+        const supplierCheck = await ensureSupplierInOrg(ctx.client, input.supplierId);
+        if (supplierCheck === 'not_found') return { ok: false, error: 'not_found' };
+        if (supplierCheck === 'supplier_blocked' && input.supplierId !== before.supplier_id) {
+          return { ok: false, error: 'supplier_blocked', code: 'supplier_blocked', message: 'Supplier is blocked' };
+        }
       }
 
       const { rows } = await ctx.client.query<PurchaseOrderRow>(
