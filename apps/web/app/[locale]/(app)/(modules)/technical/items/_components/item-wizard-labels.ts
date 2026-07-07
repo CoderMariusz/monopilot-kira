@@ -107,10 +107,6 @@ export function formatItemActionError(
   return labels.actionErrors[error];
 }
 
-export function formatSupplierSpecWarning(labels: Pick<ItemWizardLabels, 'warnings'>): string {
-  return labels.warnings.supplierSpecNotSaved;
-}
-
 export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
   title: 'Create item',
   subtitle: 'Universal item master — links to BOM, spec and allergen matrix.',

@@ -11,9 +11,9 @@ export type QueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }>;
 };
 
-/** SQL predicate (AND …) for searchFgProducts — excludes blocked FGs. */
-export const FG_FACTORY_RELEASE_WO_GATE_SQL = `
-          and not (
+/** Shared blocked-expression over items alias `i` — single source of truth for
+ *  the picker exclusion and the create-WO assertion (copies WILL drift). */
+const FG_FACTORY_RELEASE_BLOCKED_SQL = `(
             exists (
               select 1
                 from public.factory_release_status frs
@@ -33,6 +33,10 @@ export const FG_FACTORY_RELEASE_WO_GATE_SQL = `
             )
           )`;
 
+/** SQL predicate (AND …) for searchFgProducts — excludes blocked FGs. */
+export const FG_FACTORY_RELEASE_WO_GATE_SQL = `
+          and not ${FG_FACTORY_RELEASE_BLOCKED_SQL}`;
+
 export type FactoryReleaseWoGateResult = 'ok' | 'not_released_to_factory' | 'invalid_input';
 
 export async function assertFgReleasedToFactoryForWo(
@@ -41,25 +45,7 @@ export async function assertFgReleasedToFactoryForWo(
 ): Promise<FactoryReleaseWoGateResult> {
   const { rows } = await client.query<{ item_id: string | null; blocked: boolean }>(
     `select i.id::text as item_id,
-            (
-              exists (
-                select 1
-                  from public.factory_release_status frs
-                 where frs.org_id = i.org_id
-                   and frs.product_code = i.item_code
-                   and frs.release_status is distinct from 'released_to_factory'
-              )
-              or (
-                i.npd_project_id is not null
-                and not exists (
-                  select 1
-                    from public.factory_release_status frs
-                   where frs.org_id = i.org_id
-                     and frs.product_code = i.item_code
-                     and frs.release_status = 'released_to_factory'
-                )
-              )
-            ) as blocked
+            ${FG_FACTORY_RELEASE_BLOCKED_SQL} as blocked
        from public.items i
       where i.org_id = app.current_org_id()
         and i.id = $1::uuid

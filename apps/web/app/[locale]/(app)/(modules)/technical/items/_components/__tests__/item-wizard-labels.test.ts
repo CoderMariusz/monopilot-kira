@@ -4,7 +4,6 @@ import {
   DEFAULT_WIZARD_LABELS,
   buildWizardLabels,
   formatItemActionError,
-  formatSupplierSpecWarning,
 } from '../item-wizard-labels';
 
 const passthroughT = Object.assign((key: string) => key, { has: () => false });
@@ -22,16 +21,10 @@ describe('item wizard labels', () => {
     );
   });
 
-  it('formatSupplierSpecWarning returns the static supplier-spec warning', () => {
-    expect(formatSupplierSpecWarning(DEFAULT_WIZARD_LABELS)).toBe(
-      'Item created but supplier price NOT saved.',
-    );
-  });
-
   it('built labels work with the pure formatters', () => {
     const labels = buildWizardLabels(passthroughT);
     expect(formatItemActionError(labels, 'already_exists', { itemCode: 'FG-1' })).toContain('FG-1');
-    expect(formatSupplierSpecWarning(labels)).toBe(DEFAULT_WIZARD_LABELS.warnings.supplierSpecNotSaved);
+    expect(labels.warnings.supplierSpecNotSaved).toBe(DEFAULT_WIZARD_LABELS.warnings.supplierSpecNotSaved);
   });
 
   it('label bundles are RSC-serializable (no function values anywhere)', () => {

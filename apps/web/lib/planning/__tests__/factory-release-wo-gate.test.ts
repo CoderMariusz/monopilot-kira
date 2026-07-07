@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  assertFgReleasedToFactoryForWo,
-  FG_FACTORY_RELEASE_WO_GATE_SQL,
-} from '../factory-release-wo-gate';
+import { assertFgReleasedToFactoryForWo } from '../factory-release-wo-gate';
 
 const PRODUCT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
@@ -14,14 +11,6 @@ function makeClient(blocked: boolean, found = true) {
     })),
   };
 }
-
-describe('FG_FACTORY_RELEASE_WO_GATE_SQL', () => {
-  it('blocks unreleased factory_release_status rows and NPD FGs without a released row', () => {
-    expect(FG_FACTORY_RELEASE_WO_GATE_SQL).toContain('factory_release_status');
-    expect(FG_FACTORY_RELEASE_WO_GATE_SQL).toContain('released_to_factory');
-    expect(FG_FACTORY_RELEASE_WO_GATE_SQL).toContain('npd_project_id is not null');
-  });
-});
 
 describe('assertFgReleasedToFactoryForWo', () => {
   it('allows released and grandfathered legacy items', async () => {

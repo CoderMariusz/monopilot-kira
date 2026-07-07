@@ -1,7 +1,3 @@
-export type ReleaseToFactoryInput = {
-  projectId: string;
-};
-
 export type ReleaseToFactoryError =
   | 'invalid_input'
   | 'forbidden'

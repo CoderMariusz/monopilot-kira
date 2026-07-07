@@ -4,9 +4,6 @@
  * equivalent — normalize on read/compare until the 449 data migration has run everywhere.
  */
 
-export const LEGACY_PIECE_UOMS = ['szt', 'ea'] as const;
-export type LegacyPieceUom = (typeof LEGACY_PIECE_UOMS)[number];
-
 export const CANONICAL_PIECE_UOM = 'pcs' as const;
 
 /** Map legacy piece codes to canonical `pcs`; pass through all other codes unchanged. */
