@@ -108,6 +108,8 @@ export function LocationTreeScreen({
   state,
   activeDialog,
   importCsvAction,
+  importWarehouseId,
+  importLocale,
   importToast,
   upsertToast,
   upsertLocation,
@@ -124,6 +126,8 @@ export function LocationTreeScreen({
   state: 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
   activeDialog: DialogMode | null;
   importCsvAction: (formData: FormData) => Promise<void>;
+  importWarehouseId: string;
+  importLocale: string;
   importToast: { role: 'status' | 'alert'; message: string } | null;
   upsertToast: { role: 'status' | 'alert'; message: string } | null;
   upsertLocation: (input: UpsertLocationInput) => Promise<UpsertLocationResult> | UpsertLocationResult;
@@ -262,6 +266,8 @@ export function LocationTreeScreen({
 
       <section className="mx-auto max-w-6xl space-y-4 p-6" aria-label={labels.workspace}>
         <form action={importCsvAction} data-location-import-form="true" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <input type="hidden" name="warehouseId" value={importWarehouseId} />
+          <input type="hidden" name="locale" value={importLocale} />
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <div className="text-base font-semibold">{labels.sectionTitle} ({visibleRows.length})</div>

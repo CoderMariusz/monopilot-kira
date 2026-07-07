@@ -256,8 +256,7 @@ export default async function PlanningImportHubPage({ params, searchParams }: Pa
             spec={TO_IMPORT_SPEC}
             showConversion={false}
             previewColumns={toPreviewColumns(t)}
-            createdNumber={(c) => c.to_number}
-            createdHref={(c, base) => `${base}?q=${encodeURIComponent(c.to_number)}`}
+            createdNumberField="to_number"
             listPath="/planning/transfer-orders"
             templateFilename="to-import-template.csv"
             errorReportFilename="to-import-errors.csv"
@@ -272,8 +271,7 @@ export default async function PlanningImportHubPage({ params, searchParams }: Pa
             spec={WO_IMPORT_SPEC}
             showConversion
             previewColumns={woPreviewColumns(t)}
-            createdNumber={(c) => c.wo_number}
-            createdHref={(c, base) => `${base}?q=${encodeURIComponent(c.wo_number)}`}
+            createdNumberField="wo_number"
             listPath="/planning/work-orders"
             templateFilename="wo-import-template.csv"
             errorReportFilename="wo-import-errors.csv"

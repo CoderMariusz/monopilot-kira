@@ -137,8 +137,7 @@ function renderTo(over: { initialStep?: 'preview'; rows?: ReturnType<typeof pars
       spec={TO_IMPORT_SPEC}
       showConversion={false}
       previewColumns={TO_PREVIEW_COLUMNS}
-      createdNumber={(c) => c.to_number}
-      createdHref={(c, base) => `${base}?q=${encodeURIComponent(c.to_number)}`}
+      createdNumberField="to_number"
       listPath="/planning/transfer-orders"
       errorReportFilename="to-import-errors.csv"
       validateAction={over.validateAction ?? vi.fn(async () => TO_VALIDATION)}
@@ -250,8 +249,7 @@ function renderWo(over: { validateAction?: ReturnType<typeof vi.fn>; commitActio
       spec={WO_IMPORT_SPEC}
       showConversion
       previewColumns={WO_PREVIEW_COLUMNS}
-      createdNumber={(c) => c.wo_number}
-      createdHref={(c, base) => `${base}?q=${encodeURIComponent(c.wo_number)}`}
+      createdNumberField="wo_number"
       listPath="/planning/work-orders"
       errorReportFilename="wo-import-errors.csv"
       validateAction={over.validateAction ?? vi.fn(async () => WO_VALIDATION)}
@@ -305,8 +303,7 @@ describe('Wave E-IO WO import wizard (lesson F-D08a)', () => {
         spec={WO_IMPORT_SPEC}
         showConversion
         previewColumns={WO_PREVIEW_COLUMNS}
-        createdNumber={(c) => c.wo_number}
-        createdHref={(c, base) => `${base}?q=${encodeURIComponent(c.wo_number)}`}
+        createdNumberField="wo_number"
         listPath="/planning/work-orders"
         errorReportFilename="wo-import-errors.csv"
         validateAction={vi.fn()}

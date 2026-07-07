@@ -485,13 +485,8 @@ export default async function LocationTreePage(propsInput: unknown) {
   const requestedParentId = typeof searchParams?.parentId === 'string' ? searchParams.parentId : null;
 
   // importLocationCsvAction is a module-level Server Action (no closure).
-  // Serializable params (selectedWarehouseId, locale) are bound here so that
-  // Next.js can pass this action reference safely to the LocationTreeScreen
-  // Client Component without violating the "no functions in Server Action
-  // closures" constraint. Permission enforcement happens inside the action
-  // via withOrgContext (re-checks settings.infra.update on every invocation).
-  const boundImportAction = importLocationCsvAction.bind(null, selectedWarehouseId, locale);
-
+  // Serializable params (selectedWarehouseId, locale) are hidden form fields so
+  // Next.js can pass the action reference safely to LocationTreeScreen.
   return (
     <LocationTreeScreen
       labels={labels}
@@ -504,7 +499,9 @@ export default async function LocationTreePage(propsInput: unknown) {
       canUpdateInfra={canUpdateInfra}
       state={state}
       activeDialog={activeDialog}
-      importCsvAction={boundImportAction}
+      importCsvAction={importLocationCsvAction}
+      importWarehouseId={selectedWarehouseId}
+      importLocale={locale}
       importToast={importToast}
       upsertToast={upsertToast}
       upsertLocation={upsertLocation}

@@ -498,9 +498,13 @@ async function approveAdapter(
   return result.ok ? { ok: true as const } : { ok: false as const, error: result.error };
 }
 
-async function toggleChecklistAdapter(projectId: string, itemId: string, done: boolean) {
+async function toggleChecklistAdapter(input: { projectId: string; itemId: string; done: boolean }) {
   'use server';
-  const result = await toggleGateChecklistItemAction({ projectId, itemId, completed: done });
+  const result = await toggleGateChecklistItemAction({
+    projectId: input.projectId,
+    itemId: input.itemId,
+    completed: input.done,
+  });
   return result.ok ? { ok: true as const } : { ok: false as const, code: result.code };
 }
 
@@ -574,7 +578,7 @@ export default async function GatePage(propsInput: unknown = {}) {
       canAdvance={loaded.canAdvance}
       canApprove={loaded.canApprove}
       canRevert={loaded.canAdvance}
-      toggleGateChecklistItem={loaded.canWrite ? toggleChecklistAdapter.bind(null, projectId) : undefined}
+      toggleGateChecklistItem={loaded.canWrite ? toggleChecklistAdapter : undefined}
       advanceProjectGate={advanceAdapter}
       approveProjectGate={approveAdapter}
       revertProjectGate={loaded.canAdvance ? revertAdapter : undefined}

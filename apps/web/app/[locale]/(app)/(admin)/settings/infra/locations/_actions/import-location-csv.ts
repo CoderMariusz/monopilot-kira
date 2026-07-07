@@ -6,9 +6,9 @@
  * Extracted from page.tsx inline closure to fix the Next.js serialization
  * constraint: Server Actions passed to Client Components cannot close over
  * non-serializable values (functions). This file is the canonical owner of
- * the import action. The page.tsx binds the serializable params
- * (selectedWarehouseId, locale) via .bind() before passing it as the form
- * action prop.
+ * the import action. The page passes `importLocationCsvAction` directly as the
+ * form action; `selectedWarehouseId` and `locale` travel as hidden fields so no
+ * `.bind()` closure crosses the RSC boundary.
  *
  * CSV format: name,warehouseId,parentPath,level,path
  * - name        : display name (required)
@@ -228,18 +228,12 @@ function buildRedirectHref(selectedWarehouseId: string, ok: boolean, message: st
 /**
  * Form action for the locations CSV import form.
  *
- * Must be used with .bind():
- *   importLocationCsvAction.bind(null, selectedWarehouseId, locale)
- *
- * The bound params (selectedWarehouseId, locale) are serializable strings,
- * satisfying the Next.js Server Action serialization constraint.
- * FormData is the last argument, injected by the form submission.
+ * Expects hidden fields `warehouseId` and `locale` on the submitting form
+ * (set by LocationTreeScreen). FormData is injected by the form submission.
  */
-export async function importLocationCsvAction(
-  selectedWarehouseId: string,
-  locale: string,
-  formData: FormData,
-): Promise<void> {
+export async function importLocationCsvAction(formData: FormData): Promise<void> {
+  const selectedWarehouseId = String(formData.get('warehouseId') ?? '');
+  const locale = String(formData.get('locale') ?? 'en');
   const file = formData.get('csvFile');
   if (!(file instanceof File) || file.size === 0) {
     redirect(buildRedirectHref(selectedWarehouseId, false, 'No CSV file selected.'));

@@ -41,8 +41,7 @@ export type EntityImportCardProps<TRow, TCreated> = {
   spec: EntityCsvSpec<TRow>;
   showConversion: boolean;
   previewColumns: PreviewColumn<TRow>[];
-  createdNumber: (created: TCreated) => string;
-  createdHref: (created: TCreated, listBase: string) => string;
+  createdNumberField: string;
   listPath: string;
   templateFilename: string;
   errorReportFilename: string;
@@ -59,8 +58,7 @@ export function EntityImportCard<TRow, TCreated>(props: EntityImportCardProps<TR
     spec,
     showConversion,
     previewColumns,
-    createdNumber,
-    createdHref,
+    createdNumberField,
     listPath,
     templateFilename,
     errorReportFilename,
@@ -120,8 +118,7 @@ export function EntityImportCard<TRow, TCreated>(props: EntityImportCardProps<TR
             spec={spec}
             showConversion={showConversion}
             previewColumns={previewColumns}
-            createdNumber={createdNumber}
-            createdHref={createdHref}
+            createdNumberField={createdNumberField}
             listPath={listPath}
             errorReportFilename={errorReportFilename}
             validateAction={validateAction}
