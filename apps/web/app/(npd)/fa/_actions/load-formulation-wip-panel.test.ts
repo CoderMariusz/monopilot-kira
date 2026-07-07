@@ -122,8 +122,16 @@ describe('loadFormulationWipPanel', () => {
           }],
         };
       }
-      if (/from public\.formulations/.test(text) && /count\(fi\.id\)/.test(text)) {
-        return { rows: [{ ingredient_count: '1' }] };
+      if (/from public\.formulations/.test(text) && /fi\.sequence/.test(text)) {
+        return {
+          rows: [{
+            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            rm_code: 'RM-1',
+            item_id: null,
+            npd_wip_process_id: null,
+            sequence: 1,
+          }],
+        };
       }
       return { rows: [] };
     });
@@ -138,5 +146,12 @@ describe('loadFormulationWipPanel', () => {
       rate: '120.5000',
       closed_production: 'Yes',
     });
+    expect(result.formulationIngredients).toEqual([{
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      rmCode: 'RM-1',
+      itemId: null,
+      npdWipProcessId: null,
+      sequence: 1,
+    }]);
   });
 });

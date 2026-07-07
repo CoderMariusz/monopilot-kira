@@ -183,8 +183,8 @@ describe('wip-process-actions WIP item linkage', () => {
       /update\s+public\.npd_wip_processes/i.test(String(call[0])),
     );
     expect(String(updateCall?.[0])).toMatch(/wip_item_id\s*=\s*case\s+when\s+\$5::boolean\s+is\s+false\s+then\s+null/i);
-    // Params: [id, processName, durationHours, additionalCost, createsWipItem, throughputPerHour, throughputUom, setupCost, yieldPct]
-    expect(updateCall?.[1]).toEqual([processId, null, null, null, false, null, null, null, null]);
+    // Params: [id, processName, durationHours, additionalCost, createsWipItem, throughputPerHour, throughputUom, setupCost, yieldPct, hasLineId, lineId]
+    expect(updateCall?.[1]).toEqual([processId, null, null, null, false, null, null, null, null, false, null]);
 
     const deletedItem = queryMock.mock.calls.some((call) =>
       /delete\s+from\s+public\.items/i.test(String(call[0])),
@@ -281,5 +281,67 @@ describe('wip-process-actions WIP item linkage', () => {
       [processId, 'Operator', 2, 20],
       [processId, 'Supervisor', 1, 35],
     ]);
+  });
+
+  it('addWipProcess rejects a production line outside the org', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
+      if (/from\s+public\.production_lines/i.test(text)) return { rows: [], rowCount: 0 };
+      return { rows: [] };
+    });
+
+    const result = await addWipProcess({
+      prodDetailId,
+      processName: 'Cold Smoke',
+      lineId: '77777777-7777-4777-8777-777777777777',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'Production line is not visible in this organisation' });
+    expect(
+      queryMock.mock.calls.some((call) => /insert\s+into\s+public\.npd_wip_processes/i.test(String(call[0]))),
+    ).toBe(false);
+  });
+
+  it('addWipProcess persists lineId when the line is org-visible and active', async () => {
+    const lineId = '77777777-7777-4777-8777-777777777777';
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
+      if (/from\s+public\.production_lines/i.test(text)) return { rows: [{ id: lineId }], rowCount: 1 };
+      if (/insert\s+into\s+public\.npd_wip_processes/i.test(text)) return { rows: [{ id: processId }], rowCount: 1 };
+      return { rows: [] };
+    });
+
+    const result = await addWipProcess({
+      prodDetailId,
+      processName: 'Cold Smoke',
+      lineId,
+    });
+
+    expect(result).toEqual({ ok: true, id: processId });
+    const processInsert = queryMock.mock.calls.find((call) =>
+      /insert\s+into\s+public\.npd_wip_processes/i.test(String(call[0])),
+    );
+    expect(processInsert?.[1]?.[9]).toBe(lineId);
+  });
+
+  it('updateWipProcess rejects a production line outside the org', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
+      if (/from\s+public\.production_lines/i.test(text)) return { rows: [], rowCount: 0 };
+      return { rows: [] };
+    });
+
+    const result = await updateWipProcess({
+      id: processId,
+      lineId: '77777777-7777-4777-8777-777777777777',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'Production line is not visible in this organisation' });
+    expect(
+      queryMock.mock.calls.some((call) => /update\s+public\.npd_wip_processes/i.test(String(call[0]))),
+    ).toBe(false);
   });
 });
