@@ -249,16 +249,10 @@ export async function getScheduleBoard(input?: {
         data: {
           windowStart: windowStart.toISOString(),
           windowEnd: windowEnd.toISOString(),
-<<<<<<< HEAD
           lines,
           scheduled,
-          unscheduled: unscheduledResult.rows.map(mapBoardWo),
-=======
-          lines: linesResult.rows,
-          scheduled: scheduledResult.rows.map(mapBoardWo),
           unscheduled: unscheduledItems,
           unscheduledPagination,
->>>>>>> track-c3f
           capacityBlocks: capacityBlocksResult.rows.map(mapCapacityBlock),
           lineDayUtilization: computeLineDayUtilization({
             lines,

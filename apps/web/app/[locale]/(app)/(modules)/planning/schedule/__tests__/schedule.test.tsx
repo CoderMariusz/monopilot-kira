@@ -114,8 +114,6 @@ function makeData(over: Partial<ScheduleBoardData> = {}): ScheduleBoardData {
         scheduledEnd: '2026-06-13T14:00:00.000Z',
       }),
     ],
-    unscheduled,
-    unscheduledPagination,
     capacityBlocks: [],
     lineDayUtilization: [],
     ...over,
