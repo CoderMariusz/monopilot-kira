@@ -16,6 +16,8 @@ const CreateFactorySpecInput = z.object({
   fgItemId: z.string().uuid(),
   specCode: z.string().trim().min(1).max(120),
   notes: z.string().trim().max(2000).optional(),
+  /** Clone-on-write: the factory-usable version this draft supersedes. */
+  supersedesSpecId: z.string().uuid().optional(),
 });
 
 type CreateFactorySpecResult =
@@ -67,13 +69,46 @@ export async function createFactorySpec(rawInput: unknown): Promise<CreateFactor
       );
       const version = Number(versionRows[0]?.next_version ?? 1);
 
+      let supersedesSpecId: string | null = input.supersedesSpecId ?? null;
+      if (supersedesSpecId) {
+        const { rows: supersededRows } = await c.query<{ id: string }>(
+          `select id
+             from public.factory_specs
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+              and fg_item_id = $2::uuid
+              and status in ('approved_for_factory', 'released_to_factory', 'superseded')
+            limit 1`,
+          [supersedesSpecId, input.fgItemId],
+        );
+        if (!supersededRows[0]) {
+          return {
+            ok: false,
+            error: 'invalid_input',
+            message: 'supersedesSpecId does not match a prior factory_spec for this FG',
+          };
+        }
+      } else {
+        const { rows: priorRows } = await c.query<{ id: string }>(
+          `select id
+             from public.factory_specs
+            where org_id = app.current_org_id()
+              and fg_item_id = $1::uuid
+              and status in ('approved_for_factory', 'released_to_factory')
+            order by version desc
+            limit 1`,
+          [input.fgItemId],
+        );
+        supersedesSpecId = priorRows[0]?.id ?? null;
+      }
+
       const { rows } = await c.query<{ id: string }>(
         `insert into public.factory_specs
-           (org_id, fg_item_id, spec_code, version, status, source, notes, created_by)
+           (org_id, fg_item_id, spec_code, version, status, source, notes, created_by, supersedes_factory_spec_id)
          values
-           (app.current_org_id(), $1::uuid, $2, $3::integer, 'draft', 'technical', $4, $5::uuid)
+           (app.current_org_id(), $1::uuid, $2, $3::integer, 'draft', 'technical', $4, $5::uuid, $6::uuid)
          returning id`,
-        [input.fgItemId, input.specCode, version, input.notes ?? null, userId],
+        [input.fgItemId, input.specCode, version, input.notes ?? null, userId, supersedesSpecId],
       );
       const inserted = rows[0];
       if (!inserted) return { ok: false, error: 'persistence_failed' };
@@ -96,6 +131,7 @@ export async function createFactorySpec(rawInput: unknown): Promise<CreateFactor
             status: 'draft',
             source: 'technical',
             notes: input.notes ?? null,
+            supersedesFactorySpecId: supersedesSpecId,
           }),
           randomUUID(),
         ],

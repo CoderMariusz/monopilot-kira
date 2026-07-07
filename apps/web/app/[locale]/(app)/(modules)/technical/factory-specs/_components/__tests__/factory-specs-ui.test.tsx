@@ -100,6 +100,7 @@ const baseSpec: FactorySpecListItem = {
   bomVersion: 8,
   bomStatus: 'in_review',
   d365ItemId: null,
+  fgNpdProjectId: null,
   updatedAt: '2026-04-30T11:22:00.000Z',
 };
 
@@ -201,6 +202,23 @@ describe('T-060 FactorySpecRowActions review modal', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Review' }));
     expect(screen.getByText(/Editing creates a new version \(clone-on-write\)/i)).toBeInTheDocument();
+  });
+
+  it('hides direct release for NPD-backed specs and shows handoff-required state', () => {
+    render(
+      React.createElement(FactorySpecRowActions, {
+        spec: {
+          ...baseSpec,
+          status: 'approved_for_factory',
+          bomStatus: 'technical_approved',
+          fgNpdProjectId: 'npd-project-1',
+        },
+        canApprove: true,
+        reviewLabel: 'Review',
+      }),
+    );
+    expect(screen.queryByTestId(`factory-spec-release-${baseSpec.id}`)).not.toBeInTheDocument();
+    expect(screen.getByTestId(`factory-spec-handoff-required-${baseSpec.id}`)).toHaveTextContent('Release via NPD handoff');
   });
 
   it('hides the approve path and explains the Technical permission when canApprove is false', () => {

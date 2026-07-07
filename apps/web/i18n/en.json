@@ -6762,6 +6762,7 @@
       "error": "Unable to load factory specifications. Please try again.",
       "permissionView": "You can view factory specifications but cannot approve them for factory use.",
       "review": "Review",
+      "cloneNewVersion": "+ New version",
       "modal": {
         "title": "Review specification · {spec}",
         "subtitle": "{name} · v{version}",
@@ -6785,6 +6786,21 @@
           "PENDING_TECHNICAL_APPROVAL": "Pending Technical approval",
           "RELEASE_BLOCKED": "Release blocked"
         }
+      },
+      "release": {
+        "action": "Release to factory",
+        "permissionTooltip": "You need the Technical approval permission to release this specification.",
+        "title": "Release specification to factory",
+        "body": "Releasing {spec} unlocks factory use for planning work orders. The paired BOM bundle must already be approved.",
+        "confirm": "Release to factory",
+        "submitting": "Releasing…",
+        "cancel": "Cancel",
+        "errors": {
+          "forbidden": "You do not have permission to release this specification.",
+          "generic": "Unable to release this specification. Please retry."
+        },
+        "handoffRequired": "Release via NPD handoff",
+        "handoffTooltip": "NPD-backed products must be released from NPD Handoff, not Technical."
       },
       "recall": {
         "action": "Recall to draft",

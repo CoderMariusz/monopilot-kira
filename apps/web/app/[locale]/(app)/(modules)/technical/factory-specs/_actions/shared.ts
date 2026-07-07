@@ -67,6 +67,8 @@ export type FactorySpecListItem = {
   bomVersion: number | null;
   bomStatus: string | null;
   d365ItemId: string | null;
+  /** Set when the FG item is linked to an NPD project — release must go via handoff. */
+  fgNpdProjectId: string | null;
   updatedAt: string;
 };
 

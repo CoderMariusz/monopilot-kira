@@ -61,6 +61,7 @@ const releasedSpec: FactorySpecListItem = {
   bomVersion: 8,
   bomStatus: 'active',
   d365ItemId: null,
+  fgNpdProjectId: null,
   updatedAt: '2026-04-30T11:22:00.000Z',
 };
 

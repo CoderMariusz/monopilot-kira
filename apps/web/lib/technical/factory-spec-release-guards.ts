@@ -51,10 +51,12 @@ function isKnownStatus(status: string): status is FactorySpecStatus {
  * recorded from an already-approved row).
  */
 const ALLOWED_TRANSITIONS: Record<FactorySpecStatus, readonly FactorySpecStatus[]> = {
-  draft: ['draft', 'in_review', 'approved_for_factory', 'archived'],
+  // draft → approved_for_factory is intentionally absent: bundle approval requires in_review.
+  draft: ['draft', 'in_review', 'archived'],
   in_review: ['draft', 'in_review', 'approved_for_factory', 'archived'],
   approved_for_factory: ['released_to_factory', 'superseded', 'archived'],
-  released_to_factory: ['superseded', 'archived'],
+  // recallFactorySpec (mig 453): released → draft with approval/release stamps cleared.
+  released_to_factory: ['draft', 'superseded', 'archived'],
   superseded: ['archived'],
   archived: [],
 };

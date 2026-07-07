@@ -6,6 +6,12 @@ import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { type OrgContextLike } from '../../pipeline/_actions/shared';
 import { materializeNpdBom } from '../../pipeline/_actions/_lib/materialize-npd-bom';
 import {
+  RELEASED_TO_FACTORY_EVENT,
+  insertReleasedToFactoryEvent,
+  transitionFactorySpecToReleased,
+  upsertFactoryReleaseStatus,
+} from '../../../../lib/technical/factory-release-persistence';
+import {
   ReleasePreflightError,
   runReleasePreflight,
   requireReleasePermission,
@@ -13,7 +19,6 @@ import {
 } from '../_lib/release-preflight';
 import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
-const RELEASED_TO_FACTORY_EVENT = 'fg.released_to_factory' as const;
 const APP_VERSION = 't-096';
 
 const inputSchema = z.union([
@@ -193,119 +198,6 @@ export async function releaseNpdProjectToFactory(
     const detail = [pg.code, pg.constraint ?? pg.message?.slice(0, 160)].filter(Boolean).join(' ');
     return { ok: false, error: 'PERSISTENCE_FAILED', status: 500, message: detail || undefined };
   }
-}
-
-async function insertReleasedToFactoryEvent(
-  ctx: OrgContextLike,
-  input: {
-    projectId: string;
-    projectCode: string;
-    productCode: string;
-    activeBomHeaderId: string;
-    activeFactorySpecId: string;
-  },
-): Promise<number> {
-  const dedupKey = `${APP_VERSION}:${input.projectId}:released-to-factory:${input.activeBomHeaderId}:${input.activeFactorySpecId}`;
-  const inserted = await ctx.client.query<{ id: string | number }>(
-    `insert into public.outbox_events
-       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version, dedup_key)
-     values
-       (app.current_org_id(), $1, 'factory_release_status', $2, $3::jsonb, $4, $5)
-     on conflict (org_id, dedup_key) where dedup_key is not null
-     do nothing
-     returning id`,
-    [
-      RELEASED_TO_FACTORY_EVENT,
-      input.projectId,
-      JSON.stringify({
-        org_id: ctx.orgId,
-        actor_user_id: ctx.userId,
-        projectId: input.projectId,
-        projectCode: input.projectCode,
-        productCode: input.productCode,
-        activeBomHeaderId: input.activeBomHeaderId,
-        activeFactorySpecId: input.activeFactorySpecId,
-        factoryApprovedBy: ctx.userId,
-      }),
-      APP_VERSION,
-      dedupKey,
-    ],
-  );
-  const id = inserted.rows[0]?.id ?? (await loadEventIdByDedupKey(ctx, dedupKey));
-  const numericId = typeof id === 'string' ? Number(id) : id;
-  if (!Number.isFinite(numericId)) throw new Error(`failed to emit ${RELEASED_TO_FACTORY_EVENT}`);
-  return numericId;
-}
-
-async function loadEventIdByDedupKey(ctx: OrgContextLike, dedupKey: string): Promise<number | string | undefined> {
-  const { rows } = await ctx.client.query<{ id: string | number }>(
-    `select id
-       from public.outbox_events
-      where org_id = app.current_org_id()
-        and dedup_key = $1
-      limit 1`,
-    [dedupKey],
-  );
-  return rows[0]?.id;
-}
-
-async function transitionFactorySpecToReleased(
-  ctx: OrgContextLike,
-  input: { factorySpecId: string },
-): Promise<void> {
-  await ctx.client.query(
-    `update public.factory_specs
-        set status = 'released_to_factory',
-            released_by = $2::uuid,
-            released_at = coalesce(released_at, now()),
-            updated_at = now()
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-        and status in ('approved_for_factory', 'released_to_factory')`,
-    [input.factorySpecId, ctx.userId],
-  );
-}
-
-async function upsertFactoryReleaseStatus(
-  ctx: OrgContextLike,
-  input: {
-    projectId: string;
-    productCode: string;
-    activeBomHeaderId: string;
-    activeFactorySpecId: string;
-    releaseEventId: number;
-  },
-): Promise<ReleaseRow> {
-  const { rows } = await ctx.client.query<ReleaseRow>(
-    `insert into public.factory_release_status
-       (org_id, project_id, product_code, release_status, factory_available_at, factory_approved_by,
-        release_event_id, active_bom_header_id, active_factory_spec_id, release_blockers, requested_by, requested_at)
-     values
-       (app.current_org_id(), $1::uuid, $2, 'released_to_factory', now(), $3::uuid,
-        $4, $5::uuid, $6::uuid, '[]'::jsonb, $3::uuid, now())
-     on conflict (org_id, project_id, product_code)
-     do update set release_status = 'released_to_factory',
-                   factory_available_at = coalesce(public.factory_release_status.factory_available_at, excluded.factory_available_at),
-                   factory_approved_by = coalesce(public.factory_release_status.factory_approved_by, excluded.factory_approved_by),
-                   release_event_id = coalesce(public.factory_release_status.release_event_id, excluded.release_event_id),
-                   active_bom_header_id = excluded.active_bom_header_id,
-                   active_factory_spec_id = excluded.active_factory_spec_id,
-                   release_blockers = '[]'::jsonb,
-                   requested_by = coalesce(public.factory_release_status.requested_by, excluded.requested_by),
-                   requested_at = coalesce(public.factory_release_status.requested_at, excluded.requested_at)
-     returning id, release_status, factory_available_at, factory_approved_by, release_event_id`,
-    [
-      input.projectId,
-      input.productCode,
-      ctx.userId,
-      input.releaseEventId,
-      input.activeBomHeaderId,
-      input.activeFactorySpecId,
-    ],
-  );
-  const release = rows[0];
-  if (!release) throw new Error('factory release status upsert returned no row');
-  return release;
 }
 
 function toIso(value: Date | string): string {
