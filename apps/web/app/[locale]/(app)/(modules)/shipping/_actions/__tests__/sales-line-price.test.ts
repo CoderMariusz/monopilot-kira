@@ -48,21 +48,19 @@ describe('resolveSalesLinePrice', () => {
   it('uses active GBP customer price over list price', () => {
     expect(
       resolveSalesLinePrice(ITEM, {
-        customerId: 'cust-1',
         customerPrice: { unit_price: 8.5, currency: 'GBP' },
       }),
     ).toBe(8.5);
   });
 
   it('falls back to list price when customer price is absent', () => {
-    expect(resolveSalesLinePrice(ITEM, { customerId: 'cust-1' })).toBe(10);
-    expect(resolveSalesLinePrice(ITEM, { customerId: 'cust-1', customerPrice: null })).toBe(10);
+    expect(resolveSalesLinePrice(ITEM, {})).toBe(10);
+    expect(resolveSalesLinePrice(ITEM, { customerPrice: null })).toBe(10);
   });
 
   it('ignores non-GBP customer price and falls back to list price', () => {
     expect(
       resolveSalesLinePrice(ITEM, {
-        customerId: 'cust-1',
         customerPrice: { unit_price: 5, currency: 'EUR' },
       }),
     ).toBe(10);
@@ -140,7 +138,6 @@ describe('fetchActiveCustomerItemPrices', () => {
 
     expect(
       resolveSalesLinePrice(ITEM, {
-        customerId: 'cust-1',
         customerPrice: prices.get('item-1') ?? null,
       }),
     ).toBe(8);
@@ -162,7 +159,6 @@ describe('fetchActiveCustomerItemPrices', () => {
 
     expect(
       resolveSalesLinePrice(ITEM, {
-        customerId: 'cust-1',
         customerPrice: prices.get('item-1') ?? null,
       }),
     ).toBe(10);

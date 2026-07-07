@@ -1,4 +1,3 @@
-import { normalizePieceUom } from '../uom/piece';
 import { fetchCompanyHeader, type QueryClient } from './company-header';
 import type { DocumentLine, GrnDocumentData, GrnDocumentTotals } from './types';
 
@@ -49,38 +48,6 @@ export function mapGrnTotalsRows(lines: DocumentLine[], rows: GrnTotalsRow[]): G
       totalReceived: row.total_received,
     })),
   };
-}
-
-/** @deprecated Prefer SQL totals via {@link fetchGrnDocumentTotals}; kept for unit-test parity. */
-export function computeGrnTotals(lines: DocumentLine[]): GrnDocumentTotals {
-  const liveLines = lines.filter((line) => !line.cancelled);
-  const byUom = new Map<string, string>();
-  for (const line of liveLines) {
-    const canonicalUom = normalizePieceUom(line.uom) ?? line.uom;
-    const prev = byUom.get(canonicalUom);
-    byUom.set(canonicalUom, prev == null ? line.receivedQty : addNumericText(prev, line.receivedQty));
-  }
-  return {
-    lineCount: lines.length,
-    liveLineCount: liveLines.length,
-    receivedByUom: [...byUom.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([uom, totalReceived]) => ({ uom, totalReceived })),
-  };
-}
-
-function addNumericText(left: string, right: string): string {
-  const [lWhole, lFrac = ''] = left.split('.');
-  const [rWhole, rFrac = ''] = right.split('.');
-  const scale = Math.max(lFrac.length, rFrac.length);
-  const lScaled = BigInt(lWhole + lFrac.padEnd(scale, '0'));
-  const rScaled = BigInt(rWhole + rFrac.padEnd(scale, '0'));
-  const sum = lScaled + rScaled;
-  const sumText = sum.toString().padStart(scale + 1, '0');
-  if (scale === 0) return sumText;
-  const whole = sumText.slice(0, -scale) || '0';
-  const frac = sumText.slice(-scale).replace(/0+$/, '');
-  return frac ? `${whole}.${frac}` : whole;
 }
 
 export async function fetchGrnDocumentTotals(client: QueryClient, grnId: string): Promise<GrnTotalsRow[]> {
