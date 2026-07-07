@@ -148,7 +148,7 @@ export async function executeReceivePoLineCore(
 
   let requestedLocation: RequestedLocation | null = null;
   if (input.toLocationId) {
-    requestedLocation = await resolveRequestedLocation(client, ctx.orgId, input.toLocationId);
+    requestedLocation = await resolveRequestedLocation(client, ctx, input.toLocationId, options.mode);
     if (!requestedLocation) return { ok: false, code: 'invalid_location', poId: line.po_id };
   }
 
@@ -170,7 +170,7 @@ export async function executeReceivePoLineCore(
 
   const destWarehouseId = warehouse.id;
   const destLocationId = requestedLocation?.id ?? warehouse.default_location_id;
-  const lpSiteId = options.mode === 'scanner' ? ctx.siteId : warehouse.site_id;
+  const lpSiteId = warehouse.site_id;
 
   const grn = await getOrCreateOpenGrn(client, ctx, {
     poId: line.po_id,
@@ -322,16 +322,24 @@ async function loadLineForUpdate(
 
 async function resolveRequestedLocation(
   client: QueryClient,
-  orgId: string,
+  ctx: ReceivePoLineCoreContext,
   locationId: string,
+  mode: 'scanner' | 'desktop',
 ): Promise<RequestedLocation | null> {
+  if (mode === 'scanner' && !ctx.siteId) return null;
+
   const { rows } = await client.query<RequestedLocation>(
     `select l.id, l.warehouse_id
        from public.locations l
+       join public.warehouses w
+         on w.id = l.warehouse_id
+        and w.org_id = l.org_id
       where l.org_id = $1::uuid
         and l.id = $2::uuid
+        and app.user_can_see_site(w.site_id)
+        and ($3::uuid is null or w.site_id = $3::uuid)
       limit 1`,
-    [orgId, locationId],
+    [ctx.orgId, locationId, mode === 'scanner' ? ctx.siteId : null],
   );
   return rows[0] ?? null;
 }
@@ -405,6 +413,8 @@ async function resolveWarehouse(
   }
 
   if (mode === 'scanner') {
+    if (!ctx.siteId) return null;
+
     const { rows } = await client.query<WarehouseTarget & { default_location_id: string | null }>(
       `select w.id,
               w.site_id,
@@ -416,11 +426,12 @@ async function resolveWarehouse(
                 limit 1) as default_location_id
          from public.warehouses w
         where w.org_id = app.current_org_id()
+          and w.site_id = $3::uuid
+          and app.user_can_see_site(w.site_id)
         order by case
                    when $1::uuid is not null and w.id = $1::uuid then 0
                    when $2::uuid is not null and w.id = $2::uuid then 1
-                   when $3::uuid is not null and w.site_id = $3::uuid then 2
-                   else 3
+                   else 2
                  end,
                  w.is_default desc,
                  w.created_at asc,

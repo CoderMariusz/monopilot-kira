@@ -1,10 +1,14 @@
 import type { NextRequest } from 'next/server';
 
+import { hasPermission, type ProductionContext } from '../../../../../lib/production/shared';
 import { requireScannerSession } from '../../../../../lib/scanner/guard';
 import { jsonError, jsonOk, stringField } from '../../../../../lib/scanner/route-utils';
 import { withTxnOrgContext } from '../../../../../lib/scanner/txn-org-context';
 import { withScannerOrg } from '../../../../../lib/scanner/with-scanner-org';
 import { getScannerLpDetail } from '../../../../../lib/warehouse/scanner/movement';
+import { auditAttempt } from '../../../production/scanner/_support';
+
+const WAREHOUSE_READ_PERMISSION = 'warehouse.inventory.read';
 
 export async function GET(request: NextRequest) {
   const code = stringField(Object.fromEntries(new URL(request.url).searchParams), 'code');
@@ -12,6 +16,19 @@ export async function GET(request: NextRequest) {
 
   const result = await requireScannerSession(request, null, 'warehouse.scanner.lp.lookup', async ({ client, session }) =>
     withScannerOrg(client, session, async ({ client: scopedClient }) => {
+      const permCtx = {
+        client: scopedClient,
+        userId: session.user_id,
+        orgId: session.org_id,
+      } as unknown as ProductionContext;
+      if (!(await hasPermission(permCtx, WAREHOUSE_READ_PERMISSION))) {
+        await auditAttempt(scopedClient, session, 'warehouse.scanner.lp.lookup', 'forbidden', { code });
+        return jsonError('forbidden', 403, {
+          message:
+            'You need the "warehouse.inventory.read" permission to look up license plates. Ask an admin to grant it.',
+        });
+      }
+
       // app.current_org_id() only resolves inside a txn with a registered
       // context (see lib/scanner/txn-org-context.ts) — without this wrapper the
       // org-scoped lookup always returns empty.

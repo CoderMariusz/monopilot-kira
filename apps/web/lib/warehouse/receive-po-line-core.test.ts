@@ -14,8 +14,10 @@ const LINE_ID = '00000000-0000-4000-8000-0000000000b1';
 const ITEM_ID = '00000000-0000-4000-8000-0000000000c1';
 const SUPPLIER_ID = '00000000-0000-4000-8000-0000000000d1';
 const SITE_ID = '00000000-0000-4000-8000-0000000000d2';
+const OTHER_SITE_ID = '00000000-0000-4000-8000-0000000000d3';
 const WAREHOUSE_ID = '00000000-0000-4000-8000-0000000000e1';
 const LOCATION_ID = '00000000-0000-4000-8000-0000000000f1';
+const OTHER_LOCATION_ID = '00000000-0000-4000-8000-0000000000f2';
 
 const baseInput: ReceivePoLineCoreInput = {
   poLineId: LINE_ID,
@@ -173,6 +175,105 @@ describe('receive-po-line-core', () => {
     expect(lookup?.params[2]).toEqual(OPEN_PO_STATUSES);
     expect(client.calls.some((c) => c.sql.includes('insert into public.license_plates'))).toBe(false);
   });
+
+  it('scanner mode derives LP site_id from the resolved warehouse, not session siteId', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.UTC(2026, 5, 11));
+    const client = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      warehouseSiteId: SITE_ID,
+      mode: 'scanner',
+    });
+
+    const result = await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: OTHER_SITE_ID },
+      baseInput,
+      {
+        mode: 'scanner',
+        genesisReasonCode: 'scanner_receive_po',
+        genesisReasonText: 'Scanner PO receipt',
+        requireOverReceiveConfirm: false,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(findCall(client, 'insert into public.license_plates')?.params).toEqual(
+      expect.arrayContaining([ORG_A, SITE_ID, WAREHOUSE_ID]),
+    );
+  });
+
+  it('scanner mode rejects receive when session has no site (no warehouse resolution)', async () => {
+    const client = makeClient({ orderedQty: '10.000000', receivedQty: '0.000000', mode: 'scanner' });
+
+    const result = await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: null },
+      baseInput,
+      {
+        mode: 'scanner',
+        genesisReasonCode: 'scanner_receive_po',
+        genesisReasonText: 'Scanner PO receipt',
+        requireOverReceiveConfirm: false,
+      },
+    );
+
+    expect(result).toEqual({ ok: false, code: 'no_warehouse', poId: PO_ID });
+    expect(client.calls.some((c) => c.sql.includes('insert into public.license_plates'))).toBe(false);
+  });
+
+  it('scanner mode rejects a destination location outside the scanner site', async () => {
+    const client = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      mode: 'scanner',
+      locationVisible: false,
+    });
+
+    const result = await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+      { ...baseInput, toLocationId: OTHER_LOCATION_ID },
+      {
+        mode: 'scanner',
+        genesisReasonCode: 'scanner_receive_po',
+        genesisReasonText: 'Scanner PO receipt',
+        requireOverReceiveConfirm: false,
+      },
+    );
+
+    expect(result).toEqual({ ok: false, code: 'invalid_location', poId: PO_ID });
+    const locationLookup = findCall(client, 'from public.locations l');
+    expect(locationLookup?.params).toEqual([ORG_A, OTHER_LOCATION_ID, SITE_ID]);
+    expect(client.calls.some((c) => c.sql.includes('insert into public.license_plates'))).toBe(false);
+  });
+
+  it('scanner warehouse resolution is restricted to the scanner site', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.UTC(2026, 5, 11));
+    const client = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      mode: 'scanner',
+      warehouseSiteId: SITE_ID,
+    });
+
+    await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+      baseInput,
+      {
+        mode: 'scanner',
+        genesisReasonCode: 'scanner_receive_po',
+        genesisReasonText: 'Scanner PO receipt',
+        requireOverReceiveConfirm: false,
+      },
+    );
+
+    const warehouseLookup = findCall(client, 'from public.warehouses w');
+    expect(warehouseLookup?.sql).toContain('w.site_id = $3::uuid');
+    expect(warehouseLookup?.sql).toContain('app.user_can_see_site(w.site_id)');
+    expect(warehouseLookup?.params).toEqual([null, null, SITE_ID]);
+  });
 });
 
 type FakeClient = QueryClient & { calls: Array<{ sql: string; params: readonly unknown[] }> };
@@ -184,6 +285,9 @@ function makeClient(options: {
   lineMissing?: boolean;
   throwOnGrnItemsWriteAfterCompleted?: boolean;
   supplierStatus?: string;
+  mode?: 'scanner' | 'desktop';
+  warehouseSiteId?: string;
+  locationVisible?: boolean;
 }): FakeClient {
   const calls: FakeClient['calls'] = [];
   let grnCompleted = false;
@@ -226,9 +330,17 @@ function makeClient(options: {
               ] as T[]),
         };
       }
+      if (normalized.includes('from public.locations l') && normalized.includes('join public.warehouses w')) {
+        return {
+          rows:
+            options.locationVisible === false
+              ? ([] as T[])
+              : ([{ id: LOCATION_ID, warehouse_id: WAREHOUSE_ID }] as T[]),
+        };
+      }
       if (normalized.includes('from public.warehouses w')) {
         return {
-          rows: [{ id: WAREHOUSE_ID, site_id: SITE_ID, default_location_id: LOCATION_ID }] as T[],
+          rows: [{ id: WAREHOUSE_ID, site_id: options.warehouseSiteId ?? SITE_ID, default_location_id: LOCATION_ID }] as T[],
         };
       }
       if (normalized.includes('from public.grns') && normalized.includes('status =')) {
