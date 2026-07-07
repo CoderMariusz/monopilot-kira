@@ -25,6 +25,17 @@
 
 ## How to choose a skill
 
+### Orchestration & quality (read for EVERY wave / review / merge)
+
+| Situation | Skill |
+| --- | --- |
+| Coordinating a multi-engine wave, merging tracks, deploying, resuming a crash | [[MON-orchestration]] |
+| Implementing, reviewing or arbitrating ANY change (writer/reviewer/arbiter schema, migration dry-run ritual, RSC rules, self-review) | [[MON-verify-and-review]] |
+
+> 2026-07-07: `kira-orchestrator` and `MON-codex-review-checklist` retired — both folded
+> into the two skills above (single canonical flow: Composer/Opus impl → Codex
+> cross-review → arbitrate → fix → serial merge → deploy → live prod E2E).
+
 ### By task_type (T1-T5 atomic decomposition)
 
 | `task_type` | Primary skill | Always pair with |

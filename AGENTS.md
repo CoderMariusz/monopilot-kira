@@ -72,3 +72,11 @@ escalate to the human, not to the author.
 15. **Root yourself in the worktree**: any lane/fix writing to a worktree MUST run `codex exec -C <worktree>` (a session rooted elsewhere has no write permission there and MUST NOT silently fall back).
 16. **Every report carries tree proof**: paste `git -C <worktree> diff --stat` AND the raw stdout tail of the actual test run. A report referencing files or test results the tree does not show is treated as FABRICATED and auto-fails (this happened; the check is now mechanical).
 17. **Worktree test bootstrap**: if `node_modules` is missing, symlink the PAIR from the main checkout — `node_modules` AND `apps/web/node_modules` (pnpm nests deps; the root symlink alone leaves `zod`/`pg` unresolvable). Remove symlinks after. Never mock a package (e.g. zod) to dodge a missing-module error — that masks real validation.
+
+## Quality schema (mandatory for every engine)
+
+Before implementing, reviewing, or claiming done on ANY task in this repo, read and
+follow `.claude/skills/MON-verify-and-review/SKILL.md` — the shared writer/reviewer/
+arbiter schema (live-DB trigger checks, migration dry-run ritual, RSC serializability
+rules, honest-output self-review). Orchestrators additionally follow
+`.claude/skills/MON-orchestration/SKILL.md`.
