@@ -20,6 +20,7 @@
     "@monopilot/db": "workspace:*",
     "@monopilot/domain": "workspace:*",
     "@monopilot/e-sign": "workspace:*",
+    "@monopilot/gs1": "workspace:*",
     "@monopilot/observability": "workspace:*",
     "@monopilot/ops": "workspace:*",
     "@monopilot/queries": "workspace:*",

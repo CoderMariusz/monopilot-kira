@@ -158,7 +158,7 @@ function mockPackQueries(options: {
     }
 
     if (q.includes('public.generate_sscc')) {
-      return { rows: [{ sscc: '001234500000000015' }], rowCount: 1 };
+      return { rows: [{ sscc: '001234560000000018' }], rowCount: 1 };
     }
 
     if (q.startsWith('select coalesce(max(sb.box_number)')) {

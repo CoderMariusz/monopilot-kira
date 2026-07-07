@@ -165,12 +165,28 @@ export async function packLpIntoBoxCore(ctx: PackContext, input: PackLpInput): P
     if (!boxRows[0]) return { ok: false, error: 'invalid_box' };
     boxSiteId = boxRows[0].site_id;
   } else {
-    const { rows: ssccRows } = await ctx.client.query<{ sscc: string }>(
-      `select public.generate_sscc($1::uuid, 0) as sscc`,
-      [orgId],
-    );
-    const sscc = ssccRows[0]?.sscc;
-    if (!sscc) return { ok: false, error: 'persistence_failed' };
+    // Canonical SSCC mint: public.generate_sscc validates prefix + serial capacity BEFORE
+    // incrementing sscc_counters (migration 459). Pack uses the 7-digit-prefix SQL layout so
+    // shipment_boxes_sscc_mod10_check agrees with the mint path. @monopilot/gs1 generateSscc18
+    // remains for validation/formatting (supports 7–10 digit prefixes) but is not used here.
+    let sscc: string;
+    try {
+      const { rows: ssccRows } = await ctx.client.query<{ sscc: string }>(
+        `select public.generate_sscc($1::uuid, 0)::text as sscc`,
+        [orgId],
+      );
+      sscc = ssccRows[0]?.sscc ?? '';
+      if (!sscc) throw new Error('generate_sscc returned no SSCC');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/V-SHIP-PACK-03.*missing GS1 company prefix/i.test(msg)) {
+        return { ok: false, error: 'missing_gs1_prefix' };
+      }
+      if (/V-SHIP-PACK-03/i.test(msg)) {
+        return { ok: false, error: 'invalid_gs1_prefix' };
+      }
+      throw err;
+    }
 
     const { rows: boxNumberRows } = await ctx.client.query<{ next_box_number: number | string | bigint }>(
       `select coalesce(max(sb.box_number), 0) + 1 as next_box_number
@@ -191,7 +207,7 @@ export async function packLpIntoBoxCore(ctx: PackContext, input: PackLpInput): P
       [orgId, boxSiteId, input.shipmentId, nextBoxNumber, sscc, userId],
     );
     boxId = boxRows[0]?.id;
-    if (!boxId) return { ok: false, error: 'persistence_failed' };
+    if (!boxId) throw new Error('persistence_failed');
   }
 
   await ctx.client.query(

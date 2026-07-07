@@ -399,6 +399,26 @@ runIntegrationSuite('11-shipping schema foundation (migrations 211 + 212)', () =
     await adminPool.query(`update public.organizations set gs1_prefix = '0501234' where id = $1`, [orgBId]);
   });
 
+  it('generate_sscc rejects invalid prefix without advancing sscc_counters', async () => {
+    const { rows: before } = await adminPool.query<{ last_serial: string | null }>(
+      `select last_serial::text from public.sscc_counters where org_id = $1`,
+      [orgAId],
+    );
+    const beforeSerial = Number(before[0]?.last_serial ?? 0);
+
+    await adminPool.query(`update public.organizations set gs1_prefix = '12345678' where id = $1`, [orgAId]);
+    await expect(adminPool.query(`select public.generate_sscc($1, 0)`, [orgAId])).rejects.toThrow(/V-SHIP-PACK-03/);
+
+    const { rows: after } = await adminPool.query<{ last_serial: string | null }>(
+      `select last_serial::text from public.sscc_counters where org_id = $1`,
+      [orgAId],
+    );
+    const afterSerial = Number(after[0]?.last_serial ?? 0);
+    expect(afterSerial).toBe(beforeSerial);
+
+    await adminPool.query(`update public.organizations set gs1_prefix = '0501234' where id = $1`, [orgAId]);
+  });
+
   it('AC12 — ship.* RBAC seed grants the org-admin family the full family in BOTH stores + idempotent', async () => {
     await adminPool.query(`select public.seed_ship_permissions_for_org($1)`, [orgAId]);
 

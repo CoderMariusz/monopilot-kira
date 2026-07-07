@@ -35,6 +35,7 @@ let existingPackedContent = false;
 let allocationExists = true;
 let lpBlocked = false;
 let lpCodeLookupId: string | null = LP_ID;
+let generateSsccFails = false;
 let detailBoxes: Array<{ id: string; box_number: number; sscc: string | null }> = [];
 let detailContents: Array<{
   box_id: string;
@@ -66,7 +67,7 @@ function computeMod10(digits: string): string {
 }
 
 function makeSscc(): string {
-  const body = '00123450000000001';
+  const body = '00123456000000001';
   return `${body}${computeMod10(body)}`;
 }
 
@@ -158,7 +159,10 @@ function makeClient(): QueryClient {
       }
 
       if (q.includes('public.generate_sscc')) {
-        return { rows: [{ sscc: generatedSscc }], rowCount: 1 };
+        if (generateSsccFails) {
+          throw new Error('V-SHIP-PACK-03 GS1 company prefix must be exactly 7 digits (got 12345678)');
+        }
+        return { rows: [{ sscc: generatedSscc || makeSscc() }], rowCount: 1 };
       }
 
       if (q.startsWith('select coalesce(max(sb.box_number)')) {
@@ -251,6 +255,7 @@ beforeEach(() => {
   allocationExists = true;
   lpBlocked = false;
   lpCodeLookupId = LP_ID;
+  generateSsccFails = false;
   detailBoxes = [{ id: BOX_ID, box_number: 1, sscc: generatedSscc }];
   detailContents = [
     {
@@ -366,6 +371,18 @@ describe('packLpIntoBox', () => {
     expect(insertedContents).toEqual([]);
     expect(queryLog.some((entry) => normalize(entry.sql).startsWith('select sbc.id::text'))).toBe(false);
     expect(queryLog.some((entry) => normalize(entry.sql).startsWith('select ia.sales_order_line_id::text'))).toBe(false);
+  });
+
+  it('rejects packing when generate_sscc rejects an invalid GS1 prefix without minting a box', async () => {
+    generateSsccFails = true;
+
+    const result = await packLpIntoBox({ shipmentId: SHIPMENT_ID, lpId: LP_ID });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_gs1_prefix' });
+    expect(insertedBoxes).toEqual([]);
+    expect(insertedContents).toEqual([]);
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('public.next_sscc_serial'))).toBe(false);
+    expect(queryLog.filter((entry) => normalize(entry.sql).includes('public.generate_sscc'))).toHaveLength(1);
   });
 
   it.each(['shipped', 'cancelled', 'delivered'] as const)(
