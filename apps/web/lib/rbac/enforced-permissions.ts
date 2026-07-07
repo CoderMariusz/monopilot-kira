@@ -23,6 +23,7 @@
 export const ENFORCED_PERMISSIONS_LIST = [
   'fg.create',
   'fin.costs.read',
+  'fin.valuation.view',
   'gdpr.erasure.execute',
   'mnt.asset.deactivate',
   'mnt.asset.edit',

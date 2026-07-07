@@ -10146,6 +10146,32 @@
         "previous": "Poprzednia",
         "next": "Następna"
       }
+    },
+    "valuation": {
+      "navLink": "Wycena zapasów",
+      "title": "Wycena zapasów",
+      "subtitle": "Tylko do odczytu — ważona średnia wartość bieżących palet magazynowych.",
+      "meta": "{itemCount, plural, =0 {Brak wycenionych pozycji} one {# wyceniona pozycja} few {# wycenione pozycje} many {# wycenionych pozycji} other {# wycenionych pozycji}} · Metoda: {method}",
+      "methodWac": "WAC",
+      "permissionDenied": "Nie masz uprawnień do podglądu wyceny zapasów.",
+      "error": "Nie udało się wczytać wyceny zapasów.",
+      "empty": "Nie znaleziono wycenionych zapasów.",
+      "grandTotalLabel": "Suma całkowita",
+      "tableLabel": "Wycena zapasów według pozycji",
+      "unmatchedItem": "Niepowiązana pozycja",
+      "columns": {
+        "itemCode": "Kod pozycji",
+        "itemName": "Nazwa pozycji",
+        "qtyOnHand": "Ilość na stanie",
+        "wac": "WAC",
+        "totalValue": "Wartość całkowita",
+        "currency": "Waluta"
+      },
+      "unvalued": {
+        "title": "Wykluczone z wyceny",
+        "summary": "{lpCount, plural, one {# paleta} few {# palety} many {# palet} other {# palet}} ({qty} surowa ilość) bez WAC i/lub z niekonwertowalną JM.",
+        "hint": "Zaksięguj koszty w Technicznym lub przyjmij towar ze znaną ceną jednostkową, aby uwzględnić te palety."
+      }
     }
   },
   "quality": {

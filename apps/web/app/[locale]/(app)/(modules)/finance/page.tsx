@@ -112,7 +112,8 @@ export default async function FinanceRoutePage({ params, searchParams }: PagePro
   const sp: { days?: string; page?: string } = searchParams ? await searchParams : {};
   const windowDays = parseWindowDays(sp.days);
   const page = parsePage(sp.page);
-  const labels = await buildLabels();
+  const [labels, tValuation] = await Promise.all([buildLabels(), getTranslations('Finance.valuation')]);
+  const valuationLinkLabel = tValuation('navLink');
 
   return (
     <main data-testid="module-landing-finance" className="p-6 lg:p-8" aria-labelledby="finance-title">
@@ -126,7 +127,7 @@ export default async function FinanceRoutePage({ params, searchParams }: PagePro
           prefetch={false}
           className="mt-4 inline-flex rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-950 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
         >
-          Inventory valuation
+          {valuationLinkLabel}
         </Link>
       </div>
       <Suspense key={`${windowDays}-${page}`} fallback={<FinanceSkeleton labels={labels} />}>

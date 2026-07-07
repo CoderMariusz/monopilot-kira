@@ -1,13 +1,12 @@
 import { microToFixed, toMicro } from '../../../../../../../lib/shared/decimal';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { hasPermission } from '../../../../../../../lib/auth/has-permission';
-import type {
-  InventoryValuation,
-  InventoryValuationResult,
-  InventoryValuationRow,
+import { hasAnyPermission } from '../../../../../../../lib/auth/has-permission';
+import {
+  FINANCE_VALUATION_VIEW_PERMISSIONS,
+  type InventoryValuation,
+  type InventoryValuationResult,
+  type InventoryValuationRow,
 } from './inventory-valuation-types';
-
-const FINANCE_VALUATION_READ_PERMISSION = 'fin.costs.read';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -120,7 +119,7 @@ function buildValuation(valuedRows: ValuedItemRow[], unvaluedRow: UnvaluedAggreg
 }
 
 async function getInventoryValuationInContext(ctx: FinanceContext): Promise<InventoryValuationResult> {
-  if (!(await hasPermission(ctx, FINANCE_VALUATION_READ_PERMISSION))) {
+  if (!(await hasAnyPermission(ctx, [...FINANCE_VALUATION_VIEW_PERMISSIONS]))) {
     return { ok: false, reason: 'forbidden' };
   }
 

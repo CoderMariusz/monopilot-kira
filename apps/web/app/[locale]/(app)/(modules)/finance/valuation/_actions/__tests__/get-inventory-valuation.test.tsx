@@ -40,14 +40,34 @@ vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
+vi.mock('../../../../../../../../lib/auth/has-permission', () => ({
+  hasAnyPermission: vi.fn(async () => true),
+}));
+
+import { hasAnyPermission } from '../../../../../../../../lib/auth/has-permission';
+
 beforeEach(() => {
   calls = [];
   valuedRows = [];
   unvaluedRow = { lp_count: 0, qty: '0' };
   client.query.mockClear();
+  vi.mocked(hasAnyPermission).mockResolvedValue(true);
 });
 
 describe('getInventoryValuation', () => {
+  it('returns forbidden when valuation permissions are absent', async () => {
+    vi.mocked(hasAnyPermission).mockResolvedValueOnce(false);
+
+    const result = await getInventoryValuation();
+
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+    expect(hasAnyPermission).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: USER_ID, orgId: ORG_ID }),
+      ['fin.valuation.view', 'fin.valuation.read', 'fin.costs.read'],
+    );
+    expect(client.query).not.toHaveBeenCalled();
+  });
+
   it('values base-kg LPs using WAC and LEFT JOINs cost rows', async () => {
     valuedRows = [
       {
