@@ -46,3 +46,48 @@ export type GrnDocumentData = {
   totals: GrnDocumentTotals;
   generatedAt: string;
 };
+
+export type ShipToAddress = {
+  customerName: string | null;
+  customerCode: string | null;
+  addressLines: string[];
+};
+
+export type DeliveryNoteBoxLine = {
+  lineNumber: number;
+  itemCode: string | null;
+  itemName: string | null;
+  lotNumber: string | null;
+  lpCode: string | null;
+  quantity: string;
+};
+
+export type DeliveryNoteBox = {
+  boxNumber: number;
+  sscc: string | null;
+  lines: DeliveryNoteBoxLine[];
+};
+
+export type DeliveryNoteDocumentData = {
+  documentType: 'delivery_note';
+  /** Stable business number — sourced from shipments.delivery_note_number (assigned at creation). */
+  documentNumber: string;
+  shipmentId: string;
+  shipmentNumber: string;
+  salesOrderNumber: string | null;
+  customerPo: string | null;
+  status: string;
+  carrier: string | null;
+  trackingNumber: string | null;
+  packedAt: string | null;
+  shippedAt: string | null;
+  shipTo: ShipToAddress;
+  company: CompanyHeader;
+  boxes: DeliveryNoteBox[];
+  totalBoxes: number;
+  generatedAt: string;
+};
+
+export type DeliveryNoteDocumentResult =
+  | { ok: true; data: DeliveryNoteDocumentData }
+  | { ok: false; reason: 'forbidden' | 'not_found' | 'error' };

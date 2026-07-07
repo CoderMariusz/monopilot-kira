@@ -547,6 +547,8 @@ export const shipments = pgTable(
     siteId: uuid('site_id'),
     shipmentSeq: bigint('shipment_seq', { mode: 'bigint' }).notNull(),
     shipmentNumber: text('shipment_number').notNull(), // GENERATED ALWAYS 'SH-YYYY-NNNNN'
+    /** Stable delivery-note / packing-list document number (DN-YYYYMM-NNNNN via mig 462). */
+    deliveryNoteNumber: text('delivery_note_number'),
     salesOrderId: uuid('sales_order_id').references(() => salesOrders.id, { onDelete: 'restrict' }),
     customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'restrict' }),
     shippingAddressId: uuid('shipping_address_id').references(() => customerAddresses.id, {
@@ -576,6 +578,9 @@ export const shipments = pgTable(
   },
   (t) => ({
     numberUq: uniqueIndex('shipments_org_number_uq').on(t.orgId, t.shipmentNumber),
+    deliveryNoteNumberUq: uniqueIndex('shipments_org_delivery_note_number_uq')
+      .on(t.orgId, t.deliveryNoteNumber)
+      .where(sql`${t.deliveryNoteNumber} is not null and ${t.deletedAt} is null`),
     orgIdx: index('shipments_org_idx').on(t.orgId),
     orgSiteIdx: index('shipments_org_site_idx').on(t.orgId, t.siteId),
     soIdx: index('shipments_so_idx').on(t.salesOrderId),
