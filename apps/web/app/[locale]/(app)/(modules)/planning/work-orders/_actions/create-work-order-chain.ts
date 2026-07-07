@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 
+import { assertFgReleasedToFactoryForWo } from '../../../../../../../lib/planning/factory-release-wo-gate';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { createWorkOrderCore } from './create-work-order-core';
@@ -9,6 +10,7 @@ import {
   PLANNING_WO_WRITE_PERMISSION,
   hasPermission,
   type OrgActionContext,
+  type ScheduleOutput,
   type WOMaterial,
   type WOHeader,
 } from './shared';
@@ -52,6 +54,8 @@ type ChainResult =
       wipWorkOrders: WOHeader[];
       dependencies: Array<{ parentWoId: string; childWoId: string; materialLink: string | null; requiredQty: string | null }>;
       created: boolean;
+      fgMaterials: WOMaterial[];
+      fgPrimarySchedule: ScheduleOutput;
     }
   | { ok: false; error: ChainErrorCode; planningError?: string; message?: string };
 
@@ -87,16 +91,25 @@ class WorkOrderChainError extends Error {
   }
 }
 
+function mapCoreErrorToChainCode(coreError: string | undefined): ChainErrorCode {
+  return coreError === 'no_active_site'
+    || coreError === 'document_mask_missing'
+    || coreError === 'not_released_to_factory'
+    ? coreError
+    : 'wo_create_failed';
+}
+
 // W1 error-surface contract: specific core failures must reach the caller as
 // themselves, never collapsed into a generic wo_create_failed.
 function chainCoreFailure(coreError: string | undefined): ChainResult {
-  const specific: ChainErrorCode =
-    coreError === 'no_active_site'
-    || coreError === 'document_mask_missing'
-    || coreError === 'not_released_to_factory'
-      ? coreError
-      : 'wo_create_failed';
+  const specific = mapCoreErrorToChainCode(coreError);
   return { ok: false, error: specific, planningError: coreError, message: coreError };
+}
+
+/** After the first chain write, failures must throw so withOrgContext rolls back. */
+function throwChainCoreFailure(coreError: string | undefined): never {
+  const code = mapCoreErrorToChainCode(coreError);
+  throw new WorkOrderChainError(code, coreError);
 }
 
 export async function createWorkOrderChain(raw: unknown, options?: ChainOptions): Promise<ChainResult> {
@@ -148,12 +161,15 @@ async function createWorkOrderChainInContext(
   const existingFg = await loadWorkOrderByNumber(ctx, input.documentNumber);
   if (existingFg) {
     const existing = await loadExistingChain(ctx, existingFg.id);
+    const fgArtifacts = await loadFgWoArtifacts(ctx, existingFg.id);
     return {
       ok: true,
       fgWorkOrder: existingFg,
       wipWorkOrders: existing.wipWorkOrders,
       dependencies: existing.dependencies,
       created: false,
+      fgMaterials: fgArtifacts.materials,
+      fgPrimarySchedule: fgArtifacts.primarySchedule,
     };
   }
 
@@ -173,8 +189,16 @@ async function createWorkOrderChainInContext(
     throw error;
   }
 
+  if (!options?.skipFactoryReleaseGate) {
+    const releaseGate = await assertFgReleasedToFactoryForWo(ctx.client, fgItem.id);
+    if (releaseGate === 'not_released_to_factory') {
+      return { ok: false, error: 'not_released_to_factory' };
+    }
+  }
+
   const wipLines = await loadWipBomLines(ctx, bom.id);
   const wipWorkOrders: WOHeader[] = [];
+  let hasWritten = false;
   for (let index = 0; index < wipLines.length; index++) {
     const line = wipLines[index]!;
     const requiredQty = computeRequiredMaterialQty(line, materialScalar);
@@ -194,7 +218,11 @@ async function createWorkOrderChainInContext(
       productionLineId: input.productionLineId,
       notes: `Upstream WIP for ${input.documentNumber}`,
     });
-    if (!created.ok) return chainCoreFailure(created.error);
+    if (!created.ok) {
+      if (hasWritten) throwChainCoreFailure(created.error);
+      return chainCoreFailure(created.error);
+    }
+    hasWritten = true;
     wipWorkOrders.push(created.workOrder);
   }
 
@@ -212,7 +240,10 @@ async function createWorkOrderChainInContext(
     },
     options?.skipFactoryReleaseGate ? { skipFactoryReleaseGate: true } : undefined,
   );
-  if (!fgCreated.ok) return chainCoreFailure(fgCreated.error);
+  if (!fgCreated.ok) {
+    if (hasWritten) throwChainCoreFailure(fgCreated.error);
+    return chainCoreFailure(fgCreated.error);
+  }
 
   const dependencies = await linkDependencies(ctx, fgCreated.workOrder, fgCreated.materials, wipWorkOrders);
   return {
@@ -221,6 +252,96 @@ async function createWorkOrderChainInContext(
     wipWorkOrders,
     dependencies,
     created: true,
+    fgMaterials: fgCreated.materials,
+    fgPrimarySchedule: fgCreated.primarySchedule,
+  };
+}
+
+async function loadFgWoArtifacts(
+  ctx: OrgActionContext,
+  fgWoId: string,
+): Promise<{ materials: WOMaterial[]; primarySchedule: ScheduleOutput }> {
+  const materialsResult = await ctx.client.query<{
+    id: string;
+    wo_id: string;
+    product_id: string | null;
+    material_name: string;
+    required_qty: string;
+    consumed_qty: string;
+    reserved_qty: string;
+    uom: string;
+    sequence: number;
+    material_source: string;
+    bom_item_id: string | null;
+    bom_version: number | null;
+    notes: string | null;
+  }>(
+    `select id::text as id, wo_id::text as wo_id, product_id::text as product_id,
+            material_name, required_qty::text as required_qty,
+            consumed_qty::text as consumed_qty, reserved_qty::text as reserved_qty,
+            uom, sequence, material_source, bom_item_id::text as bom_item_id,
+            bom_version, notes
+       from public.wo_materials
+      where org_id = app.current_org_id()
+        and wo_id = $1::uuid
+      order by sequence`,
+    [fgWoId],
+  );
+  const scheduleResult = await ctx.client.query<{
+    id: string;
+    planned_wo_id: string;
+    product_id: string;
+    output_role: string;
+    expected_qty: string;
+    uom: string;
+    allocation_pct: string;
+    disposition: string;
+    downstream_wo_id: string | null;
+    notes: string | null;
+  }>(
+    `select id::text as id, planned_wo_id::text as planned_wo_id, product_id::text as product_id,
+            output_role, expected_qty::text as expected_qty, uom,
+            allocation_pct::text as allocation_pct, disposition,
+            downstream_wo_id::text as downstream_wo_id, notes
+       from public.schedule_outputs
+      where org_id = app.current_org_id()
+        and planned_wo_id = $1::uuid
+        and output_role = 'primary'
+      limit 1`,
+    [fgWoId],
+  );
+  const scheduleRow = scheduleResult.rows[0];
+  if (!scheduleRow) {
+    throw new WorkOrderChainError('persistence_failed', 'fg_primary_schedule_missing');
+  }
+  return {
+    materials: materialsResult.rows.map((row) => ({
+      id: row.id,
+      woId: row.wo_id,
+      productId: row.product_id,
+      materialName: row.material_name,
+      requiredQty: row.required_qty,
+      consumedQty: row.consumed_qty,
+      reservedQty: row.reserved_qty,
+      uom: row.uom,
+      sequence: row.sequence,
+      materialSource: row.material_source,
+      bomItemId: row.bom_item_id,
+      bomVersion: row.bom_version,
+      notes: row.notes,
+    })),
+    primarySchedule: {
+      id: scheduleRow.id,
+      plannedWoId: scheduleRow.planned_wo_id,
+      productId: scheduleRow.product_id,
+      outputRole: scheduleRow.output_role,
+      expectedQty: scheduleRow.expected_qty,
+      uom: scheduleRow.uom,
+      allocationPct: scheduleRow.allocation_pct,
+      disposition: scheduleRow.disposition,
+      downstreamWoId: scheduleRow.downstream_wo_id,
+      notes: scheduleRow.notes,
+    },
   };
 }
 
@@ -240,7 +361,7 @@ async function loadItem(ctx: OrgActionContext, itemId: string): Promise<ItemRow 
   return rows[0] ?? null;
 }
 
-async function loadActiveBom(ctx: OrgActionContext, itemId: string, itemCode: string): Promise<BomHeaderRow | null> {
+export async function loadActiveBom(ctx: OrgActionContext, itemId: string, itemCode: string): Promise<BomHeaderRow | null> {
   const { rows } = await ctx.client.query<BomHeaderRow>(
     `select id::text as id, version, line_basis
        from public.bom_headers
@@ -252,6 +373,18 @@ async function loadActiveBom(ctx: OrgActionContext, itemId: string, itemCode: st
     [itemId, itemCode],
   );
   return rows[0] ?? null;
+}
+
+/** True when the latest active BOM (same selection as preview/chain) has WIP lines. */
+export async function latestActiveBomHasWipLines(
+  ctx: OrgActionContext,
+  itemId: string,
+  itemCode: string,
+): Promise<boolean> {
+  const bom = await loadActiveBom(ctx, itemId, itemCode);
+  if (!bom) return false;
+  const wipLines = await loadWipBomLines(ctx, bom.id);
+  return wipLines.length > 0;
 }
 
 async function loadWipBomLines(ctx: OrgActionContext, bomHeaderId: string): Promise<WipBomLineRow[]> {

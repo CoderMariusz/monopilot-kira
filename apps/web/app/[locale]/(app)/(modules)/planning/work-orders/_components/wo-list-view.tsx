@@ -163,6 +163,7 @@ export function WoListView({
   const [releasingId, setReleasingId] = React.useState<string | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [rowError, setRowError] = React.useState<{ id: string; message: string } | null>(null);
+  const [createNotice, setCreateNotice] = React.useState<string | null>(null);
 
   const counts = React.useMemo(() => {
     const c: Record<TabKey, number> = { all: workOrders.length, DRAFT: 0, RELEASED: 0, IN_PROGRESS: 0, ON_HOLD: 0, COMPLETED: 0 };
@@ -253,6 +254,11 @@ export function WoListView({
 
   return (
     <div className="flex flex-col gap-4" data-testid="wo-list-view">
+      {createNotice ? (
+        <div role="status" data-testid="wo-list-create-notice" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {createNotice}
+        </div>
+      ) : null}
       {/* Header action */}
       <div className="flex items-center justify-between gap-3">
         <Input
@@ -464,7 +470,19 @@ export function WoListView({
         resources={resources}
         searchFgProductsAction={searchFgProductsAction}
         createWorkOrderAction={createWorkOrderAction}
-        onCreated={() => router.refresh()}
+        onCreated={(result) => {
+          if (result.chain && result.chain.totalCount > 1) {
+            const root = result.workOrder.woNumber;
+            setCreateNotice(
+              labels.create.chainCreatedWarning
+                ? labels.create.chainCreatedWarning
+                    .replace('{count}', String(result.chain.totalCount))
+                    .replace('{root}', root)
+                : `${result.chain.totalCount} work orders created — root ${root}.`,
+            );
+          }
+          router.refresh();
+        }}
         previewChainAction={previewChainAction}
       />
     </div>

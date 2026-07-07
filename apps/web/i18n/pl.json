@@ -7327,6 +7327,7 @@
           "ambiguous_site": "Wybierz zakład na górnym pasku przed utworzeniem zlecenia produkcyjnego."
         },
         "noBomWarning": "Zlecenie utworzone, ale produkt nie ma aktywnego BOM — nie wygenerowano materiałów.",
+        "chainCreatedWarning": "Utworzono {count} zleceń produkcyjnych — główne {root}.",
         "quantityUom": {
           "base": "kg",
           "each": "szt.",
