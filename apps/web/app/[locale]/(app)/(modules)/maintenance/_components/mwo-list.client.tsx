@@ -27,7 +27,8 @@
  */
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
@@ -235,6 +236,8 @@ export function MwoListScreen({
   transitionMwoAction: TransitionMwoAction;
 }) {
   const router = useRouter();
+  const params = useParams();
+  const locale = typeof params?.locale === 'string' ? params.locale : 'en';
   const [view, setView] = useState<'mwos' | 'pm'>('mwos');
   const [tab, setTab] = useState<'all' | MwoState>('all');
   const [search, setSearch] = useState('');
@@ -448,7 +451,15 @@ export function MwoListScreen({
                     const overdue = OPEN_STATES.has(r.state) && r.dueDate !== null && r.dueDate < today;
                     return (
                       <TableRow key={r.id} data-testid={`mwo-row-${r.id}`}>
-                        <TableCell className="font-mono text-sm font-semibold text-slate-900">{r.mwoNumber}</TableCell>
+                        <TableCell className="font-mono text-sm font-semibold text-slate-900">
+                          <Link
+                            href={`/${locale}/maintenance/mwos/${r.id}`}
+                            className="hover:underline"
+                            data-testid={`mwo-link-${r.id}`}
+                          >
+                            {r.mwoNumber}
+                          </Link>
+                        </TableCell>
                         <TableCell className="text-xs text-slate-600">
                           {r.equipmentCode ? (
                             <div className="flex flex-col">

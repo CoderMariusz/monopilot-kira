@@ -39,6 +39,11 @@ import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import {
+  advancePmScheduleOnMwoCompletion,
+  generateMwoFromPmScheduleCore,
+  OPEN_BACKLOG_STATES as PM_OPEN_BACKLOG_STATES,
+} from '../../../../../../lib/maintenance/pm-mwo-generate';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -80,7 +85,7 @@ const ALL_STATES: MwoState[] = [
   'completed',
   'cancelled',
 ];
-const OPEN_BACKLOG_STATES: readonly MwoState[] = ['requested', 'approved', 'open', 'in_progress'];
+const OPEN_BACKLOG_STATES: readonly MwoState[] = [...PM_OPEN_BACKLOG_STATES];
 const PLANNED_MWO_SOURCES: readonly MwoSource[] = ['pm_schedule', 'calibration_alert'];
 const UNPLANNED_MWO_SOURCES: readonly MwoSource[] = ['manual_request', 'auto_downtime', 'oee_trigger'];
 
@@ -119,6 +124,22 @@ export type MwoListRow = {
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
+};
+
+export type MwoPmSource = {
+  scheduleId: string;
+  scheduleType: PmScheduleRow['scheduleType'];
+  nextDueDate: string | null;
+  intervalBasis: PmScheduleRow['intervalBasis'];
+  intervalValue: number;
+  equipmentCode: string | null;
+  equipmentName: string | null;
+};
+
+export type MwoDetailRow = MwoListRow & {
+  description: string | null;
+  scheduleId: string | null;
+  pmSource: MwoPmSource | null;
 };
 
 export type MwoListData = {
@@ -251,14 +272,32 @@ function mapRow(r: MwoDbRow): MwoListRow {
   };
 }
 
-type PlannedMwoType = 'preventive' | 'calibration' | 'sanitation' | 'inspection';
-
-function scheduleTypeToMwoType(scheduleType: PmScheduleRow['scheduleType']): PlannedMwoType {
-  return scheduleType;
-}
-
-function scheduleTypeToSource(scheduleType: PmScheduleRow['scheduleType']): MwoSource {
-  return scheduleType === 'calibration' ? 'calibration_alert' : 'pm_schedule';
+async function fetchMwoListRow(ctx: MaintenanceContext, mwoId: string): Promise<MwoListRow | null> {
+  const { rows } = await ctx.client.query<MwoDbRow>(
+    `select w.id::text,
+            w.mwo_number,
+            w.title,
+            w.requester_reason,
+            w.state,
+            w.priority,
+            w.source,
+            w.equipment_id::text,
+            e.equipment_code,
+            e.name as equipment_name,
+            w.due_date::text,
+            w.created_at,
+            w.started_at,
+            w.completed_at
+       from public.maintenance_work_orders w
+       left join public.equipment e
+         on e.id = w.equipment_id and e.org_id = w.org_id
+      where w.org_id = app.current_org_id()
+        and w.id = $1::uuid
+      limit 1`,
+    [mwoId],
+  );
+  const row = rows[0];
+  return row ? mapRow(row) : null;
 }
 
 async function allocateMwoNumber(ctx: MaintenanceContext): Promise<string> {
@@ -421,6 +460,85 @@ export async function listMwos(
   }
 }
 
+/** Single MWO detail with optional linked PM schedule (read gate: mnt.asset.read). */
+export async function getMwoById(mwoId: string): Promise<ActionResult<MwoDetailRow | null>> {
+  try {
+    const parsed = uuidSchema.parse(mwoId);
+    return await withOrgContext(async (ctx: MaintenanceContext): Promise<ActionResult<MwoDetailRow | null>> => {
+      if (!(await hasPermission(ctx, MNT_READ_PERMISSION))) {
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      const { rows } = await ctx.client.query<
+        MwoDbRow & {
+          schedule_id: string | null;
+          schedule_type: PmScheduleRow['scheduleType'] | null;
+          schedule_next_due: string | null;
+          schedule_interval_basis: PmScheduleRow['intervalBasis'] | null;
+          schedule_interval_value: number | null;
+        }
+      >(
+        `select w.id::text,
+                w.mwo_number,
+                w.title,
+                w.requester_reason,
+                w.state,
+                w.priority,
+                w.source,
+                w.equipment_id::text,
+                e.equipment_code,
+                e.name as equipment_name,
+                w.due_date::text,
+                w.created_at,
+                w.started_at,
+                w.completed_at,
+                w.schedule_id::text,
+                s.schedule_type,
+                s.next_due_date::text as schedule_next_due,
+                s.interval_basis as schedule_interval_basis,
+                s.interval_value as schedule_interval_value
+           from public.maintenance_work_orders w
+           left join public.equipment e
+             on e.id = w.equipment_id and e.org_id = w.org_id
+           left join public.maintenance_schedules s
+             on s.id = w.schedule_id and s.org_id = w.org_id
+          where w.org_id = app.current_org_id()
+            and w.id = $1::uuid
+          limit 1`,
+        [parsed],
+      );
+      const row = rows[0];
+      if (!row) return { ok: true, data: null };
+
+      const base = mapRow(row);
+      const pmSource: MwoPmSource | null =
+        row.schedule_id && row.schedule_type
+          ? {
+              scheduleId: row.schedule_id,
+              scheduleType: row.schedule_type,
+              nextDueDate: row.schedule_next_due,
+              intervalBasis: row.schedule_interval_basis ?? 'calendar_days',
+              intervalValue: Number(row.schedule_interval_value ?? 0),
+              equipmentCode: row.equipment_code,
+              equipmentName: row.equipment_name,
+            }
+          : null;
+
+      return {
+        ok: true,
+        data: {
+          ...base,
+          description: row.requester_reason,
+          scheduleId: row.schedule_id,
+          pmSource,
+        },
+      };
+    });
+  } catch (err) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 /**
  * Active equipment for the create-modal dropdown (org-scoped via RLS +
  * explicit org predicate). Read gate: mnt.asset.read.
@@ -569,69 +687,15 @@ export async function generateMwoFromPmSchedule(input: {
         return { ok: false, reason: 'forbidden' };
       }
 
-      const scheduleRes = await ctx.client.query<{
-        id: string;
-        schedule_type: PmScheduleRow['scheduleType'];
-        site_id: string | null;
-        equipment_id: string;
-        equipment_code: string;
-        equipment_name: string;
-        next_due_date: string | null;
-        warning_days: number;
-        active: boolean;
-      }>(
-        `select s.id::text,
-                s.schedule_type,
-                s.site_id::text,
-                s.equipment_id::text,
-                e.equipment_code,
-                e.name as equipment_name,
-                s.next_due_date::text,
-                coalesce(s.warning_days, 7)::int as warning_days,
-                s.active
-           from public.maintenance_schedules s
-           join public.equipment e
-             on e.id = s.equipment_id
-            and e.org_id = s.org_id
-          where s.org_id = app.current_org_id()
-            and s.id = $1::uuid
-          limit 1`,
-        [parsed.scheduleId],
+      const core = await generateMwoFromPmScheduleCore(
+        { orgId: ctx.orgId, actorUserId: ctx.userId, client: ctx.client },
+        parsed.scheduleId,
       );
-      const schedule = scheduleRes.rows[0];
-      if (!schedule) return { ok: false, reason: 'not_found', message: 'schedule not found' };
-      if (!schedule.active) {
-        return { ok: false, reason: 'error', message: 'schedule is inactive' };
+      if (!core.ok) {
+        const reason = core.reason === 'not_found' ? 'not_found' : 'error';
+        return { ok: false, reason, message: core.message };
       }
-      if (!schedule.next_due_date) {
-        return { ok: false, reason: 'error', message: 'schedule has no next due date' };
-      }
-
-      const dueCheck = await ctx.client.query<{ due: boolean }>(
-        `select ($1::date <= (pg_catalog.current_date + make_interval(days => $2::int))) as due`,
-        [schedule.next_due_date, schedule.warning_days],
-      );
-      if (!dueCheck.rows[0]?.due) {
-        return { ok: false, reason: 'error', message: 'schedule is not yet due' };
-      }
-
-      // Serialize concurrent generates for the same schedule before the duplicate
-      // check so two callers cannot both pass and insert open backlog MWOs.
-      await ctx.client.query(
-        `select pg_advisory_xact_lock(hashtext(app.current_org_id()::text || ':' || $1::text))`,
-        [parsed.scheduleId],
-      );
-
-      const existing = await ctx.client.query<{ id: string }>(
-        `select id::text
-           from public.maintenance_work_orders w
-          where w.org_id = app.current_org_id()
-            and w.schedule_id = $1::uuid
-            and w.state = any($2::text[])
-          limit 1`,
-        [parsed.scheduleId, OPEN_BACKLOG_STATES],
-      );
-      if (existing.rows[0]) {
+      if (!core.created) {
         return {
           ok: false,
           reason: 'error',
@@ -639,65 +703,9 @@ export async function generateMwoFromPmSchedule(input: {
         };
       }
 
-      const mwoType = scheduleTypeToMwoType(schedule.schedule_type);
-      const source = scheduleTypeToSource(schedule.schedule_type);
-      const priority: MwoPriority = schedule.schedule_type === 'calibration' ? 'high' : 'medium';
-      const title = `PM: ${schedule.equipment_code} — ${schedule.schedule_type.replace('_', ' ')}`;
-      const mwoNumber = await allocateMwoNumber(ctx);
-
-      const inserted = await ctx.client.query<MwoDbRow>(
-        `insert into public.maintenance_work_orders (
-           org_id, site_id, mwo_number, state, source, type, priority,
-           equipment_id, schedule_id, title, due_date,
-           requester_user_id, requester_reason, created_by, updated_by
-         )
-         values (
-           app.current_org_id(), $1::uuid, $2, 'open', $3, $4, $5,
-           $6::uuid, $7::uuid, $8, $9::date,
-           $10::uuid, $11, $10::uuid, $10::uuid
-         )
-         returning id::text, mwo_number, title, requester_reason, state, priority, source,
-                   equipment_id::text, null as equipment_code, null as equipment_name,
-                   due_date::text, created_at, started_at, completed_at`,
-        [
-          schedule.site_id,
-          mwoNumber,
-          source,
-          mwoType,
-          priority,
-          schedule.equipment_id,
-          parsed.scheduleId,
-          title,
-          schedule.next_due_date,
-          ctx.userId,
-          `Generated from PM schedule ${parsed.scheduleId}`,
-        ],
-      );
-      const created = inserted.rows[0];
-      if (!created) throw new Error('mwo insert did not return a row');
-
-      await writeOutbox(ctx, {
-        eventType: 'maintenance.mwo.created',
-        aggregateId: created.id,
-        payload: {
-          mwo_id: created.id,
-          mwo_number: created.mwo_number,
-          equipment_id: schedule.equipment_id,
-          equipment_code: schedule.equipment_code,
-          schedule_id: parsed.scheduleId,
-          priority,
-          source,
-        },
-      });
-
-      return {
-        ok: true,
-        data: mapRow({
-          ...created,
-          equipment_code: schedule.equipment_code,
-          equipment_name: schedule.equipment_name,
-        }),
-      };
+      const row = await fetchMwoListRow(ctx, core.mwoId);
+      if (!row) throw new Error('mwo created but detail read failed');
+      return { ok: true, data: row };
     });
   } catch (err) {
     return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
@@ -725,8 +733,13 @@ export async function transitionMwo(input: {
         return { ok: false, reason: 'forbidden' };
       }
 
-      const current = await ctx.client.query<{ id: string; state: MwoState }>(
-        `select id::text, state
+      const current = await ctx.client.query<{
+        id: string;
+        state: MwoState;
+        schedule_id: string | null;
+        source: MwoSource;
+      }>(
+        `select id::text, state, schedule_id::text, source
            from public.maintenance_work_orders
           where org_id = app.current_org_id()
             and id = $1::uuid
@@ -773,6 +786,13 @@ export async function transitionMwo(input: {
       }
 
       if (parsed.to === 'completed') {
+        if (row.schedule_id && PLANNED_MWO_SOURCES.includes(row.source)) {
+          await advancePmScheduleOnMwoCompletion(
+            { orgId: ctx.orgId, actorUserId: ctx.userId, client: ctx.client },
+            row.schedule_id,
+          );
+        }
+
         await writeOutbox(ctx, {
           eventType: 'maintenance.mwo.completed',
           aggregateId: next.id,
