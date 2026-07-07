@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getGrnDocument } from './grn-document-actions';
 import {
   buildGrnDocumentData,
-  computeGrnTotals,
   mapGrnLineRow,
   mapGrnTotalsRows,
   type GrnHeaderRow,
@@ -151,7 +150,7 @@ beforeEach(() => {
 });
 
 describe('GRN document assembly (pure)', () => {
-  it('computes totals excluding cancelled lines and groups by canonical uom', () => {
+  it('mapGrnTotalsRows excludes cancelled lines from liveLineCount and maps SQL totals', () => {
     const pieceLines: GrnLineRow[] = [
       {
         line_number: 1,
@@ -203,42 +202,11 @@ describe('GRN document assembly (pure)', () => {
       },
     ];
     const lines = pieceLines.map(mapGrnLineRow);
-    expect(computeGrnTotals(lines)).toEqual({
+    expect(mapGrnTotalsRows(lines, [{ uom: 'pcs', total_received: '18' }])).toEqual({
       lineCount: 4,
       liveLineCount: 3,
       receivedByUom: [{ uom: 'pcs', totalReceived: '18' }],
     });
-  });
-
-  it('preserves exact decimal totals without float drift', () => {
-    const lines = [
-      {
-        line_number: 1,
-        item_code: 'RM-010',
-        item_name: 'A',
-        ordered_qty: '0.1',
-        received_qty: '0.1',
-        uom: 'kg',
-        batch_number: null,
-        expiry_date: null,
-        lp_number: null,
-        cancelled: false,
-      },
-      {
-        line_number: 2,
-        item_code: 'RM-011',
-        item_name: 'B',
-        ordered_qty: '0.2',
-        received_qty: '0.2',
-        uom: 'kg',
-        batch_number: null,
-        expiry_date: null,
-        lp_number: null,
-        cancelled: false,
-      },
-    ].map(mapGrnLineRow);
-
-    expect(computeGrnTotals(lines).receivedByUom).toEqual([{ uom: 'kg', totalReceived: '0.3' }]);
   });
 
   it('mapGrnTotalsRows renders SQL NUMERIC strings verbatim', () => {

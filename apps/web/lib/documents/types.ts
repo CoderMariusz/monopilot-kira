@@ -1,14 +1,4 @@
-/**
- * Phase-2 document engine — shared serializable payloads for printable HTML views.
- *
- * Pattern for future documents (invoice, CoA, packing list):
- *   1. Define a *DocumentData* type here (JSON-serializable, no functions).
- *   2. Assemble org-scoped rows in lib/documents/<kind>-document.ts (pure builder + SQL).
- *   3. Expose a thin `'use server'` action that wraps withOrgContext + RBAC.
- *   4. Render via a dedicated /print route with @media print CSS (browser → PDF).
- *   5. Upgrade path: swap the route renderer for @react-pdf/renderer or a server-side
- *      PDF worker without changing the assembly contract.
- */
+/** JSON-serializable payloads for printable HTML document views. */
 
 export type CompanyHeader = {
   tradingName: string;

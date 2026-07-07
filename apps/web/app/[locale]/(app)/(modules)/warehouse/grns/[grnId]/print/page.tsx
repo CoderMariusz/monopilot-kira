@@ -1,10 +1,4 @@
-/**
- * WH / C4e — Printable GRN (goods-receipt note) HTML view.
- *
- * Browser print / Save as PDF is the Phase-2 lazy-correct first step.
- * Upgrade path: keep getGrnDocument + GrnDocumentData stable; swap this route
- * for a server-side PDF renderer (@react-pdf/renderer or headless Chromium).
- */
+/** Printable GRN HTML view (browser print / Save as PDF). */
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 

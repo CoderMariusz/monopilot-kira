@@ -619,7 +619,6 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       const item = itemsById.get(line.item_id);
       if (!item) return { ok: false, error: 'invalid_input', message: 'Unknown sales order item' };
       const unitPriceGbp = resolveSalesLinePrice(item, {
-        customerId: input.customer_id,
         customerPrice: customerPricesByItemId.get(line.item_id) ?? null,
       });
 

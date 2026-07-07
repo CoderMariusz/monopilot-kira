@@ -30,12 +30,10 @@ function parsePrice(value: unknown): number | null {
 export function resolveSalesLinePrice(
   item: { id: string; list_price_gbp?: number | null },
   opts?: {
-    customerId?: string;
     customerPrice?: CustomerItemPrice | null;
     targetCurrency?: string;
   },
 ): number {
-  void opts?.customerId;
   const targetCurrency = opts?.targetCurrency ?? SO_LINE_PRICE_CURRENCY;
   const customerPrice = opts?.customerPrice;
   if (

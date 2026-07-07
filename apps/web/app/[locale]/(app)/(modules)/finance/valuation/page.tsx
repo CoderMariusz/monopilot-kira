@@ -4,10 +4,6 @@ import { getInventoryValuation } from './_actions/get-inventory-valuation';
 
 export const dynamic = 'force-dynamic';
 
-function decimal(value: string): string {
-  return value;
-}
-
 export default async function FinanceInventoryValuationPage() {
   const t = await getTranslations('Finance.valuation');
   const result = await getInventoryValuation();
@@ -60,7 +56,7 @@ export default async function FinanceInventoryValuationPage() {
           <div className="mt-2 flex flex-wrap gap-4">
             {grandTotals.map((total) => (
               <div key={total.currency}>
-                <p className="text-2xl font-semibold text-slate-950">{decimal(total.totalValue)}</p>
+                <p className="text-2xl font-semibold text-slate-950">{total.totalValue}</p>
                 <p className="text-xs text-slate-500">{total.currency}</p>
               </div>
             ))}
@@ -104,9 +100,9 @@ export default async function FinanceInventoryValuationPage() {
                 <tr key={`${row.itemId}:${row.currency}`} className="text-slate-700">
                   <td className="px-4 py-3 font-medium text-slate-950">{row.itemCode ?? row.itemId}</td>
                   <td className="px-4 py-3">{row.itemName ?? t('unmatchedItem')}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{decimal(row.qtyOnHand)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{decimal(row.wac)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{decimal(row.totalValue)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{row.qtyOnHand}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{row.wac}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{row.totalValue}</td>
                   <td className="px-4 py-3">{row.currency}</td>
                 </tr>
               ))}
