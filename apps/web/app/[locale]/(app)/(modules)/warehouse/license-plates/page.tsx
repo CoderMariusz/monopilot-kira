@@ -39,6 +39,7 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
+  searchParams?: Promise<{ page?: string }>;
 };
 
 function ListSkeleton() {
@@ -88,14 +89,24 @@ function buildLabels(locale: string): LpListLabels {
       location: t('list.columns.location'),
     },
     expiry: { expired: t('list.expiry.expired'), soon: t('list.expiry.soon') },
+    pagination: {
+      showing: t('list.pagination.showing'),
+      previous: t('list.pagination.previous'),
+      next: t('list.pagination.next'),
+    },
   };
 }
 
-async function ListContent({ locale }: { locale: string }) {
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+async function ListContent({ locale, page }: { locale: string; page: number }) {
   const t = getLpTranslator(locale);
   // 14-multi-site (CL4): topbar site picker cookie; null = All sites (no filter).
   const siteId = await getActiveSiteId();
-  const result = await listLPs({ limit: 200, siteId: siteId ?? undefined });
+  const result = await listLPs({ page, siteId: siteId ?? undefined });
 
   // ── Permission-denied state (server-resolved by the action) ──────────────────
   if (!result.ok && result.reason === 'forbidden') {
@@ -123,7 +134,7 @@ async function ListContent({ locale }: { locale: string }) {
     );
   }
 
-  const rows = result.data;
+  const rows = result.data.items;
   const reserved = rows.filter((r) => r.status === 'reserved').length;
   const blocked = rows.filter((r) => r.status === 'blocked').length;
   const hold = rows.filter((r) => ['HOLD', 'PENDING', 'QUARANTINED'].includes(r.qaStatus.toUpperCase())).length;
@@ -131,15 +142,17 @@ async function ListContent({ locale }: { locale: string }) {
   return (
     <div className="flex flex-col gap-4">
       <p data-testid="lp-list-count-line" className="text-xs text-slate-500">
-        {t('list.countLine', { total: rows.length, reserved, hold, blocked })}
+        {t('list.countLine', { total: result.data.total, reserved, hold, blocked })}
       </p>
-      <LpListClient rows={rows} labels={buildLabels(locale)} locale={locale} />
+      <LpListClient rows={rows} pagination={result.data} labels={buildLabels(locale)} locale={locale} />
     </div>
   );
 }
 
-export default async function LicensePlatesPage({ params }: PageProps) {
+export default async function LicensePlatesPage({ params, searchParams }: PageProps) {
   const { locale } = await params;
+  const sp: { page?: string } = searchParams ? await searchParams : {};
+  const page = parsePage(sp.page);
   const t = getLpTranslator(locale);
 
   return (
@@ -157,8 +170,8 @@ export default async function LicensePlatesPage({ params }: PageProps) {
           { label: t('list.breadcrumb.licensePlates') },
         ]}
       />
-      <Suspense fallback={<ListSkeleton />}>
-        <ListContent locale={locale} />
+      <Suspense key={page} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} page={page} />
       </Suspense>
     </main>
   );

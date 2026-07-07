@@ -7,6 +7,13 @@ import { z } from 'zod';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
+import {
+  DEFAULT_NCR_PAGE_SIZE,
+  emptyPaginatedResult,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../lib/shared/pagination';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -109,6 +116,8 @@ const listSchema = z.object({
   severity: severitySchema.optional(),
   ncrType: ncrTypeSchema.optional(),
   search: z.string().trim().max(120).optional(),
+  page: z.number().int().min(1).optional(),
+  offset: z.number().int().min(0).optional(),
   limit: z.number().int().min(1).max(200).optional(),
 });
 
@@ -243,19 +252,61 @@ export async function listNcrs(input: {
   severity?: NcrSeverity;
   ncrType?: NcrType;
   search?: string;
+  page?: number;
+  offset?: number;
   limit?: number;
-} = {}): Promise<ActionResult<NcrListRow[]>> {
+} = {}): Promise<ActionResult<PaginatedResult<NcrListRow>>> {
   try {
     const parsed = listSchema.parse(input);
-    return await withOrgContext(async (ctx): Promise<ActionResult<NcrListRow[]>> => {
+    const page = normalizePage({
+      page: parsed.page,
+      offset: parsed.offset,
+      limit: parsed.limit,
+      defaultLimit: DEFAULT_NCR_PAGE_SIZE,
+      maxLimit: 200,
+    });
+    return await withOrgContext(async (ctx): Promise<ActionResult<PaginatedResult<NcrListRow>>> => {
       const s = await getActiveSiteId({ client: ctx.client });
       if (!s) {
-        return { ok: true, data: [], noActiveSite: true } as ActionResult<NcrListRow[]> & { noActiveSite: true };
+        return {
+          ok: true,
+          data: emptyPaginatedResult(page),
+          noActiveSite: true,
+        } as ActionResult<PaginatedResult<NcrListRow>> & { noActiveSite: true };
       }
 
       if (!(await hasPermission(ctx, 'quality.dashboard.view'))) return { ok: false, reason: 'forbidden' };
 
-      const { rows } = await ctx.client.query<Parameters<typeof mapListRow>[0]>(
+      const baseParams = [
+        parsed.status ?? null,
+        parsed.severity ?? null,
+        parsed.ncrType ?? null,
+        parsed.search || null,
+        s,
+      ] as const;
+
+      const [countResult, dataResult] = await Promise.all([
+        ctx.client.query<{ total: number }>(
+          `select count(*)::int as total
+             from public.ncr_reports n
+             left join public.items i on i.id = n.product_id and i.org_id = n.org_id
+             left join public.quality_holds h on h.id = n.linked_hold_id and h.org_id = n.org_id
+            where n.org_id = app.current_org_id()
+              and (n.site_id = $5::uuid or n.site_id is null)
+              and ($1::text is null or n.status = $1)
+              and ($2::text is null or n.severity = $2)
+              and ($3::text is null or n.ncr_type = $3)
+              and ($4::text is null or (
+                n.ncr_number ilike '%' || $4 || '%'
+                or n.title ilike '%' || $4 || '%'
+                or n.description ilike '%' || $4 || '%'
+                or i.item_code ilike '%' || $4 || '%'
+                or i.name ilike '%' || $4 || '%'
+                or h.hold_number ilike '%' || $4 || '%'
+              ))`,
+          [...baseParams],
+        ),
+        ctx.client.query<Parameters<typeof mapListRow>[0]>(
         `select
            n.id::text,
            n.ncr_number,
@@ -276,7 +327,7 @@ export async function listNcrs(input: {
          left join public.items i on i.id = n.product_id and i.org_id = n.org_id
          left join public.quality_holds h on h.id = n.linked_hold_id and h.org_id = n.org_id
         where n.org_id = app.current_org_id()
-          and (n.site_id = $6::uuid or n.site_id is null)
+          and (n.site_id = $5::uuid or n.site_id is null)
           and ($1::text is null or n.status = $1)
           and ($2::text is null or n.severity = $2)
           and ($3::text is null or n.ncr_type = $3)
@@ -288,12 +339,20 @@ export async function listNcrs(input: {
             or i.name ilike '%' || $4 || '%'
             or h.hold_number ilike '%' || $4 || '%'
           ))
-        order by n.created_at desc
-        limit $5::int`,
-        [parsed.status ?? null, parsed.severity ?? null, parsed.ncrType ?? null, parsed.search || null, parsed.limit ?? 100, s],
-      );
+        order by n.created_at desc, n.id desc
+        limit $6::int offset $7::int`,
+        [...baseParams, page.limit, page.offset],
+        ),
+      ]);
 
-      return { ok: true, data: rows.map(mapListRow) };
+      return {
+        ok: true,
+        data: toPaginatedResult(
+          dataResult.rows.map(mapListRow),
+          Number(countResult.rows[0]?.total ?? 0),
+          page,
+        ),
+      };
     });
   } catch (err) {
     return actionError(err);

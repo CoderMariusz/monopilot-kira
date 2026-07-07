@@ -29,6 +29,7 @@ import roMessages from '../../../../../../../i18n/ro.json';
 import ukMessages from '../../../../../../../i18n/uk.json';
 
 import { WoListView, type WoListLabels } from '../_components/wo-list-view';
+import { normalizePage, toPaginatedResult } from '../../../../../../../lib/shared/pagination';
 import { WoDetailView, type WoDetailLabels } from '../_components/wo-detail-view';
 import type { ListPlanningWorkOrdersResult, GetPlanningWorkOrderResult, CreateWorkOrderResult, ReleaseWorkOrderResult, DeleteDraftWorkOrderResult } from '../_actions/shared';
 
@@ -74,6 +75,11 @@ const listLabels: WoListLabels = {
   tabArchive: 'Archive',
   archivedHint: 'Showing archived work orders.',
   backToActive: 'Back to active',
+  pagination: {
+    showing: 'Showing {shown} of {total}',
+    previous: 'Previous',
+    next: 'Next',
+  },
   empty: enWo.list.empty,
   releaseError: enWo.errors,
   create: {
@@ -131,6 +137,8 @@ const ROWS = [
   makeRow({ id: 'wo-3', woNumber: 'WO-PROG', itemCode: 'FG-003', status: 'IN_PROGRESS' }),
 ];
 
+const defaultWoPagination = toPaginatedResult(ROWS, ROWS.length, normalizePage({ page: 1, defaultLimit: 50 }));
+
 function renderList(props: Partial<React.ComponentProps<typeof WoListView>> = {}) {
   const searchFgProductsAction = vi.fn().mockResolvedValue([
     { id: 'p1', itemCode: 'FG-001', name: 'Demo FG', uomBase: 'kg' },
@@ -145,6 +153,7 @@ function renderList(props: Partial<React.ComponentProps<typeof WoListView>> = {}
     <WoListView
       locale="en"
       workOrders={ROWS}
+      pagination={defaultWoPagination}
       resources={resources}
       labels={listLabels}
       archivedCount={3}
@@ -388,6 +397,7 @@ describe('WoListView — P0-UOM create-WO output unit + conversion', () => {
       <WoListView
         locale="en"
         workOrders={ROWS}
+        pagination={defaultWoPagination}
         resources={resources}
         labels={uomLabels}
         searchFgProductsAction={searchFgProductsAction}
@@ -550,6 +560,7 @@ describe('F-D08a — conversion preview renders from the REAL i18n bundles', () 
       <WoListView
         locale={locale}
         workOrders={ROWS}
+        pagination={defaultWoPagination}
         resources={resources}
         labels={realLabels}
         searchFgProductsAction={searchFgProductsAction}
@@ -636,6 +647,7 @@ describe('WoListView — P0-UOM Order unit selector', () => {
       <WoListView
         locale="en"
         workOrders={ROWS}
+        pagination={defaultWoPagination}
         resources={resources}
         labels={uomLabels}
         searchFgProductsAction={searchFgProductsAction}

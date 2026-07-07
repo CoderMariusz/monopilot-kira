@@ -38,8 +38,13 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ new?: string; archived?: string }>;
+  searchParams: Promise<{ new?: string; archived?: string; page?: string }>;
 };
+
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
 
 /**
  * Archive-tab labels staged in _meta/i18n-staging/archive-tabs.json (en/pl real)
@@ -129,6 +134,11 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     tabArchive: archiveLabel(t, locale, 'list.tabs.archive'),
     archivedHint: archiveLabel(t, locale, 'list.archivedHint'),
     backToActive: archiveLabel(t, locale, 'list.backToActive'),
+    pagination: {
+      showing: t('list.pagination.showing'),
+      previous: t('list.pagination.previous'),
+      next: t('list.pagination.next'),
+    },
     empty: {
       title: t('list.empty.title'),
       body: t('list.empty.body'),
@@ -229,14 +239,16 @@ async function ListContent({
   locale,
   autoOpenCreate,
   archived,
+  page,
 }: {
   locale: string;
   autoOpenCreate: boolean;
   archived: boolean;
+  page: number;
 }) {
   const t = await getTranslations('Planning.workOrders');
   const [listResult, resources] = await Promise.all([
-    listPlanningWorkOrders({ limit: 200, archived }),
+    listPlanningWorkOrders({ page, archived }),
     listProductionResources(),
   ]);
 
@@ -252,6 +264,7 @@ async function ListContent({
     <WoListView
       locale={locale}
       workOrders={listResult.workOrders}
+      pagination={listResult.pagination}
       resources={resources}
       archived={archived}
       archivedCount={listResult.archivedCount}
@@ -271,6 +284,7 @@ export default async function WorkOrdersListPage({ params, searchParams }: PageP
   const sp = await searchParams;
   const autoOpenCreate = sp.new === '1';
   const archived = sp.archived === '1';
+  const page = parsePage(sp.page);
   const t = await getTranslations('Planning.workOrders');
 
   return (
@@ -284,8 +298,8 @@ export default async function WorkOrdersListPage({ params, searchParams }: PageP
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.planning') }, { label: t('breadcrumb.workOrders') }]}
       />
-      <Suspense fallback={<ListSkeleton />}>
-        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} />
+      <Suspense key={`${archived}-${page}`} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} page={page} />
       </Suspense>
     </main>
   );

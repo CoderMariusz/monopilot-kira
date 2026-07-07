@@ -2,8 +2,13 @@
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
+  DEFAULT_LP_PAGE_SIZE,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../lib/shared/pagination';
+import {
   WAREHOUSE_READ_PERMISSION,
-  asLimit,
   asTrimmed,
   hasWarehousePermission,
   toIso,
@@ -53,33 +58,7 @@ function mapLpListRow(row: LpListRow): LicensePlateListItem {
   };
 }
 
-export async function listLPs(input: LicensePlateListInput = {}): Promise<WarehouseResult<LicensePlateListItem[]>> {
-  const search = asTrimmed(input.search);
-  const warehouseId = asTrimmed(input.warehouseId);
-  const siteId = asTrimmed(input.siteId);
-  const limit = asLimit(input.limit);
-
-  try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<LicensePlateListItem[]>> => {
-      const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasWarehousePermission(ctx, WAREHOUSE_READ_PERMISSION))) return { ok: false, reason: 'forbidden' };
-
-      const { rows } = await ctx.client.query<LpListRow>(
-        `select lp.id::text,
-                lp.lp_number,
-                i.item_code,
-                i.name as item_name,
-                lp.quantity::text,
-                lp.reserved_qty::text,
-                (lp.quantity - lp.reserved_qty)::text as available_qty,
-                lp.uom,
-                lp.status,
-                lp.qa_status,
-                lp.batch_number,
-                lp.expiry_date,
-                l.code as location_code,
-                w.code as warehouse_code,
-                lp.created_at
+const LP_LIST_FROM = `
            from public.license_plates lp
            left join public.items i
              on i.org_id = app.current_org_id()
@@ -99,13 +78,65 @@ export async function listLPs(input: LicensePlateListInput = {}): Promise<Wareho
               or i.item_code ilike '%' || $2 || '%'
               or i.name ilike '%' || $2 || '%'
             )
-            and ($3::uuid is null or lp.site_id = $3::uuid or lp.site_id is null)
-          order by lp.created_at desc, lp.lp_number asc
-          limit $4::integer`,
-        [warehouseId, search, siteId, limit],
-      );
+            and ($3::uuid is null or lp.site_id = $3::uuid or lp.site_id is null)`;
 
-      return { ok: true, data: rows.map(mapLpListRow) };
+export async function listLPs(
+  input: LicensePlateListInput = {},
+): Promise<WarehouseResult<PaginatedResult<LicensePlateListItem>>> {
+  const search = asTrimmed(input.search);
+  const warehouseId = asTrimmed(input.warehouseId);
+  const siteId = asTrimmed(input.siteId);
+  const page = normalizePage({
+    page: input.page,
+    offset: input.offset,
+    limit: input.limit,
+    defaultLimit: DEFAULT_LP_PAGE_SIZE,
+    maxLimit: 500,
+  });
+
+  try {
+    return await withOrgContext(
+      async ({ userId, orgId, client }): Promise<WarehouseResult<PaginatedResult<LicensePlateListItem>>> => {
+      const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasWarehousePermission(ctx, WAREHOUSE_READ_PERMISSION))) return { ok: false, reason: 'forbidden' };
+
+      const baseParams = [warehouseId, search, siteId] as const;
+      const [countResult, dataResult] = await Promise.all([
+        ctx.client.query<{ total: number }>(
+          `select count(*)::int as total${LP_LIST_FROM}`,
+          [...baseParams],
+        ),
+        ctx.client.query<LpListRow>(
+          `select lp.id::text,
+                  lp.lp_number,
+                  i.item_code,
+                  i.name as item_name,
+                  lp.quantity::text,
+                  lp.reserved_qty::text,
+                  (lp.quantity - lp.reserved_qty)::text as available_qty,
+                  lp.uom,
+                  lp.status,
+                  lp.qa_status,
+                  lp.batch_number,
+                  lp.expiry_date,
+                  l.code as location_code,
+                  w.code as warehouse_code,
+                  lp.created_at
+             ${LP_LIST_FROM}
+          order by lp.created_at desc, lp.lp_number asc, lp.id desc
+          limit $4::integer offset $5::integer`,
+          [...baseParams, page.limit, page.offset],
+        ),
+      ]);
+
+      return {
+        ok: true,
+        data: toPaginatedResult(
+          dataResult.rows.map(mapLpListRow),
+          Number(countResult.rows[0]?.total ?? 0),
+          page,
+        ),
+      };
     });
   } catch (error) {
     console.error('[warehouse] listLPs failed', error);

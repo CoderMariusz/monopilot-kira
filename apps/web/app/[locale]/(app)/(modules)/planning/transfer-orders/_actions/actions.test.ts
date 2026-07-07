@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { maxSqlPlaceholderIndex } from '../../../../../../../lib/shared/sql-placeholders';
 import {
   addTransferOrderLine,
   createTransferOrder,
@@ -37,6 +38,7 @@ let failNextLineInsert = false;
 let currentTransferNotes: string | null = null;
 /** F3: junction rows already received (dest_lp_id NOT NULL) — blocks cancel. */
 let receivedJunctionCount = 0;
+let listTotal = 1;
 
 const SOURCE_LP_ID = '99999999-9999-4999-8999-999999999999';
 const DEST_LOCATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -78,6 +80,10 @@ function line() {
   };
 }
 
+function expectSqlArity(sql: string, params: readonly unknown[] | undefined) {
+  expect(params).toHaveLength(maxSqlPlaceholderIndex(String(sql)));
+}
+
 function makeClient(): QueryClient {
   return {
     query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
@@ -91,7 +97,12 @@ function makeClient(): QueryClient {
           rowCount: 1,
         };
       }
+      if (normalized.includes('select count(*)::int as total')) {
+        expectSqlArity(sql, params);
+        return { rows: [{ total: listTotal }], rowCount: 1 };
+      }
       if (normalized.startsWith('select count(*) as archived_count')) {
+        expectSqlArity(sql, params);
         return { rows: [{ archived_count: 1 }], rowCount: 1 };
       }
       if (normalized.startsWith('select w.site_id::text as site_id')) {
@@ -175,6 +186,16 @@ function makeClient(): QueryClient {
         return { rows: [{ id: DEST_LP_ID }], rowCount: 1 };
       }
       if (normalized.startsWith('select id, to_number') || normalized.startsWith('select transfer_orders.id')) {
+        if (normalized.includes('limit $4::integer offset $5::integer')) {
+          expectSqlArity(sql, params);
+          const limit = Number(params[3] ?? 50);
+          const offset = Number(params[4] ?? 0);
+          const allRows = Array.from({ length: listTotal }, (_, index) =>
+            header({ to_number: `TO-TEST-${String(index + 1).padStart(3, '0')}`, status: currentStatus, notes: currentTransferNotes }),
+          );
+          const rows = allRows.slice(offset, offset + limit);
+          return { rows, rowCount: rows.length };
+        }
         return { rows: orderExists ? [header({ status: currentStatus, notes: currentTransferNotes })] : [], rowCount: orderExists ? 1 : 0 };
       }
       if (normalized.startsWith('insert into public.transfer_orders')) {
@@ -242,6 +263,7 @@ describe('planning transfer order actions', () => {
     failNextLineInsert = false;
     currentTransferNotes = null;
     receivedJunctionCount = 0;
+    listTotal = 1;
     client = makeClient();
   });
 
@@ -259,8 +281,31 @@ describe('planning transfer order actions', () => {
     await listTransferOrders({ archived: true });
 
     const listCalls = vi.mocked(client.query).mock.calls.filter(([sql]) => String(sql).includes('from public.transfer_orders transfer_orders'));
-    expect(listCalls[0]?.[1]).toEqual([null, null, 100, false]);
-    expect(listCalls[2]?.[1]).toEqual([null, null, 100, true]);
+    expect(listCalls[0]?.[1]).toEqual([null, null, false]);
+    expect(listCalls[1]?.[1]).toEqual([null, null, false, 50, 0]);
+    expect(listCalls[3]?.[1]).toEqual([null, null, true]);
+    expect(listCalls[4]?.[1]).toEqual([null, null, true, 50, 0]);
+  });
+
+  it('page 2 offset returns the second page of rows when total exceeds limit', async () => {
+    listTotal = 120;
+
+    const result = await listTransferOrders({ page: 2 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.pagination).toMatchObject({
+      total: 120,
+      page: 2,
+      limit: 50,
+      offset: 50,
+      hasMore: true,
+    });
+    expect(result.data[0]).toEqual(expect.objectContaining({ toNumber: 'TO-TEST-051' }));
+    const dataCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('limit $4::integer offset $5::integer'),
+    );
+    expect(dataCall?.[1]).toEqual([null, null, false, 50, 50]);
   });
 
   it('gets transfer order detail with lines', async () => {

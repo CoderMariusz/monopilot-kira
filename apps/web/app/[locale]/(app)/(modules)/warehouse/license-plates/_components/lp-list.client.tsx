@@ -37,6 +37,8 @@ import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import type { LicensePlateListItem } from '../../_actions/shared';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 export type LpListTab = 'all' | 'available' | 'reserved' | 'blocked' | 'qc_hold';
 
@@ -84,6 +86,7 @@ export type LpListLabels = {
     location: string;
   };
   expiry: { expired: string; soon: string };
+  pagination: ListPaginationLabels;
 };
 
 function expiryDays(iso: string | null, now: number): number | null {
@@ -139,16 +142,24 @@ function ExpiryCell({
 
 export function LpListClient({
   rows,
+  pagination,
   labels,
   locale,
 }: {
   rows: LicensePlateListItem[];
+  pagination: PaginatedResult<LicensePlateListItem>;
   labels: LpListLabels;
   locale: string;
 }) {
   const [tab, setTab] = useState<LpListTab>('all');
   const [search, setSearch] = useState('');
   const now = useMemo(() => Date.now(), []);
+  const shown = pagination.offset + rows.length;
+  const previousHref =
+    pagination.page > 1 ? `/${locale}/warehouse/license-plates?page=${pagination.page - 1}` : null;
+  const nextHref = pagination.hasMore
+    ? `/${locale}/warehouse/license-plates?page=${pagination.page + 1}`
+    : null;
 
   const tabCount = (k: LpListTab): number =>
     k === 'all' ? rows.length : rows.filter((r) => matchesTab(r, k)).length;
@@ -299,6 +310,14 @@ export function LpListClient({
             </TableBody>
           </Table>
         )}
+        <ListPaginationFooter
+          shown={shown}
+          total={pagination.total}
+          previousHref={previousHref}
+          nextHref={nextHref}
+          labels={labels.pagination}
+          testId="lp-list-pagination"
+        />
       </Card>
     </div>
   );

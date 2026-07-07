@@ -115,7 +115,7 @@ async function ListContent({ locale }: { locale: string }) {
   // Derive per-location LP counts from the capped LP read (honest undercount).
   const lpCountByCode: Record<string, number> = {};
   if (lpResult.ok) {
-    for (const lp of lpResult.data) {
+    for (const lp of lpResult.data.items) {
       if (lp.locationCode) lpCountByCode[lp.locationCode] = (lpCountByCode[lp.locationCode] ?? 0) + 1;
     }
   }

@@ -71,8 +71,13 @@ function archiveLabel(
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ new?: string; archived?: string }>;
+  searchParams: Promise<{ new?: string; archived?: string; page?: string }>;
 };
+
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
 
 function ListSkeleton() {
   return (
@@ -142,6 +147,11 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       actions: t('list.columns.actions'),
     },
     view: t('list.view'),
+    pagination: {
+      showing: t('list.pagination.showing'),
+      previous: t('list.pagination.previous'),
+      next: t('list.pagination.next'),
+    },
     empty: {
       title: t('list.empty.title'),
       body: t('list.empty.body'),
@@ -230,14 +240,16 @@ async function ListContent({
   locale,
   autoOpenCreate,
   archived,
+  page,
 }: {
   locale: string;
   autoOpenCreate: boolean;
   archived: boolean;
+  page: number;
 }) {
   const t = await getTranslations('Planning.purchaseOrders');
   const [listResult, suppliers, lineCounts, orgUnits, siteContext] = await Promise.all([
-    listPurchaseOrders({ limit: 200, archived }),
+    listPurchaseOrders({ page, archived }),
     listPoSuppliers(),
     listPurchaseOrderLineCounts(),
     listPoUnits(),
@@ -256,21 +268,24 @@ async function ListContent({
     );
   }
 
+  const purchaseOrders = listResult.data.map((po) => ({
+    id: po.id,
+    poNumber: po.poNumber,
+    supplierId: po.supplierId,
+    supplierCode: po.supplierCode,
+    supplierName: po.supplierName,
+    status: po.status,
+    expectedDelivery: po.expectedDelivery,
+    currency: po.currency,
+    notes: po.notes,
+    lineCount: lineCounts[po.id] ?? 0,
+  }));
+
   return (
     <PoListView
       locale={locale}
-      purchaseOrders={listResult.data.map((po) => ({
-        id: po.id,
-        poNumber: po.poNumber,
-        supplierId: po.supplierId,
-        supplierCode: po.supplierCode,
-        supplierName: po.supplierName,
-        status: po.status,
-        expectedDelivery: po.expectedDelivery,
-        currency: po.currency,
-        notes: po.notes,
-        lineCount: lineCounts[po.id] ?? 0,
-      }))}
+      purchaseOrders={purchaseOrders}
+      pagination={{ ...listResult.pagination, items: purchaseOrders }}
       suppliers={suppliers}
       archived={archived}
       archivedCount={listResult.archivedCount}
@@ -292,6 +307,7 @@ export default async function PurchaseOrdersListPage({ params, searchParams }: P
   const sp = await searchParams;
   const autoOpenCreate = sp.new === '1';
   const archived = sp.archived === '1';
+  const page = parsePage(sp.page);
   const t = await getTranslations('Planning.purchaseOrders');
 
   return (
@@ -305,8 +321,8 @@ export default async function PurchaseOrdersListPage({ params, searchParams }: P
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.planning') }, { label: t('breadcrumb.purchaseOrders') }]}
       />
-      <Suspense fallback={<ListSkeleton />}>
-        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} />
+      <Suspense key={`${archived}-${page}`} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} page={page} />
       </Suspense>
     </main>
   );

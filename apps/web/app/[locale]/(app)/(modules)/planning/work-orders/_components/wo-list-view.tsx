@@ -42,6 +42,8 @@ import { EmptyState } from '@monopilot/ui/EmptyState';
 
 import { WoStatusBadge } from './wo-status-badge';
 import { CreateWoModal, type CreateWoLabels } from './create-wo-modal';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 import type { ListPlanningWorkOrdersResult, CreateWorkOrderResult, ReleaseWorkOrderResult, DeleteDraftWorkOrderResult } from '../_actions/shared';
 import type { FgProductOption, ProductionResources, SearchFgProductsInput } from '../_actions/wo-form-data';
 import type { PreviewWorkOrderChainResult } from '../_actions/chain-preview';
@@ -102,11 +104,13 @@ export type WoListLabels = {
     technicalHint: string;
   };
   create: CreateWoLabels;
+  pagination: ListPaginationLabels;
 };
 
 export type WoListViewProps = {
   locale: string;
   workOrders: WoRow[];
+  pagination: PaginatedResult<WoRow>;
   resources: ProductionResources;
   labels: WoListLabels;
   /**
@@ -144,6 +148,7 @@ function fmtDate(iso: string | null, locale: string): string {
 export function WoListView({
   locale,
   workOrders,
+  pagination,
   resources,
   labels,
   archived = false,
@@ -157,6 +162,14 @@ export function WoListView({
 }: WoListViewProps) {
   const router = useRouter();
   const basePath = `/${locale}/planning/work-orders`;
+  const pageHref = (page: number) => {
+    const params = new URLSearchParams();
+    if (archived) params.set('archived', '1');
+    if (page > 1) params.set('page', String(page));
+    const q = params.toString();
+    return q ? `${basePath}?${q}` : basePath;
+  };
+  const shown = pagination.offset + workOrders.length;
   const [tab, setTab] = React.useState<TabKey>('all');
   const [search, setSearch] = React.useState('');
   const [createOpen, setCreateOpen] = React.useState(autoOpenCreate);
@@ -460,6 +473,14 @@ export function WoListView({
               })}
             </tbody>
           </table>
+          <ListPaginationFooter
+            shown={shown}
+            total={pagination.total}
+            previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+            nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+            labels={labels.pagination}
+            testId="wo-list-pagination"
+          />
         </div>
       )}
 

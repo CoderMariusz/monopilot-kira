@@ -7,6 +7,12 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+import {
+  DEFAULT_TO_LIST_PAGE_SIZE,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../../lib/shared/pagination';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import {
   makeLpNumber,
@@ -95,8 +101,13 @@ type TransferOrderDetail = TransferOrder & { lines: TransferOrderLine[] };
 type TransferOrderError = ProcurementError | 'last_line';
 type TransferOrderResult<T> = { ok: true; data: T } | { ok: false; error: TransferOrderError; code?: TransferOrderError; message?: string };
 type TransferOrderListResult =
-  | { ok: true; data: TransferOrder[]; archivedCount: number }
+  | { ok: true; data: TransferOrder[]; pagination: PaginatedResult<TransferOrder>; archivedCount: number }
   | { ok: false; error: ProcurementError; message?: string };
+
+const TO_LIST_FROM = `from public.transfer_orders transfer_orders
+           left join public.org_document_settings ods
+             on ods.org_id = transfer_orders.org_id
+            and ods.doc_type = 'to'`;
 
 const UpdateTransferOrderInput = z.object({
   id: uuidSchema,
@@ -309,39 +320,68 @@ async function denseRenumberTransferOrderLines(client: QueryClient, toId: string
 }
 
 export async function listTransferOrders(params: unknown = {}): Promise<TransferOrderListResult> {
-  const input = (params ?? {}) as { status?: unknown; q?: unknown; limit?: unknown; archived?: unknown };
+  const input = (params ?? {}) as {
+    status?: unknown;
+    q?: unknown;
+    page?: unknown;
+    offset?: unknown;
+    limit?: unknown;
+    archived?: unknown;
+  };
   const status = typeof input.status === 'string' ? TransferOrderStatusSchema.safeParse(input.status) : null;
   if (status && !status.success) return { ok: false, error: 'invalid_input' };
   const q = typeof input.q === 'string' && input.q.trim() ? input.q.trim() : null;
-  const limit = typeof input.limit === 'number' && Number.isInteger(input.limit) ? Math.min(Math.max(input.limit, 1), 200) : 100;
   const archived = input.archived === true;
+  const page = normalizePage({
+    page: typeof input.page === 'number' ? input.page : undefined,
+    offset: typeof input.offset === 'number' ? input.offset : undefined,
+    limit: typeof input.limit === 'number' ? input.limit : undefined,
+    defaultLimit: DEFAULT_TO_LIST_PAGE_SIZE,
+    maxLimit: 200,
+  });
 
   try {
     return await withOrgContext(async ({ client }): Promise<TransferOrderListResult> => {
-      const { rows } = await (client as QueryClient).query<TransferOrderRow>(
-        `select transfer_orders.id, transfer_orders.to_number, transfer_orders.from_warehouse_id,
-                transfer_orders.to_warehouse_id, transfer_orders.status,
-                transfer_orders.scheduled_date::text as scheduled_date, transfer_orders.notes,
-                transfer_orders.created_at, transfer_orders.updated_at
-           from public.transfer_orders transfer_orders
-           left join public.org_document_settings ods
-             on ods.org_id = transfer_orders.org_id
-            and ods.doc_type = 'to'
-          where transfer_orders.org_id = app.current_org_id()
-            and ($1::text is null or transfer_orders.status = $1)
-            and ($2::text is null or transfer_orders.to_number ilike '%' || $2 || '%')
-            and coalesce(
-              (
-                transfer_orders.status in ('received', 'cancelled')
-                and ods.archive_after_days is not null
-                and transfer_orders.updated_at < now() - make_interval(days => ods.archive_after_days)
-              ),
-              false
-            ) = $4::boolean
-          order by transfer_orders.scheduled_date asc nulls last, transfer_orders.to_number asc
-          limit $3::integer`,
-        [status?.success ? status.data : null, q, limit, archived],
-      );
+      const baseParams = [status?.success ? status.data : null, q, archived] as const;
+      const [countResult, dataResult] = await Promise.all([
+        (client as QueryClient).query<{ total: number }>(
+          `select count(*)::int as total
+             ${TO_LIST_FROM}
+            where transfer_orders.org_id = app.current_org_id()
+              and ($1::text is null or transfer_orders.status = $1)
+              and ($2::text is null or transfer_orders.to_number ilike '%' || $2 || '%')
+              and coalesce(
+                (
+                  transfer_orders.status in ('received', 'cancelled')
+                  and ods.archive_after_days is not null
+                  and transfer_orders.updated_at < now() - make_interval(days => ods.archive_after_days)
+                ),
+                false
+              ) = $3::boolean`,
+          [...baseParams],
+        ),
+        (client as QueryClient).query<TransferOrderRow>(
+          `select transfer_orders.id, transfer_orders.to_number, transfer_orders.from_warehouse_id,
+                  transfer_orders.to_warehouse_id, transfer_orders.status,
+                  transfer_orders.scheduled_date::text as scheduled_date, transfer_orders.notes,
+                  transfer_orders.created_at, transfer_orders.updated_at
+             ${TO_LIST_FROM}
+            where transfer_orders.org_id = app.current_org_id()
+              and ($1::text is null or transfer_orders.status = $1)
+              and ($2::text is null or transfer_orders.to_number ilike '%' || $2 || '%')
+              and coalesce(
+                (
+                  transfer_orders.status in ('received', 'cancelled')
+                  and ods.archive_after_days is not null
+                  and transfer_orders.updated_at < now() - make_interval(days => ods.archive_after_days)
+                ),
+                false
+              ) = $3::boolean
+            order by transfer_orders.scheduled_date asc nulls last, transfer_orders.to_number asc, transfer_orders.id asc
+            limit $4::integer offset $5::integer`,
+          [...baseParams, page.limit, page.offset],
+        ),
+      ]);
       const count = await (client as QueryClient).query<{ archived_count: string | number }>(
         `select count(*) as archived_count
            from public.transfer_orders transfer_orders
@@ -356,7 +396,9 @@ export async function listTransferOrders(params: unknown = {}): Promise<Transfer
             and transfer_orders.updated_at < now() - make_interval(days => ods.archive_after_days)`,
         [status?.success ? status.data : null, q],
       );
-      return { ok: true, data: rows.map(mapTransferOrder), archivedCount: Number(count.rows[0]?.archived_count ?? 0) };
+      const rows = dataResult.rows.map(mapTransferOrder);
+      const pagination = toPaginatedResult(rows, Number(countResult.rows[0]?.total ?? 0), page);
+      return { ok: true, data: pagination.items, pagination, archivedCount: Number(count.rows[0]?.archived_count ?? 0) };
     });
   } catch (err) {
     console.error('[planning/transfer-orders] listTransferOrders failed', err);

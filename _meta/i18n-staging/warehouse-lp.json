@@ -91,6 +91,11 @@
       },
       "emptyAll": "No license plates yet — receive goods or register an LP from the Scanner to create your first LP.",
       "emptyFiltered": "No license plates match this filter. Try clearing the search or pick a different tab.",
+      "pagination": {
+        "showing": "Showing {shown} of {total}",
+        "previous": "Previous",
+        "next": "Next"
+      },
       "denied": "You do not have permission to view warehouse inventory. Ask an administrator for the warehouse.inventory.read permission.",
       "error": "We could not load license plates right now. Refresh to try again.",
       "deferredMultiSelect": "Bulk select / actions are deferred to a later lane."
@@ -506,6 +511,11 @@
       },
       "emptyAll": "Brak numerów LP — przyjmij towar lub zarejestruj LP w Skanerze, aby utworzyć pierwszy LP.",
       "emptyFiltered": "Żaden LP nie pasuje do filtra. Wyczyść wyszukiwanie lub wybierz inną zakładkę.",
+      "pagination": {
+        "showing": "Wyświetlanie {shown} z {total}",
+        "previous": "Poprzednia",
+        "next": "Następna"
+      },
       "denied": "Nie masz uprawnień do podglądu stanu magazynowego. Poproś administratora o uprawnienie warehouse.inventory.read.",
       "error": "Nie udało się teraz wczytać numerów LP. Odśwież, aby spróbować ponownie.",
       "deferredMultiSelect": "Zaznaczanie zbiorcze / akcje są odłożone na późniejszy etap."
