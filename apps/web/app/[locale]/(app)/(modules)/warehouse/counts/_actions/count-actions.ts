@@ -225,10 +225,18 @@ async function supervisorHasPin(client: QueryClient, supervisorUserId: string): 
   return rows.length > 0;
 }
 
+type SupervisorPinRejectCode = 'supervisor_pin_locked' | 'supervisor_pin_invalid';
+
+/**
+ * Second-person supervisor gate for shrinkage. Org membership + grant are
+ * checked BEFORE any user_pins read/update so a cross-org id cannot touch PIN
+ * state. Invalid/locked PIN returns a reject code (caller must COMMIT, not
+ * throw) so verifyPin lockout counters persist — mirrors direct-adjust-actions.
+ */
 async function assertSupervisorApproval(
   ctx: WarehouseContext,
   input: ApproveAndApplyVarianceInput,
-): Promise<string> {
+): Promise<string | SupervisorPinRejectCode> {
   const supervisorId = input.supervisorUserId?.trim() ?? '';
   const supervisorPin = input.supervisorPin?.trim() ?? '';
   if (!supervisorId || !supervisorPin) {
@@ -237,19 +245,19 @@ async function assertSupervisorApproval(
   if (supervisorId === ctx.userId) {
     throw new Error('supervisor_self_approval');
   }
+  const supervisorCtx: WarehouseContext = { userId: supervisorId, orgId: ctx.orgId, client: ctx.client };
+  if (!(await hasWarehousePermission(supervisorCtx, WAREHOUSE_STOCK_ADJUST_APPROVE_PERMISSION))) {
+    throw new Error('supervisor_forbidden');
+  }
   if (!(await supervisorHasPin(ctx.client, supervisorId))) {
     throw new Error('supervisor_pin_not_enrolled');
   }
   const supervisorPinResult = await verifyPin(supervisorId, supervisorPin, { client: ctx.client });
   if (supervisorPinResult === 'locked') {
-    throw new Error('supervisor_pin_locked');
+    return 'supervisor_pin_locked';
   }
   if (supervisorPinResult !== true) {
-    throw new Error('supervisor_pin_invalid');
-  }
-  const supervisorCtx: WarehouseContext = { userId: supervisorId, orgId: ctx.orgId, client: ctx.client };
-  if (!(await hasWarehousePermission(supervisorCtx, WAREHOUSE_STOCK_ADJUST_APPROVE_PERMISSION))) {
-    throw new Error('supervisor_forbidden');
+    return 'supervisor_pin_invalid';
   }
   return supervisorId;
 }
@@ -1113,7 +1121,11 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
   const password = typeof input?.signature?.password === 'string' ? input.signature.password : '';
   if (password.trim().length === 0) throw new Error('signature_required');
 
-  return await withOrgContext(async ({ userId, orgId, client }): Promise<ApplyVarianceResult> => {
+  type ApplyVarianceTxnOutcome =
+    | { kind: 'ok'; data: ApplyVarianceResult }
+    | { kind: 'supervisor_pin_reject'; code: SupervisorPinRejectCode };
+
+  const txnOutcome = await withOrgContext(async ({ userId, orgId, client }): Promise<ApplyVarianceTxnOutcome> => {
     const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
     await assertCanAdjustStock(ctx);
 
@@ -1189,7 +1201,11 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
 
     let supervisorUserId: string | null = null;
     if (varianceMicro < 0n) {
-      supervisorUserId = await assertSupervisorApproval(ctx, input);
+      const supervisorResult = await assertSupervisorApproval(ctx, input);
+      if (supervisorResult === 'supervisor_pin_locked' || supervisorResult === 'supervisor_pin_invalid') {
+        return { kind: 'supervisor_pin_reject', code: supervisorResult };
+      }
+      supervisorUserId = supervisorResult;
     }
 
     let adjustedLpId: string | null = null;
@@ -1335,16 +1351,24 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
     );
 
     return {
-      countLineId: countLineForApply.id,
-      adjustmentId,
-      direction,
-      adjustmentQty,
-      varianceQty: recomputedVarianceQty,
-      lpId: adjustedLpId,
-      esignRef: signatureReceipt.signatureId,
-      status: 'applied',
+      kind: 'ok',
+      data: {
+        countLineId: countLineForApply.id,
+        adjustmentId,
+        direction,
+        adjustmentQty,
+        varianceQty: recomputedVarianceQty,
+        lpId: adjustedLpId,
+        esignRef: signatureReceipt.signatureId,
+        status: 'applied',
+      },
     };
   });
+
+  if (txnOutcome.kind === 'supervisor_pin_reject') {
+    throw new Error(txnOutcome.code);
+  }
+  return txnOutcome.data;
 }
 
 export async function closeCountSession(sessionId: string): Promise<string> {

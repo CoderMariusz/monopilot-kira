@@ -18,15 +18,33 @@ export type CountErrorCode =
   | 'already_applied'
   | 'esign_failed'
   | 'invalid_input'
+  | 'supervisor_self_approval'
+  | 'supervisor_pin_required'
+  | 'supervisor_pin_invalid'
+  | 'supervisor_pin_not_enrolled'
+  | 'supervisor_pin_locked'
+  | 'supervisor_forbidden'
   | 'error';
 
 export type CountClientResult<T> =
   | { ok: true; data: T }
   | { ok: false; code: CountErrorCode };
 
+const SUPERVISOR_ERROR_CODES = [
+  'supervisor_self_approval',
+  'supervisor_pin_required',
+  'supervisor_pin_invalid',
+  'supervisor_pin_not_enrolled',
+  'supervisor_pin_locked',
+  'supervisor_forbidden',
+] as const satisfies readonly CountErrorCode[];
+
 /** Map a thrown error's message to a stable client error code. */
 export function toCountErrorCode(message: string | undefined): CountErrorCode {
   const m = (message ?? '').toLowerCase();
+  for (const code of SUPERVISOR_ERROR_CODES) {
+    if (m.includes(code)) return code;
+  }
   if (m.includes('forbidden')) return 'forbidden';
   if (m.includes('not_found')) return 'not_found';
   if (m.includes('already') && m.includes('appl')) return 'already_applied';

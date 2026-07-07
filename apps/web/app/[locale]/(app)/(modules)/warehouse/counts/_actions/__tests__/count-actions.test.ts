@@ -79,6 +79,8 @@ let activeHold: boolean;
  * site-gate query (F1 cross-site inventory leak fix). Default true (visible).
  */
 let canSeeSite: boolean;
+/** When false, SUPERVISOR_ID has no warehouse.stock.adjust grant in the org. */
+let supervisorHasOrgGrant: boolean;
 
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -146,8 +148,8 @@ function makeClient(): QueryClient {
 
       if (n.includes('from public.user_roles')) {
         const requestedUserId = params[0];
-        if (requestedUserId === SUPERVISOR_ID) {
-          return { rows: [{ ok: true }], rowCount: 1 };
+        if (requestedUserId === SUPERVISOR_ID && !supervisorHasOrgGrant) {
+          return { rows: [], rowCount: 0 };
         }
         return { rows: [{ ok: true }], rowCount: 1 };
       }
@@ -365,6 +367,7 @@ beforeEach(async () => {
   itemExists = true;
   activeHold = false;
   canSeeSite = true;
+  supervisorHasOrgGrant = true;
   client = makeClient();
 
   const { signEvent } = await import('@monopilot/e-sign');
@@ -740,6 +743,17 @@ describe('stock count actions', () => {
     ).rejects.toThrow('supervisor_self_approval');
 
     expect(verifyPin).not.toHaveBeenCalled();
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+  });
+
+  it("shrinkage apply rejects a cross-org supervisor before touching user_pins as 'supervisor_forbidden'", async () => {
+    supervisorHasOrgGrant = false;
+    applyLine = makeApplyLine({ variance_qty: '-2', counted_qty: '3', lp_id: LP_ID });
+
+    await expect(approveAndApplyVariance(decreaseVarianceInput())).rejects.toThrow('supervisor_forbidden');
+
+    expect(verifyPin).not.toHaveBeenCalled();
+    expect(queries.some((q) => normalize(q.sql).includes('from public.user_pins'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
   });
 
