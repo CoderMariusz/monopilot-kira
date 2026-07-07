@@ -9,6 +9,14 @@ export {
 export type { ParseResult } from './parse.js';
 export { buildGs1Element } from './build.js';
 export type { Gs1BuildInput, Gs1ElementResult } from './build.js';
+export { encodeCode128, encodeCode128B, encodeCode128Pattern, code128Modules } from './code128.js';
+export type { Code128EncodeOptions } from './code128.js';
+export {
+  resolveBarcodePayload,
+  resolveSsccBarcode,
+  resolveGtinBarcode,
+} from './barcode-resolve.js';
+export type { BarcodeSymbology, ResolvedBarcode } from './barcode-resolve.js';
 export {
   generateSscc18,
   validateSscc18,

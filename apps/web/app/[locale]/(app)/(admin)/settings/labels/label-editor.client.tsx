@@ -5,6 +5,8 @@ import React from 'react';
 import Modal from '@monopilot/ui/Modal';
 import { Button } from '@monopilot/ui/Button';
 
+import { Code128Barcode } from '../../../../../../lib/barcode/code128-barcode';
+
 import {
   createElement,
   parseElementsBlob,
@@ -675,18 +677,13 @@ function CanvasElement({
         </span>
       ) : null}
       {element.type === 'barcode' ? (
-        <span style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <span style={{ flex: 1, display: 'flex', alignItems: 'stretch' }} aria-hidden="true">
-            {Array.from({ length: 45 }).map((_, index) => (
-              <span
-                key={index}
-                style={{ flex: (index * 7) % 3 === 0 ? 2 : 1, background: (index * 3) % 2 === 0 ? '#0f172a' : 'transparent' }}
-              />
-            ))}
-          </span>
-          <span className="mono" style={{ fontSize: 7, textAlign: 'center', letterSpacing: 1 }}>
-            {element.value}
-          </span>
+        <span style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <Code128Barcode
+            value={element.value ?? ''}
+            field={element.field}
+            symbology={element.symbology}
+            barHeight={Math.max(8, element.h * SCALE - 14)}
+          />
         </span>
       ) : null}
       {element.type === 'qr' ? (

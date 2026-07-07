@@ -331,7 +331,7 @@ function makeDetail(overrides: Partial<ShipmentDetail> = {}): ShipmentDetail {
     boxes: [
       {
         boxNumber: 1,
-        sscc: '050123450000000425',
+        sscc: '050123450000000428',
         contents: [
           { lpCode: 'LP-0001', itemCode: 'FG-100', itemName: 'Sausage roll', qty: '10' },
         ],
@@ -399,7 +399,8 @@ describe('ShipmentPackView — header, boxes+SSCC, contents, Pack-LP control', (
     expect(header).toHaveTextContent('SH-202606-00001');
     expect(within(header).getByText('SO-202606-00001')).toBeInTheDocument();
     const box = screen.getByTestId('shipment-box-1');
-    expect(within(box).getByText('050123450000000425')).toBeInTheDocument();
+    expect(within(box).getAllByText('050123450000000428').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('shipment-box-1-sscc-barcode')).toBeInTheDocument();
     expect(within(box).getByText('LP-0001')).toBeInTheDocument();
     expect(within(box).getByText('Sausage roll')).toBeInTheDocument();
     expect(document.body.textContent).not.toContain(SHIPMENT_ID);
