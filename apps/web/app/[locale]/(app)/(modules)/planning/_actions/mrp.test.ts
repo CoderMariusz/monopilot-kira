@@ -55,6 +55,8 @@ let thresholdRows: Array<{
 let reworkSelfSupply = false;
 /** demand_forecasts rows the independent-demand read returns (default none). */
 let forecastRows: Array<{ product_id: string; uom: string; qty: string }> = [];
+/** sales_order_lines rows the SO-demand read returns (default none). */
+let soDemandRows: Array<{ product_id: string; uom: string; qty: string }> = [];
 let includeFinishedGood = false;
 let executed: string[] = [];
 /** Captured DDL-shaped INSERT params. */
@@ -389,6 +391,21 @@ function makeClient(): QueryClient {
         expect(String(params[0])).toMatch(/^\d{4}-W\d{2}$/);
         return { rows: forecastRows, rowCount: forecastRows.length };
       }
+      if (normalized.includes('from public.sales_order_lines')) {
+        expect(params[0]).toEqual([
+          'confirmed',
+          'allocated',
+          'partially_picked',
+          'picked',
+          'partially_packed',
+          'packed',
+          'manifested',
+          'shipped',
+          'partially_delivered',
+        ]);
+        expect(String(params[1])).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        return { rows: soDemandRows, rowCount: soDemandRows.length };
+      }
       if (normalized.includes('from public.purchase_order_lines')) {
         expect(params[0]).toEqual(['sent', 'confirmed', 'partially_received']);
         // Remainder already netted in SQL (ordered − received via grn_items).
@@ -406,6 +423,7 @@ beforeEach(() => {
   failInventoryRead = false;
   reworkSelfSupply = false;
   forecastRows = [];
+  soDemandRows = [];
   thresholdRows = [];
   includeFinishedGood = false;
   executed = [];
@@ -564,9 +582,18 @@ describe('runMrp', () => {
     expect(result.data.kpis.coveragePct).toBe(67);
   });
 
-  it('runs all org-scoped source reads incl. demand_forecasts (RLS predicates present)', async () => {
+  it('runs all org-scoped source reads incl. demand_forecasts + sales_order_lines (RLS predicates present)', async () => {
     await runMrp();
-    const sources = ['public.items', 'public.v_inventory_available', 'public.wo_materials', 'public.demand_forecasts', 'public.purchase_order_lines', 'public.schedule_outputs', 'public.reorder_thresholds'];
+    const sources = [
+      'public.items',
+      'public.v_inventory_available',
+      'public.wo_materials',
+      'public.demand_forecasts',
+      'public.sales_order_lines',
+      'public.purchase_order_lines',
+      'public.schedule_outputs',
+      'public.reorder_thresholds',
+    ];
     for (const source of sources) {
       const q = executed.find((sql) => sql.includes(`from ${source}`));
       expect(q, `${source} read missing`).toBeTruthy();
@@ -666,6 +693,118 @@ describe('runMrp', () => {
     const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
     expect(dough.demand).toBe('20.000');
     expect(dough.forecastDemand).toBe('0.000');
+    expect(dough.soDemand).toBe('0.000');
+  });
+
+  it('nets confirmed sales-order demand as INDEPENDENT demand — SO qty raises the item net requirement (NN-PLAN-4)', async () => {
+    // Baseline flour: 40 − 10 + 25 − 80 = −25 (buy 25). Add a 15 kg confirmed-SO →
+    // demand 80 + 15 = 95, net 40 − 10 + 25 − 95 = −40 → buy 40.
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '15.000' }];
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.demand).toBe('95.000'); // 80 dependent + 15 SO
+    expect(flour.soDemand).toBe('15.000');
+    expect(flour.forecastDemand).toBe('0.000');
+    expect(flour.net).toBe('-40.000');
+    expect(flour.severity).toBe('shortage');
+    expect(flour.suggestedAction).toEqual({ type: 'buy', qty: '40', dueDate: null, supplierId: null });
+
+    const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
+    expect(dough.soDemand).toBe('0.000');
+  });
+
+  it('tags the persisted run/requirement as independent when SO demand feeds an item (NN-PLAN-4)', async () => {
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '15.000' }];
+    const result = await runMrp({ persist: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(runInserts[0][8]).toBe('forecast');
+
+    const flourReq = reqInserts.find((p) => p[1] === FLOUR_ID)!;
+    const doughReq = reqInserts.find((p) => p[1] === DOUGH_ID)!;
+    expect(flourReq[3]).toBe('95.000');
+    expect(flourReq[9]).toBe('independent');
+    expect(doughReq[9]).toBe('dependent');
+  });
+
+  it('stays byte-identical to the no-SO baseline when soDemandRows is empty (invariance)', async () => {
+    const baseline = await runMrp();
+    expect(baseline.ok).toBe(true);
+    if (!baseline.ok) return;
+
+    soDemandRows = [];
+    const invariant = await runMrp();
+    expect(invariant.ok).toBe(true);
+    if (!invariant.ok) return;
+
+    expect(invariant.data.rows).toEqual(baseline.data.rows);
+    expect(invariant.data.kpis).toEqual(baseline.data.kpis);
+  });
+
+  it('reads sales_order_lines with post-confirm statuses and a horizon-end bind (NN-PLAN-4)', async () => {
+    await runMrp();
+    const soSql = executed.find((sql) => sql.includes('from public.sales_order_lines'))!;
+    expect(soSql).toContain('app.current_org_id()');
+    expect(soSql).toContain('sales_orders so');
+    expect(soSql).toContain("so.status = any($1::text[])");
+    expect(soSql).toContain('from public.shipment_box_contents sbc');
+    expect(soSql).toContain('join public.shipment_boxes sb');
+    expect(soSql).toContain('join public.shipments sh');
+    expect(soSql).toContain("sh.status in ('shipped', 'delivered')");
+    expect(soSql).toContain('quantity_ordered - coalesce(shipped.shipped_qty, 0)');
+    expect(soSql).not.toContain('sol.quantity_shipped');
+    expect(soSql).toContain("coalesce(so.promised_ship_date, so.required_delivery_date, so.order_date)");
+    expect(soSql).toContain('<= $2::date');
+    expect(soSql).toContain("coalesce(sol.ext_data->>'order_uom', i.uom_base)");
+    expect(soSql).not.toContain("'draft'");
+    expect(soSql).not.toContain("'cancelled'");
+  });
+
+  it('nets partial SO shipment as ordered minus shipped aggregate (6 of 10 → demand 4)', async () => {
+    // SQL: greatest(10 - 6, 0) = 4 on a confirmed/manifested SO line.
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '4.000' }];
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.demand).toBe('84.000'); // 80 dependent + 4 SO remainder
+    expect(flour.soDemand).toBe('4.000');
+    expect(flour.net).toBe('-29.000');
+  });
+
+  it('includes partially_delivered SO status in open demand filter (NN-PLAN-4)', async () => {
+    // Multi-shipment order with one delivery: SO → partially_delivered; open line
+    // balance must still feed MRP when the SQL aggregate leaves remainder > 0.
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '7.000' }];
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.soDemand).toBe('7.000');
+    expect(flour.demand).toBe('87.000'); // 80 dependent + 7 SO remainder
+  });
+
+  it('nets fully shipped SO line to zero demand (ordered − shipped aggregate)', async () => {
+    // SQL: greatest(10 - 10, 0) = 0 — row dropped from grouped demand.
+    soDemandRows = [];
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.soDemand).toBe('0.000');
+    expect(flour.demand).toBe('80.000'); // dependent only
+    expect(flour.net).toBe('-25.000'); // baseline without SO demand
   });
 
   it('tags the persisted run/requirement as forecast-driven when a forecast feeds an item (E6)', async () => {

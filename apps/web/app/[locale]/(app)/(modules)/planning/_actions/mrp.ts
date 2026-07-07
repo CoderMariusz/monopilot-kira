@@ -27,6 +27,12 @@
  *                  /planning/forecasts. Folded into the item's gross requirement; when an
  *                  item receives any forecast the persisted requirement is tagged
  *                  source_type='independent' and the run demand_source flips to 'forecast'.
+ *   - sales orders: sales_order_lines remainder (quantity_ordered − Σ shipped box qty on
+ *                  non-cancelled shipments in shipped/delivered status) on post-confirm
+ *                  SOs whose need-by date falls within the
+ *                  planning horizon — INDEPENDENT demand (NN-PLAN-4). UoM from
+ *                  ext_data.order_uom with items.uom_base fallback; each/box lines convert
+ *                  via the same pack-hierarchy machinery as forecast/WO demand.
  *   - on-hand:     v_inventory_available (mig 191; status=available + qa released)
  *   - PO supply:   purchase_order_lines remainder (qty − Σ grn_items.received_qty,
  *                  non-cancelled GRNs — same join shape as purchase-orders/_actions
@@ -74,6 +80,24 @@ const PLANNING_READ_PERMISSION = 'scheduler.run.read';
 const OPEN_WO_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS'];
 /** PO statuses that represent committed open supply (draft POs are not yet committed). */
 const OPEN_PO_STATUSES = ['sent', 'confirmed', 'partially_received'];
+/**
+ * SO statuses whose unshipped line qty counts as independent MRP demand — post-confirm
+ * pipeline states that can still carry open line balance (draft/cancelled/delivered
+ * excluded; shipped/partially_delivered included and netted via the shipment aggregate).
+ */
+const OPEN_SO_DEMAND_STATUSES = [
+  'confirmed',
+  'allocated',
+  'partially_picked',
+  'picked',
+  'partially_packed',
+  'packed',
+  'manifested',
+  'shipped',
+  'partially_delivered',
+];
+/** Planning horizon for SO need-by dates — mirrors forecasts.ts DEFAULT_HORIZON_WEEKS. */
+const MRP_PLANNING_HORIZON_WEEKS = 12;
 /** Item types planned by MRP. FG shortages can create planned WOs when an active BOM exists. */
 const MRP_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'packaging', 'fg'];
 const MRP_COMPLETED_EVENT = 'planning.mrp.completed';
@@ -96,6 +120,17 @@ function currentIsoWeek(now: Date = new Date()): string {
   firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDay + 3);
   const week = 1 + Math.round((d.getTime() - firstThursday.getTime()) / (7 * 24 * 3600 * 1000));
   return `${isoYear}-W${String(week).padStart(2, '0')}`;
+}
+
+/** today (yyyy-mm-dd) + N days, UTC-safe. */
+function addDaysIso(todayIso: string, days: number): string {
+  const base = new Date(`${todayIso}T00:00:00Z`);
+  return new Date(base.getTime() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** Planning horizon end date (today + MRP_PLANNING_HORIZON_WEEKS). */
+function planningHorizonEnd(todayIso: string): string {
+  return addDaysIso(todayIso, MRP_PLANNING_HORIZON_WEEKS * 7);
 }
 
 export type MrpRunData = {
@@ -281,6 +316,55 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
         [currentIsoWeek(startedAt)],
       );
 
+      // 3c) Independent (sales-order) demand — open SO lines on post-confirm orders
+      //     whose need-by date (promised_ship_date → required_delivery_date → order_date)
+      //     falls on or before the planning horizon end. Remainder qty is ordered minus
+      //     the real shipped aggregate from shipment_box_contents (same join path as
+      //     ship-actions confirm); sales_order_lines.quantity_shipped is not maintained.
+      //     UoM comes from ext_data.order_uom with items.uom_base fallback (same shape
+      //     as so-actions fetch). each/box lines convert in computeMrp via the shared
+      //     pack-hierarchy machinery.
+      const horizonEnd = planningHorizonEnd(today);
+      const soDemand = await c.query<MrpQtyBucket>(
+        `select sol.product_id as product_id,
+                coalesce(sol.ext_data->>'order_uom', i.uom_base) as uom,
+                sum(greatest(sol.quantity_ordered - coalesce(shipped.shipped_qty, 0), 0))::text as qty
+           from public.sales_order_lines sol
+           join public.sales_orders so
+             on so.id = sol.sales_order_id
+            and so.org_id = app.current_org_id()
+            and so.deleted_at is null
+            and so.status = any($1::text[])
+           join public.items i
+             on i.id = sol.product_id
+            and i.org_id = app.current_org_id()
+           left join (
+             select sbc.sales_order_line_id,
+                    sum(sbc.quantity) as shipped_qty
+               from public.shipment_box_contents sbc
+               join public.shipment_boxes sb
+                 on sb.id = sbc.shipment_box_id
+                and sb.org_id = app.current_org_id()
+                and sb.deleted_at is null
+               join public.shipments sh
+                 on sh.id = sb.shipment_id
+                and sh.org_id = app.current_org_id()
+                and sh.deleted_at is null
+                and sh.status in ('shipped', 'delivered')
+              where sbc.org_id = app.current_org_id()
+                and sbc.deleted_at is null
+                and sbc.sales_order_line_id is not null
+                and sbc.quantity is not null
+                and sbc.quantity > 0
+              group by sbc.sales_order_line_id
+           ) shipped on shipped.sales_order_line_id = sol.id
+          where sol.org_id = app.current_org_id()
+            and sol.deleted_at is null
+            and coalesce(so.promised_ship_date, so.required_delivery_date, so.order_date) <= $2::date
+          group by sol.product_id, coalesce(sol.ext_data->>'order_uom', i.uom_base)`,
+        [OPEN_SO_DEMAND_STATUSES, horizonEnd],
+      );
+
       // 4) Open-PO remainder — ordered minus received (grn_items on non-cancelled GRNs;
       //    same aggregate shape as purchase-orders/_actions/actions.ts fetchLines).
       const poSupply = await c.query<MrpQtyBucket>(
@@ -360,6 +444,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
         onHand: onHand.rows,
         demand: demand.rows,
         forecastDemand: forecastDemand.rows,
+        soDemand: soDemand.rows,
         poSupply: poSupply.rows,
         productionSupply: productionSupply.rows,
         thresholds: thresholds.rows,
@@ -425,9 +510,11 @@ async function persistMrpRun(
   const suggestionCount = rows.filter((r) => r.suggestedAction !== null).length;
   const runNumber = `MRP-${today.replace(/-/g, '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
   // Attribute the run as forecast-driven when any item carried independent
-  // (demand_forecasts) demand — a value mrp_runs_demand_source_check permits.
-  const hasForecastDemand = rows.some((r) => r.forecastDemand !== '0.000');
-  const demandSource = hasForecastDemand ? 'forecast' : 'manual';
+  // (demand_forecasts or sales-order) demand — a value mrp_runs_demand_source_check permits.
+  const hasIndependentDemand = rows.some(
+    (r) => r.forecastDemand !== '0.000' || r.soDemand !== '0.000',
+  );
+  const demandSource = hasIndependentDemand ? 'forecast' : 'manual';
 
   const header = await c.query<{ id: string; run_number: string }>(
     `insert into public.mrp_runs
@@ -466,9 +553,10 @@ async function persistMrpRun(
     // test is exact on the string; |net| is a pure prefix strip (no floats).
     const isShort = row.net.startsWith('-');
     const netRequirement = isShort ? row.net.slice(1) : '0';
-    // Independent demand (forecast) attribution — mrp_requirements_source_type_check
-    // allows only 'independent' | 'dependent'. Any forecast contribution → independent.
-    const sourceType = row.forecastDemand !== '0.000' ? 'independent' : 'dependent';
+    // Independent demand (forecast / sales-order) attribution — mrp_requirements_source_type_check
+    // allows only 'independent' | 'dependent'. Any independent contribution → independent.
+    const sourceType =
+      row.forecastDemand !== '0.000' || row.soDemand !== '0.000' ? 'independent' : 'dependent';
     const requirement = await c.query<{ id: string }>(
       `insert into public.mrp_requirements
          (org_id, run_id, item_id, bom_level, bucket_date, gross_requirement,

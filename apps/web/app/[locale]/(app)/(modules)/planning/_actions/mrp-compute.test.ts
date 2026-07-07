@@ -500,4 +500,37 @@ describe('computeMrp — reorder thresholds (mig 178, CL2)', () => {
     });
     expect(rows.map((r) => r.severity)).toEqual(['shortage', 'below_min', 'at_risk']);
   });
+
+  it('nets sales-order demand alongside dependent WO demand and tracks soDemand separately (NN-PLAN-4)', () => {
+    const { rows } = computeMrp({
+      items: [RM_FLOUR],
+      onHand: [{ product_id: 'item-flour', uom: 'kg', on_hand: '100.000', reserved: '0' }],
+      demand: [{ product_id: 'item-flour', uom: 'kg', qty: '40.000' }],
+      soDemand: [{ product_id: 'item-flour', uom: 'kg', qty: '15.000' }],
+      poSupply: [],
+      productionSupply: [],
+    });
+
+    const row = rows[0];
+    expect(row.demand).toBe('55.000');
+    expect(row.soDemand).toBe('15.000');
+    expect(row.forecastDemand).toBe('0.000');
+    expect(row.net).toBe('45.000');
+  });
+
+  it('converts each/box SO demand via the shared pack-hierarchy machinery (NN-PLAN-4)', () => {
+    const { rows } = computeMrp({
+      items: [RM_PACKED],
+      onHand: [],
+      demand: [],
+      soDemand: [{ product_id: 'item-packed', uom: 'each', qty: '4' }],
+      poSupply: [],
+      productionSupply: [],
+    });
+
+    const row = rows[0];
+    expect(row.soDemand).toBe('2.000'); // 4 each × 0.5 kg
+    expect(row.demand).toBe('2.000');
+    expect(row.net).toBe('-2.000');
+  });
 });
