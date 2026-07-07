@@ -679,14 +679,19 @@ describe('stock count actions', () => {
     const adjustmentInserts = queries.filter((q) => normalize(q.sql).startsWith('insert into public.stock_adjustments'));
     expect(adjustmentInserts).toHaveLength(2);
     expect(adjustmentInserts.every((q) => normalize(q.sql).includes('warehouse_id, site_id, lp_id'))).toBe(true);
-    expect(adjustmentInserts.map((q) => [q.params[5], q.params[6], q.params[10]])).toEqual([
-      [LP_ID, '5', USER_ID],
-      [LP_ID_2, '2', USER_ID],
+    expect(adjustmentInserts.map((q) => [q.params[5], q.params[6], q.params[10], q.params[11]])).toEqual([
+      [LP_ID, '5', USER_ID, SUPERVISOR_ID],
+      [LP_ID_2, '2', USER_ID, SUPERVISOR_ID],
     ]);
 
     const stockMoves = queries.filter((q) => normalize(q.sql).startsWith('insert into public.stock_moves'));
     expect(stockMoves).toHaveLength(2);
     expect(stockMoves.every((q) => normalize(q.sql).includes('on conflict (org_id, transaction_id) do nothing'))).toBe(true);
+    for (const move of stockMoves) {
+      const extParam = move.params.find((p) => typeof p === 'string' && p.includes('stock_adjustment_id')) as string;
+      expect(extParam).toContain('supervisor_approved_by');
+      expect(extParam).toContain(SUPERVISOR_ID);
+    }
     expect(stockMoves.map((q) => [q.params[2], q.params[3], q.params[4], q.params[5]])).toEqual([
       [LP_ID, LOCATION_ID, null, '-5'],
       [LP_ID_2, LOCATION_ID, null, '-2'],
@@ -712,6 +717,57 @@ describe('stock count actions', () => {
 
     const { signEvent } = await import('@monopilot/e-sign');
     expect(signEvent).not.toHaveBeenCalled();
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+  });
+
+  it('single-operator large shrinkage write-off is rejected without a distinct supervisor', async () => {
+    systemQty = '1000';
+    applyLine = makeApplyLine({ system_qty: '1000', counted_qty: '0', variance_qty: '-1000', lp_id: null });
+
+    await expect(
+      approveAndApplyVariance({ countLineId: COUNT_LINE_ID, signature: { password: '123456' } }),
+    ).rejects.toThrow('supervisor_pin_required');
+
+    expect(verifyPin).not.toHaveBeenCalled();
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.stock_adjustments'))).toBe(false);
+  });
+
+  it("shrinkage apply rejects supervisor self-approval (SoD) as 'supervisor_self_approval'", async () => {
+    applyLine = makeApplyLine({ variance_qty: '-2', counted_qty: '3', lp_id: LP_ID });
+
+    await expect(
+      approveAndApplyVariance(decreaseVarianceInput({ supervisorUserId: USER_ID })),
+    ).rejects.toThrow('supervisor_self_approval');
+
+    expect(verifyPin).not.toHaveBeenCalled();
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+  });
+
+  it("shrinkage apply rejects an invalid supervisor PIN as 'supervisor_pin_invalid'", async () => {
+    verifyPin.mockResolvedValue(false);
+    applyLine = makeApplyLine({ variance_qty: '-2', counted_qty: '3', lp_id: LP_ID });
+
+    await expect(approveAndApplyVariance(decreaseVarianceInput())).rejects.toThrow('supervisor_pin_invalid');
+
+    expect(verifyPin).toHaveBeenCalledWith(SUPERVISOR_ID, '654321', expect.objectContaining({ client }));
+    expect(verifyPin).not.toHaveBeenCalledWith(USER_ID, expect.anything(), expect.anything());
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+  });
+
+  it('shrinkage apply with distinct supervisor + valid PIN records approved_by on the adjustment', async () => {
+    applyLine = makeApplyLine({ variance_qty: '-2', counted_qty: '3', lp_id: LP_ID });
+
+    await approveAndApplyVariance(decreaseVarianceInput());
+
+    const adjustment = queries.find((q) => normalize(q.sql).startsWith('insert into public.stock_adjustments'));
+    expect(adjustment?.params[10]).toBe(USER_ID);
+    expect(adjustment?.params[11]).toBe(SUPERVISOR_ID);
+
+    const move = queries.find((q) => normalize(q.sql).startsWith('insert into public.stock_moves'));
+    const extParam = move?.params.find((p) => typeof p === 'string' && p.includes('stock_adjustment_id')) as string;
+    expect(extParam).toContain('supervisor_approved_by');
+    expect(extParam).toContain(SUPERVISOR_ID);
+    expect(verifyPin).toHaveBeenCalledWith(SUPERVISOR_ID, '654321', { client });
   });
 
   it("apply blocked on cancelled session with 'count_session_not_open'", async () => {

@@ -648,7 +648,7 @@ async function selectLpsForShrinkage(
 
 async function reduceLicensePlateForShrinkage(
   ctx: WarehouseContext,
-  input: { lp: LpForShrinkage; quantity: string; countLineId: string },
+  input: { lp: LpForShrinkage; quantity: string; countLineId: string; supervisorUserId?: string | null },
 ): Promise<void> {
   const { rows } = await ctx.client.query<{ id: string; quantity: string; status: string }>(
     `update public.license_plates
@@ -686,6 +686,7 @@ async function reduceLicensePlateForShrinkage(
         adjustment_qty: input.quantity,
         quantity_before: input.lp.quantity,
         quantity_after: updated.quantity,
+        ...(input.supervisorUserId ? { supervisor_approved_by: input.supervisorUserId } : {}),
       }),
       ctx.userId,
     ],
@@ -700,16 +701,17 @@ async function insertStockAdjustment(
     adjustmentQty: string;
     lpId: string | null;
     esignRef: string;
+    approvedBy?: string | null;
   },
 ): Promise<string> {
   const { rows } = await ctx.client.query<{ id: string }>(
     `insert into public.stock_adjustments (
        org_id, count_line_id, item_id, location_id, warehouse_id, site_id, lp_id,
-       adjustment_qty, direction, reason, esign_ref, applied_by
+       adjustment_qty, direction, reason, esign_ref, applied_by, approved_by
      )
      values (
        app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid,
-       $7::numeric, $8, $9, $10::uuid, $11::uuid
+       $7::numeric, $8, $9, $10::uuid, $11::uuid, $12::uuid
      )
      returning id::text`,
     [
@@ -724,6 +726,7 @@ async function insertStockAdjustment(
       STOCK_COUNT_REASON,
       input.esignRef,
       ctx.userId,
+      input.approvedBy ?? null,
     ],
   );
   const adjustmentId = rows[0]?.id;
@@ -742,6 +745,7 @@ async function insertStockMove(
     siteId: string | null;
     uom: string;
     esignRef: string;
+    supervisorUserId?: string | null;
   },
 ): Promise<void> {
   const transactionId = uuidFromSeed(`warehouse.count.stock_move:${input.countLine.id}:${input.lpId}:${input.direction}`);
@@ -773,6 +777,7 @@ async function insertStockMove(
         stock_adjustment_id: input.adjustmentId,
         esign_ref: input.esignRef,
         direction: input.direction,
+        ...(input.supervisorUserId ? { supervisor_approved_by: input.supervisorUserId } : {}),
       }),
       ctx.userId,
     ],
@@ -788,6 +793,7 @@ async function writeStockAdjustmentAudit(
     adjustmentQty: string;
     lpId: string | null;
     esignRef: string;
+    supervisorUserId?: string | null;
   },
 ): Promise<void> {
   await ctx.client.query(
@@ -833,6 +839,7 @@ async function writeStockAdjustmentAudit(
         adjustment_qty: input.adjustmentQty,
         lp_id: input.lpId,
         esign_ref: input.esignRef,
+        ...(input.supervisorUserId ? { supervisor_approved_by: input.supervisorUserId } : {}),
       }),
       randomUUID(),
     ],
@@ -1220,6 +1227,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
           lp: leg.lp,
           quantity: leg.quantity,
           countLineId: countLineForApply.id,
+          supervisorUserId,
         });
         adjustmentLegs.push({
           lpId: leg.lp.id,
@@ -1240,6 +1248,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
           adjustmentQty: leg.quantity,
           lpId: leg.lpId,
           esignRef: signatureReceipt.signatureId,
+          approvedBy: supervisorUserId,
         });
         adjustmentId ??= legAdjustmentId;
         await insertStockMove(ctx, {
@@ -1251,6 +1260,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
           siteId: leg.siteId,
           uom: leg.uom,
           esignRef: signatureReceipt.signatureId,
+          supervisorUserId,
         });
         if (direction === 'decrease') {
           await debitWac(ctx.client, {
@@ -1286,6 +1296,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
       adjustmentQty,
       lpId: adjustedLpId,
       esignRef: signatureReceipt.signatureId,
+      supervisorUserId,
     });
 
     if (direction === 'increase') {
