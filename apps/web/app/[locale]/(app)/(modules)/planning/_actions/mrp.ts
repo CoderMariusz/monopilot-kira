@@ -876,6 +876,7 @@ async function fetchSupplierCurrency(c: QueryClient, supplierId: string): Promis
 async function resolvePlannedOrderSupplierSpecPrice(
   c: QueryClient,
   row: PlannedOrderForConversion,
+  supplierCurrency: string,
 ): Promise<PlannedOrderPrice> {
   if (!row.supplier_id) return { unitPrice: '0', resolved: false, source: 'none' };
 
@@ -901,8 +902,11 @@ async function resolvePlannedOrderSupplierSpecPrice(
   const specPrice = rows[0]?.unit_price;
   if (specPrice) return { unitPrice: specPrice, resolved: true, source: 'spec' };
 
-  // Fall back to the item's list_price_gbp — same column and org scoping as
-  // po-form-data.ts list-price fallback (PO currency comes from the supplier).
+  // list_price_gbp is GBP-denominated — only use when the supplier/PO currency is GBP.
+  if (supplierCurrency.toUpperCase() !== 'GBP') {
+    return { unitPrice: '0', resolved: false, source: 'none' };
+  }
+
   const { rows: itemRows } = await c.query<{ unit_price: string | null }>(
     `select list_price_gbp::text as unit_price
        from public.items
@@ -1115,7 +1119,9 @@ export async function convertPlannedToPo(plannedOrderIds: string[]): Promise<Mrp
       const outerCtx = { userId, orgId, client: c };
       for (const [supplierId, rows] of bySupplier) {
         const supplierCurrency = await fetchSupplierCurrency(c, supplierId);
-        const prices = await Promise.all(rows.map((row) => resolvePlannedOrderSupplierSpecPrice(c, row)));
+        const prices = await Promise.all(
+          rows.map((row) => resolvePlannedOrderSupplierSpecPrice(c, row, supplierCurrency)),
+        );
         prices.forEach((price, index) => {
           if (price.source === 'none') {
             priceWarnings.push({ id: rows[index]!.id, reason: 'missing supplier spec price' });

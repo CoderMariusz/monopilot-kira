@@ -1199,17 +1199,25 @@ describe('convertPlannedToPo', () => {
       expect(fallbackSql).toContain('app.current_org_id()');
     });
 
-    it('(b2) uses supplier currency on PO header when list_price_gbp fallback applies', async () => {
+    it('(b2) does not use list_price_gbp for non-GBP supplier — unitPrice 0 with missing-spec warning', async () => {
       supplierCurrency = 'EUR';
       supplierSpecUnitPrice = null;
       conversionRows = [baseConversionRow];
 
-      await convertPlannedToPo([PO_PLANNED_ID]);
+      const result = await convertPlannedToPo([PO_PLANNED_ID]);
 
+      expect(result).toEqual({
+        ok: true,
+        created: 1,
+        poIds: [PO_ID],
+        skipped: [],
+        priceWarnings: [{ id: PO_PLANNED_ID, reason: 'missing supplier spec price' }],
+      });
       expect(createPurchaseOrderCoreMock.mock.calls[0]?.[1]).toMatchObject({
         currency: 'EUR',
-        lines: [{ itemId: FLOUR_ID, unitPrice: '5.0000' }],
+        lines: [{ itemId: FLOUR_ID, unitPrice: '0' }],
       });
+      expect(executed.some((sql) => sql.includes('list_price_gbp'))).toBe(false);
     });
 
     it('(c) keeps unitPrice \'0\' and emits missing-spec warning only when neither spec nor list price exists', async () => {
