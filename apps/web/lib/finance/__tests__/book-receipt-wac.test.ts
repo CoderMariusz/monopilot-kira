@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   bookReceiptWacAfterGrnItem,
   BookReceiptWacError,
+  preflightReceiptWacResolvability,
 } from '../book-receipt-wac';
 
 const ORG_ID = '00000000-0000-4000-8000-00000000000a';
@@ -83,6 +84,34 @@ describe('bookReceiptWacAfterGrnItem', () => {
         { orgId: ORG_ID, userId: USER_ID, siteId: SITE_ID },
         {
           grnItemId: GRN_ITEM_ID,
+          itemId: ITEM_ID,
+          qty: '5',
+          uom: 'each',
+          poLineId: LINE_ID,
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: 'unresolved_uom',
+      uom: 'each',
+      qty: '5',
+    } satisfies Partial<BookReceiptWacError>);
+
+    expect(client.upsertCalls).toHaveLength(0);
+    expect(
+      client.calls.some(
+        (call) => normalize(call.sql).startsWith('update public.grn_items') && normalize(call.sql).includes('ext_jsonb'),
+      ),
+    ).toBe(false);
+  });
+
+  it('preflight rejects unresolvable UoM before any receipt writes', async () => {
+    const client = new BookReceiptWacMockClient({ poCurrency: 'GBP', wacResolved: false });
+
+    await expect(
+      preflightReceiptWacResolvability(
+        client,
+        { orgId: ORG_ID, userId: USER_ID, siteId: SITE_ID },
+        {
           itemId: ITEM_ID,
           qty: '5',
           uom: 'each',

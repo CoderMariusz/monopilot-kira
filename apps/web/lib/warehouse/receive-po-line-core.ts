@@ -41,6 +41,13 @@ export type ReceivePoLineCoreOptions = {
     uom: string;
     poLineId: string;
   }) => Promise<void>;
+  /** Runs after validation and warehouse resolution, before any GRN/LP/grn_item writes. */
+  preflightBeforeReceiptWrites?: (receipt: {
+    itemId: string;
+    qty: string;
+    uom: string;
+    poLineId: string;
+  }) => Promise<void>;
 };
 
 export type ReceivePoLineCoreSuccess = {
@@ -171,6 +178,13 @@ export async function executeReceivePoLineCore(
   const destWarehouseId = warehouse.id;
   const destLocationId = requestedLocation?.id ?? warehouse.default_location_id;
   const lpSiteId = options.mode === 'scanner' ? ctx.siteId : warehouse.site_id;
+
+  await options.preflightBeforeReceiptWrites?.({
+    itemId: line.item_id,
+    qty: formatDecimal(qty),
+    uom: line.uom,
+    poLineId: line.id,
+  });
 
   const grn = await getOrCreateOpenGrn(client, ctx, {
     poId: line.po_id,

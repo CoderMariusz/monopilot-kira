@@ -5,6 +5,7 @@ import {
   OPEN_PO_STATUSES,
   type ReceivePoLineCoreInput,
 } from './receive-po-line-core';
+import { BookReceiptWacError, preflightReceiptWacResolvability } from '../finance/book-receipt-wac';
 import type { QueryClient } from '../scanner/db';
 
 const ORG_A = '00000000-0000-4000-8000-00000000000a';
@@ -210,6 +211,41 @@ describe('receive-po-line-core', () => {
     const grnItemInsert = findCall(client, 'insert into public.grn_items')?.params;
     expect(grnItemInsert?.[10]).toBe(BIN_LOCATION_ID);
   });
+
+  it('runs WAC preflight before any GRN/LP/grn_item writes for unresolvable UoM', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      uom: 'each',
+      wacResolved: false,
+    });
+
+    await expect(
+      executeReceivePoLineCore(
+        client,
+        { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+        baseInput,
+        {
+          mode: 'desktop',
+          genesisReasonCode: 'desktop_receive_po',
+          genesisReasonText: 'Desktop PO receipt',
+          requireOverReceiveConfirm: true,
+          preflightBeforeReceiptWrites(receipt) {
+            return preflightReceiptWacResolvability(
+              client,
+              { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+              receipt,
+            );
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'unresolved_uom' } satisfies Partial<BookReceiptWacError>);
+
+    expect(client.calls.some((c) => c.sql.includes('insert into public.grns'))).toBe(false);
+    expect(client.calls.some((c) => c.sql.includes('insert into public.license_plates'))).toBe(false);
+    expect(client.calls.some((c) => c.sql.includes('insert into public.grn_items'))).toBe(false);
+  });
 });
 
 type FakeClient = QueryClient & { calls: Array<{ sql: string; params: readonly unknown[] }> };
@@ -222,6 +258,8 @@ function makeClient(options: {
   throwOnGrnItemsWriteAfterCompleted?: boolean;
   supplierStatus?: string;
   requestedLocationId?: string;
+  uom?: string;
+  wacResolved?: boolean;
 }): FakeClient {
   const calls: FakeClient['calls'] = [];
   let grnCompleted = false;
@@ -256,7 +294,7 @@ function makeClient(options: {
                   destination_warehouse_id: null,
                   line_no: 1,
                   ordered_qty: options.orderedQty ?? '10.000000',
-                  uom: 'kg',
+                  uom: options.uom ?? 'kg',
                   received_qty: options.receivedQty ?? '0.000000',
                   shelf_life_days: null,
                   shelf_life_mode: null,
@@ -303,6 +341,18 @@ function makeClient(options: {
       }
       if (normalized.includes('from public.tenant_variations')) {
         return { rows: [{ require_qc: false }] as T[] };
+      }
+      if (normalized.includes('select pol.item_id::text, pol.unit_price::text as unit_price')) {
+        return {
+          rows: [{ item_id: ITEM_ID, unit_price: '4.20', currency: 'GBP' }] as T[],
+        };
+      }
+      if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
+        const uom = String(params[1] ?? 'kg').toLowerCase();
+        if (options.wacResolved === false || (uom !== 'kg' && options.wacResolved !== true)) {
+          return { rows: [{ qty_kg: '0', resolved: false }] as T[] };
+        }
+        return { rows: [{ qty_kg: String(params[0] ?? '0'), resolved: true }] as T[] };
       }
       return { rows: [] as T[], rowCount: 1 };
     },
