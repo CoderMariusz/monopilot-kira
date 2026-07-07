@@ -662,6 +662,11 @@ export async function destroyLp(lpIdInput: string, reasonInput: string, clientOp
           qty: lp.quantity,
           uom: lp.uom,
           updatedBy: ctx.userId,
+          sourceRef: {
+            aggregateType: 'license_plate',
+            aggregateId: lp.id,
+            dedupKey: `warehouse-destroy:${destroyTransactionId}`,
+          },
         });
       }
 

@@ -1305,6 +1305,11 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
         qty: adjustmentQty,
         uom: varianceUom,
         updatedBy: ctx.userId,
+        sourceRef: {
+          aggregateType: 'stock_adjustment',
+          aggregateId: adjustmentId,
+          dedupKey: `warehouse-count:${countLineForApply.id}:${adjustmentId}`,
+        },
       });
     }
 

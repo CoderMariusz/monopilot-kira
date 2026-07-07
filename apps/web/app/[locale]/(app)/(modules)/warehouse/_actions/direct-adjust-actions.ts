@@ -427,6 +427,12 @@ async function insertLpStateHistory(
   );
 }
 
+/**
+ * WAC policy (NN-WH-1): qty is resolved to kg via `resolveWacDeltaQtyKg` inside the
+ * finance helpers. Increases credit at the locked pool avg_cost (no user-supplied cost —
+ * found stock inherits current valuation). Decreases debit at avg_cost; clamp underflow
+ * emits `finance.wac.underflow` via `debitWac` → `upsertWac`.
+ */
 async function applyAdjustmentWac(
   ctx: WarehouseContext,
   input: {
@@ -435,6 +441,7 @@ async function applyAdjustmentWac(
     direction: 'increase' | 'decrease';
     quantity: string;
     uom: string;
+    sourceRef?: { aggregateType: string; aggregateId: string; dedupKey: string };
   },
 ): Promise<void> {
   if (input.direction === 'increase') {
@@ -456,6 +463,7 @@ async function applyAdjustmentWac(
     qty: input.quantity,
     uom: input.uom,
     updatedBy: ctx.userId,
+    sourceRef: input.sourceRef,
   });
 }
 
@@ -717,6 +725,11 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
         direction: parsed.data.direction,
         quantity,
         uom: parsed.data.uom,
+        sourceRef: {
+          aggregateType: 'stock_adjustment',
+          aggregateId: firstAdjustmentId!,
+          dedupKey: `warehouse-direct-adjust:${transactionId}`,
+        },
       });
       // Non-null assertions are safe: legs.length was guarded > 0 before signEvent,
       // so the loop ran at least once and set both firstAdjustmentId and firstLpId.
