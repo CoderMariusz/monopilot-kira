@@ -26,7 +26,7 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listPlanningWorkOrders } from './_actions/listPlanningWorkOrders';
-import { createWorkOrder } from './_actions/createWorkOrder';
+import { createWorkOrderFromPlanning } from './_actions/createWorkOrder';
 import { deleteDraftWorkOrder, releaseWorkOrder } from './_actions/releaseWorkOrder';
 import { searchFgProducts, listProductionResources } from './_actions/wo-form-data';
 import { previewWorkOrderChain } from './_actions/chain-preview';
@@ -258,7 +258,7 @@ async function ListContent({
       autoOpenCreate={autoOpenCreate}
       labels={buildLabels(t, locale)}
       searchFgProductsAction={searchFgProducts}
-      createWorkOrderAction={(params) => createWorkOrder(params, { allowChain: true })}
+      createWorkOrderAction={createWorkOrderFromPlanning}
       releaseWorkOrderAction={releaseWorkOrder}
       deleteDraftWorkOrderAction={deleteDraftWorkOrder}
       previewChainAction={previewWorkOrderChain}

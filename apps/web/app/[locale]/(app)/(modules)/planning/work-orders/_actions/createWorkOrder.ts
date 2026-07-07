@@ -192,3 +192,12 @@ export async function createWorkOrder(
     return { ok: false, error: 'persistence_failed' };
   }
 }
+
+/** Planning New-WO entry — the ONLY caller allowed to chain (allowChain). Exists as a
+ *  named server action because the page cannot pass an inline closure across the RSC
+ *  boundary (prod digest 866337143). */
+export async function createWorkOrderFromPlanning(
+  params: CreateWorkOrderCoreParams,
+): Promise<CreateWorkOrderResult> {
+  return createWorkOrder(params, { allowChain: true });
+}
