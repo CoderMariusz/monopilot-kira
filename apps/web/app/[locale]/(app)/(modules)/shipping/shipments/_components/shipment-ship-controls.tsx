@@ -14,7 +14,7 @@
  *                          reusable pattern = the same rail action group)
  *
  * RBAC: every mutation is gated server-side (ship.pack.close for ship/BOL,
- * ship.dashboard.view for POD). `caps` are advisory server probes used ONLY to
+ * ship.bol.sign for POD). `caps` are advisory server probes used ONLY to
  * disable + tooltip the controls, NEVER trusted for authorisation; a forbidden
  * result is surfaced inline (the action returns { ok:false, error:'forbidden' }).
  *
@@ -85,7 +85,7 @@ export type ShipmentShipLabels = {
 export type ShipmentShipCaps = {
   /** ship.pack.close — gates [Ship shipment] + [Generate BOL]. */
   canShip: boolean;
-  /** ship.dashboard.view — gates [Record POD]. */
+  /** ship.bol.sign — gates [Record POD]. */
   canPod: boolean;
   /** ship.so.cancel — gates [Cancel shipment]. */
   canCancel: boolean;
@@ -113,7 +113,12 @@ export type ShipmentShipControlsProps = {
     serviceLevel?: string;
     trackingNumber?: string;
   }) => Promise<GenerateBolResult>;
-  recordPodAction: (input: { shipmentId: string; signedPdfUrl?: string }) => Promise<RecordPodResult>;
+  recordPodAction: (input: {
+    shipmentId: string;
+    signedPdfUrl: string;
+    reason: string;
+    signature: { password: string };
+  }) => Promise<RecordPodResult>;
   /** Reviewed cancelShipment seam (imported by the page, never authored here). */
   cancelShipmentAction: (input: CancelShipmentInput) => Promise<CancelShipmentResult>;
   /** Loaded-status gate mirroring cancelShipment's accepted shipment state. */

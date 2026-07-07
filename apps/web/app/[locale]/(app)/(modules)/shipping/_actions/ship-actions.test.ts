@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { signEvent } from '@monopilot/e-sign';
+
 import { generateBol, recordPod, sealShipment, shipShipment } from './ship-actions';
 
 type QueryClient = {
@@ -21,6 +23,11 @@ const PRODUCT_ID_2 = '88888888-8888-4888-8888-888888888888';
 const LINE_1 = '77777777-7777-4777-8777-777777777777';
 const LINE_2 = '88888888-8888-4888-8888-888888888888';
 const FIXED_NOW = '2026-06-23T12:34:56.000Z';
+const SIGNATURE_ID = 'sig-record-pod-001';
+
+vi.mock('@monopilot/e-sign', () => ({
+  signEvent: vi.fn(async () => ({ signatureId: SIGNATURE_ID })),
+}));
 
 let client: QueryClient;
 let grantedPermissions = new Set<string>(['ship.pack.close', 'ship.ship.confirm', 'ship.bol.sign']);
@@ -47,6 +54,7 @@ let salesOrderUpdate: Record<string, unknown> | null = null;
 let remainingShipmentCount = 0;
 let bolUpdate: Record<string, unknown> | null = null;
 let podUpdate: Record<string, unknown> | null = null;
+let podAuditEvent: Record<string, unknown> | null = null;
 let soLineAllocationDecrements: Array<{ line_id: string; qty: string }> = [];
 let outboxEvents: Array<{
   aggregateId: string;
@@ -159,10 +167,34 @@ function makeClient(): QueryClient {
         };
       }
 
-      // recordPod's status pre-check (ship-actions.ts:330) — a plain
-      // `select id::text, status from public.shipments` (no box_count join).
+      // recordPod's status pre-check — select id/status/(sales_order_id)/bol_signed_pdf_url.
+      if (q.startsWith('select id::text') && q.includes('from public.shipments') && q.includes('bol_signed_pdf_url')) {
+        return {
+          rows: [
+            {
+              id: SHIPMENT_ID,
+              status: shipmentStatus,
+              sales_order_id: SO_ID,
+              bol_signed_pdf_url: null,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      // recordPod's legacy status pre-check (other shipment selects).
       if (q.startsWith('select id::text, status') && q.includes('from public.shipments')) {
         return { rows: [{ id: SHIPMENT_ID, status: shipmentStatus }], rowCount: 1 };
+      }
+
+      if (q.startsWith('insert into public.audit_events') && q.includes('shipping.pod.recorded')) {
+        podAuditEvent = {
+          action: 'shipping.pod.recorded',
+          resource_id: params[1],
+          before_state: JSON.parse(params[2] as string) as Record<string, unknown>,
+          after_state: JSON.parse(params[3] as string) as Record<string, unknown>,
+        };
+        return { rows: [{ id: 42 }], rowCount: 1 };
       }
 
       if (q.startsWith('select lp.id::text as lp_id')) {
@@ -332,6 +364,9 @@ beforeEach(() => {
   remainingShipmentCount = 0;
   bolUpdate = null;
   podUpdate = null;
+  podAuditEvent = null;
+  vi.mocked(signEvent).mockReset();
+  vi.mocked(signEvent).mockResolvedValue({ signatureId: SIGNATURE_ID });
   soLineAllocationDecrements = [];
   outboxEvents = [];
   queryLog = [];
@@ -586,24 +621,76 @@ describe('generateBol', () => {
 });
 
 describe('recordPod', () => {
-  it('sets delivered_at and stores the signed BOL URL', async () => {
-    // recordPod now requires the shipment to be 'shipped' (proof-of-delivery
-    // follows dispatch); the prior default 'packed' is rejected by the new guard.
+  const validInput = {
+    shipmentId: SHIPMENT_ID,
+    signedPdfUrl: 'https://storage.example/pod.pdf',
+    reason: 'Carrier confirmed delivery with signed BOL.',
+    signature: { password: '1234' },
+  };
+
+  it('rejects delivery when the POD artifact URL is missing or invalid', async () => {
+    shipmentStatus = 'shipped';
+
+    await expect(recordPod({ ...validInput, signedPdfUrl: '' })).resolves.toEqual({
+      ok: false,
+      error: 'invalid_input',
+    });
+    await expect(recordPod({ ...validInput, signedPdfUrl: 'not-a-url' })).resolves.toEqual({
+      ok: false,
+      error: 'invalid_input',
+    });
+    expect(signEvent).not.toHaveBeenCalled();
+    expect(podUpdate).toBeNull();
+  });
+
+  it('rejects delivery without a valid e-sign PIN', async () => {
+    shipmentStatus = 'shipped';
+    vi.mocked(signEvent).mockRejectedValueOnce(new Error('bad pin'));
+
+    const result = await recordPod(validInput);
+
+    expect(result).toEqual({ ok: false, error: 'esign_failed' });
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'record_pod',
+        reason: validInput.reason,
+        subject: expect.objectContaining({
+          shipment_id: SHIPMENT_ID,
+          signed_pdf_url: validInput.signedPdfUrl,
+        }),
+      }),
+      expect.any(Object),
+    );
+    expect(podUpdate).toBeNull();
+    expect(podAuditEvent).toBeNull();
+  });
+
+  it('records delivered with proof URL, e-sign, and an operational audit event', async () => {
     shipmentStatus = 'shipped';
     salesOrderStatus = 'shipped';
     remainingShipmentCount = 0;
-    const result = await recordPod({
-      shipmentId: SHIPMENT_ID,
-      signedPdfUrl: 'https://storage.example/pod.pdf',
-    });
+
+    const result = await recordPod(validInput);
 
     expect(result).toEqual({ ok: true });
+    expect(signEvent).toHaveBeenCalledOnce();
     expect(podUpdate).toMatchObject({
       shipment_id: SHIPMENT_ID,
       bol_signed_pdf_url: 'https://storage.example/pod.pdf',
       updated_by: USER_ID,
     });
     expect(normalize(String(podUpdate?.sql))).toContain('delivered_at = now()');
+    expect(podAuditEvent).toMatchObject({
+      action: 'shipping.pod.recorded',
+      resource_id: SHIPMENT_ID,
+      before_state: { shipment_status: 'shipped' },
+      after_state: expect.objectContaining({
+        shipment_status: 'delivered',
+        bol_signed_pdf_url: validInput.signedPdfUrl,
+        signature_id: SIGNATURE_ID,
+        reason: validInput.reason,
+      }),
+    });
   });
 
   it('marks the SO delivered when no non-cancelled shipments remain undelivered', async () => {
@@ -611,7 +698,7 @@ describe('recordPod', () => {
     salesOrderStatus = 'partially_delivered';
     remainingShipmentCount = 0;
 
-    const result = await recordPod({ shipmentId: SHIPMENT_ID });
+    const result = await recordPod(validInput);
 
     expect(result).toEqual({ ok: true });
     expect(salesOrderUpdate).toMatchObject({
@@ -628,10 +715,9 @@ describe('recordPod', () => {
   it('marks the SO partially_delivered when a cancelled sibling would have trapped the count', async () => {
     shipmentStatus = 'shipped';
     salesOrderStatus = 'shipped';
-    // Only this shipment remains undelivered; cancelled siblings must not inflate the count.
     remainingShipmentCount = 1;
 
-    const result = await recordPod({ shipmentId: SHIPMENT_ID });
+    const result = await recordPod(validInput);
 
     expect(result).toEqual({ ok: true });
     expect(salesOrderUpdate).toMatchObject({

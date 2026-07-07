@@ -115,7 +115,12 @@ export type ShipmentPackViewProps = {
     serviceLevel?: string;
     trackingNumber?: string;
   }) => Promise<GenerateBolResult>;
-  recordPodAction: (input: { shipmentId: string; signedPdfUrl?: string }) => Promise<RecordPodResult>;
+  recordPodAction: (input: {
+    shipmentId: string;
+    signedPdfUrl: string;
+    reason: string;
+    signature: { password: string };
+  }) => Promise<RecordPodResult>;
   cancelShipmentAction: (input: CancelShipmentInput) => Promise<CancelShipmentResult>;
 };
 

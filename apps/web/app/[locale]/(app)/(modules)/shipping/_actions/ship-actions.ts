@@ -1,11 +1,15 @@
 'use server';
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+
+import { signEvent } from '@monopilot/e-sign';
+import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { debitWac } from '../../../../../../lib/finance/upsert-wac';
 import { LIVE_ALLOCATION_SQL, SHIP_CLOSED_ALLOCATION_REASON } from './so-transitions';
+import type { SalesOrderStatus } from './so-transitions';
 import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext, writeShipmentStatusInContext } from './so-status-write';
 import type {
   GenerateBolInput,
@@ -29,6 +33,17 @@ const SHIP_PACK_CLOSE = 'ship.pack.close';
 const SHIP_SHIP_CONFIRM = 'ship.ship.confirm';
 const SHIP_BOL_SIGN = 'ship.bol.sign';
 const LP_SHIPPED_EVENT_TYPE = 'warehouse.lp.shipped';
+const RECORD_POD_INTENT = 'record_pod';
+
+const recordPodInputSchema = z.object({
+  shipmentId: z.string().uuid(),
+  signedPdfUrl: z.string().trim().url(),
+  reason: z.string().trim().min(1).max(1000),
+  signature: z.object({
+    password: z.string().min(1),
+    nonce: z.string().trim().min(1).optional().nullable(),
+  }),
+});
 
 class ActionError extends Error {
   constructor(readonly code: string) {
@@ -45,6 +60,82 @@ async function requirePermission(ctx: ShippingContext, permission: string): Prom
 
 function errorCode(err: unknown): string {
   return err instanceof ActionError ? err.code : 'persistence_failed';
+}
+
+function parseRecordPodInput(input: RecordPodInput): z.infer<typeof recordPodInputSchema> | null {
+  const parsed = recordPodInputSchema.safeParse(input);
+  return parsed.success ? parsed.data : null;
+}
+
+async function signPodDelivery(
+  ctx: ShippingContext,
+  parsed: z.infer<typeof recordPodInputSchema>,
+  subject: Record<string, unknown>,
+): Promise<string> {
+  try {
+    const receipt = await signEvent(
+      {
+        signerUserId: ctx.userId,
+        pin: parsed.signature.password,
+        intent: RECORD_POD_INTENT,
+        reason: parsed.reason,
+        nonce: parsed.signature.nonce ?? undefined,
+        subject,
+      },
+      { client: ctx.client as never },
+    );
+    return receipt.signatureId;
+  } catch {
+    throw new ActionError('esign_failed');
+  }
+}
+
+async function writePodAuditEvent(
+  ctx: ShippingContext,
+  params: {
+    shipmentId: string;
+    signatureId: string;
+    beforeState: Record<string, unknown>;
+    afterState: Record<string, unknown>;
+  },
+): Promise<number> {
+  const { rows } = await ctx.client.query<{ id: number }>(
+    `insert into public.audit_events (
+       org_id,
+       actor_user_id,
+       actor_type,
+       action,
+       resource_type,
+       resource_id,
+       before_state,
+       after_state,
+       request_id,
+       retention_class
+     )
+     values (
+       app.current_org_id(),
+       $1::uuid,
+       'user',
+       'shipping.pod.recorded',
+       'shipment',
+       $2,
+       $3::jsonb,
+       $4::jsonb,
+       $5::uuid,
+       'operational'
+     )
+     returning id`,
+    [
+      ctx.userId,
+      params.shipmentId,
+      JSON.stringify(params.beforeState),
+      JSON.stringify({ ...params.afterState, signature_id: params.signatureId }),
+      randomUUID(),
+    ],
+  );
+  const auditId = rows[0]?.id;
+  if (typeof auditId !== 'number') throw new ActionError('persistence_failed');
+  return auditId;
 }
 
 function toNumber(value: unknown): number {
@@ -528,27 +619,44 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
 }
 
 export async function recordPod(input: RecordPodInput): Promise<RecordPodResult> {
+  const parsed = parseRecordPodInput(input);
+  if (!parsed) return { ok: false, error: 'invalid_input' };
+
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<RecordPodResult> => {
       const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
       const forbidden = await requirePermission(ctx, SHIP_BOL_SIGN);
       if (forbidden) return forbidden;
 
-      const { rows: shipmentRows } = await ctx.client.query<{ id: string; status: string }>(
-        `select id::text, status
+      const { rows: shipmentRows } = await ctx.client.query<{
+        id: string;
+        status: string;
+        sales_order_id: string | null;
+        bol_signed_pdf_url: string | null;
+      }>(
+        `select id::text,
+                status,
+                sales_order_id::text,
+                bol_signed_pdf_url
            from public.shipments
           where org_id = app.current_org_id()
             and id = $1::uuid
             and deleted_at is null
           limit 1`,
-        [input.shipmentId],
+        [parsed.shipmentId],
       );
       const currentShipment = shipmentRows[0];
       if (!currentShipment || currentShipment.status !== 'shipped') {
         return { ok: false, error: 'invalid_state' };
       }
 
-      const podTransition = await writeShipmentStatusInContext(ctx, input.shipmentId, 'delivered', {
+      const signatureId = await signPodDelivery(ctx, parsed, {
+        shipment_id: parsed.shipmentId,
+        signed_pdf_url: parsed.signedPdfUrl,
+        reason: parsed.reason,
+      });
+
+      const podTransition = await writeShipmentStatusInContext(ctx, parsed.shipmentId, 'delivered', {
         currentStatus: 'shipped',
       });
       if (podTransition !== 'ok') throw new ActionError('persistence_failed');
@@ -564,11 +672,12 @@ export async function recordPod(input: RecordPodInput): Promise<RecordPodResult>
             and status = 'delivered'
             and deleted_at is null
           returning id::text, sales_order_id::text`,
-        [input.shipmentId, input.signedPdfUrl ?? null, userId],
+        [parsed.shipmentId, parsed.signedPdfUrl, userId],
       );
       const shipment = rows[0];
       if (!shipment) throw new ActionError('persistence_failed');
 
+      let targetSoStatus: SalesOrderStatus | null = null;
       if (shipment.sales_order_id) {
         const soStatus = await readLockedSalesOrderStatus(ctx, shipment.sales_order_id);
         if (soStatus === 'not_found' || soStatus === 'cancelled') {
@@ -585,12 +694,28 @@ export async function recordPod(input: RecordPodInput): Promise<RecordPodResult>
           [shipment.sales_order_id],
         );
 
-        const targetSoStatus = toNumber(remainingRows[0]?.remaining_count) === 0 ? 'delivered' : 'partially_delivered';
+        targetSoStatus = toNumber(remainingRows[0]?.remaining_count) === 0 ? 'delivered' : 'partially_delivered';
         const soWrite = await writeSalesOrderStatusInContext(ctx, shipment.sales_order_id, targetSoStatus, {
           currentStatus: soStatus,
         });
         if (soWrite !== 'ok') throw new ActionError('invalid_state');
       }
+
+      await writePodAuditEvent(ctx, {
+        shipmentId: parsed.shipmentId,
+        signatureId,
+        beforeState: {
+          shipment_status: currentShipment.status,
+          sales_order_id: currentShipment.sales_order_id,
+          bol_signed_pdf_url: currentShipment.bol_signed_pdf_url,
+        },
+        afterState: {
+          shipment_status: 'delivered',
+          sales_order_status: targetSoStatus,
+          bol_signed_pdf_url: parsed.signedPdfUrl,
+          reason: parsed.reason,
+        },
+      });
 
       return { ok: true };
     });

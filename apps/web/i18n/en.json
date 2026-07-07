@@ -11491,10 +11491,24 @@
         "signedUrlLabel": "Signed POD document URL",
         "signedUrlHelp": "Link to the signed bill of lading / proof-of-delivery PDF.",
         "signedUrlPlaceholder": "https://…/signed-pod.pdf",
+        "reasonLabel": "Delivery attestation",
+        "reasonPlaceholder": "Describe how delivery was confirmed (carrier, receiver, etc.)",
         "cancel": "Cancel",
         "submit": "Mark delivered",
         "submitting": "Recording…",
-        "noPermission": "You do not have permission to record delivery for this shipment."
+        "formIncomplete": "Enter the signed POD URL, an attestation reason, and your e-sign PIN.",
+        "noPermission": "You do not have permission to record delivery for this shipment.",
+        "esign": {
+          "title": "Electronic signature",
+          "meaning": "Enter your e-sign PIN to attest this delivery — or your account password while you have no PIN enrolled. Your identity and the server time are recorded.",
+          "password": "E-sign PIN or account password",
+          "passwordPlaceholder": "E-sign PIN or account password",
+          "passwordHelp": "Your account password is accepted only while you have no e-sign PIN enrolled."
+        },
+        "errors": {
+          "invalid_input": "Enter a valid signed POD document URL.",
+          "esign_failed": "Signature failed. Check your password and try again."
+        }
       },
       "errors": {
         "forbidden": "You don’t have permission to do that.",

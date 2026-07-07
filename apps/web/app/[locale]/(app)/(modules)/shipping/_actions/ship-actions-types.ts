@@ -11,6 +11,13 @@ export type GenerateBolResult = { ok: true; bolRef: string } | { ok: false; erro
 
 export type RecordPodInput = {
   shipmentId: string;
-  signedPdfUrl?: string;
+  /** BRCGS POD retention — required, validated server-side as a non-empty URL. */
+  signedPdfUrl: string;
+  /** CFR-21 Part 11 attestation reason passed to signEvent. */
+  reason: string;
+  signature: {
+    password: string;
+    nonce?: string | null;
+  };
 };
 export type RecordPodResult = { ok: true } | { ok: false; error: string };

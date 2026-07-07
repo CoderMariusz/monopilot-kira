@@ -186,13 +186,27 @@ const packLabels: ShipmentPackLabels = {
       signedUrlLabel: 'Signed POD document URL',
       signedUrlHelp: 'Link to the signed bill of lading / proof-of-delivery PDF.',
       signedUrlPlaceholder: 'https://…/signed-pod.pdf',
+      reasonLabel: 'Delivery attestation',
+      reasonPlaceholder: 'Describe how delivery was confirmed (carrier, receiver, etc.)',
       cancel: 'Cancel',
       submit: 'Mark delivered',
       submitting: 'Recording…',
+      formIncomplete: 'Enter the signed POD URL, an attestation reason, and your e-sign PIN.',
       noPermission: 'You do not have permission to record delivery for this shipment.',
+      esign: {
+        title: 'Electronic signature',
+        meaning:
+          'Enter your e-sign PIN to attest this delivery — or your account password while you have no PIN enrolled.',
+        password: 'E-sign PIN or account password',
+        passwordPlaceholder: 'E-sign PIN or account password',
+        passwordHelp: 'Your account password is accepted only while you have no e-sign PIN enrolled.',
+      },
       errors: {
         forbidden: "You don't have permission to do that.",
         not_found: 'That shipment no longer exists.',
+        invalid_input: 'Enter a valid signed POD document URL.',
+        invalid_state: 'This shipment cannot be marked delivered in its current status.',
+        esign_failed: 'Signature failed. Check your password and try again.',
         persistence_failed: 'Something went wrong saving. Please retry.',
       },
     },
@@ -356,7 +370,12 @@ function renderPack(
     seal?: (id: string) => Promise<SealResult>;
     ship?: (id: string) => Promise<ShipResult>;
     bol?: (input: { shipmentId: string; carrier?: string; serviceLevel?: string; trackingNumber?: string }) => Promise<BolResult>;
-    pod?: (input: { shipmentId: string; signedPdfUrl?: string }) => Promise<PodResult>;
+    pod?: (input: {
+      shipmentId: string;
+      signedPdfUrl: string;
+      reason: string;
+      signature: { password: string };
+    }) => Promise<PodResult>;
     cancel?: (input: { shipmentId: string; reasonCode?: string | null; note?: string | null; signature: { password: string } }) => Promise<CancelResult>;
   } = {},
 ) {
@@ -699,7 +718,7 @@ describe('GenerateBolModal — carrier/service/tracking → generateBol', () => 
 });
 
 describe('RecordPodModal — signed POD url → recordPod', () => {
-  it('opens, calls recordPod with the signed url and stamps delivered + shows the signed BOL link', async () => {
+  it('opens, calls recordPod with the signed url, reason, and e-sign then stamps delivered + shows the signed BOL link', async () => {
     const pod = vi.fn(async () => ({ ok: true }) as PodResult);
     renderPack(makeDetail({ shipment: { ...rows[0], status: 'shipped', shippedAt: '2026-06-21T14:00:00Z' } }), { canPack: true }, undefined, { pod });
     fireEvent.click(screen.getByTestId('shipment-record-pod-trigger'));
@@ -707,11 +726,19 @@ describe('RecordPodModal — signed POD url → recordPod', () => {
     fireEvent.change(within(form).getByTestId('shipment-pod-signed-url'), {
       target: { value: 'https://files.example/signed-pod.pdf' },
     });
+    fireEvent.change(within(form).getByTestId('shipment-pod-reason'), {
+      target: { value: 'Carrier POD received with receiver signature.' },
+    });
+    fireEvent.change(within(form).getByTestId('shipment-pod-password'), {
+      target: { value: '1234' },
+    });
     fireEvent.click(screen.getByTestId('shipment-pod-submit'));
     await waitFor(() =>
       expect(pod).toHaveBeenCalledWith({
         shipmentId: SHIPMENT_ID,
         signedPdfUrl: 'https://files.example/signed-pod.pdf',
+        reason: 'Carrier POD received with receiver signature.',
+        signature: { password: '1234' },
       }),
     );
     // delivered_at stamped + signed BOL link surfaced.
@@ -723,9 +750,9 @@ describe('RecordPodModal — signed POD url → recordPod', () => {
     expect(screen.getByTestId('shipment-stage-delivered')).toHaveAttribute('data-active', 'true');
   });
 
-  it('disables the POD trigger with a permission tooltip when the user cannot record delivery', () => {
-    // Use a shipped shipment so the status gate is satisfied and the PERMISSION reason
-    // is the one surfaced (permission is checked before status).
+  it('disables the POD trigger with a permission tooltip when the user lacks ship.bol.sign', () => {
+    // Shipment read (ship.dashboard.view) without ship.bol.sign: the page must pass
+    // canPod:false so the trigger is disabled before submit, not only on recordPod.
     renderPack(
       makeDetail({ shipment: { ...rows[0], status: 'shipped', shippedAt: '2026-06-21T14:00:00Z' } }),
       { canPack: true, canPod: false },
@@ -782,6 +809,15 @@ describe('RecordPodModal — signed POD url → recordPod', () => {
     );
     fireEvent.click(screen.getByTestId('shipment-record-pod-trigger'));
     await screen.findByTestId('shipment-record-pod-form');
+    fireEvent.change(screen.getByTestId('shipment-pod-signed-url'), {
+      target: { value: 'https://files.example/signed-pod.pdf' },
+    });
+    fireEvent.change(screen.getByTestId('shipment-pod-reason'), {
+      target: { value: 'Carrier confirmed delivery.' },
+    });
+    fireEvent.change(screen.getByTestId('shipment-pod-password'), {
+      target: { value: '1234' },
+    });
     fireEvent.click(screen.getByTestId('shipment-pod-submit'));
     expect(await screen.findByTestId('shipment-pod-error')).toHaveTextContent(
       "You don't have permission to do that.",
