@@ -2,7 +2,7 @@
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { resolveSalesLinePrice } from './sales-line-price';
+import { fetchActiveCustomerItemPrices, resolveSalesLinePrice } from './sales-line-price';
 import { cancelOpenShipmentForSoInContext } from './so-shipment-release';
 import {
   deallocateSalesOrderInContext,
@@ -599,10 +599,24 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       ]),
     );
 
+    const { rows: orderDateRows } = await ctx.client.query<{ order_date: string }>(
+      `select current_date::text as order_date`,
+    );
+    const orderDate = orderDateRows[0]?.order_date ?? new Date().toISOString().slice(0, 10);
+    const customerPricesByItemId = await fetchActiveCustomerItemPrices(
+      ctx.client,
+      input.customer_id,
+      itemIds,
+      orderDate,
+    );
+
     for (const [index, line] of input.lines.entries()) {
       const item = itemsById.get(line.item_id);
       if (!item) return { ok: false, error: 'invalid_input', message: 'Unknown sales order item' };
-      const unitPriceGbp = resolveSalesLinePrice(item, { customerId: input.customer_id ?? undefined });
+      const unitPriceGbp = resolveSalesLinePrice(item, {
+        customerId: input.customer_id,
+        customerPrice: customerPricesByItemId.get(line.item_id) ?? null,
+      });
 
       await ctx.client.query(
         `insert into public.sales_order_lines

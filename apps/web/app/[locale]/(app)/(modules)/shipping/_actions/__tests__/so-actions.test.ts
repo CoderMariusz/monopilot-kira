@@ -33,6 +33,8 @@ let soNumber = 'SO-202606-00001';
 let insertedSo: Record<string, unknown> | null = null;
 let insertedLines: Array<Record<string, unknown>> = [];
 let listPriceGbp: string | null = '7.2500';
+let customerPriceRows: Array<{ item_id: string; unit_price: string; currency: string }> = [];
+let orderDate = '2026-07-07';
 let allocationRows: Array<{ sales_order_line_id: string; lp_id: string; qty: string; status: string }> = [];
 let lpReserved: Record<string, string> = {};
 let lineAllocatedQty = '0';
@@ -101,6 +103,12 @@ function makeClient(): QueryClient {
       }
       if (q.startsWith('select id::text, list_price_gbp::text as list_price_gbp')) {
         return { rows: [{ id: ITEM_ID, list_price_gbp: listPriceGbp }], rowCount: 1 };
+      }
+      if (q.includes('current_date::text as order_date')) {
+        return { rows: [{ order_date: orderDate }], rowCount: 1 };
+      }
+      if (q.includes('from public.customer_item_prices')) {
+        return { rows: customerPriceRows, rowCount: customerPriceRows.length };
       }
       if (q.startsWith('insert into public.sales_order_lines')) {
         const quantityOrdered = params[4] as string;
@@ -236,6 +244,8 @@ beforeEach(() => {
   insertedSo = null;
   insertedLines = [];
   listPriceGbp = '7.2500';
+  customerPriceRows = [];
+  orderDate = '2026-07-07';
   allocationRows = [];
   lpReserved = {};
   lineAllocatedQty = '0';
@@ -348,6 +358,39 @@ describe('createSalesOrder', () => {
       unit_price_gbp: 2.5,
       line_total_gbp: 7.5,
       ext_data: { order_uom: 'case' },
+    });
+  });
+
+  it('uses active GBP customer_item_prices over list price', async () => {
+    listPriceGbp = '10.0000';
+    customerPriceRows = [{ item_id: ITEM_ID, unit_price: '6.5000', currency: 'GBP' }];
+
+    await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [{ item_id: ITEM_ID, qty: '4', uom: 'kg' }],
+    });
+
+    expect(insertedLines[0]).toMatchObject({
+      unit_price_gbp: 6.5,
+      line_total_gbp: 26,
+    });
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('from public.customer_item_prices'))).toBe(true);
+  });
+
+  it('ignores non-GBP customer price and uses list price', async () => {
+    listPriceGbp = '3.0000';
+    customerPriceRows = [{ item_id: ITEM_ID, unit_price: '1.0000', currency: 'EUR' }];
+
+    await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [{ item_id: ITEM_ID, qty: '2', uom: 'kg' }],
+    });
+
+    expect(insertedLines[0]).toMatchObject({
+      unit_price_gbp: 3,
+      line_total_gbp: 6,
     });
   });
 

@@ -201,6 +201,55 @@ export type CustomerAllergenRestriction = InferSelectModel<typeof customerAllerg
 export type NewCustomerAllergenRestriction = InferInsertModel<typeof customerAllergenRestrictions>;
 
 // ---------------------------------------------------------------------------
+// customer_item_prices — per-customer sell price overrides (migration 459).
+// ---------------------------------------------------------------------------
+export const customerItemPrices = pgTable(
+  'customer_item_prices',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id'),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => customers.id, { onDelete: 'cascade' }),
+    itemId: uuid('item_id').notNull(),
+    unitPrice: numeric('unit_price', { precision: 12, scale: 4 }).notNull(),
+    currency: text('currency').notNull().default('GBP'),
+    effectiveFrom: date('effective_from').notNull(),
+    effectiveTo: date('effective_to'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid('created_by'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid('updated_by'),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => ({
+    orgCustomerItemEffUq: uniqueIndex('customer_item_prices_org_customer_item_eff_uq').on(
+      t.orgId,
+      t.customerId,
+      t.itemId,
+      t.effectiveFrom,
+    ),
+    orgCustomerItemIdx: index('customer_item_prices_org_customer_item_idx').on(
+      t.orgId,
+      t.customerId,
+      t.itemId,
+      t.effectiveFrom,
+    ),
+    orgItemIdx: index('customer_item_prices_org_item_idx').on(t.orgId, t.itemId),
+    unitPriceCheck: check('customer_item_prices_unit_price_nonneg', sql`${t.unitPrice} >= 0`),
+    effectiveWindowCheck: check(
+      'customer_item_prices_effective_window_check',
+      sql`${t.effectiveTo} is null or ${t.effectiveTo} >= ${t.effectiveFrom}`,
+    ),
+  }),
+);
+export type CustomerItemPrice = InferSelectModel<typeof customerItemPrices>;
+export type NewCustomerItemPrice = InferInsertModel<typeof customerItemPrices>;
+
+// ---------------------------------------------------------------------------
 // sales_orders — SO header + status machine (T-006, §9.1, §6 D-SHP-8).
 // status machine ENFORCEMENT is T-007 (Server Actions); this is schema-only.
 // ---------------------------------------------------------------------------
