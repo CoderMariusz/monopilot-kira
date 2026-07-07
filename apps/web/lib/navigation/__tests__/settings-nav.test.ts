@@ -49,6 +49,7 @@ const EXPECTED_SETTINGS_NAV = [
       // Product categories reference — shipped after this contract; synced 2026-07-06 (W2-T1).
       { key: "product-categories", label: "Product categories", icon: "🏷", highlight: true },
       { key: "partners", label: "Suppliers & customers", icon: "↔" },
+      { key: "customer-prices", label: "Customer prices", icon: "£" },
       { key: "units", label: "Units & conversions", icon: "⚖" },
       // E2B — cold-chain product temperature ranges (mig 315).
       { key: "temp-ranges", label: "Temperature ranges", icon: "❄" },
