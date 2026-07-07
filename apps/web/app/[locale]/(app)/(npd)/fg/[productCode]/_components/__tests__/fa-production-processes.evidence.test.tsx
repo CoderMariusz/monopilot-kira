@@ -25,6 +25,7 @@ vi.mock('../../../../../../../(npd)/fa/actions/update-fa-cell', () => ({
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
+  useParams: () => ({ locale: 'en', productCode: 'FG-TEST' }),
 }));
 
 import {
