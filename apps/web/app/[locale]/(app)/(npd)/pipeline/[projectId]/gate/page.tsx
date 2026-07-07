@@ -32,7 +32,7 @@ import {
 import { advanceProjectGate as advanceProjectGateAction } from '../../../../../../(npd)/pipeline/_actions/advance-project-gate';
 import { approveProjectGate as approveProjectGateAction } from '../../../../../../(npd)/pipeline/_actions/approve-project-gate';
 import { revertNpdGate as revertNpdGateAction } from '../../../../../../(npd)/pipeline/_actions/revert-npd-gate';
-import { toggleGateChecklistItem as toggleGateChecklistItemAction } from '../../../../../../(npd)/pipeline/_actions/toggle-gate-checklist-item';
+import { toggleGateChecklistAdapter } from './_actions/toggle-gate-checklist';
 import {
   GATE_ADVANCE_PERMISSION,
   GATE_APPROVE_PERMISSION,
@@ -498,16 +498,6 @@ async function approveAdapter(
   return result.ok ? { ok: true as const } : { ok: false as const, error: result.error };
 }
 
-async function toggleChecklistAdapter(input: { projectId: string; itemId: string; done: boolean }) {
-  'use server';
-  const result = await toggleGateChecklistItemAction({
-    projectId: input.projectId,
-    itemId: input.itemId,
-    completed: input.done,
-  });
-  return result.ok ? { ok: true as const } : { ok: false as const, code: result.code };
-}
-
 // revertNpdGate adapter — forwards to the EXISTING action (revert-npd-gate.ts, T2-owned).
 // The action enforces its own RBAC (GATE_ADVANCE_PERMISSION), e-sign PIN + reason, and
 // the NPD_RELEASE_LOCKED / ALREADY_AT_FIRST_GATE guards; the modal maps the returned
@@ -578,7 +568,7 @@ export default async function GatePage(propsInput: unknown = {}) {
       canAdvance={loaded.canAdvance}
       canApprove={loaded.canApprove}
       canRevert={loaded.canAdvance}
-      toggleGateChecklistItem={loaded.canWrite ? toggleChecklistAdapter : undefined}
+      toggleGateChecklistItem={loaded.canWrite ? toggleGateChecklistAdapter : undefined}
       advanceProjectGate={advanceAdapter}
       approveProjectGate={approveAdapter}
       revertProjectGate={loaded.canAdvance ? revertAdapter : undefined}

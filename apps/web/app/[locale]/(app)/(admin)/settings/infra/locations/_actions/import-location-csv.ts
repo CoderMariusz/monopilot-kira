@@ -27,25 +27,14 @@ import { getTranslations } from 'next-intl/server';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 
+import type { CsvLocationInput, CsvLocationResult } from './import-location-csv.types';
+
 // ---------------------------------------------------------------------------
 // Shared types
 // ---------------------------------------------------------------------------
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = { query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<T>> };
-
-export type CsvLocationInput = {
-  csvRowNumber: number;
-  warehouseId: string;
-  parentPath: string | null;
-  name: string;
-  level: number;
-  path: string;
-};
-
-export type CsvLocationResult =
-  | { ok: true; data?: unknown }
-  | { ok: false; error?: { code?: string; rowNumber?: number; validation?: string; message?: string } };
 
 // ---------------------------------------------------------------------------
 // Constants

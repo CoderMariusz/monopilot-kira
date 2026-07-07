@@ -36,18 +36,10 @@ import { validatePoImport, commitPoImport } from '../purchase-orders/_actions/im
 import { validateToImport, commitToImport, type ToImportRow, type ToImportResult } from '../transfer-orders/_actions/import-to';
 import { validateWoImport, commitWoImport, type WoImportRow, type WoImportResult } from '../work-orders/_actions/import-wo';
 import { canImportPurchaseOrders } from './_actions/can-import-po';
-import {
-  EntityImportCard,
-  type EntityImportCardLabels,
-} from './_components/entity-import-card.client';
-import type {
-  EntityImportWizardLabels,
-  PreviewColumn,
-} from './_components/entity-import-wizard.client';
+import { EntityImportCard } from './_components/entity-import-card.client';
 import { PoImportCard, type PoImportCardLabels } from './_components/po-import-card.client';
+import { buildToImportCardProps, buildWoImportCardProps } from './_lib/import-hub-card-props';
 import { PO_IMPORT_COLUMNS } from './_lib/parse-po-csv';
-import { TO_IMPORT_COLUMNS, TO_IMPORT_SPEC } from './_lib/to-spec';
-import { WO_IMPORT_COLUMNS, WO_IMPORT_SPEC } from './_lib/wo-spec';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,105 +109,6 @@ function buildPoCardLabels(t: Translator): PoImportCardLabels {
   };
 }
 
-/**
- * Resolve the generic wizard labels shared by TO + WO. Per-entity overrides
- * (the document noun for the "{n} ... to create" KPI, the created/result list
- * heading + CTA, and — for WO — the UoM-conversion column header) come from the
- * entity's own i18n sub-namespace so the generic wizard stays domain-agnostic.
- */
-function buildEntityWizardLabels(
-  t: Translator,
-  entity: 'to' | 'wo',
-  conversionLabel: string,
-): EntityImportWizardLabels {
-  return {
-    stepUpload: t('entityWizard.steps.upload'),
-    stepValidate: t('entityWizard.steps.validate'),
-    stepPreview: t('entityWizard.steps.preview'),
-    stepResult: t('entityWizard.steps.result'),
-    uploadTitle: t('entityWizard.upload.title'),
-    fileLabel: t('entityWizard.upload.fileLabel'),
-    orgScopedNote: t('entityWizard.upload.orgScopedNote'),
-    selectedFile: t('entityWizard.upload.selectedFile'),
-    validateCta: t('entityWizard.upload.validateCta'),
-    validateTitle: t('entityWizard.validate.title'),
-    counter: t('entityWizard.validate.counter'),
-    rowsInFile: t('entityWizard.validate.rowsInFile'),
-    okKpi: t('entityWizard.validate.okKpi'),
-    errorsKpi: t('entityWizard.validate.errorsKpi'),
-    colRow: t('entityWizard.validate.colRow'),
-    colStatus: t('entityWizard.validate.colStatus'),
-    colColumn: t('entityWizard.validate.colColumn'),
-    colIssue: t('entityWizard.validate.colIssue'),
-    colConversion: conversionLabel,
-    statusOk: t('entityWizard.validate.statusOk'),
-    statusError: t('entityWizard.validate.statusError'),
-    noRowErrors: t('entityWizard.validate.noRowErrors'),
-    downloadErrorReport: t('entityWizard.validate.downloadErrorReport'),
-    previewTitle: t('entityWizard.preview.title'),
-    docsToCreate: t(`${entity}.docsToCreate`),
-    colLines: t('entityWizard.preview.colLines'),
-    modeLabel: t('entityWizard.preview.modeLabel'),
-    modeAllOrNothing: t('entityWizard.preview.modeAllOrNothing'),
-    modeSkipInvalid: t('entityWizard.preview.modeSkipInvalid'),
-    modeHelpAllOrNothing: t('entityWizard.preview.modeHelpAllOrNothing'),
-    modeHelpSkipInvalid: t('entityWizard.preview.modeHelpSkipInvalid'),
-    commitCta: t('entityWizard.preview.commitCta'),
-    resultTitle: t('entityWizard.result.title'),
-    createdKpi: t('entityWizard.result.createdKpi'),
-    skippedKpi: t('entityWizard.result.skippedKpi'),
-    failedKpi: t('entityWizard.result.failedKpi'),
-    createdHeading: t(`${entity}.createdHeading`),
-    skippedHeading: t('entityWizard.result.skippedHeading'),
-    noCreated: t(`${entity}.noCreated`),
-    viewList: t(`${entity}.viewList`),
-    backCta: t('entityWizard.backCta'),
-    parseFailed: t('entityWizard.errors.parseFailed'),
-    headerMismatch: t('entityWizard.errors.headerMismatch'),
-    forbidden: t(`${entity}.forbidden`),
-    commitFailed: t('entityWizard.errors.commitFailed'),
-    importAnother: t('entityWizard.result.importAnother'),
-  };
-}
-
-function buildToCardLabels(t: Translator): EntityImportCardLabels {
-  return {
-    cardTitle: t('to.cardTitle'),
-    cardDesc: t('to.cardDesc'),
-    downloadTemplate: t('to.downloadTemplate'),
-    importFile: t('to.importFile'),
-    templateColumns: `${t('to.templateColumnsLabel')}: ${TO_IMPORT_COLUMNS.join(', ')}`,
-    wizard: buildEntityWizardLabels(t, 'to', t('entityWizard.validate.colIssue')),
-  };
-}
-
-function buildWoCardLabels(t: Translator): EntityImportCardLabels {
-  return {
-    cardTitle: t('wo.cardTitle'),
-    cardDesc: t('wo.cardDesc'),
-    downloadTemplate: t('wo.downloadTemplate'),
-    importFile: t('wo.importFile'),
-    templateColumns: `${t('wo.templateColumnsLabel')}: ${WO_IMPORT_COLUMNS.join(', ')}`,
-    wizard: buildEntityWizardLabels(t, 'wo', t('wo.colConversion')),
-  };
-}
-
-function toPreviewColumns(t: Translator): PreviewColumn<ToImportRow>[] {
-  return [
-    { key: 'external_ref', label: t('entityWizard.preview.colExternalRef'), value: (r) => r.external_ref ?? '', mono: true },
-    { key: 'from', label: t('to.colFromWarehouse'), value: (r) => r.from_warehouse_code ?? '', mono: true },
-    { key: 'to', label: t('to.colToWarehouse'), value: (r) => r.to_warehouse_code ?? '', mono: true },
-  ];
-}
-
-function woPreviewColumns(t: Translator): PreviewColumn<WoImportRow>[] {
-  return [
-    { key: 'external_ref', label: t('entityWizard.preview.colExternalRef'), value: (r) => r.external_ref ?? '', mono: true },
-    { key: 'fg', label: t('wo.colFinishedGood'), value: (r) => r.fg_code ?? '', mono: true },
-    { key: 'qty', label: t('wo.colQuantity'), value: (r) => `${r.qty} ${r.uom ?? ''}`.trim() },
-  ];
-}
-
 export default async function PlanningImportHubPage({ params, searchParams }: PageProps) {
   const { locale } = await params;
   const sp = await searchParams;
@@ -225,8 +118,8 @@ export default async function PlanningImportHubPage({ params, searchParams }: Pa
   // once server-side (fail-closed). The actions re-check on every call.
   const canImport = await canImportPurchaseOrders();
   const poLabels = buildPoCardLabels(t);
-  const toLabels = buildToCardLabels(t);
-  const woLabels = buildWoCardLabels(t);
+  const toCardProps = buildToImportCardProps(t, locale, sp.source === 'to');
+  const woCardProps = buildWoImportCardProps(t, locale, sp.source === 'wo');
 
   return (
     <main
@@ -250,32 +143,12 @@ export default async function PlanningImportHubPage({ params, searchParams }: Pa
             commitAction={commitPoImport}
           />
           <EntityImportCard<ToImportRow, ToImportResult['created'][number]>
-            locale={locale}
-            testid="to"
-            labels={toLabels}
-            spec={TO_IMPORT_SPEC}
-            showConversion={false}
-            previewColumns={toPreviewColumns(t)}
-            createdNumberField="to_number"
-            listPath="/planning/transfer-orders"
-            templateFilename="to-import-template.csv"
-            errorReportFilename="to-import-errors.csv"
-            autoOpen={sp.source === 'to'}
+            {...toCardProps}
             validateAction={validateToImport}
             commitAction={commitToImport}
           />
           <EntityImportCard<WoImportRow, WoImportResult['created'][number]>
-            locale={locale}
-            testid="wo"
-            labels={woLabels}
-            spec={WO_IMPORT_SPEC}
-            showConversion
-            previewColumns={woPreviewColumns(t)}
-            createdNumberField="wo_number"
-            listPath="/planning/work-orders"
-            templateFilename="wo-import-template.csv"
-            errorReportFilename="wo-import-errors.csv"
-            autoOpen={sp.source === 'wo'}
+            {...woCardProps}
             validateAction={validateWoImport}
             commitAction={commitWoImport}
           />

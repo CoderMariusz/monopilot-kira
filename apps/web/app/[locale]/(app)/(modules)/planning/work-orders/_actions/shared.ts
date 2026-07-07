@@ -38,6 +38,11 @@ export type UomConversionResult = {
   baseQty: string;
 };
 
+export type CreateWorkOrderOptions = {
+  /** When true, multi-stage FG BOMs create upstream WIP work orders (planning modal only). */
+  allowChain?: boolean;
+};
+
 export type WOHeader = {
   id: string;
   woNumber: string;

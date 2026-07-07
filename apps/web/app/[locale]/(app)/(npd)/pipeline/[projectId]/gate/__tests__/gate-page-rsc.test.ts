@@ -7,13 +7,24 @@ const PAGE = join(
   process.cwd(),
   'app/[locale]/(app)/(npd)/pipeline/[projectId]/gate/page.tsx',
 );
+const ACTION = join(
+  process.cwd(),
+  'app/[locale]/(app)/(npd)/pipeline/[projectId]/gate/_actions/toggle-gate-checklist.ts',
+);
 
 describe('NPD gate page — RSC boundary', () => {
-  it('toggleGateChecklistItem uses a named server action (no .bind closure)', () => {
-    const source = readFileSync(PAGE, 'utf8');
+  it('toggleGateChecklistItem uses a module server action (no inline adapter)', () => {
+    const pageSource = readFileSync(PAGE, 'utf8');
+    const actionSource = readFileSync(ACTION, 'utf8');
 
-    expect(source).not.toMatch(/toggleChecklistAdapter\.bind\(/);
-    expect(source).toMatch(/async function toggleChecklistAdapter\(input: \{ projectId: string; itemId: string; done: boolean \}\)/);
-    expect(source).toContain('toggleGateChecklistItem={loaded.canWrite ? toggleChecklistAdapter : undefined}');
+    expect(pageSource).not.toMatch(/toggleChecklistAdapter\.bind\(/);
+    expect(pageSource).not.toMatch(/async function toggleChecklistAdapter/);
+    expect(pageSource).toContain("import { toggleGateChecklistAdapter } from './_actions/toggle-gate-checklist'");
+    expect(pageSource).toContain('toggleGateChecklistItem={loaded.canWrite ? toggleGateChecklistAdapter : undefined}');
+
+    expect(actionSource).toContain("'use server'");
+    expect(actionSource).toMatch(/export async function toggleGateChecklistAdapter/);
+    expect(actionSource).not.toMatch(/export type /);
+    expect(actionSource).not.toMatch(/export const /);
   });
 });

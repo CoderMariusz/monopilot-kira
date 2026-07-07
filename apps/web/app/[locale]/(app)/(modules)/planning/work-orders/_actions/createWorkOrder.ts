@@ -8,16 +8,12 @@ import { createWorkOrderChainForContext, latestActiveBomHasWipLines } from './cr
 import { createWorkOrderCore, type CreateWorkOrderCoreParams } from './create-work-order-core';
 import {
   CreateWorkOrderInput,
+  type CreateWorkOrderOptions,
   type CreateWorkOrderResult,
   type OrgActionContext,
   type PlanningWorkOrderError,
   type UomConversionResult,
 } from './shared';
-
-export type CreateWorkOrderOptions = {
-  /** When true, multi-stage FG BOMs create upstream WIP work orders (planning modal only). */
-  allowChain?: boolean;
-};
 
 function mapChainError(
   error: string,
