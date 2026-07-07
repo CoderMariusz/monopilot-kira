@@ -11,6 +11,10 @@ const BOM = '55555555-5555-4555-8555-555555555555';
 const SPEC = '66666666-6666-4666-8666-666666666666';
 const PM_ITEM = '77777777-7777-4777-8777-777777777777';
 const PM_SUB = '88888888-8888-4888-8888-888888888888';
+const WIP_DEF = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const WIP_ITEM = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const WIP_PROCESS = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const RM_FLOUR = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 
 type Call = { sql: string; params: readonly unknown[] };
 
@@ -18,13 +22,20 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function createClient(handler: (sql: string, params: readonly unknown[]) => unknown[]): QueryClient & { calls: Call[] } {
+function createClient(
+  handler: (sql: string, params: readonly unknown[]) => unknown[],
+  options?: { hasProcessAssignments?: boolean },
+): QueryClient & { calls: Call[] } {
   const calls: Call[] = [];
   return {
     calls,
     async query(sql: string, params: readonly unknown[] = []) {
       calls.push({ sql, params });
-      return { rows: handler(normalize(sql), params) as never[] };
+      const normalized = normalize(sql);
+      if (normalized.includes('has_assignments')) {
+        return { rows: [{ has_assignments: options?.hasProcessAssignments ?? false }] as never[] };
+      }
+      return { rows: handler(normalized, params) as never[] };
     },
   };
 }
@@ -140,6 +151,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('select id, wo_reference, status')) return [{ id: '77777777-7777-4777-8777-777777777777', wo_reference: 'WO-1', status: 'completed' }];
       if (sql.startsWith('update public.product')) return [];
       if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
       if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
@@ -202,6 +214,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('update public.product')) return [];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
       if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
@@ -244,6 +257,7 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('update public.product')) return [];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
       if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
@@ -344,7 +358,8 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('select rm_code,')) {
         return [{ rm_code: 'RM-001', item_id: null, qty_kg: '1.250000', sequence: 1 }];
       }
-      if (sql.startsWith('select h.id, h.version')) return []; // no existing BOM
+      if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return []; // no existing BOM
       if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       if (sql.startsWith('update public.factory_specs')) return [];
@@ -409,6 +424,7 @@ describe('materializeNpdBom', () => {
         return [{ rm_code: 'RM-PORK', item_id: null, substitute_item_id: null, qty_kg: '0.300000', sequence: 1 }];
       }
       if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
       if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) {
         return [
@@ -451,6 +467,7 @@ describe('materializeNpdBom', () => {
         return [{ rm_code: 'RM-PORK', item_id: null, substitute_item_id: null, qty_kg: '0.300000', sequence: 1 }];
       }
       if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
       if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) {
         // TWO components, each with its own 95% process chain — an unlinked RM
@@ -498,6 +515,7 @@ describe('materializeNpdBom', () => {
         return [{ rm_code: 'RM-PORK', item_id: null, substitute_item_id: null, qty_kg: '0.300000', sequence: 1 }];
       }
       if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
       if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
       if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
       // Pre-existing item: INSERT hits ON CONFLICT DO NOTHING, loadItem returns the row.
@@ -641,6 +659,7 @@ describe('materializeNpdBom', () => {
       }
       if (sql.startsWith('select rm_code,')) return [];
       if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
       if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) {
         return [{ component_name: 'BOX', item_id: PM_ITEM, substitute_item_id: PM_SUB, qty: '1.000000', scrap_pct: '2.000' }];
       }
@@ -675,5 +694,169 @@ describe('materializeNpdBom', () => {
     const pmLineInsert = client.calls.find((call) => normalize(call.sql).startsWith('insert into public.bom_lines'));
     expect(pmLineInsert?.params[3]).toBe(PM_SUB);
     expect(pmLineInsert?.params[6]).toBe('4.000000');
+  });
+
+  it('with zero process assignments materializes WIP child BOM from wip_definition_ingredients only (invariance)', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '100' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [
+          {
+            rm_code: 'RM-001',
+            item_id: RM_FLOUR,
+            substitute_item_id: null,
+            qty_kg: '1.000000',
+            sequence: 1,
+            wip_definition_id: null,
+            npd_wip_process_id: null,
+          },
+          {
+            rm_code: 'WIP-DOUGH',
+            item_id: null,
+            substitute_item_id: null,
+            qty_kg: '2.000000',
+            sequence: 2,
+            wip_definition_id: WIP_DEF,
+            npd_wip_process_id: null,
+          },
+        ];
+      }
+      if (sql.startsWith('select wd.id::text as id')) {
+        return [{
+          id: WIP_DEF,
+          item_id: WIP_ITEM,
+          item_code: 'WIP-DOUGH',
+          name: 'Dough',
+          base_uom: 'kg',
+          yield_pct: '100',
+          version: 1,
+        }];
+      }
+      if (sql.startsWith('select wdi.item_id::text as item_id')) {
+        return [{ item_id: RM_FLOUR, item_code: 'RM-FLOUR', qty_per_unit: '0.500000', uom: 'kg', sequence: 1 }];
+      }
+      if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
+      if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
+      if (sql.startsWith('insert into public.items')) return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
+      if (sql.startsWith('update public.items')) return [];
+      if (sql.startsWith('select 1 from public.product')) return [];
+      if (sql.startsWith('insert into public.product')) return [];
+      if (sql.startsWith('update public.formulations')) return [];
+      if (sql.startsWith('select id, wo_reference, status')) return [];
+      if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
+      if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
+      if (sql.startsWith('insert into public.bom_lines')) return [];
+      if (sql.startsWith('update public.bom_headers')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
+      if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    });
+
+    await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    expect(client.calls.some((call) => normalize(call.sql).includes('wp.wip_definition_id = $2::uuid'))).toBe(false);
+    expect(client.calls.some((call) => normalize(call.sql).includes('from public.wip_definition_ingredients'))).toBe(true);
+    const fgLineInserts = client.calls.filter(
+      (call) => normalize(call.sql).startsWith('insert into public.bom_lines') && call.params.length === 13,
+    );
+    const wipChildLines = client.calls.filter(
+      (call) => normalize(call.sql).startsWith('insert into public.bom_lines') && call.params.length === 9,
+    );
+    expect(fgLineInserts).toHaveLength(2);
+    expect(fgLineInserts[0]?.params[4]).toBe('RM-001');
+    expect(wipChildLines).toHaveLength(1);
+    const wipChildLine = wipChildLines[0];
+    expect(wipChildLine?.params[3]).toBe('RM-FLOUR');
+    expect(wipChildLine?.params[4]).toBe('0.500000');
+  });
+
+  it('materializes WIP child BOM lines from process-assigned formulation ingredients', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '100' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [
+          {
+            rm_code: 'RM-FLOUR',
+            item_id: RM_FLOUR,
+            substitute_item_id: null,
+            qty_kg: '1.000000',
+            sequence: 1,
+            wip_definition_id: null,
+            npd_wip_process_id: WIP_PROCESS,
+          },
+          {
+            rm_code: 'WIP-DOUGH',
+            item_id: null,
+            substitute_item_id: null,
+            qty_kg: '2.000000',
+            sequence: 2,
+            wip_definition_id: WIP_DEF,
+            npd_wip_process_id: null,
+          },
+        ];
+      }
+      if (sql.startsWith('select wd.id::text as id')) {
+        return [{
+          id: WIP_DEF,
+          item_id: WIP_ITEM,
+          item_code: 'WIP-DOUGH',
+          name: 'Dough',
+          base_uom: 'kg',
+          yield_pct: '100',
+          version: 1,
+        }];
+      }
+      if (sql.startsWith('select coalesce(fi.item_id, i.id)::text as item_id')) {
+        return [{ item_id: RM_FLOUR, item_code: 'RM-FLOUR', qty_per_unit: '1.000000', uom: 'kg', sequence: 1 }];
+      }
+      if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
+      if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
+      if (sql.startsWith('insert into public.items')) return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
+      if (sql.startsWith('update public.items')) return [];
+      if (sql.startsWith('select 1 from public.product')) return [];
+      if (sql.startsWith('insert into public.product')) return [];
+      if (sql.startsWith('update public.formulations')) return [];
+      if (sql.startsWith('select id, wo_reference, status')) return [];
+      if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
+      if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
+      if (sql.startsWith('insert into public.bom_lines')) return [];
+      if (sql.startsWith('update public.bom_headers')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
+      if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    }, { hasProcessAssignments: true });
+
+    await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    const fgLineInserts = client.calls.filter(
+      (call) => normalize(call.sql).startsWith('insert into public.bom_lines') && call.params.length === 13,
+    );
+    expect(fgLineInserts).toHaveLength(1);
+    expect(fgLineInserts[0]?.params[4]).toBe('WIP-DOUGH');
+    const assignedChildLine = client.calls.find(
+      (call) => normalize(call.sql).startsWith('insert into public.bom_lines') && call.params[8] === 'npd_process_consumption',
+    );
+    expect(assignedChildLine?.params[2]).toBe(RM_FLOUR);
+    expect(assignedChildLine?.params[3]).toBe('RM-FLOUR');
+    expect(assignedChildLine?.params[4]).toBe('1.000000');
+    expect(client.calls.some((call) => normalize(call.sql).includes('from public.wip_definition_ingredients'))).toBe(false);
   });
 });

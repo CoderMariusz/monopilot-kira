@@ -2,8 +2,9 @@
  * Materialize an NPD-origin draft routing from the production-detail process chain.
  *
  * V-TEC deviations for NPD-origin drafts:
- * - V-TEC-61 is satisfied with the project-level production_line_id copied onto
- *   every operation.
+ * - V-TEC-61: each operation resolves line_id as coalesce(process.line_id,
+ *   project.production_line_id). Bail no_line only when the project has no
+ *   default line AND at least one process also lacks line_id.
  * - V-TEC-62 is relaxed when a process has no throughput_per_hour. Technical
  *   handoff still creates the draft operation, but run_time_per_unit_sec is NULL
  *   so the Technical routing editor can complete timing before activation.
@@ -48,8 +49,30 @@ export async function materializeNpdRouting(
     [projectId],
   );
   const project = projectResult.rows[0];
-  if (!project?.production_line_id) return { ok: false, code: 'no_line' };
-  if (!project.item_id) return { ok: false, code: 'no_processes' };
+  if (!project?.item_id) return { ok: false, code: 'no_processes' };
+
+  if (!project.production_line_id) {
+    const unresolvedLine = await sql.query<{ has_unresolved: boolean }>(
+      `select exists (
+         select 1
+           from public.prod_detail pd
+           join public.npd_wip_processes wp
+             on wp.org_id = pd.org_id
+            and wp.prod_detail_id = pd.id
+          where pd.org_id = app.current_org_id()
+            and pd.product_code = (
+              select p.product_code
+                from public.npd_projects p
+               where p.org_id = app.current_org_id()
+                 and p.id = $1::uuid
+               limit 1
+            )
+            and wp.line_id is null
+       ) as has_unresolved`,
+      [projectId],
+    );
+    if (unresolvedLine.rows[0]?.has_unresolved) return { ok: false, code: 'no_line' };
+  }
 
   const existing = await sql.query<ExistingRoutingRow>(
     `select id::text as id
@@ -104,12 +127,15 @@ export async function materializeNpdRouting(
   await sql.query(
     `insert into public.routing_operations
        (org_id, routing_id, op_no, op_code, op_name, line_id,
-        setup_time_min, run_time_per_unit_sec, manufacturing_operation_name, crew, yield_pct)
+        setup_time_min, setup_cost, run_time_per_unit_sec, manufacturing_operation_name, crew, yield_pct)
      with processes as (
        select wp.id,
               row_number() over (order by wp.display_order asc, wp.created_at asc, wp.id asc)::integer as op_no,
               wp.process_name,
+              wp.line_id,
               wp.throughput_per_hour,
+              wp.duration_hours,
+              wp.setup_cost,
               wp.yield_pct,
               (
                 select coalesce(
@@ -141,8 +167,9 @@ export async function materializeNpdRouting(
             p.op_no,
             'NPD-' || lpad(p.op_no::text, 3, '0'),
             p.process_name,
-            $3::uuid,
-            0,
+            coalesce(p.line_id, $3::uuid),
+            greatest(0, round(coalesce(p.duration_hours, 0) * 60))::integer,
+            nullif(p.setup_cost, 0),
             case
               when p.throughput_per_hour is null or p.throughput_per_hour <= 0 then null
               else round(3600::numeric / p.throughput_per_hour, 2)

@@ -91,6 +91,7 @@ type IngredientRow = {
   qty_kg: string | null;
   sequence: number;
   wip_definition_id: string | null;
+  npd_wip_process_id: string | null;
 };
 
 type WipDefinitionRow = {
@@ -202,7 +203,9 @@ export async function materializeNpdBom(
   }
 
   const ingredients = await loadIngredients(ctx, formulation.version_id);
-  const plainIngredients = ingredients.filter((ingredient) => !ingredient.wip_definition_id);
+  const plainIngredients = ingredients.filter(
+    (ingredient) => !ingredient.wip_definition_id && !ingredient.npd_wip_process_id,
+  );
   const wipIngredients = ingredients.filter((ingredient) => !!ingredient.wip_definition_id);
 
   const existingBom = await loadExistingActiveNpdBom(ctx, project.id, productionCode);
@@ -240,7 +243,13 @@ export async function materializeNpdBom(
 
   const item = await ensureFgItemAndProduct(ctx, project, formulation);
   await stampProductCloseoutInputs(ctx, project, item);
-  await ensureWipDefinitionBoms(ctx, wipComponents);
+  const hasProcessAssignments = await formulationHasProcessAssignments(ctx, formulation.version_id);
+  await ensureWipDefinitionBoms(
+    ctx,
+    wipComponents,
+    hasProcessAssignments ? formulation.version_id : null,
+    productionCode,
+  );
 
   const bom = existingBomMatches && existingBom ? existingBom : (expectedLines.length > 0
     ? await createActiveNpdBom(ctx, project, formulation, expectedLines, existingBom)
@@ -371,7 +380,8 @@ async function loadIngredients(ctx: OrgContextLike, versionId: string): Promise<
             substitute_item_id::text as substitute_item_id,
             qty_kg::text as qty_kg,
             sequence,
-            wip_definition_id::text as wip_definition_id
+            wip_definition_id::text as wip_definition_id,
+            npd_wip_process_id::text as npd_wip_process_id
        from public.formulation_ingredients
       where version_id = $1::uuid
         and coalesce(qty_kg, 0) > 0
@@ -379,6 +389,22 @@ async function loadIngredients(ctx: OrgContextLike, versionId: string): Promise<
     [versionId],
   );
   return rows;
+}
+
+async function formulationHasProcessAssignments(
+  ctx: OrgContextLike,
+  versionId: string,
+): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ has_assignments: boolean }>(
+    `select exists (
+       select 1
+         from public.formulation_ingredients fi
+        where fi.version_id = $1::uuid
+          and fi.npd_wip_process_id is not null
+     ) as has_assignments`,
+    [versionId],
+  );
+  return rows[0]?.has_assignments === true;
 }
 
 async function ensureFgItemAndProduct(
@@ -823,14 +849,14 @@ async function npdBomContentMatches(
 async function resolveWipComponents(
   ctx: OrgContextLike,
   wipIngredients: IngredientRow[],
-): Promise<Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number }>> {
-  const components: Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number }> = [];
+): Promise<Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number; wipDefinitionId: string }>> {
+  const components: Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number; wipDefinitionId: string }> = [];
   for (const row of wipIngredients) {
     const definitionId = row.wip_definition_id;
     if (!definitionId) continue;
     const definition = await loadWipDefinition(ctx, definitionId);
     if (!definition?.item_id || !definition.item_code) {
-      components.push({ itemId: '', itemCode: '', qtyKg: row.qty_kg ?? '0', sequence: row.sequence });
+      components.push({ itemId: '', itemCode: '', qtyKg: row.qty_kg ?? '0', sequence: row.sequence, wipDefinitionId: definitionId });
       continue;
     }
     components.push({
@@ -838,20 +864,71 @@ async function resolveWipComponents(
       itemCode: definition.item_code,
       qtyKg: row.qty_kg ?? '0',
       sequence: row.sequence,
+      wipDefinitionId: definitionId,
     });
   }
   return components;
 }
 
+async function loadProcessAssignedIngredients(
+  ctx: OrgContextLike,
+  formulationVersionId: string,
+  wipDefinitionId: string,
+  productionCode: string,
+): Promise<WipDefinitionIngredientRow[]> {
+  const { rows } = await ctx.client.query<WipDefinitionIngredientRow>(
+    `select coalesce(fi.item_id, i.id)::text as item_id,
+            coalesce(i.item_code, fi.rm_code) as item_code,
+            fi.qty_kg::text as qty_per_unit,
+            'kg' as uom,
+            fi.sequence
+       from public.formulation_ingredients fi
+       join public.npd_wip_processes wp
+         on wp.id = fi.npd_wip_process_id
+        and wp.org_id = app.current_org_id()
+       join public.prod_detail pd
+         on pd.id = wp.prod_detail_id
+        and pd.org_id = wp.org_id
+       left join public.items i
+         on i.org_id = app.current_org_id()
+        and i.item_code = fi.rm_code
+      where fi.version_id = $1::uuid
+        and wp.wip_definition_id = $2::uuid
+        and pd.product_code = $3
+        and fi.npd_wip_process_id is not null
+        and coalesce(fi.qty_kg, 0) > 0
+        and fi.wip_definition_id is null
+        and coalesce(fi.item_id, i.id) is not null
+      order by fi.sequence asc, fi.rm_code`,
+    [formulationVersionId, wipDefinitionId, productionCode],
+  );
+  return rows;
+}
+
 async function ensureWipDefinitionBoms(
   ctx: OrgContextLike,
-  wipComponents: Array<{ itemId: string; itemCode: string }>,
+  wipComponents: Array<{ itemId: string; itemCode: string; wipDefinitionId: string }>,
+  formulationVersionId: string | null,
+  productionCode: string,
 ): Promise<void> {
   const seenItemIds = new Set<string>();
   for (const component of wipComponents) {
     if (seenItemIds.has(component.itemId)) continue;
     const definition = await loadWipDefinitionByItem(ctx, component.itemId);
-    if (definition) await ensureActiveWipBom(ctx, definition);
+    if (!definition) {
+      seenItemIds.add(component.itemId);
+      continue;
+    }
+    const assignedIngredients =
+      formulationVersionId != null
+        ? await loadProcessAssignedIngredients(
+            ctx,
+            formulationVersionId,
+            component.wipDefinitionId,
+            productionCode,
+          )
+        : [];
+    await ensureActiveWipBom(ctx, definition, assignedIngredients);
     seenItemIds.add(component.itemId);
   }
 }
@@ -923,13 +1000,21 @@ async function loadWipDefinitionIngredients(
   return rows;
 }
 
-async function ensureActiveWipBom(ctx: OrgContextLike, definition: WipDefinitionRow): Promise<BomHeaderRow | null> {
+async function ensureActiveWipBom(
+  ctx: OrgContextLike,
+  definition: WipDefinitionRow,
+  assignedIngredients: WipDefinitionIngredientRow[] = [],
+): Promise<BomHeaderRow | null> {
   if (!definition.item_id || !definition.item_code) return null;
-  const ingredients = await loadWipDefinitionIngredients(ctx, definition.id);
+  const ingredients =
+    assignedIngredients.length > 0
+      ? assignedIngredients
+      : await loadWipDefinitionIngredients(ctx, definition.id);
   if (ingredients.length === 0) return null;
+  const lineSource = assignedIngredients.length > 0 ? 'npd_process_consumption' : 'npd_wip_definition';
 
   const existing = await loadActiveWipBom(ctx, definition.item_id);
-  if (existing && await wipBomContentMatches(ctx, existing.id, definition, ingredients)) {
+  if (existing && await wipBomContentMatches(ctx, existing.id, definition, ingredients, lineSource)) {
     return existing;
   }
 
@@ -963,7 +1048,7 @@ async function ensureActiveWipBom(ctx: OrgContextLike, definition: WipDefinition
           scrap_pct, manufacturing_operation_name, sequence, is_phantom, source)
        values
          (app.current_org_id(), $1::uuid, $2, $3::uuid, $4, 'RM', $5::numeric, $6,
-          0.00, $7, $8, false, 'npd_wip_definition')`,
+          0.00, $7, $8, false, $9)`,
       [
         header.id,
         index + 1,
@@ -973,6 +1058,7 @@ async function ensureActiveWipBom(ctx: OrgContextLike, definition: WipDefinition
         ingredient.uom,
         'NPD WIP definition',
         ingredient.sequence,
+        lineSource,
       ],
     );
   }
@@ -1012,12 +1098,13 @@ async function wipBomContentMatches(
   bomHeaderId: string,
   definition: WipDefinitionRow,
   ingredients: WipDefinitionIngredientRow[],
+  lineSource: string,
 ): Promise<boolean> {
   const { rows } = await ctx.client.query<{ matches: boolean }>(
     `with expected as (
        select *
          from jsonb_to_recordset($3::jsonb)
-              as x(item_id uuid, component_code text, quantity numeric, uom text, sequence int, line_no int)
+              as x(item_id uuid, component_code text, quantity numeric, uom text, sequence int, line_no int, source text)
      ),
      header_ok as (
        select true as ok
@@ -1030,19 +1117,19 @@ async function wipBomContentMatches(
      ),
      line_diff as (
        (
-         select item_id, component_code, quantity, uom, sequence, line_no
+         select item_id, component_code, quantity, uom, sequence, line_no, source
            from public.bom_lines
           where org_id = app.current_org_id()
             and bom_header_id = $1::uuid
             and component_type = 'RM'
        )
        except
-       select item_id, component_code, quantity, uom, sequence, line_no from expected
+       select item_id, component_code, quantity, uom, sequence, line_no, source from expected
        union all
-       select item_id, component_code, quantity, uom, sequence, line_no from expected
+       select item_id, component_code, quantity, uom, sequence, line_no, source from expected
        except
        (
-         select item_id, component_code, quantity, uom, sequence, line_no
+         select item_id, component_code, quantity, uom, sequence, line_no, source
            from public.bom_lines
           where org_id = app.current_org_id()
             and bom_header_id = $1::uuid
@@ -1060,6 +1147,7 @@ async function wipBomContentMatches(
         uom: ingredient.uom,
         sequence: ingredient.sequence,
         line_no: index + 1,
+        source: lineSource,
       }))),
       normalizeBomYieldPct(definition.yield_pct),
     ],
