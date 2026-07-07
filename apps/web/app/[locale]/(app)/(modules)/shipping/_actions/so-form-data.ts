@@ -26,6 +26,7 @@
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { searchItems } from '../../../../../(npd)/fa/actions/search-items';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items-types';
+import { listOrgUnits, type OrgUnitOption, type QueryClient as OrgQueryClient } from '../../planning/_actions/procurement-shared';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -73,6 +74,21 @@ export async function searchSoItems(input: SearchItemsInput = {}): Promise<ItemP
   try {
     const itemTypes = input.itemTypes && input.itemTypes.length > 0 ? input.itemTypes : (['fg'] as const);
     return await searchItems({ ...input, itemTypes: [...itemTypes] });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Active units of measure for the SO line UoM picker, read from the REAL
+ * public.unit_of_measure master (org-scoped). Replaces the page's old hardcoded
+ * {kg,g,l,…} list so units an admin adds in Settings → Units appear here.
+ */
+export async function listSoUnits(): Promise<OrgUnitOption[]> {
+  try {
+    return await withOrgContext<OrgUnitOption[]>(async (ctx) =>
+      listOrgUnits(ctx.client as unknown as OrgQueryClient),
+    );
   } catch {
     return [];
   }

@@ -47,6 +47,10 @@ export const UpsertPackagingComponentSchema = z.object({
   tier: z.enum(PACKAGING_TIERS),
   componentName: z.string().trim().min(1).max(160),
   material: z.string().trim().max(240).optional().nullable(),
+  /** FK to public.suppliers — canonical supplier reference for new/edited rows. */
+  supplierId: z.string().uuid().optional().nullable(),
+  /** Legacy free-text supplier preserved on existing rows until re-selected. */
+  legacySupplierCode: z.string().trim().max(120).optional().nullable(),
   supplierCode: z.string().trim().max(120).optional().nullable(),
   spec: z.string().trim().max(240).optional().nullable(),
   costPerUnit: COST_DECIMAL.optional().nullable(),
@@ -80,6 +84,7 @@ export type PackagingComponentRow = {
   tier: PackagingTier;
   componentName: string;
   material: string | null;
+  supplierId: string | null;
   supplierCode: string | null;
   spec: string | null;
   /** Decimal STRING (bound from NUMERIC) or null — never a JS float. */

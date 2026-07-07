@@ -41,6 +41,7 @@ import { deletePackagingComponent } from './_actions/deletePackagingComponent';
 import { uploadArtworkVersion } from './_actions/uploadArtworkVersion';
 import { listArtworkVersions } from './_actions/listArtworkVersions';
 import { deleteArtworkVersion } from './_actions/deleteArtworkVersion';
+import { listPackagingSuppliers } from './_actions/packaging-form-data';
 import { searchItems } from '../../../../../../(npd)/fa/actions/search-items';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import type { ItemSearchFn } from '../../../_components/item-picker';
@@ -112,6 +113,8 @@ const DEFAULT_LABELS: PackagingLabels = {
   fieldComponent: 'Component name',
   fieldMaterial: 'Material',
   fieldSupplier: 'Supplier',
+  supplierPlaceholder: 'Select a supplier',
+  supplierLegacyHint: '{name} (legacy)',
   fieldSpec: 'Spec',
   fieldCostUnit: 'Cost per unit (£)',
   fieldScrapPct: 'Scrap %',
@@ -177,6 +180,7 @@ type LoaderRow = {
   component_name: string;
   material: string | null;
   supplier_code: string | null;
+  supplier_id: string | null;
   spec: string | null;
   cost_per_unit: string | null;
   /** NUMERIC(5,2) — the pg driver may hand this back as a string; coerced on map. */
@@ -195,6 +199,7 @@ function toRow(r: LoaderRow): PackagingComponentRow {
     tier: r.tier as PackagingTier,
     componentName: r.component_name,
     material: r.material,
+    supplierId: r.supplier_id,
     supplierCode: r.supplier_code,
     spec: r.spec,
     costPerUnit: r.cost_per_unit,
@@ -239,7 +244,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       const productName = project.rows[0]?.product_name ?? project.rows[0]?.product_code ?? projectId;
 
       const { rows } = await queryClient.query<LoaderRow>(
-        `select id, tier, component_name, material, supplier_code, spec,
+        `select id, tier, component_name, material, supplier_id::text as supplier_id, supplier_code, spec,
                 cost_per_unit::text as cost_per_unit, coalesce(scrap_pct, 0) as scrap_pct,
                 coalesce(waste_pct, 0) as waste_pct,
                 status, artwork_file_id,
@@ -378,6 +383,7 @@ export default async function PackagingPage(propsInput: unknown = {}) {
   const labels = await buildLabels(locale);
 
   const injected = props.data !== undefined || props.state !== undefined;
+  const suppliers = injected ? [] : await listPackagingSuppliers();
   const loaded: LoaderResult = injected
     ? {
         state: props.state ?? (props.data ? 'ready' : 'empty'),
@@ -426,6 +432,7 @@ export default async function PackagingPage(propsInput: unknown = {}) {
         onDeleteArtwork={deleteArtworkAction}
         searchItemsAction={searchPackagingItemsAction}
         onUpdatePacksPerCase={loaded.canWrite ? updatePacksPerCaseAction : undefined}
+        suppliers={suppliers}
       />
       {stageSections ? (
         <StageDeptSections

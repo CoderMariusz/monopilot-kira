@@ -34,6 +34,7 @@ import Input from '@monopilot/ui/Input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { PackagingComponentModal } from './packaging-component-modal';
+import type { PackagingSupplierOption } from '../_actions/packaging-form-data';
 import type { ItemSearchFn } from '../../../../_components/item-picker';
 import type {
   PackagingComponentRow,
@@ -121,6 +122,8 @@ export type PackagingLabels = {
   fieldComponent: string;
   fieldMaterial: string;
   fieldSupplier: string;
+  supplierPlaceholder: string;
+  supplierLegacyHint: string;
   fieldSpec: string;
   fieldCostUnit: string;
   fieldScrapPct: string;
@@ -165,7 +168,8 @@ export type UpsertCall = {
   tier: PackagingTier;
   componentName: string;
   material: string | null;
-  supplierCode: string | null;
+  supplierId?: string | null;
+  legacySupplierCode?: string | null;
   spec: string | null;
   costPerUnit: string | null;
   /** % lost to damage/setup during packing (0..100). */
@@ -526,6 +530,7 @@ export function PackagingScreen({
   onUploadArtwork,
   onDeleteArtwork,
   searchItemsAction,
+  suppliers = [],
   onUpdatePacksPerCase,
 }: {
   state?: PageState;
@@ -540,6 +545,8 @@ export function PackagingScreen({
   onDeleteArtwork?: (call: ArtworkDeleteCall) => Promise<MutationOutcome>;
   /** Org-scoped item search seam for the optional packaging catalog picker. */
   searchItemsAction?: ItemSearchFn;
+  /** Active suppliers for the component supplier select. */
+  suppliers?: PackagingSupplierOption[];
   /** Persist npd_projects.packs_per_case from the packaging header. */
   onUpdatePacksPerCase?: (call: { projectId: string; packsPerCase: number }) => Promise<MutationOutcome>;
 }) {
@@ -870,6 +877,7 @@ export function PackagingScreen({
           onUpsert={onUpsert}
           onMutated={handleMutated}
           searchItemsAction={searchItemsAction}
+          suppliers={suppliers}
         />
       )}
     </main>

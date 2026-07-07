@@ -27,6 +27,7 @@ type LoaderRow = {
   component_name: string;
   material: string | null;
   supplier_code: string | null;
+  supplier_id: string | null;
   spec: string | null;
   cost_per_unit: string | null;
   /** NUMERIC(5,2) — the pg driver may hand this back as a string; coerced on map. */
@@ -67,6 +68,7 @@ export async function listPackagingComponents(raw: unknown): Promise<ListPackagi
                 tier,
                 component_name,
                 material,
+                supplier_id::text as supplier_id,
                 supplier_code,
                 spec,
                 cost_per_unit::text as cost_per_unit,
@@ -89,6 +91,7 @@ export async function listPackagingComponents(raw: unknown): Promise<ListPackagi
         tier: r.tier as PackagingTier,
         componentName: r.component_name,
         material: r.material,
+        supplierId: r.supplier_id,
         supplierCode: r.supplier_code,
         spec: r.spec,
         costPerUnit: r.cost_per_unit,

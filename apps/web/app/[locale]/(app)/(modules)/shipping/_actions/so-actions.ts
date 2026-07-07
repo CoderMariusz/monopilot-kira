@@ -2,6 +2,7 @@
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { listOrgUnits } from '../../planning/_actions/procurement-shared';
 import {
   fetchActiveCustomerItemPrices,
   resolveSalesLinePrice,
@@ -510,6 +511,17 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       orderDate,
       SO_LINE_PRICE_CURRENCY,
     );
+
+    const orgUnits = await listOrgUnits(ctx.client);
+    const validUomCodes = new Set(orgUnits.map((unit) => unit.code));
+    if (validUomCodes.size > 0) {
+      for (const line of input.lines) {
+        const uom = line.uom.trim();
+        if (!validUomCodes.has(uom)) {
+          return { ok: false, error: 'invalid_input', message: 'Unknown unit of measure' };
+        }
+      }
+    }
 
     const resolvedLines: Array<{ item_id: string; qty: string; uom: string; unitPriceGbp: string }> = [];
     for (const line of input.lines) {

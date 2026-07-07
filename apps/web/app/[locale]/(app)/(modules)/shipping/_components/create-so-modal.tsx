@@ -63,6 +63,8 @@ export type CreateSoLabels = {
   uomPlaceholder: string;
   /** Display labels for the UoM dropdown options, keyed by unit code. */
   uomOptions: UomOptionLabels;
+  /** Ordered unit codes from the org unit_of_measure master. */
+  uomUnits?: readonly string[];
   qtyPlaceholder: string;
   submit: string;
   submitting: string;
@@ -388,6 +390,7 @@ export function CreateSoModal({
                           value={line.uom}
                           onValueChange={(uom) => updateLine(line.key, { uom })}
                           labels={labels.uomOptions}
+                          {...(labels.uomUnits && labels.uomUnits.length > 0 ? { units: labels.uomUnits } : {})}
                           placeholder={labels.uomPlaceholder}
                           aria-label={labels.lineUom}
                           className="w-24"
