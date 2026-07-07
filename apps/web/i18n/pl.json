@@ -11297,6 +11297,42 @@
           "not_found": "Ta wysyłka już nie istnieje."
         }
       },
+      "deliveryNotePrint": {
+        "title": "List przewozowy / Packing list",
+        "documentNumber": "Nr dokumentu",
+        "printAction": "Drukuj / Zapisz jako PDF",
+        "back": "Wróć do wysyłki",
+        "generatedAt": "Wygenerowano {at} UTC",
+        "companyVat": "NIP: {vat}",
+        "facts": {
+          "shipment": "Wysyłka",
+          "salesOrder": "Zamówienie sprzedaży",
+          "customerPo": "PO klienta",
+          "carrier": "Przewoźnik",
+          "tracking": "Śledzenie",
+          "packedAt": "Spakowano",
+          "shippedAt": "Wysłano",
+          "none": "—"
+        },
+        "shipTo": {
+          "title": "Dostawa do",
+          "customer": "Klient"
+        },
+        "boxes": {
+          "title": "Zawartość kartonów",
+          "boxLabel": "Karton {n}",
+          "empty": "Brak spakowanych kartonów w tej wysyłce.",
+          "columns": {
+            "line": "#",
+            "item": "Produkt",
+            "lot": "Partia"
+          }
+        },
+        "totals": {
+          "boxes": "{count} karton(ów)"
+        },
+        "footer": "List przewozowy {number} — wygenerowano w MonoPilot"
+      },
       "lifecycle": {
         "title": "Cykl życia",
         "stages": {
