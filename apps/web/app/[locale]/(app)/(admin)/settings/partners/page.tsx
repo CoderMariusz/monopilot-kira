@@ -27,6 +27,8 @@ const FALLBACK = {
   suppliersDescription: 'Supplier master records, specs and scorecards (Planning).',
   customersLink: 'Manage customers',
   customersDescription: 'Customer master records used for sales orders and shipping.',
+  customerPricesLink: 'Customer prices',
+  customerPricesDescription: 'Per-customer sell price overrides used when pricing sales order lines.',
 } as const;
 
 type PartnerLabelKey = keyof typeof FALLBACK;
@@ -56,6 +58,12 @@ export default async function PartnersSettingsPage({ params }: PageProps) {
       href: `/${locale}/shipping/customers`,
       title: label('customersLink'),
       description: label('customersDescription'),
+    },
+    {
+      key: 'customer-prices',
+      href: `/${locale}/settings/customer-prices`,
+      title: label('customerPricesLink'),
+      description: label('customerPricesDescription'),
     },
   ];
 

@@ -78,6 +78,9 @@ export const SETTINGS_NAV_GROUPS = [
     item("manufacturing-ops", "  └ Manufacturing operations", "⚒", true, "/settings/reference/manufacturing-operations"),
     item("product-categories", "Product categories", "🏷", true, "/settings/reference/product-categories"),
     item("partners", "Suppliers & customers", "↔"),
+    // C7b — per-customer sell price overrides (customer_item_prices, mig 460).
+    // Sits next to partners because prices are keyed by customer + FG item.
+    item("customer-prices", "Customer prices", "£", false, "/settings/customer-prices"),
     item("units", "Units & conversions", "⚖"),
     // E2B — cold-chain product temperature ranges (mig 315). Master config that
     // drives the GRN delivery-condition check, so it sits with the other Data
