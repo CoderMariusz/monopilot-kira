@@ -124,14 +124,24 @@ export async function releaseWoOutputQa(
           }
 
           if (shouldUpdateLpQa) {
-            await ctx.client.query(
+            // Mirror warehouse lp-qa-actions.ts: qa release moves the LP lifecycle too
+            // (received -> available/blocked), and lp_state_history.from/to_state carry
+            // LIFECYCLE states (its CHECK rejects qa statuses); the QA change goes in ext_jsonb.
+            const lpUpdated = await ctx.client.query<{ status: string }>(
               `update public.license_plates
                   set qa_status = $2,
+                      status = case
+                        when $2 = 'released' and status = 'received' then 'available'
+                        when $2 = 'rejected' and status = 'received' then 'blocked'
+                        else status
+                      end,
                       updated_by = $3::uuid
                 where org_id = app.current_org_id()
-                  and id = $1::uuid`,
+                  and id = $1::uuid
+              returning status`,
               [row.lp_id, lpQaStatus, userId],
             );
+            const lpStatusTo = lpUpdated.rows[0]?.status ?? lp.status;
             await ctx.client.query(
               `insert into public.lp_state_history
                  (org_id, lp_id, from_state, to_state, reason_code, reason_text, transaction_id, ext_jsonb, created_by)
@@ -149,8 +159,8 @@ export async function releaseWoOutputQa(
                  )`,
               [
                 row.lp_id,
-                lp.qa_status,
-                lpQaStatus,
+                lp.status,
+                lpStatusTo,
                 JSON.stringify({
                   outputId,
                   outputQaStatusFrom: output.qa_status,

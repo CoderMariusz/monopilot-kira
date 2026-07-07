@@ -13,6 +13,7 @@ let outputExists = true;
 let outputQaStatus = 'PENDING';
 let outputLpId: string | null = LP_ID;
 let lpQaStatus = 'pending';
+let lpStatus = 'available';
 let activeHold = false;
 let client: QueryClient;
 
@@ -53,7 +54,7 @@ function makeClient(): QueryClient {
 
       if (normalized.startsWith('select id::text, status, qa_status from public.license_plates')) {
         return {
-          rows: [{ id: LP_ID, status: 'available', qa_status: lpQaStatus }],
+          rows: [{ id: LP_ID, status: lpStatus, qa_status: lpQaStatus }],
           rowCount: 1,
         };
       }
@@ -67,7 +68,11 @@ function makeClient(): QueryClient {
 
       if (normalized.startsWith('update public.license_plates')) {
         lpQaStatus = String(params?.[1] ?? lpQaStatus);
-        return { rows: [], rowCount: 1 };
+        // Mirror the SQL CASE: qa release moves received -> available/blocked.
+        if (lpStatus === 'received') {
+          lpStatus = lpQaStatus === 'released' ? 'available' : lpQaStatus === 'rejected' ? 'blocked' : lpStatus;
+        }
+        return { rows: [{ status: lpStatus }], rowCount: 1 };
       }
 
       if (normalized.startsWith('insert into public.lp_state_history')) {
@@ -86,6 +91,7 @@ describe('releaseWoOutputQa', () => {
     outputQaStatus = 'PENDING';
     outputLpId = LP_ID;
     lpQaStatus = 'pending';
+    lpStatus = 'available';
     activeHold = false;
     client = makeClient();
   });
@@ -114,6 +120,23 @@ describe('releaseWoOutputQa', () => {
     expect(calls.some((call) => call.sql.startsWith('update public.license_plates') && call.params?.[1] === 'released')).toBe(true);
     const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
     expect(history?.params?.[3]).toContain('"outputQaStatusTo":"PASSED"');
+    expect(history?.params?.[3]).toContain('"qaStatusTo":"released"');
+  });
+
+  it('writes LIFECYCLE states (not qa statuses) to lp_state_history and moves received -> available on PASS', async () => {
+    // Regression for the owner-reported "Unable to update output QA": the history insert
+    // passed qa statuses into from/to_state, violating lp_state_history_*_state_check (23514).
+    lpStatus = 'received';
+
+    const result = await releaseWoOutputQa({ outputId: OUTPUT_ID, decision: 'PASSED' });
+
+    expect(result.ok).toBe(true);
+    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(sql), params }));
+    const lpUpdate = calls.find((call) => call.sql.startsWith('update public.license_plates'));
+    expect(lpUpdate?.sql).toContain("when $2 = 'released' and status = 'received' then 'available'");
+    const history = calls.find((call) => call.sql.startsWith('insert into public.lp_state_history'));
+    expect(history?.params?.[1]).toBe('received');
+    expect(history?.params?.[2]).toBe('available');
     expect(history?.params?.[3]).toContain('"qaStatusTo":"released"');
   });
 
