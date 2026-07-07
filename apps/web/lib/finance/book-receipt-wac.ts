@@ -1,4 +1,4 @@
-import { resolveWacDeltaQtyKg, upsertWac, WAC_VALUATION_CURRENCY_CODE } from './upsert-wac';
+import { resolveWacDeltaQtyKg, upsertWac } from './upsert-wac';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -6,6 +6,20 @@ type QueryClient = {
     params?: readonly unknown[],
   ): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
+
+export type BookReceiptWacErrorCode = 'unknown_currency';
+
+export class BookReceiptWacError extends Error {
+  readonly code: BookReceiptWacErrorCode;
+  readonly currencyCode: string;
+
+  constructor(currencyCode: string) {
+    super(`Unknown currency code for WAC booking: ${currencyCode}`);
+    this.name = 'BookReceiptWacError';
+    this.code = 'unknown_currency';
+    this.currencyCode = currencyCode;
+  }
+}
 
 export type ReceiptWacContext = {
   orgId: string;
@@ -58,6 +72,8 @@ export async function bookReceiptWacAfterGrnItem(
 
   const receivedQtyKg = wacResolution.qtyKg;
   const receivedValue = await multiplyNumeric(client, receipt.qty, line.unit_price);
+  const currencyCode = normalizeCurrencyCode(line.currency);
+  await assertResolvableCurrency(client, currencyCode);
   await upsertWac(client, {
     orgId: ctx.orgId,
     siteId: ctx.siteId,
@@ -65,7 +81,7 @@ export async function bookReceiptWacAfterGrnItem(
     deltaQtyKg: receivedQtyKg,
     deltaValue: receivedValue,
     updatedBy: ctx.userId,
-    currencyCode: WAC_VALUATION_CURRENCY_CODE,
+    currencyCode,
   });
   await client.query(
     `update public.grn_items
@@ -77,7 +93,11 @@ export async function bookReceiptWacAfterGrnItem(
     [
       ctx.orgId,
       ctx.userId,
-      JSON.stringify({ wac_qty_kg: receivedQtyKg, wac_value: receivedValue }),
+      JSON.stringify({
+        wac_qty_kg: receivedQtyKg,
+        wac_value: receivedValue,
+        wac_currency_code: currencyCode,
+      }),
       receipt.grnItemId,
     ],
   );
@@ -102,6 +122,24 @@ async function loadLineUnitPrice(
     [orgId, poLineId],
   );
   return rows[0] ?? null;
+}
+
+function normalizeCurrencyCode(currency: string | null | undefined): string {
+  const normalized = currency?.trim().toUpperCase();
+  return normalized && normalized.length === 3 ? normalized : 'GBP';
+}
+
+async function assertResolvableCurrency(client: QueryClient, currencyCode: string): Promise<void> {
+  const { rows } = await client.query<{ id: string }>(
+    `select id::text
+       from public.currencies
+      where code = $1::text
+      limit 1`,
+    [currencyCode],
+  );
+  if (!rows[0]?.id) {
+    throw new BookReceiptWacError(currencyCode);
+  }
 }
 
 async function multiplyNumeric(client: QueryClient, left: string, right: string | null): Promise<string> {

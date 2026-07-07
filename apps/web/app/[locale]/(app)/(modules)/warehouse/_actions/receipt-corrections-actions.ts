@@ -6,7 +6,11 @@ import { z } from 'zod';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import { CORRECTION_REASON_CODES } from '../../../../../../lib/corrections/correct-ledger-entry';
-import { resolveWacDeltaQtyKg, upsertWac } from '../../../../../../lib/finance/upsert-wac';
+import {
+  resolveWacDeltaQtyKg,
+  upsertWac,
+  WAC_VALUATION_CURRENCY_CODE,
+} from '../../../../../../lib/finance/upsert-wac';
 import { toMicro } from '../../../../../../lib/shared/decimal';
 import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import {
@@ -72,6 +76,7 @@ type GrnLineForCancel = {
   cancelled_at: string | null;
   qa_status_initial: string;
   ext_jsonb: unknown;
+  po_currency: string | null;
 };
 
 type LicensePlateForCancel = {
@@ -120,11 +125,33 @@ function negateDecimalString(value: string): string {
   return `-${trimmed}`;
 }
 
-function readWacContributionSnapshot(extJsonb: unknown): { wac_qty_kg: string; wac_value: string } | null {
+function readWacContributionSnapshot(
+  extJsonb: unknown,
+): { wac_qty_kg: string; wac_value: string; wac_currency_code?: string } | null {
   if (extJsonb == null || typeof extJsonb !== 'object' || Array.isArray(extJsonb)) return null;
-  const snapshot = extJsonb as { wac_qty_kg?: unknown; wac_value?: unknown };
+  const snapshot = extJsonb as {
+    wac_qty_kg?: unknown;
+    wac_value?: unknown;
+    wac_currency_code?: unknown;
+  };
   if (typeof snapshot.wac_qty_kg !== 'string' || typeof snapshot.wac_value !== 'string') return null;
-  return { wac_qty_kg: snapshot.wac_qty_kg, wac_value: snapshot.wac_value };
+  return {
+    wac_qty_kg: snapshot.wac_qty_kg,
+    wac_value: snapshot.wac_value,
+    wac_currency_code:
+      typeof snapshot.wac_currency_code === 'string' ? snapshot.wac_currency_code : undefined,
+  };
+}
+
+function resolveReceiptWacCurrencyCode(input: {
+  snapshot?: { wac_currency_code?: string };
+  poCurrency: string | null;
+}): string {
+  const fromSnapshot = input.snapshot?.wac_currency_code?.trim().toUpperCase();
+  if (fromSnapshot && fromSnapshot.length === 3) return fromSnapshot;
+  const fromPo = input.poCurrency?.trim().toUpperCase();
+  if (fromPo && fromPo.length === 3) return fromPo;
+  return WAC_VALUATION_CURRENCY_CODE;
 }
 
 async function multiplyNumeric(client: QueryClient, left: string, right: string | null): Promise<string> {
@@ -147,7 +174,8 @@ async function loadGrnLineForUpdate(ctx: WarehouseContext, grnItemId: string): P
             pol.unit_price::text as unit_price,
             gi.cancelled_at::text,
             gi.qa_status_initial,
-            gi.ext_jsonb
+            gi.ext_jsonb,
+            po.currency as po_currency
        from public.grn_items gi
        left join public.grns g
          on g.org_id = gi.org_id
@@ -155,6 +183,9 @@ async function loadGrnLineForUpdate(ctx: WarehouseContext, grnItemId: string): P
        left join public.purchase_order_lines pol
          on pol.org_id = gi.org_id
         and pol.id = gi.po_line_id
+       left join public.purchase_orders po
+         on po.org_id = pol.org_id
+        and po.id = pol.po_id
       where gi.org_id = app.current_org_id()
         and gi.id = $1::uuid
       limit 1
@@ -429,6 +460,10 @@ export async function cancelGrnLine(input: unknown): Promise<
       );
 
       const wacSnapshot = readWacContributionSnapshot(line.ext_jsonb);
+      const wacCurrencyCode = resolveReceiptWacCurrencyCode({
+        snapshot: wacSnapshot ?? undefined,
+        poCurrency: line.po_currency,
+      });
       let deltaQtyKg: string | undefined;
       let deltaValue: string | undefined;
       if (wacSnapshot) {
@@ -457,11 +492,12 @@ export async function cancelGrnLine(input: unknown): Promise<
       if (deltaQtyKg !== undefined && deltaValue !== undefined) {
         await upsertWac(ctx.client, {
           orgId,
-          siteId: null,
+          siteId: lp.lp_site_id,
           itemId: line.item_id,
           deltaQtyKg,
           deltaValue,
           updatedBy: userId,
+          currencyCode: wacCurrencyCode,
         });
       }
 
