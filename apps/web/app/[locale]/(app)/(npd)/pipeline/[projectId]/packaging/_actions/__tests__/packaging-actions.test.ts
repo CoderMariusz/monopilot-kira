@@ -30,6 +30,7 @@ const ctx = {
   componentExists: true,
   // Whether packaging item lookup returns a packaging row.
   packagingItemExists: true,
+  insertReturnsId: true,
   calls: [] as Call[],
 };
 
@@ -58,7 +59,7 @@ function fakeClient() {
       }
       // INSERT / UPDATE / DELETE returning id.
       if (s.includes('returning id')) {
-        return { rows: [{ id: 'new-component-id' }] };
+        return { rows: ctx.insertReturnsId ? [{ id: 'new-component-id' }] : [] };
       }
       // Listing query.
       if (s.includes('from public.packaging_components')) {
@@ -94,6 +95,7 @@ beforeEach(() => {
   ctx.projectExists = true;
   ctx.componentExists = true;
   ctx.packagingItemExists = true;
+  ctx.insertReturnsId = true;
   ctx.calls = [];
 });
 afterEach(() => vi.clearAllMocks());
@@ -168,6 +170,14 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
 
     const audit = ctx.calls.find((c) => /insert into\s+public\.audit_log/i.test(c.sql));
     expect(audit).toBeTruthy();
+  });
+
+  it('returns persistence_failed without audit when insert returns no id (rollback path)', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    ctx.insertReturnsId = false;
+    const res = await upsertPackagingComponent(valid);
+    expect(res).toEqual({ ok: false, error: 'persistence_failed' });
+    expect(ctx.calls.some((c) => /insert into\s+public\.audit_log/i.test(c.sql))).toBe(false);
   });
 
   it('defaults scrap_pct to 0 when omitted and binds it ::numeric in the INSERT', async () => {

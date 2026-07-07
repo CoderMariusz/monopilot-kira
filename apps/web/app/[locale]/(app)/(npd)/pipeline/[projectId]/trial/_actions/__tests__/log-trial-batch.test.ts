@@ -148,6 +148,23 @@ describe('logTrialBatch — validation + RBAC + duplicate', () => {
     const r = await logTrialBatch(VALID);
     expect(r).toEqual({ ok: true, data: { id: 'tb-42', trialNo: 'T-012', result: 'pass' } });
   });
+
+  it('returns persistence_failed without writing audit when insert returns no id (rollback path)', async () => {
+    let auditWrites = 0;
+    ctx.handler = (sql) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.npd_projects')) return { rows: [{ id: PROJECT }] };
+      if (sql.includes('insert into public.trial_batches')) return { rows: [] };
+      if (sql.includes('insert into public.audit_log')) {
+        auditWrites += 1;
+        return { rows: [] };
+      }
+      return { rows: [] };
+    };
+    const r = await logTrialBatch(VALID);
+    expect(r).toEqual({ ok: false, error: 'persistence_failed' });
+    expect(auditWrites).toBe(0);
+  });
 });
 
 describe('updateTrialBatch — RBAC + not_found + success', () => {

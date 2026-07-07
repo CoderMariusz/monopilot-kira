@@ -22,6 +22,9 @@ import base from '../../tooling/eslint/base.mjs';
  * - Cannot distinguish pre-write (safe) from post-write (dangerous) returns.
  * - Misses helpers called from the withOrgContext callback.
  * - Misses computed/spread `ok` values.
+ *
+ * Multi-write transaction boundary is enforced in CI by
+ * apps/web/tests/multi-write-transaction-contract.test.ts (AST scan).
  */
 const monopilotPlugin = {
   rules: {
