@@ -6,6 +6,7 @@ import {
   type OrgActionContext,
 } from '../../planning/work-orders/_actions/shared';
 import { sequenceWorkOrders, DEFAULT_SEQUENCE_SOLVER_CONFIG } from './sequence-solver';
+import { loadPmWindows, pmBlockHoursFromConfigParams } from './pm-windows';
 import type {
   ApplyScheduleResult,
   ChangeoverMatrixEntry,
@@ -667,6 +668,14 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
         loadChangeoverMatrixForRun(ctx, lineId),
       ]);
       const solverConfig = solverConfigFromRow(schedulerConfig);
+      if (solverConfig.respectPmWindows) {
+        solverConfig.pmWindows = await loadPmWindows(
+          ctx,
+          lineId,
+          horizonDays,
+          pmBlockHoursFromConfigParams(schedulerConfig?.params),
+        );
+      }
       const sequenced = sequenceWorkOrders(workOrders, matrix, solverConfig);
       const solveDurationMs = Date.now() - started;
       const run = await insertSchedulerRun(ctx, {

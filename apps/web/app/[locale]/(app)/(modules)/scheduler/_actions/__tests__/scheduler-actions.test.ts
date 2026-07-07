@@ -172,11 +172,27 @@ function makeClient(): QueryClient {
               utilization_weight: '1.0000',
               respect_pm_windows: true,
               allow_alternate_routings: false,
-              params: {},
+              params: { pm_block_hours: 3 },
               created_by: null,
               updated_by: null,
               created_at: '2026-06-01T00:00:00.000Z',
               updated_at: '2026-06-01T00:00:00.000Z',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      if (
+        q.includes('from public.maintenance_work_orders') ||
+        q.includes('from public.maintenance_schedules')
+      ) {
+        return {
+          rows: [
+            {
+              line_id: LINE_ID,
+              start_at: '2026-06-24T13:00:00.000Z',
+              end_at: '2026-06-24T16:00:00.000Z',
             },
           ],
           rowCount: 1,
@@ -350,6 +366,16 @@ describe('runScheduler', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(calls.some((call) => normalize(call.sql).includes('from public.scheduler_config'))).toBe(true);
+  });
+
+  it('loads PM windows from maintenance when respect_pm_windows is enabled', async () => {
+    const result = await runScheduler({ lineId: LINE_ID });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(
+      calls.some((call) => normalize(call.sql).includes('from public.maintenance_work_orders')),
+    ).toBe(true);
   });
 });
 

@@ -327,6 +327,35 @@ describe('sequenceWorkOrders', () => {
     expect(result[1].planned_start_at).toBe('2026-06-25T00:00:00.000Z');
   });
 
+  it('without capacity config keeps back-to-back sequencing from now (invariance)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const first = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T10:00:00.000Z',
+    });
+    const second = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['soy'],
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T11:00:00.000Z',
+    });
+
+    const withDefault = sequenceWorkOrders([first, second], [], DEFAULT_SEQUENCE_SOLVER_CONFIG);
+    const explicitNull = sequenceWorkOrders([first, second], [], {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      capacityHoursPerDay: null,
+    });
+
+    expect(withDefault).toEqual(explicitNull);
+    expect(withDefault[0].planned_start_at).toBe('2026-06-24T12:00:00.000Z');
+    expect(withDefault[1].planned_start_at).toBe('2026-06-24T14:00:00.000Z');
+  });
+
   it('avoids PM windows when respectPmWindows is enabled', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
@@ -358,5 +387,32 @@ describe('sequenceWorkOrders', () => {
     });
 
     expect(result[1].planned_start_at).toBe('2026-06-24T15:00:00.000Z');
+  });
+
+  it('matches default sequencing when capacityHoursPerDay is null (empty config invariance)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const first = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T10:00:00.000Z',
+    });
+    const second = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['soy'],
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T11:00:00.000Z',
+    });
+
+    const baseline = sequenceWorkOrders([first, second], [], DEFAULT_SEQUENCE_SOLVER_CONFIG);
+    const withNullCapacity = sequenceWorkOrders([first, second], [], {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      capacityHoursPerDay: null,
+    });
+
+    expect(withNullCapacity).toEqual(baseline);
   });
 });

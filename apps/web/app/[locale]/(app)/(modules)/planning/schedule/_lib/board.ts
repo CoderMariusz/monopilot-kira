@@ -50,6 +50,15 @@ export type ScheduleCapacityBlock = {
   blockType: string;
 };
 
+export type ScheduleLineDayUtilization = {
+  lineId: string;
+  dayKey: string; // YYYY-MM-DD (UTC)
+  scheduledHours: number;
+  capacityHours: number | null;
+  /** null when capacityHours is null or zero. */
+  utilizationPct: number | null;
+};
+
 export type ScheduleBoardData = {
   windowStart: string; // ISO, UTC midnight today
   windowEnd: string; // ISO, windowStart + 7d
@@ -57,6 +66,8 @@ export type ScheduleBoardData = {
   scheduled: ScheduleBoardWo[];
   unscheduled: ScheduleBoardWo[];
   capacityBlocks: ScheduleCapacityBlock[];
+  /** Per-line/day finite-capacity utilisation from scheduler_config + scheduled WOs. */
+  lineDayUtilization: ScheduleLineDayUtilization[];
 };
 
 export type BarInterval = {
@@ -139,4 +150,86 @@ export function windowDayKeys(windowStartIso: string, days: number = BOARD_WINDO
   return Array.from({ length: days }, (_, i) =>
     new Date(startMs + i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
   );
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Milliseconds of [startMs, endMs) overlapping a UTC day bucket. */
+export function overlapMsWithUtcDay(startMs: number, endMs: number, dayStartMs: number): number {
+  const dayEndMs = dayStartMs + DAY_MS;
+  const overlapStart = Math.max(startMs, dayStartMs);
+  const overlapEnd = Math.min(endMs, dayEndMs);
+  return Math.max(0, overlapEnd - overlapStart);
+}
+
+function numericCapacity(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function resolveLineCapacityHours(
+  lineId: string,
+  perLine: Map<string, number | null>,
+  orgDefault: number | null,
+): number | null {
+  if (perLine.has(lineId)) return perLine.get(lineId) ?? null;
+  return orgDefault;
+}
+
+/**
+ * Aggregate scheduled WO hours per line/day and compare to scheduler_config capacity.
+ * `capacityRows` uses null line_id for the org-wide default.
+ */
+export function computeLineDayUtilization(input: {
+  lines: readonly ScheduleBoardLine[];
+  scheduled: readonly ScheduleBoardWo[];
+  capacityRows: ReadonlyArray<{ line_id: string | null; capacity_hours_per_day: string | number | null }>;
+  windowStartIso: string;
+  days?: number;
+}): ScheduleLineDayUtilization[] {
+  const days = input.days ?? BOARD_WINDOW_DAYS;
+  const windowStartMs = Date.parse(input.windowStartIso);
+  const dayKeys = windowDayKeys(input.windowStartIso, days);
+
+  const perLine = new Map<string, number | null>();
+  let orgDefault: number | null = null;
+  for (const row of input.capacityRows) {
+    const hours = numericCapacity(row.capacity_hours_per_day);
+    if (row.line_id === null) orgDefault = hours;
+    else perLine.set(row.line_id, hours);
+  }
+
+  const scheduledHours = new Map<string, number>();
+  for (const wo of input.scheduled) {
+    const interval = barInterval(wo);
+    if (!interval?.lineId) continue;
+    for (let index = 0; index < days; index += 1) {
+      const dayStartMs = windowStartMs + index * DAY_MS;
+      const overlapMs = overlapMsWithUtcDay(interval.startMs, interval.endMs, dayStartMs);
+      if (overlapMs <= 0) continue;
+      const key = `${interval.lineId}|${dayKeys[index]}`;
+      scheduledHours.set(key, (scheduledHours.get(key) ?? 0) + overlapMs / (60 * 60 * 1000));
+    }
+  }
+
+  const results: ScheduleLineDayUtilization[] = [];
+  for (const line of input.lines) {
+    const capacityHours = resolveLineCapacityHours(line.id, perLine, orgDefault);
+    for (const dayKey of dayKeys) {
+      const key = `${line.id}|${dayKey}`;
+      const hours = scheduledHours.get(key) ?? 0;
+      if (hours <= 0 && capacityHours === null) continue;
+      const utilizationPct =
+        capacityHours !== null && capacityHours > 0 ? (hours / capacityHours) * 100 : null;
+      results.push({
+        lineId: line.id,
+        dayKey,
+        scheduledHours: Math.round(hours * 100) / 100,
+        capacityHours,
+        utilizationPct: utilizationPct === null ? null : Math.round(utilizationPct * 10) / 10,
+      });
+    }
+  }
+  return results;
 }

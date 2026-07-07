@@ -103,6 +103,8 @@ function makeData(over: Partial<ScheduleBoardData> = {}): ScheduleBoardData {
         scheduledEnd: null,
       }),
     ],
+    capacityBlocks: [],
+    lineDayUtilization: [],
     ...over,
   };
 }
