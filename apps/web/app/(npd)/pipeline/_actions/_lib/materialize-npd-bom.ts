@@ -1,4 +1,13 @@
 import { cascadeAllergensForChangedItem } from '../../../../../lib/technical/allergens/cascade';
+import { buildGraph, detectCycle } from '../../../../[locale]/(app)/(modules)/technical/bom/_actions/cycle-detection';
+import {
+  AUDIT_BOM_PUBLISH,
+  EVENT_FG_BOM_RELEASED,
+  formatRmUsabilityFailures,
+  validateBomLineRmUsability,
+  writeAudit,
+  writeOutbox,
+} from '../../../../[locale]/(app)/(modules)/technical/bom/_actions/shared';
 import { type GateProjectRow } from './gate-helpers';
 import {
   compoundedYieldPctForComponent,
@@ -6,6 +15,17 @@ import {
   type ProductProcessYields,
 } from './product-process-yields';
 import { type OrgContextLike } from '../shared';
+
+/** Thrown when NPD FG BOM activation fails canonical V-TEC-13/14 guards (publishBom parity). */
+export class NpdBomActivationValidationError extends Error {
+  readonly code: 'V-TEC-13' | 'V-TEC-14';
+
+  constructor(code: 'V-TEC-13' | 'V-TEC-14', message: string) {
+    super(message);
+    this.name = 'NpdBomActivationValidationError';
+    this.code = code;
+  }
+}
 
 // FG-002 rename DEFERRED. The production-vs-NPD code split (FG-NPD-002 → FG-002) is
 // entangled with the product→items merge (owner decision #1): the release-gate probe
@@ -767,6 +787,37 @@ async function loadExistingActiveNpdBom(
   return rows[0] ?? null;
 }
 
+async function validateNpdBomActivationGuards(
+  ctx: OrgContextLike,
+  productCode: string,
+  lines: ExpectedBomLine[],
+): Promise<void> {
+  const components = lines.map((line) => line.component_code);
+  const { rows: edgeRows } = await ctx.client.query<{ parent: string; component: string }>(
+    `select i.item_code as parent, l.component_code as component
+       from public.bom_headers h
+       join public.items i on i.id = h.item_id and i.org_id = h.org_id
+       join public.bom_lines l on l.bom_header_id = h.id and l.org_id = h.org_id
+      where h.org_id = app.current_org_id() and h.status = 'active' and h.item_id is not null`,
+  );
+  if (components.includes(productCode) || detectCycle(buildGraph(edgeRows), productCode, components)) {
+    throw new NpdBomActivationValidationError('V-TEC-13', 'BOM has a cycle; cannot activate');
+  }
+
+  const rmUsabilityFailures = await validateBomLineRmUsability(
+    ctx.client,
+    lines.map((line) => ({ itemId: line.item_id, componentCode: line.component_code })),
+    'factory_spec_approval',
+    productCode,
+  );
+  if (rmUsabilityFailures.length > 0) {
+    throw new NpdBomActivationValidationError(
+      'V-TEC-14',
+      formatRmUsabilityFailures(rmUsabilityFailures),
+    );
+  }
+}
+
 async function createActiveNpdBom(
   ctx: OrgContextLike,
   project: ProjectRow,
@@ -829,6 +880,10 @@ async function createActiveNpdBom(
     );
   }
 
+  // Canonical publishBom guards (V-TEC-13 cycle + V-TEC-14 RM usability) — same
+  // checks as approveBom, run before the NPD draft→active flip.
+  await validateNpdBomActivationGuards(ctx, productCode, lines);
+
   // ORDER MATTERS (walk-4 blocker): bom_headers_active_version_idx is a partial
   // UNIQUE on (org_id, product_id) WHERE status='active' — the OLD active header
   // must be superseded BEFORE the new one flips to active, or the flip violates
@@ -855,6 +910,32 @@ async function createActiveNpdBom(
         and id = $1::uuid`,
     [header.id, ctx.userId],
   );
+
+  const supersededHeaderIds = supersedesBom ? [supersedesBom.id] : [];
+  await writeAudit(ctx.client, {
+    orgId: ctx.orgId,
+    actorUserId: ctx.userId,
+    action: AUDIT_BOM_PUBLISH,
+    resourceId: header.id,
+    beforeState: {
+      status: 'draft',
+      supersededVersions: supersedesBom ? [supersedesBom.version] : [],
+    },
+    afterState: { status: 'active', productId: productCode, version: header.version },
+  });
+  await writeOutbox(ctx.client, {
+    orgId: ctx.orgId,
+    eventType: EVENT_FG_BOM_RELEASED,
+    aggregateType: 'bom_header',
+    aggregateId: header.id,
+    payload: {
+      product_id: productCode,
+      version: header.version,
+      status: 'active',
+      superseded_header_ids: supersededHeaderIds,
+      actor_user_id: ctx.userId,
+    },
+  });
 
   return header;
 }
