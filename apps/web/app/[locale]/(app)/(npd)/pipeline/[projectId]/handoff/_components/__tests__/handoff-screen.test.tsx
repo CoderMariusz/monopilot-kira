@@ -158,6 +158,7 @@ function dataReady(
     ],
     releaseGates: gates,
     releaseGatesMet: gates.every((g) => g.met),
+    releaseLocked: false,
     canRevertToNpd: false,
     destinationBom: {
       bomCode: 'BOM-238',
@@ -738,16 +739,18 @@ describe('HandoffScreen — Export handoff packet (LANE 14)', () => {
 });
 
 describe('HandoffScreen — Revert to NPD (C7a)', () => {
-  function promotedData(canRevertToNpd: boolean): HandoffScreenData {
+  function revertableData(over: Partial<HandoffScreenData> = {}): HandoffScreenData {
     return {
       ...dataReady(true),
       promoted: true,
-      canRevertToNpd,
+      releaseLocked: true,
+      canRevertToNpd: true,
       promoteToProductionDate: '2026-07-07',
       destinationBom: {
         ...dataReady(true).destinationBom,
         releaseStatus: 'released_to_factory',
       },
+      ...over,
     };
   }
 
@@ -755,7 +758,7 @@ describe('HandoffScreen — Revert to NPD (C7a)', () => {
     render(
       <HandoffScreen
         state="ready"
-        data={promotedData(false)}
+        data={revertableData({ canRevertToNpd: false })}
         labels={LABELS}
         onRevertToNpd={vi.fn()}
       />,
@@ -763,16 +766,35 @@ describe('HandoffScreen — Revert to NPD (C7a)', () => {
     expect(screen.queryByTestId('handoff-revert-to-npd-btn')).not.toBeInTheDocument();
   });
 
-  it('hides the revert button when the project is not promoted', () => {
+  it('hides the revert button when the project is not release-locked', () => {
     render(
       <HandoffScreen
         state="ready"
-        data={{ ...dataReady(true), canRevertToNpd: true }}
+        data={{ ...dataReady(true), releaseLocked: false, canRevertToNpd: true }}
         labels={LABELS}
         onRevertToNpd={vi.fn()}
       />,
     );
     expect(screen.queryByTestId('handoff-revert-to-npd-btn')).not.toBeInTheDocument();
+  });
+
+  it('shows the revert button for a lock-only wedge (releaseLocked without promoted)', () => {
+    render(
+      <HandoffScreen
+        state="ready"
+        data={revertableData({
+          promoted: false,
+          promoteToProductionDate: null,
+          destinationBom: {
+            ...dataReady(true).destinationBom,
+            releaseStatus: null,
+          },
+        })}
+        labels={LABELS}
+        onRevertToNpd={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('handoff-revert-to-npd-btn')).toBeInTheDocument();
   });
 
   it('opens the confirm modal and calls onRevertToNpd with projectId + reason on confirm', async () => {
@@ -781,7 +803,7 @@ describe('HandoffScreen — Revert to NPD (C7a)', () => {
     render(
       <HandoffScreen
         state="ready"
-        data={promotedData(true)}
+        data={revertableData()}
         labels={LABELS}
         onRevertToNpd={onRevertToNpd}
       />,
@@ -812,7 +834,7 @@ describe('HandoffScreen — Revert to NPD (C7a)', () => {
     render(
       <HandoffScreen
         state="ready"
-        data={promotedData(true)}
+        data={revertableData()}
         labels={LABELS}
         onRevertToNpd={onRevertToNpd}
       />,

@@ -77,6 +77,8 @@ export type HandoffScreenData = {
   releaseGates: HandoffReleaseGateView[];
   /** True ⇔ every release gate is met. */
   releaseGatesMet: boolean;
+  /** True when revertToNpd preconditions are met (release-locked wedge). */
+  releaseLocked: boolean;
   /** True when the caller may revert a release-locked project (npd.gate.approve). */
   canRevertToNpd: boolean;
 };
@@ -445,8 +447,8 @@ export function HandoffScreen({
     );
   }
 
-  const { checklist, destinationBom, promoted, releaseGates, canRevertToNpd } = data;
-  const showRevertToNpd = promoted && canRevertToNpd && !!onRevertToNpd;
+  const { checklist, destinationBom, promoted, releaseGates, releaseLocked, canRevertToNpd } = data;
+  const showRevertToNpd = releaseLocked && canRevertToNpd && !!onRevertToNpd;
 
   // Optimistic checklist projection (server is the source of truth).
   const effectiveChecklist = checklist.map((item) => ({

@@ -164,6 +164,7 @@ function makeData(over: Partial<HandoffScreenData> = {}): HandoffScreenData {
     ],
     releaseGates: gates,
     releaseGatesMet: gates.every((g) => g.met),
+    releaseLocked: false,
     canRevertToNpd: false,
     destinationBom: {
       bomCode: 'BOM-238',
