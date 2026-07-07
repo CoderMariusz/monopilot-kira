@@ -107,8 +107,6 @@ export async function rollbackGate(rawInput: unknown): Promise<RollbackGateResul
   }
 }
 
-export { rollbackGate as revertGate };
-
 function isRollbackTarget(currentGate: ProjectGate, targetGate: ProjectGate): boolean {
   let cursor: ProjectGate | null = previousGate(currentGate);
   while (cursor) {

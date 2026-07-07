@@ -19,5 +19,3 @@ export async function signOut(formData: FormData): Promise<never> {
 
   return redirect(`/${locale}/login`);
 }
-
-export default signOut;

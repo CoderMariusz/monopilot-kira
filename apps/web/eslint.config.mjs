@@ -115,16 +115,26 @@ const monopilotPlugin = {
 
         return {
           ExportNamedDeclaration(node) {
-            if (node.exportKind === 'type') reportExport(node);
+            // export type { ... } — compile-time only
+            if (node.exportKind === 'type') return;
+
             const decl = node.declaration;
-            if (!decl) return;
-            if (decl.type === 'TSInterfaceDeclaration' || decl.type === 'TSTypeAliasDeclaration') {
-              reportExport(node);
+            if (decl) {
+              if (decl.type === 'TSInterfaceDeclaration' || decl.type === 'TSTypeAliasDeclaration') {
+                return;
+              }
+              if (decl.type === 'VariableDeclaration') reportExport(node);
+              if (decl.type === 'ClassDeclaration') reportExport(node);
+              if (decl.type === 'TSEnumDeclaration') reportExport(node);
+              if (decl.type === 'FunctionDeclaration' && !isAsyncFunction(decl)) reportExport(node);
+              return;
             }
-            if (decl.type === 'VariableDeclaration') reportExport(node);
-            if (decl.type === 'ClassDeclaration') reportExport(node);
-            if (decl.type === 'TSEnumDeclaration') reportExport(node);
-            if (decl.type === 'FunctionDeclaration' && !isAsyncFunction(decl)) reportExport(node);
+
+            // export { ... } / export { type A, B } — flag only value re-exports
+            if (node.specifiers?.length) {
+              const hasValueSpecifier = node.specifiers.some((spec) => spec.exportKind !== 'type');
+              if (hasValueSpecifier) reportExport(node);
+            }
           },
           ExportDefaultDeclaration(node) {
             reportExport(node);

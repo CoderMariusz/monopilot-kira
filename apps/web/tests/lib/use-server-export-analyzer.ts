@@ -45,12 +45,29 @@ function lineNumberAt(source: string, index: number): number {
   return source.slice(0, index).split('\n').length;
 }
 
-function isForbiddenExportLine(exportLine: string): boolean {
+/** True when a top-level export line is a runtime value (breaks next build in 'use server'). */
+export function isForbiddenUseServerExportLine(exportLine: string): boolean {
   if (ASYNC_FN_EXPORT_RE.test(exportLine)) return false;
-  if (/^export\s+type\s+\{/.test(exportLine)) return true;
+
+  // compile-time only — allowed
+  if (/^export\s+type\b/.test(exportLine)) return false;
+  if (/^export\s+interface\b/.test(exportLine)) return false;
+
   if (/^export\s+default\b/.test(exportLine)) return true;
-  if (/^export\s+(type|interface|enum|const|class|function)\b/.test(exportLine)) return true;
-  if (/^export\s+\{/.test(exportLine)) return true;
+  if (/^export\s+enum\b/.test(exportLine)) return true;
+  if (/^export\s+const\b/.test(exportLine)) return true;
+  if (/^export\s+class\b/.test(exportLine)) return true;
+  if (/^export\s+function\b/.test(exportLine)) return true;
+
+  if (/^export\s+\{/.test(exportLine)) {
+    const inner = exportLine.replace(/^export\s+\{/, '').replace(/\}\s*(from\s+.+)?;?\s*$/, '');
+    const specs = inner
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return specs.some((spec) => !/^type\s/.test(spec));
+  }
+
   return false;
 }
 
@@ -64,7 +81,7 @@ export function scanFileForUseServerExportViolations(
   const violations: UseServerExportViolation[] = [];
   for (const match of source.matchAll(/^export\s+.+$/gm)) {
     const exportLine = match[0];
-    if (!isForbiddenExportLine(exportLine)) continue;
+    if (!isForbiddenUseServerExportLine(exportLine)) continue;
     violations.push({
       file: relative(root, absolutePath),
       line: lineNumberAt(source, match.index ?? 0),
