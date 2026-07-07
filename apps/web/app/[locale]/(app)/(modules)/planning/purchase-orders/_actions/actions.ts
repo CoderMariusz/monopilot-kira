@@ -354,14 +354,14 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
       if (!(await hasPlanningReadPermission(ctx))) return { ok: false, error: 'forbidden' };
 
       const s = await getActiveSiteId({ client });
-      const baseParams = [status?.success ? status.data : null, q, archived, s] as const;
+      const baseParams = [status?.success ? status.data : null, q, s, archived] as const;
 
       const [countResult, dataResult] = await Promise.all([
         (client as QueryClient).query<{ total: number }>(
           `select count(*)::int as total
              ${PO_LIST_FROM}
             where po.org_id = app.current_org_id()
-              and ($5::uuid is null or po.site_id = $5::uuid)
+              and ($3::uuid is null or po.site_id = $3::uuid)
               and ($1::text is null or po.status = $1)
               and ($2::text is null or po.po_number ilike '%' || $2 || '%' or s.code ilike '%' || $2 || '%')
               and coalesce(
@@ -381,7 +381,7 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
                   po.created_at, po.updated_at
              ${PO_LIST_FROM}
             where po.org_id = app.current_org_id()
-              and ($5::uuid is null or po.site_id = $5::uuid)
+              and ($3::uuid is null or po.site_id = $3::uuid)
               and ($1::text is null or po.status = $1)
               and ($2::text is null or po.po_number ilike '%' || $2 || '%' or s.code ilike '%' || $2 || '%')
               and coalesce(
@@ -393,7 +393,7 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
                 false
               ) = $4::boolean
             order by po.expected_delivery asc nulls last, po.po_number asc, po.id asc
-            limit $6::integer offset $7::integer`,
+            limit $5::integer offset $6::integer`,
           [...baseParams, page.limit, page.offset],
         ),
       ]);

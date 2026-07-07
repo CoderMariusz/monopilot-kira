@@ -10,6 +10,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { maxSqlPlaceholderIndex } from '../../../../../../lib/shared/sql-placeholders';
 import { listLPs } from './lp-actions';
 import type { QueryClient } from './shared';
 
@@ -21,15 +22,24 @@ type QueryCall = { sql: string; params: unknown[] };
 
 let calls: QueryCall[];
 
+function expectSqlArity(sql: string, params: unknown[]) {
+  expect(params).toHaveLength(maxSqlPlaceholderIndex(sql));
+}
+
 const client: QueryClient = {
   query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
     if (normalized.includes('from public.user_roles')) {
       return { rows: [{ ok: true }], rowCount: 1 };
     }
-    calls.push({ sql: normalized, params: [...(params ?? [])] });
+    const bound = [...(params ?? [])];
+    calls.push({ sql: normalized, params: bound });
     if (normalized.includes('count(*)::int as total')) {
+      expectSqlArity(normalized, bound);
       return { rows: [{ total: 0 }], rowCount: 1 };
+    }
+    if (normalized.includes('limit $4::integer offset $5::integer')) {
+      expectSqlArity(normalized, bound);
     }
     return { rows: [], rowCount: 0 };
   }),

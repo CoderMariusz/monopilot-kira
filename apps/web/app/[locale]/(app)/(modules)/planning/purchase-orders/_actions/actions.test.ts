@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { maxSqlPlaceholderIndex } from '../../../../../../../lib/shared/sql-placeholders';
 import {
   createPurchaseOrder,
   getPurchaseOrder,
@@ -84,6 +85,10 @@ function line() {
   };
 }
 
+function expectSqlArity(sql: string, params: readonly unknown[] | undefined) {
+  expect(params).toHaveLength(maxSqlPlaceholderIndex(String(sql)));
+}
+
 function makeClient(): QueryClient {
   return {
     query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
@@ -101,9 +106,11 @@ function makeClient(): QueryClient {
         };
       }
       if (normalized.includes('select count(*)::int as total')) {
+        expectSqlArity(sql, params);
         return { rows: [{ total: listTotal }], rowCount: 1 };
       }
       if (normalized.startsWith('select count(*) as archived_count')) {
+        expectSqlArity(sql, params);
         return { rows: [{ archived_count: 1 }], rowCount: 1 };
       }
       if (normalized.startsWith('select count(*) filter')) {
@@ -113,6 +120,16 @@ function makeClient(): QueryClient {
         return { rows: [{ is_received: fullyReceived }], rowCount: 1 };
       }
       if (normalized.startsWith('select po.id')) {
+        if (normalized.includes('limit $5::integer offset $6::integer')) {
+          expectSqlArity(sql, params);
+          const limit = Number(params[4] ?? 50);
+          const offset = Number(params[5] ?? 0);
+          const allRows = Array.from({ length: listTotal }, (_, index) =>
+            header({ po_number: `PO-TEST-${String(index + 1).padStart(3, '0')}`, status: currentStatus }),
+          );
+          const rows = allRows.slice(offset, offset + limit);
+          return { rows, rowCount: rows.length };
+        }
         return { rows: poExists ? [header({ status: currentStatus })] : [], rowCount: poExists ? 1 : 0 };
       }
       if (normalized.startsWith('insert into public.purchase_orders')) {
@@ -192,13 +209,13 @@ describe('planning purchase order actions', () => {
     await listPurchaseOrders({ archived: true });
 
     const listCalls = vi.mocked(client.query).mock.calls.filter(([sql]) => String(sql).includes('from public.purchase_orders po'));
-    expect(listCalls[0]?.[1]).toEqual([null, null, false, SITE_ID]);
-    expect(listCalls[1]?.[1]).toEqual([null, null, false, SITE_ID, 50, 0]);
-    expect(listCalls[3]?.[1]).toEqual([null, null, true, SITE_ID]);
-    expect(listCalls[4]?.[1]).toEqual([null, null, true, SITE_ID, 50, 0]);
+    expect(listCalls[0]?.[1]).toEqual([null, null, SITE_ID, false]);
+    expect(listCalls[1]?.[1]).toEqual([null, null, SITE_ID, false, 50, 0]);
+    expect(listCalls[3]?.[1]).toEqual([null, null, SITE_ID, true]);
+    expect(listCalls[4]?.[1]).toEqual([null, null, SITE_ID, true, 50, 0]);
   });
 
-  it('page 2 offset reaches rows beyond the default page cap when total exceeds limit', async () => {
+  it('page 2 offset returns the second page of rows when total exceeds limit', async () => {
     listTotal = 120;
 
     const result = await listPurchaseOrders({ page: 2 });
@@ -212,21 +229,22 @@ describe('planning purchase order actions', () => {
       offset: 50,
       hasMore: true,
     });
+    expect(result.data[0]).toEqual(expect.objectContaining({ poNumber: 'PO-TEST-051' }));
     const dataCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
-      String(sql).includes('limit $6::integer offset $7::integer'),
+      String(sql).includes('limit $5::integer offset $6::integer'),
     );
-    expect(dataCall?.[1]).toEqual([null, null, false, SITE_ID, 50, 50]);
+    expect(dataCall?.[1]).toEqual([null, null, SITE_ID, false, 50, 50]);
   });
 
   it('narrows the list SELECT to the active site (optional predicate) when a site is active', async () => {
     await listPurchaseOrders({ status: 'draft' });
 
     const mainCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
-      String(sql).includes('from public.purchase_orders po') && String(sql).includes('limit $6::integer offset $7::integer'),
+      String(sql).includes('from public.purchase_orders po') && String(sql).includes('limit $5::integer offset $6::integer'),
     );
     // F10 — the site predicate is now an OPTIONAL narrowing filter, not a hard gate.
-    expect(mainCall?.[0]).toContain('($5::uuid is null or po.site_id = $5::uuid)');
-    expect(mainCall?.[1]).toEqual(['draft', null, false, SITE_ID, 50, 0]);
+    expect(mainCall?.[0]).toContain('($3::uuid is null or po.site_id = $3::uuid)');
+    expect(mainCall?.[1]).toEqual(['draft', null, SITE_ID, false, 50, 0]);
   });
 
   it('F10: lists ORG-WIDE (site bind = null) when no site is active, instead of returning an empty list', async () => {
@@ -241,10 +259,10 @@ describe('planning purchase order actions', () => {
     if (!result.ok) throw new Error(result.error);
     expect((result as { noActiveSite?: boolean }).noActiveSite).toBeUndefined();
     const mainCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
-      String(sql).includes('from public.purchase_orders po') && String(sql).includes('limit $6::integer offset $7::integer'),
+      String(sql).includes('from public.purchase_orders po') && String(sql).includes('limit $5::integer offset $6::integer'),
     );
     expect(mainCall).toBeDefined();
-    expect(mainCall?.[1]).toEqual(['draft', null, false, null, 50, 0]);
+    expect(mainCall?.[1]).toEqual(['draft', null, null, false, 50, 0]);
   });
 
   it('gets purchase order detail with ordered lines', async () => {

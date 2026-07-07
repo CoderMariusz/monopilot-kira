@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
+import { maxSqlPlaceholderIndex } from '../../../../../../lib/shared/sql-placeholders';
 import { traceGenealogy } from './genealogy-actions';
 import { listLPs } from './lp-actions';
 import { releaseLpQa } from './lp-qa-actions';
@@ -22,6 +23,31 @@ let lockActive = false;
 let lpExists = true;
 let lastMoveType = 'transfer';
 let activeHold = false;
+let listLpTotal = 1;
+
+function expectSqlArity(sql: string, params: readonly unknown[] | undefined) {
+  expect(params).toHaveLength(maxSqlPlaceholderIndex(String(sql)));
+}
+
+function makeLpListRow(index: number) {
+  return {
+    id: `33333333-3333-4333-8333-${String(index).padStart(12, '0')}`,
+    lp_number: `LP-${String(index).padStart(3, '0')}`,
+    item_code: 'RM-001',
+    item_name: 'Raw material',
+    quantity: '10.000000',
+    reserved_qty: '2.000000',
+    available_qty: '8.000000',
+    uom: 'kg',
+    status: 'available',
+    qa_status: 'released',
+    batch_number: 'B-001',
+    expiry_date: '2026-07-01T00:00:00.000Z',
+    location_code: 'A-01',
+    warehouse_code: 'WH1',
+    created_at: '2026-06-01T00:00:00.000Z',
+  };
+}
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -188,32 +214,17 @@ function makeClient(): QueryClient {
       }
 
       if (normalized.includes('select count(*)::int as total') && normalized.includes('from public.license_plates lp')) {
-        return { rows: [{ total: 1 }], rowCount: 1 };
+        expectSqlArity(sql, params);
+        return { rows: [{ total: listLpTotal }], rowCount: 1 };
       }
 
       if (normalized.startsWith('select lp.id::text') && normalized.includes('from public.license_plates lp')) {
-        return {
-          rows: [
-            {
-              id: LP_ID,
-              lp_number: 'LP-001',
-              item_code: 'RM-001',
-              item_name: 'Raw material',
-              quantity: '10.000000',
-              reserved_qty: '2.000000',
-              available_qty: '8.000000',
-              uom: 'kg',
-              status: 'available',
-              qa_status: 'released',
-              batch_number: 'B-001',
-              expiry_date: '2026-07-01T00:00:00.000Z',
-              location_code: 'A-01',
-              warehouse_code: 'WH1',
-              created_at: '2026-06-01T00:00:00.000Z',
-            },
-          ],
-          rowCount: 1,
-        };
+        expectSqlArity(sql, params);
+        const limit = Number(params?.[3] ?? 50);
+        const offset = Number(params?.[4] ?? 0);
+        const allRows = Array.from({ length: listLpTotal }, (_, index) => makeLpListRow(index + 1));
+        const rows = allRows.slice(offset, offset + limit);
+        return { rows, rowCount: rows.length };
       }
 
       if (normalized.startsWith('select id::text from public.license_plates')) {
@@ -278,6 +289,7 @@ describe('warehouse backend actions', () => {
     lpExists = true;
     lastMoveType = 'transfer';
     activeHold = false;
+    listLpTotal = 1;
     client = makeClient();
   });
 
@@ -314,6 +326,27 @@ describe('warehouse backend actions', () => {
     expect(normalize(String(listCall?.[0]))).toContain('lp.warehouse_id = $1');
     expect(normalize(String(listCall?.[0]))).toContain('ilike');
     expect(listCall?.[1]).toEqual(['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'RM', null, 25, 0]);
+  });
+
+  it('listLPs page 2 offset returns the second page of rows when total exceeds limit', async () => {
+    listLpTotal = 120;
+
+    const result = await listLPs({ page: 2 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.data).toMatchObject({
+      total: 120,
+      page: 2,
+      limit: 50,
+      offset: 50,
+      hasMore: true,
+    });
+    expect(result.data.items[0]).toEqual(expect.objectContaining({ lpNumber: 'LP-051' }));
+    const listCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('limit $4::integer offset $5::integer'),
+    );
+    expect(listCall?.[1]).toEqual([null, null, null, 50, 50]);
   });
 
   it('createStockMove rejects immovable LP statuses before inserting a stock move', async () => {

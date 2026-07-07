@@ -18,7 +18,7 @@ import {
 
 const WO_LIST_WHERE = `
          where wo.org_id = app.current_org_id()
-           and ($5::uuid is null or wo.site_id = $5::uuid)
+           and ($3::uuid is null or wo.site_id = $3::uuid)
            and ($1::text is null or wo.status = $1)
            and (
              $2::text is null
@@ -56,7 +56,7 @@ export async function listPlanningWorkOrders(params: {
   try {
     return await withOrgContext(async ({ client }): Promise<ListPlanningWorkOrdersResult> => {
       const s = await getActiveSiteId({ client });
-      const baseParams = [status || null, search || null, archived, s] as const;
+      const baseParams = [status || null, search || null, s, archived] as const;
 
       const [countResult, dataResult] = await Promise.all([
         client.query<{ total: number }>(
@@ -118,7 +118,7 @@ export async function listPlanningWorkOrders(params: {
          ) sched on true
          ${WO_LIST_WHERE}
          order by wo.scheduled_start_time nulls last, wo.created_at desc, wo.id desc
-         limit $6 offset $7`,
+         limit $5 offset $6`,
         [...baseParams, page.limit, page.offset],
         ),
       ]);
