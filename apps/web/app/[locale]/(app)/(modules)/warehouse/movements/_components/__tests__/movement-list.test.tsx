@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MovementListClient, type MovementListLabels } from '../movement-list.client';
 import { getWhcTranslator } from '../../../wh-c-labels';
-import { normalizePage, toPaginatedResult } from '../../../../../../../lib/shared/pagination';
+import { normalizePage, toPaginatedResult } from '../../../../../../../../lib/shared/pagination';
 import type { StockMoveListItem } from '../../../_actions/shared';
 
 function buildLabels(locale: string): MovementListLabels {

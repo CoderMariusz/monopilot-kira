@@ -193,7 +193,7 @@ export async function getScheduleBoard(input?: {
      and wo.status = any($1::text[])
      and wo.site_id = $2::uuid
      and wo.scheduled_start_time is null
-   order by wo.created_at desc
+   order by wo.created_at desc, wo.id desc
    limit $3::integer offset $4::integer`,
           [[...BOARD_STATUSES], s, unscheduledPage.limit, unscheduledPage.offset],
         ),

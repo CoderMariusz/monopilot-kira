@@ -341,6 +341,68 @@ describe('getScheduleBoard', () => {
     });
   });
 
+  it('orders unscheduled pagination by created_at desc, id desc for stable OFFSET pages', async () => {
+    const sharedCreatedAt = '2026-06-01T12:00:00.000Z';
+    const totalUnscheduled = 60;
+    client = {
+      query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+        const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
+        if (normalized.includes('from public.user_roles')) {
+          return { rows: [{ ok: true }], rowCount: 1 };
+        }
+        if (normalized.includes('from public.production_lines') && normalized.includes('order by code')) {
+          return { rows: [{ id: LINE_ID, code: 'LINE-01', name: 'Line One' }], rowCount: 1 };
+        }
+        if (normalized.includes('from public.work_orders')) {
+          if (normalized.includes('count(*)')) {
+            return { rows: [{ total: totalUnscheduled }], rowCount: 1 };
+          }
+          if (normalized.includes('scheduled_start_time is null')) {
+            expect(normalized).toContain('order by wo.created_at desc, wo.id desc');
+            const limit = Number(params[2] ?? 50);
+            const offset = Number(params[3] ?? 0);
+            const allRows = Array.from({ length: totalUnscheduled }, (_, index) => {
+              const seq = index + 1;
+              const id = `00000000-0000-4000-8000-${String(seq).padStart(12, '0')}`;
+              return {
+                ...WO_ROW,
+                id,
+                wo_number: `WO-U-${seq}`,
+                created_at: sharedCreatedAt,
+                scheduled_start_time: null,
+                scheduled_end_time: null,
+              };
+            }).sort((left, right) => right.id.localeCompare(left.id));
+            const rows = allRows.slice(offset, offset + limit);
+            return { rows, rowCount: rows.length };
+          }
+          return { rows: [], rowCount: 0 };
+        }
+        if (normalized.includes('from public.planning_capacity_blocks')) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+
+    const page1 = await getScheduleBoard({ unscheduledPage: 1 });
+    expect(page1.ok).toBe(true);
+    if (!page1.ok) throw new Error(page1.error);
+
+    const page2 = await getScheduleBoard({ unscheduledPage: 2 });
+    expect(page2.ok).toBe(true);
+    if (!page2.ok) throw new Error(page2.error);
+
+    const page1Ids = page1.data.unscheduled.map((wo) => wo.id);
+    const page2Ids = page2.data.unscheduled.map((wo) => wo.id);
+    expect(page1Ids).toHaveLength(50);
+    expect(page2Ids).toHaveLength(10);
+    expect(new Set([...page1Ids, ...page2Ids]).size).toBe(totalUnscheduled);
+    for (const id of page1Ids) {
+      expect(page2Ids).not.toContain(id);
+    }
+  });
+
   it('fails closed with no active site before running board reads', async () => {
     getActiveSiteIdMock.mockResolvedValue(null);
 
