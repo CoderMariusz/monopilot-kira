@@ -3,12 +3,12 @@
  * Free-text override reasons are rejected — callers must supply one of these codes
  * AND hold production.wo.override_yield (supervisor / prod-manager tier).
  */
+/** Must stay aligned with migration 459 seed (public.yield_gate_override_reasons). */
 export const YIELD_GATE_OVERRIDE_REASON_CODES = [
-  'scrap_total_loss',
+  'scrap_quality',
   'equipment_failure',
-  'qa_reject_all',
-  'trial_run_void',
-  'process_deviation_approved',
+  'material_shortage',
+  'other',
 ] as const;
 
 export type YieldGateOverrideReasonCode = (typeof YIELD_GATE_OVERRIDE_REASON_CODES)[number];
