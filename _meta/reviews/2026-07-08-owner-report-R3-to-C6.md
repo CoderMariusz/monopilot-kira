@@ -78,3 +78,21 @@ Dokończenia już-wdrożonej pracy (bez nieuzgodnionych dużych rzeczy):
 Cross-review C7 złapał 6 realnych problemów (2× 'use server' type export, placeholder-arity WO/PO, money-float precyzja, Code128-B zamiast Code-C, visibility wedge). Wszystko naprawione.
 
 **Klik-lista C7 (do przetestowania):** Revert-to-NPD na handoff promoted/locked; Settings→Customer prices; Warehouse→GRN→Print i Shipping→shipment→Print (barcode + SSCC); długie listy WO/PO/TO/NCR/LP (pager zamiast ucięcia).
+
+---
+
+## AKTUALIZACJA — deep-dive + V1 (E2E) + D1 (naprawy)
+
+**Deep-dive (Codex, 1M-class):** 28 bugów w `_meta/reviews/2026-07-08-deepdive-bughunt.md` (10 P0, 12 P1, 6 P2). Ważne: klasa P0 "server-action eksportuje typ" okazała się **fałszywym alarmem** — czyste typy są erasowane, nie łamią builda; realnie łamią tylko eksporty VALUE/const. Arbitraż to wyłapał.
+
+**V1 — trwałe E2E na prodzie** (3 tory, Opus — Codex-w-worktree nie commituje, przełączone):
+- `purchasing-chain-e2e.spec.ts` — PO→confirm→receive→WAC→valuation + negatywy. **Znalazł realny bug:** prefill ceny PO hardcode'uje `currency:'GBP'` przy fallbacku list-price (po-form-data.ts:155 + mrp.ts:965) → non-GBP PO bookuje GBP do złego kubła WAC. Naprawiane w D2.
+- `npd-to-production-chain-overlap.spec.ts` — chain preview + dependency direction + schedule overlap-conflict.
+- MRP-netting / fulfilment-SSCC / scanner-RBAC — 3 specy.
+Wszystkie gated (skip bez serwera), wejdą do CI jako stały smoke.
+
+**D1 — naprawy z deep-dive** (na prodzie): scanner RBAC parity + site-scoping (6 dziur — enumeracja PO/LP, cross-site fallback, null-site LP), SO partial-commit (orphan header), duplikat shipmentu po packed/manifested, usunięte delivered→shipped, GRN/LP location mismatch, WAC preflight blokuje receive w nierozwiązywalnym UoM, guard `no-export-type-in-use-server` (poprawiony — nie flaguje typów). Cross-review: d1c/d1b MERGE, d1a/d1d fixnięte (guard-overbroad byłby CI-breaker; 16 czerwonych testów scanner naprawione).
+
+**D2 w toku:** POD proof+e-sign, MRP UoM+undated-SO, materializer org-scope, pricing currency-mislabel.
+
+**Do listy porannej +:** playwright `--list` (bez argów) błądzi na plikach vitest — hygiene testMatch (nie blokuje, ale warto zawęzić).
