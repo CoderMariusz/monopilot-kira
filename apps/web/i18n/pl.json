@@ -6298,6 +6298,10 @@
       "attachUploadFailed": "Nie udało się przesłać załącznika. Spróbuj ponownie.",
       "attachDeleteFailed": "Nie udało się usunąć załącznika. Spróbuj ponownie.",
       "fieldPacksPerCase": "Sztuk w zbiorczym",
+      "fieldOutputUnit": "Jednostka wyjściowa",
+      "fieldOutputUnitKg": "kg",
+      "fieldOutputUnitPieces": "sztuki",
+      "fieldOutputUnitBoxes": "kartony",
       "fieldWeeklyVolumePacks": "Wolumen tygodniowy (paczek/tydzień)",
       "fieldRunsPerWeek": "Przebiegi na tydzień",
       "fieldRunsPerWeekHelp": "Szacunek planistyczny — można go zmieniać do momentu premiery; ostateczna liczba przebiegów jest potwierdzana przy przekazaniu."

@@ -32,6 +32,8 @@ const BEFORE = {
   target_launch: '2026-02-01',
   pack_format: 'Tray',
   pack_weight_g: '250',
+  packs_per_case: 12,
+  output_unit: null,
   sales_channel: 'Retail',
   target_retail_price_eur: '3.99',
   target_audience: 'Families',
@@ -133,5 +135,43 @@ describe('updateProjectBrief', () => {
     expect(calls.some((call) => /update public\.npd_projects/.test(call.sql))).toBe(true);
     expect(calls.some((call) => /insert into public\.audit_events/.test(call.sql))).toBe(true);
     expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith(`/pipeline/${PROJECT}/brief`);
+  });
+
+  it('re-syncs FG net_qty_per_each and output_uom when pack weight changes post-handoff', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.includes('update public.npd_projects')) {
+        return {
+          rows: [
+            {
+              ...AFTER,
+              pack_weight_g: '400',
+              packs_per_case: 12,
+              output_unit: 'pieces',
+            },
+          ],
+        };
+      }
+      return handler()(sql, params);
+    };
+
+    const result = await updateProjectBrief({
+      projectId: PROJECT,
+      patch: { packWeightG: '400', outputUnit: 'pieces' },
+    });
+
+    expect(result).toEqual({ ok: true, data: { projectId: PROJECT } });
+    const fgSync = calls.find(
+      (call) =>
+        /update public\.items/.test(call.sql) &&
+        call.sql.includes('net_qty_per_each') &&
+        call.sql.includes('output_uom'),
+    );
+    expect(fgSync?.params).toEqual([PROJECT, 'each', 0.4]);
+    const baseUpgrade = calls.find(
+      (call) => /update public\.items/.test(call.sql) && call.sql.includes("output_uom = 'each'") && call.sql.includes("output_uom = 'base'"),
+    );
+    expect(baseUpgrade?.params).toEqual([PROJECT]);
   });
 });

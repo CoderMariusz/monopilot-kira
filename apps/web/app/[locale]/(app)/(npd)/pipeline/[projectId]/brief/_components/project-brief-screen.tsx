@@ -53,6 +53,7 @@ export type BriefPatch = {
    * other optional brief fields send null on empty; this one stays untouched).
    */
   packsPerCase?: number | null;
+  outputUnit?: 'kg' | 'pieces' | 'boxes' | null;
   weeklyVolumePacks: string | null;
   runsPerWeek: string | null;
   marketingClaims: string | null;
@@ -103,6 +104,10 @@ export type ProjectBriefLabels = {
   fieldPackFormat: string;
   fieldPackWeight: string;
   fieldPacksPerCase: string;
+  fieldOutputUnit: string;
+  fieldOutputUnitKg: string;
+  fieldOutputUnitPieces: string;
+  fieldOutputUnitBoxes: string;
   fieldWeeklyVolumePacks: string;
   fieldRunsPerWeek: string;
   fieldRunsPerWeekHelp: string;
@@ -176,6 +181,7 @@ type FormState = {
   packFormat: string;
   packWeightG: string;
   packsPerCase: string;
+  outputUnit: string;
   weeklyVolumePacks: string;
   runsPerWeek: string;
   salesChannel: string;
@@ -195,6 +201,7 @@ function viewToForm(data: ProjectBriefView): FormState {
     packWeightG: data.packWeightG ?? '',
     // number|null → string for the input ('' when unset).
     packsPerCase: data.packsPerCase != null ? String(data.packsPerCase) : '',
+    outputUnit: data.outputUnit ?? '',
     weeklyVolumePacks: data.weeklyVolumePacks ?? '',
     runsPerWeek: data.runsPerWeek ?? '',
     salesChannel: data.salesChannel ?? '',
@@ -225,6 +232,13 @@ function packsPerCasePatch(value: string): { packsPerCase?: number } {
   return Number.isInteger(parsed) && parsed >= 0 ? { packsPerCase: parsed } : {};
 }
 
+function outputUnitPatch(value: string): { outputUnit?: 'kg' | 'pieces' | 'boxes' } {
+  const trimmed = value.trim();
+  if (trimmed === '') return {};
+  if (trimmed === 'kg' || trimmed === 'pieces' || trimmed === 'boxes') return { outputUnit: trimmed };
+  return {};
+}
+
 function formToPatch(form: FormState): BriefPatch {
   return {
     productName: orNull(form.productName),
@@ -234,6 +248,7 @@ function formToPatch(form: FormState): BriefPatch {
     packWeightG: orNull(form.packWeightG),
     // Omitted when empty (never null) → an existing value is preserved on save.
     ...packsPerCasePatch(form.packsPerCase),
+    ...outputUnitPatch(form.outputUnit),
     weeklyVolumePacks: orNull(form.weeklyVolumePacks),
     runsPerWeek: orNull(form.runsPerWeek),
     marketingClaims: orNull(form.marketingClaims),
@@ -248,6 +263,21 @@ function formToPatch(form: FormState): BriefPatch {
 export type CategoryOption = { value: string; label: string };
 
 const CHANNEL_OPTIONS = ['Retail', 'HoReCa', 'Industrial', 'Export'];
+
+const OUTPUT_UNIT_VALUES = ['kg', 'pieces', 'boxes'] as const;
+
+function outputUnitLabel(value: string, labels: ProjectBriefLabels): string {
+  switch (value) {
+    case 'kg':
+      return labels.fieldOutputUnitKg;
+    case 'pieces':
+      return labels.fieldOutputUnitPieces;
+    case 'boxes':
+      return labels.fieldOutputUnitBoxes;
+    default:
+      return value;
+  }
+}
 
 function withCurrent(canonical: CategoryOption[], current: string): CategoryOption[] {
   const values = canonical.map((o) => o.value);
@@ -331,6 +361,11 @@ function ReadBriefCard({ data, labels }: { data: ProjectBriefView; labels: Proje
           <ReadField
             label={labels.fieldPacksPerCase}
             value={data.packsPerCase != null ? String(data.packsPerCase) : null}
+            placeholder={ph}
+          />
+          <ReadField
+            label={labels.fieldOutputUnit}
+            value={data.outputUnit ? outputUnitLabel(data.outputUnit, labels) : null}
             placeholder={ph}
           />
           <ReadField label={labels.fieldWeeklyVolumePacks} value={data.weeklyVolumePacks} placeholder={ph} />
@@ -516,6 +551,29 @@ function EditBriefCard({
                 onChange={(e) => set('packsPerCase', e.target.value)}
                 data-testid="brief-field-packsPerCase"
               />
+            </label>
+            <label className="field">
+              <span className="field__label" style={{ textTransform: 'uppercase' }}>{labels.fieldOutputUnit}</span>
+              <Select
+                aria-label={labels.fieldOutputUnit}
+                value={form.outputUnit}
+                onValueChange={(v) => set('outputUnit', v)}
+                options={OUTPUT_UNIT_VALUES.map((value) => ({
+                  value,
+                  label: outputUnitLabel(value, labels),
+                }))}
+              >
+                <SelectTrigger aria-label={labels.fieldOutputUnit} data-testid="brief-field-outputUnit">
+                  <SelectValue placeholder={labels.fieldOutputUnit} />
+                </SelectTrigger>
+                <SelectContent>
+                  {OUTPUT_UNIT_VALUES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {outputUnitLabel(value, labels)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
             <label className="field">
               <span className="field__label" style={{ textTransform: 'uppercase' }}>

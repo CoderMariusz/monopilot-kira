@@ -6284,6 +6284,10 @@
       "attachUploadFailed": "Could not upload the attachment. Please try again.",
       "attachDeleteFailed": "Could not delete the attachment. Please try again.",
       "fieldPacksPerCase": "Packs per case",
+      "fieldOutputUnit": "Output unit",
+      "fieldOutputUnitKg": "kg",
+      "fieldOutputUnitPieces": "pieces",
+      "fieldOutputUnitBoxes": "boxes",
       "fieldWeeklyVolumePacks": "Weekly volume (packs/week)",
       "fieldRunsPerWeek": "Runs per week",
       "fieldRunsPerWeekHelp": "Planning estimate only — you can revise this until launch; the final run rate is confirmed at handover."

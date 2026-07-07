@@ -79,6 +79,10 @@ const DEFAULT_LABELS: ProjectBriefLabels = {
   fieldPackFormat: 'Pack format',
   fieldPackWeight: 'Pack weight (g)',
   fieldPacksPerCase: 'Packs per case',
+  fieldOutputUnit: 'Output unit',
+  fieldOutputUnitKg: 'kg',
+  fieldOutputUnitPieces: 'pieces',
+  fieldOutputUnitBoxes: 'boxes',
   fieldWeeklyVolumePacks: 'Weekly volume (packs/week)',
   fieldRunsPerWeek: 'Runs per week (estimate)',
   fieldRunsPerWeekHelp:

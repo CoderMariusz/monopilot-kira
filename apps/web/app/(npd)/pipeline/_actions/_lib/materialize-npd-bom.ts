@@ -22,7 +22,32 @@ type MaterializeNpdBomInput = {
 type ProjectRow = GateProjectRow & {
   pack_weight_g: string | null;
   packs_per_case: number | null;
+  output_unit: NpdBriefOutputUnit | null;
 };
+
+/** Brief-level output unit choice (npd_projects.output_unit). */
+export type NpdBriefOutputUnit = 'kg' | 'pieces' | 'boxes';
+
+export type NpdFgUomInput = {
+  output_unit: NpdBriefOutputUnit | null;
+  pack_weight_g: string | null;
+  packs_per_case: number | null;
+};
+
+/** Map brief output_unit → items.output_uom. NULL output_unit keeps legacy inference. */
+export function deriveFgOutputUom(project: NpdFgUomInput): 'base' | 'each' | 'box' {
+  if (project.output_unit === 'kg') return 'base';
+  if (project.output_unit === 'pieces') return 'each';
+  if (project.output_unit === 'boxes') return 'box';
+  if (project.pack_weight_g != null) {
+    return Number(project.packs_per_case ?? 0) > 0 ? 'box' : 'each';
+  }
+  return 'base';
+}
+
+export function deriveFgNetQtyPerEachKg(packWeightG: string | null): number | null {
+  return packWeightG != null ? Number(packWeightG) / 1000.0 : null;
+}
 
 type LockedFormulationRow = {
   formulation_id: string;
@@ -259,7 +284,7 @@ export async function materializeNpdBom(
 
 async function loadProject(ctx: OrgContextLike, projectId: string): Promise<ProjectRow | null> {
   const { rows } = await ctx.client.query<ProjectRow>(
-    `select id, code, name, type, current_gate, current_stage, product_code, pack_weight_g::text as pack_weight_g, packs_per_case
+    `select id, code, name, type, current_gate, current_stage, product_code, pack_weight_g::text as pack_weight_g, packs_per_case, output_unit
        from public.npd_projects
       where org_id = app.current_org_id()
         and id = $1::uuid
@@ -334,10 +359,8 @@ async function ensureFgItemAndProduct(
   formulation: LockedFormulationRow | null,
 ): Promise<ItemRow> {
   const productCode = deriveProductionCode(project.product_code as string);
-  const outputUom = project.pack_weight_g != null
-    ? (Number(project.packs_per_case ?? 0) > 0 ? 'box' : 'each')
-    : 'base';
-  const netQtyPerEach = project.pack_weight_g != null ? Number(project.pack_weight_g) / 1000.0 : null;
+  const outputUom = deriveFgOutputUom(project);
+  const netQtyPerEach = deriveFgNetQtyPerEachKg(project.pack_weight_g);
   const inserted = await ctx.client.query<ItemRow>(
     `insert into public.items
        (org_id, item_code, item_type, name, status, uom_base, shelf_life_days, output_uom,
@@ -387,15 +410,18 @@ async function ensureFgItemAndProduct(
     // not silently treated as bulk kg. The INSERT above is "on conflict do nothing", so an FG item
     // first created as a draft before its pack weight was set keeps output_uom='base' and the WO
     // modal then shows "Quantity (kg)" with no each/box conversion (owner: "FG-NPD-012 → automatically
-    // kg"). Upgrade base→each here; never clobber an already-chosen 'box'/'each'.
-    await ctx.client.query(
-      `update public.items set output_uom = 'each'
-        where org_id = app.current_org_id()
-          and item_code = $1
-          and output_uom = 'base'
-          and coalesce(each_per_box, 0) <= 0`,
-      [productCode],
-    );
+    // kg"). Upgrade base→each here when the brief now implies 'each'; never clobber 'box'/'each' or
+    // an explicit kg (base) choice.
+    if (outputUom === 'each') {
+      await ctx.client.query(
+        `update public.items set output_uom = 'each'
+          where org_id = app.current_org_id()
+            and item_code = $1
+            and output_uom = 'base'
+            and coalesce(each_per_box, 0) <= 0`,
+        [productCode],
+      );
+    }
     await ctx.client.query(
       `update public.items set uom_base = 'kg'
         where org_id = app.current_org_id()
