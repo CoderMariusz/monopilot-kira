@@ -1038,6 +1038,13 @@ class ReceiveMockClient implements QueryClient {
     if (normalized.startsWith('select pol.item_id::text, pol.unit_price::text as unit_price')) {
       return { rows: [{ item_id: ITEM_ID, unit_price: this.unitPrice, currency: 'EUR' }] as T[] };
     }
+    if (normalized.includes('from public.currencies where code = $1')) {
+      const code = String(params?.[0] ?? '');
+      if (['EUR', 'GBP', 'USD'].includes(code)) {
+        return { rows: [{ id: `currency-${code}` }] as T[] };
+      }
+      return { rows: [] };
+    }
     if (normalized.includes('from public.warehouses w')) {
       return { rows: [{ id: WAREHOUSE_ID, site_id: SITE_ID, default_location_id: LOCATION_ID }] as T[] };
     }

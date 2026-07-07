@@ -61,7 +61,10 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
     );
     await ownerPool.query(
       `insert into public.currencies (code, name)
-       values ('GBP', 'Pound Sterling')
+       values
+         ('GBP', 'Pound Sterling'),
+         ('EUR', 'Euro'),
+         ('USD', 'US Dollar')
        on conflict (code) do nothing`,
     );
   });
@@ -126,6 +129,31 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
         currency_code: 'GBP',
       },
     ]);
+  });
+
+  it('books EUR into currencies.code=EUR (not NULL, not GBP)', async () => {
+    const eurItemId = randomUUID();
+    await upsertWac(ownerPool, {
+      orgId,
+      siteId: null,
+      itemId: eurItemId,
+      deltaQtyKg: '4',
+      deltaValue: '16',
+      updatedBy: userId,
+      currencyCode: 'EUR',
+    });
+
+    const { rows } = await ownerPool.query<{ currency_code: string }>(
+      `select c.code::text as currency_code
+         from public.item_wac_state wac
+         join public.currencies c on c.id = wac.currency_id
+        where wac.org_id = $1::uuid
+          and wac.item_id = $2::uuid`,
+      [orgId, eurItemId],
+    );
+
+    expect(rows).toEqual([{ currency_code: 'EUR' }]);
+    expect(rows[0]?.currency_code).not.toBe('GBP');
   });
 
   it('computes exact weighted-average cost after a second receipt hits the conflict path', async () => {
