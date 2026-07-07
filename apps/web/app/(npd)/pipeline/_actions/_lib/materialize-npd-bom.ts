@@ -1212,7 +1212,7 @@ async function ensureActiveWipBom(
        (org_id, product_id, item_id, origin_module, status, version, supersedes_bom_header_id,
         yield_pct, line_basis, effective_from, notes, created_by_user, approved_by, approved_at, app_version)
      values
-       (app.current_org_id(), $1, $2::uuid, 'npd', 'active', $3, $4::uuid,
+       (app.current_org_id(), $1, $2::uuid, 'npd', 'draft', $3, $4::uuid,
         $5::numeric, 'per_base', current_date, $6, $7::uuid, $7::uuid, now(), 'npd-wip-materialize-v2')
      returning id, version`,
     [
@@ -1263,6 +1263,19 @@ async function ensureActiveWipBom(
       [existing.id],
     );
   }
+
+  // Lines are in place and the old active header (if any) is superseded — only
+  // now activate. Draft-first ordering is required by bom_lines_reject_approved_
+  // header_update (mig 090: NO line ops on an active header) and by the partial
+  // unique active index (supersede before activate). Found live on FG0014 (R4.5).
+  await ctx.client.query(
+    `update public.bom_headers
+        set status = 'active', updated_at = now()
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and status = 'draft'`,
+    [header.id],
+  );
   return header;
 }
 
