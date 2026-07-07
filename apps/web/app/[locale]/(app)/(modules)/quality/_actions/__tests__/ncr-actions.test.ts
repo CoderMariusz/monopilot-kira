@@ -25,6 +25,7 @@ let currentSeverity: 'critical' | 'major' | 'minor' = 'critical';
 let currentStatus: 'open' | 'closed' | 'cancelled' = 'open';
 // reference of the row returned by the getNcrDetail header select.
 let detailReference: { type: string | null; id: string | null } = { type: 'lp', id: 'ref-uuid' };
+let listTotal = 1;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -71,7 +72,11 @@ function makeClient(): QueryClient {
         return { rows: allowed ? [{ ok: true }] : [], rowCount: allowed ? 1 : 0 };
       }
 
-      if (q.startsWith('select n.id::text') && q.includes('n.site_id = $6::uuid')) {
+      if (q.includes('select count(*)::int as total') && q.includes('from public.ncr_reports n')) {
+        return { rows: [{ total: listTotal }], rowCount: 1 };
+      }
+
+      if (q.startsWith('select n.id::text') && q.includes('n.site_id = $5::uuid')) {
         return {
           rows: [
             {
@@ -216,6 +221,7 @@ describe('quality NCR server actions', () => {
     currentSeverity = 'critical';
     currentStatus = 'open';
     detailReference = { type: 'lp', id: 'ref-uuid' };
+    listTotal = 1;
     client = makeClient();
     vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
     vi.clearAllMocks();
@@ -226,11 +232,34 @@ describe('quality NCR server actions', () => {
     expect(result.ok).toBe(true);
 
     const listQuery = vi.mocked(client.query).mock.calls.find(([sql]) =>
-      normalize(String(sql)).includes('n.site_id = $6::uuid'),
+      normalize(String(sql)).includes('n.site_id = $5::uuid') && normalize(String(sql)).includes('limit $6::int'),
     );
     expect(listQuery).toBeTruthy();
     expect(normalize(String(listQuery?.[0]))).toContain('from public.ncr_reports n');
-    expect(listQuery?.[1]).toEqual(['open', 'major', 'quality', 'Seal', 25, SITE_ID]);
+    expect(listQuery?.[1]).toEqual(['open', 'major', 'quality', 'Seal', SITE_ID, 25, 0]);
+    if (result.ok) {
+      expect(result.data).toMatchObject({ total: 1, page: 1, limit: 25, hasMore: false });
+    }
+  });
+
+  it('page 2 offset reaches rows beyond the default page cap when total exceeds limit', async () => {
+    listTotal = 120;
+
+    const result = await listNcrs({ page: 2 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data).toMatchObject({
+      total: 120,
+      page: 2,
+      limit: 50,
+      offset: 50,
+      hasMore: true,
+    });
+    const listQuery = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('limit $6::int') && normalize(String(sql)).includes('offset $7::int'),
+    );
+    expect(listQuery?.[1]).toEqual([null, null, null, null, SITE_ID, 50, 50]);
   });
 
   it('listNcrs returns noActiveSite without running the main DB query when no site is active', async () => {
@@ -238,7 +267,11 @@ describe('quality NCR server actions', () => {
 
     const result = await listNcrs();
 
-    expect(result).toEqual({ ok: true, data: [], noActiveSite: true });
+    expect(result).toEqual({
+      ok: true,
+      data: { items: [], total: 0, page: 1, limit: 50, offset: 0, hasMore: false },
+      noActiveSite: true,
+    });
     expect(client.query).not.toHaveBeenCalled();
   });
 

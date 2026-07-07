@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 import { LpListClient, type LpListLabels } from '../lp-list.client';
 import { getLpTranslator } from '../../lp-labels';
 import type { LicensePlateListItem } from '../../../_actions/shared';
+import { normalizePage, toPaginatedResult } from '../../../../../../../../lib/shared/pagination';
 
 function buildLabels(locale: string): LpListLabels {
   const t = getLpTranslator(locale);
@@ -58,6 +59,11 @@ function buildLabels(locale: string): LpListLabels {
       location: t('list.columns.location'),
     },
     expiry: { expired: t('list.expiry.expired'), soon: t('list.expiry.soon') },
+    pagination: {
+      showing: t('list.pagination.showing'),
+      previous: t('list.pagination.previous'),
+      next: t('list.pagination.next'),
+    },
   };
 }
 
@@ -83,8 +89,10 @@ function makeRow(over: Partial<LicensePlateListItem>): LicensePlateListItem {
   };
 }
 
-function renderList(rows: LicensePlateListItem[], labels: LpListLabels = EN) {
-  return render(<LpListClient rows={rows} labels={labels} locale="en" />);
+function renderList(rows: LicensePlateListItem[], total = rows.length, labels: LpListLabels = EN) {
+  const page = normalizePage({ page: 1, defaultLimit: 50 });
+  const pagination = toPaginatedResult(rows, total, page);
+  return render(<LpListClient rows={rows} pagination={pagination} labels={labels} locale="en" />);
 }
 
 describe('LpListClient (WH-002 parity)', () => {
@@ -171,6 +179,14 @@ describe('LpListClient (WH-002 parity)', () => {
     renderList([makeRow({ id: 'a' })]);
     expect(screen.getByTestId('lp-list-bulk-deferred')).toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  it('renders pagination footer with total count and next link when more pages exist', () => {
+    renderList([makeRow({ id: 'a' })], 120);
+
+    expect(screen.getByTestId('lp-list-pagination-showing')).toHaveTextContent('Showing 1 of 120');
+    expect(screen.getByTestId('lp-list-pagination-next')).toHaveAttribute('href', '/en/warehouse/license-plates?page=2');
+    expect(screen.getByTestId('lp-list-pagination-prev-disabled')).toBeInTheDocument();
   });
 
   it('resolves every staged i18n key in en and pl (no leaked dotted keys)', () => {

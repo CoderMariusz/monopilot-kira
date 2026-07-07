@@ -7,6 +7,11 @@
 export const DEFAULT_MOVEMENT_PAGE_SIZE = 50;
 export const DEFAULT_FINANCE_WO_COST_PAGE_SIZE = 25;
 export const DEFAULT_UNSCHEDULED_PAGE_SIZE = 50;
+export const DEFAULT_LP_PAGE_SIZE = 50;
+export const DEFAULT_WO_LIST_PAGE_SIZE = 50;
+export const DEFAULT_PO_LIST_PAGE_SIZE = 50;
+export const DEFAULT_TO_LIST_PAGE_SIZE = 50;
+export const DEFAULT_NCR_PAGE_SIZE = 50;
 
 export type PageInput = {
   page?: number;

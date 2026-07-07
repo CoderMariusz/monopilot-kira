@@ -71,6 +71,11 @@ export function buildNcrListLabels(t: QaNcrsTranslator): NcrListLabels {
     statusValues: statusValues(t),
     typeValues: typeValues(t),
     createLabels: buildNcrCreateLabels(t),
+    pagination: {
+      showing: t('list.pagination.showing'),
+      previous: t('list.pagination.previous'),
+      next: t('list.pagination.next'),
+    },
   };
 }
 

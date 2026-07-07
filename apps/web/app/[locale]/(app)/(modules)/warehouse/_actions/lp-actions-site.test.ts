@@ -28,6 +28,9 @@ const client: QueryClient = {
       return { rows: [{ ok: true }], rowCount: 1 };
     }
     calls.push({ sql: normalized, params: [...(params ?? [])] });
+    if (normalized.includes('count(*)::int as total')) {
+      return { rows: [{ total: 0 }], rowCount: 1 };
+    }
     return { rows: [], rowCount: 0 };
   }),
 } as unknown as QueryClient;
@@ -47,35 +50,32 @@ describe('listLPs site filter (14-multi-site CL4)', () => {
   it('binds NULL for the site param when siteId is absent (All sites)', async () => {
     const result = await listLPs({ limit: 200 });
     expect(result.ok).toBe(true);
-    expect(calls).toHaveLength(1);
-    const [call] = calls;
-    expect(call.sql).toContain('$3::uuid is null or lp.site_id = $3::uuid');
-    // [warehouseId, search, siteId, limit]
-    expect(call.params).toEqual([null, null, null, 200]);
+    expect(calls).toHaveLength(2);
+    const dataCall = calls.find((call) => call.sql.includes('limit $4::integer offset $5::integer'));
+    expect(dataCall?.sql).toContain('$3::uuid is null or lp.site_id = $3::uuid');
+    expect(dataCall?.params).toEqual([null, null, null, 200, 0]);
   });
 
-  it('binds the site uuid as the 6th param when siteId is set', async () => {
+  it('binds the site uuid as the third param when siteId is set', async () => {
     const result = await listLPs({ limit: 200, siteId: SITE_ID });
     expect(result.ok).toBe(true);
-    expect(calls).toHaveLength(1);
-    expect(calls[0].params).toEqual([null, null, SITE_ID, 200]);
+    const dataCall = calls.find((call) => call.sql.includes('limit $4::integer offset $5::integer'));
+    expect(dataCall?.params).toEqual([null, null, SITE_ID, 200, 0]);
   });
 
   it('keeps search intact alongside the site filter without status restrictions', async () => {
     const result = await listLPs({ status: 'available', search: 'LP-1', siteId: SITE_ID });
     expect(result.ok).toBe(true);
-    const [call] = calls;
-    expect(call.sql).not.toMatch(/lp\.status\s*=/);
-    expect(call.params[1]).toBe('LP-1');
-    expect(call.params[2]).toBe(SITE_ID);
+    const dataCall = calls.find((call) => call.sql.includes('limit $4::integer offset $5::integer'));
+    expect(dataCall?.sql).not.toMatch(/lp\.status\s*=/);
+    expect(dataCall?.params[1]).toBe('LP-1');
+    expect(dataCall?.params[2]).toBe(SITE_ID);
   });
 
   it('includes NULL-site rows even when a site filter is active (F10 fix)', async () => {
     const result = await listLPs({ limit: 200, siteId: SITE_ID });
     expect(result.ok).toBe(true);
-    expect(calls).toHaveLength(1);
-    const [call] = calls;
-    // Verify the SQL includes the NULL-site visibility clause
-    expect(call.sql).toContain('$3::uuid is null or lp.site_id = $3::uuid or lp.site_id is null');
+    const dataCall = calls.find((call) => call.sql.includes('limit $4::integer offset $5::integer'));
+    expect(dataCall?.sql).toContain('$3::uuid is null or lp.site_id = $3::uuid or lp.site_id is null');
   });
 });

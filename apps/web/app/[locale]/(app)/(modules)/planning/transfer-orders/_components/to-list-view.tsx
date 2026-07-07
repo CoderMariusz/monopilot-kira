@@ -40,6 +40,8 @@ import { Badge } from '@monopilot/ui/Badge';
 import { EmptyState } from '@monopilot/ui/EmptyState';
 
 import { ToStatusBadge } from './to-status-badge';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 import { CreateToModal, type CreateToLabels } from './create-to-modal';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
 import type { WarehouseOption, SearchTransferItemsInput } from '../_actions/to-form-data';
@@ -87,11 +89,13 @@ export type ToListLabels = {
   backToActive: string;
   empty: { title: string; body: string; clear: string };
   create: CreateToLabels;
+  pagination: ListPaginationLabels;
 };
 
 export type ToListViewProps = {
   locale: string;
   transferOrders: TransferOrderRow[];
+  pagination: PaginatedResult<TransferOrderRow>;
   /** Per-TO line count, keyed by TO id (the list action doesn't aggregate it). */
   lineCounts: Record<string, number>;
   warehouses: WarehouseOption[];
@@ -128,6 +132,7 @@ function fmtDate(iso: string | null, locale: string): string {
 export function ToListView({
   locale,
   transferOrders,
+  pagination,
   lineCounts,
   warehouses,
   labels,
@@ -139,6 +144,14 @@ export function ToListView({
 }: ToListViewProps) {
   const router = useRouter();
   const basePath = `/${locale}/planning/transfer-orders`;
+  const pageHref = (page: number) => {
+    const params = new URLSearchParams();
+    if (archived) params.set('archived', '1');
+    if (page > 1) params.set('page', String(page));
+    const q = params.toString();
+    return q ? `${basePath}?${q}` : basePath;
+  };
+  const shown = pagination.offset + transferOrders.length;
   const [tab, setTab] = React.useState<TabKey>('all');
   const [search, setSearch] = React.useState('');
   const [createOpen, setCreateOpen] = React.useState(autoOpenCreate);
@@ -322,6 +335,14 @@ export function ToListView({
               ))}
             </tbody>
           </table>
+          <ListPaginationFooter
+            shown={shown}
+            total={pagination.total}
+            previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+            nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+            labels={labels.pagination}
+            testId="to-list-pagination"
+          />
         </div>
       )}
 

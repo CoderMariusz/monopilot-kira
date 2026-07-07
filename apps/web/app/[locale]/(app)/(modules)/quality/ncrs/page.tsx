@@ -32,7 +32,12 @@ import { buildNcrListLabels } from './_components/labels';
 
 export const dynamic = 'force-dynamic';
 
-type PageProps = { params: Promise<{ locale: string }> };
+type PageProps = { params: Promise<{ locale: string }>; searchParams?: Promise<{ page?: string }> };
+
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
 
 const PROTOTYPE_ANCHOR =
   'prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:1-184';
@@ -47,9 +52,9 @@ function ListSkeleton() {
   );
 }
 
-async function ListContent({ locale }: { locale: string }) {
+async function ListContent({ locale, page }: { locale: string; page: number }) {
   const t = getQaNcrsTranslator(locale);
-  const result = await listNcrs({ limit: 200 });
+  const result = await listNcrs({ page });
 
   if (!result.ok) {
     if (result.reason === 'forbidden') {
@@ -80,7 +85,7 @@ async function ListContent({ locale }: { locale: string }) {
   // (the backend list row does not surface it) — non-terminal rows only.
   const now = Date.now();
   const TERMINAL = new Set(['closed', 'cancelled']);
-  const rows: NcrListRow[] = result.data.map((r) => ({
+  const rows: NcrListRow[] = result.data.items.map((r) => ({
     ...r,
     overdue:
       !TERMINAL.has(r.status) &&
@@ -91,6 +96,7 @@ async function ListContent({ locale }: { locale: string }) {
   return (
     <NcrListClient
       rows={rows}
+      pagination={{ ...result.data, items: rows }}
       labels={buildNcrListLabels(t)}
       locale={locale}
       createNcrAction={createNcr}
@@ -98,8 +104,10 @@ async function ListContent({ locale }: { locale: string }) {
   );
 }
 
-export default async function NcrListPage({ params }: PageProps) {
+export default async function NcrListPage({ params, searchParams }: PageProps) {
   const { locale } = await params;
+  const sp: { page?: string } = searchParams ? await searchParams : {};
+  const page = parsePage(sp.page);
   const t = getQaNcrsTranslator(locale);
 
   return (
@@ -117,8 +125,8 @@ export default async function NcrListPage({ params }: PageProps) {
           { label: t('list.breadcrumb.ncrs') },
         ]}
       />
-      <Suspense fallback={<ListSkeleton />}>
-        <ListContent locale={locale} />
+      <Suspense key={page} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} page={page} />
       </Suspense>
     </main>
   );

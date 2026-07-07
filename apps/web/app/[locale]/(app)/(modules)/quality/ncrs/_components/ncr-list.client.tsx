@@ -40,6 +40,8 @@ import { Select } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 import { NcrCreateModal, type NcrCreateLabels } from './ncr-create-modal.client';
 import {
   NCR_FILTER_STATUSES,
@@ -101,6 +103,7 @@ export type NcrListLabels = {
   statusValues: Record<string, string>;
   typeValues: Record<string, string>;
   createLabels: NcrCreateLabels;
+  pagination: ListPaginationLabels;
 };
 
 const TERMINAL_STATUSES = new Set<NcrStatus>(['closed', 'cancelled']);
@@ -123,16 +126,21 @@ export function isAttention(row: NcrListRow): boolean {
 
 export function NcrListClient({
   rows,
+  pagination,
   labels,
   locale,
   createNcrAction,
 }: {
   rows: NcrListRow[];
+  pagination: PaginatedResult<NcrListRow>;
   labels: NcrListLabels;
   locale: string;
   createNcrAction: CreateNcrAction;
 }) {
   const router = useRouter();
+  const pageHref = (page: number) =>
+    page > 1 ? `/${locale}/quality/ncrs?page=${page}` : `/${locale}/quality/ncrs`;
+  const shown = pagination.offset + rows.length;
   const [status, setStatus] = useState<NcrStatus | 'all'>('all');
   const [severity, setSeverity] = useState<NcrSeverity | 'all'>('all');
   const [ncrType, setNcrType] = useState<NcrType | 'all'>('all');
@@ -534,6 +542,14 @@ export function NcrListClient({
             </TableBody>
           </Table>
         )}
+        <ListPaginationFooter
+          shown={shown}
+          total={pagination.total}
+          previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+          nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+          labels={labels.pagination}
+          testId="ncr-list-pagination"
+        />
       </Card>
 
       <NcrCreateModal

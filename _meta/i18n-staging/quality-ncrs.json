@@ -29,6 +29,11 @@
       "unassigned": "Unassigned",
       "emptyAll": "No non-conformance reports yet. Create the first NCR to begin tracking non-conformances.",
       "emptyFiltered": "No NCRs match your filters. Adjust status / severity / type above or clear filters to see all records.",
+      "pagination": {
+        "showing": "Showing {shown} of {total}",
+        "previous": "Previous",
+        "next": "Next"
+      },
       "attention": {
         "heading": "Needs attention",
         "meta": "{count} overdue / critical / escalated · auto-expanded"
@@ -247,6 +252,11 @@
       "unassigned": "Nieprzypisany",
       "emptyAll": "Brak raportów niezgodności. Utwórz pierwszy NCR, aby rozpocząć rejestrowanie niezgodności.",
       "emptyFiltered": "Żaden NCR nie pasuje do filtrów. Zmień status / wagę / typ powyżej lub wyczyść filtry, aby zobaczyć wszystkie rekordy.",
+      "pagination": {
+        "showing": "Wyświetlanie {shown} z {total}",
+        "previous": "Poprzednia",
+        "next": "Następna"
+      },
       "attention": {
         "heading": "Wymaga uwagi",
         "meta": "{count} przeterminowanych / krytycznych / eskalowanych · automatycznie rozwinięte"

@@ -147,7 +147,7 @@ async function GenealogyContent({ locale, selectedLpId }: { locale: string; sele
 
   return (
     <GenealogyTreeClient
-      searchPool={lpResult.data}
+      searchPool={lpResult.data.items}
       selectedLpId={selectedLpId}
       nodes={nodes}
       labels={buildLabels(t)}

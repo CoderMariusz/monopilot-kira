@@ -26,6 +26,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PoListView, type PoListLabels, type PoRow } from '../_components/po-list-view';
+import { normalizePage, toPaginatedResult } from '../../../../../../../lib/shared/pagination';
 import { PoDetailView, type PoDetailLabels, type PoDetail } from '../_components/po-detail-view';
 import type { CreatePoResult } from '../_components/create-po-modal';
 import type { PoTransitionResult } from '../_components/po-detail-view';
@@ -75,6 +76,11 @@ const listLabels: PoListLabels = {
   tabArchive: 'Archive',
   archivedHint: 'Showing archived purchase orders.',
   backToActive: 'Back to active',
+  pagination: {
+    showing: 'Showing {shown} of {total}',
+    previous: 'Previous',
+    next: 'Next',
+  },
   status: statusLabels,
   columns: {
     po: 'PO number',
@@ -227,6 +233,8 @@ const SITES = [
   { id: 'site-krakow', siteCode: 'PL-KRK', name: 'Plant Krakow', isDefault: false },
 ];
 
+const defaultPoPagination = toPaginatedResult(ROWS, ROWS.length, normalizePage({ page: 1, defaultLimit: 50 }));
+
 function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}) {
   const searchPoItemsAction = vi.fn<[unknown], Promise<ItemPickerOption[]>>().mockResolvedValue([
     { id: 'item-1', itemCode: 'RM-001', name: 'Pork Belly', itemType: 'rm', status: 'active', costPerKgEur: null, uomBase: 'kg' },
@@ -243,6 +251,7 @@ function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}
     <PoListView
       locale="en"
       purchaseOrders={ROWS}
+      pagination={defaultPoPagination}
       suppliers={suppliers}
       labels={listLabels}
       archivedCount={2}

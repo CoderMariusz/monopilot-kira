@@ -27,65 +27,68 @@ vi.mock('../../../../../../../lib/site/site-context', () => ({
   getActiveSiteId: getActiveSiteIdMock,
 }));
 
+const summaryRow = {
+  id: WO_ID,
+  wo_number: 'WO-001',
+  product_id: PRODUCT_ID,
+  item_code: 'FG-NPD-004',
+  item_type_at_creation: 'fg',
+  planned_quantity: '1000.000',
+  produced_quantity: null,
+  uom: 'kg',
+  status: 'RELEASED',
+  scheduled_start_time: '2026-06-09T08:00:00.000Z',
+  scheduled_end_time: null,
+  production_line_id: null,
+  priority: 'normal',
+  source_of_demand: 'manual',
+  source_reference: 'FG-NPD-004',
+  notes: 'demo',
+  created_at: '2026-06-09T07:00:00.000Z',
+  updated_at: '2026-06-09T07:00:00.000Z',
+  material_count: 2,
+  operation_count: 1,
+  latest_execution: {
+    id: EXECUTION_ID,
+    wo_id: WO_ID,
+    status: 'planned',
+    version: 0,
+    started_at: null,
+    paused_at: null,
+    resumed_at: null,
+    completed_at: null,
+    closed_at: null,
+    cancelled_at: null,
+  },
+  primary_schedule: {
+    id: SCHEDULE_ID,
+    planned_wo_id: WO_ID,
+    product_id: PRODUCT_ID,
+    output_role: 'primary',
+    expected_qty: '1000.000',
+    uom: 'kg',
+    allocation_pct: '100.00',
+    disposition: 'to_stock',
+    downstream_wo_id: null,
+    notes: null,
+  },
+};
+
 describe('listPlanningWorkOrders', () => {
   beforeEach(() => {
     getActiveSiteIdMock.mockResolvedValue(SITE_ID);
     client = {
       query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
         const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (normalized.includes('select count(*)::int as total')) {
+          return { rows: [{ total: 120 }], rowCount: 1 };
+        }
         if (normalized.startsWith('select count(*) as archived_count')) {
           return { rows: [{ archived_count: 2 }], rowCount: 1 };
         }
         return {
-        rows: [
-          {
-            id: WO_ID,
-            wo_number: 'WO-001',
-            product_id: PRODUCT_ID,
-            item_code: 'FG-NPD-004',
-            item_type_at_creation: 'fg',
-            planned_quantity: '1000.000',
-            produced_quantity: null,
-            uom: 'kg',
-            status: 'RELEASED',
-            scheduled_start_time: '2026-06-09T08:00:00.000Z',
-            scheduled_end_time: null,
-            production_line_id: null,
-            priority: 'normal',
-            source_of_demand: 'manual',
-            source_reference: 'FG-NPD-004',
-            notes: 'demo',
-            created_at: '2026-06-09T07:00:00.000Z',
-            updated_at: '2026-06-09T07:00:00.000Z',
-            material_count: 2,
-            operation_count: 1,
-            latest_execution: {
-              id: EXECUTION_ID,
-              wo_id: WO_ID,
-              status: 'planned',
-              version: 0,
-              started_at: null,
-              paused_at: null,
-              resumed_at: null,
-              completed_at: null,
-              closed_at: null,
-              cancelled_at: null,
-            },
-            primary_schedule: {
-              id: SCHEDULE_ID,
-              planned_wo_id: WO_ID,
-              product_id: PRODUCT_ID,
-              output_role: 'primary',
-              expected_qty: '1000.000',
-              uom: 'kg',
-              allocation_pct: '100.00',
-              disposition: 'to_stock',
-              downstream_wo_id: null,
-              notes: null,
-            },
-          },
-        ],
-        rowCount: 1,
+          rows: [summaryRow],
+          rowCount: 1,
         };
       }),
     };
@@ -107,18 +110,47 @@ describe('listPlanningWorkOrders', () => {
         primarySchedule: expect.objectContaining({ id: SCHEDULE_ID, outputRole: 'primary' }),
       }),
     ]);
+    expect(result.pagination).toMatchObject({
+      total: 120,
+      page: 1,
+      limit: 10,
+      offset: 0,
+      hasMore: true,
+    });
     expect(result.archivedCount).toBe(2);
-    expect(client.query).toHaveBeenCalledWith(
-      expect.stringContaining('from public.work_orders wo'),
-      ['RELEASED', 'FG', 10, false, SITE_ID],
+    const dataCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('to_jsonb(exec.*)'),
     );
-    expect(vi.mocked(client.query).mock.calls[0]?.[0]).toContain('($5::uuid is null or wo.site_id = $5::uuid)');
+    expect(dataCall?.[1]).toEqual(['RELEASED', 'FG', false, SITE_ID, 10, 0]);
+    expect(String(dataCall?.[0])).toContain('($5::uuid is null or wo.site_id = $5::uuid)');
+    expect(String(dataCall?.[0])).toContain('wo.id desc');
+  });
+
+  it('page 2 offset reaches rows beyond the default page cap when total exceeds limit', async () => {
+    const result = await listPlanningWorkOrders({ page: 2 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.pagination).toMatchObject({
+      total: 120,
+      page: 2,
+      limit: 50,
+      offset: 50,
+      hasMore: true,
+    });
+    const dataCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('to_jsonb(exec.*)'),
+    );
+    expect(dataCall?.[1]).toEqual([null, null, false, SITE_ID, 50, 50]);
   });
 
   it('passes archived=true to return only archived work orders', async () => {
     await listPlanningWorkOrders({ archived: true });
 
-    expect(vi.mocked(client.query).mock.calls[0]?.[1]).toEqual([null, null, 50, true, SITE_ID]);
+    const dataCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('to_jsonb(exec.*)'),
+    );
+    expect(dataCall?.[1]).toEqual([null, null, true, SITE_ID, 50, 0]);
   });
 
   it('treats a null active site as All sites and returns org-wide work orders', async () => {
@@ -129,10 +161,16 @@ describe('listPlanningWorkOrders', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.workOrders).toHaveLength(1);
-    expect(vi.mocked(client.query).mock.calls[0]?.[1]).toEqual([null, null, 50, false, null]);
-    expect(vi.mocked(client.query).mock.calls[0]?.[0]).toContain('($5::uuid is null or wo.site_id = $5::uuid)');
-    expect(vi.mocked(client.query).mock.calls[1]?.[1]).toEqual([null, null, null]);
-    expect(vi.mocked(client.query).mock.calls[1]?.[0]).toContain('($3::uuid is null or wo.site_id = $3::uuid)');
+    const dataCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('to_jsonb(exec.*)'),
+    );
+    expect(dataCall?.[1]).toEqual([null, null, false, null, 50, 0]);
+    expect(String(dataCall?.[0])).toContain('($5::uuid is null or wo.site_id = $5::uuid)');
+    const archivedCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('archived_count'),
+    );
+    expect(archivedCall?.[1]).toEqual([null, null, null]);
+    expect(String(archivedCall?.[0])).toContain('($3::uuid is null or wo.site_id = $3::uuid)');
   });
 
   it('returns persistence_failed when the query fails', async () => {

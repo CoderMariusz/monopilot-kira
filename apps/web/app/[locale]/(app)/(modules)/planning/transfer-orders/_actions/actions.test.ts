@@ -37,6 +37,7 @@ let failNextLineInsert = false;
 let currentTransferNotes: string | null = null;
 /** F3: junction rows already received (dest_lp_id NOT NULL) — blocks cancel. */
 let receivedJunctionCount = 0;
+let listTotal = 1;
 
 const SOURCE_LP_ID = '99999999-9999-4999-8999-999999999999';
 const DEST_LOCATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -90,6 +91,9 @@ function makeClient(): QueryClient {
           rows: [{ old_seq: generatedSeq++, number_prefix: 'TO', number_date_part: 'YYYYMM', number_seq_padding: 4 }],
           rowCount: 1,
         };
+      }
+      if (normalized.includes('select count(*)::int as total')) {
+        return { rows: [{ total: listTotal }], rowCount: 1 };
       }
       if (normalized.startsWith('select count(*) as archived_count')) {
         return { rows: [{ archived_count: 1 }], rowCount: 1 };
@@ -242,6 +246,7 @@ describe('planning transfer order actions', () => {
     failNextLineInsert = false;
     currentTransferNotes = null;
     receivedJunctionCount = 0;
+    listTotal = 1;
     client = makeClient();
   });
 
@@ -259,8 +264,30 @@ describe('planning transfer order actions', () => {
     await listTransferOrders({ archived: true });
 
     const listCalls = vi.mocked(client.query).mock.calls.filter(([sql]) => String(sql).includes('from public.transfer_orders transfer_orders'));
-    expect(listCalls[0]?.[1]).toEqual([null, null, 100, false]);
-    expect(listCalls[2]?.[1]).toEqual([null, null, 100, true]);
+    expect(listCalls[0]?.[1]).toEqual([null, null, false]);
+    expect(listCalls[1]?.[1]).toEqual([null, null, false, 50, 0]);
+    expect(listCalls[3]?.[1]).toEqual([null, null, true]);
+    expect(listCalls[4]?.[1]).toEqual([null, null, true, 50, 0]);
+  });
+
+  it('page 2 offset reaches rows beyond the default page cap when total exceeds limit', async () => {
+    listTotal = 120;
+
+    const result = await listTransferOrders({ page: 2 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.pagination).toMatchObject({
+      total: 120,
+      page: 2,
+      limit: 50,
+      offset: 50,
+      hasMore: true,
+    });
+    const dataCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('limit $4::integer offset $5::integer'),
+    );
+    expect(dataCall?.[1]).toEqual([null, null, false, 50, 50]);
   });
 
   it('gets transfer order detail with lines', async () => {

@@ -8299,7 +8299,12 @@
         "backToActive": "Back to active",
         "deleteDraft": "Delete draft",
         "deletingDraft": "Deleting...",
-        "confirmDeleteDraft": "Delete draft work order {wo}? This cannot be undone."
+        "confirmDeleteDraft": "Delete draft work order {wo}? This cannot be undone.",
+        "pagination": {
+          "showing": "Showing {shown} of {total}",
+          "previous": "Previous",
+          "next": "Next"
+        }
       },
       "create": {
         "title": "Create work order",
@@ -8637,7 +8642,12 @@
           "clear": "Clear filters"
         },
         "archivedHint": "Showing archived purchase orders (received / cancelled past the org's archive window).",
-        "backToActive": "Back to active"
+        "backToActive": "Back to active",
+        "pagination": {
+          "showing": "Showing {shown} of {total}",
+          "previous": "Previous",
+          "next": "Next"
+        }
       },
       "errors": {
         "invalid_input": "That input isn't valid. Please review and try again.",
@@ -8904,7 +8914,12 @@
           "clear": "Clear filters"
         },
         "archivedHint": "Showing archived transfer orders (received / cancelled past the org's archive window).",
-        "backToActive": "Back to active"
+        "backToActive": "Back to active",
+        "pagination": {
+          "showing": "Showing {shown} of {total}",
+          "previous": "Previous",
+          "next": "Next"
+        }
       },
       "errors": {
         "invalid_input": "Some fields are invalid. Please review and retry.",

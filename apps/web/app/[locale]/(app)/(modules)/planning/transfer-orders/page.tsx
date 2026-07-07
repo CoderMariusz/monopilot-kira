@@ -41,8 +41,13 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ new?: string; archived?: string }>;
+  searchParams: Promise<{ new?: string; archived?: string; page?: string }>;
 };
+
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
 
 /**
  * Archive-tab + auto-number labels staged in _meta/i18n-staging/archive-tabs.json
@@ -130,6 +135,11 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     tabArchive: archiveLabel(t, locale, 'list.tabs.archive'),
     archivedHint: archiveLabel(t, locale, 'list.archivedHint'),
     backToActive: archiveLabel(t, locale, 'list.backToActive'),
+    pagination: {
+      showing: t('list.pagination.showing'),
+      previous: t('list.pagination.previous'),
+      next: t('list.pagination.next'),
+    },
     empty: {
       title: t('list.empty.title'),
       body: t('list.empty.body'),
@@ -199,14 +209,16 @@ async function ListContent({
   locale,
   autoOpenCreate,
   archived,
+  page,
 }: {
   locale: string;
   autoOpenCreate: boolean;
   archived: boolean;
+  page: number;
 }) {
   const t = await getTranslations('Planning.transferOrders');
   const [listResult, warehouses, lineCounts, orgUnits] = await Promise.all([
-    listTransferOrders({ limit: 200, archived }),
+    listTransferOrders({ page, archived }),
     listTransferWarehouses(),
     listTransferOrderLineCounts(),
     listTransferUnits(),
@@ -225,6 +237,7 @@ async function ListContent({
     <ToListView
       locale={locale}
       transferOrders={listResult.data}
+      pagination={{ ...listResult.pagination, items: listResult.data }}
       lineCounts={lineCounts}
       warehouses={warehouses}
       archived={archived}
@@ -242,6 +255,7 @@ export default async function TransferOrdersListPage({ params, searchParams }: P
   const sp = await searchParams;
   const autoOpenCreate = sp.new === '1';
   const archived = sp.archived === '1';
+  const page = parsePage(sp.page);
   const t = await getTranslations('Planning.transferOrders');
 
   return (
@@ -255,8 +269,8 @@ export default async function TransferOrdersListPage({ params, searchParams }: P
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.planning') }, { label: t('breadcrumb.transferOrders') }]}
       />
-      <Suspense fallback={<ListSkeleton />}>
-        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} />
+      <Suspense key={`${archived}-${page}`} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} page={page} />
       </Suspense>
     </main>
   );

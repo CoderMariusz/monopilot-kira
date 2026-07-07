@@ -187,6 +187,10 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (normalized.includes('select count(*)::int as total') && normalized.includes('from public.license_plates lp')) {
+        return { rows: [{ total: 1 }], rowCount: 1 };
+      }
+
       if (normalized.startsWith('select lp.id::text') && normalized.includes('from public.license_plates lp')) {
         return {
           rows: [
@@ -297,7 +301,11 @@ describe('warehouse backend actions', () => {
     });
 
     expect(result.ok).toBe(true);
-    const listCall = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(sql).includes('from public.license_plates lp'));
+    const listCall = vi.mocked(client.query).mock.calls.find(
+      ([sql]) =>
+        normalize(sql).includes('from public.license_plates lp') &&
+        normalize(sql).includes('lp.status, lp.qa_status'),
+    );
     expect(listCall).toBeTruthy();
     expect(normalize(String(listCall?.[0]))).toContain('lp.org_id = app.current_org_id()');
     expect(normalize(String(listCall?.[0]))).not.toMatch(/lp\.status\s*=/);
@@ -305,7 +313,7 @@ describe('warehouse backend actions', () => {
     expect(normalize(String(listCall?.[0]))).toContain('lp.status, lp.qa_status');
     expect(normalize(String(listCall?.[0]))).toContain('lp.warehouse_id = $1');
     expect(normalize(String(listCall?.[0]))).toContain('ilike');
-    expect(listCall?.[1]).toEqual(['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'RM', null, 25]);
+    expect(listCall?.[1]).toEqual(['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'RM', null, 25, 0]);
   });
 
   it('createStockMove rejects immovable LP statuses before inserting a stock move', async () => {

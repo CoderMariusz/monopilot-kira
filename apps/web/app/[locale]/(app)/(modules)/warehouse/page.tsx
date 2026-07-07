@@ -202,7 +202,7 @@ async function DashboardContent({ locale }: { locale: string }) {
   // errors we still render the dashboard, falling back to distinct SKUs from the LP set.
   const invResult = await getInventoryByProduct();
 
-  const lps = lpResult.data;
+  const lps = lpResult.data.items;
   const activeLps = lps.filter((r) => ACTIVE_LP_STATUSES.has(r.status));
   const qcHold = lps.filter((r) => QC_HOLD_QA.has(r.qaStatus.toUpperCase())).length;
   const blocked = lps.filter((r) => r.status === "blocked").length;

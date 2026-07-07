@@ -3,6 +3,12 @@
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
+  DEFAULT_WO_LIST_PAGE_SIZE,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../../lib/shared/pagination';
+import {
   mapExecution,
   mapSchedule,
   mapWoHeader,
@@ -10,22 +16,60 @@ import {
   type WOSummaryRow,
 } from './shared';
 
+const WO_LIST_WHERE = `
+         where wo.org_id = app.current_org_id()
+           and ($5::uuid is null or wo.site_id = $5::uuid)
+           and ($1::text is null or wo.status = $1)
+           and (
+             $2::text is null
+             or wo.wo_number ilike '%' || $2 || '%'
+             or coalesce(i.item_code, wo.source_reference, '') ilike '%' || $2 || '%'
+           )
+           and coalesce(
+             (
+               wo.status in ('CLOSED', 'CANCELLED')
+               and ods.archive_after_days is not null
+               and wo.updated_at < now() - make_interval(days => ods.archive_after_days)
+             ),
+             false
+           ) = $4::boolean`;
+
 export async function listPlanningWorkOrders(params: {
   status?: string;
   search?: string;
+  page?: number;
+  offset?: number;
   limit?: number;
   archived?: boolean;
 }): Promise<ListPlanningWorkOrdersResult> {
   const status = params.status?.trim();
   const search = params.search?.trim();
-  const limit = Math.min(Math.max(Math.trunc(params.limit ?? 50), 1), 200);
   const archived = params.archived === true;
+  const page = normalizePage({
+    page: params.page,
+    offset: params.offset,
+    limit: params.limit,
+    defaultLimit: DEFAULT_WO_LIST_PAGE_SIZE,
+    maxLimit: 200,
+  });
 
   try {
     return await withOrgContext(async ({ client }): Promise<ListPlanningWorkOrdersResult> => {
       const s = await getActiveSiteId({ client });
+      const baseParams = [status || null, search || null, archived, s] as const;
 
-      const { rows } = await client.query<WOSummaryRow>(
+      const [countResult, dataResult] = await Promise.all([
+        client.query<{ total: number }>(
+          `select count(*)::int as total
+             from public.work_orders wo
+             left join public.items i on i.id = wo.product_id and i.org_id = app.current_org_id()
+             left join public.org_document_settings ods
+               on ods.org_id = wo.org_id
+              and ods.doc_type = 'wo'
+            ${WO_LIST_WHERE}`,
+          [...baseParams],
+        ),
+        client.query<WOSummaryRow>(
         `select
            wo.id, wo.wo_number, wo.product_id, i.item_code, wo.item_type_at_creation,
            wo.planned_quantity::text as planned_quantity,
@@ -72,26 +116,12 @@ export async function listPlanningWorkOrders(params: {
             order by so.created_at
             limit 1
          ) sched on true
-         where wo.org_id = app.current_org_id()
-           and ($5::uuid is null or wo.site_id = $5::uuid)
-           and ($1::text is null or wo.status = $1)
-           and (
-             $2::text is null
-             or wo.wo_number ilike '%' || $2 || '%'
-             or coalesce(i.item_code, wo.source_reference, '') ilike '%' || $2 || '%'
-           )
-           and coalesce(
-             (
-               wo.status in ('CLOSED', 'CANCELLED')
-               and ods.archive_after_days is not null
-               and wo.updated_at < now() - make_interval(days => ods.archive_after_days)
-             ),
-             false
-           ) = $4::boolean
-         order by wo.scheduled_start_time nulls last, wo.created_at desc
-         limit $3`,
-        [status || null, search || null, limit, archived, s],
-      );
+         ${WO_LIST_WHERE}
+         order by wo.scheduled_start_time nulls last, wo.created_at desc, wo.id desc
+         limit $6 offset $7`,
+        [...baseParams, page.limit, page.offset],
+        ),
+      ]);
       const count = await client.query<{ archived_count: string | number }>(
         `select count(*) as archived_count
            from public.work_orders wo
@@ -113,15 +143,19 @@ export async function listPlanningWorkOrders(params: {
         [status || null, search || null, s],
       );
 
+      const workOrders = dataResult.rows.map((row) => ({
+        ...mapWoHeader(row),
+        materialCount: Number(row.material_count),
+        operationCount: Number(row.operation_count),
+        latestExecution: row.latest_execution ? mapExecution(row.latest_execution) : undefined,
+        primarySchedule: row.primary_schedule ? mapSchedule(row.primary_schedule) : undefined,
+      }));
+      const pagination = toPaginatedResult(workOrders, Number(countResult.rows[0]?.total ?? 0), page);
+
       return {
         ok: true,
-        workOrders: rows.map((row) => ({
-          ...mapWoHeader(row),
-          materialCount: Number(row.material_count),
-          operationCount: Number(row.operation_count),
-          latestExecution: row.latest_execution ? mapExecution(row.latest_execution) : undefined,
-          primarySchedule: row.primary_schedule ? mapSchedule(row.primary_schedule) : undefined,
-        })),
+        workOrders: pagination.items,
+        pagination,
         archivedCount: Number(count.rows[0]?.archived_count ?? 0),
       };
     });

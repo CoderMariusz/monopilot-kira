@@ -47,6 +47,8 @@ import { Select } from '@monopilot/ui/Select';
 import { EmptyState } from '@monopilot/ui/EmptyState';
 
 import { downloadCsv } from '../../../../../../../lib/shared/download';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 import { PoStatusBadge } from './po-status-badge';
 import {
@@ -113,11 +115,13 @@ export type PoListLabels = {
     clear: string;
   };
   create: CreatePoLabels;
+  pagination: ListPaginationLabels;
 };
 
 export type PoListViewProps = {
   locale: string;
   purchaseOrders: PoRow[];
+  pagination: PaginatedResult<PoRow>;
   suppliers: PoSupplierOption[];
   labels: PoListLabels;
   /**
@@ -166,6 +170,7 @@ function fmtDate(iso: string | null, locale: string): string {
 export function PoListView({
   locale,
   purchaseOrders,
+  pagination,
   suppliers,
   labels,
   archived = false,
@@ -181,6 +186,14 @@ export function PoListView({
 }: PoListViewProps) {
   const router = useRouter();
   const basePath = `/${locale}/planning/purchase-orders`;
+  const pageHref = (page: number) => {
+    const params = new URLSearchParams();
+    if (archived) params.set('archived', '1');
+    if (page > 1) params.set('page', String(page));
+    const q = params.toString();
+    return q ? `${basePath}?${q}` : basePath;
+  };
+  const shown = pagination.offset + purchaseOrders.length;
   const [tab, setTab] = React.useState<TabKey>('all');
   const [search, setSearch] = React.useState('');
   const [supplierFilter, setSupplierFilter] = React.useState('');
@@ -470,6 +483,14 @@ export function PoListView({
               ))}
             </tbody>
           </table>
+          <ListPaginationFooter
+            shown={shown}
+            total={pagination.total}
+            previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+            nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+            labels={labels.pagination}
+            testId="po-list-pagination"
+          />
         </div>
       )}
 

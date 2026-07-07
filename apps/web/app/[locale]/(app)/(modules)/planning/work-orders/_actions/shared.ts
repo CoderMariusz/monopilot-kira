@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
+
 export { hasPermission } from '../../../../../../../lib/auth/has-permission';
 
 export const PLANNING_WO_WRITE_PERMISSION = 'npd.planning.write';
@@ -150,6 +152,7 @@ export type ListPlanningWorkOrdersResult =
   | {
       ok: true;
       workOrders: Array<WOSummary & { latestExecution?: WOExecutionState; primarySchedule?: ScheduleOutput }>;
+      pagination: PaginatedResult<WOSummary & { latestExecution?: WOExecutionState; primarySchedule?: ScheduleOutput }>;
       archivedCount: number;
     }
   | { ok: false; error: PlanningWorkOrderError };

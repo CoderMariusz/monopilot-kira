@@ -93,6 +93,8 @@ export type LicensePlateListInput = {
    * NOTE: warehouses has NO site_id column — the LP row itself carries it.
    */
   siteId?: string;
+  page?: number;
+  offset?: number;
   limit?: number;
 };
 

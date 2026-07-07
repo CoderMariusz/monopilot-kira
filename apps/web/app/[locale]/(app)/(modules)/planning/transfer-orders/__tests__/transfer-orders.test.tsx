@@ -28,6 +28,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import staging from '../../../../../../../../../_meta/i18n-staging/transfer-orders.json';
 
 import { ToListView, type ToListLabels, type TransferOrderRow } from '../_components/to-list-view';
+import { normalizePage, toPaginatedResult } from '../../../../../../../lib/shared/pagination';
 import { ToDetailView, type ToDetailLabels, type TransferOrderDetail } from '../_components/to-detail-view';
 
 const refresh = vi.fn();
@@ -62,6 +63,11 @@ const listLabels: ToListLabels = {
   tabArchive: 'Archive',
   archivedHint: 'Showing archived transfer orders.',
   backToActive: 'Back to active',
+  pagination: {
+    showing: 'Showing {shown} of {total}',
+    previous: 'Previous',
+    next: 'Next',
+  },
   empty: enTo.list.empty,
   create: {
     ...enTo.create,
@@ -110,6 +116,8 @@ const ROWS = [
   makeRow({ id: 'to-3', toNumber: 'TO-RECV', status: 'received' }),
 ];
 
+const defaultToPagination = toPaginatedResult(ROWS, ROWS.length, normalizePage({ page: 1, defaultLimit: 50 }));
+
 function renderList(props: Partial<React.ComponentProps<typeof ToListView>> = {}) {
   const searchTransferItemsAction = vi.fn().mockResolvedValue([
     { id: 'i1', itemCode: 'RM-001', name: 'Beef Trim', itemType: 'rm', status: 'active', costPerKgEur: null, uomBase: 'kg' },
@@ -119,6 +127,7 @@ function renderList(props: Partial<React.ComponentProps<typeof ToListView>> = {}
     <ToListView
       locale="en"
       transferOrders={ROWS}
+      pagination={defaultToPagination}
       lineCounts={{ 'to-1': 2, 'to-2': 1, 'to-3': 0 }}
       warehouses={warehouses}
       labels={listLabels}
