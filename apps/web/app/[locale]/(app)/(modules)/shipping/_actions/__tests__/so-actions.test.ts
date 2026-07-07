@@ -22,6 +22,7 @@ const SO_ID = '33333333-3333-4333-8333-333333333333';
 const CUSTOMER_ID = '44444444-4444-4444-8444-444444444444';
 const LINE_ID = '55555555-5555-4555-8555-555555555555';
 const ITEM_ID = '66666666-6666-4666-8666-666666666666';
+const ITEM_ID_2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const LP_1 = '77777777-7777-4777-8777-777777777777';
 const LP_2 = '88888888-8888-4888-8888-888888888888';
 const SITE_ID = '99999999-9999-4999-8999-999999999999';
@@ -102,7 +103,11 @@ function makeClient(): QueryClient {
         return { rows: [{ id: SO_ID }], rowCount: 1 };
       }
       if (q.startsWith('select id::text, list_price_gbp::text as list_price_gbp')) {
-        return { rows: [{ id: ITEM_ID, list_price_gbp: listPriceGbp }], rowCount: 1 };
+        const requestedIds = params[0] as string[];
+        const rows = requestedIds
+          .filter((id) => id === ITEM_ID || id === ITEM_ID_2)
+          .map((id) => ({ id, list_price_gbp: listPriceGbp }));
+        return { rows, rowCount: rows.length };
       }
       if (q.includes('current_date::text as order_date')) {
         return { rows: [{ order_date: orderDate }], rowCount: 1 };
@@ -345,6 +350,47 @@ describe('createSalesOrder', () => {
       },
     ]);
     expect(nextCacheMocks.revalidateLocalized).toHaveBeenCalledWith('/shipping');
+  });
+
+  it('creates one header and both lines when two valid lines are submitted', async () => {
+    const result = await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      notes: 'deliver am',
+      lines: [
+        { item_id: ITEM_ID, qty: '10', uom: 'kg' },
+        { item_id: ITEM_ID_2, qty: '5', uom: 'case' },
+      ],
+    });
+
+    expect(result).toMatchObject({ ok: true, data: { so_number: 'SO-202606-00001' } });
+    expect(insertedSo).toMatchObject({ order_number: 'SO-202606-00001', customer_id: CUSTOMER_ID });
+    expect(
+      queryLog.filter((entry) => normalize(entry.sql).startsWith('insert into public.sales_orders')),
+    ).toHaveLength(1);
+    expect(
+      queryLog.filter((entry) => normalize(entry.sql).startsWith('insert into public.sales_order_lines')),
+    ).toHaveLength(2);
+    expect(insertedLines).toEqual([
+      {
+        sales_order_id: SO_ID,
+        line_number: 1,
+        product_id: ITEM_ID,
+        quantity_ordered: '10',
+        unit_price_gbp: 7.25,
+        line_total_gbp: 72.5,
+        ext_data: { order_uom: 'kg' },
+      },
+      {
+        sales_order_id: SO_ID,
+        line_number: 2,
+        product_id: ITEM_ID_2,
+        quantity_ordered: '5',
+        unit_price_gbp: 7.25,
+        line_total_gbp: 36.25,
+        ext_data: { order_uom: 'case' },
+      },
+    ]);
   });
 
   it('uses item list_price_gbp for unit_price_gbp and line_total_gbp', async () => {
