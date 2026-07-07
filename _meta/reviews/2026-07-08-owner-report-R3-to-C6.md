@@ -96,3 +96,17 @@ Wszystkie gated (skip bez serwera), wejdą do CI jako stały smoke.
 **D2 w toku:** POD proof+e-sign, MRP UoM+undated-SO, materializer org-scope, pricing currency-mislabel.
 
 **Do listy porannej +:** playwright `--list` (bez argów) błądzi na plikach vitest — hygiene testMatch (nie blokuje, ale warto zawęzić).
+
+---
+
+## AKTUALIZACJA — D2 (naprawy P2 + bug od V1a) na prodzie
+
+**Uczciwa korekta:** wcześniejszy stan "D2 done" był fałszywy — tory dostały zły task przez zabugowany prompt (7 plików agent-artefaktów było zacommitowanych w main → `git reset` przywracał stary prompt do każdego worktree). Root-cause usunięty (odtrackowane), D2 zrobione od nowa z poprawnymi promptami.
+
+**D2 (na prodzie, `0bdd7d79`, 213 testów):**
+- **d2a — POD regulatory:** delivery wymaga teraz (1) niepustego URL dowodu POD i (2) e-podpisu/PIN + audit envelope (realny `@monopilot/e-sign`, jak reversal). Modal zbiera pola; read-only user widzi trigger disabled (parity UI↔backend).
+- **d2b — MRP UoM/undated:** wysłane ilości konwertowane do UoM linii SO (each/box) przed odjęciem popytu; potwierdzone SO bez daty trafiają do bucketu "immediate" (nie znikają); brak pack-metadanych → wykluczone (nie crash, nie zła liczba).
+- **d2c — NPD org-scope:** defense-in-depth `org_id = app.current_org_id()` na wszystkich odczytach formulation w materializerze (invariance: same-org byte-identyczne).
+- **d2d — pricing:** ceny SO jako decimal-string (bez utraty precyzji); fallback list_price_gbp tylko dla GBP — non-GBP zostawia puste (wymusza ręczne wpisanie) zamiast stemplować GBP-magnitude walutą PO (arbitraż: widocznie niekompletne > po cichu skażone WAC).
+
+**Wszystkie 28 bugów z deep-dive'a zaadresowane** (D1+D2); fałszywy P0 (type-exporty) zdemaskowany; nowy bug znaleziony przez E2E (currency-mislabel) naprawiony.
