@@ -284,10 +284,15 @@ describe('FaProductionTab — AC1 prototype parity (fa-screens.jsx:571-653)', ()
     expect(screen.getByText('1 component(s)')).toBeInTheDocument();
   });
 
-  it('renders one block per ProdDetail component with the intermediate code + V06 badge', () => {
-    renderReady();
+  it('renders one block per ProdDetail component with the intermediate code + V06 badge (multi)', () => {
+    // R4.7: the per-component chrome (intermediate code header + V06 badge + remove)
+    // is a MULTI-component affordance now — the single/implicit case renders flat
+    // (covered by the process-first tests below).
+    renderReady({
+      rows: [ROWS[0], { ...ROWS[0], id: 'row-2', componentIndex: 2, intermediateCode: 'PR2045A' }],
+    });
     expect(screen.getByText('PR1939H')).toBeInTheDocument();
-    expect(screen.getByText(LABELS.v06Pass)).toBeInTheDocument();
+    expect(screen.getAllByText(LABELS.v06Pass).length).toBeGreaterThan(0);
   });
 
   it('renders the surviving schema-driven columns (legacy + R4.2-audit noise filtered)', () => {
@@ -417,9 +422,12 @@ describe('FaProductionTab — required UI states', () => {
     expect(screen.getByText(LABELS.loading)).toBeInTheDocument();
   });
 
-  it('empty state (no ProdDetail components)', () => {
+  it('empty state (no ProdDetail components) opens the flat process-first section', () => {
+    // R4.7: zero prod_detail components no longer shows the component-first empty
+    // card — the Processes section opens the tab directly (implicit-anchor flow).
     renderReady({ state: 'empty', rows: [] });
-    expect(screen.getByText(LABELS.empty)).toBeInTheDocument();
+    expect(screen.getByTestId('fa-production-flat')).toBeInTheDocument();
+    expect(screen.queryByTestId('fa-production-empty')).not.toBeInTheDocument();
   });
 
   it('error state', () => {
@@ -493,36 +501,40 @@ describe('FaProductionTab — Lane-B add/remove component (real item picker)', (
     expect(onMutated).toHaveBeenCalled();
   });
 
-  it('shows the add CTA in the empty state and removes a component when permitted', async () => {
+  it('opens the process-first hero in the empty state and removes a component when permitted (multi)', async () => {
     const user = userEvent.setup();
     const onRemoveComponent = vi.fn(async () => ({ removed: true }));
     const onMutated = vi.fn();
 
-    // Empty state CTA renders the picker trigger.
+    // Zero-component state: the Processes section + "+ Add process" open the tab
+    // directly; the demoted component picker sits below as "Advanced: components".
     const { unmount } = renderReady({ labels: ADD_LABELS, canWrite: true, state: 'empty', rows: [] });
-    expect(screen.getByTestId('fa-production-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('fa-production-flat')).toBeInTheDocument();
+    expect(screen.getByTestId('fa-prod-add-process')).toBeInTheDocument();
     expect(screen.getByTestId('item-picker-trigger')).toBeInTheDocument();
     unmount();
 
-    // Remove button on a populated component.
-    renderReady({ labels: ADD_LABELS, canWrite: true, onRemoveComponent, onMutated });
-    const removeBtn = screen.getByTestId('fa-prod-remove');
+    // Remove is a MULTI-component affordance (per-component chrome).
+    renderReady({
+      labels: ADD_LABELS,
+      canWrite: true,
+      onRemoveComponent,
+      onMutated,
+      rows: [ROWS[0], { ...ROWS[0], id: 'row-2', componentIndex: 2, intermediateCode: 'PR2045A' }],
+    });
+    const removeBtn = screen.getAllByTestId('fa-prod-remove')[0];
     await user.click(removeBtn);
     expect(onRemoveComponent).toHaveBeenCalledWith({ productCode: 'FA-1001', prodDetailId: 'row-1' });
     expect(onMutated).toHaveBeenCalled();
   });
 
-  it('renders the empty-state CTA body + add affordance with canWrite=true && !locked', () => {
-    // The live Gate-5 bug: with the org admin (canWrite=true) on an unlocked FG
-    // the "+ Add production component" affordance must render AND the empty CTA
-    // body must be a REAL string (not the raw i18n key).
+  it('demotes the component picker to a secondary "Advanced" affordance with canWrite=true && !locked', () => {
+    // R4.7: process-first — "+ Add process" is the primary affordance; the real
+    // item picker survives but is demoted below the Processes section.
     renderReady({ labels: ADD_LABELS, canWrite: true, packSizeFilled: true, state: 'empty', rows: [] });
+    expect(screen.getByTestId('fa-prod-add-process')).toBeInTheDocument();
+    expect(screen.getByTestId('fa-prod-advanced-components')).toBeInTheDocument();
     expect(screen.getByTestId('item-picker-trigger')).toBeInTheDocument();
-    const ctaBody = screen.getByText(ADD_LABELS.emptyCtaBody);
-    expect(ctaBody).toBeInTheDocument();
-    // Regression guard: the literal i18n key must never reach the DOM.
-    expect(ctaBody.textContent).not.toMatch(/^npd\.faProductionTab\./);
-    expect(screen.queryByText('npd.faProductionTab.emptyCtaBody')).not.toBeInTheDocument();
   });
 });
 
@@ -783,5 +795,79 @@ describe('FaProductionTab — S5b per-component process list', () => {
     const addBtn = within(section).queryByTestId('fa-prod-add-process');
     // Either hidden or disabled — never an active write affordance while locked.
     if (addBtn) expect(addBtn).toBeDisabled();
+  });
+});
+
+// ===========================================================================
+// R4.7 (owner correction) — PROCESS-FIRST layout. The tab opens directly on the
+// Processes section (no mandatory component step). Zero components → "+ Add
+// process" is shown immediately and the first pick creates the anchor implicitly;
+// single/implicit component → flat (no per-component chrome); multi → keep groups.
+// ===========================================================================
+
+describe('FaProductionTab — R4.7 process-first layout', () => {
+  const row2: ProdDetailRow = { ...ROWS[0], id: 'row-2', componentIndex: 2, intermediateCode: 'PR2045A' };
+
+  it('zero-component: "+ Add process" is shown immediately and the first pick auto-creates the anchor', async () => {
+    const user = userEvent.setup();
+    const onEnsureAnchor = vi.fn(async () => ({
+      id: 'pd-anchor',
+      intermediateCode: 'FA-1001',
+      componentIndex: 1,
+    }));
+    const onGetProcessDefault = vi.fn(async () => ({
+      ok: true as const,
+      data: {
+        operationId: 'op-cook',
+        operationName: 'Cook',
+        standardCost: 7.5,
+        defaultDurationHours: 1.5,
+        roles: [],
+      },
+    }));
+    const onAddProcess = vi.fn(async () => ({ ok: true as const, id: 'wp-new' }));
+    const onMutated = vi.fn();
+
+    renderReady({
+      labels: S5B_LABELS,
+      canWrite: true,
+      rows: [],
+      operationOptions: OPERATION_OPTIONS,
+      onEnsureAnchor,
+      onGetProcessDefault,
+      onAddProcess,
+      onMutated,
+    });
+
+    // Process-first: the flat section + "+ Add process" render with ZERO components.
+    expect(screen.getByTestId('fa-production-flat')).toBeInTheDocument();
+    await user.click(screen.getByTestId('fa-prod-add-process'));
+    await user.click(await screen.findByTestId('process-option-op-cook'));
+
+    // The anchor is created implicitly (no component-picking step), then the
+    // process is added against the freshly-minted prod_detail id.
+    expect(onEnsureAnchor).toHaveBeenCalledWith({ productCode: 'FA-1001' });
+    expect(onAddProcess).toHaveBeenCalledWith(
+      expect.objectContaining({ prodDetailId: 'pd-anchor', processName: 'Cook' }),
+    );
+    expect(onMutated).toHaveBeenCalled();
+  });
+
+  it('single-component renders flat (no per-component chrome)', () => {
+    renderReady({ labels: S5B_LABELS, canWrite: true });
+    // The Processes section opens the tab…
+    expect(screen.getByTestId('fa-prod-processes-row-1')).toBeInTheDocument();
+    // …but the component wrapper chrome (PR-code header + remove) is gone.
+    expect(screen.queryByTestId('fa-prod-component')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('fa-prod-remove')).not.toBeInTheDocument();
+  });
+
+  it('multi-component keeps per-component process groups', () => {
+    renderReady({ labels: S5B_LABELS, canWrite: true, rows: [ROWS[0], row2] });
+    expect(screen.getAllByTestId('fa-prod-component')).toHaveLength(2);
+    expect(screen.getByTestId('fa-prod-processes-row-1')).toBeInTheDocument();
+    expect(screen.getByTestId('fa-prod-processes-row-2')).toBeInTheDocument();
+    // The demoted component picker still exists, below the groups.
+    expect(screen.getByTestId('fa-prod-advanced-components')).toBeInTheDocument();
   });
 });

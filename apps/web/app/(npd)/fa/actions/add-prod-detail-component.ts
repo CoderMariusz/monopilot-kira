@@ -168,6 +168,123 @@ export async function addProdDetailComponent(
   });
 }
 
+const ensureAnchorSchema = z.object({
+  productCode: z.string().trim().min(1),
+});
+
+export type EnsureProdDetailAnchorInput = z.input<typeof ensureAnchorSchema>;
+export type EnsureProdDetailAnchorResult = {
+  id: string;
+  intermediateCode: string;
+  componentIndex: number;
+};
+
+/**
+ * R4.7 — implicit anchor for the PROCESS-FIRST production tab.
+ *
+ * The owner's flow opens straight on the Processes section with NO component step.
+ * A process still needs a `prod_detail` anchor (npd_wip_processes.prod_detail_id is
+ * NOT NULL), so when the user adds the first process on a product that has ZERO
+ * prod_detail rows we create ONE implicitly here — the FG itself IS the component:
+ *   - intermediate_code = the FG item_code (product.product_code — product is now a
+ *     view over items, so items.item_code = productCode is the FG's own item);
+ *   - item_id          = that FG item's id when resolvable, else NULL (col is
+ *     nullable — see mig 157);
+ *   - component_index  = 1 (only reached when no rows exist).
+ * Idempotent: if any prod_detail row already exists it returns the lowest-index one
+ * instead of inserting a second anchor.
+ */
+export async function ensureProdDetailAnchor(
+  input: EnsureProdDetailAnchorInput,
+): Promise<EnsureProdDetailAnchorResult> {
+  const parsed = ensureAnchorSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ValidationError('INVALID_INPUT', 'Invalid ensure-anchor input');
+  }
+  const { productCode } = parsed.data;
+
+  return withOrgContext<EnsureProdDetailAnchorResult>(async (rawCtx) => {
+    const ctx = rawCtx as OrgContextLike;
+
+    if (!(await hasPermission(ctx, PRODUCTION_WRITE_PERMISSION))) {
+      throw new AuthError('FORBIDDEN', `${PRODUCTION_WRITE_PERMISSION} is required to add a process`);
+    }
+
+    const productExists = await ctx.client.query<{ ok: boolean }>(
+      `select true as ok from public.product
+        where org_id = app.current_org_id() and product_code = $1 and deleted_at is null
+        limit 1`,
+      [productCode],
+    );
+    if (productExists.rows.length === 0) {
+      throw new ValidationError('PRODUCT_NOT_FOUND', 'Finished Good is not visible in this organisation');
+    }
+
+    // Idempotent: reuse the existing anchor rather than creating a duplicate.
+    const existing = await ctx.client.query<{ id: string; intermediate_code: string; component_index: number }>(
+      `select id, intermediate_code, component_index from public.prod_detail
+        where org_id = app.current_org_id() and product_code = $1
+        order by component_index asc
+        limit 1`,
+      [productCode],
+    );
+    if (existing.rows[0]) {
+      return {
+        id: existing.rows[0].id,
+        intermediateCode: existing.rows[0].intermediate_code,
+        componentIndex: existing.rows[0].component_index,
+      };
+    }
+
+    // The FG's own item (product is a view over items → item_code = productCode).
+    const itemRes = await ctx.client.query<{ id: string; item_code: string }>(
+      `select id, item_code from public.items
+        where org_id = app.current_org_id() and item_code = $1
+        limit 1`,
+      [productCode],
+    );
+    const item = itemRes.rows[0];
+    const intermediateCode = item?.item_code ?? productCode;
+    const componentIndex = 1;
+
+    const inserted = await ctx.client.query<{ id: string }>(
+      `insert into public.prod_detail
+         (org_id, product_code, intermediate_code, item_id, component_index)
+       values
+         (app.current_org_id(), $1, $2, $3::uuid, $4)
+       returning id`,
+      [productCode, intermediateCode, item?.id ?? null, componentIndex],
+    );
+    const id = inserted.rows[0]?.id;
+    if (!id) {
+      throw new ValidationError('INSERT_FAILED', 'Could not create the production anchor');
+    }
+
+    await ctx.client.query(
+      `insert into public.outbox_events
+         (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+       values
+         (app.current_org_id(), $1, 'fa', $2, $3::jsonb, $4)`,
+      [
+        RECIPE_CHANGED_EVENT,
+        productCode,
+        JSON.stringify({
+          org_id: ctx.orgId,
+          actor_user_id: ctx.userId,
+          product_code: productCode,
+          diff: { added: [intermediateCode], removed: [] },
+          item_id: item?.id ?? null,
+          implicit_anchor: true,
+        }),
+        APP_VERSION,
+      ],
+    );
+
+    safeRevalidatePath('/[locale]/fg/[productCode]', 'page');
+    return { id, intermediateCode, componentIndex };
+  });
+}
+
 /** Remove a production component row (org-scoped, RBAC-gated). */
 export async function removeProdDetailComponent(
   input: RemoveProdDetailComponentInput,
