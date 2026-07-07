@@ -167,7 +167,11 @@ type DbErrorLike = {
 };
 
 export type MaterializeNpdBomResult = {
-  code?: 'PRODUCTION_CODE_CONFLICT' | 'PACKS_PER_BOX_REQUIRED' | 'WIP_ITEM_REQUIRED';
+  code?: 'PRODUCTION_CODE_CONFLICT' | 'PACKS_PER_BOX_REQUIRED' | 'WIP_ITEM_REQUIRED' | 'AMBIGUOUS_WIP_CONSUMPTION';
+  /** Populated when code is AMBIGUOUS_WIP_CONSUMPTION — the shared WIP definition. */
+  ambiguousWipDefinitionId?: string;
+  /** Populated when code is AMBIGUOUS_WIP_CONSUMPTION — processes with assigned ingredients. */
+  ambiguousWipProcessIds?: string[];
   projectId: string;
   productCode: string | null;
   productionCode: string | null;
@@ -203,9 +207,6 @@ export async function materializeNpdBom(
   }
 
   const ingredients = await loadIngredients(ctx, formulation.version_id);
-  const plainIngredients = ingredients.filter(
-    (ingredient) => !ingredient.wip_definition_id && !ingredient.npd_wip_process_id,
-  );
   const wipIngredients = ingredients.filter((ingredient) => !!ingredient.wip_definition_id);
 
   const existingBom = await loadExistingActiveNpdBom(ctx, project.id, productionCode);
@@ -213,6 +214,39 @@ export async function materializeNpdBom(
   if (wipComponents.some((component) => !component.itemId)) {
     return {
       code: 'WIP_ITEM_REQUIRED',
+      ...emptyResult(project.id, project.product_code, productionCode),
+    };
+  }
+
+  const materializedWipDefinitionIds = new Set(wipComponents.map((component) => component.wipDefinitionId));
+  const assignedProcessIds = [
+    ...new Set(
+      ingredients
+        .filter((ingredient) => ingredient.npd_wip_process_id)
+        .map((ingredient) => ingredient.npd_wip_process_id as string),
+    ),
+  ];
+  const processWipDefinitionById = assignedProcessIds.length > 0
+    ? await loadProcessWipDefinitions(ctx, assignedProcessIds, productionCode)
+    : new Map<string, string | null>();
+  const plainIngredients = ingredients.filter((ingredient) => {
+    if (ingredient.wip_definition_id) return false;
+    if (!ingredient.npd_wip_process_id) return true;
+    const processWipDefinitionId = processWipDefinitionById.get(ingredient.npd_wip_process_id);
+    if (!processWipDefinitionId) return true;
+    return !materializedWipDefinitionIds.has(processWipDefinitionId);
+  });
+
+  const ambiguousWipConsumption = await detectAmbiguousWipConsumption(
+    ctx,
+    formulation.version_id,
+    productionCode,
+  );
+  if (ambiguousWipConsumption) {
+    return {
+      code: 'AMBIGUOUS_WIP_CONSUMPTION',
+      ambiguousWipDefinitionId: ambiguousWipConsumption.wipDefinitionId,
+      ambiguousWipProcessIds: ambiguousWipConsumption.processIds,
       ...emptyResult(project.id, project.product_code, productionCode),
     };
   }
@@ -389,6 +423,62 @@ async function loadIngredients(ctx: OrgContextLike, versionId: string): Promise<
     [versionId],
   );
   return rows;
+}
+
+async function loadProcessWipDefinitions(
+  ctx: OrgContextLike,
+  processIds: string[],
+  productionCode: string,
+): Promise<Map<string, string | null>> {
+  const { rows } = await ctx.client.query<{ process_id: string; wip_definition_id: string | null }>(
+    `select wp.id::text as process_id,
+            wp.wip_definition_id::text as wip_definition_id
+       from public.npd_wip_processes wp
+       join public.prod_detail pd
+         on pd.id = wp.prod_detail_id
+        and pd.org_id = wp.org_id
+      where wp.org_id = app.current_org_id()
+        and wp.id = any($1::uuid[])
+        and pd.product_code = $2`,
+    [processIds, productionCode],
+  );
+  return new Map(rows.map((row) => [row.process_id, row.wip_definition_id]));
+}
+
+type AmbiguousWipConsumption = {
+  wipDefinitionId: string;
+  processIds: string[];
+};
+
+async function detectAmbiguousWipConsumption(
+  ctx: OrgContextLike,
+  formulationVersionId: string,
+  productionCode: string,
+): Promise<AmbiguousWipConsumption | null> {
+  const { rows } = await ctx.client.query<{ wip_definition_id: string; process_ids: string[] }>(
+    `select wp.wip_definition_id::text as wip_definition_id,
+            array_agg(distinct wp.id::text order by wp.id::text) as process_ids
+       from public.formulation_ingredients fi
+       join public.npd_wip_processes wp
+         on wp.id = fi.npd_wip_process_id
+        and wp.org_id = app.current_org_id()
+       join public.prod_detail pd
+         on pd.id = wp.prod_detail_id
+        and pd.org_id = wp.org_id
+      where fi.version_id = $1::uuid
+        and pd.product_code = $2
+        and fi.npd_wip_process_id is not null
+        and wp.wip_definition_id is not null
+        and coalesce(fi.qty_kg, 0) > 0
+        and fi.wip_definition_id is null
+      group by wp.wip_definition_id
+     having count(distinct wp.id) > 1
+      limit 1`,
+    [formulationVersionId, productionCode],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return { wipDefinitionId: row.wip_definition_id, processIds: row.process_ids };
 }
 
 async function formulationHasProcessAssignments(

@@ -14,6 +14,8 @@ const PM_SUB = '88888888-8888-4888-8888-888888888888';
 const WIP_DEF = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const WIP_ITEM = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const WIP_PROCESS = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const WIP_PROCESS_2 = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const NON_WIP_PROCESS = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 const RM_FLOUR = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 
 type Call = { sql: string; params: readonly unknown[] };
@@ -35,7 +37,17 @@ function createClient(
       if (normalized.includes('has_assignments')) {
         return { rows: [{ has_assignments: options?.hasProcessAssignments ?? false }] as never[] };
       }
-      return { rows: handler(normalized, params) as never[] };
+      try {
+        return { rows: handler(normalized, params) as never[] };
+      } catch (error) {
+        if (!(error instanceof Error && error.message.startsWith('Unhandled SQL'))) {
+          throw error;
+        }
+        if (normalized.includes('group by wp.wip_definition_id')) {
+          return { rows: [] as never[] };
+        }
+        throw error;
+      }
     },
   };
 }
@@ -819,6 +831,9 @@ describe('materializeNpdBom', () => {
           version: 1,
         }];
       }
+      if (sql.startsWith('select wp.id::text as process_id')) {
+        return [{ process_id: WIP_PROCESS, wip_definition_id: WIP_DEF }];
+      }
       if (sql.startsWith('select coalesce(fi.item_id, i.id)::text as item_id')) {
         return [{ item_id: RM_FLOUR, item_code: 'RM-FLOUR', qty_per_unit: '1.000000', uom: 'kg', sequence: 1 }];
       }
@@ -858,5 +873,217 @@ describe('materializeNpdBom', () => {
     expect(assignedChildLine?.params[3]).toBe('RM-FLOUR');
     expect(assignedChildLine?.params[4]).toBe('1.000000');
     expect(client.calls.some((call) => normalize(call.sql).includes('from public.wip_definition_ingredients'))).toBe(false);
+  });
+
+  it('keeps an RM assigned to a non-WIP process on the FG BOM (F1 fail-safe)', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '100' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [
+          {
+            rm_code: 'RM-FLOUR',
+            item_id: RM_FLOUR,
+            substitute_item_id: null,
+            qty_kg: '1.000000',
+            sequence: 1,
+            wip_definition_id: null,
+            npd_wip_process_id: NON_WIP_PROCESS,
+          },
+        ];
+      }
+      if (sql.startsWith('select wp.id::text as process_id')) {
+        return [{ process_id: NON_WIP_PROCESS, wip_definition_id: null }];
+      }
+      if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
+      if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
+      if (sql.startsWith('insert into public.items')) return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
+      if (sql.startsWith('update public.items')) return [];
+      if (sql.startsWith('select 1 from public.product')) return [];
+      if (sql.startsWith('insert into public.product')) return [];
+      if (sql.startsWith('update public.formulations')) return [];
+      if (sql.startsWith('select id, wo_reference, status')) return [];
+      if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
+      if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
+      if (sql.startsWith('insert into public.bom_lines')) return [];
+      if (sql.startsWith('update public.bom_headers')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
+      if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    }, { hasProcessAssignments: true });
+
+    await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    const fgLineInserts = client.calls.filter(
+      (call) => normalize(call.sql).startsWith('insert into public.bom_lines') && call.params.length === 13,
+    );
+    expect(fgLineInserts).toHaveLength(1);
+    expect(fgLineInserts[0]?.params[4]).toBe('RM-FLOUR');
+    expect(client.calls.some((call) => normalize(call.sql).includes('wp.wip_definition_id = $2::uuid'))).toBe(false);
+  });
+
+  it('returns AMBIGUOUS_WIP_CONSUMPTION without writing when two assigned processes share a WIP definition (F2)', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '100' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [
+          {
+            rm_code: 'RM-FLOUR',
+            item_id: RM_FLOUR,
+            substitute_item_id: null,
+            qty_kg: '1.000000',
+            sequence: 1,
+            wip_definition_id: null,
+            npd_wip_process_id: WIP_PROCESS,
+          },
+          {
+            rm_code: 'RM-SALT',
+            item_id: null,
+            substitute_item_id: null,
+            qty_kg: '0.100000',
+            sequence: 2,
+            wip_definition_id: null,
+            npd_wip_process_id: WIP_PROCESS_2,
+          },
+          {
+            rm_code: 'WIP-DOUGH',
+            item_id: null,
+            substitute_item_id: null,
+            qty_kg: '2.000000',
+            sequence: 3,
+            wip_definition_id: WIP_DEF,
+            npd_wip_process_id: null,
+          },
+        ];
+      }
+      if (sql.startsWith('select wd.id::text as id')) {
+        return [{
+          id: WIP_DEF,
+          item_id: WIP_ITEM,
+          item_code: 'WIP-DOUGH',
+          name: 'Dough',
+          base_uom: 'kg',
+          yield_pct: '100',
+          version: 1,
+        }];
+      }
+      if (sql.startsWith('select wp.id::text as process_id')) {
+        return [
+          { process_id: WIP_PROCESS, wip_definition_id: WIP_DEF },
+          { process_id: WIP_PROCESS_2, wip_definition_id: WIP_DEF },
+        ];
+      }
+      if (sql.includes('group by wp.wip_definition_id')) {
+        return [{ wip_definition_id: WIP_DEF, process_ids: [WIP_PROCESS, WIP_PROCESS_2] }];
+      }
+      if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
+      if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    }, { hasProcessAssignments: true });
+
+    const result = await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    expect(result.code).toBe('AMBIGUOUS_WIP_CONSUMPTION');
+    expect(result.ambiguousWipDefinitionId).toBe(WIP_DEF);
+    expect(result.ambiguousWipProcessIds).toEqual([WIP_PROCESS, WIP_PROCESS_2]);
+    expect(result.bomHeaderId).toBeNull();
+    expect(client.calls.some((c) => normalize(c.sql).startsWith('insert into public.items'))).toBe(false);
+    expect(client.calls.some((c) => normalize(c.sql).startsWith('insert into public.bom_headers'))).toBe(false);
+    expect(client.calls.some((c) => normalize(c.sql).startsWith('insert into public.bom_lines'))).toBe(false);
+  });
+
+  it('proceeds when only one process has assigned ingredients for a shared WIP definition (F2)', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '100' }];
+      }
+      if (sql.startsWith('select rm_code,')) {
+        return [
+          {
+            rm_code: 'RM-FLOUR',
+            item_id: RM_FLOUR,
+            substitute_item_id: null,
+            qty_kg: '1.000000',
+            sequence: 1,
+            wip_definition_id: null,
+            npd_wip_process_id: WIP_PROCESS,
+          },
+          {
+            rm_code: 'WIP-DOUGH',
+            item_id: null,
+            substitute_item_id: null,
+            qty_kg: '2.000000',
+            sequence: 2,
+            wip_definition_id: WIP_DEF,
+            npd_wip_process_id: null,
+          },
+        ];
+      }
+      if (sql.startsWith('select wd.id::text as id')) {
+        return [{
+          id: WIP_DEF,
+          item_id: WIP_ITEM,
+          item_code: 'WIP-DOUGH',
+          name: 'Dough',
+          base_uom: 'kg',
+          yield_pct: '100',
+          version: 1,
+        }];
+      }
+      if (sql.startsWith('select wp.id::text as process_id')) {
+        return [{ process_id: WIP_PROCESS, wip_definition_id: WIP_DEF }];
+      }
+      if (sql.includes('group by wp.wip_definition_id')) return [];
+      if (sql.startsWith('select coalesce(fi.item_id, i.id)::text as item_id')) {
+        return [{ item_id: RM_FLOUR, item_code: 'RM-FLOUR', qty_per_unit: '1.000000', uom: 'kg', sequence: 1 }];
+      }
+      if (sql.startsWith('select h.id, h.version')) return [];
+      if (sql.startsWith('select id, version from public.bom_headers')) return [];
+      if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
+      if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
+      if (sql.startsWith('insert into public.items')) return [{ id: ITEM, item_code: 'FG-001', name: 'Sliced Ham', shelf_life_days: 30 }];
+      if (sql.startsWith('update public.items')) return [];
+      if (sql.startsWith('select 1 from public.product')) return [];
+      if (sql.startsWith('insert into public.product')) return [];
+      if (sql.startsWith('update public.formulations')) return [];
+      if (sql.startsWith('select id, wo_reference, status')) return [];
+      if (sql.startsWith('update public.product')) return [];
+      if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
+      if (sql.startsWith('insert into public.bom_headers')) return [{ id: BOM, version: 1 }];
+      if (sql.startsWith('insert into public.bom_lines')) return [];
+      if (sql.startsWith('update public.bom_headers')) return [];
+      if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
+      if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
+      if (sql.startsWith('with recursive parents as')) return [];
+      if (sql.startsWith('update public.factory_specs')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    }, { hasProcessAssignments: true });
+
+    const result = await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    expect(result.code).toBeUndefined();
+    expect(result.bomHeaderId).toBe(BOM);
+    const fgLineInserts = client.calls.filter(
+      (call) => normalize(call.sql).startsWith('insert into public.bom_lines') && call.params.length === 13,
+    );
+    expect(fgLineInserts).toHaveLength(1);
+    expect(fgLineInserts[0]?.params[4]).toBe('WIP-DOUGH');
   });
 });
