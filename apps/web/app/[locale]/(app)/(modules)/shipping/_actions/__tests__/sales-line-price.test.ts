@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   fetchActiveCustomerItemPrices,
+  normalizePriceString,
   resolveSalesLinePrice,
   SO_LINE_PRICE_CURRENCY,
 } from '../sales-line-price';
 
-const ITEM = { id: 'item-1', list_price_gbp: 10 };
+const ITEM = { id: 'item-1', list_price_gbp: '10.0000' };
 
 type PriceRow = {
   item_id: string;
@@ -44,34 +45,45 @@ function makeFilteringClient(rows: PriceRow[]) {
   };
 }
 
+describe('normalizePriceString', () => {
+  it('preserves high-precision decimal text without float conversion', () => {
+    expect(normalizePriceString('12.3456789')).toBe('12.3456789');
+    expect(normalizePriceString('123456789012.1234')).toBe('123456789012.1234');
+  });
+});
+
 describe('resolveSalesLinePrice', () => {
   it('uses active GBP customer price over list price', () => {
     expect(
       resolveSalesLinePrice(ITEM, {
-        customerPrice: { unit_price: 8.5, currency: 'GBP' },
+        customerPrice: { unit_price: '8.5000', currency: 'GBP' },
       }),
-    ).toBe(8.5);
+    ).toBe('8.5000');
   });
 
   it('falls back to list price when customer price is absent', () => {
-    expect(resolveSalesLinePrice(ITEM, {})).toBe(10);
-    expect(resolveSalesLinePrice(ITEM, { customerPrice: null })).toBe(10);
+    expect(resolveSalesLinePrice(ITEM, {})).toBe('10.0000');
+    expect(resolveSalesLinePrice(ITEM, { customerPrice: null })).toBe('10.0000');
   });
 
   it('ignores non-GBP customer price and falls back to list price', () => {
     expect(
       resolveSalesLinePrice(ITEM, {
-        customerPrice: { unit_price: 5, currency: 'EUR' },
+        customerPrice: { unit_price: '5.0000', currency: 'EUR' },
       }),
-    ).toBe(10);
+    ).toBe('10.0000');
   });
 
   it('returns 0 when list price is null and no customer price', () => {
-    expect(resolveSalesLinePrice({ id: 'item-1', list_price_gbp: null })).toBe(0);
+    expect(resolveSalesLinePrice({ id: 'item-1', list_price_gbp: null })).toBe('0');
   });
 
   it('defaults target currency to GBP', () => {
     expect(SO_LINE_PRICE_CURRENCY).toBe('GBP');
+  });
+
+  it('preserves contract decimal precision from list_price_gbp text', () => {
+    expect(resolveSalesLinePrice({ id: 'item-1', list_price_gbp: '99.9999' })).toBe('99.9999');
   });
 });
 
@@ -79,14 +91,14 @@ describe('fetchActiveCustomerItemPrices', () => {
   it('maps rows returned by the active-window query', async () => {
     const client = {
       query: async () => ({
-        rows: [{ item_id: 'item-1', unit_price: '6.75', currency: 'GBP' }],
+        rows: [{ item_id: 'item-1', unit_price: '6.7500', currency: 'GBP' }],
         rowCount: 1,
       }),
     };
 
     const prices = await fetchActiveCustomerItemPrices(client, 'cust-1', ['item-1'], '2026-07-07');
 
-    expect(prices.get('item-1')).toEqual({ unit_price: 6.75, currency: 'GBP' });
+    expect(prices.get('item-1')).toEqual({ unit_price: '6.7500', currency: 'GBP' });
   });
 
   it('returns an empty map when itemIds is empty', async () => {
@@ -103,7 +115,7 @@ describe('fetchActiveCustomerItemPrices', () => {
         capturedSql = sql;
         capturedParams = params ?? [];
         return {
-          rows: [{ item_id: 'item-1', unit_price: '8.00', currency: 'GBP' }],
+          rows: [{ item_id: 'item-1', unit_price: '8.0000', currency: 'GBP' }],
           rowCount: 1,
         };
       },
@@ -119,14 +131,14 @@ describe('fetchActiveCustomerItemPrices', () => {
     const client = makeFilteringClient([
       {
         item_id: 'item-1',
-        unit_price: '8.00',
+        unit_price: '8.0000',
         currency: 'GBP',
         effective_from: '2026-01-01',
         effective_to: null,
       },
       {
         item_id: 'item-1',
-        unit_price: '5.00',
+        unit_price: '5.0000',
         currency: 'EUR',
         effective_from: '2026-06-01',
         effective_to: null,
@@ -134,20 +146,20 @@ describe('fetchActiveCustomerItemPrices', () => {
     ]);
 
     const prices = await fetchActiveCustomerItemPrices(client, 'cust-1', ['item-1'], '2026-07-07', 'GBP');
-    expect(prices.get('item-1')).toEqual({ unit_price: 8, currency: 'GBP' });
+    expect(prices.get('item-1')).toEqual({ unit_price: '8.0000', currency: 'GBP' });
 
     expect(
       resolveSalesLinePrice(ITEM, {
         customerPrice: prices.get('item-1') ?? null,
       }),
-    ).toBe(8);
+    ).toBe('8.0000');
   });
 
   it('excludes expired customer prices and falls back to list price', async () => {
     const client = makeFilteringClient([
       {
         item_id: 'item-1',
-        unit_price: '4.00',
+        unit_price: '4.0000',
         currency: 'GBP',
         effective_from: '2026-01-01',
         effective_to: '2026-06-30',
@@ -161,6 +173,6 @@ describe('fetchActiveCustomerItemPrices', () => {
       resolveSalesLinePrice(ITEM, {
         customerPrice: prices.get('item-1') ?? null,
       }),
-    ).toBe(10);
+    ).toBe('10.0000');
   });
 });

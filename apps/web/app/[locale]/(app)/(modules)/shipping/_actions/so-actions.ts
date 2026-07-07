@@ -163,11 +163,6 @@ function minUnits(a: bigint, b: bigint): bigint {
   return a < b ? a : b;
 }
 
-function parseNullableNumber(value: unknown): number | null {
-  if (value == null) return null;
-  const n = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(n) ? n : null;
-}
 
 function lineAllocationStatus(qty: string, allocatedQty: string): AllocationStatus {
   const ordered = decimalToUnits(qty);
@@ -500,7 +495,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     const itemsById = new Map(
       itemRows.map((item) => [
         item.id,
-        { id: item.id, list_price_gbp: parseNullableNumber(item.list_price_gbp) },
+        { id: item.id, list_price_gbp: item.list_price_gbp },
       ]),
     );
 
@@ -516,7 +511,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       SO_LINE_PRICE_CURRENCY,
     );
 
-    const resolvedLines: Array<{ item_id: string; qty: string; uom: string; unitPriceGbp: number }> = [];
+    const resolvedLines: Array<{ item_id: string; qty: string; uom: string; unitPriceGbp: string }> = [];
     for (const line of input.lines) {
       const item = itemsById.get(line.item_id);
       if (!item) return { ok: false, error: 'invalid_input', message: 'Unknown sales order item' };

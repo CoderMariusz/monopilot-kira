@@ -1,10 +1,12 @@
 export type CustomerItemPrice = {
-  unit_price: number;
+  unit_price: string;
   currency: string;
 };
 
 /** SO lines persist unit_price_gbp — only matching-currency customer prices apply. */
 export const SO_LINE_PRICE_CURRENCY = 'GBP' as const;
+
+const DECIMAL_RE = /^-?\d+(\.\d+)?$/;
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -13,37 +15,41 @@ type QueryClient = {
   ): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
-function parsePrice(value: unknown): number | null {
+/** Keep DB numeric text as a decimal string — never route through JS float. */
+export function normalizePriceString(value: unknown): string | null {
   if (value == null) return null;
-  const n = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(n) ? n : null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return DECIMAL_RE.test(trimmed) ? trimmed : null;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? String(value) : null;
+  }
+  return null;
 }
 
 /**
  * Deterministic unit-price precedence for sales-order lines (stored as unit_price_gbp):
  * 1. Active customer_item_prices row when currency matches target (default GBP).
  * 2. items.list_price_gbp
- * 3. 0
+ * 3. '0'
  *
  * Non-GBP customer prices are ignored until SO lines gain a currency column.
  */
 export function resolveSalesLinePrice(
-  item: { id: string; list_price_gbp?: number | null },
+  item: { id: string; list_price_gbp?: string | number | null },
   opts?: {
     customerPrice?: CustomerItemPrice | null;
     targetCurrency?: string;
   },
-): number {
+): string {
   const targetCurrency = opts?.targetCurrency ?? SO_LINE_PRICE_CURRENCY;
   const customerPrice = opts?.customerPrice;
-  if (
-    customerPrice != null &&
-    customerPrice.currency === targetCurrency &&
-    Number.isFinite(customerPrice.unit_price)
-  ) {
-    return customerPrice.unit_price;
+  if (customerPrice != null && customerPrice.currency === targetCurrency) {
+    const unitPrice = normalizePriceString(customerPrice.unit_price);
+    if (unitPrice != null) return unitPrice;
   }
-  return item.list_price_gbp ?? 0;
+  return normalizePriceString(item.list_price_gbp) ?? '0';
 }
 
 /**
@@ -68,7 +74,7 @@ export async function fetchActiveCustomerItemPrices(
   }>(
     `select distinct on (cip.item_id)
             cip.item_id::text,
-            cip.unit_price,
+            cip.unit_price::text as unit_price,
             cip.currency
        from public.customer_item_prices cip
       where cip.org_id = app.current_org_id()
@@ -84,7 +90,7 @@ export async function fetchActiveCustomerItemPrices(
 
   const prices = new Map<string, CustomerItemPrice>();
   for (const row of rows) {
-    const unitPrice = parsePrice(row.unit_price);
+    const unitPrice = normalizePriceString(row.unit_price);
     if (unitPrice == null) continue;
     prices.set(row.item_id, { unit_price: unitPrice, currency: row.currency });
   }

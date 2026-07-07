@@ -152,6 +152,17 @@ export async function getItemSupplierPrice(
         }
       }
 
+      // list_price_gbp is GBP-denominated — only prefill when the PO/supplier currency is GBP.
+      // For foreign-currency POs, an empty price is safer than mislabeling GBP magnitude as EUR/USD.
+      const poCurrency = supplier?.currency ?? 'GBP';
+      if (poCurrency.toUpperCase() !== 'GBP') {
+        return {
+          unitPrice: null,
+          currency: null,
+          source: 'none',
+        };
+      }
+
       const itemResult = await ctx.client.query<ItemListPriceRow>(
         `select list_price_gbp::text as unit_price
            from public.items

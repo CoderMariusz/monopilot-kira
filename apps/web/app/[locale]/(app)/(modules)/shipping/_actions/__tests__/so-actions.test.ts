@@ -119,14 +119,14 @@ function makeClient(): QueryClient {
       }
       if (q.startsWith('insert into public.sales_order_lines')) {
         const quantityOrdered = params[4] as string;
-        const unitPriceGbp = params[5] as number;
+        const unitPriceGbp = params[5] as string;
         insertedLines.push({
           sales_order_id: params[1],
           line_number: params[2],
           product_id: params[3],
           quantity_ordered: quantityOrdered,
           unit_price_gbp: unitPriceGbp,
-          line_total_gbp: Number(quantityOrdered) * unitPriceGbp,
+          line_total_gbp: `${Number(quantityOrdered) * Number(unitPriceGbp)}`,
           ext_data: { order_uom: params[6] },
         });
         return { rows: [], rowCount: 1 };
@@ -344,8 +344,8 @@ describe('createSalesOrder', () => {
         line_number: 1,
         product_id: ITEM_ID,
         quantity_ordered: '10',
-        unit_price_gbp: 7.25,
-        line_total_gbp: 72.5,
+        unit_price_gbp: '7.2500',
+        line_total_gbp: '72.5',
         ext_data: { order_uom: 'kg' },
       },
     ]);
@@ -377,8 +377,8 @@ describe('createSalesOrder', () => {
         line_number: 1,
         product_id: ITEM_ID,
         quantity_ordered: '10',
-        unit_price_gbp: 7.25,
-        line_total_gbp: 72.5,
+        unit_price_gbp: '7.2500',
+        line_total_gbp: '72.5',
         ext_data: { order_uom: 'kg' },
       },
       {
@@ -386,8 +386,8 @@ describe('createSalesOrder', () => {
         line_number: 2,
         product_id: ITEM_ID_2,
         quantity_ordered: '5',
-        unit_price_gbp: 7.25,
-        line_total_gbp: 36.25,
+        unit_price_gbp: '7.2500',
+        line_total_gbp: '36.25',
         ext_data: { order_uom: 'case' },
       },
     ]);
@@ -403,10 +403,23 @@ describe('createSalesOrder', () => {
     });
 
     expect(insertedLines[0]).toMatchObject({
-      unit_price_gbp: 2.5,
-      line_total_gbp: 7.5,
+      unit_price_gbp: '2.5000',
       ext_data: { order_uom: 'case' },
     });
+  });
+
+  it('preserves high-precision list_price_gbp through to SQL params', async () => {
+    listPriceGbp = '12.3456789';
+
+    await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [{ item_id: ITEM_ID, qty: '1', uom: 'kg' }],
+    });
+
+    expect(insertedLines[0]?.unit_price_gbp).toBe('12.3456789');
+    const lineInsert = queryLog.find((entry) => normalize(entry.sql).startsWith('insert into public.sales_order_lines'));
+    expect(lineInsert?.params?.[5]).toBe('12.3456789');
   });
 
   it('uses active GBP customer_item_prices over list price', async () => {
@@ -420,8 +433,8 @@ describe('createSalesOrder', () => {
     });
 
     expect(insertedLines[0]).toMatchObject({
-      unit_price_gbp: 6.5,
-      line_total_gbp: 26,
+      unit_price_gbp: '6.5000',
+      ext_data: { order_uom: 'kg' },
     });
     expect(queryLog.some((entry) => normalize(entry.sql).includes('from public.customer_item_prices'))).toBe(true);
   });
@@ -437,8 +450,8 @@ describe('createSalesOrder', () => {
     });
 
     expect(insertedLines[0]).toMatchObject({
-      unit_price_gbp: 3,
-      line_total_gbp: 6,
+      unit_price_gbp: '3.0000',
+      ext_data: { order_uom: 'kg' },
     });
   });
 
@@ -452,8 +465,7 @@ describe('createSalesOrder', () => {
     });
 
     expect(insertedLines[0]).toMatchObject({
-      unit_price_gbp: 0,
-      line_total_gbp: 0,
+      unit_price_gbp: '0',
     });
   });
 
