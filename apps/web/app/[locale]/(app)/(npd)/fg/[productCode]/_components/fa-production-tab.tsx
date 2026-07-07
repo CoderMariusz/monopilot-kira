@@ -89,6 +89,7 @@ import {
   removeWipProcess,
   saveWipProcessRoles,
 } from '../../../../../../(npd)/fa/actions/wip-process-actions';
+import { assignIngredientProcess } from '../../../../../../(npd)/fa/actions/assign-ingredient-process';
 import { getProcessDefault } from '../../../../(admin)/settings/process-defaults/_actions/process-defaults-actions';
 import { wipProcessPrefillFromDefault } from '../../../../../../(npd)/fa/_lib/wip-process-prefill';
 import { isLegacyProcessColumn } from './legacy-process-column';
@@ -115,6 +116,18 @@ export type { ComponentProcess } from '../../../../../../(npd)/fa/actions/get-co
 
 /** An active ManufacturingOperations row, reduced to the picker shape (id + name). */
 export type OperationOption = { id: string; operationName: string };
+
+/** R4.2 — one formulation ingredient (consumption target). An ingredient belongs
+ * to at most ONE process (npdWipProcessId); null = unassigned (legacy behavior). */
+export type FormulationIngredient = {
+  id: string;
+  rmCode: string;
+  itemId: string | null;
+  npdWipProcessId: string | null;
+  sequence: number;
+};
+
+type AssignIngredientProcessFn = typeof assignIngredientProcess;
 
 /** Contract subset of getProcessDefault's payload (Settings → process defaults). */
 type ProcessDefaultPayload = {
@@ -172,6 +185,16 @@ export type ProductionProcessLabels = {
   headcount: string;
   loading: string;
   loadError: string;
+  /** R4.2 — per-process LINE picker (empty = project default line). */
+  lineLabel?: string;
+  linePlaceholder?: string;
+  lineSaveError?: string;
+  /** R4.2 — per-process CONSUMPTION picker (formulation ingredients). */
+  consumptionLabel?: string;
+  consumptionPlaceholder?: string;
+  consumptionEmpty?: string;
+  consumptionSaveError?: string;
+  removeConsumption?: string;
   /** W3-L10 — referenced WIP definition chain is read-only in the project. */
   readOnlyDefinition?: string;
   editInWipLibrary?: string;
@@ -268,6 +291,9 @@ export type FaProductionTabLabels = {
   productionLinePlaceholder: string;
   productionLineEmpty: string;
   productionLineSaveError: string;
+  /** R4.2 — project picker demoted to a default; per-process lines override it. */
+  productionLineDefault?: string;
+  productionLineHelper?: string;
   /** Per-column human label keyed by physical column key. */
   fields: Record<string, string>;
 };
@@ -330,6 +356,10 @@ export type FaProductionTabProps = {
     projectId: string;
     productionLineId: string | null;
   }) => Promise<SetProductionLineResult>;
+  /** R4.2 — the formulation's ingredients, for the per-process consumption picker. */
+  formulationIngredients?: FormulationIngredient[];
+  /** R4.2 — seam: assignIngredientProcess (defaults to the real action). */
+  onAssignIngredientProcess?: AssignIngredientProcessFn;
 };
 
 // ---------------------------------------------------------------------------
@@ -403,6 +433,14 @@ const DEFAULT_PROCESS_LABELS: ProductionProcessLabels = {
   headcount: 'Headcount',
   loading: 'Loading processes…',
   loadError: 'Could not load processes',
+  lineLabel: 'Line',
+  linePlaceholder: 'Project default',
+  lineSaveError: 'Could not save the process line',
+  consumptionLabel: 'Consumed ingredients',
+  consumptionPlaceholder: 'Assign ingredient…',
+  consumptionEmpty: 'No ingredients assigned',
+  consumptionSaveError: 'Could not assign the ingredient',
+  removeConsumption: 'Remove ingredient',
   readOnlyDefinition: 'Referenced WIP definition',
   editInWipLibrary: 'Edit in WIP library',
   publishAsWipDefinition: 'Publish as WIP definition',
@@ -1064,6 +1102,158 @@ function PublishWipDialog({
 }
 
 // ---------------------------------------------------------------------------
+// R4.2 — per-process LINE + CONSUMPTION controls (owner's core vision). Each
+// process card picks its own line (empty = project default) and the formulation
+// ingredients it consumes. An ingredient belongs to at most ONE process, so
+// assigning it here moves it off any other process.
+// ---------------------------------------------------------------------------
+
+const PROCESS_LINE_UNSET = '__default__';
+const PROCESS_CONSUMPTION_UNSET = '__none__';
+
+function ProcessLineConsumption({
+  process,
+  lineOptions,
+  ingredients,
+  labels,
+  writable,
+  busy,
+  onSetLine,
+  onAssign,
+}: {
+  process: ComponentProcess;
+  lineOptions: FaProductionLineOption[];
+  ingredients: FormulationIngredient[];
+  labels: ProductionProcessLabels;
+  writable: boolean;
+  busy: boolean;
+  onSetLine: (processId: string, lineId: string | null) => void;
+  onAssign: (ingredientId: string, npdWipProcessId: string | null) => void;
+}) {
+  const assigned = ingredients.filter((ing) => ing.npdWipProcessId === process.id);
+  const assignable = ingredients.filter((ing) => ing.npdWipProcessId !== process.id);
+  const lineValue = process.lineId ?? PROCESS_LINE_UNSET;
+  const currentLine = lineOptions.find((line) => line.id === process.lineId);
+
+  return (
+    <div
+      className="mt-2 grid gap-3 sm:grid-cols-2"
+      data-testid={`fa-prod-process-meta-${process.id}`}
+    >
+      {/* Per-process LINE */}
+      <div className="grid gap-1">
+        <label
+          id={`fa-prod-process-line-label-${process.id}`}
+          className="text-[11px] font-medium text-slate-600"
+        >
+          {labels.lineLabel}
+        </label>
+        {writable && lineOptions.length > 0 ? (
+          <Select
+            value={lineValue}
+            disabled={busy}
+            onValueChange={(next) => onSetLine(process.id, next === PROCESS_LINE_UNSET ? null : next)}
+            options={[
+              { value: PROCESS_LINE_UNSET, label: labels.linePlaceholder ?? 'Project default' },
+              ...lineOptions.map((line) => ({ value: line.id, label: `${line.code} — ${line.name}` })),
+            ]}
+            aria-labelledby={`fa-prod-process-line-label-${process.id}`}
+          >
+            <SelectTrigger
+              aria-label={labels.lineLabel}
+              data-testid={`fa-prod-process-line-${process.id}`}
+            >
+              <SelectValue placeholder={labels.linePlaceholder} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={PROCESS_LINE_UNSET}>{labels.linePlaceholder}</SelectItem>
+              {lineOptions.map((line) => (
+                <SelectItem key={line.id} value={line.id}>
+                  {line.code} — {line.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-xs text-slate-600" data-testid={`fa-prod-process-line-text-${process.id}`}>
+            {currentLine ? `${currentLine.code} — ${currentLine.name}` : labels.linePlaceholder}
+          </span>
+        )}
+      </div>
+
+      {/* Per-process CONSUMPTION */}
+      <div className="grid gap-1">
+        <label
+          id={`fa-prod-process-consumption-label-${process.id}`}
+          className="text-[11px] font-medium text-slate-600"
+        >
+          {labels.consumptionLabel}
+        </label>
+        <div
+          className="flex flex-wrap items-center gap-1"
+          data-testid={`fa-prod-process-consumption-${process.id}`}
+        >
+          {assigned.length === 0 ? (
+            <span className="text-[11px] text-slate-400">{labels.consumptionEmpty}</span>
+          ) : (
+            assigned.map((ing) => (
+              <span
+                key={ing.id}
+                data-testid={`fa-prod-consumption-chip-${process.id}-${ing.id}`}
+                className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700"
+              >
+                {ing.rmCode}
+                {writable ? (
+                  <button
+                    type="button"
+                    aria-label={`${labels.removeConsumption} ${ing.rmCode}`}
+                    data-testid={`fa-prod-consumption-remove-${process.id}-${ing.id}`}
+                    disabled={busy}
+                    className="text-blue-500 hover:text-blue-800"
+                    onClick={() => onAssign(ing.id, null)}
+                  >
+                    ✕
+                  </button>
+                ) : null}
+              </span>
+            ))
+          )}
+        </div>
+        {writable && assignable.length > 0 ? (
+          <Select
+            value={PROCESS_CONSUMPTION_UNSET}
+            disabled={busy}
+            onValueChange={(next) => {
+              if (next !== PROCESS_CONSUMPTION_UNSET) onAssign(next, process.id);
+            }}
+            options={[
+              { value: PROCESS_CONSUMPTION_UNSET, label: labels.consumptionPlaceholder ?? 'Assign ingredient…' },
+              ...assignable.map((ing) => ({ value: ing.id, label: ing.rmCode })),
+            ]}
+            aria-labelledby={`fa-prod-process-consumption-label-${process.id}`}
+          >
+            <SelectTrigger
+              aria-label={labels.consumptionLabel}
+              data-testid={`fa-prod-consumption-add-${process.id}`}
+            >
+              <SelectValue placeholder={labels.consumptionPlaceholder} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={PROCESS_CONSUMPTION_UNSET}>{labels.consumptionPlaceholder}</SelectItem>
+              {assignable.map((ing) => (
+                <SelectItem key={ing.id} value={ing.id}>
+                  {ing.rmCode}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // S5b — per-component dynamic process list. One instance per ProdDetailRow.
 // ---------------------------------------------------------------------------
 
@@ -1084,6 +1274,9 @@ function ComponentProcesses({
   publishWipDefinition,
   onMutated,
   ingredientQtyKgPerPack,
+  lineOptions,
+  ingredients,
+  assignIngredient,
 }: {
   prodDetailId: string;
   bundle: ComponentProcessBundle;
@@ -1101,6 +1294,9 @@ function ComponentProcesses({
   publishWipDefinition: typeof publishWipDefinitionFromComponent;
   onMutated: () => void;
   ingredientQtyKgPerPack?: number | null;
+  lineOptions: FaProductionLineOption[];
+  ingredients: FormulationIngredient[];
+  assignIngredient: AssignIngredientProcessFn;
 }) {
   const processes = bundle.processes;
   const readOnly = Boolean(bundle.readOnly);
@@ -1199,6 +1395,40 @@ function ComponentProcesses({
       onMutated();
     } catch {
       setError(labels.updateError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSetLine(id: string, lineId: string | null) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await updateProcess({ id, lineId });
+      if (!res.ok) {
+        setError(labels.lineSaveError ?? labels.updateError);
+        return;
+      }
+      onMutated();
+    } catch {
+      setError(labels.lineSaveError ?? labels.updateError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAssignIngredient(ingredientId: string, npdWipProcessId: string | null) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await assignIngredient({ ingredientId, npdWipProcessId });
+      if (!res.ok) {
+        setError(labels.consumptionSaveError ?? labels.updateError);
+        return;
+      }
+      onMutated();
+    } catch {
+      setError(labels.consumptionSaveError ?? labels.updateError);
     } finally {
       setBusy(false);
     }
@@ -1332,6 +1562,16 @@ function ComponentProcesses({
                   ) : null}
                 </span>
               </div>
+              <ProcessLineConsumption
+                process={proc}
+                lineOptions={lineOptions}
+                ingredients={ingredients}
+                labels={labels}
+                writable={writable}
+                busy={busy}
+                onSetLine={handleSetLine}
+                onAssign={handleAssignIngredient}
+              />
               {proc.roles.length > 0 ? (
                 <div className="mt-1 flex flex-wrap items-center gap-1">
                   <span className="text-[11px] font-medium text-slate-500">{labels.rolesHeader}:</span>
@@ -1425,6 +1665,8 @@ export function FaProductionTab({
   productionLineOptions = [],
   ingredientQtyKgPerPack = null,
   onSetProductionLine,
+  formulationIngredients = [],
+  onAssignIngredientProcess,
 }: FaProductionTabProps) {
   const params = useParams();
   const locale = typeof params?.locale === 'string' ? params.locale : 'en';
@@ -1445,6 +1687,8 @@ export function FaProductionTab({
   const removeProcessAction: RemoveProcessFn = onRemoveProcess ?? removeWipProcess;
   const saveRolesAction: SaveProcessRolesFn = onSaveProcessRoles ?? saveWipProcessRoles;
   const publishWipAction = onPublishWipDefinition ?? publishWipDefinitionFromComponent;
+  const assignIngredientAction: AssignIngredientProcessFn =
+    onAssignIngredientProcess ?? assignIngredientProcess;
 
   // Default refresh after add/remove re-renders the server component (re-reads the
   // real prod_detail rows). useRouter() is always called at the top (Rules of
@@ -1552,7 +1796,7 @@ export function FaProductionTab({
       <ItemPicker
         labels={labels.picker}
         searchItemsAction={searchAction}
-        itemTypes={['rm', 'ingredient', 'intermediate', 'co_product', 'byproduct']}
+        itemTypes={['rm', 'ingredient', 'intermediate', 'co_product', 'byproduct', 'packaging']}
         disabled={mutating}
         onSelect={handleAddComponent}
       />
@@ -1603,7 +1847,7 @@ export function FaProductionTab({
                 value={productionLineId}
                 options={productionLineOptions}
                 labels={{
-                  productionLine: labels.productionLine,
+                  productionLine: labels.productionLineDefault ?? labels.productionLine,
                   productionLinePlaceholder: labels.productionLinePlaceholder,
                   productionLineEmpty: labels.productionLineEmpty,
                   productionLineSaveError: labels.productionLineSaveError,
@@ -1613,6 +1857,14 @@ export function FaProductionTab({
                 onSetProductionLine={onSetProductionLine}
                 onSaved={() => mutated?.()}
               />
+              {labels.productionLineHelper ? (
+                <p
+                  className="mt-1 text-[11px] text-slate-500"
+                  data-testid="fa-production-line-helper"
+                >
+                  {labels.productionLineHelper}
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -1713,6 +1965,9 @@ export function FaProductionTab({
                     publishWipDefinition={publishWipAction}
                     onMutated={() => mutated?.()}
                     ingredientQtyKgPerPack={ingredientQtyKgPerPack}
+                    lineOptions={productionLineOptions}
+                    ingredients={formulationIngredients}
+                    assignIngredient={assignIngredientAction}
                   />
                 </div>
               ))}
