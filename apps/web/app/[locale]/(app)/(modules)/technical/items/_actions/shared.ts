@@ -50,7 +50,7 @@ const GS1_GTIN_RE = /^(?:\d{8}|\d{12}|\d{13}|\d{14})$/;
 // CANONICAL_UOMS is the closed list for uom_base / uom_secondary; no free text.
 // 'szt' = Polish "sztuka" (each/piece) — kept as the storage value for parity
 // with the existing Polish-facing data; the EN label surfaces "pcs (each)".
-export const CANONICAL_UOMS = ['kg', 'g', 'l', 'ml', 'szt'] as const;
+export const CANONICAL_UOMS = ['kg', 'g', 'l', 'ml', 'szt', 'm', 'cm'] as const;
 export type CanonicalUom = (typeof CANONICAL_UOMS)[number];
 
 // output_uom text 'base'|'each'|'box' default 'base' (migration 267).

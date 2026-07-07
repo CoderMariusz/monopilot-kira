@@ -1303,6 +1303,7 @@
     "categoryMass": "Маса",
     "categoryVolume": "Обʼєм",
     "categoryCount": "Кількість",
+    "categoryLength": "Довжина",
     "errorAlreadyExists": "Одиниця або конверсія з таким кодом уже існує.",
     "errorForbidden": "У вас немає дозволу керувати одиницями.",
     "errorInvalidInput": "Перевірте значення та спробуйте ще раз.",

@@ -1303,6 +1303,7 @@
     "categoryMass": "Masă",
     "categoryVolume": "Volum",
     "categoryCount": "Bucăți",
+    "categoryLength": "Lungime",
     "errorAlreadyExists": "Există deja o unitate sau conversie cu acel cod.",
     "errorForbidden": "Nu ai permisiunea de a gestiona unitățile.",
     "errorInvalidInput": "Verifică valorile și încearcă din nou.",

@@ -8,7 +8,7 @@ const PROTOTYPE_SOURCE = 'prototypes/design/Monopilot Design System/settings/dat
 
 export const dynamic = 'force-dynamic';
 
-type UnitCategory = 'mass' | 'volume' | 'count';
+type UnitCategory = 'mass' | 'volume' | 'count' | 'length';
 
 type UnitOfMeasure = {
   id: string;
@@ -58,6 +58,7 @@ type UnitsLabels = {
   categoryMass: string;
   categoryVolume: string;
   categoryCount: string;
+  categoryLength: string;
   errorAlreadyExists: string;
   errorForbidden: string;
   errorInvalidInput: string;
@@ -123,6 +124,7 @@ const DEFAULT_LABELS: UnitsLabels = {
   categoryMass: 'Mass',
   categoryVolume: 'Volume',
   categoryCount: 'Count',
+  categoryLength: 'Length',
   errorAlreadyExists: 'A unit or conversion with that code already exists.',
   errorForbidden: 'You do not have permission to manage units.',
   errorInvalidInput: 'Please check the values and try again.',
@@ -136,10 +138,10 @@ function isMissingTranslation(key: keyof UnitsLabels, value: string) {
   return value === key || value === `${LABEL_NAMESPACE}.${key}`;
 }
 
-const CATEGORY_ORDER: UnitCategory[] = ['mass', 'volume', 'count'];
+const CATEGORY_ORDER: UnitCategory[] = ['mass', 'volume', 'count', 'length'];
 
 function isUnitCategory(value: string | null | undefined): value is UnitCategory {
-  return value === 'mass' || value === 'volume' || value === 'count';
+  return value === 'mass' || value === 'volume' || value === 'count' || value === 'length';
 }
 
 function toNumber(value: string | number | null | undefined, fallback = 1) {
@@ -166,7 +168,7 @@ function groupedUnits(units: UnitOfMeasure[]) {
       groups[unit.category].push(unit);
       return groups;
     },
-    { mass: [], volume: [], count: [] },
+    { mass: [], volume: [], count: [], length: [] },
   );
 }
 
@@ -291,6 +293,7 @@ function toManagerLabels(labels: UnitsLabels): UnitsManagerLabels {
     categoryMass: labels.categoryMass,
     categoryVolume: labels.categoryVolume,
     categoryCount: labels.categoryCount,
+    categoryLength: labels.categoryLength,
     errorAlreadyExists: labels.errorAlreadyExists,
     errorForbidden: labels.errorForbidden,
     errorInvalidInput: labels.errorInvalidInput,
@@ -298,14 +301,28 @@ function toManagerLabels(labels: UnitsLabels): UnitsManagerLabels {
   };
 }
 
+function categoryLabel(category: UnitCategory, labels: UnitsLabels): string {
+  switch (category) {
+    case 'mass':
+      return labels.categoryMass;
+    case 'volume':
+      return labels.categoryVolume;
+    case 'count':
+      return labels.categoryCount;
+    case 'length':
+      return labels.categoryLength;
+  }
+}
+
 function UnitsSection({ category, units, labels }: { category: UnitCategory; units: UnitOfMeasure[]; labels: UnitsLabels }) {
   const baseUnit = units.find((unit) => unit.isBase);
+  const title = categoryLabel(category, labels);
   // Parity: prototype renders each category as a `Section` (.sg-section frame +
   // .sg-section-head 14px/600) wrapping a bare prototype-style <table>
   // (grey th, td borders, "Base" badge). data-screens.jsx:163-180.
   return (
-    <Section title={category} sub={`${labels.baseUnitPrefix} ${baseUnit?.name ?? '—'}`}>
-      <table aria-label={`${category} units`}>
+    <Section title={title} sub={`${labels.baseUnitPrefix} ${baseUnit?.name ?? '—'}`}>
+      <table aria-label={`${title} units`}>
         <thead>
           <tr>
             <th scope="col">{labels.code}</th>

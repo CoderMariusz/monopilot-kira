@@ -2441,7 +2441,9 @@
           "g": "g",
           "l": "l",
           "ml": "ml",
-          "szt": "szt (sztuka)"
+          "szt": "szt (sztuka)",
+          "m": "m",
+          "cm": "cm"
         },
         "uomNone": "—",
         "supplierNone": "— Brak —",

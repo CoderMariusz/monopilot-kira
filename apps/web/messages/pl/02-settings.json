@@ -1314,6 +1314,7 @@
     "categoryMass": "Masa",
     "categoryVolume": "Objętość",
     "categoryCount": "Sztuki",
+    "categoryLength": "Długość",
     "errorAlreadyExists": "Jednostka lub przeliczenie o tym kodzie już istnieje.",
     "errorForbidden": "Nie masz uprawnień do zarządzania jednostkami.",
     "errorInvalidInput": "Sprawdź wartości i spróbuj ponownie.",
