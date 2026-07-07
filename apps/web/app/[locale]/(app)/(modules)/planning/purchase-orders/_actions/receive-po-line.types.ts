@@ -17,6 +17,7 @@ export type DesktopReceiveError =
   | 'no_warehouse'
   | 'invalid_location'
   | 'invalid_state'
+  | 'wac_unresolved_uom'
   | 'error';
 
 export type DesktopReceiveResult =

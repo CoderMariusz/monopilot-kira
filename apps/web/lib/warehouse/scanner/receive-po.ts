@@ -1,6 +1,10 @@
 import { hasPermission } from '../../auth/has-permission';
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../scanner/txn-org-context';
-import { bookReceiptWacAfterGrnItem } from '../../finance/book-receipt-wac';
+import {
+  bookReceiptWacAfterGrnItem,
+  BookReceiptWacError,
+  preflightReceiptWacResolvability,
+} from '../../finance/book-receipt-wac';
 
 const WAREHOUSE_GRN_RECEIVE_PERMISSION = 'warehouse.grn.receive';
 
@@ -295,6 +299,13 @@ export async function receiveScannerPoLine(
         genesisReasonCode: 'scanner_receive_po',
         genesisReasonText: 'Scanner PO receipt',
         requireOverReceiveConfirm: false,
+        preflightBeforeReceiptWrites(receipt) {
+          return preflightReceiptWacResolvability(
+            client,
+            { orgId: session.org_id, userId: session.user_id, siteId: session.site_id },
+            receipt,
+          );
+        },
         afterGrnItemInserted(receipt) {
           return bookReceiptWacAfterGrnItem(
             client,
@@ -379,6 +390,9 @@ export async function receiveScannerPoLine(
     };
   } catch (err) {
     await client.query('rollback').catch(() => undefined);
+    if (err instanceof BookReceiptWacError && err.code === 'unresolved_uom') {
+      throw new ReceivePoError('unresolved_uom', 422);
+    }
     throw err;
   } finally {
     await cleanupTxnOrgContext(client, orgContextToken);

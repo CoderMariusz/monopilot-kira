@@ -5,6 +5,7 @@ import {
   OPEN_PO_STATUSES,
   type ReceivePoLineCoreInput,
 } from './receive-po-line-core';
+import { BookReceiptWacError, preflightReceiptWacResolvability } from '../finance/book-receipt-wac';
 import type { QueryClient } from '../scanner/db';
 
 const ORG_A = '00000000-0000-4000-8000-00000000000a';
@@ -18,6 +19,7 @@ const OTHER_SITE_ID = '00000000-0000-4000-8000-0000000000d3';
 const WAREHOUSE_ID = '00000000-0000-4000-8000-0000000000e1';
 const LOCATION_ID = '00000000-0000-4000-8000-0000000000f1';
 const OTHER_LOCATION_ID = '00000000-0000-4000-8000-0000000000f2';
+const BIN_LOCATION_ID = '00000000-0000-4000-8000-0000000000f2';
 
 const baseInput: ReceivePoLineCoreInput = {
   poLineId: LINE_ID,
@@ -274,6 +276,77 @@ describe('receive-po-line-core', () => {
     expect(warehouseLookup?.sql).toContain('app.user_can_see_site(w.site_id)');
     expect(warehouseLookup?.params).toEqual([null, null, SITE_ID]);
   });
+
+  it('uses the requested bin for GRN header, LP, and grn_item location', async () => {
+    const client = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      requestedLocationId: BIN_LOCATION_ID,
+    });
+
+    const result = await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+      { ...baseInput, toLocationId: BIN_LOCATION_ID },
+      {
+        mode: 'desktop',
+        genesisReasonCode: 'desktop_receive_po',
+        genesisReasonText: 'Desktop PO receipt',
+        requireOverReceiveConfirm: true,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, grnId: 'grn-1' });
+
+    const grnLookup = findCall(client, 'from public.grns')?.params;
+    expect(grnLookup).toEqual([ORG_A, PO_ID, WAREHOUSE_ID, BIN_LOCATION_ID]);
+
+    const grnInsert = findCall(client, 'insert into public.grns')?.params;
+    expect(grnInsert).toEqual(
+      expect.arrayContaining([ORG_A, PO_ID, SUPPLIER_ID, WAREHOUSE_ID, BIN_LOCATION_ID]),
+    );
+
+    const lpInsert = findCall(client, 'insert into public.license_plates')?.params;
+    expect(lpInsert?.[11]).toBe(BIN_LOCATION_ID);
+
+    const grnItemInsert = findCall(client, 'insert into public.grn_items')?.params;
+    expect(grnItemInsert?.[10]).toBe(BIN_LOCATION_ID);
+  });
+
+  it('runs WAC preflight before any GRN/LP/grn_item writes for unresolvable UoM', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      uom: 'each',
+      wacResolved: false,
+    });
+
+    await expect(
+      executeReceivePoLineCore(
+        client,
+        { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+        baseInput,
+        {
+          mode: 'desktop',
+          genesisReasonCode: 'desktop_receive_po',
+          genesisReasonText: 'Desktop PO receipt',
+          requireOverReceiveConfirm: true,
+          preflightBeforeReceiptWrites(receipt) {
+            return preflightReceiptWacResolvability(
+              client,
+              { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+              receipt,
+            );
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'unresolved_uom' } satisfies Partial<BookReceiptWacError>);
+
+    expect(client.calls.some((c) => c.sql.includes('insert into public.grns'))).toBe(false);
+    expect(client.calls.some((c) => c.sql.includes('insert into public.license_plates'))).toBe(false);
+    expect(client.calls.some((c) => c.sql.includes('insert into public.grn_items'))).toBe(false);
+  });
 });
 
 type FakeClient = QueryClient & { calls: Array<{ sql: string; params: readonly unknown[] }> };
@@ -288,6 +361,9 @@ function makeClient(options: {
   mode?: 'scanner' | 'desktop';
   warehouseSiteId?: string;
   locationVisible?: boolean;
+  requestedLocationId?: string;
+  uom?: string;
+  wacResolved?: boolean;
 }): FakeClient {
   const calls: FakeClient['calls'] = [];
   let grnCompleted = false;
@@ -322,7 +398,7 @@ function makeClient(options: {
                   destination_warehouse_id: null,
                   line_no: 1,
                   ordered_qty: options.orderedQty ?? '10.000000',
-                  uom: 'kg',
+                  uom: options.uom ?? 'kg',
                   received_qty: options.receivedQty ?? '0.000000',
                   shelf_life_days: null,
                   shelf_life_mode: null,
@@ -330,12 +406,21 @@ function makeClient(options: {
               ] as T[]),
         };
       }
-      if (normalized.includes('from public.locations l') && normalized.includes('join public.warehouses w')) {
+      if (
+        normalized.includes('select l.id, l.warehouse_id') &&
+        normalized.includes('from public.locations l join public.warehouses w')
+      ) {
+        if (options.locationVisible === false) {
+          return { rows: [] as T[] };
+        }
+        const requestedId = String(params[1] ?? '');
         return {
-          rows:
-            options.locationVisible === false
-              ? ([] as T[])
-              : ([{ id: LOCATION_ID, warehouse_id: WAREHOUSE_ID }] as T[]),
+          rows: [{ id: requestedId, warehouse_id: WAREHOUSE_ID }] as T[],
+        };
+      }
+      if (normalized.includes('from public.locations requested')) {
+        return {
+          rows: [{ id: WAREHOUSE_ID, site_id: SITE_ID, default_location_id: LOCATION_ID }] as T[],
         };
       }
       if (normalized.includes('from public.warehouses w')) {
@@ -363,6 +448,18 @@ function makeClient(options: {
       }
       if (normalized.includes('from public.tenant_variations')) {
         return { rows: [{ require_qc: false }] as T[] };
+      }
+      if (normalized.includes('select pol.item_id::text, pol.unit_price::text as unit_price')) {
+        return {
+          rows: [{ item_id: ITEM_ID, unit_price: '4.20', currency: 'GBP' }] as T[],
+        };
+      }
+      if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
+        const uom = String(params[1] ?? 'kg').toLowerCase();
+        if (options.wacResolved === false || (uom !== 'kg' && options.wacResolved !== true)) {
+          return { rows: [{ qty_kg: '0', resolved: false }] as T[] };
+        }
+        return { rows: [{ qty_kg: String(params[0] ?? '0'), resolved: true }] as T[] };
       }
       return { rows: [] as T[], rowCount: 1 };
     },

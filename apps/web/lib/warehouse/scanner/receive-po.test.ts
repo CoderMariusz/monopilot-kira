@@ -413,9 +413,9 @@ describe('scanner receive PO service', () => {
     const grnItemInsert = findCall(client, 'insert into public.grn_items');
     expect(grnItemInsert?.params[10]).toBe(REQ_LOCATION_ID);
 
-    // GRN header uses the same session-site warehouse target
+    // GRN header keys on warehouse + actual destination location (P1-06)
     const grnInsert = findCall(client, 'insert into public.grns');
-    expect(grnInsert?.params).toEqual(expect.arrayContaining([WAREHOUSE_ID, LOCATION_ID]));
+    expect(grnInsert?.params).toEqual(expect.arrayContaining([WAREHOUSE_ID, REQ_LOCATION_ID]));
     expect(client.statements).toContain('commit');
   });
 
@@ -600,6 +600,26 @@ describe('scanner receive PO service', () => {
       receivedQty: '10.000000',
     });
   });
+
+  it('rejects WAC-governed receipts with an unresolvable UoM before any GRN/LP/grn_item writes', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = makeReceiveClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      uom: 'each',
+      wacResolved: false,
+    });
+
+    await expect(
+      receiveScannerPoLine(client, session, { ...input, clientOpId: 'op-wac-uom', qty: '5' }),
+    ).rejects.toMatchObject({ code: 'unresolved_uom', status: 422 } satisfies Partial<ReceivePoError>);
+
+    expect(client.calls.some((call) => call.sql.includes('insert into public.grns'))).toBe(false);
+    expect(client.calls.some((call) => call.sql.includes('insert into public.license_plates'))).toBe(false);
+    expect(client.calls.some((call) => call.sql.includes('insert into public.grn_items'))).toBe(false);
+    expect(client.statements).toContain('rollback');
+    expect(client.statements).not.toContain('commit');
+  });
 });
 
 type FakeClient = QueryClient & {
@@ -622,6 +642,10 @@ function makeReceiveClient(options: {
   warehouse?: { id: string; default_location_id: string | null };
   noWarehouse?: boolean;
   grantedReceivePermission?: boolean;
+  uom?: string;
+  wacResolved?: boolean;
+  poUnitPrice?: string | null;
+  poCurrency?: string;
 }): FakeClient {
   const calls: FakeClient['calls'] = [];
   const statements: string[] = [];
@@ -658,7 +682,7 @@ function makeReceiveClient(options: {
                   destination_warehouse_id: options.destinationWarehouseId ?? null,
                   line_no: 1,
                   ordered_qty: options.orderedQty ?? '10.000000',
-                  uom: 'kg',
+                  uom: options.uom ?? 'kg',
                   received_qty: options.receivedQty ?? '0.000000',
                   shelf_life_days: options.shelfLifeDays ?? null,
                   shelf_life_mode: options.shelfLifeMode ?? null,
@@ -716,6 +740,49 @@ function makeReceiveClient(options: {
       }
       if (normalized.includes('insert into public.quality_inspections')) {
         return { rows: [{ id: 'insp-1' }] as T[], rowCount: 1 };
+      }
+      if (normalized.includes('select pol.item_id::text, pol.unit_price::text as unit_price')) {
+        if (options.poUnitPrice === null) {
+          return { rows: [] as T[], rowCount: 0 };
+        }
+        return {
+          rows: [
+            {
+              item_id: ITEM_ID,
+              unit_price: options.poUnitPrice ?? '4.20',
+              currency: options.poCurrency ?? 'GBP',
+            },
+          ] as T[],
+          rowCount: 1,
+        };
+      }
+      if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
+        const uom = String(params[1] ?? 'kg').toLowerCase();
+        if (options.wacResolved === false || (uom !== 'kg' && options.wacResolved !== true)) {
+          return { rows: [{ qty_kg: '0', resolved: false }] as T[], rowCount: 1 };
+        }
+        return { rows: [{ qty_kg: String(params[0] ?? '0'), resolved: true }] as T[], rowCount: 1 };
+      }
+      if (normalized.includes('from public.currencies') && normalized.includes('where code = $1')) {
+        const code = String(params[0] ?? 'GBP');
+        if (['EUR', 'GBP', 'USD'].includes(code)) {
+          return { rows: [{ id: `currency-${code}` }] as T[], rowCount: 1 };
+        }
+        return { rows: [] as T[], rowCount: 0 };
+      }
+      if (normalized.startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value')) {
+        const left = Number(params[0] ?? 0);
+        const right = Number(params[1] ?? 0);
+        return { rows: [{ value: String(left * right) }] as T[], rowCount: 1 };
+      }
+      if (normalized.includes('insert into public.item_wac_state')) {
+        return {
+          rows: [{ totalQtyKg: String(params[2] ?? '0'), totalValue: String(params[3] ?? '0'), clamped: false }] as T[],
+          rowCount: 1,
+        };
+      }
+      if (normalized.includes('update public.grn_items') && normalized.includes('ext_jsonb')) {
+        return { rows: [] as T[], rowCount: 1 };
       }
       return { rows: [] as T[], rowCount: 1 };
     },

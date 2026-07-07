@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   bookReceiptWacAfterGrnItem,
   BookReceiptWacError,
+  preflightReceiptWacResolvability,
 } from '../book-receipt-wac';
 
 const ORG_ID = '00000000-0000-4000-8000-00000000000a';
@@ -73,6 +74,63 @@ describe('bookReceiptWacAfterGrnItem', () => {
 
     expect(client.upsertCalls).toHaveLength(0);
   });
+
+  it('rejects receipt when WAC UoM cannot be resolved to kg', async () => {
+    const client = new BookReceiptWacMockClient({ poCurrency: 'GBP', wacResolved: false });
+
+    await expect(
+      bookReceiptWacAfterGrnItem(
+        client,
+        { orgId: ORG_ID, userId: USER_ID, siteId: SITE_ID },
+        {
+          grnItemId: GRN_ITEM_ID,
+          itemId: ITEM_ID,
+          qty: '5',
+          uom: 'each',
+          poLineId: LINE_ID,
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: 'unresolved_uom',
+      uom: 'each',
+      qty: '5',
+    } satisfies Partial<BookReceiptWacError>);
+
+    expect(client.upsertCalls).toHaveLength(0);
+    expect(
+      client.calls.some(
+        (call) => normalize(call.sql).startsWith('update public.grn_items') && normalize(call.sql).includes('ext_jsonb'),
+      ),
+    ).toBe(false);
+  });
+
+  it('preflight rejects unresolvable UoM before any receipt writes', async () => {
+    const client = new BookReceiptWacMockClient({ poCurrency: 'GBP', wacResolved: false });
+
+    await expect(
+      preflightReceiptWacResolvability(
+        client,
+        { orgId: ORG_ID, userId: USER_ID, siteId: SITE_ID },
+        {
+          itemId: ITEM_ID,
+          qty: '5',
+          uom: 'each',
+          poLineId: LINE_ID,
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: 'unresolved_uom',
+      uom: 'each',
+      qty: '5',
+    } satisfies Partial<BookReceiptWacError>);
+
+    expect(client.upsertCalls).toHaveLength(0);
+    expect(
+      client.calls.some(
+        (call) => normalize(call.sql).startsWith('update public.grn_items') && normalize(call.sql).includes('ext_jsonb'),
+      ),
+    ).toBe(false);
+  });
 });
 
 type MockCall = { sql: string; params?: readonly unknown[] };
@@ -90,6 +148,7 @@ class BookReceiptWacMockClient {
       poCurrency: string;
       unitPrice?: string;
       seedCurrency?: boolean;
+      wacResolved?: boolean;
     },
   ) {}
 
@@ -119,6 +178,9 @@ class BookReceiptWacMockClient {
       return { rows: [] };
     }
     if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
+      if (this.options.wacResolved === false) {
+        return { rows: [{ qty_kg: '0', resolved: false }] as T[] };
+      }
       return { rows: [{ qty_kg: String(params?.[0] ?? '0'), resolved: true }] as T[] };
     }
     if (normalized.startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value')) {

@@ -804,7 +804,7 @@ describe('receivePoLineDesktop WAC integration', () => {
     expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '48', '100', USER_ID, SITE_ID, 'EUR']);
   });
 
-  it('unresolved-UoM receipt does not corrupt WAC and flags grn_items ext_jsonb', async () => {
+  it('unresolved-UoM receipt is rejected before WAC can be skipped silently', async () => {
     currentClient = new ReceiveMockClient({ lineUom: 'each', wacResolved: false });
     const { receivePoLineDesktop } = await import(
       '../../../app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/receive-po-line'
@@ -817,13 +817,9 @@ describe('receivePoLineDesktop WAC integration', () => {
       bestBefore: '2026-07-01',
     });
 
-    expect(result).toMatchObject({ ok: true, lpId: 'lp-1' });
+    expect(result).toEqual({ ok: false, error: 'wac_unresolved_uom' });
     const wacWrite = currentClient.calls.find((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
     expect(wacWrite).toBeUndefined();
-    const grnFlag = currentClient.calls.find(
-      (call) => normalize(call.sql).startsWith('update public.grn_items') && normalize(call.sql).includes('ext_jsonb'),
-    );
-    expect(JSON.parse(String(grnFlag?.params?.[2]))).toMatchObject({ wac_excluded: 'unresolved_uom' });
   });
 });
 

@@ -41,6 +41,13 @@ export type ReceivePoLineCoreOptions = {
     uom: string;
     poLineId: string;
   }) => Promise<void>;
+  /** Runs after validation and warehouse resolution, before any GRN/LP/grn_item writes. */
+  preflightBeforeReceiptWrites?: (receipt: {
+    itemId: string;
+    qty: string;
+    uom: string;
+    poLineId: string;
+  }) => Promise<void>;
 };
 
 export type ReceivePoLineCoreSuccess = {
@@ -172,11 +179,18 @@ export async function executeReceivePoLineCore(
   const destLocationId = requestedLocation?.id ?? warehouse.default_location_id;
   const lpSiteId = warehouse.site_id;
 
+  await options.preflightBeforeReceiptWrites?.({
+    itemId: line.item_id,
+    qty: formatDecimal(qty),
+    uom: line.uom,
+    poLineId: line.id,
+  });
+
   const grn = await getOrCreateOpenGrn(client, ctx, {
     poId: line.po_id,
     supplierId: line.supplier_id,
-    warehouseId: warehouse.id,
-    locationId: warehouse.default_location_id,
+    warehouseId: destWarehouseId,
+    locationId: destLocationId,
   });
 
   const lpNumber = makeLpNumber();
@@ -475,6 +489,8 @@ async function getOrCreateOpenGrn(
        from public.grns
       where org_id = $1::uuid
         and po_id = $2::uuid
+        and warehouse_id = $3::uuid
+        and default_location_id is not distinct from $4::uuid
         and source_type = 'po'
         and status = 'draft'
         and receipt_date >= date_trunc('day', now())
@@ -482,7 +498,7 @@ async function getOrCreateOpenGrn(
       order by created_at asc
       limit 1
       for update`,
-    [ctx.orgId, input.poId],
+    [ctx.orgId, input.poId, input.warehouseId, input.locationId],
   );
   if (existing.rows[0]) return existing.rows[0];
 

@@ -2,7 +2,11 @@
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
-import { bookReceiptWacAfterGrnItem } from '../../../../../../lib/finance/book-receipt-wac';
+import {
+  bookReceiptWacAfterGrnItem,
+  BookReceiptWacError,
+  preflightReceiptWacResolvability,
+} from '../../../../../../lib/finance/book-receipt-wac';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import {
   executeReceivePoLineCore,
@@ -48,6 +52,9 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
           genesisReasonCode: 'desktop_receive_po',
           genesisReasonText: 'Desktop PO receipt',
           requireOverReceiveConfirm: true,
+          preflightBeforeReceiptWrites(receipt) {
+            return preflightReceiptWacResolvability(client, { orgId, userId, siteId: activeSiteId }, receipt);
+          },
           afterGrnItemInserted(receipt) {
             return bookReceiptWacAfterGrnItem(client, { orgId, userId, siteId: activeSiteId }, receipt);
           },
@@ -91,6 +98,12 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
   } catch (err) {
     if (err instanceof ReceivePoLineCoreError && err.code === 'invalid_qty') {
       return { ok: false, error: 'invalid_qty' };
+    }
+    if (err instanceof BookReceiptWacError && err.code === 'unresolved_uom') {
+      return { ok: false, error: 'wac_unresolved_uom' };
+    }
+    if (err instanceof BookReceiptWacError && err.code === 'unknown_currency') {
+      return { ok: false, error: 'error' };
     }
     if (err instanceof Error && err.message === 'invalid_qty') return { ok: false, error: 'invalid_qty' };
     console.error('[warehouse] receivePoLineDesktop failed', err);
