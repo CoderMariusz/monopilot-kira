@@ -107,7 +107,6 @@ export function UnitRowActions({ unit, labels }: { unit: UnitRowData; labels: Un
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [name, setName] = React.useState(unit.name);
-  const [factor, setFactor] = React.useState(String(unit.factorToBase));
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
   const menuRef = React.useRef<HTMLDivElement | null>(null);
@@ -124,7 +123,6 @@ export function UnitRowActions({ unit, labels }: { unit: UnitRowData; labels: Un
   function openEdit() {
     setMenuOpen(false);
     setName(unit.name);
-    setFactor(String(unit.factorToBase));
     setError(null);
     setEditOpen(true);
   }
@@ -138,13 +136,8 @@ export function UnitRowActions({ unit, labels }: { unit: UnitRowData; labels: Un
   function onEditSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    const factorToBase = Number(factor);
-    if (!Number.isFinite(factorToBase) || factorToBase <= 0) {
-      setError(labels.errorInvalidInput);
-      return;
-    }
     startTransition(async () => {
-      const result = await updateUnit({ id: unit.id, name: name.trim(), factorToBase });
+      const result = await updateUnit({ id: unit.id, name: name.trim() });
       if (result.ok) {
         setEditOpen(false);
         router.refresh();
@@ -244,10 +237,8 @@ export function UnitRowActions({ unit, labels }: { unit: UnitRowData; labels: Un
             <label htmlFor={`settings-units-edit-factor-${unit.id}`}>{labels.factorToBase}</label>
             <Input
               id={`settings-units-edit-factor-${unit.id}`}
-              value={factor}
-              onChange={(event) => setFactor(event.currentTarget.value)}
-              required
-              inputMode="decimal"
+              value={String(unit.factorToBase)}
+              readOnly
               className="form-input mono"
             />
           </div>

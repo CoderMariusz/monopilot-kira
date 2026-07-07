@@ -486,7 +486,7 @@ describe('SET-094 Units (UoM) screen parity', () => {
   it('edits a unit through the row actions menu and updateUnit action', async () => {
     mocks.updateUnit.mockResolvedValue({
       ok: true,
-      data: { id: 'u-g', code: 'g', name: 'Gram (edited)', factorToBase: 0.002 },
+      data: { id: 'u-g', code: 'g', name: 'Gram (edited)', factorToBase: 0.001 },
     });
     const user = userEvent.setup();
 
@@ -500,14 +500,12 @@ describe('SET-094 Units (UoM) screen parity', () => {
     await user.clear(nameInput);
     await user.type(nameInput, 'Gram (edited)');
     const factor = within(dialog).getByLabelText(/factor to base/i);
-    await user.clear(factor);
-    await user.type(factor, '0.002');
+    expect(factor).toHaveAttribute('readonly');
     await user.click(within(dialog).getByRole('button', { name: /save unit/i }));
 
     expect(mocks.updateUnit).toHaveBeenCalledWith({
       id: 'u-g',
       name: 'Gram (edited)',
-      factorToBase: 0.002,
     });
     expect(mocks.refresh).toHaveBeenCalled();
   });

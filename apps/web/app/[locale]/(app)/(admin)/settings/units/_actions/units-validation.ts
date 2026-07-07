@@ -25,6 +25,5 @@ export type CreateUnitInputType = z.infer<typeof CreateUnitInput>;
 export const UpdateUnitInput = z.object({
   id: z.string().uuid(),
   name: z.string().trim().min(1).max(120),
-  factorToBase: z.coerce.number().positive().finite(),
 });
 export type UpdateUnitInputType = z.infer<typeof UpdateUnitInput>;

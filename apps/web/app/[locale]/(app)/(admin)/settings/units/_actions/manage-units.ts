@@ -161,7 +161,9 @@ async function loadUnitRow(
   return rows[0] ?? null;
 }
 
-/** Referential safety: unit codes are matched as strings across items, conversions, etc. */
+// ponytail: soft-delete keeps the unit row (is_active=false via deleted_at) so historical
+// code lookups still resolve; this guard blocks accidental deactivation for UX, not hard
+// referential integrity — exhaustive coverage of every UOM column is not required for correctness.
 async function isUnitCodeInUse(client: QueryClient, code: string): Promise<boolean> {
   const { rows } = await client.query<{ in_use: boolean }>(
     `select exists (
@@ -185,6 +187,66 @@ async function isUnitCodeInUse(client: QueryClient, code: string): Promise<boole
          from public.calibration_instruments ci
         where ci.org_id = app.current_org_id()
           and ci.unit_of_measure = $1
+       union all
+       select 1
+         from public.bom_lines bl
+        where bl.org_id = app.current_org_id()
+          and bl.uom = $1
+       union all
+       select 1
+         from public.bom_co_products bcp
+        where bcp.org_id = app.current_org_id()
+          and bcp.uom = $1
+       union all
+       select 1
+         from public.work_orders wo
+        where wo.org_id = app.current_org_id()
+          and wo.uom = $1
+       union all
+       select 1
+         from public.wo_materials wm
+        where wm.org_id = app.current_org_id()
+          and wm.uom = $1
+       union all
+       select 1
+         from public.wo_outputs wout
+        where wout.org_id = app.current_org_id()
+          and wout.uom = $1
+       union all
+       select 1
+         from public.wo_material_consumption wmc
+        where wmc.org_id = app.current_org_id()
+          and wmc.uom = $1
+       union all
+       select 1
+         from public.purchase_order_lines pol
+        where pol.org_id = app.current_org_id()
+          and pol.uom = $1
+       union all
+       select 1
+         from public.transfer_order_lines tol
+        where tol.org_id = app.current_org_id()
+          and tol.uom = $1
+       union all
+       select 1
+         from public.transfer_order_line_lps toll
+        where toll.org_id = app.current_org_id()
+          and toll.uom = $1
+       union all
+       select 1
+         from public.license_plates lp
+        where lp.org_id = app.current_org_id()
+          and lp.uom = $1
+       union all
+       select 1
+         from public.stock_moves sm
+        where sm.org_id = app.current_org_id()
+          and sm.uom = $1
+       union all
+       select 1
+         from public.grn_items gi
+        where gi.org_id = app.current_org_id()
+          and gi.uom = $1
      ) as in_use`,
     [code],
   );
@@ -305,13 +367,12 @@ export async function updateUnit(rawInput: unknown): Promise<UpdateUnitResult> {
       const { rows } = await queryClient.query<{ id: string; code: string; name: string; factor_to_base: string }>(
         `update public.unit_of_measure
             set name = $2,
-                factor_to_base = $3::numeric,
                 updated_at = now()
           where org_id = app.current_org_id()
             and id = $1::uuid
             and deleted_at is null
         returning id::text, code, name, factor_to_base::text`,
-        [input.id, input.name, input.factorToBase],
+        [input.id, input.name],
       );
       const updated = rows[0];
       if (!updated) return { ok: false, error: 'not_found' };
