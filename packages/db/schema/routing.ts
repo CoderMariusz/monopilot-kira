@@ -92,6 +92,7 @@ export const routingOperations = pgTable(
     opName: text('op_name').notNull(),
     lineId: uuid('line_id').references(() => productionLines.id, { onDelete: 'set null' }),
     setupTimeMin: integer('setup_time_min').notNull().default(0),
+    setupCost: numeric('setup_cost', { precision: 14, scale: 4 }),
     runTimePerUnitSec: numeric('run_time_per_unit_sec', { precision: 10, scale: 2 }),
     costPerHour: numeric('cost_per_hour', { precision: 10, scale: 4 }),
     manufacturingOperationName: text('manufacturing_operation_name'),
@@ -123,6 +124,10 @@ export const routingOperations = pgTable(
     setupTimeNonnegativeCheck: check(
       'routing_operations_setup_time_nonnegative_check',
       sql`${table.setupTimeMin} >= 0`,
+    ),
+    setupCostNonnegativeCheck: check(
+      'routing_operations_setup_cost_nonneg',
+      sql`${table.setupCost} is null or ${table.setupCost} >= 0`,
     ),
     runTimeNonnegativeCheck: check(
       'routing_operations_run_time_nonnegative_check',
