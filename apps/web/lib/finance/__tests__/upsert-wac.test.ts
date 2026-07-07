@@ -308,6 +308,43 @@ describe('debitWac', () => {
     });
   });
 
+  it('NN-FIN-1 mass conservation: receive 100@£1 + 50@£2, consume 120, remaining 30 at post-consume avg (not lifetime)', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '100',
+      deltaValue: '100',
+      updatedBy: USER_ID,
+    });
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '50',
+      deltaValue: '100',
+      updatedBy: USER_ID,
+    });
+    expect(client.row).toMatchObject({ totalQtyKg: '150', totalValue: '200' });
+
+    const debit = await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      qty: '120',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+
+    expect(debit.applied).toBe(true);
+    if (!debit.applied) return;
+    expect(debit.qtyKg).toBe('120');
+    expect(client.row?.totalQtyKg).toBe('30');
+    expect(addDecimal(debit.valueDebited, client.row?.totalValue ?? '0')).toBe('200');
+    expect(compareDecimal(client.row?.totalValue ?? '0', '200')).toBe(-1);
+  });
+
   it('skips debit when UoM cannot be resolved to kg', async () => {
     const client = new DebitWacMockClient({ resolved: false });
     await upsertWac(client, {
