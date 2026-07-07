@@ -516,12 +516,12 @@ describe('creditWacAtAvgCost', () => {
   });
 });
 
-describe('WAC valuation currency consistency', () => {
-  it('exports a single org valuation currency used by all WAC paths', () => {
+describe('WAC multi-currency buckets', () => {
+  it('defaults omitted currencyCode to org base GBP', () => {
     expect(WAC_VALUATION_CURRENCY_CODE).toBe('GBP');
   });
 
-  it('EUR PO receipt and subsequent debit book into the same GBP bucket', async () => {
+  it('books EUR and GBP receipts into separate currency buckets without cross-contamination', async () => {
     const client = new WacMockClient();
     await upsertWac(client, {
       orgId: ORG_ID,
@@ -530,9 +530,35 @@ describe('WAC valuation currency consistency', () => {
       deltaQtyKg: '10',
       deltaValue: '42',
       updatedBy: USER_ID,
-      currencyCode: WAC_VALUATION_CURRENCY_CODE,
+      currencyCode: 'EUR',
     });
-    expect(client.calls[0]?.params?.[6]).toBe('GBP');
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      deltaQtyKg: '5',
+      deltaValue: '50',
+      updatedBy: USER_ID,
+      currencyCode: 'GBP',
+    });
+
+    expect(client.getBucket('EUR')).toMatchObject({ totalQtyKg: '10', totalValue: '42', avgCost: '4.2' });
+    expect(client.getBucket('GBP')).toMatchObject({ totalQtyKg: '5', totalValue: '50', avgCost: '10' });
+    expect(client.calls[0]?.params?.[6]).toBe('EUR');
+    expect(client.calls[1]?.params?.[6]).toBe('GBP');
+  });
+
+  it('debits within the same currency bucket as the receipt', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      deltaQtyKg: '10',
+      deltaValue: '42',
+      updatedBy: USER_ID,
+      currencyCode: 'EUR',
+    });
 
     await debitWac(client, {
       orgId: ORG_ID,
@@ -541,9 +567,12 @@ describe('WAC valuation currency consistency', () => {
       qty: '4',
       uom: 'kg',
       updatedBy: USER_ID,
+      currencyCode: 'EUR',
     });
-    expect(client.calls.at(-1)?.params?.[6]).toBe('GBP');
-    expect(client.row).toMatchObject({ totalQtyKg: '6', totalValue: '25.2', avgCost: '4.2' });
+
+    expect(client.getBucket('EUR')).toMatchObject({ totalQtyKg: '6', totalValue: '25.2', avgCost: '4.2' });
+    expect(client.getBucket('GBP')).toBeNull();
+    expect(client.calls.at(-1)?.params?.[6]).toBe('EUR');
   });
 });
 
@@ -754,7 +783,7 @@ describe('receivePoLineDesktop WAC integration', () => {
     const wacIndex = currentClient.calls.findIndex((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
     expect(lpIndex).toBeGreaterThanOrEqual(0);
     expect(wacIndex).toBeGreaterThan(lpIndex);
-    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '10', '42', USER_ID, SITE_ID, 'GBP']);
+    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '10', '42', USER_ID, SITE_ID, 'EUR']);
   });
 
   it('unit-mixing case: box item with kg conversion computes WAC on kg basis', async () => {
@@ -772,7 +801,7 @@ describe('receivePoLineDesktop WAC integration', () => {
 
     expect(result).toMatchObject({ ok: true, lpId: 'lp-1' });
     const wacIndex = currentClient.calls.findIndex((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
-    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '48', '100', USER_ID, SITE_ID, 'GBP']);
+    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '48', '100', USER_ID, SITE_ID, 'EUR']);
   });
 
   it('unresolved-UoM receipt does not corrupt WAC and flags grn_items ext_jsonb', async () => {
@@ -810,7 +839,33 @@ class WacMockClient {
     appVersion: string;
     dedupKey: string;
   }> = [];
-  row: { totalQtyKg: string; totalValue: string; avgCost: string | null } | null = null;
+  private buckets = new Map<string, { totalQtyKg: string; totalValue: string; avgCost: string | null }>();
+
+  get row(): { totalQtyKg: string; totalValue: string; avgCost: string | null } | null {
+    return this.buckets.get('GBP') ?? this.buckets.values().next().value ?? null;
+  }
+
+  getBucket(currencyCode: string) {
+    return this.buckets.get(currencyCode) ?? null;
+  }
+
+  private bucketKey(params: readonly unknown[]): string {
+    if (params.length === 7) return String(params[6] ?? 'GBP');
+    if (params.length === 4) return String(params[3] ?? 'GBP');
+    return 'GBP';
+  }
+
+  private getBucketForParams(params: readonly unknown[]) {
+    const key = this.bucketKey(params);
+    return this.buckets.get(key) ?? null;
+  }
+
+  private setBucketForParams(
+    params: readonly unknown[],
+    row: { totalQtyKg: string; totalValue: string; avgCost: string | null },
+  ): void {
+    this.buckets.set(this.bucketKey(params), row);
+  }
 
   async query<T = Record<string, unknown>>(sql: string, params: readonly unknown[] = []): Promise<{ rows: T[]; rowCount?: number | null }> {
     this.calls.push({ sql, params });
@@ -827,11 +882,12 @@ class WacMockClient {
       return { rows: [], rowCount: 1 };
     }
     if (normalized.startsWith('select total_qty_kg::text as "totalqtykg"')) {
+      const existing = this.getBucketForParams(params);
       return {
-        rows: this.row
-          ? [{ totalQtyKg: this.row.totalQtyKg, totalValue: this.row.totalValue, clamped: false }] as T[]
+        rows: existing
+          ? [{ totalQtyKg: existing.totalQtyKg, totalValue: existing.totalValue, clamped: false }] as T[]
           : [],
-        rowCount: this.row ? 1 : 0,
+        rowCount: existing ? 1 : 0,
       };
     }
     if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
@@ -840,17 +896,23 @@ class WacMockClient {
       };
     }
     if (normalized.includes('with existing as materialized') && normalized.includes('avg_cost_used')) {
-      const avgCost = this.row && compareDecimal(this.row.totalQtyKg, '0') > 0 ? this.row.avgCost ?? '0' : '0';
+      const existing = this.getBucketForParams(params);
+      const avgCost =
+        existing && compareDecimal(existing.totalQtyKg, '0') > 0 ? existing.avgCost ?? '0' : '0';
       const qtyKg = String(params[2]);
       const valueDebited = multiplyDecimal(qtyKg, avgCost);
       return { rows: [{ avg_cost_used: avgCost, value_debited: valueDebited }] as T[] };
     }
     if (normalized.includes('with existing as materialized') && normalized.includes('delta_value')) {
-      const avgCost = this.row && compareDecimal(this.row.totalQtyKg, '0') > 0 ? this.row.avgCost ?? '0' : '0';
+      const existing = this.getBucketForParams(params);
+      const avgCost =
+        existing && compareDecimal(existing.totalQtyKg, '0') > 0 ? existing.avgCost ?? '0' : '0';
       return { rows: [{ delta_value: multiplyDecimal(String(params[2]), avgCost) }] as T[] };
     }
     if (normalized.startsWith('select coalesce((') && normalized.includes('avg_cost')) {
-      const avgCost = this.row && compareDecimal(this.row.totalQtyKg, '0') > 0 ? this.row.avgCost ?? '0' : '0';
+      const existing = this.getBucketForParams(params);
+      const avgCost =
+        existing && compareDecimal(existing.totalQtyKg, '0') > 0 ? existing.avgCost ?? '0' : '0';
       return { rows: [{ avg_cost: avgCost }] as T[] };
     }
     if (normalized.startsWith('select ($1::numeric * $2::numeric)::text as value')) {
@@ -863,16 +925,16 @@ class WacMockClient {
       throw new Error(`unexpected wac query with ${params.length} params: ${normalized}`);
     }
 
-    if (!this.row) {
+    if (!this.getBucketForParams(params)) {
       const availableQtyKg = '0';
       const availableValue = '0';
       const { totalQtyKg, totalValue } = coerceWacTotals(deltaQty, deltaValue);
       const rawClamped = compareDecimal(deltaQty, '0') < 0 || compareDecimal(deltaValue, '0') < 0;
-      this.row = {
+      this.setBucketForParams(params, {
         totalQtyKg,
         totalValue,
         avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : '0',
-      };
+      });
       return {
         rows: [{
           totalQtyKg,
@@ -887,17 +949,18 @@ class WacMockClient {
       };
     }
 
-    const availableQtyKg = this.row.totalQtyKg;
-    const availableValue = this.row.totalValue;
+    const existing = this.getBucketForParams(params)!;
+    const availableQtyKg = existing.totalQtyKg;
+    const availableValue = existing.totalValue;
     const unclampedQty = addDecimal(availableQtyKg, deltaQty);
     const unclampedValue = addDecimal(availableValue, deltaValue);
     const { totalQtyKg, totalValue, clamped } = coerceWacTotals(unclampedQty, unclampedValue);
     const rawClamped = compareDecimal(unclampedQty, '0') < 0 || compareDecimal(unclampedValue, '0') < 0;
-    this.row = {
+    this.setBucketForParams(params, {
       totalQtyKg,
       totalValue,
       avgCost: compareDecimal(totalQtyKg, '0') > 0 ? divideDecimal(totalValue, totalQtyKg) : '0',
-    };
+    });
     return {
       rows: [{
         totalQtyKg,

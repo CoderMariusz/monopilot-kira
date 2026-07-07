@@ -22,6 +22,7 @@ const GRN_ITEM_ID = '33333333-3333-4333-8333-333333333333';
 const GRN_ID = '44444444-4444-4444-8444-444444444444';
 const LP_ID = '55555555-5555-4555-8555-555555555555';
 const PO_ID = '66666666-6666-4666-8666-666666666666';
+const SITE_ID = '88888888-8888-4888-8888-888888888888';
 
 type State = {
   granted: boolean;
@@ -38,6 +39,7 @@ type State = {
   lpConsumptionRows: string[];
   lpHasChild: boolean;
   grnExtJsonb: unknown;
+  poCurrency: string | null;
   rollupTotalReceived: string;
   rollupIsReceived: boolean;
 };
@@ -75,6 +77,7 @@ function makeClient(): QueryClient {
                 cancelled_at: state.cancelledAt,
                 qa_status_initial: 'pending',
                 ext_jsonb: state.grnExtJsonb,
+                po_currency: state.poCurrency,
               }]
             : [],
           rowCount: state.grnExists ? 1 : 0,
@@ -93,6 +96,8 @@ function makeClient(): QueryClient {
                 lp_batch_number: state.lpBatchNumber,
                 lp_expiry_date: state.lpExpiryDate,
                 lp_best_before_date: state.lpBestBeforeDate,
+                lp_location_id: '99999999-9999-4999-8999-999999999999',
+                lp_site_id: SITE_ID,
               }]
             : [],
           rowCount: state.lpExists ? 1 : 0,
@@ -183,6 +188,7 @@ beforeEach(() => {
     lpConsumptionRows: [],
     lpHasChild: false,
     grnExtJsonb: null,
+    poCurrency: 'GBP',
     rollupTotalReceived: '0',
     rollupIsReceived: false,
   };
@@ -241,7 +247,11 @@ describe('receipt corrections actions', () => {
   });
 
   it('cancelGrnLine reverses WAC using the originally-booked snapshot contribution', async () => {
-    state.grnExtJsonb = { wac_qty_kg: '9.500000', wac_value: '39.900000' };
+    state.grnExtJsonb = {
+      wac_qty_kg: '9.500000',
+      wac_value: '39.900000',
+      wac_currency_code: 'EUR',
+    };
 
     const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'entry_error' });
     expect(result).toEqual({ ok: true });
@@ -253,12 +263,15 @@ describe('receipt corrections actions', () => {
       '-9.500000',
       '-39.900000',
       USER_ID,
+      SITE_ID,
+      'EUR',
     ]);
     expect(queries.some((q) => normalize(q.sql).includes('from public.items i') && normalize(q.sql).includes('as qty_kg'))).toBe(false);
   });
 
   it('cancelGrnLine falls back to recomputed WAC reversal when no snapshot exists', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+    state.poCurrency = 'EUR';
 
     const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'entry_error' });
     expect(result).toEqual({ ok: true });
@@ -270,6 +283,8 @@ describe('receipt corrections actions', () => {
       '-10.000000',
       '-42',
       USER_ID,
+      SITE_ID,
+      'EUR',
     ]);
     expect(console.warn).toHaveBeenCalledWith('[wac] reversal_fallback', { grnItemId: GRN_ITEM_ID });
   });

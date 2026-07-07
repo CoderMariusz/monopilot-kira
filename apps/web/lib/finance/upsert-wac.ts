@@ -28,7 +28,7 @@ type UpsertWacInput = {
   sourceRef?: WacAnomalySourceRef;
 };
 
-/** Org valuation currency for all WAC buckets (single-currency; no FX). */
+/** Default WAC bucket when callers omit currency (org base currency; no FX conversion). */
 export const WAC_VALUATION_CURRENCY_CODE = 'GBP';
 
 const DEFAULT_WAC_CURRENCY_CODE = WAC_VALUATION_CURRENCY_CODE;

@@ -1,4 +1,4 @@
-import { resolveWacDeltaQtyKg, upsertWac, WAC_VALUATION_CURRENCY_CODE } from './upsert-wac';
+import { resolveWacDeltaQtyKg, upsertWac } from './upsert-wac';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -58,6 +58,7 @@ export async function bookReceiptWacAfterGrnItem(
 
   const receivedQtyKg = wacResolution.qtyKg;
   const receivedValue = await multiplyNumeric(client, receipt.qty, line.unit_price);
+  const currencyCode = normalizeCurrencyCode(line.currency);
   await upsertWac(client, {
     orgId: ctx.orgId,
     siteId: ctx.siteId,
@@ -65,7 +66,7 @@ export async function bookReceiptWacAfterGrnItem(
     deltaQtyKg: receivedQtyKg,
     deltaValue: receivedValue,
     updatedBy: ctx.userId,
-    currencyCode: WAC_VALUATION_CURRENCY_CODE,
+    currencyCode,
   });
   await client.query(
     `update public.grn_items
@@ -77,7 +78,11 @@ export async function bookReceiptWacAfterGrnItem(
     [
       ctx.orgId,
       ctx.userId,
-      JSON.stringify({ wac_qty_kg: receivedQtyKg, wac_value: receivedValue }),
+      JSON.stringify({
+        wac_qty_kg: receivedQtyKg,
+        wac_value: receivedValue,
+        wac_currency_code: currencyCode,
+      }),
       receipt.grnItemId,
     ],
   );
@@ -102,6 +107,11 @@ async function loadLineUnitPrice(
     [orgId, poLineId],
   );
   return rows[0] ?? null;
+}
+
+function normalizeCurrencyCode(currency: string | null | undefined): string {
+  const normalized = currency?.trim().toUpperCase();
+  return normalized && normalized.length === 3 ? normalized : 'GBP';
 }
 
 async function multiplyNumeric(client: QueryClient, left: string, right: string | null): Promise<string> {
