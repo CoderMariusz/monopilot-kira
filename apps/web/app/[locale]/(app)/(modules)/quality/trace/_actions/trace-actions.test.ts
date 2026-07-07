@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queryGenealogy } from '../../../../../../../lib/warehouse/genealogy';
-import { completeRecallDrill, runTraceReport, startRecallDrill } from './trace-actions';
-import type { TraceReport } from './trace-types';
+import { runTraceReport } from './trace-actions';
 import { LP_SEED_LIMIT } from './trace-mass-balance';
 
 type QueryClient = {
@@ -19,7 +18,6 @@ const OUTPUT_LP_ID = '44444444-4444-4444-8444-444444444444';
 const SOLO_LP_ID = '55555555-5555-4555-8555-555555555555';
 const SIBLING_LP_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 const WO_ID = '66666666-6666-4666-8666-666666666666';
-const DRILL_ID = '77777777-7777-4777-8777-777777777777';
 const SUPPLIER_ID = '88888888-8888-4888-8888-888888888888';
 const PO_ID = '99999999-9999-4999-8999-999999999999';
 const GRN_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -468,32 +466,6 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 0 };
       }
 
-      if (q.startsWith('insert into public.recall_drills')) {
-        return { rows: [{ id: DRILL_ID }], rowCount: 1 };
-      }
-
-      if (q.startsWith('update public.recall_drills')) {
-        return {
-          rows: [
-            {
-              id: DRILL_ID,
-              initiated_by: USER_ID,
-              input_type: 'lp',
-              input_ref: 'LP-IN',
-              direction: 'both',
-              started_at: '2026-06-23T10:00:00.000Z',
-              completed_at: '2026-06-23T10:00:02.500Z',
-              duration_ms: 2500,
-              result_jsonb: JSON.parse(String(params[1])) as TraceReport,
-              is_drill: true,
-              created_at: '2026-06-23T10:00:00.000Z',
-              updated_at: '2026-06-23T10:00:02.500Z',
-            },
-          ],
-          rowCount: 1,
-        };
-      }
-
       return { rows: [], rowCount: 0 };
     }),
   };
@@ -616,14 +588,20 @@ describe('trace recall server actions', () => {
       shipmentCount: 1,
       customersAffected: 1,
     });
-    if (!report.massBalance || !('lines' in report.massBalance)) throw new Error('expected applicable mass balance');
-    // Multi-hop trace: intermediate WIP output is counted in produced but consumed
-    // downstream — aggregate delta is non-zero until FG-only scope is used.
-    expect(report.massBalance.lines.find((line) => line.key === 'produced')?.qtyKg).toBe('17.5');
-    expect(report.massBalance.lines.find((line) => line.key === 'shipped')?.qtyKg).toBe('8.5');
-    expect(report.massBalance.lines.find((line) => line.key === 'waste')?.qtyKg).toBe('0.5');
-    expect(report.massBalance.lines.find((line) => line.key === 'delta')?.qtyKg).toBe('8.5');
-    expect(report.massBalance.balanced).toBe(false);
+    if (!report.massBalance || !('nodes' in report.massBalance)) throw new Error('expected applicable mass balance');
+    const wo1 = report.massBalance.nodes.find((node) => node.woRef === 'WO-2026-0001');
+    const wo2 = report.massBalance.nodes.find((node) => node.woRef === 'WO-2026-0002');
+    expect(wo1).toMatchObject({ inputKg: '10', outputKg: '9', wasteKg: '1', remainingKg: '0', deltaKg: '0', balanced: true });
+    expect(wo2).toMatchObject({ inputKg: '9', outputKg: '8.5', wasteKg: '0.5', remainingKg: '0', deltaKg: '0', balanced: true });
+    expect(report.massBalance.total).toMatchObject({
+      seedInputKg: '10',
+      shippedKg: '8.5',
+      onSiteKg: '0',
+      wasteKg: '1.5',
+      deltaKg: '0',
+      balanced: true,
+      percentAccounted: '100',
+    });
     expect(report.massBalance.unreconciled).toContainEqual(
       expect.objectContaining({ bucket: 'unattributed_wo_waste', ref: 'WO-2026-0001', qty: '1.000' }),
     );
@@ -674,12 +652,16 @@ describe('trace recall server actions', () => {
     });
     expect(report.truncation).toEqual({ truncated: false, layers: [] });
     expect(report.massBalance).toMatchObject({
-      balanced: true,
-      percentRecovered: '100',
+      total: {
+        balanced: false,
+        seedInputKg: '10',
+        shippedKg: '15',
+        deltaKg: '-5',
+      },
     });
-    if (!report.massBalance || !('lines' in report.massBalance)) throw new Error('expected applicable mass balance');
-    expect(report.massBalance.lines.find((line) => line.key === 'produced')?.qtyKg).toBe('15');
-    expect(report.massBalance.lines.find((line) => line.key === 'shipped')?.qtyKg).toBe('15');
+    if (!report.massBalance || !('nodes' in report.massBalance)) throw new Error('expected applicable mass balance');
+    expect(report.massBalance.total.shippedKg).toBe('15');
+    expect(report.massBalance.nodes[0]).toMatchObject({ inputKg: '10', outputKg: '15', deltaKg: '-5', balanced: false });
   });
 
   it('runTraceReport returns a single LP node with no edges when genealogy is empty', async () => {
@@ -710,24 +692,7 @@ describe('trace recall server actions', () => {
     });
   });
 
-  it('startRecallDrill followed by completeRecallDrill writes the row, stamps duration_ms, and snapshots the result', async () => {
-    const started = await startRecallDrill({ inputType: 'lp', inputRef: 'LP-IN', direction: 'both', is_drill: true });
-    const completed = await completeRecallDrill(started.drillId, started.report);
-
-    expect(started.drillId).toBe(DRILL_ID);
-    expect(completed.id).toBe(DRILL_ID);
-    expect(completed.durationMs).toBeGreaterThan(0);
-    expect(completed.result).toEqual(started.report);
-
-    const calls = vi.mocked(client.query).mock.calls;
-    const insert = calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.recall_drills'));
-    const update = calls.find(([sql]) => normalize(String(sql)).startsWith('update public.recall_drills'));
-    expect(insert?.[1]).toEqual([USER_ID, 'lp', 'LP-IN', 'both', true]);
-    expect(update?.[1]?.[0]).toBe(DRILL_ID);
-    expect(JSON.parse(String(update?.[1]?.[1]))).toEqual(started.report);
-  });
-
-  it('F1: sibling co-product batch excluded from produced total; unattributable WO waste lands in unreconciled', async () => {
+  it('F1: sibling co-product batch excluded from output total; unattributable WO waste lands in unreconciled', async () => {
     scenario = 'sibling';
     client = makeClient();
     vi.mocked(queryGenealogy).mockImplementation(async (_queryClient, lpId) => {
@@ -765,20 +730,14 @@ describe('trace recall server actions', () => {
     const report = await runTraceReport({ inputType: 'lp', inputRef: 'LP-IN', direction: 'both' });
 
     expect(report.massBalance).not.toBeNull();
-    if (!report.massBalance || !('applicable' in report.massBalance)) {
+    if (!report.massBalance || !('nodes' in report.massBalance)) {
       throw new Error('expected applicable mass balance');
     }
-    // Sibling LP-SIBLING (20 kg) must NOT appear in produced total
-    const producedKg = report.massBalance.lines.find((l) => l.key === 'produced')?.qtyKg;
-    expect(producedKg).toBe('15');
-
-    // Waste from WO (attributed to sibling LP, not in the traced set) must land
-    // in unreconciled with bucket 'unattributed_wo_waste'
+    expect(report.massBalance.nodes[0]?.outputKg).toBe('15');
+    expect(report.massBalance.total.wasteKg).toBe('3');
     expect(report.massBalance.unreconciled).toContainEqual(
       expect.objectContaining({ bucket: 'unattributed_wo_waste', reason: 'unattributed_wo_waste' }),
     );
-    // The attributed wasteKg should be 0 (the sibling's waste is not attributed)
-    expect(report.massBalance.lines.find((l) => l.key === 'waste')?.qtyKg).toBe('0');
   });
 
   it('F2: site-restricted caller gets massBalance: { scopeLimited: true } without computing balances', async () => {
@@ -790,8 +749,8 @@ describe('trace recall server actions', () => {
     expect(report.massBalance).not.toBeNull();
     expect(report.massBalance).toEqual({ scopeLimited: true });
     // Mass balance lines must NOT be present (discriminant check)
-    if (report.massBalance && 'lines' in report.massBalance) {
-      throw new Error('site-restricted massBalance must not have lines');
+    if (report.massBalance && 'nodes' in report.massBalance) {
+      throw new Error('site-restricted massBalance must not have nodes');
     }
   });
 });

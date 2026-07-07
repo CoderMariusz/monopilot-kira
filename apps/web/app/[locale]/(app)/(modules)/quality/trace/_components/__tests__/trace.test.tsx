@@ -38,14 +38,21 @@ const H8_TRACE_EN: Record<string, string> = {
   'truncation.layerSeedItem': 'Item matches capped at {limit} rows.',
   'massBalance.title': 'Mass balance reconciliation',
   'massBalance.ariaLabel': 'Mass balance reconciliation table',
-  'massBalance.produced': 'Produced',
-  'massBalance.onSite': 'Still on site',
+  'massBalance.nodeTitle': 'Per work order',
+  'massBalance.nodeWo': 'Work order',
+  'massBalance.nodeInput': 'Input consumed',
+  'massBalance.nodeOutput': 'Output produced',
+  'massBalance.nodeWaste': 'Waste',
+  'massBalance.nodeRemaining': 'Remaining on site',
+  'massBalance.nodeDelta': 'Node delta',
+  'massBalance.totalTitle': 'Netted trace total',
+  'massBalance.seedInput': 'Seed input',
+  'massBalance.onSite': 'Still on site (terminal)',
   'massBalance.shipped': 'Shipped',
-  'massBalance.waste': 'Waste',
-  'massBalance.recovered': 'Recovered total',
-  'massBalance.delta': 'Delta (produced − recovered)',
-  'massBalance.percentRecovered': '{percent}% recovered',
-  'massBalance.unbalanced': 'Out of balance by {delta}',
+  'massBalance.waste': 'Waste (all traced WOs)',
+  'massBalance.nettedDelta': 'Net delta',
+  'massBalance.percentAccounted': '{percent}% accounted',
+  'massBalance.nettedUnbalanced': 'Net trace out of balance by {delta}',
   'massBalance.unreconciledTitle': 'Excluded — unit not reconcilable to kg',
   'massBalance.unreconciledRow': '{ref}: {qty} {uom} ({bucket})',
   'massBalance.scopeLimited': 'Mass balance requires org-wide visibility — ask an administrator to run the recall reconciliation.',
@@ -96,30 +103,17 @@ function makeReport(over: Partial<TraceReportView> = {}): TraceReportView {
   };
 }
 
-function renderWorkbench(opts: {
-  runAction?: ReturnType<typeof vi.fn>;
-  startAction?: ReturnType<typeof vi.fn>;
-  completeAction?: ReturnType<typeof vi.fn>;
-} = {}) {
+function renderWorkbench(opts: { runAction?: ReturnType<typeof vi.fn> } = {}) {
   const report = makeReport();
   const runAction = opts.runAction ?? vi.fn(async () => report);
-  const startAction = opts.startAction ?? vi.fn(async () => ({ drillId: 'drill-1', report }));
-  const completeAction = opts.completeAction ?? vi.fn(async () => ({
-    id: 'drill-1', inputType: 'lp' as const, inputRef: 'LP-IN-7', direction: 'both' as const,
-    startedAt: '2026-06-23T10:00:00.000Z', completedAt: '2026-06-23T10:02:00.000Z', durationMs: 120000,
-    result: report, isDrill: true, initiatedBy: null, createdAt: '', updatedAt: '',
-  }));
   render(
     <TraceWorkbench
       labels={LABELS}
       locale="en"
       runTraceReportAction={runAction as never}
-      startRecallDrillAction={startAction as never}
-      completeRecallDrillAction={completeAction as never}
-      recallDrillsHref="/en/quality/recall-drills"
     />,
   );
-  return { runAction, startAction, completeAction, report };
+  return { runAction, report };
 }
 
 describe('TraceWorkbench (E2A parity)', () => {
@@ -225,29 +219,12 @@ describe('TraceWorkbench (E2A parity)', () => {
     expect(err).toHaveTextContent(LABELS.states.errorTitle);
   });
 
-  it('[Save as drill] calls startRecallDrill then completeRecallDrill with the report', async () => {
-    const { runAction, startAction, completeAction, report } = renderWorkbench();
+  it('does not expose a save-as-drill write control on the read-only screen', async () => {
+    renderWorkbench();
     fireEvent.change(screen.getByTestId('trace-input-ref'), { target: { value: 'LP-IN-7' } });
     fireEvent.click(screen.getByTestId('trace-run'));
-    await waitFor(() => expect(runAction).toHaveBeenCalled());
     await screen.findByTestId('trace-report');
-
-    fireEvent.click(screen.getByTestId('trace-save-drill'));
-    await waitFor(() => expect(startAction).toHaveBeenCalledTimes(1));
-    expect(startAction).toHaveBeenCalledWith({ inputType: 'lp', inputRef: 'LP-IN-7', direction: 'both' });
-    await waitFor(() => expect(completeAction).toHaveBeenCalledTimes(1));
-    // The persisted report matches the action's TraceReport shape exactly — the
-    // view-only `detailHref` enrichment is stripped before completeRecallDrill.
-    const persisted = {
-      nodes: report.nodes.map(({ detailHref: _ignored, ...n }) => n),
-      edges: report.edges,
-      flat: report.flat,
-      summary: report.summary,
-      truncation: report.truncation,
-      massBalance: report.massBalance,
-    };
-    expect(completeAction).toHaveBeenCalledWith('drill-1', persisted);
-    expect(await screen.findByTestId('trace-drill-saved')).toBeInTheDocument();
+    expect(screen.queryByTestId('trace-save-drill')).not.toBeInTheDocument();
   });
 
   it('renders the truncation warning banner when the report is capped', async () => {
@@ -269,16 +246,26 @@ describe('TraceWorkbench (E2A parity)', () => {
       makeReport({
         massBalance: {
           applicable: true,
-          balanced: false,
-          percentRecovered: '90',
-          lines: [
-            { key: 'produced', qtyKg: '100' },
-            { key: 'on_site', qtyKg: '50' },
-            { key: 'shipped', qtyKg: '30' },
-            { key: 'waste', qtyKg: '10' },
-            { key: 'recovered', qtyKg: '90' },
-            { key: 'delta', qtyKg: '10' },
+          nodes: [
+            {
+              woRef: 'WO-1',
+              inputKg: '10',
+              outputKg: '9',
+              wasteKg: '1',
+              remainingKg: '0',
+              deltaKg: '0',
+              balanced: true,
+            },
           ],
+          total: {
+            seedInputKg: '10',
+            shippedKg: '9',
+            onSiteKg: '0',
+            wasteKg: '1',
+            deltaKg: '0',
+            balanced: true,
+            percentAccounted: '100',
+          },
           unreconciled: [],
         },
       }),
@@ -287,8 +274,8 @@ describe('TraceWorkbench (E2A parity)', () => {
     fireEvent.change(screen.getByTestId('trace-input-ref'), { target: { value: 'LP-IN-7' } });
     fireEvent.click(screen.getByTestId('trace-run'));
     expect(await screen.findByTestId('trace-mass-balance')).toBeInTheDocument();
-    expect(screen.getByTestId('trace-mass-balance-unbalanced')).toBeInTheDocument();
-    expect(screen.getByTestId('trace-mass-balance-row-produced')).toHaveTextContent('100 kg');
+    expect(screen.getByTestId('trace-mass-balance-row-seed')).toHaveTextContent('10 kg');
+    expect(screen.getByTestId('trace-mass-balance-node-WO-1')).toBeInTheDocument();
   });
 
   it('F2: renders a scope-limited notice instead of balance lines when massBalance.scopeLimited is true', async () => {
