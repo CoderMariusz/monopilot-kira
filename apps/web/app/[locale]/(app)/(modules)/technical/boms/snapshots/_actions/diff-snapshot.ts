@@ -16,6 +16,7 @@
  */
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { normalizeBomSnapshotJsonUoms, normalizePieceUom } from '../../../../../../../../lib/uom/piece';
 import { diffSnapshotVsCurrent, type QueryClient, type SnapshotDiffEntry } from './shared';
 
 export type DiffSnapshotResult =
@@ -81,15 +82,16 @@ export async function diffBomSnapshot(snapshotId: string): Promise<DiffSnapshotR
             code: l.component_code,
             type: l.component_type,
             quantity: l.quantity,
-            uom: l.uom,
+            uom: normalizePieceUom(l.uom) ?? l.uom,
             scrap_pct: l.scrap_pct,
             manufacturing_operation_name: l.manufacturing_operation_name,
           })),
         };
       }
 
-      const diff = diffSnapshotVsCurrent(snapRow.snapshot_json, current);
-      return { ok: true, data: { diff, snapshotJson: snapRow.snapshot_json, currentExists: Boolean(header) } };
+      const frozen = normalizeBomSnapshotJsonUoms(snapRow.snapshot_json as Record<string, unknown>);
+      const diff = diffSnapshotVsCurrent(frozen, current);
+      return { ok: true, data: { diff, snapshotJson: frozen, currentExists: Boolean(header) } };
     });
   } catch (error) {
     console.error('[technical/boms/snapshots] diffBomSnapshot load_failed', {

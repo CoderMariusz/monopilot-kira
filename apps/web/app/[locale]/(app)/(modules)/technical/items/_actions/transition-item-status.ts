@@ -22,6 +22,7 @@
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
 import { safeRevalidatePath } from './revalidate';
 import {
   CANONICAL_UOMS,
@@ -70,7 +71,8 @@ export async function transitionItemStatus(rawInput: unknown): Promise<Transitio
       }
 
       // Activation data gate: a draft may only go live with a canonical base UoM.
-      if (current.status === 'draft' && input.toStatus === 'active' && !CANONICAL_UOM_SET.has(current.uom_base)) {
+      const canonicalUomBase = normalizePieceUom(current.uom_base) ?? current.uom_base;
+      if (current.status === 'draft' && input.toStatus === 'active' && !CANONICAL_UOM_SET.has(canonicalUomBase)) {
         return {
           ok: false,
           error: 'activation_gate_failed',

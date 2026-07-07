@@ -38,6 +38,7 @@ import {
   mapHeader,
   mapLine,
 } from '../../../app/[locale]/(app)/(modules)/technical/bom/_actions/shared';
+import { normalizeBomSnapshotJsonUoms } from '../../uom/piece';
 
 /** Error codes thrown by the snapshot service. */
 export type BomSnapshotErrorCode = 'NO_ACTIVE_BOM' | 'BOM_NOT_FOUND';
@@ -124,7 +125,7 @@ function mapSnapshotRow(row: SnapshotRowRaw): BomSnapshot {
     orgId: String(row.org_id),
     workOrderId: row.work_order_id,
     bomHeaderId: String(row.bom_header_id),
-    snapshotJson: row.snapshot_json,
+    snapshotJson: normalizeBomSnapshotJsonUoms(row.snapshot_json),
     snapshotAt: toIso(row.snapshot_at),
   };
 }

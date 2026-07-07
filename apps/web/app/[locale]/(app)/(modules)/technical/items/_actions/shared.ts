@@ -20,6 +20,7 @@
 
 import { z } from 'zod';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
+import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
 
 export { hasPermission };
 
@@ -52,6 +53,20 @@ const GS1_GTIN_RE = /^(?:\d{8}|\d{12}|\d{13}|\d{14})$/;
 // "pcs (each)" EN / "szt" PL — see item-wizard-labels + i18n uomLabels.pcs.
 export const CANONICAL_UOMS = ['kg', 'g', 'l', 'ml', 'pcs'] as const;
 export type CanonicalUom = (typeof CANONICAL_UOMS)[number];
+
+/** Accept legacy szt/ea on input; stored/validated value is canonical `pcs`. */
+const CanonicalUomInput = z.preprocess(
+  (value) => normalizePieceUom(typeof value === 'string' ? value : undefined) ?? value,
+  z.enum(CANONICAL_UOMS),
+);
+
+const OptionalCanonicalUomInput = z.preprocess(
+  (value) => {
+    if (typeof value === 'string' && value.trim() === '') return undefined;
+    return normalizePieceUom(typeof value === 'string' ? value : undefined) ?? value;
+  },
+  z.enum(CANONICAL_UOMS).optional(),
+);
 
 // output_uom text 'base'|'each'|'box' default 'base' (migration 267).
 export const OUTPUT_UOMS = ['base', 'each', 'box'] as const;
@@ -193,8 +208,8 @@ export const CreateItemInput = z
     name: z.string().trim().min(1).max(256),
     itemType: z.enum(ITEM_TYPES),
     status: z.enum(ITEM_STATUSES).optional().default('active'),
-    // Closed canonical list (migration 267) — no free text. Rejects the "eac" bug.
-    uomBase: z.enum(CANONICAL_UOMS),
+    // Closed canonical list (migration 267) — legacy szt/ea normalize to pcs (R3.3).
+    uomBase: CanonicalUomInput,
     weightMode: z.enum(WEIGHT_MODES).optional().default('fixed'),
     description: z.string().trim().max(2000).optional(),
     productGroup: z.string().trim().max(128).optional(),
@@ -205,10 +220,7 @@ export const CreateItemInput = z
     supplierCode: z.string().trim().min(1).optional(),
     supplierUnitPrice: OptionalNumeric,
     // '' (the empty option) ⇒ undefined; otherwise must be canonical.
-    uomSecondary: z.preprocess(
-      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-      z.enum(CANONICAL_UOMS).optional(),
-    ),
+    uomSecondary: OptionalCanonicalUomInput,
     gs1Gtin: OptionalGs1Gtin,
     nominalWeight: OptionalNumeric,
     tareWeight: OptionalNumeric,
@@ -242,7 +254,7 @@ export const UpdateItemInput = z
     name: z.string().trim().min(1).max(256),
     itemType: z.enum(ITEM_TYPES),
     status: z.enum(ITEM_STATUSES),
-    uomBase: z.enum(CANONICAL_UOMS),
+    uomBase: CanonicalUomInput,
     weightMode: z.enum(WEIGHT_MODES),
     description: z.string().trim().max(2000).optional(),
     productGroup: z.string().trim().max(128).optional(),
@@ -250,10 +262,7 @@ export const UpdateItemInput = z
       (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
       z.string().trim().min(1).max(64).optional(),
     ),
-    uomSecondary: z.preprocess(
-      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-      z.enum(CANONICAL_UOMS).optional(),
-    ),
+    uomSecondary: OptionalCanonicalUomInput,
     gs1Gtin: OptionalGs1Gtin,
     nominalWeight: OptionalNumeric,
     tareWeight: OptionalNumeric,

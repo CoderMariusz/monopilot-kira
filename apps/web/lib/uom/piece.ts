@@ -24,3 +24,31 @@ export function pieceUomsEqual(a: string | null | undefined, b: string | null | 
   const right = normalizePieceUom(b) ?? b ?? '';
   return left === right;
 }
+
+type BomSnapshotUomCarrier = {
+  lines?: Array<{ uom?: string | null }>;
+  co_products?: Array<{ uom?: string | null }>;
+};
+
+/** Normalize legacy piece codes in immutable bom_snapshots.snapshot_json on read (R3.3 F4). */
+export function normalizeBomSnapshotJsonUoms<T extends BomSnapshotUomCarrier>(json: T): T {
+  return {
+    ...json,
+    ...(json.lines
+      ? {
+          lines: json.lines.map((line) => ({
+            ...line,
+            uom: normalizePieceUom(line.uom ?? undefined) ?? line.uom,
+          })),
+        }
+      : {}),
+    ...(json.co_products
+      ? {
+          co_products: json.co_products.map((cp) => ({
+            ...cp,
+            uom: normalizePieceUom(cp.uom ?? undefined) ?? cp.uom,
+          })),
+        }
+      : {}),
+  };
+}
