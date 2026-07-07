@@ -72,7 +72,12 @@ async function generateBolAction(input: {
   return generateBol(input);
 }
 
-async function recordPodAction(input: { shipmentId: string; signedPdfUrl?: string }): Promise<RecordPodResult> {
+async function recordPodAction(input: {
+  shipmentId: string;
+  signedPdfUrl: string;
+  reason: string;
+  signature: { password: string };
+}): Promise<RecordPodResult> {
   'use server';
   return recordPod(input);
 }
@@ -248,13 +253,26 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
         signedUrlLabel: t('pod.signedUrlLabel'),
         signedUrlHelp: t('pod.signedUrlHelp'),
         signedUrlPlaceholder: t('pod.signedUrlPlaceholder'),
+        reasonLabel: t('pod.reasonLabel'),
+        reasonPlaceholder: t('pod.reasonPlaceholder'),
         cancel: t('pod.cancel'),
         submit: t('pod.submit'),
         submitting: t('pod.submitting'),
+        formIncomplete: t('pod.formIncomplete'),
         noPermission: t('pod.noPermission'),
+        esign: {
+          title: t('pod.esign.title'),
+          meaning: t('pod.esign.meaning'),
+          password: t('pod.esign.password'),
+          passwordPlaceholder: t('pod.esign.passwordPlaceholder'),
+          passwordHelp: t('pod.esign.passwordHelp'),
+        },
         errors: {
           forbidden: t('errors.forbidden'),
           not_found: t('ship.errors.not_found'),
+          invalid_input: t('pod.errors.invalid_input'),
+          invalid_state: t('cancel.errors.invalid_state'),
+          esign_failed: t('pod.errors.esign_failed'),
           persistence_failed: t('errors.persistence_failed'),
         },
       },

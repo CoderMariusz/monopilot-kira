@@ -113,7 +113,12 @@ export type ShipmentShipControlsProps = {
     serviceLevel?: string;
     trackingNumber?: string;
   }) => Promise<GenerateBolResult>;
-  recordPodAction: (input: { shipmentId: string; signedPdfUrl?: string }) => Promise<RecordPodResult>;
+  recordPodAction: (input: {
+    shipmentId: string;
+    signedPdfUrl: string;
+    reason: string;
+    signature: { password: string };
+  }) => Promise<RecordPodResult>;
   /** Reviewed cancelShipment seam (imported by the page, never authored here). */
   cancelShipmentAction: (input: CancelShipmentInput) => Promise<CancelShipmentResult>;
   /** Loaded-status gate mirroring cancelShipment's accepted shipment state. */

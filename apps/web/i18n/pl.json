@@ -11452,10 +11452,24 @@
         "signedUrlLabel": "URL podpisanego dokumentu POD",
         "signedUrlHelp": "Link do podpisanego listu przewozowego / pliku PDF potwierdzenia dostawy.",
         "signedUrlPlaceholder": "https://…/signed-pod.pdf",
+        "reasonLabel": "Poświadczenie dostawy",
+        "reasonPlaceholder": "Opisz sposób potwierdzenia dostawy (przewoźnik, odbiorca itd.)",
         "cancel": "Anuluj",
         "submit": "Oznacz jako dostarczone",
         "submitting": "Rejestrowanie…",
-        "noPermission": "Nie masz uprawnień do rejestracji dostawy dla tej wysyłki."
+        "formIncomplete": "Wprowadź URL podpisanego POD, powód poświadczenia i PIN e-podpisu.",
+        "noPermission": "Nie masz uprawnień do rejestracji dostawy dla tej wysyłki.",
+        "esign": {
+          "title": "Podpis elektroniczny",
+          "meaning": "Wprowadź PIN e-podpisu, aby poświadczyć dostawę — lub hasło konta, jeśli nie masz jeszcze PIN-u. Twoja tożsamość i czas serwera są rejestrowane.",
+          "password": "PIN e-podpisu lub hasło konta",
+          "passwordPlaceholder": "PIN e-podpisu lub hasło konta",
+          "passwordHelp": "Hasło konta jest akceptowane tylko dopóki nie masz zarejestrowanego PIN-u e-podpisu."
+        },
+        "errors": {
+          "invalid_input": "Wprowadź prawidłowy URL podpisanego dokumentu POD.",
+          "esign_failed": "Podpis nie powiódł się. Sprawdź hasło i spróbuj ponownie."
+        }
       },
       "errors": {
         "forbidden": "Nie masz uprawnień do tej operacji.",
