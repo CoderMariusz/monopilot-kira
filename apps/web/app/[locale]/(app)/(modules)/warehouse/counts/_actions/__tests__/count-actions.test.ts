@@ -114,6 +114,12 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+function resolveQtyKgForTest(qty: string, uom: string): string {
+  const factors: Record<string, number> = { kg: 1, each: 0.5, box: 12 };
+  const factor = factors[uom.toLowerCase()] ?? 1;
+  return String(Number(qty) * factor);
+}
+
 function makeApplyLine(overrides: Partial<ApplyLine> = {}): ApplyLine {
   return {
     id: COUNT_LINE_ID,
@@ -306,7 +312,9 @@ function makeClient(): QueryClient {
       }
 
       if (n.includes('from public.items i') && n.includes('as qty_kg')) {
-        return { rows: [{ qty_kg: String(params?.[0] ?? '0'), resolved: true }], rowCount: 1 };
+        const qty = String(params?.[0] ?? '0');
+        const uom = String(params?.[1] ?? 'kg');
+        return { rows: [{ qty_kg: resolveQtyKgForTest(qty, uom), resolved: true }], rowCount: 1 };
       }
       if (n.includes('with existing as materialized') && n.includes('avg_cost_used')) {
         const qty = Number(params?.[2] ?? 0);
@@ -579,6 +587,44 @@ describe('stock count actions', () => {
     expect(wacWrite?.params?.[2]).toBe('-2');
   });
 
+  it('mixed-UoM shrinkage debits WAC per leg using each LP UoM', async () => {
+    const LP_EACH = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const LP_BOX = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const LP_KG = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    systemQty = '3';
+    applyLine = makeApplyLine({ system_qty: '3', counted_qty: '0', variance_qty: '-3', lp_id: null });
+    shrinkageLps = [
+      { id: LP_EACH, site_id: SITE_ID, status: 'available', quantity: '1', reserved_qty: '0', uom: 'each' },
+      { id: LP_BOX, site_id: SITE_ID, status: 'available', quantity: '1', reserved_qty: '0', uom: 'box' },
+      { id: LP_KG, site_id: SITE_ID, status: 'available', quantity: '1', reserved_qty: '0', uom: 'kg' },
+    ];
+    stockAdjustmentIds = ['adj-each', 'adj-box', 'adj-kg'];
+
+    const result = await approveAndApplyVariance(decreaseVarianceInput());
+
+    expect(result).toMatchObject({
+      direction: 'decrease',
+      adjustmentQty: '3',
+      lpId: LP_EACH,
+    });
+
+    const resolveCalls = queries.filter((q) => normalize(q.sql).includes('from public.items i') && normalize(q.sql).includes('as qty_kg'));
+    expect(resolveCalls.map((q) => [q.params[0], q.params[1]])).toEqual([
+      ['1', 'each'],
+      ['1', 'box'],
+      ['1', 'kg'],
+    ]);
+
+    const wacReads = queries.filter((q) => normalize(q.sql).includes('with existing as materialized') && normalize(q.sql).includes('avg_cost_used'));
+    expect(wacReads.map((q) => q.params[2])).toEqual(['0.5', '12', '1']);
+
+    const wacWrites = queries.filter((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrites).toHaveLength(3);
+    const debitedKg = wacWrites.map((q) => Number(q.params[2]));
+    expect(debitedKg.reduce((sum, qty) => sum + qty, 0)).toBeCloseTo(-13.5);
+    expect(debitedKg).toEqual([-0.5, -12, -1]);
+  });
+
   it('approveAndApplyVariance blocks shrinkage when the LP has an active hold', async () => {
     activeHold = true;
     applyLine = makeApplyLine({ variance_qty: '-2', counted_qty: '3', lp_id: LP_ID });
@@ -649,6 +695,11 @@ describe('stock count actions', () => {
     expect(normalize(shrinkageSelect!.sql)).toContain('lp.warehouse_id = $4::uuid');
     expect(shrinkageSelect!.params[3]).toBe(WAREHOUSE_ID);
     expect(verifyPin).toHaveBeenCalledWith(SUPERVISOR_ID, '654321', { client });
+
+    const wacWrites = queries.filter((q) => normalize(q.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrites).toHaveLength(2);
+    expect(wacWrites.map((q) => q.params[2])).toEqual(['-5', '-2']);
+    expect(wacWrites.reduce((sum, q) => sum + Number(q.params[2]), 0)).toBe(-7);
   });
 
   it("shrinkage apply rejects without supervisor PIN as 'supervisor_pin_required'", async () => {

@@ -427,29 +427,23 @@ async function insertLpStateHistory(
   );
 }
 
-async function applyAdjustmentWac(
+/**
+ * WAC policy (NN-WH-1): qty is resolved to kg via `resolveWacDeltaQtyKg` inside the
+ * finance helpers. Increases credit at the locked pool avg_cost (no user-supplied cost —
+ * found stock inherits current valuation). Decreases debit per LP leg at avg_cost using
+ * each leg's quantity and LP UoM; clamp underflow emits `finance.wac.underflow` via
+ * `debitWac` → `upsertWac`.
+ */
+async function applyIncreaseAdjustmentWac(
   ctx: WarehouseContext,
   input: {
     siteId: string | null;
     itemId: string;
-    direction: 'increase' | 'decrease';
     quantity: string;
     uom: string;
   },
 ): Promise<void> {
-  if (input.direction === 'increase') {
-    await creditWacAtAvgCost(ctx.client, {
-      orgId: ctx.orgId,
-      siteId: input.siteId,
-      itemId: input.itemId,
-      qty: input.quantity,
-      uom: input.uom,
-      updatedBy: ctx.userId,
-    });
-    return;
-  }
-
-  await debitWac(ctx.client, {
+  await creditWacAtAvgCost(ctx.client, {
     orgId: ctx.orgId,
     siteId: input.siteId,
     itemId: input.itemId,
@@ -638,10 +632,9 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
           transactionId: uuidFromSeed(`${parsed.data.clientOpId}:lp_state:${newLpId}`),
           ext: { stock_adjustment_id: adjustmentId, quantity_after: quantity, esign_ref: signatureReceipt.signatureId },
         });
-        await applyAdjustmentWac(ctx, {
+        await applyIncreaseAdjustmentWac(ctx, {
           siteId,
           itemId: parsed.data.itemId,
-          direction: parsed.data.direction,
           quantity,
           uom: parsed.data.uom,
         });
@@ -709,15 +702,20 @@ export async function applyDirectAdjustment(input: DirectAdjustInput): Promise<D
             ...(supervisorUserId ? { supervisor_approved_by: supervisorUserId } : {}),
           },
         });
+        await debitWac(ctx.client, {
+          orgId: ctx.orgId,
+          siteId: leg.lp.site_id,
+          itemId: parsed.data.itemId,
+          qty: leg.quantity,
+          uom: leg.lp.uom,
+          updatedBy: ctx.userId,
+          sourceRef: {
+            aggregateType: 'stock_adjustment',
+            aggregateId: adjustmentId,
+            dedupKey: `warehouse-direct-adjust:${transactionId}:${adjustmentId}`,
+          },
+        });
       }
-
-      await applyAdjustmentWac(ctx, {
-        siteId: legs[0]?.lp.site_id ?? null,
-        itemId: parsed.data.itemId,
-        direction: parsed.data.direction,
-        quantity,
-        uom: parsed.data.uom,
-      });
       // Non-null assertions are safe: legs.length was guarded > 0 before signEvent,
       // so the loop ran at least once and set both firstAdjustmentId and firstLpId.
       return { ok: true, data: { adjustmentId: firstAdjustmentId!, lpId: firstLpId! } };

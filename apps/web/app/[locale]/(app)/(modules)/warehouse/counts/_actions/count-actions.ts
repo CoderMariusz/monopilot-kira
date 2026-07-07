@@ -1252,6 +1252,21 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
           uom: leg.uom,
           esignRef: signatureReceipt.signatureId,
         });
+        if (direction === 'decrease') {
+          await debitWac(ctx.client, {
+            orgId: ctx.orgId,
+            siteId: leg.siteId,
+            itemId: countLineForApply.item_id,
+            qty: leg.quantity,
+            uom: leg.uom,
+            updatedBy: ctx.userId,
+            sourceRef: {
+              aggregateType: 'stock_adjustment',
+              aggregateId: legAdjustmentId,
+              dedupKey: `warehouse-count:${countLineForApply.id}:${legAdjustmentId}`,
+            },
+          });
+        }
       }
     } else {
       adjustmentId = await insertStockAdjustment(ctx, {
@@ -1273,32 +1288,23 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
       esignRef: signatureReceipt.signatureId,
     });
 
-    const varianceUom =
-      adjustmentLegs[0]?.uom ??
-      (await resolveAdjustmentUom(ctx.client, {
-        itemId: countLineForApply.item_id,
-        locationId: countLineForApply.location_id,
-        lpId: countLineForApply.lp_id,
-      }));
-    const varianceSiteId =
-      adjustmentLegs[0]?.siteId ??
-      (await resolveAdjustmentSiteId(ctx.client, {
-        sessionSiteId: countLineForApply.session_site_id,
-        warehouseId: countLineForApply.warehouse_id,
-        locationId: countLineForApply.location_id,
-        lpId: countLineForApply.lp_id,
-      }));
     if (direction === 'increase') {
+      const varianceUom =
+        adjustmentLegs[0]?.uom ??
+        (await resolveAdjustmentUom(ctx.client, {
+          itemId: countLineForApply.item_id,
+          locationId: countLineForApply.location_id,
+          lpId: countLineForApply.lp_id,
+        }));
+      const varianceSiteId =
+        adjustmentLegs[0]?.siteId ??
+        (await resolveAdjustmentSiteId(ctx.client, {
+          sessionSiteId: countLineForApply.session_site_id,
+          warehouseId: countLineForApply.warehouse_id,
+          locationId: countLineForApply.location_id,
+          lpId: countLineForApply.lp_id,
+        }));
       await creditWacAtAvgCost(ctx.client, {
-        orgId: ctx.orgId,
-        siteId: varianceSiteId,
-        itemId: countLineForApply.item_id,
-        qty: adjustmentQty,
-        uom: varianceUom,
-        updatedBy: ctx.userId,
-      });
-    } else {
-      await debitWac(ctx.client, {
         orgId: ctx.orgId,
         siteId: varianceSiteId,
         itemId: countLineForApply.item_id,

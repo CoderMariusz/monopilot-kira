@@ -22,6 +22,13 @@ type QueryClient = {
 
 let client: QueryClient;
 let calls: Captured[];
+let stockAdjustmentIds: string[];
+
+function resolveQtyKgForTest(qty: string, uom: string): string {
+  const factors: Record<string, number> = { kg: 1, each: 0.5, box: 12 };
+  const factor = factors[uom.toLowerCase()] ?? 1;
+  return String(Number(qty) * factor);
+}
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -130,12 +137,15 @@ function makeClient(behavior: Behavior = {}): QueryClient {
         return { rows: [{ quantity: '4', status: 'available' }], rowCount: 1 };
       }
       if (n.startsWith('insert into public.stock_adjustments')) {
-        return { rows: [{ id: 'adj-0001' }], rowCount: 1 };
+        const id = stockAdjustmentIds.shift() ?? 'adj-0001';
+        return { rows: [{ id }], rowCount: 1 };
       }
       if (n.startsWith('insert into public.stock_moves')) return { rows: [], rowCount: 1 };
       if (n.startsWith('insert into public.lp_state_history')) return { rows: [], rowCount: 1 };
       if (n.includes('from public.items i') && n.includes('as qty_kg')) {
-        return { rows: [{ qty_kg: String(params?.[0] ?? '0'), resolved: true }], rowCount: 1 };
+        const qty = String(params?.[0] ?? '0');
+        const uom = String(params?.[1] ?? 'kg');
+        return { rows: [{ qty_kg: resolveQtyKgForTest(qty, uom), resolved: true }], rowCount: 1 };
       }
       if (n.includes('with existing as materialized') && n.includes('avg_cost_used')) {
         const qty = Number(params?.[2] ?? 0);
@@ -165,6 +175,7 @@ function decreaseInput(overrides: Partial<Parameters<typeof applyDirectAdjustmen
 
 beforeEach(() => {
   calls = [];
+  stockAdjustmentIds = ['adj-0001', 'adj-0002', 'adj-0003'];
   verifyPin.mockReset();
   verifyPin.mockResolvedValue(true);
   client = makeClient();
@@ -238,7 +249,7 @@ describe('applyDirectAdjustment — write paths', () => {
     const resolve = findCall('from public.items i', 'as qty_kg');
     expect(resolve?.params).toEqual(['2', 'box', ITEM_ID]);
     const wacWrite = findCall('insert into public.item_wac_state');
-    expect(wacWrite?.params?.[2]).toBe('2');
+    expect(wacWrite?.params?.[2]).toBe('24');
   });
 
   it('(b) successful decrease writes a NEGATIVE move quantity and selects FEFO-ordered legs', async () => {
@@ -262,12 +273,47 @@ describe('applyDirectAdjustment — write paths', () => {
     expect(extParam).toContain('supervisor_approved_by');
     expect(extParam).toContain(SUPERVISOR_ID);
 
-    const wacRead = findCall('with existing as materialized', 'avg_cost_used');
-    const wacWrite = findCall('insert into public.item_wac_state');
-    expect(wacRead?.params).toEqual([ORG_ID, ITEM_ID, '2', 'GBP']);
-    expect(wacWrite?.params?.[2]).toBe('-2');
-    expect(wacWrite?.params).toEqual([ORG_ID, ITEM_ID, '-2', '-8.5', USER_ID, null, 'GBP']);
-    expect(calls.indexOf(wacWrite!)).toBeGreaterThan(calls.indexOf(findCall('insert into public.lp_state_history')!));
+    const wacReads = calls.filter((c) => normalize(c.sql).includes('with existing as materialized') && normalize(c.sql).includes('avg_cost_used'));
+    const wacWrites = calls.filter((c) => normalize(c.sql).includes('insert into public.item_wac_state'));
+    expect(wacReads).toHaveLength(1);
+    expect(wacReads[0]?.params).toEqual([ORG_ID, ITEM_ID, '2', 'GBP']);
+    expect(wacWrites).toHaveLength(1);
+    expect(wacWrites[0]?.params?.[2]).toBe('-2');
+    expect(wacWrites[0]?.params).toEqual([ORG_ID, ITEM_ID, '-2', '-8.5', USER_ID, null, 'GBP']);
+    expect(calls.indexOf(wacWrites[0]!)).toBeGreaterThan(calls.indexOf(findCall('insert into public.lp_state_history')!));
+  });
+
+  it('(b2) mixed each/box/kg decrease debits WAC per leg using each LP UoM', async () => {
+    const LP_EACH = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const LP_BOX = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const LP_KG = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    client = makeClient({
+      decreaseLps: [
+        { id: LP_EACH, site_id: null, status: 'available', quantity: '1', reserved_qty: '0', uom: 'each' },
+        { id: LP_BOX, site_id: null, status: 'available', quantity: '1', reserved_qty: '0', uom: 'box' },
+        { id: LP_KG, site_id: null, status: 'available', quantity: '1', reserved_qty: '0', uom: 'kg' },
+      ],
+    });
+    stockAdjustmentIds = ['adj-each', 'adj-box', 'adj-kg'];
+
+    const result = await applyDirectAdjustment(decreaseInput({ quantity: '3', uom: 'kg' }));
+    expect(result.ok).toBe(true);
+
+    const resolveCalls = calls.filter((c) => normalize(c.sql).includes('from public.items i') && normalize(c.sql).includes('as qty_kg'));
+    expect(resolveCalls.map((c) => [c.params[0], c.params[1]])).toEqual([
+      ['1', 'each'],
+      ['1', 'box'],
+      ['1', 'kg'],
+    ]);
+
+    const wacReads = calls.filter((c) => normalize(c.sql).includes('with existing as materialized') && normalize(c.sql).includes('avg_cost_used'));
+    expect(wacReads.map((c) => c.params[2])).toEqual(['0.5', '12', '1']);
+
+    const wacWrites = calls.filter((c) => normalize(c.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrites).toHaveLength(3);
+    const debitedKg = wacWrites.map((c) => Number(c.params[2]));
+    expect(debitedKg.reduce((sum, qty) => sum + qty, 0)).toBeCloseTo(-13.5);
+    expect(debitedKg).toEqual([-0.5, -12, -1]);
   });
 
   it('(c) duplicate clientOpId replay short-circuits — no second write', async () => {
