@@ -71,6 +71,7 @@ import {
 import { updateFaCell } from '../../../../../../(npd)/fa/actions/update-fa-cell';
 import {
   addProdDetailComponent,
+  ensureProdDetailAnchor,
   removeProdDetailComponent,
 } from '../../../../../../(npd)/fa/actions/add-prod-detail-component';
 import { searchItems, type ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
@@ -282,6 +283,9 @@ export type FaProductionTabLabels = {
   emptyCtaBody: string;
   removeComponent: string;
   removeError: string;
+  /** R4.7 — heading over the demoted (secondary) component-adding affordance.
+   * Optional so locale files without it fall back to a sane default. */
+  advancedComponents?: string;
   /** Item-picker (combobox over the real items master) labels. */
   picker: ItemPickerLabels;
   /** S5b — dynamic per-component process list labels. */
@@ -325,6 +329,8 @@ export type FaProductionTabProps = {
   onSearchItems?: ItemSearchFn;
   /** Test/wiring seam: add-component action (defaults to addProdDetailComponent). */
   onAddComponent?: typeof addProdDetailComponent;
+  /** R4.7 — seam: implicit-anchor action (defaults to ensureProdDetailAnchor). */
+  onEnsureAnchor?: typeof ensureProdDetailAnchor;
   /** Test/wiring seam: remove-component action (defaults to removeProdDetailComponent). */
   onRemoveComponent?: typeof removeProdDetailComponent;
   /** Refresh callback after add/remove (defaults to router.refresh in the page). */
@@ -1277,8 +1283,9 @@ function ComponentProcesses({
   lineOptions,
   ingredients,
   assignIngredient,
+  ensureAnchor,
 }: {
-  prodDetailId: string;
+  prodDetailId: string | null;
   bundle: ComponentProcessBundle;
   operations: OperationOption[];
   labels: ProductionProcessLabels;
@@ -1297,6 +1304,9 @@ function ComponentProcesses({
   lineOptions: FaProductionLineOption[];
   ingredients: FormulationIngredient[];
   assignIngredient: AssignIngredientProcessFn;
+  /** R4.7 — implicit-anchor path: when prodDetailId is null, resolve/create the
+   * anchor on the first "+ Add process" (owner's no-component-step flow). */
+  ensureAnchor?: () => Promise<string | null>;
 }) {
   const processes = bundle.processes;
   const readOnly = Boolean(bundle.readOnly);
@@ -1308,6 +1318,7 @@ function ComponentProcesses({
   const [publishOpen, setPublishOpen] = React.useState(false);
 
   const writable = canWrite && !locked && !readOnly;
+  const anchorKey = prodDetailId ?? 'new';
   const canPublish =
     canWrite && !locked && !readOnly && processes.some((process) => process.createsWipItem);
   const subtotal = processes.reduce((sum, p) => sum + (Number(p.processCost) || 0), 0);
@@ -1316,12 +1327,21 @@ function ComponentProcesses({
     setBusy(true);
     setError(null);
     try {
+      // Implicit-anchor path (owner R4.7): no prod_detail yet → create it now.
+      let targetId = prodDetailId;
+      if (!targetId) {
+        targetId = ensureAnchor ? await ensureAnchor() : null;
+        if (!targetId) {
+          setError(labels.addError);
+          return;
+        }
+      }
       const def = await getDefault(op.id);
       const payload = def.ok ? def.data : null;
       const processName = payload?.operationName ?? op.operationName;
       const prefill = wipProcessPrefillFromDefault(payload);
       const added = await addProcess({
-        prodDetailId,
+        prodDetailId: targetId,
         processName,
         durationHours: prefill.durationHours,
         additionalCost: prefill.additionalCost,
@@ -1435,6 +1455,7 @@ function ComponentProcesses({
   }
 
   async function handlePublish(name: string) {
+    if (!prodDetailId) return;
     setBusy(true);
     setError(null);
     try {
@@ -1455,7 +1476,7 @@ function ComponentProcesses({
   return (
     <div
       className="mt-3 rounded-md border border-slate-200 bg-slate-50/60 p-3"
-      data-testid={`fa-prod-processes-${prodDetailId}`}
+      data-testid={`fa-prod-processes-${anchorKey}`}
     >
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -1595,7 +1616,7 @@ function ComponentProcesses({
 
       <div
         className="mt-2 flex justify-end text-xs font-semibold text-slate-800"
-        data-testid={`fa-prod-process-subtotal-${prodDetailId}`}
+        data-testid={`fa-prod-process-subtotal-${anchorKey}`}
       >
         {labels.subtotalLabel}: <span className="ml-1 tabular-nums">{fmtCost(subtotal)}</span>
       </div>
@@ -1650,6 +1671,7 @@ export function FaProductionTab({
   canWrite = false,
   onSearchItems,
   onAddComponent,
+  onEnsureAnchor,
   onRemoveComponent,
   onMutated,
   componentProcesses,
@@ -1678,6 +1700,7 @@ export function FaProductionTab({
 
   const searchAction: ItemSearchFn = onSearchItems ?? searchItems;
   const addAction = onAddComponent ?? addProdDetailComponent;
+  const ensureAnchorAction = onEnsureAnchor ?? ensureProdDetailAnchor;
   const removeAction = onRemoveComponent ?? removeProdDetailComponent;
 
   // S5b — dynamic process-list action seams (default to the real CRUD actions).
@@ -1743,6 +1766,18 @@ export function FaProductionTab({
     }
   }
 
+  // R4.7 — implicit anchor: create (or reuse) the prod_detail row on the first
+  // "+ Add process" so the process-first tab never shows a component-picking step.
+  async function handleEnsureAnchor(): Promise<string | null> {
+    try {
+      const res = await ensureAnchorAction({ productCode });
+      return res.id;
+    } catch {
+      setFeedback({ tone: 'error', text: labels.saveError });
+      return null;
+    }
+  }
+
   // Re-sync when the server-loaded rows change (e.g. after a revalidate).
   React.useEffect(() => {
     setForm(initial);
@@ -1788,6 +1823,60 @@ export function FaProductionTab({
 
   const dataLoaded = state === 'ready' || state === 'empty';
 
+  // R4.7 — schema-driven editable grid for one component (unchanged internals).
+  function renderGrid(row: ProdDetailRow) {
+    return (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {ordered.map((col) => {
+          const fieldId = `fa-prod-${row.id}-${col.key}`;
+          return (
+            <ProductionField
+              key={col.key}
+              col={col}
+              labels={labels}
+              fieldId={fieldId}
+              value={form[row.id]?.[col.key] ?? ''}
+              options={col.dropdownSource ? (dropdowns[col.dropdownSource] ?? []) : []}
+              disabled={locked}
+              onChange={(next) => setValue(row.id, col.key, next)}
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
+  // R4.7 — the Processes section (the div the owner quoted). `row === null` is the
+  // implicit-anchor state (zero prod_detail rows): the section renders immediately
+  // with "+ Add process", and the first pick creates the anchor server-side.
+  function renderProcesses(row: ProdDetailRow | null) {
+    const rowId = row?.id ?? null;
+    return (
+      <ComponentProcesses
+        prodDetailId={rowId}
+        bundle={resolveComponentProcessBundle(rowId ? componentProcesses?.[rowId] : undefined)}
+        operations={operationOptions}
+        labels={{ ...DEFAULT_PROCESS_LABELS, ...labels.processes }}
+        canWrite={canWrite}
+        locked={locked}
+        locale={locale}
+        componentLabel={row?.componentLabel ?? row?.intermediateCode}
+        getDefault={getDefaultAction}
+        addProcess={addProcessAction}
+        updateProcess={updateProcessAction}
+        removeProcess={removeProcessAction}
+        saveRoles={saveRolesAction}
+        publishWipDefinition={publishWipAction}
+        onMutated={() => mutated?.()}
+        ingredientQtyKgPerPack={ingredientQtyKgPerPack}
+        lineOptions={productionLineOptions}
+        ingredients={formulationIngredients}
+        assignIngredient={assignIngredientAction}
+        ensureAnchor={row ? undefined : handleEnsureAnchor}
+      />
+    );
+  }
+
   // "+ Add production component" picker — only shown when the user can write and
   // the Production tab is unlocked by at least one formulation ingredient. Opens the combobox
   // over the REAL items master and creates a prod_detail row on select.
@@ -1800,6 +1889,46 @@ export function FaProductionTab({
         disabled={mutating}
         onSelect={handleAddComponent}
       />
+    ) : null;
+
+  // R4.7 — the component-adding step is DEMOTED to a secondary affordance that
+  // sits BELOW the Processes section (owner: the parent component layer was wrong).
+  const advancedComponents = addPicker ? (
+    <div data-testid="fa-prod-advanced-components" className="border-t border-slate-200 pt-3">
+      <p className="mb-1 text-[11px] font-medium text-slate-500">
+        {labels.advancedComponents ?? 'Advanced: components'}
+      </p>
+      {addPicker}
+    </div>
+  ) : null;
+
+  const feedbackNode = feedback ? (
+    <div
+      role={feedback.tone === 'error' ? 'alert' : 'status'}
+      aria-live={feedback.tone === 'error' ? 'assertive' : 'polite'}
+      data-testid={`fa-production-feedback-${feedback.tone}`}
+      className={
+        feedback.tone === 'error'
+          ? 'rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700'
+          : 'rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700'
+      }
+    >
+      {feedback.text}
+    </div>
+  ) : null;
+
+  const saveNode =
+    rows.length > 0 ? (
+      <div className="flex justify-end gap-2 pt-1">
+        <Button
+          type="button"
+          data-testid="fa-production-save"
+          disabled={saving || locked}
+          onClick={handleSave}
+        >
+          {saving ? labels.saving : labels.save}
+        </Button>
+      </div>
     ) : null;
 
   return (
@@ -1836,7 +1965,6 @@ export function FaProductionTab({
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">{labels.subtitle}</p>
           </div>
-          {dataLoaded && rows.length > 0 ? addPicker : null}
         </CardHeader>
 
         <CardContent>
@@ -1870,17 +1998,17 @@ export function FaProductionTab({
 
           {!dataLoaded ? (
             <StateNotice state={state} labels={labels} />
-          ) : rows.length === 0 ? (
-            <div
-              data-testid="fa-production-empty"
-              className="flex flex-col items-center gap-1 p-8 text-center"
-            >
-              <span aria-hidden="true" className="text-2xl">
-                🏭
-              </span>
-              <p className="text-sm font-medium text-slate-700">{labels.empty}</p>
-              <p className="text-xs text-slate-500">{labels.emptyCtaBody}</p>
-              {addPicker ? <div className="mt-2">{addPicker}</div> : null}
+          ) : rows.length <= 1 ? (
+            // PROCESS-FIRST (owner R4.7): the Processes section opens the tab for
+            // both the ZERO-component (implicit anchor) and the single-component
+            // case — NO component-picking chrome. The demoted "Advanced: components"
+            // affordance sits below.
+            <div className="space-y-4" data-testid="fa-production-flat">
+              {renderProcesses(rows[0] ?? null)}
+              {rows[0] ? renderGrid(rows[0]) : null}
+              {advancedComponents}
+              {feedbackNode}
+              {saveNode}
             </div>
           ) : (
             <div className="space-y-4">
@@ -1928,93 +2056,33 @@ export function FaProductionTab({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {ordered.map((col) => {
-                      const fieldId = `fa-prod-${row.id}-${col.key}`;
-                      return (
-                        <ProductionField
-                          key={col.key}
-                          col={col}
-                          labels={labels}
-                          fieldId={fieldId}
-                          value={form[row.id]?.[col.key] ?? ''}
-                          options={col.dropdownSource ? (dropdowns[col.dropdownSource] ?? []) : []}
-                          disabled={locked}
-                          onChange={(next) => setValue(row.id, col.key, next)}
-                        />
-                      );
-                    })}
-                  </div>
+                  {renderGrid(row)}
 
                   {/* S5b (D6/D9) — dynamic per-component process list. Replaces the
                       legacy fixed 4 manufacturing_operation slots. */}
-                  <ComponentProcesses
-                    prodDetailId={row.id}
-                    bundle={resolveComponentProcessBundle(componentProcesses?.[row.id])}
-                    operations={operationOptions}
-                    labels={{ ...DEFAULT_PROCESS_LABELS, ...labels.processes }}
-                    canWrite={canWrite}
-                    locked={locked}
-                    locale={locale}
-                    componentLabel={row.componentLabel ?? row.intermediateCode}
-                    getDefault={getDefaultAction}
-                    addProcess={addProcessAction}
-                    updateProcess={updateProcessAction}
-                    removeProcess={removeProcessAction}
-                    saveRoles={saveRolesAction}
-                    publishWipDefinition={publishWipAction}
-                    onMutated={() => mutated?.()}
-                    ingredientQtyKgPerPack={ingredientQtyKgPerPack}
-                    lineOptions={productionLineOptions}
-                    ingredients={formulationIngredients}
-                    assignIngredient={assignIngredientAction}
-                  />
+                  {renderProcesses(row)}
                 </div>
               ))}
 
-              {rows.length > 1 ? (
-                <div
-                  data-testid="fa-production-aggregate"
-                  className="rounded-md border border-green-200 bg-green-50 p-3 text-xs text-slate-700"
-                >
-                  <strong className="font-semibold">{labels.aggregateTitle}:</strong>{' '}
-                  <span className="font-mono">
-                    {/* R4.2 (F2): aggregate only over VISIBLE columns — `ordered`
-                        already applies the legacy + hidden-column filters, so
-                        dieset/staffing/etc. can't leak back here (and a missing
-                        labels.fields entry can't render "undefined:"). */}
-                    {ordered
-                      .map((col) => `${fieldLabel(col, labels)}: ${uniqueJoin(rows, col.key)}`)
-                      .join(' · ')}
-                  </span>
-                </div>
-              ) : null}
-
-              {feedback ? (
-                <div
-                  role={feedback.tone === 'error' ? 'alert' : 'status'}
-                  aria-live={feedback.tone === 'error' ? 'assertive' : 'polite'}
-                  data-testid={`fa-production-feedback-${feedback.tone}`}
-                  className={
-                    feedback.tone === 'error'
-                      ? 'rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700'
-                      : 'rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700'
-                  }
-                >
-                  {feedback.text}
-                </div>
-              ) : null}
-
-              <div className="flex justify-end gap-2 pt-1">
-                <Button
-                  type="button"
-                  data-testid="fa-production-save"
-                  disabled={saving || locked}
-                  onClick={handleSave}
-                >
-                  {saving ? labels.saving : labels.save}
-                </Button>
+              <div
+                data-testid="fa-production-aggregate"
+                className="rounded-md border border-green-200 bg-green-50 p-3 text-xs text-slate-700"
+              >
+                <strong className="font-semibold">{labels.aggregateTitle}:</strong>{' '}
+                <span className="font-mono">
+                  {/* R4.2 (F2): aggregate only over VISIBLE columns — `ordered`
+                      already applies the legacy + hidden-column filters, so
+                      dieset/staffing/etc. can't leak back here (and a missing
+                      labels.fields entry can't render "undefined:"). */}
+                  {ordered
+                    .map((col) => `${fieldLabel(col, labels)}: ${uniqueJoin(rows, col.key)}`)
+                    .join(' · ')}
+                </span>
               </div>
+
+              {advancedComponents}
+              {feedbackNode}
+              {saveNode}
             </div>
           )}
         </CardContent>
