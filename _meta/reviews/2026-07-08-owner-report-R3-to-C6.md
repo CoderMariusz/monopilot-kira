@@ -110,3 +110,17 @@ Wszystkie gated (skip bez serwera), wejdą do CI jako stały smoke.
 - **d2d — pricing:** ceny SO jako decimal-string (bez utraty precyzji); fallback list_price_gbp tylko dla GBP — non-GBP zostawia puste (wymusza ręczne wpisanie) zamiast stemplować GBP-magnitude walutą PO (arbitraż: widocznie niekompletne > po cichu skażone WAC).
 
 **Wszystkie 28 bugów z deep-dive'a zaadresowane** (D1+D2); fałszywy P0 (type-exporty) zdemaskowany; nowy bug znaleziony przez E2E (currency-mislabel) naprawiony.
+
+---
+
+## AKTUALIZACJA — fala UX window-by-window (finalna) na prodzie
+
+Audyt 2× Codex (read-only) po klastrach modułów → 13 findings w 4 recurring klasach → naprawione (`a93a43d8`, mig 463):
+- **Paginacja 6 kolejnych list** (SO, shipments, GRN, quality-inspections, ECO, changeover) — reuse helpera z C7d. Cross-review złapał realny regres: filtry działały client-side po 50-wierszowym slice (rekord na str. 2+ niewidoczny przy filtrze) → przeniesione na **server-side przez searchParams**, footer pokazuje przefiltrowany total.
+- **Orphaned CRUD:** Settings → Units dostał realny edit/delete (z guardem in-use); Sites → edytowalne (było read-only mimo istniejącej akcji). Cross-review: `factor_to_base` zablokowany jako **immutable** (zmiana współczynnika reinterpretowałaby całą historię wycen — bomba data-integrity, uniknięta).
+- **Dropdown→FK:** SO UoM z rejestru jednostek (nie hardcode), packaging supplier jako FK do suppliers (org-scoped composite FK, Wave0). Pusty rejestr nie wyłącza już walidacji (API hole zamknięty).
+- **Modal-parity / data-integrity:** edycja packaging-component **przestała gubić catalog-item FK** (fix na serwerze — root cause, nie band-aid w modalu); GRN list odzyskał receive/create CTA; transfer-order receive dodany do inbound.
+
+Cross-review UX złapał 7 realnych problemów (server-side filter regres, factor-mutability, FK nie-org-scoped, empty-registry hole, packaging FK-drop server-side, in-use guard). Wszystkie naprawione. Mig 463 dry-run czysty na live.
+
+**Podsumowanie nocy:** R3→C7 (build) + deep-dive (28 bugów) + V1 (3 trwałe E2E) + D1/D2 (28 bugów naprawione) + UX (13 findings). Wszystko na prodzie, cross-review inną rodziną silników, prod jako ostatni recenzent.
