@@ -64,6 +64,10 @@ const LABELS: GrnDetailLabels = {
     forbidden: 'Insufficient permissions: settings.org.update is required to print labels.',
     noLp: 'No license plate was created for this line yet.',
   },
+  printDocument: {
+    action: 'Print GRN',
+    hint: 'Open a printable goods-receipt note.',
+  },
   cancelLine: {
     rowAction: 'Cancel receipt…',
     cancelledBadge: 'Cancelled',
@@ -178,6 +182,7 @@ function renderGrn(overrides: any = {}) {
       grn: GRN,
       labels: LABELS,
       locale: 'en',
+      printDocumentHref: '/en/warehouse/grns/grn-1/print',
       releaseQaAction: releaseQaActionStub,
       cancelGrnLineAction: cancelOkStub,
       canCancelLines: true,

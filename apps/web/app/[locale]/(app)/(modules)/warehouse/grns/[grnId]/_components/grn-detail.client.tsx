@@ -109,6 +109,11 @@ export type GrnDetailLabels = {
     forbidden: string;
     noLp: string;
   };
+  /** C4e — printable GRN document (browser print / Save as PDF). */
+  printDocument: {
+    action: string;
+    hint: string;
+  };
   /** C-R3 — cancel-receipt-line modal + cancelled-line display copy. */
   cancelLine: GrnLineCancelLabels & {
     /** Row affordance label ("Cancel receipt…"). */
@@ -180,6 +185,7 @@ export function GrnDetailClient({
   grn,
   labels,
   locale,
+  printDocumentHref,
   releaseQaAction,
   cancelGrnLineAction,
   canCancelLines = false,
@@ -191,6 +197,8 @@ export function GrnDetailClient({
   grn: GrnDetail;
   labels: GrnDetailLabels;
   locale: string;
+  /** C4e — href to the printable GRN HTML view (warehouse read permission). */
+  printDocumentHref: string;
   releaseQaAction: (input: ReleaseLpQaInput) => Promise<WarehouseResult<ReleaseLpQaResult>>;
   /**
    * C-R3 — cancel a single receipt line. OWNED by the warehouse corrections lane
@@ -357,14 +365,26 @@ export function GrnDetailClient({
           <h2 className="text-sm font-semibold text-slate-900">
             {labels.itemsTitle.replace('{count}', String(grn.items.length))}
           </h2>
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            <CsvExportIcon />
-            Export CSV
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <Link
+              href={printDocumentHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="grn-print-document-link"
+              title={labels.printDocument.hint}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              {labels.printDocument.action}
+            </Link>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <CsvExportIcon />
+              Export CSV
+            </button>
+          </div>
         </div>
         {grn.items.length === 0 ? (
           <p data-testid="grn-detail-items-empty" className="px-4 py-10 text-center text-sm text-slate-500">
