@@ -634,4 +634,57 @@ describe('computeMrpPhased — weekly buckets (C3b)', () => {
     expect(b1.net).toBe('-15.000');
     expect(b1.suggestedAction?.qty).toBe('15');
   });
+
+  it('ignores PO supply dated after the horizon — far-future receipt does not cover in-horizon shortage', () => {
+    const week2 = buckets[1]!;
+    const afterHorizon = addDaysIso(buckets[3]!, 7);
+    const { bucketRows } = computeMrpPhased({
+      items: [RM_FLOUR],
+      onHand: [],
+      demand: [{ product_id: 'item-flour', uom: 'kg', qty: '20.000', need_date: week2 }],
+      poSupply: [{ product_id: 'item-flour', uom: 'kg', qty: '100.000', need_date: afterHorizon }],
+      productionSupply: [],
+      today,
+      horizonWeeks: 4,
+    });
+
+    const shortage = bucketRows.find((r) => r.bucketDate === week2)!;
+    expect(shortage.severity).toBe('shortage');
+    expect(shortage.scheduledReceipts).toBe('0.000');
+    expect(shortage.net).toBe('-20.000');
+  });
+
+  it('clamps release to today and flags expedite when lead time exceeds time-to-bucket', () => {
+    const week2 = buckets[1]!;
+    const { bucketRows } = computeMrpPhased({
+      items: [RM_FLOUR],
+      onHand: [],
+      demand: [],
+      soDemand: [{ product_id: 'item-flour', uom: 'kg', qty: '30.000', need_date: week2 }],
+      poSupply: [],
+      productionSupply: [],
+      thresholds: [
+        {
+          item_id: 'item-flour',
+          min_qty: '0',
+          reorder_qty: '0',
+          preferred_supplier_id: SUPPLIER,
+          lead_time_days: 14,
+        },
+      ],
+      today,
+      horizonWeeks: 4,
+    });
+
+    const spike = bucketRows.find((r) => r.bucketDate === week2)!;
+    expect(spike.severity).toBe('shortage');
+    expect(spike.suggestedAction).toMatchObject({
+      type: 'buy',
+      qty: '30',
+      dueDate: week2,
+      releaseDate: today,
+      isLate: true,
+      supplierId: SUPPLIER,
+    });
+  });
 });

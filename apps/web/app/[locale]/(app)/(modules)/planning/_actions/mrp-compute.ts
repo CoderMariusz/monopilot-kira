@@ -72,6 +72,7 @@ import {
   buildMrpBucketDates,
   dateToBucketIndex,
   isoWeekToBucketIndex,
+  OUT_OF_HORIZON_BUCKET_INDEX,
 } from './mrp-buckets';
 
 /** Default weekly horizon — mirrors mrp.ts MRP_PLANNING_HORIZON_WEEKS. */
@@ -135,6 +136,8 @@ export type MrpSuggestedAction = {
   dueDate: string | null;
   /** Planned release date = dueDate − lead_time_days when lead time resolves; else null. */
   releaseDate?: string | null;
+  /** True when lead time forces release before today — releaseDate is clamped to today. */
+  isLate?: boolean;
   /** reorder_thresholds.preferred_supplier_id when set; else null. */
   supplierId: string | null;
 };
@@ -530,13 +533,24 @@ function buildSuggestedAction(
   const qtyMicro = gap > reorderQty ? gap : reorderQty;
   const hasLead = leadDays !== null && leadDays !== undefined && Number.isFinite(leadDays);
   const dueDate =
-    singleBucketMode && hasLead ? addDaysIso(todayIso, leadDays) : bucketDate;
-  const releaseDate = hasLead ? addDaysIso(dueDate, -leadDays) : null;
+    singleBucketMode && hasLead ? addDaysIso(todayIso, leadDays!) : bucketDate;
+  let releaseDate: string | null = null;
+  let isLate = false;
+  if (hasLead) {
+    const rawRelease = addDaysIso(dueDate, -leadDays!);
+    if (rawRelease < todayIso) {
+      releaseDate = todayIso;
+      isLate = true;
+    } else {
+      releaseDate = rawRelease;
+    }
+  }
   return {
     type: item.item_type === 'intermediate' || item.item_type === 'fg' ? 'make' : 'buy',
     qty: ceilMicroToWholeUnits(qtyMicro).toString(),
     dueDate: hasLead || !singleBucketMode ? dueDate : null,
     ...(releaseDate ? { releaseDate } : {}),
+    ...(isLate ? { isLate } : {}),
     supplierId: threshold?.preferred_supplier_id ?? null,
   };
 }
@@ -622,6 +636,7 @@ export function computeMrpPhased(input: {
       if (qty === 0n) continue;
       const base = normalizeToBaseMicro(item, bucket.uom, qty);
       const idx = dateToBucketIndex(bucket.need_date, bucketDates);
+      if (idx === OUT_OF_HORIZON_BUCKET_INDEX) continue;
       const acc = accFor(item.id, idx);
       if (base === null) {
         acc.excludedUoms.add(bucket.uom);
@@ -641,6 +656,7 @@ export function computeMrpPhased(input: {
       if (qty === 0n) continue;
       const base = normalizeToBaseMicro(item, bucket.uom, qty);
       const idx = isoWeekToBucketIndex(bucket.iso_week, bucketDates);
+      if (idx === OUT_OF_HORIZON_BUCKET_INDEX) continue;
       const acc = accFor(item.id, idx);
       if (base === null) {
         acc.excludedUoms.add(bucket.uom);

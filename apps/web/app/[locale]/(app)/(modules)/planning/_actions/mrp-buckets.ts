@@ -52,6 +52,15 @@ export function planningHorizonEnd(todayIso: string, horizonWeeks: number): stri
   return addDaysIso(todayIso, horizonWeeks * 7);
 }
 
+/** Sentinel returned by dateToBucketIndex / isoWeekToBucketIndex when the date is past the horizon. */
+export const OUT_OF_HORIZON_BUCKET_INDEX = -1;
+
+/** Last calendar day (Sunday) covered by the weekly bucket grid. */
+export function bucketHorizonEnd(bucketDates: readonly string[]): string | null {
+  if (bucketDates.length === 0) return null;
+  return addDaysIso(bucketDates[bucketDates.length - 1]!, 6);
+}
+
 /** Weekly bucket start dates (Mondays), oldest-first, count = horizonWeeks. */
 export function buildMrpBucketDates(todayIso: string, horizonWeeks: number): string[] {
   const start = new Date(`${todayIso}T00:00:00Z`);
@@ -65,9 +74,15 @@ export function buildMrpBucketDates(todayIso: string, horizonWeeks: number): str
   return buckets;
 }
 
-/** Map a calendar date to the bucket index whose Monday is on or before it. */
+/**
+ * Map a calendar date to the bucket index whose Monday is on or before it.
+ * Pre-horizon dates clamp to bucket 0; post-horizon dates return OUT_OF_HORIZON_BUCKET_INDEX.
+ */
 export function dateToBucketIndex(dateIso: string, bucketDates: readonly string[]): number {
+  if (bucketDates.length === 0) return OUT_OF_HORIZON_BUCKET_INDEX;
   const d = dateIso.slice(0, 10);
+  const horizonEnd = bucketHorizonEnd(bucketDates);
+  if (horizonEnd !== null && d > horizonEnd) return OUT_OF_HORIZON_BUCKET_INDEX;
   let idx = 0;
   for (let i = 0; i < bucketDates.length; i += 1) {
     if (bucketDates[i]! <= d) idx = i;
@@ -76,9 +91,8 @@ export function dateToBucketIndex(dateIso: string, bucketDates: readonly string[
   return idx;
 }
 
-/** Map an ISO week label to the matching bucket index (falls back to last bucket). */
+/** Map an ISO week label to the matching bucket index; post-horizon weeks are excluded. */
 export function isoWeekToBucketIndex(isoWeek: string, bucketDates: readonly string[]): number {
   const start = isoWeekStartDate(isoWeek);
-  const idx = dateToBucketIndex(start, bucketDates);
-  return idx;
+  return dateToBucketIndex(start, bucketDates);
 }

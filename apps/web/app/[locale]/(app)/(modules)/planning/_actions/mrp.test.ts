@@ -676,13 +676,20 @@ describe('runMrp', () => {
     const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
     expect(dough.severity).toBe('shortage');
     expect(dough.minQty).toBe('5.000');
+    const rawRelease = addDaysIso(bucketStart, -7);
     expect(dough.suggestedAction).toMatchObject({
       type: 'make',
       qty: '20',
-      dueDate: bucketStartForRunDate(today),
-      releaseDate: addDaysIso(bucketStartForRunDate(today), -7),
+      dueDate: bucketStart,
       supplierId: SUPPLIER_ID,
     });
+    if (rawRelease < today) {
+      expect(dough.suggestedAction?.releaseDate).toBe(today);
+      expect(dough.suggestedAction?.isLate).toBe(true);
+    } else {
+      expect(dough.suggestedAction?.releaseDate).toBe(rawRelease);
+      expect(dough.suggestedAction?.isLate).toBeFalsy();
+    }
   });
 
   it('nets demand_forecasts as INDEPENDENT demand — forecast qty raises the item net requirement (E6)', async () => {

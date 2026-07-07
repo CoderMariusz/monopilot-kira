@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   addDaysIso,
   buildMrpBucketDates,
+  bucketHorizonEnd,
   dateToBucketIndex,
   isoWeekStartDate,
   isoWeekToBucketIndex,
+  OUT_OF_HORIZON_BUCKET_INDEX,
 } from './mrp-buckets';
 
 describe('mrp-buckets', () => {
@@ -26,5 +28,15 @@ describe('mrp-buckets', () => {
     expect(dateToBucketIndex('2026-06-18', buckets)).toBe(1);
     expect(addDaysIso('2026-06-08', 14)).toBe('2026-06-22');
     expect(dateToBucketIndex('2026-06-22', buckets)).toBe(2);
+  });
+
+  it('excludes post-horizon dates instead of clamping to the last bucket', () => {
+    const buckets = buildMrpBucketDates('2026-06-11', 3);
+    const horizonEnd = bucketHorizonEnd(buckets)!;
+    expect(horizonEnd).toBe('2026-06-28');
+    expect(dateToBucketIndex('2026-06-28', buckets)).toBe(2);
+    expect(dateToBucketIndex('2026-06-29', buckets)).toBe(OUT_OF_HORIZON_BUCKET_INDEX);
+    expect(dateToBucketIndex('2026-08-01', buckets)).toBe(OUT_OF_HORIZON_BUCKET_INDEX);
+    expect(isoWeekToBucketIndex('2026-W31', buckets)).toBe(OUT_OF_HORIZON_BUCKET_INDEX);
   });
 });
