@@ -88,9 +88,28 @@ export type ItemWizardLabels = {
   actionErrors: Record<ItemsActionError, string>;
   /** Generic already_exists when item code is unknown (fallback). */
   actionErrorsGeneric: { already_exists: string };
-  formatActionError: (error: ItemsActionError, ctx?: { itemCode?: string }) => string;
-  formatSupplierSpecWarning: () => string;
 };
+
+/** Pure formatter over the labels DATA — labels cross the RSC server→client
+ *  boundary, so the bundle must stay serializable (no function fields). */
+export function formatItemActionError(
+  labels: Pick<ItemWizardLabels, 'actionErrors' | 'actionErrorsGeneric'>,
+  error: ItemsActionError,
+  ctx?: { itemCode?: string },
+): string {
+  if (error === 'already_exists') {
+    const code = ctx?.itemCode?.trim();
+    if (code) {
+      return labels.actionErrors.already_exists.replace('{itemCode}', code);
+    }
+    return labels.actionErrorsGeneric.already_exists;
+  }
+  return labels.actionErrors[error];
+}
+
+export function formatSupplierSpecWarning(labels: Pick<ItemWizardLabels, 'warnings'>): string {
+  return labels.warnings.supplierSpecNotSaved;
+}
 
 export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
   title: 'Create item',
@@ -188,17 +207,6 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
   actionErrorsGeneric: {
     already_exists: 'An item with that code already exists in this organization.',
   },
-  formatActionError: (error, ctx) => {
-    if (error === 'already_exists') {
-      const code = ctx?.itemCode?.trim();
-      if (code) {
-        return DEFAULT_WIZARD_LABELS.actionErrors.already_exists.replace('{itemCode}', code);
-      }
-      return DEFAULT_WIZARD_LABELS.actionErrorsGeneric.already_exists;
-    }
-    return DEFAULT_WIZARD_LABELS.actionErrors[error];
-  },
-  formatSupplierSpecWarning: () => DEFAULT_WIZARD_LABELS.warnings.supplierSpecNotSaved,
 };
 
 /** Structural translator shape — avoids importing next-intl/server here (this
@@ -330,18 +338,5 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
     },
     actionErrors,
     actionErrorsGeneric,
-    formatActionError(error, ctx) {
-      if (error === 'already_exists') {
-        const code = ctx?.itemCode?.trim();
-        if (code) {
-          return actionErrors.already_exists.replace('{itemCode}', code);
-        }
-        return actionErrorsGeneric.already_exists;
-      }
-      return actionErrors[error];
-    },
-    formatSupplierSpecWarning() {
-      return get('create.warnings.supplierSpecNotSaved', D.warnings.supplierSpecNotSaved);
-    },
   };
 }

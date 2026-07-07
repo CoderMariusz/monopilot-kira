@@ -54,7 +54,7 @@ import {
 } from '../_actions/shared';
 import { createItemSupplierSpec } from '../_actions/supplier-spec-actions';
 import { updateItem } from '../_actions/update-item';
-import { DEFAULT_WIZARD_LABELS, type ItemWizardLabels } from './item-wizard-labels';
+import { DEFAULT_WIZARD_LABELS, formatItemActionError, type ItemWizardLabels } from './item-wizard-labels';
 export { DEFAULT_WIZARD_LABELS, type ItemWizardLabels } from './item-wizard-labels';
 
 // ── i18n surface (resolved server-side; English fallbacks keep tests green) ─────
@@ -546,7 +546,7 @@ export function ItemWizard({
       if (isEdit) {
         const result = await updateItem({ id: (mode as { itemId: string }).itemId, ...common });
         if (!result.ok) {
-          setError(labels.formatActionError(result.error));
+          setError(formatItemActionError(labels, result.error));
           return;
         }
         // Only (re)attach when a supplier is chosen AND it differs from the one the
@@ -607,7 +607,7 @@ export function ItemWizard({
         onSaved?.();
         router.refresh();
       } else {
-        setError(labels.formatActionError(result.error, { itemCode: result.itemCode ?? form.itemCode }));
+        setError(formatItemActionError(labels, result.error, { itemCode: result.itemCode ?? form.itemCode }));
       }
     });
   }
