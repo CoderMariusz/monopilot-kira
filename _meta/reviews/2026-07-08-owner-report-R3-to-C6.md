@@ -124,3 +124,18 @@ Audyt 2× Codex (read-only) po klastrach modułów → 13 findings w 4 recurring
 Cross-review UX złapał 7 realnych problemów (server-side filter regres, factor-mutability, FK nie-org-scoped, empty-registry hole, packaging FK-drop server-side, in-use guard). Wszystkie naprawione. Mig 463 dry-run czysty na live.
 
 **Podsumowanie nocy:** R3→C7 (build) + deep-dive (28 bugów) + V1 (3 trwałe E2E) + D1/D2 (28 bugów naprawione) + UX (13 findings). Wszystko na prodzie, cross-review inną rodziną silników, prod jako ostatni recenzent.
+
+---
+
+## KLIK-LISTA na rano (co przeklinać) — fale deep-dive/V1/D1/D2/UX
+
+**Zakupy/magazyn:** PO create→confirm→receive (GRN) → sprawdź Finance→Valuation (WAC w walucie PO, nie GBP); non-GBP dostawca → cena nie prefilluje się GBP-magnitude (puste, wpisz ręcznie); receive zablokowany dla nierozwiązywalnego UoM; scanner receive tylko z uprawnieniem + w swoim site; GRN list ma teraz przycisk receive; inbound transfer-order ma receive.
+**Sprzedaż/wysyłka:** POD wymaga URL dowodu + e-podpis/PIN (bez tego nie zamkniesz delivered); read-only user widzi POD disabled; nie stworzysz 2. shipmentu dla już-packed SO; delivered nie cofa się do shipped; SO UoM z rejestru jednostek (nie hardcode).
+**Planowanie:** MRP — potwierdzone SO bez daty trafiają do popytu (nie znikają); wysłane ilości w box/each konwertowane poprawnie.
+**NPD:** edycja packaging-component NIE gubi już linku do katalogu; packaging supplier to wybór z listy dostawców (nie free-text).
+**Settings:** Units — edit/delete (delete blokowany gdy w użyciu; współczynnik immutable); Sites — edytowalne.
+**Listy (pager zamiast ucięcia + filtr server-side):** SO, shipments, GRN, quality-inspections, ECO, changeover (dodatkowo do WO/PO/TO/NCR/LP z C7d).
+
+**Pełna lista bugów:** `_meta/reviews/2026-07-08-deepdive-bughunt.md` (28) + `2026-07-08-ux-audit-{A,B}.md` (13).
+**Znane do naprawy rano:** `import-to.test.ts` (pre-existing uom pcs); dwa pliki 459 (kosmetyka numeracji); 5 pre-existing failów changeover allergen (brak mock-stubów, nie regresja); playwright `--list` bez argów łapie pliki vitest (hygiene testMatch).
+**Czeka na Twoją decyzję (big-rocks, NIE budowane auto):** attachments/document-engine, supplier CoA+approval, HACCP schedule+alarmy, RMA/zwroty, FX-table dla WAC, invoicing/AR.
