@@ -33,6 +33,8 @@ import type {
 } from './changeovers-contract';
 import type { ChangeoverFilterStatus, ChangeoverListLabels, ChangeoverCreateLabels, ChangeoverSignLabels } from './labels';
 import type { ItemSearchFn } from '../../../../(npd)/_components/item-picker';
+import { ListPaginationFooter } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 const STATUS_VARIANT: Record<ChangeoverDualSignStatus, BadgeVariant> = {
   pending: 'muted',
@@ -44,8 +46,10 @@ const FILTERS: ChangeoverFilterStatus[] = ['all', 'pending', 'first_signed', 'co
 
 export function ChangeoversList({
   rows,
+  pagination,
   lines,
   initialFilter,
+  locale,
   labels,
   createLabels,
   signLabels,
@@ -54,8 +58,10 @@ export function ChangeoversList({
   searchItemsAction,
 }: {
   rows: ChangeoverListRow[];
+  pagination: PaginatedResult<ChangeoverListRow>;
   lines: ChangeoverLineOption[];
   initialFilter: ChangeoverFilterStatus;
+  locale: string;
   labels: ChangeoverListLabels;
   createLabels: ChangeoverCreateLabels;
   signLabels: ChangeoverSignLabels;
@@ -64,6 +70,9 @@ export function ChangeoversList({
   searchItemsAction: ItemSearchFn<'fg'>;
 }) {
   const router = useRouter();
+  const basePath = `/${locale}/production/changeovers`;
+  const pageHref = (page: number) => (page > 1 ? `${basePath}?page=${page}` : basePath);
+  const shown = pagination.offset + rows.length;
   const [filter, setFilter] = useState<ChangeoverFilterStatus>(initialFilter);
   const [createOpen, setCreateOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -191,6 +200,14 @@ export function ChangeoversList({
               })}
             </tbody>
           </table>
+          <ListPaginationFooter
+            shown={shown}
+            total={pagination.total}
+            previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+            nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+            labels={labels.pagination}
+            testId="changeovers-list-pagination"
+          />
         </div>
       )}
 

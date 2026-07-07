@@ -34,6 +34,8 @@ import { EmptyState } from '@monopilot/ui/EmptyState';
 import { ShipmentStatusBadge } from './shipment-status-badge';
 import type { ShipmentRow } from '../_actions/shipments-data';
 import { downloadCsv, toCsv } from '../../../../../../../lib/shared/download';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 const LABEL_WEIGHT = { en: 'Weight', pl: 'Waga' } as const;
 const LABEL_CARRIER = { en: 'Carrier', pl: 'Przewoźnik' } as const;
@@ -71,15 +73,20 @@ export type ShipmentsListLabels = {
   empty: { title: string; body: string };
   weightUnit: string;
   noWeight: string;
+  pagination: ListPaginationLabels;
 };
 
 export type ShipmentsListViewProps = {
   locale: string;
   shipments: ShipmentRow[];
+  pagination: PaginatedResult<ShipmentRow>;
   labels: ShipmentsListLabels;
 };
 
-export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListViewProps) {
+export function ShipmentsListView({ locale, shipments, pagination, labels }: ShipmentsListViewProps) {
+  const basePath = `/${locale}/shipping/shipments`;
+  const pageHref = (page: number) => (page > 1 ? `${basePath}?page=${page}` : basePath);
+  const shown = pagination.offset + shipments.length;
   const [statusFilter, setStatusFilter] = React.useState('');
   const [exportError, setExportError] = React.useState<string | null>(null);
 
@@ -265,6 +272,14 @@ export function ShipmentsListView({ locale, shipments, labels }: ShipmentsListVi
               })}
             </tbody>
           </table>
+          <ListPaginationFooter
+            shown={shown}
+            total={pagination.total}
+            previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+            nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+            labels={labels.pagination}
+            testId="shipments-list-pagination"
+          />
         </div>
       )}
     </div>

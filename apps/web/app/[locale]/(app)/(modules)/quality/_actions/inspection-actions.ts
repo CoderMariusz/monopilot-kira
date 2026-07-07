@@ -9,6 +9,13 @@ import { z } from 'zod';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { getActiveSiteId, resolveWriteSiteId } from '../../../../../../lib/site/site-context';
+import {
+  DEFAULT_INSPECTION_PAGE_SIZE,
+  emptyPaginatedResult,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../lib/shared/pagination';
 import { releaseLpQaForContext } from '../../warehouse/_actions/lp-qa-actions';
 import { createHoldForContext } from './hold-actions';
 
@@ -110,6 +117,8 @@ const uuidSchema = z.string().uuid();
 const listSchema = z.object({
   status: z.enum(['pending', 'in_progress', 'passed', 'failed', 'on_hold', 'cancelled']).optional(),
   search: z.string().trim().max(120).optional(),
+  page: z.number().int().min(1).optional(),
+  offset: z.number().int().min(0).optional(),
   limit: z.number().int().min(1).max(200).optional(),
 });
 
@@ -475,19 +484,56 @@ async function fetchInspectionDetail(ctx: QualityContext, inspectionId: string):
 export async function listInspections(input: {
   status?: string;
   search?: string;
+  page?: number;
+  offset?: number;
   limit?: number;
-} = {}): Promise<ActionResult<InspectionListRow[]>> {
+} = {}): Promise<ActionResult<PaginatedResult<InspectionListRow>>> {
   try {
     const parsed = listSchema.parse(input);
-    return await withOrgContext(async (ctx): Promise<ActionResult<InspectionListRow[]>> => {
+    const page = normalizePage({
+      page: parsed.page,
+      offset: parsed.offset,
+      limit: parsed.limit,
+      defaultLimit: DEFAULT_INSPECTION_PAGE_SIZE,
+      maxLimit: 200,
+    });
+    return await withOrgContext(async (ctx): Promise<ActionResult<PaginatedResult<InspectionListRow>>> => {
       const s = await getActiveSiteId({ client: ctx.client });
       if (!s) {
-        return { ok: true, data: [], noActiveSite: true } as ActionResult<InspectionListRow[]> & { noActiveSite: true };
+        return {
+          ok: true,
+          data: emptyPaginatedResult(page),
+          noActiveSite: true,
+        } as ActionResult<PaginatedResult<InspectionListRow>> & { noActiveSite: true };
       }
 
       if (!(await hasPermission(ctx, 'quality.inspection.execute'))) return { ok: false, reason: 'forbidden' };
 
-      const { rows } = await ctx.client.query<Parameters<typeof mapListRow>[0]>(
+      const baseParams = [parsed.status ?? null, parsed.search ?? null, s] as const;
+
+      const [countResult, dataResult] = await Promise.all([
+        ctx.client.query<{ total: number }>(
+          `select count(*)::int as total
+             from public.quality_inspections qi
+             left join public.license_plates lp on qi.reference_type = 'lp' and lp.id = qi.reference_id and lp.org_id = qi.org_id
+             left join public.grns grn on qi.reference_type = 'grn' and grn.id = qi.reference_id and grn.org_id = qi.org_id
+             left join public.wo_outputs woo on qi.reference_type = 'wo_output' and woo.id = qi.reference_id and woo.org_id = qi.org_id
+             left join public.work_orders wo on wo.id = woo.wo_id and wo.org_id = qi.org_id
+             left join public.items i on i.id = coalesce(qi.product_id, lp.product_id, woo.product_id) and i.org_id = qi.org_id
+            where qi.org_id = app.current_org_id()
+              and (qi.site_id = $3::uuid or qi.site_id is null)
+              and ($1::text is null or qi.status = $1)
+              and (
+                $2::text is null
+                or qi.inspection_number ilike '%' || $2 || '%'
+                or lp.lp_number ilike '%' || $2 || '%'
+                or grn.grn_number ilike '%' || $2 || '%'
+                or wo.wo_number ilike '%' || $2 || '%'
+                or i.item_code ilike '%' || $2 || '%'
+              )`,
+          [...baseParams],
+        ),
+        ctx.client.query<Parameters<typeof mapListRow>[0]>(
         `select
            qi.id::text,
            qi.inspection_number,
@@ -516,7 +562,7 @@ export async function listInspections(input: {
          left join public.items i on i.id = coalesce(qi.product_id, lp.product_id, woo.product_id) and i.org_id = qi.org_id
          left join public.users assigned on assigned.id = qi.assigned_to and assigned.org_id = qi.org_id
         where qi.org_id = app.current_org_id()
-          and (qi.site_id = $4::uuid or qi.site_id is null)
+          and (qi.site_id = $3::uuid or qi.site_id is null)
           and ($1::text is null or qi.status = $1)
           and (
             $2::text is null
@@ -526,11 +572,20 @@ export async function listInspections(input: {
             or wo.wo_number ilike '%' || $2 || '%'
             or i.item_code ilike '%' || $2 || '%'
           )
-        order by qi.created_at desc
-        limit $3::int`,
-        [parsed.status ?? null, parsed.search ?? null, parsed.limit ?? 100, s],
-      );
-      return { ok: true, data: rows.map(mapListRow) };
+        order by qi.created_at desc, qi.id desc
+        limit $4::int offset $5::int`,
+        [...baseParams, page.limit, page.offset],
+        ),
+      ]);
+
+      return {
+        ok: true,
+        data: toPaginatedResult(
+          dataResult.rows.map(mapListRow),
+          Number(countResult.rows[0]?.total ?? 0),
+          page,
+        ),
+      };
     });
   } catch (err) {
     return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };

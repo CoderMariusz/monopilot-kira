@@ -49,6 +49,11 @@
         "assigned": "Assigned to",
         "due": "Due",
         "created": "Created"
+      },
+      "pagination": {
+        "showing": "Showing {shown} of {total}",
+        "previous": "Previous",
+        "next": "Next"
       }
     },
     "createModal": {
@@ -226,6 +231,11 @@
         "assigned": "Przypisana do",
         "due": "Termin",
         "created": "Utworzona"
+      },
+      "pagination": {
+        "showing": "Wyświetlono {shown} z {total}",
+        "previous": "Poprzednia",
+        "next": "Następna"
       }
     },
     "createModal": {

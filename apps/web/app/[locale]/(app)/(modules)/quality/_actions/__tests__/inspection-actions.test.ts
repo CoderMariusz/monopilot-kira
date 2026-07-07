@@ -52,6 +52,7 @@ let activeHold = false;
 // EXISTING hold, exercising the early-return short-circuit in
 // createInspectionHoldIfMissing (inspection-actions.ts).
 let existingInspectionHoldForRef = false;
+let listTotal = 1;
 
 vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
 vi.mock('@monopilot/e-sign', () => ({ signEvent: vi.fn(async () => ({ subjectHash: 'hash' })) }));
@@ -188,11 +189,23 @@ function makeClient(): QueryClient {
           rowCount: 1,
         };
       }
-      if (q.includes('from public.quality_inspections qi') && q.includes('qi.site_id = $4::uuid')) {
-        return { rows: [{ ...DETAIL_ROW, hold_id: null }] };
+      if (q.startsWith('select count(*)::int as total') && q.includes('from public.quality_inspections qi')) {
+        return { rows: [{ total: listTotal }], rowCount: 1 };
       }
-      if (q.includes('from public.quality_inspections qi')) {
-        // The detail row carries hold_id from the lateral join; null when no active hold.
+      if (q.includes('from public.quality_inspections qi') && q.includes('limit $4::int offset $5::int')) {
+        const offset = Number(params[4] ?? 0);
+        const index = offset + 1;
+        if (index > listTotal) return { rows: [], rowCount: 0 };
+        return {
+          rows: [
+            {
+              ...DETAIL_ROW,
+              inspection_number: `INSP-${String(index).padStart(8, '0')}`,
+            },
+          ],
+        };
+      }
+      if (q.includes('from public.quality_inspections qi') && q.includes('qi.id = $1::uuid')) {
         return { rows: [{ ...DETAIL_ROW, hold_id: holdRows === 'one' ? HOLD_ID : null }] };
       }
       if (q.includes('from public.license_plates lp')) {
@@ -227,6 +240,7 @@ beforeEach(() => {
   inspectionParameters = [{ name: 'visual', actual: 'ok', pass: true }];
   activeHold = false;
   existingInspectionHoldForRef = false;
+  listTotal = 1;
   client = makeClient();
   vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
   vi.mocked(signEvent).mockClear();
@@ -238,11 +252,36 @@ describe('listInspections — active site scope', () => {
     expect(res.ok).toBe(true);
 
     const listQuery = vi.mocked(client.query).mock.calls.find(([sql]) =>
-      normalize(String(sql)).includes('qi.site_id = $4::uuid'),
+      normalize(String(sql)).includes('qi.site_id = $3::uuid') && normalize(String(sql)).includes('limit $4::int'),
     );
     expect(listQuery).toBeTruthy();
     expect(normalize(String(listQuery?.[0]))).toContain('from public.quality_inspections qi');
-    expect(listQuery?.[1]).toEqual(['pending', 'LP-4', 25, SITE_ID]);
+    expect(listQuery?.[1]).toEqual(['pending', 'LP-4', SITE_ID, 25, 0]);
+    if (res.ok) {
+      expect(res.data.items[0]).toEqual(expect.objectContaining({ inspectionNumber: 'INSP-00000001' }));
+      expect(res.data).toMatchObject({ total: 1, page: 1, limit: 25, hasMore: false });
+    }
+  });
+
+  it('page 2 offset returns the second page of rows when total exceeds limit', async () => {
+    listTotal = 120;
+
+    const result = await listInspections({ page: 2 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.data).toMatchObject({
+      total: 120,
+      page: 2,
+      limit: 50,
+      offset: 50,
+      hasMore: true,
+    });
+    expect(result.data.items[0]).toEqual(expect.objectContaining({ inspectionNumber: 'INSP-00000051' }));
+    const listQuery = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('limit $4::int offset $5::int'),
+    );
+    expect(listQuery?.[1]).toEqual([null, null, SITE_ID, 50, 50]);
   });
 
   it('returns noActiveSite without running the main DB query when no site is active', async () => {
@@ -250,7 +289,11 @@ describe('listInspections — active site scope', () => {
 
     const res = await listInspections();
 
-    expect(res).toEqual({ ok: true, data: [], noActiveSite: true });
+    expect(res).toEqual({
+      ok: true,
+      data: { items: [], total: 0, page: 1, limit: 50, offset: 0, hasMore: false },
+      noActiveSite: true,
+    });
     expect(client.query).not.toHaveBeenCalled();
   });
 });

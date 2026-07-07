@@ -9620,7 +9620,12 @@
           "complete": "Zakończone"
         },
         "signerNone": "—",
-        "reviewButton": "Przejrzyj i podpisz"
+        "reviewButton": "Przejrzyj i podpisz",
+        "pagination": {
+          "showing": "Wyświetlono {shown} z {total}",
+          "previous": "Poprzednia",
+          "next": "Następna"
+        }
       },
       "create": {
         "title": "Nowe przezbrojenie alergenowe",

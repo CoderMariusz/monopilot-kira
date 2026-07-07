@@ -12,6 +12,12 @@ export const DEFAULT_WO_LIST_PAGE_SIZE = 50;
 export const DEFAULT_PO_LIST_PAGE_SIZE = 50;
 export const DEFAULT_TO_LIST_PAGE_SIZE = 50;
 export const DEFAULT_NCR_PAGE_SIZE = 50;
+export const DEFAULT_SO_LIST_PAGE_SIZE = 50;
+export const DEFAULT_SHIPMENT_LIST_PAGE_SIZE = 50;
+export const DEFAULT_GRN_PAGE_SIZE = 50;
+export const DEFAULT_INSPECTION_PAGE_SIZE = 50;
+export const DEFAULT_ECO_PAGE_SIZE = 50;
+export const DEFAULT_CHANGEOVER_PAGE_SIZE = 50;
 
 export type PageInput = {
   page?: number;

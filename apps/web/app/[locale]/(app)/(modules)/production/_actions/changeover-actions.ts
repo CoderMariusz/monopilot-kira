@@ -5,6 +5,12 @@ import type pg from 'pg';
 import { signEvent } from '@monopilot/e-sign';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import {
+  DEFAULT_CHANGEOVER_PAGE_SIZE,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../lib/shared/pagination';
 import { type ProductionContext, hasPermission } from '../../../../../../lib/production/shared';
 
 const CHANGEOVER_WRITE_PERMISSION = 'production.changeover.write';
@@ -336,11 +342,35 @@ async function productAllergens(client: QueryClient, productId: string | null | 
   return normalizeAllergens(result.rows[0]?.allergens);
 }
 
-export async function listChangeovers(input: { lineId?: string; status?: string; limit?: number } = {}) {
+export async function listChangeovers(input: {
+  lineId?: string;
+  status?: string;
+  page?: number;
+  offset?: number;
+  limit?: number;
+} = {}) {
+  const page = normalizePage({
+    page: input.page,
+    offset: input.offset,
+    limit: input.limit,
+    defaultLimit: DEFAULT_CHANGEOVER_PAGE_SIZE,
+    maxLimit: 200,
+  });
+
   return withOrgContext(async ({ client }) => {
-    const limit = Math.min(Math.max(Number(input.limit ?? 50), 1), 200);
     const status = input.status === 'complete' ? 'complete' : input.status;
-    const result = await client.query<RawChangeoverRow>(
+    const baseParams = [input.lineId ?? null, status ?? null] as const;
+
+    const [countResult, dataResult] = await Promise.all([
+      client.query<{ total: number }>(
+        `select count(*)::int as total
+           from public.changeover_events ce
+          where ce.org_id = app.current_org_id()
+            and ($1::text is null or ce.line_id = $1)
+            and ($2::text is null or ce.dual_sign_off_status = $2)`,
+        [...baseParams],
+      ),
+      client.query<RawChangeoverRow>(
       `select ce.id::text,
               ce.line_id,
               pl.code as line_code,
@@ -385,11 +415,19 @@ export async function listChangeovers(input: { lineId?: string; status?: string;
         where ce.org_id = app.current_org_id()
           and ($1::text is null or ce.line_id = $1)
           and ($2::text is null or ce.dual_sign_off_status = $2)
-        order by ce.created_at desc
-        limit $3::int`,
-      [input.lineId ?? null, status ?? null, limit],
+        order by ce.created_at desc, ce.id desc
+        limit $3::int offset $4::int`,
+      [...baseParams, page.limit, page.offset],
+      ),
+    ]);
+
+    const pagination: PaginatedResult<ChangeoverRow> = toPaginatedResult(
+      dataResult.rows.map(mapRow),
+      Number(countResult.rows[0]?.total ?? 0),
+      page,
     );
-    return { ok: true as const, rows: result.rows.map(mapRow) };
+
+    return { ok: true as const, rows: pagination.items, pagination };
   });
 }
 

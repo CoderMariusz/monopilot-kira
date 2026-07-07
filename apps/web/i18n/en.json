@@ -8003,7 +8003,12 @@
           "complete": "Complete"
         },
         "signerNone": "—",
-        "reviewButton": "Review & sign"
+        "reviewButton": "Review & sign",
+        "pagination": {
+          "showing": "Showing {shown} of {total}",
+          "previous": "Previous",
+          "next": "Next"
+        }
       },
       "create": {
         "title": "New allergen changeover",
@@ -11200,6 +11205,11 @@
           "title": "No sales orders yet",
           "body": "Create your first sales order to start shipping to customers.",
           "clear": "Clear filters"
+        },
+        "pagination": {
+          "showing": "Showing {shown} of {total}",
+          "previous": "Previous",
+          "next": "Next"
         }
       },
       "create": {
@@ -11330,6 +11340,11 @@
         "empty": {
           "title": "No shipments yet",
           "body": "Create a shipment from an allocated sales order to start packing."
+        },
+        "pagination": {
+          "showing": "Showing {shown} of {total}",
+          "previous": "Previous",
+          "next": "Next"
         }
       },
       "createShipment": {

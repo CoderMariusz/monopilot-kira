@@ -28,7 +28,13 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
+  searchParams?: Promise<{ page?: string }>;
 };
+
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
 
 function ListSkeleton() {
   return (
@@ -66,12 +72,17 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentsL
     empty: { title: t('list.empty.title'), body: t('list.empty.body') },
     weightUnit: t('list.weightUnit'),
     noWeight: t('list.noWeight'),
+    pagination: {
+      showing: t('list.pagination.showing'),
+      previous: t('list.pagination.previous'),
+      next: t('list.pagination.next'),
+    },
   };
 }
 
-async function ListContent({ locale }: { locale: string }) {
+async function ListContent({ locale, page }: { locale: string; page: number }) {
   const t = await getTranslations('Shipping.shipments');
-  const result = await listShipments({});
+  const result = await listShipments({ page });
 
   if (!result.ok) {
     if (result.error === 'forbidden') {
@@ -88,17 +99,22 @@ async function ListContent({ locale }: { locale: string }) {
     );
   }
 
+  const rows = result.data.items.map((sh) => ({ ...sh, weight: null }));
+
   return (
     <ShipmentsListView
       locale={locale}
-      shipments={result.data.map((sh) => ({ ...sh, weight: null }))}
+      shipments={rows}
+      pagination={{ ...result.data, items: rows }}
       labels={buildLabels(t)}
     />
   );
 }
 
-export default async function ShipmentsListPage({ params }: PageProps) {
+export default async function ShipmentsListPage({ params, searchParams }: PageProps) {
   const { locale } = await params;
+  const sp: { page?: string } = searchParams ? await searchParams : {};
+  const page = parsePage(sp.page);
   const t = await getTranslations('Shipping.shipments');
 
   return (
@@ -113,8 +129,8 @@ export default async function ShipmentsListPage({ params }: PageProps) {
         breadcrumb={[{ label: t('breadcrumb.shipping'), href: `/${locale}/shipping` }, { label: t('breadcrumb.shipments') }]}
       />
       <ShippingTabs locale={locale} labels={{ salesOrders: t('tabs.salesOrders'), shipments: t('tabs.shipments'), customers: t('tabs.customers') }} />
-      <Suspense fallback={<ListSkeleton />}>
-        <ListContent locale={locale} />
+      <Suspense key={page} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} page={page} />
       </Suspense>
     </main>
   );

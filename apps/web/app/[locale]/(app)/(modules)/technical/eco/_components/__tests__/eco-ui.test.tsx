@@ -88,8 +88,17 @@ function order(overrides: Partial<EcoSummary> = {}): EcoSummary {
 }
 
 function pageData(overrides: Partial<EcoPageData> = {}): EcoPageData {
+  const changeOrders = [order()];
   return {
-    changeOrders: [order()],
+    changeOrders,
+    pagination: {
+      items: changeOrders,
+      total: 1,
+      page: 1,
+      limit: 50,
+      offset: 0,
+      hasMore: false,
+    },
     items,
     counts: { draft: 3, approved: 1, implementing: 1, closed: 47, all: 52 },
     canWrite: true,

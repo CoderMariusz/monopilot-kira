@@ -49,6 +49,8 @@ import type {
   ResolveInspectionWoOutputAction,
   SearchInspectionAssigneesAction,
 } from './inspection-contracts';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 export type InspectionStatusTab =
   | 'all'
@@ -98,6 +100,7 @@ export type InspectionsListLabels = {
     due: string;
     created: string;
   };
+  pagination: ListPaginationLabels;
 };
 
 function matchesTab(row: InspectionListRow, tab: InspectionStatusTab): boolean {
@@ -127,6 +130,7 @@ function passRate(total: number, passed: number): string {
 
 export function InspectionsListClient({
   rows,
+  pagination,
   labels,
   createLabels,
   locale,
@@ -137,6 +141,7 @@ export function InspectionsListClient({
   searchAssigneesAction,
 }: {
   rows: InspectionListRow[];
+  pagination: PaginatedResult<InspectionListRow>;
   labels: InspectionsListLabels;
   createLabels: InspectionCreateLabels;
   locale: string;
@@ -147,6 +152,9 @@ export function InspectionsListClient({
   searchAssigneesAction: SearchInspectionAssigneesAction;
 }) {
   const router = useRouter();
+  const basePath = `/${locale}/quality/inspections`;
+  const pageHref = (page: number) => (page > 1 ? `${basePath}?page=${page}` : basePath);
+  const shown = pagination.offset + rows.length;
   const [tab, setTab] = useState<InspectionStatusTab>('all');
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -324,6 +332,14 @@ export function InspectionsListClient({
             </TableBody>
           </Table>
         )}
+        <ListPaginationFooter
+          shown={shown}
+          total={pagination.total}
+          previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+          nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+          labels={labels.pagination}
+          testId="inspections-list-pagination"
+        />
       </Card>
 
       <InspectionCreateModal

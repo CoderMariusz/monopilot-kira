@@ -9535,7 +9535,12 @@
           "complete": "Complete"
         },
         "signerNone": "—",
-        "reviewButton": "Review & sign"
+        "reviewButton": "Review & sign",
+        "pagination": {
+          "showing": "Showing {shown} of {total}",
+          "previous": "Previous",
+          "next": "Next"
+        }
       },
       "create": {
         "title": "New allergen changeover",

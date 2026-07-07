@@ -38,8 +38,13 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ new?: string }>;
+  searchParams: Promise<{ new?: string; page?: string }>;
 };
+
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
 
 function ListSkeleton() {
   return (
@@ -94,9 +99,14 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
     empty: {
       title: t('list.empty.title'),
       body: t('list.empty.body'),
-      clear: t('list.empty.clear'),
-    },
-    create: {
+        clear: t('list.empty.clear'),
+      },
+      pagination: {
+        showing: t('list.pagination.showing'),
+        previous: t('list.pagination.previous'),
+        next: t('list.pagination.next'),
+      },
+      create: {
       title: t('create.title'),
       customerLabel: t('create.customerLabel'),
       customerPlaceholder: t('create.customerPlaceholder'),
@@ -141,9 +151,17 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
   };
 }
 
-async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpenCreate: boolean }) {
+async function ListContent({
+  locale,
+  autoOpenCreate,
+  page,
+}: {
+  locale: string;
+  autoOpenCreate: boolean;
+  page: number;
+}) {
   const t = await getTranslations('Shipping.salesOrders');
-  const [listResult, customers] = await Promise.all([listSalesOrders({}), listSoCustomers()]);
+  const [listResult, customers] = await Promise.all([listSalesOrders({ page }), listSoCustomers()]);
 
   if (!listResult.ok) {
     if (listResult.error === 'forbidden') {
@@ -160,20 +178,23 @@ async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpe
     );
   }
 
+  const rows = listResult.data.items.map((so) => ({
+    id: so.id,
+    soNumber: so.so_number,
+    customerName: so.customer_name,
+    customerCode: so.customer_code,
+    status: so.status,
+    lineCount: so.line_count,
+    total: so.total,
+    expectedShipDate: so.expected_ship_date,
+    createdAt: so.created_at,
+  }));
+
   return (
     <SoListView
       locale={locale}
-      salesOrders={listResult.data.map((so) => ({
-        id: so.id,
-        soNumber: so.so_number,
-        customerName: so.customer_name,
-        customerCode: so.customer_code,
-        status: so.status,
-        lineCount: so.line_count,
-        total: so.total,
-        expectedShipDate: so.expected_ship_date,
-        createdAt: so.created_at,
-      }))}
+      salesOrders={rows}
+      pagination={{ ...listResult.data, items: rows }}
       customers={customers}
       autoOpenCreate={autoOpenCreate}
       labels={buildLabels(t, locale)}
@@ -188,6 +209,7 @@ export default async function ShippingRoutePage({ params, searchParams }: PagePr
   const { locale } = await params;
   const sp = await searchParams;
   const autoOpenCreate = sp.new === '1';
+  const page = parsePage(sp.page);
   const t = await getTranslations('Shipping.salesOrders');
   const tShip = await getTranslations('Shipping.shipments');
 
@@ -204,8 +226,8 @@ export default async function ShippingRoutePage({ params, searchParams }: PagePr
         breadcrumb={[{ label: t('breadcrumb.shipping') }, { label: t('breadcrumb.salesOrders') }]}
       />
       <ShippingTabs locale={locale} labels={{ salesOrders: tShip('tabs.salesOrders'), shipments: tShip('tabs.shipments'), customers: tShip('tabs.customers') }} />
-      <Suspense fallback={<ListSkeleton />}>
-        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} />
+      <Suspense key={page} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} page={page} />
       </Suspense>
     </main>
   );

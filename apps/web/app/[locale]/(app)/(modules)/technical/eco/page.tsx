@@ -38,6 +38,7 @@ import { CreateEcoButton } from './_components/create-eco-modal.client';
 import { EcoDetailButton } from './_components/eco-detail-drawer.client';
 import { EcoFilterPills } from './_components/eco-filter-pills.client';
 import { ECO_FILTERS, type EcoFilter, ECO_PRIORITY_BADGE, ECO_STATUS_BADGE } from './_components/eco-ui';
+import { ListPaginationFooter } from '../../../../../../lib/shared/list-pagination-footer';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,21 +56,37 @@ function asFilter(value: string | string[] | undefined): EcoFilter {
   return v && (ECO_FILTERS as readonly string[]).includes(v) ? (v as EcoFilter) : 'all';
 }
 
+function parsePage(value: string | string[] | undefined): number {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const page = Number(raw);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function ecoPageHref(locale: string, filter: EcoFilter, page: number): string {
+  const params = new URLSearchParams();
+  if (filter !== 'all') params.set('status', filter);
+  if (page > 1) params.set('page', String(page));
+  const q = params.toString();
+  return q ? `/${locale}/technical/eco?${q}` : `/${locale}/technical/eco`;
+}
+
 export default async function EcoPage({
   params = Promise.resolve({ locale: 'en' }),
   searchParams,
 }: {
   params?: Promise<{ locale: string }>;
-  searchParams: Promise<{ status?: string | string[] }>;
+  searchParams: Promise<{ status?: string | string[]; page?: string | string[] }>;
 }) {
   const { locale } = await params;
   const t = await getTranslations('Technical.eco');
   const sp = await searchParams;
   const filter = asFilter(sp.status);
+  const page = parsePage(sp.page);
   const tl = (key: string, fallback: string) => safeLabel(t, key, fallback);
 
-  const { changeOrders, items, counts, canWrite, canApprove, state } = await loadEcoPage(
+  const { changeOrders, pagination, items, counts, canWrite, canApprove, state } = await loadEcoPage(
     filter === 'all' ? undefined : filter,
+    page,
   );
 
   return (
@@ -116,23 +133,37 @@ export default async function EcoPage({
               </div>
             </div>
           ) : (
-            <EcoTable
-              orders={changeOrders}
-              canApprove={canApprove}
-              statusLabel={(s) => tl(`status.${s}`, s)}
-              priorityLabel={(p) => tl(`priority.${p}`, p)}
-              detailLabel={tl('open', 'Open')}
-              columns={{
-                code: tl('col.code', 'ECO'),
-                title: tl('col.title', 'Title'),
-                changeType: tl('col.changeType', 'Impact'),
-                lines: tl('col.lines', 'Lines'),
-                updated: tl('col.updated', 'Updated'),
-                priority: tl('col.priority', 'Priority'),
-                status: tl('col.status', 'Status'),
-                actions: tl('col.actions', 'Actions'),
-              }}
-            />
+            <>
+              <EcoTable
+                orders={changeOrders}
+                canApprove={canApprove}
+                statusLabel={(s) => tl(`status.${s}`, s)}
+                priorityLabel={(p) => tl(`priority.${p}`, p)}
+                detailLabel={tl('open', 'Open')}
+                columns={{
+                  code: tl('col.code', 'ECO'),
+                  title: tl('col.title', 'Title'),
+                  changeType: tl('col.changeType', 'Impact'),
+                  lines: tl('col.lines', 'Lines'),
+                  updated: tl('col.updated', 'Updated'),
+                  priority: tl('col.priority', 'Priority'),
+                  status: tl('col.status', 'Status'),
+                  actions: tl('col.actions', 'Actions'),
+                }}
+              />
+              <ListPaginationFooter
+                shown={pagination.offset + changeOrders.length}
+                total={pagination.total}
+                previousHref={pagination.page > 1 ? ecoPageHref(locale, filter, pagination.page - 1) : null}
+                nextHref={pagination.hasMore ? ecoPageHref(locale, filter, pagination.page + 1) : null}
+                labels={{
+                  showing: tl('pagination.showing', 'Showing {shown} of {total}'),
+                  previous: tl('pagination.previous', 'Previous'),
+                  next: tl('pagination.next', 'Next'),
+                }}
+                testId="eco-list-pagination"
+              />
+            </>
           )}
         </>
       )}

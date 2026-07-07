@@ -155,7 +155,14 @@ export type LicensePlateDetail = LicensePlateListItem & {
   }>;
 };
 
-export type GrnListInput = { status?: string; sourceType?: string; search?: string; limit?: number };
+export type GrnListInput = {
+  status?: string;
+  sourceType?: string;
+  search?: string;
+  page?: number;
+  offset?: number;
+  limit?: number;
+};
 export type GrnListItem = {
   id: string;
   grnNumber: string;

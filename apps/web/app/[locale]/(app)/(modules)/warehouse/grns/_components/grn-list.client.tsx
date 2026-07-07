@@ -33,6 +33,8 @@ import { Select } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import type { GrnListItem } from '../../_actions/shared';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 export type GrnListTab = 'all' | 'draft' | 'completed' | 'cancelled';
 
@@ -64,6 +66,7 @@ export type GrnListLabels = {
     status: string;
     items: string;
   };
+  pagination: ListPaginationLabels;
 };
 
 function matchesTab(row: GrnListItem, tab: GrnListTab): boolean {
@@ -72,16 +75,21 @@ function matchesTab(row: GrnListItem, tab: GrnListTab): boolean {
 
 export function GrnListClient({
   rows,
+  pagination,
   sourceTypes,
   labels,
   locale,
 }: {
   rows: GrnListItem[];
+  pagination: PaginatedResult<GrnListItem>;
   /** distinct source_type values present in the data, for the filter select. */
   sourceTypes: string[];
   labels: GrnListLabels;
   locale: string;
 }) {
+  const basePath = `/${locale}/warehouse/grns`;
+  const pageHref = (page: number) => (page > 1 ? `${basePath}?page=${page}` : basePath);
+  const shown = pagination.offset + rows.length;
   const [tab, setTab] = useState<GrnListTab>('all');
   const [search, setSearch] = useState('');
   const [source, setSource] = useState<string>('');
@@ -221,6 +229,14 @@ export function GrnListClient({
             </TableBody>
           </Table>
         )}
+        <ListPaginationFooter
+          shown={shown}
+          total={pagination.total}
+          previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+          nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+          labels={labels.pagination}
+          testId="grn-list-pagination"
+        />
       </Card>
     </div>
   );

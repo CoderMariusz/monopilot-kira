@@ -48,6 +48,8 @@ import { CreateSoModal, type CreateCustomerResult, type CreateSoLabels, type Cre
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items-types';
 import type { SoCustomerOption } from '../_actions/so-form-data';
 import { downloadCsv, toCsv } from '../../../../../../lib/shared/download';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../lib/shared/pagination';
 
 export type SoRow = {
   id: string;
@@ -99,11 +101,13 @@ export type SoListLabels = {
     clear: string;
   };
   create: CreateSoLabels;
+  pagination: ListPaginationLabels;
 };
 
 export type SoListViewProps = {
   locale: string;
   salesOrders: SoRow[];
+  pagination: PaginatedResult<SoRow>;
   customers: SoCustomerOption[];
   labels: SoListLabels;
   /** Open the create modal immediately on mount (?new=1 deep-link). */
@@ -152,6 +156,7 @@ function customerText(name: string | null, code: string | null): string {
 export function SoListView({
   locale,
   salesOrders,
+  pagination,
   customers,
   labels,
   autoOpenCreate = false,
@@ -160,6 +165,9 @@ export function SoListView({
   createSalesOrderAction,
 }: SoListViewProps) {
   const router = useRouter();
+  const basePath = `/${locale}/shipping`;
+  const pageHref = (page: number) => (page > 1 ? `${basePath}?page=${page}` : basePath);
+  const shown = pagination.offset + salesOrders.length;
   const [tab, setTab] = React.useState<TabKey>('all');
   const [search, setSearch] = React.useState('');
   const [customerFilter, setCustomerFilter] = React.useState('');
@@ -361,6 +369,14 @@ export function SoListView({
               ))}
             </tbody>
           </table>
+          <ListPaginationFooter
+            shown={shown}
+            total={pagination.total}
+            previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+            nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+            labels={labels.pagination}
+            testId="so-list-pagination"
+          />
         </div>
       )}
 

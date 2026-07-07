@@ -2,6 +2,12 @@
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import {
+  DEFAULT_SHIPMENT_LIST_PAGE_SIZE,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../lib/shared/pagination';
 import { packLpIntoBoxCore } from '../../../../../../lib/shipping/pack-lp-into-box';
 import { isSalesOrderStatus, isShipmentStatus, BLOCKING_SHIPMENT_STATUSES, type ShipmentStatus } from './so-transitions';
 import type {
@@ -23,7 +29,9 @@ type ShippingContext = { userId: string; orgId: string; client: QueryClient };
 type CreateShipmentResult = { ok: true; shipmentId: string } | { ok: false; error: string };
 type PackLpIntoBoxResult = { ok: true; boxId: string } | { ok: false; error: string };
 type GetShipmentResult = { ok: true; data: ShipmentDetail } | { ok: false; error: string };
-type ListShipmentsResult = { ok: true; data: ShipmentRow[] } | { ok: false; error: string };
+type ListShipmentsResult =
+  | { ok: true; data: PaginatedResult<ShipmentRow> }
+  | { ok: false; error: string };
 
 const SHIP_PACK_CLOSE = 'ship.pack.close';
 const SHIP_DASHBOARD_VIEW = 'ship.dashboard.view';
@@ -309,7 +317,20 @@ export async function getShipment(id: string): Promise<GetShipmentResult> {
   });
 }
 
-export async function listShipments(params: { status?: string } = {}): Promise<ListShipmentsResult> {
+export async function listShipments(params: {
+  status?: string;
+  page?: number;
+  offset?: number;
+  limit?: number;
+} = {}): Promise<ListShipmentsResult> {
+  const page = normalizePage({
+    page: params.page,
+    offset: params.offset,
+    limit: params.limit,
+    defaultLimit: DEFAULT_SHIPMENT_LIST_PAGE_SIZE,
+    maxLimit: 200,
+  });
+
   return withOrgContext(async ({ userId, orgId, client }): Promise<ListShipmentsResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
     const forbidden = await requirePermission(ctx, SHIP_DASHBOARD_VIEW);
@@ -320,53 +341,72 @@ export async function listShipments(params: { status?: string } = {}): Promise<L
       return { ok: false, error: 'invalid_status' };
     }
 
-    const { rows } = await ctx.client.query<{
-      id: string;
-      shipment_number: string | null;
-      status: string;
-      sales_order_number: string | null;
-      customer_name: string | null;
-      customer_code: string | null;
-      box_count: number | string | bigint | null;
-      created_at: string | Date;
-      packed_at: string | Date | null;
-      shipped_at: string | Date | null;
-      total_weight_kg: string | null;
-      carrier: string | null;
-      promised_ship_date: string | Date | null;
-      required_delivery_date: string | Date | null;
-    }>(
-      `select sh.id::text,
-              sh.shipment_number,
-              sh.status,
-              so.order_number as sales_order_number,
-              c.name as customer_name,
-              c.customer_code,
-              count(sb.id)::int as box_count,
-              sh.created_at,
-              sh.packed_at,
-              sh.shipped_at,
-              sh.total_weight_kg::text as total_weight_kg,
-              sh.carrier,
-              so.promised_ship_date,
-              so.required_delivery_date
-         from public.shipments sh
-         left join public.sales_orders so on so.id = sh.sales_order_id and so.org_id = app.current_org_id()
-         left join public.customers c on c.id = coalesce(sh.customer_id, so.customer_id) and c.org_id = app.current_org_id()
-         left join public.shipment_boxes sb on sb.shipment_id = sh.id
-          and sb.org_id = app.current_org_id()
-          and sb.deleted_at is null
-        where sh.org_id = app.current_org_id()
-          and sh.deleted_at is null
-          and ($1::text is null or sh.status = $1)
-        group by sh.id, sh.shipment_number, sh.status, so.order_number, c.name, c.customer_code,
-                 sh.created_at, sh.packed_at, sh.shipped_at, sh.total_weight_kg, sh.carrier,
-                 so.promised_ship_date, so.required_delivery_date
-        order by sh.created_at desc, sh.shipment_number desc
-        limit 200`,
-      [status],
-    );
+    const baseParams = [status] as const;
 
-    return { ok: true, data: rows.map(mapShipmentRow) };
+    const [countResult, dataResult] = await Promise.all([
+      ctx.client.query<{ total: number }>(
+        `select count(*)::int as total
+           from public.shipments sh
+          where sh.org_id = app.current_org_id()
+            and sh.deleted_at is null
+            and ($1::text is null or sh.status = $1)`,
+        [...baseParams],
+      ),
+      ctx.client.query<{
+        id: string;
+        shipment_number: string | null;
+        status: string;
+        sales_order_number: string | null;
+        customer_name: string | null;
+        customer_code: string | null;
+        box_count: number | string | bigint | null;
+        created_at: string | Date;
+        packed_at: string | Date | null;
+        shipped_at: string | Date | null;
+        total_weight_kg: string | null;
+        carrier: string | null;
+        promised_ship_date: string | Date | null;
+        required_delivery_date: string | Date | null;
+      }>(
+        `select sh.id::text,
+                sh.shipment_number,
+                sh.status,
+                so.order_number as sales_order_number,
+                c.name as customer_name,
+                c.customer_code,
+                count(sb.id)::int as box_count,
+                sh.created_at,
+                sh.packed_at,
+                sh.shipped_at,
+                sh.total_weight_kg::text as total_weight_kg,
+                sh.carrier,
+                so.promised_ship_date,
+                so.required_delivery_date
+           from public.shipments sh
+           left join public.sales_orders so on so.id = sh.sales_order_id and so.org_id = app.current_org_id()
+           left join public.customers c on c.id = coalesce(sh.customer_id, so.customer_id) and c.org_id = app.current_org_id()
+           left join public.shipment_boxes sb on sb.shipment_id = sh.id
+            and sb.org_id = app.current_org_id()
+            and sb.deleted_at is null
+          where sh.org_id = app.current_org_id()
+            and sh.deleted_at is null
+            and ($1::text is null or sh.status = $1)
+          group by sh.id, sh.shipment_number, sh.status, so.order_number, c.name, c.customer_code,
+                   sh.created_at, sh.packed_at, sh.shipped_at, sh.total_weight_kg, sh.carrier,
+                   so.promised_ship_date, so.required_delivery_date
+          order by sh.created_at desc, sh.shipment_number desc, sh.id desc
+          limit $2::int offset $3::int`,
+        [...baseParams, page.limit, page.offset],
+      ),
+    ]);
+
+    return {
+      ok: true,
+      data: toPaginatedResult(
+        dataResult.rows.map(mapShipmentRow),
+        Number(countResult.rows[0]?.total ?? 0),
+        page,
+      ),
+    };
   });
 }
