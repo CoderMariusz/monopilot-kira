@@ -13,9 +13,11 @@
  * the EXACT reviewed action (imported, never authored here) and the RTL test can
  * inject a vi.fn() satisfying the same type.
  */
-import type { resolveCcpDeviation } from '../../_actions/ccp-deviation-actions';
+import type { CcpDeviationDisposition, resolveCcpDeviation } from '../../_actions/ccp-deviation-actions';
 
 export type DeviationStatus = 'open' | 'resolved';
+export type DeviationDisposition = CcpDeviationDisposition;
+export const DEVIATION_DISPOSITIONS: DeviationDisposition[] = ['corrected', 'product_held', 'disposed'];
 /** The status filter the list exposes (the backend accepts open | resolved; 'all' = no filter). */
 export type DeviationStatusFilter = 'open' | 'resolved' | 'all';
 export const DEVIATION_STATUS_FILTERS: DeviationStatusFilter[] = ['open', 'resolved', 'all'];
@@ -39,7 +41,7 @@ export type DeviationRow = {
   measuredValue: string | null;
   uom: string | null;
   actionTaken: string | null;
-  disposition: string | null;
+  disposition: DeviationDisposition | null;
   hold: DeviationHold | null;
   openedAt: string;
 };

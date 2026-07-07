@@ -6,7 +6,6 @@ import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { releaseHoldCore } from './hold-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -20,16 +19,8 @@ type ActionFailure = { ok: false; reason: 'forbidden' | 'error'; message?: strin
 type ActionResult<T> = { ok: true; data: T } | ActionFailure;
 
 type DeviationStatus = 'open' | 'resolved';
+export type CcpDeviationDisposition = 'corrected' | 'product_held' | 'disposed';
 type HoldReferenceType = 'lp' | 'batch' | 'wo' | 'po' | 'grn';
-type CcpHoldDisposition =
-  | { kind: 'release' }
-  | {
-      kind: 'non_release';
-      holdDisposition: 'pending' | 'rework' | 'scrap' | 'other';
-      lpQaStatus: 'on_hold' | 'rejected';
-      lpStatus: 'quarantine';
-      itemStatus: 'held' | 'scrapped';
-    };
 
 type CcpDeviationRow = {
   id: string;
@@ -41,7 +32,7 @@ type CcpDeviationRow = {
   measuredValue: string | null;
   uom: string | null;
   actionTaken: string | null;
-  disposition: string | null;
+  disposition: CcpDeviationDisposition | null;
   hold: {
     id: string;
     holdNumber: string;
@@ -58,6 +49,7 @@ type CcpDeviationRow = {
 
 const uuidSchema = z.string().uuid();
 const statusSchema = z.enum(['open', 'resolved']);
+const dispositionSchema = z.enum(['corrected', 'product_held', 'disposed']);
 
 const listSchema = z.object({
   status: statusSchema.optional(),
@@ -66,161 +58,9 @@ const listSchema = z.object({
 const resolveSchema = z.object({
   id: uuidSchema,
   actionTaken: z.string().trim().min(1).max(4000),
-  disposition: z.string().trim().min(1).max(2000),
+  disposition: dispositionSchema,
   signature: z.object({ password: z.string().min(1) }),
 });
-
-const TERMINAL_LP_STATUSES = ['consumed', 'merged', 'shipped', 'returned'] as const;
-
-function classifyCcpHoldDisposition(disposition: string): CcpHoldDisposition {
-  const normalized = disposition.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  const tokens = new Set(normalized.split(/\s+/).filter(Boolean));
-
-  if (tokens.has('scrap') || tokens.has('scrapped') || tokens.has('dispose') || tokens.has('disposed')) {
-    return { kind: 'non_release', holdDisposition: 'scrap', lpQaStatus: 'rejected', lpStatus: 'quarantine', itemStatus: 'scrapped' };
-  }
-  if (tokens.has('reject') || tokens.has('rejected') || tokens.has('condemn') || tokens.has('condemned')) {
-    return { kind: 'non_release', holdDisposition: 'other', lpQaStatus: 'rejected', lpStatus: 'quarantine', itemStatus: 'held' };
-  }
-  if (tokens.has('rework') || tokens.has('reworked')) {
-    return { kind: 'non_release', holdDisposition: 'rework', lpQaStatus: 'on_hold', lpStatus: 'quarantine', itemStatus: 'held' };
-  }
-  if (tokens.has('quarantine') || tokens.has('quarantined') || tokens.has('hold') || tokens.has('held')) {
-    return { kind: 'non_release', holdDisposition: 'pending', lpQaStatus: 'on_hold', lpStatus: 'quarantine', itemStatus: 'held' };
-  }
-  if (tokens.has('release') || tokens.has('released') || tokens.has('accept') || tokens.has('accepted')) {
-    return { kind: 'release' };
-  }
-
-  return { kind: 'non_release', holdDisposition: 'pending', lpQaStatus: 'on_hold', lpStatus: 'quarantine', itemStatus: 'held' };
-}
-
-async function applyNonReleaseHoldDisposition(
-  ctx: QualityContext,
-  params: {
-    holdId: string;
-    disposition: Extract<CcpHoldDisposition, { kind: 'non_release' }>;
-    reasonText: string;
-  },
-): Promise<void> {
-  const current = await ctx.client.query<{ id: string; hold_status: string; released_at: Date | string | null }>(
-    `select id::text, hold_status, released_at
-       from public.quality_holds
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-      for update`,
-    [params.holdId],
-  );
-  const hold = current.rows[0];
-  if (!hold) throw new Error('quality hold not found');
-  if (hold.hold_status === 'released' || hold.released_at !== null) {
-    throw new Error('quality hold is already released');
-  }
-
-  await ctx.client.query(
-    `update public.quality_holds
-        set hold_status = 'quarantined',
-            disposition = $2,
-            disposition_notes = $3
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-        and hold_status <> 'released'
-        and released_at is null`,
-    [params.holdId, params.disposition.holdDisposition, params.reasonText],
-  );
-
-  await ctx.client.query(
-    `update public.quality_hold_items
-        set item_status = $2
-      where org_id = app.current_org_id()
-        and hold_id = $1::uuid`,
-    [params.holdId, params.disposition.itemStatus],
-  );
-
-  const heldLps = await ctx.client.query<{
-    id: string;
-    status: string;
-    qa_status: string;
-    site_id: string | null;
-    wo_id: string | null;
-    grn_id: string | null;
-  }>(
-    `select lp.id::text, lp.status, lp.qa_status, lp.site_id::text, lp.wo_id::text, lp.grn_id::text
-       from public.quality_hold_items qhi
-       join public.license_plates lp on lp.id = qhi.license_plate_id and lp.org_id = qhi.org_id
-      where qhi.org_id = app.current_org_id()
-        and qhi.hold_id = $1::uuid
-        and qhi.license_plate_id is not null`,
-    [params.holdId],
-  );
-
-  const activeLpIds = heldLps.rows
-    .filter((lp) => !TERMINAL_LP_STATUSES.includes(lp.status as (typeof TERMINAL_LP_STATUSES)[number]))
-    .map((lp) => lp.id);
-
-  if (activeLpIds.length > 0) {
-    await ctx.client.query(
-      `update public.license_plates
-          set qa_status = $2,
-              status = $3,
-              updated_by = $4::uuid
-        where org_id = app.current_org_id()
-          and id = any($1::uuid[])
-          and status <> all($5::text[])`,
-      [activeLpIds, params.disposition.lpQaStatus, params.disposition.lpStatus, ctx.userId, [...TERMINAL_LP_STATUSES]],
-    );
-  }
-
-  for (const lp of heldLps.rows.filter((row) => activeLpIds.includes(row.id))) {
-    await ctx.client.query(
-      `insert into public.lp_state_history (
-         org_id,
-         site_id,
-         lp_id,
-         from_state,
-         to_state,
-         reason_code,
-         reason_text,
-         wo_id,
-         grn_id,
-         created_by,
-         ext_jsonb
-       )
-       values (
-         app.current_org_id(),
-         $2::uuid,
-         $1::uuid,
-         $3,
-         $4,
-         'ccp_deviation_disposition',
-         $5,
-         $6::uuid,
-         $7::uuid,
-         $8::uuid,
-         $9::jsonb
-       )`,
-      [
-        lp.id,
-        lp.site_id,
-        lp.status,
-        params.disposition.lpStatus,
-        params.reasonText,
-        lp.wo_id,
-        lp.grn_id,
-        ctx.userId,
-        JSON.stringify({
-          action: 'ccp_deviation_disposition',
-          holdId: params.holdId,
-          holdDisposition: params.disposition.holdDisposition,
-          qaStatusFrom: lp.qa_status,
-          qaStatusTo: params.disposition.lpQaStatus,
-          statusFrom: lp.status,
-          statusTo: params.disposition.lpStatus,
-        }),
-      ],
-    );
-  }
-}
 
 async function canReadDeviationRegister(ctx: QualityContext): Promise<boolean> {
   const [dashboardView, deviationOverride] = await Promise.all([
@@ -245,7 +85,7 @@ type CcpDeviationDbRow = {
   measured_value: string | null;
   uom: string | null;
   action_taken: string | null;
-  disposition: string | null;
+  disposition: CcpDeviationDisposition | null;
   hold_id: string | null;
   hold_number: string | null;
   hold_reference_type: HoldReferenceType | null;
@@ -361,7 +201,7 @@ export async function getCcpDeviation(id: string): Promise<ActionResult<CcpDevia
 
 export async function resolveCcpDeviation(
   id: string,
-  input: { actionTaken: string; disposition: string; signature: { password: string } },
+  input: { actionTaken: string; disposition: CcpDeviationDisposition; signature: { password: string } },
 ): Promise<ActionResult<CcpDeviationRow>> {
   try {
     const parsed = resolveSchema.parse({ id, ...input });
@@ -407,6 +247,7 @@ export async function resolveCcpDeviation(
             ccpCode: deviation.ccp_code,
             monitoringLogId: deviation.monitoring_log_id,
             measuredValue: deviation.measured_value,
+            disposition: parsed.disposition,
           },
           reason: 'CCP deviation resolution',
         },
@@ -427,45 +268,8 @@ export async function resolveCcpDeviation(
         [parsed.id, parsed.actionTaken, parsed.disposition, ctx.userId, receipt.signatureId],
       );
 
-      if (deviation.hold_id) {
-        const holdId = deviation.hold_id;
-        const holdDisposition = classifyCcpHoldDisposition(parsed.disposition);
-        if (holdDisposition.kind === 'release') {
-          const released = await releaseHoldCore(
-            ctx,
-            {
-              holdId,
-              disposition: 'release',
-              reasonText: 'CCP deviation resolved',
-            },
-            {
-              releaseSource: 'ccp_deviation_resolution',
-              getSignatureHash: async () => {
-                const holdReceipt = await signEvent(
-                  {
-                    signerUserId: ctx.userId,
-                    pin: parsed.signature.password,
-                    intent: 'qa.hold.release',
-                    subject: { holdId, disposition: 'release', deviationId: parsed.id },
-                    reason: 'CCP deviation resolved',
-                  },
-                  { client: ctx.client as unknown as pg.PoolClient },
-                );
-                return holdReceipt.subjectHash;
-              },
-            },
-          );
-          if (!released.ok) {
-            throw new Error(released.message ?? `CCP deviation hold release failed: ${released.reason}`);
-          }
-        } else {
-          await applyNonReleaseHoldDisposition(ctx, {
-            holdId,
-            disposition: holdDisposition,
-            reasonText: `CCP deviation resolved: ${parsed.disposition}`,
-          });
-        }
-      }
+      // Linked holds are NOT auto-released or dispositioned here — operators manage
+      // quality_holds separately via releaseHold (see hold prompt in the resolve modal).
 
       const rows = await selectDeviationRows(ctx, undefined, parsed.id);
       const row = rows[0];

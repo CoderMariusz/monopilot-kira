@@ -221,6 +221,7 @@ export function DeviationsListClient({
           }}
           deviation={target}
           labels={resolveLabels}
+          locale={locale}
           resolveAction={resolveAction}
           onResolved={() => {
             setTarget(null);

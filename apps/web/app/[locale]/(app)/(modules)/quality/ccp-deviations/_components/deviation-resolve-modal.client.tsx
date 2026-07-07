@@ -10,34 +10,29 @@
  * manual log, so this island translates that modal's two load-bearing regions —
  * the corrective-action-taken field (modals.jsx:580-582) and the e-sign PIN
  * block (modals.jsx:585-591) — onto `resolveCcpDeviation(id, { actionTaken,
- * disposition, signature:{password} })`, plus the action's required
- * `disposition`. Markup/density follows the sibling MODAL-CCP-RECORD island
+ * disposition, signature:{password} })`, plus the canonical disposition enum.
+ * Markup/density follows the sibling MODAL-CCP-RECORD island
  * (ccp-record-modal.client.tsx) + MODAL-HOLD-RELEASE e-sign block: shadcn Modal
  * (no raw select), useTransition for the optimistic submit, action error
  * surfaced VERBATIM, PIN is type=password.
  *
- * Wires the reviewed `resolveCcpDeviation` Server Action (imported by the page,
- * passed in as a prop — never authored here). The CCP CODE is shown, never a
- * UUID. The disposition is free text (the backend stores it verbatim; there is
- * no canonical disposition enum on the reviewed action — see DEVIATION below).
- *
- * DEVIATIONS (documented per UI-PROTOTYPE-PARITY-POLICY.md):
- *   - The prototype's CCP picker + observed-value + auto-severity fields
- *     (modals.jsx:568-579) are OMITTED: this modal resolves an EXISTING
- *     deviation (the CCP + reading are already known + shown read-only), it does
- *     not log a new one. The reviewed action takes neither a value nor severity.
- *   - The prototype's 6-digit numeric PIN is mapped to the backend's
- *     signature.password (signEvent verifies it); the modal does not fake a
- *     fixed digit length the action does not require.
- *   - `disposition` (required by the reviewed action) has no prototype field;
- *     it is added as a required free-text field above the e-sign block.
+ * When a linked hold exists, an informational prompt + deep-link is shown;
+ * resolving the deviation does NOT auto-release the hold (operators manage holds
+ * separately via /quality/holds/{id}).
  */
 
+import Link from 'next/link';
 import { useState, useTransition } from 'react';
 
 import Modal from '@monopilot/ui/Modal';
+import { Select } from '@monopilot/ui/Select';
 
-import type { DeviationRow, ResolveDeviationAction } from './ccp-deviations-contracts';
+import {
+  DEVIATION_DISPOSITIONS,
+  type DeviationDisposition,
+  type DeviationRow,
+  type ResolveDeviationAction,
+} from './ccp-deviations-contracts';
 import type { DeviationResolveLabels } from './labels';
 
 export function DeviationResolveModal({
@@ -45,6 +40,7 @@ export function DeviationResolveModal({
   onOpenChange,
   deviation,
   labels,
+  locale,
   resolveAction,
   onResolved,
 }: {
@@ -52,18 +48,18 @@ export function DeviationResolveModal({
   onOpenChange: (open: boolean) => void;
   deviation: DeviationRow;
   labels: DeviationResolveLabels;
+  locale: string;
   resolveAction: ResolveDeviationAction;
   onResolved?: () => void;
 }) {
   const [actionTaken, setActionTaken] = useState('');
-  const [disposition, setDisposition] = useState('');
+  const [disposition, setDisposition] = useState<DeviationDisposition | ''>('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const trimmedAction = actionTaken.trim();
-  const trimmedDisposition = disposition.trim();
-  const valid = trimmedAction.length > 0 && trimmedDisposition.length > 0 && password.length > 0;
+  const valid = trimmedAction.length > 0 && disposition !== '' && password.length > 0;
 
   function reset() {
     setActionTaken('');
@@ -80,17 +76,16 @@ export function DeviationResolveModal({
   function submit() {
     setError(null);
     if (trimmedAction.length === 0) return setError(labels.validation.actionRequired);
-    if (trimmedDisposition.length === 0) return setError(labels.validation.dispositionRequired);
+    if (disposition === '') return setError(labels.validation.dispositionRequired);
     if (password.length === 0) return setError(labels.validation.passwordRequired);
 
     startTransition(async () => {
       const result = await resolveAction(deviation.id, {
         actionTaken: trimmedAction,
-        disposition: trimmedDisposition,
+        disposition,
         signature: { password },
       });
       if (!result.ok) {
-        // Surface e-sign / forbidden / error failures VERBATIM (action message).
         setError(labels.error.replace('{message}', result.message ?? result.reason));
         return;
       }
@@ -112,7 +107,6 @@ export function DeviationResolveModal({
         <div data-testid="deviation-resolve-form" className="flex flex-col gap-4 text-sm">
           <p className="text-xs text-slate-500">{labels.subtitle}</p>
 
-          {/* Read-only deviation context — CCP CODE + reading (never a UUID). */}
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
             <dt className="text-slate-500">{labels.reading}</dt>
             <dd className="font-mono font-medium text-slate-800" data-testid="deviation-resolve-reading">
@@ -121,7 +115,24 @@ export function DeviationResolveModal({
             </dd>
           </dl>
 
-          {/* Corrective action taken (parity modals.jsx:580-582) — required. */}
+          {deviation.hold ? (
+            <div
+              role="note"
+              data-testid="deviation-resolve-hold-prompt"
+              className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+            >
+              <p className="font-semibold">{labels.holdPrompt.title}</p>
+              <p className="mt-1">{labels.holdPrompt.body}</p>
+              <Link
+                href={`/${locale}/quality/holds/${deviation.hold.id}`}
+                data-testid="deviation-resolve-hold-link"
+                className="mt-2 inline-block font-mono font-medium text-sky-800 underline"
+              >
+                {labels.holdPrompt.linkLabel.replace('{holdNumber}', deviation.hold.holdNumber)}
+              </Link>
+            </div>
+          ) : null}
+
           <label className="flex flex-col gap-1">
             <span className="font-medium text-slate-700">
               {labels.actionTaken} <span aria-hidden className="text-red-500">*</span>
@@ -140,26 +151,25 @@ export function DeviationResolveModal({
             <span className="text-xs text-slate-400">{labels.actionTakenHelp}</span>
           </label>
 
-          {/* Disposition (required by the reviewed action) — free text. */}
           <label className="flex flex-col gap-1">
             <span className="font-medium text-slate-700">
               {labels.disposition} <span aria-hidden className="text-red-500">*</span>
             </span>
-            <textarea
-              data-testid="deviation-resolve-disposition"
-              value={disposition}
-              onChange={(e) => {
-                setDisposition(e.target.value);
-                setError(null);
-              }}
-              placeholder={labels.dispositionPlaceholder}
-              rows={2}
-              className="rounded-md border border-slate-300 px-2.5 py-1.5 focus:border-slate-400 focus:outline-none"
-            />
+            <div data-testid="deviation-resolve-disposition">
+              <Select
+                aria-label={labels.disposition}
+                value={disposition}
+                onValueChange={(v) => {
+                  setDisposition(v as DeviationDisposition);
+                  setError(null);
+                }}
+                placeholder={labels.dispositionPlaceholder}
+                options={DEVIATION_DISPOSITIONS.map((d) => ({ value: d, label: labels.dispositionOptions[d] }))}
+              />
+            </div>
             <span className="text-xs text-slate-400">{labels.dispositionHelp}</span>
           </label>
 
-          {/* E-sign PIN block (parity modals.jsx:585-591) — type=password. */}
           <div data-testid="deviation-resolve-esign" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{labels.esign.title}</div>
             <p className="mt-1 text-[11px] text-slate-500">{labels.esign.meaning}</p>

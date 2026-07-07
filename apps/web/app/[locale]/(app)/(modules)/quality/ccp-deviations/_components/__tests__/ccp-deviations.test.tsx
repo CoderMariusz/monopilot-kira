@@ -200,7 +200,7 @@ describe('DeviationsListClient (E3 parity)', () => {
 });
 
 describe('DeviationResolveModal (E3 — e-sign resolve)', () => {
-  it('opens from an OPEN row and exposes the actionTaken + disposition + PIN (type=password) fields', () => {
+  it('opens from an OPEN row and exposes the actionTaken + disposition Select + PIN (type=password) fields', () => {
     renderList([makeRow({ id: 'a', ccpCode: 'CCP-09' })]);
     fireEvent.click(screen.getByTestId('deviation-resolve-open-a'));
     expect(screen.getByTestId('deviation-resolve-form')).toBeInTheDocument();
@@ -208,8 +208,21 @@ describe('DeviationResolveModal (E3 — e-sign resolve)', () => {
     expect(screen.getByTestId('deviation-resolve-disposition')).toBeInTheDocument();
     const pin = screen.getByTestId('deviation-resolve-password');
     expect(pin).toHaveAttribute('type', 'password');
-    // the modal shows the CCP CODE in its title, never a UUID.
     expect(screen.getByTestId('modal-header')).toHaveTextContent('CCP-09');
+  });
+
+  it('shows a linked-hold prompt with deep-link when resolving a deviation that has a hold', () => {
+    renderList([
+      makeRow({
+        id: 'a',
+        hold: { id: 'hold-uuid-123', holdNumber: 'HOLD-2026-007', referenceDisplay: 'LP-9', status: 'open' },
+      }),
+    ]);
+    fireEvent.click(screen.getByTestId('deviation-resolve-open-a'));
+    expect(screen.getByTestId('deviation-resolve-hold-prompt')).toBeInTheDocument();
+    const link = screen.getByTestId('deviation-resolve-hold-link');
+    expect(link).toHaveAttribute('href', '/en/quality/holds/hold-uuid-123');
+    expect(link).toHaveTextContent('HOLD-2026-007');
   });
 
   it('submit is disabled until actionTaken + disposition + PIN are all present', () => {
@@ -219,7 +232,8 @@ describe('DeviationResolveModal (E3 — e-sign resolve)', () => {
     expect(submit).toBeDisabled();
     fireEvent.change(screen.getByTestId('deviation-resolve-action'), { target: { value: 'Reworked the batch' } });
     expect(submit).toBeDisabled();
-    fireEvent.change(screen.getByTestId('deviation-resolve-disposition'), { target: { value: 'Rework' } });
+    fireEvent.click(within(screen.getByTestId('deviation-resolve-disposition')).getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: RESOLVE_LABELS.dispositionOptions.corrected }));
     expect(submit).toBeDisabled();
     fireEvent.change(screen.getByTestId('deviation-resolve-password'), { target: { value: '1234' } });
     expect(submit).not.toBeDisabled();
@@ -230,17 +244,17 @@ describe('DeviationResolveModal (E3 — e-sign resolve)', () => {
     fireEvent.click(screen.getByTestId('deviation-resolve-open-dev-77'));
 
     fireEvent.change(screen.getByTestId('deviation-resolve-action'), { target: { value: '  Recooked to 75°C  ' } });
-    fireEvent.change(screen.getByTestId('deviation-resolve-disposition'), { target: { value: '  Released after review  ' } });
+    fireEvent.click(within(screen.getByTestId('deviation-resolve-disposition')).getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: RESOLVE_LABELS.dispositionOptions.corrected }));
     fireEvent.change(screen.getByTestId('deviation-resolve-password'), { target: { value: 'secret-pin' } });
     fireEvent.click(screen.getByTestId('deviation-resolve-submit'));
 
     await waitFor(() => expect(resolveAction).toHaveBeenCalledTimes(1));
     expect(resolveAction).toHaveBeenCalledWith('dev-77', {
       actionTaken: 'Recooked to 75°C',
-      disposition: 'Released after review',
+      disposition: 'corrected',
       signature: { password: 'secret-pin' },
     });
-    // success closes the modal.
     await waitFor(() => expect(screen.queryByTestId('deviation-resolve-form')).not.toBeInTheDocument());
   });
 
@@ -249,7 +263,8 @@ describe('DeviationResolveModal (E3 — e-sign resolve)', () => {
     renderList([makeRow({ id: 'a' })], { resolveAction });
     fireEvent.click(screen.getByTestId('deviation-resolve-open-a'));
     fireEvent.change(screen.getByTestId('deviation-resolve-action'), { target: { value: 'Reworked' } });
-    fireEvent.change(screen.getByTestId('deviation-resolve-disposition'), { target: { value: 'Rework' } });
+    fireEvent.click(within(screen.getByTestId('deviation-resolve-disposition')).getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: RESOLVE_LABELS.dispositionOptions.product_held }));
     fireEvent.change(screen.getByTestId('deviation-resolve-password'), { target: { value: 'wrong' } });
     fireEvent.click(screen.getByTestId('deviation-resolve-submit'));
 
