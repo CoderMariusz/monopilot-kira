@@ -7,9 +7,12 @@ import { hasAnyPermission } from '../../../../../../../../lib/auth/has-permissio
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
-// Accept/revoke is gated by npd.allergen.accept_declaration (NN-TEC-5) plus the legacy
-// allergen-write family that also gates the cascade surface (npd.allergen.write) and
-// quality/technical leads (technical.write / quality.write — legacy slug permissions).
+// Accept/revoke permission OR-list (NN-TEC-5). Arbitration 2026-07-07: the npd_manager
+// ROLE bypass was removed (no r.code/r.slug = 'npd_manager' shortcut), but the legacy
+// write family is intentionally retained — roles seeded with npd.allergen.write /
+// technical.write / quality.write authorized acceptance before accept_declaration existed;
+// gating on npd.allergen.accept_declaration alone would silently revoke them. The new
+// permission is additive for finer-grained grants, not a replacement for this action.
 const DECLARATION_WRITE_PERMISSIONS = [
   'npd.allergen.write',
   'npd.allergen.accept_declaration',

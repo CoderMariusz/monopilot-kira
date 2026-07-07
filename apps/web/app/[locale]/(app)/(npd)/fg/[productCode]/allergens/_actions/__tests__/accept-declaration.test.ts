@@ -68,7 +68,22 @@ describe('acceptAllergenDeclaration', () => {
     );
   });
 
-  it('does not special-case npd_manager role code without a matching permission grant', async () => {
+  it('accepts when the actor has npd.allergen.write without npd.allergen.accept_declaration', async () => {
+    const { acceptAllergenDeclaration } = await import('../accept-declaration');
+    grantDeclarationWrite();
+
+    await expect(acceptAllergenDeclaration({ productCode: PRODUCT_CODE })).resolves.toEqual({
+      ok: true,
+      productCode: PRODUCT_CODE,
+    });
+
+    const permissionParams = queryMock.mock.calls[0]?.[1] ?? [];
+    expect(permissionParams[2]).toEqual(
+      expect.arrayContaining(['npd.allergen.write', 'npd.allergen.accept_declaration']),
+    );
+  });
+
+  it('rejects npd_manager role when the actor has zero matching permissions', async () => {
     const { acceptAllergenDeclaration } = await import('../accept-declaration');
     queryMock.mockResolvedValueOnce({ rows: [{ ok: false }] });
 
@@ -77,15 +92,11 @@ describe('acceptAllergenDeclaration', () => {
       code: 'FORBIDDEN',
     });
 
-    const permissionParams = queryMock.mock.calls[0]?.[1] ?? [];
-    expect(permissionParams[2]).toEqual(
-      expect.arrayContaining(['npd.allergen.accept_declaration']),
-    );
-
     const source = readFileSync(resolve(__dirname, '../accept-declaration.ts'), 'utf8');
-    expect(source).not.toMatch(/r\.code\s*=\s*'npd_manager'/);
-    expect(source).not.toMatch(/r\.slug\s*=\s*'npd_manager'/);
-    expect(source).not.toMatch(/when r\.code = 'npd_manager'/);
+    const codeWithoutComments = source.replace(/\/\/.*$/gm, '');
+    expect(codeWithoutComments).not.toMatch(/r\.code\s*=\s*'npd_manager'/);
+    expect(codeWithoutComments).not.toMatch(/r\.slug\s*=\s*'npd_manager'/);
+    expect(codeWithoutComments).not.toMatch(/when r\.code = 'npd_manager'/);
   });
 
   it('accepts when npd.allergen.accept_declaration is granted', async () => {
