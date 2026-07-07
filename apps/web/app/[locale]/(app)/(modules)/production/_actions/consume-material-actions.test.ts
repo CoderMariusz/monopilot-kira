@@ -171,29 +171,13 @@ function makeClient(): QueryClient {
       if (n.includes('from public.items i') && n.includes('as qty_kg')) {
         return { rows: [{ qty_kg: String(params[0]), resolved: true }], rowCount: 1 };
       }
-      if (n.includes('with existing as materialized') && n.includes('computed.qty_kg::text as "qtykg"')) {
+      if (n.includes('with existing as materialized') && n.includes('avg_cost_used')) {
         const qtyKg = String(params[2]);
         const avgCost = '10';
-        const valueDebited = String(Number(qtyKg) * Number(avgCost));
         return {
-          rows: [{
-            qtyKg,
-            valueDebited,
-            avgCostUsed: avgCost,
-            totalQtyKg: '0',
-            totalValue: '0',
-            clamped: false,
-          }],
+          rows: [{ avg_cost_used: avgCost, value_debited: String(Number(qtyKg) * Number(avgCost)) }],
           rowCount: 1,
         };
-      }
-      if (n.startsWith('select coalesce((') && n.includes('avg_cost')) {
-        return { rows: [{ avg_cost: '10' }], rowCount: 1 };
-      }
-      if (n.startsWith('select ($1::numeric * $2::numeric)::text as value')) {
-        const left = Number(params[0]);
-        const right = Number(params[1]);
-        return { rows: [{ value: String(left * right) }], rowCount: 1 };
       }
       if (n.includes('insert into public.item_wac_state')) {
         return { rows: [{ totalQtyKg: '0', totalValue: '0', clamped: false }], rowCount: 1 };

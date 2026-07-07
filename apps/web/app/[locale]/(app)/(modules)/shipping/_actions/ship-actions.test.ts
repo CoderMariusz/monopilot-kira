@@ -210,28 +210,13 @@ function makeClient(): QueryClient {
       if (q.includes('from public.items i') && q.includes('as qty_kg')) {
         return { rows: [{ qty_kg: String(params?.[0] ?? '0'), resolved: true }], rowCount: 1 };
       }
-      if (q.includes('with existing as materialized') && q.includes('computed.qty_kg::text as "qtykg"')) {
+      if (q.includes('with existing as materialized') && q.includes('avg_cost_used')) {
         const qtyKg = String(params?.[2] ?? '0');
         const avgCost = '5';
         return {
-          rows: [{
-            qtyKg,
-            valueDebited: String(Number(qtyKg) * Number(avgCost)),
-            avgCostUsed: avgCost,
-            totalQtyKg: '0',
-            totalValue: '0',
-            clamped: false,
-          }],
+          rows: [{ avg_cost_used: avgCost, value_debited: String(Number(qtyKg) * Number(avgCost)) }],
           rowCount: 1,
         };
-      }
-      if (q.startsWith('select coalesce((') && q.includes('avg_cost')) {
-        return { rows: [{ avg_cost: '5' }], rowCount: 1 };
-      }
-      if (q.startsWith('select ($1::numeric * $2::numeric)::text as value')) {
-        const left = Number(params?.[0] ?? 0);
-        const right = Number(params?.[1] ?? 0);
-        return { rows: [{ value: String(left * right) }], rowCount: 1 };
       }
       if (q.includes('insert into public.item_wac_state')) {
         return { rows: [{ totalQtyKg: '0', totalValue: '0', clamped: false }], rowCount: 1 };

@@ -58,6 +58,7 @@ export enum EventType {
   FINANCE_STANDARD_COST_APPROVED = 'finance.standard_cost.approved',
   FINANCE_VALUATION_CLOSED_MONTHLY = 'finance.valuation.closed_monthly',
   FINANCE_VARIANCE_COMPUTED = 'finance.variance.computed',
+  FINANCE_WAC_UNDERFLOW = 'finance.wac.underflow',
   FG_ALLERGENS_CHANGED = 'fg.allergens_changed',
   FG_BOM_RELEASED = 'fg.bom.released',
   FG_CREATED = 'fg.created',
@@ -318,6 +319,7 @@ export const ALL_FINANCE_EVENTS = [
   EventType.FINANCE_VARIANCE_COMPUTED,
   EventType.FINANCE_VALUATION_CLOSED_MONTHLY,
   EventType.FINANCE_CONSUMPTION_VALUED,
+  EventType.FINANCE_WAC_UNDERFLOW,
 ] as const;
 
 /**

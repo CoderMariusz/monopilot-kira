@@ -317,6 +317,11 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
           qty: lp.shipped_qty,
           uom: lp.uom,
           updatedBy: userId,
+          sourceRef: {
+            aggregateType: 'shipment',
+            aggregateId: shipmentId,
+            dedupKey: `shipping-ship:${shipmentId}:${lp.lp_id}`,
+          },
         });
         if (wacDebit.applied) {
           wacDebits.push({
