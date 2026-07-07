@@ -2427,7 +2427,9 @@
           "g": "g",
           "l": "l",
           "ml": "ml",
-          "szt": "pcs (each)"
+          "szt": "pcs (each)",
+          "m": "m",
+          "cm": "cm"
         },
         "uomNone": "—",
         "supplierNone": "— None —",

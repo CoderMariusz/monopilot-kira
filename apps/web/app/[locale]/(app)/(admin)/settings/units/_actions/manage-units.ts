@@ -17,6 +17,9 @@
 import { z } from 'zod';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+import { CreateUnitInput, type CreateUnitInputType, type UnitCategory } from './units-validation';
+
+export type { CreateUnitInputType };
 
 const MANAGE_PERMISSION = 'settings.units.manage';
 const APP_VERSION = 'settings-units-v1';
@@ -38,22 +41,8 @@ export type UnitsActionError =
   | 'invalid_reference'
   | 'persistence_failed';
 
-const CreateUnitInput = z.object({
-  category: z.enum(['mass', 'volume', 'count']),
-  code: z
-    .string()
-    .trim()
-    .min(1)
-    .max(32)
-    .regex(/^[A-Za-z0-9_]+$/, 'code must be alphanumeric/underscore'),
-  name: z.string().trim().min(1).max(120),
-  factorToBase: z.coerce.number().positive().finite(),
-  isBase: z.coerce.boolean().optional().default(false),
-});
-export type CreateUnitInputType = z.infer<typeof CreateUnitInput>;
-
 export type CreateUnitResult =
-  | { ok: true; data: { id: string; code: string; category: 'mass' | 'volume' | 'count' } }
+  | { ok: true; data: { id: string; code: string; category: UnitCategory } }
   | { ok: false; error: UnitsActionError; message?: string };
 
 const CreateConversionInput = z.object({

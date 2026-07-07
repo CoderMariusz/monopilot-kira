@@ -118,13 +118,14 @@ export type UnitsManagerLabels = {
   categoryMass: string;
   categoryVolume: string;
   categoryCount: string;
+  categoryLength: string;
   errorAlreadyExists: string;
   errorForbidden: string;
   errorInvalidInput: string;
   errorGeneric: string;
 };
 
-const CATEGORY_VALUES = ['mass', 'volume', 'count'] as const;
+const CATEGORY_VALUES = ['mass', 'volume', 'count', 'length'] as const;
 
 function errorLabel(labels: UnitsManagerLabels, error: UnitsActionError): string {
   switch (error) {
@@ -167,6 +168,7 @@ function AddUnitDialog({ labels }: { labels: UnitsManagerLabels }) {
     { value: 'mass', label: labels.categoryMass },
     { value: 'volume', label: labels.categoryVolume },
     { value: 'count', label: labels.categoryCount },
+    { value: 'length', label: labels.categoryLength },
   ];
 
   function reset() {

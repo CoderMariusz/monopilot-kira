@@ -10,7 +10,7 @@
  * English-only unit strings — `labels` is passed in and threaded through the
  * page's existing label object, i18n-staging/uom-sweep.json).
  *
- * Canonical units (`UOM_VALUES`): kg, g, l, ml, pcs, pack, box, pallet. Callers
+ * Canonical units (`UOM_VALUES`): kg, g, l, ml, pcs, pack, box, pallet, m, cm. Callers
  * pass the subset that makes sense for their context via `units`; purchasing /
  * transfer line editors use the full list.
  *
@@ -26,7 +26,7 @@ import React from 'react';
 import { Select, type SelectOption } from '@monopilot/ui/Select';
 
 /** Canonical UoM identifiers (stable values sent to the server). */
-export const UOM_VALUES = ['kg', 'g', 'l', 'ml', 'pcs', 'pack', 'box', 'pallet'] as const;
+export const UOM_VALUES = ['kg', 'g', 'l', 'ml', 'pcs', 'pack', 'box', 'pallet', 'm', 'cm'] as const;
 export type UomValue = (typeof UOM_VALUES)[number];
 
 /**

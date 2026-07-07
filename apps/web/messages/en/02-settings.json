@@ -1314,6 +1314,7 @@
     "categoryMass": "Mass",
     "categoryVolume": "Volume",
     "categoryCount": "Count",
+    "categoryLength": "Length",
     "errorAlreadyExists": "A unit or conversion with that code already exists.",
     "errorForbidden": "You do not have permission to manage units.",
     "errorInvalidInput": "Please check the values and try again.",

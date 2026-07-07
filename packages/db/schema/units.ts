@@ -25,7 +25,7 @@ export const unitOfMeasure = pgTable(
     orgCodeUnique: unique('unit_of_measure_org_code_unique').on(table.orgId, table.code),
     orgIdx: index('unit_of_measure_org_idx').on(table.orgId),
     orgCategoryIdx: index('unit_of_measure_org_category_idx').on(table.orgId, table.category, table.isBase),
-    categoryCheck: check('unit_of_measure_category_check', sql`category in ('mass', 'volume', 'count')`),
+    categoryCheck: check('unit_of_measure_category_check', sql`category in ('mass', 'volume', 'count', 'length')`),
     factorPositive: check('unit_of_measure_factor_positive', sql`factor_to_base > 0`),
   }),
 );
