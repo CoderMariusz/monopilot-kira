@@ -141,7 +141,6 @@ function makeClient(): QueryClient {
       }
       if (q.startsWith('select count(*)::int as total') && q.includes('from public.sales_orders')) {
         if (params[1] === 'page2only') return { rows: [{ total: 1 }], rowCount: 1 };
-        if (params[0] === 'draft') return { rows: [{ total: 75 }], rowCount: 1 };
         return { rows: [{ total: listTotal }], rowCount: 1 };
       }
       if (q.startsWith('select so.id::text') && q.includes('line_count')) {
@@ -379,6 +378,8 @@ describe('SO read actions', () => {
   });
 
   it('status filter is passed to count and page queries and total reflects the filter', async () => {
+    listTotal = 75;
+
     const result = await listSalesOrders({ status: 'draft', page: 2 });
 
     expect(result.ok).toBe(true);
