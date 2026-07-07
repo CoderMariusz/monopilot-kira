@@ -115,6 +115,7 @@ const LABELS: FaProductionTabLabels = {
     staffing: 'Staffing',
     rate: 'Rate',
     intermediate_code_final: 'PR Code Final (auto)',
+    equipment_notes: 'Equipment notes',
   },
   processes: PROCESS_LABELS(),
   productionLine: 'Production line',
@@ -211,6 +212,9 @@ const COLUMNS: FaProductionColumn[] = [
   { key: 'staffing', dataType: 'text', required: false, readOnly: false, displayOrder: 16 },
   { key: 'rate', dataType: 'number', required: true, readOnly: false, displayOrder: 17 },
   { key: 'intermediate_code_final', dataType: 'text', required: false, readOnly: true, auto: true, displayOrder: 18 },
+  // R4.2: a surviving non-legacy, non-hidden editable column (the audit hides
+  // dieset/staffing/closed_production; this keeps the grid write-path testable).
+  { key: 'equipment_notes', dataType: 'text', required: false, readOnly: false, displayOrder: 19 },
 ];
 
 const ROWS: ProdDetailRow[] = [
@@ -240,6 +244,7 @@ const ROWS: ProdDetailRow[] = [
       staffing: '3 op',
       rate: 1100,
       intermediate_code_final: 'PR1939H-MP',
+      equipment_notes: 'note A',
     },
   },
 ];
@@ -285,39 +290,34 @@ describe('FaProductionTab — AC1 prototype parity (fa-screens.jsx:571-653)', ()
     expect(screen.getByText(LABELS.v06Pass)).toBeInTheDocument();
   });
 
-  it('renders the surviving schema-driven columns in display order (legacy slots filtered)', () => {
+  it('renders the surviving schema-driven columns (legacy + R4.2-audit noise filtered)', () => {
     renderReady();
-    // W5 (wave 5): 'line', 'rate', 'resource_requirement' are W5-hidden (replaced
-    // by the UUID production-line picker + per-process yield input). S5b also
-    // removes the legacy fixed manufacturing_operation_N / operation_yield_N /
-    // intermediate_code_* / yield_line slots. Surviving schema-driven columns:
-    // dieset (auto, read-only green) + staffing (editable text).
-    const SURVIVING = ['dieset', 'staffing'] as const;
-    for (const key of SURVIVING) {
-      expect(screen.getAllByText(LABELS.fields[key], { exact: false }).length).toBeGreaterThan(0);
-    }
-    // W5 hidden columns must NOT appear as field labels.
+    // W5 hides line/rate/resource_requirement; S5b removes the fixed
+    // manufacturing_operation_N / operation_yield_N / intermediate_code_* /
+    // yield_line slots; R4.2 (audit §1) additionally hides dieset + staffing +
+    // closed_production (they duplicate the per-process line/consumption model).
+    // Only a genuine non-legacy editable column (equipment_notes) survives.
+    expect(screen.getAllByText(LABELS.fields.equipment_notes, { exact: false }).length).toBeGreaterThan(0);
+    // W5 + R4.2 hidden columns must NOT appear as field labels.
     expect(screen.queryByText(LABELS.fields.line, { exact: true })).toBeNull();
     expect(screen.queryByText(LABELS.fields.rate, { exact: true })).toBeNull();
-    // Display order: dieset (displayOrder 14) renders before staffing (displayOrder 16).
-    const html = document.body.innerHTML;
-    expect(html.indexOf(LABELS.fields.dieset)).toBeLessThan(html.indexOf(LABELS.fields.staffing));
+    expect(screen.queryByText(LABELS.fields.dieset, { exact: true })).toBeNull();
+    expect(screen.queryByText(LABELS.fields.staffing, { exact: true })).toBeNull();
   });
 
   it('uses shadcn primitives (Input wrappers, no raw <select>)', () => {
     const { container } = renderReady();
-    // dieset (auto read-only) and staffing (text) both use shadcn Input.
+    // The surviving editable column (equipment_notes) uses a shadcn Input.
     expect(container.querySelector('[data-slot="input"]')).toBeTruthy();
-    // W5 removed the only dropdown column ('line') from the grid — no shadcn
-    // Select renders in the schema-driven grid. Raw <select> is still a red line.
+    // Raw <select> is still a red line anywhere in the tab.
     expect(container.querySelector('select')).toBeNull();
   });
 
-  it('still renders the surviving dieset auto field as read-only green', () => {
+  it('no longer renders the R4.2-hidden dieset field (audit §1)', () => {
     renderReady();
-    const dieset = screen.getByLabelText(LABELS.fields.dieset, { exact: false }) as HTMLInputElement;
-    expect(dieset).toHaveAttribute('readonly');
-    expect(dieset.className).toMatch(/green/);
+    // dieset (equipment_setup) is audit-hidden — it must not render at all.
+    expect(screen.queryByLabelText(LABELS.fields.dieset, { exact: false })).toBeNull();
+    expect(screen.queryByText(LABELS.fields.dieset, { exact: true })).toBeNull();
   });
 
   it('no longer renders the filtered intermediate_code_* auto columns', () => {
@@ -356,40 +356,41 @@ describe('FaProductionTab — multi-component aggregate row', () => {
 });
 
 describe('FaProductionTab — AC3 editable cell write path', () => {
-  it('Save calls updateFaCell for staffing when it is changed (line column is W5-hidden)', async () => {
-    // W5 removed 'line' from the grid. This test preserves the AC3 intent:
-    // changing an editable column and Saving calls updateFaCell with only the
-    // dirty column(s). 'staffing' is the surviving editable non-auto column.
+  it('Save calls updateFaCell for the surviving editable column when it changes', async () => {
+    // R4.2 hides line/rate/dieset/staffing; 'equipment_notes' is the surviving
+    // editable non-auto column. Changing it and Saving calls updateFaCell with
+    // only the dirty column(s).
     const user = userEvent.setup();
     renderReady();
-    const staffingInput = screen.getByLabelText(LABELS.fields.staffing, { exact: false });
-    await user.clear(staffingInput);
-    await user.type(staffingInput, '4 op');
+    const notesInput = screen.getByLabelText(LABELS.fields.equipment_notes, { exact: false });
+    await user.clear(notesInput);
+    await user.type(notesInput, 'note B');
     await user.click(screen.getByRole('button', { name: LABELS.save }));
 
     expect(updateFaCellMock).toHaveBeenCalledWith(
       'FA-1001',
-      'staffing',
-      '4 op',
+      'equipment_notes',
+      'note B',
       expect.objectContaining({ componentIndex: 1 }),
     );
   });
 });
 
 describe('FaProductionTab — read-only red line', () => {
-  it('never submits the read-only dieset field even when editable fields change', async () => {
-    // W5 removed 'rate' from the grid; use 'staffing' (still editable) to
-    // verify that auto/read-only columns are never written by the Save action.
+  it('only submits the surviving editable column, never the hidden/auto ones', async () => {
+    // Change the surviving editable column; verify the Save action writes it and
+    // never the audit-hidden dieset/staffing columns.
     const user = userEvent.setup();
     renderReady();
-    const staffingInput = screen.getByLabelText(LABELS.fields.staffing, { exact: false });
-    await user.clear(staffingInput);
-    await user.type(staffingInput, '5 op');
+    const notesInput = screen.getByLabelText(LABELS.fields.equipment_notes, { exact: false });
+    await user.clear(notesInput);
+    await user.type(notesInput, 'note C');
     await user.click(screen.getByRole('button', { name: LABELS.save }));
 
     const calledColumns = updateFaCellMock.mock.calls.map((c) => c[1]);
-    expect(calledColumns).toContain('staffing');
+    expect(calledColumns).toContain('equipment_notes');
     expect(calledColumns).not.toContain('dieset');
+    expect(calledColumns).not.toContain('staffing');
   });
 
   it('does not call updateFaCell for unchanged fields', async () => {
@@ -405,8 +406,8 @@ describe('FaProductionTab — locked gate (Pack_Size missing)', () => {
     // W5 removed 'rate' from the grid; 'staffing' is the surviving editable column.
     renderReady({ packSizeFilled: false });
     expect(screen.getByText(LABELS.lockedBody, { exact: false })).toBeInTheDocument();
-    const staffingInput = screen.getByLabelText(LABELS.fields.staffing, { exact: false });
-    expect(staffingInput).toBeDisabled();
+    const notesInput = screen.getByLabelText(LABELS.fields.equipment_notes, { exact: false });
+    expect(notesInput).toBeDisabled();
   });
 });
 
@@ -627,16 +628,18 @@ describe('FaProductionTab — S5b legacy process columns are filtered out', () =
     expect(document.querySelector('[data-field="intermediate_code_final"]')).toBeNull();
   });
 
-  it('keeps the NON-legacy, NON-W5-hidden columns (dieset, staffing) — line and rate are W5-hidden', () => {
-    // W5 hides 'line' and 'rate' from the schema-driven grid (replaced by the
-    // production-line picker and per-process yield). Only dieset (auto) and
-    // staffing (editable) survive both the S5b legacy filter and the W5 filter.
+  it('keeps only the non-legacy non-hidden column; hides dieset/staffing/line/rate', () => {
+    // R4.2 (audit §1) hides dieset + staffing (they duplicate the per-process
+    // line/consumption model); W5 hides line + rate. Only equipment_notes
+    // survives the combined filter.
     renderS5b();
-    expect(screen.getAllByText(S5B_LABELS.fields.dieset, { exact: false }).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(S5B_LABELS.fields.staffing, { exact: false }).length).toBeGreaterThan(0);
-    // W5-hidden columns must NOT render as field labels in the grid.
-    expect(screen.queryByText(S5B_LABELS.fields.line, { exact: true })).toBeNull();
-    expect(screen.queryByText(S5B_LABELS.fields.rate, { exact: true })).toBeNull();
+    expect(screen.getAllByText(S5B_LABELS.fields.equipment_notes, { exact: false }).length).toBeGreaterThan(0);
+    // Assert the GRID cells for the hidden columns are gone (the per-process card
+    // has its own "Line" label, so match on the grid's data-field, not text).
+    for (const hidden of ['line', 'rate', 'dieset', 'equipment_setup', 'staffing', 'closed_production']) {
+      expect(document.querySelector(`[data-field="${hidden}"]`)).toBeNull();
+    }
+    expect(document.querySelector('[data-field="equipment_notes"]')).not.toBeNull();
   });
 
   it('filters yield_line (legacy ^yield_line$) out of the grid', () => {
