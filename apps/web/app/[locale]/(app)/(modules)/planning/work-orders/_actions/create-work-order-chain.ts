@@ -6,6 +6,7 @@ import { assertFgReleasedToFactoryForWo } from '../../../../../../../lib/plannin
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { createWorkOrderCore } from './create-work-order-core';
+import { loadStageProductionLineIds } from './resolve-stage-production-line';
 import {
   PLANNING_WO_WRITE_PERMISSION,
   hasPermission,
@@ -197,6 +198,14 @@ async function createWorkOrderChainInContext(
   }
 
   const wipLines = await loadWipBomLines(ctx, bom.id);
+  const stageLineIds = await loadStageProductionLineIds(
+    ctx,
+    fgItem.id,
+    [
+      ...wipLines.map((line) => ({ itemId: line.item_id, isFg: false })),
+      { itemId: fgItem.id, isFg: true },
+    ],
+  );
   const wipWorkOrders: WOHeader[] = [];
   let hasWritten = false;
   for (let index = 0; index < wipLines.length; index++) {
@@ -215,7 +224,7 @@ async function createWorkOrderChainInContext(
       siteId: input.siteId,
       plannedQuantity: requiredQty,
       scheduledStartTime: input.scheduledStartTime,
-      productionLineId: input.productionLineId,
+      productionLineId: stageLineIds.get(line.item_id) ?? undefined,
       notes: `Upstream WIP for ${input.documentNumber}`,
     });
     if (!created.ok) {
@@ -235,7 +244,7 @@ async function createWorkOrderChainInContext(
       siteId: input.siteId,
       plannedQuantity: input.plannedQuantity,
       scheduledStartTime: input.scheduledStartTime,
-      productionLineId: input.productionLineId,
+      productionLineId: stageLineIds.get(fgItem.id) ?? input.productionLineId,
       notes: input.notes,
     },
     options?.skipFactoryReleaseGate ? { skipFactoryReleaseGate: true } : undefined,
