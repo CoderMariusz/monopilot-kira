@@ -31,7 +31,7 @@ const suppliers: SupplierFixture[] = [
 
 const items: ItemFixture[] = [
   { id: ITEM_A_ID, item_code: 'ITEM-A', uom_base: 'kg', uom_secondary: null },
-  { id: ITEM_B_ID, item_code: 'ITEM-B', uom_base: 'ea', uom_secondary: 'box' },
+  { id: ITEM_B_ID, item_code: 'ITEM-B', uom_base: 'pcs', uom_secondary: 'box' },
 ];
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
@@ -62,7 +62,7 @@ function makeClient(): QueryClient {
       rows = items.filter((item) => codes.has(item.item_code));
     } else if (normalized.includes('from public.unit_of_measure')) {
       const codes = new Set(params[0] as string[]);
-      rows = ['kg', 'ea', 'box'].filter((code) => codes.has(code)).map((code) => ({ code }));
+      rows = ['kg', 'pcs', 'box'].filter((code) => codes.has(code)).map((code) => ({ code }));
     } else if (normalized.includes('from public.purchase_orders') && normalized.includes('select exists(')) {
       // per-group duplicate pre-check: select exists(select 1 ... po_number = $1)
       const poNumber = params[0] as string;

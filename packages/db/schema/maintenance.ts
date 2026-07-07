@@ -353,7 +353,7 @@ export const spareParts = pgTable(
     category: text('category'), // ref: spare_parts_categories
     supplierId: uuid('supplier_id'), // soft FK -> 03-TECH suppliers (shared master)
     unitCost: numeric('unit_cost', { precision: 10, scale: 2 }),
-    unitOfMeasure: text('unit_of_measure').default('ea'),
+    unitOfMeasure: text('unit_of_measure').default('pcs'),
     shelfLifeDays: integer('shelf_life_days'),
     criticalPart: boolean('critical_part').notNull().default(false),
     l3ExtCols: jsonb('l3_ext_cols').notNull().default('{}'),

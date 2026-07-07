@@ -76,10 +76,14 @@ async function loadLookups(rows: Record<string, string>[]): Promise<WoLookups> {
   });
 }
 
+import { normalizePieceUom } from '../uom/piece';
+
 function itemAcceptsUom(item: ItemLookupRow, uom: string): boolean {
+  const normalized = normalizePieceUom(uom) ?? uom;
   return [item.uom_base, item.uom_secondary, item.output_uom, 'base', 'each', 'box']
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .includes(uom);
+    .map((value) => normalizePieceUom(value) ?? value)
+    .includes(normalized);
 }
 
 function validateRows(rows: Record<string, string>[], lookups: WoLookups): { valid: PreviewWoRow[]; errors: ImportError[] } {

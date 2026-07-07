@@ -400,7 +400,7 @@ async function ensureFgItemAndProduct(
       `update public.items set uom_base = 'kg'
         where org_id = app.current_org_id()
           and item_code = $1
-          and uom_base in ('szt', 'g')`,
+          and uom_base in ('pcs', 'g')`,
       [productCode],
     );
   }

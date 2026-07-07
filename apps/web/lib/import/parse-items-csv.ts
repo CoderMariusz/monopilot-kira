@@ -15,6 +15,8 @@
  *     hard error, surfaced for the reviewer (no auto-link).
  */
 
+import { normalizePieceUom } from '../uom/piece';
+
 export type ImportScope = 'fg' | 'wip' | 'rm' | 'rm_supplier_specs';
 
 export const IMPORT_SCOPES: ImportScope[] = ['fg', 'wip', 'rm', 'rm_supplier_specs'];
@@ -128,16 +130,19 @@ export function parseItemsCsv(scope: ImportScope, csvText: string): ParseResult 
       const j = idx(name);
       return j >= 0 ? (cells[j] ?? '').trim() : '';
     };
+    const secondaryRaw = get('uom_secondary');
     rows.push({
       itemCode: get('item_code'),
       name: get('name'),
       itemType: get('item_type'),
-      uomBase: get('uom_base'),
+      uomBase: normalizePieceUom(get('uom_base')) ?? get('uom_base'),
       status: get('status') || undefined,
       weightMode: get('weight_mode') || undefined,
       description: get('description') || undefined,
       productGroup: get('product_group') || undefined,
-      uomSecondary: get('uom_secondary') || undefined,
+      uomSecondary: secondaryRaw
+        ? (normalizePieceUom(secondaryRaw) ?? secondaryRaw)
+        : undefined,
       costPerKg: get('cost_per_kg') || undefined,
       supplier: get('supplier') || undefined,
     });

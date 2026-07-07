@@ -31,7 +31,7 @@ const warehouses: WarehouseFixture[] = [
 
 const items: ItemFixture[] = [
   { id: ITEM_A_ID, item_code: 'ITEM-A', uom_base: 'kg', uom_secondary: null },
-  { id: ITEM_B_ID, item_code: 'ITEM-B', uom_base: 'ea', uom_secondary: 'box' },
+  { id: ITEM_B_ID, item_code: 'ITEM-B', uom_base: 'pcs', uom_secondary: 'box' },
 ];
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
@@ -62,7 +62,7 @@ function makeClient(): QueryClient {
       rows = items.filter((item) => codes.has(item.item_code));
     } else if (normalized.includes('from public.unit_of_measure')) {
       const codes = new Set(params[0] as string[]);
-      rows = ['kg', 'ea', 'box'].filter((code) => codes.has(code)).map((code) => ({ code }));
+      rows = ['kg', 'pcs', 'box'].filter((code) => codes.has(code)).map((code) => ({ code }));
     } else if (normalized.includes('from public.transfer_orders')) {
       const refs = new Set(params[0] as string[]);
       rows = Array.from(existingRefs).filter((ref) => refs.has(ref)).map((to_number) => ({ to_number }));
@@ -166,7 +166,7 @@ describe('transfer order import backend', () => {
     );
     expect(firstPayload?.lines).toEqual([
       { itemId: ITEM_A_ID, qty: '10', uom: 'kg', lineNo: 1 },
-      { itemId: ITEM_B_ID, qty: '10', uom: 'ea', lineNo: 2 },
+      { itemId: ITEM_B_ID, qty: '10', uom: 'pcs', lineNo: 2 },
     ]);
     expect(secondPayload).toEqual(
       expect.objectContaining({

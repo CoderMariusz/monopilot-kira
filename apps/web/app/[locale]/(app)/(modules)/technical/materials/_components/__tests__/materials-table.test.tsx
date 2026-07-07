@@ -44,7 +44,7 @@ const typeTabs: Array<{ key: 'all' | ItemListItem['itemType']; label: string }> 
 const items: ItemListItem[] = [
   { id: '1', itemCode: 'RM-1001', name: 'Pork shoulder', itemType: 'rm', status: 'active', uomBase: 'kg', weightMode: 'fixed', costPerKg: '12.5', updatedAt: '2026-06-01T00:00:00Z', allergens: [], bomCount: 0, d365SyncStatus: null },
   { id: '2', itemCode: 'WIP-CT-0000001', name: 'Cured intermediate', itemType: 'intermediate', status: 'draft', uomBase: 'kg', weightMode: 'fixed', costPerKg: null, updatedAt: '2026-05-01T00:00:00Z', allergens: [], bomCount: 1, d365SyncStatus: null },
-  { id: '3', itemCode: 'PM-2001', name: 'Vacuum pouch', itemType: 'packaging', status: 'deprecated', uomBase: 'ea', weightMode: 'fixed', costPerKg: '0.08', updatedAt: '2026-06-02T00:00:00Z', allergens: [], bomCount: 0, d365SyncStatus: null },
+  { id: '3', itemCode: 'PM-2001', name: 'Vacuum pouch', itemType: 'packaging', status: 'deprecated', uomBase: 'pcs', weightMode: 'fixed', costPerKg: '0.08', updatedAt: '2026-06-02T00:00:00Z', allergens: [], bomCount: 0, d365SyncStatus: null },
 ];
 
 afterEach(cleanup);
