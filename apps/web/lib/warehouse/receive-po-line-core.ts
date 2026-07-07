@@ -175,8 +175,8 @@ export async function executeReceivePoLineCore(
   const grn = await getOrCreateOpenGrn(client, ctx, {
     poId: line.po_id,
     supplierId: line.supplier_id,
-    warehouseId: warehouse.id,
-    locationId: warehouse.default_location_id,
+    warehouseId: destWarehouseId,
+    locationId: destLocationId,
   });
 
   const lpNumber = makeLpNumber();
@@ -464,6 +464,8 @@ async function getOrCreateOpenGrn(
        from public.grns
       where org_id = $1::uuid
         and po_id = $2::uuid
+        and warehouse_id = $3::uuid
+        and default_location_id is not distinct from $4::uuid
         and source_type = 'po'
         and status = 'draft'
         and receipt_date >= date_trunc('day', now())
@@ -471,7 +473,7 @@ async function getOrCreateOpenGrn(
       order by created_at asc
       limit 1
       for update`,
-    [ctx.orgId, input.poId],
+    [ctx.orgId, input.poId, input.warehouseId, input.locationId],
   );
   if (existing.rows[0]) return existing.rows[0];
 

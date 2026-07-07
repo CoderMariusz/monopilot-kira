@@ -16,6 +16,7 @@ const SUPPLIER_ID = '00000000-0000-4000-8000-0000000000d1';
 const SITE_ID = '00000000-0000-4000-8000-0000000000d2';
 const WAREHOUSE_ID = '00000000-0000-4000-8000-0000000000e1';
 const LOCATION_ID = '00000000-0000-4000-8000-0000000000f1';
+const BIN_LOCATION_ID = '00000000-0000-4000-8000-0000000000f2';
 
 const baseInput: ReceivePoLineCoreInput = {
   poLineId: LINE_ID,
@@ -173,6 +174,42 @@ describe('receive-po-line-core', () => {
     expect(lookup?.params[2]).toEqual(OPEN_PO_STATUSES);
     expect(client.calls.some((c) => c.sql.includes('insert into public.license_plates'))).toBe(false);
   });
+
+  it('uses the requested bin for GRN header, LP, and grn_item location', async () => {
+    const client = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      requestedLocationId: BIN_LOCATION_ID,
+    });
+
+    const result = await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+      { ...baseInput, toLocationId: BIN_LOCATION_ID },
+      {
+        mode: 'desktop',
+        genesisReasonCode: 'desktop_receive_po',
+        genesisReasonText: 'Desktop PO receipt',
+        requireOverReceiveConfirm: true,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, grnId: 'grn-1' });
+
+    const grnLookup = findCall(client, 'from public.grns')?.params;
+    expect(grnLookup).toEqual([ORG_A, PO_ID, WAREHOUSE_ID, BIN_LOCATION_ID]);
+
+    const grnInsert = findCall(client, 'insert into public.grns')?.params;
+    expect(grnInsert).toEqual(
+      expect.arrayContaining([ORG_A, PO_ID, SUPPLIER_ID, WAREHOUSE_ID, BIN_LOCATION_ID]),
+    );
+
+    const lpInsert = findCall(client, 'insert into public.license_plates')?.params;
+    expect(lpInsert?.[11]).toBe(BIN_LOCATION_ID);
+
+    const grnItemInsert = findCall(client, 'insert into public.grn_items')?.params;
+    expect(grnItemInsert?.[10]).toBe(BIN_LOCATION_ID);
+  });
 });
 
 type FakeClient = QueryClient & { calls: Array<{ sql: string; params: readonly unknown[] }> };
@@ -184,6 +221,7 @@ function makeClient(options: {
   lineMissing?: boolean;
   throwOnGrnItemsWriteAfterCompleted?: boolean;
   supplierStatus?: string;
+  requestedLocationId?: string;
 }): FakeClient {
   const calls: FakeClient['calls'] = [];
   let grnCompleted = false;
@@ -229,6 +267,20 @@ function makeClient(options: {
       if (normalized.includes('from public.warehouses w')) {
         return {
           rows: [{ id: WAREHOUSE_ID, site_id: SITE_ID, default_location_id: LOCATION_ID }] as T[],
+        };
+      }
+      if (normalized.includes('from public.locations l') && normalized.includes('l.warehouse_id')) {
+        const locationId = String(params[1] ?? '');
+        return {
+          rows:
+            locationId === (options.requestedLocationId ?? '')
+              ? ([{ id: locationId, warehouse_id: WAREHOUSE_ID }] as T[])
+              : ([] as T[]),
+        };
+      }
+      if (normalized.includes('from public.locations requested')) {
+        return {
+          rows: [{ id: options.requestedLocationId ?? LOCATION_ID, site_id: SITE_ID, default_location_id: LOCATION_ID }] as T[],
         };
       }
       if (normalized.includes('from public.grns') && normalized.includes('status =')) {

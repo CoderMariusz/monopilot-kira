@@ -7,17 +7,28 @@ type QueryClient = {
   ): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
-export type BookReceiptWacErrorCode = 'unknown_currency';
+export type BookReceiptWacErrorCode = 'unknown_currency' | 'unresolved_uom';
 
 export class BookReceiptWacError extends Error {
   readonly code: BookReceiptWacErrorCode;
-  readonly currencyCode: string;
+  readonly currencyCode?: string;
+  readonly uom?: string;
+  readonly qty?: string;
 
-  constructor(currencyCode: string) {
-    super(`Unknown currency code for WAC booking: ${currencyCode}`);
+  constructor(
+    code: BookReceiptWacErrorCode,
+    details: { currencyCode?: string; uom?: string; qty?: string } = {},
+  ) {
+    const message =
+      code === 'unknown_currency'
+        ? `Unknown currency code for WAC booking: ${details.currencyCode ?? 'unknown'}`
+        : `Cannot receive into WAC: UoM "${details.uom ?? 'unknown'}" cannot be converted to kg for valuation`;
+    super(message);
     this.name = 'BookReceiptWacError';
-    this.code = 'unknown_currency';
-    this.currencyCode = currencyCode;
+    this.code = code;
+    this.currencyCode = details.currencyCode;
+    this.uom = details.uom;
+    this.qty = details.qty;
   }
 }
 
@@ -49,25 +60,9 @@ export async function bookReceiptWacAfterGrnItem(
     uom: receipt.uom,
   });
   if (!wacResolution.resolved) {
-    await client.query(
-      `update public.grn_items
-          set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $3::jsonb,
-              updated_by = $2::uuid,
-              updated_at = now()
-        where org_id = $1::uuid
-          and id = $4::uuid`,
-      [
-        ctx.orgId,
-        ctx.userId,
-        JSON.stringify({
-          wac_excluded: 'unresolved_uom',
-          wac_uom: receipt.uom,
-          wac_qty: receipt.qty,
-        }),
-        receipt.grnItemId,
-      ],
-    );
-    return;
+    // PO receipts with a unit price are WAC-governed: block unvalued stock rather than
+    // committing inventory while silently skipping valuation (P1-08).
+    throw new BookReceiptWacError('unresolved_uom', { uom: receipt.uom, qty: receipt.qty });
   }
 
   const receivedQtyKg = wacResolution.qtyKg;
@@ -138,7 +133,7 @@ async function assertResolvableCurrency(client: QueryClient, currencyCode: strin
     [currencyCode],
   );
   if (!rows[0]?.id) {
-    throw new BookReceiptWacError(currencyCode);
+    throw new BookReceiptWacError('unknown_currency', { currencyCode });
   }
 }
 

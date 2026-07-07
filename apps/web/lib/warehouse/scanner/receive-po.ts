@@ -1,6 +1,6 @@
 import { hasPermission } from '../../auth/has-permission';
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../scanner/txn-org-context';
-import { bookReceiptWacAfterGrnItem } from '../../finance/book-receipt-wac';
+import { bookReceiptWacAfterGrnItem, BookReceiptWacError } from '../../finance/book-receipt-wac';
 
 const WAREHOUSE_GRN_RECEIVE_PERMISSION = 'warehouse.grn.receive';
 
@@ -379,6 +379,9 @@ export async function receiveScannerPoLine(
     };
   } catch (err) {
     await client.query('rollback').catch(() => undefined);
+    if (err instanceof BookReceiptWacError && err.code === 'unresolved_uom') {
+      throw new ReceivePoError('unresolved_uom', 422);
+    }
     throw err;
   } finally {
     await cleanupTxnOrgContext(client, orgContextToken);
