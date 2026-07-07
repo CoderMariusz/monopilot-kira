@@ -53,6 +53,9 @@ importers:
       '@monopilot/e-sign':
         specifier: workspace:*
         version: link:../../packages/e-sign
+      '@monopilot/gs1':
+        specifier: workspace:*
+        version: link:../../packages/gs1
       '@monopilot/observability':
         specifier: workspace:*
         version: link:../../packages/observability

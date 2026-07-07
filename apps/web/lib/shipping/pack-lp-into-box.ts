@@ -1,3 +1,5 @@
+import { generateSscc18 } from '@monopilot/gs1';
+
 /**
  * Shared "pack a license plate into a shipment box" core.
  *
@@ -165,12 +167,33 @@ export async function packLpIntoBoxCore(ctx: PackContext, input: PackLpInput): P
     if (!boxRows[0]) return { ok: false, error: 'invalid_box' };
     boxSiteId = boxRows[0].site_id;
   } else {
-    const { rows: ssccRows } = await ctx.client.query<{ sscc: string }>(
-      `select public.generate_sscc($1::uuid, 0) as sscc`,
+    const { rows: prefixRows } = await ctx.client.query<{ gs1_prefix: string | null }>(
+      `select gs1_prefix
+         from public.organizations
+        where id = $1::uuid
+        limit 1`,
       [orgId],
     );
-    const sscc = ssccRows[0]?.sscc;
-    if (!sscc) return { ok: false, error: 'persistence_failed' };
+    const gs1Prefix = prefixRows[0]?.gs1_prefix?.trim();
+    if (!gs1Prefix) return { ok: false, error: 'missing_gs1_prefix' };
+
+    const { rows: serialRows } = await ctx.client.query<{ serial: string }>(
+      `select public.next_sscc_serial($1::uuid)::text as serial`,
+      [orgId],
+    );
+    const serial = serialRows[0]?.serial;
+    if (!serial) return { ok: false, error: 'persistence_failed' };
+
+    let sscc: string;
+    try {
+      sscc = generateSscc18({
+        extensionDigit: 0,
+        companyPrefix: gs1Prefix,
+        serialReference: serial,
+      });
+    } catch {
+      return { ok: false, error: 'invalid_gs1_prefix' };
+    }
 
     const { rows: boxNumberRows } = await ctx.client.query<{ next_box_number: number | string | bigint }>(
       `select coalesce(max(sb.box_number), 0) + 1 as next_box_number

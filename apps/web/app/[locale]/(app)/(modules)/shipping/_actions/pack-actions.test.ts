@@ -66,7 +66,7 @@ function computeMod10(digits: string): string {
 }
 
 function makeSscc(): string {
-  const body = '00123450000000001';
+  const body = '00123456000000001';
   return `${body}${computeMod10(body)}`;
 }
 
@@ -157,8 +157,12 @@ function makeClient(): QueryClient {
         };
       }
 
-      if (q.includes('public.generate_sscc')) {
-        return { rows: [{ sscc: generatedSscc }], rowCount: 1 };
+      if (q.includes('select gs1_prefix')) {
+        return { rows: [{ gs1_prefix: '0123456' }], rowCount: 1 };
+      }
+
+      if (q.includes('public.next_sscc_serial')) {
+        return { rows: [{ serial: '1' }], rowCount: 1 };
       }
 
       if (q.startsWith('select coalesce(max(sb.box_number)')) {

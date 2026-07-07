@@ -157,8 +157,12 @@ function mockPackQueries(options: {
         : { rows: [], rowCount: 0 };
     }
 
-    if (q.includes('public.generate_sscc')) {
-      return { rows: [{ sscc: '001234500000000015' }], rowCount: 1 };
+    if (q.includes('select gs1_prefix')) {
+      return { rows: [{ gs1_prefix: '0123456' }], rowCount: 1 };
+    }
+
+    if (q.includes('public.next_sscc_serial')) {
+      return { rows: [{ serial: '1' }], rowCount: 1 };
     }
 
     if (q.startsWith('select coalesce(max(sb.box_number)')) {
