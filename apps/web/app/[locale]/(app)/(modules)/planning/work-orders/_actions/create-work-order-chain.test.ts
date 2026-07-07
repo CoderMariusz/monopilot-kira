@@ -12,12 +12,19 @@ const SITE_ID = '88888888-8888-4888-8888-888888888888';
 const FG_WO_ID = '11111111-1111-4111-8111-111111111111';
 const WIP_WO_ID = '22222222-2222-4222-8222-222222222222';
 const MATERIAL_ID = '33333333-3333-4333-8333-333333333333';
+const WIP_STAGE_LINE_ID = '66666666-6666-4666-8666-666666666666';
+const FG_STAGE_LINE_ID = '77777777-7777-4777-8777-777777777777';
 
 const createWorkOrderCoreMock = vi.fn();
+const loadStageProductionLineIdsMock = vi.fn();
 const transactionEvents: string[] = [];
 
 vi.mock('./create-work-order-core', () => ({
   createWorkOrderCore: (...args: unknown[]) => createWorkOrderCoreMock(...args),
+}));
+
+vi.mock('./resolve-stage-production-line', () => ({
+  loadStageProductionLineIds: (...args: unknown[]) => loadStageProductionLineIdsMock(...args),
 }));
 
 vi.mock('../../../../../../../lib/planning/factory-release-wo-gate', () => ({
@@ -124,6 +131,11 @@ describe('createWorkOrderChain wo_dependencies overlap contract', () => {
     dependencyInserts = [];
     transactionEvents.length = 0;
     createWorkOrderCoreMock.mockReset();
+    loadStageProductionLineIdsMock.mockReset();
+    loadStageProductionLineIdsMock.mockResolvedValue(new Map([
+      [WIP_ITEM_ID, WIP_STAGE_LINE_ID],
+      [FG_ITEM_ID, FG_STAGE_LINE_ID],
+    ]));
     vi.mocked(assertFgReleasedToFactoryForWo).mockResolvedValue('ok');
     createWorkOrderCoreMock
       .mockResolvedValueOnce({
@@ -214,6 +226,10 @@ describe('createWorkOrderChain wo_dependencies overlap contract', () => {
       sql: expect.stringContaining('wo_dependencies'),
     });
     expect(normalize(dependencyInserts[0]!.sql)).not.toMatch(/status|parent_status|child_status/);
+    const wipCall = createWorkOrderCoreMock.mock.calls[0]?.[1] as { productionLineId?: string };
+    const fgCall = createWorkOrderCoreMock.mock.calls[1]?.[1] as { productionLineId?: string };
+    expect(wipCall.productionLineId).toBe(WIP_STAGE_LINE_ID);
+    expect(fgCall.productionLineId).toBe(FG_STAGE_LINE_ID);
     if (result.ok) {
       expect(result.dependencies[0]).toEqual({
         parentWoId: FG_WO_ID,
@@ -230,6 +246,11 @@ describe('createWorkOrderChain mid-chain failure + factory-release gate', () => 
     dependencyInserts = [];
     transactionEvents.length = 0;
     createWorkOrderCoreMock.mockReset();
+    loadStageProductionLineIdsMock.mockReset();
+    loadStageProductionLineIdsMock.mockResolvedValue(new Map([
+      [WIP_ITEM_ID, WIP_STAGE_LINE_ID],
+      [FG_ITEM_ID, FG_STAGE_LINE_ID],
+    ]));
     vi.mocked(assertFgReleasedToFactoryForWo).mockReset();
   });
 

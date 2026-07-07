@@ -4,15 +4,21 @@ import { materializeNpdRouting, type QueryClient } from '../materialize-npd-rout
 
 type QueryCall = { sql: string; params: readonly unknown[] };
 
-function makeClient(overrides?: {
+type ClientOptions = {
   productionLineId?: string | null;
   itemId?: string | null;
   hasUnresolvedLine?: boolean;
-}): { client: QueryClient; calls: QueryCall[] } {
+  existingRoutingId?: string | null;
+  routingDrifted?: boolean;
+};
+
+function makeClient(overrides?: ClientOptions): { client: QueryClient; calls: QueryCall[] } {
   const {
     productionLineId = '22222222-2222-4222-8222-222222222222',
     itemId = '11111111-1111-4111-8111-111111111111',
     hasUnresolvedLine = false,
+    existingRoutingId = null,
+    routingDrifted = false,
   } = overrides ?? {};
   const calls: QueryCall[] = [];
   const client: QueryClient = {
@@ -27,7 +33,17 @@ function makeClient(overrides?: {
       if (sql.includes('has_unresolved')) {
         return { rows: [{ has_unresolved: hasUnresolvedLine }] } as { rows: T[] };
       }
-      if (sql.includes("origin_module = 'npd'")) return { rows: [] } as { rows: T[] };
+      if (sql.includes("origin_module = 'npd'")) {
+        return {
+          rows: existingRoutingId ? [{ id: existingRoutingId }] : [],
+        } as { rows: T[] };
+      }
+      if (sql.includes(') as drifted')) {
+        return { rows: [{ drifted: routingDrifted }] } as { rows: T[] };
+      }
+      if (sql.includes('delete from public.routing_operations')) {
+        return { rows: [] } as { rows: T[] };
+      }
       if (sql.includes('count(*)::text as count')) return { rows: [{ count: '2' }] } as { rows: T[] };
       if (sql.includes('coalesce(max(version), 0) + 1')) return { rows: [{ next_version: 3 }] } as { rows: T[] };
       if (sql.includes('insert into public.routings')) {
@@ -64,8 +80,8 @@ describe('materializeNpdRouting', () => {
     expect(opInsert?.sql).toContain('round(3600::numeric / p.throughput_per_hour, 2)');
     expect(opInsert?.sql).toContain('coalesce(p.yield_pct, 100)');
     expect(opInsert?.params).toEqual([
-      '33333333-3333-4333-8333-333333333333',
       '44444444-4444-4444-8444-444444444444',
+      '33333333-3333-4333-8333-333333333333',
       '22222222-2222-4222-8222-222222222222',
     ]);
   });
@@ -100,5 +116,34 @@ describe('materializeNpdRouting', () => {
     const opInsert = calls.find((call) => call.sql.includes('insert into public.routing_operations'));
     expect(opInsert?.sql).toContain('coalesce(p.line_id, $3::uuid)');
     expect(opInsert?.params[2]).toBe('22222222-2222-4222-8222-222222222222');
+  });
+
+  it('returns routing_exists when an npd routing already matches the current process chain', async () => {
+    const existingId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const { client, calls } = makeClient({ existingRoutingId: existingId, routingDrifted: false });
+
+    const result = await materializeNpdRouting(client, '44444444-4444-4444-8444-444444444444');
+
+    expect(result).toEqual({ ok: false, code: 'routing_exists' });
+    expect(calls.some((call) => call.sql.includes(') as drifted'))).toBe(true);
+    expect(calls.some((call) => call.sql.includes('delete from public.routing_operations'))).toBe(false);
+    expect(calls.some((call) => call.sql.includes('insert into public.routing_operations'))).toBe(false);
+  });
+
+  it('replaces routing operations in place when process content drifted since the last materialize', async () => {
+    const existingId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const { client, calls } = makeClient({ existingRoutingId: existingId, routingDrifted: true });
+
+    const result = await materializeNpdRouting(client, '44444444-4444-4444-8444-444444444444');
+
+    expect(result).toEqual({ ok: true, routingId: existingId });
+    expect(calls.some((call) => call.sql.includes('delete from public.routing_operations'))).toBe(true);
+    const opInsert = calls.find((call) => call.sql.includes('insert into public.routing_operations'));
+    expect(opInsert?.params).toEqual([
+      '44444444-4444-4444-8444-444444444444',
+      existingId,
+      '22222222-2222-4222-8222-222222222222',
+    ]);
+    expect(calls.some((call) => call.sql.includes('insert into public.routings'))).toBe(false);
   });
 });

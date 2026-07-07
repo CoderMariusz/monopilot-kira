@@ -32,6 +32,134 @@ type ProjectRow = {
 type ExistingRoutingRow = { id: string };
 type CreatedRoutingRow = { id: string };
 
+function processesCteSql(): string {
+  return `processes as (
+       select wp.id,
+              row_number() over (order by wp.display_order asc, wp.created_at asc, wp.id asc)::integer as op_no,
+              wp.process_name,
+              wp.line_id,
+              wp.throughput_per_hour,
+              wp.duration_hours,
+              wp.setup_cost,
+              wp.yield_pct,
+              (
+                select coalesce(
+                         jsonb_agg(
+                           jsonb_build_object('role_group', r.role_group, 'headcount', r.headcount)
+                           order by r.role_group
+                         ),
+                         '[]'::jsonb
+                       )
+                  from public.npd_wip_process_roles r
+                 where r.org_id = app.current_org_id()
+                   and r.process_id = wp.id
+              ) as crew
+         from public.prod_detail pd
+         join public.npd_wip_processes wp
+           on wp.org_id = pd.org_id
+          and wp.prod_detail_id = pd.id
+        where pd.org_id = app.current_org_id()
+          and pd.product_code = (
+            select p.product_code
+              from public.npd_projects p
+             where p.org_id = app.current_org_id()
+               and p.id = $1::uuid
+             limit 1
+          )
+     )`;
+}
+
+function expectedOperationsSelectSql(projectLineParamIndex: number): string {
+  return `select p.op_no,
+              p.process_name as op_name,
+              coalesce(p.line_id, $${projectLineParamIndex}::uuid) as line_id,
+              greatest(0, round(coalesce(p.duration_hours, 0) * 60))::integer as setup_time_min,
+              nullif(p.setup_cost, 0) as setup_cost,
+              case
+                when p.throughput_per_hour is null or p.throughput_per_hour <= 0 then null
+                else round(3600::numeric / p.throughput_per_hour, 2)
+              end as run_time_per_unit_sec,
+              coalesce(p.yield_pct, 100) as yield_pct
+         from processes p`;
+}
+
+function insertRoutingOperationsSql(projectLineParamIndex: number): string {
+  return `insert into public.routing_operations
+       (org_id, routing_id, op_no, op_code, op_name, line_id,
+        setup_time_min, setup_cost, run_time_per_unit_sec, manufacturing_operation_name, crew, yield_pct)
+     with ${processesCteSql()}
+     select app.current_org_id(),
+            $2::uuid,
+            p.op_no,
+            'NPD-' || lpad(p.op_no::text, 3, '0'),
+            p.process_name,
+            coalesce(p.line_id, $${projectLineParamIndex}::uuid),
+            greatest(0, round(coalesce(p.duration_hours, 0) * 60))::integer,
+            nullif(p.setup_cost, 0),
+            case
+              when p.throughput_per_hour is null or p.throughput_per_hour <= 0 then null
+              else round(3600::numeric / p.throughput_per_hour, 2)
+            end,
+            mo.operation_name,
+            p.crew,
+            coalesce(p.yield_pct, 100)
+       from processes p
+       left join "Reference"."ManufacturingOperations" mo
+         on mo.org_id = app.current_org_id()
+        and mo.is_active = true
+        and mo.operation_name = p.process_name
+      order by p.op_no`;
+}
+
+async function routingOperationsDrifted(
+  sql: QueryClient,
+  routingId: string,
+  projectId: string,
+  projectProductionLineId: string | null,
+): Promise<boolean> {
+  const drift = await sql.query<{ drifted: boolean }>(
+    `with ${processesCteSql()},
+     expected as (
+       ${expectedOperationsSelectSql(3)}
+     ),
+     actual as (
+       select ro.op_no,
+              ro.op_name,
+              ro.line_id,
+              ro.setup_time_min,
+              ro.setup_cost,
+              round(ro.run_time_per_unit_sec, 2) as run_time_per_unit_sec,
+              ro.yield_pct
+         from public.routing_operations ro
+        where ro.org_id = app.current_org_id()
+          and ro.routing_id = $2::uuid
+     )
+     select (
+       (select count(*)::integer from expected) <>
+       (select count(*)::integer from actual)
+       or exists (select * from expected except select * from actual)
+       or exists (select * from actual except select * from expected)
+     ) as drifted`,
+    [projectId, routingId, projectProductionLineId],
+  );
+  return drift.rows[0]?.drifted === true;
+}
+
+async function replaceRoutingOperations(
+  sql: QueryClient,
+  routingId: string,
+  projectId: string,
+  projectProductionLineId: string | null,
+): Promise<void> {
+  await sql.query(
+    `delete from public.routing_operations
+      where org_id = app.current_org_id()
+        and routing_id = $1::uuid`,
+    [routingId],
+  );
+  await sql.query(insertRoutingOperationsSql(3), [projectId, routingId, projectProductionLineId]);
+}
+
 export async function materializeNpdRouting(
   sql: QueryClient,
   projectId: string,
@@ -85,7 +213,18 @@ export async function materializeNpdRouting(
       limit 1`,
     [project.item_id],
   );
-  if (existing.rows[0]) return { ok: false, code: 'routing_exists' };
+  const existingRoutingId = existing.rows[0]?.id;
+  if (existingRoutingId) {
+    const drifted = await routingOperationsDrifted(
+      sql,
+      existingRoutingId,
+      projectId,
+      project.production_line_id,
+    );
+    if (!drifted) return { ok: false, code: 'routing_exists' };
+    await replaceRoutingOperations(sql, existingRoutingId, projectId, project.production_line_id);
+    return { ok: true, routingId: existingRoutingId };
+  }
 
   const processCount = await sql.query<{ count: string }>(
     `select count(*)::text as count
@@ -124,67 +263,7 @@ export async function materializeNpdRouting(
   const routingId = created.rows[0]?.id;
   if (!routingId) throw new Error('npd_routing_insert_returned_no_row');
 
-  await sql.query(
-    `insert into public.routing_operations
-       (org_id, routing_id, op_no, op_code, op_name, line_id,
-        setup_time_min, setup_cost, run_time_per_unit_sec, manufacturing_operation_name, crew, yield_pct)
-     with processes as (
-       select wp.id,
-              row_number() over (order by wp.display_order asc, wp.created_at asc, wp.id asc)::integer as op_no,
-              wp.process_name,
-              wp.line_id,
-              wp.throughput_per_hour,
-              wp.duration_hours,
-              wp.setup_cost,
-              wp.yield_pct,
-              (
-                select coalesce(
-                         jsonb_agg(
-                           jsonb_build_object('role_group', r.role_group, 'headcount', r.headcount)
-                           order by r.role_group
-                         ),
-                         '[]'::jsonb
-                       )
-                  from public.npd_wip_process_roles r
-                 where r.org_id = app.current_org_id()
-                   and r.process_id = wp.id
-              ) as crew
-         from public.prod_detail pd
-         join public.npd_wip_processes wp
-           on wp.org_id = pd.org_id
-          and wp.prod_detail_id = pd.id
-        where pd.org_id = app.current_org_id()
-          and pd.product_code = (
-            select p.product_code
-              from public.npd_projects p
-             where p.org_id = app.current_org_id()
-               and p.id = $2::uuid
-             limit 1
-          )
-     )
-     select app.current_org_id(),
-            $1::uuid,
-            p.op_no,
-            'NPD-' || lpad(p.op_no::text, 3, '0'),
-            p.process_name,
-            coalesce(p.line_id, $3::uuid),
-            greatest(0, round(coalesce(p.duration_hours, 0) * 60))::integer,
-            nullif(p.setup_cost, 0),
-            case
-              when p.throughput_per_hour is null or p.throughput_per_hour <= 0 then null
-              else round(3600::numeric / p.throughput_per_hour, 2)
-            end,
-            mo.operation_name,
-            p.crew,
-            coalesce(p.yield_pct, 100)
-       from processes p
-       left join "Reference"."ManufacturingOperations" mo
-         on mo.org_id = app.current_org_id()
-        and mo.is_active = true
-        and mo.operation_name = p.process_name
-      order by p.op_no`,
-    [routingId, projectId, project.production_line_id],
-  );
+  await sql.query(insertRoutingOperationsSql(3), [projectId, routingId, project.production_line_id]);
 
   return { ok: true, routingId };
 }
