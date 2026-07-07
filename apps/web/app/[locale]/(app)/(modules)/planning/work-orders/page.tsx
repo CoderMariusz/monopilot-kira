@@ -258,7 +258,7 @@ async function ListContent({
       autoOpenCreate={autoOpenCreate}
       labels={buildLabels(t, locale)}
       searchFgProductsAction={searchFgProducts}
-      createWorkOrderAction={createWorkOrder}
+      createWorkOrderAction={(params) => createWorkOrder(params, { allowChain: true })}
       releaseWorkOrderAction={releaseWorkOrder}
       deleteDraftWorkOrderAction={deleteDraftWorkOrder}
       previewChainAction={previewWorkOrderChain}

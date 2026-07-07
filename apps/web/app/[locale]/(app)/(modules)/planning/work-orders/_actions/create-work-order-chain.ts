@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 
+import { assertFgReleasedToFactoryForWo } from '../../../../../../../lib/planning/factory-release-wo-gate';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { createWorkOrderCore } from './create-work-order-core';
@@ -90,16 +91,25 @@ class WorkOrderChainError extends Error {
   }
 }
 
+function mapCoreErrorToChainCode(coreError: string | undefined): ChainErrorCode {
+  return coreError === 'no_active_site'
+    || coreError === 'document_mask_missing'
+    || coreError === 'not_released_to_factory'
+    ? coreError
+    : 'wo_create_failed';
+}
+
 // W1 error-surface contract: specific core failures must reach the caller as
 // themselves, never collapsed into a generic wo_create_failed.
 function chainCoreFailure(coreError: string | undefined): ChainResult {
-  const specific: ChainErrorCode =
-    coreError === 'no_active_site'
-    || coreError === 'document_mask_missing'
-    || coreError === 'not_released_to_factory'
-      ? coreError
-      : 'wo_create_failed';
+  const specific = mapCoreErrorToChainCode(coreError);
   return { ok: false, error: specific, planningError: coreError, message: coreError };
+}
+
+/** After the first chain write, failures must throw so withOrgContext rolls back. */
+function throwChainCoreFailure(coreError: string | undefined): never {
+  const code = mapCoreErrorToChainCode(coreError);
+  throw new WorkOrderChainError(code, coreError);
 }
 
 export async function createWorkOrderChain(raw: unknown, options?: ChainOptions): Promise<ChainResult> {
@@ -179,8 +189,16 @@ async function createWorkOrderChainInContext(
     throw error;
   }
 
+  if (!options?.skipFactoryReleaseGate) {
+    const releaseGate = await assertFgReleasedToFactoryForWo(ctx.client, fgItem.id);
+    if (releaseGate === 'not_released_to_factory') {
+      return { ok: false, error: 'not_released_to_factory' };
+    }
+  }
+
   const wipLines = await loadWipBomLines(ctx, bom.id);
   const wipWorkOrders: WOHeader[] = [];
+  let hasWritten = false;
   for (let index = 0; index < wipLines.length; index++) {
     const line = wipLines[index]!;
     const requiredQty = computeRequiredMaterialQty(line, materialScalar);
@@ -200,7 +218,11 @@ async function createWorkOrderChainInContext(
       productionLineId: input.productionLineId,
       notes: `Upstream WIP for ${input.documentNumber}`,
     });
-    if (!created.ok) return chainCoreFailure(created.error);
+    if (!created.ok) {
+      if (hasWritten) throwChainCoreFailure(created.error);
+      return chainCoreFailure(created.error);
+    }
+    hasWritten = true;
     wipWorkOrders.push(created.workOrder);
   }
 
@@ -218,7 +240,10 @@ async function createWorkOrderChainInContext(
     },
     options?.skipFactoryReleaseGate ? { skipFactoryReleaseGate: true } : undefined,
   );
-  if (!fgCreated.ok) return chainCoreFailure(fgCreated.error);
+  if (!fgCreated.ok) {
+    if (hasWritten) throwChainCoreFailure(fgCreated.error);
+    return chainCoreFailure(fgCreated.error);
+  }
 
   const dependencies = await linkDependencies(ctx, fgCreated.workOrder, fgCreated.materials, wipWorkOrders);
   return {
@@ -336,7 +361,7 @@ async function loadItem(ctx: OrgActionContext, itemId: string): Promise<ItemRow 
   return rows[0] ?? null;
 }
 
-async function loadActiveBom(ctx: OrgActionContext, itemId: string, itemCode: string): Promise<BomHeaderRow | null> {
+export async function loadActiveBom(ctx: OrgActionContext, itemId: string, itemCode: string): Promise<BomHeaderRow | null> {
   const { rows } = await ctx.client.query<BomHeaderRow>(
     `select id::text as id, version, line_basis
        from public.bom_headers
@@ -348,6 +373,18 @@ async function loadActiveBom(ctx: OrgActionContext, itemId: string, itemCode: st
     [itemId, itemCode],
   );
   return rows[0] ?? null;
+}
+
+/** True when the latest active BOM (same selection as preview/chain) has WIP lines. */
+export async function latestActiveBomHasWipLines(
+  ctx: OrgActionContext,
+  itemId: string,
+  itemCode: string,
+): Promise<boolean> {
+  const bom = await loadActiveBom(ctx, itemId, itemCode);
+  if (!bom) return false;
+  const wipLines = await loadWipBomLines(ctx, bom.id);
+  return wipLines.length > 0;
 }
 
 async function loadWipBomLines(ctx: OrgActionContext, bomHeaderId: string): Promise<WipBomLineRow[]> {

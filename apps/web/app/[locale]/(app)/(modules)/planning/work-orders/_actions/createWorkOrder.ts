@@ -4,7 +4,7 @@ import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../../../../../../lib/uom/convert';
-import { createWorkOrderChainForContext } from './create-work-order-chain';
+import { createWorkOrderChainForContext, latestActiveBomHasWipLines } from './create-work-order-chain';
 import { createWorkOrderCore, type CreateWorkOrderCoreParams } from './create-work-order-core';
 import {
   CreateWorkOrderInput,
@@ -14,28 +14,10 @@ import {
   type UomConversionResult,
 } from './shared';
 
-async function activeBomHasWipLines(
-  ctx: OrgActionContext,
-  productId: string,
-  itemCode: string,
-): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ exists: boolean }>(
-    `select exists (
-       select 1
-         from public.bom_headers bh
-         join public.bom_lines bl
-           on bl.org_id = bh.org_id
-          and bl.bom_header_id = bh.id
-        where bh.org_id = app.current_org_id()
-          and bh.status = 'active'
-          and (bh.item_id = $1::uuid or bh.product_id = $2)
-          and bl.component_type = 'WIP'
-          and bl.item_id is not null
-     ) as exists`,
-    [productId, itemCode],
-  );
-  return rows[0]?.exists === true;
-}
+export type CreateWorkOrderOptions = {
+  /** When true, multi-stage FG BOMs create upstream WIP work orders (planning modal only). */
+  allowChain?: boolean;
+};
 
 function mapChainError(
   error: string,
@@ -188,15 +170,20 @@ async function createWorkOrderChainFromPlanning(
   };
 }
 
-export async function createWorkOrder(params: CreateWorkOrderCoreParams): Promise<CreateWorkOrderResult> {
+export async function createWorkOrder(
+  params: CreateWorkOrderCoreParams,
+  options?: CreateWorkOrderOptions,
+): Promise<CreateWorkOrderResult> {
   try {
     return await withOrgContext(async (ctx): Promise<CreateWorkOrderResult> => {
       const parsed = CreateWorkOrderInput.safeParse(params);
       if (!parsed.success) return { ok: false, error: 'invalid_input', issues: parsed.error.issues };
 
-      const hasWipLines = await activeBomHasWipLines(ctx, parsed.data.productId, parsed.data.itemCode);
-      if (hasWipLines) {
-        return createWorkOrderChainFromPlanning(ctx, params);
+      if (options?.allowChain) {
+        const hasWipLines = await latestActiveBomHasWipLines(ctx, parsed.data.productId, parsed.data.itemCode);
+        if (hasWipLines) {
+          return createWorkOrderChainFromPlanning(ctx, params);
+        }
       }
       return createWorkOrderCore(ctx, params);
     });

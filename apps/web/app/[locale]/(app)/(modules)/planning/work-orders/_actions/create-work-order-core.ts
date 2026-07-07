@@ -104,7 +104,9 @@ export async function createWorkOrderCore(
   const itemUom = itemUomResult.rows[0];
   if (!itemUom) return { ok: false, error: 'invalid_input' };
 
-  if (!options?.skipFactoryReleaseGate) {
+  const skipReleaseGate =
+    options?.skipFactoryReleaseGate === true || input.itemTypeAtCreation === 'intermediate';
+  if (!skipReleaseGate) {
     const releaseGate = await assertFgReleasedToFactoryForWo(ctx.client, input.productId);
     if (releaseGate === 'not_released_to_factory') {
       return { ok: false, error: 'not_released_to_factory' };

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createWorkOrderChainForContext } from './create-work-order-chain';
+import { createWorkOrderChain, createWorkOrderChainForContext } from './create-work-order-chain';
 import type { QueryClient } from './shared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -14,10 +14,34 @@ const WIP_WO_ID = '22222222-2222-4222-8222-222222222222';
 const MATERIAL_ID = '33333333-3333-4333-8333-333333333333';
 
 const createWorkOrderCoreMock = vi.fn();
+const transactionEvents: string[] = [];
 
 vi.mock('./create-work-order-core', () => ({
   createWorkOrderCore: (...args: unknown[]) => createWorkOrderCoreMock(...args),
 }));
+
+vi.mock('../../../../../../../lib/planning/factory-release-wo-gate', () => ({
+  assertFgReleasedToFactoryForWo: vi.fn(),
+}));
+
+vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) => {
+    try {
+      const result = await action({
+        userId: USER_ID,
+        orgId: ORG_ID,
+        client: makeClient(),
+      });
+      transactionEvents.push('COMMIT');
+      return result;
+    } catch (error) {
+      transactionEvents.push('ROLLBACK');
+      throw error;
+    }
+  }),
+}));
+
+import { assertFgReleasedToFactoryForWo } from '../../../../../../../lib/planning/factory-release-wo-gate';
 
 let dependencyInserts: Array<{
   parentWoId: string;
@@ -98,7 +122,9 @@ function makeClient(): QueryClient {
 describe('createWorkOrderChain wo_dependencies overlap contract', () => {
   beforeEach(() => {
     dependencyInserts = [];
+    transactionEvents.length = 0;
     createWorkOrderCoreMock.mockReset();
+    vi.mocked(assertFgReleasedToFactoryForWo).mockResolvedValue('ok');
     createWorkOrderCoreMock
       .mockResolvedValueOnce({
         ok: true,
@@ -196,5 +222,168 @@ describe('createWorkOrderChain wo_dependencies overlap contract', () => {
         requiredQty: '500.000',
       });
     }
+  });
+});
+
+describe('createWorkOrderChain mid-chain failure + factory-release gate', () => {
+  beforeEach(() => {
+    dependencyInserts = [];
+    transactionEvents.length = 0;
+    createWorkOrderCoreMock.mockReset();
+    vi.mocked(assertFgReleasedToFactoryForWo).mockReset();
+  });
+
+  it('rolls back and returns { ok:false } when FG creation fails after a WIP child insert', async () => {
+    vi.mocked(assertFgReleasedToFactoryForWo).mockResolvedValue('ok');
+    createWorkOrderCoreMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workOrder: {
+          id: WIP_WO_ID,
+          woNumber: 'WO-CHAIN-W1',
+          productId: WIP_ITEM_ID,
+          itemTypeAtCreation: 'intermediate',
+          plannedQuantity: '500.0000',
+          producedQuantity: null,
+          uom: 'kg',
+          status: 'DRAFT',
+          scheduledStartTime: null,
+          scheduledEndTime: null,
+          productionLineId: SITE_ID,
+          priority: 'normal',
+          sourceOfDemand: 'manual',
+          sourceReference: null,
+          notes: null,
+          createdAt: '2026-07-07T00:00:00.000Z',
+          updatedAt: '2026-07-07T00:00:00.000Z',
+        },
+        materials: [],
+        primarySchedule: { id: 'schedule-wip' },
+      })
+      .mockResolvedValueOnce({ ok: false, error: 'not_released_to_factory' });
+
+    const result = await createWorkOrderChain({
+      productId: FG_ITEM_ID,
+      itemCode: 'FG-CHAIN',
+      documentNumber: 'WO-CHAIN',
+      siteId: SITE_ID,
+      plannedQuantity: '1000.0000',
+      productionLineId: SITE_ID,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'not_released_to_factory',
+      planningError: 'not_released_to_factory',
+      message: 'not_released_to_factory',
+    });
+    expect(transactionEvents).toEqual(['ROLLBACK']);
+    expect(transactionEvents).not.toContain('COMMIT');
+  });
+
+  it('creates the chain when the FG is released even if WIP child items are unreleased', async () => {
+    vi.mocked(assertFgReleasedToFactoryForWo).mockResolvedValue('ok');
+    createWorkOrderCoreMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workOrder: {
+          id: WIP_WO_ID,
+          woNumber: 'WO-CHAIN-W1',
+          productId: WIP_ITEM_ID,
+          itemTypeAtCreation: 'intermediate',
+          plannedQuantity: '500.0000',
+          producedQuantity: null,
+          uom: 'kg',
+          status: 'DRAFT',
+          scheduledStartTime: null,
+          scheduledEndTime: null,
+          productionLineId: SITE_ID,
+          priority: 'normal',
+          sourceOfDemand: 'manual',
+          sourceReference: null,
+          notes: null,
+          createdAt: '2026-07-07T00:00:00.000Z',
+          updatedAt: '2026-07-07T00:00:00.000Z',
+        },
+        materials: [],
+        primarySchedule: { id: 'schedule-wip' },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        workOrder: {
+          id: FG_WO_ID,
+          woNumber: 'WO-CHAIN',
+          productId: FG_ITEM_ID,
+          itemTypeAtCreation: 'fg',
+          plannedQuantity: '1000.0000',
+          producedQuantity: null,
+          uom: 'kg',
+          status: 'DRAFT',
+          scheduledStartTime: null,
+          scheduledEndTime: null,
+          productionLineId: SITE_ID,
+          priority: 'normal',
+          sourceOfDemand: 'manual',
+          sourceReference: null,
+          notes: null,
+          createdAt: '2026-07-07T00:00:00.000Z',
+          updatedAt: '2026-07-07T00:00:00.000Z',
+        },
+        materials: [{
+          id: MATERIAL_ID,
+          woId: FG_WO_ID,
+          productId: WIP_ITEM_ID,
+          materialName: 'WIP-STAGE-1',
+          requiredQty: '500.000',
+          consumedQty: '0.000',
+          reservedQty: '0.000',
+          uom: 'kg',
+          sequence: 1,
+          materialSource: 'stock',
+          bomItemId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          bomVersion: 1,
+          notes: null,
+        }],
+        primarySchedule: { id: 'schedule-fg', plannedWoId: FG_WO_ID },
+      });
+
+    const client = makeClient();
+    const result = await createWorkOrderChainForContext(
+      { userId: USER_ID, orgId: ORG_ID, client },
+      {
+        productId: FG_ITEM_ID,
+        itemCode: 'FG-CHAIN',
+        documentNumber: 'WO-CHAIN',
+        siteId: SITE_ID,
+        plannedQuantity: '1000.0000',
+        productionLineId: SITE_ID,
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(assertFgReleasedToFactoryForWo).toHaveBeenCalledTimes(1);
+    expect(assertFgReleasedToFactoryForWo).toHaveBeenCalledWith(client, FG_ITEM_ID);
+    const wipCall = createWorkOrderCoreMock.mock.calls[0]?.[1] as { itemTypeAtCreation?: string };
+    expect(wipCall.itemTypeAtCreation).toBe('intermediate');
+  });
+
+  it('blocks before any write when the FG root is not released to factory', async () => {
+    vi.mocked(assertFgReleasedToFactoryForWo).mockResolvedValue('not_released_to_factory');
+
+    const client = makeClient();
+    const result = await createWorkOrderChainForContext(
+      { userId: USER_ID, orgId: ORG_ID, client },
+      {
+        productId: FG_ITEM_ID,
+        itemCode: 'FG-CHAIN',
+        documentNumber: 'WO-CHAIN',
+        siteId: SITE_ID,
+        plannedQuantity: '1000.0000',
+        productionLineId: SITE_ID,
+      },
+    );
+
+    expect(result).toEqual({ ok: false, error: 'not_released_to_factory' });
+    expect(createWorkOrderCoreMock).not.toHaveBeenCalled();
   });
 });

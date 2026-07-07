@@ -151,6 +151,84 @@ describe('createWorkOrderCore factory-release gate', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('skips the factory-release gate for upstream WIP children (intermediate item type)', async () => {
+    vi.mocked(assertFgReleasedToFactoryForWo).mockResolvedValue('not_released_to_factory');
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        if (sql.includes('from public.items') && sql.includes('output_uom')) {
+          return {
+            rows: [{
+              output_uom: 'base',
+              uom_base: 'kg',
+              net_qty_per_each: null,
+              each_per_box: null,
+              boxes_per_pallet: null,
+              weight_mode: 'fixed',
+            }],
+          };
+        }
+        if (sql.includes('from public.sites')) {
+          return { rows: [{ id: SITE_ID }] };
+        }
+        if (sql.includes('from public.bom_headers')) {
+          return { rows: [] };
+        }
+        if (sql.startsWith('insert into public.work_orders')) {
+          return {
+            rows: [{
+              id: 'wo-wip-1',
+              wo_number: 'WO-WIP-1',
+              product_id: PRODUCT_ID,
+              item_code: 'WIP-001',
+              item_type_at_creation: 'intermediate',
+              planned_quantity: '100',
+              produced_quantity: null,
+              uom: 'kg',
+              status: 'DRAFT',
+              scheduled_start_time: null,
+              scheduled_end_time: null,
+              production_line_id: null,
+              priority: 'normal',
+              source_of_demand: 'manual',
+              source_reference: null,
+              notes: null,
+              created_at: '2026-07-07T00:00:00.000Z',
+              updated_at: '2026-07-07T00:00:00.000Z',
+            }],
+          };
+        }
+        if (sql.startsWith('insert into public.schedule_outputs')) {
+          return {
+            rows: [{
+              id: 'sched-wip-1',
+              planned_wo_id: 'wo-wip-1',
+              product_id: PRODUCT_ID,
+              output_role: 'primary',
+              expected_qty: '100',
+              uom: 'kg',
+              allocation_pct: '100.00',
+              disposition: 'to_stock',
+              downstream_wo_id: null,
+              notes: null,
+            }],
+          };
+        }
+        return { rows: [] };
+      }),
+    } as unknown as QueryClient;
+
+    const result = await createWorkOrderCore(makeCtx(client), {
+      productId: PRODUCT_ID,
+      itemCode: 'WIP-001',
+      itemTypeAtCreation: 'intermediate',
+      plannedQuantity: '100',
+      siteId: SITE_ID,
+    });
+
+    expect(assertFgReleasedToFactoryForWo).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+  });
+
   it('ignores skipFactoryReleaseGate smuggled in client params — gate still blocks', async () => {
     vi.mocked(assertFgReleasedToFactoryForWo).mockResolvedValue('not_released_to_factory');
     const client = {

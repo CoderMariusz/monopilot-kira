@@ -314,19 +314,9 @@ export function CreateWoModal({
         return;
       }
 
-      // Success. Surface the create warnings (no active BOM / no approved factory
-      // spec / multi-stage chain) so planning knows the WO can't be released-to-start
-      // until Technical creates them, then hand off to the caller.
-      if (result.chain && result.chain.totalCount > 1) {
-        const root = result.workOrder.woNumber;
-        setWarning(
-          labels.chainCreatedWarning
-            ? labels.chainCreatedWarning
-                .replace('{count}', String(result.chain.totalCount))
-                .replace('{root}', root)
-            : `${result.chain.totalCount} work orders created — root ${root}.`,
-        );
-      } else if (result.warning === 'no_active_bom') {
+      // Success. Surface create warnings (no active BOM / no approved factory spec)
+      // in-modal; multi-stage chain summary is shown by the list parent via onCreated.
+      if (result.warning === 'no_active_bom') {
         setWarning(labels.noBomWarning);
       } else if (result.warning === 'no_approved_factory_spec') {
         setWarning(labels.noFactorySpecWarning ?? labels.noBomWarning);

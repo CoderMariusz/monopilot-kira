@@ -28,13 +28,20 @@ vi.mock('./create-work-order-core', () => ({
   createWorkOrderCore: createWorkOrderCoreMock,
 }));
 
-vi.mock('./create-work-order-chain', () => ({
-  createWorkOrderChainForContext: createWorkOrderChainForContextMock,
-}));
+vi.mock('./create-work-order-chain', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./create-work-order-chain')>();
+  return {
+    ...actual,
+    createWorkOrderChainForContext: createWorkOrderChainForContextMock,
+  };
+});
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
-let hasWipLines = false;
+const BOM_LATEST_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const BOM_OLDER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+let hasWipLinesOnLatest = false;
 let client: QueryClient;
 
 function normalize(sql: string): string {
@@ -45,8 +52,28 @@ function makeClient(): QueryClient {
   return {
     query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
       const q = normalize(sql);
-      if (q.includes('select exists')) {
-        return { rows: [{ exists: hasWipLines }], rowCount: 1 };
+      if (q.includes('from public.bom_headers')) {
+        return {
+          rows: [{ id: BOM_LATEST_ID, version: 2, line_basis: 'per_base' }],
+          rowCount: 1,
+        };
+      }
+      if (q.includes('from public.bom_lines') && q.includes('component_type = \'wip\'')) {
+        const bomId = String(params[0]);
+        if (bomId === BOM_LATEST_ID && hasWipLinesOnLatest) {
+          return {
+            rows: [{
+              id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+              line_no: 10,
+              item_id: WIP_PRODUCT_ID,
+              component_code: 'WIP-STAGE-1',
+              quantity: '0.5',
+              scrap_pct: '0',
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
       }
       if (q.includes('from public.sites')) {
         return { rows: [{ id: SITE_ID }], rowCount: 1 };
@@ -89,7 +116,7 @@ const baseParams = {
 
 describe('createWorkOrder WIP chain branch', () => {
   beforeEach(() => {
-    hasWipLines = false;
+    hasWipLinesOnLatest = false;
     client = makeClient();
     createWorkOrderCoreMock.mockReset();
     createWorkOrderChainForContextMock.mockReset();
@@ -98,7 +125,40 @@ describe('createWorkOrder WIP chain branch', () => {
     );
   });
 
-  it('keeps the single-WO path when the active BOM has no WIP lines', async () => {
+  it('keeps the single-WO path when allowChain is false even if the latest BOM has WIP lines', async () => {
+    hasWipLinesOnLatest = true;
+    createWorkOrderCoreMock.mockResolvedValue({
+      ok: true,
+      workOrder: { id: FG_WO_ID, woNumber: 'WO-0012' },
+      materials: [],
+      primarySchedule: { id: SCHEDULE_ID },
+    });
+
+    const result = await createWorkOrder(baseParams);
+
+    expect(result.ok).toBe(true);
+    expect(createWorkOrderCoreMock).toHaveBeenCalledTimes(1);
+    expect(createWorkOrderChainForContextMock).not.toHaveBeenCalled();
+  });
+
+  it('uses the latest active BOM only — older active BOM with WIP does not trigger chain', async () => {
+    hasWipLinesOnLatest = false;
+    createWorkOrderCoreMock.mockResolvedValue({
+      ok: true,
+      workOrder: { id: FG_WO_ID, woNumber: 'WO-0012' },
+      materials: [],
+      primarySchedule: { id: SCHEDULE_ID },
+    });
+
+    const result = await createWorkOrder(baseParams, { allowChain: true });
+
+    expect(result.ok).toBe(true);
+    expect(createWorkOrderCoreMock).toHaveBeenCalledTimes(1);
+    expect(createWorkOrderChainForContextMock).not.toHaveBeenCalled();
+    expect(BOM_OLDER_ID).not.toBe(BOM_LATEST_ID);
+  });
+
+  it('keeps the single-WO path when the latest active BOM has no WIP lines', async () => {
     createWorkOrderCoreMock.mockResolvedValue({
       ok: true,
       workOrder: { id: FG_WO_ID, woNumber: 'WO-0012' },
@@ -117,8 +177,8 @@ describe('createWorkOrder WIP chain branch', () => {
     expect(createWorkOrderChainForContextMock).not.toHaveBeenCalled();
   });
 
-  it('calls createWorkOrderChainForContext when the active BOM has WIP lines', async () => {
-    hasWipLines = true;
+  it('calls createWorkOrderChainForContext when allowChain is true and the latest BOM has WIP lines', async () => {
+    hasWipLinesOnLatest = true;
     createWorkOrderChainForContextMock.mockResolvedValue({
       ok: true,
       fgWorkOrder: { id: FG_WO_ID, woNumber: 'WO-0013', productId: PRODUCT_ID },
@@ -134,7 +194,7 @@ describe('createWorkOrder WIP chain branch', () => {
       fgPrimarySchedule: { id: SCHEDULE_ID, plannedWoId: FG_WO_ID },
     });
 
-    const result = await createWorkOrder(baseParams);
+    const result = await createWorkOrder(baseParams, { allowChain: true });
 
     expect(result.ok).toBe(true);
     expect(createWorkOrderCoreMock).not.toHaveBeenCalled();
