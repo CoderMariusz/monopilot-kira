@@ -34,27 +34,30 @@ async function isLastOwnerViolation(
   orgId: string,
 ): Promise<boolean> {
   const { rows } = await client.query<{ last_owner_violation: boolean }>(
-    `with locked_owner_roles as (
-        select ur.user_id
+    `with locked_active_owners as (
+        select distinct u.id as user_id
           from public.user_roles ur
           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+          join public.users u on u.id = ur.user_id and u.org_id = ur.org_id
          where ur.org_id = $2::uuid
+           and u.is_active = true
            and (r.code = 'owner' or r.slug = 'owner')
-         for update of ur
+         for update of u
       ),
-      target_is_owner as (
+      target_is_active_owner as (
         select exists (
           select 1
-            from locked_owner_roles lor
-           where lor.user_id = $1::uuid
+            from locked_active_owners lao
+           where lao.user_id = $1::uuid
         ) as value
       ),
-      owner_count as (
+      other_active_owner_count as (
         select count(distinct user_id)::int as value
-          from locked_owner_roles
+          from locked_active_owners
+         where user_id <> $1::uuid
       )
-      select coalesce((select value from target_is_owner), false)
-           and coalesce((select value from owner_count), 0) <= 1 as last_owner_violation`,
+      select coalesce((select value from target_is_active_owner), false)
+           and coalesce((select value from other_active_owner_count), 0) = 0 as last_owner_violation`,
     [targetUserId, orgId],
   );
   return rows[0]?.last_owner_violation === true;
