@@ -22,16 +22,15 @@
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { publishBomVersion } from '../../../../../../../lib/technical/bom-publish-service';
 import { safeRevalidatePath } from './revalidate';
 import { buildGraph, detectCycle } from './cycle-detection';
 import {
   AUDIT_BOM_APPROVE,
-  AUDIT_BOM_PUBLISH,
   BOM_APPROVE_PERMISSION,
   BOM_VERSION_PUBLISH_PERMISSION,
   type BomWorkflowResult,
   BomVersionRefInput,
-  EVENT_FG_BOM_RELEASED,
   formatRmUsabilityFailures,
   hasPermission,
   isPgError,
@@ -39,7 +38,6 @@ import {
   type QueryClient,
   validateBomLineRmUsability,
   writeAudit,
-  writeOutbox,
 } from './shared';
 
 type HeaderState = { id: string; status: string; product_id: string | null };
@@ -155,55 +153,26 @@ export async function publishBom(rawInput: unknown): Promise<BomWorkflowResult> 
       const header = await loadVersion(c, productId, version);
       if (!header) return { ok: false, error: 'not_found' };
 
-      // V-TEC-10: only an approved version may publish.
-      if (header.status === 'active') return { ok: false, error: 'conflict', message: 'version already active' };
-      if (header.status !== 'technical_approved') {
-        return { ok: false, error: 'validation_failed', code: 'V-TEC-10', message: 'version must be technical_approved before publish' };
+      const published = await publishBomVersion(ctx, {
+        bomHeaderId: header.id,
+        productId,
+        version,
+      });
+      if (!published.ok) {
+        if (published.error === 'forbidden') return { ok: false, error: 'forbidden' };
+        if (published.error === 'validation_failed') {
+          return {
+            ok: false,
+            error: 'validation_failed',
+            code: published.code,
+            message: published.message,
+          };
+        }
+        if (published.error === 'conflict') {
+          return { ok: false, error: 'conflict', message: published.message };
+        }
+        return { ok: false, error: published.error };
       }
-
-      // Supersede the prior active version for this product (atomic, same txn).
-      const { rows: superseded } = await c.query<{ id: string; version: number }>(
-        `update public.bom_headers
-            set status = 'superseded'
-          where org_id = app.current_org_id()
-            and product_id = $1
-            and status = 'active'
-            and id <> $2::uuid
-          returning id, version`,
-        [productId, header.id],
-      );
-
-      const { rows: activated } = await c.query<{ version: number }>(
-        `update public.bom_headers
-            set status = 'active'
-          where org_id = app.current_org_id() and id = $1::uuid and status = 'technical_approved'
-          returning version`,
-        [header.id],
-      );
-      if (activated.length === 0) return { ok: false, error: 'conflict' };
-
-      await writeAudit(c, {
-        orgId,
-        actorUserId: userId,
-        action: AUDIT_BOM_PUBLISH,
-        resourceId: header.id,
-        beforeState: { status: 'technical_approved', supersededVersions: superseded.map((s) => s.version) },
-        afterState: { status: 'active', productId, version },
-      });
-
-      await writeOutbox(c, {
-        orgId,
-        eventType: EVENT_FG_BOM_RELEASED,
-        aggregateType: 'bom_header',
-        aggregateId: header.id,
-        payload: {
-          product_id: productId,
-          version,
-          status: 'active',
-          superseded_header_ids: superseded.map((s) => s.id),
-          actor_user_id: userId,
-        },
-      });
 
       safeRevalidatePath('/technical/bom');
       return { ok: true, data: { id: header.id, status: 'active', version } };
