@@ -28,6 +28,8 @@ const ctx = {
   projectExists: true,
   // Whether an existing component lookup returns a row (for update/delete).
   componentExists: true,
+  // item_id returned by the UPDATE "before" SELECT (tests preserve-on-omit).
+  existingItemId: null as string | null,
   // Whether packaging item lookup returns a packaging row.
   packagingItemExists: true,
   insertReturnsId: true,
@@ -68,7 +70,11 @@ function fakeClient() {
       }
       // Existing-component probe (update/delete "before" SELECT).
       if (s.startsWith('select id, tier, component_name')) {
-        return { rows: ctx.componentExists ? [{ id: 'cmp', tier: 'primary', component_name: 'x' }] : [] };
+        return {
+          rows: ctx.componentExists
+            ? [{ id: 'cmp', tier: 'primary', component_name: 'x', item_id: ctx.existingItemId }]
+            : [],
+        };
       }
       // INSERT / UPDATE / DELETE returning id.
       if (s.includes('returning id')) {
@@ -121,6 +127,7 @@ beforeEach(() => {
   ctx.grantedPerms = new Set<string>();
   ctx.projectExists = true;
   ctx.componentExists = true;
+  ctx.existingItemId = null;
   ctx.packagingItemExists = true;
   ctx.insertReturnsId = true;
   ctx.calls = [];
@@ -277,6 +284,9 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
 
   it('updates both scrap_pct and waste_pct from the single Waste % alias', async () => {
     ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    const existingItemId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    ctx.existingItemId = existingItemId;
+
     const res = await upsertPackagingComponent({ ...valid, id: COMPONENT_ID, wastePct: 3 });
     expect(res).toEqual({ ok: true, data: { id: 'new-component-id' } });
 
@@ -287,6 +297,20 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
     expect(update!.sql).toContain('waste_pct');
     expect(update!.sql).toMatch(/waste_pct\s*=\s*\$10::numeric/);
     expect(update!.params.filter((param) => param === 3)).toHaveLength(2);
+    // itemId omitted → preserve the catalog link from the before row ($14).
+    expect(update!.params[13]).toBe(existingItemId);
+  });
+
+  it('clears item_id on UPDATE when itemId is explicitly null', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    ctx.existingItemId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+
+    const res = await upsertPackagingComponent({ ...valid, id: COMPONENT_ID, itemId: null });
+    expect(res).toEqual({ ok: true, data: { id: 'new-component-id' } });
+
+    const update = ctx.calls.find((c) => /update public\.packaging_components/i.test(c.sql));
+    expect(update).toBeTruthy();
+    expect(update!.params[13]).toBeNull();
   });
 
   it('defaults waste_pct to 0 when omitted and binds it ::numeric in the INSERT', async () => {

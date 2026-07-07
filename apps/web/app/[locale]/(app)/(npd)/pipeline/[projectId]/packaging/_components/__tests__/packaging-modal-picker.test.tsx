@@ -136,4 +136,56 @@ describe('PackagingComponentModal — catalog item picker', () => {
     );
     expect(screen.queryByTestId('item-picker-trigger')).not.toBeInTheDocument();
   });
+
+  it('preserves catalog itemId when editing an unrelated field (qty)', async () => {
+    const user = userEvent.setup();
+    const onUpsert = vi.fn().mockResolvedValue({ ok: true });
+    const itemId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+    render(
+      <PackagingComponentModal
+        open
+        onOpenChange={vi.fn()}
+        projectId="99999999-9999-4999-8999-999999999999"
+        editing={{
+          id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          tier: 'primary',
+          componentName: 'Vacuum pouch',
+          material: 'PET',
+          supplierCode: null,
+          spec: null,
+          costPerUnit: '0.08',
+          scrapPct: 0,
+          wastePct: 0,
+          qtyPerPack: 2,
+          status: 'draft',
+          artworkFileId: null,
+          artworkStatus: null,
+          displayOrder: 0,
+          itemId,
+          itemCode: 'PM-2001',
+        }}
+        defaultTier="primary"
+        labels={LABELS}
+        onUpsert={onUpsert}
+        searchItemsAction={vi.fn().mockResolvedValue([])}
+      />,
+    );
+
+    expect(screen.getByTestId('packaging-linked-item')).toHaveTextContent('PM-2001');
+
+    const qtyInput = screen.getByTestId('field-qty-per-box');
+    await user.clear(qtyInput);
+    await user.type(qtyInput, '5');
+
+    await user.click(screen.getByTestId('submit-component'));
+    await waitFor(() => expect(onUpsert).toHaveBeenCalledTimes(1));
+    expect(onUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        itemId,
+        qtyPerPack: 5,
+      }),
+    );
+  });
 });

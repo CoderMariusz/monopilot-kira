@@ -35,7 +35,7 @@ export type InboundRow = {
   docNumber: string;
   /** Detail route, locale-prefixed by the page. */
   href: string;
-  /** Desktop GRN receive route for open POs (optional). */
+  /** Desktop GRN receive route for open POs / in-transit TOs (optional). */
   receiveHref?: string | null;
   /** Supplier (PO) or "FROM → TO" warehouse route (TO). */
   party: string;
@@ -149,7 +149,7 @@ function InboundTable({
               {r.lineCount === null ? '—' : r.lineCount}
             </TableCell>
             <TableCell className="text-right">
-              {r.type === 'po' && r.receiveHref ? (
+              {r.receiveHref ? (
                 <Link
                   href={r.receiveHref}
                   data-testid={`inbound-receive-${r.id}`}

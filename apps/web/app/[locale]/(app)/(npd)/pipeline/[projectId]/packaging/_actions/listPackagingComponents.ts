@@ -38,6 +38,8 @@ type LoaderRow = {
   artwork_file_id: string | null;
   artwork_status: string | null;
   display_order: number;
+  item_id: string | null;
+  item_code: string | null;
 };
 
 export async function listPackagingComponents(raw: unknown): Promise<ListPackagingResult> {
@@ -64,25 +66,30 @@ export async function listPackagingComponents(raw: unknown): Promise<ListPackagi
       if (proj.rows.length === 0) return { ok: false as const, error: 'not_found' as const };
 
       const { rows } = await queryClient.query<LoaderRow>(
-        `select id,
-                tier,
-                component_name,
-                material,
-                supplier_id::text as supplier_id,
-                supplier_code,
-                spec,
-                cost_per_unit::text as cost_per_unit,
-                coalesce(scrap_pct, 0) as scrap_pct,
-                coalesce(waste_pct, 0) as waste_pct,
-                qty_per_pack,
-                status,
-                artwork_file_id,
-                artwork_status,
-                display_order
-           from public.packaging_components
-          where org_id = app.current_org_id()
-            and project_id = $1::uuid
-          order by tier asc, display_order asc, component_name asc`,
+        `select pc.id,
+                pc.tier,
+                pc.component_name,
+                pc.material,
+                pc.supplier_id::text as supplier_id,
+                pc.supplier_code,
+                pc.spec,
+                pc.cost_per_unit::text as cost_per_unit,
+                coalesce(pc.scrap_pct, 0) as scrap_pct,
+                coalesce(pc.waste_pct, 0) as waste_pct,
+                pc.qty_per_pack,
+                pc.status,
+                pc.artwork_file_id,
+                pc.artwork_status,
+                pc.display_order,
+                pc.item_id,
+                i.item_code
+           from public.packaging_components pc
+           left join public.items i
+             on i.id = pc.item_id
+            and i.org_id = pc.org_id
+          where pc.org_id = app.current_org_id()
+            and pc.project_id = $1::uuid
+          order by pc.tier asc, pc.display_order asc, pc.component_name asc`,
         [projectId],
       );
 
@@ -102,6 +109,8 @@ export async function listPackagingComponents(raw: unknown): Promise<ListPackagi
         artworkFileId: r.artwork_file_id,
         artworkStatus: r.artwork_status,
         displayOrder: r.display_order,
+        itemId: r.item_id,
+        itemCode: r.item_code,
       }));
 
       return { ok: true as const, data };

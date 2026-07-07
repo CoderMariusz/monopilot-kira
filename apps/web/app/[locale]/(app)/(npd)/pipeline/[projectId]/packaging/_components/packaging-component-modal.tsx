@@ -61,13 +61,10 @@ function rowToForm(row: PackagingComponentRow | null, defaultTier: PackagingTier
     qtyPerPack: row?.qtyPerPack != null ? String(row.qtyPerPack) : '',
     status: row?.status ?? 'draft',
     tier: row?.tier ?? defaultTier,
-    // The list row does not carry item_id; the link is (re)established via the
-    // picker on each open. Editing without re-picking leaves the link untouched
-    // on the server only if itemId is undefined — here we send null explicitly,
-    // so an edit clears a stale link unless re-picked. (Acceptable: packaging
-    // links are advisory and re-pickable.)
-    itemId: null,
-    itemCode: null,
+    // Preserve the existing catalog link on edit; only the picker clear action
+    // or an explicit re-pick changes itemId before submit.
+    itemId: row?.itemId ?? null,
+    itemCode: row?.itemCode ?? null,
   };
 }
 

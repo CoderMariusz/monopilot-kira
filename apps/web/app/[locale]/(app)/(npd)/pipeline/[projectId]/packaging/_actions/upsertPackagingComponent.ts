@@ -62,18 +62,19 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
       const wastePct = unifiedWastePct;
       const qtyPerPack = input.qtyPerPack ?? null;
       const displayOrder = input.displayOrder ?? 0;
-      const itemId = input.itemId ?? null;
+      const itemIdProvided = 'itemId' in rawRecord;
 
-      if (itemId) {
+      async function validatePackagingItemId(candidate: string | null): Promise<boolean> {
+        if (!candidate) return true;
         const item = await queryClient.query<{ id: string }>(
           `select id from public.items
             where id = $1::uuid
               and org_id = app.current_org_id()
               and item_type = 'packaging'
             limit 1`,
-          [itemId],
+          [candidate],
         );
-        if (item.rows.length === 0) return { ok: false as const, error: 'invalid_input' as const };
+        return item.rows.length > 0;
       }
 
       let beforeRow: { supplier_id: string | null; supplier_code: string | null } | null = null;
@@ -124,6 +125,13 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
           [input.id],
         );
         if (before.rows.length === 0) return { ok: false as const, error: 'not_found' as const };
+
+        const existingItemId = (before.rows[0].item_id as string | null | undefined) ?? null;
+        const itemId = itemIdProvided ? (input.itemId ?? null) : existingItemId;
+
+        if (!(await validatePackagingItemId(itemId))) {
+          return { ok: false as const, error: 'invalid_input' as const };
+        }
 
         const updated = await queryClient.query<{ id: string }>(
           `update public.packaging_components
@@ -192,6 +200,11 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
       }
 
       // ─── INSERT ─────────────────────────────────────────────────────────────
+      const itemId = input.itemId ?? null;
+      if (!(await validatePackagingItemId(itemId))) {
+        return { ok: false as const, error: 'invalid_input' as const };
+      }
+
       const inserted = await queryClient.query<{ id: string }>(
         `insert into public.packaging_components
            (org_id, project_id, tier, component_name, material, supplier_id, supplier_code, spec,

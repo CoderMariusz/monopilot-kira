@@ -19,9 +19,14 @@ import { Suspense } from 'react';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { listGrns } from '../_actions/grn-actions';
 import { getWhcTranslator } from '../wh-c-labels';
 import { GrnListClient, type GrnListFilters, type GrnListLabels } from './_components/grn-list.client';
+import {
+  GrnListReceiveActions,
+  type GrnListReceiveActionLabels,
+} from './_components/grn-list-receive-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +47,40 @@ function parseGrnFilters(sp: { status?: string; q?: string; source?: string }): 
 
 const PROTOTYPE_ANCHOR =
   'prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx:3-90';
+
+const WAREHOUSE_GRN_RECEIVE_PERMISSION = 'warehouse.grn.receive';
+
+type QueryResult<T> = { rows: T[]; rowCount?: number | null };
+type QueryClient = {
+  query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<QueryResult<T>>;
+};
+type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
+
+async function resolveCanReceive(): Promise<boolean> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as OrgContextLike;
+      const { rows } = await ctx.client.query<{ ok: boolean }>(
+        `select true as ok
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+          where ur.user_id = $1::uuid
+            and ur.org_id = $2::uuid
+            and (
+              rp.permission is not null
+              or r.code = $3
+              or coalesce(r.permissions, '[]'::jsonb) ? $3
+            )
+          limit 1`,
+        [ctx.userId, ctx.orgId, WAREHOUSE_GRN_RECEIVE_PERMISSION],
+      );
+      return rows.length > 0;
+    });
+  } catch {
+    return false;
+  }
+}
 
 function buildLabels(t: ReturnType<typeof getWhcTranslator>): GrnListLabels {
   return {
@@ -84,6 +123,13 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>): GrnListLabels {
 function parsePage(value: string | undefined): number {
   const page = Number(value);
   return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function buildReceiveActionLabels(t: ReturnType<typeof getWhcTranslator>): GrnListReceiveActionLabels {
+  return {
+    receiveFromPo: t('grnList.receiveFromPo'),
+    receiveFromTo: t('grnList.receiveFromTo'),
+  };
 }
 
 function ListSkeleton() {
@@ -159,6 +205,7 @@ export default async function GrnsListPage({ params, searchParams }: PageProps) 
   const filters = parseGrnFilters(sp);
   const suspenseKey = `${page}:${filters.status}:${filters.search}:${filters.sourceType}`;
   const t = getWhcTranslator(locale);
+  const canReceive = await resolveCanReceive();
 
   return (
     <main
@@ -174,6 +221,13 @@ export default async function GrnsListPage({ params, searchParams }: PageProps) 
           { label: t('grnList.breadcrumb.warehouse'), href: `/${locale}/warehouse` },
           { label: t('grnList.breadcrumb.grns') },
         ]}
+        actions={
+          <GrnListReceiveActions
+            locale={locale}
+            labels={buildReceiveActionLabels(t)}
+            canReceive={canReceive}
+          />
+        }
       />
       <Suspense key={suspenseKey} fallback={<ListSkeleton />}>
         <ListContent locale={locale} page={page} filters={filters} />
