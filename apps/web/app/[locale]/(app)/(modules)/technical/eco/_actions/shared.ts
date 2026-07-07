@@ -6,6 +6,10 @@ export { hasPermission };
 export const ECO_WRITE_PERMISSION = 'technical.eco.write';
 export const ECO_APPROVE_PERMISSION = 'technical.eco.approve';
 
+/** ext_jsonb keys for apply-on-close supersession linkage (NN-TEC-3). */
+export const ECO_EXT_SUPERSEDING_BOM_HEADER_ID = 'supersedingBomHeaderId';
+export const ECO_EXT_SUPERSEDING_FACTORY_SPEC_ID = 'supersedingFactorySpecId';
+
 export const ECO_STATUSES = ['draft', 'approved', 'implementing', 'closed'] as const;
 export type EcoStatus = (typeof ECO_STATUSES)[number];
 export type EcoStatusTone = 'success' | 'warning' | 'danger' | 'info' | 'muted';
@@ -25,6 +29,8 @@ export type EcoActionError =
   | 'not_found'
   | 'already_exists'
   | 'invalid_state'
+  | 'supersession_required'
+  | 'supersession_invalid'
   | 'persistence_failed';
 
 const OptionalUuid = z.string().uuid().optional().nullable();
@@ -97,6 +103,17 @@ export const TransitionEcoInput = z.object({
   comment: z.string().trim().max(2000).optional().nullable(),
 });
 export type TransitionEcoInputType = z.input<typeof TransitionEcoInput>;
+
+export const LinkEcoSupersessionInput = z
+  .object({
+    id: z.string().uuid(),
+    supersedingBomHeaderId: OptionalUuid,
+    supersedingFactorySpecId: OptionalUuid,
+  })
+  .refine((v) => v.supersedingBomHeaderId || v.supersedingFactorySpecId, {
+    message: 'provide a superseding BOM header and/or factory spec id',
+  });
+export type LinkEcoSupersessionInputType = z.input<typeof LinkEcoSupersessionInput>;
 
 export type EcoLine = {
   id: string;

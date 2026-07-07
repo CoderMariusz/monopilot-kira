@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { applyEcoOnClose } from '../../../../../../../lib/technical/eco-apply-service';
 import {
   ECO_WRITE_PERMISSION,
   hasPermission,
@@ -20,6 +21,15 @@ export async function closeChangeOrder(rawInput: unknown): Promise<MutateEcoResu
       const qc = client as QueryClient;
       const ctx: OrgActionContext = { userId, orgId, client: qc };
       if (!(await hasPermission(ctx, ECO_WRITE_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+      const apply = await applyEcoOnClose(ctx, parsed.data.id);
+      if (!apply.ok) {
+        return {
+          ok: false,
+          error: apply.error,
+          message: apply.message,
+        };
+      }
 
       const { rows } = await qc.query<{ id: string; status: string }>(
         `update public.technical_change_orders
@@ -52,10 +62,13 @@ export async function closeChangeOrder(rawInput: unknown): Promise<MutateEcoResu
         orgId,
         changeOrderId: order.id,
         actorUserId: userId,
-        action: 'eco.closed',
+        action: apply.data.applied ? 'eco.applied' : 'eco.closed',
         fromStatus: 'implementing',
         toStatus: 'closed',
-        payload: { comment: parsed.data.comment ?? null },
+        payload: {
+          comment: parsed.data.comment ?? null,
+          apply: apply.data,
+        },
       });
 
       return { ok: true, data: { id: order.id, status: 'closed' } };
