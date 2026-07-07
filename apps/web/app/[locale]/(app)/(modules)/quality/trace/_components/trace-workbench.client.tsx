@@ -1,28 +1,11 @@
 'use client';
 
 /**
- * Trace & Recall workbench (Wave E2A, client island).
+ * Trace workbench (Wave E2A, client island) — read-only trace report.
  *
- * Spec-driven DS conformance (no JSX prototype for trace — nearest reusable
- * pattern is the sibling quality CCP board + record modal, plus the genealogy
- * panel): an input row (ref field + shadcn Select type picker + a direction
- * toggle) → [Run trace] → runTraceReport; a summary panel (the 5 counts), an
- * expandable node tree (supplier→GRN→input LP→WO→output LP→shipment marker), and
- * a flat table (ref, type, qty+uom). A [Save as drill] button persists the run
- * via startRecallDrill + completeRecallDrill.
- *
- * Presentational + owns ONLY the input state, the last-run report, and the
- * transient drill-saved banner. No data fetching, no permission logic (both
- * resolved server-side — a forbidden read renders the denied panel from the
- * RSC page). The Server Actions are passed in as props (imported by the page,
- * never authored here).
- *
- * Rule 0.11: no raw UUID is ever rendered — only `node.ref`/`node.label` (human
- * refs: lp_code / wo_number / grn number / supplier code+name). The deep-link
- * href is built from the internal `nodeId` UUID by the pure, locale-scoped
- * `toDetailHref` (run here from the `locale` string prop — not passed as a
- * function-valued prop, which cannot cross the RSC boundary) and used ONLY in
- * the `href` attribute, never as visible text.
+ * Input row (ref field + shadcn Select type picker + direction toggle) →
+ * [Run trace] → runTraceReport; summary panel, node tree, flat table, CSV export.
+ * No writes — recall drill persistence is a separate future task.
  */
 
 import { useMemo, useState, useTransition } from 'react';
@@ -34,8 +17,6 @@ import { Select } from '@monopilot/ui/Select';
 import { downloadCsv, fileSafe, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
 import type {
   RunTraceReportAction,
-  StartRecallDrillAction,
-  CompleteRecallDrillAction,
   TraceDirection,
   TraceInputType,
   TraceNodeType,
@@ -70,7 +51,6 @@ const NODE_VARIANT: Record<TraceNodeType, BadgeVariant> = {
   shipment_placeholder: 'muted',
 };
 
-/** The vertical chain order rendered in the tree (parity: supplier→…→shipment). */
 const CHAIN_ORDER: TraceNodeType[] = [
   'supplier',
   'purchase_order',
@@ -97,35 +77,21 @@ export function TraceWorkbench({
   labels,
   locale,
   runTraceReportAction,
-  startRecallDrillAction,
-  completeRecallDrillAction,
-  recallDrillsHref,
 }: {
   labels: TraceLabels;
   locale: string;
   runTraceReportAction: RunTraceReportAction;
-  startRecallDrillAction: StartRecallDrillAction;
-  completeRecallDrillAction: CompleteRecallDrillAction;
-  recallDrillsHref: string;
 }) {
   const [inputRef, setInputRef] = useState('');
   const [inputType, setInputType] = useState<TraceInputType>('lp');
   const [direction, setDirection] = useState<TraceDirection>('both');
   const [report, setReport] = useState<TraceReportView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [drillSaved, setDrillSaved] = useState(false);
   const [running, startRun] = useTransition();
-  const [savingDrill, startSave] = useTransition();
 
   const trimmedRef = inputRef.trim();
   const canRun = trimmedRef.length > 0 && !running;
 
-  // The plain runTraceReport returns nodes WITHOUT detailHref; we enrich each
-  // node with a deep-link href client-side. `toDetailHref` is a PURE,
-  // locale-scoped builder (validates the UUID format and only constructs the
-  // href — never renders the UUID), so it runs here from the `locale` string
-  // prop. This avoids passing a function-valued resolver across the RSC
-  // boundary (which cannot serialise and crashes the page).
   const enrich = useMemo(
     () =>
       (raw: TraceReportView): TraceReportView => ({
@@ -141,7 +107,6 @@ export function TraceWorkbench({
   function runTrace() {
     if (trimmedRef.length === 0) return;
     setError(null);
-    setDrillSaved(false);
     startRun(async () => {
       try {
         const raw = await runTraceReportAction({ inputType, inputRef: trimmedRef, direction });
@@ -150,30 +115,6 @@ export function TraceWorkbench({
         console.error('Trace report failed', error);
         setReport(null);
         setError(labels.states.errorTitle);
-      }
-    });
-  }
-
-  function saveDrill() {
-    if (!report) return;
-    setError(null);
-    setDrillSaved(false);
-    startSave(async () => {
-      try {
-        const { drillId, report: rawReport } = await startRecallDrillAction({
-          inputType,
-          inputRef: trimmedRef,
-          direction,
-        });
-        // Strip the view-only `detailHref` enrichment before persisting so the
-        // stored report matches the action's TraceReport shape exactly.
-        const persisted = stripView(rawReport as TraceReportView);
-        await completeRecallDrillAction(drillId, persisted as never);
-        setReport(enrich(rawReport as TraceReportView));
-        setDrillSaved(true);
-      } catch (error) {
-        console.error('Recall drill save failed', error);
-        setError(labels.drillSaveError);
       }
     });
   }
@@ -188,7 +129,6 @@ export function TraceWorkbench({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* ── Input row ─────────────────────────────────────────── */}
       <Card
         data-testid="trace-input-row"
         className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
@@ -196,7 +136,6 @@ export function TraceWorkbench({
         <fieldset className="flex flex-col gap-4">
           <legend className="sr-only">{labels.form.legend}</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_1fr]">
-            {/* ref entry field */}
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium text-slate-700">{labels.form.refLabel}</span>
               <input
@@ -215,7 +154,6 @@ export function TraceWorkbench({
               />
             </label>
 
-            {/* type selector (shadcn Select — no raw <select>) */}
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium text-slate-700">{labels.form.typeLabel}</span>
               <div data-testid="trace-input-type">
@@ -230,7 +168,6 @@ export function TraceWorkbench({
             </label>
           </div>
 
-          {/* direction toggle (segmented control — all three options) */}
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-slate-700">{labels.form.directionLabel}</span>
             <div
@@ -270,46 +207,20 @@ export function TraceWorkbench({
             >
               {running ? labels.form.running : labels.form.run}
             </button>
-            {report && (
-              <>
-                <button
-                  type="button"
-                  data-testid="trace-save-drill"
-                  disabled={savingDrill}
-                  onClick={saveDrill}
-                  className="rounded-md border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 transition enabled:hover:bg-slate-50 disabled:opacity-50"
-                >
-                  {savingDrill ? labels.form.savingDrill : labels.form.saveDrill}
-                </button>
-                <button
-                  type="button"
-                  data-testid="trace-export-csv"
-                  onClick={exportCsv}
-                  className="rounded-md border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  Export CSV
-                </button>
-              </>
-            )}
+            {report ? (
+              <button
+                type="button"
+                data-testid="trace-export-csv"
+                onClick={exportCsv}
+                className="rounded-md border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Export CSV
+              </button>
+            ) : null}
           </div>
         </fieldset>
       </Card>
 
-      {/* drill-saved banner */}
-      {drillSaved && (
-        <div
-          role="status"
-          data-testid="trace-drill-saved"
-          className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
-        >
-          {labels.drillSaved}{' '}
-          <a href={recallDrillsHref} className="font-medium underline">
-            {labels.summary.title}
-          </a>
-        </div>
-      )}
-
-      {/* ── States: loading / error / empty / data ────────────── */}
       {running && !report ? (
         <div
           data-testid="trace-loading"
@@ -351,7 +262,6 @@ export function TraceWorkbench({
             <TraceTruncationBanner labels={labels} truncation={report.truncation} />
           ) : null}
 
-          {/* Summary panel — 5 counts */}
           <section aria-label={labels.summary.title} className="flex flex-col gap-2">
             <h2 className="text-sm font-semibold text-slate-800">{labels.summary.title}</h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -367,7 +277,6 @@ export function TraceWorkbench({
             <TraceMassBalancePanel labels={labels} massBalance={report.massBalance} />
           ) : null}
 
-          {/* Node tree — supplier→GRN→input LP→WO→output LP→shipment marker */}
           <section aria-label={labels.graph.ariaLabel} className="flex flex-col gap-2">
             <h2 className="text-sm font-semibold text-slate-800">{labels.graph.title}</h2>
             <ol data-testid="trace-graph" className="flex flex-col gap-2">
@@ -388,7 +297,6 @@ export function TraceWorkbench({
             </ol>
           </section>
 
-          {/* Flat table — ref, type, qty + uom */}
           <section aria-label={labels.table.ariaLabel} className="flex flex-col gap-2">
             <h2 className="text-sm font-semibold text-slate-800">{labels.table.title}</h2>
             <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -498,7 +406,6 @@ export function buildTraceReportCsv(report: TraceReportCsvView): string {
   return toCsv(header, rows);
 }
 
-/** Groups nodes by their chain stage in CHAIN_ORDER (only non-empty stages). */
 function groupByChain(nodes: TraceNodeView[]): { type: TraceNodeType; nodes: TraceNodeView[] }[] {
   const byType = new Map<TraceNodeType, TraceNodeView[]>();
   for (const node of nodes) {
@@ -510,17 +417,4 @@ function groupByChain(nodes: TraceNodeView[]): { type: TraceNodeType; nodes: Tra
     type,
     nodes: byType.get(type) ?? [],
   }));
-}
-
-/** Drops the view-only `detailHref` so the persisted report matches TraceReport. */
-function stripView(view: TraceReportView) {
-  return {
-    nodes: view.nodes.map(({ detailHref: _ignored, ...n }) => n),
-    edges: view.edges,
-    flat: view.flat,
-    affectedCustomers: view.affectedCustomers,
-    summary: view.summary,
-    truncation: view.truncation,
-    massBalance: view.massBalance,
-  };
 }

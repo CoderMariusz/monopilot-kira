@@ -38,8 +38,6 @@ export type TraceLabels = {
     directionLabel: string;
     run: string;
     running: string;
-    saveDrill: string;
-    savingDrill: string;
   };
   inputType: Record<TraceInputType, string>;
   direction: Record<TraceDirection, string>;
@@ -77,8 +75,6 @@ export type TraceLabels = {
     deniedTitle: string;
     deniedBody: string;
   };
-  drillSaved: string;
-  drillSaveError: string;
   truncation: {
     banner: string;
     layerSeedLp: string;
@@ -88,14 +84,21 @@ export type TraceLabels = {
   massBalance: {
     title: string;
     ariaLabel: string;
-    produced: string;
+    nodeTitle: string;
+    nodeWo: string;
+    nodeInput: string;
+    nodeOutput: string;
+    nodeWaste: string;
+    nodeRemaining: string;
+    nodeDelta: string;
+    totalTitle: string;
+    seedInput: string;
     onSite: string;
     shipped: string;
     waste: string;
-    recovered: string;
-    delta: string;
-    percentRecovered: string;
-    unbalanced: string;
+    nettedDelta: string;
+    percentAccounted: string;
+    nettedUnbalanced: string;
     unreconciledTitle: string;
     unreconciledRow: string;
     scopeLimited: string;
@@ -155,8 +158,6 @@ export function buildTraceLabels(t: Translator): TraceLabels {
       directionLabel: t('form.directionLabel'),
       run: t('form.run'),
       running: t('form.running'),
-      saveDrill: t('form.saveDrill'),
-      savingDrill: t('form.savingDrill'),
     },
     inputType: Object.fromEntries(
       INPUT_TYPES.map((k) => [k, t(`inputType.${k}`)]),
@@ -200,8 +201,6 @@ export function buildTraceLabels(t: Translator): TraceLabels {
       deniedTitle: t('states.deniedTitle'),
       deniedBody: t('states.deniedBody'),
     },
-    drillSaved: t('drillSaved'),
-    drillSaveError: t('drillSaveError'),
     truncation: {
       banner: t('truncation.banner'),
       layerSeedLp: t('truncation.layerSeedLp'),
@@ -211,14 +210,21 @@ export function buildTraceLabels(t: Translator): TraceLabels {
     massBalance: {
       title: t('massBalance.title'),
       ariaLabel: t('massBalance.ariaLabel'),
-      produced: t('massBalance.produced'),
+      nodeTitle: t('massBalance.nodeTitle'),
+      nodeWo: t('massBalance.nodeWo'),
+      nodeInput: t('massBalance.nodeInput'),
+      nodeOutput: t('massBalance.nodeOutput'),
+      nodeWaste: t('massBalance.nodeWaste'),
+      nodeRemaining: t('massBalance.nodeRemaining'),
+      nodeDelta: t('massBalance.nodeDelta'),
+      totalTitle: t('massBalance.totalTitle'),
+      seedInput: t('massBalance.seedInput'),
       onSite: t('massBalance.onSite'),
       shipped: t('massBalance.shipped'),
       waste: t('massBalance.waste'),
-      recovered: t('massBalance.recovered'),
-      delta: t('massBalance.delta'),
-      percentRecovered: t('massBalance.percentRecovered'),
-      unbalanced: t('massBalance.unbalanced'),
+      nettedDelta: t('massBalance.nettedDelta'),
+      percentAccounted: t('massBalance.percentAccounted'),
+      nettedUnbalanced: t('massBalance.nettedUnbalanced'),
       unreconciledTitle: t('massBalance.unreconciledTitle'),
       unreconciledRow: t('massBalance.unreconciledRow'),
       scopeLimited: t('massBalance.scopeLimited'),

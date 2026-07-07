@@ -65,13 +65,37 @@ export type TraceMassBalanceUnreconciled = {
   ref: string;
   qty: string;
   uom: string;
-  bucket: 'produced' | 'on_site' | 'shipped' | 'unattributed_wo_waste';
+  bucket:
+    | 'node_input'
+    | 'node_output'
+    | 'node_remaining'
+    | 'netted_seed'
+    | 'netted_on_site'
+    | 'netted_shipped'
+    | 'unattributed_wo_waste';
   reason?: string;
 };
 
-export type TraceMassBalanceLine = {
-  key: 'produced' | 'on_site' | 'shipped' | 'waste' | 'recovered' | 'delta';
-  qtyKg: string;
+/** Per-WO ledger: input consumed vs outputs + scrap + remaining. */
+export type TraceMassBalanceNode = {
+  woRef: string;
+  inputKg: string;
+  outputKg: string;
+  wasteKg: string;
+  remainingKg: string;
+  deltaKg: string;
+  balanced: boolean;
+};
+
+/** Netted trace boundary: seed input vs final shipped + on-site + waste (no intermediate WIP double-count). */
+export type TraceMassBalanceTotal = {
+  seedInputKg: string;
+  shippedKg: string;
+  onSiteKg: string;
+  wasteKg: string;
+  deltaKg: string;
+  balanced: boolean;
+  percentAccounted: string;
 };
 
 export type TraceMassBalance =
@@ -80,9 +104,8 @@ export type TraceMassBalance =
     }
   | {
       applicable: true;
-      lines: TraceMassBalanceLine[];
-      percentRecovered: string;
-      balanced: boolean;
+      nodes: TraceMassBalanceNode[];
+      total: TraceMassBalanceTotal;
       unreconciled: TraceMassBalanceUnreconciled[];
     };
 

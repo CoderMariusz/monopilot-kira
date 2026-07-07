@@ -1,22 +1,5 @@
 /**
- * Trace & Recall (Wave E2A) — client/server contract types.
- *
- * These mirror the EXACT shapes exported by the reviewed Trace Server Actions
- * (quality/trace/_actions/trace-actions.ts) — imported by the page, never
- * re-authored here. Kept in a leaf module so the client islands and the RTL
- * tests share one source of truth for the action signatures we wire against.
- *
- * Action signatures wired against (trace-actions.ts):
- *   runTraceReport({ inputType, inputRef, direction }) → TraceReport
- *   startRecallDrill({ inputType, inputRef, direction }) → { drillId, report }
- *   completeRecallDrill(drillId, report) → RecallDrill
- *   getRecallDrills() → RecallDrill[]
- *   getRecallDrill(id) → RecallDrill | null
- *
- * Rule 0.11: no raw UUID ever reaches the UI — only lp_code / wo_number / grn
- * number / supplier code+name (the action already returns these human refs in
- * `node.ref` / `node.label`). The `nodeId` carries an internal id used ONLY to
- * build a deep-link href server-side (toDetailHref) — it is never rendered.
+ * Trace client/server contract types (mirrors trace-actions.ts / trace-types.ts).
  */
 
 export type TraceInputType = 'lp' | 'batch' | 'item';
@@ -80,13 +63,35 @@ export type TraceMassBalanceUnreconciled = {
   ref: string;
   qty: string;
   uom: string;
-  bucket: 'produced' | 'on_site' | 'shipped' | 'unattributed_wo_waste';
+  bucket:
+    | 'node_input'
+    | 'node_output'
+    | 'node_remaining'
+    | 'netted_seed'
+    | 'netted_on_site'
+    | 'netted_shipped'
+    | 'unattributed_wo_waste';
   reason?: string;
 };
 
-export type TraceMassBalanceLine = {
-  key: 'produced' | 'on_site' | 'shipped' | 'waste' | 'recovered' | 'delta';
-  qtyKg: string;
+export type TraceMassBalanceNode = {
+  woRef: string;
+  inputKg: string;
+  outputKg: string;
+  wasteKg: string;
+  remainingKg: string;
+  deltaKg: string;
+  balanced: boolean;
+};
+
+export type TraceMassBalanceTotal = {
+  seedInputKg: string;
+  shippedKg: string;
+  onSiteKg: string;
+  wasteKg: string;
+  deltaKg: string;
+  balanced: boolean;
+  percentAccounted: string;
 };
 
 export type TraceMassBalance =
@@ -95,9 +100,8 @@ export type TraceMassBalance =
     }
   | {
       applicable: true;
-      lines: TraceMassBalanceLine[];
-      percentRecovered: string;
-      balanced: boolean;
+      nodes: TraceMassBalanceNode[];
+      total: TraceMassBalanceTotal;
       unreconciled: TraceMassBalanceUnreconciled[];
     };
 
@@ -140,26 +144,8 @@ export type TraceInput = {
   direction: TraceDirection;
 };
 
-/** Exact callable signature of the reviewed runTraceReport action. */
 export type RunTraceReportAction = (input: TraceInput) => Promise<TraceReport>;
 
-/** Exact callable signature of the reviewed startRecallDrill action. */
-export type StartRecallDrillAction = (
-  input: TraceInput,
-) => Promise<{ drillId: string; report: TraceReport }>;
-
-/** Exact callable signature of the reviewed completeRecallDrill action. */
-export type CompleteRecallDrillAction = (
-  drillId: string,
-  result: TraceReport,
-) => Promise<RecallDrill>;
-
-/**
- * A node enriched (server-side) with the deep-link href to its detail screen
- * where one exists. `detailHref` is null when the node type has no detail route
- * (supplier, purchase_order, shipment_placeholder) or the id is not a UUID.
- * The UUID itself is NEVER surfaced — only `ref`/`label` are rendered.
- */
 export type TraceNodeView = TraceNode & { detailHref: string | null };
 
 export type TraceReportView = {

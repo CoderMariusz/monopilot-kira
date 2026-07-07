@@ -13,12 +13,12 @@ import {
   ITEM_SEED_LIMIT,
   LP_SEED_LIMIT,
   sliceSeedRows,
+  type MassBalanceNodeInput,
   type MassBalanceQtyRow,
 } from './trace-mass-balance';
-import { StartRecallDrillSchema, TraceInputSchema, UuidSchema } from './trace-input-schemas';
+import { TraceInputSchema, UuidSchema } from './trace-input-schemas';
 import type {
   RecallDrill,
-  StartRecallDrillInput,
   TraceAffectedCustomer,
   TraceEdge,
   TraceFlatRow,
@@ -433,19 +433,19 @@ type WasteRow = {
 };
 
 /**
- * Fetches waste rows for the traced set and partitions them:
- * - attributed: lp_id is in the traced LP set → summed into wasteKg
- * - unattributed: only wo_id matches (no traced LP) → returned as unreconciled
- *   entries with bucket 'unattributed_wo_waste' so the UI signals they cannot
- *   be reliably attributed to the traced batch (F1 sibling over-count fix).
+ * Fetches waste per traced WO (all rows for compliance-grade node ledgers) and
+ * flags rows whose LP cannot be tied to the traced output set.
  */
-async function fetchWastePartitioned(
+async function fetchWasteByWorkOrder(
   client: QueryClient,
   woIds: string[],
-  tracedLpIds: string[],
-): Promise<{ wasteKg: string; unattributedWasteRows: import('./trace-mass-balance').MassBalanceQtyRow[] }> {
-  if (woIds.length === 0 && tracedLpIds.length === 0) {
-    return { wasteKg: '0', unattributedWasteRows: [] };
+  tracedOutputLpIds: string[],
+): Promise<{
+  wasteByWo: Map<string, string>;
+  unattributedWasteRows: MassBalanceQtyRow[];
+}> {
+  if (woIds.length === 0) {
+    return { wasteByWo: new Map(), unattributedWasteRows: [] };
   }
   const { rows } = await client.query<WasteRow>(
     `select w.wo_id::text,
@@ -457,39 +457,37 @@ async function fetchWastePartitioned(
          on wo.org_id = app.current_org_id()
         and wo.id = w.wo_id
       where w.org_id = app.current_org_id()
-        and (
-          w.lp_id = any($1::uuid[])
-          or w.wo_id = any($2::uuid[])
-        )`,
-    [tracedLpIds, woIds],
+        and w.wo_id = any($1::uuid[])`,
+    [woIds],
   );
 
-  const tracedLpSet = new Set(tracedLpIds);
-  const attributedQtys: string[] = [];
-  const unattributedRefs = new Map<string, string>(); // woId → qty sum (text)
+  const tracedOutputLpSet = new Set(tracedOutputLpIds);
+  const wasteByWoId = new Map<string, string>();
+  const unattributedByWo = new Map<string, string>();
 
   for (const row of rows) {
-    if (row.lp_id && tracedLpSet.has(row.lp_id)) {
-      attributedQtys.push(row.qty_kg);
-    } else {
-      // wo_id matches but LP not in traced set → unattributed
-      const key = row.wo_id ?? 'unknown';
-      const existing = unattributedRefs.get(key);
-      unattributedRefs.set(key, existing ? addDecimalStrings([existing, row.qty_kg]) : row.qty_kg);
+    const woId = row.wo_id ?? 'unknown';
+    const existing = wasteByWoId.get(woId);
+    wasteByWoId.set(woId, existing ? addDecimalStrings([existing, row.qty_kg]) : row.qty_kg);
+
+    if (row.lp_id && !tracedOutputLpSet.has(row.lp_id)) {
+      const unattributed = unattributedByWo.get(woId);
+      unattributedByWo.set(woId, unattributed ? addDecimalStrings([unattributed, row.qty_kg]) : row.qty_kg);
     }
   }
 
-  const unattributedWasteRows: import('./trace-mass-balance').MassBalanceQtyRow[] = [...unattributedRefs.entries()].map(
-    ([woId, qty]) => {
-      const label = rows.find((r) => r.wo_id === woId)?.wo_number ?? woId;
-      return { ref: label, qty, uom: 'kg' };
-    },
-  );
+  const wasteByWo = new Map<string, string>();
+  for (const [woId, qty] of wasteByWoId) {
+    const woRef = rows.find((r) => r.wo_id === woId)?.wo_number ?? woId;
+    wasteByWo.set(woRef, qty);
+  }
 
-  return {
-    wasteKg: addDecimalStrings(attributedQtys),
-    unattributedWasteRows,
-  };
+  const unattributedWasteRows: MassBalanceQtyRow[] = [...unattributedByWo.entries()].map(([woId, qty]) => {
+    const label = rows.find((r) => r.wo_id === woId)?.wo_number ?? woId;
+    return { ref: label, qty, uom: 'kg' };
+  });
+
+  return { wasteByWo, unattributedWasteRows };
 }
 
 function shouldIncludeConsumption(
@@ -573,18 +571,30 @@ function lpMatchesScope(lp: LpRow, scope: { outputLpIds: string[]; batchCodes: s
   return false;
 }
 
+function isTerminalOutputLp(lp: LpRow | undefined, tracedWoIds: Set<string>): boolean {
+  if (!lp) return false;
+  if (!lp.consumed_by_wo_id) return true;
+  return !tracedWoIds.has(lp.consumed_by_wo_id);
+}
+
+function outputRemainingQty(lp: LpRow | undefined, tracedWoIds: Set<string>): string {
+  if (!lp || !isKgUom(lp.uom)) return '0';
+  if (!isTerminalOutputLp(lp, tracedWoIds)) return '0';
+  return lp.quantity;
+}
+
 async function buildMassBalance(
   ctx: QualityContext,
   input: TraceInput,
   seedLpIds: string[],
   lpRows: Map<string, LpRow>,
+  consumptionRows: ConsumptionRow[],
   outputRows: OutputRow[],
   forwardShipmentRows: ForwardShipmentRow[],
+  workOrders: Map<string, WorkOrderRow>,
 ): Promise<TraceReport['massBalance']> {
-  // F2: if the caller is site-restricted their license_plates are pruned by
-  // RLS (mig 383) while wo_outputs / wo_waste_log are org-wide — any balance
-  // computed would fabricate a spurious delta.  Detect the restriction and
-  // short-circuit with scopeLimited so the panel can show an explicit notice.
+  // Site-restricted callers have license_plates pruned by RLS while wo_outputs /
+  // wo_waste_log are org-wide — short-circuit to avoid fabricated deltas.
   const isUnrestricted = await isUserSiteAccessUnrestricted(ctx.userId, ctx.client);
   if (!isUnrestricted) {
     return { scopeLimited: true };
@@ -593,35 +603,26 @@ async function buildMassBalance(
   const scope = resolveMassBalanceScope(input, seedLpIds, lpRows, outputRows);
   if (!scope) return null;
 
-  // F1: scope the output rows to exact LP id / batch code only; WO-id membership
-  // is intentionally excluded to prevent co-product sibling batches inflating totals.
+  const tracedWoIds = new Set(scope.woIds);
   const scopedOutputs = outputRows.filter((row) => outputMatchesScope(row, scope));
-  const producedRows: MassBalanceQtyRow[] = scopedOutputs.map((row) => ({
-    ref: row.output_ref,
-    qty: row.qty,
-    uom: row.uom,
-  }));
+  const tracedLpIds = new Set([...lpRows.keys()]);
 
-  // F1: on-site LP rows are scoped by exact LP id or batch code; the WO branch
-  // in lpMatchesScope is removed to avoid sibling inflation.
-  const onSiteRows: MassBalanceQtyRow[] = [...lpRows.values()]
-    .filter((lp) => isProductionLp(lp) && lpMatchesScope(lp, scope))
-    .map((lp) => ({
-      ref: lp.display_ref,
-      qty: lp.quantity,
-      uom: lp.uom,
-    }));
+  const consumptionByWo = new Map<string, ConsumptionRow[]>();
+  for (const row of consumptionRows) {
+    if (!tracedLpIds.has(row.lp_id)) continue;
+    const list = consumptionByWo.get(row.wo_id) ?? [];
+    list.push(row);
+    consumptionByWo.set(row.wo_id, list);
+  }
 
-  const shippedRows: MassBalanceQtyRow[] = forwardShipmentRows
-    .filter((row) => scope.outputLpIds.includes(row.lp_id))
-    .map((row) => ({
-      ref: row.lp_ref,
-      qty: row.shipped_qty,
-      uom: row.uom,
-    }));
+  const outputsByWo = new Map<string, OutputRow[]>();
+  for (const row of scopedOutputs) {
+    const list = outputsByWo.get(row.wo_id) ?? [];
+    list.push(row);
+    outputsByWo.set(row.wo_id, list);
+  }
 
-  // F1: split attributed waste (LP in traced set) from unattributed WO-only waste.
-  const { wasteKg, unattributedWasteRows: rawUnattributed } = await fetchWastePartitioned(
+  const { wasteByWo, unattributedWasteRows: rawUnattributed } = await fetchWasteByWorkOrder(
     ctx.client,
     scope.woIds,
     scope.outputLpIds,
@@ -634,11 +635,64 @@ async function buildMassBalance(
     reason: 'unattributed_wo_waste',
   }));
 
+  const nodeInputs: MassBalanceNodeInput[] = [...tracedWoIds]
+    .sort((a, b) => (workOrders.get(a)?.wo_number ?? a).localeCompare(workOrders.get(b)?.wo_number ?? b))
+    .map((woId) => {
+      const woRef = workOrders.get(woId)?.wo_number ?? woId;
+      const woConsumptions = consumptionByWo.get(woId) ?? [];
+      const woOutputs = outputsByWo.get(woId) ?? [];
+
+      return {
+        woRef,
+        inputRows: woConsumptions.map((row) => ({
+          ref: row.material_name ?? row.wo_number,
+          qty: row.qty_consumed,
+          uom: row.uom,
+        })),
+        outputRows: woOutputs.map((row) => ({
+          ref: row.output_ref,
+          qty: row.qty,
+          uom: row.uom,
+        })),
+        wasteRows: [],
+        remainingRows: woOutputs.flatMap((row) => {
+          if (!row.output_lp_id) return [];
+          const lp = lpRows.get(row.output_lp_id);
+          const qty = outputRemainingQty(lp, tracedWoIds);
+          if (qty === '0') return [];
+          return [{ ref: row.output_ref, qty, uom: lp?.uom ?? row.uom }];
+        }),
+      };
+    });
+
+  const seedRows: MassBalanceQtyRow[] = seedLpIds.flatMap((lpId) => {
+    const lp = lpRows.get(lpId);
+    if (!lp) return [];
+    return [{ ref: lp.display_ref, qty: lp.quantity, uom: lp.uom }];
+  });
+
+  const onSiteRows: MassBalanceQtyRow[] = [...lpRows.values()]
+    .filter((lp) => isProductionLp(lp) && lpMatchesScope(lp, scope) && isTerminalOutputLp(lp, tracedWoIds))
+    .flatMap((lp) => {
+      const qty = outputRemainingQty(lp, tracedWoIds);
+      if (qty === '0') return [];
+      return [{ ref: lp.display_ref, qty, uom: lp.uom }];
+    });
+
+  const shippedRows: MassBalanceQtyRow[] = forwardShipmentRows
+    .filter((row) => scope.outputLpIds.includes(row.lp_id))
+    .map((row) => ({
+      ref: row.lp_ref,
+      qty: row.shipped_qty,
+      uom: row.uom,
+    }));
+
   return computeMassBalance({
-    producedRows,
+    nodes: nodeInputs,
+    seedRows,
     onSiteRows,
     shippedRows,
-    wasteKg,
+    wasteByWo,
     unattributedWasteRows,
   });
 }
@@ -890,8 +944,10 @@ async function buildTraceReport(ctx: QualityContext, input: TraceInput): Promise
     input,
     seedLpIds,
     lpRows,
+    includedConsumptionRows,
     outputRows,
     forwardShipmentRows,
+    workOrders,
   );
 
   return {
@@ -917,57 +973,6 @@ export async function runTraceReport(rawInput: TraceInput): Promise<TraceReport>
     const ctx = { userId, orgId, client: client as QueryClient };
     await assertTracePermission(ctx);
     return buildTraceReport(ctx, input);
-  });
-}
-
-export async function startRecallDrill(rawInput: StartRecallDrillInput): Promise<{ drillId: string; report: TraceReport }> {
-  const input = StartRecallDrillSchema.parse(rawInput);
-  return withOrgContext(async ({ userId, orgId, client }): Promise<{ drillId: string; report: TraceReport }> => {
-    const ctx = { userId, orgId, client: client as QueryClient };
-    await assertTracePermission(ctx);
-    const { rows } = await ctx.client.query<{ id: string }>(
-      `insert into public.recall_drills
-         (org_id, initiated_by, input_type, input_ref, direction, started_at, is_drill)
-       values (app.current_org_id(), $1::uuid, $2, $3, $4, pg_catalog.now(), $5)
-       returning id::text`,
-      [ctx.userId, input.inputType, input.inputRef, input.direction, input.is_drill],
-    );
-    const drillId = rows[0]?.id;
-    if (!drillId) throw new Error('recall drill insert failed');
-    const report = await buildTraceReport(ctx, input);
-    return { drillId, report };
-  });
-}
-
-export async function completeRecallDrill(drillId: string, result: TraceReport): Promise<RecallDrill> {
-  const id = UuidSchema.parse(drillId);
-  return withOrgContext(async ({ userId, orgId, client }): Promise<RecallDrill> => {
-    const ctx = { userId, orgId, client: client as QueryClient };
-    await assertTracePermission(ctx);
-    const { rows } = await ctx.client.query<RecallDrillRow>(
-      `update public.recall_drills
-          set completed_at = pg_catalog.now(),
-              duration_ms = greatest(0, floor(extract(epoch from (pg_catalog.now() - started_at)) * 1000)::integer),
-              result_jsonb = $2::jsonb
-        where org_id = app.current_org_id()
-          and id = $1::uuid
-        returning id::text,
-                  initiated_by::text,
-                  input_type,
-                  input_ref,
-                  direction,
-                  started_at,
-                  completed_at,
-                  duration_ms,
-                  result_jsonb,
-                  is_drill,
-                  created_at,
-                  updated_at`,
-      [id, JSON.stringify(result)],
-    );
-    const row = rows[0];
-    if (!row) throw new Error('recall drill not found');
-    return mapRecallDrill(row);
   });
 }
 

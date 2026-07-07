@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queryGenealogy } from '../../../../../../../lib/warehouse/genealogy';
-import { completeRecallDrill, runTraceReport, startRecallDrill } from './trace-actions';
-import type { TraceReport } from './trace-types';
+import { runTraceReport } from './trace-actions';
 import { LP_SEED_LIMIT } from './trace-mass-balance';
 
 type QueryClient = {
@@ -19,16 +18,18 @@ const OUTPUT_LP_ID = '44444444-4444-4444-8444-444444444444';
 const SOLO_LP_ID = '55555555-5555-4555-8555-555555555555';
 const SIBLING_LP_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 const WO_ID = '66666666-6666-4666-8666-666666666666';
-const DRILL_ID = '77777777-7777-4777-8777-777777777777';
 const SUPPLIER_ID = '88888888-8888-4888-8888-888888888888';
 const PO_ID = '99999999-9999-4999-8999-999999999999';
 const GRN_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const SO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const SHIPMENT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const CUSTOMER_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const WIP_LP_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const WO1_ID = '10101010-1010-4101-8101-101010101010';
+const WO2_ID = '20202020-2020-4202-8202-202020202020';
 
 let client: QueryClient;
-let scenario: 'chain' | 'solo' | 'truncated_lp' | 'sibling' | 'restricted';
+let scenario: 'chain' | 'solo' | 'truncated_lp' | 'sibling' | 'restricted' | 'three_level';
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -141,6 +142,38 @@ function lpRows() {
     ];
   }
 
+  if (scenario === 'three_level') {
+    return [
+      { ...BASE_LP_ROW, consumed_by_wo_id: WO1_ID },
+      {
+        id: WIP_LP_ID,
+        lp_number: 'LP-WIP',
+        lp_code: 'LP-WIP',
+        display_ref: 'LP-WIP',
+        product_id: 'item-wip',
+        item_code: 'WIP-DOUGH',
+        item_name: 'Dough WIP',
+        quantity: '0.000000',
+        uom: 'kg',
+        batch_code: 'B-WIP',
+        status: 'consumed',
+        origin: 'production',
+        parent_lp_id: INPUT_LP_ID,
+        grn_id: null,
+        wo_id: WO1_ID,
+        consumed_by_wo_id: WO2_ID,
+        source_so_id: null,
+        created_at: '2026-06-23T08:30:00.000Z',
+      },
+      {
+        ...OUTPUT_LP_ROW,
+        parent_lp_id: WIP_LP_ID,
+        wo_id: WO2_ID,
+        quantity: '0.000000',
+      },
+    ];
+  }
+
   return [BASE_LP_ROW, OUTPUT_LP_ROW];
 }
 
@@ -206,6 +239,33 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('select c.id::text as id')) {
         if (scenario === 'solo') return { rows: [], rowCount: 0 };
+        if (scenario === 'three_level') {
+          return {
+            rows: [
+              {
+                id: 'c1111111-1111-4111-8111-111111111111',
+                lp_id: INPUT_LP_ID,
+                wo_id: WO1_ID,
+                wo_number: 'WO-2026-0001',
+                qty_consumed: '10.000',
+                uom: 'kg',
+                material_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+                material_name: 'Flour',
+              },
+              {
+                id: 'c2222222-2222-4222-8222-222222222222',
+                lp_id: WIP_LP_ID,
+                wo_id: WO2_ID,
+                wo_number: 'WO-2026-0002',
+                qty_consumed: '9.000',
+                uom: 'kg',
+                material_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+                material_name: 'Dough WIP',
+              },
+            ],
+            rowCount: 2,
+          };
+        }
         return {
           rows: [
             {
@@ -225,6 +285,33 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('select o.id::text as id')) {
         if (scenario === 'solo') return { rows: [], rowCount: 0 };
+        if (scenario === 'three_level') {
+          return {
+            rows: [
+              {
+                id: 'o1111111-1111-4111-8111-111111111111',
+                wo_id: WO1_ID,
+                wo_number: 'WO-2026-0001',
+                output_lp_id: WIP_LP_ID,
+                output_ref: 'LP-WIP',
+                batch_number: 'B-WIP',
+                qty: '9.000',
+                uom: 'kg',
+              },
+              {
+                id: 'o2222222-2222-4222-8222-222222222222',
+                wo_id: WO2_ID,
+                wo_number: 'WO-2026-0002',
+                output_lp_id: OUTPUT_LP_ID,
+                output_ref: 'LP-OUT',
+                batch_number: 'B-FG',
+                qty: '8.500',
+                uom: 'kg',
+              },
+            ],
+            rowCount: 2,
+          };
+        }
         if (scenario === 'sibling') {
           // WO produced both LP-OUT (traced, B-FG) and LP-SIBLING (co-product, B-SIBLING).
           return {
@@ -272,6 +359,27 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('select wo.id::text as id')) {
         if (scenario === 'solo') return { rows: [], rowCount: 0 };
+        if (scenario === 'three_level') {
+          return {
+            rows: [
+              {
+                id: WO1_ID,
+                wo_number: 'WO-2026-0001',
+                planned_quantity: '9.000',
+                uom: 'kg',
+                status: 'completed',
+              },
+              {
+                id: WO2_ID,
+                wo_number: 'WO-2026-0002',
+                planned_quantity: '8.500',
+                uom: 'kg',
+                status: 'completed',
+              },
+            ],
+            rowCount: 2,
+          };
+        }
         return {
           rows: [
             {
@@ -288,6 +396,26 @@ function makeClient(): QueryClient {
 
       if (q.includes('get_forward_shipments_org_wide')) {
         if (scenario === 'solo') return { rows: [], rowCount: 0 };
+        if (scenario === 'three_level') {
+          return {
+            rows: [
+              {
+                shipment_id: SHIPMENT_ID,
+                shipment_number: 'SH-2026-0001',
+                sales_order_id: SO_ID,
+                sales_order_number: 'SO-2026-0001',
+                customer_id: CUSTOMER_ID,
+                customer_name: 'Acme Foods',
+                customer_code: 'ACME',
+                lp_id: OUTPUT_LP_ID,
+                lp_ref: 'LP-OUT',
+                shipped_qty: '8.500',
+                uom: 'kg',
+              },
+            ],
+            rowCount: 1,
+          };
+        }
         return {
           rows: [
             {
@@ -310,6 +438,15 @@ function makeClient(): QueryClient {
 
       if (q.includes('from public.wo_waste_log w')) {
         if (scenario === 'solo') return { rows: [], rowCount: 0 };
+        if (scenario === 'three_level') {
+          return {
+            rows: [
+              { wo_id: WO1_ID, lp_id: INPUT_LP_ID, wo_number: 'WO-2026-0001', qty_kg: '1.000' },
+              { wo_id: WO2_ID, lp_id: WIP_LP_ID, wo_number: 'WO-2026-0002', qty_kg: '0.500' },
+            ],
+            rowCount: 2,
+          };
+        }
         if (scenario === 'sibling') {
           // Sibling scenario: WO has waste that belongs to the SIBLING batch (no LP match)
           // → should land in unreconciled, not inflate wasteKg
@@ -327,32 +464,6 @@ function makeClient(): QueryClient {
         }
         // default chain scenario: no waste
         return { rows: [], rowCount: 0 };
-      }
-
-      if (q.startsWith('insert into public.recall_drills')) {
-        return { rows: [{ id: DRILL_ID }], rowCount: 1 };
-      }
-
-      if (q.startsWith('update public.recall_drills')) {
-        return {
-          rows: [
-            {
-              id: DRILL_ID,
-              initiated_by: USER_ID,
-              input_type: 'lp',
-              input_ref: 'LP-IN',
-              direction: 'both',
-              started_at: '2026-06-23T10:00:00.000Z',
-              completed_at: '2026-06-23T10:00:02.500Z',
-              duration_ms: 2500,
-              result_jsonb: JSON.parse(String(params[1])) as TraceReport,
-              is_drill: true,
-              created_at: '2026-06-23T10:00:00.000Z',
-              updated_at: '2026-06-23T10:00:02.500Z',
-            },
-          ],
-          rowCount: 1,
-        };
       }
 
       return { rows: [], rowCount: 0 };
@@ -394,6 +505,106 @@ describe('trace recall server actions', () => {
         },
       ];
     });
+  });
+
+  it('runTraceReport forward-traces a 3-level RM→WIP→FG genealogy through two WOs to shipment with mass balance', async () => {
+    scenario = 'three_level';
+    client = makeClient();
+    vi.mocked(queryGenealogy).mockImplementation(async (_queryClient, lpId) => {
+      if (lpId !== INPUT_LP_ID) return [];
+      return [
+        {
+          lpId: INPUT_LP_ID,
+          lpNumber: 'LP-IN',
+          itemCode: 'RM-FLOUR',
+          quantity: '10.000000',
+          uom: 'kg',
+          status: 'consumed',
+          createdAt: '2026-06-23T08:00:00.000Z',
+          depth: 0,
+          direction: 'self' as const,
+          parentLpId: null,
+        },
+        {
+          lpId: WIP_LP_ID,
+          lpNumber: 'LP-WIP',
+          itemCode: 'WIP-DOUGH',
+          quantity: '9.000000',
+          uom: 'kg',
+          status: 'consumed',
+          createdAt: '2026-06-23T08:30:00.000Z',
+          depth: 1,
+          direction: 'descendant' as const,
+          parentLpId: INPUT_LP_ID,
+        },
+        {
+          lpId: OUTPUT_LP_ID,
+          lpNumber: 'LP-OUT',
+          itemCode: 'FG-BREAD',
+          quantity: '8.500000',
+          uom: 'kg',
+          status: 'shipped',
+          createdAt: '2026-06-23T09:00:00.000Z',
+          depth: 2,
+          direction: 'descendant' as const,
+          parentLpId: WIP_LP_ID,
+        },
+      ];
+    });
+
+    const report = await runTraceReport({ inputType: 'lp', inputRef: 'LP-IN', direction: 'forward' });
+
+    expect(report.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ nodeId: `lp:${INPUT_LP_ID}`, type: 'input_lp', ref: 'LP-IN' }),
+        expect.objectContaining({ nodeId: `lp:${WIP_LP_ID}`, type: 'output_lp', ref: 'LP-WIP' }),
+        expect.objectContaining({ nodeId: `lp:${OUTPUT_LP_ID}`, type: 'output_lp', ref: 'LP-OUT' }),
+        expect.objectContaining({ nodeId: `wo:${WO1_ID}`, type: 'work_order', ref: 'WO-2026-0001' }),
+        expect.objectContaining({ nodeId: `wo:${WO2_ID}`, type: 'work_order', ref: 'WO-2026-0002' }),
+        expect.objectContaining({
+          nodeId: `shipment:${SHIPMENT_ID}:${OUTPUT_LP_ID}`,
+          type: 'shipment_placeholder',
+          ref: 'SH-2026-0001',
+        }),
+      ]),
+    );
+    expect(report.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: `lp:${INPUT_LP_ID}`, to: `wo:${WO1_ID}`, relation: 'consumed_by', qty: '10.000' }),
+        expect.objectContaining({ from: `wo:${WO1_ID}`, to: `lp:${WIP_LP_ID}`, relation: 'produced', qty: '9.000' }),
+        expect.objectContaining({ from: `lp:${WIP_LP_ID}`, to: `wo:${WO2_ID}`, relation: 'consumed_by', qty: '9.000' }),
+        expect.objectContaining({ from: `wo:${WO2_ID}`, to: `lp:${OUTPUT_LP_ID}`, relation: 'produced', qty: '8.500' }),
+        expect.objectContaining({
+          from: `lp:${OUTPUT_LP_ID}`,
+          to: `shipment:${SHIPMENT_ID}:${OUTPUT_LP_ID}`,
+          relation: 'ships_to',
+          qty: '8.500',
+        }),
+      ]),
+    );
+    expect(report.summary).toMatchObject({
+      lpCount: 3,
+      woCount: 2,
+      shipmentCount: 1,
+      customersAffected: 1,
+    });
+    if (!report.massBalance || !('nodes' in report.massBalance)) throw new Error('expected applicable mass balance');
+    const wo1 = report.massBalance.nodes.find((node) => node.woRef === 'WO-2026-0001');
+    const wo2 = report.massBalance.nodes.find((node) => node.woRef === 'WO-2026-0002');
+    expect(wo1).toMatchObject({ inputKg: '10', outputKg: '9', wasteKg: '1', remainingKg: '0', deltaKg: '0', balanced: true });
+    expect(wo2).toMatchObject({ inputKg: '9', outputKg: '8.5', wasteKg: '0.5', remainingKg: '0', deltaKg: '0', balanced: true });
+    expect(report.massBalance.total).toMatchObject({
+      seedInputKg: '10',
+      shippedKg: '8.5',
+      onSiteKg: '0',
+      wasteKg: '1.5',
+      deltaKg: '0',
+      balanced: true,
+      percentAccounted: '100',
+    });
+    expect(report.massBalance.unreconciled).toContainEqual(
+      expect.objectContaining({ bucket: 'unattributed_wo_waste', ref: 'WO-2026-0001', qty: '1.000' }),
+    );
   });
 
   it('runTraceReport assembles nodes, edges, and forward shipment/customer rows from a 2-level LP to SO chain', async () => {
@@ -441,12 +652,16 @@ describe('trace recall server actions', () => {
     });
     expect(report.truncation).toEqual({ truncated: false, layers: [] });
     expect(report.massBalance).toMatchObject({
-      balanced: true,
-      percentRecovered: '100',
+      total: {
+        balanced: false,
+        seedInputKg: '10',
+        shippedKg: '15',
+        deltaKg: '-5',
+      },
     });
-    if (!report.massBalance || !('lines' in report.massBalance)) throw new Error('expected applicable mass balance');
-    expect(report.massBalance.lines.find((line) => line.key === 'produced')?.qtyKg).toBe('15');
-    expect(report.massBalance.lines.find((line) => line.key === 'shipped')?.qtyKg).toBe('15');
+    if (!report.massBalance || !('nodes' in report.massBalance)) throw new Error('expected applicable mass balance');
+    expect(report.massBalance.total.shippedKg).toBe('15');
+    expect(report.massBalance.nodes[0]).toMatchObject({ inputKg: '10', outputKg: '15', deltaKg: '-5', balanced: false });
   });
 
   it('runTraceReport returns a single LP node with no edges when genealogy is empty', async () => {
@@ -477,24 +692,7 @@ describe('trace recall server actions', () => {
     });
   });
 
-  it('startRecallDrill followed by completeRecallDrill writes the row, stamps duration_ms, and snapshots the result', async () => {
-    const started = await startRecallDrill({ inputType: 'lp', inputRef: 'LP-IN', direction: 'both', is_drill: true });
-    const completed = await completeRecallDrill(started.drillId, started.report);
-
-    expect(started.drillId).toBe(DRILL_ID);
-    expect(completed.id).toBe(DRILL_ID);
-    expect(completed.durationMs).toBeGreaterThan(0);
-    expect(completed.result).toEqual(started.report);
-
-    const calls = vi.mocked(client.query).mock.calls;
-    const insert = calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.recall_drills'));
-    const update = calls.find(([sql]) => normalize(String(sql)).startsWith('update public.recall_drills'));
-    expect(insert?.[1]).toEqual([USER_ID, 'lp', 'LP-IN', 'both', true]);
-    expect(update?.[1]?.[0]).toBe(DRILL_ID);
-    expect(JSON.parse(String(update?.[1]?.[1]))).toEqual(started.report);
-  });
-
-  it('F1: sibling co-product batch excluded from produced total; unattributable WO waste lands in unreconciled', async () => {
+  it('F1: sibling co-product batch excluded from output total; unattributable WO waste lands in unreconciled', async () => {
     scenario = 'sibling';
     client = makeClient();
     vi.mocked(queryGenealogy).mockImplementation(async (_queryClient, lpId) => {
@@ -532,20 +730,14 @@ describe('trace recall server actions', () => {
     const report = await runTraceReport({ inputType: 'lp', inputRef: 'LP-IN', direction: 'both' });
 
     expect(report.massBalance).not.toBeNull();
-    if (!report.massBalance || !('applicable' in report.massBalance)) {
+    if (!report.massBalance || !('nodes' in report.massBalance)) {
       throw new Error('expected applicable mass balance');
     }
-    // Sibling LP-SIBLING (20 kg) must NOT appear in produced total
-    const producedKg = report.massBalance.lines.find((l) => l.key === 'produced')?.qtyKg;
-    expect(producedKg).toBe('15');
-
-    // Waste from WO (attributed to sibling LP, not in the traced set) must land
-    // in unreconciled with bucket 'unattributed_wo_waste'
+    expect(report.massBalance.nodes[0]?.outputKg).toBe('15');
+    expect(report.massBalance.total.wasteKg).toBe('3');
     expect(report.massBalance.unreconciled).toContainEqual(
       expect.objectContaining({ bucket: 'unattributed_wo_waste', reason: 'unattributed_wo_waste' }),
     );
-    // The attributed wasteKg should be 0 (the sibling's waste is not attributed)
-    expect(report.massBalance.lines.find((l) => l.key === 'waste')?.qtyKg).toBe('0');
   });
 
   it('F2: site-restricted caller gets massBalance: { scopeLimited: true } without computing balances', async () => {
@@ -557,8 +749,8 @@ describe('trace recall server actions', () => {
     expect(report.massBalance).not.toBeNull();
     expect(report.massBalance).toEqual({ scopeLimited: true });
     // Mass balance lines must NOT be present (discriminant check)
-    if (report.massBalance && 'lines' in report.massBalance) {
-      throw new Error('site-restricted massBalance must not have lines');
+    if (report.massBalance && 'nodes' in report.massBalance) {
+      throw new Error('site-restricted massBalance must not have nodes');
     }
   });
 });

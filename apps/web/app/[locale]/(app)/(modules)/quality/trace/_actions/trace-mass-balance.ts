@@ -1,4 +1,11 @@
-import type { TraceMassBalance, TraceMassBalanceUnreconciled, TraceTruncationLayer, TraceTruncationLayerKind } from './trace-types';
+import type {
+  TraceMassBalance,
+  TraceMassBalanceNode,
+  TraceMassBalanceTotal,
+  TraceMassBalanceUnreconciled,
+  TraceTruncationLayer,
+  TraceTruncationLayerKind,
+} from './trace-types';
 
 export const MASS_BALANCE_EPSILON_KG = '0.001';
 
@@ -80,53 +87,130 @@ function partitionKgRows(
   return { kgTotal: addDecimalStrings(kgQtys), unreconciled };
 }
 
-export function computeMassBalance(input: {
-  producedRows: MassBalanceQtyRow[];
+export type MassBalanceNodeInput = {
+  woRef: string;
+  inputRows: MassBalanceQtyRow[];
+  outputRows: MassBalanceQtyRow[];
+  wasteRows: MassBalanceQtyRow[];
+  remainingRows: MassBalanceQtyRow[];
+};
+
+export function computeNodeMassBalance(node: MassBalanceNodeInput): {
+  node: TraceMassBalanceNode;
+  unreconciled: TraceMassBalanceUnreconciled[];
+} {
+  const input = partitionKgRows(node.inputRows, 'node_input');
+  const output = partitionKgRows(node.outputRows, 'node_output');
+  const waste = partitionKgRows(node.wasteRows, 'unattributed_wo_waste');
+  const remaining = partitionKgRows(node.remainingRows, 'node_remaining');
+
+  const inputKg = input.kgTotal;
+  const outputKg = output.kgTotal;
+  const wasteKg = waste.kgTotal;
+  const remainingKg = remaining.kgTotal;
+  const recoveredKg = addDecimalStrings([outputKg, wasteKg, remainingKg]);
+  const deltaKg = subtractDecimalStrings(inputKg, recoveredKg);
+
+  return {
+    node: {
+      woRef: node.woRef,
+      inputKg,
+      outputKg,
+      wasteKg,
+      remainingKg,
+      deltaKg,
+      balanced: isWithinEpsilon(deltaKg),
+    },
+    unreconciled: [...input.unreconciled, ...output.unreconciled, ...waste.unreconciled, ...remaining.unreconciled],
+  };
+}
+
+export function computeNettedMassBalance(input: {
+  seedRows: MassBalanceQtyRow[];
   onSiteRows: MassBalanceQtyRow[];
   shippedRows: MassBalanceQtyRow[];
   wasteKg: string;
-  /** Waste rows whose wo_id maps to a traced WO but whose LP/batch cannot be
-   *  attributed to the exact traced set — emitted as unreconciled entries. */
   unattributedWasteRows?: TraceMassBalanceUnreconciled[];
-}): TraceMassBalance | null {
-  const produced = partitionKgRows(input.producedRows, 'produced');
-  const onSite = partitionKgRows(input.onSiteRows, 'on_site');
-  const shipped = partitionKgRows(input.shippedRows, 'shipped');
+}): { total: TraceMassBalanceTotal; unreconciled: TraceMassBalanceUnreconciled[] } | null {
+  const seed = partitionKgRows(input.seedRows, 'netted_seed');
+  const onSite = partitionKgRows(input.onSiteRows, 'netted_on_site');
+  const shipped = partitionKgRows(input.shippedRows, 'netted_shipped');
 
-  const producedKg = produced.kgTotal;
-  if (producedKg === '0' && produced.unreconciled.length === 0) {
+  const seedInputKg = seed.kgTotal;
+  if (seedInputKg === '0' && seed.unreconciled.length === 0) {
     return null;
   }
 
   const onSiteKg = onSite.kgTotal;
   const shippedKg = shipped.kgTotal;
   const wasteKg = input.wasteKg;
-  const recoveredKg = addDecimalStrings([onSiteKg, shippedKg, wasteKg]);
-  const deltaKg = subtractDecimalStrings(producedKg, recoveredKg);
+  const accountedKg = addDecimalStrings([onSiteKg, shippedKg, wasteKg]);
+  const deltaKg = subtractDecimalStrings(seedInputKg, accountedKg);
 
-  const producedScaled = decimalToScaled(producedKg, 6);
-  const percentRecovered =
-    producedScaled === 0n
+  const seedScaled = decimalToScaled(seedInputKg, 6);
+  const percentAccounted =
+    seedScaled === 0n
       ? '0'
-      : formatScaledDecimal((decimalToScaled(recoveredKg, 6) * 100_000_000n) / producedScaled, 6);
+      : formatScaledDecimal((decimalToScaled(accountedKg, 6) * 100_000_000n) / seedScaled, 6);
 
   return {
-    applicable: true,
-    lines: [
-      { key: 'produced', qtyKg: producedKg },
-      { key: 'on_site', qtyKg: onSiteKg },
-      { key: 'shipped', qtyKg: shippedKg },
-      { key: 'waste', qtyKg: wasteKg },
-      { key: 'recovered', qtyKg: recoveredKg },
-      { key: 'delta', qtyKg: deltaKg },
-    ],
-    percentRecovered,
-    balanced: isWithinEpsilon(deltaKg),
+    total: {
+      seedInputKg,
+      shippedKg,
+      onSiteKg,
+      wasteKg,
+      deltaKg,
+      balanced: isWithinEpsilon(deltaKg),
+      percentAccounted,
+    },
     unreconciled: [
-      ...produced.unreconciled,
+      ...seed.unreconciled,
       ...onSite.unreconciled,
       ...shipped.unreconciled,
       ...(input.unattributedWasteRows ?? []),
+    ],
+  };
+}
+
+export function computeMassBalance(input: {
+  nodes: MassBalanceNodeInput[];
+  seedRows: MassBalanceQtyRow[];
+  onSiteRows: MassBalanceQtyRow[];
+  shippedRows: MassBalanceQtyRow[];
+  wasteByWo: Map<string, string>;
+  unattributedWasteRows?: TraceMassBalanceUnreconciled[];
+}): TraceMassBalance | null {
+  const nodeResults = input.nodes.map((node) => {
+    const wasteKg = input.wasteByWo.get(node.woRef) ?? '0';
+    return computeNodeMassBalance({
+      ...node,
+      wasteRows: wasteKg === '0' ? [] : [{ ref: node.woRef, qty: wasteKg, uom: 'kg' }],
+    });
+  });
+
+  const netted = computeNettedMassBalance({
+    seedRows: input.seedRows,
+    onSiteRows: input.onSiteRows,
+    shippedRows: input.shippedRows,
+    wasteKg: addDecimalStrings([...input.wasteByWo.values()]),
+    unattributedWasteRows: input.unattributedWasteRows,
+  });
+
+  if (!netted && nodeResults.length === 0) {
+    return null;
+  }
+
+  if (!netted) {
+    return null;
+  }
+
+  return {
+    applicable: true,
+    nodes: nodeResults.map((result) => result.node),
+    total: netted.total,
+    unreconciled: [
+      ...nodeResults.flatMap((result) => result.unreconciled),
+      ...netted.unreconciled,
     ],
   };
 }
