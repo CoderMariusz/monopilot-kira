@@ -10,8 +10,9 @@ type StageLineRow = {
  *
  * Priority per item:
  * 1. routing_operations.line_id — first op for WIP stages, last op for the FG root
- * 2. npd_wip_processes.line_id via wip_definitions.item_id
- * 3. npd_projects.production_line_id for the FG product's project
+ * 2. npd_wip_processes.line_id via wip_item_id (ensureWipItem path) or wip_definitions.item_id
+ * 3. FG root only: npd_wip_processes.line_id via prod_detail.item_id (last op)
+ * 4. npd_projects.production_line_id for the FG product's project
  */
 export async function loadStageProductionLineIds(
   ctx: OrgActionContext,
@@ -31,7 +32,9 @@ export async function loadStageProductionLineIds(
      select s.item_id::text as item_id,
             coalesce(
               routing_line.line_id,
-              process_line.line_id,
+              wip_item_line.line_id,
+              wip_def_line.line_id,
+              fg_process_line.line_id,
               project_line.production_line_id
             )::text as production_line_id
        from stages s
@@ -51,15 +54,37 @@ export async function loadStageProductionLineIds(
        ) routing_line on true
        left join lateral (
          select wp.line_id
+           from public.npd_wip_processes wp
+          where wp.org_id = app.current_org_id()
+            and not s.is_fg
+            and wp.wip_item_id = s.item_id
+          order by wp.display_order asc, wp.created_at asc, wp.id asc
+          limit 1
+       ) wip_item_line on true
+       left join lateral (
+         select wp.line_id
            from public.wip_definitions wd
            join public.npd_wip_processes wp
              on wp.org_id = wd.org_id
             and wp.wip_definition_id = wd.id
           where wd.org_id = app.current_org_id()
+            and not s.is_fg
             and wd.item_id = s.item_id
           order by wp.display_order asc, wp.created_at asc, wp.id asc
           limit 1
-       ) process_line on true
+       ) wip_def_line on true
+       left join lateral (
+         select wp.line_id
+           from public.prod_detail pd
+           join public.npd_wip_processes wp
+             on wp.org_id = pd.org_id
+            and wp.prod_detail_id = pd.id
+          where pd.org_id = app.current_org_id()
+            and s.is_fg
+            and pd.item_id = s.item_id
+          order by wp.display_order desc, wp.created_at desc, wp.id desc
+          limit 1
+       ) fg_process_line on true
        left join lateral (
          select p.production_line_id
            from public.items fg
