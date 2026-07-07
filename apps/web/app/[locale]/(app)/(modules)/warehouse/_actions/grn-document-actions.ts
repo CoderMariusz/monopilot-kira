@@ -2,6 +2,7 @@
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { assembleGrnDocument } from '../../../../../../lib/documents/grn-document';
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import type { GrnDocumentData } from '../../../../../../lib/documents/types';
 import {
   WAREHOUSE_READ_PERMISSION,
@@ -25,8 +26,11 @@ export async function getGrnDocument(grnId: string): Promise<WarehouseResult<Grn
         return { ok: false, reason: 'forbidden' };
       }
 
+      const activeSiteId = await getActiveSiteId({ client: ctx.client });
+      if (!activeSiteId) return { ok: false, reason: 'not_found' };
+
       const generatedAt = new Date().toISOString();
-      const assembled = await assembleGrnDocument(ctx.client, grnId, generatedAt);
+      const assembled = await assembleGrnDocument(ctx.client, grnId, activeSiteId, generatedAt);
       if (assembled === 'not_found') return { ok: false, reason: 'not_found' };
 
       return { ok: true, data: assembled };

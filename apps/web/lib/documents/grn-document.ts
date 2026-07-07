@@ -1,3 +1,4 @@
+import { normalizePieceUom } from '../uom/piece';
 import { fetchCompanyHeader, type QueryClient } from './company-header';
 import type { DocumentLine, GrnDocumentData, GrnDocumentTotals } from './types';
 
@@ -32,24 +33,72 @@ function toIso(value: string | Date | null | undefined): string | null {
   return value instanceof Date ? value.toISOString() : value;
 }
 
+export type GrnTotalsRow = {
+  uom: string;
+  total_received: string;
+};
+
+/** Map SQL totals rows (canonical UoM, exact NUMERIC::text) into the document payload. */
+export function mapGrnTotalsRows(lines: DocumentLine[], rows: GrnTotalsRow[]): GrnDocumentTotals {
+  const liveLines = lines.filter((line) => !line.cancelled);
+  return {
+    lineCount: lines.length,
+    liveLineCount: liveLines.length,
+    receivedByUom: rows.map((row) => ({
+      uom: row.uom,
+      totalReceived: row.total_received,
+    })),
+  };
+}
+
+/** @deprecated Prefer SQL totals via {@link fetchGrnDocumentTotals}; kept for unit-test parity. */
 export function computeGrnTotals(lines: DocumentLine[]): GrnDocumentTotals {
   const liveLines = lines.filter((line) => !line.cancelled);
-  const byUom = new Map<string, number>();
+  const byUom = new Map<string, string>();
   for (const line of liveLines) {
-    const qty = Number(line.receivedQty);
-    if (!Number.isFinite(qty)) continue;
-    byUom.set(line.uom, (byUom.get(line.uom) ?? 0) + qty);
+    const canonicalUom = normalizePieceUom(line.uom) ?? line.uom;
+    const prev = byUom.get(canonicalUom);
+    byUom.set(canonicalUom, prev == null ? line.receivedQty : addNumericText(prev, line.receivedQty));
   }
   return {
     lineCount: lines.length,
     liveLineCount: liveLines.length,
     receivedByUom: [...byUom.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([uom, total]) => ({
-        uom,
-        totalReceived: String(Number(total.toFixed(3))),
-      })),
+      .map(([uom, totalReceived]) => ({ uom, totalReceived })),
   };
+}
+
+function addNumericText(left: string, right: string): string {
+  const [lWhole, lFrac = ''] = left.split('.');
+  const [rWhole, rFrac = ''] = right.split('.');
+  const scale = Math.max(lFrac.length, rFrac.length);
+  const lScaled = BigInt(lWhole + lFrac.padEnd(scale, '0'));
+  const rScaled = BigInt(rWhole + rFrac.padEnd(scale, '0'));
+  const sum = lScaled + rScaled;
+  const sumText = sum.toString().padStart(scale + 1, '0');
+  if (scale === 0) return sumText;
+  const whole = sumText.slice(0, -scale) || '0';
+  const frac = sumText.slice(-scale).replace(/0+$/, '');
+  return frac ? `${whole}.${frac}` : whole;
+}
+
+export async function fetchGrnDocumentTotals(client: QueryClient, grnId: string): Promise<GrnTotalsRow[]> {
+  const { rows } = await client.query<GrnTotalsRow>(
+    `select case
+              when trim(gi.uom) in ('szt', 'ea') then 'pcs'
+              else trim(gi.uom)
+            end as uom,
+            sum(gi.received_qty)::text as total_received
+       from public.grn_items gi
+      where gi.org_id = app.current_org_id()
+        and gi.grn_id = $1::uuid
+        and gi.cancelled_at is null
+      group by 1
+      order by 1`,
+    [grnId],
+  );
+  return rows;
 }
 
 export function mapGrnLineRow(row: GrnLineRow): DocumentLine {
@@ -70,6 +119,7 @@ export function mapGrnLineRow(row: GrnLineRow): DocumentLine {
 export function buildGrnDocumentData(input: {
   header: GrnHeaderRow;
   lineRows: GrnLineRow[];
+  totalsRows: GrnTotalsRow[];
   company: NonNullable<Awaited<ReturnType<typeof fetchCompanyHeader>>>;
   generatedAt: string;
 }): GrnDocumentData {
@@ -88,7 +138,7 @@ export function buildGrnDocumentData(input: {
     notes: input.header.notes,
     company: input.company,
     lines,
-    totals: computeGrnTotals(lines),
+    totals: mapGrnTotalsRows(lines, input.totalsRows),
     generatedAt: input.generatedAt,
   };
 }
@@ -96,6 +146,7 @@ export function buildGrnDocumentData(input: {
 export async function assembleGrnDocument(
   client: QueryClient,
   grnId: string,
+  siteId: string,
   generatedAt: string,
 ): Promise<GrnDocumentData | 'not_found'> {
   const [company, headerResult] = await Promise.all([
@@ -123,15 +174,17 @@ export async function assembleGrnDocument(
           and po.id = g.po_id
         where g.org_id = app.current_org_id()
           and g.id = $1::uuid
+          and g.site_id = $2::uuid
         limit 1`,
-      [grnId],
+      [grnId, siteId],
     ),
   ]);
 
   const header = headerResult.rows[0];
   if (!header || !company) return 'not_found';
 
-  const { rows: lineRows } = await client.query<GrnLineRow>(
+  const [lineResult, totalsRows] = await Promise.all([
+    client.query<GrnLineRow>(
     `select gi.line_number,
             i.item_code,
             i.name as item_name,
@@ -152,8 +205,16 @@ export async function assembleGrnDocument(
       where gi.org_id = app.current_org_id()
         and gi.grn_id = $1::uuid
       order by gi.line_number asc`,
-    [grnId],
-  );
+      [grnId],
+    ),
+    fetchGrnDocumentTotals(client, grnId),
+  ]);
 
-  return buildGrnDocumentData({ header, lineRows, company, generatedAt });
+  return buildGrnDocumentData({
+    header,
+    lineRows: lineResult.rows,
+    totalsRows,
+    company,
+    generatedAt,
+  });
 }
