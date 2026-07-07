@@ -123,6 +123,12 @@ export type UnitsManagerLabels = {
   errorForbidden: string;
   errorInvalidInput: string;
   errorGeneric: string;
+  editUnit: string;
+  deleteUnit: string;
+  editUnitTitle: string;
+  confirmDeleteUnit: string;
+  errorInUse: string;
+  errorNotFound: string;
 };
 
 const CATEGORY_VALUES = ['mass', 'volume', 'count', 'length'] as const;
@@ -135,6 +141,10 @@ function errorLabel(labels: UnitsManagerLabels, error: UnitsActionError): string
       return labels.errorForbidden;
     case 'invalid_input':
       return labels.errorInvalidInput;
+    case 'in_use':
+      return labels.errorInUse;
+    case 'not_found':
+      return labels.errorNotFound;
     default:
       return labels.errorGeneric;
   }

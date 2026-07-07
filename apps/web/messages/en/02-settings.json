@@ -1327,7 +1327,13 @@
     "errorAlreadyExists": "A unit or conversion with that code already exists.",
     "errorForbidden": "You do not have permission to manage units.",
     "errorInvalidInput": "Please check the values and try again.",
-    "errorGeneric": "Could not save. Please try again."
+    "errorGeneric": "Could not save. Please try again.",
+    "editUnit": "Edit",
+    "deleteUnit": "Delete",
+    "editUnitTitle": "Edit unit",
+    "confirmDeleteUnit": "Delete unit {code}? This cannot be undone.",
+    "errorInUse": "This unit is referenced elsewhere and cannot be deleted.",
+    "errorNotFound": "Unit not found."
   },
   "devices": {
     "title": "Scanner devices",

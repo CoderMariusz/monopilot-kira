@@ -18,6 +18,7 @@ import {
 import { AddLineModal } from './_components/AddLineModal';
 import { AddSiteModal } from './_components/AddSiteModal';
 import { EditLineModal } from './_components/EditLineModal';
+import { EditSiteSettingsModal, type UpdateSiteSettingsAction } from './_components/EditSiteSettingsModal';
 
 /**
  * Sites & production lines settings screen.
@@ -86,12 +87,16 @@ export type SitesModalLabels = {
   addSiteTitle: string;
   addLineTitle: string;
   editLineTitle: string;
+  editSiteSettingsTitle: string;
   fieldSiteCode: string;
   fieldName: string;
   fieldTimezone: string;
   fieldCountry: string;
   fieldLegalEntity: string;
   fieldPrimary: string;
+  fieldOperatingHours: string;
+  fieldHaccpEnabled: string;
+  fieldHaccpValidUntil: string;
   fieldLineCode: string;
   fieldStatus: string;
   statusActive: string;
@@ -103,6 +108,7 @@ export type SitesModalLabels = {
   saving: string;
   errorRequired: string;
   errorDuplicate: string;
+  errorForbidden: string;
   errorGeneric: string;
 };
 
@@ -110,12 +116,16 @@ export const DEFAULT_SITES_MODAL_LABELS: SitesModalLabels = {
   addSiteTitle: 'Add site',
   addLineTitle: 'Add production line',
   editLineTitle: 'Edit production line',
+  editSiteSettingsTitle: 'Edit site settings',
   fieldSiteCode: 'Site code',
   fieldName: 'Name',
   fieldTimezone: 'Timezone',
   fieldCountry: 'Country',
   fieldLegalEntity: 'Legal entity',
   fieldPrimary: 'Primary site',
+  fieldOperatingHours: 'Operating hours',
+  fieldHaccpEnabled: 'HACCP certified',
+  fieldHaccpValidUntil: 'HACCP valid until',
   fieldLineCode: 'Line code',
   fieldStatus: 'Status',
   statusActive: 'Active',
@@ -127,6 +137,7 @@ export const DEFAULT_SITES_MODAL_LABELS: SitesModalLabels = {
   saving: 'Saving…',
   errorRequired: 'This field is required.',
   errorDuplicate: 'That code is already in use at this site. Choose a different one.',
+  errorForbidden: 'You do not have permission to update site settings.',
   errorGeneric: 'Something went wrong. Please try again.',
 };
 
@@ -147,6 +158,7 @@ export type SitesScreenProps = {
   createSiteAction?: CreateSiteAction;
   createLineAction?: CreateLineAction;
   updateLineAction?: UpdateLineAction;
+  updateSiteSettingsAction?: UpdateSiteSettingsAction;
 };
 
 const PROTOTYPE_SOURCE = 'prototypes/design/Monopilot Design System/settings/org-screens.jsx:103-189';
@@ -171,6 +183,7 @@ type ActiveModal =
   | { kind: 'addSite' }
   | { kind: 'addLine'; siteId: string }
   | { kind: 'editLine'; siteId: string; line: LineRow }
+  | { kind: 'editSiteSettings'; site: SiteRow }
   | null;
 
 export default function SitesScreen({
@@ -184,9 +197,11 @@ export default function SitesScreen({
   createSiteAction,
   createLineAction,
   updateLineAction,
+  updateSiteSettingsAction,
 }: SitesScreenProps) {
   const router = useRouter();
   const [activeModal, setActiveModal] = React.useState<ActiveModal>(null);
+  const [siteRows, setSiteRows] = React.useState<SiteRow[]>(sites);
   const [selectedSiteId, setSelectedSiteId] = React.useState<string | null>(
     initialSelectedSiteId ?? sites[0]?.id ?? null,
   );
@@ -196,16 +211,20 @@ export default function SitesScreen({
   );
   const [loadingLines, setLoadingLines] = React.useState(false);
   const [lineFormOptions, setLineFormOptions] = React.useState<LineFormOptions>({
-    sites: sites.map((site) => ({ id: site.id, code: site.code, name: site.name, isDefault: site.settings.primary })),
+    sites: siteRows.map((site) => ({ id: site.id, code: site.code, name: site.name, isDefault: site.settings.primary })),
     warehouses: [],
     locations: [],
   });
   const [lineFormOptionsLoaded, setLineFormOptionsLoaded] = React.useState(false);
 
   const selectedSite = React.useMemo(
-    () => sites.find((site) => site.id === selectedSiteId) ?? null,
-    [sites, selectedSiteId],
+    () => siteRows.find((site) => site.id === selectedSiteId) ?? null,
+    [siteRows, selectedSiteId],
   );
+
+  React.useEffect(() => {
+    setSiteRows(sites);
+  }, [sites]);
 
   const handleSelect = React.useCallback(
     (siteId: string) => {
@@ -293,7 +312,7 @@ export default function SitesScreen({
         }
       />
 
-      {sites.length === 0 ? (
+      {siteRows.length === 0 ? (
         <Section title={fill(labels.sitesTitle, { count: 0 })}>
           <div className="muted" data-testid="sites-empty" role="status">
             {labels.emptySites}
@@ -307,7 +326,7 @@ export default function SitesScreen({
           {/* LEFT — visual map + clickable site list */}
           <div className="sg-section">
             <div className="sg-section-head">
-              <div className="sg-section-title">{fill(labels.sitesTitle, { count: sites.length })}</div>
+              <div className="sg-section-title">{fill(labels.sitesTitle, { count: siteRows.length })}</div>
             </div>
             <div style={{ padding: 12 }}>
               <div className="site-map" data-testid="sites-map">
@@ -325,7 +344,7 @@ export default function SitesScreen({
                 >
                   {selectedSite?.country?.trim() || labels.mapRegionFallback}
                 </div>
-                {sites.map((site) => (
+                {siteRows.map((site) => (
                   <button
                     key={site.id}
                     type="button"
@@ -354,7 +373,7 @@ export default function SitesScreen({
               </div>
             </div>
             <ul data-testid="sites-list" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-              {sites.map((site) => {
+              {siteRows.map((site) => {
                 const active = selectedSiteId === site.id;
                 return (
                   <li key={site.id}>
@@ -476,7 +495,21 @@ export default function SitesScreen({
                 </div>
               </div>
 
-              <Section title={labels.siteSettingsTitle}>
+              <Section
+                title={labels.siteSettingsTitle}
+                action={
+                  canEdit ? (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      type="button"
+                      data-testid="sites-edit-settings"
+                      onClick={() => setActiveModal({ kind: 'editSiteSettings', site: selectedSite })}
+                    >
+                      {labels.edit}
+                    </button>
+                  ) : undefined
+                }
+              >
                 <SRow label={labels.primarySite} hint={labels.primarySiteHint}>
                   <Toggle
                     aria-label={labels.primarySite}
@@ -537,6 +570,34 @@ export default function SitesScreen({
           action={updateLineAction}
           onClose={() => setActiveModal(null)}
           onSuccess={() => handleMutated(activeModal.siteId)}
+        />
+      ) : null}
+
+      {activeModal?.kind === 'editSiteSettings' ? (
+        <EditSiteSettingsModal
+          site={activeModal.site}
+          labels={modalLabels}
+          action={updateSiteSettingsAction}
+          onClose={() => setActiveModal(null)}
+          onSuccess={(updated) => {
+            setActiveModal(null);
+            setSiteRows((current) =>
+              current.map((site) => {
+                if (updated.settings.primary) {
+                  return {
+                    ...site,
+                    settings: {
+                      ...site.settings,
+                      primary: site.id === updated.id,
+                      ...(site.id === updated.id ? updated.settings : {}),
+                    },
+                  };
+                }
+                return site.id === updated.id ? { ...site, ...updated } : site;
+              }),
+            );
+            router.refresh();
+          }}
         />
       ) : null}
     </main>

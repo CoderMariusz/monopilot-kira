@@ -1327,7 +1327,13 @@
     "errorAlreadyExists": "Jednostka lub przeliczenie o tym kodzie już istnieje.",
     "errorForbidden": "Nie masz uprawnień do zarządzania jednostkami.",
     "errorInvalidInput": "Sprawdź wartości i spróbuj ponownie.",
-    "errorGeneric": "Nie udało się zapisać. Spróbuj ponownie."
+    "errorGeneric": "Nie udało się zapisać. Spróbuj ponownie.",
+    "editUnit": "Edytuj",
+    "deleteUnit": "Usuń",
+    "editUnitTitle": "Edytuj jednostkę",
+    "confirmDeleteUnit": "Usunąć jednostkę {code}? Tej operacji nie można cofnąć.",
+    "errorInUse": "Ta jednostka jest używana w innych miejscach i nie można jej usunąć.",
+    "errorNotFound": "Nie znaleziono jednostki."
   },
   "devices": {
     "title": "Skanery",

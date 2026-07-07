@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   createUnit: vi.fn(),
   createCustomConversion: vi.fn(),
   softDeleteUnit: vi.fn(),
+  updateUnit: vi.fn(),
   refresh: vi.fn(),
   topbarCalls: [] as Array<Record<string, unknown>>,
   sidebarCalls: [] as Array<Record<string, unknown>>,
@@ -43,6 +44,7 @@ vi.mock('./_actions/manage-units', () => ({
   createUnit: mocks.createUnit,
   createCustomConversion: mocks.createCustomConversion,
   softDeleteUnit: mocks.softDeleteUnit,
+  updateUnit: mocks.updateUnit,
 }));
 
 vi.mock('../../../../../../lib/auth/supabase-server', () => ({
@@ -207,6 +209,7 @@ describe('SET-094 Units (UoM) screen parity', () => {
     mocks.createUnit.mockReset();
     mocks.createCustomConversion.mockReset();
     mocks.softDeleteUnit.mockReset();
+    mocks.updateUnit.mockReset();
     mocks.refresh.mockReset();
     setAuthenticatedShellUser();
   });
@@ -236,8 +239,8 @@ describe('SET-094 Units (UoM) screen parity', () => {
     // aria-labelledby -> the `.sg-section-title`).
     const regions = within(main).getAllByRole('region', { name: /mass|volume|custom conversions/i });
     expect(regions.map((region) => region.querySelector('.sg-section-title')?.textContent)).toEqual([
-      'mass',
-      'volume',
+      'Mass',
+      'Volume',
       'Custom conversions',
     ]);
     expect(within(main).getByText(/base unit:\s*kilogram/i)).toBeInTheDocument();
@@ -271,6 +274,12 @@ describe('SET-094 Units (UoM) screen parity', () => {
 
     await user.tab();
     expect(screen.getByRole('button', { name: /add unit/i })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByTestId('unit-actions-kg')).toHaveFocus();
+    await user.tab();
+    expect(screen.getByTestId('unit-actions-g')).toHaveFocus();
+    await user.tab();
+    expect(screen.getByTestId('unit-actions-L')).toHaveFocus();
     await user.tab();
     expect(screen.getByRole('link', { name: /add custom conversion/i })).toHaveFocus();
   });
@@ -307,7 +316,7 @@ describe('SET-094 Units (UoM) screen parity', () => {
       [
         "Units & conversions",
         "+ Add unit",
-        "mass",
+        "Mass",
         "Code",
         "Name",
         "Factor to base",
@@ -318,12 +327,14 @@ describe('SET-094 Units (UoM) screen parity', () => {
         "1",
         "Base",
         "⋮",
+        "⋮",
         "g",
         "Gram",
         "0.001",
         "—",
         "⋮",
-        "volume",
+        "⋮",
+        "Volume",
         "Code",
         "Name",
         "Factor to base",
@@ -333,6 +344,7 @@ describe('SET-094 Units (UoM) screen parity', () => {
         "Litre",
         "1",
         "Base",
+        "⋮",
         "⋮",
         "Custom conversions",
         "+ Add custom conversion",
@@ -469,5 +481,61 @@ describe('SET-094 Units (UoM) screen parity', () => {
     expect(mocks.createUnit).toHaveBeenCalledWith(
       expect.objectContaining({ category: 'mass', code: 'lb', name: 'Pound', factorToBase: 0.453592 }),
     );
+  });
+
+  it('edits a unit through the row actions menu and updateUnit action', async () => {
+    mocks.updateUnit.mockResolvedValue({
+      ok: true,
+      data: { id: 'u-g', code: 'g', name: 'Gram (edited)', factorToBase: 0.001 },
+    });
+    const user = userEvent.setup();
+
+    await renderUnitsPage();
+
+    await user.click(screen.getByTestId('unit-actions-g'));
+    await user.click(within(screen.getByTestId('unit-actions-menu-g')).getByRole('menuitem', { name: /edit/i }));
+
+    const dialog = screen.getByRole('dialog', { name: /edit unit/i });
+    const nameInput = within(dialog).getByLabelText(/^name$/i);
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Gram (edited)');
+    const factor = within(dialog).getByLabelText(/factor to base/i);
+    expect(factor).toHaveAttribute('readonly');
+    await user.click(within(dialog).getByRole('button', { name: /save unit/i }));
+
+    expect(mocks.updateUnit).toHaveBeenCalledWith({
+      id: 'u-g',
+      name: 'Gram (edited)',
+    });
+    expect(mocks.refresh).toHaveBeenCalled();
+  });
+
+  it('deletes a non-base unit through softDeleteUnit', async () => {
+    mocks.softDeleteUnit.mockResolvedValue({ ok: true, data: { id: 'u-g' } });
+    const user = userEvent.setup();
+
+    await renderUnitsPage();
+
+    await user.click(screen.getByTestId('unit-actions-g'));
+    await user.click(within(screen.getByTestId('unit-actions-menu-g')).getByRole('menuitem', { name: /delete/i }));
+    await user.click(screen.getByTestId('unit-delete-confirm-g'));
+    expect(mocks.softDeleteUnit).toHaveBeenCalledWith({ id: 'u-g' });
+  });
+
+  it('surfaces in-use errors from softDeleteUnit on delete', async () => {
+    mocks.softDeleteUnit.mockResolvedValue({ ok: false, error: 'in_use' });
+    const user = userEvent.setup();
+
+    await renderUnitsPage();
+    await user.click(screen.getByTestId('unit-actions-g'));
+    await user.click(within(screen.getByTestId('unit-actions-menu-g')).getByRole('menuitem', { name: /delete/i }));
+    await user.click(screen.getByTestId('unit-delete-confirm-g'));
+    expect(screen.getByRole('alert')).toHaveTextContent(/referenced elsewhere/i);
+  });
+
+  it('hides row actions when canEdit is false', async () => {
+    await renderUnitsPage({ canEdit: false });
+    expect(screen.queryByTestId('unit-actions-g')).not.toBeInTheDocument();
+    expect(screen.queryByText('⋮')).not.toBeInTheDocument();
   });
 });

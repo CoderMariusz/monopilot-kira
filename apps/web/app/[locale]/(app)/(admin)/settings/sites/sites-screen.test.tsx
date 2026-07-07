@@ -359,4 +359,43 @@ describe('SitesScreen — create/edit flows', () => {
     await waitFor(() => expect(screen.queryByTestId('sites-edit-line-form')).not.toBeInTheDocument());
     expect(refreshMock).toHaveBeenCalled();
   });
+
+  it('opens the Edit Site Settings modal, submits, and refreshes on success', async () => {
+    const user = userEvent.setup();
+    const updateSiteSettingsAction = vi.fn(async () => ({
+      ok: true as const,
+      data: {
+        ...sites[0],
+        settings: {
+          primary: sites[0].settings.primary,
+          operating_hours: 'Mon-Fri 07:00-21:00',
+          haccp_enabled: true,
+          haccp_valid_until: '2027-01-01',
+        },
+      },
+    }));
+    renderScreen({ canEdit: true, updateSiteSettingsAction });
+
+    await user.click(screen.getByTestId('sites-edit-settings'));
+    const form = await screen.findByTestId('sites-edit-settings-form');
+    const hours = within(form).getByLabelText(/Operating hours/i) as HTMLInputElement;
+    await user.clear(hours);
+    await user.type(hours, 'Mon-Fri 07:00-21:00');
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(updateSiteSettingsAction).toHaveBeenCalledTimes(1));
+    expect(updateSiteSettingsAction).toHaveBeenCalledWith(
+      sites[0].org_id,
+      sites[0].id,
+      expect.objectContaining({ operating_hours: 'Mon-Fri 07:00-21:00' }),
+    );
+    await waitFor(() => expect(screen.queryByTestId('sites-edit-settings-form')).not.toBeInTheDocument());
+    expect(refreshMock).toHaveBeenCalled();
+    expect(screen.getByText('Mon-Fri 07:00-21:00')).toBeInTheDocument();
+  });
+
+  it('hides the site settings edit affordance when canEdit is false', () => {
+    renderScreen({ canEdit: false });
+    expect(screen.queryByTestId('sites-edit-settings')).not.toBeInTheDocument();
+  });
 });
