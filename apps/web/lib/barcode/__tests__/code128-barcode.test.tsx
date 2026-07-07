@@ -19,6 +19,12 @@ describe('Code128Barcode', () => {
     expect(svg.tagName.toLowerCase()).toBe('svg');
     expect(svg.querySelectorAll('rect').length).toBeGreaterThan(20);
     expect(svg).toHaveAttribute('aria-label', expect.stringContaining('(00)'));
+
+    const viewBox = svg.getAttribute('viewBox')?.split(/\s+/).map(Number) ?? [];
+    const firstRect = svg.querySelector('rect');
+    expect(viewBox[0]).toBe(0);
+    expect(firstRect?.getAttribute('x')).toBe('10');
+    expect(viewBox[2]).toBeGreaterThan(Number(svg.querySelectorAll('rect').length));
   });
 
   it('renders a GTIN barcode for ean13 symbology', () => {

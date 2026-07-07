@@ -1,5 +1,5 @@
 /**
- * Dependency-free Code128 (set B) encoder for GS1-128 barcodes.
+ * Dependency-free Code128 encoder with automatic A/B/C code-set selection.
  * Renders module patterns as 0/1 strings (1 = black bar module).
  */
 
@@ -117,14 +117,33 @@ const CODE128_PATTERNS: readonly string[] = [
   '1100011101011',
 ];
 
+const START_A = 103;
 const START_B = 104;
+const START_C = 105;
+const CODE_A = 98;
+const CODE_B = 100;
+const CODE_C = 99;
 const FNC1 = 102;
 const STOP = 106;
+
+type CodeSet = 'A' | 'B' | 'C';
 
 export type Code128EncodeOptions = {
   /** Prefix FNC1 for GS1-128 (AI element strings). */
   gs1?: boolean;
 };
+
+function isDigit(char: string): boolean {
+  return char >= '0' && char <= '9';
+}
+
+function countDigits(value: string, start: number): number {
+  let count = 0;
+  while (start + count < value.length && isDigit(value[start + count] ?? '')) {
+    count += 1;
+  }
+  return count;
+}
 
 function charCodeB(char: string): number {
   const index = CODE128_B_CHARS.indexOf(char);
@@ -142,7 +161,64 @@ function checksum(codes: number[]): number {
   return sum % 103;
 }
 
-/** Encode printable ASCII (set B) into Code128 symbol indices (includes start/check/stop). */
+function shouldStartInC(value: string): boolean {
+  return /^\d+$/.test(value) && value.length >= 2 && value.length % 2 === 0;
+}
+
+/**
+ * Encode a string with automatic Code128 A/B/C selection.
+ * Uses Start C for even all-digit payloads; switches to Code C for digit runs ≥ 4.
+ */
+export function encodeCode128(value: string, options: Code128EncodeOptions = {}): number[] {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error('Code128 value must be a non-empty string');
+  }
+
+  const codes: number[] = [];
+  let position = 0;
+  let set: CodeSet = shouldStartInC(value) ? 'C' : 'B';
+  codes.push(set === 'C' ? START_C : START_B);
+
+  if (options.gs1) {
+    codes.push(FNC1);
+  }
+
+  while (position < value.length) {
+    if (set === 'C') {
+      const digitRun = countDigits(value, position);
+      if (digitRun >= 2) {
+        const pair = value.slice(position, position + 2);
+        codes.push(Number.parseInt(pair, 10));
+        position += 2;
+        continue;
+      }
+
+      codes.push(CODE_B);
+      set = 'B';
+      continue;
+    }
+
+    const digitRun = countDigits(value, position);
+    if (digitRun >= 4) {
+      if (digitRun % 2 === 1) {
+        codes.push(charCodeB(value[position] ?? ''));
+        position += 1;
+      }
+      codes.push(CODE_C);
+      set = 'C';
+      continue;
+    }
+
+    codes.push(charCodeB(value[position] ?? ''));
+    position += 1;
+  }
+
+  codes.push(checksum(codes));
+  codes.push(STOP);
+  return codes;
+}
+
+/** Encode printable ASCII strictly in set B (includes start/check/stop symbols). */
 export function encodeCode128B(value: string, options: Code128EncodeOptions = {}): number[] {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error('Code128 value must be a non-empty string');
@@ -167,7 +243,17 @@ export function code128Modules(codes: number[]): string {
 
 /** Encode a value and return the full module pattern string. */
 export function encodeCode128Pattern(value: string, options: Code128EncodeOptions = {}): string {
-  return code128Modules(encodeCode128B(value, options));
+  return code128Modules(encodeCode128(value, options));
 }
 
-export { CODE128_B_CHARS, FNC1, START_B, STOP };
+export {
+  CODE128_B_CHARS,
+  CODE_A,
+  CODE_B,
+  CODE_C,
+  FNC1,
+  START_A,
+  START_B,
+  START_C,
+  STOP,
+};

@@ -21,11 +21,16 @@ export type Code128BarcodeProps = {
   'data-testid'?: string;
 };
 
-function buildRects(pattern: string, barHeight: number): React.ReactNode[] {
+/** ISO/IEC 15416 quiet zone: 10× minimum module width on each side. */
+const QUIET_ZONE_MODULES = 10;
+
+function buildRects(pattern: string, barHeight: number, quietZone: number): React.ReactNode[] {
   const rects: React.ReactNode[] = [];
   for (let index = 0; index < pattern.length; index += 1) {
     if (pattern[index] !== '1') continue;
-    rects.push(<rect key={index} x={index} y={0} width={1} height={barHeight} fill="#000" />);
+    rects.push(
+      <rect key={index} x={index + quietZone} y={0} width={1} height={barHeight} fill="#000" />,
+    );
   }
   return rects;
 }
@@ -54,7 +59,8 @@ export function Code128Barcode({
   const payload = resolved ?? resolveBarcodePayload({ value, field, symbology });
   const pattern = encodeCode128Pattern(payload.value, { gs1: payload.gs1 });
   const captionHeight = 12;
-  const width = pattern.length;
+  const quietZone = QUIET_ZONE_MODULES;
+  const width = pattern.length + quietZone * 2;
   const height = barHeight + captionHeight;
 
   return (
@@ -68,7 +74,7 @@ export function Code128Barcode({
       className={className}
       data-testid={testId}
     >
-      {buildRects(pattern, barHeight)}
+      {buildRects(pattern, barHeight, quietZone)}
       <text
         x={width / 2}
         y={height - 2}
