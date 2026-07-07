@@ -29,26 +29,14 @@ import {
 } from '../../../../../../../../lib/technical/recall-factory-spec-core';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
+import type { RevertToNpdResult } from './revert-to-npd.types';
+
 const REVERT_TO_NPD_AUDIT_ACTION = 'npd.project.reverted_to_npd';
 
 const Input = z.object({
   projectId: z.string().uuid(),
   reason: z.string().trim().min(1).max(2000),
 });
-
-export type RevertToNpdInput = z.infer<typeof Input>;
-
-export type RevertToNpdError =
-  | 'invalid_input'
-  | 'forbidden'
-  | 'not_found'
-  | 'not_release_locked'
-  | 'active_work_orders'
-  | 'persistence_failed';
-
-export type RevertToNpdResult =
-  | { ok: true; data: { projectId: string; factorySpecRecalled: boolean } }
-  | { ok: false; error: RevertToNpdError; message?: string };
 
 type QueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }>;
