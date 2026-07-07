@@ -27,8 +27,9 @@
  *                  /planning/forecasts. Folded into the item's gross requirement; when an
  *                  item receives any forecast the persisted requirement is tagged
  *                  source_type='independent' and the run demand_source flips to 'forecast'.
- *   - sales orders: sales_order_lines remainder (quantity_ordered − quantity_shipped) on
- *                  post-confirm, pre-ship SOs whose need-by date falls within the
+ *   - sales orders: sales_order_lines remainder (quantity_ordered − Σ shipped box qty on
+ *                  non-cancelled shipments in shipped/delivered status) on post-confirm
+ *                  SOs whose need-by date falls within the
  *                  planning horizon — INDEPENDENT demand (NN-PLAN-4). UoM from
  *                  ext_data.order_uom with items.uom_base fallback; each/box lines convert
  *                  via the same pack-hierarchy machinery as forecast/WO demand.
@@ -80,8 +81,9 @@ const OPEN_WO_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS'];
 /** PO statuses that represent committed open supply (draft POs are not yet committed). */
 const OPEN_PO_STATUSES = ['sent', 'confirmed', 'partially_received'];
 /**
- * SO statuses whose unshipped line qty counts as independent MRP demand — post-confirm,
- * pre-ship pipeline (draft/cancelled/shipped/delivered excluded per NN-PLAN-4).
+ * SO statuses whose unshipped line qty counts as independent MRP demand — post-confirm
+ * pipeline states that can still carry open line balance (draft/cancelled/delivered
+ * excluded; shipped/partially_delivered included and netted via the shipment aggregate).
  */
 const OPEN_SO_DEMAND_STATUSES = [
   'confirmed',
@@ -91,6 +93,8 @@ const OPEN_SO_DEMAND_STATUSES = [
   'partially_packed',
   'packed',
   'manifested',
+  'shipped',
+  'partially_delivered',
 ];
 /** Planning horizon for SO need-by dates — mirrors forecasts.ts DEFAULT_HORIZON_WEEKS. */
 const MRP_PLANNING_HORIZON_WEEKS = 12;
@@ -312,17 +316,19 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
         [currentIsoWeek(startedAt)],
       );
 
-      // 3c) Independent (sales-order) demand — open SO lines on post-confirm, pre-ship
-      //     orders whose need-by date (promised_ship_date → required_delivery_date →
-      //     order_date) falls on or before the planning horizon end. Remainder qty is
-      //     ordered − shipped; UoM comes from ext_data.order_uom with items.uom_base
-      //     fallback (same shape as so-actions fetch). each/box lines convert in
-      //     computeMrp via the shared pack-hierarchy machinery.
+      // 3c) Independent (sales-order) demand — open SO lines on post-confirm orders
+      //     whose need-by date (promised_ship_date → required_delivery_date → order_date)
+      //     falls on or before the planning horizon end. Remainder qty is ordered minus
+      //     the real shipped aggregate from shipment_box_contents (same join path as
+      //     ship-actions confirm); sales_order_lines.quantity_shipped is not maintained.
+      //     UoM comes from ext_data.order_uom with items.uom_base fallback (same shape
+      //     as so-actions fetch). each/box lines convert in computeMrp via the shared
+      //     pack-hierarchy machinery.
       const horizonEnd = planningHorizonEnd(today);
       const soDemand = await c.query<MrpQtyBucket>(
         `select sol.product_id as product_id,
                 coalesce(sol.ext_data->>'order_uom', i.uom_base) as uom,
-                sum(greatest(sol.quantity_ordered - sol.quantity_shipped, 0))::text as qty
+                sum(greatest(sol.quantity_ordered - coalesce(shipped.shipped_qty, 0), 0))::text as qty
            from public.sales_order_lines sol
            join public.sales_orders so
              on so.id = sol.sales_order_id
@@ -332,6 +338,26 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
            join public.items i
              on i.id = sol.product_id
             and i.org_id = app.current_org_id()
+           left join (
+             select sbc.sales_order_line_id,
+                    sum(sbc.quantity) as shipped_qty
+               from public.shipment_box_contents sbc
+               join public.shipment_boxes sb
+                 on sb.id = sbc.shipment_box_id
+                and sb.org_id = app.current_org_id()
+                and sb.deleted_at is null
+               join public.shipments sh
+                 on sh.id = sb.shipment_id
+                and sh.org_id = app.current_org_id()
+                and sh.deleted_at is null
+                and sh.status in ('shipped', 'delivered')
+              where sbc.org_id = app.current_org_id()
+                and sbc.deleted_at is null
+                and sbc.sales_order_line_id is not null
+                and sbc.quantity is not null
+                and sbc.quantity > 0
+              group by sbc.sales_order_line_id
+           ) shipped on shipped.sales_order_line_id = sol.id
           where sol.org_id = app.current_org_id()
             and sol.deleted_at is null
             and coalesce(so.promised_ship_date, so.required_delivery_date, so.order_date) <= $2::date

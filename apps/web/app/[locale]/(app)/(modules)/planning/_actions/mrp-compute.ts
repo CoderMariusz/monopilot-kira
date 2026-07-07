@@ -13,8 +13,8 @@
  *                across WOs in DRAFT / RELEASED / IN_PROGRESS
  *              + Σ demand_forecasts.qty (mig 302, base UoM) for the run horizon  (INDEPENDENT)
  *                — independent/forecast demand entered on /planning/forecasts
- *              + Σ open sales_order_lines remainder (ordered − shipped) on post-confirm,
- *                pre-ship SOs whose need-by date falls within the planning horizon
+ *              + Σ open sales_order_lines remainder (ordered − shipped box aggregate) on
+ *                post-confirm SOs whose need-by date falls within the planning horizon
  *                (INDEPENDENT — confirmed sales-order demand, NN-PLAN-4)
  *
  * Caveats (documented, read-first slice — nothing is persisted):

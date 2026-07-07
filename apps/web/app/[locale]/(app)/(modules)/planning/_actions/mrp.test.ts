@@ -400,6 +400,8 @@ function makeClient(): QueryClient {
           'partially_packed',
           'packed',
           'manifested',
+          'shipped',
+          'partially_delivered',
         ]);
         expect(String(params[1])).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         return { rows: soDemandRows, rowCount: soDemandRows.length };
@@ -750,12 +752,59 @@ describe('runMrp', () => {
     expect(soSql).toContain('app.current_org_id()');
     expect(soSql).toContain('sales_orders so');
     expect(soSql).toContain("so.status = any($1::text[])");
-    expect(soSql).toContain('quantity_ordered - sol.quantity_shipped');
+    expect(soSql).toContain('from public.shipment_box_contents sbc');
+    expect(soSql).toContain('join public.shipment_boxes sb');
+    expect(soSql).toContain('join public.shipments sh');
+    expect(soSql).toContain("sh.status in ('shipped', 'delivered')");
+    expect(soSql).toContain('quantity_ordered - coalesce(shipped.shipped_qty, 0)');
+    expect(soSql).not.toContain('sol.quantity_shipped');
     expect(soSql).toContain("coalesce(so.promised_ship_date, so.required_delivery_date, so.order_date)");
     expect(soSql).toContain('<= $2::date');
     expect(soSql).toContain("coalesce(sol.ext_data->>'order_uom', i.uom_base)");
     expect(soSql).not.toContain("'draft'");
     expect(soSql).not.toContain("'cancelled'");
+  });
+
+  it('nets partial SO shipment as ordered minus shipped aggregate (6 of 10 → demand 4)', async () => {
+    // SQL: greatest(10 - 6, 0) = 4 on a confirmed/manifested SO line.
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '4.000' }];
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.demand).toBe('84.000'); // 80 dependent + 4 SO remainder
+    expect(flour.soDemand).toBe('4.000');
+    expect(flour.net).toBe('-29.000');
+  });
+
+  it('includes partially_delivered SO status in open demand filter (NN-PLAN-4)', async () => {
+    // Multi-shipment order with one delivery: SO → partially_delivered; open line
+    // balance must still feed MRP when the SQL aggregate leaves remainder > 0.
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', qty: '7.000' }];
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.soDemand).toBe('7.000');
+    expect(flour.demand).toBe('87.000'); // 80 dependent + 7 SO remainder
+  });
+
+  it('nets fully shipped SO line to zero demand (ordered − shipped aggregate)', async () => {
+    // SQL: greatest(10 - 10, 0) = 0 — row dropped from grouped demand.
+    soDemandRows = [];
+
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.soDemand).toBe('0.000');
+    expect(flour.demand).toBe('80.000'); // dependent only
+    expect(flour.net).toBe('-25.000'); // baseline without SO demand
   });
 
   it('tags the persisted run/requirement as forecast-driven when a forecast feeds an item (E6)', async () => {
