@@ -172,8 +172,8 @@ const ensureAnchorSchema = z.object({
   productCode: z.string().trim().min(1),
 });
 
-export type EnsureProdDetailAnchorInput = z.input<typeof ensureAnchorSchema>;
-export type EnsureProdDetailAnchorResult = {
+type EnsureProdDetailAnchorInput = z.input<typeof ensureAnchorSchema>;
+type EnsureProdDetailAnchorResult = {
   id: string;
   intermediateCode: string;
   componentIndex: number;
@@ -219,6 +219,14 @@ export async function ensureProdDetailAnchor(
     if (productExists.rows.length === 0) {
       throw new ValidationError('PRODUCT_NOT_FOUND', 'Finished Good is not visible in this organisation');
     }
+
+    // Race guard: two concurrent first-clicks would both see zero rows and insert
+    // two anchors (prod_detail has no unique key on org/product/component_index).
+    // Transaction-scoped advisory lock keyed by org+product serializes them.
+    await ctx.client.query(
+      `select pg_advisory_xact_lock(hashtextextended('prod_detail_anchor:' || app.current_org_id()::text || ':' || $1, 0))`,
+      [productCode],
+    );
 
     // Idempotent: reuse the existing anchor rather than creating a duplicate.
     const existing = await ctx.client.query<{ id: string; intermediate_code: string; component_index: number }>(
