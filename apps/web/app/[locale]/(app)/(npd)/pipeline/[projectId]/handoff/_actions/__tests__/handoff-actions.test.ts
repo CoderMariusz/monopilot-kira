@@ -121,7 +121,15 @@ describe('getHandoff — RBAC + ready derivation', () => {
         };
       }
       if (/from public.npd_projects/.test(sql)) {
-        return { rows: [{ product_code: 'SKU-2451', product_name: 'Sliced Ham 200g' }] };
+        return {
+          rows: [
+            {
+              product_code: 'SKU-2451',
+              product_name: 'Sliced Ham 200g',
+              npd_locked_for_release_at: null,
+            },
+          ],
+        };
       }
       return { rows: [] };
     });
@@ -159,7 +167,9 @@ describe('getHandoff — RBAC + ready derivation', () => {
         return { rows: [{ current_gate: 'G4', product_code: 'FG-9' }] };
       }
       if (/from public.npd_projects/.test(sql)) {
-        return { rows: [{ product_code: 'FG-9', product_name: 'Test FG' }] };
+        return {
+          rows: [{ product_code: 'FG-9', product_name: 'Test FG', npd_locked_for_release_at: null }],
+        };
       }
       if (/from public.risks/.test(sql)) {
         return { rows: [{ open_high_count: '0' }] }; // no open high risk → met
@@ -258,6 +268,85 @@ describe('getHandoff — RBAC + ready derivation', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.data.ready).toBe(false);
+  });
+
+  it('derives releaseLocked=true for lock-only wedge (npd_locked_for_release_at, not promoted)', async () => {
+    handlerHolder.handler = permHandler(['npd.handoff.read', 'npd.gate.approve'], (sql) => {
+      if (/from public.handoff_checklists/.test(sql)) {
+        return {
+          rows: [
+            {
+              id: CHECKLIST,
+              bom_verification_status: 'pending',
+              destination_bom_code: 'BOM-238',
+              promote_to_production_date: null,
+              destination_warehouse_id: null,
+            },
+          ],
+        };
+      }
+      if (/from public.handoff_checklist_items/.test(sql)) {
+        return { rows: [{ id: 'i1', label: 'Recipe locked', is_checked: true, display_order: 1 }] };
+      }
+      if (/from public.npd_projects/.test(sql)) {
+        return {
+          rows: [
+            {
+              product_code: 'SKU-2451',
+              product_name: 'Sliced Ham 200g',
+              npd_locked_for_release_at: '2026-07-07T10:00:00.000Z',
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const r = await getHandoff({ projectId: PROJECT });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.promoted).toBe(false);
+    expect(r.data.releaseLocked).toBe(true);
+    expect(r.data.canRevertToNpd).toBe(true);
+  });
+
+  it('derives releaseLocked=false for a clean non-locked project', async () => {
+    handlerHolder.handler = permHandler(['npd.handoff.read', 'npd.gate.approve'], (sql) => {
+      if (/from public.handoff_checklists/.test(sql)) {
+        return {
+          rows: [
+            {
+              id: CHECKLIST,
+              bom_verification_status: 'pending',
+              destination_bom_code: 'BOM-238',
+              promote_to_production_date: null,
+              destination_warehouse_id: null,
+            },
+          ],
+        };
+      }
+      if (/from public.handoff_checklist_items/.test(sql)) {
+        return { rows: [{ id: 'i1', label: 'Recipe locked', is_checked: true, display_order: 1 }] };
+      }
+      if (/from public.npd_projects/.test(sql)) {
+        return {
+          rows: [
+            {
+              product_code: 'SKU-2451',
+              product_name: 'Sliced Ham 200g',
+              npd_locked_for_release_at: null,
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const r = await getHandoff({ projectId: PROJECT });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.promoted).toBe(false);
+    expect(r.data.releaseLocked).toBe(false);
   });
 });
 

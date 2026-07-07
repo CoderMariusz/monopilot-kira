@@ -19,7 +19,10 @@
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
-import { seedHandoffChecklist } from '../../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
+import {
+  GATE_APPROVE_PERMISSION,
+  seedHandoffChecklist,
+} from '../../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import { probeReleaseGates, type ReleaseGateStatus } from './release-gate-status';
 
 const Input = z.object({
@@ -59,6 +62,13 @@ export type HandoffData = {
   ready: boolean;
   /** True once the factory release has been recorded for this project. */
   promoted: boolean;
+  /**
+   * True when the project matches revertToNpd preconditions (release-locked wedge):
+   * product npd_locked_for_release_at, handoff promoted markers, or factory release.
+   */
+  releaseLocked: boolean;
+  /** True when the caller may revert a release-locked project (npd.gate.approve). */
+  canRevertToNpd: boolean;
   checklist: HandoffChecklistItemDto[];
   destinationBom: HandoffDestinationBomDto;
   /**
@@ -128,6 +138,7 @@ type ItemRow = {
 type ProjectRow = {
   product_code: string | null;
   product_name: string | null;
+  npd_locked_for_release_at: string | null;
 };
 
 type WarehouseRow = { name: string };
@@ -243,7 +254,8 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
 
       const projectRes = await ctx.client.query<ProjectRow>(
         `select np.product_code,
-                p.product_name
+                p.product_name,
+                p.private_jsonb ->> 'npd_locked_for_release_at' as npd_locked_for_release_at
            from public.npd_projects np
            left join public.product p
              on p.product_code = np.product_code
@@ -253,7 +265,11 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
           limit 1`,
         [projectId],
       );
-      const project = projectRes.rows[0] ?? { product_code: null, product_name: null };
+      const project = projectRes.rows[0] ?? {
+        product_code: null,
+        product_name: null,
+        npd_locked_for_release_at: null,
+      };
 
       let warehouseName: string | null = null;
       if (checklist.destination_warehouse_id) {
@@ -302,6 +318,13 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
       const promoted =
         release?.release_status === 'released_to_factory' ||
         checklist.promote_to_production_date !== null;
+      // Mirror revertToNpd releaseLocked — drives Revert-to-NPD visibility (C7a wedge).
+      const releaseLocked =
+        project.npd_locked_for_release_at !== null ||
+        checklist.bom_verification_status === 'promoted' ||
+        checklist.promote_to_production_date !== null ||
+        release?.release_status === 'released_to_factory';
+      const canRevertToNpd = await hasHandoffPermission(ctx, GATE_APPROVE_PERMISSION);
 
       return {
         ok: true as const,
@@ -312,6 +335,8 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
           promoteToProductionDate: checklist.promote_to_production_date,
           ready,
           promoted,
+          releaseLocked,
+          canRevertToNpd,
           checklist: items,
           releaseGates,
           releaseGatesMet,

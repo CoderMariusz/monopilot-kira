@@ -36,6 +36,8 @@ import {
   type UpdateBomYieldOutcome,
   type ReleaseToFactoryCall,
   type ReleaseToFactoryOutcome,
+  type RevertToNpdCall,
+  type RevertToNpdOutcome,
 } from './_components/handoff-screen';
 import { getHandoff } from './_actions/get-handoff';
 import { toggleHandoffChecklistItem } from './_actions/toggle-handoff-checklist-item';
@@ -43,6 +45,7 @@ import { promoteToProduction } from './_actions/promote-to-production';
 import { releaseToFactory } from './_actions/release-to-factory';
 import { generateProductionBom } from './_actions/generate-production-bom';
 import { updateBomYield } from './_actions/update-bom-yield';
+import { revertToNpd } from './_actions/revert-to-npd';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,6 +110,17 @@ const DEFAULT_LABELS: HandoffLabels = {
   releasedToFactoryTitle: 'Released to factory.',
   releasedToFactoryBody:
     'Planning work orders can now be created for this FG. Recall in Technical re-gates factory use.',
+  revertToNpd: 'Revert to NPD',
+  revertingToNpd: 'Reverting…',
+  revertModalTitle: 'Revert to NPD',
+  revertModalBody:
+    'Unlocks this project back to the handoff stage. Any released factory spec may be recalled. Enter a reason for the audit trail.',
+  revertReasonLabel: 'Reason',
+  revertReasonPlaceholder: 'Why is this release being reverted?',
+  revertCancel: 'Cancel',
+  revertConfirm: 'Revert to NPD',
+  revertError: 'Could not revert to NPD. Try again.',
+  revertErrorForbidden: 'You do not have permission to revert this project.',
   generateBom: 'Generate production BOM',
   generating: 'Generating…',
   generateBomHint:
@@ -265,6 +279,13 @@ export default async function HandoffPage(propsInput: unknown = {}) {
     return result.ok ? { ok: true } : { ok: false, error: result.code };
   }
 
+  async function revertToNpdAction(call: RevertToNpdCall): Promise<RevertToNpdOutcome> {
+    'use server';
+    const result = await revertToNpd({ projectId, reason: call.reason });
+    if (!result.ok) return { ok: false, error: result.error, message: result.message };
+    return { ok: true };
+  }
+
   const injected = props.data !== undefined || props.state !== undefined;
   const loaded: LoaderResult = injected
     ? { state: props.state ?? (props.data ? 'ready' : 'empty'), data: props.data ?? null }
@@ -291,6 +312,7 @@ export default async function HandoffPage(propsInput: unknown = {}) {
       onGenerate={generateAction}
       onToggleChecklistItem={toggleChecklistAction}
       onUpdateBomYield={updateYieldAction}
+      onRevertToNpd={revertToNpdAction}
     />
   );
 }

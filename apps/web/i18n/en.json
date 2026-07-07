@@ -4190,7 +4190,17 @@
       "generateWarningNoLine": "Production BOM created, but no production line is set on the project — routing was not materialized.",
       "generateWarningNoProcesses": "Production BOM created, but no NPD processes were found to build a routing.",
       "generateWarningRoutingDraft": "Routing created as DRAFT — approve and activate it in Technical → Routings so work orders pick up the production steps.",
-      "generatePacksPerBoxRequired": "Set packs-per-box on the FG before generating the production BOM."
+      "generatePacksPerBoxRequired": "Set packs-per-box on the FG before generating the production BOM.",
+      "revertToNpd": "Revert to NPD",
+      "revertingToNpd": "Reverting…",
+      "revertModalTitle": "Revert to NPD",
+      "revertModalBody": "Unlocks this project back to the handoff stage. Any released factory spec may be recalled. Enter a reason for the audit trail.",
+      "revertReasonLabel": "Reason",
+      "revertReasonPlaceholder": "Why is this release being reverted?",
+      "revertCancel": "Cancel",
+      "revertConfirm": "Revert to NPD",
+      "revertError": "Could not revert to NPD. Try again.",
+      "revertErrorForbidden": "You do not have permission to revert this project."
     },
     "pipelineCreate": {
       "title": "Create NPD project",

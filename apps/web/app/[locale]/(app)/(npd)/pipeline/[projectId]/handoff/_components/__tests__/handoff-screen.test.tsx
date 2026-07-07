@@ -103,6 +103,21 @@ const LABELS: HandoffLabels = {
   yieldErrorForbidden: 'No permission to update yield',
   yieldErrorNotFound: 'Active BOM no longer found',
   yieldErrorPersistenceFailed: 'Could not save the yield. Try again.',
+  releaseToFactory: 'L_RELEASE',
+  releasingToFactory: 'L_RELEASING',
+  releaseToFactoryError: 'L_RELEASE_ERR',
+  releasedToFactoryTitle: 'L_RELEASED_TITLE',
+  releasedToFactoryBody: 'L_RELEASED_BODY',
+  revertToNpd: 'L_REVERT',
+  revertingToNpd: 'L_REVERTING',
+  revertModalTitle: 'L_REVERT_TITLE',
+  revertModalBody: 'L_REVERT_BODY',
+  revertReasonLabel: 'L_REVERT_REASON',
+  revertReasonPlaceholder: 'L_REVERT_PLACEHOLDER',
+  revertCancel: 'L_REVERT_CANCEL',
+  revertConfirm: 'L_REVERT_CONFIRM',
+  revertError: 'L_REVERT_ERR',
+  revertErrorForbidden: 'L_REVERT_FORBIDDEN',
   loading: 'L_LOADING',
   empty: 'L_EMPTY',
   emptyBody: 'L_EMPTY_BODY',
@@ -143,6 +158,8 @@ function dataReady(
     ],
     releaseGates: gates,
     releaseGatesMet: gates.every((g) => g.met),
+    releaseLocked: false,
+    canRevertToNpd: false,
     destinationBom: {
       bomCode: 'BOM-238',
       productSku: 'SKU-2451',
@@ -718,5 +735,118 @@ describe('HandoffScreen — Export handoff packet (LANE 14)', () => {
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(downloads[0]).toMatch(/^handoff-SKU-2451-\d{4}-\d{2}-\d{2}\.json$/);
     vi.restoreAllMocks();
+  });
+});
+
+describe('HandoffScreen — Revert to NPD (C7a)', () => {
+  function revertableData(over: Partial<HandoffScreenData> = {}): HandoffScreenData {
+    return {
+      ...dataReady(true),
+      promoted: true,
+      releaseLocked: true,
+      canRevertToNpd: true,
+      promoteToProductionDate: '2026-07-07',
+      destinationBom: {
+        ...dataReady(true).destinationBom,
+        releaseStatus: 'released_to_factory',
+      },
+      ...over,
+    };
+  }
+
+  it('hides the revert button when the caller lacks npd.gate.approve', () => {
+    render(
+      <HandoffScreen
+        state="ready"
+        data={revertableData({ canRevertToNpd: false })}
+        labels={LABELS}
+        onRevertToNpd={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('handoff-revert-to-npd-btn')).not.toBeInTheDocument();
+  });
+
+  it('hides the revert button when the project is not release-locked', () => {
+    render(
+      <HandoffScreen
+        state="ready"
+        data={{ ...dataReady(true), releaseLocked: false, canRevertToNpd: true }}
+        labels={LABELS}
+        onRevertToNpd={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('handoff-revert-to-npd-btn')).not.toBeInTheDocument();
+  });
+
+  it('shows the revert button for a lock-only wedge (releaseLocked without promoted)', () => {
+    render(
+      <HandoffScreen
+        state="ready"
+        data={revertableData({
+          promoted: false,
+          promoteToProductionDate: null,
+          destinationBom: {
+            ...dataReady(true).destinationBom,
+            releaseStatus: null,
+          },
+        })}
+        labels={LABELS}
+        onRevertToNpd={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('handoff-revert-to-npd-btn')).toBeInTheDocument();
+  });
+
+  it('opens the confirm modal and calls onRevertToNpd with projectId + reason on confirm', async () => {
+    refreshSpy.mockClear();
+    const onRevertToNpd = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <HandoffScreen
+        state="ready"
+        data={revertableData()}
+        labels={LABELS}
+        onRevertToNpd={onRevertToNpd}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('handoff-revert-to-npd-btn'));
+    expect(screen.getByTestId('handoff-revert-modal')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('handoff-revert-reason'), {
+      target: { value: 'Wrong FG released' },
+    });
+    fireEvent.click(screen.getByTestId('handoff-revert-confirm'));
+    await waitFor(() =>
+      expect(onRevertToNpd).toHaveBeenCalledWith({
+        projectId: '07300000-0000-4000-8000-0000000000c1',
+        reason: 'Wrong FG released',
+      }),
+    );
+    await waitFor(() => expect(refreshSpy).toHaveBeenCalledTimes(1));
+  });
+
+  it('surfaces the blocked-WO server message inline and keeps the modal open', async () => {
+    const woMessage =
+      'Factory spec cannot be recalled while released or in-progress work orders reference it: WO-1001, WO-1002';
+    const onRevertToNpd = vi.fn().mockResolvedValue({
+      ok: false,
+      error: 'active_work_orders',
+      message: woMessage,
+    });
+    render(
+      <HandoffScreen
+        state="ready"
+        data={revertableData()}
+        labels={LABELS}
+        onRevertToNpd={onRevertToNpd}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('handoff-revert-to-npd-btn'));
+    fireEvent.change(screen.getByTestId('handoff-revert-reason'), {
+      target: { value: 'Should be blocked.' },
+    });
+    fireEvent.click(screen.getByTestId('handoff-revert-confirm'));
+    const err = await screen.findByTestId('handoff-revert-error');
+    expect(err).toHaveAttribute('role', 'alert');
+    expect(err).toHaveTextContent(woMessage);
+    expect(screen.getByTestId('handoff-revert-modal')).toBeInTheDocument();
   });
 });
