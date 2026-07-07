@@ -163,6 +163,8 @@ export interface SequenceSolverConfig {
   utilizationWeight: number;
   /** Per-line daily capacity cap (hours); rolls overflow to the next UTC day. */
   capacityHoursPerDay: number | null;
+  /** Line-specific capacity overrides; falls back to `capacityHoursPerDay` when a line is absent. */
+  capacityHoursPerDayByLine?: Record<string, number | null>;
   /** When true, `pmWindows` block scheduling overlaps; no effect when the window list is empty. */
   respectPmWindows: boolean;
   pmWindows?: PmWindow[];

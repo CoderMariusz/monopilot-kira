@@ -34,6 +34,7 @@ import {
   BOARD_STATUSES,
   BOARD_WINDOW_DAYS,
   RESCHEDULE_LEGAL_STATUSES,
+  computeLineDayUtilization,
   type ScheduleBoardData,
   type ScheduleCapacityBlock,
   type ScheduleBoardLine,
@@ -74,6 +75,11 @@ type CapacityBlockRow = {
   start_time: string;
   end_time: string;
   block_type: string;
+};
+
+type SchedulerCapacityRow = {
+  line_id: string | null;
+  capacity_hours_per_day: string | number | null;
 };
 
 function mapBoardWo(row: WoRow): ScheduleBoardWo {
@@ -139,6 +145,7 @@ export async function getScheduleBoard(): Promise<GetScheduleBoardResult> {
             scheduled: [],
             unscheduled: [],
             capacityBlocks: [],
+            lineDayUtilization: [],
             noActiveSite: true,
           } as ScheduleBoardData & { noActiveSite: true },
         };
@@ -195,15 +202,30 @@ export async function getScheduleBoard(): Promise<GetScheduleBoardResult> {
         [windowStart.toISOString().slice(0, 10), windowEnd.toISOString().slice(0, 10), s],
       );
 
+      const schedulerCapacityResult = await ctx.client.query<SchedulerCapacityRow>(
+        `select line_id, capacity_hours_per_day::text as capacity_hours_per_day
+           from public.scheduler_config
+          where org_id = app.current_org_id()`,
+      );
+
+      const scheduled = scheduledResult.rows.map(mapBoardWo);
+      const lines = linesResult.rows;
+
       return {
         ok: true,
         data: {
           windowStart: windowStart.toISOString(),
           windowEnd: windowEnd.toISOString(),
-          lines: linesResult.rows,
-          scheduled: scheduledResult.rows.map(mapBoardWo),
+          lines,
+          scheduled,
           unscheduled: unscheduledResult.rows.map(mapBoardWo),
           capacityBlocks: capacityBlocksResult.rows.map(mapCapacityBlock),
+          lineDayUtilization: computeLineDayUtilization({
+            lines,
+            scheduled,
+            capacityRows: schedulerCapacityResult.rows,
+            windowStartIso: windowStart.toISOString(),
+          }),
         },
       };
     });

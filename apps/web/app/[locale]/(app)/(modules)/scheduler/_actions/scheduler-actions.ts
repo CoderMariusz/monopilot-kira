@@ -6,6 +6,7 @@ import {
   type OrgActionContext,
 } from '../../planning/work-orders/_actions/shared';
 import { sequenceWorkOrders, DEFAULT_SEQUENCE_SOLVER_CONFIG } from './sequence-solver';
+import { loadPmWindows, pmBlockHoursFromConfigParams } from './pm-windows';
 import type {
   ApplyScheduleResult,
   ChangeoverMatrixEntry,
@@ -132,8 +133,12 @@ function numericWeight(value: string | number | null | undefined, fallback: numb
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function cloneDefaultSolverConfig(): SequenceSolverConfig {
+  return { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, pmWindows: [] };
+}
+
 function solverConfigFromRow(row: SchedulerConfigRow | null): SequenceSolverConfig {
-  if (!row) return DEFAULT_SEQUENCE_SOLVER_CONFIG;
+  if (!row) return cloneDefaultSolverConfig();
   const capacity = row.capacity_hours_per_day === null ? null : numericWeight(row.capacity_hours_per_day, 0);
   return {
     sequencingStrategy: row.sequencing_strategy,
@@ -142,7 +147,18 @@ function solverConfigFromRow(row: SchedulerConfigRow | null): SequenceSolverConf
     utilizationWeight: numericWeight(row.utilization_weight, 1),
     capacityHoursPerDay: capacity,
     respectPmWindows: row.respect_pm_windows,
+    pmWindows: [],
   };
+}
+
+function capacityHoursByLineFromConfigs(rows: SchedulerConfigRow[]): Record<string, number | null> {
+  const byLine: Record<string, number | null> = {};
+  for (const row of rows) {
+    if (row.line_id === null) continue;
+    byLine[row.line_id] =
+      row.capacity_hours_per_day === null ? null : numericWeight(row.capacity_hours_per_day, 0);
+  }
+  return byLine;
 }
 
 async function loadSchedulerConfig(
@@ -180,6 +196,34 @@ async function loadSchedulerConfig(
     [lineId],
   );
   return rows[0] ?? null;
+}
+
+async function loadAllSchedulerConfigs(ctx: OrgActionContext): Promise<SchedulerConfigRow[]> {
+  const { rows } = await ctx.client.query<SchedulerConfigRow>(
+    `select
+       id::text,
+       org_id::text,
+       site_id::text,
+       line_id,
+       default_horizon_days,
+       optimizer_version,
+       sequencing_strategy,
+       capacity_hours_per_day::text,
+       changeover_weight::text,
+       duedate_weight::text,
+       utilization_weight::text,
+       respect_pm_windows,
+       allow_alternate_routings,
+       params,
+       created_by::text,
+       updated_by::text,
+       created_at,
+       updated_at
+     from public.scheduler_config
+    where org_id = app.current_org_id()
+    order by line_id nulls first`,
+  );
+  return rows;
 }
 
 async function loadActiveVersionId(ctx: OrgActionContext): Promise<string | null> {
@@ -655,7 +699,12 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
         return { ok: false, error: 'forbidden' };
       }
 
-      const schedulerConfig = await loadSchedulerConfig(ctx, lineId);
+      const schedulerConfigs =
+        lineId === null ? await loadAllSchedulerConfigs(ctx) : [await loadSchedulerConfig(ctx, lineId)];
+      const schedulerConfig =
+        lineId === null
+          ? (schedulerConfigs.find((row) => row?.line_id === null) ?? null)
+          : (schedulerConfigs[0] ?? null);
       const horizonDays = Math.trunc(
         input?.horizonDays ?? schedulerConfig?.default_horizon_days ?? 7,
       );
@@ -666,7 +715,24 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
         loadOpenWorkOrders(ctx, lineId, horizonDays),
         loadChangeoverMatrixForRun(ctx, lineId),
       ]);
-      const solverConfig = solverConfigFromRow(schedulerConfig);
+      const baseSolverConfig = solverConfigFromRow(schedulerConfig);
+      const solverConfig: SequenceSolverConfig =
+        schedulerConfig?.respect_pm_windows === true
+          ? {
+              ...baseSolverConfig,
+              pmWindows: await loadPmWindows(
+                ctx,
+                lineId,
+                horizonDays,
+                pmBlockHoursFromConfigParams(schedulerConfig.params),
+              ),
+            }
+          : baseSolverConfig;
+      if (lineId === null && schedulerConfigs.length > 0) {
+        solverConfig.capacityHoursPerDayByLine = capacityHoursByLineFromConfigs(
+          schedulerConfigs.filter((row): row is SchedulerConfigRow => row !== null),
+        );
+      }
       const sequenced = sequenceWorkOrders(workOrders, matrix, solverConfig);
       const solveDurationMs = Date.now() - started;
       const run = await insertSchedulerRun(ctx, {

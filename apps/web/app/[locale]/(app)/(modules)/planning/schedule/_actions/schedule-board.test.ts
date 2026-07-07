@@ -96,6 +96,12 @@ function makeClient(): QueryClient {
         // getScheduleBoard scheduled/unscheduled reads
         return { rows: [WO_ROW], rowCount: 1 };
       }
+      if (normalized.includes('from public.scheduler_config')) {
+        return {
+          rows: [{ line_id: null, capacity_hours_per_day: '8' }],
+          rowCount: 1,
+        };
+      }
       return { rows: [], rowCount: 0 };
     }),
   };
@@ -303,6 +309,26 @@ describe('getScheduleBoard', () => {
     ]);
     expect(workOrderReads[1]?.[0]).toContain('wo.site_id = $2::uuid');
     expect(workOrderReads[1]?.[1]).toEqual([['DRAFT', 'RELEASED', 'IN_PROGRESS'], SITE_ID]);
+  });
+
+  it('includes per-line/day capacity utilization from scheduler_config', async () => {
+    const result = await getScheduleBoard();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(
+      vi.mocked(client.query).mock.calls.some(([sql]) =>
+        String(sql).includes('from public.scheduler_config'),
+      ),
+    ).toBe(true);
+    expect(result.data.lineDayUtilization.length).toBeGreaterThan(0);
+    expect(result.data.lineDayUtilization[0]).toEqual(
+      expect.objectContaining({
+        lineId: LINE_ID,
+        capacityHours: 8,
+        utilizationPct: expect.any(Number),
+      }),
+    );
   });
 
   it('fails closed with no active site before running board reads', async () => {

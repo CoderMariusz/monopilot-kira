@@ -27,9 +27,21 @@ export const DEFAULT_SEQUENCE_SOLVER_CONFIG: SequenceSolverConfig = {
   duedateWeight: 1,
   utilizationWeight: 1,
   capacityHoursPerDay: null,
-  respectPmWindows: true,
+  respectPmWindows: false,
   pmWindows: [],
 };
+
+function cloneDefaultSolverConfig(): SequenceSolverConfig {
+  return { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, pmWindows: [] };
+}
+
+function capacityHoursForLine(lineKey: string, config: SequenceSolverConfig): number | null {
+  if (lineKey !== '__unassigned__') {
+    const perLine = config.capacityHoursPerDayByLine?.[lineKey];
+    if (perLine !== undefined) return perLine;
+  }
+  return config.capacityHoursPerDay;
+}
 
 function dueTime(wo: WorkOrderForScheduling): number {
   return new Date(wo.due_date).getTime();
@@ -151,10 +163,9 @@ function resolvePlannedStart(
   config: SequenceSolverConfig,
   dayUsageHours: Map<string, number>,
 ): number {
+  const capacityHours = capacityHoursForLine(lineKey, config);
   const capacityMs =
-    config.capacityHoursPerDay !== null && config.capacityHoursPerDay > 0
-      ? config.capacityHoursPerDay * 60 * 60 * 1000
-      : null;
+    capacityHours !== null && capacityHours > 0 ? capacityHours * 60 * 60 * 1000 : null;
   const pmWindows = config.respectPmWindows ? (config.pmWindows ?? []) : [];
   let start = earliestMs;
 
@@ -240,7 +251,7 @@ function pickNextIndex(
 export function sequenceWorkOrders(
   wos: WorkOrderForScheduling[],
   matrix: ChangeoverMatrixEntry[],
-  config: SequenceSolverConfig = DEFAULT_SEQUENCE_SOLVER_CONFIG,
+  config: SequenceSolverConfig = cloneDefaultSolverConfig(),
 ): SequencedAssignment[] {
   if (wos.length === 0) return [];
 
