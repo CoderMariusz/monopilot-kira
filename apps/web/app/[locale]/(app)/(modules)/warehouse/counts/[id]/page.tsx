@@ -33,6 +33,7 @@ import {
   getCountSession,
   recordCount,
 } from '../_actions/count-actions';
+import { searchEligibleSupervisors } from '../../adjustments/_actions/adjust-form-actions';
 import { getCountsTranslator } from '../counts-labels';
 import {
   CountSessionDetailClient,
@@ -109,14 +110,39 @@ function buildLabels(t: ReturnType<typeof getCountsTranslator>): CountSessionDet
       submit: t('esign.submit'),
       submitting: t('esign.submitting'),
       formIncomplete: t('esign.formIncomplete'),
+      supervisorRequired: t('esign.supervisorRequired'),
+      supervisorPinRequired: t('esign.supervisorPinRequired'),
       errors: {
         forbidden: t('esign.errors.forbidden'),
         not_found: t('esign.errors.not_found'),
         already_applied: t('esign.errors.already_applied'),
         esign_failed: t('esign.errors.esign_failed'),
         invalid_input: t('esign.errors.invalid_input'),
+        supervisor_self_approval: t('esign.errors.supervisor_self_approval'),
+        supervisor_pin_required: t('esign.errors.supervisor_pin_required'),
+        supervisor_pin_invalid: t('esign.errors.supervisor_pin_invalid'),
+        supervisor_pin_not_enrolled: t('esign.errors.supervisor_pin_not_enrolled'),
+        supervisor_pin_locked: t('esign.errors.supervisor_pin_locked'),
+        supervisor_forbidden: t('esign.errors.supervisor_forbidden'),
         error: t('esign.errors.error'),
       },
+    },
+    supervisor: {
+      block: t('supervisor.block'),
+      meaning: t('supervisor.meaning'),
+      selectLabel: t('supervisor.selectLabel'),
+      selectHelp: t('supervisor.selectHelp'),
+      selectTrigger: t('supervisor.selectTrigger'),
+      searchLabel: t('supervisor.searchLabel'),
+      searchPlaceholder: t('supervisor.searchPlaceholder'),
+      searchLoading: t('supervisor.searchLoading'),
+      searchEmpty: t('supervisor.searchEmpty'),
+      searchError: t('supervisor.searchError'),
+      selected: t('supervisor.selected'),
+      change: t('supervisor.change'),
+      pinLabel: t('supervisor.pinLabel'),
+      pinPlaceholder: t('supervisor.pinPlaceholder'),
+      pinHelp: t('supervisor.pinHelp'),
     },
     closeSession: t('detail.closeSession'),
     closingSession: t('detail.closingSession'),
@@ -207,6 +233,7 @@ async function DetailContent({ locale, sessionId }: { locale: string; sessionId:
       labels={buildLabels(t)}
       recordAction={recordCountSafe}
       approveAction={approveVarianceSafe}
+      searchSupervisorsAction={searchEligibleSupervisors}
       closeSessionAction={closeCountSessionSafe}
     />
   );

@@ -31,7 +31,8 @@
  * inline `forbidden`), optimistic (record + approve disable + pending labels).
  */
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
@@ -39,6 +40,8 @@ import { Card } from '@monopilot/ui/Card';
 import Modal from '@monopilot/ui/Modal';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import type { EligibleSupervisor } from '../../adjustments/_actions/adjust-form-types';
+import type { WarehouseResult } from '../../_actions/shared';
 import type { CountLine, CountSessionDetail } from '../_actions/count-types';
 import type { CountClientResult } from './count-client-result';
 
@@ -57,7 +60,10 @@ type RecordAction = (input: {
 type ApproveAction = (input: {
   countLineId: string;
   signature: { password: string };
+  supervisorUserId?: string;
+  supervisorPin?: string;
 }) => Promise<CountClientResult<{ countLineId: string }>>;
+type SearchSupervisorsAction = (input: { query?: string }) => Promise<WarehouseResult<EligibleSupervisor[]>>;
 type CloseSessionAction = () => Promise<CountClientResult<void>>;
 
 const LINE_STATUS_VARIANT: Record<string, BadgeVariant> = {
@@ -140,14 +146,39 @@ export type CountSessionDetailLabels = {
     submit: string;
     submitting: string;
     formIncomplete: string;
+    supervisorRequired: string;
+    supervisorPinRequired: string;
     errors: {
       forbidden: string;
       not_found: string;
       already_applied: string;
       esign_failed: string;
       invalid_input: string;
+      supervisor_self_approval: string;
+      supervisor_pin_required: string;
+      supervisor_pin_invalid: string;
+      supervisor_pin_not_enrolled: string;
+      supervisor_pin_locked: string;
+      supervisor_forbidden: string;
       error: string;
     };
+  };
+  supervisor: {
+    block: string;
+    meaning: string;
+    selectLabel: string;
+    selectHelp: string;
+    selectTrigger: string;
+    searchLabel: string;
+    searchPlaceholder: string;
+    searchLoading: string;
+    searchEmpty: string;
+    searchError: string;
+    selected: string;
+    change: string;
+    pinLabel: string;
+    pinPlaceholder: string;
+    pinHelp: string;
   };
   closeSession: string;
   closingSession: string;
@@ -167,12 +198,14 @@ export function CountSessionDetailClient({
   labels,
   recordAction,
   approveAction,
+  searchSupervisorsAction,
   closeSessionAction,
 }: {
   session: CountSessionDetail;
   labels: CountSessionDetailLabels;
   recordAction: RecordAction;
   approveAction: ApproveAction;
+  searchSupervisorsAction: SearchSupervisorsAction;
   closeSessionAction?: CloseSessionAction;
 }) {
   const router = useRouter();
@@ -257,6 +290,7 @@ export function CountSessionDetailClient({
           lines={reviewLines}
           labels={labels}
           approveAction={approveAction}
+          searchSupervisorsAction={searchSupervisorsAction}
           onApplied={() => router.refresh()}
           dash={dash}
         />
@@ -481,12 +515,14 @@ function VarianceReview({
   lines,
   labels,
   approveAction,
+  searchSupervisorsAction,
   onApplied,
   dash,
 }: {
   lines: CountLine[];
   labels: CountSessionDetailLabels;
   approveAction: ApproveAction;
+  searchSupervisorsAction: SearchSupervisorsAction;
   onApplied: () => void;
   dash: string;
 }) {
@@ -596,6 +632,7 @@ function VarianceReview({
         target={target}
         labels={labels}
         approveAction={approveAction}
+        searchSupervisorsAction={searchSupervisorsAction}
         onClose={() => setTarget(null)}
         onApplied={() => {
           setTarget(null);
@@ -611,6 +648,7 @@ function ApproveVarianceModal({
   target,
   labels,
   approveAction,
+  searchSupervisorsAction,
   onClose,
   onApplied,
   dash,
@@ -618,17 +656,22 @@ function ApproveVarianceModal({
   target: CountLine | null;
   labels: CountSessionDetailLabels;
   approveAction: ApproveAction;
+  searchSupervisorsAction: SearchSupervisorsAction;
   onClose: () => void;
   onApplied: () => void;
   dash: string;
 }) {
   const [password, setPassword] = useState('');
+  const [supervisor, setSupervisor] = useState<EligibleSupervisor | null>(null);
+  const [supervisorPin, setSupervisorPin] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!target) return;
     setPassword('');
+    setSupervisor(null);
+    setSupervisorPin('');
     setErrorMsg(null);
   }, [target?.id]);
 
@@ -636,7 +679,9 @@ function ApproveVarianceModal({
   const variance = varNum(target?.varianceQty ?? null);
   const uom = target?.uom ?? '';
   const positive = variance > 0;
-  const valid = password.length > 0 && !isPending;
+  const negative = variance < 0;
+  const supervisorComplete = !negative || (supervisor !== null && supervisorPin.trim().length > 0);
+  const valid = password.length > 0 && supervisorComplete && !isPending;
 
   function mapError(code: string): string {
     const e = labels.esign.errors;
@@ -651,6 +696,18 @@ function ApproveVarianceModal({
         return e.esign_failed;
       case 'invalid_input':
         return e.invalid_input;
+      case 'supervisor_self_approval':
+        return e.supervisor_self_approval;
+      case 'supervisor_pin_required':
+        return e.supervisor_pin_required;
+      case 'supervisor_pin_invalid':
+        return e.supervisor_pin_invalid;
+      case 'supervisor_pin_not_enrolled':
+        return e.supervisor_pin_not_enrolled;
+      case 'supervisor_pin_locked':
+        return e.supervisor_pin_locked;
+      case 'supervisor_forbidden':
+        return e.supervisor_forbidden;
       default:
         return e.error;
     }
@@ -658,9 +715,24 @@ function ApproveVarianceModal({
 
   function submit() {
     if (!target || !valid) return;
+    if (negative && !supervisor) {
+      setErrorMsg(labels.esign.supervisorRequired);
+      return;
+    }
+    if (negative && supervisorPin.trim() === '') {
+      setErrorMsg(labels.esign.supervisorPinRequired);
+      return;
+    }
     setErrorMsg(null);
     startTransition(async () => {
-      const res = await approveAction({ countLineId: target.id, signature: { password } });
+      const payload = {
+        countLineId: target.id,
+        signature: { password },
+        ...(negative
+          ? { supervisorUserId: supervisor!.id, supervisorPin: supervisorPin.trim() }
+          : {}),
+      };
+      const res = await approveAction(payload);
       if (res.ok) {
         onApplied();
         return;
@@ -738,6 +810,80 @@ function ApproveVarianceModal({
               <p className="mt-1 text-[10px] leading-snug text-slate-400">{labels.esign.passwordHelp}</p>
             </div>
 
+            {negative ? (
+              <div
+                data-testid="count-approve-supervisor-block"
+                className="rounded-md border border-red-200 bg-red-50 px-3 py-3"
+              >
+                <div className="text-xs font-semibold uppercase tracking-wide text-red-700">{labels.supervisor.block}</div>
+                <p className="mt-1 text-[11px] text-red-700/80">{labels.supervisor.meaning}</p>
+
+                <label className="mt-2 flex flex-col gap-1">
+                  <span className="text-xs font-medium text-slate-700">
+                    {labels.supervisor.selectLabel} <span aria-hidden className="text-red-600">*</span>
+                  </span>
+                  {supervisor ? (
+                    <div className="flex flex-col gap-1">
+                      <span data-testid="count-approve-supervisor-selected" className="text-slate-800">
+                        {supervisor.name ?? supervisor.email}
+                      </span>
+                      <span className="text-xs text-slate-500">{supervisor.email}</span>
+                      <button
+                        type="button"
+                        data-testid="count-approve-supervisor-change"
+                        onClick={() => {
+                          setSupervisor(null);
+                          setSupervisorPin('');
+                        }}
+                        className="self-start text-xs font-medium text-sky-700 underline"
+                      >
+                        {labels.supervisor.change}
+                      </button>
+                    </div>
+                  ) : (
+                    <SearchCombobox
+                      testId="count-approve-supervisor"
+                      triggerLabel={labels.supervisor.selectTrigger}
+                      searchLabel={labels.supervisor.searchLabel}
+                      searchPlaceholder={labels.supervisor.searchPlaceholder}
+                      loadingLabel={labels.supervisor.searchLoading}
+                      emptyLabel={labels.supervisor.searchEmpty}
+                      errorLabel={labels.supervisor.searchError}
+                      onSearch={async (query) => {
+                        const res = await searchSupervisorsAction({ query });
+                        if (!res.ok) throw new Error('search_failed');
+                        return res.data.map((s) => ({
+                          id: s.id,
+                          primary: s.name ?? s.email,
+                          secondary: s.name ? s.email : undefined,
+                          payload: s,
+                        }));
+                      }}
+                      onSelect={(opt) => setSupervisor(opt.payload as EligibleSupervisor)}
+                    />
+                  )}
+                  <span className="text-xs text-slate-400">{labels.supervisor.selectHelp}</span>
+                </label>
+
+                <label className="mt-3 flex flex-col gap-1">
+                  <span className="text-xs font-medium text-slate-700">
+                    {labels.supervisor.pinLabel} <span aria-hidden className="text-red-600">*</span>
+                  </span>
+                  <input
+                    type="password"
+                    data-testid="count-approve-supervisor-pin"
+                    value={supervisorPin}
+                    onChange={(e) => setSupervisorPin(e.target.value)}
+                    placeholder={labels.supervisor.pinPlaceholder}
+                    autoComplete="off"
+                    disabled={isPending}
+                    className="rounded-md border border-slate-300 px-2.5 py-1.5 focus:border-slate-400 focus:outline-none"
+                  />
+                  <span className="text-[10px] leading-snug text-slate-400">{labels.supervisor.pinHelp}</span>
+                </label>
+              </div>
+            ) : null}
+
             {errorMsg ? (
               <p role="alert" data-testid="count-approve-error" className="text-sm text-red-600">
                 {errorMsg}
@@ -769,5 +915,216 @@ function ApproveVarianceModal({
         </button>
       </Modal.Footer>
     </Modal>
+  );
+}
+
+// ── Generic search combobox (supervisor picker) — portaled, no raw <select> ────
+
+type ComboOption = { id: string; primary: string; secondary?: string; payload: unknown };
+
+function SearchCombobox({
+  testId,
+  triggerLabel,
+  searchLabel,
+  searchPlaceholder,
+  loadingLabel,
+  emptyLabel,
+  errorLabel,
+  onSearch,
+  onSelect,
+}: {
+  testId: string;
+  triggerLabel: string;
+  searchLabel: string;
+  searchPlaceholder: string;
+  loadingLabel: string;
+  emptyLabel: string;
+  errorLabel: string;
+  onSearch: (query: string) => Promise<ComboOption[]>;
+  onSelect: (option: ComboOption) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [options, setOptions] = useState<ComboOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reqRef = useRef(0);
+  const [panelRect, setPanelRect] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const updatePanelPosition = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const width = Math.min(420, Math.max(320, r.width));
+    const left = Math.max(12, Math.min(r.left, window.innerWidth - width - 12));
+    setPanelRect({ top: r.bottom + 4, left, width });
+  };
+
+  const runSearch = (term: string) => {
+    const seq = ++reqRef.current;
+    setLoading(true);
+    setError(false);
+    void (async () => {
+      try {
+        const result = await onSearch(term);
+        if (seq !== reqRef.current) return;
+        setOptions(result);
+        setActiveIndex(0);
+      } catch {
+        if (seq !== reqRef.current) return;
+        setOptions([]);
+        setError(true);
+      } finally {
+        if (seq === reqRef.current) setLoading(false);
+      }
+    })();
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => runSearch(query), 250);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [open, query]);
+
+  useEffect(() => {
+    if (open) {
+      updatePanelPosition();
+      const reposition = () => updatePanelPosition();
+      window.addEventListener('scroll', reposition, true);
+      window.addEventListener('resize', reposition);
+      return () => {
+        window.removeEventListener('scroll', reposition, true);
+        window.removeEventListener('resize', reposition);
+      };
+    }
+    setQuery('');
+    setOptions([]);
+    setError(false);
+    setPanelRect(null);
+    return undefined;
+  }, [open]);
+
+  useEffect(() => {
+    if (open && panelRect) inputRef.current?.focus();
+  }, [open, panelRect]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      const target = e.target as Node;
+      if (!containerRef.current?.contains(target) && !panelRef.current?.contains(target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  function choose(opt: ComboOption) {
+    onSelect(opt);
+    setOpen(false);
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, Math.max(options.length - 1, 0)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const opt = options[activeIndex];
+      if (opt) choose(opt);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="relative inline-block" data-testid={`${testId}-picker-root`}>
+      <button
+        type="button"
+        data-testid={`${testId}-trigger`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+      >
+        {triggerLabel}
+      </button>
+
+      {open && panelRect && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={panelRef}
+              role="dialog"
+              aria-label={searchLabel}
+              style={{
+                position: 'fixed',
+                top: panelRect.top,
+                left: panelRect.left,
+                width: panelRect.width,
+                zIndex: 1000,
+                pointerEvents: 'auto',
+              }}
+              className="rounded-md border border-slate-200 bg-white p-2 shadow-xl"
+              data-testid={`${testId}-panel`}
+            >
+              <input
+                ref={inputRef}
+                role="combobox"
+                aria-expanded={open}
+                aria-autocomplete="list"
+                aria-label={searchLabel}
+                value={query}
+                placeholder={searchPlaceholder}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={onKeyDown}
+                className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+              />
+              <ul role="listbox" aria-label={searchLabel} className="mt-1 max-h-56 overflow-auto" data-testid={`${testId}-options`}>
+                {loading ? (
+                  <li role="status" className="px-2 py-2 text-xs text-slate-500">
+                    {loadingLabel}
+                  </li>
+                ) : error ? (
+                  <li role="alert" data-testid={`${testId}-search-error`} className="px-2 py-2 text-xs text-red-600">
+                    {errorLabel}
+                  </li>
+                ) : options.length === 0 ? (
+                  <li className="px-2 py-2 text-xs text-slate-500" data-testid={`${testId}-empty`}>
+                    {emptyLabel}
+                  </li>
+                ) : (
+                  options.map((opt, idx) => (
+                    <li
+                      key={opt.id}
+                      role="option"
+                      aria-selected={idx === activeIndex}
+                      data-testid={`${testId}-option`}
+                      className={`cursor-pointer rounded px-2 py-1.5 text-sm ${idx === activeIndex ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
+                      onMouseEnter={() => setActiveIndex(idx)}
+                      onClick={() => choose(opt)}
+                    >
+                      <span className="font-mono text-xs font-semibold text-blue-700">{opt.primary}</span>
+                      {opt.secondary ? <span className="ml-2 text-slate-700">{opt.secondary}</span> : null}
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
   );
 }

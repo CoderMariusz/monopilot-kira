@@ -140,14 +140,39 @@
       "submit": "Approve & apply",
       "submitting": "Applying…",
       "formIncomplete": "Enter your password to apply.",
+      "supervisorRequired": "Select a supervisor for shrinkage.",
+      "supervisorPinRequired": "Enter the supervisor's PIN.",
       "errors": {
         "forbidden": "You are not authorized to apply this variance.",
         "not_found": "This count line no longer exists.",
         "already_applied": "This variance has already been applied.",
         "esign_failed": "Signature failed — check your password and try again.",
         "invalid_input": "Check the entered values and try again.",
+        "supervisor_self_approval": "The supervisor must be a different person from you.",
+        "supervisor_pin_required": "A supervisor and their PIN are required for shrinkage.",
+        "supervisor_pin_invalid": "The supervisor's PIN is incorrect.",
+        "supervisor_pin_not_enrolled": "The selected supervisor has not enrolled a PIN.",
+        "supervisor_pin_locked": "The supervisor's PIN is locked after too many attempts.",
+        "supervisor_forbidden": "The selected supervisor is not authorized to approve adjustments.",
         "error": "Could not apply the variance. Please try again."
       }
+    },
+    "supervisor": {
+      "block": "Supervisor countersignature",
+      "meaning": "Shrinkage requires a second person with stock-adjust authority to countersign.",
+      "selectLabel": "Supervisor",
+      "selectHelp": "Must be a different person from you, with an enrolled PIN.",
+      "selectTrigger": "Select supervisor",
+      "searchLabel": "Search supervisors",
+      "searchPlaceholder": "Name or email",
+      "searchLoading": "Searching…",
+      "searchEmpty": "No eligible supervisors found.",
+      "searchError": "Could not search supervisors.",
+      "selected": "Selected supervisor",
+      "change": "Change",
+      "pinLabel": "Supervisor PIN",
+      "pinPlaceholder": "Supervisor PIN",
+      "pinHelp": "The supervisor enters their own enrolled PIN here."
     }
   },
   "pl": {
@@ -290,14 +315,39 @@
       "submit": "Zatwierdź i zastosuj",
       "submitting": "Stosowanie…",
       "formIncomplete": "Wpisz hasło, aby zastosować.",
+      "supervisorRequired": "Wybierz przełożonego dla ubytku.",
+      "supervisorPinRequired": "Podaj PIN przełożonego.",
       "errors": {
         "forbidden": "Nie masz uprawnień do zastosowania tej różnicy.",
         "not_found": "Ta pozycja liczenia już nie istnieje.",
         "already_applied": "Ta różnica została już zastosowana.",
         "esign_failed": "Podpis nieudany — sprawdź hasło i spróbuj ponownie.",
         "invalid_input": "Sprawdź wprowadzone wartości i spróbuj ponownie.",
+        "supervisor_self_approval": "Przełożony musi być inną osobą niż Ty.",
+        "supervisor_pin_required": "Dla ubytku wymagany jest przełożony i jego PIN.",
+        "supervisor_pin_invalid": "PIN przełożonego jest nieprawidłowy.",
+        "supervisor_pin_not_enrolled": "Wybrany przełożony nie zarejestrował PIN-u.",
+        "supervisor_pin_locked": "PIN przełożonego jest zablokowany po zbyt wielu próbach.",
+        "supervisor_forbidden": "Wybrany przełożony nie ma uprawnień do zatwierdzania korekt.",
         "error": "Nie udało się zastosować różnicy. Spróbuj ponownie."
       }
+    },
+    "supervisor": {
+      "block": "Kontrasygnata przełożonego",
+      "meaning": "Ubytek wymaga drugiej osoby z uprawnieniem do korekty stanu.",
+      "selectLabel": "Przełożony",
+      "selectHelp": "Musi to być inna osoba niż Ty, z zarejestrowanym PIN-em.",
+      "selectTrigger": "Wybierz przełożonego",
+      "searchLabel": "Szukaj przełożonych",
+      "searchPlaceholder": "Imię lub e-mail",
+      "searchLoading": "Szukanie…",
+      "searchEmpty": "Nie znaleziono uprawnionych przełożonych.",
+      "searchError": "Nie udało się wyszukać przełożonych.",
+      "selected": "Wybrany przełożony",
+      "change": "Zmień",
+      "pinLabel": "PIN przełożonego",
+      "pinPlaceholder": "PIN przełożonego",
+      "pinHelp": "Przełożony wpisuje tutaj swój zarejestrowany PIN."
     }
   }
 }

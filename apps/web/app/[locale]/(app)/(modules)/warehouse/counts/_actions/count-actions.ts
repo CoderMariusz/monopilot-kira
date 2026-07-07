@@ -225,10 +225,18 @@ async function supervisorHasPin(client: QueryClient, supervisorUserId: string): 
   return rows.length > 0;
 }
 
+type SupervisorPinRejectCode = 'supervisor_pin_locked' | 'supervisor_pin_invalid';
+
+/**
+ * Second-person supervisor gate for shrinkage. Org membership + grant are
+ * checked BEFORE any user_pins read/update so a cross-org id cannot touch PIN
+ * state. Invalid/locked PIN returns a reject code (caller must COMMIT, not
+ * throw) so verifyPin lockout counters persist — mirrors direct-adjust-actions.
+ */
 async function assertSupervisorApproval(
   ctx: WarehouseContext,
   input: ApproveAndApplyVarianceInput,
-): Promise<string> {
+): Promise<string | SupervisorPinRejectCode> {
   const supervisorId = input.supervisorUserId?.trim() ?? '';
   const supervisorPin = input.supervisorPin?.trim() ?? '';
   if (!supervisorId || !supervisorPin) {
@@ -237,19 +245,19 @@ async function assertSupervisorApproval(
   if (supervisorId === ctx.userId) {
     throw new Error('supervisor_self_approval');
   }
+  const supervisorCtx: WarehouseContext = { userId: supervisorId, orgId: ctx.orgId, client: ctx.client };
+  if (!(await hasWarehousePermission(supervisorCtx, WAREHOUSE_STOCK_ADJUST_APPROVE_PERMISSION))) {
+    throw new Error('supervisor_forbidden');
+  }
   if (!(await supervisorHasPin(ctx.client, supervisorId))) {
     throw new Error('supervisor_pin_not_enrolled');
   }
   const supervisorPinResult = await verifyPin(supervisorId, supervisorPin, { client: ctx.client });
   if (supervisorPinResult === 'locked') {
-    throw new Error('supervisor_pin_locked');
+    return 'supervisor_pin_locked';
   }
   if (supervisorPinResult !== true) {
-    throw new Error('supervisor_pin_invalid');
-  }
-  const supervisorCtx: WarehouseContext = { userId: supervisorId, orgId: ctx.orgId, client: ctx.client };
-  if (!(await hasWarehousePermission(supervisorCtx, WAREHOUSE_STOCK_ADJUST_APPROVE_PERMISSION))) {
-    throw new Error('supervisor_forbidden');
+    return 'supervisor_pin_invalid';
   }
   return supervisorId;
 }
@@ -648,7 +656,7 @@ async function selectLpsForShrinkage(
 
 async function reduceLicensePlateForShrinkage(
   ctx: WarehouseContext,
-  input: { lp: LpForShrinkage; quantity: string; countLineId: string },
+  input: { lp: LpForShrinkage; quantity: string; countLineId: string; supervisorUserId?: string | null },
 ): Promise<void> {
   const { rows } = await ctx.client.query<{ id: string; quantity: string; status: string }>(
     `update public.license_plates
@@ -686,6 +694,7 @@ async function reduceLicensePlateForShrinkage(
         adjustment_qty: input.quantity,
         quantity_before: input.lp.quantity,
         quantity_after: updated.quantity,
+        ...(input.supervisorUserId ? { supervisor_approved_by: input.supervisorUserId } : {}),
       }),
       ctx.userId,
     ],
@@ -700,16 +709,17 @@ async function insertStockAdjustment(
     adjustmentQty: string;
     lpId: string | null;
     esignRef: string;
+    approvedBy?: string | null;
   },
 ): Promise<string> {
   const { rows } = await ctx.client.query<{ id: string }>(
     `insert into public.stock_adjustments (
        org_id, count_line_id, item_id, location_id, warehouse_id, site_id, lp_id,
-       adjustment_qty, direction, reason, esign_ref, applied_by
+       adjustment_qty, direction, reason, esign_ref, applied_by, approved_by
      )
      values (
        app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid,
-       $7::numeric, $8, $9, $10::uuid, $11::uuid
+       $7::numeric, $8, $9, $10::uuid, $11::uuid, $12::uuid
      )
      returning id::text`,
     [
@@ -724,6 +734,7 @@ async function insertStockAdjustment(
       STOCK_COUNT_REASON,
       input.esignRef,
       ctx.userId,
+      input.approvedBy ?? null,
     ],
   );
   const adjustmentId = rows[0]?.id;
@@ -742,6 +753,7 @@ async function insertStockMove(
     siteId: string | null;
     uom: string;
     esignRef: string;
+    supervisorUserId?: string | null;
   },
 ): Promise<void> {
   const transactionId = uuidFromSeed(`warehouse.count.stock_move:${input.countLine.id}:${input.lpId}:${input.direction}`);
@@ -773,6 +785,7 @@ async function insertStockMove(
         stock_adjustment_id: input.adjustmentId,
         esign_ref: input.esignRef,
         direction: input.direction,
+        ...(input.supervisorUserId ? { supervisor_approved_by: input.supervisorUserId } : {}),
       }),
       ctx.userId,
     ],
@@ -788,6 +801,7 @@ async function writeStockAdjustmentAudit(
     adjustmentQty: string;
     lpId: string | null;
     esignRef: string;
+    supervisorUserId?: string | null;
   },
 ): Promise<void> {
   await ctx.client.query(
@@ -833,6 +847,7 @@ async function writeStockAdjustmentAudit(
         adjustment_qty: input.adjustmentQty,
         lp_id: input.lpId,
         esign_ref: input.esignRef,
+        ...(input.supervisorUserId ? { supervisor_approved_by: input.supervisorUserId } : {}),
       }),
       randomUUID(),
     ],
@@ -1106,7 +1121,11 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
   const password = typeof input?.signature?.password === 'string' ? input.signature.password : '';
   if (password.trim().length === 0) throw new Error('signature_required');
 
-  return await withOrgContext(async ({ userId, orgId, client }): Promise<ApplyVarianceResult> => {
+  type ApplyVarianceTxnOutcome =
+    | { kind: 'ok'; data: ApplyVarianceResult }
+    | { kind: 'supervisor_pin_reject'; code: SupervisorPinRejectCode };
+
+  const txnOutcome = await withOrgContext(async ({ userId, orgId, client }): Promise<ApplyVarianceTxnOutcome> => {
     const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
     await assertCanAdjustStock(ctx);
 
@@ -1182,7 +1201,11 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
 
     let supervisorUserId: string | null = null;
     if (varianceMicro < 0n) {
-      supervisorUserId = await assertSupervisorApproval(ctx, input);
+      const supervisorResult = await assertSupervisorApproval(ctx, input);
+      if (supervisorResult === 'supervisor_pin_locked' || supervisorResult === 'supervisor_pin_invalid') {
+        return { kind: 'supervisor_pin_reject', code: supervisorResult };
+      }
+      supervisorUserId = supervisorResult;
     }
 
     let adjustedLpId: string | null = null;
@@ -1220,6 +1243,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
           lp: leg.lp,
           quantity: leg.quantity,
           countLineId: countLineForApply.id,
+          supervisorUserId,
         });
         adjustmentLegs.push({
           lpId: leg.lp.id,
@@ -1240,6 +1264,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
           adjustmentQty: leg.quantity,
           lpId: leg.lpId,
           esignRef: signatureReceipt.signatureId,
+          approvedBy: supervisorUserId,
         });
         adjustmentId ??= legAdjustmentId;
         await insertStockMove(ctx, {
@@ -1251,6 +1276,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
           siteId: leg.siteId,
           uom: leg.uom,
           esignRef: signatureReceipt.signatureId,
+          supervisorUserId,
         });
         if (direction === 'decrease') {
           await debitWac(ctx.client, {
@@ -1286,6 +1312,7 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
       adjustmentQty,
       lpId: adjustedLpId,
       esignRef: signatureReceipt.signatureId,
+      supervisorUserId,
     });
 
     if (direction === 'increase') {
@@ -1324,16 +1351,24 @@ export async function approveAndApplyVariance(input: ApproveAndApplyVarianceInpu
     );
 
     return {
-      countLineId: countLineForApply.id,
-      adjustmentId,
-      direction,
-      adjustmentQty,
-      varianceQty: recomputedVarianceQty,
-      lpId: adjustedLpId,
-      esignRef: signatureReceipt.signatureId,
-      status: 'applied',
+      kind: 'ok',
+      data: {
+        countLineId: countLineForApply.id,
+        adjustmentId,
+        direction,
+        adjustmentQty,
+        varianceQty: recomputedVarianceQty,
+        lpId: adjustedLpId,
+        esignRef: signatureReceipt.signatureId,
+        status: 'applied',
+      },
     };
   });
+
+  if (txnOutcome.kind === 'supervisor_pin_reject') {
+    throw new Error(txnOutcome.code);
+  }
+  return txnOutcome.data;
 }
 
 export async function closeCountSession(sessionId: string): Promise<string> {
