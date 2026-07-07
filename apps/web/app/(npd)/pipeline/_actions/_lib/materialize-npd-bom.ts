@@ -210,7 +210,20 @@ export async function materializeNpdBom(
   const wipIngredients = ingredients.filter((ingredient) => !!ingredient.wip_definition_id);
 
   const existingBom = await loadExistingActiveNpdBom(ctx, project.id, productionCode);
-  const wipComponents = await resolveWipComponents(ctx, wipIngredients);
+  const ingredientDeclaredWipComponents = await resolveWipComponents(ctx, wipIngredients);
+  const ingredientDeclaredWipDefinitionIds = new Set(
+    ingredientDeclaredWipComponents.map((component) => component.wipDefinitionId),
+  );
+  const processDerivedStages = await loadProcessDerivedWipStages(
+    ctx,
+    formulation.version_id,
+    productionCode,
+  );
+  const processDerivedWipComponents = await resolveProcessDerivedWipComponents(
+    ctx,
+    processDerivedStages.filter((stage) => !ingredientDeclaredWipDefinitionIds.has(stage.wip_definition_id)),
+  );
+  const wipComponents = [...ingredientDeclaredWipComponents, ...processDerivedWipComponents];
   if (wipComponents.some((component) => !component.itemId)) {
     return {
       code: 'WIP_ITEM_REQUIRED',
@@ -421,6 +434,49 @@ async function loadIngredients(ctx: OrgContextLike, versionId: string): Promise<
         and coalesce(qty_kg, 0) > 0
       order by sequence asc`,
     [versionId],
+  );
+  return rows;
+}
+
+type ProcessDerivedWipStage = {
+  process_id: string;
+  wip_definition_id: string;
+  /** Sum of assigned formulation_ingredients.qty_kg — mass of stage inputs consumed per FG unit. */
+  qty_kg: string;
+  sequence: number;
+};
+
+/**
+ * Processes with line+consumption that become materialized WIP stages (R4.3b):
+ * creates_wip_item + bound wip_definition_id + at least one assigned ingredient
+ * in the locked formulation version.
+ */
+async function loadProcessDerivedWipStages(
+  ctx: OrgContextLike,
+  formulationVersionId: string,
+  productionCode: string,
+): Promise<ProcessDerivedWipStage[]> {
+  const { rows } = await ctx.client.query<ProcessDerivedWipStage>(
+    `select wp.id::text as process_id,
+            wp.wip_definition_id::text as wip_definition_id,
+            sum(fi.qty_kg)::text as qty_kg,
+            min(fi.sequence) as sequence
+       from public.npd_wip_processes wp
+       join public.prod_detail pd
+         on pd.id = wp.prod_detail_id
+        and pd.org_id = wp.org_id
+       join public.formulation_ingredients fi
+         on fi.npd_wip_process_id = wp.id
+      where wp.org_id = app.current_org_id()
+        and pd.product_code = $2
+        and fi.version_id = $1::uuid
+        and wp.creates_wip_item = true
+        and wp.wip_definition_id is not null
+        and fi.wip_definition_id is null
+        and coalesce(fi.qty_kg, 0) > 0
+      group by wp.id, wp.wip_definition_id
+      order by min(fi.sequence) asc, wp.id`,
+    [formulationVersionId, productionCode],
   );
   return rows;
 }
@@ -934,6 +990,34 @@ async function npdBomContentMatches(
     ],
   );
   return rows[0]?.matches === true;
+}
+
+async function resolveProcessDerivedWipComponents(
+  ctx: OrgContextLike,
+  stages: ProcessDerivedWipStage[],
+): Promise<Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number; wipDefinitionId: string }>> {
+  const components: Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number; wipDefinitionId: string }> = [];
+  for (const stage of stages) {
+    const definition = await loadWipDefinition(ctx, stage.wip_definition_id);
+    if (!definition?.item_id || !definition.item_code) {
+      components.push({
+        itemId: '',
+        itemCode: '',
+        qtyKg: stage.qty_kg,
+        sequence: stage.sequence,
+        wipDefinitionId: stage.wip_definition_id,
+      });
+      continue;
+    }
+    components.push({
+      itemId: definition.item_id,
+      itemCode: definition.item_code,
+      qtyKg: stage.qty_kg,
+      sequence: stage.sequence,
+      wipDefinitionId: stage.wip_definition_id,
+    });
+  }
+  return components;
 }
 
 async function resolveWipComponents(
