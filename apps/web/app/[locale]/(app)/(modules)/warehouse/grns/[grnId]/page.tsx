@@ -96,6 +96,10 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>, receiveT: ReturnTyp
       forbidden: t('grnDetail.printLabel.forbidden'),
       noLp: t('grnDetail.printLabel.noLp'),
     },
+    printDocument: {
+      action: t('grnDetail.printDocument.action'),
+      hint: t('grnDetail.printDocument.hint'),
+    },
     cancelLine: {
       rowAction: t('grnDetail.cancelLine.rowAction'),
       cancelledBadge: t('grnDetail.cancelLine.cancelledBadge'),
@@ -301,6 +305,7 @@ async function DetailContent({ locale, grnId }: { locale: string; grnId: string 
         grn={result.data}
         labels={buildLabels(t, receiveT)}
         locale={locale}
+        printDocumentHref={`/${locale}/warehouse/grns/${grnId}/print`}
         releaseQaAction={releaseLpQa}
         cancelGrnLineAction={cancelGrnLineAction}
         canCancelLines={result.data.status !== 'cancelled' && canCancel}
