@@ -9,6 +9,8 @@ export type MrpRunData = {
   runId: string | null;
   runNumber: string | null;
   plannedOrders: MrpPlannedOrder[];
+  /** Populated when confirmed SOs lack promised/required ship dates (P2-06). */
+  warnings?: { undatedSoLines: number };
 };
 
 export type MrpRunResult =
