@@ -63,3 +63,18 @@
 - FX-table dla WAC (per-currency pool jest; konwersja do base currency — brak)
 - UI: revert-NPD button, customer-prices Settings CRUD, invoicing/AR (tabele mig-199 dalej dormant poza valuation)
 - Barcode image rendering (numery SSCC/GTIN gotowe)
+
+---
+
+## AKTUALIZACJA — fala C7 (finalna, follow-upy) dodana
+
+Dokończenia już-wdrożonej pracy (bez nieuzgodnionych dużych rzeczy):
+- **Przycisk "Revert to NPD"** na handoff (akcja z C2d dostała UI; pokrywa też wedge lock-only)
+- **Settings → Customer prices** — ekran CRUD dla cen per-klient (tabela+resolver z C5c); ceny jako decimal-string (bez utraty precyzji), walidacja dat
+- **Delivery Note / Packing List** — drugi printable dokument (wzorzec GRN reused: company-header, IDOR-safe per-site, SSCC per box)
+- **Paginacja** kolejnych 5 list (WO/PO/TO/NCR/LP) — cross-review złapał rozjazd placeholderów SQL (byłby 500 na liście WO/PO), naprawione
+- **Barcode Code128 SVG** — skanowalne kody dla numerów SSCC/GTIN (Code-C + FNC1 GS1-128 + quiet zone, dependency-free), wpięte w GRN/delivery print, pack-view, label editor
+
+Cross-review C7 złapał 6 realnych problemów (2× 'use server' type export, placeholder-arity WO/PO, money-float precyzja, Code128-B zamiast Code-C, visibility wedge). Wszystko naprawione.
+
+**Klik-lista C7 (do przetestowania):** Revert-to-NPD na handoff promoted/locked; Settings→Customer prices; Warehouse→GRN→Print i Shipping→shipment→Print (barcode + SSCC); długie listy WO/PO/TO/NCR/LP (pager zamiast ucięcia).
