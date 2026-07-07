@@ -447,6 +447,37 @@ describe('createSalesOrder', () => {
     });
     expect(insertedSo).toBeNull();
   });
+
+  it('rejects SO creation when a line references an unknown item without inserting a header', async () => {
+    const UNKNOWN_ITEM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const baseQuery = client.query;
+    client.query = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+      const q = normalize(sql);
+      if (q.startsWith('select id::text, list_price_gbp::text as list_price_gbp')) {
+        return { rows: [{ id: ITEM_ID, list_price_gbp: listPriceGbp }], rowCount: 1 };
+      }
+      return baseQuery(sql, params);
+    }) as typeof client.query;
+
+    const result = await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      requested_date: '2026-06-20',
+      lines: [
+        { item_id: ITEM_ID, qty: '10', uom: 'kg' },
+        { item_id: UNKNOWN_ITEM_ID, qty: '5', uom: 'kg' },
+      ],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'Unknown sales order item',
+    });
+    expect(insertedSo).toBeNull();
+    expect(insertedLines).toEqual([]);
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('insert into public.sales_orders'))).toBe(false);
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('insert into public.sales_order_lines'))).toBe(false);
+  });
 });
 
 describe('transitionSalesOrderStatus', () => {
@@ -489,6 +520,15 @@ describe('transitionSalesOrderStatus', () => {
 
     expect(status).toBe('delivered');
     expect(result).toMatchObject({ ok: true, data: { id: SO_ID, status: 'delivered' } });
+  });
+
+  it('rejects delivered to shipped regression via the public transition action', async () => {
+    status = 'delivered';
+
+    const result = await transitionSalesOrderStatus(SO_ID, 'shipped');
+
+    expect(result).toEqual({ ok: false, error: 'ILLEGAL_TRANSITION', from: 'delivered', to: 'shipped' });
+    expect(status).toBe('delivered');
   });
 
   it('blocks cancel when a shipped shipment exists on the SO', async () => {

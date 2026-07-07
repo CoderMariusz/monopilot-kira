@@ -111,14 +111,25 @@ export async function writeShipmentStatusInContext(
   ctx: ShippingContext,
   shipmentId: string,
   newStatus: ShipmentStatus,
-  options?: { currentStatus?: ShipmentStatus },
+  options?: {
+    currentStatus?: ShipmentStatus;
+    /**
+     * Internal-only escape hatch for audited voidPod reversal (delivered → shipped).
+     * Do not use for operator shipment transitions.
+     */
+    allowVoidPodReversal?: boolean;
+  },
 ): Promise<StatusWriteResult> {
   const locked = options?.currentStatus
     ? { status: options.currentStatus }
     : await readLockedShipmentStatus(ctx, shipmentId);
   if (locked === 'not_found') return 'not_found';
   if (locked.status === newStatus) return 'ok';
-  if (!isLegalShipmentTransition(locked.status, newStatus)) return 'illegal_transition';
+  if (!isLegalShipmentTransition(locked.status, newStatus)) {
+    const voidPodReversal =
+      options?.allowVoidPodReversal && locked.status === 'delivered' && newStatus === 'shipped';
+    if (!voidPodReversal) return 'illegal_transition';
+  }
 
   const { rowCount } = await ctx.client.query(
     `update public.shipments

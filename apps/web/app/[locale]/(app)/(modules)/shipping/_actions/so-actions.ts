@@ -571,23 +571,6 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       return { ok: false, error: 'invalid_input', message: 'Customer is inactive or not found' };
     }
 
-    const { rows: numberRows } = await ctx.client.query<{ so_number: string }>(
-      `select public.next_sales_order_document_number($1::uuid) as so_number`,
-      [orgId],
-    );
-    const soNumber = numberRows[0]?.so_number;
-    if (!soNumber) return { ok: false, error: 'persistence_failed', message: 'Unable to generate sales order number' };
-
-    const { rows } = await ctx.client.query<{ id: string }>(
-      `insert into public.sales_orders
-        (org_id, order_number, customer_id, order_date, promised_ship_date, status, ext_data, created_by, updated_by)
-       values ($1::uuid, $2, $3::uuid, current_date, $4::date, 'draft', jsonb_build_object('notes', $5::text), $6::uuid, $6::uuid)
-       returning id::text`,
-      [orgId, soNumber, input.customer_id, input.requested_date ?? null, input.notes ?? null, userId],
-    );
-    const soId = rows[0]?.id;
-    if (!soId) return { ok: false, error: 'persistence_failed', message: 'Unable to create sales order' };
-
     const itemIds = Array.from(new Set(input.lines.map((line) => line.item_id)));
     const { rows: itemRows } = await ctx.client.query<{ id: string; list_price_gbp: string | number | null }>(
       `select id::text, list_price_gbp::text as list_price_gbp
@@ -615,20 +598,45 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       SO_LINE_PRICE_CURRENCY,
     );
 
-    for (const [index, line] of input.lines.entries()) {
+    const resolvedLines: Array<{ item_id: string; qty: string; uom: string; unitPriceGbp: number }> = [];
+    for (const line of input.lines) {
       const item = itemsById.get(line.item_id);
       if (!item) return { ok: false, error: 'invalid_input', message: 'Unknown sales order item' };
-      const unitPriceGbp = resolveSalesLinePrice(item, {
-        customerPrice: customerPricesByItemId.get(line.item_id) ?? null,
+      resolvedLines.push({
+        item_id: line.item_id,
+        qty: line.qty,
+        uom: line.uom,
+        unitPriceGbp: resolveSalesLinePrice(item, {
+          customerPrice: customerPricesByItemId.get(line.item_id) ?? null,
+        }),
       });
+    }
 
+    const { rows: numberRows } = await ctx.client.query<{ so_number: string }>(
+      `select public.next_sales_order_document_number($1::uuid) as so_number`,
+      [orgId],
+    );
+    const soNumber = numberRows[0]?.so_number;
+    if (!soNumber) return { ok: false, error: 'persistence_failed', message: 'Unable to generate sales order number' };
+
+    const { rows } = await ctx.client.query<{ id: string }>(
+      `insert into public.sales_orders
+        (org_id, order_number, customer_id, order_date, promised_ship_date, status, ext_data, created_by, updated_by)
+       values ($1::uuid, $2, $3::uuid, current_date, $4::date, 'draft', jsonb_build_object('notes', $5::text), $6::uuid, $6::uuid)
+       returning id::text`,
+      [orgId, soNumber, input.customer_id, input.requested_date ?? null, input.notes ?? null, userId],
+    );
+    const soId = rows[0]?.id;
+    if (!soId) return { ok: false, error: 'persistence_failed', message: 'Unable to create sales order' };
+
+    for (const [index, line] of resolvedLines.entries()) {
       await ctx.client.query(
         `insert into public.sales_order_lines
           (org_id, sales_order_id, line_number, product_id, quantity_ordered, quantity_allocated,
            unit_price_gbp, line_total_gbp, ext_data, created_by, updated_by)
          values ($1::uuid, $2::uuid, $3::integer, $4::uuid, $5::numeric, 0,
                  $6::numeric, ($5::numeric * $6::numeric), jsonb_build_object('order_uom', $7::text), $8::uuid, $8::uuid)`,
-        [orgId, soId, index + 1, line.item_id, line.qty, unitPriceGbp, line.uom, userId],
+        [orgId, soId, index + 1, line.item_id, line.qty, line.unitPriceGbp, line.uom, userId],
       );
     }
 

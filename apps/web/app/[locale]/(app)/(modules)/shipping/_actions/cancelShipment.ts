@@ -894,6 +894,7 @@ export async function voidPod(input: ShippingReversalInput): Promise<ShippingRev
 
       const voidTransition = await writeShipmentStatusInContext(ctx, shipment.id, 'shipped', {
         currentStatus: 'delivered',
+        allowVoidPodReversal: true,
       });
       if (voidTransition !== 'ok') throw new ActionError('persistence_failed');
 
