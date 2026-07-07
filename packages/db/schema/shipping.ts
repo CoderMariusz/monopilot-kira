@@ -201,7 +201,7 @@ export type CustomerAllergenRestriction = InferSelectModel<typeof customerAllerg
 export type NewCustomerAllergenRestriction = InferInsertModel<typeof customerAllergenRestrictions>;
 
 // ---------------------------------------------------------------------------
-// customer_item_prices — per-customer sell price overrides (migration 459).
+// customer_item_prices — per-customer sell price overrides (migration 460).
 // ---------------------------------------------------------------------------
 export const customerItemPrices = pgTable(
   'customer_item_prices',

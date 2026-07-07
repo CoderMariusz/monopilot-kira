@@ -2,7 +2,11 @@
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { fetchActiveCustomerItemPrices, resolveSalesLinePrice } from './sales-line-price';
+import {
+  fetchActiveCustomerItemPrices,
+  resolveSalesLinePrice,
+  SO_LINE_PRICE_CURRENCY,
+} from './sales-line-price';
 import { cancelOpenShipmentForSoInContext } from './so-shipment-release';
 import {
   deallocateSalesOrderInContext,
@@ -608,6 +612,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       input.customer_id,
       itemIds,
       orderDate,
+      SO_LINE_PRICE_CURRENCY,
     );
 
     for (const [index, line] of input.lines.entries()) {

@@ -1,10 +1,10 @@
--- Dry-run probes for migration 459-customer-item-prices.sql
+-- Dry-run probes for migration 460-customer-item-prices.sql
 -- Run: psql ... -v ON_ERROR_STOP=1 -f this-file.sql
 -- End with rollback; PASS probe must succeed, FAIL probe must error.
 
 begin;
 
-\i packages/db/migrations/459-customer-item-prices.sql
+\i packages/db/migrations/460-customer-item-prices.sql
 
 -- PASS: table exists with expected columns
 select column_name

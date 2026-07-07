@@ -108,7 +108,9 @@ function makeClient(): QueryClient {
         return { rows: [{ order_date: orderDate }], rowCount: 1 };
       }
       if (q.includes('from public.customer_item_prices')) {
-        return { rows: customerPriceRows, rowCount: customerPriceRows.length };
+        const targetCurrency = params[3];
+        const filtered = customerPriceRows.filter((row) => row.currency === targetCurrency);
+        return { rows: filtered, rowCount: filtered.length };
       }
       if (q.startsWith('insert into public.sales_order_lines')) {
         const quantityOrdered = params[4] as string;

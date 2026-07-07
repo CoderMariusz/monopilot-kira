@@ -50,13 +50,16 @@ export function resolveSalesLinePrice(
 
 /**
  * Batch-load the active customer price per item for a pricing date (SO order_date).
- * Latest effective_from still inside the window wins per (customer, item).
+ * Filters to targetCurrency before DISTINCT ON so a newer row in another currency
+ * cannot shadow a valid active price in the SO currency.
+ * Latest effective_from still inside the window wins per (customer, item, currency).
  */
 export async function fetchActiveCustomerItemPrices(
   client: QueryClient,
   customerId: string,
   itemIds: readonly string[],
   asOfDate: string,
+  targetCurrency: string = SO_LINE_PRICE_CURRENCY,
 ): Promise<Map<string, CustomerItemPrice>> {
   if (itemIds.length === 0) return new Map();
 
@@ -75,9 +78,10 @@ export async function fetchActiveCustomerItemPrices(
         and cip.item_id = any($2::uuid[])
         and cip.effective_from <= $3::date
         and (cip.effective_to is null or cip.effective_to >= $3::date)
+        and cip.currency = $4::text
         and cip.deleted_at is null
       order by cip.item_id, cip.effective_from desc`,
-    [customerId, itemIds, asOfDate],
+    [customerId, itemIds, asOfDate, targetCurrency],
   );
 
   const prices = new Map<string, CustomerItemPrice>();

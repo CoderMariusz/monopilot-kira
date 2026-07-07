@@ -57,6 +57,6 @@ create trigger customer_item_prices_set_updated_at
 
 do $$
 begin
-  raise notice 'migration 459: customer_item_prices table ready (rows=%)',
+  raise notice 'migration 460: customer_item_prices table ready (rows=%)',
     (select count(*) from public.customer_item_prices);
 end $$;
