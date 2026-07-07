@@ -20,6 +20,8 @@ type QueryCall = { sql: string; params: readonly unknown[] };
 
 let client: QueryClient;
 let calls: QueryCall[];
+let transactionEvents: string[];
+let persistedWoOutputInserts: QueryCall[];
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').toLowerCase();
@@ -118,19 +120,23 @@ function makeClient(): QueryClient {
 }
 
 async function runInMockTransaction<T>(fn: () => Promise<T>): Promise<T> {
-  const committedWoOutputInserts: QueryCall[] = [];
+  transactionEvents = ['BEGIN'];
+  persistedWoOutputInserts = [];
   const originalQuery = client.query.bind(client);
   client.query = async (sql, params = []) => {
     const result = await originalQuery(sql, params);
     if (normalize(sql).startsWith('insert into public.wo_outputs')) {
-      committedWoOutputInserts.push({ sql, params });
+      persistedWoOutputInserts.push({ sql, params });
     }
     return result;
   };
   try {
-    return await fn();
+    const result = await fn();
+    transactionEvents.push('COMMIT');
+    return result;
   } catch (err) {
-    committedWoOutputInserts.length = 0;
+    transactionEvents.push('ROLLBACK');
+    persistedWoOutputInserts.length = 0;
     throw err;
   } finally {
     client.query = originalQuery;
@@ -140,6 +146,8 @@ async function runInMockTransaction<T>(fn: () => Promise<T>): Promise<T> {
 describe('registerOutput transaction safety', () => {
   beforeEach(() => {
     client = makeClient();
+    transactionEvents = [];
+    persistedWoOutputInserts = [];
     upsertWacMock.mockReset();
     upsertWacMock.mockRejectedValue(new Error('wac-upsert-failed'));
   });
@@ -158,6 +166,8 @@ describe('registerOutput transaction safety', () => {
 
     expect(calls.some((c) => normalize(c.sql).startsWith('insert into public.wo_outputs'))).toBe(true);
     expect(calls.some((c) => normalize(c.sql).startsWith('insert into public.outbox_events'))).toBe(false);
+    expect(transactionEvents).toEqual(['BEGIN', 'ROLLBACK']);
+    expect(persistedWoOutputInserts).toHaveLength(0);
   });
 
   it('does not insert wo_outputs when WO is not recordable (pre-write gate)', async () => {

@@ -4,6 +4,16 @@ import ts from 'typescript';
 
 const WRITE_SQL = /\b(insert\s+into|update\s+public\.|delete\s+from\s+public\.)/i;
 const CTX_PARAM = /^(ctx|context|orgCtx|rawCtx)$/i;
+const CLIENT_ARG = /^(ctx|context|orgCtx|rawCtx|client|queryClient|qc)$/i;
+
+/** Imported or same-file helpers that always perform at least one mutating query. */
+const KNOWN_WRITE_HELPERS = new Set([
+  'writeAudit',
+  'writeLpHistory',
+  'writeReceiptCorrectionAudit',
+  'writeStockAdjustmentAudit',
+  'writeCountLineAdjustmentMetadata',
+]);
 
 export type MultiWriteTxStatus =
   | 'atomic-wrapped'
@@ -33,14 +43,35 @@ function walk(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
-function isScannableActionFile(file: string, src: string): boolean {
+function isScannableActionFile(file: string, src: string, force = false): boolean {
+  if (force) return true;
   const isServer = src.includes("'use server'") || src.includes('"use server"');
   const isLibProd = file.includes('lib/production/');
   if (!isServer && !isLibProd) return false;
   return file.includes('/_actions/') || file.includes('/actions/') || isLibProd;
 }
 
-function countWritesInNode(node: ts.Node, sf: ts.SourceFile): number {
+function getCalleeName(expression: ts.Expression): string | null {
+  if (ts.isIdentifier(expression)) return expression.text;
+  if (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.name)) {
+    return expression.name.text;
+  }
+  return null;
+}
+
+function isQueryClientArg(expr: ts.Expression): boolean {
+  if (ts.isIdentifier(expr)) return CLIENT_ARG.test(expr.text);
+  if (
+    ts.isPropertyAccessExpression(expr) &&
+    ts.isIdentifier(expr.expression) &&
+    expr.name.text === 'client'
+  ) {
+    return CLIENT_ARG.test(expr.expression.text);
+  }
+  return false;
+}
+
+function countDirectSqlWritesInNode(node: ts.Node, sf: ts.SourceFile): number {
   let count = 0;
   function visit(n: ts.Node): void {
     if (
@@ -61,11 +92,73 @@ function countWritesInNode(node: ts.Node, sf: ts.SourceFile): number {
   return count;
 }
 
-function countWithOrgContextInNode(node: ts.Node): number {
+function collectSameFileWriteHelpers(sf: ts.SourceFile): Map<string, number> {
+  const helpers = new Map<string, number>();
+
+  function record(name: string, node: ts.FunctionLikeDeclaration): void {
+    const writes = countDirectSqlWritesInNode(node, sf);
+    if (writes > 0) helpers.set(name, writes);
+  }
+
+  for (const node of sf.statements) {
+    if (ts.isFunctionDeclaration(node) && node.name && node.body) {
+      record(node.name.text, node);
+    }
+    if (ts.isVariableStatement(node)) {
+      for (const decl of node.declarationList.declarations) {
+        if (
+          decl.initializer &&
+          (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))
+        ) {
+          record(decl.name.getText(sf), decl.initializer);
+        }
+      }
+    }
+  }
+
+  return helpers;
+}
+
+function countHelperWriteCallsInNode(
+  node: ts.Node,
+  fileHelpers: Map<string, number>,
+): number {
   let count = 0;
   function visit(n: ts.Node): void {
-    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'withOrgContext') {
-      count += 1;
+    if (ts.isCallExpression(n)) {
+      const calleeName = getCalleeName(n.expression);
+      if (calleeName && n.arguments.length > 0 && isQueryClientArg(n.arguments[0])) {
+        if (KNOWN_WRITE_HELPERS.has(calleeName)) {
+          count += 1;
+        } else {
+          const helperWrites = fileHelpers.get(calleeName);
+          if (helperWrites) count += helperWrites;
+        }
+      }
+    }
+    ts.forEachChild(n, visit);
+  }
+  visit(node);
+  return count;
+}
+
+function countWritesInNode(
+  node: ts.Node,
+  sf: ts.SourceFile,
+  fileHelpers: Map<string, number>,
+): number {
+  return (
+    countDirectSqlWritesInNode(node, sf) + countHelperWriteCallsInNode(node, fileHelpers)
+  );
+}
+
+function countTransactionBoundariesInNode(node: ts.Node): number {
+  let count = 0;
+  function visit(n: ts.Node): void {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) {
+      if (n.expression.text === 'withOrgContext' || n.expression.text === 'runWithOrgContext') {
+        count += 1;
+      }
     }
     ts.forEachChild(n, visit);
   }
@@ -84,11 +177,12 @@ function classifyFunction(
   functionName: string,
   node: ts.FunctionLikeDeclaration,
   sf: ts.SourceFile,
+  fileHelpers: Map<string, number>,
 ): MultiWriteActionEntry | null {
-  const writeCount = countWritesInNode(node, sf);
+  const writeCount = countWritesInNode(node, sf, fileHelpers);
   if (writeCount < 2) return null;
 
-  const withOrgContextCount = countWithOrgContextInNode(node);
+  const withOrgContextCount = countTransactionBoundariesInNode(node);
   const bodyText = node.getText(sf);
   const hasBegin = /\bBEGIN\b/i.test(bodyText);
 
@@ -110,10 +204,14 @@ function classifyFunction(
   };
 }
 
-function analyzeFile(appsWebRoot: string, file: string): MultiWriteActionEntry[] {
+export function analyzeFile(
+  appsWebRoot: string,
+  file: string,
+  opts?: { force?: boolean },
+): MultiWriteActionEntry[] {
   const abs = path.isAbsolute(file) ? file : path.join(appsWebRoot, file);
   const src = fs.readFileSync(abs, 'utf8');
-  if (!isScannableActionFile(file, src)) return [];
+  if (!isScannableActionFile(file, src, opts?.force)) return [];
 
   const sf = ts.createSourceFile(
     abs,
@@ -124,10 +222,11 @@ function analyzeFile(appsWebRoot: string, file: string): MultiWriteActionEntry[]
   );
 
   const relFile = path.relative(appsWebRoot, abs).replace(/\\/g, '/');
+  const fileHelpers = collectSameFileWriteHelpers(sf);
   const entries: MultiWriteActionEntry[] = [];
 
   function inspect(name: string, node: ts.FunctionLikeDeclaration): void {
-    const entry = classifyFunction(relFile, name, node, sf);
+    const entry = classifyFunction(relFile, name, node, sf, fileHelpers);
     if (entry) entries.push(entry);
   }
 

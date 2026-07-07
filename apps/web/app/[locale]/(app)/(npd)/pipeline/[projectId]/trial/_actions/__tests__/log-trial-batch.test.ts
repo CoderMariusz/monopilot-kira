@@ -25,17 +25,26 @@ const ctx = {
   orgId: '00000000-0000-4000-8000-00000000000a',
   handler: (() => ({ rows: [] })) as Handler,
 };
+const transactionEvents: string[] = [];
 
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
-  withOrgContext: async (action: (c: unknown) => Promise<unknown>) =>
-    action({
-      userId: ctx.userId,
-      orgId: ctx.orgId,
-      sessionToken: 'test',
-      client: {
-        query: async (sql: string, params?: readonly unknown[]) => ctx.handler(sql, params),
-      },
-    }),
+  withOrgContext: async (action: (c: unknown) => Promise<unknown>) => {
+    try {
+      const result = await action({
+        userId: ctx.userId,
+        orgId: ctx.orgId,
+        sessionToken: 'test',
+        client: {
+          query: async (sql: string, params?: readonly unknown[]) => ctx.handler(sql, params),
+        },
+      });
+      transactionEvents.push('COMMIT');
+      return result;
+    } catch (error) {
+      transactionEvents.push('ROLLBACK');
+      throw error;
+    }
+  },
 }));
 
 import { logTrialBatch } from '../log-trial-batch';
@@ -102,6 +111,7 @@ function grantHandler(opts: {
 
 beforeEach(() => {
   ctx.handler = () => ({ rows: [] });
+  transactionEvents.length = 0;
 });
 
 describe('exact permission strings', () => {
@@ -164,6 +174,8 @@ describe('logTrialBatch — validation + RBAC + duplicate', () => {
     const r = await logTrialBatch(VALID);
     expect(r).toEqual({ ok: false, error: 'persistence_failed' });
     expect(auditWrites).toBe(0);
+    expect(transactionEvents).toContain('ROLLBACK');
+    expect(transactionEvents).not.toContain('COMMIT');
   });
 });
 
