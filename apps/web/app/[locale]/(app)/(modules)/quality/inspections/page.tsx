@@ -33,7 +33,7 @@ import {
   searchInspectionAssignees,
 } from '../_actions/inspection-actions';
 import { getQaInspectionsTranslator } from '../qa-inspections-labels';
-import { InspectionsListClient } from './_components/inspections-list.client';
+import { InspectionsListClient, type InspectionListFilters } from './_components/inspections-list.client';
 import { buildInspectionsListLabels, buildInspectionCreateLabels } from './_components/labels';
 import type {
   CreateInspectionAction,
@@ -48,8 +48,17 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams?: Promise<{ page?: string }>;
+  searchParams?: Promise<{ page?: string; status?: string; q?: string }>;
 };
+
+function parseInspectionFilters(sp: { status?: string; q?: string }): InspectionListFilters {
+  const status = sp.status?.trim() ?? '';
+  const allowed = new Set(['pending', 'in_progress', 'passed', 'failed', 'on_hold', 'cancelled']);
+  return {
+    status: status && allowed.has(status) ? status : '',
+    search: sp.q?.trim() ?? '',
+  };
+}
 
 function parsePage(value: string | undefined): number {
   const page = Number(value);
@@ -74,9 +83,21 @@ function ListSkeleton() {
   );
 }
 
-async function ListContent({ locale, page }: { locale: string; page: number }) {
+async function ListContent({
+  locale,
+  page,
+  filters,
+}: {
+  locale: string;
+  page: number;
+  filters: InspectionListFilters;
+}) {
   const t = getQaInspectionsTranslator(locale);
-  const result = await listInspections({ page });
+  const result = await listInspections({
+    page,
+    status: filters.status || undefined,
+    search: filters.search || undefined,
+  });
 
   if (!result.ok) {
     if (result.reason === 'forbidden') {
@@ -111,6 +132,7 @@ async function ListContent({ locale, page }: { locale: string; page: number }) {
     <InspectionsListClient
       rows={rows}
       pagination={{ ...result.data, items: rows }}
+      filters={filters}
       labels={buildInspectionsListLabels(t)}
       createLabels={buildInspectionCreateLabels(t)}
       locale={locale}
@@ -125,8 +147,10 @@ async function ListContent({ locale, page }: { locale: string; page: number }) {
 
 export default async function InspectionsListPage({ params, searchParams }: PageProps) {
   const { locale } = await params;
-  const sp: { page?: string } = searchParams ? await searchParams : {};
+  const sp: { page?: string; status?: string; q?: string } = searchParams ? await searchParams : {};
   const page = parsePage(sp.page);
+  const filters = parseInspectionFilters(sp);
+  const suspenseKey = `${page}:${filters.status}:${filters.search}`;
   const t = getQaInspectionsTranslator(locale);
 
   return (
@@ -144,8 +168,8 @@ export default async function InspectionsListPage({ params, searchParams }: Page
           { label: t('list.breadcrumb.inspections') },
         ]}
       />
-      <Suspense key={page} fallback={<ListSkeleton />}>
-        <ListContent locale={locale} page={page} />
+      <Suspense key={suspenseKey} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} page={page} filters={filters} />
       </Suspense>
     </main>
   );

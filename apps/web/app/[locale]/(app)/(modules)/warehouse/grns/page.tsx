@@ -21,14 +21,24 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listGrns } from '../_actions/grn-actions';
 import { getWhcTranslator } from '../wh-c-labels';
-import { GrnListClient, type GrnListLabels } from './_components/grn-list.client';
+import { GrnListClient, type GrnListFilters, type GrnListLabels } from './_components/grn-list.client';
 
 export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams?: Promise<{ page?: string }>;
+  searchParams?: Promise<{ page?: string; status?: string; q?: string; source?: string }>;
 };
+
+function parseGrnFilters(sp: { status?: string; q?: string; source?: string }): GrnListFilters {
+  const status = sp.status?.trim() ?? '';
+  const allowed = new Set(['draft', 'completed', 'cancelled']);
+  return {
+    status: status && allowed.has(status) ? status : '',
+    search: sp.q?.trim() ?? '',
+    sourceType: sp.source?.trim() ?? '',
+  };
+}
 
 const PROTOTYPE_ANCHOR =
   'prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx:3-90';
@@ -86,9 +96,22 @@ function ListSkeleton() {
   );
 }
 
-async function ListContent({ locale, page }: { locale: string; page: number }) {
+async function ListContent({
+  locale,
+  page,
+  filters,
+}: {
+  locale: string;
+  page: number;
+  filters: GrnListFilters;
+}) {
   const t = getWhcTranslator(locale);
-  const result = await listGrns({ page });
+  const result = await listGrns({
+    page,
+    status: filters.status || undefined,
+    search: filters.search || undefined,
+    sourceType: filters.sourceType || undefined,
+  });
 
   if (!result.ok) {
     if (result.reason === 'forbidden') {
@@ -121,6 +144,7 @@ async function ListContent({ locale, page }: { locale: string; page: number }) {
     <GrnListClient
       rows={result.data.items}
       pagination={result.data}
+      filters={filters}
       sourceTypes={sourceTypes}
       labels={buildLabels(t)}
       locale={locale}
@@ -130,8 +154,10 @@ async function ListContent({ locale, page }: { locale: string; page: number }) {
 
 export default async function GrnsListPage({ params, searchParams }: PageProps) {
   const { locale } = await params;
-  const sp: { page?: string } = searchParams ? await searchParams : {};
+  const sp: { page?: string; status?: string; q?: string; source?: string } = searchParams ? await searchParams : {};
   const page = parsePage(sp.page);
+  const filters = parseGrnFilters(sp);
+  const suspenseKey = `${page}:${filters.status}:${filters.search}:${filters.sourceType}`;
   const t = getWhcTranslator(locale);
 
   return (
@@ -149,8 +175,8 @@ export default async function GrnsListPage({ params, searchParams }: PageProps) 
           { label: t('grnList.breadcrumb.grns') },
         ]}
       />
-      <Suspense key={page} fallback={<ListSkeleton />}>
-        <ListContent locale={locale} page={page} />
+      <Suspense key={suspenseKey} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} page={page} filters={filters} />
       </Suspense>
     </main>
   );

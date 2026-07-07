@@ -11,7 +11,12 @@
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+const pushMock = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: pushMock, refresh: vi.fn() }),
+}));
 
 import { GrnListClient, type GrnListLabels } from '../grn-list.client';
 import { getWhcTranslator } from '../../../wh-c-labels';
@@ -48,8 +53,15 @@ function buildLabels(locale: string): GrnListLabels {
       status: t('grnList.columns.status'),
       items: t('grnList.columns.items'),
     },
+    pagination: {
+      showing: t('grnList.pagination.showing'),
+      previous: t('grnList.pagination.previous'),
+      next: t('grnList.pagination.next'),
+    },
   };
 }
+
+const DEFAULT_FILTERS = { status: '', search: '', sourceType: '' };
 
 const EN = buildLabels('en');
 
@@ -69,10 +81,23 @@ function makeRow(over: Partial<GrnListItem>): GrnListItem {
   };
 }
 
-function renderList(rows: GrnListItem[], opts?: { sourceTypes?: string[] }) {
+function renderList(
+  rows: GrnListItem[],
+  opts?: { sourceTypes?: string[]; filters?: typeof DEFAULT_FILTERS; total?: number },
+) {
+  pushMock.mockClear();
   return render(
     <GrnListClient
       rows={rows}
+      pagination={{
+        items: rows,
+        total: opts?.total ?? rows.length,
+        page: 1,
+        limit: 50,
+        offset: 0,
+        hasMore: false,
+      }}
+      filters={opts?.filters ?? DEFAULT_FILTERS}
       sourceTypes={opts?.sourceTypes ?? [...new Set(rows.map((r) => r.sourceType))]}
       labels={EN}
       locale="en"
@@ -81,46 +106,37 @@ function renderList(rows: GrnListItem[], opts?: { sourceTypes?: string[] }) {
 }
 
 describe('GrnListClient (WH-010 parity)', () => {
-  it('renders the four status tabs with counts', () => {
-    renderList([
-      makeRow({ id: 'a', status: 'draft' }),
-      makeRow({ id: 'b', status: 'completed' }),
-      makeRow({ id: 'c', status: 'completed' }),
-      makeRow({ id: 'd', status: 'cancelled' }),
-    ]);
+  it('renders the four status tabs with count on the active tab', () => {
+    renderList(
+      [
+        makeRow({ id: 'a', status: 'draft' }),
+        makeRow({ id: 'b', status: 'completed' }),
+      ],
+      { total: 2 },
+    );
     for (const k of ['all', 'draft', 'completed', 'cancelled']) {
       expect(screen.getByTestId(`grn-tab-${k}`)).toBeInTheDocument();
     }
-    expect(within(screen.getByTestId('grn-tab-all')).getByText('4')).toBeInTheDocument();
-    expect(within(screen.getByTestId('grn-tab-draft')).getByText('1')).toBeInTheDocument();
-    expect(within(screen.getByTestId('grn-tab-completed')).getByText('2')).toBeInTheDocument();
-    expect(within(screen.getByTestId('grn-tab-cancelled')).getByText('1')).toBeInTheDocument();
+    expect(within(screen.getByTestId('grn-tab-all')).getByText('2')).toBeInTheDocument();
   });
 
-  it('filters rows by the active status tab', () => {
+  it('navigates to the completed tab filter via the URL', () => {
     renderList([
       makeRow({ id: 'a', grnNumber: 'GRN-DRAFT', status: 'draft' }),
       makeRow({ id: 'b', grnNumber: 'GRN-DONE', status: 'completed' }),
     ]);
-    expect(screen.getByTestId('grn-row-a')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('grn-tab-completed'));
-    expect(screen.queryByTestId('grn-row-a')).not.toBeInTheDocument();
-    expect(screen.getByTestId('grn-row-b')).toBeInTheDocument();
+    expect(pushMock).toHaveBeenCalledWith('/en/warehouse/grns?status=completed');
   });
 
-  it('searches by GRN number and supplier', () => {
-    renderList([
-      makeRow({ id: 'a', grnNumber: 'GRN-AAA', supplierName: 'Agro-Fresh' }),
-      makeRow({ id: 'b', grnNumber: 'GRN-BBB', supplierName: 'Baltic Pork' }),
-    ]);
-    const search = screen.getByTestId('grn-list-search');
-    fireEvent.change(search, { target: { value: 'baltic' } });
-    expect(screen.queryByTestId('grn-row-a')).not.toBeInTheDocument();
-    expect(screen.getByTestId('grn-row-b')).toBeInTheDocument();
-
-    fireEvent.change(search, { target: { value: 'GRN-AAA' } });
-    expect(screen.getByTestId('grn-row-a')).toBeInTheDocument();
-    expect(screen.queryByTestId('grn-row-b')).not.toBeInTheDocument();
+  it('debounces search navigation to the URL', async () => {
+    vi.useFakeTimers();
+    renderList([makeRow({ id: 'a', grnNumber: 'GRN-AAA', supplierName: 'Agro-Fresh' })]);
+    fireEvent.change(screen.getByTestId('grn-list-search'), { target: { value: 'baltic' } });
+    expect(pushMock).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(pushMock).toHaveBeenCalledWith('/en/warehouse/grns?q=baltic');
+    vi.useRealTimers();
   });
 
   it('renders the GRN number as a mono link to the detail route + source chip', () => {
@@ -143,14 +159,13 @@ describe('GrnListClient (WH-010 parity)', () => {
   });
 
   it('shows the empty-all state when there are no rows', () => {
-    renderList([]);
+    renderList([], { total: 0 });
     expect(screen.getByTestId('grn-list-empty')).toHaveTextContent(EN.emptyAll);
   });
 
-  it('shows the empty-filtered state when the search matches nothing', () => {
-    renderList([makeRow({ id: 'a', grnNumber: 'GRN-AAA' })]);
-    fireEvent.change(screen.getByTestId('grn-list-search'), { target: { value: 'zzz-nope' } });
-    expect(screen.getByTestId('grn-list-empty-filtered')).toHaveTextContent(EN.emptyFiltered);
+  it('shows the empty-filtered state when filters are active and there are no rows', () => {
+    renderList([], { filters: { status: '', search: 'zzz-nope', sourceType: '' }, total: 0 });
+    expect(screen.getByTestId('grn-list-empty')).toHaveTextContent(EN.emptyFiltered);
   });
 
   it('resolves every staged i18n key in en and pl (no leaked dotted keys)', () => {

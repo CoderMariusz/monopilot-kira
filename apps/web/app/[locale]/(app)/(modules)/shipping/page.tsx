@@ -31,15 +31,44 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 import { listSalesOrders, createSalesOrder } from './_actions/so-actions';
 import { listSoCustomers, searchSoItems } from './_actions/so-form-data';
 import { createCustomer } from './customers/_actions/customer-actions';
-import { SoListView, type SoListLabels } from './_components/so-list-view';
+import { SoListView, type SoListFilters, type SoListLabels } from './_components/so-list-view';
 import { ShippingTabs } from './shipments/_components/shipping-tabs';
 
 export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ new?: string; page?: string }>;
+  searchParams: Promise<{
+    new?: string;
+    page?: string;
+    status?: string;
+    q?: string;
+    customer?: string;
+  }>;
 };
+
+function parseSoFilters(sp: {
+  status?: string;
+  q?: string;
+  customer?: string;
+}): SoListFilters {
+  const status = sp.status?.trim() ?? '';
+  const allowed = new Set([
+    'draft',
+    'confirmed',
+    'allocated',
+    'picked',
+    'packed',
+    'shipped',
+    'delivered',
+    'cancelled',
+  ]);
+  return {
+    status: status && allowed.has(status) ? status : '',
+    search: sp.q?.trim() ?? '',
+    customerCode: sp.customer?.trim() ?? '',
+  };
+}
 
 function parsePage(value: string | undefined): number {
   const page = Number(value);
@@ -155,13 +184,23 @@ async function ListContent({
   locale,
   autoOpenCreate,
   page,
+  filters,
 }: {
   locale: string;
   autoOpenCreate: boolean;
   page: number;
+  filters: SoListFilters;
 }) {
   const t = await getTranslations('Shipping.salesOrders');
-  const [listResult, customers] = await Promise.all([listSalesOrders({ page }), listSoCustomers()]);
+  const [listResult, customers] = await Promise.all([
+    listSalesOrders({
+      page,
+      status: filters.status || undefined,
+      search: filters.search || undefined,
+      customerCode: filters.customerCode || undefined,
+    }),
+    listSoCustomers(),
+  ]);
 
   if (!listResult.ok) {
     if (listResult.error === 'forbidden') {
@@ -195,6 +234,7 @@ async function ListContent({
       locale={locale}
       salesOrders={rows}
       pagination={{ ...listResult.data, items: rows }}
+      filters={filters}
       customers={customers}
       autoOpenCreate={autoOpenCreate}
       labels={buildLabels(t, locale)}
@@ -210,6 +250,8 @@ export default async function ShippingRoutePage({ params, searchParams }: PagePr
   const sp = await searchParams;
   const autoOpenCreate = sp.new === '1';
   const page = parsePage(sp.page);
+  const filters = parseSoFilters(sp);
+  const suspenseKey = `${page}:${filters.status}:${filters.search}:${filters.customerCode}`;
   const t = await getTranslations('Shipping.salesOrders');
   const tShip = await getTranslations('Shipping.shipments');
 
@@ -226,8 +268,8 @@ export default async function ShippingRoutePage({ params, searchParams }: PagePr
         breadcrumb={[{ label: t('breadcrumb.shipping') }, { label: t('breadcrumb.salesOrders') }]}
       />
       <ShippingTabs locale={locale} labels={{ salesOrders: tShip('tabs.salesOrders'), shipments: tShip('tabs.shipments'), customers: tShip('tabs.customers') }} />
-      <Suspense key={page} fallback={<ListSkeleton />}>
-        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} page={page} />
+      <Suspense key={suspenseKey} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} page={page} filters={filters} />
       </Suspense>
     </main>
   );

@@ -112,7 +112,13 @@ async function ChangeoversContent({ filter, page, locale }: { filter: Changeover
   let listResult: Awaited<ReturnType<typeof listChangeovers>>;
   let lines: Awaited<ReturnType<typeof listChangeoverLines>>;
   try {
-    [listResult, lines] = await Promise.all([listChangeovers({ page }), listChangeoverLines()]);
+    [listResult, lines] = await Promise.all([
+      listChangeovers({
+        page,
+        status: filter === 'all' ? undefined : filter,
+      }),
+      listChangeoverLines(),
+    ]);
   } catch (error) {
     console.error('[production/changeovers] load failed:', error);
     return (
@@ -236,7 +242,7 @@ export default async function ChangeoversPage({
           { label: t('breadcrumb.changeovers') },
         ]}
       />
-      <Suspense key={page} fallback={<ChangeoversSkeleton />}>
+      <Suspense key={`${page}:${filter}`} fallback={<ChangeoversSkeleton />}>
         <ChangeoversContent filter={filter} page={page} locale={locale} />
       </Suspense>
     </main>

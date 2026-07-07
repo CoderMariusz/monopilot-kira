@@ -405,11 +405,13 @@ const SO_LIST_WHERE = `
             or so.order_number ilike '%' || $2 || '%'
             or c.name ilike '%' || $2 || '%'
             or c.customer_code ilike '%' || $2 || '%'
-          )`;
+          )
+          and ($3::text is null or c.customer_code = $3)`;
 
 export async function listSalesOrders(params: {
   status?: string;
   search?: string;
+  customerCode?: string;
   page?: number;
   offset?: number;
   limit?: number;
@@ -427,7 +429,11 @@ export async function listSalesOrders(params: {
     const forbidden = await requirePermission(ctx, SHIP_SO_READ);
     if (forbidden) return forbidden;
 
-    const baseParams = [params.status?.trim() || null, params.search?.trim() || null] as const;
+    const baseParams = [
+      params.status?.trim() || null,
+      params.search?.trim() || null,
+      params.customerCode?.trim() || null,
+    ] as const;
 
     const [countResult, dataResult] = await Promise.all([
       ctx.client.query<{ total: number }>(
@@ -477,7 +483,7 @@ export async function listSalesOrders(params: {
            left join public.customers c on c.id = so.customer_id and c.org_id = app.current_org_id()
          ${SO_LIST_WHERE}
           order by so.created_at desc, so.order_number desc, so.id desc
-          limit $3::int offset $4::int`,
+          limit $4::int offset $5::int`,
         [...baseParams, page.limit, page.offset],
       ),
     ]);

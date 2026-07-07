@@ -133,11 +133,31 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
       if (q.startsWith('select count(*)::int as total') && q.includes('from public.sales_orders')) {
+        if (params[1] === 'page2only') return { rows: [{ total: 1 }], rowCount: 1 };
+        if (params[0] === 'draft') return { rows: [{ total: 75 }], rowCount: 1 };
         return { rows: [{ total: listTotal }], rowCount: 1 };
       }
       if (q.startsWith('select so.id::text') && q.includes('line_count')) {
-        const offset = Number(params[3] ?? 0);
-        const limit = Number(params[2] ?? 50);
+        const offset = Number(params[4] ?? 0);
+        const limit = Number(params[3] ?? 50);
+        if (params[1] === 'page2only') {
+          return {
+            rows: [
+              {
+                id: SO_ID,
+                so_number: 'SO-MATCH-999',
+                status,
+                customer_name: 'Acme Foods',
+                customer_code: 'ACME',
+                line_count: '1',
+                total: '10.0000',
+                created_at: '2026-06-11T10:00:00.000Z',
+                expected_ship_date: '2026-06-20',
+              },
+            ],
+            rowCount: 1,
+          };
+        }
         const index = offset + 1;
         if (index > listTotal) {
           return { rows: [], rowCount: 0 };
@@ -332,9 +352,34 @@ describe('SO read actions', () => {
       expect.objectContaining({ so_number: 'SO-202606-00051' }),
     );
     const listQuery = queryLog.find(
-      (entry) => normalize(entry.sql).includes('line_count') && normalize(entry.sql).includes('offset $4::int'),
+      (entry) => normalize(entry.sql).includes('line_count') && normalize(entry.sql).includes('offset $5::int'),
     );
-    expect(listQuery?.params).toEqual([null, null, 50, 50]);
+    expect(listQuery?.params).toEqual([null, null, null, 50, 50]);
+  });
+
+  it('search filter finds a row that would only appear on page 2 when unfiltered', async () => {
+    listTotal = 120;
+
+    const result = await listSalesOrders({ search: 'page2only', page: 1 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.data.total).toBe(1);
+    expect(result.data.items[0]).toEqual(expect.objectContaining({ so_number: 'SO-MATCH-999' }));
+    const countQuery = queryLog.find((entry) => normalize(entry.sql).startsWith('select count(*)'));
+    expect(countQuery?.params).toEqual([null, 'page2only', null]);
+  });
+
+  it('status filter is passed to count and page queries and total reflects the filter', async () => {
+    const result = await listSalesOrders({ status: 'draft', page: 2 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.data.total).toBe(75);
+    const listQuery = queryLog.find(
+      (entry) => normalize(entry.sql).includes('line_count') && normalize(entry.sql).includes('offset $5::int'),
+    );
+    expect(listQuery?.params).toEqual(['draft', null, null, 50, 50]);
   });
 
   it('returns sales order detail with header and lines', async () => {

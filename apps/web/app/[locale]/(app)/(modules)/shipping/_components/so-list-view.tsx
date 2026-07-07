@@ -48,6 +48,7 @@ import { CreateSoModal, type CreateCustomerResult, type CreateSoLabels, type Cre
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items-types';
 import type { SoCustomerOption } from '../_actions/so-form-data';
 import { downloadCsv, toCsv } from '../../../../../../lib/shared/download';
+import { buildListPageHref } from '../../../../../../lib/shared/list-page-href';
 import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../lib/shared/list-pagination-footer';
 import type { PaginatedResult } from '../../../../../../lib/shared/pagination';
 
@@ -75,6 +76,25 @@ const TAB_ORDER = [
   'cancelled',
 ] as const;
 type TabKey = (typeof TAB_ORDER)[number];
+
+export type SoListFilters = {
+  status: string;
+  search: string;
+  customerCode: string;
+};
+
+function listQuery(filters: SoListFilters, extra?: { new?: string }): Record<string, string | undefined> {
+  return {
+    status: filters.status || undefined,
+    q: filters.search || undefined,
+    customer: filters.customerCode || undefined,
+    new: extra?.new,
+  };
+}
+
+function hasActiveFilters(filters: SoListFilters): boolean {
+  return Boolean(filters.status || filters.search || filters.customerCode);
+}
 
 export type SoListLabels = {
   createSo: string;
@@ -108,6 +128,7 @@ export type SoListViewProps = {
   locale: string;
   salesOrders: SoRow[];
   pagination: PaginatedResult<SoRow>;
+  filters: SoListFilters;
   customers: SoCustomerOption[];
   labels: SoListLabels;
   /** Open the create modal immediately on mount (?new=1 deep-link). */
@@ -157,6 +178,7 @@ export function SoListView({
   locale,
   salesOrders,
   pagination,
+  filters,
   customers,
   labels,
   autoOpenCreate = false,
@@ -166,37 +188,33 @@ export function SoListView({
 }: SoListViewProps) {
   const router = useRouter();
   const basePath = `/${locale}/shipping`;
-  const pageHref = (page: number) => (page > 1 ? `${basePath}?page=${page}` : basePath);
+  const activeTab: TabKey = (filters.status as TabKey) || 'all';
+  const pageHref = (page: number) => buildListPageHref(basePath, listQuery(filters), page);
   const shown = pagination.offset + salesOrders.length;
-  const [tab, setTab] = React.useState<TabKey>('all');
-  const [search, setSearch] = React.useState('');
-  const [customerFilter, setCustomerFilter] = React.useState('');
+  const [searchDraft, setSearchDraft] = React.useState(filters.search);
   const [createOpen, setCreateOpen] = React.useState(autoOpenCreate);
   const [exportError, setExportError] = React.useState<string | null>(null);
 
-  const counts = React.useMemo(() => {
-    const c = Object.fromEntries(TAB_ORDER.map((k) => [k, 0])) as Record<TabKey, number>;
-    c.all = salesOrders.length;
-    for (const so of salesOrders) {
-      const k = so.status.toLowerCase() as TabKey;
-      if (k in c && k !== 'all') c[k] += 1;
-    }
-    return c;
-  }, [salesOrders]);
+  React.useEffect(() => {
+    setSearchDraft(filters.search);
+  }, [filters.search]);
 
-  const visible = React.useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return salesOrders.filter((so) => {
-      if (tab !== 'all' && so.status.toLowerCase() !== tab) return false;
-      if (customerFilter && so.customerCode !== customerFilter) return false;
-      if (!term) return true;
-      return (
-        so.soNumber.toLowerCase().includes(term) ||
-        (so.customerCode ?? '').toLowerCase().includes(term) ||
-        (so.customerName ?? '').toLowerCase().includes(term)
-      );
-    });
-  }, [salesOrders, tab, search, customerFilter]);
+  React.useEffect(() => {
+    if (searchDraft === filters.search) return;
+    const timer = window.setTimeout(() => {
+      router.push(buildListPageHref(basePath, listQuery({ ...filters, search: searchDraft }), 1));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [basePath, filters, router, searchDraft]);
+
+  function navigate(next: Partial<SoListFilters>) {
+    router.push(buildListPageHref(basePath, listQuery({ ...filters, ...next }), 1));
+  }
+
+  function tabCount(key: TabKey): number {
+    if (key === activeTab) return pagination.total;
+    return 0;
+  }
 
   function statusLabel(status: string): string {
     return labels.status[status.toLowerCase()] ?? status;
@@ -206,9 +224,8 @@ export function SoListView({
   }
 
   function clearAll() {
-    setSearch('');
-    setTab('all');
-    setCustomerFilter('');
+    setSearchDraft('');
+    router.push(autoOpenCreate ? `${basePath}?new=1` : basePath);
   }
 
   function exportCsv() {
@@ -223,7 +240,7 @@ export function SoListView({
         labels.columns.total,
         labels.columns.actions,
       ];
-      const rows = visible.map((so) => [
+      const rows = salesOrders.map((so) => [
         so.soNumber,
         customerText(so.customerName, so.customerCode),
         statusLabel(so.status),
@@ -245,10 +262,10 @@ export function SoListView({
       <div className="flex items-center justify-between gap-3">
         <Input
           type="search"
-          value={search}
+          value={searchDraft}
           data-testid="so-list-search"
           placeholder={labels.searchPlaceholder}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => setSearchDraft(e.target.value)}
           className="w-72"
         />
         <div className="flex items-center gap-2">
@@ -266,25 +283,27 @@ export function SoListView({
         </p>
       ) : null}
 
-      {/* Status tabs (client-side filters over the org-scoped dataset). */}
+      {/* Status tabs — server-side filter via URL searchParams. */}
       <div role="tablist" aria-label={labels.tabsAll} data-testid="so-list-tabs" className="flex flex-wrap gap-2">
         {TAB_ORDER.map((key) => (
           <button
             key={key}
             type="button"
             role="tab"
-            aria-selected={tab === key}
+            aria-selected={activeTab === key}
             data-testid={`so-list-tab-${key}`}
-            onClick={() => setTab(key)}
+            onClick={() => navigate({ status: key === 'all' ? '' : key })}
             className={[
               'rounded-md px-3 py-1.5 text-sm font-medium',
-              tab === key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+              activeTab === key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
             ].join(' ')}
           >
             {tabLabel(key)}
-            <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">
-              {counts[key]}
-            </span>
+            {tabCount(key) > 0 ? (
+              <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">
+                {tabCount(key)}
+              </span>
+            ) : null}
           </button>
         ))}
       </div>
@@ -293,8 +312,8 @@ export function SoListView({
       <div className="flex flex-wrap items-center gap-3">
         <div className="w-56">
           <Select
-            value={customerFilter}
-            onValueChange={setCustomerFilter}
+            value={filters.customerCode}
+            onValueChange={(value) => navigate({ customerCode: value })}
             aria-label={labels.customerFilterLabel}
             options={[
               { value: '', label: labels.allCustomers },
@@ -306,16 +325,16 @@ export function SoListView({
           {labels.clearFilters}
         </button>
         <span className="ml-auto text-xs text-slate-500" data-testid="so-list-rows-count">
-          {labels.rowsCount.replace('{n}', String(visible.length))}
+          {labels.rowsCount.replace('{n}', String(pagination.total))}
         </span>
       </div>
 
       {/* Table / empty */}
-      {visible.length === 0 ? (
+      {salesOrders.length === 0 ? (
         <EmptyState
           icon="📦"
           title={labels.empty.title}
-          body={labels.empty.body}
+          body={hasActiveFilters(filters) ? labels.empty.clear : labels.empty.body}
           action={{ label: labels.empty.clear, onClick: clearAll }}
         />
       ) : (
@@ -333,7 +352,7 @@ export function SoListView({
               </tr>
             </thead>
             <tbody>
-              {visible.map((so) => (
+              {salesOrders.map((so) => (
                 <tr key={so.id} data-testid={`so-row-${so.id}`} className="border-b border-slate-100 last:border-0">
                   <td className="px-3 py-2">
                     <Link

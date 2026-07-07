@@ -264,11 +264,21 @@ function makeClient(): QueryClient {
         return { rows: found ? [{ id: found.id }] : [], rowCount: found ? 1 : 0 };
       }
       if (n.startsWith('select count(*)::int as total') && n.includes('from public.changeover_events ce')) {
+        if (params[1] === 'pending') return { rows: [{ total: 5 }], rowCount: 1 };
         return { rows: [{ total: listTotal }], rowCount: 1 };
       }
       if (n.includes('from public.changeover_events ce') && n.includes('limit $3::int offset $4::int')) {
+        const status = params[1];
         const offset = Number(params[3] ?? 0);
         const index = offset + 1;
+        if (status === 'pending' && index === 51) {
+          const entry = row({
+            id: `${CHANGEOVER_ID.slice(0, -2)}52`,
+            to_product_code: 'FG-PENDING-P2',
+            dual_sign_off_status: 'pending',
+          });
+          return { rows: [entry], rowCount: 1 };
+        }
         if (index > listTotal) return { rows: [], rowCount: 0 };
         const entry = row({
           id: index === 1 ? CHANGEOVER_ID : `${CHANGEOVER_ID.slice(0, -2)}${String(index).padStart(2, '0')}`,
@@ -355,6 +365,18 @@ describe('changeover-actions', () => {
     expect(result.rows[0]).toMatchObject({ toProduct: { code: 'FG-051' } });
     const listQuery = queries.find((q) => normalize(q.sql).includes('limit $3::int offset $4::int'));
     expect(listQuery?.params).toEqual([null, null, 50, 50]);
+  });
+
+  it('status filter finds a pending row on page 2 with filtered total', async () => {
+    listTotal = 120;
+    const { listChangeovers } = await import('./changeover-actions');
+    const result = await listChangeovers({ status: 'pending', page: 2 });
+
+    expect(result.ok).toBe(true);
+    expect(result.pagination.total).toBe(5);
+    expect(result.rows[0]).toMatchObject({ toProduct: { code: 'FG-PENDING-P2' } });
+    const countQuery = queries.find((q) => normalize(q.sql).startsWith('select count(*)'));
+    expect(countQuery?.params).toEqual([null, 'pending']);
   });
 
   it('createChangeoverEvent succeeds with production.changeover.write', async () => {

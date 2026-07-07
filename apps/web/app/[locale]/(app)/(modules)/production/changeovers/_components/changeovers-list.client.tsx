@@ -17,7 +17,7 @@
  * action seam; on success the page is refreshed.
  */
 
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
@@ -34,6 +34,7 @@ import type {
 import type { ChangeoverFilterStatus, ChangeoverListLabels, ChangeoverCreateLabels, ChangeoverSignLabels } from './labels';
 import type { ItemSearchFn } from '../../../../(npd)/_components/item-picker';
 import { ListPaginationFooter } from '../../../../../../../lib/shared/list-pagination-footer';
+import { buildListPageHref } from '../../../../../../../lib/shared/list-page-href';
 import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 const STATUS_VARIANT: Record<ChangeoverDualSignStatus, BadgeVariant> = {
@@ -71,16 +72,15 @@ export function ChangeoversList({
 }) {
   const router = useRouter();
   const basePath = `/${locale}/production/changeovers`;
-  const pageHref = (page: number) => (page > 1 ? `${basePath}?page=${page}` : basePath);
+  const pageHref = (page: number) =>
+    buildListPageHref(basePath, { status: initialFilter === 'all' ? undefined : initialFilter }, page);
   const shown = pagination.offset + rows.length;
-  const [filter, setFilter] = useState<ChangeoverFilterStatus>(initialFilter);
   const [createOpen, setCreateOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const visible = useMemo(
-    () => (filter === 'all' ? rows : rows.filter((r) => r.dualSignOffStatus === filter)),
-    [rows, filter],
-  );
+  function applyFilter(next: ChangeoverFilterStatus) {
+    router.push(buildListPageHref(basePath, { status: next === 'all' ? undefined : next }, 1));
+  }
 
   function refresh() {
     setCreateOpen(false);
@@ -98,10 +98,10 @@ export function ChangeoversList({
               key={f}
               type="button"
               data-testid={`changeover-filter-${f}`}
-              aria-pressed={filter === f}
-              onClick={() => setFilter(f)}
+              aria-pressed={initialFilter === f}
+              onClick={() => applyFilter(f)}
               className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
-                filter === f
+                initialFilter === f
                   ? 'border-slate-900 bg-slate-900 text-white'
                   : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
               }`}
@@ -120,7 +120,7 @@ export function ChangeoversList({
         </button>
       </div>
 
-      {visible.length === 0 ? (
+      {rows.length === 0 ? (
         <div
           data-testid="changeover-empty"
           className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500"
@@ -142,7 +142,7 @@ export function ChangeoversList({
               </tr>
             </thead>
             <tbody>
-              {visible.map((r) => {
+              {rows.map((r) => {
                 const isExpanded = expandedId === r.id;
                 const signers =
                   [r.firstSigner?.name, r.secondSigner?.name].filter(Boolean).join(', ') || labels.signerNone;

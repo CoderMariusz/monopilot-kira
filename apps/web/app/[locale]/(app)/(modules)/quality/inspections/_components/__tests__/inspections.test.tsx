@@ -29,8 +29,10 @@ import {
 import { getQaInspectionsTranslator } from '../../../qa-inspections-labels';
 import type { InspectionDetail, InspectionListRow } from '../inspection-contracts';
 
-const navigationMocks = vi.hoisted(() => ({ refresh: vi.fn() }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: navigationMocks.refresh }) }));
+const navigationMocks = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: navigationMocks.refresh, push: navigationMocks.push }) }));
+
+const DEFAULT_FILTERS = { status: '', search: '' };
 
 const tEn = getQaInspectionsTranslator('en');
 const tPl = getQaInspectionsTranslator('pl');
@@ -69,7 +71,9 @@ function renderList(
     resolveWoOutput?: ReturnType<typeof vi.fn>;
     searchAssignees?: ReturnType<typeof vi.fn>;
   },
+  opts?: { filters?: typeof DEFAULT_FILTERS; total?: number },
 ) {
+  navigationMocks.push.mockClear();
   const searchLps = pickers?.searchLps ?? vi.fn(async () => ({ ok: true as const, data: [LP1] }));
   const resolveGrn = pickers?.resolveGrn ?? vi.fn(async () => ({ ok: true as const, data: { id: 'grn1', display: 'GRN-1' } }));
   const resolveWoOutput =
@@ -78,6 +82,15 @@ function renderList(
   render(
     <InspectionsListClient
       rows={rows}
+      pagination={{
+        items: rows,
+        total: opts?.total ?? rows.length,
+        page: 1,
+        limit: 50,
+        offset: 0,
+        hasMore: false,
+      }}
+      filters={opts?.filters ?? DEFAULT_FILTERS}
       labels={LIST_LABELS}
       createLabels={CREATE_LABELS}
       locale="en"
@@ -92,54 +105,51 @@ function renderList(
 }
 
 describe('InspectionsListClient (QA-005 parity)', () => {
-  it('renders status tabs with counts and defaults to All', () => {
-    renderList([
-      makeRow({ id: 'a', status: 'pending' }),
-      makeRow({ id: 'b', status: 'in_progress' }),
-      makeRow({ id: 'c', status: 'passed' }),
-    ]);
+  it('renders status tabs with count on the active tab and defaults to All', () => {
+    renderList(
+      [
+        makeRow({ id: 'a', status: 'pending' }),
+        makeRow({ id: 'b', status: 'in_progress' }),
+        makeRow({ id: 'c', status: 'passed' }),
+      ],
+      undefined,
+      undefined,
+      { total: 3 },
+    );
     expect(screen.getByTestId('inspection-tab-all')).toHaveAttribute('aria-selected', 'true');
     expect(within(screen.getByTestId('inspection-tab-all')).getByText('3')).toBeInTheDocument();
-    expect(within(screen.getByTestId('inspection-tab-pending')).getByText('1')).toBeInTheDocument();
-    expect(within(screen.getByTestId('inspection-tab-in_progress')).getByText('1')).toBeInTheDocument();
   });
 
-  it('filters rows by status tab and by search', () => {
+  it('navigates to the failed tab filter via the URL', () => {
     renderList([
       makeRow({ id: 'a', inspectionNumber: 'INS-AAA', status: 'pending' }),
       makeRow({ id: 'b', inspectionNumber: 'INS-BBB', status: 'failed', referenceDisplay: 'LP-9' }),
     ]);
     fireEvent.click(screen.getByTestId('inspection-tab-failed'));
-    expect(screen.getByTestId('inspection-row-b')).toBeInTheDocument();
-    expect(screen.queryByTestId('inspection-row-a')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId('inspection-tab-all'));
-    fireEvent.change(screen.getByTestId('inspections-list-search'), { target: { value: 'aaa' } });
-    expect(screen.getByTestId('inspection-row-a')).toBeInTheDocument();
-    expect(screen.queryByTestId('inspection-row-b')).not.toBeInTheDocument();
+    expect(navigationMocks.push).toHaveBeenCalledWith('/en/quality/inspections?status=failed');
   });
 
-  it('renders product names in the list and searches by product name', () => {
+  it('debounces search navigation to the URL', async () => {
+    vi.useFakeTimers();
     renderList([
       makeRow({ id: 'a', productCode: 'RM-1001', productName: 'Beef trim' }),
       makeRow({ id: 'b', productCode: 'RM-2002', productName: 'Pork shoulder' }),
     ]);
-    expect(screen.getByTestId('inspection-row-a')).toHaveTextContent('RM-1001 · Beef trim');
-
     fireEvent.change(screen.getByTestId('inspections-list-search'), { target: { value: 'shoulder' } });
-    expect(screen.queryByTestId('inspection-row-a')).not.toBeInTheDocument();
-    expect(screen.getByTestId('inspection-row-b')).toBeInTheDocument();
+    expect(navigationMocks.push).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(navigationMocks.push).toHaveBeenCalledWith('/en/quality/inspections?q=shoulder');
+    vi.useRealTimers();
   });
 
   it('shows the empty state when there are no inspections', () => {
-    renderList([]);
+    renderList([], undefined, undefined, { total: 0 });
     expect(screen.getByTestId('inspections-list-empty')).toHaveAttribute('data-state', 'empty');
   });
 
-  it('shows the filtered-empty state when filters exclude every row', () => {
-    renderList([makeRow({ id: 'a', status: 'pending' })]);
-    fireEvent.change(screen.getByTestId('inspections-list-search'), { target: { value: 'zzz' } });
-    expect(screen.getByTestId('inspections-list-empty-filtered')).toBeInTheDocument();
+  it('shows the filtered-empty state when filters are active and there are no rows', () => {
+    renderList([], undefined, undefined, { filters: { status: '', search: 'zzz' }, total: 0 });
+    expect(screen.getByTestId('inspections-list-empty')).toHaveTextContent(LIST_LABELS.emptyFiltered);
   });
 
   it('create modal: requires a reference, then submits the RESOLVED LP uuid (no raw-UUID input)', async () => {
@@ -251,6 +261,15 @@ describe('InspectionsListClient (QA-005 parity)', () => {
     render(
       <InspectionsListClient
         rows={[makeRow({ id: 'a' })]}
+        pagination={{
+          items: [makeRow({ id: 'a' })],
+          total: 1,
+          page: 1,
+          limit: 50,
+          offset: 0,
+          hasMore: false,
+        }}
+        filters={DEFAULT_FILTERS}
         labels={LIST_LABELS}
         createLabels={createLabels}
         locale="en"

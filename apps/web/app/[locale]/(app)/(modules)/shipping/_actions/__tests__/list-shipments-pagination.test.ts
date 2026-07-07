@@ -38,11 +38,36 @@ function makeClient(): QueryClient {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
       }
       if (q.startsWith('select count(*)::int as total') && q.includes('from public.shipments sh')) {
+        if (params[0] === 'packed') return { rows: [{ total: 3 }], rowCount: 1 };
         return { rows: [{ total: listTotal }], rowCount: 1 };
       }
       if (q.includes('from public.shipments sh') && q.includes('limit $2::int offset $3::int')) {
+        const status = params[0];
         const offset = Number(params[2] ?? 0);
         const index = offset + 1;
+        if (status === 'packed' && index === 51) {
+          return {
+            rows: [
+              {
+                id: SHIPMENT_ID,
+                shipment_number: 'SH-PACKED-PAGE2',
+                status: 'packed',
+                sales_order_number: 'SO-1',
+                customer_name: 'Acme',
+                customer_code: 'ACME',
+                box_count: 1,
+                created_at: '2026-06-11T10:00:00.000Z',
+                packed_at: null,
+                shipped_at: null,
+                total_weight_kg: '10',
+                carrier: null,
+                promised_ship_date: null,
+                required_delivery_date: null,
+              },
+            ],
+            rowCount: 1,
+          };
+        }
         if (index > listTotal) return { rows: [], rowCount: 0 };
         return {
           rows: [
@@ -98,5 +123,18 @@ describe('listShipments pagination', () => {
     );
     const listQuery = queryLog.find((entry) => normalize(entry.sql).includes('offset $3::int'));
     expect(listQuery?.params).toEqual([null, 50, 50]);
+  });
+
+  it('status filter finds a packed row on page 2 with filtered total', async () => {
+    listTotal = 120;
+
+    const result = await listShipments({ status: 'packed', page: 2 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.data.total).toBe(3);
+    expect(result.data.items[0]).toEqual(expect.objectContaining({ shipmentNumber: 'SH-PACKED-PAGE2' }));
+    const countQuery = queryLog.find((entry) => normalize(entry.sql).startsWith('select count(*)'));
+    expect(countQuery?.params).toEqual(['packed']);
   });
 });
