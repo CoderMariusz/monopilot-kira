@@ -23,10 +23,6 @@
     {
       "path": "/api/internal/cron/pm-schedule-due",
       "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/api/internal/cron/pm-schedule-due",
-      "schedule": "0 6 * * *"
     }
   ]
 }
