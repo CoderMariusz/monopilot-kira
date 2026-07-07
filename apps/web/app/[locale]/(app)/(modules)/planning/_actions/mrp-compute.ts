@@ -67,6 +67,16 @@ import {
   mulMicro,
   toMicro,
 } from '../../../../../../lib/shared/decimal';
+import {
+  addDaysIso,
+  buildMrpBucketDates,
+  dateToBucketIndex,
+  isoWeekToBucketIndex,
+} from './mrp-buckets';
+
+/** Default weekly horizon — mirrors mrp.ts MRP_PLANNING_HORIZON_WEEKS. */
+export const MRP_DEFAULT_HORIZON_WEEKS = 12;
+export const MRP_BUCKET_DAYS = 7;
 
 /** Item master row (mig 153 + pack hierarchy mig 267). */
 export type MrpItemRow = {
@@ -85,6 +95,16 @@ export type MrpQtyBucket = {
   product_id: string;
   uom: string;
   qty: string | number;
+};
+
+/** Demand / supply row dated for time-phased bucketing (yyyy-mm-dd). */
+export type MrpTimedQtyBucket = MrpQtyBucket & {
+  need_date: string;
+};
+
+/** Forecast demand keyed by ISO week (demand_forecasts.iso_week). */
+export type MrpForecastQtyBucket = MrpQtyBucket & {
+  iso_week: string;
 };
 
 /** On-hand bucket — carries both quantity and reserved from the FEFO view. */
@@ -111,8 +131,10 @@ export type MrpSuggestedAction = {
   type: 'buy' | 'make';
   /** Whole base units, rounded up. */
   qty: string;
-  /** today + suppliers.lead_time_days when a preferred supplier resolves; else null. */
+  /** Bucket need-by date (shortage bucket) or today + lead time for single-bucket runs. */
   dueDate: string | null;
+  /** Planned release date = dueDate − lead_time_days when lead time resolves; else null. */
+  releaseDate?: string | null;
   /** reorder_thresholds.preferred_supplier_id when set; else null. */
   supplierId: string | null;
 };
@@ -161,7 +183,41 @@ export type MrpKpis = {
   coveragePct: number;
 };
 
-export type MrpComputeResult = { rows: MrpRow[]; kpis: MrpKpis };
+/** Per-item per-bucket projected-available-balance ledger row. */
+export type MrpBucketRequirement = {
+  itemId: string;
+  bucketDate: string;
+  bucketIndex: number;
+  grossRequirement: string;
+  scheduledReceipts: string;
+  projectedOnHand: string;
+  netRequirement: string;
+  forecastDemand: string;
+  soDemand: string;
+  dependentDemand: string;
+  severity: MrpSeverity;
+  suggestedAction: MrpSuggestedAction | null;
+};
+
+export type MrpComputeResult = {
+  rows: MrpRow[];
+  kpis: MrpKpis;
+  bucketRequirements: MrpBucketRequirement[];
+  bucketDates: string[];
+};
+
+/** One item × one weekly bucket in the time-phased netting ledger. */
+export type MrpBucketRow = MrpRow & {
+  bucketDate: string;
+  bucketIndex: number;
+  scheduledReceipts: string;
+  grossRequirement: string;
+  projectedAvailable: string;
+};
+
+export type MrpPhasedComputeResult = MrpComputeResult & {
+  bucketRows: MrpBucketRow[];
+};
 
 /** All accumulator quantities are exact micro-unit bigints (scale 6). */
 type Acc = {
@@ -224,14 +280,6 @@ const SEVERITY_RANK: Record<MrpSeverity, number> = {
   at_risk: 2,
   covered: 3,
 };
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** today (yyyy-mm-dd) + N days, UTC-safe. */
-function addDaysIso(todayIso: string, days: number): string {
-  const base = new Date(`${todayIso}T00:00:00Z`);
-  return new Date(base.getTime() + days * DAY_MS).toISOString().slice(0, 10);
-}
 
 export function computeMrp(input: {
   items: MrpItemRow[];
@@ -438,6 +486,373 @@ export function computeMrp(input: {
   }
 
   return {
+    rows,
+    kpis: {
+      itemsAnalyzed: rows.length,
+      itemsShort,
+      itemsBelowMin,
+      totalDemand: microToFixed(totalDemand, 3),
+      coveragePct,
+    },
+    bucketRequirements: [],
+    bucketDates: [],
+  };
+}
+
+type BucketAcc = {
+  demand: bigint;
+  forecastDemand: bigint;
+  soDemand: bigint;
+  scheduledReceipts: bigint;
+  excludedUoms: Set<string>;
+  touched: boolean;
+};
+
+function worstSeverity(a: MrpSeverity, b: MrpSeverity): MrpSeverity {
+  return SEVERITY_RANK[a] <= SEVERITY_RANK[b] ? a : b;
+}
+
+function buildSuggestedAction(
+  item: MrpItemRow,
+  threshold: MrpThresholdRow | null,
+  minQty: bigint,
+  reorderQty: bigint,
+  net: bigint,
+  isShort: boolean,
+  isBelowMin: boolean,
+  bucketDate: string,
+  leadDays: number | null,
+  todayIso: string,
+  singleBucketMode: boolean,
+): MrpSuggestedAction | null {
+  if (!isShort && !isBelowMin) return null;
+  const gap = minQty - net > -net ? minQty - net : -net;
+  const qtyMicro = gap > reorderQty ? gap : reorderQty;
+  const hasLead = leadDays !== null && leadDays !== undefined && Number.isFinite(leadDays);
+  const dueDate =
+    singleBucketMode && hasLead ? addDaysIso(todayIso, leadDays) : bucketDate;
+  const releaseDate = hasLead ? addDaysIso(dueDate, -leadDays) : null;
+  return {
+    type: item.item_type === 'intermediate' || item.item_type === 'fg' ? 'make' : 'buy',
+    qty: ceilMicroToWholeUnits(qtyMicro).toString(),
+    dueDate: hasLead || !singleBucketMode ? dueDate : null,
+    releaseDate,
+    supplierId: threshold?.preferred_supplier_id ?? null,
+  };
+}
+
+/**
+ * Time-phased MRP: bucket gross demand + scheduled receipts per ISO week, roll
+ * projected-available-balance forward, and peg planned-order releases to the
+ * shortage bucket minus supplier lead time.
+ *
+ * When `horizonWeeks` is 1 every dated input lands in the sole bucket and the
+ * rolled-up `rows` match `computeMrp` for the same totals (invariance).
+ */
+export function computeMrpPhased(input: {
+  items: MrpItemRow[];
+  onHand: MrpOnHandBucket[];
+  demand: MrpTimedQtyBucket[];
+  forecastDemand?: MrpForecastQtyBucket[];
+  soDemand?: MrpTimedQtyBucket[];
+  poSupply: MrpTimedQtyBucket[];
+  productionSupply: MrpTimedQtyBucket[];
+  thresholds?: MrpThresholdRow[];
+  today?: string;
+  horizonWeeks?: number;
+}): MrpPhasedComputeResult {
+  const itemById = new Map<string, MrpItemRow>();
+  for (const item of input.items) itemById.set(item.id, item);
+
+  const todayIso = input.today ?? new Date().toISOString().slice(0, 10);
+  const horizonWeeks = input.horizonWeeks ?? MRP_DEFAULT_HORIZON_WEEKS;
+  const bucketDates = buildMrpBucketDates(todayIso, horizonWeeks);
+  const bucketCount = bucketDates.length;
+  const singleBucketMode = horizonWeeks === 1;
+
+  const thresholdByItem = new Map<string, MrpThresholdRow>();
+  for (const t of input.thresholds ?? []) {
+    if (itemById.has(t.item_id)) thresholdByItem.set(t.item_id, t);
+  }
+
+  const onHandByItem = new Map<string, { onHand: bigint; reserved: bigint; excluded: Set<string> }>();
+  for (const bucket of input.onHand) {
+    const item = itemById.get(bucket.product_id);
+    if (!item) continue;
+    const entry = onHandByItem.get(item.id) ?? { onHand: 0n, reserved: 0n, excluded: new Set<string>() };
+    const onHandQty = toMicro(bucket.on_hand);
+    const reservedQty = toMicro(bucket.reserved);
+    const onHandBase = normalizeToBaseMicro(item, bucket.uom, onHandQty);
+    if (onHandBase === null) {
+      entry.excluded.add(bucket.uom);
+      onHandByItem.set(item.id, entry);
+      continue;
+    }
+    const reservedBase = normalizeToBaseMicro(item, bucket.uom, reservedQty) ?? 0n;
+    entry.onHand += onHandBase;
+    entry.reserved += reservedBase;
+    onHandByItem.set(item.id, entry);
+  }
+
+  const bucketAcc = new Map<string, BucketAcc[]>();
+  const accFor = (itemId: string, bucketIndex: number): BucketAcc => {
+    let rows = bucketAcc.get(itemId);
+    if (!rows) {
+      rows = Array.from({ length: bucketCount }, () => ({
+        demand: 0n,
+        forecastDemand: 0n,
+        soDemand: 0n,
+        scheduledReceipts: 0n,
+        excludedUoms: new Set<string>(),
+        touched: false,
+      }));
+      bucketAcc.set(itemId, rows);
+    }
+    return rows[bucketIndex]!;
+  };
+
+  const applyTimed = (
+    buckets: MrpTimedQtyBucket[],
+    assign: (acc: BucketAcc, baseQtyMicro: bigint) => void,
+  ): void => {
+    for (const bucket of buckets) {
+      const item = itemById.get(bucket.product_id);
+      if (!item) continue;
+      const qty = toMicro(bucket.qty);
+      if (qty === 0n) continue;
+      const base = normalizeToBaseMicro(item, bucket.uom, qty);
+      const idx = dateToBucketIndex(bucket.need_date, bucketDates);
+      const acc = accFor(item.id, idx);
+      if (base === null) {
+        acc.excludedUoms.add(bucket.uom);
+        acc.touched = true;
+        continue;
+      }
+      assign(acc, base);
+      acc.touched = true;
+    }
+  };
+
+  const applyForecast = (buckets: MrpForecastQtyBucket[]): void => {
+    for (const bucket of buckets) {
+      const item = itemById.get(bucket.product_id);
+      if (!item) continue;
+      const qty = toMicro(bucket.qty);
+      if (qty === 0n) continue;
+      const base = normalizeToBaseMicro(item, bucket.uom, qty);
+      const idx = isoWeekToBucketIndex(bucket.iso_week, bucketDates);
+      const acc = accFor(item.id, idx);
+      if (base === null) {
+        acc.excludedUoms.add(bucket.uom);
+        acc.touched = true;
+        continue;
+      }
+      acc.demand += base;
+      acc.forecastDemand += base;
+      acc.touched = true;
+    }
+  };
+
+  applyTimed(input.demand, (acc, q) => {
+    acc.demand += q;
+  });
+  applyForecast(input.forecastDemand ?? []);
+  applyTimed(input.soDemand ?? [], (acc, q) => {
+    acc.demand += q;
+    acc.soDemand += q;
+  });
+  applyTimed(input.poSupply, (acc, q) => {
+    acc.scheduledReceipts += q;
+  });
+  applyTimed(input.productionSupply, (acc, q) => {
+    acc.scheduledReceipts += q;
+  });
+
+  for (const [itemId, t] of thresholdByItem) {
+    if (toMicro(t.min_qty) > 0n) accFor(itemId, 0).touched = true;
+  }
+
+  const bucketRows: MrpBucketRow[] = [];
+  const bucketRequirements: MrpBucketRequirement[] = [];
+  const summaryByItem = new Map<string, MrpRow>();
+  let itemsShort = 0;
+  let itemsBelowMin = 0;
+  let totalDemand = 0n;
+  let totalShortage = 0n;
+
+  for (const [itemId, perBucket] of bucketAcc) {
+    const item = itemById.get(itemId);
+    if (!item) continue;
+    if (!perBucket.some((b) => b.touched)) continue;
+
+    const threshold = thresholdByItem.get(itemId) ?? null;
+    const minQty = threshold ? toMicro(threshold.min_qty) : 0n;
+    const reorderQty = threshold ? toMicro(threshold.reorder_qty) : 0n;
+    const leadDays = threshold?.preferred_supplier_id ? threshold.lead_time_days : null;
+    const onHandEntry = onHandByItem.get(itemId) ?? { onHand: 0n, reserved: 0n, excluded: new Set<string>() };
+
+    let pab = onHandEntry.onHand - onHandEntry.reserved;
+    let totalDemandMicro = 0n;
+    let totalReceiptsMicro = 0n;
+    let totalForecastMicro = 0n;
+    let totalSoMicro = 0n;
+    let worst: MrpSeverity = 'covered';
+    let summaryAction: MrpSuggestedAction | null = null;
+    const excludedUoms = new Set<string>(onHandEntry.excluded);
+
+    for (let i = 0; i < bucketCount; i += 1) {
+      const acc = perBucket[i]!;
+      for (const uom of acc.excludedUoms) excludedUoms.add(uom);
+      totalDemandMicro += acc.demand;
+      totalReceiptsMicro += acc.scheduledReceipts;
+      totalForecastMicro += acc.forecastDemand;
+      totalSoMicro += acc.soDemand;
+
+      const rawPab = pab + acc.scheduledReceipts - acc.demand;
+      const isShort = rawPab < 0n;
+      const isBelowMin = !isShort && minQty > 0n && rawPab < minQty;
+      const severity: MrpSeverity = isShort
+        ? 'shortage'
+        : isBelowMin
+          ? 'below_min'
+          : acc.demand > 0n && rawPab < acc.demand
+            ? 'at_risk'
+            : 'covered';
+      worst = worstSeverity(worst, severity);
+
+      let suggestedAction: MrpSuggestedAction | null = null;
+      let netRequirementMicro = 0n;
+      if (isShort || isBelowMin) {
+        netRequirementMicro = isShort ? -rawPab : minQty - rawPab;
+        suggestedAction = buildSuggestedAction(
+          item,
+          threshold,
+          minQty,
+          reorderQty,
+          rawPab,
+          isShort,
+          isBelowMin,
+          bucketDates[i]!,
+          leadDays,
+          todayIso,
+          singleBucketMode,
+        );
+        if (suggestedAction && summaryAction === null) summaryAction = suggestedAction;
+      }
+
+      const pabAfterPlanned =
+        rawPab + (suggestedAction ? toMicro(suggestedAction.qty) : 0n);
+
+      const hasActivity =
+        acc.touched || isShort || isBelowMin || acc.demand > 0n || acc.scheduledReceipts > 0n;
+      if (!hasActivity) {
+        pab = pabAfterPlanned;
+        continue;
+      }
+
+      bucketRows.push({
+        itemId,
+        itemCode: item.item_code,
+        itemName: item.name,
+        itemType: item.item_type,
+        uomBase: item.uom_base,
+        onHand: i === 0 ? microToFixed(onHandEntry.onHand, 3) : '0.000',
+        reserved: i === 0 ? microToFixed(onHandEntry.reserved, 3) : '0.000',
+        openSupply: microToFixed(acc.scheduledReceipts, 3),
+        demand: microToFixed(acc.demand, 3),
+        forecastDemand: microToFixed(acc.forecastDemand, 3),
+        soDemand: microToFixed(acc.soDemand, 3),
+        net: microToFixed(rawPab, 3),
+        severity,
+        suggestedAction,
+        minQty: threshold ? microToFixed(minQty, 3) : null,
+        excludedUoms: [...excludedUoms].sort(),
+        bucketDate: bucketDates[i]!,
+        bucketIndex: i,
+        scheduledReceipts: microToFixed(acc.scheduledReceipts, 3),
+        grossRequirement: microToFixed(acc.demand, 3),
+        projectedAvailable: microToFixed(pabAfterPlanned, 3),
+      });
+
+      if (acc.touched || isShort || isBelowMin) {
+        bucketRequirements.push({
+          itemId,
+          bucketDate: bucketDates[i]!,
+          bucketIndex: i,
+          grossRequirement: microToFixed(acc.demand, 3),
+          scheduledReceipts: microToFixed(acc.scheduledReceipts, 3),
+          projectedOnHand: microToFixed(pabAfterPlanned, 3),
+          netRequirement: microToFixed(netRequirementMicro > 0n ? netRequirementMicro : 0n, 3),
+          forecastDemand: microToFixed(acc.forecastDemand, 3),
+          soDemand: microToFixed(acc.soDemand, 3),
+          dependentDemand: microToFixed(acc.demand - acc.forecastDemand - acc.soDemand, 3),
+          severity,
+          suggestedAction,
+        });
+      }
+
+      pab = pabAfterPlanned;
+    }
+
+    const rawFinalNet = onHandEntry.onHand - onHandEntry.reserved + totalReceiptsMicro - totalDemandMicro;
+    const isShortSummary = rawFinalNet < 0n;
+    const isBelowMinSummary = !isShortSummary && minQty > 0n && rawFinalNet < minQty;
+    if (isShortSummary) {
+      itemsShort += 1;
+      const shortage = -rawFinalNet;
+      totalShortage += shortage < totalDemandMicro ? shortage : totalDemandMicro;
+    }
+    if (isBelowMinSummary) itemsBelowMin += 1;
+    totalDemand += totalDemandMicro;
+
+    summaryByItem.set(itemId, {
+      itemId,
+      itemCode: item.item_code,
+      itemName: item.name,
+      itemType: item.item_type,
+      uomBase: item.uom_base,
+      onHand: microToFixed(onHandEntry.onHand, 3),
+      reserved: microToFixed(onHandEntry.reserved, 3),
+      openSupply: microToFixed(totalReceiptsMicro, 3),
+      demand: microToFixed(totalDemandMicro, 3),
+      forecastDemand: microToFixed(totalForecastMicro, 3),
+      soDemand: microToFixed(totalSoMicro, 3),
+      net: microToFixed(rawFinalNet, 3),
+      severity: worst,
+      suggestedAction: summaryAction,
+      minQty: threshold ? microToFixed(minQty, 3) : null,
+      excludedUoms: [...excludedUoms].sort(),
+    });
+  }
+
+  const rows = [...summaryByItem.values()];
+  rows.sort((a, b) => {
+    const rank = SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity];
+    if (rank !== 0) return rank;
+    const net = Number(a.net) - Number(b.net);
+    if (net !== 0) return net;
+    return a.itemCode.localeCompare(b.itemCode);
+  });
+
+  bucketRows.sort((a, b) => {
+    const rank = SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity];
+    if (rank !== 0) return rank;
+    if (a.bucketIndex !== b.bucketIndex) return a.bucketIndex - b.bucketIndex;
+    return a.itemCode.localeCompare(b.itemCode);
+  });
+
+  let coveragePct = 100;
+  if (totalDemand > 0n) {
+    const covered = totalDemand - totalShortage;
+    const clamped = covered < 0n ? 0n : covered;
+    const pctTimes10 = (clamped * 1000n + totalDemand / 2n) / totalDemand;
+    coveragePct = Number(pctTimes10) / 10;
+  }
+
+  return {
+    bucketDates,
+    bucketRows,
+    bucketRequirements,
     rows,
     kpis: {
       itemsAnalyzed: rows.length,

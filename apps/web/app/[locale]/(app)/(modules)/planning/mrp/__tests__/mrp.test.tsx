@@ -192,6 +192,15 @@ function okResult(
     data: {
       ranAt: '2026-06-11T10:30:00.000Z',
       rows,
+      bucketDates: ['2026-06-09'],
+      bucketRows: rows.map((row) => ({
+        ...row,
+        bucketDate: '2026-06-09',
+        bucketIndex: 0,
+        scheduledReceipts: row.openSupply,
+        grossRequirement: row.demand,
+        projectedAvailable: row.net,
+      })),
       kpis: {
         itemsAnalyzed: rows.length,
         itemsShort: rows.filter((r) => r.severity === 'shortage').length,
