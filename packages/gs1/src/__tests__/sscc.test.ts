@@ -66,6 +66,34 @@ describe('generateSscc18', () => {
   });
 });
 
+describe('SQL generate_sscc parity (7-digit company prefix)', () => {
+  // Pack routes through public.generate_sscc: ext(1) + prefix(7) + serial(9) + mod10.
+  // TS generateSscc18 must agree for 7-digit prefixes so lib checks match DB minting.
+  function sqlGenerateSsccBody(extension: number, prefix: string, serial: number | bigint): string {
+    return `${extension}${prefix}${String(serial).padStart(9, '0')}`;
+  }
+
+  it('matches SQL body layout and mod-10 for representative 7-digit prefixes', () => {
+    const cases = [
+      { ext: 0, prefix: '5012345', serial: 42 },
+      { ext: 0, prefix: '0123456', serial: 1 },
+      { ext: 9, prefix: '3761042', serial: 500212345 },
+    ] as const;
+
+    for (const c of cases) {
+      const body = sqlGenerateSsccBody(c.ext, c.prefix, c.serial);
+      expect(body).toHaveLength(17);
+      const sscc = generateSscc18({
+        extensionDigit: c.ext,
+        companyPrefix: c.prefix,
+        serialReference: String(c.serial),
+      });
+      expect(sscc.slice(0, 17)).toBe(body);
+      expect(sscc.slice(17)).toBe(computeMod10(body));
+    }
+  });
+});
+
 describe('validateSscc18', () => {
   it('accepts whitespace-stripped known-good SSCC', () => {
     expect(validateSscc18('  376104250021234569  ')).toBe(true);

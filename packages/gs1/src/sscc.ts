@@ -64,6 +64,9 @@ function normalizeSerial(serialReference: number | string, serialLength: number)
  *
  * Body layout: extension (1) + company prefix (7–10) + serial reference (remainder) = 17 digits,
  * then GS1 mod-10 check digit.
+ *
+ * Pack minting uses `public.generate_sscc` (7-digit prefix + 9-digit serial) so the DB constraint
+ * and app agree. This helper supports 7–10 digit prefixes for validation/formatting only.
  */
 export function generateSscc18(input: GenerateSscc18Input): string {
   const extension = normalizeExtension(input.extensionDigit);
