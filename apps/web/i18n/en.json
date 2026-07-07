@@ -10170,6 +10170,32 @@
         "previous": "Previous",
         "next": "Next"
       }
+    },
+    "valuation": {
+      "navLink": "Inventory valuation",
+      "title": "Inventory valuation",
+      "subtitle": "Read-only weighted-average valuation of current license plate inventory.",
+      "meta": "{itemCount, plural, =0 {No valued items} one {# valued item} other {# valued items}} · Method: {method}",
+      "methodWac": "WAC",
+      "permissionDenied": "You do not have permission to view inventory valuation.",
+      "error": "Unable to load inventory valuation.",
+      "empty": "No valued inventory found.",
+      "grandTotalLabel": "Grand total",
+      "tableLabel": "Inventory valuation by item",
+      "unmatchedItem": "Unmatched item",
+      "columns": {
+        "itemCode": "Item code",
+        "itemName": "Item name",
+        "qtyOnHand": "Qty on hand",
+        "wac": "WAC",
+        "totalValue": "Total value",
+        "currency": "Currency"
+      },
+      "unvalued": {
+        "title": "Excluded from valuation",
+        "summary": "{lpCount, plural, one {# license plate} other {# license plates}} ({qty} raw qty) lack WAC and/or a convertible UoM.",
+        "hint": "Post costs in Technical or receive stock with a known unit cost to include these plates."
+      }
     }
   },
   "quality": {

@@ -1,3 +1,10 @@
+/** Canonical mig-199 valuation gate plus sitemap-audit siblings used by Finance nav. */
+export const FINANCE_VALUATION_VIEW_PERMISSIONS = [
+  'fin.valuation.view',
+  'fin.valuation.read',
+  'fin.costs.read',
+] as const;
+
 export type InventoryValuationRow = {
   itemId: string;
   itemCode: string | null;
