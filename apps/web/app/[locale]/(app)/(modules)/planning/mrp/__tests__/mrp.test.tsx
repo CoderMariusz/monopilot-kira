@@ -17,7 +17,7 @@ import type {
   MrpRunRequirementsResult,
   MrpRunResult,
   MrpRunsListResult,
-} from '../../_actions/mrp';
+} from '../../_actions/mrp.types';
 import type { MrpRow } from '../../_actions/mrp-compute';
 
 const hasDom = typeof document !== 'undefined';

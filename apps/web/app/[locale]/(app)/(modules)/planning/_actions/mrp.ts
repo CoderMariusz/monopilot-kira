@@ -68,6 +68,19 @@ import {
   type MrpTimedQtyBucket,
 } from './mrp-compute';
 import { addDaysIso } from './mrp-buckets';
+import type {
+  MrpCancelResult,
+  MrpConvertResult,
+  MrpPlannedOrder,
+  MrpPlannedOrderType,
+  MrpRunData,
+  MrpRunInput,
+  MrpRunRequirement,
+  MrpRunRequirementsResult,
+  MrpRunResult,
+  MrpRunsListResult,
+  MrpRunSummary,
+} from './mrp.types';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -137,92 +150,6 @@ function horizonEndIsoWeek(todayIso: string): string {
 function planningHorizonEnd(todayIso: string): string {
   return addDaysIso(todayIso, MRP_PLANNING_HORIZON_WEEKS * 7);
 }
-
-export type MrpRunData = {
-  /** ISO timestamp of this run. */
-  ranAt: string;
-  rows: MrpRow[];
-  /** Weekly bucket start dates (Mondays), oldest-first. */
-  bucketDates: string[];
-  /** Per-item per-bucket projected-available-balance ledger. */
-  bucketRows: MrpBucketRow[];
-  kpis: MrpKpis;
-  /** Set ONLY when the run was persisted to mrp_runs ({ persist: true }). */
-  runId: string | null;
-  runNumber: string | null;
-  plannedOrders: MrpPlannedOrder[];
-};
-
-export type MrpRunResult =
-  | { ok: true; data: MrpRunData }
-  | { ok: false; error: 'forbidden' | 'persistence_failed' };
-
-export type MrpRunInput = { persist?: boolean };
-
-export type MrpRunSummary = {
-  id: string;
-  runNumber: string;
-  status: string;
-  /** yyyy-mm-dd bucket date of the persisted snapshot. */
-  horizonStart: string;
-  requirementCount: number;
-  exceptionCount: number;
-  createdAt: string;
-};
-
-export type MrpRunRequirement = {
-  itemId: string;
-  itemCode: string | null;
-  itemName: string | null;
-  bucketDate: string;
-  grossRequirement: string;
-  scheduledReceipts: string;
-  projectedOnHand: string;
-  netRequirement: string;
-  uom: string;
-  exceptionType: string | null;
-};
-
-export type MrpPlannedOrderType = 'buy' | 'make' | 'transfer';
-
-export type MrpPlannedOrder = {
-  id: string;
-  itemId: string;
-  itemCode: string | null;
-  itemName: string | null;
-  type: MrpPlannedOrderType;
-  qty: string;
-  uom: string;
-  needBy: string;
-  releaseBy: string | null;
-  /** True when lead time forces release before today (expedite). */
-  isLate?: boolean;
-  supplierId: string | null;
-  status: string;
-};
-
-export type MrpConvertResult =
-  | {
-      ok: true;
-      created: number;
-      poIds?: string[];
-      woIds?: string[];
-      skipped: Array<{ id: string; reason: string }>;
-      priceWarnings?: Array<{ id: string; reason: string }>;
-    }
-  | { ok: false; error: 'forbidden' | 'invalid_input' | 'persistence_failed' };
-
-export type MrpCancelResult =
-  | { ok: true; cancelled: true }
-  | { ok: false; error: 'forbidden' | 'invalid_input' | 'not_found' | 'invalid_state' | 'persistence_failed' };
-
-export type MrpRunsListResult =
-  | { ok: true; data: MrpRunSummary[] }
-  | { ok: false; error: 'forbidden' | 'persistence_failed' };
-
-export type MrpRunRequirementsResult =
-  | { ok: true; data: MrpRunRequirement[] }
-  | { ok: false; error: 'forbidden' | 'invalid_input' | 'persistence_failed' };
 
 async function hasPlanningReadPermission(
   client: QueryClient,

@@ -5,6 +5,12 @@ import { z } from 'zod';
 import { hasPermission } from '../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { nextEntityCode } from '../../../../lib/documents/code-mask';
+import type {
+  AddWipProcessInput,
+  RemoveWipProcessInput,
+  SaveWipProcessRolesInput,
+  UpdateWipProcessInput,
+} from './wip-process-actions-types';
 
 const PRODUCTION_WRITE_PERMISSION = 'npd.production.write';
 
@@ -58,16 +64,9 @@ const saveWipProcessRolesSchema = z.object({
   processId: z.string().uuid(),
   roles: z.array(roleInputSchema),
 }).refine(
-  // Guard the (org_id, process_id, role_group) unique constraint at the edge: two role rows with
-  // the same role_group would make the second INSERT raise a raw 23505 → surface a clean envelope.
   (input) => new Set(input.roles.map((r) => r.roleGroup.trim())).size === input.roles.length,
   { message: 'duplicate role_group in roles' },
 );
-
-export type AddWipProcessInput = z.input<typeof addWipProcessSchema>;
-export type UpdateWipProcessInput = z.input<typeof updateWipProcessSchema>;
-export type RemoveWipProcessInput = z.input<typeof removeWipProcessSchema>;
-export type SaveWipProcessRolesInput = z.input<typeof saveWipProcessRolesSchema>;
 
 export async function addWipProcess(input: AddWipProcessInput): Promise<ActionResult<{ id: string }>> {
   const parsed = addWipProcessSchema.safeParse(input);

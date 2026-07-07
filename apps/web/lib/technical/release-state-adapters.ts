@@ -28,7 +28,7 @@
 // Canonical release model is NPD-owned. We import the TYPE only (erased at compile
 // time, so importing it from a `'use server'` sibling is legal and introduces no
 // runtime coupling / no duplicate enum).
-import type { FactoryReleaseStatusValue } from '../../app/(npd)/builder/_lib/factory-release-status';
+import type { FactoryReleaseStatusValue } from '../../app/(npd)/builder/_lib/factory-release-status-types';
 
 /**
  * The Technical-owned `factory_specs.status` lifecycle, copied 1:1 from the CHECK

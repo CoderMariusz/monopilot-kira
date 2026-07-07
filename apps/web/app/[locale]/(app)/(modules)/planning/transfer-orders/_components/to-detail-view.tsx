@@ -39,7 +39,7 @@ import {
   type ReverseToReceiveLineResult,
 } from './reverse-receipt-modal';
 import type { WarehouseOption, SearchTransferItemsInput } from '../_actions/to-form-data';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 
 export type TransferOrderLine = {
   id: string;

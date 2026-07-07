@@ -21,6 +21,21 @@ import {
 } from './so-transitions';
 import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext } from './so-status-write';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+import type {
+  ActionFailure,
+  ActionResult,
+  AllocateSalesOrderSuccess,
+  CreateSalesOrderResult,
+  ForbiddenFailure,
+  GetSalesOrderResult,
+  IllegalTransitionError,
+  InsufficientStockError,
+  ListSalesOrdersResult,
+  NearExpiryAllocationWarning,
+  SalesOrder,
+  SalesOrderLine,
+  SalesOrderListRow,
+} from './so-actions-types';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -38,106 +53,9 @@ class SoActionError extends Error {
   }
 }
 type AllocationStatus = 'unallocated' | 'partially_allocated' | 'allocated';
+type InvalidInputFailure = { ok: false; error: 'invalid_input'; message?: string };
+type PersistenceFailure = { ok: false; error: 'persistence_failed'; message?: string };
 
-export type ForbiddenFailure = { ok: false; error: 'forbidden' };
-export type InvalidInputFailure = { ok: false; error: 'invalid_input'; message?: string };
-export type PersistenceFailure = { ok: false; error: 'persistence_failed'; message?: string };
-export type ActionFailure = ForbiddenFailure | InvalidInputFailure | PersistenceFailure;
-export type ActionResult<T, F extends { ok: false; error: string } = ForbiddenFailure> =
-  | { ok: true; data: T }
-  | F;
-
-export type SalesOrderListRow = {
-  id: string;
-  so_number: string;
-  customer_name: string | null;
-  customer_code: string | null;
-  status: SalesOrderStatus;
-  line_count: number;
-  total: string;
-  created_at: string;
-  expected_ship_date: string | null;
-};
-
-export type SalesOrderLine = {
-  id: string;
-  line_no: number;
-  item_id: string;
-  item_code: string | null;
-  item_name: string | null;
-  qty: string;
-  uom: string;
-  allocated_qty: string;
-  allocation_status: AllocationStatus;
-};
-
-export type SalesOrder = {
-  id: string;
-  so_number: string;
-  status: SalesOrderStatus;
-  customer_id: string | null;
-  customer_name: string | null;
-  customer_code: string | null;
-  expected_ship_date: string | null;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-  allocation_status: AllocationStatus;
-  lines: SalesOrderLine[];
-};
-
-export type IllegalTransitionError = {
-  ok: false;
-  error: 'ILLEGAL_TRANSITION';
-  from: string;
-  to: TransitionTarget;
-};
-
-export type InsufficientStockError = {
-  ok: false;
-  error: 'INSUFFICIENT_STOCK';
-  item_id: string;
-  needed: string;
-  available: string;
-};
-
-/**
- * Soft, non-blocking allocation signal: at least one LP allocated to this order
- * is within `near_expiry_warn_days` of its expiry (but NOT yet expired — expired
- * LPs are hard-filtered out at allocation per G-QA-03). Lets the picker/CSR see
- * "you're shipping stock that expires soon — confirm it'll clear the customer's
- * shelf-life requirement" without blocking the allocation. Mirrors the
- * mass-balance / over-consume WARN tier: a flag + reason code + the measured
- * margin (the soonest expiry + how many days out it is). Carried as a SIBLING of
- * the success result — never mutates the shared SalesOrder shape.
- */
-export type NearExpiryAllocationWarning = {
-  /** Always true when present; lets the consumer narrow on `if (warning)`. */
-  nearExpiry: true;
-  reasonCode: 'allocated_lp_near_expiry';
-  /** ISO date (YYYY-MM-DD) of the SOONEST-expiring LP that was allocated. */
-  soonestExpiry: string;
-  /** Whole days from today to that soonest expiry (>= 0; 0 = expires today). */
-  daysToExpiry: number;
-  /** The configured near-expiry warn window in days. */
-  warnDays: number;
-  /** How many of the allocated LP legs fall inside the warn window. */
-  affectedLpCount: number;
-};
-
-/**
- * Allocation success carries the SalesOrder plus an OPTIONAL near-expiry warning.
- * Additive: callers that only read `data` are unaffected.
- */
-export type AllocateSalesOrderSuccess = {
-  ok: true;
-  data: SalesOrder | null;
-  nearExpiryWarning?: NearExpiryAllocationWarning;
-};
-
-export type ListSalesOrdersResult = ActionResult<SalesOrderListRow[]>;
-export type GetSalesOrderResult = ActionResult<SalesOrder | null>;
-export type CreateSalesOrderResult = ActionResult<SalesOrder | null, ActionFailure>;
 type AllocateSalesOrderResult =
   | AllocateSalesOrderSuccess
   | ForbiddenFailure

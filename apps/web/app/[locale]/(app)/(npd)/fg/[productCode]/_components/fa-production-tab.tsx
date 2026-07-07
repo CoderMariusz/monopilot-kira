@@ -74,7 +74,8 @@ import {
   ensureProdDetailAnchor,
   removeProdDetailComponent,
 } from '../../../../../../(npd)/fa/actions/add-prod-detail-component';
-import { searchItems, type ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import { searchItems } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import { ItemPicker, type ItemPickerLabels, type ItemSearchFn } from '../../../_components/item-picker';
 import type {
   ComponentProcess,

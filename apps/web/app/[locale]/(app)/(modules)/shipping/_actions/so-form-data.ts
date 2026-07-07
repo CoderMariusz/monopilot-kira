@@ -24,7 +24,8 @@
  */
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import { searchItems, type ItemPickerOption, type SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items';
+import { searchItems } from '../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items-types';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(

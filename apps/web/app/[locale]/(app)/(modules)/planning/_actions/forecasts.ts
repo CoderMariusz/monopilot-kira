@@ -33,11 +33,8 @@ import {
   type OrgActionContext,
   type QueryClient,
 } from './procurement-shared';
-import {
-  searchItems,
-  type ItemPickerOption,
-  type SearchItemsInput,
-} from '../../../../../(npd)/fa/actions/search-items';
+import { searchItems } from '../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items-types';
 
 /** Same READ gate as runMrp / reorder-thresholds / the planning dashboard. */
 const PLANNING_READ_PERMISSION = 'scheduler.run.read';

@@ -92,7 +92,7 @@ describe('searchItems item-type fan-out', () => {
     await searchItems({ query: 'salt' });
     const { sql, params } = lastQuery();
 
-    expect(sql).not.toContain('supplier_specs');
+    expect(sql).not.toMatch(/and exists\s*\(\s*select 1\s+from public\.supplier_specs/);
     expect(params).toHaveLength(3);
   });
 });

@@ -49,7 +49,7 @@ import {
 } from './receive-po-line-modal';
 import type { PoSupplierOption } from '../_actions/po-form-data';
 import type { DesktopReceiveInput, DesktopReceiveResult } from '../_actions/receive-po-line.types';
-import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items-types';
 
 export type PoDetailLine = {
   id: string;

@@ -31,11 +31,8 @@ import {
   type QueryClient,
 } from './procurement-shared';
 import { listSuppliers } from '../suppliers/_actions/actions';
-import {
-  searchItems,
-  type ItemPickerOption,
-  type SearchItemsInput,
-} from '../../../../../(npd)/fa/actions/search-items';
+import { searchItems } from '../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items-types';
 
 /** Same read gate as runMrp / the planning dashboard. */
 const PLANNING_READ_PERMISSION = 'scheduler.run.read';

@@ -51,7 +51,8 @@ import {
   type IngredientRowLabels,
   type RowError,
 } from './ingredient-row';
-import { searchItems, type ItemPickerOption } from '../../../../../../../(npd)/fa/actions/search-items';
+import { searchItems } from '../../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../../(npd)/fa/actions/search-items-types';
 import { type ItemSearchFn } from '../../../../_components/item-picker';
 import {
   WipDefinitionPicker,

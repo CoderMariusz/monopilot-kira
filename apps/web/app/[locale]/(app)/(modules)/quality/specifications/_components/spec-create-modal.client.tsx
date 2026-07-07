@@ -32,7 +32,7 @@ import Modal from '@monopilot/ui/Modal';
 import { Select } from '@monopilot/ui/Select';
 
 import { ItemPicker, type ItemSearchFn } from '../../../../(npd)/_components/item-picker';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import type { CreateSpecFn, CreateSpecParameter, SpecParameterType } from './spec-actions-contract';
 
 /** Applies-to pills (prototype parity). NOTE: the landed createSpec contract does

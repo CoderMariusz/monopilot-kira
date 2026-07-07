@@ -41,7 +41,8 @@ import { deletePackagingComponent } from './_actions/deletePackagingComponent';
 import { uploadArtworkVersion } from './_actions/uploadArtworkVersion';
 import { listArtworkVersions } from './_actions/listArtworkVersions';
 import { deleteArtworkVersion } from './_actions/deleteArtworkVersion';
-import { searchItems, type ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import { searchItems } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import type { ItemSearchFn } from '../../../_components/item-picker';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {

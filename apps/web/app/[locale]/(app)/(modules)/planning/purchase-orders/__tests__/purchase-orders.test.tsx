@@ -32,7 +32,7 @@ import type { CreatePoResult } from '../_components/create-po-modal';
 import type { PoTransitionResult } from '../_components/po-detail-view';
 import type { PoSupplierOption } from '../_actions/po-form-data';
 import type { CreateExportJobInput, CreateExportJobResult } from '../_actions/create-export-job';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({

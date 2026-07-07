@@ -25,6 +25,7 @@ import base from '../../tooling/eslint/base.mjs';
  *
  * Multi-write transaction boundary is enforced in CI by
  * apps/web/tests/multi-write-transaction-contract.test.ts (AST scan).
+ * 'use server' export shape is enforced by apps/web/tests/use-server-export-contract.test.ts.
  */
 const monopilotPlugin = {
   rules: {
@@ -88,11 +89,11 @@ const monopilotPlugin = {
         type: 'problem',
         docs: {
           description:
-            "Disallow export type/interface in 'use server' modules (breaks next build).",
+            "Disallow non-async exports in 'use server' modules (breaks next build).",
         },
         messages: {
           exportType:
-            "'use server' modules may export only async functions — move types to a non-server sibling (local tsc passes; next build fails).",
+            "'use server' modules may export only async functions — move types/consts to a non-server sibling (local tsc passes; next build fails).",
         },
         schema: [],
       },
@@ -108,10 +109,25 @@ const monopilotPlugin = {
           context.report({ node, messageId: 'exportType' });
         }
 
+        function isAsyncFunction(node) {
+          return node.async === true;
+        }
+
         return {
           ExportNamedDeclaration(node) {
             if (node.exportKind === 'type') reportExport(node);
-            if (node.declaration?.type === 'TSInterfaceDeclaration') reportExport(node);
+            const decl = node.declaration;
+            if (!decl) return;
+            if (decl.type === 'TSInterfaceDeclaration' || decl.type === 'TSTypeAliasDeclaration') {
+              reportExport(node);
+            }
+            if (decl.type === 'VariableDeclaration') reportExport(node);
+            if (decl.type === 'ClassDeclaration') reportExport(node);
+            if (decl.type === 'TSEnumDeclaration') reportExport(node);
+            if (decl.type === 'FunctionDeclaration' && !isAsyncFunction(decl)) reportExport(node);
+          },
+          ExportDefaultDeclaration(node) {
+            reportExport(node);
           },
         };
       },
@@ -238,7 +254,7 @@ export default [
     plugins: { monopilot: monopilotPlugin },
     rules: {
       'monopilot/no-ok-false-in-org-context': 'warn',
-      'monopilot/no-export-type-in-use-server': 'warn',
+      'monopilot/no-export-type-in-use-server': 'error',
     },
   },
 ];

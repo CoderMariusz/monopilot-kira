@@ -18,6 +18,7 @@ import {
   type ReleasePreflightBlocker,
 } from '../_lib/release-preflight';
 import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
+import type { ReleaseNpdProjectToFactoryResult } from './release-npd-project-to-factory-types';
 
 const APP_VERSION = 't-096';
 
@@ -36,38 +37,6 @@ type ReleaseRow = {
   factory_approved_by: string;
   release_event_id: string | number;
 };
-
-export type ReleaseNpdProjectToFactoryResult =
-  | {
-      ok: true;
-      data: {
-        projectId: string;
-        productCode: string;
-        activeBomHeaderId: string;
-        activeFactorySpecId: string;
-        yieldPromptRequired: boolean;
-        productionCode: string;
-        bomHeaderId: string;
-        releaseStatus: 'released_to_factory';
-        factoryAvailableAt: string;
-        releaseEventId: number;
-        outboxEventType: typeof RELEASED_TO_FACTORY_EVENT;
-      };
-    }
-  | {
-      ok: false;
-      error:
-        | 'INVALID_INPUT'
-        | 'FORBIDDEN'
-        | 'PRECONDITION_BLOCKERS'
-        | 'PACKAGING_UNLINKED'
-        | 'PERSISTENCE_FAILED';
-      status: number;
-      blockers?: ReleasePreflightBlocker[];
-      /** Present when error === 'PACKAGING_UNLINKED'. */
-      unlinkedComponents?: string[];
-      message?: string;
-    };
 
 export async function releaseNpdProjectToFactory(
   rawInput: unknown,

@@ -32,7 +32,7 @@ import { SoDetailView, type SoDetailLabels, type SoDetail, type SoCaps } from '.
 import type { CreateSoResult } from '../_components/create-so-modal';
 import type { SoActionResult } from '../_components/so-detail-view';
 import type { SoCustomerOption } from '../_actions/so-form-data';
-import type { ItemPickerOption } from '../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption } from '../../../../../(npd)/fa/actions/search-items-types';
 
 const refresh = vi.fn();
 vi.mock('next/navigation', () => ({

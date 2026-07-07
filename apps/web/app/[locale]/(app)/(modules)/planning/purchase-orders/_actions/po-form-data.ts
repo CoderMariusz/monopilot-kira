@@ -23,7 +23,8 @@
  */
 
 import { listSuppliers } from '../../suppliers/_actions/actions';
-import { searchItems, type ItemPickerOption, type SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
+import { searchItems } from '../../../../../../(npd)/fa/actions/search-items';
+import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items-types';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { listOrgUnits, type OrgUnitOption, type QueryClient } from '../../_actions/procurement-shared';
 
