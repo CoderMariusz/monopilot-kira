@@ -27,6 +27,7 @@
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { FG_FACTORY_RELEASE_WO_GATE_SQL } from '../../../../../../../lib/planning/factory-release-wo-gate';
 import type { QueryClient } from './shared';
 
 export type FgProductOption = {
@@ -90,6 +91,7 @@ export async function searchFgProducts(input: SearchFgProductsInput = {}): Promi
           -- (the create modal labels these generically as 'product').
           and i.item_type in ('fg', 'co_product')
           and i.status = 'active'
+          ${FG_FACTORY_RELEASE_WO_GATE_SQL}
           and (
             $1::text is null
             or i.item_code ilike $1 escape '\\'

@@ -179,6 +179,7 @@ describe('createPilotWorkOrder', () => {
         scheduledStartTime: '2026-07-10T00:00:00.000Z',
         productionLineId: LINE_ID,
       }),
+      { skipFactoryReleaseGate: true },
     );
     expect(materializeNpdBomMock).toHaveBeenCalledTimes(1);
     expect(materializeNpdBomMock).toHaveBeenCalledWith(

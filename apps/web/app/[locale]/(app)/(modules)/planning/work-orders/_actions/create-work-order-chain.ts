@@ -28,6 +28,11 @@ const Input = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 
+/** Server-only options — never accepted from client-parsed input. */
+type ChainOptions = {
+  skipFactoryReleaseGate?: boolean;
+};
+
 type ChainErrorCode =
   | 'invalid_input'
   | 'forbidden'
@@ -36,6 +41,7 @@ type ChainErrorCode =
   | 'pack_hierarchy_incomplete'
   | 'no_active_site'
   | 'document_mask_missing'
+  | 'not_released_to_factory'
   | 'wo_create_failed'
   | 'persistence_failed';
 
@@ -85,11 +91,15 @@ class WorkOrderChainError extends Error {
 // themselves, never collapsed into a generic wo_create_failed.
 function chainCoreFailure(coreError: string | undefined): ChainResult {
   const specific: ChainErrorCode =
-    coreError === 'no_active_site' || coreError === 'document_mask_missing' ? coreError : 'wo_create_failed';
+    coreError === 'no_active_site'
+    || coreError === 'document_mask_missing'
+    || coreError === 'not_released_to_factory'
+      ? coreError
+      : 'wo_create_failed';
   return { ok: false, error: specific, planningError: coreError, message: coreError };
 }
 
-export async function createWorkOrderChain(raw: unknown): Promise<ChainResult> {
+export async function createWorkOrderChain(raw: unknown, options?: ChainOptions): Promise<ChainResult> {
   const parsed = Input.safeParse(raw);
   if (!parsed.success) {
     return { ok: false, error: 'invalid_input', message: parsed.error.message };
@@ -100,7 +110,7 @@ export async function createWorkOrderChain(raw: unknown): Promise<ChainResult> {
       if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) {
         return { ok: false, error: 'forbidden' };
       }
-      return createWorkOrderChainInContext(ctx, parsed.data);
+      return createWorkOrderChainInContext(ctx, parsed.data, options);
     });
   } catch (error) {
     if (error instanceof WorkOrderChainError) {
@@ -111,7 +121,11 @@ export async function createWorkOrderChain(raw: unknown): Promise<ChainResult> {
   }
 }
 
-export async function createWorkOrderChainForContext(ctx: OrgActionContext, raw: unknown): Promise<ChainResult> {
+export async function createWorkOrderChainForContext(
+  ctx: OrgActionContext,
+  raw: unknown,
+  options?: ChainOptions,
+): Promise<ChainResult> {
   const parsed = Input.safeParse(raw);
   if (!parsed.success) {
     return { ok: false, error: 'invalid_input', message: parsed.error.message };
@@ -119,12 +133,13 @@ export async function createWorkOrderChainForContext(ctx: OrgActionContext, raw:
   if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) {
     return { ok: false, error: 'forbidden' };
   }
-  return createWorkOrderChainInContext(ctx, parsed.data);
+  return createWorkOrderChainInContext(ctx, parsed.data, options);
 }
 
 async function createWorkOrderChainInContext(
   ctx: OrgActionContext,
   input: z.infer<typeof Input>,
+  options?: ChainOptions,
 ): Promise<ChainResult> {
   const fgItem = await loadItem(ctx, input.productId);
   if (!fgItem) return { ok: false, error: 'not_found' };
@@ -183,16 +198,20 @@ async function createWorkOrderChainInContext(
     wipWorkOrders.push(created.workOrder);
   }
 
-  const fgCreated = await createWorkOrderCore(ctx, {
-    productId: fgItem.id,
-    itemCode,
-    documentNumber: input.documentNumber,
-    siteId: input.siteId,
-    plannedQuantity: input.plannedQuantity,
-    scheduledStartTime: input.scheduledStartTime,
-    productionLineId: input.productionLineId,
-    notes: input.notes,
-  });
+  const fgCreated = await createWorkOrderCore(
+    ctx,
+    {
+      productId: fgItem.id,
+      itemCode,
+      documentNumber: input.documentNumber,
+      siteId: input.siteId,
+      plannedQuantity: input.plannedQuantity,
+      scheduledStartTime: input.scheduledStartTime,
+      productionLineId: input.productionLineId,
+      notes: input.notes,
+    },
+    options?.skipFactoryReleaseGate ? { skipFactoryReleaseGate: true } : undefined,
+  );
   if (!fgCreated.ok) return chainCoreFailure(fgCreated.error);
 
   const dependencies = await linkDependencies(ctx, fgCreated.workOrder, fgCreated.materials, wipWorkOrders);

@@ -409,16 +409,20 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
 
       const legacyLineCode = productionLine.code ?? lineCode ?? productionLine.id;
 
-      const createResult = await createWorkOrderChainForContext(ctx, {
-        productId: item.id,
-        itemCode: item.item_code,
-        documentNumber: targetWoNumber,
-        siteId: productionLine.site_id,
-        plannedQuantity,
-        scheduledStartTime: pilotRun?.planned_date ? `${pilotRun.planned_date}T00:00:00.000Z` : undefined,
-        productionLineId: productionLine.id,
-        notes: `NPD pilot WO for project ${projectId}`,
-      });
+      const createResult = await createWorkOrderChainForContext(
+        ctx,
+        {
+          productId: item.id,
+          itemCode: item.item_code,
+          documentNumber: targetWoNumber,
+          siteId: productionLine.site_id,
+          plannedQuantity,
+          scheduledStartTime: pilotRun?.planned_date ? `${pilotRun.planned_date}T00:00:00.000Z` : undefined,
+          productionLineId: productionLine.id,
+          notes: `NPD pilot WO for project ${projectId}`,
+        },
+        { skipFactoryReleaseGate: true },
+      );
 
       if (!createResult.ok) {
         const error = createResult.error === 'forbidden'

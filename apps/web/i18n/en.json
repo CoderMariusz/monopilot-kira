@@ -4105,6 +4105,11 @@
       "promote": "✓ Promote to production BOM",
       "promoting": "Promoting…",
       "promoteError": "Promotion failed. Check the gates and try again.",
+      "releaseToFactory": "Release to factory",
+      "releasingToFactory": "Releasing…",
+      "releaseToFactoryError": "Release to factory failed. Check the gates and try again.",
+      "releasedToFactoryTitle": "Released to factory.",
+      "releasedToFactoryBody": "Planning work orders can now be created for this FG. Recall in Technical re-gates factory use.",
       "loading": "Loading handoff data…",
       "empty": "No handoff checklist yet",
       "emptyBody": "A handoff checklist is created once the project reaches the handoff stage.",
@@ -8269,6 +8274,7 @@
         "errors": {
           "productRequired": "Select a finished-good product.",
           "quantityRequired": "Enter a positive quantity (up to 3 decimals).",
+          "not_released_to_factory": "This product has not been released to factory yet. Complete NPD Handoff → Release to factory before creating a planning work order.",
           "no_active_site": "Select a site before creating a work order. This organisation has no active site yet — add one in Settings → Sites.",
           "ambiguous_site": "Select a site in the top bar before creating a work order."
         },

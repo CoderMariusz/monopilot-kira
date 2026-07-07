@@ -155,6 +155,16 @@ export async function recallFactorySpec(rawInput: unknown): Promise<RecallFactor
       );
       if (!rows[0]) return { error: 'factory_spec no longer released_to_factory' };
 
+      await db.query(
+        `update public.factory_release_status
+            set release_status = 'approved_for_factory',
+                updated_at = now()
+          where org_id = app.current_org_id()
+            and active_factory_spec_id = $1::uuid
+            and release_status = 'released_to_factory'`,
+        [spec.id],
+      );
+
       await writeRecallAudit(ctx, { spec, reason });
 
       safeRevalidatePath('/technical/factory-specs');

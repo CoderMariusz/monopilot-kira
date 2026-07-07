@@ -34,10 +34,13 @@ import {
   type ToggleChecklistOutcome,
   type UpdateBomYieldCall,
   type UpdateBomYieldOutcome,
+  type ReleaseToFactoryCall,
+  type ReleaseToFactoryOutcome,
 } from './_components/handoff-screen';
 import { getHandoff } from './_actions/get-handoff';
 import { toggleHandoffChecklistItem } from './_actions/toggle-handoff-checklist-item';
 import { promoteToProduction } from './_actions/promote-to-production';
+import { releaseToFactory } from './_actions/release-to-factory';
 import { generateProductionBom } from './_actions/generate-production-bom';
 import { updateBomYield } from './_actions/update-bom-yield';
 
@@ -98,6 +101,12 @@ const DEFAULT_LABELS: HandoffLabels = {
   promote: '✓ Promote to production BOM',
   promoting: 'Promoting…',
   promoteError: 'Promotion failed. Check the gates and try again.',
+  releaseToFactory: 'Release to factory',
+  releasingToFactory: 'Releasing…',
+  releaseToFactoryError: 'Release to factory failed. Check the gates and try again.',
+  releasedToFactoryTitle: 'Released to factory.',
+  releasedToFactoryBody:
+    'Planning work orders can now be created for this FG. Recall in Technical re-gates factory use.',
   generateBom: 'Generate production BOM',
   generating: 'Generating…',
   generateBomHint:
@@ -197,6 +206,13 @@ export default async function HandoffPage(propsInput: unknown = {}) {
     return result.ok ? { ok: true } : { ok: false, error: result.error };
   }
 
+  async function releaseToFactoryAction(_call: ReleaseToFactoryCall): Promise<ReleaseToFactoryOutcome> {
+    'use server';
+    const result = await releaseToFactory({ projectId });
+    if (!result.ok) return { ok: false, error: result.error, message: result.message };
+    return { ok: true, releaseStatus: result.data.releaseStatus };
+  }
+
   async function promoteAction(_call: PromoteCall): Promise<PromoteOutcome> {
     'use server';
     const result = await promoteToProduction({ projectId });
@@ -271,6 +287,7 @@ export default async function HandoffPage(propsInput: unknown = {}) {
       labels={labels}
       hrefs={hrefs}
       onPromote={promoteAction}
+      onReleaseToFactory={releaseToFactoryAction}
       onGenerate={generateAction}
       onToggleChecklistItem={toggleChecklistAction}
       onUpdateBomYield={updateYieldAction}

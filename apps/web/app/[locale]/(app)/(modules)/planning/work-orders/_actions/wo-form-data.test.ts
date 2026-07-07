@@ -52,5 +52,9 @@ describe('searchFgProducts (M-7: co_product is plannable)', () => {
     // The picker must include co_product, not only fg.
     expect(sql).toContain("i.item_type in ('fg', 'co_product')");
     expect(sql).not.toMatch(/i\.item_type = 'fg'/);
+    // Factory-release owner gate — exclude unreleased NPD FGs.
+    expect(sql).toContain('factory_release_status');
+    expect(sql).toContain('released_to_factory');
+    expect(sql).toContain('npd_project_id');
   });
 });

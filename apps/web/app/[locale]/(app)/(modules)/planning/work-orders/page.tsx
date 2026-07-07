@@ -210,6 +210,10 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
           'create.errors.ambiguous_site',
           'Select a site in the top bar before creating a work order.',
         ),
+        not_released_to_factory: opt(
+          'create.errors.not_released_to_factory',
+          'This product has not been released to factory yet. Complete NPD Handoff → Release to factory before creating a planning work order.',
+        ),
       },
       noBomWarning: t('create.noBomWarning'),
       noFactorySpecWarning: opt(

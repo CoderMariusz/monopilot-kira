@@ -6544,6 +6544,11 @@
       "promote": "✓ Promovează la BOM de producție",
       "promoting": "Se promovează…",
       "promoteError": "Promovarea a eșuat. Verificați porțile și încercați din nou.",
+      "releaseToFactory": "Eliberare în fabrică",
+      "releasingToFactory": "Se eliberează…",
+      "releaseToFactoryError": "Eliberarea în fabrică a eșuat. Verificați porțile și încercați din nou.",
+      "releasedToFactoryTitle": "Eliberat în fabrică.",
+      "releasedToFactoryBody": "Comenzile de lucru din planificare pot fi create acum pentru acest FG. Retragerea în Technical reblochează utilizarea în fabrică.",
       "loading": "Se încarcă datele de predare…",
       "empty": "Încă nu există listă de predare",
       "emptyBody": "O listă de predare este creată când proiectul ajunge la etapa de predare.",
@@ -7293,6 +7298,7 @@
         "errors": {
           "productRequired": "Select a finished-good product.",
           "quantityRequired": "Enter a positive quantity (up to 3 decimals).",
+          "not_released_to_factory": "Acest produs nu a fost încă eliberat în fabrică. Finalizați NPD Handoff → Eliberare în fabrică înainte de a crea o comandă de lucru în planificare.",
           "no_active_site": "Select a site before creating a work order. This organisation has no active site yet — add one in Settings → Sites.",
           "ambiguous_site": "Select a site in the top bar before creating a work order."
         },

@@ -124,6 +124,11 @@ export type HandoffLabels = {
   promote: string;
   promoting: string;
   promoteError: string;
+  releaseToFactory: string;
+  releasingToFactory: string;
+  releaseToFactoryError: string;
+  releasedToFactoryTitle: string;
+  releasedToFactoryBody: string;
   // "Generate production BOM" step — breaks the handoff deadlock (the
   // ACTIVE_SHARED_BOM / FACTORY_SPEC gates were only ever satisfied INSIDE
   // promote, so promote could never be reached). Generate builds the BOM first.
@@ -196,6 +201,13 @@ export type PromoteOutcome = {
   yieldPromptRequired?: boolean;
   /** Locale-prefixed Technical BOM-detail href for `productionCode` (resolved server-side). */
   bomHref?: string | null;
+};
+export type ReleaseToFactoryCall = { projectId: string };
+export type ReleaseToFactoryOutcome = {
+  ok: boolean;
+  error?: string;
+  message?: string;
+  releaseStatus?: string;
 };
 export type GenerateCall = { projectId: string };
 export type GenerateOutcome = {
@@ -325,6 +337,7 @@ export function HandoffScreen({
   labels,
   hrefs,
   onPromote,
+  onReleaseToFactory,
   onGenerate,
   onToggleChecklistItem,
   onUpdateBomYield,
@@ -334,6 +347,7 @@ export function HandoffScreen({
   labels: HandoffLabels;
   hrefs?: HandoffHrefs;
   onPromote?: (call: PromoteCall) => Promise<PromoteOutcome>;
+  onReleaseToFactory?: (call: ReleaseToFactoryCall) => Promise<ReleaseToFactoryOutcome>;
   onGenerate?: (call: GenerateCall) => Promise<GenerateOutcome>;
   onToggleChecklistItem?: (call: ToggleChecklistCall) => Promise<ToggleChecklistOutcome>;
   onUpdateBomYield?: (call: UpdateBomYieldCall) => Promise<UpdateBomYieldOutcome>;
@@ -343,6 +357,9 @@ export function HandoffScreen({
   const [promoting, setPromoting] = React.useState(false);
   const [promoteError, setPromoteError] = React.useState<string | null>(null);
   const [promoteErrorDetail, setPromoteErrorDetail] = React.useState<string | null>(null);
+  const [releasingToFactory, setReleasingToFactory] = React.useState(false);
+  const [releaseToFactoryError, setReleaseToFactoryError] = React.useState<string | null>(null);
+  const [releaseToFactoryErrorDetail, setReleaseToFactoryErrorDetail] = React.useState<string | null>(null);
   // "Generate production BOM" step (deadlock break) — its own pending + error state.
   const [generating, setGenerating] = React.useState(false);
   const [generateError, setGenerateError] = React.useState<string | null>(null);
@@ -359,6 +376,7 @@ export function HandoffScreen({
   React.useEffect(() => {
     setOptimistic({});
     setPromoteError(null);
+    setReleaseToFactoryError(null);
     setGenerating(false);
     setGenerateError(null);
     setPromoteSuccess(null);
@@ -399,7 +417,9 @@ export function HandoffScreen({
   // server preflight remains authoritative; this mirror just stops the button
   // looking "permanently disabled with no reason" (the reported dead end).
   const releaseGatesMet = releaseGates.length > 0 && releaseGates.every((g) => g.met);
+  const releasedToFactory = destinationBom.releaseStatus === 'released_to_factory';
   const canPromote = allChecked && releaseGatesMet && !promoted;
+  const canReleaseToFactory = releaseGatesMet && !releasedToFactory;
   // Deadlock break: the production BOM is the ACTIVE_SHARED_BOM gate. When it is
   // NOT met (and not yet promoted) the user must GENERATE the BOM first — only
   // then does the gate flip to met and the Promote button enable.
@@ -436,6 +456,26 @@ export function HandoffScreen({
       }
     } catch {
       setOptimistic((prev) => ({ ...prev, [item.id]: item.isChecked }));
+    }
+  }
+
+  async function handleReleaseToFactory() {
+    if (!onReleaseToFactory || !canReleaseToFactory || releasingToFactory) return;
+    setReleasingToFactory(true);
+    setReleaseToFactoryError(null);
+    setReleaseToFactoryErrorDetail(null);
+    try {
+      const result = await onReleaseToFactory({ projectId: data!.projectId });
+      if (!result.ok) {
+        setReleaseToFactoryError(result.error ?? 'error');
+        setReleaseToFactoryErrorDetail(result.message ?? null);
+      } else {
+        router.refresh();
+      }
+    } catch {
+      setReleaseToFactoryError('error');
+    } finally {
+      setReleasingToFactory(false);
     }
   }
 
@@ -943,6 +983,12 @@ export function HandoffScreen({
         </Card>
       </div>
 
+      {releasedToFactory ? (
+        <div role="status" data-testid="handoff-released-bar" className="alert alert-green">
+          <strong>{labels.releasedToFactoryTitle}</strong> <span>{labels.releasedToFactoryBody}</span>
+        </div>
+      ) : null}
+
       {promoteError ? (
         <div role="alert" data-testid="handoff-promote-error" className="alert alert-red">
           <div className="alert-title">
@@ -952,6 +998,16 @@ export function HandoffScreen({
                 all-green project hid the actual server error. */}
             {promoteError !== 'error' ? ` (${promoteError})` : null}
             {promoteErrorDetail ? ` — ${promoteErrorDetail}` : null}
+          </div>
+        </div>
+      ) : null}
+
+      {releaseToFactoryError ? (
+        <div role="alert" data-testid="handoff-release-to-factory-error" className="alert alert-red">
+          <div className="alert-title">
+            {labels.releaseToFactoryError}
+            {releaseToFactoryError !== 'error' ? ` (${releaseToFactoryError})` : null}
+            {releaseToFactoryErrorDetail ? ` — ${releaseToFactoryErrorDetail}` : null}
           </div>
         </div>
       ) : null}
@@ -966,6 +1022,16 @@ export function HandoffScreen({
           title={labels.exportPacket}
         >
           {labels.exportPacket}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          data-testid="handoff-release-to-factory-btn"
+          disabled={!canReleaseToFactory || releasingToFactory || !onReleaseToFactory}
+          aria-disabled={!canReleaseToFactory || releasingToFactory || !onReleaseToFactory}
+          onClick={handleReleaseToFactory}
+        >
+          {releasingToFactory ? labels.releasingToFactory : labels.releaseToFactory}
         </button>
         <button
           type="button"

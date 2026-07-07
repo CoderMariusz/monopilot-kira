@@ -6558,6 +6558,11 @@
       "promote": "✓ Promuj do BOM produkcyjnego",
       "promoting": "Promowanie…",
       "promoteError": "Promocja nie powiodła się. Sprawdź bramki i spróbuj ponownie.",
+      "releaseToFactory": "Zwolnij do produkcji",
+      "releasingToFactory": "Zwalnianie…",
+      "releaseToFactoryError": "Zwolnienie do produkcji nie powiodło się. Sprawdź bramki i spróbuj ponownie.",
+      "releasedToFactoryTitle": "Zwolniono do produkcji.",
+      "releasedToFactoryBody": "Zlecenia produkcyjne w planowaniu mogą być teraz tworzone dla tego FG. Wycofanie w Technical ponownie blokuje użycie w fabryce.",
       "loading": "Ładowanie danych przekazania…",
       "empty": "Brak listy kontrolnej przekazania",
       "emptyBody": "Lista kontrolna przekazania jest tworzona, gdy projekt osiągnie etap przekazania.",
@@ -7307,6 +7312,7 @@
         "errors": {
           "productRequired": "Wybierz produkt (wyrób gotowy).",
           "quantityRequired": "Podaj dodatnią ilość (do 3 miejsc po przecinku).",
+          "not_released_to_factory": "Ten produkt nie został jeszcze zwolniony do produkcji. Ukończ NPD Handoff → Zwolnij do produkcji przed utworzeniem zlecenia w planowaniu.",
           "no_active_site": "Wybierz zakład przed utworzeniem zlecenia produkcyjnego. Ta organizacja nie ma jeszcze aktywnego zakładu — dodaj go w Ustawienia → Zakłady.",
           "ambiguous_site": "Wybierz zakład na górnym pasku przed utworzeniem zlecenia produkcyjnego."
         },

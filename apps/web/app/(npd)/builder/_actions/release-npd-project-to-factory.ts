@@ -136,6 +136,10 @@ export async function releaseNpdProjectToFactory(
         releaseEventId,
       });
 
+      await transitionFactorySpecToReleased(context, {
+        factorySpecId: ready.activeFactorySpecId,
+      });
+
       await persistPromotedItemPricesAndCost(context, ready.projectId, ready.productCode);
 
       safeRevalidatePath(`/npd/pipeline/${ready.projectId}`);
@@ -243,6 +247,23 @@ async function loadEventIdByDedupKey(ctx: OrgContextLike, dedupKey: string): Pro
     [dedupKey],
   );
   return rows[0]?.id;
+}
+
+async function transitionFactorySpecToReleased(
+  ctx: OrgContextLike,
+  input: { factorySpecId: string },
+): Promise<void> {
+  await ctx.client.query(
+    `update public.factory_specs
+        set status = 'released_to_factory',
+            released_by = $2::uuid,
+            released_at = coalesce(released_at, now()),
+            updated_at = now()
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and status in ('approved_for_factory', 'released_to_factory')`,
+    [input.factorySpecId, ctx.userId],
+  );
 }
 
 async function upsertFactoryReleaseStatus(

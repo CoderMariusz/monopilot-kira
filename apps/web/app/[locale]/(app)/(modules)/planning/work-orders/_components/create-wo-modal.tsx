@@ -128,6 +128,7 @@ export type CreateWoLabels = {
      * `?? persistence_failed` fallback covers the unset case.
      */
     document_mask_missing?: string;
+    not_released_to_factory?: string;
   };
   noBomWarning: string;
   /** P0-UOM — surfaced when createWorkOrder warns the FG has no approved factory spec. */

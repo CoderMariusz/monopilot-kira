@@ -6544,6 +6544,11 @@
       "promote": "✓ Просунути до BOM виробництва",
       "promoting": "Просування…",
       "promoteError": "Просування не вдалося. Перевірте ворота та спробуйте знову.",
+      "releaseToFactory": "Випустити на завод",
+      "releasingToFactory": "Випуск…",
+      "releaseToFactoryError": "Випуск на завод не вдався. Перевірте ворота та спробуйте знову.",
+      "releasedToFactoryTitle": "Випущено на завод.",
+      "releasedToFactoryBody": "Тепер можна створювати виробничі замовлення в плануванні для цього FG. Відкликання в Technical знову блокує використання на заводі.",
       "loading": "Завантаження даних передачі…",
       "empty": "Поки немає контрольного списку передачі",
       "emptyBody": "Контрольний список передачі створюється, коли проєкт досягає етапу передачі.",
@@ -7293,6 +7298,7 @@
         "errors": {
           "productRequired": "Select a finished-good product.",
           "quantityRequired": "Enter a positive quantity (up to 3 decimals).",
+          "not_released_to_factory": "Цей продукт ще не випущено на завод. Завершіть NPD Handoff → Випустити на завод перед створенням виробничого замовлення в плануванні.",
           "no_active_site": "Select a site before creating a work order. This organisation has no active site yet — add one in Settings → Sites.",
           "ambiguous_site": "Select a site in the top bar before creating a work order."
         },

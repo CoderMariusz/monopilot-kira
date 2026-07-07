@@ -27,6 +27,7 @@ export type PlanningWorkOrderError =
   | 'no_active_site'
   | 'ambiguous_site'
   | 'document_mask_missing'
+  | 'not_released_to_factory'
   | 'persistence_failed';
 
 export type EnteredUom = 'base' | 'each' | 'box';

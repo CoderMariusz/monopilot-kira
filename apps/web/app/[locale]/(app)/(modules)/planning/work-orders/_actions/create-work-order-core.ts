@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
+import { assertFgReleasedToFactoryForWo } from '../../../../../../../lib/planning/factory-release-wo-gate';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
 import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../../../../../../lib/uom/convert';
@@ -44,9 +45,16 @@ export type CreateWorkOrderCoreParams = {
   notes?: string;
 };
 
+/** Server-only options — never accepted from client-parsed input. */
+export type CreateWorkOrderCoreOptions = {
+  /** NPD pilot WO path — skip the factory-release owner gate (pre-handoff). */
+  skipFactoryReleaseGate?: boolean;
+};
+
 export async function createWorkOrderCore(
   ctx: OrgActionContext,
   params: CreateWorkOrderCoreParams,
+  options?: CreateWorkOrderCoreOptions,
 ): Promise<CreateWorkOrderResult> {
   const parsed = CreateWorkOrderInput.safeParse(params);
   if (!parsed.success) return { ok: false, error: 'invalid_input', issues: parsed.error.issues };
@@ -95,6 +103,13 @@ export async function createWorkOrderCore(
   );
   const itemUom = itemUomResult.rows[0];
   if (!itemUom) return { ok: false, error: 'invalid_input' };
+
+  if (!options?.skipFactoryReleaseGate) {
+    const releaseGate = await assertFgReleasedToFactoryForWo(ctx.client, input.productId);
+    if (releaseGate === 'not_released_to_factory') {
+      return { ok: false, error: 'not_released_to_factory' };
+    }
+  }
 
   const uomSnapshot = snapshotFromItemRow(itemUom);
   const dbUomSnapshot = {
