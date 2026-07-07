@@ -1,10 +1,8 @@
 import { cascadeAllergensForChangedItem } from '../../../../../lib/technical/allergens/cascade';
-import { buildGraph, detectCycle } from '../../../../[locale]/(app)/(modules)/technical/bom/_actions/cycle-detection';
 import {
   AUDIT_BOM_PUBLISH,
   EVENT_FG_BOM_RELEASED,
-  formatRmUsabilityFailures,
-  validateBomLineRmUsability,
+  validateBomApprovalGuards,
   writeAudit,
   writeOutbox,
 } from '../../../../[locale]/(app)/(modules)/technical/bom/_actions/shared';
@@ -787,37 +785,6 @@ async function loadExistingActiveNpdBom(
   return rows[0] ?? null;
 }
 
-async function validateNpdBomActivationGuards(
-  ctx: OrgContextLike,
-  productCode: string,
-  lines: ExpectedBomLine[],
-): Promise<void> {
-  const components = lines.map((line) => line.component_code);
-  const { rows: edgeRows } = await ctx.client.query<{ parent: string; component: string }>(
-    `select i.item_code as parent, l.component_code as component
-       from public.bom_headers h
-       join public.items i on i.id = h.item_id and i.org_id = h.org_id
-       join public.bom_lines l on l.bom_header_id = h.id and l.org_id = h.org_id
-      where h.org_id = app.current_org_id() and h.status = 'active' and h.item_id is not null`,
-  );
-  if (components.includes(productCode) || detectCycle(buildGraph(edgeRows), productCode, components)) {
-    throw new NpdBomActivationValidationError('V-TEC-13', 'BOM has a cycle; cannot activate');
-  }
-
-  const rmUsabilityFailures = await validateBomLineRmUsability(
-    ctx.client,
-    lines.map((line) => ({ itemId: line.item_id, componentCode: line.component_code })),
-    'factory_spec_approval',
-    productCode,
-  );
-  if (rmUsabilityFailures.length > 0) {
-    throw new NpdBomActivationValidationError(
-      'V-TEC-14',
-      formatRmUsabilityFailures(rmUsabilityFailures),
-    );
-  }
-}
-
 async function createActiveNpdBom(
   ctx: OrgContextLike,
   project: ProjectRow,
@@ -882,7 +849,15 @@ async function createActiveNpdBom(
 
   // Canonical publishBom guards (V-TEC-13 cycle + V-TEC-14 RM usability) — same
   // checks as approveBom, run before the NPD draft→active flip.
-  await validateNpdBomActivationGuards(ctx, productCode, lines);
+  const guard = await validateBomApprovalGuards(
+    ctx.client,
+    productCode,
+    lines.map((line) => ({ itemId: line.item_id, componentCode: line.component_code })),
+    { cycleBlockedMessage: 'BOM has a cycle; cannot activate' },
+  );
+  if (!guard.ok) {
+    throw new NpdBomActivationValidationError(guard.code, guard.message);
+  }
 
   // ORDER MATTERS (walk-4 blocker): bom_headers_active_version_idx is a partial
   // UNIQUE on (org_id, product_id) WHERE status='active' — the OLD active header
