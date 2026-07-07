@@ -39,6 +39,16 @@ export const SO_CANCEL_BLOCKED_SHIPMENT_STATUSES: readonly ShipmentStatus[] = ['
 
 export const OPEN_SHIPMENT_STATUSES: readonly ShipmentStatus[] = ['pending', 'packing'];
 
+/** Non-cancelled shipment statuses that block creating a second shipment for the same SO. */
+export const BLOCKING_SHIPMENT_STATUSES: readonly ShipmentStatus[] = [
+  'pending',
+  'packing',
+  'packed',
+  'manifested',
+  'shipped',
+  'delivered',
+];
+
 export const SO_LEGAL_TRANSITIONS: Record<SalesOrderStatus, readonly SalesOrderStatus[]> = {
   draft: ['confirmed', 'cancelled'],
   confirmed: ['allocated', 'cancelled'],
@@ -49,8 +59,8 @@ export const SO_LEGAL_TRANSITIONS: Record<SalesOrderStatus, readonly SalesOrderS
   packed: ['manifested', 'partially_packed', 'allocated', 'shipped', 'cancelled'],
   manifested: ['shipped', 'packed', 'partially_packed', 'allocated', 'confirmed', 'cancelled'],
   shipped: ['partially_delivered', 'delivered'],
-  partially_delivered: ['delivered', 'shipped'],
-  delivered: ['partially_delivered', 'shipped'],
+  partially_delivered: ['delivered'],
+  delivered: ['partially_delivered'],
   cancelled: [],
 };
 
@@ -60,7 +70,7 @@ export const SHIPMENT_LEGAL_TRANSITIONS: Record<ShipmentStatus, readonly Shipmen
   packed: ['manifested', 'shipped', 'packing', 'cancelled'],
   manifested: ['shipped', 'packing', 'cancelled'],
   shipped: ['delivered', 'cancelled'],
-  delivered: ['shipped'],
+  delivered: [],
   exception: [],
   cancelled: [],
 };

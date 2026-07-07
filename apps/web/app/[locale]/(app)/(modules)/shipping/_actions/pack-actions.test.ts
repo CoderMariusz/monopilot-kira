@@ -44,6 +44,7 @@ let detailContents: Array<{
   item_name: string | null;
   qty: string | null;
 }> = [];
+let existingBlockingShipment = false;
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
@@ -98,6 +99,13 @@ function makeClient(): QueryClient {
             },
           ],
           rowCount: 1,
+        };
+      }
+
+      if (q.startsWith('select id::text') && q.includes('from public.shipments') && q.includes('status = any')) {
+        return {
+          rows: existingBlockingShipment ? [{ id: SHIPMENT_ID }] : [],
+          rowCount: existingBlockingShipment ? 1 : 0,
         };
       }
 
@@ -267,6 +275,7 @@ beforeEach(() => {
     },
   ];
   queryLog = [];
+  existingBlockingShipment = false;
   client = makeClient();
 });
 
@@ -295,6 +304,22 @@ describe('createShipment', () => {
 
     expect(result).toEqual({ ok: false, error: 'invalid_state' });
     expect(insertedShipments).toEqual([]);
+  });
+
+  it('rejects a second shipment when the SO already has a packed shipment', async () => {
+    salesOrderStatus = 'packed';
+    existingBlockingShipment = true;
+
+    const result = await createShipment(SO_ID);
+
+    expect(result).toEqual({ ok: false, error: 'open_shipment_exists' });
+    expect(insertedShipments).toEqual([]);
+    const blockingQuery = queryLog.find(
+      (entry) => normalize(entry.sql).includes('from public.shipments') && normalize(entry.sql).includes('status = any'),
+    );
+    expect(blockingQuery?.params?.[1]).toEqual(
+      expect.arrayContaining(['packed', 'manifested', 'shipped', 'delivered']),
+    );
   });
 });
 

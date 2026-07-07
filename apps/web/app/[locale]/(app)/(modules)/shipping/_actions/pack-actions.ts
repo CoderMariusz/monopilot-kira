@@ -3,7 +3,7 @@
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { packLpIntoBoxCore } from '../../../../../../lib/shipping/pack-lp-into-box';
-import { isSalesOrderStatus, isShipmentStatus, OPEN_SHIPMENT_STATUSES, type ShipmentStatus } from './so-transitions';
+import { isSalesOrderStatus, isShipmentStatus, BLOCKING_SHIPMENT_STATUSES, type ShipmentStatus } from './so-transitions';
 import type {
   ShipmentBoxContentDetail,
   ShipmentBoxDetail,
@@ -198,7 +198,7 @@ export async function createShipment(soId: string): Promise<CreateShipmentResult
           and deleted_at is null
           and status = any($2::text[])
         limit 1`,
-      [soId, OPEN_SHIPMENT_STATUSES],
+      [soId, BLOCKING_SHIPMENT_STATUSES],
     );
     if (openShipmentRows.length > 0) {
       return { ok: false, error: 'open_shipment_exists' };

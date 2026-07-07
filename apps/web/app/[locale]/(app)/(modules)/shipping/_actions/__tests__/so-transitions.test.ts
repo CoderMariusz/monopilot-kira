@@ -22,8 +22,8 @@ describe('SO_LEGAL_TRANSITIONS matrix', () => {
     packed: ['manifested', 'partially_packed', 'allocated', 'shipped', 'cancelled'],
     manifested: ['shipped', 'packed', 'partially_packed', 'allocated', 'confirmed', 'cancelled'],
     shipped: ['partially_delivered', 'delivered'],
-    partially_delivered: ['delivered', 'shipped'],
-    delivered: ['partially_delivered', 'shipped'],
+    partially_delivered: ['delivered'],
+    delivered: ['partially_delivered'],
     cancelled: [],
   } satisfies Record<SalesOrderStatus, readonly SalesOrderStatus[]>;
 
@@ -59,9 +59,11 @@ describe('SO_LEGAL_TRANSITIONS matrix', () => {
     expect(isLegalSoTransition('shipped', 'delivered')).toBe(true);
   });
 
-  it('keeps delivered reversals only for guarded POD void paths', () => {
+  it('rejects delivered regressions to shipped (voidPod uses audited reversal path)', () => {
     expect(isLegalSoTransition('delivered', 'partially_delivered')).toBe(true);
-    expect(isLegalSoTransition('delivered', 'shipped')).toBe(true);
+    expect(isLegalSoTransition('delivered', 'shipped')).toBe(false);
+    expect(isLegalSoTransition('partially_delivered', 'shipped')).toBe(false);
+    expect(isLegalShipmentTransition('delivered', 'shipped')).toBe(false);
   });
 
   it('allows deallocation regressions to confirmed from pre-pack states', () => {
