@@ -49,6 +49,10 @@ describe('T-081 factory-spec-release-guards — permitted transitions', () => {
     expect(guardStatusTransition('approved_for_factory', 'released_to_factory').ok).toBe(true);
   });
 
+  it('allows released_to_factory -> draft (recall path, mig 453)', () => {
+    expect(guardStatusTransition('released_to_factory', 'draft').ok).toBe(true);
+  });
+
   it('allows forward terminalisation to superseded/archived', () => {
     expect(guardStatusTransition('approved_for_factory', 'superseded').ok).toBe(true);
     expect(guardStatusTransition('released_to_factory', 'archived').ok).toBe(true);
@@ -58,6 +62,12 @@ describe('T-081 factory-spec-release-guards — permitted transitions', () => {
     const result = guardStatusTransition('draft', 'totally_made_up');
     expect(result.ok).toBe(false);
     expect(result.code).toBe('UNKNOWN_STATUS');
+  });
+
+  it('rejects draft -> approved_for_factory (must pass through in_review)', () => {
+    const result = guardStatusTransition('draft', 'approved_for_factory');
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe('ILLEGAL_TRANSITION');
   });
 
   it('rejects a working-state illegal jump straight to released_to_factory', () => {

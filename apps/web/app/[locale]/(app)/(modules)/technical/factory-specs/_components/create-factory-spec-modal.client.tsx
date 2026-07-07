@@ -33,7 +33,19 @@ export function CreateFactorySpecButton({ label }: { label: string }) {
   );
 }
 
-export function CreateFactorySpecModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CreateFactorySpecModal({
+  open,
+  onClose,
+  initialFgItem,
+  supersedesSpecId,
+  defaultSpecCode,
+}: {
+  open: boolean;
+  onClose: () => void;
+  initialFgItem?: ItemPickerOption | null;
+  supersedesSpecId?: string;
+  defaultSpecCode?: string;
+}) {
   const t = useTranslations('Technical.factorySpecs.create');
   const tt = React.useMemo(() => fallbackTranslator(t), [t]);
   const router = useRouter();
@@ -54,8 +66,13 @@ export function CreateFactorySpecModal({ open, onClose }: { open: boolean; onClo
       setError(null);
       return;
     }
+    setSpecCode(defaultSpecCode ?? '');
+    setFgItem(initialFgItem ?? null);
+    setNotes('');
+    setState('idle');
+    setError(null);
     contentRef.current?.focus();
-  }, [open]);
+  }, [open, defaultSpecCode, initialFgItem]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -87,6 +104,7 @@ export function CreateFactorySpecModal({ open, onClose }: { open: boolean; onClo
       fgItemId: fgItem?.id ?? '',
       specCode: specCode.trim(),
       notes: notes.trim().length > 0 ? notes.trim() : undefined,
+      supersedesSpecId,
     });
 
     if (!result.ok) {

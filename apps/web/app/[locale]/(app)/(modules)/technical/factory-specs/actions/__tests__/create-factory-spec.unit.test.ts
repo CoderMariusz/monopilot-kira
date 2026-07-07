@@ -6,6 +6,8 @@ const FG_ITEM_ID = '33333333-3333-4333-8333-333333333333';
 const SPEC_ID = '44444444-4444-4444-8444-444444444444';
 const BOM_ID = '55555555-5555-4555-8555-555555555555';
 
+const PRIOR_SPEC_ID = '66666666-6666-4666-8666-666666666666';
+
 type QueryCall = { sql: string; params: readonly unknown[] };
 
 type FakeClient = {
@@ -19,9 +21,12 @@ type FakeClient = {
     fg_item_code: string;
     bom_header_id: string | null;
     bom_version: number | null;
+    approved_by?: string | null;
+    approved_at?: string | null;
   } | null;
   bom: { id: string; product_id: string | null; version: number; status: string } | null;
   nextVersion: number;
+  priorReleasedSpecId: string | null;
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
@@ -44,7 +49,7 @@ function normalizeSql(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function makeClient(overrides: Partial<Pick<FakeClient, 'hasPermission' | 'item' | 'spec' | 'bom' | 'nextVersion'>> = {}): FakeClient {
+function makeClient(overrides: Partial<Pick<FakeClient, 'hasPermission' | 'item' | 'spec' | 'bom' | 'nextVersion' | 'priorReleasedSpecId'>> = {}): FakeClient {
   const client: FakeClient = {
     calls: [],
     hasPermission: overrides.hasPermission ?? true,
@@ -56,8 +61,10 @@ function makeClient(overrides: Partial<Pick<FakeClient, 'hasPermission' | 'item'
             status: 'draft',
             fg_item_id: FG_ITEM_ID,
             fg_item_code: 'FG5101',
-            bom_header_id: null,
-            bom_version: null,
+            bom_header_id: BOM_ID,
+            bom_version: 8,
+            approved_by: USER_ID,
+            approved_at: '2026-07-07T00:00:00.000Z',
           }
         : overrides.spec,
     bom:
@@ -65,6 +72,7 @@ function makeClient(overrides: Partial<Pick<FakeClient, 'hasPermission' | 'item'
         ? { id: BOM_ID, product_id: 'FG5101', version: 8, status: 'in_review' }
         : overrides.bom,
     nextVersion: overrides.nextVersion ?? 4,
+    priorReleasedSpecId: overrides.priorReleasedSpecId ?? null,
     async query(sql, params = []) {
       client.calls.push({ sql, params });
       const normalized = normalizeSql(sql);
@@ -84,8 +92,25 @@ function makeClient(overrides: Partial<Pick<FakeClient, 'hasPermission' | 'item'
       if (normalized.includes('coalesce(max(version), 0) + 1')) {
         return { rows: [{ next_version: client.nextVersion }] as never[], rowCount: 1 };
       }
+      if (normalized.includes('from public.factory_specs') && normalized.includes('status in (')) {
+        const priorId = client.priorReleasedSpecId;
+        return { rows: (priorId ? [{ id: priorId }] : []) as never[], rowCount: priorId ? 1 : 0 };
+      }
+      if (normalized.includes('from public.factory_specs') && normalized.includes('supersedes')) {
+        const targetId = String(params?.[0] ?? '');
+        const ok = targetId === PRIOR_SPEC_ID || targetId === SPEC_ID;
+        return { rows: (ok ? [{ id: targetId }] : []) as never[], rowCount: ok ? 1 : 0 };
+      }
       if (normalized.startsWith('insert into public.factory_specs')) {
         return { rows: [{ id: SPEC_ID }] as never[], rowCount: 1 };
+      }
+      if (normalized.startsWith('update public.factory_specs') && normalized.includes("set status = 'superseded'")) {
+        return { rows: [] as never[], rowCount: 0 };
+      }
+      if (normalized.startsWith('update public.factory_specs') && normalized.includes("set status = 'released_to_factory'")) {
+        const ok = client.spec?.status === 'approved_for_factory';
+        if (ok && client.spec) client.spec = { ...client.spec, status: 'released_to_factory' };
+        return { rows: (ok ? [{ id: client.spec?.id ?? SPEC_ID }] : []) as never[], rowCount: ok ? 1 : 0 };
       }
       if (normalized.startsWith('update public.factory_specs') && normalized.includes("set status = 'in_review'")) {
         const ok = client.spec?.status === 'draft';
@@ -100,6 +125,12 @@ function makeClient(overrides: Partial<Pick<FakeClient, 'hasPermission' | 'item'
         return { rows: (ok ? [{ id: client.spec?.id ?? SPEC_ID }] : []) as never[], rowCount: ok ? 1 : 0 };
       }
       if (normalized.startsWith('insert into public.audit_events')) {
+        return { rows: [] as never[], rowCount: 1 };
+      }
+      if (normalized.startsWith('insert into public.outbox_events')) {
+        return { rows: [{ id: 42 }] as never[], rowCount: 1 };
+      }
+      if (normalized.startsWith('update public.factory_release_status')) {
         return { rows: [] as never[], rowCount: 1 };
       }
 
@@ -137,7 +168,7 @@ describe('createFactorySpec', () => {
     expect(client.calls.some((call) => normalizeSql(call.sql).includes('app.current_org_id()'))).toBe(true);
 
     const insert = client.calls.find((call) => normalizeSql(call.sql).startsWith('insert into public.factory_specs'));
-    expect(insert?.params).toEqual([FG_ITEM_ID, 'FS-FG5101', 7, 'Initial technical draft', USER_ID]);
+    expect(insert?.params).toEqual([FG_ITEM_ID, 'FS-FG5101', 7, 'Initial technical draft', USER_ID, null]);
     expect(normalizeSql(insert?.sql ?? '')).toContain("'draft'");
     expect(normalizeSql(insert?.sql ?? '')).toContain("'technical'");
 
@@ -153,6 +184,37 @@ describe('createFactorySpec', () => {
       source: 'technical',
     });
     expect(revalidatePath).toHaveBeenCalledWith('/technical/factory-specs');
+  });
+
+  it('writes supersedes_factory_spec_id when cloning from a released predecessor', async () => {
+    const client = makeClient({ nextVersion: 5, priorReleasedSpecId: PRIOR_SPEC_ID });
+    runWithOrgContext.mockImplementationOnce(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+    const { createFactorySpec } = await import('../create-factory-spec');
+
+    const result = await createFactorySpec({
+      fgItemId: FG_ITEM_ID,
+      specCode: 'FS-FG5101-v5',
+      supersedesSpecId: PRIOR_SPEC_ID,
+    });
+
+    expect(result.ok).toBe(true);
+    const insert = client.calls.find((call) => normalizeSql(call.sql).startsWith('insert into public.factory_specs'));
+    expect(insert?.params).toEqual([FG_ITEM_ID, 'FS-FG5101-v5', 5, null, USER_ID, PRIOR_SPEC_ID]);
+  });
+
+  it('auto-links supersedes_factory_spec_id from the latest released version for the FG', async () => {
+    const client = makeClient({ nextVersion: 6, priorReleasedSpecId: PRIOR_SPEC_ID });
+    runWithOrgContext.mockImplementationOnce(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+    const { createFactorySpec } = await import('../create-factory-spec');
+
+    await createFactorySpec({ fgItemId: FG_ITEM_ID, specCode: 'FS-FG5101-v6' });
+
+    const insert = client.calls.find((call) => normalizeSql(call.sql).startsWith('insert into public.factory_specs'));
+    expect(insert?.params[5]).toBe(PRIOR_SPEC_ID);
   });
 
   it('returns forbidden before insert when the approval/write permission is missing', async () => {
@@ -259,5 +321,88 @@ describe('factory spec review flow actions', () => {
       message: 'BOM product FG9999 does not match factory_spec FG FG5101',
     });
     expect(client.calls.some((call) => normalizeSql(call.sql).startsWith('update public.factory_specs'))).toBe(false);
+  });
+});
+
+describe('releaseFactorySpecToFactory', () => {
+  it('releases an approved_for_factory spec and emits fg.released_to_factory', async () => {
+    const client = makeClient({
+      spec: {
+        id: SPEC_ID,
+        status: 'approved_for_factory',
+        fg_item_id: FG_ITEM_ID,
+        fg_item_code: 'FG5101',
+        bom_header_id: BOM_ID,
+        bom_version: 8,
+        approved_by: USER_ID,
+        approved_at: '2026-07-07T00:00:00.000Z',
+      },
+    });
+    runWithOrgContext.mockImplementationOnce(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+    const { releaseFactorySpecToFactory } = await import('../factory-spec-flow');
+
+    const result = await releaseFactorySpecToFactory({ specId: SPEC_ID });
+
+    expect(result).toEqual({ ok: true, data: { specId: SPEC_ID, status: 'released_to_factory' } });
+    expect(client.spec?.status).toBe('released_to_factory');
+    const outbox = client.calls.find((call) => normalizeSql(call.sql).startsWith('insert into public.outbox_events'));
+    expect(outbox?.params?.[1]).toBe('fg.released_to_factory');
+    const audit = client.calls.find((call) => String(call.params[2]) === 'factory_spec.released_to_factory');
+    expect(audit).toBeTruthy();
+  });
+
+  it('rejects release when the spec is still draft', async () => {
+    const client = makeClient({
+      spec: {
+        id: SPEC_ID,
+        status: 'draft',
+        fg_item_id: FG_ITEM_ID,
+        fg_item_code: 'FG5101',
+        bom_header_id: null,
+        bom_version: null,
+      },
+    });
+    runWithOrgContext.mockImplementationOnce(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+    const { releaseFactorySpecToFactory } = await import('../factory-spec-flow');
+
+    const result = await releaseFactorySpecToFactory({ specId: SPEC_ID });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_state',
+      message: 'factory_spec is draft; expected approved_for_factory',
+    });
+    expect(client.calls.some((call) => normalizeSql(call.sql).includes('released_to_factory'))).toBe(false);
+  });
+
+  it('rejects release when the paired BOM is missing', async () => {
+    const client = makeClient({
+      spec: {
+        id: SPEC_ID,
+        status: 'approved_for_factory',
+        fg_item_id: FG_ITEM_ID,
+        fg_item_code: 'FG5101',
+        bom_header_id: null,
+        bom_version: null,
+        approved_by: USER_ID,
+        approved_at: '2026-07-07T00:00:00.000Z',
+      },
+    });
+    runWithOrgContext.mockImplementationOnce(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+    const { releaseFactorySpecToFactory } = await import('../factory-spec-flow');
+
+    const result = await releaseFactorySpecToFactory({ specId: SPEC_ID });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_state',
+      message: 'factory_spec has no paired BOM bundle',
+    });
   });
 });

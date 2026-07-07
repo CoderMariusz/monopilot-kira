@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
+import { guardStatusTransition } from '../../../../../../../lib/technical/factory-spec-release-guards';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { safeRevalidatePath } from './revalidate';
 import {
@@ -129,6 +130,11 @@ export async function recallFactorySpec(rawInput: unknown): Promise<RecallFactor
       if (!spec) return { error: 'factory_spec not found' };
       if (spec.status !== 'released_to_factory') {
         return { error: `factory_spec is ${spec.status}; expected released_to_factory` };
+      }
+
+      const transition = guardStatusTransition(spec.status, 'draft');
+      if (!transition.ok) {
+        return { error: transition.message };
       }
 
       const blockingWoCodes = await loadBlockingWorkOrders(db, spec.id);

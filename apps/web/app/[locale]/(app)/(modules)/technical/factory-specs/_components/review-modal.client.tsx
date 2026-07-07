@@ -29,6 +29,8 @@ import { specBadge } from '../../../../../../../lib/technical/release-state-adap
 import type { FactorySpecListItem } from '../_actions/shared';
 import { ReleaseBundlePanelButton } from './release-bundle-panel.client';
 import { RecallSpecButton } from './recall-spec.client';
+import { ReleaseSpecButton } from './release-spec.client';
+import { CreateFactorySpecModal } from './create-factory-spec-modal.client';
 
 function Dialog({
   open,
@@ -135,8 +137,9 @@ export function FactorySpecRowActions({
   const badge = specBadge(spec.status);
   const isImmutable = spec.status === 'approved_for_factory' || spec.status === 'released_to_factory';
   const bomPending = spec.bomStatus != null && ['draft', 'in_review'].includes(spec.bomStatus);
-  // R4-CL2 — the recall affordance only applies to a released spec.
   const isReleased = spec.status === 'released_to_factory';
+  const isApproved = spec.status === 'approved_for_factory';
+  const [cloneOpen, setCloneOpen] = React.useState(false);
 
   return (
     <span className="flex items-center justify-end gap-3">
@@ -152,6 +155,37 @@ export function FactorySpecRowActions({
       {isReleased ? (
         <RecallSpecButton specId={spec.id} specCode={spec.specCode} canRecall={canRecall} />
       ) : null}
+
+      {isApproved ? (
+        <ReleaseSpecButton specId={spec.id} specCode={spec.specCode} canRelease={canApprove} />
+      ) : null}
+
+      {isImmutable && canApprove ? (
+        <button
+          type="button"
+          className="font-medium hover:underline"
+          style={{ color: 'var(--blue)' }}
+          onClick={() => setCloneOpen(true)}
+        >
+          {t('cloneNewVersion')}
+        </button>
+      ) : null}
+
+      <CreateFactorySpecModal
+        open={cloneOpen}
+        onClose={() => setCloneOpen(false)}
+        initialFgItem={{
+          id: spec.fgItemId,
+          itemCode: spec.fgItemCode,
+          name: spec.fgName,
+          itemType: 'fg',
+          status: 'active',
+          costPerKgEur: null,
+          uomBase: 'kg',
+        }}
+        supersedesSpecId={spec.id}
+        defaultSpecCode={spec.specCode}
+      />
 
       <Dialog
         open={open}

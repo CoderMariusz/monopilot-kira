@@ -75,6 +75,9 @@ function createClient(options: { bomStatus: string; specBomVersion?: number; bom
       if (n.includes('from public.items i') && n.includes('i.item_code = $2')) {
         return { rows: (params?.[0] === FG_ITEM_ID && params?.[1] === bom.product_id ? [{ ok: true }] : []) as T[] };
       }
+      if (n.startsWith('update public.factory_specs') && n.includes("set status = 'superseded'")) {
+        return { rows: [] as T[] };
+      }
       if (n.startsWith('update public.factory_specs')) {
         if (spec.status !== 'in_review') return { rows: [] as T[] };
         spec.status = 'approved_for_factory';

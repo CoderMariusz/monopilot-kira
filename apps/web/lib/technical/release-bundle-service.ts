@@ -410,6 +410,18 @@ export async function approveReleaseBundle(
   }
 
   try {
+    // Supersede any prior factory-usable version for this FG so the partial-unique
+    // indexes (one approved / one released per FG) allow the new approval.
+    await ctx.client.query(
+      `update public.factory_specs
+          set status = 'superseded'
+        where org_id = app.current_org_id()
+          and fg_item_id = $1::uuid
+          and status in ('approved_for_factory', 'released_to_factory')
+          and id <> $2::uuid`,
+      [spec.fg_item_id, spec.id],
+    );
+
     // Approve the factory_spec version (in place is legal here: in_review is mutable; the
     // migration-165 trigger only guards already-approved rows).
     const updatedSpec = await ctx.client.query<{ id: string }>(
