@@ -444,13 +444,17 @@ describe('cancelShipment', () => {
     expect(shipmentStatusUpdates).toContain('cancelled');
     expect(salesOrderStatusUpdates).toEqual(['confirmed']);
     const wacCredit = queryLog.find(({ sql }) => normalize(sql).includes('insert into public.item_wac_state'));
-    expect(wacCredit?.params).toEqual([
+    // WAC is now site + currency aware (C3e/C5b): the insert carries siteId ($6)
+    // and currencyCode ($7) after the stable [org, item, qty, value, user] head.
+    expect(wacCredit?.params?.slice(0, 5)).toEqual([
       ORG_ID,
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       '6.000',
       '30',
       USER_ID,
     ]);
+    expect(wacCredit?.params).toHaveLength(7);
+    expect(typeof wacCredit?.params?.[6]).toBe('string');
   });
 
   it('ships by decrementing the LP quantity and cancel restores only that shipped delta once', async () => {
