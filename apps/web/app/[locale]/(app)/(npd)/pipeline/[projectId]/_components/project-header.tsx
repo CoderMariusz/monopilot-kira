@@ -215,11 +215,15 @@ export function ProjectHeader({
   }, [pathname, router, searchParams]);
 
   const onFgCreated = React.useCallback(
-    (productCode: string) => {
-      router.push(`/${locale}/fg/${productCode}`);
+    (_productCode: string) => {
+      // Stay on the recipe/pipeline stage after minting the FG candidate — the user is
+      // still mid-recipe (ingredients, packaging, production detail) and jumping to the
+      // /fg detail page yanks them out of the flow. Just close the modal and refresh so
+      // the now-assigned product_code shows in the header.
+      closeFgModal();
       router.refresh();
     },
-    [locale, router],
+    [closeFgModal, router],
   );
 
   const onDelete = React.useCallback(async () => {
