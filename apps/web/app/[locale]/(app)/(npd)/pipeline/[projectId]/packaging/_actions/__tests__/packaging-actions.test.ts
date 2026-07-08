@@ -205,6 +205,14 @@ describe('upsertPackagingComponent — zod + RBAC', () => {
     expect(insert!.params).toContain(SUPPLIER_ID);
     expect(insert!.params).toContain('Coveris');
 
+    // Regression: public.suppliers has no `deleted_at` column (soft-delete is via
+    // `status`). A phantom `deleted_at is null` predicate here throws undefined_column
+    // at runtime → the whole upsert falls into persistence_failed and the UI shows the
+    // generic "Could not save the component" for EVERY supplier pick. Guard the column.
+    const supplierLookup = ctx.calls.find((c) => /from public\.suppliers/i.test(c.sql));
+    expect(supplierLookup).toBeTruthy();
+    expect(supplierLookup!.sql).not.toMatch(/deleted_at/i);
+
     const audit = ctx.calls.find((c) => /insert into\s+public\.audit_log/i.test(c.sql));
     expect(audit).toBeTruthy();
   });

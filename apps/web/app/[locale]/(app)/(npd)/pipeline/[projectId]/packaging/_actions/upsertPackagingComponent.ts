@@ -98,7 +98,6 @@ export async function upsertPackagingComponent(raw: unknown): Promise<UpsertPack
              from public.suppliers
             where org_id = app.current_org_id()
               and id = $1::uuid
-              and deleted_at is null
               and status = 'active'
             limit 1`,
           [supplierId],
