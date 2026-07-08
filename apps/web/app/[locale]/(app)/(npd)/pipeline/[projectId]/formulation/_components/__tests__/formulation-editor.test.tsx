@@ -261,6 +261,27 @@ describe('FormulationEditor — CRUD + debounce + validation', () => {
     vi.useRealTimers();
   });
 
+  it('refreshes the RSC tree after a successful save so the gate ingredient count is not stale', async () => {
+    // Regression: the pipeline layout derives the "Recipe has at least one ingredient"
+    // gate check from recipeIngredientCount (an RSC-rendered value). Without a refresh
+    // after saveDraft, that count stayed at its render-time value (0) even though the
+    // ingredients were persisted, so the gate read 0/1 despite ingredients existing.
+    vi.useFakeTimers();
+    const onRefresh = vi.fn();
+    const { saveDraft } = renderEditor({ onRefresh });
+    const rows = screen.getAllByTestId('ingredient-row');
+    const qtyInput = within(rows[0]).getByLabelText(LABELS.colQtyPerPack);
+
+    fireEvent.change(qtyInput, { target: { value: '0.16' } });
+    await act(async () => {
+      vi.advanceTimersByTime(800);
+    });
+
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
   it('shows an inline Zod error and does NOT save when qty is negative/invalid', () => {
     vi.useFakeTimers();
     const { saveDraft } = renderEditor();

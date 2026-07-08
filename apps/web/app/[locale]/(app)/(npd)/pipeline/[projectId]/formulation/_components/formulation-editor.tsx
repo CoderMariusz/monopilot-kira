@@ -1091,6 +1091,11 @@ export function FormulationEditor({
           if (recomputeAction) {
             void recomputeAction({ projectId: data.projectId, versionId }).catch(() => undefined);
           }
+          // Re-run the RSC loaders so the pipeline layout's gate checklist (e.g.
+          // "Recipe has at least one ingredient", derived from recipeIngredientCount)
+          // reflects the just-saved ingredients. Without this the count stays stale at
+          // its render-time value and the gate reads 0 despite ingredients existing.
+          refresh();
         } else {
           if (
             result &&
@@ -1110,7 +1115,7 @@ export function FormulationEditor({
         setSaveStatus('error');
       }
     })();
-  }, [data, editable, labels.substituteAllergenMismatch, packWeightKg, processingPct, recomputeAction, saveDraftAction, targetPrice, validate, versionId, yieldPct]);
+  }, [data, editable, labels.substituteAllergenMismatch, packWeightKg, processingPct, recomputeAction, refresh, saveDraftAction, targetPrice, validate, versionId, yieldPct]);
 
   /** Schedule a single debounced save (resets the 800 ms timer on each call). */
   const scheduleSave = React.useCallback(() => {
