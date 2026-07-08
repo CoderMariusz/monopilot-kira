@@ -64,7 +64,6 @@ import { loadAllergensConfig } from '../../../../(modules)/technical/allergens-c
 import { updateProjectBrief } from '../brief/_actions/update-project-brief';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { FormulationWipPanel } from './_components/formulation-wip-panel';
 import type { FaProductionTabLabels } from '../../../fg/[productCode]/_components/fa-production-tab';
 import { getStaleWipRefs } from '../_lib/get-stale-wip-refs';
 import { buildStaleWipBannerLabels } from '../_lib/build-stale-wip-banner-labels';
@@ -878,13 +877,11 @@ export default async function FormulationPage(propsInput: unknown = {}) {
   const requestedVersionId = typeof versionParam === 'string' && versionParam.length > 0 ? versionParam : undefined;
   const injected = props.data !== undefined || props.state !== undefined;
 
-  const [labels, panelLabels, allergenNames, wipPanelLabels, wipNoFgLabels, staleWipBannerLabels, staleWipRefs] =
+  const [labels, panelLabels, allergenNames, staleWipBannerLabels, staleWipRefs] =
     await Promise.all([
       buildLabels(locale),
       buildPanelLabels(locale),
       buildAllergenNames(locale),
-      buildWipPanelLabels(locale),
-      buildWipNoFgLabels(locale),
       buildStaleWipBannerLabels(locale),
       injected
         ? Promise.resolve({ staleDefinitions: [], canAccept: false })
@@ -951,14 +948,12 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       createVersionAction={loaded.canEdit ? createVersionAdapter : undefined}
       searchWipDefinitionsAction={loaded.canEdit ? searchWipDefinitionsForFormulation : undefined}
       />
-      <FormulationWipPanel
-        projectId={projectId}
-        locale={locale}
-        labels={wipPanelLabels}
-        noFgTitle={wipNoFgLabels.title}
-        noFgBody={wipNoFgLabels.body}
-        noFgGateLink={wipNoFgLabels.gateLink}
-      />
+      {/*
+        B3 (owner 2026-07-08): the "Finish WIP (production components)" panel was
+        removed from the Recipe stage — it mirrored the recipe table as a redundant
+        single row and pulled focus. Production components + processes are defined in
+        the Finished Good / Production detail area, not here.
+      */}
     </>
   );
 }
