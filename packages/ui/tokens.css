@@ -72,6 +72,21 @@
 
 .mp-modal-content:focus { outline: none; }
 
+/*
+ * A consumer that wraps Modal.Body + Modal.Footer in a <form> (or a plain <div>)
+ * breaks the flex column — the wrapper becomes a single flex item with no height
+ * constraint, so Body's overflow:auto never engages and a tall modal pushes the
+ * Footer (e.g. Save) below max-height:86vh, off-screen and unclickable at ~720px.
+ * Make the direct wrapper the flex column so Body scrolls and Footer stays pinned.
+ */
+.mp-modal-content > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .mp-modal-head {
   display: flex;
   align-items: center;
