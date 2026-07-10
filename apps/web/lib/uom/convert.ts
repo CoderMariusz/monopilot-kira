@@ -91,6 +91,37 @@ function nullableNumber(value: string | number | null | undefined): number | nul
   return Number(value);
 }
 
+/** Lossless decimal string for WO snapshot SQL binds — never round-trip through JS float. */
+export function snapshotDecimalString(value: string | number | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return null;
+    return String(value);
+  }
+  return null;
+}
+
+export function woSnapshotWacQtyFields(
+  snapshot: Record<string, unknown> | null | undefined,
+  fallbackUomBase: string,
+): { uomBase: string; netQtyPerEach: string | null; eachPerBox: string | null } {
+  const snap = snapshot ?? {};
+  const uomBaseRaw = snap.uom_base ?? snap.uomBase ?? fallbackUomBase;
+  return {
+    uomBase: typeof uomBaseRaw === 'string' ? uomBaseRaw : String(uomBaseRaw ?? 'kg'),
+    netQtyPerEach: snapshotDecimalString(
+      (snap.net_qty_per_each ?? snap.netQtyPerEach) as string | number | null | undefined,
+    ),
+    eachPerBox: snapshotDecimalString(
+      (snap.each_per_box ?? snap.eachPerBox) as string | number | null | undefined,
+    ),
+  };
+}
+
 function requireFactor(value: number | null): number {
   if (value === null || !Number.isFinite(value) || value <= 0) {
     throw new TypedError('uom_conversion_unavailable');

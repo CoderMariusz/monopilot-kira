@@ -7806,7 +7806,7 @@
             "no_warehouse": "No warehouse is configured — set one up in Settings before receiving.",
             "invalid_location": "That destination location is invalid.",
             "invalid_state": "This purchase order can't be received in its current status.",
-            "wac_unsupported_currency": "Receipt is blocked because this purchase order is not in GBP. Inventory valuation currently requires GBP — change the PO currency to GBP before receiving, or recreate the order in GBP. Foreign-currency POs can still be created and edited, but cannot be received until FX conversion is supported.",
+            "wac_unsupported_currency": "Recepția este blocată deoarece această comandă de achiziție nu este în GBP. Evaluarea stocurilor necesită în prezent GBP — schimbați moneda comenzii în GBP înainte de recepție sau recreați comanda în GBP. Comenzile în valută străină pot fi în continuare create și editate, dar nu pot fi recepționate până când conversia valutară (FX) este suportată.",
             "error": "Something went wrong receiving. Please retry."
           }
         }

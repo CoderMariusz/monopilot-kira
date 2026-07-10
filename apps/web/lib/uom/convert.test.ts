@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   fromBaseQty,
   packHierarchyComplete,
+  snapshotDecimalString,
   snapshotFromItemRow,
   toBaseQty,
   TypedError,
@@ -64,6 +65,14 @@ describe('uom conversion', () => {
       boxesPerPallet: 48,
       weightMode: 'catch',
     });
+  });
+});
+
+describe('snapshotDecimalString', () => {
+  it('returns trimmed strings without Number conversion', () => {
+    expect(snapshotDecimalString(' 0.1234567890123456789 ')).toBe('0.1234567890123456789');
+    expect(snapshotDecimalString('')).toBeNull();
+    expect(snapshotDecimalString(null)).toBeNull();
   });
 });
 

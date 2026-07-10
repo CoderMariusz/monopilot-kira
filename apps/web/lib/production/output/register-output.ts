@@ -42,7 +42,7 @@ import { z } from 'zod';
 
 import { resolveOutputWacContribution } from '../../finance/resolve-output-wac';
 import { resolveWacDeltaQtyKgFromSnapshot, upsertWac } from '../../finance/upsert-wac';
-import { snapshotFromItemRow } from '../../uom/convert';
+import { woSnapshotWacQtyFields } from '../../uom/convert';
 import { makeLpNumber, makeStockMoveNumber } from '../../warehouse/lp-create';
 import {
   PRODUCTION_OUTPUT_RECORDED_EVENT,
@@ -912,17 +912,13 @@ async function resolveQtyKg(
 ): Promise<string> {
   if (input.actualWeightKg) return input.actualWeightKg;
   if (input.qtyUnits && input.unitsUom) {
-    const snap = snapshotFromItemRow({ ...(wo.uom_snapshot ?? {}), uom_base: wo.uom });
+    const snap = woSnapshotWacQtyFields(wo.uom_snapshot, wo.uom);
     const resolution = await resolveWacDeltaQtyKgFromSnapshot(client, {
       qty: input.qtyUnits,
       uom: input.unitsUom,
       uomBase: snap.uomBase,
-      netQtyPerEach:
-        snap.netQtyPerEach != null && Number.isFinite(snap.netQtyPerEach)
-          ? String(snap.netQtyPerEach)
-          : null,
-      eachPerBox:
-        snap.eachPerBox != null && Number.isFinite(snap.eachPerBox) ? String(snap.eachPerBox) : null,
+      netQtyPerEach: snap.netQtyPerEach,
+      eachPerBox: snap.eachPerBox,
     });
     if (!resolution.resolved) {
       throw new ProductionActionError('uom_conversion_unavailable', 422, {

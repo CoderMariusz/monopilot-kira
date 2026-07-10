@@ -21,6 +21,8 @@ let insertedBatchNumber: string | null;
 let insertedSiteId: string | null;
 let insertedLpSiteId: string | null;
 let wacSnapshotUpdate: { params: readonly unknown[] } | null;
+let wacSnapshotQtyParams: readonly unknown[] | null;
+let wacSnapshotMockQtyKg: string | null;
 let existingRealOutputCount: string;
 let existingAllOutputCount: string;
 let sequenceCountSql: string | null;
@@ -65,11 +67,12 @@ function makeClient(): QueryClient {
         throw new Error('resolveQtyKg must use WO snapshot SQL, not item master');
       }
       if (normalized.includes('as qty_kg') && normalized.includes('as resolved') && !normalized.includes('from public.items')) {
+        wacSnapshotQtyParams = params;
         const qty = String(params[0] ?? '0');
         const uom = String(params[1] ?? '').toLowerCase();
         const uomBase = String(params[2] ?? '').toLowerCase();
-        const netQtyPerEach = params[3] == null ? null : Number(params[3]);
-        const eachPerBox = params[4] == null ? null : Number(params[4]);
+        const netQtyPerEach = params[3];
+        const eachPerBox = params[4];
         if (uom === 'box' && (eachPerBox == null || netQtyPerEach == null)) {
           return { rows: [{ qty_kg: '0', resolved: false }], rowCount: 1 };
         }
@@ -77,15 +80,10 @@ function makeClient(): QueryClient {
           return { rows: [{ qty_kg: '0', resolved: false }], rowCount: 1 };
         }
         if (uom === 'kg' || (uom === 'base' && uomBase === 'kg') || uom === uomBase) {
-          return { rows: [{ qty_kg: qty, resolved: true }], rowCount: 1 };
+          return { rows: [{ qty_kg: wacSnapshotMockQtyKg ?? qty, resolved: true }], rowCount: 1 };
         }
-        if (uom === 'each' && netQtyPerEach != null) {
-          const product = (Number(qty) * netQtyPerEach).toFixed(3);
-          return { rows: [{ qty_kg: product, resolved: true }], rowCount: 1 };
-        }
-        if (uom === 'box' && netQtyPerEach != null && eachPerBox != null) {
-          const product = (Number(qty) * eachPerBox * netQtyPerEach).toFixed(3);
-          return { rows: [{ qty_kg: product, resolved: true }], rowCount: 1 };
+        if (wacSnapshotMockQtyKg != null) {
+          return { rows: [{ qty_kg: wacSnapshotMockQtyKg, resolved: true }], rowCount: 1 };
         }
         return { rows: [{ qty_kg: '0', resolved: false }], rowCount: 1 };
       }
@@ -234,6 +232,8 @@ describe('registerOutput UOM quantity resolution', () => {
     insertedSiteId = null;
     insertedLpSiteId = null;
     wacSnapshotUpdate = null;
+    wacSnapshotQtyParams = null;
+    wacSnapshotMockQtyKg = null;
     existingRealOutputCount = '0';
     existingAllOutputCount = '0';
     sequenceCountSql = null;
@@ -259,6 +259,8 @@ describe('registerOutput UOM quantity resolution', () => {
   });
 
   it('converts units to kg when actualWeightKg is absent', async () => {
+    wacSnapshotMockQtyKg = '3.000';
+
     await registerOutput(makeCtx(), WO_ID, {
       transaction_id: TX_ID,
       output_type: 'primary',
@@ -272,6 +274,8 @@ describe('registerOutput UOM quantity resolution', () => {
   });
 
   it('uses WO snapshot pack factors, not current item master metadata', async () => {
+    wacSnapshotMockQtyKg = '3.000';
+
     await registerOutput(makeCtx(), WO_ID, {
       transaction_id: TX_ID,
       output_type: 'primary',
@@ -284,15 +288,17 @@ describe('registerOutput UOM quantity resolution', () => {
     expect(insertedQtyKg).toBe('3.000');
   });
 
-  it('preserves decimal precision via snapshot SQL numeric conversion', async () => {
+  it('passes lossless snapshot decimal strings to SQL without JS float round-trip', async () => {
+    const highPrecisionNetQty = '0.1234567890123456789';
     woSnapshot = {
       output_uom: 'box',
       uom_base: 'kg',
-      net_qty_per_each: '0.3333',
-      each_per_box: 3,
+      net_qty_per_each: highPrecisionNetQty,
+      each_per_box: '3',
       boxes_per_pallet: null,
       weight_mode: 'fixed',
     };
+    wacSnapshotMockQtyKg = '6.9993';
 
     await registerOutput(makeCtx(), WO_ID, {
       transaction_id: TX_ID,
@@ -302,8 +308,15 @@ describe('registerOutput UOM quantity resolution', () => {
       unitsUom: 'box',
     });
 
-    // 7 × 3 × 0.3333 = 6.9993 — not 7.0 from binary float.
-    expect(insertedQtyKg).toBe('6.999');
+    expect(String(Number(highPrecisionNetQty))).not.toBe(highPrecisionNetQty);
+    expect(wacSnapshotQtyParams).toEqual([
+      '7.000',
+      'box',
+      'kg',
+      highPrecisionNetQty,
+      '3',
+    ]);
+    expect(insertedQtyKg).toBe('6.9993');
   });
 
   it('falls back to legacy qty_kg when no unit quantity is provided', async () => {

@@ -133,3 +133,23 @@ Adversarial review verdict: **fail** → three required changes implemented.
 
 **Fix-round gates:** `pnpm --filter web exec tsc --noEmit` ✅ | 101/101 touched vitest tests ✅
 
+---
+
+## Fix round 2
+
+Re-review verdict: **fail** → two remaining items implemented.
+
+### 1. Romanian and Ukrainian `wac_unsupported_currency` translations
+
+**Review finding:** `ro.json` and `uk.json` still contained the English message verbatim at `receive.modal.errors.wac_unsupported_currency`.
+
+**Fix:** Replaced with native Romanian and Ukrainian strings preserving the actionable policy (GBP required for valuation; foreign-currency POs may be created/edited but cannot be received until FX conversion exists).
+
+### 2. Lossless WO snapshot NUMERIC binds for pack→kg
+
+**Review finding:** `resolveQtyKg` still routed snapshot factors through `snapshotFromItemRow` → `Number()` before SQL bind, and the precision test emulated PostgreSQL with JS float math.
+
+**Fix:** Added `snapshotDecimalString` + `woSnapshotWacQtyFields` in `convert.ts`; `registerOutput.resolveQtyKg` now passes raw decimal strings directly to `resolveWacDeltaQtyKgFromSnapshot`. Updated `register-output-uom.test.ts` to capture and assert exact SQL bind parameters with a high-precision `net_qty_per_each` that changes under a JS-number round-trip; mock no longer uses `Number` arithmetic for snapshot conversion.
+
+**Fix-round 2 gates:** `pnpm --filter web exec tsc --noEmit` ✅ | touched vitest (38 `.ts` + 20 `.tsx`) ✅
+
