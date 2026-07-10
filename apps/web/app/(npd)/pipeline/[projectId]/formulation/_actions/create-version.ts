@@ -60,6 +60,7 @@ export async function createFormulationVersion(input: {
            batch_size_kg,
            target_yield_pct,
            target_price_eur,
+           processing_overhead_pct,
            created_by_user,
            schema_version
          )
@@ -70,6 +71,7 @@ export async function createFormulationVersion(input: {
            batch_size_kg,
            target_yield_pct,
            target_price_eur,
+           processing_overhead_pct,
            $4::uuid,
            schema_version
            from public.formulation_versions
@@ -86,9 +88,13 @@ export async function createFormulationVersion(input: {
            version_id,
            rm_code,
            item_id,
+           substitute_item_id,
+           wip_definition_id,
+           npd_wip_process_id,
            qty_kg,
            pct,
            cost_per_kg_eur,
+           cost_currency,
            allergens_inherited,
            sequence,
            schema_version
@@ -97,9 +103,13 @@ export async function createFormulationVersion(input: {
            $1::uuid,
            rm_code,
            item_id,
+           substitute_item_id,
+           wip_definition_id,
+           npd_wip_process_id,
            qty_kg,
            pct,
            cost_per_kg_eur,
+           cost_currency,
            allergens_inherited,
            sequence,
            schema_version
