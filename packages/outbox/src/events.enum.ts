@@ -81,6 +81,7 @@ export enum EventType {
   NPD_GATE_REVERTED = 'npd.gate.reverted',
   NPD_PROJECT_BRIEF_MAPPED = 'npd.project.brief_mapped',
   NPD_PROJECT_CREATED = 'npd.project.created',
+  NPD_PROJECT_DELETED = 'npd.project.deleted',
   NPD_PROJECT_LEGACY_STAGES_CLOSED = 'npd.project.legacy_stages_closed',
   NPD_PROJECT_RELEASE_REQUESTED = 'npd.project.release_requested',
   ONBOARDING_FIRST_WO_RECORDED = 'onboarding.first_wo_recorded',
