@@ -189,7 +189,8 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
     if (await openFg.count()) {
       const href = (await openFg.getAttribute('href')) ?? '';
       flow.productCode = /\/fg\/([^/?#]+)/.exec(href)?.[1] ?? '';
-      console.log(`[npd-flow] FG already linked (${flow.productCode || '?'}) — mint step already satisfied.`);
+      expect(flow.productCode, 'linked FG product code captured from open-fg href [critical mutation]').toBeTruthy();
+      console.log(`[npd-flow] FG already linked (${flow.productCode}) — mint step already satisfied.`);
       await shot(page, '04-fg-already-linked');
       return;
     }
@@ -432,7 +433,7 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
   test('5 · Production detail persists a process with a line and consumed ingredients', async ({
     page,
   }) => {
-    test.skip(!flow.productCode, 'no FG code captured in step 2 — cannot open the FG production tab');
+    expect(flow.productCode, 'FG code captured in step 2 — prior critical mutation must pass').toBeTruthy();
     await signIn(page);
     await page.goto(url(`/${L}/fg/${flow.productCode}?tab=production`), {
       waitUntil: 'domcontentloaded',

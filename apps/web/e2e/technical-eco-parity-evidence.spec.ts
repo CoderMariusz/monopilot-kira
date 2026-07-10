@@ -33,24 +33,20 @@ test.describe('Technical ECO parity evidence', () => {
     await expect(page.locator('[data-screen="technical-eco"]')).toBeVisible({ timeout: 12_000 });
 
     const denied = page.getByRole('alert').filter({ hasText: /permission/i });
-    if (await denied.isVisible().catch(() => false)) {
-      await page.screenshot({ path: path.join(evidenceDir, 'permission-denied.png'), fullPage: true });
-      return;
-    }
+    await expect(denied, 'parity evidence requires authorized ECO access — permission denial is a hard fail').not.toBeVisible();
 
     await expect(page.getByRole('heading', { name: /change control/i })).toBeVisible();
     await expect(page.getByRole('tablist')).toBeVisible();
     await page.screenshot({ path: path.join(evidenceDir, 'list-ready.png'), fullPage: true });
 
     const newEco = page.getByRole('button', { name: /new eco/i });
-    if (await newEco.count()) {
-      await newEco.click();
-      const dialog = page.getByRole('dialog');
-      await expect(dialog).toBeVisible({ timeout: 8_000 });
-      await expect(dialog.getByRole('button', { name: /submit|create|open eco/i })).toBeVisible();
-      await page.screenshot({ path: path.join(evidenceDir, 'create-modal.png'), fullPage: true });
-      await page.keyboard.press('Escape').catch(() => undefined);
-    }
+    await expect(newEco, 'New ECO control must be present on the live screen').toBeVisible();
+    await newEco.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog, 'New ECO modal opens').toBeVisible({ timeout: 8_000 });
+    await expect(dialog.getByRole('button', { name: /submit|create|open eco/i })).toBeVisible();
+    await page.screenshot({ path: path.join(evidenceDir, 'create-modal.png'), fullPage: true });
+    await page.keyboard.press('Escape').catch(() => undefined);
 
     await page.goto(`${baseURL}/en/technical/eco?status=closed`, { waitUntil: 'domcontentloaded' });
     const empty = page.getByText(/no change orders/i);

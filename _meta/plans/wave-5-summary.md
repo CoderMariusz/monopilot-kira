@@ -67,3 +67,36 @@ git diff --stat (14 files, +228 −774)
 - **E2E live runs** against preview were not executed here (orchestrator Gate-5 only); specs skip cleanly when `PLAYWRIGHT_BASE_URL` unset.
 - **Live DB `schema_migrations` probe** for the two 459 files was not run (no owner DB in this worktree); collision handling follows the 2026-07-08 owner report pattern (both applied by filename, runner tracks independently).
 - **`packages/db/src/migrations/` mirrors** of the 459 files were not edited (runner globs `packages/db/migrations/` only).
+
+## Fix round 1
+
+Adversarial review (`wave-5-codex-review.md`) failed on three gaps. All required changes implemented:
+
+1. **Parity evidence mandatory assertions**
+   - `technical-eco-parity-evidence.spec.ts` — permission denial is a hard fail; New ECO button + modal are required (no conditional bypass).
+   - `technical-bom-row-actions-parity-evidence.spec.ts` — row actions, edit/delete dialogs, active-state disabled edit, and item→BOM deep link are all hard-required.
+
+2. **No runtime green skips in touched serial chains**
+   - `npd-full-lifecycle.spec.ts:459` — removed mid-test `test.skip(true)`; G3 e-sign step now gates at test start via `test.skip(!adminPassword, …)` (same pattern as G4).
+   - `npd-create-to-wo-flow.e2e.spec.ts:435` — replaced `test.skip(!flow.productCode)` with `expect(flow.productCode)`; step 2 already-linked branch now hard-requires a captured FG code from the href.
+
+3. **SO/PO creation correlated to just-created records**
+   - `order-to-ship-flow.e2e.spec.ts` — snapshots list link ids before submit, opens the **new** `so-link-*` / `po-link-*` row (not the first pre-existing draft), and asserts detail lines contain the picked item code.
+
+### Verification (fix round 1)
+
+```text
+# tsc (apps/web)
+TypeScript: No errors found
+
+# playwright --list
+Total: 279 tests in 89 files
+
+# import-to vitest
+Test Files  1 passed (1)
+Tests       3 passed (3)
+```
+
+```text
+git diff --stat (5 files, +93 −73)
+```

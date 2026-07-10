@@ -416,6 +416,7 @@ test.describe.serial('T-098 NPD full lifecycle: Brief → Project → G3 FG → 
   }) => {
     ensureDir(artifactDir);
     expect(projectId, 'project id captured — prior step must pass').toBeTruthy();
+    test.skip(!adminPassword, 'PLAYWRIGHT_ADMIN_PASSWORD unset — G3 e-sign required for approval');
 
     await signIn(page);
     await openGateScreen(page, projectId);
@@ -453,12 +454,6 @@ test.describe.serial('T-098 NPD full lifecycle: Brief → Project → G3 FG → 
     await expect(esignOverlay, 'e-sign overlay appears').toBeVisible({ timeout: 8_000 });
     await page.screenshot({ path: path.join(artifactDir, '11-g3-esign.png') });
     await runAxe(page, 'g3-esign-overlay');
-
-    // Guard: skip the password fill when the env var is absent.
-    if (!adminPassword) {
-      test.skip(true, 'PLAYWRIGHT_ADMIN_PASSWORD unset — e-sign password required for G3 approval');
-      return;
-    }
 
     const passwordInput = esignOverlay
       .getByLabel(/password|pin/i)

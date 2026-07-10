@@ -41,50 +41,46 @@ test.describe('Technical BOM row actions parity evidence', () => {
     await bomLink.click();
     await expect(page.locator('[data-screen="technical-bom-detail"]')).toBeVisible({ timeout: 12_000 });
 
-    const rowActions = page.getByTestId('bom-line-row-actions').first();
-    if (await rowActions.count()) {
-      await expect(page.getByTestId('bom-line-edit').first()).toBeVisible();
-      await expect(page.getByTestId('bom-line-delete').first()).toBeVisible();
-      await page.screenshot({ path: path.join(evidenceDir, '01-components-row-actions.png'), fullPage: true });
+    await expect(page.getByTestId('bom-line-row-actions').first(), 'BOM line row actions are present').toBeVisible();
+    await expect(page.getByTestId('bom-line-edit').first()).toBeVisible();
+    await expect(page.getByTestId('bom-line-delete').first()).toBeVisible();
+    await page.screenshot({ path: path.join(evidenceDir, '01-components-row-actions.png'), fullPage: true });
 
-      await page.getByTestId('bom-line-edit').first().click();
-      await expect(page.getByRole('dialog')).toBeVisible({ timeout: 8_000 });
-      await page.screenshot({ path: path.join(evidenceDir, '02-edit-line-modal.png'), fullPage: true });
-      await page.keyboard.press('Escape').catch(() => undefined);
+    await page.getByTestId('bom-line-edit').first().click();
+    await expect(page.getByRole('dialog'), 'edit-line modal opens').toBeVisible({ timeout: 8_000 });
+    await page.screenshot({ path: path.join(evidenceDir, '02-edit-line-modal.png'), fullPage: true });
+    await page.keyboard.press('Escape').catch(() => undefined);
 
-      await page.getByTestId('bom-line-delete').first().click();
-      await expect(page.getByTestId('bom-line-delete-confirm')).toBeVisible({ timeout: 8_000 });
-      await page.screenshot({ path: path.join(evidenceDir, '03-delete-confirm.png'), fullPage: true });
-      await page.keyboard.press('Escape').catch(() => undefined);
-    }
+    await page.getByTestId('bom-line-delete').first().click();
+    await expect(page.getByTestId('bom-line-delete-confirm'), 'delete confirm dialog is present').toBeVisible({
+      timeout: 8_000,
+    });
+    await page.screenshot({ path: path.join(evidenceDir, '03-delete-confirm.png'), fullPage: true });
+    await page.keyboard.press('Escape').catch(() => undefined);
 
     const activeTab = page.getByRole('tab', { name: /active/i });
-    if (await activeTab.count()) {
-      await page.goto(`${baseURL}/en/technical/bom`, { waitUntil: 'domcontentloaded' });
-      await activeTab.click().catch(() => undefined);
-      const activeLink = page.locator('[data-screen="technical-bom-list"] tbody tr td a').first();
-      if (await activeLink.count()) {
-        await activeLink.click();
-        await expect(page.locator('[data-screen="technical-bom-detail"]')).toBeVisible({ timeout: 12_000 });
-        const disabledEdit = page.locator('[data-testid="bom-line-edit"][disabled], [aria-label="Edit"][disabled]').first();
-        if (await disabledEdit.count()) {
-          await expect(disabledEdit).toBeDisabled();
-          await page.screenshot({ path: path.join(evidenceDir, '04-disabled-on-active.png'), fullPage: true });
-        }
-      }
-    }
+    await expect(activeTab, 'Active BOM tab is present').toBeVisible();
+    await page.goto(`${baseURL}/en/technical/bom`, { waitUntil: 'domcontentloaded' });
+    await activeTab.click();
+    const activeLink = page.locator('[data-screen="technical-bom-list"] tbody tr td a').first();
+    await expect(activeLink, 'at least one active BOM row is present').toBeVisible({ timeout: 10_000 });
+    await activeLink.click();
+    await expect(page.locator('[data-screen="technical-bom-detail"]')).toBeVisible({ timeout: 12_000 });
+    const disabledEdit = page
+      .locator('[data-testid="bom-line-edit"][disabled], [aria-label="Edit"][disabled]')
+      .first();
+    await expect(disabledEdit, 'edit action is disabled on an active BOM').toBeVisible({ timeout: 8_000 });
+    await expect(disabledEdit).toBeDisabled();
+    await page.screenshot({ path: path.join(evidenceDir, '04-disabled-on-active.png'), fullPage: true });
 
-    if (itemCode) {
-      await page.goto(`${baseURL}/en/technical/items/${encodeURIComponent(itemCode)}?tab=bom`, {
-        waitUntil: 'domcontentloaded',
-      });
-      await expect(page.locator('[data-screen="technical-item-detail"]')).toBeVisible({ timeout: 12_000 });
-      const openLink = page.getByTestId('item-bom-open-link').first();
-      if (await openLink.count()) {
-        await expect(openLink).toBeVisible();
-        await expect(openLink).toHaveAttribute('href', /\/technical\/bom\//);
-        await page.screenshot({ path: path.join(evidenceDir, '05-item-open-bom-link.png'), fullPage: true });
-      }
-    }
+    expect(itemCode, 'item code captured from BOM list row').toBeTruthy();
+    await page.goto(`${baseURL}/en/technical/items/${encodeURIComponent(itemCode)}?tab=bom`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(page.locator('[data-screen="technical-item-detail"]')).toBeVisible({ timeout: 12_000 });
+    const openLink = page.getByTestId('item-bom-open-link').first();
+    await expect(openLink, 'item→BOM deep link is present').toBeVisible();
+    await expect(openLink).toHaveAttribute('href', /\/technical\/bom\//);
+    await page.screenshot({ path: path.join(evidenceDir, '05-item-open-bom-link.png'), fullPage: true });
   });
 });
