@@ -12297,7 +12297,9 @@
         "cancel": "Anuluj",
         "errorRequired": "Przyrząd, data i wynik są wymagane.",
         "errorFailed": "Nie udało się zapisać kalibracji.",
-        "errorForbidden": "Brak uprawnień do zapisywania kalibracji."
+        "errorForbidden": "Brak uprawnień do zapisywania kalibracji.",
+        "signaturePassword": "PIN e-podpisu lub hasło konta",
+        "errorEsign": "Podpis nie powiódł się — sprawdź hasło lub PIN i spróbuj ponownie."
       },
       "types": {
         "scale": "Waga",

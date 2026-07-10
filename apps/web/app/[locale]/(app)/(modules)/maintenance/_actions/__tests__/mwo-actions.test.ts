@@ -10,10 +10,11 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createMwo, generateMwoFromPmSchedule, getMwoById, getMwoOverviewStats, listMwos, listPmSchedules, transitionMwo } from '../mwo-actions';
+import { createMwo, generateMwoFromPmSchedule, getMwoById, getMwoOverviewStats, listMwos, listPmSchedules, transitionMwo, verifyMwoLotoLockout, verifyMwoLotoRelease } from '../mwo-actions';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
+const OTHER_USER_ID = '33333333-3333-4333-8333-333333333333';
 const EQUIPMENT_ID = '33333333-3333-4333-8333-333333333333';
 const MWO_ID = '44444444-4444-4444-8444-444444444444';
 const SCHEDULE_ID = '55555555-5555-4555-8555-555555555555';
@@ -31,6 +32,9 @@ let equipmentExists = true;
 let currentState = 'open';
 let mwoScheduleId: string | null = null;
 let mwoSource: 'manual_request' | 'pm_schedule' | 'calibration_alert' = 'manual_request';
+let requiresLoto = false;
+let lotoLockoutUserId: string | null = null;
+let lotoReleaseUserId: string | null = null;
 let duplicateOpenMwo = false;
 let overviewPlanned = 0;
 let client: QueryClient;
@@ -40,6 +44,25 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
     async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
       action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+const signEventMock = vi.fn();
+
+vi.mock('@monopilot/e-sign', () => ({
+  EPinFailedError: class EPinFailedError extends Error {
+    constructor(message = 'Invalid password or PIN') {
+      super(message);
+      this.name = 'EPinFailedError';
+    }
+  },
+  ESignPolicyError: class ESignPolicyError extends Error {
+    code: string;
+    constructor(code: string, message?: string) {
+      super(message ?? code);
+      this.code = code;
+    }
+  },
+  signEvent: (...args: unknown[]) => signEventMock(...args),
 }));
 
 function normalize(sql: string): string {
@@ -82,6 +105,11 @@ function makeClient(): QueryClient {
               schedule_next_due: '2026-07-01',
               schedule_interval_basis: 'calendar_days',
               schedule_interval_value: 30,
+              requires_loto: false,
+              loto_zero_energy_verified_by: null,
+              loto_verified_at: null,
+              loto_released_by: null,
+              loto_released_at: null,
             },
           ],
           rowCount: 1,
@@ -224,12 +252,52 @@ function makeClient(): QueryClient {
         };
       }
 
-      // transitionMwo: FOR UPDATE state read.
+      // transitionMwo / LOTO: FOR UPDATE state read.
       if (normalized.includes('for update')) {
         return {
-          rows: [{ id: MWO_ID, state: currentState, schedule_id: mwoScheduleId, source: mwoSource }],
+          rows: [
+            {
+              id: MWO_ID,
+              state: currentState,
+              schedule_id: mwoScheduleId,
+              source: mwoSource,
+              requires_loto: requiresLoto,
+              mwo_number: 'MWO-2026-00001',
+              equipment_id: EQUIPMENT_ID,
+            },
+          ],
           rowCount: 1,
         };
+      }
+
+      if (normalized.includes('from public.mwo_loto_checklists')) {
+        if (normalized.includes('zero_energy_verified_by')) {
+          return {
+            rows: [
+              {
+                zero_energy_verified_by: lotoLockoutUserId,
+                verified_at: lotoLockoutUserId ? new Date('2026-06-11T09:00:00Z') : null,
+                released_by: lotoReleaseUserId,
+                released_at: lotoReleaseUserId ? new Date('2026-06-11T10:00:00Z') : null,
+              },
+            ],
+            rowCount: 1,
+          };
+        }
+      }
+
+      if (normalized.includes('insert into public.mwo_loto_checklists')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (normalized.includes('update public.mwo_loto_checklists') && normalized.includes('zero_energy_verified_by')) {
+        lotoLockoutUserId = String(params?.[1] ?? USER_ID);
+        return { rows: [{ verified_at: new Date('2026-06-11T09:00:00Z') }], rowCount: 1 };
+      }
+
+      if (normalized.includes('update public.mwo_loto_checklists') && normalized.includes('released_by')) {
+        lotoReleaseUserId = String(params?.[1] ?? USER_ID);
+        return { rows: [{ released_at: new Date('2026-06-11T10:00:00Z') }], rowCount: 1 };
       }
 
       // transitionMwo: advance PM schedule on completion.
@@ -336,14 +404,29 @@ beforeEach(() => {
     'mnt.mwo.request',
     'mnt.mwo.execute',
     'mnt.mwo.cancel',
+    'mnt.loto.apply',
+    'mnt.loto.clear',
   ]);
   equipmentExists = true;
   currentState = 'open';
   mwoScheduleId = null;
   mwoSource = 'manual_request';
+  requiresLoto = false;
+  lotoLockoutUserId = null;
+  lotoReleaseUserId = null;
   duplicateOpenMwo = false;
   overviewPlanned = 0;
   client = makeClient();
+  signEventMock.mockReset();
+  signEventMock.mockResolvedValue({
+    signatureId: '88888888-8888-4888-8888-888888888888',
+    signerUserId: USER_ID,
+    intent: 'mnt.loto.lockout',
+    subjectHash: 'a'.repeat(64),
+    signedAt: '2026-06-11T09:00:00.000Z',
+    auditEventId: 1,
+    nonce: 'nonce-loto',
+  });
 });
 
 describe('listMwos', () => {
@@ -577,6 +660,203 @@ describe('transitionMwo', () => {
 
     expect(result).toEqual({ ok: false, reason: 'not_found' });
   });
+
+  it('blocks in_progress when equipment requires LOTO but lockout is not verified', async () => {
+    currentState = 'open';
+    requiresLoto = true;
+    lotoLockoutUserId = null;
+
+    const result = await transitionMwo({ mwoId: MWO_ID, to: 'in_progress' });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'loto_not_verified',
+      message: 'LOTO active lockout verification is required before starting work',
+    });
+    expect(calls().some((c) => c.sql.startsWith('update public.maintenance_work_orders'))).toBe(false);
+  });
+
+  it('rejects in_progress when LOTO was verified then released before work started', async () => {
+    currentState = 'open';
+    requiresLoto = true;
+    lotoLockoutUserId = OTHER_USER_ID;
+    lotoReleaseUserId = USER_ID;
+
+    const result = await transitionMwo({ mwoId: MWO_ID, to: 'in_progress' });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'loto_not_verified',
+      message: 'LOTO active lockout verification is required before starting work',
+    });
+    expect(calls().some((c) => c.sql.startsWith('update public.maintenance_work_orders'))).toBe(false);
+  });
+
+  it('allows lockout → in_progress → release → completed for LOTO equipment', async () => {
+    requiresLoto = true;
+    currentState = 'open';
+    lotoLockoutUserId = OTHER_USER_ID;
+    lotoReleaseUserId = null;
+
+    let result = await transitionMwo({ mwoId: MWO_ID, to: 'in_progress' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data.state).toBe('in_progress');
+
+    currentState = 'in_progress';
+    lotoReleaseUserId = USER_ID;
+
+    result = await transitionMwo({ mwoId: MWO_ID, to: 'completed' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data.state).toBe('completed');
+  });
+
+  it('blocks completed when equipment requires LOTO but release is not verified', async () => {
+    currentState = 'in_progress';
+    requiresLoto = true;
+    lotoLockoutUserId = OTHER_USER_ID;
+    lotoReleaseUserId = null;
+
+    const result = await transitionMwo({ mwoId: MWO_ID, to: 'completed' });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'loto_not_verified',
+      message: 'LOTO release verification is required before completing work',
+    });
+    expect(calls().some((c) => c.sql.startsWith('update public.maintenance_work_orders'))).toBe(false);
+  });
+
+  it('allows transitions on non-LOTO equipment without a checklist', async () => {
+    currentState = 'open';
+    requiresLoto = false;
+
+    const result = await transitionMwo({ mwoId: MWO_ID, to: 'in_progress' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data.state).toBe('in_progress');
+  });
+});
+
+describe('verifyMwoLotoLockout', () => {
+  it('records lockout e-sign and updates mwo_loto_checklists', async () => {
+    requiresLoto = true;
+
+    const result = await verifyMwoLotoLockout({
+      mwoId: MWO_ID,
+      signature: { password: '123456' },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(signEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signerUserId: USER_ID,
+        pin: '123456',
+        intent: 'mnt.loto.lockout',
+        subject: { mwoId: MWO_ID, equipmentId: EQUIPMENT_ID },
+      }),
+      expect.any(Object),
+    );
+    expect(lotoLockoutUserId).toBe(USER_ID);
+    const outbox = calls().find((c) => c.sql.startsWith('insert into public.outbox_events'));
+    expect(outbox?.params?.[0]).toBe('maintenance.loto.applied');
+  });
+
+  it('requires mnt.loto.apply', async () => {
+    grantedPermissions.delete('mnt.loto.apply');
+    const result = await verifyMwoLotoLockout({ mwoId: MWO_ID, signature: { password: '123456' } });
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+    expect(signEventMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('verifyMwoLotoRelease', () => {
+  it('rejects release by the same actor as lockout', async () => {
+    requiresLoto = true;
+    currentState = 'in_progress';
+    lotoLockoutUserId = USER_ID;
+
+    const result = await verifyMwoLotoRelease({
+      mwoId: MWO_ID,
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'loto_same_actor',
+      message: 'LOTO release signer must be distinct from the lockout verifier',
+    });
+    expect(signEventMock).not.toHaveBeenCalled();
+  });
+
+  it('records release e-sign when lockout was verified by a different actor', async () => {
+    requiresLoto = true;
+    currentState = 'in_progress';
+    lotoLockoutUserId = OTHER_USER_ID;
+    signEventMock.mockResolvedValueOnce({
+      signatureId: '99999999-9999-4999-8999-999999999999',
+      signerUserId: USER_ID,
+      intent: 'mnt.loto.release',
+      subjectHash: 'b'.repeat(64),
+      signedAt: '2026-06-11T10:00:00.000Z',
+      auditEventId: 2,
+      nonce: 'nonce-release',
+    });
+
+    const result = await verifyMwoLotoRelease({
+      mwoId: MWO_ID,
+      signature: { password: '654321' },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(signEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'mnt.loto.release',
+        pin: '654321',
+      }),
+      expect.any(Object),
+    );
+    expect(lotoReleaseUserId).toBe(USER_ID);
+    const outbox = calls().find((c) => c.sql.startsWith('insert into public.outbox_events'));
+    expect(outbox?.params?.[0]).toBe('maintenance.loto.released');
+  });
+
+  it('rejects release when the MWO is not in progress', async () => {
+    requiresLoto = true;
+    currentState = 'open';
+    lotoLockoutUserId = OTHER_USER_ID;
+
+    const result = await verifyMwoLotoRelease({
+      mwoId: MWO_ID,
+      signature: { password: '654321' },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'invalid_transition',
+      message: 'LOTO release is only allowed while work is in progress',
+    });
+    expect(signEventMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects lockout when the MWO is not open', async () => {
+    requiresLoto = true;
+    currentState = 'in_progress';
+
+    const result = await verifyMwoLotoLockout({
+      mwoId: MWO_ID,
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'invalid_transition',
+      message: 'LOTO lockout can only be applied while the MWO is open',
+    });
+    expect(signEventMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('listPmSchedules', () => {
@@ -720,6 +1000,12 @@ describe('getMwoById', () => {
       scheduleType: 'preventive',
       intervalBasis: 'calendar_days',
       intervalValue: 30,
+    });
+    expect(result.data?.loto).toEqual({
+      requiresLoto: false,
+      lockoutVerified: false,
+      lockoutActive: false,
+      releaseVerified: false,
     });
   });
 

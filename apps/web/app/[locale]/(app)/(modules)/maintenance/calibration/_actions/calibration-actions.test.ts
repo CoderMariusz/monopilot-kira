@@ -27,6 +27,7 @@ let instrumentActive = true;
 let client: QueryClient;
 
 const revalidateMock = vi.fn();
+const signEventMock = vi.fn();
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(
@@ -37,6 +38,23 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 
 vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
   revalidateLocalized: (...args: unknown[]) => revalidateMock(...args),
+}));
+
+vi.mock('@monopilot/e-sign', () => ({
+  EPinFailedError: class EPinFailedError extends Error {
+    constructor(message = 'Invalid password or PIN') {
+      super(message);
+      this.name = 'EPinFailedError';
+    }
+  },
+  ESignPolicyError: class ESignPolicyError extends Error {
+    code: string;
+    constructor(code: string, message?: string) {
+      super(message ?? code);
+      this.code = code;
+    }
+  },
+  signEvent: (...args: unknown[]) => signEventMock(...args),
 }));
 
 function normalize(sql: string): string {
@@ -119,7 +137,19 @@ beforeEach(() => {
   instrumentActive = true;
   client = makeClient();
   revalidateMock.mockClear();
+  signEventMock.mockReset();
+  signEventMock.mockResolvedValue({
+    signatureId: '88888888-8888-4888-8888-888888888888',
+    signerUserId: USER_ID,
+    intent: 'mnt.calib.record',
+    subjectHash: 'c'.repeat(64),
+    signedAt: '2026-06-11T12:00:00.000Z',
+    auditEventId: 9,
+    nonce: 'nonce-calib',
+  });
 });
+
+const VALID_SIGNATURE = { password: '123456' };
 
 describe('getCalibrationPermissions', () => {
   it('returns all false when no permissions are granted', async () => {
@@ -244,6 +274,7 @@ describe('recordCalibration', () => {
       instrumentId: INSTRUMENT_ID,
       calibratedAt: '2026-06-01',
       result: 'PASS',
+      signature: VALID_SIGNATURE,
     });
     expect(result).toEqual({ ok: false, reason: 'forbidden' });
   });
@@ -255,12 +286,31 @@ describe('recordCalibration', () => {
       result: 'PASS',
       certificateRef: 'CERT-2026-001',
       notes: 'Within tolerance',
+      signature: VALID_SIGNATURE,
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.recordId).toBe(RECORD_ID);
       expect(result.data.nextDueDate).toBe('2026-11-28');
     }
+
+    expect(signEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signerUserId: USER_ID,
+        pin: '123456',
+        intent: 'mnt.calib.record',
+        subject: expect.objectContaining({
+          instrumentId: INSTRUMENT_ID,
+          result: 'PASS',
+        }),
+      }),
+      expect.any(Object),
+    );
+
+    const insertCall = client.query.mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('insert into public.calibration_records'),
+    );
+    expect(insertCall?.[1]?.[7]).toBe('c'.repeat(64));
 
     const outboxCall = client.query.mock.calls.find(([sql]) =>
       normalize(String(sql)).includes('insert into public.outbox_events'),
@@ -274,6 +324,7 @@ describe('recordCalibration', () => {
       instrumentId: INSTRUMENT_ID,
       calibratedAt: '2026-06-01',
       result: 'FAIL',
+      signature: VALID_SIGNATURE,
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -297,6 +348,7 @@ describe('recordCalibration', () => {
       instrumentId: INSTRUMENT_ID,
       calibratedAt: '2026-06-01',
       result: 'OUT_OF_SPEC',
+      signature: VALID_SIGNATURE,
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -321,6 +373,7 @@ describe('recordCalibration', () => {
       instrumentId: INSTRUMENT_ID,
       calibratedAt: '2099-01-15',
       result: 'PASS',
+      signature: VALID_SIGNATURE,
     });
     expect(result).toEqual({
       ok: false,
@@ -329,12 +382,36 @@ describe('recordCalibration', () => {
     });
   });
 
+  it('returns esign_failed and records nothing when PIN verification fails', async () => {
+    const { EPinFailedError } = await import('@monopilot/e-sign');
+    signEventMock.mockRejectedValueOnce(new EPinFailedError());
+
+    const result = await recordCalibration({
+      instrumentId: INSTRUMENT_ID,
+      calibratedAt: '2026-06-01',
+      result: 'PASS',
+      signature: { password: 'wrong' },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'esign_failed',
+      message: 'Invalid password or PIN',
+    });
+    expect(
+      client.query.mock.calls.some(([sql]) =>
+        normalize(String(sql)).includes('insert into public.calibration_records'),
+      ),
+    ).toBe(false);
+  });
+
   it('rejects FAIL on an inactive instrument', async () => {
     instrumentActive = false;
     const result = await recordCalibration({
       instrumentId: INSTRUMENT_ID,
       calibratedAt: '2026-06-01',
       result: 'FAIL',
+      signature: VALID_SIGNATURE,
     });
     expect(result).toEqual({
       ok: false,
@@ -349,6 +426,7 @@ describe('recordCalibration', () => {
       instrumentId: INSTRUMENT_ID,
       calibratedAt: '2026-06-01',
       result: 'PASS',
+      signature: VALID_SIGNATURE,
     });
     expect(result.ok).toBe(true);
 

@@ -8,9 +8,15 @@ import { Badge } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 
 import { MwoTransitionModal } from '../../../_components/mwo-transition-modal';
+import { MwoLotoModal, type MwoLotoModalLabels } from '../../../_components/mwo-loto-modal';
 import { PRIORITY_VARIANT, STATE_VARIANT, fmtDate, fmtDateTime } from '../../../_components/mwo-list.client';
 import type { MwoListLabels, TransitionMwoAction } from '../../../_components/mwo-list.client';
 import type { MwoDetailRow, MwoTransition } from '../../../_actions/mwo-actions';
+
+type LotoSignAction = (input: {
+  mwoId: string;
+  signature: { password: string };
+}) => Promise<{ ok: boolean; reason?: string; message?: string }>;
 
 export type MwoDetailLabels = MwoListLabels & {
   detail: {
@@ -26,7 +32,12 @@ export type MwoDetailLabels = MwoListLabels & {
     denied: string;
     error: string;
     notFound: string;
+    lotoActiveBanner: string;
+    lotoPendingBanner: string;
+    lotoApply: string;
+    lotoClear: string;
   };
+  loto: MwoLotoModalLabels;
 };
 
 export function MwoDetailClient({
@@ -35,18 +46,32 @@ export function MwoDetailClient({
   labels,
   permissions,
   transitionMwoAction,
+  verifyLotoLockoutAction,
+  verifyLotoReleaseAction,
 }: {
   locale: string;
   mwo: MwoDetailRow;
   labels: MwoDetailLabels;
-  permissions: { canExecute: boolean; canCancel: boolean };
+  permissions: {
+    canExecute: boolean;
+    canCancel: boolean;
+    canLotoApply: boolean;
+    canLotoClear: boolean;
+  };
   transitionMwoAction: TransitionMwoAction;
+  verifyLotoLockoutAction: LotoSignAction;
+  verifyLotoReleaseAction: LotoSignAction;
 }) {
   const router = useRouter();
   const [pendingTransition, setPendingTransition] = useState<MwoTransition | null>(null);
+  const [pendingLoto, setPendingLoto] = useState<'lockout' | 'release' | null>(null);
   const d = labels.detail;
 
   const terminal = mwo.state === 'completed' || mwo.state === 'cancelled';
+  const lotoRequired = mwo.loto.requiresLoto;
+  const canStart = permissions.canExecute && (!lotoRequired || mwo.loto.lockoutActive);
+
+  const refresh = () => router.refresh();
 
   return (
     <div className="flex flex-col gap-4" data-testid="mwo-detail">
@@ -106,9 +131,42 @@ export function MwoDetailClient({
           ) : null}
         </dl>
 
+        {lotoRequired && !terminal ? (
+          <div
+            className={
+              mwo.loto.lockoutActive
+                ? 'mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900'
+                : 'mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700'
+            }
+            data-testid="mwo-loto-banner"
+          >
+            {mwo.loto.lockoutActive ? d.lotoActiveBanner : d.lotoPendingBanner}
+          </div>
+        ) : null}
+
         {!terminal ? (
           <div className="mt-4 flex flex-wrap gap-2">
-            {mwo.state === 'open' && permissions.canExecute ? (
+            {lotoRequired && mwo.state === 'open' && !mwo.loto.lockoutActive && permissions.canLotoApply ? (
+              <button
+                type="button"
+                data-testid="mwo-detail-loto-apply"
+                onClick={() => setPendingLoto('lockout')}
+                className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-500"
+              >
+                {d.lotoApply}
+              </button>
+            ) : null}
+            {lotoRequired && mwo.state === 'in_progress' && mwo.loto.lockoutActive && permissions.canLotoClear ? (
+              <button
+                type="button"
+                data-testid="mwo-detail-loto-clear"
+                onClick={() => setPendingLoto('release')}
+                className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-50"
+              >
+                {d.lotoClear}
+              </button>
+            ) : null}
+            {mwo.state === 'open' && canStart ? (
               <button
                 type="button"
                 data-testid="mwo-detail-start"
@@ -182,7 +240,21 @@ export function MwoDetailClient({
           onClose={() => setPendingTransition(null)}
           onDone={() => {
             setPendingTransition(null);
-            router.refresh();
+            refresh();
+          }}
+        />
+      ) : null}
+
+      {pendingLoto ? (
+        <MwoLotoModal
+          mode={pendingLoto}
+          mwoId={mwo.id}
+          labels={labels.loto}
+          signAction={pendingLoto === 'lockout' ? verifyLotoLockoutAction : verifyLotoReleaseAction}
+          onClose={() => setPendingLoto(null)}
+          onDone={() => {
+            setPendingLoto(null);
+            refresh();
           }}
         />
       ) : null}

@@ -12219,7 +12219,9 @@
         "cancel": "Cancel",
         "errorRequired": "Instrument, date, and result are required.",
         "errorFailed": "Could not save the calibration record.",
-        "errorForbidden": "You do not have permission to record calibrations."
+        "errorForbidden": "You do not have permission to record calibrations.",
+        "signaturePassword": "E-sign PIN or account password",
+        "errorEsign": "Signature failed — check your password or PIN and try again."
       },
       "types": {
         "scale": "Scale",

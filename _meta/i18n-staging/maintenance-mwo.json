@@ -140,7 +140,26 @@
       "description": "Description",
       "denied": "You do not have permission to view this work order.",
       "error": "Could not load the work order. Please try again.",
-      "notFound": "Work order not found."
+      "notFound": "Work order not found.",
+      "lotoActiveBanner": "LOTO active — zero-energy lockout verified. Work can proceed safely. Clear LOTO before completing the work order.",
+      "lotoPendingBanner": "This equipment requires LOTO before work can start. Apply lockout with your e-sign PIN.",
+      "lotoApply": "Apply LOTO",
+      "lotoClear": "Clear LOTO"
+    },
+    "loto": {
+      "lockoutTitle": "Apply LOTO lockout",
+      "releaseTitle": "Clear LOTO release",
+      "signaturePassword": "E-sign PIN or account password",
+      "submitLockout": "Verify lockout",
+      "submitRelease": "Verify release",
+      "submitting": "Verifying…",
+      "cancel": "Cancel",
+      "errorRequired": "Signature is required.",
+      "errorFailed": "LOTO verification failed. Please try again.",
+      "errorForbidden": "You do not have permission for this LOTO action.",
+      "errorEsign": "Signature failed — check your password or PIN and try again.",
+      "errorSameActor": "LOTO release must be signed by a different person than the lockout verifier.",
+      "errorInvalidTransition": "This LOTO action is not allowed in the current work-order state."
     }
   },
   "pl": {
@@ -284,7 +303,26 @@
       "description": "Opis",
       "denied": "Nie masz uprawnień do przeglądania tego zlecenia.",
       "error": "Nie udało się wczytać zlecenia. Spróbuj ponownie.",
-      "notFound": "Nie znaleziono zlecenia."
+      "notFound": "Nie znaleziono zlecenia.",
+      "lotoActiveBanner": "LOTO aktywne — zweryfikowano zerową energię. Prace mogą być kontynuowane. Usuń LOTO przed zakończeniem zlecenia.",
+      "lotoPendingBanner": "To urządzenie wymaga LOTO przed rozpoczęciem prac. Zastosuj blokadę z podpisem e-sign.",
+      "lotoApply": "Zastosuj LOTO",
+      "lotoClear": "Usuń LOTO"
+    },
+    "loto": {
+      "lockoutTitle": "Zastosuj blokadę LOTO",
+      "releaseTitle": "Zwolnij LOTO",
+      "signaturePassword": "PIN e-sign lub hasło konta",
+      "submitLockout": "Potwierdź blokadę",
+      "submitRelease": "Potwierdź zwolnienie",
+      "submitting": "Weryfikacja…",
+      "cancel": "Anuluj",
+      "errorRequired": "Podpis jest wymagany.",
+      "errorFailed": "Weryfikacja LOTO nie powiodła się. Spróbuj ponownie.",
+      "errorForbidden": "Nie masz uprawnień do tej operacji LOTO.",
+      "errorEsign": "Podpis nie powiódł się — sprawdź hasło lub PIN.",
+      "errorSameActor": "Zwolnienie LOTO musi podpisać inna osoba niż weryfikator blokady.",
+      "errorInvalidTransition": "Ta operacja LOTO nie jest dozwolona w bieżącym stanie zlecenia."
     }
   }
 }

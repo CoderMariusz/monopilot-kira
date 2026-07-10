@@ -51,6 +51,7 @@ export function MwoTransitionModal({
       if (result.ok) onDone();
       else if (result.reason === 'forbidden') setError(labels.transition.errorForbidden);
       else if (result.reason === 'invalid_transition') setError(labels.transition.errorIllegal);
+      else if (result.reason === 'loto_not_verified') setError(result.message ?? labels.transition.errorFailed);
       else setError(labels.transition.errorFailed);
     });
   };

@@ -175,9 +175,18 @@ export type MwoActionPermissions = {
   canCancel: boolean;
 };
 
+type MwoActionFailureReason =
+  | 'forbidden'
+  | 'not_found'
+  | 'invalid_transition'
+  | 'loto_not_verified'
+  | 'loto_same_actor'
+  | 'esign_failed'
+  | 'error';
+
 type CreateResult =
   | { ok: true; data: MwoListRow }
-  | { ok: false; reason: 'forbidden' | 'not_found' | 'invalid_transition' | 'error'; message?: string };
+  | { ok: false; reason: MwoActionFailureReason; message?: string };
 
 export type CreateMwoAction = (input: {
   equipmentId: string;

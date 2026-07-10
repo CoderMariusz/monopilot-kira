@@ -8,7 +8,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getMaintenanceTranslator } from '../../maintenance-labels';
 import { buildMwoListLabels } from '../../_components/mwo-detail-labels';
-import { getMwoById, getMwoPermissions, transitionMwo } from '../../_actions/mwo-actions';
+import { getMwoById, getMwoPermissions, transitionMwo, verifyMwoLotoLockout, verifyMwoLotoRelease } from '../../_actions/mwo-actions';
 import { MwoDetailClient } from './_components/mwo-detail.client';
 
 export const dynamic = 'force-dynamic';
@@ -65,8 +65,12 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
       permissions={{
         canExecute: permissions.canExecute,
         canCancel: permissions.canCancel,
+        canLotoApply: permissions.canLotoApply,
+        canLotoClear: permissions.canLotoClear,
       }}
       transitionMwoAction={transitionMwo}
+      verifyLotoLockoutAction={verifyMwoLotoLockout}
+      verifyLotoReleaseAction={verifyMwoLotoRelease}
     />
   );
 }
