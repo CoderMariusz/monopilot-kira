@@ -15,6 +15,8 @@ import path from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
+import { signIn } from './_shared/parity-login';
+
 import { TECHNICAL_NAV_GROUPS } from '../lib/navigation/technical-nav';
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;
@@ -36,6 +38,8 @@ function tNav(key: string): string {
   }, navPL) as string;
 }
 
+test.describe.configure({ timeout: 120_000 });
+
 test.describe('Technical PL i18n parity evidence', () => {
   test.skip(
     !baseURL,
@@ -45,6 +49,7 @@ test.describe('Technical PL i18n parity evidence', () => {
   test('Technical rail + dashboard render real Polish (i18n parity evidence)', async ({ page }) => {
     mkdirSync(evidenceDir, { recursive: true });
     await page.setViewportSize(viewport);
+    await signIn(page, baseURL!, 'pl');
     await page.goto(`${baseURL}/pl/technical`, { waitUntil: 'domcontentloaded' });
 
     await expect(page.locator('[data-screen="technical-dashboard"]')).toBeVisible({ timeout: 12_000 });

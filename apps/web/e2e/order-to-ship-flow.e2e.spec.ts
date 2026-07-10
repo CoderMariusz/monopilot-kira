@@ -152,8 +152,11 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
     // Pick a finished-good line item from the real items master.
     await page.getByTestId('item-picker-trigger').first().click();
     await expect(page.getByTestId('item-picker-options')).toBeVisible({ timeout: 8_000 });
-    const itemOptionCount = await page.getByTestId('item-picker-option').count();
-    expect(itemOptionCount, 'at least one FG item must be seeded to build a SO line [critical mutation]').toBeGreaterThan(0);
+    // Options load async after the panel opens — wait for the first one, don't count a mid-fetch snapshot.
+    await expect(
+      page.getByTestId('item-picker-option').first(),
+      'at least one FG item must be seeded to build a SO line [critical mutation]',
+    ).toBeVisible({ timeout: 10_000 });
     await page.getByTestId('item-picker-option').first().click();
     chain.itemCode = ((await page.getByTestId('create-so-line-item').first().innerText().catch(() => '')) || '')
       .trim()

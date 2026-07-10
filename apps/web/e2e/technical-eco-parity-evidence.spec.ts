@@ -15,9 +15,13 @@ import path from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
+import { signIn } from './_shared/parity-login';
+
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;
 const evidenceDir = path.join(__dirname, 'artifacts/TECHNICAL-ECO');
 const viewport = { width: 1440, height: 1000 };
+
+test.describe.configure({ timeout: 120_000 });
 
 test.describe('Technical ECO parity evidence', () => {
   test.skip(
@@ -28,6 +32,7 @@ test.describe('Technical ECO parity evidence', () => {
   test('captures list, modal, and empty-state screenshots', async ({ page }) => {
     mkdirSync(evidenceDir, { recursive: true });
     await page.setViewportSize(viewport);
+    await signIn(page, baseURL!);
     await page.goto(`${baseURL}/en/technical/eco`, { waitUntil: 'domcontentloaded' });
 
     await expect(page.locator('[data-screen="technical-eco"]')).toBeVisible({ timeout: 12_000 });

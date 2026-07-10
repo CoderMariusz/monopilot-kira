@@ -204,12 +204,18 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
       if (!(await advance.count())) break;
       await advance.click().catch(() => undefined);
       // Advance-gate modal → submit the transition when it is not blocked.
-      const modal = page.getByTestId('advance-gate-transition');
+      const modal = page.getByRole('dialog', { name: /advance gate/i });
       if (await modal.count()) {
-        const submit = page.locator('#advance-gate-form button[type="submit"]');
-        if (await submit.count()) await submit.first().click().catch(() => undefined);
-        await page.getByTestId('advance-gate-success').waitFor({ timeout: 8_000 }).catch(() => undefined);
-        await page.keyboard.press('Escape').catch(() => undefined);
+        // First click the primary advance. If required stage checks are
+        // incomplete, an override alert appears and demands a note before the
+        // button re-enables as "Override and advance" — a real user flow.
+        await modal.getByRole('button', { name: /advance to|override and advance/i }).last().click().catch(() => undefined);
+        const overrideNote = modal.getByRole('textbox', { name: /override note/i });
+        if (await overrideNote.count()) {
+          await overrideNote.fill('E2E flow-spec advance — override incomplete stage checks (test project)');
+          await modal.getByRole('button', { name: /override and advance/i }).click().catch(() => undefined);
+        }
+        await modal.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
       }
       await page.goto(url(`/${L}/pipeline/${flow.projectId}/formulation`), {
         waitUntil: 'domcontentloaded',

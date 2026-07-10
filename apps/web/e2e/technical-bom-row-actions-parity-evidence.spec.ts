@@ -11,9 +11,13 @@ import path from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
+import { signIn } from './_shared/parity-login';
+
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;
 const evidenceDir = path.join(__dirname, 'artifacts/TECHNICAL-BOM-ROW-ACTIONS');
 const viewport = { width: 1440, height: 1000 };
+
+test.describe.configure({ timeout: 120_000 });
 
 test.describe('Technical BOM row actions parity evidence', () => {
   test.skip(
@@ -27,6 +31,7 @@ test.describe('Technical BOM row actions parity evidence', () => {
     mkdirSync(evidenceDir, { recursive: true });
     await page.setViewportSize(viewport);
 
+    await signIn(page, baseURL!);
     await page.goto(`${baseURL}/en/technical/bom`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-screen="technical-bom-list"]')).toBeVisible({ timeout: 12_000 });
 
