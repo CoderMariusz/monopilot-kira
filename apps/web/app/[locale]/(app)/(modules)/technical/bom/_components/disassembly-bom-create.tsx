@@ -39,6 +39,7 @@ import { Button } from '@monopilot/ui/Button';
 
 import { createDisassemblyBomDraft } from '../_actions/disassembly-client-actions';
 import { listItems } from '../../items/_actions/list-items';
+import { ITEM_CHOOSER_MAX_LIMIT } from '../../../../../../../lib/shared/pagination';
 import type { ItemListItem, ItemStatus } from '../../items/_actions/shared';
 
 export type BomType = 'forward' | 'disassembly';
@@ -190,7 +191,7 @@ export function DisassemblyAuthoring({
     setListState('loading');
     void (async () => {
       try {
-        const res = await listItems();
+        const res = await listItems({ limit: ITEM_CHOOSER_MAX_LIMIT });
         if (cancelled) return;
         if (res.state === 'error') {
           setListState('error');
@@ -575,7 +576,7 @@ export function DisassemblyBomCreate({
     setListState('loading');
     void (async () => {
       try {
-        const res = await listItems({ itemTypes: ['fg'] });
+        const res = await listItems({ itemTypes: ['fg'], limit: ITEM_CHOOSER_MAX_LIMIT });
         if (cancelled) return;
         if (res.state === 'error') {
           setListState('error');

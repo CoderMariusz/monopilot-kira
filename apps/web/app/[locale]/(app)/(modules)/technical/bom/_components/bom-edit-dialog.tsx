@@ -57,6 +57,7 @@ import { createBomDraft } from '../_actions/create-draft';
 import { addBomLine } from '../_actions/line-actions';
 import type { BomStatus, BomValidationCode, ComponentType } from '../_actions/shared';
 import { listItems } from '../../items/_actions/list-items';
+import { ITEM_CHOOSER_MAX_LIMIT } from '../../../../../../../lib/shared/pagination';
 import type { ItemListItem, ItemType } from '../../items/_actions/shared';
 
 /**
@@ -279,7 +280,10 @@ export function ComponentAddModal({
     let cancelled = false;
     setMaterialsState('loading');
     void (async () => {
-      const [itemsRes, opsRes] = await Promise.all([listItems(), listManufacturingOperations({ includeInactive: false })]);
+      const [itemsRes, opsRes] = await Promise.all([
+        listItems({ limit: ITEM_CHOOSER_MAX_LIMIT }),
+        listManufacturingOperations({ includeInactive: false }),
+      ]);
       if (cancelled) return;
       if (itemsRes.state === 'error') {
         setMaterialsState('error');

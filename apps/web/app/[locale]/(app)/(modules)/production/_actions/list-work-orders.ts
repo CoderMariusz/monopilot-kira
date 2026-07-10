@@ -29,6 +29,12 @@
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
+  DEFAULT_PRODUCTION_WO_LIST_PAGE_SIZE,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../lib/shared/pagination';
+import {
   hasPermission,
   type ProductionContext,
   type WoState,
@@ -76,13 +82,14 @@ export type WorkOrderListItem = {
 
 export type WorkOrderListData = {
   rows: WorkOrderListItem[];
-  /** Per-status counts for the list's status tabs (all statuses, zero-filled). */
+  /** Per-status counts for the list's status tabs (search-filtered, not status-filtered). */
   statusCounts: Record<WoListStatus, number>;
+  pagination: PaginatedResult<WorkOrderListItem>;
 };
 
 /**
  * Result wrapper (mirrors ProductionDashboardResult):
- *   - ok:true                          → rows + status counts.
+ *   - ok:true                          → rows + status counts + pagination.
  *   - ok:false, reason:'forbidden'     → caller lacks production.oee.read.
  *   - ok:false, reason:'error'         → live read failed (error banner, no 500).
  */
@@ -90,7 +97,7 @@ export type WorkOrderListResult =
   | { ok: true; data: WorkOrderListData }
   | { ok: false; reason: 'forbidden' | 'error' };
 
-/** Optional read filters (14-multi-site CL4 — additive, absent = unchanged). */
+/** Optional read filters (14-multi-site CL4 + list URL params). */
 export type WorkOrderListInput = {
   /**
    * Site filter (topbar picker cookie). Matches the WO's own site_id when set,
@@ -99,28 +106,18 @@ export type WorkOrderListInput = {
    * the T-030 backfill). null/undefined/non-uuid = All sites (no filter).
    */
   siteId?: string | null;
+  /** Case-insensitive match on WO number, product id, item code, or product name. */
+  search?: string | null;
+  /** Materialized execution status tab filter; absent / `all` = no filter. */
+  status?: WoListStatus | 'all' | null;
+  page?: number;
+  offset?: number;
+  limit?: number;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function listWorkOrders(input?: WorkOrderListInput): Promise<WorkOrderListResult> {
-  const siteId =
-    typeof input?.siteId === 'string' && UUID_RE.test(input.siteId) ? input.siteId : null;
-  try {
-    return await withOrgContext(async (ctx): Promise<WorkOrderListResult> => {
-      const pctx = ctx as unknown as ProductionContext;
-
-      // ── RBAC gate (server-side, never trust the client) ──────────────────────
-      if (!(await hasPermission(pctx, PRODUCTION_VIEW_PERMISSION))) {
-        return { ok: false, reason: 'forbidden' };
-      }
-
-      const c = ctx.client;
-
-      // Status-tab counts from work_orders so released-but-unstarted WOs are
-      // visible as `planned` before an execution row exists (dashboard parity).
-      const statusRes = await c.query<{ status: string; n: number }>(
-        `select coalesce(
+const STATUS_EXPR = `coalesce(
                   e.status,
                   case w.status
                     when 'RELEASED' then 'planned'
@@ -130,19 +127,128 @@ export async function listWorkOrders(input?: WorkOrderListInput): Promise<WorkOr
                     when 'CLOSED' then 'closed'
                     when 'CANCELLED' then 'cancelled'
                   end
-                ) as status,
-                count(*)::int as n
+                )`;
+
+const WO_LIST_FROM = `
            from public.work_orders w
            left join public.wo_executions e
              on e.org_id = w.org_id and e.wo_id = w.id
+           left join public.items i
+             on i.org_id = w.org_id and i.id = w.product_id
            left join public.production_lines pl
-             on pl.org_id = w.org_id and pl.id = w.production_line_id
+             on pl.org_id = w.org_id and pl.id = w.production_line_id`;
+
+const WO_LIST_BASE_WHERE = `
           where w.org_id = app.current_org_id()
             and w.status in ('RELEASED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CLOSED', 'CANCELLED')
             and ($1::uuid is null or coalesce(w.site_id, pl.site_id) = $1::uuid)
+            and (
+              $2::text is null
+              or w.wo_number ilike '%' || $2 || '%'
+              or w.product_id::text ilike '%' || $2 || '%'
+              or coalesce(i.item_code, '') ilike '%' || $2 || '%'
+              or coalesce(i.name, '') ilike '%' || $2 || '%'
+            )`;
+
+function parseStatusFilter(status: WorkOrderListInput['status']): WoListStatus | null {
+  if (!status || status === 'all') return null;
+  return (ALL_STATUSES as string[]).includes(status) ? status : null;
+}
+
+export async function listWorkOrders(input?: WorkOrderListInput): Promise<WorkOrderListResult> {
+  const siteId =
+    typeof input?.siteId === 'string' && UUID_RE.test(input.siteId) ? input.siteId : null;
+  const search = input?.search?.trim() || null;
+  const statusFilter = parseStatusFilter(input?.status ?? null);
+  const page = normalizePage({
+    page: input?.page,
+    offset: input?.offset,
+    limit: input?.limit,
+    defaultLimit: DEFAULT_PRODUCTION_WO_LIST_PAGE_SIZE,
+    maxLimit: 200,
+  });
+
+  try {
+    return await withOrgContext(async (ctx): Promise<WorkOrderListResult> => {
+      const pctx = ctx as unknown as ProductionContext;
+
+      if (!(await hasPermission(pctx, PRODUCTION_VIEW_PERMISSION))) {
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      const c = ctx.client;
+      const baseParams = [siteId, search] as const;
+      const listParams = [siteId, search, statusFilter, page.limit, page.offset];
+
+      const [statusRes, countRes, woRes] = await Promise.all([
+        c.query<{ status: string; n: number }>(
+          `select ${STATUS_EXPR} as status,
+                  count(*)::int as n
+           ${WO_LIST_FROM}
+           ${WO_LIST_BASE_WHERE}
           group by 1`,
-        [siteId],
-      );
+          [...baseParams],
+        ),
+        c.query<{ total: number }>(
+          `select count(*)::int as total
+           ${WO_LIST_FROM}
+           ${WO_LIST_BASE_WHERE}
+             and ($3::text is null or ${STATUS_EXPR} = $3::text)`,
+          [...baseParams, statusFilter],
+        ),
+        c.query<{
+          id: string;
+          wo_number: string | null;
+          product_id: string;
+          item_code: string | null;
+          product_name: string | null;
+          status: string;
+          production_line_id: string | null;
+          line_code: string | null;
+          planned_quantity: string | number | null;
+          uom: string | null;
+          output_kg: string | number | null;
+          progress_pct: string | number | null;
+          has_allergen: boolean;
+          over_production_flagged: boolean | null;
+          scheduled_start_time: string | Date | null;
+          scheduled_end_time: string | Date | null;
+        }>(
+          `select w.id::text as id,
+                  w.wo_number,
+                  w.product_id::text as product_id,
+                  i.item_code,
+                  i.name as product_name,
+                  pl.code as line_code,
+                  ${STATUS_EXPR} as status,
+                  w.production_line_id::text as production_line_id,
+                  w.planned_quantity,
+                  w.uom,
+                  produced.qty_kg as output_kg,
+                  case
+                    when coalesce(w.planned_quantity, 0) > 0
+                      then least(100::numeric, round(produced.qty_kg / w.planned_quantity * 100, 0))
+                    else null
+                  end as progress_pct,
+                  (w.allergen_profile_snapshot is not null) as has_allergen,
+                  w.over_production_flagged,
+                  w.scheduled_start_time,
+                  w.scheduled_end_time
+           ${WO_LIST_FROM}
+           left join lateral (
+             select coalesce(sum(o.qty_kg), 0) as qty_kg
+               from public.wo_outputs o
+              where o.wo_id = w.id
+                and o.org_id = app.current_org_id()
+           ) produced on true
+           ${WO_LIST_BASE_WHERE}
+             and ($3::text is null or ${STATUS_EXPR} = $3::text)
+          order by w.scheduled_start_time desc nulls last, e.created_at desc nulls last
+          limit $4 offset $5`,
+          listParams,
+        ),
+      ]);
+
       const statusCounts = ALL_STATUSES.reduce(
         (acc, s) => {
           acc[s] = 0;
@@ -155,78 +261,6 @@ export async function listWorkOrders(input?: WorkOrderListInput): Promise<WorkOr
           statusCounts[r.status as WoListStatus] = r.n;
         }
       }
-
-      // WO list — work_orders is the driving table. Progress is computed from the
-      // canonical wo_outputs sum (NUMERIC in SQL), not the planning mirror.
-      const woRes = await c.query<{
-        id: string;
-        wo_number: string | null;
-        product_id: string;
-        item_code: string | null;
-        product_name: string | null;
-        status: string;
-        production_line_id: string | null;
-        line_code: string | null;
-        planned_quantity: string | number | null;
-        uom: string | null;
-        output_kg: string | number | null;
-        progress_pct: string | number | null;
-        has_allergen: boolean;
-        over_production_flagged: boolean | null;
-        scheduled_start_time: string | Date | null;
-        scheduled_end_time: string | Date | null;
-      }>(
-        `select w.id::text as id,
-                w.wo_number,
-                w.product_id::text as product_id,
-                i.item_code,
-                i.name as product_name,
-                pl.code as line_code,
-                coalesce(
-                  e.status,
-                  case w.status
-                    when 'RELEASED' then 'planned'
-                    when 'IN_PROGRESS' then 'in_progress'
-                    when 'ON_HOLD' then 'paused'
-                    when 'COMPLETED' then 'completed'
-                    when 'CLOSED' then 'closed'
-                    when 'CANCELLED' then 'cancelled'
-                    else 'planned'
-                  end
-                ) as status,
-                w.production_line_id::text as production_line_id,
-                w.planned_quantity,
-                w.uom,
-                produced.qty_kg as output_kg,
-                case
-                  when coalesce(w.planned_quantity, 0) > 0
-                    then least(100::numeric, round(produced.qty_kg / w.planned_quantity * 100, 0))
-                  else null
-                end as progress_pct,
-                (w.allergen_profile_snapshot is not null) as has_allergen,
-                w.over_production_flagged,
-                w.scheduled_start_time,
-                w.scheduled_end_time
-           from public.work_orders w
-           left join public.wo_executions e
-             on e.wo_id = w.id and e.org_id = w.org_id
-           left join public.items i
-             on i.org_id = w.org_id and i.id = w.product_id
-           left join public.production_lines pl
-             on pl.org_id = w.org_id and pl.id = w.production_line_id
-           left join lateral (
-             select coalesce(sum(o.qty_kg), 0) as qty_kg
-               from public.wo_outputs o
-              where o.wo_id = w.id
-                and o.org_id = app.current_org_id()
-           ) produced on true
-          where w.org_id = app.current_org_id()
-            and w.status in ('RELEASED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CLOSED', 'CANCELLED')
-            and ($1::uuid is null or coalesce(w.site_id, pl.site_id) = $1::uuid)
-          order by w.scheduled_start_time desc nulls last, e.created_at desc nulls last
-          limit 200`,
-        [siteId],
-      );
 
       const rows: WorkOrderListItem[] = woRes.rows.map((r) => {
         const status = (ALL_STATUSES as string[]).includes(r.status)
@@ -255,7 +289,9 @@ export async function listWorkOrders(input?: WorkOrderListInput): Promise<WorkOr
         };
       });
 
-      return { ok: true, data: { rows, statusCounts } };
+      const pagination = toPaginatedResult(rows, Number(countRes.rows[0]?.total ?? 0), page);
+
+      return { ok: true, data: { rows, statusCounts, pagination } };
     });
   } catch (error) {
     console.error('[production/wos] WO-list read failed:', error);

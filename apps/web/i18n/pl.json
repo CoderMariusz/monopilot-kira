@@ -2603,6 +2603,11 @@
           "updated": "Aktualizacja",
           "status": "Status",
           "actions": "Akcje"
+        },
+        "pagination": {
+          "showing": "Wyświetlono {shown} z {total}",
+          "previous": "Poprzednia",
+          "next": "Następna"
         }
       },
       "transition": {
@@ -3806,7 +3811,12 @@
       "noMatchTitle": "Brak materiałów pasujących do filtrów",
       "noMatchBody": "Dostosuj zakładkę typu, status lub wyszukiwanie, aby zobaczyć więcej.",
       "errorTitle": "Nie udało się wczytać materiałów",
-      "errorBody": "Spróbuj ponownie."
+      "errorBody": "Spróbuj ponownie.",
+      "pagination": {
+        "showing": "Wyświetlono {shown} z {total}",
+        "previous": "Poprzednia",
+        "next": "Następna"
+      }
     },
     "sensory": {
       "title": "Ocena sensoryczna",
@@ -4176,7 +4186,8 @@
           "placeholder": "Filtruj po nazwie…",
           "empty": "Brak pasujących operacji",
           "cancel": "Anuluj"
-        }
+        },
+        "yieldPct": "Wydajność %"
       },
       "whereUsed": {
         "title": "Gdzie używane",
@@ -4315,6 +4326,22 @@
           "already_exists": "Wersja specyfikacji dla tego itemu już istnieje.",
           "persistence_failed": "Nie udało się zapisać specyfikacji."
         }
+      },
+      "cloneNewVersion": "+ Nowa wersja",
+      "release": {
+        "action": "Zwolnij do produkcji",
+        "permissionTooltip": "Potrzebujesz uprawnienia do zatwierdzania Technical, aby zwolnić tę specyfikację.",
+        "title": "Zwolnij specyfikację do produkcji",
+        "body": "Zwolnienie {spec} odblokowuje użycie w produkcji dla zleceń planistycznych. Powiązany pakiet BOM musi być już zatwierdzony.",
+        "confirm": "Zwolnij do produkcji",
+        "submitting": "Zwalnianie…",
+        "cancel": "Anuluj",
+        "errors": {
+          "forbidden": "Nie masz uprawnień do zwolnienia tej specyfikacji.",
+          "generic": "Nie udało się zwolnić tej specyfikacji. Spróbuj ponownie."
+        },
+        "handoffRequired": "Zwolnij przez przekazanie NPD",
+        "handoffTooltip": "Produkty z NPD muszą być zwalniane z przekazania NPD, a nie z Technical."
       }
     },
     "releaseBundle": {
@@ -5941,7 +5968,8 @@
         "warn": "Ostrzeżenie",
         "info": "Informacja"
       },
-      "deleteDisabledHint": "Nie masz uprawnień do usuwania wyrobów gotowych."
+      "deleteDisabledHint": "Nie masz uprawnień do usuwania wyrobów gotowych.",
+      "totalYield": "Łączny uzysk"
     },
     "faDetailModals": {
       "deptCloseTitle": "Zamknij dział",
@@ -6377,7 +6405,8 @@
       "fieldOutputUnitBoxes": "kartony",
       "fieldWeeklyVolumePacks": "Wolumen tygodniowy (paczek/tydzień)",
       "fieldRunsPerWeek": "Przebiegi na tydzień",
-      "fieldRunsPerWeekHelp": "Szacunek planistyczny — można go zmieniać do momentu premiery; ostateczna liczba przebiegów jest potwierdzana przy przekazaniu."
+      "fieldRunsPerWeekHelp": "Szacunek planistyczny — można go zmieniać do momentu premiery; ostateczna liczba przebiegów jest potwierdzana przy przekazaniu.",
+      "errOutputUnitBoxesPackFactors": "Jednostka wyjściowa „kartony” wymaga masy opakowania (g) i liczby opakowań w kartonie większej niż 0."
     },
     "sensory": {
       "title": "Panel sensoryczny",
@@ -6847,7 +6876,12 @@
       "fieldWeeklyVolumePacksPlaceholder": "np. 5000",
       "fieldRunsPerWeek": "Przebiegi na tydzień (szacunkowo)",
       "fieldRunsPerWeekPlaceholder": "np. 3",
-      "fieldRunsPerWeekHelp": "Szacunek planistyczny — doprecyzuj później w briefie projektu, gdy wolumeny się ustabilizują."
+      "fieldRunsPerWeekHelp": "Szacunek planistyczny — doprecyzuj później w briefie projektu, gdy wolumeny się ustabilizują.",
+      "fieldOutputUnit": "Jednostka wyjściowa",
+      "fieldOutputUnitKg": "kg",
+      "fieldOutputUnitPieces": "sztuki",
+      "fieldOutputUnitBoxes": "kartony",
+      "errorBoxesOutputUnit": "Jednostka wyjściowa „kartony” wymaga masy opakowania (g) i liczby opakowań w kartonie większej niż 0."
     },
     "faBomTab": {
       "title": "BOM (widok obliczony)",
@@ -7380,7 +7414,12 @@
         "backToActive": "Powrót do aktywnych",
         "deleteDraft": "Usuń wersję roboczą",
         "deletingDraft": "Usuwanie...",
-        "confirmDeleteDraft": "Usunąć robocze zlecenie produkcyjne {wo}? Tej operacji nie można cofnąć."
+        "confirmDeleteDraft": "Usunąć robocze zlecenie produkcyjne {wo}? Tej operacji nie można cofnąć.",
+        "pagination": {
+          "showing": "Wyświetlono {shown} z {total}",
+          "previous": "Poprzednia",
+          "next": "Następna"
+        }
       },
       "create": {
         "title": "Utwórz zlecenie produkcyjne",
@@ -7718,7 +7757,12 @@
           "clear": "Wyczyść filtry"
         },
         "archivedHint": "Pokazano zarchiwizowane zamówienia zakupu (przyjęte / anulowane po okresie archiwizacji organizacji).",
-        "backToActive": "Powrót do aktywnych"
+        "backToActive": "Powrót do aktywnych",
+        "pagination": {
+          "showing": "Wyświetlono {shown} z {total}",
+          "previous": "Poprzednia",
+          "next": "Następna"
+        }
       },
       "errors": {
         "invalid_input": "Nieprawidłowe dane. Sprawdź i spróbuj ponownie.",
@@ -7986,7 +8030,12 @@
           "clear": "Wyczyść filtry"
         },
         "archivedHint": "Pokazano zarchiwizowane zlecenia przesunięcia (przyjęte / anulowane po okresie archiwizacji organizacji).",
-        "backToActive": "Powrót do aktywnych"
+        "backToActive": "Powrót do aktywnych",
+        "pagination": {
+          "showing": "Wyświetlono {shown} z {total}",
+          "previous": "Poprzednia",
+          "next": "Następna"
+        }
       },
       "errors": {
         "invalid_input": "Niektóre pola są nieprawidłowe. Sprawdź i spróbuj ponownie.",
@@ -9404,6 +9453,11 @@
           "afternoon": "Popołudniowa",
           "night": "Nocna"
         }
+      },
+      "pagination": {
+        "showing": "Wyświetlono {shown} z {total}",
+        "previous": "Poprzednia",
+        "next": "Następna"
       }
     },
     "downtime": {

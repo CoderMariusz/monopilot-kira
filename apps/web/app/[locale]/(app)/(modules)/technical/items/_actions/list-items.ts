@@ -12,6 +12,13 @@
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
+  DEFAULT_ITEM_LIST_PAGE_SIZE,
+  ITEM_CHOOSER_MAX_LIMIT,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../../lib/shared/pagination';
+import {
   hasPermission,
   ITEMS_CREATE_PERMISSION,
   ITEMS_DEACTIVATE_PERMISSION,
@@ -26,16 +33,17 @@ import {
 
 export type ListItemsState = 'ready' | 'empty' | 'error';
 
+export type D365SyncFilter = 'synced' | 'drift' | 'unsynced';
+
 export type ListItemsResult = {
   items: ItemListItem[];
   canCreate: boolean;
   canEdit: boolean;
   canDeactivate: boolean;
   state: ListItemsState;
-  limit: number;
-  offset: number;
-  total: number;
-  truncated: boolean;
+  pagination: PaginatedResult<ItemListItem>;
+  /** Per-type counts for tabs (search-filtered, not type-filtered). */
+  typeCounts: Record<ItemType, number> & { all: number };
 };
 
 type ItemRow = {
@@ -67,13 +75,14 @@ type ItemRow = {
   d365_sync_status: string | null;
   bom_count: string | number;
   allergens: string[] | null;
-  total_count: string | number;
 };
 
 const ITEM_TYPE_SET = new Set<ItemType>(['rm', 'ingredient', 'intermediate', 'fg', 'co_product', 'byproduct', 'packaging']);
 const ITEM_STATUS_SET = new Set<ItemStatus>(['draft', 'active', 'deprecated', 'blocked']);
 const WEIGHT_MODE_SET = new Set<WeightMode>(['fixed', 'catch']);
 const OUTPUT_UOM_SET = new Set(['base', 'each', 'box']);
+const ALL_ITEM_TYPES: ItemType[] = ['rm', 'ingredient', 'intermediate', 'fg', 'co_product', 'byproduct', 'packaging'];
+const D365_FILTER_SET = new Set<D365SyncFilter>(['synced', 'drift', 'unsynced']);
 
 function mapRow(row: ItemRow): ItemListItem | null {
   if (!ITEM_TYPE_SET.has(row.item_type as ItemType)) return null;
@@ -110,99 +119,171 @@ function mapRow(row: ItemRow): ItemListItem | null {
   };
 }
 
-const DEFAULT_ITEM_LIMIT = 200;
-const MAX_ITEM_LIMIT = 200;
-
-/**
- * Optional server-side `item_type` filter. Used by the Materials route
- * (`itemTypes:['rm']`) so the RM-only list is constrained in SQL under RLS rather
- * than client-side. When absent, the full item master is returned (Products list).
- * Values are validated against ITEM_TYPE_SET so a caller can never inject SQL.
- */
-function sanitizeTypes(itemTypes?: readonly string[]): ItemType[] | null {
-  if (!itemTypes || itemTypes.length === 0) return null;
-  const valid = itemTypes.filter((t): t is ItemType => ITEM_TYPE_SET.has(t as ItemType));
-  return valid.length ? Array.from(new Set(valid)) : null;
-}
-
-export async function listItems(opts?: {
-  limit?: number;
-  offset?: number;
-  itemTypes?: readonly string[];
-}): Promise<ListItemsResult> {
-  const limit = Math.min(Math.max(opts?.limit ?? DEFAULT_ITEM_LIMIT, 1), MAX_ITEM_LIMIT);
-  const offset = Math.max(opts?.offset ?? 0, 0);
-  const types = sanitizeTypes(opts?.itemTypes);
-
-  try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<ListItemsResult> => {
-      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      const [itemsResult, canCreate, canEdit, canDeactivate] = await Promise.all([
-        (client as QueryClient).query<ItemRow>(
-          `select i.id, i.item_code, i.name, i.item_type, i.status, i.description, i.product_group,
+const ITEM_SELECT = `select i.id, i.item_code, i.name, i.item_type, i.status, i.description, i.product_group,
                   i.category_code,
                   i.uom_base, i.uom_secondary,
                   i.gs1_gtin, i.weight_mode, i.nominal_weight, i.tare_weight, i.gross_weight_max,
                   i.variance_tolerance_pct, i.shelf_life_days, i.shelf_life_mode,
                   i.output_uom, i.net_qty_per_each, i.each_per_box, i.boxes_per_pallet,
                   i.cost_per_kg, i.list_price_gbp::text as list_price_gbp, i.updated_at, i.d365_sync_status,
-                  -- bom_headers.item_id is the items.id FK; keep returning item_code strings from items.
                   (select count(*) from public.bom_headers bh
                      where bh.item_id = i.id and bh.org_id = app.current_org_id()) as bom_count,
-                  -- Reference.Allergens is the canonical org-scoped EU-14 master (semantic allergen_code:
-                  -- 'gluten','milk',…), matching item_allergen_profiles.allergen_code. The old join hit the
-                  -- legacy public.allergens table (numeric 'A01' codes, unseeded/empty here) so the allergens
-                  -- column rendered empty for every item even when profiles existed.
                   (select coalesce(array_agg(distinct coalesce(a.display_name, a.allergen_code)
                                               order by coalesce(a.display_name, a.allergen_code)), array[]::text[])
                      from public.item_allergen_profiles iap
                      join "Reference"."Allergens" a
                        on a.org_id = iap.org_id and a.allergen_code = iap.allergen_code
-                    where iap.item_id = i.id and iap.org_id = app.current_org_id()) as allergens,
-                  count(*) over () as total_count
-             from public.items i
-            where i.org_id = app.current_org_id()
-              and ($3::text[] is null or i.item_type = any($3::text[]))
+                    where iap.item_id = i.id and iap.org_id = app.current_org_id()) as allergens`;
+
+const ITEM_FROM = `from public.items i`;
+
+const ITEM_BASE_WHERE = `where i.org_id = app.current_org_id()
+              and ($1::text[] is null or i.item_type = any($1::text[]))
+              and (
+                $2::text is null
+                or i.item_code ilike '%' || $2 || '%'
+                or i.name ilike '%' || $2 || '%'
+              )`;
+
+const ITEM_LIST_FILTERS = `and ($3::text is null or i.item_type = $3::text)
+              and ($4::text is null or i.status = $4::text)
+              and (
+                $5::text is null
+                or ($5 = 'synced' and i.d365_sync_status = 'synced')
+                or ($5 = 'drift' and i.d365_sync_status = 'drift')
+                or ($5 = 'unsynced' and (i.d365_sync_status is null or i.d365_sync_status not in ('synced', 'drift')))
+              )`;
+
+function sanitizeTypes(itemTypes?: readonly string[]): ItemType[] | null {
+  if (!itemTypes || itemTypes.length === 0) return null;
+  const valid = itemTypes.filter((t): t is ItemType => ITEM_TYPE_SET.has(t as ItemType));
+  return valid.length ? Array.from(new Set(valid)) : null;
+}
+
+function parseItemTypeFilter(type: string | null | undefined, allowedTypes: ItemType[] | null): ItemType | null {
+  if (!type || type === 'all') return null;
+  if (!ITEM_TYPE_SET.has(type as ItemType)) return null;
+  if (allowedTypes && !allowedTypes.includes(type as ItemType)) return null;
+  return type as ItemType;
+}
+
+function parseStatusFilter(status: string | null | undefined): ItemStatus | null {
+  if (!status || status === 'all') return null;
+  if (!ITEM_STATUS_SET.has(status as ItemStatus)) return null;
+  return status as ItemStatus;
+}
+
+function parseD365Filter(d365: string | null | undefined): D365SyncFilter | null {
+  if (!d365 || d365 === 'all') return null;
+  if (!D365_FILTER_SET.has(d365 as D365SyncFilter)) return null;
+  return d365 as D365SyncFilter;
+}
+
+function emptyTypeCounts(): Record<ItemType, number> & { all: number } {
+  const counts = { all: 0 } as Record<ItemType, number> & { all: number };
+  for (const t of ALL_ITEM_TYPES) counts[t] = 0;
+  return counts;
+}
+
+export async function listItems(opts?: {
+  page?: number;
+  offset?: number;
+  limit?: number;
+  itemTypes?: readonly string[];
+  search?: string | null;
+  itemType?: string | null;
+  status?: string | null;
+  d365?: string | null;
+}): Promise<ListItemsResult> {
+  const allowedTypes = sanitizeTypes(opts?.itemTypes);
+  const search = opts?.search?.trim() || null;
+  const typeFilter = parseItemTypeFilter(opts?.itemType, allowedTypes);
+  const statusFilter = parseStatusFilter(opts?.status);
+  const d365Filter = parseD365Filter(opts?.d365);
+  const isPaginatedList = opts?.page !== undefined || opts?.offset !== undefined;
+  const page = normalizePage({
+    page: opts?.page,
+    offset: opts?.offset,
+    limit: opts?.limit,
+    defaultLimit: isPaginatedList ? DEFAULT_ITEM_LIST_PAGE_SIZE : ITEM_CHOOSER_MAX_LIMIT,
+    maxLimit: ITEM_CHOOSER_MAX_LIMIT,
+  });
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<ListItemsResult> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      const scopeTypes = allowedTypes;
+      const baseParams = [scopeTypes, search] as const;
+      const filterParams = [typeFilter, statusFilter, d365Filter] as const;
+      const listParams = [...baseParams, ...filterParams, page.limit, page.offset] as const;
+
+      const [typeCountRes, totalRes, itemsResult, canCreate, canEdit, canDeactivate] = await Promise.all([
+        (client as QueryClient).query<{ item_type: string; n: number }>(
+          `select i.item_type, count(*)::int as n
+             ${ITEM_FROM}
+            ${ITEM_BASE_WHERE}
+            group by 1`,
+          [...baseParams],
+        ),
+        (client as QueryClient).query<{ total: number }>(
+          `select count(*)::int as total
+             ${ITEM_FROM}
+            ${ITEM_BASE_WHERE}
+            ${ITEM_LIST_FILTERS}`,
+          [...baseParams, ...filterParams],
+        ),
+        (client as QueryClient).query<ItemRow>(
+          `${ITEM_SELECT}
+             ${ITEM_FROM}
+            ${ITEM_BASE_WHERE}
+            ${ITEM_LIST_FILTERS}
             order by i.item_code asc
-            limit $1 offset $2`,
-          [limit, offset, types],
+            limit $6 offset $7`,
+          listParams,
         ),
         hasPermission(ctx, ITEMS_CREATE_PERMISSION),
         hasPermission(ctx, ITEMS_EDIT_PERMISSION),
         hasPermission(ctx, ITEMS_DEACTIVATE_PERMISSION),
       ]);
 
+      const typeCounts = emptyTypeCounts();
+      for (const row of typeCountRes.rows) {
+        if (ITEM_TYPE_SET.has(row.item_type as ItemType)) {
+          typeCounts[row.item_type as ItemType] = row.n;
+          typeCounts.all += row.n;
+        }
+      }
+
       const items = itemsResult.rows
         .map(mapRow)
         .filter((row): row is ItemListItem => row !== null);
-      const total = itemsResult.rows.length > 0 ? Number(itemsResult.rows[0].total_count) : 0;
+      const pagination = toPaginatedResult(items, Number(totalRes.rows[0]?.total ?? 0), page);
+      const hasActiveFilters = Boolean(search || typeFilter || statusFilter || d365Filter);
+      const catalogEmpty = !hasActiveFilters && typeCounts.all === 0;
 
       return {
         items,
         canCreate,
         canEdit,
         canDeactivate,
-        state: items.length ? 'ready' : 'empty',
-        limit,
-        offset,
-        total,
-        truncated: offset + items.length < total,
+        state: catalogEmpty ? 'empty' : 'ready',
+        pagination,
+        typeCounts,
       };
     });
   } catch (error) {
     console.error('[technical/items] listItems load_failed', {
       err: error instanceof Error ? error.message : String(error),
     });
+    const emptyPage = normalizePage({ page: 1, defaultLimit: DEFAULT_ITEM_LIST_PAGE_SIZE });
     return {
       items: [],
       canCreate: false,
       canEdit: false,
       canDeactivate: false,
       state: 'error',
-      limit,
-      offset,
-      total: 0,
-      truncated: false,
+      pagination: toPaginatedResult([], 0, emptyPage),
+      typeCounts: emptyTypeCounts(),
     };
   }
 }

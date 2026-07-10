@@ -8,15 +8,20 @@
  * item type, search + status/D365 filter pills, and the dense design-system
  * table (mono codes, 5-tone status/type badges, Allergens + BOMs columns).
  *
- * Pure presentation + client-side filtering over the server-loaded items — no
- * data mutation here. Per-row Edit/Deactivate/Allergens live in ItemRowActions.
+ * Pure presentation over the server-loaded items — search, type, status, and D365
+ * filters are URL-driven and applied in SQL. Per-row Edit/Deactivate/Allergens
+ * live in ItemRowActions.
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { type SelectOption } from '@monopilot/ui/Select';
 
 import { type ItemListItem, type ItemStatus, type ItemType } from '../_actions/shared';
+import { buildListPageHref } from '../../../../../../../lib/shared/list-page-href';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 import { type DeactivateLabels } from './deactivate-modal';
 import { type ItemWizardLabels } from './item-create-wizard';
 import { type StatusTransitionLabels } from './item-transition-labels';
@@ -56,6 +61,7 @@ export type ItemsTableLabels = {
   searchPlaceholder: string;
   /** Footer counter — carries {shown}/{total} placeholders (list.footer). */
   footer: string;
+  pagination: ListPaginationLabels;
   /** Accessible labels sourced from the same technical.items namespace. */
   aria: {
     itemType: string;
@@ -95,15 +101,16 @@ const TYPE_TONE: Record<ItemType, string> = {
   packaging: 'badge-gray',
 };
 
-const D365_FILTERS: Array<{
-  key: 'all' | 'synced' | 'drift' | 'unsynced';
-  match: (s: string | null) => boolean;
-}> = [
-  { key: 'all', match: () => true },
-  { key: 'synced', match: (s) => s === 'synced' },
-  { key: 'drift', match: (s) => s === 'drift' },
-  { key: 'unsynced', match: (s) => s === null || (s !== 'synced' && s !== 'drift') },
-];
+const D365_FILTER_KEYS: Array<'all' | 'synced' | 'drift' | 'unsynced'> = ['all', 'synced', 'drift', 'unsynced'];
+
+function listQuery(filters: { search: string; type: string; status: string; d365: string }) {
+  return {
+    type: filters.type || undefined,
+    q: filters.search || undefined,
+    status: filters.status && filters.status !== 'all' ? filters.status : undefined,
+    d365: filters.d365 && filters.d365 !== 'all' ? filters.d365 : undefined,
+  };
+}
 
 function formatCost(costPerKg: string | null): string {
   if (costPerKg === null) return '—';
@@ -140,7 +147,11 @@ function tabTone(key: 'all' | ItemType): string {
 }
 
 export function ItemsTableClient({
+  locale,
   items,
+  pagination,
+  typeCounts,
+  filters,
   canEdit,
   canDeactivate,
   editLabel,
@@ -157,7 +168,11 @@ export function ItemsTableClient({
   supplierIdByCode = {},
   initialTab,
 }: {
+  locale: string;
   items: ItemListItem[];
+  pagination: PaginatedResult<ItemListItem>;
+  typeCounts: Record<ItemType, number> & { all: number };
+  filters: { search: string; type: string; status: string; d365: string };
   canEdit: boolean;
   canDeactivate: boolean;
   editLabel: string;
@@ -178,28 +193,64 @@ export function ItemsTableClient({
   /** W2-T4 — pre-selected type tab (deep-link ?type=fg from the retired settings Products screen). */
   initialTab?: ItemType;
 }) {
-  const [tab, setTab] = React.useState<'all' | ItemType>(initialTab ?? 'all');
-  const [status, setStatus] = React.useState<'all' | ItemStatus>('all');
-  const [d365, setD365] = React.useState<string>('all');
-  const [query, setQuery] = React.useState('');
+  const router = useRouter();
+  const basePath = `/${locale}/technical/items`;
+  const activeTab: 'all' | ItemType = filters.type ? (filters.type as ItemType) : 'all';
+  const activeStatus: 'all' | ItemStatus = filters.status ? (filters.status as ItemStatus) : 'all';
+  const activeD365: 'all' | 'synced' | 'drift' | 'unsynced' = filters.d365
+    ? (filters.d365 as 'synced' | 'drift' | 'unsynced')
+    : 'all';
+  const pageHref = (page: number) => buildListPageHref(basePath, listQuery(filters), page);
+  const shown = pagination.offset + items.length;
+  const [searchDraft, setSearchDraft] = React.useState(filters.search);
 
-  const typeCounts = React.useMemo(() => {
-    const counts: Record<string, number> = { all: items.length };
-    for (const it of items) counts[it.itemType] = (counts[it.itemType] ?? 0) + 1;
-    return counts;
-  }, [items]);
+  React.useEffect(() => {
+    setSearchDraft(filters.search);
+  }, [filters.search]);
 
-  const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const d365Match = D365_FILTERS.find((f) => f.key === d365)?.match ?? (() => true);
-    return items.filter((it) => {
-      if (tab !== 'all' && it.itemType !== tab) return false;
-      if (status !== 'all' && it.status !== status) return false;
-      if (!d365Match(it.d365SyncStatus)) return false;
-      if (q && !`${it.itemCode} ${it.name}`.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [items, tab, status, d365, query]);
+  React.useEffect(() => {
+    if (searchDraft === filters.search) return;
+    const timer = window.setTimeout(() => {
+      router.push(
+        buildListPageHref(
+          basePath,
+          listQuery({ ...filters, search: searchDraft }),
+          1,
+        ),
+      );
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [basePath, filters, router, searchDraft]);
+
+  function navigateType(next: 'all' | ItemType) {
+    router.push(
+      buildListPageHref(
+        basePath,
+        listQuery({ ...filters, type: next === 'all' ? '' : next }),
+        1,
+      ),
+    );
+  }
+
+  function navigateStatus(next: 'all' | ItemStatus) {
+    router.push(
+      buildListPageHref(
+        basePath,
+        listQuery({ ...filters, status: next === 'all' ? '' : next }),
+        1,
+      ),
+    );
+  }
+
+  function navigateD365(next: 'all' | 'synced' | 'drift' | 'unsynced') {
+    router.push(
+      buildListPageHref(
+        basePath,
+        listQuery({ ...filters, d365: next === 'all' ? '' : next }),
+        1,
+      ),
+    );
+  }
 
   const tabLabel = (key: 'all' | ItemType) => labels.tabLabels[key] ?? key;
   const statusFilterLabel = (key: 'all' | ItemStatus) => labels.statusFilterLabels[key] ?? key;
@@ -207,7 +258,9 @@ export function ItemsTableClient({
   const typeLabel = (t: ItemType) => labels.typeLabels[t] ?? t;
   const statusLabel = (s: ItemStatus) => labels.statusLabels[s] ?? s;
   const col = labels.columns;
-  const footerText = labels.footer.replace('{shown}', String(filtered.length)).replace('{total}', String(items.length));
+  const footerText = labels.footer
+    .replace('{shown}', String(shown))
+    .replace('{total}', String(pagination.total));
 
   return (
     <div className="space-y-3">
@@ -218,9 +271,9 @@ export function ItemsTableClient({
             key={key}
             type="button"
             role="tab"
-            aria-selected={tab === key}
-            className={`tabs-counted-tab${tab === key ? ' active' : ''}`}
-            onClick={() => setTab(key)}
+            aria-selected={activeTab === key}
+            className={`tabs-counted-tab${activeTab === key ? ' active' : ''}`}
+            onClick={() => navigateType(key)}
           >
             <span>{tabLabel(key)}</span>
             <span className={`tabs-counted-pill ${tabTone(key)}`}>{typeCounts[key] ?? 0}</span>
@@ -235,32 +288,32 @@ export function ItemsTableClient({
           className="form-input max-w-xs"
           placeholder={labels.searchPlaceholder}
           aria-label={labels.aria.search}
-          value={query}
-          onChange={(e) => setQuery(e.currentTarget.value)}
+          value={searchDraft}
+          onChange={(e) => setSearchDraft(e.currentTarget.value)}
         />
         <div className="pills" role="group" aria-label={labels.aria.statusFilter}>
           {STATUS_FILTER_KEYS.map((key) => (
             <button
               key={key}
               type="button"
-              className={`pill${status === key ? ' on' : ''}`}
-              aria-pressed={status === key}
-              onClick={() => setStatus(key)}
+              className={`pill${activeStatus === key ? ' on' : ''}`}
+              aria-pressed={activeStatus === key}
+              onClick={() => navigateStatus(key)}
             >
               {statusFilterLabel(key)}
             </button>
           ))}
         </div>
         <div className="pills" role="group" aria-label={labels.aria.d365Filter}>
-          {D365_FILTERS.map((f) => (
+          {D365_FILTER_KEYS.map((key) => (
             <button
-              key={f.key}
+              key={key}
               type="button"
-              className={`pill${d365 === f.key ? ' on' : ''}`}
-              aria-pressed={d365 === f.key}
-              onClick={() => setD365(f.key)}
+              className={`pill${activeD365 === key ? ' on' : ''}`}
+              aria-pressed={activeD365 === key}
+              onClick={() => navigateD365(key)}
             >
-              {d365FilterLabel(f.key)}
+              {d365FilterLabel(key)}
             </button>
           ))}
         </div>
@@ -268,7 +321,7 @@ export function ItemsTableClient({
 
       {/* Table card — design tokens, no shadow */}
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-        {filtered.length === 0 ? (
+        {items.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">🔍</div>
             <div className="empty-state-title">{filterEmptyTitle}</div>
@@ -293,7 +346,7 @@ export function ItemsTableClient({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((item) => (
+              {items.map((item) => (
                 <tr key={item.id}>
                   <td className="mono">
                     <a
@@ -352,6 +405,14 @@ export function ItemsTableClient({
             </tbody>
           </table>
         )}
+        <ListPaginationFooter
+          shown={shown}
+          total={pagination.total}
+          previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+          nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+          labels={labels.pagination}
+          testId="items-list-pagination"
+        />
       </div>
 
       <p className="helper">{footerText}</p>

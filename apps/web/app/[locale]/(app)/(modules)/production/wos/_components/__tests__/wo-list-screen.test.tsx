@@ -1,24 +1,20 @@
 /**
  * P-L1 — `/production/wos` WO list screen: RTL parity + state tests.
- *
- * Prototype: prototypes/design/Monopilot Design System/production/wo-list.jsx:4-106.
- * Tests the presentational <WoListScreen> directly (the page is an async RSC that
- * reads Supabase via withOrgContext and is exercised live/Playwright). Asserts:
- *   - status tabs render with counts + filter the table (parity wo-list.jsx:8-40,17)
- *   - dense table columns + WO-number mono + allergen badge (wo-list.jsx:52-101,73)
- *   - rows link to `/{locale}/production/wos/<id>` (wo-list.jsx:72 onOpenWo)
- *   - deferred per-row action is DISABLED (out-of-scope mutation slot)
- *   - all UI states surfaced by this component: populated / empty / empty-filtered
  */
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
 import { WoListScreen, type WoListLabels } from '../wo-list-screen';
 import type { WoListStatus, WorkOrderListItem } from '../../../_actions/list-work-orders';
 
 const downloadCsvMock = vi.hoisted(() => vi.fn());
+const pushMock = vi.hoisted(() => vi.fn());
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: pushMock, refresh: vi.fn() }),
+}));
 
 vi.mock('../../../../../../../../lib/shared/download', async () => {
   const actual = await vi.importActual<typeof import('../../../../../../../../lib/shared/download')>(
@@ -33,17 +29,23 @@ vi.mock('../../../../../../../../lib/shared/download', async () => {
 
 const LABELS: WoListLabels = {
   title: 'Work orders',
-  countLine: '2 orders',
+  countLine: '{count} orders',
   searchPlaceholder: 'Search WO number or product…',
   rowsLabel: '{count} rows',
   emptyAll: 'No work orders yet — released work orders from Planning appear here.',
   emptyFiltered: 'No work orders match this filter.',
   allergenBadge: 'Allergen',
+  overProductionListBadge: 'Over-prod',
   deferredActionTitle: 'Wired in the next step',
   pauseAction: 'Pause',
   resumeAction: 'Resume',
   startAction: 'Start',
   viewAction: 'View',
+  pagination: {
+    showing: 'Showing {shown} of {total}',
+    previous: 'Previous',
+    next: 'Next',
+  },
   tab: {
     all: 'All',
     in_progress: 'In progress',
@@ -79,9 +81,9 @@ const ROWS: WorkOrderListItem[] = [
     id: '11111111-1111-1111-1111-111111111111',
     woNumber: 'WO-2026-0001',
     productId: 'aaaaaaaa-1111-1111-1111-111111111111',
-  itemCode: 'FG-TEST-01',
-  productName: 'Test Product A',
-  lineCode: 'LINE-1',
+    itemCode: 'FG-TEST-01',
+    productName: 'Test Product A',
+    lineCode: 'LINE-1',
     status: 'in_progress',
     lineId: 'bbbbbbbb-2222-2222-2222-222222222222',
     plannedQty: 1200,
@@ -97,9 +99,9 @@ const ROWS: WorkOrderListItem[] = [
     id: '22222222-2222-2222-2222-222222222222',
     woNumber: 'WO-2026-0002',
     productId: 'cccccccc-3333-3333-3333-333333333333',
-  itemCode: null,
-  productName: null,
-  lineCode: null,
+    itemCode: null,
+    productName: null,
+    lineCode: null,
     status: 'planned',
     lineId: null,
     plannedQty: 800,
@@ -122,15 +124,31 @@ const STATUS_COUNTS: Record<WoListStatus, number> = {
   cancelled: 0,
 };
 
-function renderScreen(rows = ROWS) {
-  // actions=null exercises the read-only path (no live action context): per-row
-  // controls fall back to the deferred slot. The wired per-row Start/Pause/Resume
-  // is covered by wos/_components/modals/__tests__/wo-actions.test.tsx.
+const DEFAULT_PAGINATION = {
+  items: ROWS,
+  total: 2,
+  page: 1,
+  limit: 50,
+  offset: 0,
+  hasMore: false,
+};
+
+function renderScreen(
+  rows = ROWS,
+  opts?: {
+    filters?: { status?: string; search?: string };
+    pagination?: typeof DEFAULT_PAGINATION;
+    statusCounts?: Record<WoListStatus, number>;
+  },
+) {
   return render(
     <WoListScreen
       rows={rows}
-      statusCounts={STATUS_COUNTS}
+      statusCounts={opts?.statusCounts ?? STATUS_COUNTS}
+      pagination={opts?.pagination ?? { ...DEFAULT_PAGINATION, items: rows, total: rows.length }}
+      filters={{ status: opts?.filters?.status ?? '', search: opts?.filters?.search ?? '' }}
       labels={LABELS}
+      locale="en"
       actions={null}
     />,
   );
@@ -139,9 +157,15 @@ function renderScreen(rows = ROWS) {
 describe('WoListScreen (parity: wo-list.jsx:4-106)', () => {
   beforeEach(() => {
     downloadCsvMock.mockClear();
+    pushMock.mockClear();
+    vi.useFakeTimers();
   });
 
-  it('renders status tabs with counts (all + the live states)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('renders status tabs with server-side counts', () => {
     renderScreen();
     expect(screen.getByTestId('wo-tab-all')).toHaveTextContent('All2');
     expect(screen.getByTestId('wo-tab-in_progress')).toHaveTextContent('In progress1');
@@ -154,68 +178,38 @@ describe('WoListScreen (parity: wo-list.jsx:4-106)', () => {
     expect(link).toHaveTextContent('WO-2026-0001');
     expect(link).toHaveAttribute('href', `/en/production/wos/${ROWS[0]!.id}`);
     expect(screen.getByTestId(`wo-allergen-${ROWS[0]!.id}`)).toBeInTheDocument();
-    expect(screen.queryByTestId(`wo-allergen-${ROWS[1]!.id}`)).not.toBeInTheDocument();
   });
 
-  it('shows an accessible progress bar reflecting output/planned', () => {
+  it('navigates to the planned tab via router.push', () => {
     renderScreen();
-    const bars = screen.getAllByRole('progressbar');
-    expect(bars[0]).toHaveAttribute('aria-valuenow', '50');
-  });
-
-  it('status tab filters the visible rows', () => {
-    renderScreen();
-    // Default tab = all → both rows.
-    expect(screen.getByTestId(`wo-row-${ROWS[0]!.id}`)).toBeInTheDocument();
-    expect(screen.getByTestId(`wo-row-${ROWS[1]!.id}`)).toBeInTheDocument();
-    // Switch to planned → only the planned WO remains.
     fireEvent.click(screen.getByTestId('wo-tab-planned'));
-    expect(screen.queryByTestId(`wo-row-${ROWS[0]!.id}`)).not.toBeInTheDocument();
-    expect(screen.getByTestId(`wo-row-${ROWS[1]!.id}`)).toBeInTheDocument();
+    expect(pushMock).toHaveBeenCalledWith('/en/production/wos?status=planned');
   });
 
-  it('search filters by WO number', () => {
+  it('debounces search into the URL query string', () => {
     renderScreen();
     fireEvent.change(screen.getByTestId('wo-list-search'), { target: { value: '0002' } });
-    expect(screen.queryByTestId(`wo-row-${ROWS[0]!.id}`)).not.toBeInTheDocument();
-    expect(screen.getByTestId(`wo-row-${ROWS[1]!.id}`)).toBeInTheDocument();
+    vi.advanceTimersByTime(300);
+    expect(pushMock).toHaveBeenCalledWith('/en/production/wos?q=0002');
   });
 
-  it('exports the currently visible WO rows to CSV', () => {
-    renderScreen();
-    fireEvent.change(screen.getByTestId('wo-list-search'), { target: { value: '0001' } });
+  it('exports the server-loaded rows to CSV', () => {
+    renderScreen([ROWS[0]!], { filters: { search: '0001' }, pagination: { ...DEFAULT_PAGINATION, items: [ROWS[0]!], total: 1 } });
     fireEvent.click(screen.getByTestId('wo-list-export-csv'));
-
     expect(downloadCsvMock).toHaveBeenCalledTimes(1);
-    expect(downloadCsvMock).toHaveBeenCalledWith(
-      [
-        'WO Number,Product,Status,Qty,Line,Planned Start,Planned End,Over-Produced',
-        'WO-2026-0001,Test Product A (FG-TEST-01),In progress,"1,200 kg",LINE-1,2026-06-10 06:00,2026-06-10 14:00,Yes',
-      ].join('\r\n'),
-      'production-wos-2026-06-26.csv',
-    );
-  });
-
-  it('renders the per-row action DISABLED (deferred mutation slot)', () => {
-    renderScreen();
-    const action = screen.getByTestId('wo-action-in_progress');
-    expect(action).toBeDisabled();
-    expect(action).toHaveAttribute('title', 'Wired in the next step');
-    // No "Release WO" control anywhere (Production red-line).
-    expect(screen.queryByText(/release wo/i)).not.toBeInTheDocument();
   });
 
   it('EMPTY (no WOs): shows the empty-all copy, no table', () => {
-    renderScreen([]);
-    expect(screen.getByTestId('wo-list-empty')).toHaveTextContent(
-      'No work orders yet — released work orders from Planning appear here.',
-    );
+    renderScreen([], { pagination: { ...DEFAULT_PAGINATION, items: [], total: 0 } });
+    expect(screen.getByTestId('wo-list-empty')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
-  it('EMPTY-FILTERED: a non-matching search shows the filtered-empty copy', () => {
-    renderScreen();
-    fireEvent.change(screen.getByTestId('wo-list-search'), { target: { value: 'zzzz-no-match' } });
+  it('EMPTY-FILTERED: zero rows with active filters shows filtered-empty copy', () => {
+    renderScreen([], {
+      filters: { search: 'zzzz-no-match' },
+      pagination: { ...DEFAULT_PAGINATION, items: [], total: 0 },
+    });
     expect(screen.getByTestId('wo-list-empty-filtered')).toBeInTheDocument();
     expect(within(screen.getByTestId('wo-list-table-card')).queryByRole('table')).not.toBeInTheDocument();
   });

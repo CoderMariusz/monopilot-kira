@@ -5191,6 +5191,11 @@
           "updated": "Updated",
           "status": "Status",
           "actions": "Actions"
+        },
+        "pagination": {
+          "showing": "Showing {shown} of {total}",
+          "previous": "Previous",
+          "next": "Next"
         }
       },
       "transition": {
@@ -6394,7 +6399,12 @@
       "noMatchTitle": "No materials match your filters",
       "noMatchBody": "Adjust the type tab, status, or search to see more.",
       "errorTitle": "Unable to load materials",
-      "errorBody": "Please try again."
+      "errorBody": "Please try again.",
+      "pagination": {
+        "showing": "Showing {shown} of {total}",
+        "previous": "Previous",
+        "next": "Next"
+      }
     },
     "sensory": {
       "title": "Sensory evaluation",
@@ -7786,6 +7796,11 @@
           "afternoon": "Afternoon",
           "night": "Night"
         }
+      },
+      "pagination": {
+        "showing": "Showing {shown} of {total}",
+        "previous": "Previous",
+        "next": "Next"
       }
     },
     "downtime": {

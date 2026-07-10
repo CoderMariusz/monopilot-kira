@@ -2,21 +2,15 @@
 
 /**
  * Lane A1 — 03-technical Materials list table (client island).
- *
- * Prototype parity (1:1):
- *   prototypes/design/Monopilot Design System/technical/other-screens.jsx:304-352
- *   (`MaterialsListScreen`, TEC-003) — pills filter + dense design table (mono
- *   codes, type badge, UoM, cost/UoM, updated, status). The prototype's
- *   packaging type is N/A in our item master (rm + intermediate only); the pills
- *   reflect the real item_type domain. Search is added for parity with the
- *   Products list density. Pure presentation over the server-loaded RM/intermediate
- *   rows — no mocks, no mutation here.
  */
 
 import React from 'react';
-import { useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 import { type ItemListItem, type ItemStatus, type ItemType } from '../../items/_actions/shared';
+import { buildListPageHref } from '../../../../../../../lib/shared/list-page-href';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 const STATUS_TONE: Record<ItemStatus, string> = {
   draft: 'badge-gray',
@@ -25,9 +19,6 @@ const STATUS_TONE: Record<ItemStatus, string> = {
   blocked: 'badge-red',
 };
 const STATUS_GLYPH: Record<ItemStatus, string> = { draft: '○', active: '●', deprecated: '⚠', blocked: '⚠' };
-// Prototype other-screens.jsx:307 `typeTag` — RM=blue, packaging=amber.
-// (intermediate kept gray as shipped; the prototype's violet is a deferred
-// cosmetic deviation — not in scope to regress the already-live screen.)
 const TYPE_TONE: Record<string, string> = { rm: 'badge-blue', intermediate: 'badge-gray', packaging: 'badge-amber' };
 
 function formatCost(costPerKg: string | null): string {
@@ -53,39 +44,77 @@ export type MaterialsTableLabels = {
   colStatus: string;
   noMatchTitle: string;
   noMatchBody: string;
-  countSummary: string; // "{shown} of {total} materials"
+  countSummary: string;
+  pagination: ListPaginationLabels;
   typeLabels: Record<string, string>;
   statusLabels: Record<string, string>;
 };
 
 export function MaterialsTableClient({
+  locale,
   items,
+  pagination,
+  typeCounts,
+  filters,
   typeTabs,
   labels,
 }: {
+  locale: string;
   items: ItemListItem[];
+  pagination: PaginatedResult<ItemListItem>;
+  typeCounts: Record<ItemType, number> & { all: number };
+  filters: { search: string; type: string };
   typeTabs: Array<{ key: 'all' | ItemType; label: string }>;
   labels: MaterialsTableLabels;
 }) {
-  const params = useParams<{ locale?: string }>();
-  const locale = typeof params?.locale === 'string' ? params.locale : 'en';
-  const [tab, setTab] = React.useState<'all' | ItemType>('all');
-  const [query, setQuery] = React.useState('');
+  const router = useRouter();
+  const basePath = `/${locale}/technical/materials`;
+  const activeTab: 'all' | ItemType = filters.type ? (filters.type as ItemType) : 'all';
+  const pageHref = (page: number) =>
+    buildListPageHref(
+      basePath,
+      {
+        type: activeTab === 'all' ? undefined : activeTab,
+        q: filters.search || undefined,
+      },
+      page,
+    );
+  const shown = pagination.offset + items.length;
+  const [searchDraft, setSearchDraft] = React.useState(filters.search);
 
-  const typeCounts = React.useMemo(() => {
-    const counts: Record<string, number> = { all: items.length };
-    for (const it of items) counts[it.itemType] = (counts[it.itemType] ?? 0) + 1;
-    return counts;
-  }, [items]);
+  React.useEffect(() => {
+    setSearchDraft(filters.search);
+  }, [filters.search]);
 
-  const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return items.filter((it) => {
-      if (tab !== 'all' && it.itemType !== tab) return false;
-      if (q && !`${it.itemCode} ${it.name}`.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [items, tab, query]);
+  React.useEffect(() => {
+    if (searchDraft === filters.search) return;
+    const timer = window.setTimeout(() => {
+      router.push(
+        buildListPageHref(
+          basePath,
+          {
+            type: activeTab === 'all' ? undefined : activeTab,
+            q: searchDraft || undefined,
+          },
+          1,
+        ),
+      );
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, basePath, filters.search, router, searchDraft]);
+
+  function navigateType(next: 'all' | ItemType) {
+    router.push(
+      buildListPageHref(
+        basePath,
+        {
+          type: next === 'all' ? undefined : next,
+          q: filters.search || undefined,
+        },
+        1,
+      ),
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -95,9 +124,9 @@ export function MaterialsTableClient({
             key={t.key}
             type="button"
             role="tab"
-            aria-selected={tab === t.key}
-            className={`tabs-counted-tab${tab === t.key ? ' active' : ''}`}
-            onClick={() => setTab(t.key)}
+            aria-selected={activeTab === t.key}
+            className={`tabs-counted-tab${activeTab === t.key ? ' active' : ''}`}
+            onClick={() => navigateType(t.key)}
           >
             <span>{t.label}</span>
             <span className="tabs-counted-pill">{typeCounts[t.key] ?? 0}</span>
@@ -111,61 +140,56 @@ export function MaterialsTableClient({
           className="form-input max-w-xs"
           placeholder={labels.searchPlaceholder}
           aria-label={labels.searchAria}
-          value={query}
-          onChange={(e) => setQuery(e.currentTarget.value)}
+          value={searchDraft}
+          onChange={(e) => setSearchDraft(e.currentTarget.value)}
         />
       </div>
 
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-        {filtered.length === 0 ? (
+        {items.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">🔍</div>
             <div className="empty-state-title">{labels.noMatchTitle}</div>
             <div className="empty-state-body">{labels.noMatchBody}</div>
           </div>
         ) : (
-          <table aria-label="Materials">
+          <table>
             <thead>
               <tr>
-                <th scope="col">{labels.colCode}</th>
-                <th scope="col">{labels.colName}</th>
-                <th scope="col">{labels.colType}</th>
-                <th scope="col">{labels.colUom}</th>
-                <th scope="col" style={{ textAlign: 'right' }}>
-                  {labels.colCost}
-                </th>
-                <th scope="col">{labels.colUpdated}</th>
-                <th scope="col">{labels.colStatus}</th>
+                <th>{labels.colCode}</th>
+                <th>{labels.colName}</th>
+                <th>{labels.colType}</th>
+                <th>{labels.colUom}</th>
+                <th>{labels.colCost}</th>
+                <th>{labels.colUpdated}</th>
+                <th>{labels.colStatus}</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((item) => (
-                <tr key={item.id}>
+              {items.map((it) => (
+                <tr key={it.id}>
                   <td className="mono">
                     <a
-                      href={`/${locale}/technical/items/${encodeURIComponent(item.itemCode)}`}
-                      className="underline-offset-4 hover:underline"
-                      style={{ color: 'var(--blue)' }}
+                      href={`/${locale}/technical/items/${encodeURIComponent(it.itemCode)}`}
+                      className="text-blue-600 underline-offset-4 hover:underline"
                     >
-                      {item.itemCode}
+                      {it.itemCode}
                     </a>
                   </td>
-                  <td style={{ fontWeight: 500 }}>{item.name}</td>
+                  <td style={{ fontWeight: 500 }}>{it.name}</td>
                   <td>
-                    <span className={`badge ${TYPE_TONE[item.itemType] ?? 'badge-gray'}`}>
-                      {labels.typeLabels[item.itemType] ?? item.itemType}
+                    <span className={`badge ${TYPE_TONE[it.itemType] ?? 'badge-gray'}`}>
+                      {labels.typeLabels[it.itemType] ?? it.itemType}
                     </span>
                   </td>
-                  <td className="mono">{item.uomBase}</td>
-                  <td className="mono tabular-nums" style={{ textAlign: 'right' }}>
-                    {formatCost(item.costPerKg)}
-                  </td>
+                  <td className="mono">{it.uomBase}</td>
+                  <td className="mono tabular-nums">{formatCost(it.costPerKg)}</td>
                   <td className="mono" style={{ color: 'var(--muted)' }}>
-                    {formatUpdated(item.updatedAt)}
+                    {formatUpdated(it.updatedAt)}
                   </td>
                   <td>
-                    <span className={`badge ${STATUS_TONE[item.status]}`}>
-                      {STATUS_GLYPH[item.status]} {labels.statusLabels[item.status] ?? item.status}
+                    <span className={`badge ${STATUS_TONE[it.status]}`}>
+                      {STATUS_GLYPH[it.status]} {labels.statusLabels[it.status] ?? it.status}
                     </span>
                   </td>
                 </tr>
@@ -173,12 +197,20 @@ export function MaterialsTableClient({
             </tbody>
           </table>
         )}
+        <ListPaginationFooter
+          shown={shown}
+          total={pagination.total}
+          previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+          nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+          labels={labels.pagination}
+          testId="materials-list-pagination"
+        />
       </div>
 
       <p className="helper">
         {labels.countSummary
-          .replace('{shown}', String(filtered.length))
-          .replace('{total}', String(items.length))}
+          .replace('{shown}', String(shown))
+          .replace('{total}', String(pagination.total))}
       </p>
     </div>
   );
