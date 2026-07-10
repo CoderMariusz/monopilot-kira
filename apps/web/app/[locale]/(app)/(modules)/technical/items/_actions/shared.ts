@@ -91,7 +91,8 @@ export type ItemsActionError =
   | 'already_exists'
   | 'not_found'
   | 'persistence_failed'
-  | 'invalid_category';
+  | 'invalid_category'
+  | 'item_type_immutable';
 
 const OptionalNumeric = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),

@@ -199,6 +199,8 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     not_found: 'That item no longer exists.',
     persistence_failed: 'Could not save. Please try again.',
     invalid_category: 'Choose an active product category or leave blank.',
+    item_type_immutable:
+      'Item type cannot change once the item is active or referenced by BOMs, factory specs, or work orders.',
   },
   actionErrorsGeneric: {
     already_exists: 'An item with that code already exists in this organization.',
@@ -235,6 +237,7 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
     not_found: t('errors.not_found'),
     persistence_failed: t('errors.persistence_failed'),
     invalid_category: get('errors.invalid_category', D.actionErrors.invalid_category),
+    item_type_immutable: get('errors.item_type_immutable', D.actionErrors.item_type_immutable),
   };
   const actionErrorsGeneric: ItemWizardLabels['actionErrorsGeneric'] = {
     already_exists: get('errors.already_exists', D.actionErrorsGeneric.already_exists),

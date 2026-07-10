@@ -273,6 +273,9 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
       not_found: t('errors.not_found'),
       persistence_failed: t('errors.persistence_failed'),
       invalid_category: t.has('errors.invalid_category') ? t('errors.invalid_category') : 'Choose an active product category or leave blank.',
+      item_type_immutable: t.has('errors.item_type_immutable')
+        ? t('errors.item_type_immutable')
+        : 'Item type cannot change once the item is active or referenced by BOMs, factory specs, or work orders.',
     },
   };
 

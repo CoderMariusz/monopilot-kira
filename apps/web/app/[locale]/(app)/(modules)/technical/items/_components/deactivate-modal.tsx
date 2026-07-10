@@ -83,6 +83,8 @@ export const DEFAULT_DEACTIVATE_LABELS: DeactivateLabels = {
     not_found: 'That item no longer exists.',
     persistence_failed: 'Could not save. Please try again.',
     invalid_category: 'Choose an active product category or leave blank.',
+    item_type_immutable:
+      'Item type cannot change once the item is active or referenced by BOMs, factory specs, or work orders.',
   },
 };
 

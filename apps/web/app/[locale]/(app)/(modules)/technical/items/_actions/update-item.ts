@@ -70,6 +70,55 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
         }
       }
 
+      if (input.itemType !== beforeRow.item_type) {
+        const { rows: blockerRows } = await (client as QueryClient).query<{ blocked: boolean }>(
+          `select (
+             $2::text = 'active'
+             or exists (
+               select 1
+                 from public.bom_headers header
+                where header.org_id = app.current_org_id()
+                  and header.item_id = $1::uuid
+                  and header.status in ('draft', 'in_review', 'technical_approved', 'active')
+             )
+             or exists (
+               select 1
+                 from public.bom_lines line
+                 join public.bom_headers header
+                   on header.id = line.bom_header_id
+                  and header.org_id = line.org_id
+                 join public.items item
+                   on item.id = $1::uuid
+                  and item.org_id = app.current_org_id()
+                where line.org_id = app.current_org_id()
+                  and header.status in ('draft', 'in_review', 'technical_approved', 'active')
+                  and (line.item_id = $1::uuid or line.component_code = item.item_code)
+             )
+             or exists (
+               select 1
+                 from public.factory_specs spec
+                where spec.org_id = app.current_org_id()
+                  and spec.fg_item_id = $1::uuid
+                  and spec.status <> 'archived'
+             )
+             or exists (
+               select 1
+                 from public.work_orders wo
+                where wo.org_id = app.current_org_id()
+                  and wo.product_id = $1::uuid
+             )
+           ) as blocked`,
+          [input.id, beforeRow.status],
+        );
+        if (blockerRows[0]?.blocked) {
+          return {
+            ok: false,
+            error: 'item_type_immutable',
+            message: 'item_type cannot change once the item is active or referenced by BOMs, factory specs, or work orders',
+          };
+        }
+      }
+
       const { rows, rowCount } = await (client as QueryClient).query<{ id: string }>(
         `update public.items
             set name = $2,
