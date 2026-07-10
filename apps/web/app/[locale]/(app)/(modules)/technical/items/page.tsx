@@ -74,7 +74,7 @@ export default async function TechnicalItemsPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams?: Promise<{ modal?: string; type?: string; q?: string; page?: string }>;
+  searchParams?: Promise<{ modal?: string; type?: string; q?: string; page?: string; status?: string; d365?: string }>;
 }) {
   const { locale } = await params;
   const sp = await searchParams;
@@ -83,10 +83,14 @@ export default async function TechnicalItemsPage({
   const parsedPage = Number.isInteger(page) && page > 0 ? page : 1;
   const initialType = ITEM_TYPES.find((tab) => tab === sp?.type);
   const search = sp?.q?.trim() ?? '';
+  const status = sp?.status?.trim() ?? '';
+  const d365 = sp?.d365?.trim() ?? '';
   const { items, canCreate, canEdit, canDeactivate, state, pagination, typeCounts } = await listItems({
     page: parsedPage,
     search: search || undefined,
     itemType: initialType,
+    status: status || undefined,
+    d365: d365 || undefined,
   });
   const t = await getTranslations('technical.items');
   const tItems = await getTranslations('items');
@@ -235,7 +239,7 @@ export default async function TechnicalItemsPage({
             items={items}
             pagination={pagination}
             typeCounts={typeCounts}
-            filters={{ search, type: initialType ?? '' }}
+            filters={{ search, type: initialType ?? '', status, d365 }}
             canEdit={canEdit}
             canDeactivate={canDeactivate}
             editLabel={editLabel}

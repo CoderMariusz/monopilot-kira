@@ -28,6 +28,7 @@ import { Button } from '@monopilot/ui/Button';
 
 import { BomTypeToggle, DisassemblyAuthoring, type BomType } from './disassembly-bom-create';
 import { listItems } from '../../items/_actions/list-items';
+import { ITEM_CHOOSER_MAX_LIMIT } from '../../../../../../../lib/shared/pagination';
 import type { ItemListItem, ItemStatus } from '../../items/_actions/shared';
 
 // 5 semantic tones (MON-design-system rule 8) for the FG status badge shown
@@ -133,7 +134,7 @@ export function NewBomModal({
         // state:'error' on a handled failure. A REJECTED promise (e.g. a Server
         // Action that throws at the RSC boundary) is caught below so the modal
         // can NEVER hang on the loading skeleton forever — the live failure mode.
-        const res = await listItems({ itemTypes: ['fg'] });
+        const res = await listItems({ itemTypes: ['fg'], limit: ITEM_CHOOSER_MAX_LIMIT });
         if (cancelled) return;
         if (res.state === 'error') {
           setListState('error');

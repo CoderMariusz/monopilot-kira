@@ -13,6 +13,7 @@
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   DEFAULT_ITEM_LIST_PAGE_SIZE,
+  ITEM_CHOOSER_MAX_LIMIT,
   normalizePage,
   toPaginatedResult,
   type PaginatedResult,
@@ -31,6 +32,8 @@ import {
 } from './shared';
 
 export type ListItemsState = 'ready' | 'empty' | 'error';
+
+export type D365SyncFilter = 'synced' | 'drift' | 'unsynced';
 
 export type ListItemsResult = {
   items: ItemListItem[];
@@ -79,6 +82,7 @@ const ITEM_STATUS_SET = new Set<ItemStatus>(['draft', 'active', 'deprecated', 'b
 const WEIGHT_MODE_SET = new Set<WeightMode>(['fixed', 'catch']);
 const OUTPUT_UOM_SET = new Set(['base', 'each', 'box']);
 const ALL_ITEM_TYPES: ItemType[] = ['rm', 'ingredient', 'intermediate', 'fg', 'co_product', 'byproduct', 'packaging'];
+const D365_FILTER_SET = new Set<D365SyncFilter>(['synced', 'drift', 'unsynced']);
 
 function mapRow(row: ItemRow): ItemListItem | null {
   if (!ITEM_TYPE_SET.has(row.item_type as ItemType)) return null;
@@ -141,6 +145,15 @@ const ITEM_BASE_WHERE = `where i.org_id = app.current_org_id()
                 or i.name ilike '%' || $2 || '%'
               )`;
 
+const ITEM_LIST_FILTERS = `and ($3::text is null or i.item_type = $3::text)
+              and ($4::text is null or i.status = $4::text)
+              and (
+                $5::text is null
+                or ($5 = 'synced' and i.d365_sync_status = 'synced')
+                or ($5 = 'drift' and i.d365_sync_status = 'drift')
+                or ($5 = 'unsynced' and (i.d365_sync_status is null or i.d365_sync_status not in ('synced', 'drift')))
+              )`;
+
 function sanitizeTypes(itemTypes?: readonly string[]): ItemType[] | null {
   if (!itemTypes || itemTypes.length === 0) return null;
   const valid = itemTypes.filter((t): t is ItemType => ITEM_TYPE_SET.has(t as ItemType));
@@ -152,6 +165,18 @@ function parseItemTypeFilter(type: string | null | undefined, allowedTypes: Item
   if (!ITEM_TYPE_SET.has(type as ItemType)) return null;
   if (allowedTypes && !allowedTypes.includes(type as ItemType)) return null;
   return type as ItemType;
+}
+
+function parseStatusFilter(status: string | null | undefined): ItemStatus | null {
+  if (!status || status === 'all') return null;
+  if (!ITEM_STATUS_SET.has(status as ItemStatus)) return null;
+  return status as ItemStatus;
+}
+
+function parseD365Filter(d365: string | null | undefined): D365SyncFilter | null {
+  if (!d365 || d365 === 'all') return null;
+  if (!D365_FILTER_SET.has(d365 as D365SyncFilter)) return null;
+  return d365 as D365SyncFilter;
 }
 
 function emptyTypeCounts(): Record<ItemType, number> & { all: number } {
@@ -167,16 +192,21 @@ export async function listItems(opts?: {
   itemTypes?: readonly string[];
   search?: string | null;
   itemType?: string | null;
+  status?: string | null;
+  d365?: string | null;
 }): Promise<ListItemsResult> {
   const allowedTypes = sanitizeTypes(opts?.itemTypes);
   const search = opts?.search?.trim() || null;
   const typeFilter = parseItemTypeFilter(opts?.itemType, allowedTypes);
+  const statusFilter = parseStatusFilter(opts?.status);
+  const d365Filter = parseD365Filter(opts?.d365);
+  const isPaginatedList = opts?.page !== undefined || opts?.offset !== undefined;
   const page = normalizePage({
     page: opts?.page,
     offset: opts?.offset,
     limit: opts?.limit,
-    defaultLimit: DEFAULT_ITEM_LIST_PAGE_SIZE,
-    maxLimit: 200,
+    defaultLimit: isPaginatedList ? DEFAULT_ITEM_LIST_PAGE_SIZE : ITEM_CHOOSER_MAX_LIMIT,
+    maxLimit: ITEM_CHOOSER_MAX_LIMIT,
   });
 
   try {
@@ -184,7 +214,8 @@ export async function listItems(opts?: {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       const scopeTypes = allowedTypes;
       const baseParams = [scopeTypes, search] as const;
-      const listParams = [...baseParams, typeFilter, page.limit, page.offset] as const;
+      const filterParams = [typeFilter, statusFilter, d365Filter] as const;
+      const listParams = [...baseParams, ...filterParams, page.limit, page.offset] as const;
 
       const [typeCountRes, totalRes, itemsResult, canCreate, canEdit, canDeactivate] = await Promise.all([
         (client as QueryClient).query<{ item_type: string; n: number }>(
@@ -198,16 +229,16 @@ export async function listItems(opts?: {
           `select count(*)::int as total
              ${ITEM_FROM}
             ${ITEM_BASE_WHERE}
-              and ($3::text is null or i.item_type = $3::text)`,
-          [...baseParams, typeFilter],
+            ${ITEM_LIST_FILTERS}`,
+          [...baseParams, ...filterParams],
         ),
         (client as QueryClient).query<ItemRow>(
           `${ITEM_SELECT}
              ${ITEM_FROM}
             ${ITEM_BASE_WHERE}
-              and ($3::text is null or i.item_type = $3::text)
+            ${ITEM_LIST_FILTERS}
             order by i.item_code asc
-            limit $4 offset $5`,
+            limit $6 offset $7`,
           listParams,
         ),
         hasPermission(ctx, ITEMS_CREATE_PERMISSION),
@@ -227,13 +258,15 @@ export async function listItems(opts?: {
         .map(mapRow)
         .filter((row): row is ItemListItem => row !== null);
       const pagination = toPaginatedResult(items, Number(totalRes.rows[0]?.total ?? 0), page);
+      const hasActiveFilters = Boolean(search || typeFilter || statusFilter || d365Filter);
+      const catalogEmpty = !hasActiveFilters && typeCounts.all === 0;
 
       return {
         items,
         canCreate,
         canEdit,
         canDeactivate,
-        state: pagination.total > 0 ? 'ready' : 'empty',
+        state: catalogEmpty ? 'empty' : 'ready',
         pagination,
         typeCounts,
       };

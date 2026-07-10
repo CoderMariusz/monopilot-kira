@@ -11,6 +11,8 @@ export const DEFAULT_LP_PAGE_SIZE = 50;
 export const DEFAULT_WO_LIST_PAGE_SIZE = 50;
 export const DEFAULT_PRODUCTION_WO_LIST_PAGE_SIZE = 50;
 export const DEFAULT_ITEM_LIST_PAGE_SIZE = 50;
+/** Non-paginated chooser reads (BOM modals, etc.) — previous listItems() cap. */
+export const ITEM_CHOOSER_MAX_LIMIT = 200;
 export const DEFAULT_PO_LIST_PAGE_SIZE = 50;
 export const DEFAULT_TO_LIST_PAGE_SIZE = 50;
 export const DEFAULT_NCR_PAGE_SIZE = 50;
