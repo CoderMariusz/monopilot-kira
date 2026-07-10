@@ -1,0 +1,2919 @@
+warning: `--full-auto` is deprecated; use `--sandbox workspace-write` instead.
+Reading additional input from stdin...
+OpenAI Codex v0.144.1
+--------
+workdir: /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: none
+reasoning summaries: none
+session id: 019f4c1d-f697-7ec0-81ad-d7094a6965fb
+--------
+user
+Re-review after a fix round. Your prior review confirmed N-32/55/62/63 FIXED and N-30/N-31 code CORRECT but their tests were mock-only (couldn't prove rollback). The implementer added 2 DB-integration pg tests (commit 3caef844): import-po-rollback.pg.test.ts + import-to-rollback.pg.test.ts. Verify in CODE (read both new pg test files):
+- Do they gate on DATABASE_URL (describe.skip without it) and use the getOwnerConnection/getAppConnection + bindOrg seeding pattern from existing pg tests? Do they parse + collect + skip cleanly (they do: 2 files/4 tests skipped without DATABASE_URL)?
+- PO test: does it run the importer in all_or_nothing mode with group 1 valid + group 2 failing at runtime, then assert AFTER the call that group 1's PO is NOT in public.purchase_orders (count 0 = rolled back) AND no import-job/audit row persisted? Is there a best-effort contrast test proving group 1 IS committed there?
+- TO test: same shape — order 1 NOT in public.transfer_orders after a failed all_or_nothing import; contrast with best-effort.
+- Are the assertions REAL (query actual persisted state), not mocked? Correct import depths? Non-reserved SQL aliases? Do they clean up seeded rows in afterAll (org-scoped)?
+- Confirm the implementation files (import-po.ts/import-to.ts/cores) were NOT changed in this fix round (tests only).
+Overwrite _meta/plans/wave-14-codex-review.md ending VERDICT: pass|fail. Do NOT modify other files.
+codex
+I’ll re-review the two integration tests against the repository’s mandatory verification schema, confirm the commit scope, run only targeted checks permitted in this lane, and overwrite the requested review report.
+exec
+/bin/zsh -lc "sed -n '1,240p' /Users/mariuszkrawczyk/.codex/RTK.md && sed -n '1,280p' .claude/skills/MON-verify-and-review/SKILL.md" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14
+ succeeded in 0ms:
+# RTK - Rust Token Killer (Codex CLI)
+
+**Usage**: Token-optimized CLI proxy for shell commands.
+
+## Rule
+
+Always prefix shell commands with `rtk`.
+
+Examples:
+
+```bash
+rtk git status
+rtk cargo test
+rtk npm run build
+rtk pytest -q
+```
+
+## Meta Commands
+
+```bash
+rtk gain            # Token savings analytics
+rtk gain --history  # Recent command savings history
+rtk proxy <cmd>     # Run raw command without filtering
+```
+
+## Verification
+
+```bash
+rtk --version
+rtk gain
+which rtk
+```
+---
+name: MON-verify-and-review
+description: The analysis, verification and self-review schema EVERY agent working on MonoPilot Kira must follow — writers before coding and before claiming done, reviewers when cross-reviewing a diff, orchestrators when arbitrating findings. Use whenever you implement, review, or merge ANY change here (code, migration, UI), whenever a prod error digest appears, and whenever you are about to write "done", "fixed" or "passing". Battle-tested 2026-07-07: this schema caught ~35 real defects before prod in one day.
+tags: [monopilot, review, verification, migrations, rsc, self-review]
+---
+
+# MON-verify-and-review
+
+One schema, three hats: **writer**, **reviewer**, **arbiter**. Unit tests here mock the
+database and the RSC runtime, so the two places bugs actually live — live Postgres
+triggers and the server→client boundary — are invisible to green test suites. That is
+why every step below exists.
+
+## 1. Writer — before coding
+
+- Trace the real flow end-to-end first (route → action → SQL → trigger → consumer).
+  The smallest diff in the wrong place is a second bug.
+- Verify schema claims against the **live DB**, never against drizzle mirrors or your
+  memory: `select column_name from information_schema.columns where table_name='…'`.
+  (A whole sweep statement once targeted a column that did not exist.)
+- Before writing to ANY table, list its triggers:
+  ```sql
+  select t.tgname, p.proname from pg_trigger t
+  join pg_class c on c.oid=t.tgrelid join pg_proc p on p.oid=t.tgfoid
+  where c.relname='<table>' and not t.tgisinternal;
+  ```
+  Immutability guards exist on: `grn_items` (completed GRN), `bom_lines` (active header —
+  ANY line op rejected), `factory_specs` (clone-on-write), `formulation_ingredients`
+  (locked version), `bom_snapshots`. New tables get them too — always check.
+- Known ordering contract: a new BOM header is created **draft-first** — insert header
+  as draft → insert lines → supersede old active → activate. Never lines-into-active.
+- Wave0 lock: `org_id` (never tenant_id), RLS via `app.current_org_id()` on every hop.
+
+## 2. Writer — RSC and server-action rules (3 prod screens died on this in one day)
+
+- Props crossing server→client must be JSON-serializable. No inline closures
+  (`action={(p) => f(p, opts)}` from a page = crash on hard load), no function-valued
+  fields inside label/config objects. Fix pattern: named `'use server'` wrapper action;
+  pure exported helpers that take the data object as an argument.
+- `'use server'` modules export **only async functions** — a `export type`/const passes
+  tsc and kills `next build`.
+- Every fixed page gets a serializability regression test (walk the props object,
+  assert no `typeof === 'function'` — see `item-wizard-labels.test.ts`).
+
+## 3. Writer — migrations
+
+- Additive by default; number = next free (check `packages/db/migrations/`). Vercel
+  build **auto-applies** migrations on push — there is no "later".
+- **Data migration ritual (mandatory):**
+  1. Backup every affected table first: `\copy (select * from t) to '_meta/backups/<date>-<wave>/t.csv' csv header`.
+  2. **Dry-run on the live DB**: copy of the file with `commit;` → `rollback;`, run with
+     `ON_ERROR_STOP=1`, and embed *probes* — one statement that must PASS and one that
+     must still FAIL (guard intact). A dry-run once caught a phantom column and a
+     freeze-trigger that both reviews missed.
+  3. Idempotent (run-twice mentally), `RAISE NOTICE` row counts per statement.
+  4. Frozen history (completed GRNs, snapshots) is skipped-with-notice and normalized
+     on read — never rewritten.
+  5. If old code can write legacy values during the deploy window: ship a self-contained
+     post-deploy sweep file **outside** `packages/db/migrations/` (the runner globs only
+     that dir) and run it manually after READY.
+
+## 4. Writer — self-review before claiming done
+
+- Re-read your diff cold. For every function you changed, grep its OTHER callers — the
+  root-cause fix lives where all callers route through.
+- Paste **real** command output for tsc and each test file. A self-declared GREEN with
+  no output is a FAIL. `CI=true pnpm install` first if node_modules is broken.
+- State explicitly what you did NOT do and every ambiguity you resolved (and why).
+  Honest gaps get fixed in review; hidden gaps become prod incidents.
+- Commit early and often to your track branch. Never push. Never work in /tmp
+  (a session crash once erased an entire wave of uncommitted /tmp worktrees).
+
+## 5. Reviewer — cross-review a diff
+
+- Writer ≠ reviewer, different model family. You get diff + the writer's spec
+  (`.agent-prompt.md`) + arbitration questions. Read FULL files, not just hunks —
+  several fixes land the same day; the diff may be stale.
+- Hunt ranked REAL defects only (no style nits), in this order:
+  1. live-DB safety (triggers, FKs, uniques, deploy-window),
+  2. security (org scoping on every SQL hop, RBAC, gate bypasses),
+  3. correctness (mass balance / double-count / vanish paths; positional SQL params vs tests),
+  4. contract for sibling tracks (fields the UI or chain expects),
+  5. overengineering (single-use abstractions, duplicated SQL that will drift).
+- Verify the writer's own inventory yourself (grep again). Run the test suites yourself
+  when the sandbox allows; report honestly when it doesn't.
+- Verdict: `MERGE` / `FIX-FIRST (list)` / `REWORK`. Each finding: severity, file:line,
+  concrete failure scenario, minimal fix.
+
+## 6. Arbiter — before findings go back to the writer
+
+- Confirm each finding **in the code yourself** before accepting it. Codex/Composer
+  reviews include plausible-but-wrong items.
+- "This diff reintroduces X" on a branch → check **branch-base drift** first
+  (`git diff main...branch --name-only`) — the branch may simply predate the fix.
+- Reject fixes that ADD abstraction (shared fixtures, wrapper layers) when the finding
+  was about deletion; reject deleting files whose types can't move into a
+  `'use server'` module.
+- Decide contract questions explicitly (e.g. "domain is per-product, not per-project")
+  and write the DECISION into the fix prompt — writers implement decisions, not debates.
+- Small surgical fixes (≤ ~20 lines, you fully understand them) you may apply yourself;
+  everything else goes back to the writing engine. High-risk reworks get a Codex re-check.
+
+## 7. After merge — the gate is on main, and prod is the last reviewer
+
+- Serial merge; on merged main: tsc + the union of touched test suites (branch-green is
+  not merge-green — conflict resolutions and sibling tracks interact).
+- After deploy READY: drive the changed flow in the browser on prod. Any 500 → pull the
+  Vercel runtime error digest (`get_runtime_errors`) — it names the real exception the
+  UI hides. Fix root-cause the same day; each live-found bug class gets added to §1-§3.
+
+exec
+/bin/zsh -lc "rtk git status --short && rtk git show --stat --oneline --decorate --no-renames 3caef844 && rtk git show --name-only --format= 3caef844 && rg -n \"getOwnerConnection|getAppConnection|bindOrg\" apps/web --glob '*.pg.test.ts' | head -80 && sed -n '1,320p' apps/web/app/'[locale]'/\\(dashboard\\)/imports/_actions/import-po-rollback.pg.test.ts && sed -n '1,340p' apps/web/app/'[locale]'/\\(dashboard\\)/imports/_actions/import-to-rollback.pg.test.ts" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14
+ exited 1 in 0ms:
+?? _meta/plans/wave-14-codex-out.md
+?? _meta/plans/wave-14-codex-review.md
+?? _meta/plans/wave-14-codex.err
+?? _meta/plans/wave-14-composer-out.md
+?? _meta/plans/wave-14-composer-out.md.err
+?? _meta/plans/wave-14-fix-out.md
+?? _meta/plans/wave-14-fix-out.md.err
+?? _meta/plans/wave-14-fix-prompt.txt
+?? _meta/plans/wave-14-prompt.txt
+?? _meta/plans/wave-14-rereview-out.md
+?? _meta/plans/wave-14-rereview-prompt.txt
+?? _meta/plans/wave-14-rereview.err
+?? _meta/plans/wave-14-review-prompt.txt
+?? _meta/plans/wave-14-spec.md
+?? apps/web/node_modules
+?? node_modules3caef844 (HEAD -> fix/wave14-imports) test(planning): add Postgres rollback proofs for PO/TO imports
+ _meta/plans/wave-14-summary.md                     |   9 +
+ .../__tests__/import-po-rollback.pg.test.ts        | 215 ++++++++++++++++++++
+ .../__tests__/import-to-rollback.pg.test.ts        | 221 +++++++++++++++++++++
+ 3 files changed, 445 insertions(+)
+_meta/plans/wave-14-summary.md
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts
+apps/web/lib/production/__tests__/stock-moves-production-ledger.pg.test.ts:19:import { getAppConnection, getOwnerConnection } from '../../../../../packages/db/src/clients.js';
+apps/web/lib/production/__tests__/stock-moves-production-ledger.pg.test.ts:79:    ownerPool = getOwnerConnection();
+apps/web/lib/production/__tests__/stock-moves-production-ledger.pg.test.ts:80:    appPool = getAppConnection();
+apps/web/lib/finance/__tests__/upsert-wac.pg.test.ts:5:import { getAppConnection, getOwnerConnection } from '../../../../../packages/db/src/clients.js';
+apps/web/lib/finance/__tests__/upsert-wac.pg.test.ts:24:    ownerPool = getOwnerConnection();
+apps/web/lib/finance/__tests__/upsert-wac.pg.test.ts:25:    appPool = getAppConnection();
+apps/web/app/[locale]/(app)/(modules)/shipping/_actions/__tests__/wave8-shipping-integrity.pg.test.ts:10:import { getAppConnection, getOwnerConnection } from '../../../../../../../../../packages/db/src/clients.js';
+apps/web/app/[locale]/(app)/(modules)/shipping/_actions/__tests__/wave8-shipping-integrity.pg.test.ts:39:async function bindOrg(ownerPool: pg.Pool, client: pg.PoolClient, targetOrgId: string): Promise<string> {
+apps/web/app/[locale]/(app)/(modules)/shipping/_actions/__tests__/wave8-shipping-integrity.pg.test.ts:57:    ownerPool = getOwnerConnection();
+apps/web/app/[locale]/(app)/(modules)/shipping/_actions/__tests__/wave8-shipping-integrity.pg.test.ts:58:    appPool = getAppConnection();
+apps/web/app/[locale]/(app)/(modules)/shipping/_actions/__tests__/wave8-shipping-integrity.pg.test.ts:207:    const sessionToken = await bindOrg(ownerPool, client, orgId);
+apps/web/app/[locale]/(app)/(modules)/shipping/_actions/__tests__/wave8-shipping-integrity.pg.test.ts:548:    const sessionToken = await bindOrg(ownerPool, client, orgId);
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts:14:import { getAppConnection, getOwnerConnection } from '../../../../../../../../../../packages/db/src/clients.js';
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts:66:    ownerPool = getOwnerConnection();
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts:67:    appPool = getAppConnection();
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts:10:import { getAppConnection, getOwnerConnection } from '../../../../../../../../../../packages/db/src/clients.js';
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts:64:    ownerPool = getOwnerConnection();
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts:65:    appPool = getAppConnection();
+sed: apps/web/app/[locale]/(dashboard)/imports/_actions/import-po-rollback.pg.test.ts: No such file or directory
+
+exec
+/bin/zsh -lc "sed -n '1,280p' 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts'
+sed -n '1,300p' 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts'
+rtk git diff 3caef844"'^ 3caef844 -- '"'apps/web/app/[locale]/(app)/(modules)/planning/**/import*.ts'" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14
+ succeeded in 0ms:
+/**
+ * Wave 14 — PO import all_or_nothing rollback (real Postgres).
+ * Skips when DATABASE_URL is unset.
+ */
+
+import { randomUUID } from 'node:crypto';
+import type pg from 'pg';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { getAppConnection, getOwnerConnection } from '../../../../../../../../../../packages/db/src/clients.js';
+import { commitPoImport } from '../import-po';
+import type { PoImportRow } from '../import-po.types';
+
+const databaseUrl = process.env.DATABASE_URL;
+const runPg = databaseUrl ? describe : describe.skip;
+
+const tenantId = randomUUID();
+const orgId = randomUUID();
+const userId = randomUUID();
+const roleId = randomUUID();
+const siteId = randomUUID();
+const supplierActiveId = randomUUID();
+const supplierBlockedId = randomUUID();
+const itemAId = randomUUID();
+const itemBId = randomUUID();
+
+const SUP_ACTIVE = 'W14-SUP-A';
+const SUP_BLOCKED = 'W14-SUP-B';
+const ITEM_A = 'W14-ITEM-A';
+const ITEM_B = 'W14-ITEM-B';
+const GROUP1_REF = 'W14-PO-EXT-A';
+const GROUP2_REF = 'W14-PO-EXT-B';
+const FUTURE_DATE = '2027-06-24';
+
+function poRow(overrides: Partial<PoImportRow> = {}): PoImportRow {
+  return {
+    external_ref: GROUP1_REF,
+    supplier_code: SUP_ACTIVE,
+    item_code: ITEM_A,
+    qty: 10,
+    uom: 'kg',
+    price: 6.25,
+    currency: 'EUR',
+    expected_delivery: FUTURE_DATE,
+    notes: 'wave14 pg rollback',
+    ...overrides,
+  };
+}
+
+function twoGroupImportRows(): PoImportRow[] {
+  return [
+    poRow({ external_ref: GROUP1_REF, supplier_code: SUP_ACTIVE, item_code: ITEM_A, uom: 'kg' }),
+    poRow({ external_ref: GROUP1_REF, supplier_code: SUP_ACTIVE, item_code: ITEM_B, uom: 'ea' }),
+    poRow({ external_ref: GROUP2_REF, supplier_code: SUP_BLOCKED, item_code: ITEM_A, uom: 'kg', currency: 'GBP' }),
+    poRow({ external_ref: GROUP2_REF, supplier_code: SUP_BLOCKED, item_code: ITEM_B, uom: 'box', currency: 'GBP' }),
+  ];
+}
+
+runPg('PO import all_or_nothing rollback (real Postgres)', () => {
+  let ownerPool: pg.Pool;
+  let appPool: pg.Pool;
+
+  beforeAll(async () => {
+    ownerPool = getOwnerConnection();
+    appPool = getAppConnection();
+
+    await ownerPool.query(
+      `insert into public.tenants (id, name, region_cluster, data_plane_url)
+       values ($1, 'Wave14 PO Import Tenant', 'eu', 'https://wave14-po-import.example.test')
+       on conflict (id) do nothing`,
+      [tenantId],
+    );
+    await ownerPool.query(
+      `insert into public.organizations (id, tenant_id, name, slug, industry_code)
+       values ($1, $2, 'Wave14 PO Import Org', $3, 'fmcg')
+       on conflict (id) do nothing`,
+      [orgId, tenantId, `wave14-po-${orgId.slice(0, 8)}`],
+    );
+    await ownerPool
+      .query(`select public.seed_planning_procurement_manage_permissions_for_org($1::uuid)`, [orgId])
+      .catch(() => undefined);
+    await ownerPool.query(
+      `insert into public.roles (id, org_id, slug, code, name, permissions)
+       values ($1, $2, $3, $3, 'Wave14 PO Import Role', '[]'::jsonb)
+       on conflict (id) do nothing`,
+      [roleId, orgId, `wave14-po-${roleId.slice(0, 8)}`],
+    );
+    await ownerPool.query(
+      `insert into public.users (id, org_id, email, name, role_id)
+       values ($1, $2, $3, 'Wave14 PO Import User', $4)
+       on conflict (id) do nothing`,
+      [userId, orgId, `wave14-po-${userId}@example.test`, roleId],
+    );
+    await ownerPool.query(
+      `insert into public.user_roles (org_id, user_id, role_id)
+       values ($1, $2, $3) on conflict do nothing`,
+      [orgId, userId, roleId],
+    );
+    for (const permission of ['planning.po.manage']) {
+      await ownerPool.query(
+        `insert into public.role_permissions (role_id, permission)
+         values ($1, $2) on conflict do nothing`,
+        [roleId, permission],
+      );
+    }
+    await ownerPool.query(
+      `insert into public.sites (id, org_id, site_code, name, is_default, is_active)
+       values ($1, $2, 'W14-SITE', 'Wave14 PO Site', true, true)
+       on conflict (id) do nothing`,
+      [siteId, orgId],
+    );
+    await ownerPool.query(
+      `insert into public.suppliers
+         (id, org_id, code, name, currency, status)
+       values ($1, $2, $3, 'Wave14 Active Supplier', 'EUR', 'active'),
+              ($4, $2, $5, 'Wave14 Blocked Supplier', 'GBP', 'blocked')
+       on conflict (id) do nothing`,
+      [supplierActiveId, orgId, SUP_ACTIVE, supplierBlockedId, SUP_BLOCKED],
+    );
+    await ownerPool.query(
+      `insert into public.items
+         (id, org_id, item_code, item_type, name, uom_base, output_uom, each_per_box, status, uom_secondary)
+       values ($1, $2, $3, 'rm', 'Wave14 Item A', 'kg', 'kg', 1, 'active', null),
+              ($4, $2, $5, 'fg', 'Wave14 Item B', 'pcs', 'each', 12, 'active', 'box')
+       on conflict (id) do nothing`,
+      [itemAId, orgId, ITEM_A, itemBId, ITEM_B],
+    );
+    process.env.NODE_ENV = 'test';
+    process.env.VITEST = 'true';
+    process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID = userId;
+    process.env.NEXT_SERVER_ACTION_ORG_ID = orgId;
+  });
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2027-01-01T12:00:00.000Z'));
+    await ownerPool.query(`delete from public.purchase_order_lines where org_id = $1::uuid`, [orgId]);
+    await ownerPool.query(`delete from public.purchase_orders where org_id = $1::uuid`, [orgId]);
+    await ownerPool.query(`delete from public.audit_events where org_id = $1::uuid`, [orgId]);
+    await ownerPool.query(
+      `delete from public.import_export_jobs
+        where org_id = $1::uuid and kind = 'import' and target = 'purchase_orders'`,
+      [orgId],
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  afterAll(async () => {
+    delete process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID;
+    delete process.env.NEXT_SERVER_ACTION_ORG_ID;
+
+    await ownerPool?.query(`delete from public.purchase_order_lines where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.purchase_orders where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.audit_events where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.import_export_jobs where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.items where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.suppliers where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.sites where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.role_permissions where role_id = $1::uuid`, [roleId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.user_roles where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.users where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.roles where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.organizations where id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.tenants where id = $1::uuid`, [tenantId]).catch(() => undefined);
+    await appPool?.end();
+    await ownerPool?.end();
+  });
+
+  async function countPurchaseOrders(poNumber: string): Promise<number> {
+    const { rows } = await ownerPool.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.purchase_orders
+        where org_id = $1::uuid
+          and po_number = $2`,
+      [orgId, poNumber],
+    );
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  async function countImportJobs(): Promise<number> {
+    const { rows } = await ownerPool.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.import_export_jobs
+        where org_id = $1::uuid
+          and kind = 'import'
+          and target = 'purchase_orders'`,
+      [orgId],
+    );
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  it('all_or_nothing rolls back group 1 when group 2 hits blocked supplier at runtime', async () => {
+    const result = await commitPoImport(twoGroupImportRows(), { mode: 'all_or_nothing' });
+
+    expect(result.created).toEqual([]);
+    expect(result.skipped).toEqual([]);
+    expect(result.failed.length).toBeGreaterThan(0);
+    expect(await countPurchaseOrders(GROUP1_REF)).toBe(0);
+    expect(await countPurchaseOrders(GROUP2_REF)).toBe(0);
+    expect(await countImportJobs()).toBe(0);
+  });
+
+  it('skip_invalid commits group 1 while group 2 is reported failed (contrast)', async () => {
+    const result = await commitPoImport(twoGroupImportRows(), { mode: 'skip_invalid' });
+
+    expect(result.created).toEqual([{ po_number: GROUP1_REF, external_ref: GROUP1_REF }]);
+    expect(result.failed.length).toBeGreaterThan(0);
+    expect(await countPurchaseOrders(GROUP1_REF)).toBe(1);
+    expect(await countPurchaseOrders(GROUP2_REF)).toBe(0);
+    expect(await countImportJobs()).toBe(1);
+  });
+});
+/**
+ * Wave 14 — TO import all_or_nothing rollback (real Postgres).
+ * Skips when DATABASE_URL is unset.
+ *
+ * Order 2 failure is forced via a call-2 spy returning persistence_failed — the TO
+ * core has no blocked-supplier analogue; group 1 still performs real inserts on the
+ * shared withOrgContext transaction before the forced failure.
+ */
+
+import { randomUUID } from 'node:crypto';
+import type pg from 'pg';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { getAppConnection, getOwnerConnection } from '../../../../../../../../../../packages/db/src/clients.js';
+import * as transferCore from '../create-transfer-order-core';
+import { commitToImport } from '../import-to';
+import type { ToImportRow } from '../import-to.types';
+
+const databaseUrl = process.env.DATABASE_URL;
+const runPg = databaseUrl ? describe : describe.skip;
+
+const tenantId = randomUUID();
+const orgId = randomUUID();
+const userId = randomUUID();
+const roleId = randomUUID();
+const whAId = randomUUID();
+const whBId = randomUUID();
+const itemAId = randomUUID();
+const itemBId = randomUUID();
+
+const WH_A = 'W14-WH-A';
+const WH_B = 'W14-WH-B';
+const ITEM_A = 'W14-ITEM-A';
+const ITEM_B = 'W14-ITEM-B';
+const ORDER1_REF = 'W14-TO-EXT-A';
+const ORDER2_REF = 'W14-TO-EXT-B';
+
+function toRow(overrides: Partial<ToImportRow> = {}): ToImportRow {
+  return {
+    external_ref: ORDER1_REF,
+    from_warehouse_code: WH_A,
+    to_warehouse_code: WH_B,
+    item_code: ITEM_A,
+    qty: 10,
+    uom: 'kg',
+    date: '2027-06-24',
+    ...overrides,
+  };
+}
+
+function twoOrderImportRows(): ToImportRow[] {
+  return [
+    toRow({ external_ref: ORDER1_REF, from_warehouse_code: WH_A, to_warehouse_code: WH_B, item_code: ITEM_A, uom: 'kg' }),
+    toRow({ external_ref: ORDER1_REF, from_warehouse_code: WH_A, to_warehouse_code: WH_B, item_code: ITEM_B, uom: 'ea' }),
+    toRow({ external_ref: ORDER2_REF, from_warehouse_code: WH_B, to_warehouse_code: WH_A, item_code: ITEM_A, uom: 'kg' }),
+    toRow({ external_ref: ORDER2_REF, from_warehouse_code: WH_B, to_warehouse_code: WH_A, item_code: ITEM_B, uom: 'box' }),
+  ];
+}
+
+runPg('TO import all_or_nothing rollback (real Postgres)', () => {
+  let ownerPool: pg.Pool;
+  let appPool: pg.Pool;
+  const originalCore = transferCore.createTransferOrderCore;
+
+  beforeAll(async () => {
+    ownerPool = getOwnerConnection();
+    appPool = getAppConnection();
+
+    await ownerPool.query(
+      `insert into public.tenants (id, name, region_cluster, data_plane_url)
+       values ($1, 'Wave14 TO Import Tenant', 'eu', 'https://wave14-to-import.example.test')
+       on conflict (id) do nothing`,
+      [tenantId],
+    );
+    await ownerPool.query(
+      `insert into public.organizations (id, tenant_id, name, slug, industry_code)
+       values ($1, $2, 'Wave14 TO Import Org', $3, 'fmcg')
+       on conflict (id) do nothing`,
+      [orgId, tenantId, `wave14-to-${orgId.slice(0, 8)}`],
+    );
+    await ownerPool
+      .query(`select public.seed_planning_procurement_manage_permissions_for_org($1::uuid)`, [orgId])
+      .catch(() => undefined);
+    await ownerPool.query(
+      `insert into public.roles (id, org_id, slug, code, name, permissions)
+       values ($1, $2, $3, $3, 'Wave14 TO Import Role', '[]'::jsonb)
+       on conflict (id) do nothing`,
+      [roleId, orgId, `wave14-to-${roleId.slice(0, 8)}`],
+    );
+    await ownerPool.query(
+      `insert into public.users (id, org_id, email, name, role_id)
+       values ($1, $2, $3, 'Wave14 TO Import User', $4)
+       on conflict (id) do nothing`,
+      [userId, orgId, `wave14-to-${userId}@example.test`, roleId],
+    );
+    await ownerPool.query(
+      `insert into public.user_roles (org_id, user_id, role_id)
+       values ($1, $2, $3) on conflict do nothing`,
+      [orgId, userId, roleId],
+    );
+    for (const permission of ['planning.to.manage']) {
+      await ownerPool.query(
+        `insert into public.role_permissions (role_id, permission)
+         values ($1, $2) on conflict do nothing`,
+        [roleId, permission],
+      );
+    }
+    await ownerPool.query(
+      `insert into public.warehouses (id, org_id, code, name)
+       values ($1, $2, $3, 'Wave14 WH A'),
+              ($4, $2, $5, 'Wave14 WH B')
+       on conflict (id) do nothing`,
+      [whAId, orgId, WH_A, whBId, WH_B],
+    );
+    await ownerPool.query(
+      `insert into public.items
+         (id, org_id, item_code, item_type, name, uom_base, output_uom, each_per_box, status, uom_secondary)
+       values ($1, $2, $3, 'rm', 'Wave14 Item A', 'kg', 'kg', 1, 'active', null),
+              ($4, $2, $5, 'fg', 'Wave14 Item B', 'pcs', 'each', 12, 'active', 'box')
+       on conflict (id) do nothing`,
+      [itemAId, orgId, ITEM_A, itemBId, ITEM_B],
+    );
+    process.env.NODE_ENV = 'test';
+    process.env.VITEST = 'true';
+    process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID = userId;
+    process.env.NEXT_SERVER_ACTION_ORG_ID = orgId;
+  });
+
+  beforeEach(async () => {
+    await ownerPool.query(`delete from public.transfer_order_lines where org_id = $1::uuid`, [orgId]);
+    await ownerPool.query(`delete from public.transfer_orders where org_id = $1::uuid`, [orgId]);
+    await ownerPool.query(`delete from public.audit_events where org_id = $1::uuid`, [orgId]);
+    await ownerPool.query(
+      `delete from public.import_export_jobs
+        where org_id = $1::uuid and kind = 'import' and target = 'transfer_orders'`,
+      [orgId],
+    );
+
+    vi.restoreAllMocks();
+    let coreCall = 0;
+    vi.spyOn(transferCore, 'createTransferOrderCore').mockImplementation(async (ctx, input) => {
+      coreCall += 1;
+      if (coreCall >= 2) {
+        return {
+          ok: false,
+          error: 'persistence_failed',
+          message: 'wave14 pg test simulated order-2 failure',
+        };
+      }
+      return originalCore(ctx, input);
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterAll(async () => {
+    delete process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID;
+    delete process.env.NEXT_SERVER_ACTION_ORG_ID;
+
+    await ownerPool?.query(`delete from public.transfer_order_lines where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.transfer_orders where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.audit_events where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.import_export_jobs where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.items where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.warehouses where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.role_permissions where role_id = $1::uuid`, [roleId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.user_roles where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.users where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.roles where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.organizations where id = $1::uuid`, [orgId]).catch(() => undefined);
+    await ownerPool?.query(`delete from public.tenants where id = $1::uuid`, [tenantId]).catch(() => undefined);
+    await appPool?.end();
+    await ownerPool?.end();
+  });
+
+  async function countTransferOrders(toNumber: string): Promise<number> {
+    const { rows } = await ownerPool.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.transfer_orders
+        where org_id = $1::uuid
+          and to_number = $2`,
+      [orgId, toNumber],
+    );
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  async function countImportJobs(): Promise<number> {
+    const { rows } = await ownerPool.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.import_export_jobs
+        where org_id = $1::uuid
+          and kind = 'import'
+          and target = 'transfer_orders'`,
+      [orgId],
+    );
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  it('all_or_nothing rolls back order 1 when order 2 fails at runtime', async () => {
+    const result = await commitToImport(twoOrderImportRows(), { mode: 'all_or_nothing' });
+
+    expect(result.created).toEqual([]);
+    expect(result.skipped).toEqual([]);
+    expect(result.failed.length).toBeGreaterThan(0);
+    expect(await countTransferOrders(ORDER1_REF)).toBe(0);
+    expect(await countTransferOrders(ORDER2_REF)).toBe(0);
+    expect(await countImportJobs()).toBe(0);
+  });
+
+  it('skip_invalid commits order 1 while order 2 is reported failed (contrast)', async () => {
+    const result = await commitToImport(twoOrderImportRows(), { mode: 'skip_invalid' });
+
+    expect(result.created).toEqual([{ to_number: ORDER1_REF, external_ref: ORDER1_REF }]);
+    expect(result.failed.length).toBeGreaterThan(0);
+    expect(await countTransferOrders(ORDER1_REF)).toBe(1);
+    expect(await countTransferOrders(ORDER2_REF)).toBe(0);
+    expect(await countImportJobs()).toBe(1);
+  });
+});
+
+
+codex
+The new files do exercise persisted tables, but two requested proof points are currently absent: neither test uses `bindOrg`, and neither asserts that `audit_events` remained empty after rollback. I’m tracing the importer connection path and running the two files now to distinguish a reporting gap from a test-validity defect.
+exec
+/bin/zsh -lc "rg -n \"function bindOrg|export async function bindOrg|withOrgContext|commitPoImport|commitToImport\" packages/db/src apps/web/app/'[locale]'/'(app)'/'(modules)'/planning/{purchase-orders,transfer-orders}/_actions -g '*.ts' | head -200
+sed -n '1,130p' 'apps/web/app/[locale]/(app)/(modules)/shipping/_actions/__tests__/wave8-shipping-integrity.pg.test.ts'
+sed -n '1,280p' 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts'
+sed -n '1,300p' 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts'
+rtk git diff 3caef844"'^ 3caef844 --name-status
+rtk git diff 3caef844''^ 3caef844 -- '"'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/create-transfer-order-core.ts'" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14
+ succeeded in 0ms:
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:3:import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:57:  return withOrgContext(async ({ userId, orgId, client }): Promise<ToValidationResponse> => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:65:export async function commitToImport(
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:81:    return await withOrgContext(async ({ userId, orgId, client }): Promise<ToImportResponse> => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/po-form-data.ts:20: * Both run inside withOrgContext (RLS: org_id = app.current_org_id()); no
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/po-form-data.ts:28:import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/po-form-data.ts:90:    const supplierCode = await withOrgContext<string | undefined>(async (ctx) => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/po-form-data.ts:112:    const data = await withOrgContext<ItemSupplierPrice>(async (ctx) => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/po-form-data.ts:205:    return await withOrgContext<OrgUnitOption[]>(async (ctx) =>
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/po-form-data.ts:220:    return await withOrgContext<Record<string, number>>(async (ctx) => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/to-form-data.ts:22: * Both run inside withOrgContext as app_user with app.set_org_context applied,
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/to-form-data.ts:30:import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/to-form-data.ts:42:  return withOrgContext<WarehouseOption[]>(async (ctx) => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/to-form-data.ts:59:  return withOrgContext<Record<string, number>>(async (ctx) => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/to-form-data.ts:82:    return await withOrgContext<OrgUnitOption[]>(async (ctx) =>
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/to-form-data.ts:110:  return withOrgContext<ItemPickerOption[]>(async (ctx) => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:3:import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:58:  return withOrgContext(async ({ userId, orgId, client }): Promise<PoValidationResponse> => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:66:export async function commitPoImport(
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:82:    return await withOrgContext(async ({ userId, orgId, client }): Promise<PoImportResponse> => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.test.ts:49:  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:8:import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:388:    return await withOrgContext(async ({ client }): Promise<TransferOrderListResult> => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:450:    return await withOrgContext(async ({ client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:477:    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:497:    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrder>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:578:    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:640:    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:708:    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:826: *      NOTHING is written (withOrgContext commits even on ok:false returns).
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:910:  // Phase 2 — apply the plan (all-or-nothing inside the withOrgContext txn).
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:1161:    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrder>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.test.ts:46:  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
+packages/db/src/with-org-context.ts:4: * The web app owns the real `withOrgContext` implementation because it depends
+packages/db/src/with-org-context.ts:10: * Production callers should see no exported `withOrgContext` here and fall back
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:6:import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:219:    return await withOrgContext(async ({ client }) => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:413:    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderListResult> => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:482:    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:516:    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:536:    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:613:    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:690:    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:759:    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:859:    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrder>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:940:    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrder>> => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/to-stock.integration.test.ts:5: * Runs transitionTransferOrderStatus through the REAL withOrgContext HOF
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/to-stock.integration.test.ts:155:    // eslint-disable-next-line no-restricted-syntax -- test-only owner pool for seed/assert; the action runs through the real withOrgContext pools
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/to-stock.integration.test.ts:159:    // Drive withOrgContext's test-stub resolver (real app-role + RLS txn, no JWT).
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts:7: * shared withOrgContext transaction before the forced failure.
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts:16:import { commitToImport } from '../import-to';
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts:202:    const result = await commitToImport(twoOrderImportRows(), { mode: 'all_or_nothing' });
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts:213:    const result = await commitToImport(twoOrderImportRows(), { mode: 'skip_invalid' });
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts:11:import { commitPoImport } from '../import-po';
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts:196:    const result = await commitPoImport(twoGroupImportRows(), { mode: 'all_or_nothing' });
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts:207:    const result = await commitPoImport(twoGroupImportRows(), { mode: 'skip_invalid' });
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:5:import { commitToImport, validateToImport } from './import-to';
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:39:  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:121:  it('commitToImport returns typed forbidden when caller lacks planning.to.manage', async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:123:    await expect(commitToImport([toRow()], { mode: 'skip_invalid' })).resolves.toEqual({
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:153:  it('commitToImport groups rows into transfer orders correctly', async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:154:    const result = await commitToImport(
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:196:  it('commitToImport calls createTransferOrderCore on the same org context (no nested withOrgContext)', async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:197:    await commitToImport(
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:211:  it('commitToImport all_or_nothing rolls back order 1 when order 2 fails at runtime', async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:223:    const result = await commitToImport(
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/ship-holds.test.ts:40:  withOrgContext: vi.fn(
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/actions.test.ts:67:  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/reverse-receive.ts:7:import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/reverse-receive.ts:398:    return await withOrgContext(async ({ userId, orgId, client }) => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/reverse-receive.ts:416:    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<ReverseToReceiveLineResult> => {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/reverse-receive.test.ts:26:  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/update-nullable-fields.test.ts:18:  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/to-import-errors.ts:3:/** Thrown inside the write txn so withOrgContext rolls back on all_or_nothing failure. */
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:5:import { commitPoImport, validatePoImport } from './import-po';
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:39:  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:148:  it('commitPoImport returns typed forbidden when caller lacks planning.po.manage', async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:150:    await expect(commitPoImport(validFourRows(), { mode: 'skip_invalid' })).resolves.toEqual({
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:177:  it('commitPoImport groups four valid rows across two suppliers into two createPurchaseOrderCore calls', async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:178:    const result = await commitPoImport(validFourRows(), { mode: 'skip_invalid' });
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:206:  it('commitPoImport skips a re-commit when every external_ref already exists', async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:209:    const result = await commitPoImport(validFourRows(), { mode: 'skip_invalid' });
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:219:  it("commitPoImport all_or_nothing writes nothing when one of three rows is invalid", async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:220:    const result = await commitPoImport(
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:237:  it('commitPoImport all_or_nothing rolls back group 1 when group 2 fails at runtime', async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:248:    const result = await commitPoImport(validFourRows(), { mode: 'all_or_nothing' });
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:257:  it('commitPoImport rejects overlong notes via CreatePurchaseOrderInput with row-mapped errors', async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:258:    const result = await commitPoImport([poRow({ notes: 'x'.repeat(3000) })], { mode: 'skip_invalid' });
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:270:  it('commitPoImport rejects groups over 200 lines via CreatePurchaseOrderInput', async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:280:    const result = await commitPoImport(rows, { mode: 'skip_invalid' });
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:288:  it('commitPoImport calls createPurchaseOrderCore on the same org context (no nested withOrgContext)', async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:289:    await commitPoImport(validFourRows(), { mode: 'skip_invalid' });
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:297:  it('commitPoImport lands duplicate po_number in failed[] with duplicate_po_number code, not throwing', async () => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:303:    const result = await commitPoImport(validFourRows(), { mode: 'skip_invalid' });
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-export-job.ts:8: * archived })` (org-scoped via withOrgContext / RLS) plus `listPurchaseOrderLineCounts()`
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-export-job.ts:28:import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-export-job.ts:117:    const jobId = await withOrgContext(async ({ userId, orgId, client }): Promise<string> => {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/po-form-data.test.ts:27:  withOrgContext: <T,>(fn: (ctx: unknown) => Promise<T>) =>
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/receive-po-line.test.ts:31:  withOrgContext: async <T,>(action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<T>) =>
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/po-import-errors.ts:3:/** Thrown inside the write txn so withOrgContext rolls back on all_or_nothing failure. */
+/**
+ * Wave 8 — DB-faithful shipping stock integrity & traceability tests.
+ * Skips when DATABASE_URL is unset.
+ */
+
+import { randomUUID } from 'node:crypto';
+import type pg from 'pg';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { getAppConnection, getOwnerConnection } from '../../../../../../../../../packages/db/src/clients.js';
+import { setPin } from '../../../../../../../../../packages/auth/src/verify-pin.js';
+import { cancelShipment } from '../cancelShipment';
+import { LIVE_ALLOCATION_SQL, SHIP_CLOSED_ALLOCATION_REASON } from '../so-transitions';
+import { ORDER_QTY_TO_INVENTORY_SQL, resolveOrderQtyToInventoryQty } from '../../../../../../../lib/shipping/order-line-uom';
+
+const databaseUrl = process.env.DATABASE_URL;
+const runPg = databaseUrl ? describe : describe.skip;
+
+const TEST_PIN = '1234';
+
+const tenantId = randomUUID();
+const orgId = randomUUID();
+const userId = randomUUID();
+const roleId = randomUUID();
+const customerId = randomUUID();
+const itemId = randomUUID();
+const warehouseId = randomUUID();
+const lpId = randomUUID();
+const soAId = randomUUID();
+const soBId = randomUUID();
+const lineAId = randomUUID();
+const lineBId = randomUUID();
+const allocAId = randomUUID();
+const allocBId = randomUUID();
+const shipmentAId = randomUUID();
+const boxAId = randomUUID();
+const contentAId = randomUUID();
+
+async function bindOrg(ownerPool: pg.Pool, client: pg.PoolClient, targetOrgId: string): Promise<string> {
+  const sessionToken = randomUUID();
+  await ownerPool.query(
+    `insert into app.session_org_contexts (session_token, org_id, user_id)
+     values ($1::uuid, $2::uuid, $3::uuid)
+     on conflict (session_token) do update
+       set org_id = excluded.org_id, user_id = excluded.user_id`,
+    [sessionToken, targetOrgId, userId],
+  );
+  await client.query('select app.set_org_context($1::uuid, $2::uuid)', [sessionToken, targetOrgId]);
+  return sessionToken;
+}
+
+runPg('wave-8 shipping stock integrity (real Postgres)', () => {
+  let ownerPool: pg.Pool;
+  let appPool: pg.Pool;
+
+  beforeAll(async () => {
+    ownerPool = getOwnerConnection();
+    appPool = getAppConnection();
+
+    await ownerPool.query(
+      `insert into public.tenants (id, name, region_cluster, data_plane_url)
+       values ($1, 'Wave8 Shipping Tenant', 'eu', 'https://wave8-shipping.example.test')
+       on conflict (id) do nothing`,
+      [tenantId],
+    );
+    await ownerPool.query(
+      `insert into public.organizations (id, tenant_id, name, slug, industry_code, gs1_prefix)
+       values ($1, $2, 'Wave8 Shipping Org', $3, 'fmcg', '0501234')
+       on conflict (id) do nothing`,
+      [orgId, tenantId, `wave8-${orgId.slice(0, 8)}`],
+    );
+    await ownerPool.query(`select public.seed_shipping_permissions_for_org($1::uuid)`, [orgId]).catch(() => undefined);
+    await ownerPool.query(
+      `insert into public.roles (id, org_id, slug, code, name, permissions)
+       values ($1, $2, $3, $3, 'Wave8 Shipping Admin', '[]'::jsonb)
+       on conflict (id) do nothing`,
+      [roleId, orgId, `wave8-admin-${roleId.slice(0, 8)}`],
+    );
+    await ownerPool.query(
+      `insert into public.users (id, org_id, email, name, role_id)
+       values ($1, $2, $3, 'Wave8 Shipping User', $4)
+       on conflict (id) do nothing`,
+      [userId, orgId, `wave8-${userId}@example.test`, roleId],
+    );
+    await ownerPool.query(
+      `insert into public.user_roles (org_id, user_id, role_id)
+       values ($1, $2, $3) on conflict do nothing`,
+      [orgId, userId, roleId],
+    );
+    for (const permission of ['ship.so.create', 'ship.so.allocate', 'ship.ship.confirm', 'ship.so.cancel']) {
+      await ownerPool.query(
+        `insert into public.role_permissions (role_id, permission)
+         values ($1, $2) on conflict do nothing`,
+        [roleId, permission],
+      );
+    }
+    await setPin(userId, TEST_PIN);
+
+    process.env.NODE_ENV = 'test';
+    process.env.VITEST = 'true';
+    process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID = userId;
+    process.env.NEXT_SERVER_ACTION_ORG_ID = orgId;
+
+    await ownerPool.query(
+      `insert into public.warehouses (id, org_id, code, name)
+       values ($1, $2, 'WH-W8', 'Wave8 WH')
+       on conflict (id) do nothing`,
+      [warehouseId, orgId],
+    );
+    await ownerPool.query(
+      `insert into public.items
+         (id, org_id, item_code, item_type, name, uom_base, output_uom, each_per_box, status)
+       values ($1, $2, 'FG-W8-001', 'fg', 'Wave8 FG', 'pcs', 'each', 12, 'active')
+       on conflict (id) do nothing`,
+      [itemId, orgId],
+    );
+    await ownerPool.query(
+      `insert into public.customers (id, org_id, customer_code, name, category)
+       values ($1, $2, 'C-W8', 'Wave8 Customer', 'retail')
+       on conflict (id) do nothing`,
+      [customerId, orgId],
+    );
+    await ownerPool.query(
+      `insert into public.license_plates
+         (id, org_id, warehouse_id, lp_number, product_id, quantity, reserved_qty, uom, status, qa_status)
+       values ($1, $2, $3, 'LP-W8-001', $4, 10, 0, 'pcs', 'available', 'released')
+       on conflict (id) do nothing`,
+      [lpId, orgId, warehouseId, itemId],
+    );
+
+'use server';
+
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
+import { requireActionPermission, PLANNING_PO_MANAGE_PERMISSION, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
+import { createPurchaseOrderCore } from './create-purchase-order-core';
+import { validateImportGroupSchema } from './import-po-schema';
+import { PoImportAllOrNothingError } from './po-import-errors';
+import type {
+  PoImportError,
+  PoImportResponse,
+  PoImportResult,
+  PoImportRow,
+  PoValidationResponse,
+  PoValidationResult,
+} from './import-po.types';
+
+type SupplierLookupRow = {
+  id: string;
+  code: string;
+  currency: string | null;
+};
+
+type ItemLookupRow = {
+  id: string;
+  item_code: string;
+  uom_base: string;
+  uom_secondary: string | null;
+};
+
+type UnitLookupRow = { code: string };
+type ExistingPurchaseOrderRow = { po_number: string };
+
+type ValidImportRow = {
+  rowNumber: number;
+  row: PoImportRow;
+  externalRef: string;
+  supplierCode: string;
+  itemCode: string;
+  uom: string;
+};
+
+type ImportGroup = {
+  supplierCode: string;
+  externalRef: string;
+  rows: ValidImportRow[];
+};
+
+type CreatePurchaseOrderLinePayload = {
+  itemId: string;
+  qty: string;
+  uom: string;
+  unitPrice: string;
+  lineNo: number;
+};
+
+export async function validatePoImport(rows: PoImportRow[]): Promise<PoValidationResponse> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<PoValidationResponse> => {
+    const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+    const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+    if (!perm.ok) return { ok: false, error: 'forbidden' };
+    return validateRows(ctx.client, rows);
+  });
+}
+
+export async function commitPoImport(
+  rows: PoImportRow[],
+  options: { mode: 'all_or_nothing' | 'skip_invalid' },
+): Promise<PoImportResponse> {
+  const validation = await validatePoImport(rows);
+  if ('error' in validation) return validation;
+
+  const failed = validation.rows
+    .filter((row) => !row.ok)
+    .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
+
+  if (options.mode === 'all_or_nothing' && failed.length > 0) {
+    return { created: [], skipped: [], failed };
+  }
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<PoImportResponse> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+      const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+      if (!perm.ok) return { ok: false, error: 'forbidden' };
+
+      const revalidation = await validateRows(ctx.client, rows);
+      const revalidationFailed = revalidation.rows
+        .filter((row) => !row.ok)
+        .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
+      if (options.mode === 'all_or_nothing' && revalidationFailed.length > 0) {
+        throw new PoImportAllOrNothingError(revalidationFailed);
+      }
+
+      const created: PoImportResult['created'] = [];
+      const skipped: PoImportResult['skipped'] = [];
+      const skippedRefs = new Set<string>();
+      const runtimeFailed: PoImportResult['failed'] = [
+        ...failed,
+        ...(options.mode === 'skip_invalid' ? revalidationFailed : []),
+      ];
+
+      const revalidatedValidRows = rows
+        .map((row, index): ValidImportRow | null => {
+          const result = revalidation.rows[index];
+          if (!result?.ok) return null;
+          return {
+            rowNumber: index + 1,
+            row,
+            externalRef: normalizeText(row.external_ref),
+            supplierCode: normalizeText(row.supplier_code),
+            itemCode: normalizeText(row.item_code),
+            uom: normalizeText(row.uom),
+          };
+        })
+        .filter((row): row is ValidImportRow => row !== null);
+
+      const existingRefs = await findExistingPurchaseOrderRefs(
+        ctx.client,
+        revalidatedValidRows.map((row) => row.externalRef),
+      );
+      const rowsToCreate = revalidatedValidRows.filter((row) => {
+        if (!existingRefs.has(row.externalRef)) return true;
+        if (!skippedRefs.has(row.externalRef)) {
+          skipped.push({ external_ref: row.externalRef, reason: `Purchase order already exists for external_ref "${row.externalRef}".` });
+          skippedRefs.add(row.externalRef);
+        }
+        return false;
+      });
+
+      const [suppliers, items] = await Promise.all([
+        loadSuppliers(ctx.client, rowsToCreate.map((row) => row.supplierCode)),
+        loadActiveItems(ctx.client, rowsToCreate.map((row) => row.itemCode)),
+      ]);
+
+      for (const group of groupRows(rowsToCreate)) {
+        const alreadyExists = await checkPoNumberExists(ctx.client, group.externalRef);
+        if (alreadyExists) {
+          const groupFailed = failGroup(runtimeFailed, group, 'po_number', `Purchase order number "${group.externalRef}" already exists (duplicate_po_number).`);
+          if (options.mode === 'all_or_nothing') throw new PoImportAllOrNothingError(groupFailed);
+          continue;
+        }
+
+        const supplier = suppliers.get(group.supplierCode);
+        if (!supplier) {
+          const groupFailed = failGroup(
+            runtimeFailed,
+            group,
+            'supplier_code',
+            `Supplier code "${group.supplierCode}" was not found for this org.`,
+          );
+          if (options.mode === 'all_or_nothing') throw new PoImportAllOrNothingError(groupFailed);
+          continue;
+        }
+
+        const lineInputs: CreatePurchaseOrderLinePayload[] = [];
+        let groupHasLookupFailure = false;
+        for (const entry of group.rows) {
+          const item = items.get(entry.itemCode);
+          if (!item) {
+            runtimeFailed.push({
+              rowNumber: entry.rowNumber,
+              errors: [{ column: 'item_code', message: `Item code "${entry.itemCode}" is not an active item for this org.` }],
+            });
+            groupHasLookupFailure = true;
+            continue;
+          }
+          lineInputs.push({
+            itemId: item.id,
+            qty: numberToPlainString(entry.row.qty),
+            uom: entry.uom,
+            unitPrice: numberToPlainString(entry.row.price ?? 0),
+            lineNo: lineInputs.length + 1,
+          });
+        }
+        if (groupHasLookupFailure) {
+          const groupFailed = group.rows
+            .filter((entry) =>
+              runtimeFailed.some(
+                (failure) =>
+                  failure.rowNumber === entry.rowNumber &&
+                  failure.errors.some((err) => err.column === 'item_code'),
+              ),
+            )
+            .map((entry) => ({
+              rowNumber: entry.rowNumber,
+              errors: runtimeFailed.find((failure) => failure.rowNumber === entry.rowNumber)?.errors ?? [],
+            }));
+          if (options.mode === 'all_or_nothing') throw new PoImportAllOrNothingError(groupFailed);
+          continue;
+        }
+
+        const schemaErrors = validateImportGroupSchema(group, {
+          poNumber: group.externalRef,
+          supplierId: supplier.id,
+          expectedDelivery: firstText(group.rows, (entry) => entry.row.expected_delivery),
+          currency: firstText(group.rows, (entry) => entry.row.currency) ?? supplier.currency ?? 'GBP',
+          notes: joinNotes(group.rows),
+          lines: lineInputs,
+        });
+        if (schemaErrors.length > 0) {
+          for (const rowError of schemaErrors) {
+            runtimeFailed.push(rowError);
+          }
+          if (options.mode === 'all_or_nothing') throw new PoImportAllOrNothingError(schemaErrors);
+          continue;
+        }
+
+        const result = await createPurchaseOrderCore(ctx, {
+          poNumber: group.externalRef,
+          supplierId: supplier.id,
+          status: 'draft',
+          expectedDelivery: firstText(group.rows, (entry) => entry.row.expected_delivery),
+          currency: firstText(group.rows, (entry) => entry.row.currency) ?? supplier.currency ?? 'GBP',
+          notes: joinNotes(group.rows),
+          lines: lineInputs,
+        });
+
+        if (result.ok) {
+          created.push({ po_number: result.data.poNumber, external_ref: group.externalRef });
+          continue;
+        }
+
+        const groupFailed = failGroup(
+          runtimeFailed,
+          group,
+          'external_ref',
+          `Could not create purchase order for external_ref "${group.externalRef}": ${result.error}.`,
+        );
+        if (options.mode === 'all_or_nothing') throw new PoImportAllOrNothingError(groupFailed);
+      }
+
+      await insertImportJob(ctx.client, {
+        userId,
+        total: validation.summary.total,
+        createdCount: created.length,
+        skippedCount: skipped.length,
+        failedCount: runtimeFailed.length,
+      });
+
+      return { created, skipped, failed: runtimeFailed };
+    });
+  } catch (err) {
+    if (err instanceof PoImportAllOrNothingError) {
+      return { created: [], skipped: [], failed: err.failed };
+    }
+    throw err;
+  }
+}
+
+async function validateRows(client: QueryClient, rows: PoImportRow[]): Promise<PoValidationResult> {
+  const [suppliers, items, units] = await Promise.all([
+    loadSuppliers(client, rows.map((row) => row.supplier_code)),
+    loadActiveItems(client, rows.map((row) => row.item_code)),
+    loadOrgUnits(client, rows.map((row) => row.uom)),
+  ]);
+
+  const results = rows.map((row, index) => {
+    const error = validateRow(row, suppliers, items, units);
+    return { rowNumber: index + 1, ok: error === null, errors: error ? [error] : [] };
+  });
+  const ok = results.filter((row) => row.ok).length;
+  return { rows: results, summary: { total: rows.length, ok, failed: rows.length - ok } };
+}
+
+function validateRow(
+  row: PoImportRow,
+  suppliers: Map<string, SupplierLookupRow>,
+  items: Map<string, ItemLookupRow>,
+  units: Set<string>,
+): PoImportError | null {
+  const externalRef = normalizeText(row.external_ref);
+  if (!externalRef) return { column: 'external_ref', message: 'External reference is required.' };
+
+  const supplierCode = normalizeText(row.supplier_code);
+  if (!supplierCode) return { column: 'supplier_code', message: 'Supplier code is required.' };
+  if (!suppliers.has(supplierCode)) {
+    return { column: 'supplier_code', message: `Supplier code "${supplierCode}" was not found for this org.` };
+  }
+
+'use server';
+
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
+import { requireActionPermission, PLANNING_TO_MANAGE_PERMISSION, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
+import { createTransferOrderCore } from './create-transfer-order-core';
+import { ToImportAllOrNothingError } from './to-import-errors';
+import type {
+  ToImportError,
+  ToImportResponse,
+  ToImportResult,
+  ToImportRow,
+  ToValidationResponse,
+  ToValidationResult,
+} from './import-to.types';
+
+type WarehouseLookupRow = {
+  id: string;
+  code: string;
+};
+
+type ItemLookupRow = {
+  id: string;
+  item_code: string;
+  uom_base: string;
+  uom_secondary: string | null;
+};
+
+type UnitLookupRow = { code: string };
+type ExistingTransferOrderRow = { to_number: string };
+
+type ValidImportRow = {
+  rowNumber: number;
+  row: ToImportRow;
+  externalRef: string;
+  fromWarehouseCode: string;
+  toWarehouseCode: string;
+  itemCode: string;
+  uom: string;
+};
+
+type ImportGroup = {
+  fromWarehouseCode: string;
+  toWarehouseCode: string;
+  externalRef: string;
+  rows: ValidImportRow[];
+};
+
+type CreateTransferOrderLinePayload = {
+  itemId: string;
+  qty: string;
+  uom: string;
+  lineNo: number;
+};
+
+export async function validateToImport(rows: ToImportRow[]): Promise<ToValidationResponse> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<ToValidationResponse> => {
+    const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+    const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+    if (!perm.ok) return { ok: false, error: 'forbidden' };
+    return validateRows(ctx.client, rows);
+  });
+}
+
+export async function commitToImport(
+  rows: ToImportRow[],
+  options: { mode: 'all_or_nothing' | 'skip_invalid' },
+): Promise<ToImportResponse> {
+  const validation = await validateToImport(rows);
+  if ('error' in validation) return validation;
+
+  const failed = validation.rows
+    .filter((row) => !row.ok)
+    .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
+
+  if (options.mode === 'all_or_nothing' && failed.length > 0) {
+    return { created: [], skipped: [], failed };
+  }
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<ToImportResponse> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+      const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+      if (!perm.ok) return { ok: false, error: 'forbidden' };
+
+      const revalidation = await validateRows(ctx.client, rows);
+      const revalidationFailed = revalidation.rows
+        .filter((row) => !row.ok)
+        .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
+      if (options.mode === 'all_or_nothing' && revalidationFailed.length > 0) {
+        throw new ToImportAllOrNothingError(revalidationFailed);
+      }
+
+      const created: ToImportResult['created'] = [];
+      const skipped: ToImportResult['skipped'] = [];
+      const skippedRefs = new Set<string>();
+      const runtimeFailed: ToImportResult['failed'] = [
+        ...failed,
+        ...(options.mode === 'skip_invalid' ? revalidationFailed : []),
+      ];
+
+      const revalidatedValidRows = rows
+        .map((row, index): ValidImportRow | null => {
+          const result = revalidation.rows[index];
+          if (!result?.ok) return null;
+          return {
+            rowNumber: index + 1,
+            row,
+            externalRef: normalizeText(row.external_ref),
+            fromWarehouseCode: normalizeText(row.from_warehouse_code),
+            toWarehouseCode: normalizeText(row.to_warehouse_code),
+            itemCode: normalizeText(row.item_code),
+            uom: normalizeText(row.uom),
+          };
+        })
+        .filter((row): row is ValidImportRow => row !== null);
+
+      const existingRefs = await findExistingTransferOrderRefs(
+        ctx.client,
+        revalidatedValidRows.map((row) => row.externalRef),
+      );
+      const rowsToCreate = revalidatedValidRows.filter((row) => {
+        if (!existingRefs.has(row.externalRef)) return true;
+        if (!skippedRefs.has(row.externalRef)) {
+          skipped.push({ external_ref: row.externalRef, reason: `Transfer order already exists for external_ref "${row.externalRef}".` });
+          skippedRefs.add(row.externalRef);
+        }
+        return false;
+      });
+
+      const [warehouses, items] = await Promise.all([
+        loadWarehouses(ctx.client, rowsToCreate.flatMap((row) => [row.fromWarehouseCode, row.toWarehouseCode])),
+        loadActiveItems(ctx.client, rowsToCreate.map((row) => row.itemCode)),
+      ]);
+
+      for (const group of groupRows(rowsToCreate)) {
+        const fromWarehouse = warehouses.get(group.fromWarehouseCode);
+        const toWarehouse = warehouses.get(group.toWarehouseCode);
+        if (!fromWarehouse) {
+          const groupFailed = failGroup(
+            runtimeFailed,
+            group,
+            'from_warehouse_code',
+            `Warehouse code "${group.fromWarehouseCode}" was not found for this org.`,
+          );
+          if (options.mode === 'all_or_nothing') throw new ToImportAllOrNothingError(groupFailed);
+          continue;
+        }
+        if (!toWarehouse) {
+          const groupFailed = failGroup(
+            runtimeFailed,
+            group,
+            'to_warehouse_code',
+            `Warehouse code "${group.toWarehouseCode}" was not found for this org.`,
+          );
+          if (options.mode === 'all_or_nothing') throw new ToImportAllOrNothingError(groupFailed);
+          continue;
+        }
+        if (fromWarehouse.id === toWarehouse.id) {
+          const groupFailed = failGroup(
+            runtimeFailed,
+            group,
+            'to_warehouse_code',
+            'Transfer source and destination warehouses must differ.',
+          );
+          if (options.mode === 'all_or_nothing') throw new ToImportAllOrNothingError(groupFailed);
+          continue;
+        }
+
+        const lineInputs: CreateTransferOrderLinePayload[] = [];
+        let groupHasLookupFailure = false;
+        for (const entry of group.rows) {
+          const item = items.get(entry.itemCode);
+          if (!item) {
+            runtimeFailed.push({
+              rowNumber: entry.rowNumber,
+              errors: [{ column: 'item_code', message: `Item code "${entry.itemCode}" is not an active item for this org.` }],
+            });
+            groupHasLookupFailure = true;
+            continue;
+          }
+          lineInputs.push({
+            itemId: item.id,
+            qty: numberToPlainString(entry.row.qty),
+            uom: normalizePieceUom(entry.uom) ?? entry.uom,
+            lineNo: lineInputs.length + 1,
+          });
+        }
+        if (groupHasLookupFailure) {
+          const groupFailed = group.rows
+            .filter((entry) =>
+              runtimeFailed.some(
+                (failure) =>
+                  failure.rowNumber === entry.rowNumber &&
+                  failure.errors.some((err) => err.column === 'item_code'),
+              ),
+            )
+            .map((entry) => ({
+              rowNumber: entry.rowNumber,
+              errors: runtimeFailed.find((failure) => failure.rowNumber === entry.rowNumber)?.errors ?? [],
+            }));
+          if (options.mode === 'all_or_nothing') throw new ToImportAllOrNothingError(groupFailed);
+          continue;
+        }
+
+        const result = await createTransferOrderCore(ctx, {
+          toNumber: group.externalRef,
+          fromWarehouseId: fromWarehouse.id,
+          toWarehouseId: toWarehouse.id,
+          status: 'draft',
+          scheduledDate: firstText(group.rows, (entry) => entry.row.date),
+          lines: lineInputs,
+        });
+
+        if (result.ok) {
+          created.push({ to_number: result.data.toNumber, external_ref: group.externalRef });
+          continue;
+        }
+
+        const groupFailed = failGroup(
+          runtimeFailed,
+          group,
+          'external_ref',
+          `Could not create transfer order for external_ref "${group.externalRef}": ${result.message ?? result.error}.`,
+        );
+        if (options.mode === 'all_or_nothing') throw new ToImportAllOrNothingError(groupFailed);
+      }
+
+      await insertImportJob(ctx.client, {
+        userId,
+        total: validation.summary.total,
+        createdCount: created.length,
+        skippedCount: skipped.length,
+        failedCount: runtimeFailed.length,
+        createdExternalRefs: created.map((row) => row.external_ref),
+      });
+
+      return { created, skipped, failed: runtimeFailed };
+    });
+  } catch (err) {
+    if (err instanceof ToImportAllOrNothingError) {
+      return { created: [], skipped: [], failed: err.failed };
+    }
+    throw err;
+  }
+}
+
+async function validateRows(client: QueryClient, rows: ToImportRow[]): Promise<ToValidationResult> {
+  const [warehouses, items, units] = await Promise.all([
+    loadWarehouses(client, rows.flatMap((row) => [row.from_warehouse_code, row.to_warehouse_code])),
+    loadActiveItems(client, rows.map((row) => row.item_code)),
+    loadOrgUnits(client, rows.map((row) => row.uom)),
+  ]);
+
+  const results = rows.map((row, index) => {
+    const errors = validateRow(row, warehouses, items, units);
+    return { rowNumber: index + 1, ok: errors.length === 0, errors };
+  });
+  const ok = results.filter((row) => row.ok).length;
+  return { rows: results, summary: { total: rows.length, ok, failed: rows.length - ok } };
+}
+
+function validateRow(
+  row: ToImportRow,
+  warehouses: Map<string, WarehouseLookupRow>,
+  items: Map<string, ItemLookupRow>,
+  units: Set<string>,
+): ToImportError[] {
+  const errors: ToImportError[] = [];
+
+  const externalRef = normalizeText(row.external_ref);
+  if (!externalRef) errors.push({ column: 'external_ref', message: 'External reference is required.' });
+
+  const fromWarehouseCode = normalizeText(row.from_warehouse_code);
+  const toWarehouseCode = normalizeText(row.to_warehouse_code);
+  const fromWarehouse = warehouses.get(fromWarehouseCode);
+  const toWarehouse = warehouses.get(toWarehouseCode);
+  if (!fromWarehouseCode) {
+    errors.push({ column: 'from_warehouse_code', message: 'Source warehouse code is required.' });
+  } else if (!fromWarehouse) {
+    errors.push({ column: 'from_warehouse_code', message: `Warehouse code "${fromWarehouseCode}" was not found for this org.` });
+  }
+  if (!toWarehouseCode) {
+    errors.push({ column: 'to_warehouse_code', message: 'Destination warehouse code is required.' });
+  } else if (!toWarehouse) {
+    errors.push({ column: 'to_warehouse_code', message: `Warehouse code "${toWarehouseCode}" was not found for this org.` });
+  }
+  if (fromWarehouse && toWarehouse && fromWarehouse.id === toWarehouse.id) {
+    errors.push({ column: 'to_warehouse_code', message: 'Transfer source and destination warehouses must differ.' });
+  }
+
+  const itemCode = normalizeText(row.item_code);
+  const item = items.get(itemCode);
+  if (!itemCode) {
+    errors.push({ column: 'item_code', message: 'Item code is required.' });
+  } else if (!item) {
+    errors.push({ column: 'item_code', message: `Item code "${itemCode}" is not an active item for this org.` });
+  }
+
+  const uom = normalizeText(row.uom);
+M	_meta/plans/wave-14-summary.md
+A	apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts
+A	apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts
+
+--- Changes ---
+
+
+
+exec
+/bin/zsh -lc "rtk pnpm --filter web exec vitest run 'app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts' 'app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts'" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14
+ succeeded in 690ms:
+
+ RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14/apps/web
+
+
+ Test Files  2 skipped (2)
+      Tests  4 skipped (4)
+   Start at  14:01:53
+   Duration  228ms (transform 84ms, setup 0ms, import 206ms, tests 0ms, environment 0ms)
+
+
+exec
+/bin/zsh -lc "rg -n \"audit_events|insert into public\\.audit|import_export_jobs\" 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/create-transfer-order-core.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts'
+sed -n '130,225p' 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/to-stock.integration.test.ts'
+sed -n '1,220p' apps/web/lib/auth/with-org-context.ts
+rtk git diff --stat
+rtk git diff -- _meta/plans/wave-14-codex-review.md" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14
+ succeeded in 0ms:
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:387:    `insert into public.import_export_jobs
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:392:    `insert into public.import_export_jobs
+       (id, org_id, to_number, from_warehouse_id, to_warehouse_id, status)
+     values ($1, $2, $3, $4, $5, 'draft')`,
+    [toId, seed.orgId, `TO-W9-${toId.slice(0, 8)}`, seed.srcWarehouseId,
+     opts.toWarehouse === null ? null : (opts.toWarehouse ?? seed.dstWarehouseId)],
+  );
+  await owner.query(
+    `insert into public.transfer_order_lines (id, org_id, to_id, item_id, qty, uom, line_no)
+     values ($1, $2, $3, $4, $5::numeric, 'kg', 1)`,
+    [lineId, seed.orgId, toId, seed.itemId, opts.qty],
+  );
+  return { toId, lineId };
+}
+
+async function cleanupPerTest(): Promise<void> {
+  await owner.query(`delete from public.transfer_order_line_lps where org_id = $1`, [seed.orgId]);
+  await owner.query(`delete from public.stock_moves where org_id = $1`, [seed.orgId]);
+  await owner.query(`delete from public.lp_state_history where org_id = $1`, [seed.orgId]);
+  await owner.query(`delete from public.license_plates where org_id = $1`, [seed.orgId]);
+  await owner.query(`delete from public.transfer_order_lines where org_id = $1`, [seed.orgId]);
+  await owner.query(`delete from public.transfer_orders where org_id = $1`, [seed.orgId]);
+  await owner.query(`delete from public.audit_events where org_id = $1`, [seed.orgId]);
+}
+
+run('W9-K-II transfer-order ship/receive stock model (integration)', () => {
+  beforeAll(async () => {
+    // eslint-disable-next-line no-restricted-syntax -- test-only owner pool for seed/assert; the action runs through the real withOrgContext pools
+    owner = new pg.Pool({ connectionString: databaseUrl });
+    // eslint-disable-next-line no-restricted-syntax -- app_user RLS pool for the genealogy-reader assertion
+    app = new pg.Pool({ connectionString: makeAppUserConnectionString() });
+    // Drive withOrgContext's test-stub resolver (real app-role + RLS txn, no JWT).
+    process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID = seed.userId;
+    process.env.NEXT_SERVER_ACTION_ORG_ID = seed.orgId;
+    await seedAll();
+  }, 120_000);
+
+  afterEach(async () => {
+    await cleanupPerTest();
+  });
+
+  afterAll(async () => {
+    await owner.query(`delete from public.locations where org_id = $1`, [seed.orgId]);
+    await owner.query(`delete from public.warehouses where org_id = $1`, [seed.orgId]);
+    await owner.query(`delete from public.items where org_id = $1`, [seed.orgId]);
+    await owner.query(`delete from public.user_roles where org_id = $1`, [seed.orgId]);
+    await owner.query(`delete from public.role_permissions where role_id = $1`, [seed.roleId]);
+    await owner.query(`delete from public.users where org_id = $1`, [seed.orgId]);
+    await owner.query(`delete from public.roles where org_id = $1`, [seed.orgId]);
+    await owner.query(`delete from public.organizations where id = $1`, [seed.orgId]);
+    await owner.query(`delete from public.tenants where id = $1`, [seed.tenantId]);
+    delete process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID;
+    delete process.env.NEXT_SERVER_ACTION_ORG_ID;
+    await app.end();
+    await owner.end();
+  });
+
+  it('SHIP rejects qty > available at source (insufficient_stock) and writes NOTHING', async () => {
+    await makeSourceStock(); // 110 kg pickable
+    const { toId } = await makeTo({ qty: '500' });
+
+    const { transitionTransferOrderStatus } = await import('../actions');
+    const result = await transitionTransferOrderStatus(toId, 'in_transit');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('insufficient_stock');
+
+    const to = await owner.query<{ status: string }>(
+      `select status from public.transfer_orders where id = $1`, [toId]);
+    expect(to.rows[0]!.status).toBe('draft');
+    const lps = await owner.query<{ quantity: string; status: string }>(
+      `select quantity::text as quantity, status from public.license_plates where org_id = $1 order by batch_number`,
+      [seed.orgId]);
+    expect(lps.rows).toEqual([
+      { quantity: '60.000000', status: 'available' },
+      { quantity: '50.000000', status: 'available' },
+    ]);
+    const links = await owner.query(`select 1 from public.transfer_order_line_lps where org_id = $1`, [seed.orgId]);
+    expect(links.rows).toHaveLength(0);
+  });
+
+  it('SHIP picks FEFO, decrements source LPs, depletion → shipped, and records picks + moves', async () => {
+    const { lpAId, lpBId } = await makeSourceStock();
+    const { toId, lineId } = await makeTo({ qty: '80' });
+
+    const { transitionTransferOrderStatus } = await import('../actions');
+    const result = await transitionTransferOrderStatus(toId, 'in_transit');
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.status).toBe('in_transit');
+
+    // FEFO: LP-A (sooner expiry) fully consumed first, LP-B partially.
+    const lps = await owner.query<{ id: string; quantity: string; status: string }>(
+      `select id, quantity::text as quantity, status from public.license_plates where org_id = $1`,
+      [seed.orgId]);
+    const lpA = lps.rows.find((r) => r.id === lpAId)!;
+    const lpB = lps.rows.find((r) => r.id === lpBId)!;
+    expect(lpA).toMatchObject({ quantity: '0.000000', status: 'shipped' });
+    expect(lpB).toMatchObject({ quantity: '30.000000', status: 'available' });
+/**
+ * ADR (P2.13): direct `pg.Pool` instantiation
+ *
+ * This module deliberately violates the repo-wide "use the managed pools from
+ * @monopilot/db" convention because:
+ *
+ *   1. It needs to manage TWO connections per call:
+ *        - an OWNER pool (BYPASSRLS) for the privileged INSERT into
+ *          `app.session_org_contexts` before the app-role transaction, and
+ *        - an APP pool (RLS-enforcing app_user) for the action body bound to
+ *          the same `session_token`.
+ *      The packaged `@monopilot/db` deliberately does not export the owner
+ *      pool (and lints forbid importing it from app code), and it doesn't
+ *      surface a paired-credential helper for this two-role flow.
+ *
+ *   2. The app pool's connection-string env (`DATABASE_URL_APP`) and
+ *      credentials differ from the global manage-pool config; sharing pool
+ *      instances would either leak `app_user` credentials into the BYPASSRLS
+ *      code paths, or downgrade BYPASSRLS code paths to RLS-enforcing ones.
+ *
+ *   3. The owner pool is request-scoped in spirit — connections are acquired
+ *      and released per-call so a single mis-set context can't leak across
+ *      unrelated requests on the same pooled connection.
+ *
+ * If the no-pg-pool lint rule fires here, suppress with:
+ *   // eslint-disable-next-line no-restricted-syntax -- intentional per ADR above
+ *
+ * Sibling exception: `apps/web/lib/scim/middleware.ts` instantiates `pg.Pool`
+ * for the same reason (privileged SCIM token verification path that needs the
+ * owner pool the SDK does not export). Treat both modules as the canonical
+ * exceptions and prefer the @monopilot/db pools everywhere else.
+ */
+
+/**
+ * T-062 — `withOrgContext` HOF for Server Actions and Route Handlers.
+ *
+ * MUST wrap every Server Action that touches the data plane. Replaces the
+ * ad-hoc `app.set_org_context` calls scattered across routes/actions and the
+ * env-stub session resolution (`NEXT_SERVER_ACTION_*`) that this branch
+ * documents as the P0 carry-forward blocker.
+ *
+ * Contract (red lines):
+ *   1. Verifies the Supabase JWT via `supabase.auth.getUser()` — does NOT
+ *      trust cookies / `getSession()`. `getUser()` hits Supabase auth and
+ *      validates the access token signature against the project JWKS.
+ *   2. Resolves `org_id` from `public.users.org_id` for the verified user
+ *      (NOT from JWT claims, which can drift). If the user has no row or the
+ *      lookup fails → throws. Never silently grants empty context.
+ *   3. Mints a fresh `session_token` (uuid) per call and registers it in
+ *      `app.session_org_contexts` so `app.set_org_context` will accept it.
+ *      A unique session_token per call avoids stale `active_org_contexts`
+ *      collisions across concurrent requests on the same backend PID.
+ *   4. Opens a transaction on the **app-role** pool (RLS-scoped), calls
+ *      `select app.set_org_context($token, $org)` inside that transaction,
+ *      runs the user callback, then COMMIT on success / ROLLBACK on error.
+ *   5. Best-effort cleanup of the session_org_contexts row in finally{}.
+ *
+ * Throws on any verification / lookup failure — callers MUST treat the
+ * promise rejection as 401/403 surface area, not silently render.
+ *
+ * Test fallback: when `NODE_ENV === 'test'` AND `process.env.VITEST` is
+ * set AND `NEXT_SERVER_ACTION_ACTOR_USER_ID` + `NEXT_SERVER_ACTION_ORG_ID`
+ * are both present, the env stub is honored. Production path NEVER reads
+ * those envs.
+ */
+
+import { randomUUID } from 'node:crypto';
+import { cache } from 'react';
+import { cookies } from 'next/headers';
+import pg from 'pg';
+import { getCachedUser } from './supabase-server';
+
+const { Pool } = pg;
+
+export interface OrgContext {
+  /** Supabase-verified user id (auth.users.id). */
+  userId: string;
+  /** Resolved from public.users.org_id for the verified user. */
+  orgId: string;
+  /** Fresh per-call session token registered in app.session_org_contexts. */
+  sessionToken: string;
+  /** App-role pool client inside the org-context transaction. */
+  client: pg.PoolClient;
+  /** True when a platform admin is acting inside a non-home org context. */
+  actAsOrg: boolean;
+}
+
+// ─── Pool factories (mirror lib/scim/middleware.ts pattern) ───────────────────
+// We deliberately do not import @monopilot/db here because the owner pool is
+// not exported (ESLint forbid). Owner credentials are required to insert into
+// app.session_org_contexts (the table is revoked from app_user) before the
+// app-role transaction can call app.set_org_context.
+
+let ownerPool: pg.Pool | null = null;
+let appPool: pg.Pool | null = null;
+
+// Pool tuning rationale (2026-06-25 pool-EXHAUSTION fix — supersedes the 06-24
+// idle-timeout-only tuning, which was insufficient):
+//   ROOT CAUSE: on Vercel the lambda FREEZES between invocations, so the JS
+//   event loop stops and pg's `idleTimeoutMillis` timer NEVER FIRES while frozen
+//   — a warm-but-frozen lambda keeps up to `max` connections open on the
+//   SESSION-mode Supavisor pooler (pool_size=15). With the old default max:10 on
+//   BOTH the app and owner pools, ONE frozen lambda could pin ~20 client slots;
+//   a few lambdas exhausted the 15-slot pool → EMAXCONNSESSION → the whole app
+//   shell degraded ("Live data unavailable", nav collapses to Dashboard).
+//   FIX: cap each pool small so a frozen lambda's footprint stays within budget.
+//     - appPool max:4  — enough for the project-detail ~5-7-way fan-out to run
+//       mostly-parallel (the rest queue briefly, well under connectionTimeout);
+//       the heaviest fan-out (/reporting) was already collapsed to ONE
+//       withOrgContext via reportingBundle (#64).
+//     - ownerPool max:2 — owner queries are single autocommit statements
+//       (register/delete session_org_contexts, users lookup), held for ms only.
+//   DURABLE FIX (owner / Vercel-env action, NOT code): point DATABASE_URL_APP /
+//   DATABASE_URL_OWNER at the TRANSACTION-mode pooler (port 6543) — it
+//   multiplexes a server connection per-transaction, so pool_size 15 supports
+//   far more concurrent clients. The app is compatible: app.set_org_context runs
+//   INSIDE the begin/commit txn, and all owner queries are single statements.
+//   connectionTimeoutMillis: fail fast (clear error) instead of hanging when the
+//   pooler is saturated. idleTimeoutMillis: drain fast when the lambda IS awake.
+const APP_POOL_MAX = 4;
+const OWNER_POOL_MAX = 2;
+const POOL_TUNING = { idleTimeoutMillis: 5_000, connectionTimeoutMillis: 8_000 } as const;
+
+/**
+ * Owner (BYPASSRLS) pool. Exported so the site-context composition
+ * (`apps/web/lib/auth/with-site-context.ts`) can register its own
+ * `app.session_site_contexts` rows on the SAME privileged pool rather than
+ * opening a second owner pool — the trust tables are revoked from app_user, so
+ * this INSERT cannot run on the app-role pool. Do NOT use this for data-plane
+ * reads/writes: it bypasses RLS by design.
+ */
+export function getOwnerPool(): pg.Pool {
+  if (ownerPool) return ownerPool;
+  const cs = process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL;
+  if (!cs) {
+    throw new Error('withOrgContext requires DATABASE_URL_OWNER or DATABASE_URL');
+  }
+  ownerPool = new Pool({ connectionString: cs, max: OWNER_POOL_MAX, ...POOL_TUNING });
+  return ownerPool;
+}
+
+function getAppPool(): pg.Pool {
+  if (appPool) return appPool;
+  const cs = process.env.DATABASE_URL_APP ?? process.env.DATABASE_URL;
+  if (!cs) {
+    throw new Error('withOrgContext requires DATABASE_URL_APP or DATABASE_URL');
+  }
+  // Mirror packages/db/src/clients.ts: when DATABASE_URL_APP is unset (test
+  // environment), rewrite the username to app_user so RLS engages.
+  const url = new URL(cs);
+  if (!process.env.DATABASE_URL_APP) {
+    url.username = 'app_user';
+    url.password = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
+  }
+  appPool = new Pool({ connectionString: url.toString(), max: APP_POOL_MAX, ...POOL_TUNING });
+  return appPool;
+}
+
+// ─── Test-only env-stub fallback ──────────────────────────────────────────────
+
+function isTestEnvWithStub(): boolean {
+  return (
+    process.env.NODE_ENV === 'test' &&
+    !!process.env.VITEST &&
+    !!process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID &&
+    !!process.env.NEXT_SERVER_ACTION_ORG_ID
+  );
+}
+
+async function resolveContextFromTestStub(): Promise<{ userId: string; orgId: string }> {
+  return {
+    userId: process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID as string,
+    orgId: process.env.NEXT_SERVER_ACTION_ORG_ID as string,
+  };
+}
+
+// ─── Production resolver ──────────────────────────────────────────────────────
+
+const PLATFORM_ORG_COOKIE = 'mp_platform_org';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function readPlatformOrgOverrideCookie(): Promise<{ raw: string | null; orgId: string | null }> {
+  try {
+    const store = await cookies();
+    const value = store.get(PLATFORM_ORG_COOKIE)?.value;
+    if (typeof value !== 'string' || value.length === 0) {
+      return { raw: null, orgId: null };
+    }
+    return { raw: value, orgId: UUID_RE.test(value) ? value : null };
+  } catch {
+    return { raw: null, orgId: null };
+  }
+}
+
+async function logIgnoredPlatformOrgCookie(
+  owner: pg.Pool,
+  userId: string,
+  homeOrgId: string,
+  requestedOrgId: string,
+  reason: string,
+): Promise<void> {
+  await owner.query(
+    `insert into app.platform_audit
+       (actor_user_id, home_org_id, target_org_id, action, reason, metadata)
+     values
+       ($1::uuid, $2::uuid, null, 'platform.act_as.ignored_cookie', $3, $4::jsonb)`,
+    [
+      userId,
+      homeOrgId,
+      reason,
+      JSON.stringify({ requested_org_id: requestedOrgId }),
+    ],
+  );
+}
+
+/**
+ * Resolve { userId, orgId } from the Supabase session, MEMOISED PER REQUEST.
+ *
+ * Wrapped in React `cache()` so the JWT/JWKS verification (`getUser()`) + the
+ * `public.users` org lookup run AT MOST ONCE per request, no matter how many
+
+
+
+exec
+/bin/zsh -lc "rg -n \"async function loadSuppliers|status =|supplier.*status|audit\" 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts'
+rg -n \"async function withOrgContext|session_org_contexts|set_org_context\" apps/web/lib/auth/with-org-context.ts | tail -40
+sed -n '330,430p' 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts'
+sed -n '380,480p' apps/web/lib/auth/with-org-context.ts" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14
+ succeeded in 0ms:
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:321:async function loadSuppliers(client: QueryClient, rawCodes: string[]): Promise<Map<string, SupplierLookupRow>> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:342:        and status = 'active'`,
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts:171:  const { rows: supplierRows } = await ctx.client.query<{ status: string }>(
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts:172:    `select supplier_row.status
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts:182:  if (supplier.status === 'blocked') {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts:189:         (org_id, site_id, po_number, supplier_id, destination_warehouse_id, status, expected_delivery, currency, notes, created_by, updated_by)
+9: *          `app.session_org_contexts` before the app-role transaction, and
+38: * ad-hoc `app.set_org_context` calls scattered across routes/actions and the
+50: *      `app.session_org_contexts` so `app.set_org_context` will accept it.
+54: *      `select app.set_org_context($token, $org)` inside that transaction,
+56: *   5. Best-effort cleanup of the session_org_contexts row in finally{}.
+80:  /** Fresh per-call session token registered in app.session_org_contexts. */
+91:// app.session_org_contexts (the table is revoked from app_user) before the
+92:// app-role transaction can call app.set_org_context.
+112://       (register/delete session_org_contexts, users lookup), held for ms only.
+116://   far more concurrent clients. The app is compatible: app.set_org_context runs
+225: * The per-connection session registration + set_org_context still run per call
+292: * an app-role transaction with `app.set_org_context` applied, and run `action`
+321:export async function withOrgContext<T>(
+337:      // cannot write this table), so app.set_org_context can copy it into the
+339:      // the per-user-site RLS policies. set_org_context stays 2-arg (it reads the
+341:      `insert into app.session_org_contexts (session_token, org_id, user_id) values ($1::uuid, $2::uuid, $3::uuid)`,
+351:      .query(`select app.set_org_context($1::uuid, $2::uuid)`, [sessionToken, orgId])
+352:      .catch((err) => annotateOrgContextError('set_org_context', err));
+365:    // Best-effort cleanup so app.session_org_contexts doesn't accumulate.
+368:    // `app.gc_session_org_contexts(p_max_age_seconds)` — see migration
+374:        `delete from app.session_org_contexts where session_token = $1::uuid`,
+  );
+  return new Map(rows.map((row) => [row.code, row]));
+}
+
+async function loadActiveItems(client: QueryClient, rawCodes: string[]): Promise<Map<string, ItemLookupRow>> {
+  const codes = uniqueNormalized(rawCodes);
+  if (codes.length === 0) return new Map();
+  const { rows } = await client.query<ItemLookupRow>(
+    `select id, item_code, uom_base, uom_secondary
+       from public.items
+      where org_id = app.current_org_id()
+        and item_code = any($1::text[])
+        and status = 'active'`,
+    [codes],
+  );
+  return new Map(rows.map((row) => [row.item_code, row]));
+}
+
+async function loadOrgUnits(client: QueryClient, rawCodes: string[]): Promise<Set<string>> {
+  const codes = uniqueNormalized(rawCodes);
+  if (codes.length === 0) return new Set();
+  const { rows } = await client.query<UnitLookupRow>(
+    `select code
+       from public.unit_of_measure
+      where org_id = app.current_org_id()
+        and deleted_at is null
+        and code = any($1::text[])`,
+    [codes],
+  );
+  return new Set(rows.map((row) => row.code));
+}
+
+async function checkPoNumberExists(client: QueryClient, poNumber: string): Promise<boolean> {
+  const { rows } = await client.query<{ exists: boolean }>(
+    `select exists(
+       select 1 from public.purchase_orders
+        where org_id = app.current_org_id()
+          and po_number = $1
+     ) as exists`,
+    [poNumber],
+  );
+  return rows[0]?.exists === true;
+}
+
+async function findExistingPurchaseOrderRefs(client: QueryClient, rawRefs: string[]): Promise<Set<string>> {
+  const refs = uniqueNormalized(rawRefs);
+  if (refs.length === 0) return new Set();
+  const { rows } = await client.query<ExistingPurchaseOrderRow>(
+    `select po_number
+       from public.purchase_orders
+      where org_id = app.current_org_id()
+        and po_number = any($1::text[])`,
+    [refs],
+  );
+  return new Set(rows.map((row) => row.po_number));
+}
+
+async function insertImportJob(
+  client: QueryClient,
+  input: { userId: string; total: number; createdCount: number; skippedCount: number; failedCount: number },
+): Promise<void> {
+  await client.query(
+    `insert into public.import_export_jobs
+       (org_id, kind, target, status, progress_processed, progress_total, download_url, created_by, completed_at, metadata)
+     values
+       (app.current_org_id(), 'import', 'purchase_orders', 'completed', $1::integer, $1::integer, null, $2::uuid, pg_catalog.now(), $3::jsonb)`,
+    [
+      input.total,
+      input.userId,
+      JSON.stringify({
+        total: input.total,
+        created_count: input.createdCount,
+        skipped_count: input.skippedCount,
+        failed_count: input.failedCount,
+      }),
+    ],
+  );
+}
+
+function groupRows(rows: ValidImportRow[]): ImportGroup[] {
+  const groups = new Map<string, ImportGroup>();
+  for (const row of rows) {
+    const key = `${row.supplierCode}\u0000${row.externalRef}`;
+    const group = groups.get(key);
+    if (group) {
+      group.rows.push(row);
+    } else {
+      groups.set(key, { supplierCode: row.supplierCode, externalRef: row.externalRef, rows: [row] });
+    }
+  }
+  return Array.from(groups.values());
+}
+
+function failGroup(
+  failed: PoImportResult['failed'],
+  group: ImportGroup,
+  column: string,
+  message: string,
+): PoImportResult['failed'] {
+  const groupFailed: PoImportResult['failed'] = [];
+  for (const row of group.rows) {
+  }
+}
+
+exec
+/bin/zsh -lc "nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts' | sed -n '15,225p'
+nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts' | sed -n '55,235p'
+nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts' | sed -n '315,348p'" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14
+ succeeded in 0ms:
+    15	const runPg = databaseUrl ? describe : describe.skip;
+    16	
+    17	const tenantId = randomUUID();
+    18	const orgId = randomUUID();
+    19	const userId = randomUUID();
+    20	const roleId = randomUUID();
+    21	const siteId = randomUUID();
+    22	const supplierActiveId = randomUUID();
+    23	const supplierBlockedId = randomUUID();
+    24	const itemAId = randomUUID();
+    25	const itemBId = randomUUID();
+    26	
+    27	const SUP_ACTIVE = 'W14-SUP-A';
+    28	const SUP_BLOCKED = 'W14-SUP-B';
+    29	const ITEM_A = 'W14-ITEM-A';
+    30	const ITEM_B = 'W14-ITEM-B';
+    31	const GROUP1_REF = 'W14-PO-EXT-A';
+    32	const GROUP2_REF = 'W14-PO-EXT-B';
+    33	const FUTURE_DATE = '2027-06-24';
+    34	
+    35	function poRow(overrides: Partial<PoImportRow> = {}): PoImportRow {
+    36	  return {
+    37	    external_ref: GROUP1_REF,
+    38	    supplier_code: SUP_ACTIVE,
+    39	    item_code: ITEM_A,
+    40	    qty: 10,
+    41	    uom: 'kg',
+    42	    price: 6.25,
+    43	    currency: 'EUR',
+    44	    expected_delivery: FUTURE_DATE,
+    45	    notes: 'wave14 pg rollback',
+    46	    ...overrides,
+    47	  };
+    48	}
+    49	
+    50	function twoGroupImportRows(): PoImportRow[] {
+    51	  return [
+    52	    poRow({ external_ref: GROUP1_REF, supplier_code: SUP_ACTIVE, item_code: ITEM_A, uom: 'kg' }),
+    53	    poRow({ external_ref: GROUP1_REF, supplier_code: SUP_ACTIVE, item_code: ITEM_B, uom: 'ea' }),
+    54	    poRow({ external_ref: GROUP2_REF, supplier_code: SUP_BLOCKED, item_code: ITEM_A, uom: 'kg', currency: 'GBP' }),
+    55	    poRow({ external_ref: GROUP2_REF, supplier_code: SUP_BLOCKED, item_code: ITEM_B, uom: 'box', currency: 'GBP' }),
+    56	  ];
+    57	}
+    58	
+    59	runPg('PO import all_or_nothing rollback (real Postgres)', () => {
+    60	  let ownerPool: pg.Pool;
+    61	  let appPool: pg.Pool;
+    62	
+    63	  beforeAll(async () => {
+    64	    ownerPool = getOwnerConnection();
+    65	    appPool = getAppConnection();
+    66	
+    67	    await ownerPool.query(
+    68	      `insert into public.tenants (id, name, region_cluster, data_plane_url)
+    69	       values ($1, 'Wave14 PO Import Tenant', 'eu', 'https://wave14-po-import.example.test')
+    70	       on conflict (id) do nothing`,
+    71	      [tenantId],
+    72	    );
+    73	    await ownerPool.query(
+    74	      `insert into public.organizations (id, tenant_id, name, slug, industry_code)
+    75	       values ($1, $2, 'Wave14 PO Import Org', $3, 'fmcg')
+    76	       on conflict (id) do nothing`,
+    77	      [orgId, tenantId, `wave14-po-${orgId.slice(0, 8)}`],
+    78	    );
+    79	    await ownerPool
+    80	      .query(`select public.seed_planning_procurement_manage_permissions_for_org($1::uuid)`, [orgId])
+    81	      .catch(() => undefined);
+    82	    await ownerPool.query(
+    83	      `insert into public.roles (id, org_id, slug, code, name, permissions)
+    84	       values ($1, $2, $3, $3, 'Wave14 PO Import Role', '[]'::jsonb)
+    85	       on conflict (id) do nothing`,
+    86	      [roleId, orgId, `wave14-po-${roleId.slice(0, 8)}`],
+    87	    );
+    88	    await ownerPool.query(
+    89	      `insert into public.users (id, org_id, email, name, role_id)
+    90	       values ($1, $2, $3, 'Wave14 PO Import User', $4)
+    91	       on conflict (id) do nothing`,
+    92	      [userId, orgId, `wave14-po-${userId}@example.test`, roleId],
+    93	    );
+    94	    await ownerPool.query(
+    95	      `insert into public.user_roles (org_id, user_id, role_id)
+    96	       values ($1, $2, $3) on conflict do nothing`,
+    97	      [orgId, userId, roleId],
+    98	    );
+    99	    for (const permission of ['planning.po.manage']) {
+   100	      await ownerPool.query(
+   101	        `insert into public.role_permissions (role_id, permission)
+   102	         values ($1, $2) on conflict do nothing`,
+   103	        [roleId, permission],
+   104	      );
+   105	    }
+   106	    await ownerPool.query(
+   107	      `insert into public.sites (id, org_id, site_code, name, is_default, is_active)
+   108	       values ($1, $2, 'W14-SITE', 'Wave14 PO Site', true, true)
+   109	       on conflict (id) do nothing`,
+   110	      [siteId, orgId],
+   111	    );
+   112	    await ownerPool.query(
+   113	      `insert into public.suppliers
+   114	         (id, org_id, code, name, currency, status)
+   115	       values ($1, $2, $3, 'Wave14 Active Supplier', 'EUR', 'active'),
+   116	              ($4, $2, $5, 'Wave14 Blocked Supplier', 'GBP', 'blocked')
+   117	       on conflict (id) do nothing`,
+   118	      [supplierActiveId, orgId, SUP_ACTIVE, supplierBlockedId, SUP_BLOCKED],
+   119	    );
+   120	    await ownerPool.query(
+   121	      `insert into public.items
+   122	         (id, org_id, item_code, item_type, name, uom_base, output_uom, each_per_box, status, uom_secondary)
+   123	       values ($1, $2, $3, 'rm', 'Wave14 Item A', 'kg', 'kg', 1, 'active', null),
+   124	              ($4, $2, $5, 'fg', 'Wave14 Item B', 'pcs', 'each', 12, 'active', 'box')
+   125	       on conflict (id) do nothing`,
+   126	      [itemAId, orgId, ITEM_A, itemBId, ITEM_B],
+   127	    );
+   128	    process.env.NODE_ENV = 'test';
+   129	    process.env.VITEST = 'true';
+   130	    process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID = userId;
+   131	    process.env.NEXT_SERVER_ACTION_ORG_ID = orgId;
+   132	  });
+   133	
+   134	  beforeEach(async () => {
+   135	    vi.useFakeTimers();
+   136	    vi.setSystemTime(new Date('2027-01-01T12:00:00.000Z'));
+   137	    await ownerPool.query(`delete from public.purchase_order_lines where org_id = $1::uuid`, [orgId]);
+   138	    await ownerPool.query(`delete from public.purchase_orders where org_id = $1::uuid`, [orgId]);
+   139	    await ownerPool.query(`delete from public.audit_events where org_id = $1::uuid`, [orgId]);
+   140	    await ownerPool.query(
+   141	      `delete from public.import_export_jobs
+   142	        where org_id = $1::uuid and kind = 'import' and target = 'purchase_orders'`,
+   143	      [orgId],
+   144	    );
+   145	  });
+   146	
+   147	  afterEach(() => {
+   148	    vi.useRealTimers();
+   149	  });
+   150	
+   151	  afterAll(async () => {
+   152	    delete process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID;
+   153	    delete process.env.NEXT_SERVER_ACTION_ORG_ID;
+   154	
+   155	    await ownerPool?.query(`delete from public.purchase_order_lines where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   156	    await ownerPool?.query(`delete from public.purchase_orders where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   157	    await ownerPool?.query(`delete from public.audit_events where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   158	    await ownerPool?.query(`delete from public.import_export_jobs where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   159	    await ownerPool?.query(`delete from public.items where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   160	    await ownerPool?.query(`delete from public.suppliers where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   161	    await ownerPool?.query(`delete from public.sites where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   162	    await ownerPool?.query(`delete from public.role_permissions where role_id = $1::uuid`, [roleId]).catch(() => undefined);
+   163	    await ownerPool?.query(`delete from public.user_roles where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   164	    await ownerPool?.query(`delete from public.users where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   165	    await ownerPool?.query(`delete from public.roles where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   166	    await ownerPool?.query(`delete from public.organizations where id = $1::uuid`, [orgId]).catch(() => undefined);
+   167	    await ownerPool?.query(`delete from public.tenants where id = $1::uuid`, [tenantId]).catch(() => undefined);
+   168	    await appPool?.end();
+   169	    await ownerPool?.end();
+   170	  });
+   171	
+   172	  async function countPurchaseOrders(poNumber: string): Promise<number> {
+   173	    const { rows } = await ownerPool.query<{ count: string }>(
+   174	      `select count(*)::text as count
+   175	         from public.purchase_orders
+   176	        where org_id = $1::uuid
+   177	          and po_number = $2`,
+   178	      [orgId, poNumber],
+   179	    );
+   180	    return Number(rows[0]?.count ?? 0);
+   181	  }
+   182	
+   183	  async function countImportJobs(): Promise<number> {
+   184	    const { rows } = await ownerPool.query<{ count: string }>(
+   185	      `select count(*)::text as count
+   186	         from public.import_export_jobs
+   187	        where org_id = $1::uuid
+   188	          and kind = 'import'
+   189	          and target = 'purchase_orders'`,
+   190	      [orgId],
+   191	    );
+   192	    return Number(rows[0]?.count ?? 0);
+   193	  }
+   194	
+   195	  it('all_or_nothing rolls back group 1 when group 2 hits blocked supplier at runtime', async () => {
+   196	    const result = await commitPoImport(twoGroupImportRows(), { mode: 'all_or_nothing' });
+   197	
+   198	    expect(result.created).toEqual([]);
+   199	    expect(result.skipped).toEqual([]);
+   200	    expect(result.failed.length).toBeGreaterThan(0);
+   201	    expect(await countPurchaseOrders(GROUP1_REF)).toBe(0);
+   202	    expect(await countPurchaseOrders(GROUP2_REF)).toBe(0);
+   203	    expect(await countImportJobs()).toBe(0);
+   204	  });
+   205	
+   206	  it('skip_invalid commits group 1 while group 2 is reported failed (contrast)', async () => {
+   207	    const result = await commitPoImport(twoGroupImportRows(), { mode: 'skip_invalid' });
+   208	
+   209	    expect(result.created).toEqual([{ po_number: GROUP1_REF, external_ref: GROUP1_REF }]);
+   210	    expect(result.failed.length).toBeGreaterThan(0);
+   211	    expect(await countPurchaseOrders(GROUP1_REF)).toBe(1);
+   212	    expect(await countPurchaseOrders(GROUP2_REF)).toBe(0);
+   213	    expect(await countImportJobs()).toBe(1);
+   214	  });
+   215	});
+    55	    toRow({ external_ref: ORDER2_REF, from_warehouse_code: WH_B, to_warehouse_code: WH_A, item_code: ITEM_A, uom: 'kg' }),
+    56	    toRow({ external_ref: ORDER2_REF, from_warehouse_code: WH_B, to_warehouse_code: WH_A, item_code: ITEM_B, uom: 'box' }),
+    57	  ];
+    58	}
+    59	
+    60	runPg('TO import all_or_nothing rollback (real Postgres)', () => {
+    61	  let ownerPool: pg.Pool;
+    62	  let appPool: pg.Pool;
+    63	  const originalCore = transferCore.createTransferOrderCore;
+    64	
+    65	  beforeAll(async () => {
+    66	    ownerPool = getOwnerConnection();
+    67	    appPool = getAppConnection();
+    68	
+    69	    await ownerPool.query(
+    70	      `insert into public.tenants (id, name, region_cluster, data_plane_url)
+    71	       values ($1, 'Wave14 TO Import Tenant', 'eu', 'https://wave14-to-import.example.test')
+    72	       on conflict (id) do nothing`,
+    73	      [tenantId],
+    74	    );
+    75	    await ownerPool.query(
+    76	      `insert into public.organizations (id, tenant_id, name, slug, industry_code)
+    77	       values ($1, $2, 'Wave14 TO Import Org', $3, 'fmcg')
+    78	       on conflict (id) do nothing`,
+    79	      [orgId, tenantId, `wave14-to-${orgId.slice(0, 8)}`],
+    80	    );
+    81	    await ownerPool
+    82	      .query(`select public.seed_planning_procurement_manage_permissions_for_org($1::uuid)`, [orgId])
+    83	      .catch(() => undefined);
+    84	    await ownerPool.query(
+    85	      `insert into public.roles (id, org_id, slug, code, name, permissions)
+    86	       values ($1, $2, $3, $3, 'Wave14 TO Import Role', '[]'::jsonb)
+    87	       on conflict (id) do nothing`,
+    88	      [roleId, orgId, `wave14-to-${roleId.slice(0, 8)}`],
+    89	    );
+    90	    await ownerPool.query(
+    91	      `insert into public.users (id, org_id, email, name, role_id)
+    92	       values ($1, $2, $3, 'Wave14 TO Import User', $4)
+    93	       on conflict (id) do nothing`,
+    94	      [userId, orgId, `wave14-to-${userId}@example.test`, roleId],
+    95	    );
+    96	    await ownerPool.query(
+    97	      `insert into public.user_roles (org_id, user_id, role_id)
+    98	       values ($1, $2, $3) on conflict do nothing`,
+    99	      [orgId, userId, roleId],
+   100	    );
+   101	    for (const permission of ['planning.to.manage']) {
+   102	      await ownerPool.query(
+   103	        `insert into public.role_permissions (role_id, permission)
+   104	         values ($1, $2) on conflict do nothing`,
+   105	        [roleId, permission],
+   106	      );
+   107	    }
+   108	    await ownerPool.query(
+   109	      `insert into public.warehouses (id, org_id, code, name)
+   110	       values ($1, $2, $3, 'Wave14 WH A'),
+   111	              ($4, $2, $5, 'Wave14 WH B')
+   112	       on conflict (id) do nothing`,
+   113	      [whAId, orgId, WH_A, whBId, WH_B],
+   114	    );
+   115	    await ownerPool.query(
+   116	      `insert into public.items
+   117	         (id, org_id, item_code, item_type, name, uom_base, output_uom, each_per_box, status, uom_secondary)
+   118	       values ($1, $2, $3, 'rm', 'Wave14 Item A', 'kg', 'kg', 1, 'active', null),
+   119	              ($4, $2, $5, 'fg', 'Wave14 Item B', 'pcs', 'each', 12, 'active', 'box')
+   120	       on conflict (id) do nothing`,
+   121	      [itemAId, orgId, ITEM_A, itemBId, ITEM_B],
+   122	    );
+   123	    process.env.NODE_ENV = 'test';
+   124	    process.env.VITEST = 'true';
+   125	    process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID = userId;
+   126	    process.env.NEXT_SERVER_ACTION_ORG_ID = orgId;
+   127	  });
+   128	
+   129	  beforeEach(async () => {
+   130	    await ownerPool.query(`delete from public.transfer_order_lines where org_id = $1::uuid`, [orgId]);
+   131	    await ownerPool.query(`delete from public.transfer_orders where org_id = $1::uuid`, [orgId]);
+   132	    await ownerPool.query(`delete from public.audit_events where org_id = $1::uuid`, [orgId]);
+   133	    await ownerPool.query(
+   134	      `delete from public.import_export_jobs
+   135	        where org_id = $1::uuid and kind = 'import' and target = 'transfer_orders'`,
+   136	      [orgId],
+   137	    );
+   138	
+   139	    vi.restoreAllMocks();
+   140	    let coreCall = 0;
+   141	    vi.spyOn(transferCore, 'createTransferOrderCore').mockImplementation(async (ctx, input) => {
+   142	      coreCall += 1;
+   143	      if (coreCall >= 2) {
+   144	        return {
+   145	          ok: false,
+   146	          error: 'persistence_failed',
+   147	          message: 'wave14 pg test simulated order-2 failure',
+   148	        };
+   149	      }
+   150	      return originalCore(ctx, input);
+   151	    });
+   152	  });
+   153	
+   154	  afterEach(() => {
+   155	    vi.restoreAllMocks();
+   156	  });
+   157	
+   158	  afterAll(async () => {
+   159	    delete process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID;
+   160	    delete process.env.NEXT_SERVER_ACTION_ORG_ID;
+   161	
+   162	    await ownerPool?.query(`delete from public.transfer_order_lines where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   163	    await ownerPool?.query(`delete from public.transfer_orders where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   164	    await ownerPool?.query(`delete from public.audit_events where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   165	    await ownerPool?.query(`delete from public.import_export_jobs where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   166	    await ownerPool?.query(`delete from public.items where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   167	    await ownerPool?.query(`delete from public.warehouses where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   168	    await ownerPool?.query(`delete from public.role_permissions where role_id = $1::uuid`, [roleId]).catch(() => undefined);
+   169	    await ownerPool?.query(`delete from public.user_roles where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   170	    await ownerPool?.query(`delete from public.users where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   171	    await ownerPool?.query(`delete from public.roles where org_id = $1::uuid`, [orgId]).catch(() => undefined);
+   172	    await ownerPool?.query(`delete from public.organizations where id = $1::uuid`, [orgId]).catch(() => undefined);
+   173	    await ownerPool?.query(`delete from public.tenants where id = $1::uuid`, [tenantId]).catch(() => undefined);
+   174	    await appPool?.end();
+   175	    await ownerPool?.end();
+   176	  });
+   177	
+   178	  async function countTransferOrders(toNumber: string): Promise<number> {
+   179	    const { rows } = await ownerPool.query<{ count: string }>(
+   180	      `select count(*)::text as count
+   181	         from public.transfer_orders
+   182	        where org_id = $1::uuid
+   183	          and to_number = $2`,
+   184	      [orgId, toNumber],
+   185	    );
+   186	    return Number(rows[0]?.count ?? 0);
+   187	  }
+   188	
+   189	  async function countImportJobs(): Promise<number> {
+   190	    const { rows } = await ownerPool.query<{ count: string }>(
+   191	      `select count(*)::text as count
+   192	         from public.import_export_jobs
+   193	        where org_id = $1::uuid
+   194	          and kind = 'import'
+   195	          and target = 'transfer_orders'`,
+   196	      [orgId],
+   197	    );
+   198	    return Number(rows[0]?.count ?? 0);
+   199	  }
+   200	
+   201	  it('all_or_nothing rolls back order 1 when order 2 fails at runtime', async () => {
+   202	    const result = await commitToImport(twoOrderImportRows(), { mode: 'all_or_nothing' });
+   203	
+   204	    expect(result.created).toEqual([]);
+   205	    expect(result.skipped).toEqual([]);
+   206	    expect(result.failed.length).toBeGreaterThan(0);
+   207	    expect(await countTransferOrders(ORDER1_REF)).toBe(0);
+   208	    expect(await countTransferOrders(ORDER2_REF)).toBe(0);
+   209	    expect(await countImportJobs()).toBe(0);
+   210	  });
+   211	
+   212	  it('skip_invalid commits order 1 while order 2 is reported failed (contrast)', async () => {
+   213	    const result = await commitToImport(twoOrderImportRows(), { mode: 'skip_invalid' });
+   214	
+   215	    expect(result.created).toEqual([{ to_number: ORDER1_REF, external_ref: ORDER1_REF }]);
+   216	    expect(result.failed.length).toBeGreaterThan(0);
+   217	    expect(await countTransferOrders(ORDER1_REF)).toBe(1);
+   218	    expect(await countTransferOrders(ORDER2_REF)).toBe(0);
+   219	    expect(await countImportJobs()).toBe(1);
+   220	  });
+   221	});
+   315	    }
+   316	  }
+   317	
+   318	  return null;
+   319	}
+   320	
+   321	async function loadSuppliers(client: QueryClient, rawCodes: string[]): Promise<Map<string, SupplierLookupRow>> {
+   322	  const codes = uniqueNormalized(rawCodes);
+   323	  if (codes.length === 0) return new Map();
+   324	  const { rows } = await client.query<SupplierLookupRow>(
+   325	    `select id, code, currency
+   326	       from public.suppliers
+   327	      where org_id = app.current_org_id()
+   328	        and code = any($1::text[])`,
+   329	    [codes],
+   330	  );
+   331	  return new Map(rows.map((row) => [row.code, row]));
+   332	}
+   333	
+   334	async function loadActiveItems(client: QueryClient, rawCodes: string[]): Promise<Map<string, ItemLookupRow>> {
+   335	  const codes = uniqueNormalized(rawCodes);
+   336	  if (codes.length === 0) return new Map();
+   337	  const { rows } = await client.query<ItemLookupRow>(
+   338	    `select id, item_code, uom_base, uom_secondary
+   339	       from public.items
+   340	      where org_id = app.current_org_id()
+   341	        and item_code = any($1::text[])
+   342	        and status = 'active'`,
+   343	    [codes],
+   344	  );
+   345	  return new Map(rows.map((row) => [row.item_code, row]));
+   346	}
+   347	
+   348	async function loadOrgUnits(client: QueryClient, rawCodes: string[]): Promise<Set<string>> {
+
+apply patch
+patch: completed
+/Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14/_meta/plans/wave-14-codex-review.md
+diff --git a/_meta/plans/wave-14-codex-review.md b/_meta/plans/wave-14-codex-review.md
+index cf2e3371eb34f7ee0b8931ee252475f50381b269..3d3258128902ef9ca1a27d7e8833042eed59ea36
+--- a/_meta/plans/wave-14-codex-review.md
++++ b/_meta/plans/wave-14-codex-review.md
+@@ -1,102 +1,40 @@
+-# Wave 14 adversarial review — Planning imports/procurement
++# Wave 14 Codex re-review — commit 3caef844
+ 
+-Branch reviewed: `fix/wave14-imports`  
+-Patch reviewed: `git diff origin/main..HEAD`, excluding `_meta/`  
+-Review date: 2026-07-10
++## Scope verified
+ 
+-## Findings
++- Commit `3caef844` adds the two requested `.pg.test.ts` files and updates only `_meta/plans/wave-14-summary.md`; `import-po.ts`, `import-to.ts`, `create-purchase-order-core.ts`, and `create-transfer-order-core.ts` are unchanged in this fix round.
++- Both files gate on `DATABASE_URL` with `describe.skip`, import `getOwnerConnection` / `getAppConnection` at the correct depth, and seed/assert through real PostgreSQL owner queries.
++- Both use the real `withOrgContext` test-stub path (`NEXT_SERVER_ACTION_ACTOR_USER_ID` / `NEXT_SERVER_ACTION_ORG_ID`). They do **not** define or call the explicit `bindOrg` helper used by some older pg tests; the imported action binds its own session token inside `withOrgContext`, so this does not make the persisted-state assertions mocked.
++- PO all-or-nothing supplies a valid first group and a blocked-supplier second group. The blocked supplier is loaded by import validation, then rejected by `createPurchaseOrderCore`, so the failure occurs at runtime after group 1's real insert. It asserts both PO counts and the import-job count are zero. The `skip_invalid` contrast proves group 1 and one import job commit.
++- TO all-or-nothing lets the first real core call persist, forces the second core call to return `persistence_failed`, and queries `public.transfer_orders` plus `public.import_export_jobs` after the importer returns. Its `skip_invalid` contrast proves order 1 and one import job commit. The second failure is injected, but the transaction and persisted-state assertions are real.
++- SQL aliases (`count`) are not reserved, parameters are cast appropriately, and cleanup is org-scoped and ordered before tenant/org deletion.
+ 
+-1. **HIGH — the PO rollback regression test does not prove rollback** (`apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:237`). The test replaces `withOrgContext` with a callback runner and replaces `createPurchaseOrderCore` with a mock. No PO is ever inserted, no transaction is begun/committed/rolled back, and the final assertion checks only the returned `created` array and absence of the import-job insert. Concrete false-green: change the importer to catch the group-2 failure inside the callback and return `{ created: [], skipped: [], failed }` normally; this test still passes even though real `withOrgContext` would commit group 1. The implementation currently throws correctly at `import-po.ts:230`, but the required persistence proof is absent.
++## Finding
+ 
+-2. **HIGH — the TO rollback regression test has the same false-green** (`apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:211`). It mocks both the transaction wrapper and the core, so order 1 never exists in transactional state and the test cannot establish that zero orders commit. Concrete false-green: a normal-return failure response with `created: []` after order 1's independent/committed write satisfies every assertion at lines 233–237. The branch's current import path is one shared context and throws at `import-to.ts:226`, but the acceptance criterion specifically requires proving that order 2 failure leaves no persisted order.
++### Medium — rollback tests do not assert the requested audit-row invariant
+ 
+-## Per-bug assessment
++- `{severity: medium, file: apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts:195, claim: The all-or-nothing test deletes audit_events during setup but never queries it after the importer call. Therefore it does not prove the requested "no import-job/audit row persisted" invariant., suggested-fix: Add an org-scoped countAuditEvents helper and assert zero after the all-or-nothing call (and, if audit creation is part of successful importer behavior, assert the expected positive count in the contrast test).}`
++- `{severity: medium, file: apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts:201, claim: The TO test has the same omission: audit_events is cleaned but never asserted after rollback, so it is not fully the requested same-shape proof., suggested-fix: Add the equivalent org-scoped persisted audit count assertion.}`
+ 
+-### N-30 PO `all_or_nothing` — PARTIAL (`import-po.ts:66–247`; test gap at `import-po.test.ts:237`)
++## Test evidence
+ 
+-The code-level transaction flow is fixed:
++Command:
+ 
+-- Validation is repeated inside the write transaction at lines 87–93.
+-- Every runtime failure in the group loop throws in `all_or_nothing`: duplicate number (140), missing supplier (152), item lookup failure (189), zod failure (205), and core failure (230).
+-- The exception escapes the `withOrgContext` callback and is converted to an import response only outside it at lines 243–245, so a real `withOrgContext` rolls back group 1 before the response is returned.
+-- The early normal return at lines 77–79 happens before the write transaction; permission failure at line 85 is also before a write. I found no remaining all-or-nothing accumulate-then-normal-return path after a write.
+-
+-Concrete scenario by inspection: EXT-A core succeeds, EXT-B returns `supplier_blocked`; line 230 throws, preventing lines 233–241 and forcing rollback of EXT-A. However, the added test does not prove persisted state/rollback, as finding 1 explains.
+-
+-### N-31 TO shared core/transaction — PARTIAL (`create-transfer-order-core.ts:137`; `actions.ts:471`; `import-to.ts:206`; test gap at `import-to.test.ts:211`)
+-
+-The extraction and call graph are correct:
++`pnpm --filter web exec vitest run <PO pg test> <TO pg test>`
+ 
+-- `createTransferOrderCore(ctx, input)` accepts the caller's context/client and contains no `withOrgContext`.
+-- Public `createTransferOrder` validates, opens `withOrgContext`, and calls the core.
+-- `commitToImport` calls the core directly at line 206 using its outer transaction's `ctx`; it does not call the public action.
+-- Runtime failures throw at lines 146, 156, 166, 202, and 226. The catch that creates the response is outside `withOrgContext` at lines 240–242. There is no nested `withOrgContext` in the import write path.
+-
+-Concrete scenario by inspection: TO-A header/lines/audit are written through the outer client; TO-B core returns a failure; line 226 throws through the outer callback, so TO-A and TO-B are both rolled back. The regression test nevertheless cannot prove this persisted outcome because it mocks away both writes and transaction semantics (finding 2).
+-
+-### N-32 PO import zod validation — FIXED (`import-po-schema.ts:119–137`; `import-po.ts:193–217`)
+-
+-Each fully grouped payload is `safeParse`d against the exact exported `CreatePurchaseOrderInput` used by single-create before the core is called. The core receives the same constructed fields: number, supplier, draft status, expected date, currency, joined notes, and lines. Zod therefore enforces the 80-character PO number, three-character currency, 2,000-character joined notes, 200-line maximum, UUIDs, numeric formats, UoM length, dates, status, and line numbers. Issues are mapped to source rows, including indexed line issues and note-contributing rows. A 3,000-character note or 201-line group never reaches the core. I found no constructed core field bypassing this parse.
+-
+-### N-55 supplier locking — FIXED (`create-purchase-order-core.ts:169–184`)
+-
+-The supplier lookup is org-scoped and uses `FOR UPDATE`; status is checked from the locked row before the PO header insert. If a blocker update owns the row first, this query waits and then sees `blocked` under PostgreSQL READ COMMITTED. If creation owns it first, the block waits until the PO transaction completes. A concurrent block cannot change status between the locked check and insert. The added SQL assertion covers presence of the lock.
+-
+-### N-62 catch-weight site key — FIXED (`catch-weight-variance.ts:126–184`; migration `477-catch-weight-variance-site-day-key.sql:10–16`)
+-
+-The aggregate grain is `(item_id, site_id)`, and the upsert conflict target is `(org_id, item_id, site_id, day)`. Migration 477 replaces the old stricter `(org,item,day)` unique index with the per-site unique index and uses `NULLS NOT DISTINCT`, so null-site rows also remain unique. Existing data cannot contain two rows that collide on the new, more-specific key because the old key allowed at most one row for the broader `(org,item,day)` grain. A two-site item yields two aggregate rows and two persisted rows; the DB integration test asserts both. No reserved-keyword alias was introduced (`item_row`, `weighings`, and `scored` are safe).
++Raw stdout tail:
+ 
+-### N-63 skipped nominal signal — FIXED (`catch-weight-variance.ts:83–117`; integration test in `catch-weight-variance.test.ts`)
+-
+-Catch-weight weighings with null/non-positive effective nominal are queried separately and surfaced as distinct `(itemId, siteId, reason)` entries with `missing_nominal` or `zero_nominal`; the summary and cron response propagate `skipped`. The integration test inserts a zero-nominal weighing and asserts the returned skipped signal while no variance row is written. They are no longer silently discarded.
+-
+-## Cross-cutting checks
+-
+-- No new non-async export exists in a `'use server'` module. New schemas, classes, types, and cores live in non-server siblings; server modules export only async actions.
+-- No nested transaction remains in either import write path.
+-- No new `tenant_id` or raw org setting appears in the patch.
+-- No reserved SQL alias was introduced; `git diff --check` is clean.
+-- No new float arithmetic was added for PO money/quantity persistence. Import values are converted to validated decimal strings before SQL numeric casts. Catch-weight percentage conversion to JS numbers is pre-existing output behavior, not money/quantity costing.
+-- I found no new reachable normal return after a successful write in either importer. The cores retain `INSERT ... RETURNING` followed by a defensive no-header result; for ordinary PostgreSQL tables a successful insert returns its row, while errors throw. In all-or-nothing imports any core error result is converted to an outer transaction throw.
+-
+-## Verification evidence
+-
+-`git -C /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14 diff --stat origin/main..HEAD -- . ':(exclude)_meta/**'`:
+-
+ ```text
+-.../_actions/create-purchase-order-core.test.ts    | 129 ++++++++++
+-.../_actions/create-purchase-order-core.ts         |  11 +-
+-.../purchase-orders/_actions/import-po-schema.ts   | 137 +++++++++++
+-.../purchase-orders/_actions/import-po.test.ts     |  61 ++++-
+-.../planning/purchase-orders/_actions/import-po.ts | 258 ++++++++++++--------
+-.../purchase-orders/_actions/po-import-errors.ts   |  12 +
+-.../planning/transfer-orders/_actions/actions.ts   |  60 +----
+-.../_actions/create-transfer-order-core.ts         | 196 +++++++++++++++
+-.../transfer-orders/_actions/import-to.test.ts     |  68 ++++-
+-.../planning/transfer-orders/_actions/import-to.ts | 264 +++++++++++++--------
+-.../transfer-orders/_actions/to-import-errors.ts   |  12 +
+-.../__tests__/catch-weight-variance.test.ts        |  67 ++++-
+-.../internal/cron/catch-weight-variance/route.ts   |   1 +
+-.../__tests__/catch-weight-variance.unit.test.ts   |  35 +++
+-apps/web/lib/cron/catch-weight-variance.ts         |  90 +++++--
+-.../477-catch-weight-variance-site-day-key.sql     |  16 ++
+-16 files changed, 1111 insertions(+), 306 deletions(-)
++Test Files  2 skipped (2)
++     Tests  4 skipped (4)
++  Start at  14:01:53
++  Duration  228ms (transform 84ms, setup 0ms, import 206ms, tests 0ms, environment 0ms)
+ ```
+ 
+-Targeted Vitest raw stdout tail (the mandated `task` wrapper is unavailable in this worktree/runtime, so the same targeted command was run directly; build/typecheck were not run per Codex-lane rules):
++This confirms both files parse and collect cleanly without `DATABASE_URL`; no live-DB execution was possible in this environment.
+ 
+-```text
+- RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14/apps/web
++## Tree proof
+ 
+- Test Files  4 passed (4)
+-      Tests  24 passed (24)
+-   Start at  13:51:06
+-   Duration  235ms (transform 160ms, setup 0ms, import 245ms, tests 22ms, environment 0ms)
+-```
++`git diff --stat` before writing this report showed no tracked implementation/test changes in the working tree; the existing workspace contained untracked orchestration artifacts and dependency symlinks. This review overwrites only this report.
+ 
+ VERDICT: fail
+-
+-Required changes:
+-
+-1. Replace or supplement the PO all-or-nothing mock-only test with a rollback-aware test that records transactional writes (preferably DB integration): group 1 must be inserted, group 2 must fail at runtime, and a post-transaction query must prove zero matching purchase orders and zero import-job rows persisted.
+-2. Add the equivalent rollback-aware TO test: order 1 must actually be written through the shared transaction, order 2 must fail, and post-transaction state must contain neither order nor an import-job row.
+
+diff --git a/_meta/plans/wave-14-codex-review.md b/_meta/plans/wave-14-codex-review.md
+index cf2e3371eb34f7ee0b8931ee252475f50381b269..3d3258128902ef9ca1a27d7e8833042eed59ea36
+--- a/_meta/plans/wave-14-codex-review.md
++++ b/_meta/plans/wave-14-codex-review.md
+@@ -1,102 +1,40 @@
+-# Wave 14 adversarial review — Planning imports/procurement
++# Wave 14 Codex re-review — commit 3caef844
+ 
+-Branch reviewed: `fix/wave14-imports`  
+-Patch reviewed: `git diff origin/main..HEAD`, excluding `_meta/`  
+-Review date: 2026-07-10
++## Scope verified
+ 
+-## Findings
++- Commit `3caef844` adds the two requested `.pg.test.ts` files and updates only `_meta/plans/wave-14-summary.md`; `import-po.ts`, `import-to.ts`, `create-purchase-order-core.ts`, and `create-transfer-order-core.ts` are unchanged in this fix round.
++- Both files gate on `DATABASE_URL` with `describe.skip`, import `getOwnerConnection` / `getAppConnection` at the correct depth, and seed/assert through real PostgreSQL owner queries.
++- Both use the real `withOrgContext` test-stub path (`NEXT_SERVER_ACTION_ACTOR_USER_ID` / `NEXT_SERVER_ACTION_ORG_ID`). They do **not** define or call the explicit `bindOrg` helper used by some older pg tests; the imported action binds its own session token inside `withOrgContext`, so this does not make the persisted-state assertions mocked.
++- PO all-or-nothing supplies a valid first group and a blocked-supplier second group. The blocked supplier is loaded by import validation, then rejected by `createPurchaseOrderCore`, so the failure occurs at runtime after group 1's real insert. It asserts both PO counts and the import-job count are zero. The `skip_invalid` contrast proves group 1 and one import job commit.
++- TO all-or-nothing lets the first real core call persist, forces the second core call to return `persistence_failed`, and queries `public.transfer_orders` plus `public.import_export_jobs` after the importer returns. Its `skip_invalid` contrast proves order 1 and one import job commit. The second failure is injected, but the transaction and persisted-state assertions are real.
++- SQL aliases (`count`) are not reserved, parameters are cast appropriately, and cleanup is org-scoped and ordered before tenant/org deletion.
+ 
+-1. **HIGH — the PO rollback regression test does not prove rollback** (`apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:237`). The test replaces `withOrgContext` with a callback runner and replaces `createPurchaseOrderCore` with a mock. No PO is ever inserted, no transaction is begun/committed/rolled back, and the final assertion checks only the returned `created` array and absence of the import-job insert. Concrete false-green: change the importer to catch the group-2 failure inside the callback and return `{ created: [], skipped: [], failed }` normally; this test still passes even though real `withOrgContext` would commit group 1. The implementation currently throws correctly at `import-po.ts:230`, but the required persistence proof is absent.
++## Finding
+ 
+-2. **HIGH — the TO rollback regression test has the same false-green** (`apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:211`). It mocks both the transaction wrapper and the core, so order 1 never exists in transactional state and the test cannot establish that zero orders commit. Concrete false-green: a normal-return failure response with `created: []` after order 1's independent/committed write satisfies every assertion at lines 233–237. The branch's current import path is one shared context and throws at `import-to.ts:226`, but the acceptance criterion specifically requires proving that order 2 failure leaves no persisted order.
++### Medium — rollback tests do not assert the requested audit-row invariant
+ 
+-## Per-bug assessment
++- `{severity: medium, file: apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts:195, claim: The all-or-nothing test deletes audit_events during setup but never queries it after the importer call. Therefore it does not prove the requested "no import-job/audit row persisted" invariant., suggested-fix: Add an org-scoped countAuditEvents helper and assert zero after the all-or-nothing call (and, if audit creation is part of successful importer behavior, assert the expected positive count in the contrast test).}`
++- `{severity: medium, file: apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts:201, claim: The TO test has the same omission: audit_events is cleaned but never asserted after rollback, so it is not fully the requested same-shape proof., suggested-fix: Add the equivalent org-scoped persisted audit count assertion.}`
+ 
+-### N-30 PO `all_or_nothing` — PARTIAL (`import-po.ts:66–247`; test gap at `import-po.test.ts:237`)
++## Test evidence
+ 
+-The code-level transaction flow is fixed:
++Command:
+ 
+-- Validation is repeated inside the write transaction at lines 87–93.
+-- Every runtime failure in the group loop throws in `all_or_nothing`: duplicate number (140), missing supplier (152), item lookup failure (189), zod failure (205), and core failure (230).
+-- The exception escapes the `withOrgContext` callback and is converted to an import response only outside it at lines 243–245, so a real `withOrgContext` rolls back group 1 before the response is returned.
+-- The early normal return at lines 77–79 happens before the write transaction; permission failure at line 85 is also before a write. I found no remaining all-or-nothing accumulate-then-normal-return path after a write.
+-
+-Concrete scenario by inspection: EXT-A core succeeds, EXT-B returns `supplier_blocked`; line 230 throws, preventing lines 233–241 and forcing rollback of EXT-A. However, the added test does not prove persisted state/rollback, as finding 1 explains.
+-
+-### N-31 TO shared core/transaction — PARTIAL (`create-transfer-order-core.ts:137`; `actions.ts:471`; `import-to.ts:206`; test gap at `import-to.test.ts:211`)
+-
+-The extraction and call graph are correct:
++`pnpm --filter web exec vitest run <PO pg test> <TO pg test>`
+ 
+-- `createTransferOrderCore(ctx, input)` accepts the caller's context/client and contains no `withOrgContext`.
+-- Public `createTransferOrder` validates, opens `withOrgContext`, and calls the core.
+-- `commitToImport` calls the core directly at line 206 using its outer transaction's `ctx`; it does not call the public action.
+-- Runtime failures throw at lines 146, 156, 166, 202, and 226. The catch that creates the response is outside `withOrgContext` at lines 240–242. There is no nested `withOrgContext` in the import write path.
+-
+-Concrete scenario by inspection: TO-A header/lines/audit are written through the outer client; TO-B core returns a failure; line 226 throws through the outer callback, so TO-A and TO-B are both rolled back. The regression test nevertheless cannot prove this persisted outcome because it mocks away both writes and transaction semantics (finding 2).
+-
+-### N-32 PO import zod validation — FIXED (`import-po-schema.ts:119–137`; `import-po.ts:193–217`)
+-
+-Each fully grouped payload is `safeParse`d against the exact exported `CreatePurchaseOrderInput` used by single-create before the core is called. The core receives the same constructed fields: number, supplier, draft status, expected date, currency, joined notes, and lines. Zod therefore enforces the 80-character PO number, three-character currency, 2,000-character joined notes, 200-line maximum, UUIDs, numeric formats, UoM length, dates, status, and line numbers. Issues are mapped to source rows, including indexed line issues and note-contributing rows. A 3,000-character note or 201-line group never reaches the core. I found no constructed core field bypassing this parse.
+-
+-### N-55 supplier locking — FIXED (`create-purchase-order-core.ts:169–184`)
+-
+-The supplier lookup is org-scoped and uses `FOR UPDATE`; status is checked from the locked row before the PO header insert. If a blocker update owns the row first, this query waits and then sees `blocked` under PostgreSQL READ COMMITTED. If creation owns it first, the block waits until the PO transaction completes. A concurrent block cannot change status between the locked check and insert. The added SQL assertion covers presence of the lock.
+-
+-### N-62 catch-weight site key — FIXED (`catch-weight-variance.ts:126–184`; migration `477-catch-weight-variance-site-day-key.sql:10–16`)
+-
+-The aggregate grain is `(item_id, site_id)`, and the upsert conflict target is `(org_id, item_id, site_id, day)`. Migration 477 replaces the old stricter `(org,item,day)` unique index with the per-site unique index and uses `NULLS NOT DISTINCT`, so null-site rows also remain unique. Existing data cannot contain two rows that collide on the new, more-specific key because the old key allowed at most one row for the broader `(org,item,day)` grain. A two-site item yields two aggregate rows and two persisted rows; the DB integration test asserts both. No reserved-keyword alias was introduced (`item_row`, `weighings`, and `scored` are safe).
++Raw stdout tail:
+ 
+-### N-63 skipped nominal signal — FIXED (`catch-weight-variance.ts:83–117`; integration test in `catch-weight-variance.test.ts`)
+-
+-Catch-weight weighings with null/non-positive effective nominal are queried separately and surfaced as distinct `(itemId, siteId, reason)` entries with `missing_nominal` or `zero_nominal`; the summary and cron response propagate `skipped`. The integration test inserts a zero-nominal weighing and asserts the returned skipped signal while no variance row is written. They are no longer silently discarded.
+-
+-## Cross-cutting checks
+-
+-- No new non-async export exists in a `'use server'` module. New schemas, classes, types, and cores live in non-server siblings; server modules export only async actions.
+-- No nested transaction remains in either import write path.
+-- No new `tenant_id` or raw org setting appears in the patch.
+-- No reserved SQL alias was introduced; `git diff --check` is clean.
+-- No new float arithmetic was added for PO money/quantity persistence. Import values are converted to validated decimal strings before SQL numeric casts. Catch-weight percentage conversion to JS numbers is pre-existing output behavior, not money/quantity costing.
+-- I found no new reachable normal return after a successful write in either importer. The cores retain `INSERT ... RETURNING` followed by a defensive no-header result; for ordinary PostgreSQL tables a successful insert returns its row, while errors throw. In all-or-nothing imports any core error result is converted to an outer transaction throw.
+-
+-## Verification evidence
+-
+-`git -C /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14 diff --stat origin/main..HEAD -- . ':(exclude)_meta/**'`:
+-
+ ```text
+-.../_actions/create-purchase-order-core.test.ts    | 129 ++++++++++
+-.../_actions/create-purchase-order-core.ts         |  11 +-
+-.../purchase-orders/_actions/import-po-schema.ts   | 137 +++++++++++
+-.../purchase-orders/_actions/import-po.test.ts     |  61 ++++-
+-.../planning/purchase-orders/_actions/import-po.ts | 258 ++++++++++++--------
+-.../purchase-orders/_actions/po-import-errors.ts   |  12 +
+-.../planning/transfer-orders/_actions/actions.ts   |  60 +----
+-.../_actions/create-transfer-order-core.ts         | 196 +++++++++++++++
+-.../transfer-orders/_actions/import-to.test.ts     |  68 ++++-
+-.../planning/transfer-orders/_actions/import-to.ts | 264 +++++++++++++--------
+-.../transfer-orders/_actions/to-import-errors.ts   |  12 +
+-.../__tests__/catch-weight-variance.test.ts        |  67 ++++-
+-.../internal/cron/catch-weight-variance/route.ts   |   1 +
+-.../__tests__/catch-weight-variance.unit.test.ts   |  35 +++
+-apps/web/lib/cron/catch-weight-variance.ts         |  90 +++++--
+-.../477-catch-weight-variance-site-day-key.sql     |  16 ++
+-16 files changed, 1111 insertions(+), 306 deletions(-)
++Test Files  2 skipped (2)
++     Tests  4 skipped (4)
++  Start at  14:01:53
++  Duration  228ms (transform 84ms, setup 0ms, import 206ms, tests 0ms, environment 0ms)
+ ```
+ 
+-Targeted Vitest raw stdout tail (the mandated `task` wrapper is unavailable in this worktree/runtime, so the same targeted command was run directly; build/typecheck were not run per Codex-lane rules):
++This confirms both files parse and collect cleanly without `DATABASE_URL`; no live-DB execution was possible in this environment.
+ 
+-```text
+- RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14/apps/web
++## Tree proof
+ 
+- Test Files  4 passed (4)
+-      Tests  24 passed (24)
+-   Start at  13:51:06
+-   Duration  235ms (transform 160ms, setup 0ms, import 245ms, tests 22ms, environment 0ms)
+-```
++`git diff --stat` before writing this report showed no tracked implementation/test changes in the working tree; the existing workspace contained untracked orchestration artifacts and dependency symlinks. This review overwrites only this report.
+ 
+ VERDICT: fail
+-
+-Required changes:
+-
+-1. Replace or supplement the PO all-or-nothing mock-only test with a rollback-aware test that records transactional writes (preferably DB integration): group 1 must be inserted, group 2 must fail at runtime, and a post-transaction query must prove zero matching purchase orders and zero import-job rows persisted.
+-2. Add the equivalent rollback-aware TO test: order 1 must actually be written through the shared transaction, order 2 must fail, and post-transaction state must contain neither order nor an import-job row.
+
+exec
+/bin/zsh -lc "tail -8 _meta/plans/wave-14-codex-review.md
+rtk git diff --stat -- _meta/plans/wave-14-codex-review.md
+rtk git status --short -- _meta/plans/wave-14-codex-review.md 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts'" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14
+ succeeded in 0ms:
+
+This confirms both files parse and collect cleanly without `DATABASE_URL`; no live-DB execution was possible in this environment.
+
+## Tree proof
+
+`git diff --stat` before writing this report showed no tracked implementation/test changes in the working tree; the existing workspace contained untracked orchestration artifacts and dependency symlinks. This review overwrites only this report.
+
+VERDICT: fail
+
+?? _meta/plans/wave-14-codex-review.md
+diff --git a/_meta/plans/wave-14-codex-review.md b/_meta/plans/wave-14-codex-review.md
+index cf2e3371eb34f7ee0b8931ee252475f50381b269..3d3258128902ef9ca1a27d7e8833042eed59ea36
+--- a/_meta/plans/wave-14-codex-review.md
++++ b/_meta/plans/wave-14-codex-review.md
+@@ -1,102 +1,40 @@
+-# Wave 14 adversarial review — Planning imports/procurement
++# Wave 14 Codex re-review — commit 3caef844
+ 
+-Branch reviewed: `fix/wave14-imports`  
+-Patch reviewed: `git diff origin/main..HEAD`, excluding `_meta/`  
+-Review date: 2026-07-10
++## Scope verified
+ 
+-## Findings
++- Commit `3caef844` adds the two requested `.pg.test.ts` files and updates only `_meta/plans/wave-14-summary.md`; `import-po.ts`, `import-to.ts`, `create-purchase-order-core.ts`, and `create-transfer-order-core.ts` are unchanged in this fix round.
++- Both files gate on `DATABASE_URL` with `describe.skip`, import `getOwnerConnection` / `getAppConnection` at the correct depth, and seed/assert through real PostgreSQL owner queries.
++- Both use the real `withOrgContext` test-stub path (`NEXT_SERVER_ACTION_ACTOR_USER_ID` / `NEXT_SERVER_ACTION_ORG_ID`). They do **not** define or call the explicit `bindOrg` helper used by some older pg tests; the imported action binds its own session token inside `withOrgContext`, so this does not make the persisted-state assertions mocked.
++- PO all-or-nothing supplies a valid first group and a blocked-supplier second group. The blocked supplier is loaded by import validation, then rejected by `createPurchaseOrderCore`, so the failure occurs at runtime after group 1's real insert. It asserts both PO counts and the import-job count are zero. The `skip_invalid` contrast proves group 1 and one import job commit.
++- TO all-or-nothing lets the first real core call persist, forces the second core call to return `persistence_failed`, and queries `public.transfer_orders` plus `public.import_export_jobs` after the importer returns. Its `skip_invalid` contrast proves order 1 and one import job commit. The second failure is injected, but the transaction and persisted-state assertions are real.
++- SQL aliases (`count`) are not reserved, parameters are cast appropriately, and cleanup is org-scoped and ordered before tenant/org deletion.
+ 
+-1. **HIGH — the PO rollback regression test does not prove rollback** (`apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:237`). The test replaces `withOrgContext` with a callback runner and replaces `createPurchaseOrderCore` with a mock. No PO is ever inserted, no transaction is begun/committed/rolled back, and the final assertion checks only the returned `created` array and absence of the import-job insert. Concrete false-green: change the importer to catch the group-2 failure inside the callback and return `{ created: [], skipped: [], failed }` normally; this test still passes even though real `withOrgContext` would commit group 1. The implementation currently throws correctly at `import-po.ts:230`, but the required persistence proof is absent.
++## Finding
+ 
+-2. **HIGH — the TO rollback regression test has the same false-green** (`apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:211`). It mocks both the transaction wrapper and the core, so order 1 never exists in transactional state and the test cannot establish that zero orders commit. Concrete false-green: a normal-return failure response with `created: []` after order 1's independent/committed write satisfies every assertion at lines 233–237. The branch's current import path is one shared context and throws at `import-to.ts:226`, but the acceptance criterion specifically requires proving that order 2 failure leaves no persisted order.
++### Medium — rollback tests do not assert the requested audit-row invariant
+ 
+-## Per-bug assessment
++- `{severity: medium, file: apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts:195, claim: The all-or-nothing test deletes audit_events during setup but never queries it after the importer call. Therefore it does not prove the requested "no import-job/audit row persisted" invariant., suggested-fix: Add an org-scoped countAuditEvents helper and assert zero after the all-or-nothing call (and, if audit creation is part of successful importer behavior, assert the expected positive count in the contrast test).}`
++- `{severity: medium, file: apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts:201, claim: The TO test has the same omission: audit_events is cleaned but never asserted after rollback, so it is not fully the requested same-shape proof., suggested-fix: Add the equivalent org-scoped persisted audit count assertion.}`
+ 
+-### N-30 PO `all_or_nothing` — PARTIAL (`import-po.ts:66–247`; test gap at `import-po.test.ts:237`)
++## Test evidence
+ 
+-The code-level transaction flow is fixed:
++Command:
+ 
+-- Validation is repeated inside the write transaction at lines 87–93.
+-- Every runtime failure in the group loop throws in `all_or_nothing`: duplicate number (140), missing supplier (152), item lookup failure (189), zod failure (205), and core failure (230).
+-- The exception escapes the `withOrgContext` callback and is converted to an import response only outside it at lines 243–245, so a real `withOrgContext` rolls back group 1 before the response is returned.
+-- The early normal return at lines 77–79 happens before the write transaction; permission failure at line 85 is also before a write. I found no remaining all-or-nothing accumulate-then-normal-return path after a write.
+-
+-Concrete scenario by inspection: EXT-A core succeeds, EXT-B returns `supplier_blocked`; line 230 throws, preventing lines 233–241 and forcing rollback of EXT-A. However, the added test does not prove persisted state/rollback, as finding 1 explains.
+-
+-### N-31 TO shared core/transaction — PARTIAL (`create-transfer-order-core.ts:137`; `actions.ts:471`; `import-to.ts:206`; test gap at `import-to.test.ts:211`)
+-
+-The extraction and call graph are correct:
++`pnpm --filter web exec vitest run <PO pg test> <TO pg test>`
+ 
+-- `createTransferOrderCore(ctx, input)` accepts the caller's context/client and contains no `withOrgContext`.
+-- Public `createTransferOrder` validates, opens `withOrgContext`, and calls the core.
+-- `commitToImport` calls the core directly at line 206 using its outer transaction's `ctx`; it does not call the public action.
+-- Runtime failures throw at lines 146, 156, 166, 202, and 226. The catch that creates the response is outside `withOrgContext` at lines 240–242. There is no nested `withOrgContext` in the import write path.
+-
+-Concrete scenario by inspection: TO-A header/lines/audit are written through the outer client; TO-B core returns a failure; line 226 throws through the outer callback, so TO-A and TO-B are both rolled back. The regression test nevertheless cannot prove this persisted outcome because it mocks away both writes and transaction semantics (finding 2).
+-
+-### N-32 PO import zod validation — FIXED (`import-po-schema.ts:119–137`; `import-po.ts:193–217`)
+-
+-Each fully grouped payload is `safeParse`d against the exact exported `CreatePurchaseOrderInput` used by single-create before the core is called. The core receives the same constructed fields: number, supplier, draft status, expected date, currency, joined notes, and lines. Zod therefore enforces the 80-character PO number, three-character currency, 2,000-character joined notes, 200-line maximum, UUIDs, numeric formats, UoM length, dates, status, and line numbers. Issues are mapped to source rows, including indexed line issues and note-contributing rows. A 3,000-character note or 201-line group never reaches the core. I found no constructed core field bypassing this parse.
+-
+-### N-55 supplier locking — FIXED (`create-purchase-order-core.ts:169–184`)
+-
+-The supplier lookup is org-scoped and uses `FOR UPDATE`; status is checked from the locked row before the PO header insert. If a blocker update owns the row first, this query waits and then sees `blocked` under PostgreSQL READ COMMITTED. If creation owns it first, the block waits until the PO transaction completes. A concurrent block cannot change status between the locked check and insert. The added SQL assertion covers presence of the lock.
+-
+-### N-62 catch-weight site key — FIXED (`catch-weight-variance.ts:126–184`; migration `477-catch-weight-variance-site-day-key.sql:10–16`)
+-
+-The aggregate grain is `(item_id, site_id)`, and the upsert conflict target is `(org_id, item_id, site_id, day)`. Migration 477 replaces the old stricter `(org,item,day)` unique index with the per-site unique index and uses `NULLS NOT DISTINCT`, so null-site rows also remain unique. Existing data cannot contain two rows that collide on the new, more-specific key because the old key allowed at most one row for the broader `(org,item,day)` grain. A two-site item yields two aggregate rows and two persisted rows; the DB integration test asserts both. No reserved-keyword alias was introduced (`item_row`, `weighings`, and `scored` are safe).
++Raw stdout tail:
+ 
+-### N-63 skipped nominal signal — FIXED (`catch-weight-variance.ts:83–117`; integration test in `catch-weight-variance.test.ts`)
+-
+-Catch-weight weighings with null/non-positive effective nominal are queried separately and surfaced as distinct `(itemId, siteId, reason)` entries with `missing_nominal` or `zero_nominal`; the summary and cron response propagate `skipped`. The integration test inserts a zero-nominal weighing and asserts the returned skipped signal while no variance row is written. They are no longer silently discarded.
+-
+-## Cross-cutting checks
+-
+-- No new non-async export exists in a `'use server'` module. New schemas, classes, types, and cores live in non-server siblings; server modules export only async actions.
+-- No nested transaction remains in either import write path.
+-- No new `tenant_id` or raw org setting appears in the patch.
+-- No reserved SQL alias was introduced; `git diff --check` is clean.
+-- No new float arithmetic was added for PO money/quantity persistence. Import values are converted to validated decimal strings before SQL numeric casts. Catch-weight percentage conversion to JS numbers is pre-existing output behavior, not money/quantity costing.
+-- I found no new reachable normal return after a successful write in either importer. The cores retain `INSERT ... RETURNING` followed by a defensive no-header result; for ordinary PostgreSQL tables a successful insert returns its row, while errors throw. In all-or-nothing imports any core error result is converted to an outer transaction throw.
+-
+-## Verification evidence
+-
+-`git -C /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14 diff --stat origin/main..HEAD -- . ':(exclude)_meta/**'`:
+-
+ ```text
+-.../_actions/create-purchase-order-core.test.ts    | 129 ++++++++++
+-.../_actions/create-purchase-order-core.ts         |  11 +-
+-.../purchase-orders/_actions/import-po-schema.ts   | 137 +++++++++++
+-.../purchase-orders/_actions/import-po.test.ts     |  61 ++++-
+-.../planning/purchase-orders/_actions/import-po.ts | 258 ++++++++++++--------
+-.../purchase-orders/_actions/po-import-errors.ts   |  12 +
+-.../planning/transfer-orders/_actions/actions.ts   |  60 +----
+-.../_actions/create-transfer-order-core.ts         | 196 +++++++++++++++
+-.../transfer-orders/_actions/import-to.test.ts     |  68 ++++-
+-.../planning/transfer-orders/_actions/import-to.ts | 264 +++++++++++++--------
+-.../transfer-orders/_actions/to-import-errors.ts   |  12 +
+-.../__tests__/catch-weight-variance.test.ts        |  67 ++++-
+-.../internal/cron/catch-weight-variance/route.ts   |   1 +
+-.../__tests__/catch-weight-variance.unit.test.ts   |  35 +++
+-apps/web/lib/cron/catch-weight-variance.ts         |  90 +++++--
+-.../477-catch-weight-variance-site-day-key.sql     |  16 ++
+-16 files changed, 1111 insertions(+), 306 deletions(-)
++Test Files  2 skipped (2)
++     Tests  4 skipped (4)
++  Start at  14:01:53
++  Duration  228ms (transform 84ms, setup 0ms, import 206ms, tests 0ms, environment 0ms)
+ ```
+ 
+-Targeted Vitest raw stdout tail (the mandated `task` wrapper is unavailable in this worktree/runtime, so the same targeted command was run directly; build/typecheck were not run per Codex-lane rules):
++This confirms both files parse and collect cleanly without `DATABASE_URL`; no live-DB execution was possible in this environment.
+ 
+-```text
+- RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14/apps/web
++## Tree proof
+ 
+- Test Files  4 passed (4)
+-      Tests  24 passed (24)
+-   Start at  13:51:06
+-   Duration  235ms (transform 160ms, setup 0ms, import 245ms, tests 22ms, environment 0ms)
+-```
++`git diff --stat` before writing this report showed no tracked implementation/test changes in the working tree; the existing workspace contained untracked orchestration artifacts and dependency symlinks. This review overwrites only this report.
+ 
+ VERDICT: fail
+-
+-Required changes:
+-
+-1. Replace or supplement the PO all-or-nothing mock-only test with a rollback-aware test that records transactional writes (preferably DB integration): group 1 must be inserted, group 2 must fail at runtime, and a post-transaction query must prove zero matching purchase orders and zero import-job rows persisted.
+-2. Add the equivalent rollback-aware TO test: order 1 must actually be written through the shared transaction, order 2 must fail, and post-transaction state must contain neither order nor an import-job row.
+
+codex
+Re-review completed and [_meta/plans/wave-14-codex-review.md](/Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14/_meta/plans/wave-14-codex-review.md) overwritten.
+
+Verdict: **fail** — both tests omit the requested persisted `audit_events` rollback assertion. The targeted run collected successfully: 2 files / 4 tests skipped without `DATABASE_URL`. No other files were modified.
+diff --git a/_meta/plans/wave-14-codex-review.md b/_meta/plans/wave-14-codex-review.md
+index cf2e3371eb34f7ee0b8931ee252475f50381b269..3d3258128902ef9ca1a27d7e8833042eed59ea36
+--- a/_meta/plans/wave-14-codex-review.md
++++ b/_meta/plans/wave-14-codex-review.md
+@@ -1,102 +1,40 @@
+-# Wave 14 adversarial review — Planning imports/procurement
++# Wave 14 Codex re-review — commit 3caef844
+ 
+-Branch reviewed: `fix/wave14-imports`  
+-Patch reviewed: `git diff origin/main..HEAD`, excluding `_meta/`  
+-Review date: 2026-07-10
++## Scope verified
+ 
+-## Findings
++- Commit `3caef844` adds the two requested `.pg.test.ts` files and updates only `_meta/plans/wave-14-summary.md`; `import-po.ts`, `import-to.ts`, `create-purchase-order-core.ts`, and `create-transfer-order-core.ts` are unchanged in this fix round.
++- Both files gate on `DATABASE_URL` with `describe.skip`, import `getOwnerConnection` / `getAppConnection` at the correct depth, and seed/assert through real PostgreSQL owner queries.
++- Both use the real `withOrgContext` test-stub path (`NEXT_SERVER_ACTION_ACTOR_USER_ID` / `NEXT_SERVER_ACTION_ORG_ID`). They do **not** define or call the explicit `bindOrg` helper used by some older pg tests; the imported action binds its own session token inside `withOrgContext`, so this does not make the persisted-state assertions mocked.
++- PO all-or-nothing supplies a valid first group and a blocked-supplier second group. The blocked supplier is loaded by import validation, then rejected by `createPurchaseOrderCore`, so the failure occurs at runtime after group 1's real insert. It asserts both PO counts and the import-job count are zero. The `skip_invalid` contrast proves group 1 and one import job commit.
++- TO all-or-nothing lets the first real core call persist, forces the second core call to return `persistence_failed`, and queries `public.transfer_orders` plus `public.import_export_jobs` after the importer returns. Its `skip_invalid` contrast proves order 1 and one import job commit. The second failure is injected, but the transaction and persisted-state assertions are real.
++- SQL aliases (`count`) are not reserved, parameters are cast appropriately, and cleanup is org-scoped and ordered before tenant/org deletion.
+ 
+-1. **HIGH — the PO rollback regression test does not prove rollback** (`apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts:237`). The test replaces `withOrgContext` with a callback runner and replaces `createPurchaseOrderCore` with a mock. No PO is ever inserted, no transaction is begun/committed/rolled back, and the final assertion checks only the returned `created` array and absence of the import-job insert. Concrete false-green: change the importer to catch the group-2 failure inside the callback and return `{ created: [], skipped: [], failed }` normally; this test still passes even though real `withOrgContext` would commit group 1. The implementation currently throws correctly at `import-po.ts:230`, but the required persistence proof is absent.
++## Finding
+ 
+-2. **HIGH — the TO rollback regression test has the same false-green** (`apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts:211`). It mocks both the transaction wrapper and the core, so order 1 never exists in transactional state and the test cannot establish that zero orders commit. Concrete false-green: a normal-return failure response with `created: []` after order 1's independent/committed write satisfies every assertion at lines 233–237. The branch's current import path is one shared context and throws at `import-to.ts:226`, but the acceptance criterion specifically requires proving that order 2 failure leaves no persisted order.
++### Medium — rollback tests do not assert the requested audit-row invariant
+ 
+-## Per-bug assessment
++- `{severity: medium, file: apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts:195, claim: The all-or-nothing test deletes audit_events during setup but never queries it after the importer call. Therefore it does not prove the requested "no import-job/audit row persisted" invariant., suggested-fix: Add an org-scoped countAuditEvents helper and assert zero after the all-or-nothing call (and, if audit creation is part of successful importer behavior, assert the expected positive count in the contrast test).}`
++- `{severity: medium, file: apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts:201, claim: The TO test has the same omission: audit_events is cleaned but never asserted after rollback, so it is not fully the requested same-shape proof., suggested-fix: Add the equivalent org-scoped persisted audit count assertion.}`
+ 
+-### N-30 PO `all_or_nothing` — PARTIAL (`import-po.ts:66–247`; test gap at `import-po.test.ts:237`)
++## Test evidence
+ 
+-The code-level transaction flow is fixed:
++Command:
+ 
+-- Validation is repeated inside the write transaction at lines 87–93.
+-- Every runtime failure in the group loop throws in `all_or_nothing`: duplicate number (140), missing supplier (152), item lookup failure (189), zod failure (205), and core failure (230).
+-- The exception escapes the `withOrgContext` callback and is converted to an import response only outside it at lines 243–245, so a real `withOrgContext` rolls back group 1 before the response is returned.
+-- The early normal return at lines 77–79 happens before the write transaction; permission failure at line 85 is also before a write. I found no remaining all-or-nothing accumulate-then-normal-return path after a write.
+-
+-Concrete scenario by inspection: EXT-A core succeeds, EXT-B returns `supplier_blocked`; line 230 throws, preventing lines 233–241 and forcing rollback of EXT-A. However, the added test does not prove persisted state/rollback, as finding 1 explains.
+-
+-### N-31 TO shared core/transaction — PARTIAL (`create-transfer-order-core.ts:137`; `actions.ts:471`; `import-to.ts:206`; test gap at `import-to.test.ts:211`)
+-
+-The extraction and call graph are correct:
++`pnpm --filter web exec vitest run <PO pg test> <TO pg test>`
+ 
+-- `createTransferOrderCore(ctx, input)` accepts the caller's context/client and contains no `withOrgContext`.
+-- Public `createTransferOrder` validates, opens `withOrgContext`, and calls the core.
+-- `commitToImport` calls the core directly at line 206 using its outer transaction's `ctx`; it does not call the public action.
+-- Runtime failures throw at lines 146, 156, 166, 202, and 226. The catch that creates the response is outside `withOrgContext` at lines 240–242. There is no nested `withOrgContext` in the import write path.
+-
+-Concrete scenario by inspection: TO-A header/lines/audit are written through the outer client; TO-B core returns a failure; line 226 throws through the outer callback, so TO-A and TO-B are both rolled back. The regression test nevertheless cannot prove this persisted outcome because it mocks away both writes and transaction semantics (finding 2).
+-
+-### N-32 PO import zod validation — FIXED (`import-po-schema.ts:119–137`; `import-po.ts:193–217`)
+-
+-Each fully grouped payload is `safeParse`d against the exact exported `CreatePurchaseOrderInput` used by single-create before the core is called. The core receives the same constructed fields: number, supplier, draft status, expected date, currency, joined notes, and lines. Zod therefore enforces the 80-character PO number, three-character currency, 2,000-character joined notes, 200-line maximum, UUIDs, numeric formats, UoM length, dates, status, and line numbers. Issues are mapped to source rows, including indexed line issues and note-contributing rows. A 3,000-character note or 201-line group never reaches the core. I found no constructed core field bypassing this parse.
+-
+-### N-55 supplier locking — FIXED (`create-purchase-order-core.ts:169–184`)
+-
+-The supplier lookup is org-scoped and uses `FOR UPDATE`; status is checked from the locked row before the PO header insert. If a blocker update owns the row first, this query waits and then sees `blocked` under PostgreSQL READ COMMITTED. If creation owns it first, the block waits until the PO transaction completes. A concurrent block cannot change status between the locked check and insert. The added SQL assertion covers presence of the lock.
+-
+-### N-62 catch-weight site key — FIXED (`catch-weight-variance.ts:126–184`; migration `477-catch-weight-variance-site-day-key.sql:10–16`)
+-
+-The aggregate grain is `(item_id, site_id)`, and the upsert conflict target is `(org_id, item_id, site_id, day)`. Migration 477 replaces the old stricter `(org,item,day)` unique index with the per-site unique index and uses `NULLS NOT DISTINCT`, so null-site rows also remain unique. Existing data cannot contain two rows that collide on the new, more-specific key because the old key allowed at most one row for the broader `(org,item,day)` grain. A two-site item yields two aggregate rows and two persisted rows; the DB integration test asserts both. No reserved-keyword alias was introduced (`item_row`, `weighings`, and `scored` are safe).
++Raw stdout tail:
+ 
+-### N-63 skipped nominal signal — FIXED (`catch-weight-variance.ts:83–117`; integration test in `catch-weight-variance.test.ts`)
+-
+-Catch-weight weighings with null/non-positive effective nominal are queried separately and surfaced as distinct `(itemId, siteId, reason)` entries with `missing_nominal` or `zero_nominal`; the summary and cron response propagate `skipped`. The integration test inserts a zero-nominal weighing and asserts the returned skipped signal while no variance row is written. They are no longer silently discarded.
+-
+-## Cross-cutting checks
+-
+-- No new non-async export exists in a `'use server'` module. New schemas, classes, types, and cores live in non-server siblings; server modules export only async actions.
+-- No nested transaction remains in either import write path.
+-- No new `tenant_id` or raw org setting appears in the patch.
+-- No reserved SQL alias was introduced; `git diff --check` is clean.
+-- No new float arithmetic was added for PO money/quantity persistence. Import values are converted to validated decimal strings before SQL numeric casts. Catch-weight percentage conversion to JS numbers is pre-existing output behavior, not money/quantity costing.
+-- I found no new reachable normal return after a successful write in either importer. The cores retain `INSERT ... RETURNING` followed by a defensive no-header result; for ordinary PostgreSQL tables a successful insert returns its row, while errors throw. In all-or-nothing imports any core error result is converted to an outer transaction throw.
+-
+-## Verification evidence
+-
+-`git -C /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14 diff --stat origin/main..HEAD -- . ':(exclude)_meta/**'`:
+-
+ ```text
+-.../_actions/create-purchase-order-core.test.ts    | 129 ++++++++++
+-.../_actions/create-purchase-order-core.ts         |  11 +-
+-.../purchase-orders/_actions/import-po-schema.ts   | 137 +++++++++++
+-.../purchase-orders/_actions/import-po.test.ts     |  61 ++++-
+-.../planning/purchase-orders/_actions/import-po.ts | 258 ++++++++++++--------
+-.../purchase-orders/_actions/po-import-errors.ts   |  12 +
+-.../planning/transfer-orders/_actions/actions.ts   |  60 +----
+-.../_actions/create-transfer-order-core.ts         | 196 +++++++++++++++
+-.../transfer-orders/_actions/import-to.test.ts     |  68 ++++-
+-.../planning/transfer-orders/_actions/import-to.ts | 264 +++++++++++++--------
+-.../transfer-orders/_actions/to-import-errors.ts   |  12 +
+-.../__tests__/catch-weight-variance.test.ts        |  67 ++++-
+-.../internal/cron/catch-weight-variance/route.ts   |   1 +
+-.../__tests__/catch-weight-variance.unit.test.ts   |  35 +++
+-apps/web/lib/cron/catch-weight-variance.ts         |  90 +++++--
+-.../477-catch-weight-variance-site-day-key.sql     |  16 ++
+-16 files changed, 1111 insertions(+), 306 deletions(-)
++Test Files  2 skipped (2)
++     Tests  4 skipped (4)
++  Start at  14:01:53
++  Duration  228ms (transform 84ms, setup 0ms, import 206ms, tests 0ms, environment 0ms)
+ ```
+ 
+-Targeted Vitest raw stdout tail (the mandated `task` wrapper is unavailable in this worktree/runtime, so the same targeted command was run directly; build/typecheck were not run per Codex-lane rules):
++This confirms both files parse and collect cleanly without `DATABASE_URL`; no live-DB execution was possible in this environment.
+ 
+-```text
+- RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave14/apps/web
++## Tree proof
+ 
+- Test Files  4 passed (4)
+-      Tests  24 passed (24)
+-   Start at  13:51:06
+-   Duration  235ms (transform 160ms, setup 0ms, import 245ms, tests 22ms, environment 0ms)
+-```
++`git diff --stat` before writing this report showed no tracked implementation/test changes in the working tree; the existing workspace contained untracked orchestration artifacts and dependency symlinks. This review overwrites only this report.
+ 
+ VERDICT: fail
+-
+-Required changes:
+-
+-1. Replace or supplement the PO all-or-nothing mock-only test with a rollback-aware test that records transactional writes (preferably DB integration): group 1 must be inserted, group 2 must fail at runtime, and a post-transaction query must prove zero matching purchase orders and zero import-job rows persisted.
+-2. Add the equivalent rollback-aware TO test: order 1 must actually be written through the shared transaction, order 2 must fail, and post-transaction state must contain neither order nor an import-job row.
+
+tokens used
+49,911

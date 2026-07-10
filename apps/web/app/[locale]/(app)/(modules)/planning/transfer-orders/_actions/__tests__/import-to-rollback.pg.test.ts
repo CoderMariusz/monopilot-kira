@@ -198,6 +198,14 @@ runPg('TO import all_or_nothing rollback (real Postgres)', () => {
     return Number(rows[0]?.count ?? 0);
   }
 
+  async function countAuditEvents(): Promise<number> {
+    const { rows } = await ownerPool.query<{ count: string }>(
+      `select count(*)::text as count from public.audit_events where org_id = $1::uuid`,
+      [orgId],
+    );
+    return Number(rows[0]?.count ?? 0);
+  }
+
   it('all_or_nothing rolls back order 1 when order 2 fails at runtime', async () => {
     const result = await commitToImport(twoOrderImportRows(), { mode: 'all_or_nothing' });
 
@@ -207,6 +215,7 @@ runPg('TO import all_or_nothing rollback (real Postgres)', () => {
     expect(await countTransferOrders(ORDER1_REF)).toBe(0);
     expect(await countTransferOrders(ORDER2_REF)).toBe(0);
     expect(await countImportJobs()).toBe(0);
+    expect(await countAuditEvents(), 'no audit rows persist on all_or_nothing rollback').toBe(0);
   });
 
   it('skip_invalid commits order 1 while order 2 is reported failed (contrast)', async () => {
@@ -217,5 +226,6 @@ runPg('TO import all_or_nothing rollback (real Postgres)', () => {
     expect(await countTransferOrders(ORDER1_REF)).toBe(1);
     expect(await countTransferOrders(ORDER2_REF)).toBe(0);
     expect(await countImportJobs()).toBe(1);
+    expect(await countAuditEvents(), 'best-effort commit persists audit rows').toBeGreaterThan(0);
   });
 });
