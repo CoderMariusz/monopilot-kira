@@ -79,7 +79,8 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
 
       const row = loaded.rows[0];
       if (!row) return { ok: false, error: 'not_found' };
-      if (row.state !== 'locked') return { ok: false, error: 'VERSION_NOT_LOCKED' };
+      if (row.state === 'locked') return { ok: false, error: 'VERSION_NOT_LOCKED' };
+      if (row.state !== 'draft') return { ok: false, error: 'VERSION_NOT_LOCKED' };
       if (!isTotalPctInRange(row.total_pct)) return { ok: false, error: 'TOTAL_PCT_OUT_OF_RANGE' };
       if (Number(row.missing_cost_count) > 0) return { ok: false, error: 'MISSING_COST' };
       if (Number(row.missing_nutrition_target_count) > 0) {
@@ -106,6 +107,14 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
           [projectId, versionId, ctx.userId],
         );
       }
+
+      await ctx.client.query(
+        `update public.formulation_versions
+            set state = 'submitted_for_trial'
+          where id = $1::uuid
+            and state = 'draft'`,
+        [versionId],
+      );
 
       await ctx.client.query(
         `insert into public.formulation_audit_log
