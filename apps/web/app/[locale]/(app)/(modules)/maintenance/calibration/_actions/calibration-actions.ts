@@ -64,6 +64,25 @@ function computeNextDueDate(calibratedAt: Date, intervalDays: number): string {
   return next.toISOString().slice(0, 10);
 }
 
+function calibratedAtDateOnly(calibratedAt: Date): string {
+  return calibratedAt.toISOString().slice(0, 10);
+}
+
+function isFailureResult(result: 'PASS' | 'FAIL' | 'OUT_OF_SPEC'): boolean {
+  return result === 'FAIL' || result === 'OUT_OF_SPEC';
+}
+
+function isFutureCalibratedAt(calibratedAt: Date): boolean {
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const calibratedUtc = Date.UTC(
+    calibratedAt.getUTCFullYear(),
+    calibratedAt.getUTCMonth(),
+    calibratedAt.getUTCDate(),
+  );
+  return calibratedUtc > todayUtc;
+}
+
 function parseCalibratedAt(value: string): Date {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return new Date(`${value}T12:00:00.000Z`);
@@ -369,8 +388,9 @@ export async function recordCalibration(input: {
           standard: string;
           calibration_interval_days: number;
           instrument_code: string;
+          active: boolean;
         }>(
-          `select id::text, standard, calibration_interval_days, instrument_code
+          `select id::text, standard, calibration_interval_days, instrument_code, active
              from public.calibration_instruments
             where id = $1::uuid
               and org_id = app.current_org_id()
@@ -381,7 +401,25 @@ export async function recordCalibration(input: {
         if (!instrumentRow) return { ok: false, reason: 'not_found' };
 
         const calibratedAt = parseCalibratedAt(parsed.calibratedAt);
-        const nextDueDate = computeNextDueDate(calibratedAt, instrumentRow.calibration_interval_days);
+        if (isFutureCalibratedAt(calibratedAt)) {
+          return {
+            ok: false,
+            reason: 'validation_error',
+            message: 'calibratedAt cannot be in the future',
+          };
+        }
+
+        if (isFailureResult(parsed.result) && !instrumentRow.active) {
+          return {
+            ok: false,
+            reason: 'validation_error',
+            message: 'instrument must be active to record a failing calibration',
+          };
+        }
+
+        const nextDueDate = isFailureResult(parsed.result)
+          ? calibratedAtDateOnly(calibratedAt)
+          : computeNextDueDate(calibratedAt, instrumentRow.calibration_interval_days);
         const testPointsJson = JSON.stringify(parsed.testPoints ?? []);
 
         // TODO(e-sign follow-up — F4-H2): dualSign for calibrated_by + reviewer_signed_by
@@ -414,7 +452,7 @@ export async function recordCalibration(input: {
         const recordRow = inserted.rows[0];
         if (!recordRow) throw new Error('calibration record insert returned no row');
 
-        if (parsed.result === 'FAIL') {
+        if (isFailureResult(parsed.result)) {
           await ctx.client.query(
             `update public.calibration_instruments
                 set active = false,
@@ -424,12 +462,21 @@ export async function recordCalibration(input: {
                 and org_id = app.current_org_id()`,
             [parsed.instrumentId, ctx.userId],
           );
+        } else if (parsed.result === 'PASS' && !instrumentRow.active) {
+          await ctx.client.query(
+            `update public.calibration_instruments
+                set active = true,
+                    updated_by = $2::uuid,
+                    updated_at = pg_catalog.now()
+              where id = $1::uuid
+                and org_id = app.current_org_id()`,
+            [parsed.instrumentId, ctx.userId],
+          );
         }
 
-        const eventType =
-          parsed.result === 'FAIL'
-            ? ('maintenance.calibration.failed' as const)
-            : ('maintenance.calibration.completed' as const);
+        const eventType = isFailureResult(parsed.result)
+          ? ('maintenance.calibration.failed' as const)
+          : ('maintenance.calibration.completed' as const);
 
         await writeCalibrationOutbox(ctx, {
           eventType,

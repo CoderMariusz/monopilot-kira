@@ -23,6 +23,7 @@ type QueryClient = {
 
 let grantedPermissions: Set<string>;
 let instrumentExists = true;
+let instrumentActive = true;
 let client: QueryClient;
 
 const revalidateMock = vi.fn();
@@ -86,6 +87,7 @@ function makeClient(): QueryClient {
                   standard: 'NIST',
                   calibration_interval_days: 180,
                   instrument_code: 'SCALE-01',
+                  active: instrumentActive,
                 },
               ]
             : [],
@@ -114,6 +116,7 @@ beforeEach(() => {
     'mnt.calib.record',
   ]);
   instrumentExists = true;
+  instrumentActive = true;
   client = makeClient();
   revalidateMock.mockClear();
 });
@@ -273,6 +276,9 @@ describe('recordCalibration', () => {
       result: 'FAIL',
     });
     expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.nextDueDate).toBe('2026-06-01');
+    }
 
     const deactivateCalls = client.query.mock.calls.filter(([sql]) => {
       const n = normalize(String(sql));
@@ -284,5 +290,77 @@ describe('recordCalibration', () => {
       normalize(String(sql)).includes('insert into public.outbox_events'),
     );
     expect(outboxCall?.[1]?.[0]).toBe('maintenance.calibration.failed');
+  });
+
+  it('on OUT_OF_SPEC deactivates the instrument, does not advance next due, and emits failed outbox', async () => {
+    const result = await recordCalibration({
+      instrumentId: INSTRUMENT_ID,
+      calibratedAt: '2026-06-01',
+      result: 'OUT_OF_SPEC',
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.nextDueDate).toBe('2026-06-01');
+      expect(result.data.nextDueDate).not.toBe('2026-11-28');
+    }
+
+    const deactivateCalls = client.query.mock.calls.filter(([sql]) => {
+      const n = normalize(String(sql));
+      return n.includes('update public.calibration_instruments') && n.includes('active = false');
+    });
+    expect(deactivateCalls.length).toBeGreaterThanOrEqual(1);
+
+    const outboxCall = client.query.mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('insert into public.outbox_events'),
+    );
+    expect(outboxCall?.[1]?.[0]).toBe('maintenance.calibration.failed');
+  });
+
+  it('rejects a future calibratedAt date', async () => {
+    const result = await recordCalibration({
+      instrumentId: INSTRUMENT_ID,
+      calibratedAt: '2099-01-15',
+      result: 'PASS',
+    });
+    expect(result).toEqual({
+      ok: false,
+      reason: 'validation_error',
+      message: 'calibratedAt cannot be in the future',
+    });
+  });
+
+  it('rejects FAIL on an inactive instrument', async () => {
+    instrumentActive = false;
+    const result = await recordCalibration({
+      instrumentId: INSTRUMENT_ID,
+      calibratedAt: '2026-06-01',
+      result: 'FAIL',
+    });
+    expect(result).toEqual({
+      ok: false,
+      reason: 'validation_error',
+      message: 'instrument must be active to record a failing calibration',
+    });
+  });
+
+  it('reactivates an inactive instrument on PASS', async () => {
+    instrumentActive = false;
+    const result = await recordCalibration({
+      instrumentId: INSTRUMENT_ID,
+      calibratedAt: '2026-06-01',
+      result: 'PASS',
+    });
+    expect(result.ok).toBe(true);
+
+    const reactivateCalls = client.query.mock.calls.filter(([sql]) => {
+      const n = normalize(String(sql));
+      return n.includes('update public.calibration_instruments') && n.includes('active = true');
+    });
+    expect(reactivateCalls.length).toBeGreaterThanOrEqual(1);
+
+    const outboxCall = client.query.mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('insert into public.outbox_events'),
+    );
+    expect(outboxCall?.[1]?.[0]).toBe('maintenance.calibration.completed');
   });
 });
