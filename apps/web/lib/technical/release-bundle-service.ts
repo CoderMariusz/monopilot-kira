@@ -297,6 +297,7 @@ async function closeNpdReleaseLoop(
       where org_id = $1::uuid
         and project_id = $2::uuid
         and product_code = $3
+        and release_status in ('pending_npd_release', 'pending_technical_approval')
       returning id`,
     [
       params.orgId,
@@ -395,32 +396,6 @@ export async function approveReleaseBundle(
     };
   }
 
-  // AC1 (link) — one evidence bundle id ties the factory_spec and the BOM together. We
-  // use the e-sign signature id as the immutable evidence anchor.
-  let signatureId: string;
-  try {
-    const receipt = await signEvent(
-      {
-        signerUserId: ctx.userId,
-        pin: input.pin,
-        intent: BUNDLE_APPROVE_INTENT,
-        subject: {
-          factorySpecId: spec.id,
-          bomHeaderId: bom.id,
-          fgItemId: spec.fg_item_id,
-          bomVersion: bom.version,
-        },
-        nonce: `${spec.id}:${bom.id}:approve`,
-        reason: input.reason,
-      },
-      { client: ctx.client as never },
-    );
-    signatureId = receipt.signatureId;
-  } catch (err) {
-    // EPinFailedError / EReplayError → esign_failed (never leak which).
-    return { ok: false, error: 'esign_failed', message: err instanceof Error ? err.name : 'esign_failed' };
-  }
-
   try {
     const lockedSpec = await lockFactorySpecForApproval(ctx.client, spec.id);
     if (!lockedSpec || lockedSpec.status !== 'in_review') {
@@ -482,6 +457,32 @@ export async function approveReleaseBundle(
           and id <> $2::uuid`,
       [spec.fg_item_id, spec.id],
     );
+
+    // AC1 (link) — sign only after lock + rechecks + state mutations succeed so a
+    // transient race never persists an orphaned signature (deterministic nonce replay).
+    let signatureId: string;
+    try {
+      const receipt = await signEvent(
+        {
+          signerUserId: ctx.userId,
+          pin: input.pin,
+          intent: BUNDLE_APPROVE_INTENT,
+          subject: {
+            factorySpecId: spec.id,
+            bomHeaderId: bom.id,
+            fgItemId: spec.fg_item_id,
+            bomVersion: bom.version,
+          },
+          nonce: `${spec.id}:${bom.id}:approve`,
+          reason: input.reason,
+        },
+        { client: ctx.client as never },
+      );
+      signatureId = receipt.signatureId;
+    } catch (err) {
+      // After writes: throw so withOrgContext rolls back the partial approval.
+      throw err;
+    }
 
     // AC1 — emit the canonical Technical event. The outbox INSERT is in the same txn as
     // the state change (atomic; rollback drops the event with the state).
@@ -581,6 +582,14 @@ export async function rejectReleaseBundle(
     return { ok: false, error: 'invalid_state', message: `factory_spec is ${spec.status}` };
   }
 
+  if (spec.bom_header_id !== input.bomHeaderId) {
+    return {
+      ok: false,
+      error: 'invalid_state',
+      message: `factory_spec is paired to BOM ${spec.bom_header_id ?? 'none'}; expected ${input.bomHeaderId}`,
+    };
+  }
+
   try {
     const updated = await ctx.client.query<{ id: string }>(
       `update public.factory_specs
@@ -616,6 +625,6 @@ export async function rejectReleaseBundle(
       factorySpecId: input.factorySpecId,
       err: err instanceof Error ? err.message : String(err),
     });
-    return { ok: false, error: 'persistence_failed' };
+    throw err;
   }
 }
