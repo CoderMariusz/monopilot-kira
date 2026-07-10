@@ -41,6 +41,7 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
 
 function permissionAllowed(permission: unknown): boolean {
   if (permission === 'npd.planning.write') return allowWritePermission;
+  if (permission === 'planning.supplier.manage') return allowWritePermission;
   if (permission === 'scheduler.run.read') return allowReadPermission;
   return false;
 }

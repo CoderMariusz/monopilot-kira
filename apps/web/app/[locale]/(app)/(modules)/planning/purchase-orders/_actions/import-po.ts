@@ -2,7 +2,7 @@
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
-import { hasPlanningWritePermission, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
+import { requireActionPermission, PLANNING_PO_MANAGE_PERMISSION, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
 import { createPurchaseOrderCore } from './create-purchase-order-core';
 
 export type PoImportRow = {
@@ -201,9 +201,8 @@ export async function commitPoImport(
 }
 
 async function requirePlanningWritePermission(ctx: OrgActionContext): Promise<void> {
-  if (!(await hasPlanningWritePermission(ctx))) {
-    throw new PoImportForbiddenError();
-  }
+  const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+  if (!perm.ok) throw new PoImportForbiddenError();
 }
 
 async function validateRows(client: QueryClient, rows: PoImportRow[]): Promise<PoValidationResult> {

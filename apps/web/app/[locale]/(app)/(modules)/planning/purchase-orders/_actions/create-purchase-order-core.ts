@@ -4,7 +4,8 @@ import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering
 import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
 import {
   PurchaseOrderCreateInput,
-  hasPlanningWritePermission,
+  requireActionPermission,
+  PLANNING_PO_MANAGE_PERMISSION,
   isPgError,
   toIso,
   uuidSchema,
@@ -160,7 +161,8 @@ export async function createPurchaseOrderCore(
   input: CreatePurchaseOrderInputType,
 ): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
   const { userId, orgId } = ctx;
-  if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+  const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+  if (!perm.ok) return perm;
 
   const siteResolution = await resolveWriteSiteId(ctx.client);
   if (!siteResolution.ok) return { ok: false, error: siteResolution.reason };
