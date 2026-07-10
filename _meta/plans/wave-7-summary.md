@@ -87,3 +87,22 @@ pnpm --filter web exec vitest run \
 ### Migration 466 + deferred RLS wording
 
 Corrected COMMENT and summary: admin-slug bypass (condition 2) is the explicit all-site authority path today, but conditions (1) null-user and (4) null-site remain fail-open and are **undecided** for the staged flip — follow-up must resolve them explicitly.
+
+---
+
+## Fix round 2 (2026-07-10 — test-harness gaps)
+
+**Context:** `role-grant-guards.ts` dotted-code/slug subset logic is correct (`like '%.%'` excludes bare role identifiers). Three behavior tests failed because round-1 FakeClient matchers were stale.
+
+**Fixes (tests/fixtures only — no production logic changes):**
+
+1. **`assign-role.behavior.test.ts`**
+   - `requirePermission` matcher no longer keys on bare `= $3` (SQL comments in `readCallerPermissions` falsely matched).
+   - `readCallerPermissions` / `readRolePermissions` mocks now key on `select distinct grant as permission` and return dotted-code/slug-aware effective grants.
+   - Success-case assertion targets the `select true as ok` requirePermission query, not subset queries that legitimately reference `r.slug`.
+
+2. **`assign-role.behavior.test.ts` (last-owner)** — with corrected subset mocks, default fixture caller (`settings.roles.assign`) legitimately reaches the last-owner SQL guard; assertion unchanged.
+
+3. **`create-user-with-password.behavior.test.ts`** — same grant-query matcher + dotted semantics; subset escalation test now rejects `settings.org.read` when caller holds only `settings.users.invite`.
+
+**Gates:** `tsc --noEmit` clean; 42/42 vitest across assign-role, create-user-with-password, assign-user-sites, edge-middleware-policy.

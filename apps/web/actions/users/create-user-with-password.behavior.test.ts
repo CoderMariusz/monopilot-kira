@@ -45,7 +45,7 @@ type FakeClientOptions = {
   hasPermission: boolean;
   seatLimit: number | null;
   activeUsers: number;
-  rolesById: Record<string, { id: string; org_id: string; code: string; is_system: boolean; display_order: number | null }>;
+  rolesById: Record<string, { id: string; org_id: string; code: string; slug?: string | null; is_system: boolean; display_order: number | null }>;
   actorRoleCodes?: string[];
   actorPermissions?: string[];
   rolePermissionsById?: Record<string, string[]>;
@@ -80,18 +80,30 @@ function makeClient(opts: FakeClientOptions): FakeClient {
         return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
       }
 
-      if (norm.startsWith('select distinct permission') && norm.includes('from public.user_roles ur')) {
-        const rows = (opts.actorPermissions ?? ['settings.users.invite']).map((permission) => ({ permission }));
+      if (norm.startsWith('select distinct grant as permission') && norm.includes('from public.user_roles ur')) {
+        const grants = new Set(opts.actorPermissions ?? ['settings.users.invite']);
+        for (const code of opts.actorRoleCodes ?? []) {
+          if (code.includes('.')) grants.add(code);
+        }
+        const rows = [...grants].map((permission) => ({ permission }));
         return { rows, rowCount: rows.length };
       }
 
-      if (norm.startsWith('select distinct permission') && norm.includes('from public.role_permissions rp')) {
+      if (
+        norm.startsWith('select distinct grant as permission')
+        && norm.includes('from public.role_permissions rp')
+        && norm.includes('app.current_org_id()')
+      ) {
         const roleId = params[0] as string;
-        const rows = (opts.rolePermissionsById?.[roleId] ?? []).map((permission) => ({ permission }));
+        const role = opts.rolesById[roleId];
+        const grants = new Set(opts.rolePermissionsById?.[roleId] ?? []);
+        if (role?.code?.includes('.')) grants.add(role.code);
+        if (role?.slug?.includes('.')) grants.add(role.slug);
+        const rows = [...grants].map((permission) => ({ permission }));
         return { rows, rowCount: rows.length };
       }
 
-      if (norm.startsWith('select') && norm.includes('role_permissions') && norm.includes('user_roles')) {
+      if (norm.startsWith('select true as ok') && norm.includes('role_permissions') && norm.includes('user_roles')) {
         return { rows: opts.hasPermission ? [{ ok: true }] : [], rowCount: opts.hasPermission ? 1 : 0 };
       }
 

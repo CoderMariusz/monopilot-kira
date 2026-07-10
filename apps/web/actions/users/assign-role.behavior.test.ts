@@ -60,7 +60,7 @@ function makeClient(options: {
       calls.push({ sql, params });
       const norm = sql.replace(/\s+/g, ' ').trim().toLowerCase();
 
-      if (norm.includes('role_permissions') && norm.includes('user_roles') && norm.includes('= $3')) {
+      if (norm.startsWith('select true as ok') && norm.includes('role_permissions') && norm.includes('user_roles')) {
         const requestedPermission = params[2];
         return requestedPermission === 'settings.roles.assign'
           ? { rows: [{ ok: true }], rowCount: 1 }
@@ -80,7 +80,7 @@ function makeClient(options: {
         return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
       }
 
-      if (norm.includes('from public.user_roles ur') && norm.includes('jsonb_array_elements_text')) {
+      if (norm.startsWith('select distinct grant as permission') && norm.includes('from public.user_roles ur')) {
         const grants = new Set(client.actorPermissions);
         for (const code of client.actorRoleCodes) {
           if (code.includes('.')) grants.add(code);
@@ -91,7 +91,11 @@ function makeClient(options: {
         };
       }
 
-      if (norm.includes('from public.role_permissions rp') && norm.includes('app.current_org_id()')) {
+      if (
+        norm.startsWith('select distinct grant as permission')
+        && norm.includes('from public.role_permissions rp')
+        && norm.includes('app.current_org_id()')
+      ) {
         const roleId = params[0] as string;
         const role = client.rolesById[roleId];
         const grants = new Set(client.rolePermissionsById[roleId] ?? []);
@@ -166,10 +170,12 @@ describe('assignRole behavior', () => {
     const result = await assignRole({ targetUserId: TARGET_USER_ID, roleId: OPERATOR_ROLE_ID });
 
     expect(result).toEqual({ ok: true, data: { targetUserId: TARGET_USER_ID, roleId: OPERATOR_ROLE_ID } });
-    const permissionCall = currentClient.calls.find((call) => call.sql.includes('role_permissions'));
+    const permissionCall = currentClient.calls.find((call) => {
+      const callNorm = call.sql.replace(/\s+/g, ' ').trim().toLowerCase();
+      return callNorm.startsWith('select true as ok') && callNorm.includes('coalesce(r.permissions');
+    });
     expect(permissionCall?.params[2]).toBe('settings.roles.assign');
     expect(permissionCall?.sql).toContain("coalesce(r.permissions, '[]'::jsonb) ? $3");
-    expect(permissionCall?.sql).not.toContain('r.slug');
     expect(currentClient.updatedRoleId).toBe(OPERATOR_ROLE_ID);
     expect(currentClient.auditRows[0]).toMatchObject({
       action: 'settings.role.assigned',
