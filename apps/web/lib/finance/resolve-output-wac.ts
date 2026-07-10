@@ -5,6 +5,13 @@ type QueryClient = {
   ): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
+export type UnCostedConsumptionLine = {
+  consumptionId: string;
+  componentId: string;
+  qty: string;
+  uom: string;
+};
+
 export type OutputWacResolution =
   | {
       applied: true;
@@ -13,13 +20,29 @@ export type OutputWacResolution =
       costPerKg: string;
       source: 'wo_computed' | 'standard';
     }
-  | { applied: false; excluded: 'un_costed' };
+  | { applied: false; excluded: 'un_costed'; unCostedLines: UnCostedConsumptionLine[] };
 
 type WoOutputCostBasisRow = {
   material_cost: string;
   prior_wac_booked: string;
   output_baseline_kg: string;
 };
+
+const MATERIAL_COSTED_QTY_KG_CASE = `
+  case
+    when lower(c.uom) = 'kg' then c.qty_consumed
+    when lower(c.uom) = lower(coalesce(i.uom_base, ''))
+      and lower(coalesce(i.uom_base, '')) = 'kg'
+      then c.qty_consumed
+    when lower(c.uom) in ('each', 'pcs', 'szt', 'ea') and i.net_qty_per_each is not null
+      then c.qty_consumed * i.net_qty_per_each
+    when lower(c.uom) = 'box'
+      and i.net_qty_per_each is not null
+      and i.each_per_box is not null
+      then c.qty_consumed * i.each_per_box::numeric * i.net_qty_per_each
+    else null
+  end
+`;
 
 /**
  * Resolves the WAC credit for a forward FG output registration.
@@ -34,6 +57,11 @@ export async function resolveOutputWacContribution(
     standardCostPerKg: string | null;
   },
 ): Promise<OutputWacResolution> {
+  const unCosted = await loadUnCostedConsumptionLines(client, input.woId);
+  if (unCosted.length > 0) {
+    return { applied: false, excluded: 'un_costed', unCostedLines: unCosted };
+  }
+
   const { rows } = await client.query<WoOutputCostBasisRow>(
     `with material_wac as (
        select coalesce(
@@ -50,21 +78,7 @@ export async function resolveOutputWacContribution(
                 sum(
                   coalesce(
                     nullif(c.ext_jsonb->>'wac_value', '')::numeric,
-                    (
-                      case
-                        when lower(c.uom) = 'kg' then c.qty_consumed
-                        when lower(c.uom) = lower(coalesce(i.uom_base, ''))
-                          and lower(coalesce(i.uom_base, '')) = 'kg'
-                          then c.qty_consumed
-                        when lower(c.uom) = 'each' and i.net_qty_per_each is not null
-                          then c.qty_consumed * i.net_qty_per_each
-                        when lower(c.uom) = 'box'
-                          and i.net_qty_per_each is not null
-                          and i.each_per_box is not null
-                          then c.qty_consumed * i.each_per_box::numeric * i.net_qty_per_each
-                        else null
-                      end
-                    ) * coalesce(ch.cost_per_kg, i.cost_per_kg)
+                    (${MATERIAL_COSTED_QTY_KG_CASE}) * coalesce(ch.cost_per_kg, i.cost_per_kg)
                   )
                 ),
                 0
@@ -166,7 +180,53 @@ export async function resolveOutputWacContribution(
     };
   }
 
-  return { applied: false, excluded: 'un_costed' };
+  return { applied: false, excluded: 'un_costed', unCostedLines: [] };
+}
+
+async function loadUnCostedConsumptionLines(
+  client: QueryClient,
+  woId: string,
+): Promise<UnCostedConsumptionLine[]> {
+  const { rows } = await client.query<{
+    consumption_id: string;
+    component_id: string;
+    qty: string;
+    uom: string;
+  }>(
+    `select c.id::text as consumption_id,
+            c.component_id::text as component_id,
+            c.qty_consumed::text as qty,
+            c.uom
+       from public.wo_material_consumption c
+       left join public.items i
+         on i.org_id = c.org_id
+        and i.id = c.component_id
+       left join lateral (
+         select cost_per_kg
+           from public.item_cost_history
+          where org_id = app.current_org_id()
+            and item_id = c.component_id
+            and effective_to is null
+          order by effective_from desc
+          limit 1
+       ) ch on true
+      where c.org_id = app.current_org_id()
+        and c.wo_id = $1::uuid
+        and c.correction_of_id is null
+        and nullif(c.ext_jsonb->>'wac_value', '') is null
+        and (
+          (${MATERIAL_COSTED_QTY_KG_CASE}) is null
+          or coalesce(ch.cost_per_kg, i.cost_per_kg) is null
+        )`,
+    [woId],
+  );
+
+  return rows.map((row) => ({
+    consumptionId: row.consumption_id,
+    componentId: row.component_id,
+    qty: row.qty,
+    uom: row.uom,
+  }));
 }
 
 function isZeroDecimal(value: string): boolean {
