@@ -67,3 +67,6 @@ Adversarial review follow-up (Bugs 4/5 + cross-cutting float drift).
 ### Gates (fix round)
 - `pnpm --filter web exec tsc --noEmit` — clean
 - Vitest (39 tests): `wall-clock-time`, `board-capacity`, `sequence-solver`, `create-work-order-chain` — green
+
+## Fix round 2 (orchestrator arbitration — Bug 4)
+Re-review asked to DELETE the productId legacy fallback (hard-fail on any missing bomItemId). REJECTED as an over-strict false-positive: existing FG BOMs may carry `bomItemId = null` in `wo_materials` (pre-bom-line data); deleting the guarded fallback would REGRESS legacy WO-chain creation. The impl's fallback is already provably-unique (`productMatches.length===1 && wipLinesForProduct.length===1 && bomItemId null`) — exactly the spec's "use only when provably unique." Kept it; exported `resolveMaterialForWipEntry` + added 4 unit tests proving the full contract: strict bomItemId link; provably-unique legacy link; ambiguous duplicate-product-missing-bomItemId → `wip_material_link_ambiguous`; mismatched non-null bomItemId → reject. No silent first-row pick remains.

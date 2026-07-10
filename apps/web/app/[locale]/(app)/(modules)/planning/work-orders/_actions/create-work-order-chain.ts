@@ -86,7 +86,7 @@ type WipBomLineRow = {
   scrap_pct: string;
 };
 
-type WipChainEntry = {
+export type WipChainEntry = {
   workOrder: WOHeader;
   bomLineId: string;
 };
@@ -506,7 +506,8 @@ async function loadWorkOrderByNumber(ctx: OrgActionContext, woNumber: string): P
   };
 }
 
-function resolveMaterialForWipEntry(
+// Exported for unit tests: strict bom-line link, provably-unique legacy fallback, else reject.
+export function resolveMaterialForWipEntry(
   fgMaterials: WOMaterial[],
   wipEntry: WipChainEntry,
   wipEntries: WipChainEntry[],

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createWorkOrderChain, createWorkOrderChainForContext } from './create-work-order-chain';
+import { createWorkOrderChain, createWorkOrderChainForContext, resolveMaterialForWipEntry } from './create-work-order-chain';
 import type { QueryClient } from './shared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -846,5 +846,45 @@ describe('createWorkOrderChain mid-chain failure + factory-release gate', () => 
 
     expect(result).toEqual({ ok: false, error: 'not_released_to_factory' });
     expect(createWorkOrderCoreMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveMaterialForWipEntry — BOM-line link identity', () => {
+  const mat = (over: Partial<import('./shared').WOMaterial>): import('./shared').WOMaterial => ({
+    id: 'm1', woId: 'wo1', productId: 'P', materialName: 'WIP P', requiredQty: '100',
+    consumedQty: '0', reservedQty: '0', uom: 'kg', sequence: 1, materialSource: 'bom',
+    bomItemId: null, bomVersion: 1, notes: null, ...over,
+  });
+  const wip = (productId: string, bomLineId: string): import('./create-work-order-chain').WipChainEntry =>
+    ({ workOrder: { productId } as never, bomLineId });
+
+  it('links strictly by bomItemId when present', () => {
+    const fg = [mat({ id: 'mA', bomItemId: 'B1', requiredQty: '300' }), mat({ id: 'mB', bomItemId: 'B2', requiredQty: '700' })];
+    const entry = wip('P', 'B2');
+    const r = resolveMaterialForWipEntry(fg, entry, [wip('P', 'B1'), entry]);
+    expect(r.id).toBe('mB');
+    expect(r.requiredQty).toBe('700');
+  });
+
+  it('uses the provably-unique legacy row when bomItemId is null and product+line are unique', () => {
+    const fg = [mat({ id: 'mLegacy', bomItemId: null, requiredQty: '500' })];
+    const entry = wip('P', 'B1');
+    const r = resolveMaterialForWipEntry(fg, entry, [entry]);
+    expect(r.id).toBe('mLegacy');
+    expect(r.requiredQty).toBe('500');
+  });
+
+  it('rejects (no silent first-row pick) when the same product appears on two lines with a missing bomItemId', () => {
+    const fg = [mat({ id: 'mA', bomItemId: null, requiredQty: '300' }), mat({ id: 'mB', bomItemId: null, requiredQty: '700' })];
+    const b2 = wip('P', 'B2');
+    expect(() => resolveMaterialForWipEntry(fg, b2, [wip('P', 'B1'), b2]))
+      .toThrowError(/wip_material_link_ambiguous/);
+  });
+
+  it('rejects a mismatched non-null bomItemId rather than falling back to product', () => {
+    const fg = [mat({ id: 'mA', bomItemId: 'B1', requiredQty: '300' })];
+    const entry = wip('P', 'B2');
+    expect(() => resolveMaterialForWipEntry(fg, entry, [wip('P', 'B1'), entry]))
+      .toThrowError(/wip_material_link_ambiguous/);
   });
 });

@@ -1,0 +1,3159 @@
+warning: `--full-auto` is deprecated; use `--sandbox workspace-write` instead.
+Reading additional input from stdin...
+OpenAI Codex v0.144.1
+--------
+workdir: /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: none
+reasoning summaries: none
+session id: 019f4bfe-55bb-7283-a8e2-96eacee03e26
+--------
+user
+Re-review after a fix round. Your prior review (_meta/plans/wave-13-codex-review.md) had Bug 1/2/3 FIXED, Bug 4 PARTIAL (retained find()-by-productId fallback), Bug 5 PARTIAL (wallClockMatches formatted-vs-formatted, no spring-gap handling), and cross-cutting time-arithmetic BROKEN (float-hours buckets → 361st 1-min WO accepted). The implementer applied fix round 1 (commit 3867eae1 + "## Fix round 1" in _meta/plans/wave-13-summary.md). Verify EACH in CODE:
+- Cross-cutting: are per-day capacity buckets now INTEGER MILLISECONDS end-to-end (no float hours)? Is there a test proving the 361st one-minute WO is rejected/bumped from a 6h bucket after 360 placed? Any remaining float accumulation on the capacity path?
+- Bug 4: is the productId find() fallback REMOVED? Does a missing/mismatched bomItemId now FAIL EXPLICITLY (typed error), not silently link to the first product-matching row? Is there a negative test (duplicate product P, B2 missing bomItemId → explicit failure)?
+- Bug 5: does wallClockMatches now compare the candidate's formatted wall time against the REQUESTED hour+minute (not formatted-vs-formatted)? Is the spring-forward nonexistent-time policy implemented (advance to next valid minute OR typed reject) and the fall-back ambiguity resolved to standard time? Same fix in the :128-136 probe loop? Tests for a nonexistent spring-forward + an ambiguous fall-back time?
+- Regressions: Bug 1/2/3 stay fixed; time math exact; no 'Z'-append remaining; no reserved-keyword alias.
+Overwrite _meta/plans/wave-13-codex-review.md ending VERDICT: pass|fail. Do NOT modify other files.
+codex
+I’m re-running the mandatory review schema first, then I’ll inspect the fix commit and targeted tests. I’ll only overwrite the requested review file.
+exec
+/bin/zsh -lc "sed -n '1,240p' /Users/mariuszkrawczyk/.codex/RTK.md && sed -n '1,300p' .claude/skills/MON-verify-and-review/SKILL.md" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13
+ succeeded in 0ms:
+# RTK - Rust Token Killer (Codex CLI)
+
+**Usage**: Token-optimized CLI proxy for shell commands.
+
+## Rule
+
+Always prefix shell commands with `rtk`.
+
+Examples:
+
+```bash
+rtk git status
+rtk cargo test
+rtk npm run build
+rtk pytest -q
+```
+
+## Meta Commands
+
+```bash
+rtk gain            # Token savings analytics
+rtk gain --history  # Recent command savings history
+rtk proxy <cmd>     # Run raw command without filtering
+```
+
+## Verification
+
+```bash
+rtk --version
+rtk gain
+which rtk
+```
+---
+name: MON-verify-and-review
+description: The analysis, verification and self-review schema EVERY agent working on MonoPilot Kira must follow — writers before coding and before claiming done, reviewers when cross-reviewing a diff, orchestrators when arbitrating findings. Use whenever you implement, review, or merge ANY change here (code, migration, UI), whenever a prod error digest appears, and whenever you are about to write "done", "fixed" or "passing". Battle-tested 2026-07-07: this schema caught ~35 real defects before prod in one day.
+tags: [monopilot, review, verification, migrations, rsc, self-review]
+---
+
+# MON-verify-and-review
+
+One schema, three hats: **writer**, **reviewer**, **arbiter**. Unit tests here mock the
+database and the RSC runtime, so the two places bugs actually live — live Postgres
+triggers and the server→client boundary — are invisible to green test suites. That is
+why every step below exists.
+
+## 1. Writer — before coding
+
+- Trace the real flow end-to-end first (route → action → SQL → trigger → consumer).
+  The smallest diff in the wrong place is a second bug.
+- Verify schema claims against the **live DB**, never against drizzle mirrors or your
+  memory: `select column_name from information_schema.columns where table_name='…'`.
+  (A whole sweep statement once targeted a column that did not exist.)
+- Before writing to ANY table, list its triggers:
+  ```sql
+  select t.tgname, p.proname from pg_trigger t
+  join pg_class c on c.oid=t.tgrelid join pg_proc p on p.oid=t.tgfoid
+  where c.relname='<table>' and not t.tgisinternal;
+  ```
+  Immutability guards exist on: `grn_items` (completed GRN), `bom_lines` (active header —
+  ANY line op rejected), `factory_specs` (clone-on-write), `formulation_ingredients`
+  (locked version), `bom_snapshots`. New tables get them too — always check.
+- Known ordering contract: a new BOM header is created **draft-first** — insert header
+  as draft → insert lines → supersede old active → activate. Never lines-into-active.
+- Wave0 lock: `org_id` (never tenant_id), RLS via `app.current_org_id()` on every hop.
+
+## 2. Writer — RSC and server-action rules (3 prod screens died on this in one day)
+
+- Props crossing server→client must be JSON-serializable. No inline closures
+  (`action={(p) => f(p, opts)}` from a page = crash on hard load), no function-valued
+  fields inside label/config objects. Fix pattern: named `'use server'` wrapper action;
+  pure exported helpers that take the data object as an argument.
+- `'use server'` modules export **only async functions** — a `export type`/const passes
+  tsc and kills `next build`.
+- Every fixed page gets a serializability regression test (walk the props object,
+  assert no `typeof === 'function'` — see `item-wizard-labels.test.ts`).
+
+## 3. Writer — migrations
+
+- Additive by default; number = next free (check `packages/db/migrations/`). Vercel
+  build **auto-applies** migrations on push — there is no "later".
+- **Data migration ritual (mandatory):**
+  1. Backup every affected table first: `\copy (select * from t) to '_meta/backups/<date>-<wave>/t.csv' csv header`.
+  2. **Dry-run on the live DB**: copy of the file with `commit;` → `rollback;`, run with
+     `ON_ERROR_STOP=1`, and embed *probes* — one statement that must PASS and one that
+     must still FAIL (guard intact). A dry-run once caught a phantom column and a
+     freeze-trigger that both reviews missed.
+  3. Idempotent (run-twice mentally), `RAISE NOTICE` row counts per statement.
+  4. Frozen history (completed GRNs, snapshots) is skipped-with-notice and normalized
+     on read — never rewritten.
+  5. If old code can write legacy values during the deploy window: ship a self-contained
+     post-deploy sweep file **outside** `packages/db/migrations/` (the runner globs only
+     that dir) and run it manually after READY.
+
+## 4. Writer — self-review before claiming done
+
+- Re-read your diff cold. For every function you changed, grep its OTHER callers — the
+  root-cause fix lives where all callers route through.
+- Paste **real** command output for tsc and each test file. A self-declared GREEN with
+  no output is a FAIL. `CI=true pnpm install` first if node_modules is broken.
+- State explicitly what you did NOT do and every ambiguity you resolved (and why).
+  Honest gaps get fixed in review; hidden gaps become prod incidents.
+- Commit early and often to your track branch. Never push. Never work in /tmp
+  (a session crash once erased an entire wave of uncommitted /tmp worktrees).
+
+## 5. Reviewer — cross-review a diff
+
+- Writer ≠ reviewer, different model family. You get diff + the writer's spec
+  (`.agent-prompt.md`) + arbitration questions. Read FULL files, not just hunks —
+  several fixes land the same day; the diff may be stale.
+- Hunt ranked REAL defects only (no style nits), in this order:
+  1. live-DB safety (triggers, FKs, uniques, deploy-window),
+  2. security (org scoping on every SQL hop, RBAC, gate bypasses),
+  3. correctness (mass balance / double-count / vanish paths; positional SQL params vs tests),
+  4. contract for sibling tracks (fields the UI or chain expects),
+  5. overengineering (single-use abstractions, duplicated SQL that will drift).
+- Verify the writer's own inventory yourself (grep again). Run the test suites yourself
+  when the sandbox allows; report honestly when it doesn't.
+- Verdict: `MERGE` / `FIX-FIRST (list)` / `REWORK`. Each finding: severity, file:line,
+  concrete failure scenario, minimal fix.
+
+## 6. Arbiter — before findings go back to the writer
+
+- Confirm each finding **in the code yourself** before accepting it. Codex/Composer
+  reviews include plausible-but-wrong items.
+- "This diff reintroduces X" on a branch → check **branch-base drift** first
+  (`git diff main...branch --name-only`) — the branch may simply predate the fix.
+- Reject fixes that ADD abstraction (shared fixtures, wrapper layers) when the finding
+  was about deletion; reject deleting files whose types can't move into a
+  `'use server'` module.
+- Decide contract questions explicitly (e.g. "domain is per-product, not per-project")
+  and write the DECISION into the fix prompt — writers implement decisions, not debates.
+- Small surgical fixes (≤ ~20 lines, you fully understand them) you may apply yourself;
+  everything else goes back to the writing engine. High-risk reworks get a Codex re-check.
+
+## 7. After merge — the gate is on main, and prod is the last reviewer
+
+- Serial merge; on merged main: tsc + the union of touched test suites (branch-green is
+  not merge-green — conflict resolutions and sibling tracks interact).
+- After deploy READY: drive the changed flow in the browser on prod. Any 500 → pull the
+  Vercel runtime error digest (`get_runtime_errors`) — it names the real exception the
+  UI hides. Fix root-cause the same day; each live-found bug class gets added to §1-§3.
+
+exec
+/bin/zsh -lc "rtk git status --short && rtk git show --stat --oneline 3867eae1 && sed -n '1,260p' _meta/plans/wave-13-codex-review.md && rg -n \"Fix round 1\" _meta/plans/wave-13-summary.md" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13
+ succeeded in 0ms:
+?? _meta/plans/wave-13-codex-out.md
+?? _meta/plans/wave-13-codex-review.md
+?? _meta/plans/wave-13-codex.err
+?? _meta/plans/wave-13-composer-out.md
+?? _meta/plans/wave-13-composer-out.md.err
+?? _meta/plans/wave-13-fix-out.md
+?? _meta/plans/wave-13-fix-out.md.err
+?? _meta/plans/wave-13-fix-prompt.txt
+?? _meta/plans/wave-13-prompt.txt
+?? _meta/plans/wave-13-rereview-out.md
+?? _meta/plans/wave-13-rereview-prompt.txt
+?? _meta/plans/wave-13-rereview.err
+?? _meta/plans/wave-13-review-prompt.txt
+?? _meta/plans/wave-13-spec.md3867eae1 fix(wave13): integer-ms capacity buckets, strict BOM linking, DST wall-clock
+ _meta/plans/wave-13-summary.md                     |  29 +++
+ .../_actions/create-work-order-chain.test.ts       | 218 +++++++++++++++++++++
+ .../_actions/create-work-order-chain.ts            |  43 +++-
+ .../_actions/__tests__/sequence-solver.test.ts     |  37 +++-
+ .../scheduler/_actions/sequence-solver.ts          |  41 ++--
+ apps/web/lib/shared/wall-clock-time.test.ts        |  10 +
+ apps/web/lib/shared/wall-clock-time.ts             | 106 +++++++---
+ 7 files changed, 420 insertions(+), 64 deletions(-)
+# Wave 13 Codex adversarial review
+
+Reviewed `_meta/plans/wave-13-spec.md`, `_meta/plans/wave-13-summary.md`, and `git diff origin/main..HEAD` excluding `_meta/`, with surrounding implementation and callers.
+
+## Bug-by-bug result
+
+### Bug 1 — FIXED
+
+`apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:341-357` keeps `lastWoByLine` and obtains `previous` with `lastWoByLine.get(lineKey)`. The first WO on any line gets `null`, hence zero changeover. With global order `A1(line A, milk), B1(line B, nuts), B2(line B, soy)`, B1 has no predecessor on line B and no changeover; B2 uses B1 and gets the `nuts -> soy` transition, not global predecessor A1's `milk -> soy`. The added tests pin both the cross-line case and an ordinary same-line pair.
+
+The sequence-selection heuristic at `:330-334` remains global and scores candidate transitions from the global tail, but the actual time-phasing and charged changeover now use the correct per-line predecessor. That residual heuristic behavior does not recreate the reported cross-line charge or discard the real same-line predecessor.
+
+### Bug 2 — FIXED
+
+`sequence-solver.ts:176-265` removed the unchecked return after 400 attempts. A successful placement is returned only after `canReserveCapacity` validates every affected UTC-day overlap and `reserveCapacity` records them; exhaustion throws typed `SequenceCapacityInfeasibleError` (`:24-35`, `:265`). There is no residual unchecked `earliestMs` return when finite capacity applies.
+
+For an 8-hour WO starting at 18:00 UTC on a 6-hour/day line, `[18:00, 02:00)` is accepted as two exact buckets: 6 hours on day 1 and 2 hours on day 2. If no candidate is found in 400 attempts, the exact result is `SequenceCapacityInfeasibleError`, not an unreserved schedule.
+
+### Bug 3 — FIXED
+
+`sequence-solver.ts:183-205` uses the shared half-open `[start,end)` splitter from `planning/schedule/_lib/board.ts:184-194` for both validation and reservation. A 4-hour WO at 23:00 produces exactly 3,600,000 ms on day 1 and 10,800,000 ms on day 2. A WO ending exactly at midnight contributes nothing to the next bucket, while one starting at midnight contributes nothing to the prior bucket, so there is no boundary double-count.
+
+Board read-back uses the same `overlapMsWithUtcDay` semantics at `board.ts:239-247`; its utilization therefore agrees with solver reservation for cross-midnight intervals.
+
+### Bug 4 — PARTIAL (`apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts:510-513`)
+
+The normal new-chain path correctly threads each BOM line ID through `WipChainEntry` and first matches `WOMaterial.bomItemId`. The duplicate-line test proves two identical WIP products with BOM lines B1/B2 link to their respective material IDs and quantities 300/700.
+
+However, the implementation explicitly retains `fgMaterials.find(row => row.productId === ...)` as a fallback. Concrete failure: two WIP BOM lines reference product P; FG materials contain B1/P and B2/P, but the B2 material has a missing or mismatched `bomItemId` (the stated “legacy” case). The B2 dependency falls back to the first P row, B1, reproducing the original wrong material ID and quantity. The acceptance question asks whether any `find()` by product ID remains; one does. Missing BOM identity must fail explicitly or use a genuinely unique legacy mapping, never silently choose the first repeated product.
+
+### Bug 5 — PARTIAL (`apps/web/lib/shared/wall-clock-time.ts:91-98`)
+
+The ordinary BST/GMT conversions are correct and use `Intl` with the site's IANA timezone: London 09:00 maps to 08:00Z in July and 09:00Z in January. The old capacity-block `...Z` construction is removed, and no other capacity-block caller still appends `Z`. Ambiguous London 01:30 at fall-back selects the standard-time occurrence because candidates are sorted by offset.
+
+Nonexistent spring-forward wall times are not handled as documented. `wallClockMatches` compares its formatted time string to the same formatted time string, not to the requested `time`; only the date comparison is meaningful. Concrete scenario: `2026-03-29 01:30 Europe/London` does not exist. Candidate `00:30Z` formats as 00:30 local but is nevertheless accepted because the date matches, so the function returns an instant representing the wrong wall time instead of advancing to the next valid wall minute (02:00 local) or rejecting it. The minute-probe loop at `:128-136` has the same defective predicate. There is also no test for a nonexistent or ambiguous time despite the explicit requirement.
+
+## Cross-cutting review
+
+### Time arithmetic — BROKEN (`sequence-solver.ts:171-203`)
+
+Bucket state is stored as floating-point hours, then converted back to milliseconds for capacity decisions. This violates the exact-ms requirement and admits over-capacity work after accumulation. Concrete schedule: on a 6-hour bucket, reserve 360 one-minute WOs. Repeated `60000 / 3600000` addition produces `5.999999999999984` hours, which reads back as `21,599,999.999999944` ms. The solver therefore sees `60,000.000000056` ms remaining and accepts a 361st one-minute WO, exceeding capacity by one minute. Store integer milliseconds in the map and convert to hours only for presentation/tests.
+
+### Complexity / SQL
+
+The new capacity work is O(number of affected day buckets) per placement attempt, capped at 400 attempts; the existing global sequencing remains O(n²). This is reasonable for normal-duration WOs, although extremely long intervals multiply the per-attempt day scan. No new SQL uses a reserved-keyword alias. The added site-timezone query is org- and site-scoped.
+
+## Verification evidence
+
+Targeted tests passed after correcting paths relative to the `web` workspace. The repository-prescribed `task --wait` wrapper was unavailable (`No such file or directory`), so the tests were run directly:
+
+```text
+RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/apps/web
+
+Test Files  4 passed (4)
+Tests  35 passed (35)
+Start at  13:19:32
+Duration  167ms (transform 124ms, setup 0ms, import 184ms, tests 44ms, environment 0ms)
+```
+
+Tree proof (`git diff --stat origin/main..HEAD -- . ':(exclude)_meta/**'`):
+
+```text
+.../planning/schedule/__tests__/schedule.test.tsx  |   1 +
+.../planning/schedule/_actions/schedule-board.ts   |  12 ++
+.../planning/schedule/_lib/board-capacity.test.ts  |  75 ++++++-
+.../(modules)/planning/schedule/_lib/board.ts      |  45 ++++-
+.../_actions/create-work-order-chain.test.ts       | 222 +++++++++++++++++++++
+.../_actions/create-work-order-chain.ts            |  26 ++-
+.../_actions/__tests__/sequence-solver.test.ts     | 142 ++++++++++++-
+.../scheduler/_actions/sequence-solver.ts          | 124 ++++++++++--
+apps/web/lib/shared/wall-clock-time.test.ts        |  15 ++
+apps/web/lib/shared/wall-clock-time.ts             | 142 +++++++++++++
+10 files changed, 765 insertions(+), 39 deletions(-)
+```
+
+VERDICT: fail
+
+1. Remove the ambiguous product-ID fallback in dependency linking; missing/unmatched BOM-line identity must produce an explicit failure (or a proven unique legacy mapping), and add the negative duplicate-product test.
+2. Fix wall-clock candidate validation to compare all requested date/time parts, define and test the exact spring-gap policy, and test the standard-time choice for a fall-back ambiguity.
+3. Store and compare per-day usage as integer milliseconds end-to-end; add a repeated small-duration test proving the 361st one-minute WO is rejected from a 6-hour bucket.
+42:## Fix round 1
+
+codex
+The fix touches exactly the three previously incomplete areas. I’m now tracing the full scheduling, BOM-linking, and DST code—not just the patch—and checking that the tests exercise the stated failure modes.
+exec
+/bin/zsh -lc "rtk git show --format=fuller --find-renames 3867eae1 -- 'apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts' 'apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts' 'apps/web/lib/shared/wall-clock-time.ts' 'apps/web/lib/shared/wall-clock-time.test.ts' && sed -n '1,240p' apps/web/lib/shared/wall-clock-time.ts && sed -n '130,390p' 'apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts'" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13
+ succeeded in 0ms:
+commit 3867eae12a58d6bb0de6475c36b4a52cd8727fa3
+Author:     Mariusz Krawczyk <mariuszkrawczyk@Mariuszs-Mac-mini.local>
+AuthorDate: Fri Jul 10 13:25:45 2026 +0100
+Commit:     Mariusz Krawczyk <mariuszkrawczyk@Mariuszs-Mac-mini.local>
+CommitDate: Fri Jul 10 13:25:45 2026 +0100
+
+    fix(wave13): integer-ms capacity buckets, strict BOM linking, DST wall-clock
+    
+    Address adversarial review: store per-day usage as integer ms to prevent
+    float drift over-capacity, reject ambiguous WIP material fallback, and
+    validate wall-clock times against requested parts with explicit DST policies.
+    
+    Co-authored-by: Cursor <cursoragent@cursor.com>
+
+diff --git a/apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts b/apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts
+index 46473b17..1335d444 100644
+--- a/apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts
++++ b/apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts
+@@ -463,6 +463,224 @@ describe('createWorkOrderChain duplicate WIP BOM lines', () => {
+   });
+ });
+ 
++describe('createWorkOrderChain duplicate WIP BOM lines with missing bomItemId', () => {
++  beforeEach(() => {
++    dependencyInserts = [];
++    transactionEvents.length = 0;
++    createWorkOrderCoreMock.mockReset();
++    loadStageProductionLineIdsMock.mockReset();
++    loadStageProductionLineIdsMock.mockResolvedValue(new Map([
++      [WIP_ITEM_ID, WIP_STAGE_LINE_ID],
++      [FG_ITEM_ID, FG_STAGE_LINE_ID],
++    ]));
++    vi.mocked(assertFgReleasedToFactoryForWo).mockResolvedValue('ok');
++    createWorkOrderCoreMock
++      .mockResolvedValueOnce({
++        ok: true,
++        workOrder: {
++          id: WIP_WO_ID,
++          woNumber: 'WO-DUP-W1',
++          productId: WIP_ITEM_ID,
++          itemTypeAtCreation: 'intermediate',
++          plannedQuantity: '300.0000',
++          producedQuantity: null,
++          uom: 'kg',
++          status: 'DRAFT',
++          scheduledStartTime: null,
++          scheduledEndTime: null,
++          productionLineId: WIP_STAGE_LINE_ID,
++          priority: 'normal',
++          sourceOfDemand: 'manual',
++          sourceReference: null,
++          notes: null,
++          createdAt: '2026-07-07T00:00:00.000Z',
++          updatedAt: '2026-07-07T00:00:00.000Z',
++        },
++        materials: [],
++        primarySchedule: { id: 'schedule-wip-1' },
++      })
++      .mockResolvedValueOnce({
++        ok: true,
++        workOrder: {
++          id: WIP_WO_ID_2,
++          woNumber: 'WO-DUP-W2',
++          productId: WIP_ITEM_ID,
++          itemTypeAtCreation: 'intermediate',
++          plannedQuantity: '700.0000',
++          producedQuantity: null,
++          uom: 'kg',
++          status: 'DRAFT',
++          scheduledStartTime: null,
++          scheduledEndTime: null,
++          productionLineId: WIP_STAGE_LINE_ID,
++          priority: 'normal',
++          sourceOfDemand: 'manual',
++          sourceReference: null,
++          notes: null,
++          createdAt: '2026-07-07T00:00:00.000Z',
++          updatedAt: '2026-07-07T00:00:00.000Z',
++        },
++        materials: [],
++        primarySchedule: { id: 'schedule-wip-2' },
++      })
++      .mockResolvedValueOnce({
++        ok: true,
++        workOrder: {
++          id: FG_WO_ID,
++          woNumber: 'WO-DUP',
++          productId: FG_ITEM_ID,
++          itemTypeAtCreation: 'fg',
++          plannedQuantity: '1000.0000',
++          producedQuantity: null,
++          uom: 'kg',
++          status: 'DRAFT',
++          scheduledStartTime: null,
++          scheduledEndTime: null,
++          productionLineId: FG_STAGE_LINE_ID,
++          priority: 'normal',
++          sourceOfDemand: 'manual',
++          sourceReference: null,
++          notes: null,
++          createdAt: '2026-07-07T00:00:00.000Z',
++          updatedAt: '2026-07-07T00:00:00.000Z',
++        },
++        materials: [
++          {
++            id: MATERIAL_ID,
++            woId: FG_WO_ID,
++            productId: WIP_ITEM_ID,
++            materialName: 'WIP-STAGE-A',
++            requiredQty: '300.000',
++            consumedQty: '0.000',
++            reservedQty: '0.000',
++            uom: 'kg',
++            sequence: 1,
++            materialSource: 'stock',
++            bomItemId: BOM_LINE_1,
++            bomVersion: 1,
++            notes: null,
++          },
++          {
++            id: MATERIAL_ID_LINE_2,
++            woId: FG_WO_ID,
++            productId: WIP_ITEM_ID,
++            materialName: 'WIP-STAGE-B',
++            requiredQty: '700.000',
++            consumedQty: '0.000',
++            reservedQty: '0.000',
++            uom: 'kg',
++            sequence: 2,
++            materialSource: 'stock',
++            bomItemId: null,
++            bomVersion: 1,
++            notes: null,
++          },
++        ],
++        primarySchedule: { id: 'schedule-fg', plannedWoId: FG_WO_ID },
++      });
++  });
++
++  it('fails explicitly when a duplicate WIP line material is missing bomItemId', async () => {
++    const client: QueryClient = {
++      query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
++        const q = normalize(sql);
++        if (q.includes('from public.user_roles')) {
++          return { rows: [{ ok: true }], rowCount: 1 };
++        }
++        if (q.includes('from public.items') && q.includes('item_code')) {
++          return {
++            rows: [{
++              id: FG_ITEM_ID,
++              item_code: 'FG-DUP',
++              output_uom: 'base',
++              uom_base: 'kg',
++              net_qty_per_each: null,
++              each_per_box: null,
++              boxes_per_pallet: null,
++              weight_mode: 'fixed',
++            }],
++            rowCount: 1,
++          };
++        }
++        if (q.includes('from public.work_orders') && q.includes('wo_number = $1')) {
++          return { rows: [], rowCount: 0 };
++        }
++        if (q.includes('from public.bom_headers')) {
++          return { rows: [{ id: BOM_ID, version: 1, line_basis: 'per_base' }], rowCount: 1 };
++        }
++        if (q.includes('component_type = \'wip\'') || (q.includes('from public.bom_lines') && q.includes('wip'))) {
++          return {
++            rows: [
++              {
++                id: BOM_LINE_1,
++                line_no: 10,
++                item_id: WIP_ITEM_ID,
++                component_code: 'WIP-STAGE-A',
++                quantity: '0.3',
++                scrap_pct: '0',
++              },
++              {
++                id: BOM_LINE_2,
++                line_no: 20,
++                item_id: WIP_ITEM_ID,
++                component_code: 'WIP-STAGE-B',
++                quantity: '0.7',
++                scrap_pct: '5',
++              },
++            ],
++            rowCount: 2,
++          };
++        }
++        if (q.startsWith('insert into public.wo_dependencies')) {
++          dependencyInserts.push({
++            parentWoId: String(params[0]),
++            childWoId: String(params[1]),
++            materialLink: params[2] == null ? null : String(params[2]),
++            requiredQty: params[3] == null ? null : String(params[3]),
++            sql,
++          });
++          return {
++            rows: [{
++              parent_wo_id: String(params[0]),
++              child_wo_id: String(params[1]),
++              material_link: params[2] == null ? null : String(params[2]),
++              required_qty: params[3] == null ? null : String(params[3]),
++            }],
++            rowCount: 1,
++          };
++        }
++        return { rows: [], rowCount: 0 };
++      }),
++    };
++
++    const result = await createWorkOrderChainForContext(
++      { userId: USER_ID, orgId: ORG_ID, client },
++      {
++        productId: FG_ITEM_ID,
++        itemCode: 'FG-DUP',
++        documentNumber: 'WO-DUP',
++        siteId: SITE_ID,
++        plannedQuantity: '1000.0000',
++      },
++    );
++
++    expect(result).toEqual({
++      ok: false,
++      error: 'persistence_failed',
++      planningError: 'wip_material_link_ambiguous',
++      message: 'wip_material_link_ambiguous',
++    });
++    expect(dependencyInserts).toHaveLength(1);
++    expect(dependencyInserts[0]).toMatchObject({
++      parentWoId: FG_WO_ID,
++      childWoId: WIP_WO_ID,
++      materialLink: MATERIAL_ID,
++      requiredQty: '300.000',
++    });
++    expect(dependencyInserts.some((row) => row.childWoId === WIP_WO_ID_2)).toBe(false);
++  });
++});
++
+ describe('createWorkOrderChain mid-chain failure + factory-release gate', () => {
+   beforeEach(() => {
+     dependencyInserts = [];
+diff --git a/apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts b/apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts
+index 45f5daa7..d1bbc2b0 100644
+--- a/apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts
++++ b/apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts
+@@ -152,7 +152,14 @@ export async function createWorkOrderChainForContext(
+   if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) {
+     return { ok: false, error: 'forbidden' };
+   }
+-  return createWorkOrderChainInContext(ctx, parsed.data, options);
++  try {
++    return await createWorkOrderChainInContext(ctx, parsed.data, options);
++  } catch (error) {
++    if (error instanceof WorkOrderChainError) {
++      return { ok: false, error: error.code, planningError: error.planningError, message: error.planningError };
++    }
++    throw error;
++  }
+ }
+ 
+ async function createWorkOrderChainInContext(
+@@ -499,6 +506,31 @@ async function loadWorkOrderByNumber(ctx: OrgActionContext, woNumber: string): P
+   };
+ }
+ 
++function resolveMaterialForWipEntry(
++  fgMaterials: WOMaterial[],
++  wipEntry: WipChainEntry,
++  wipEntries: WipChainEntry[],
++): WOMaterial {
++  const byBomLine = fgMaterials.find((row) => row.bomItemId === wipEntry.bomLineId);
++  if (byBomLine) return byBomLine;
++
++  const productMatches = fgMaterials.filter((row) => row.productId === wipEntry.workOrder.productId);
++  const wipLinesForProduct = wipEntries.filter(
++    (entry) => entry.workOrder.productId === wipEntry.workOrder.productId,
++  );
++  const legacyMaterial = productMatches[0];
++  if (
++    productMatches.length === 1
++    && wipLinesForProduct.length === 1
++    && legacyMaterial
++    && (legacyMaterial.bomItemId == null || legacyMaterial.bomItemId === '')
++  ) {
++    return legacyMaterial;
++  }
++
++  throw new WorkOrderChainError('persistence_failed', 'wip_material_link_ambiguous');
++}
++
+ async function linkDependencies(
+   ctx: OrgActionContext,
+   fgWorkOrder: WOHeader,
+@@ -507,10 +539,7 @@ async function linkDependencies(
+ ): Promise<Array<{ parentWoId: string; childWoId: string; materialLink: string | null; requiredQty: string | null }>> {
+   const dependencies: Array<{ parentWoId: string; childWoId: string; materialLink: string | null; requiredQty: string | null }> = [];
+   for (const wipEntry of wipEntries) {
+-    const material =
+-      fgMaterials.find((row) => row.bomItemId === wipEntry.bomLineId)
+-      ?? fgMaterials.find((row) => row.productId === wipEntry.workOrder.productId)
+-      ?? null;
++    const material = resolveMaterialForWipEntry(fgMaterials, wipEntry, wipEntries);
+     const { rows } = await ctx.client.query<{ parent_wo_id: string; child_wo_id: string; material_link: string | null; required_qty: string | null }>(
+       `insert into public.wo_dependencies
+          (org_id, parent_wo_id, child_wo_id, material_link, required_qty)
+@@ -526,8 +555,8 @@ async function linkDependencies(
+       [
+         fgWorkOrder.id,
+         wipEntry.workOrder.id,
+-        material?.id ?? null,
+-        material?.requiredQty ?? null,
++        material.id,
++        material.requiredQty,
+       ],
+     );
+     const row = rows[0];
+diff --git a/apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts b/apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts
+index aa5e5f11..d561b009 100644
+--- a/apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts
++++ b/apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts
+@@ -573,7 +573,7 @@ describe('sequenceWorkOrders', () => {
+     vi.useFakeTimers();
+     vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+     const lineKey = LINE_ID;
+-    const dayUsageHours = new Map<string, number>();
++    const dayUsageMs = new Map<string, number>();
+     const runDurationMs = 4 * 60 * 60 * 1000;
+     const earliestMs = Date.parse('2026-06-24T23:00:00.000Z');
+ 
+@@ -582,23 +582,46 @@ describe('sequenceWorkOrders', () => {
+       earliestMs,
+       runDurationMs,
+       { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 6 },
+-      dayUsageHours,
++      dayUsageMs,
+     );
+ 
+     expect(plannedStart).toBe(earliestMs);
+-    expect(dayUsageHours.get(`${lineKey}|2026-06-24`)).toBe(1);
+-    expect(dayUsageHours.get(`${lineKey}|2026-06-25`)).toBe(3);
++    expect(dayUsageMs.get(`${lineKey}|2026-06-24`)).toBe(1 * 60 * 60 * 1000);
++    expect(dayUsageMs.get(`${lineKey}|2026-06-25`)).toBe(3 * 60 * 60 * 1000);
++  });
++
++  it('bumps the 361st one-minute WO after 360 fill a 6-hour bucket without float drift', () => {
++    vi.useFakeTimers();
++    vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
++    const dayUsageMs = new Map<string, number>();
++    const lineKey = LINE_ID;
++    const config = { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 6 };
++    const oneMinuteMs = 60 * 1000;
++    const sixHoursMs = 6 * 60 * 60 * 1000;
++    let cursor = Date.parse('2026-06-24T00:00:00.000Z');
++
++    for (let index = 0; index < 360; index += 1) {
++      cursor = __resolvePlannedStartForTests(lineKey, cursor, oneMinuteMs, config, dayUsageMs);
++      cursor += oneMinuteMs;
++    }
++
++    expect(dayUsageMs.get(`${lineKey}|2026-06-24`)).toBe(sixHoursMs);
++
++    const bumpedStart = __resolvePlannedStartForTests(lineKey, cursor, oneMinuteMs, config, dayUsageMs);
++    expect(bumpedStart).toBe(Date.parse('2026-06-25T00:00:00.000Z'));
++    expect(dayUsageMs.get(`${lineKey}|2026-06-25`)).toBe(oneMinuteMs);
+   });
+ 
+   it('throws SequenceCapacityInfeasibleError instead of silently scheduling over capacity', () => {
+     vi.useFakeTimers();
+     vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+-    const dayUsageHours = new Map<string, number>();
++    const dayUsageMs = new Map<string, number>();
++    const sixHoursMs = 6 * 60 * 60 * 1000;
+     for (let day = 0; day < 400; day += 1) {
+       const dayKey = new Date(Date.parse('2026-06-24T00:00:00.000Z') + day * 24 * 60 * 60 * 1000)
+         .toISOString()
+         .slice(0, 10);
+-      dayUsageHours.set(`${LINE_ID}|${dayKey}`, 6);
++      dayUsageMs.set(`${LINE_ID}|${dayKey}`, sixHoursMs);
+     }
+ 
+     expect(() =>
+@@ -607,7 +630,7 @@ describe('sequenceWorkOrders', () => {
+         Date.parse('2026-06-24T00:00:00.000Z'),
+         8 * 60 * 60 * 1000,
+         { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 6 },
+-        dayUsageHours,
++        dayUsageMs,
+       ),
+     ).toThrow(SequenceCapacityInfeasibleError);
+   });
+diff --git a/apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts b/apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts
+index d8ac8172..d5619d05 100644
+--- a/apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts
++++ b/apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts
+@@ -168,9 +168,9 @@ function pmWindowBlocks(
+   return null;
+ }
+ 
+-function bucketUsedMs(lineKey: string, dayStartMs: number, dayUsageHours: Map<string, number>): number {
++function bucketUsedMs(lineKey: string, dayStartMs: number, dayUsageMs: Map<string, number>): number {
+   const bucketKey = dayBucketKey(lineKey, dayStartMs);
+-  return (dayUsageHours.get(bucketKey) ?? 0) * 60 * 60 * 1000;
++  return dayUsageMs.get(bucketKey) ?? 0;
+ }
+ 
+ function canReserveCapacity(
+@@ -178,11 +178,11 @@ function canReserveCapacity(
+   startMs: number,
+   runDurationMs: number,
+   capacityMs: number,
+-  dayUsageHours: Map<string, number>,
++  dayUsageMs: Map<string, number>,
+ ): boolean {
+   const endMs = startMs + runDurationMs;
+   for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
+-    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageHours);
++    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageMs);
+     if (overlap.overlapMs > capacityMs - usedMs) return false;
+   }
+   return true;
+@@ -192,15 +192,12 @@ function reserveCapacity(
+   lineKey: string,
+   startMs: number,
+   runDurationMs: number,
+-  dayUsageHours: Map<string, number>,
++  dayUsageMs: Map<string, number>,
+ ): void {
+   const endMs = startMs + runDurationMs;
+   for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
+     const bucketKey = dayBucketKey(lineKey, overlap.dayStartMs);
+-    dayUsageHours.set(
+-      bucketKey,
+-      (dayUsageHours.get(bucketKey) ?? 0) + overlap.overlapMs / (60 * 60 * 1000),
+-    );
++    dayUsageMs.set(bucketKey, (dayUsageMs.get(bucketKey) ?? 0) + overlap.overlapMs);
+   }
+ }
+ 
+@@ -209,12 +206,12 @@ function nextCapacityRetryStart(
+   startMs: number,
+   runDurationMs: number,
+   capacityMs: number,
+-  dayUsageHours: Map<string, number>,
++  dayUsageMs: Map<string, number>,
+ ): number {
+   const endMs = startMs + runDurationMs;
+   let advanceTo = startMs + 60 * 1000;
+   for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
+-    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageHours);
++    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageMs);
+     const remainingMs = capacityMs - usedMs;
+     if (overlap.overlapMs <= remainingMs) continue;
+     if (remainingMs <= 0) {
+@@ -231,7 +228,7 @@ function resolvePlannedStart(
+   earliestMs: number,
+   runDurationMs: number,
+   config: SequenceSolverConfig,
+-  dayUsageHours: Map<string, number>,
++  dayUsageMs: Map<string, number>,
+ ): number {
+   const capacityHours = capacityHoursForLine(lineKey, config);
+   const capacityMs =
+@@ -251,11 +248,11 @@ function resolvePlannedStart(
+     }
+ 
+     if (capacityMs !== null) {
+-      if (canReserveCapacity(lineKey, start, runDurationMs, capacityMs, dayUsageHours)) {
+-        reserveCapacity(lineKey, start, runDurationMs, dayUsageHours);
++      if (canReserveCapacity(lineKey, start, runDurationMs, capacityMs, dayUsageMs)) {
++        reserveCapacity(lineKey, start, runDurationMs, dayUsageMs);
+         return start;
+       }
+-      start = nextCapacityRetryStart(lineKey, start, runDurationMs, capacityMs, dayUsageHours);
++      start = nextCapacityRetryStart(lineKey, start, runDurationMs, capacityMs, dayUsageMs);
+       continue;
+     }
+ 
+@@ -337,7 +334,7 @@ export function sequenceWorkOrders(
+   let cumulative = 0;
+   const now = Date.now();
+   const plannedEndByLine = new Map<string, number>();
+-  const dayUsageHours = new Map<string, number>();
++  const dayUsageMs = new Map<string, number>();
+   const lastWoByLine = new Map<string, WorkOrderForScheduling>();
+ 
+   return sequence.map((workOrder, index) => {
+@@ -351,7 +348,7 @@ export function sequenceWorkOrders(
+     const changeoverCost = transitionMinutes;
+     const earliestStart = Math.max(now, (plannedEndByLine.get(lineKey) ?? now) + changeoverCost * 60 * 1000);
+     const runDuration = durationMs(workOrder);
+-    const plannedStart = resolvePlannedStart(lineKey, earliestStart, runDuration, config, dayUsageHours);
++    const plannedStart = resolvePlannedStart(lineKey, earliestStart, runDuration, config, dayUsageMs);
+     const plannedEnd = plannedStart + runDuration;
+     plannedEndByLine.set(lineKey, plannedEnd);
+     lastWoByLine.set(lineKey, workOrder);
+@@ -372,8 +369,10 @@ export function sequenceWorkOrders(
+ }
+ 
+ /** @internal Test helper — exposes per-line/day reserved hours after a sequencing run. */
+-export function __dayUsageHoursForTests(dayUsageHours: Map<string, number>): Map<string, number> {
+-  return new Map(dayUsageHours);
++export function __dayUsageHoursForTests(dayUsageMs: Map<string, number>): Map<string, number> {
++  return new Map(
++    [...dayUsageMs.entries()].map(([key, usedMs]) => [key, usedMs / (60 * 60 * 1000)]),
++  );
+ }
+ 
+ export function __resolvePlannedStartForTests(
+@@ -381,7 +380,7 @@ export function __resolvePlannedStartForTests(
+   earliestMs: number,
+   runDurationMs: number,
+   config: SequenceSolverConfig,
+-  dayUsageHours: Map<string, number>,
++  dayUsageMs: Map<string, number>,
+ ): number {
+-  return resolvePlannedStart(lineKey, earliestMs, runDurationMs, config, dayUsageHours);
++  return resolvePlannedStart(lineKey, earliestMs, runDurationMs, config, dayUsageMs);
+ }
+diff --git a/apps/web/lib/shared/wall-clock-time.test.ts b/apps/web/lib/shared/wall-clock-time.test.ts
+index b3d48b8f..0cc16472 100644
+--- a/apps/web/lib/shared/wall-clock-time.test.ts
++++ b/apps/web/lib/shared/wall-clock-time.test.ts
+@@ -12,4 +12,14 @@ describe('wallClockToInstant', () => {
+     const instant = wallClockToInstant('2026-01-10', '09:00', 'Europe/London');
+     expect(instant).toBe(Date.parse('2026-01-10T09:00:00.000Z'));
+   });
++
++  it('advances a nonexistent spring-forward wall time to the next valid minute', () => {
++    const instant = wallClockToInstant('2026-03-29', '01:30', 'Europe/London');
++    expect(instant).toBe(Date.parse('2026-03-29T01:00:00.000Z'));
++  });
++
++  it('selects the standard-time occurrence for an ambiguous fall-back wall time', () => {
++    const instant = wallClockToInstant('2026-10-25', '01:30', 'Europe/London');
++    expect(instant).toBe(Date.parse('2026-10-25T01:30:00.000Z'));
++  });
+ });
+diff --git a/apps/web/lib/shared/wall-clock-time.ts b/apps/web/lib/shared/wall-clock-time.ts
+index 4a5701c5..bd984dc7 100644
+--- a/apps/web/lib/shared/wall-clock-time.ts
++++ b/apps/web/lib/shared/wall-clock-time.ts
+@@ -1,6 +1,10 @@
+ /**
+  * Wall-clock date + time in an IANA timezone → UTC epoch ms.
+  * Uses Intl only — no extra date library.
++ *
++ * DST policies:
++ * - Ambiguous fall-back times: select the standard-time (later offset) occurrence.
++ * - Spring-forward gaps: advance to the next valid wall minute on the same date.
+  */
+ 
+ const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+@@ -29,10 +33,36 @@ function parseWallClockParts(blockDate: string, time: string): WallClockParts |
+   };
+ }
+ 
++function formatWallDate(parts: WallClockParts): string {
++  return `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
++}
++
++function formatWallTime(parts: WallClockParts, includeSeconds: boolean): string {
++  const hh = String(parts.hour).padStart(2, '0');
++  const mm = String(parts.minute).padStart(2, '0');
++  if (!includeSeconds) return `${hh}:${mm}`;
++  const ss = String(parts.second).padStart(2, '0');
++  return `${hh}:${mm}:${ss}`;
++}
++
+ function utcMsFromParts(parts: WallClockParts): number {
+   return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+ }
+ 
++function addWallMinutes(parts: WallClockParts, minutes: number): WallClockParts {
++  const carrier = new Date(
++    Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute + minutes, parts.second),
++  );
++  return {
++    year: carrier.getUTCFullYear(),
++    month: carrier.getUTCMonth() + 1,
++    day: carrier.getUTCDate(),
++    hour: carrier.getUTCHours(),
++    minute: carrier.getUTCMinutes(),
++    second: carrier.getUTCSeconds(),
++  };
++}
++
+ function getTimeZoneOffsetMs(utcMs: number, timeZone: string): number {
+   const formatter = new Intl.DateTimeFormat('en-US', {
+     timeZone,
+@@ -88,30 +118,35 @@ function formatWallClockInZone(utcMs: number, timeZone: string): WallClockParts
+   };
+ }
+ 
+-function wallClockMatches(parts: WallClockParts, blockDate: string, time: string): boolean {
+-  const date = `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+-  const hh = String(parts.hour).padStart(2, '0');
+-  const mm = String(parts.minute).padStart(2, '0');
+-  const ss = String(parts.second).padStart(2, '0');
+-  const normalizedTime = time.length <= 5 ? `${hh}:${mm}` : `${hh}:${mm}:${ss}`;
+-  return date === blockDate && normalizedTime === (time.length <= 5 ? `${hh}:${mm}` : `${hh}:${mm}:${ss}`);
++function wallClockMatches(
++  formatted: WallClockParts,
++  requested: WallClockParts,
++  blockDate: string,
++  time: string,
++): boolean {
++  if (formatWallDate(formatted) !== blockDate) return false;
++  if (time.length <= 5) {
++    return formatted.hour === requested.hour && formatted.minute === requested.minute;
++  }
++  return (
++    formatted.hour === requested.hour
++    && formatted.minute === requested.minute
++    && formatted.second === requested.second
++  );
+ }
+ 
+ function instantFromOffset(parts: WallClockParts, offsetMs: number): number {
+   return utcMsFromParts(parts) - offsetMs;
+ }
+ 
+-/**
+- * Resolve a wall-clock instant in `timeZone`. For ambiguous fall-back times, picks
+- * standard (non-DST) offset. For spring-forward gaps, advances to the next valid minute.
+- */
+-export function wallClockToInstant(
++function findExactWallClockInstants(
++  parts: WallClockParts,
+   blockDate: string,
+   time: string,
+   timeZone: string,
+-): number | null {
+-  const parts = parseWallClockParts(blockDate, time);
+-  if (!parts) return null;
++): number[] {
++  const requested = parseWallClockParts(blockDate, time);
++  if (!requested) return [];
+ 
+   const naiveUtc = utcMsFromParts(parts);
+   const offsetAtNaive = getTimeZoneOffsetMs(naiveUtc, timeZone);
+@@ -122,21 +157,34 @@ export function wallClockToInstant(
+   candidates.add(instantFromOffset(parts, offsetOneHourEarlier));
+   candidates.add(instantFromOffset(parts, offsetOneHourLater));
+ 
+-  const valid = [...candidates].filter((candidate) =>
+-    wallClockMatches(formatWallClockInZone(candidate, timeZone), blockDate, time),
++  return [...candidates].filter((candidate) =>
++    wallClockMatches(formatWallClockInZone(candidate, timeZone), requested, blockDate, time),
+   );
+-  if (valid.length === 0) {
+-    for (let minute = 1; minute <= 180; minute += 1) {
+-      const probe = naiveUtc + minute * 60 * 1000;
+-      const offset = getTimeZoneOffsetMs(probe, timeZone);
+-      const candidate = instantFromOffset(parts, offset);
+-      if (wallClockMatches(formatWallClockInZone(candidate, timeZone), blockDate, time)) {
+-        return candidate;
+-      }
+-    }
+-    return null;
++}
++
++/**
++ * Resolve a wall-clock instant in `timeZone`. For ambiguous fall-back times, picks
++ * standard (non-DST) offset. For spring-forward gaps, advances to the next valid minute.
++ */
++export function wallClockToInstant(
++  blockDate: string,
++  time: string,
++  timeZone: string,
++): number | null {
++  const parts = parseWallClockParts(blockDate, time);
++  if (!parts) return null;
++
++  const includeSeconds = time.length > 5;
++  for (let minuteDelta = 0; minuteDelta <= 180; minuteDelta += 1) {
++    const probeParts = minuteDelta === 0 ? parts : addWallMinutes(parts, minuteDelta);
++    const probeDate = formatWallDate(probeParts);
++    const probeTime = formatWallTime(probeParts, includeSeconds);
++    const valid = findExactWallClockInstants(probeParts, probeDate, probeTime, timeZone);
++    if (valid.length === 0) continue;
++
++    valid.sort((a, b) => getTimeZoneOffsetMs(a, timeZone) - getTimeZoneOffsetMs(b, timeZone));
++    return valid[0] ?? null;
+   }
+ 
+-  valid.sort((a, b) => getTimeZoneOffsetMs(a, timeZone) - getTimeZoneOffsetMs(b, timeZone));
+-  return valid[0] ?? null;
++  return null;
+ }
+/**
+ * Wall-clock date + time in an IANA timezone → UTC epoch ms.
+ * Uses Intl only — no extra date library.
+ *
+ * DST policies:
+ * - Ambiguous fall-back times: select the standard-time (later offset) occurrence.
+ * - Spring-forward gaps: advance to the next valid wall minute on the same date.
+ */
+
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const TIME_RE = /^(\d{2}):(\d{2})(?::(\d{2}))?$/;
+
+type WallClockParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+function parseWallClockParts(blockDate: string, time: string): WallClockParts | null {
+  const dateMatch = DATE_RE.exec(blockDate);
+  const timeMatch = TIME_RE.exec(time);
+  if (!dateMatch || !timeMatch) return null;
+  return {
+    year: Number(dateMatch[1]),
+    month: Number(dateMatch[2]),
+    day: Number(dateMatch[3]),
+    hour: Number(timeMatch[1]),
+    minute: Number(timeMatch[2]),
+    second: Number(timeMatch[3] ?? '0'),
+  };
+}
+
+function formatWallDate(parts: WallClockParts): string {
+  return `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+}
+
+function formatWallTime(parts: WallClockParts, includeSeconds: boolean): string {
+  const hh = String(parts.hour).padStart(2, '0');
+  const mm = String(parts.minute).padStart(2, '0');
+  if (!includeSeconds) return `${hh}:${mm}`;
+  const ss = String(parts.second).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
+function utcMsFromParts(parts: WallClockParts): number {
+  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+}
+
+function addWallMinutes(parts: WallClockParts, minutes: number): WallClockParts {
+  const carrier = new Date(
+    Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute + minutes, parts.second),
+  );
+  return {
+    year: carrier.getUTCFullYear(),
+    month: carrier.getUTCMonth() + 1,
+    day: carrier.getUTCDate(),
+    hour: carrier.getUTCHours(),
+    minute: carrier.getUTCMinutes(),
+    second: carrier.getUTCSeconds(),
+  };
+}
+
+function getTimeZoneOffsetMs(utcMs: number, timeZone: string): number {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const mapped = Object.fromEntries(
+    formatter
+      .formatToParts(new Date(utcMs))
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  );
+  const zonedAsUtc = Date.UTC(
+    Number(mapped.year),
+    Number(mapped.month) - 1,
+    Number(mapped.day),
+    Number(mapped.hour),
+    Number(mapped.minute),
+    Number(mapped.second),
+  );
+  return zonedAsUtc - utcMs;
+}
+
+function formatWallClockInZone(utcMs: number, timeZone: string): WallClockParts {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const mapped = Object.fromEntries(
+    formatter
+      .formatToParts(new Date(utcMs))
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  );
+  return {
+    year: Number(mapped.year),
+    month: Number(mapped.month),
+    day: Number(mapped.day),
+    hour: Number(mapped.hour),
+    minute: Number(mapped.minute),
+    second: Number(mapped.second),
+  };
+}
+
+function wallClockMatches(
+  formatted: WallClockParts,
+  requested: WallClockParts,
+  blockDate: string,
+  time: string,
+): boolean {
+  if (formatWallDate(formatted) !== blockDate) return false;
+  if (time.length <= 5) {
+    return formatted.hour === requested.hour && formatted.minute === requested.minute;
+  }
+  return (
+    formatted.hour === requested.hour
+    && formatted.minute === requested.minute
+    && formatted.second === requested.second
+  );
+}
+
+function instantFromOffset(parts: WallClockParts, offsetMs: number): number {
+  return utcMsFromParts(parts) - offsetMs;
+}
+
+function findExactWallClockInstants(
+  parts: WallClockParts,
+  blockDate: string,
+  time: string,
+  timeZone: string,
+): number[] {
+  const requested = parseWallClockParts(blockDate, time);
+  if (!requested) return [];
+
+  const naiveUtc = utcMsFromParts(parts);
+  const offsetAtNaive = getTimeZoneOffsetMs(naiveUtc, timeZone);
+  const candidates = new Set<number>([instantFromOffset(parts, offsetAtNaive)]);
+
+  const offsetOneHourEarlier = getTimeZoneOffsetMs(naiveUtc - 60 * 60 * 1000, timeZone);
+  const offsetOneHourLater = getTimeZoneOffsetMs(naiveUtc + 60 * 60 * 1000, timeZone);
+  candidates.add(instantFromOffset(parts, offsetOneHourEarlier));
+  candidates.add(instantFromOffset(parts, offsetOneHourLater));
+
+  return [...candidates].filter((candidate) =>
+    wallClockMatches(formatWallClockInZone(candidate, timeZone), requested, blockDate, time),
+  );
+}
+
+/**
+ * Resolve a wall-clock instant in `timeZone`. For ambiguous fall-back times, picks
+ * standard (non-DST) offset. For spring-forward gaps, advances to the next valid minute.
+ */
+export function wallClockToInstant(
+  blockDate: string,
+  time: string,
+  timeZone: string,
+): number | null {
+  const parts = parseWallClockParts(blockDate, time);
+  if (!parts) return null;
+
+  const includeSeconds = time.length > 5;
+  for (let minuteDelta = 0; minuteDelta <= 180; minuteDelta += 1) {
+    const probeParts = minuteDelta === 0 ? parts : addWallMinutes(parts, minuteDelta);
+    const probeDate = formatWallDate(probeParts);
+    const probeTime = formatWallTime(probeParts, includeSeconds);
+    const valid = findExactWallClockInstants(probeParts, probeDate, probeTime, timeZone);
+    if (valid.length === 0) continue;
+
+    valid.sort((a, b) => getTimeZoneOffsetMs(a, timeZone) - getTimeZoneOffsetMs(b, timeZone));
+    return valid[0] ?? null;
+  }
+
+  return null;
+}
+    transitionMinutes: effectiveChangeoverMinutes(transition),
+    feasible: transition.feasible,
+  };
+}
+
+function dueDatePenalty(candidate: WorkOrderForScheduling, anchorDueMs: number, duedateWeight: number): number {
+  if (duedateWeight <= 0) return 0;
+  return ((dueTime(candidate) - anchorDueMs) / DAY_MS) * duedateWeight;
+}
+
+function utilizationPenalty(
+  transitionMinutes: number,
+  candidate: WorkOrderForScheduling,
+  utilizationWeight: number,
+): number {
+  if (utilizationWeight <= 0) return 0;
+  const runMinutes = durationMs(candidate) / (60 * 1000);
+  if (runMinutes <= 0) return 0;
+  return (transitionMinutes / runMinutes) * utilizationWeight;
+}
+
+function dayBucketKey(lineKey: string, ms: number): string {
+  return `${lineKey}|${new Date(ms).toISOString().slice(0, 10)}`;
+}
+
+function pmWindowBlocks(
+  lineKey: string,
+  startMs: number,
+  endMs: number,
+  windows: PmWindow[],
+): PmWindow | null {
+  for (const window of windows) {
+    if (window.line_id !== null && window.line_id !== lineKey) continue;
+    const windowStart = timestampMs(window.start_at);
+    const windowEnd = timestampMs(window.end_at);
+    if (windowStart === null || windowEnd === null || windowEnd <= windowStart) continue;
+    if (startMs < windowEnd && endMs > windowStart) return window;
+  }
+  return null;
+}
+
+function bucketUsedMs(lineKey: string, dayStartMs: number, dayUsageMs: Map<string, number>): number {
+  const bucketKey = dayBucketKey(lineKey, dayStartMs);
+  return dayUsageMs.get(bucketKey) ?? 0;
+}
+
+function canReserveCapacity(
+  lineKey: string,
+  startMs: number,
+  runDurationMs: number,
+  capacityMs: number,
+  dayUsageMs: Map<string, number>,
+): boolean {
+  const endMs = startMs + runDurationMs;
+  for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
+    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageMs);
+    if (overlap.overlapMs > capacityMs - usedMs) return false;
+  }
+  return true;
+}
+
+function reserveCapacity(
+  lineKey: string,
+  startMs: number,
+  runDurationMs: number,
+  dayUsageMs: Map<string, number>,
+): void {
+  const endMs = startMs + runDurationMs;
+  for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
+    const bucketKey = dayBucketKey(lineKey, overlap.dayStartMs);
+    dayUsageMs.set(bucketKey, (dayUsageMs.get(bucketKey) ?? 0) + overlap.overlapMs);
+  }
+}
+
+function nextCapacityRetryStart(
+  lineKey: string,
+  startMs: number,
+  runDurationMs: number,
+  capacityMs: number,
+  dayUsageMs: Map<string, number>,
+): number {
+  const endMs = startMs + runDurationMs;
+  let advanceTo = startMs + 60 * 1000;
+  for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
+    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageMs);
+    const remainingMs = capacityMs - usedMs;
+    if (overlap.overlapMs <= remainingMs) continue;
+    if (remainingMs <= 0) {
+      advanceTo = Math.max(advanceTo, overlap.dayStartMs + DAY_MS);
+      continue;
+    }
+    advanceTo = Math.max(advanceTo, startMs + (overlap.overlapMs - remainingMs));
+  }
+  return advanceTo;
+}
+
+function resolvePlannedStart(
+  lineKey: string,
+  earliestMs: number,
+  runDurationMs: number,
+  config: SequenceSolverConfig,
+  dayUsageMs: Map<string, number>,
+): number {
+  const capacityHours = capacityHoursForLine(lineKey, config);
+  const capacityMs =
+    capacityHours !== null && capacityHours > 0 ? capacityHours * 60 * 60 * 1000 : null;
+  const pmWindows = config.respectPmWindows ? (config.pmWindows ?? []) : [];
+  let start = earliestMs;
+
+  for (let guard = 0; guard < MAX_CAPACITY_PLACEMENT_ATTEMPTS; guard += 1) {
+    const end = start + runDurationMs;
+
+    const blocker = pmWindows.length > 0 ? pmWindowBlocks(lineKey, start, end, pmWindows) : null;
+    if (blocker) {
+      const windowEnd = timestampMs(blocker.end_at);
+      if (windowEnd === null) break;
+      start = Math.max(start, windowEnd);
+      continue;
+    }
+
+    if (capacityMs !== null) {
+      if (canReserveCapacity(lineKey, start, runDurationMs, capacityMs, dayUsageMs)) {
+        reserveCapacity(lineKey, start, runDurationMs, dayUsageMs);
+        return start;
+      }
+      start = nextCapacityRetryStart(lineKey, start, runDurationMs, capacityMs, dayUsageMs);
+      continue;
+    }
+
+    return start;
+  }
+
+  throw new SequenceCapacityInfeasibleError(lineKey, earliestMs, runDurationMs);
+}
+
+function pickNextIndex(
+  tail: WorkOrderForScheduling,
+  unscheduled: WorkOrderForScheduling[],
+  matrix: ChangeoverMatrixEntry[],
+  config: SequenceSolverConfig,
+): number {
+  const useChangeover = config.sequencingStrategy !== 'greedy';
+  let bestIndex = -1;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < unscheduled.length; index += 1) {
+    const candidate = unscheduled[index];
+    const { cost, transitionMinutes, feasible } = changeoverBetween(
+      tail,
+      candidate,
+      matrix,
+      config.changeoverWeight,
+    );
+    if (useChangeover && !feasible) continue;
+
+    let score = useChangeover
+      ? cost + dueDatePenalty(candidate, dueTime(tail), config.duedateWeight)
+      : dueDatePenalty(candidate, dueTime(tail), config.duedateWeight);
+    if (useChangeover) {
+      score += utilizationPenalty(transitionMinutes, candidate, config.utilizationWeight);
+    }
+
+    const tieCandidate =
+      bestIndex === -1 ? candidate : unscheduled[bestIndex];
+    const dueDelta = compareByDueDateThenId(candidate, tieCandidate);
+    if (score < bestScore || (score === bestScore && dueDelta < 0)) {
+      bestIndex = index;
+      bestScore = score;
+    }
+  }
+
+  if (bestIndex === -1) {
+    bestIndex = 0;
+    for (let index = 1; index < unscheduled.length; index += 1) {
+      if (compareByDueDateThenId(unscheduled[index], unscheduled[bestIndex]) < 0) {
+        bestIndex = index;
+      }
+    }
+  }
+
+  return bestIndex;
+}
+
+export function sequenceWorkOrders(
+  wos: WorkOrderForScheduling[],
+  matrix: ChangeoverMatrixEntry[],
+  config: SequenceSolverConfig = cloneDefaultSolverConfig(),
+): SequencedAssignment[] {
+  if (wos.length === 0) return [];
+
+  const unscheduled = [...wos].sort(compareByDueDateThenId);
+  const sequence: WorkOrderForScheduling[] = [];
+
+  const first = unscheduled.shift();
+  if (!first) return [];
+  sequence.push(first);
+
+  while (unscheduled.length > 0) {
+    const tail = sequence[sequence.length - 1];
+    const bestIndex = pickNextIndex(tail, unscheduled, matrix, config);
+    const [next] = unscheduled.splice(bestIndex, 1);
+    sequence.push(next);
+  }
+
+  let cumulative = 0;
+  const now = Date.now();
+  const plannedEndByLine = new Map<string, number>();
+  const dayUsageMs = new Map<string, number>();
+  const lastWoByLine = new Map<string, WorkOrderForScheduling>();
+
+  return sequence.map((workOrder, index) => {
+    const lineKey = workOrder.production_line_id ?? '__unassigned__';
+    const previous = lastWoByLine.get(lineKey) ?? null;
+    const profile = normalizedAllergenIds(workOrder.allergen_ids);
+    const toKey = allergenProfileKey(profile);
+    const { transitionMinutes } = previous
+      ? changeoverBetween(previous, workOrder, matrix, config.changeoverWeight)
+      : { transitionMinutes: 0 };
+    const changeoverCost = transitionMinutes;
+    const earliestStart = Math.max(now, (plannedEndByLine.get(lineKey) ?? now) + changeoverCost * 60 * 1000);
+    const runDuration = durationMs(workOrder);
+    const plannedStart = resolvePlannedStart(lineKey, earliestStart, runDuration, config, dayUsageMs);
+    const plannedEnd = plannedStart + runDuration;
+    plannedEndByLine.set(lineKey, plannedEnd);
+    lastWoByLine.set(lineKey, workOrder);
+    cumulative += changeoverCost;
+
+    return {
+      wo_id: workOrder.id,
+      sequence_index: index + 1,
+      line_id: workOrder.production_line_id,
+      planned_start_at: new Date(plannedStart).toISOString(),
+      planned_end_at: new Date(plannedEnd).toISOString(),
+      changeover_cost: changeoverCost,
+      cumulative_changeover_cost: cumulative,
+      allergen_profile_key: toKey,
+      work_order: workOrder,
+    };
+  });
+}
+
+/** @internal Test helper — exposes per-line/day reserved hours after a sequencing run. */
+export function __dayUsageHoursForTests(dayUsageMs: Map<string, number>): Map<string, number> {
+  return new Map(
+    [...dayUsageMs.entries()].map(([key, usedMs]) => [key, usedMs / (60 * 60 * 1000)]),
+  );
+}
+
+export function __resolvePlannedStartForTests(
+  lineKey: string,
+  earliestMs: number,
+  runDurationMs: number,
+  config: SequenceSolverConfig,
+  dayUsageMs: Map<string, number>,
+): number {
+  return resolvePlannedStart(lineKey, earliestMs, runDurationMs, config, dayUsageMs);
+}
+
+exec
+/bin/zsh -lc "sed -n '1,190p' 'apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts'; sed -n '490,570p' 'apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts'; sed -n '1,240p' apps/web/lib/shared/wall-clock-time.test.ts; rg -n \"dayUsageHours|dayUsageMs|capacityHoursPerDay|capacityHoursByLine|overlapMs /|\\* 60 \\* 60 \\* 1000|wallClockMatches|new Date\\(["'^'"\\n]*Z|\\+ ['\\\"]Z['\\\"]|time.*Z|\\bas\\b\" 'apps/web/app/[locale]/(app)/(modules)/scheduler' 'apps/web/app/[locale]/(app)/(modules)/planning/schedule' apps/web/lib/shared/wall-clock-time.ts" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13
+ succeeded in 0ms:
+'use server';
+
+import { z } from 'zod';
+
+import { assertFgReleasedToFactoryForWo } from '../../../../../../../lib/planning/factory-release-wo-gate';
+import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { createWorkOrderCore } from './create-work-order-core';
+import { loadStageProductionLineIds } from './resolve-stage-production-line';
+import {
+  PLANNING_WO_WRITE_PERMISSION,
+  hasPermission,
+  type OrgActionContext,
+  type ScheduleOutput,
+  type WOMaterial,
+  type WOHeader,
+} from './shared';
+
+const Input = z.object({
+  productId: z.string().uuid(),
+  itemCode: z.string().trim().min(1).max(128).optional(),
+  documentNumber: z.string().trim().min(1).max(128),
+  siteId: z.string().uuid(),
+  plannedQuantity: z
+    .string()
+    .trim()
+    .regex(/^\d+(?:\.\d{1,4})?$/)
+    .refine((value) => Number(value) > 0),
+  scheduledStartTime: z.string().datetime({ offset: true }).optional(),
+  productionLineId: z.string().uuid().optional(),
+  notes: z.string().trim().max(2000).optional(),
+});
+
+/** Server-only options — never accepted from client-parsed input. */
+type ChainOptions = {
+  skipFactoryReleaseGate?: boolean;
+};
+
+type ChainErrorCode =
+  | 'invalid_input'
+  | 'forbidden'
+  | 'not_found'
+  | 'no_active_bom'
+  | 'pack_hierarchy_incomplete'
+  | 'no_active_site'
+  | 'document_mask_missing'
+  | 'not_released_to_factory'
+  | 'wo_create_failed'
+  | 'persistence_failed';
+
+type ChainResult =
+  | {
+      ok: true;
+      fgWorkOrder: WOHeader;
+      wipWorkOrders: WOHeader[];
+      dependencies: Array<{ parentWoId: string; childWoId: string; materialLink: string | null; requiredQty: string | null }>;
+      created: boolean;
+      fgMaterials: WOMaterial[];
+      fgPrimarySchedule: ScheduleOutput;
+    }
+  | { ok: false; error: ChainErrorCode; planningError?: string; message?: string };
+
+type ItemRow = {
+  id: string;
+  item_code: string;
+  output_uom: string;
+  uom_base: string;
+  net_qty_per_each: string | null;
+  each_per_box: string | null;
+  boxes_per_pallet: string | null;
+  weight_mode: 'fixed' | 'catch';
+};
+
+type BomHeaderRow = {
+  id: string;
+  version: number;
+  line_basis: string;
+};
+
+type WipBomLineRow = {
+  id: string;
+  line_no: number;
+  item_id: string;
+  component_code: string;
+  quantity: string;
+  scrap_pct: string;
+};
+
+type WipChainEntry = {
+  workOrder: WOHeader;
+  bomLineId: string;
+};
+
+class WorkOrderChainError extends Error {
+  constructor(readonly code: ChainErrorCode, readonly planningError?: string) {
+    super(planningError ? `${code}:${planningError}` : code);
+  }
+}
+
+function mapCoreErrorToChainCode(coreError: string | undefined): ChainErrorCode {
+  return coreError === 'no_active_site'
+    || coreError === 'document_mask_missing'
+    || coreError === 'not_released_to_factory'
+    ? coreError
+    : 'wo_create_failed';
+}
+
+// W1 error-surface contract: specific core failures must reach the caller as
+// themselves, never collapsed into a generic wo_create_failed.
+function chainCoreFailure(coreError: string | undefined): ChainResult {
+  const specific = mapCoreErrorToChainCode(coreError);
+  return { ok: false, error: specific, planningError: coreError, message: coreError };
+}
+
+/** After the first chain write, failures must throw so withOrgContext rolls back. */
+function throwChainCoreFailure(coreError: string | undefined): never {
+  const code = mapCoreErrorToChainCode(coreError);
+  throw new WorkOrderChainError(code, coreError);
+}
+
+export async function createWorkOrderChain(raw: unknown, options?: ChainOptions): Promise<ChainResult> {
+  const parsed = Input.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  }
+
+  try {
+    return await withOrgContext(async (ctx): Promise<ChainResult> => {
+      if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) {
+        return { ok: false, error: 'forbidden' };
+      }
+      return createWorkOrderChainInContext(ctx, parsed.data, options);
+    });
+  } catch (error) {
+    if (error instanceof WorkOrderChainError) {
+      return { ok: false, error: error.code, planningError: error.planningError, message: error.planningError };
+    }
+    console.error('[createWorkOrderChain] failed:', error);
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function createWorkOrderChainForContext(
+  ctx: OrgActionContext,
+  raw: unknown,
+  options?: ChainOptions,
+): Promise<ChainResult> {
+  const parsed = Input.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  }
+  if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) {
+    return { ok: false, error: 'forbidden' };
+  }
+  try {
+    return await createWorkOrderChainInContext(ctx, parsed.data, options);
+  } catch (error) {
+    if (error instanceof WorkOrderChainError) {
+      return { ok: false, error: error.code, planningError: error.planningError, message: error.planningError };
+    }
+    throw error;
+  }
+}
+
+async function createWorkOrderChainInContext(
+  ctx: OrgActionContext,
+  input: z.infer<typeof Input>,
+  options?: ChainOptions,
+): Promise<ChainResult> {
+  const fgItem = await loadItem(ctx, input.productId);
+  if (!fgItem) return { ok: false, error: 'not_found' };
+  const itemCode = input.itemCode ?? fgItem.item_code;
+
+  const existingFg = await loadWorkOrderByNumber(ctx, input.documentNumber);
+  if (existingFg) {
+    const existing = await loadExistingChain(ctx, existingFg.id);
+    const fgArtifacts = await loadFgWoArtifacts(ctx, existingFg.id);
+    return {
+      ok: true,
+      fgWorkOrder: existingFg,
+      wipWorkOrders: existing.wipWorkOrders,
+      dependencies: existing.dependencies,
+      created: false,
+      fgMaterials: fgArtifacts.materials,
+      fgPrimarySchedule: fgArtifacts.primarySchedule,
+    };
+  }
+
+  const bom = await loadActiveBom(ctx, fgItem.id, itemCode);
+  if (!bom) return { ok: false, error: 'no_active_bom' };
+    productId: row.product_id,
+    itemCode: row.item_code,
+    itemTypeAtCreation: row.item_type_at_creation,
+    plannedQuantity: row.planned_quantity,
+    producedQuantity: row.produced_quantity,
+    uom: row.uom,
+    status: row.status,
+    scheduledStartTime: row.scheduled_start_time,
+    scheduledEndTime: row.scheduled_end_time,
+    productionLineId: row.production_line_id,
+    priority: row.priority,
+    sourceOfDemand: row.source_of_demand,
+    sourceReference: row.source_reference,
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function resolveMaterialForWipEntry(
+  fgMaterials: WOMaterial[],
+  wipEntry: WipChainEntry,
+  wipEntries: WipChainEntry[],
+): WOMaterial {
+  const byBomLine = fgMaterials.find((row) => row.bomItemId === wipEntry.bomLineId);
+  if (byBomLine) return byBomLine;
+
+  const productMatches = fgMaterials.filter((row) => row.productId === wipEntry.workOrder.productId);
+  const wipLinesForProduct = wipEntries.filter(
+    (entry) => entry.workOrder.productId === wipEntry.workOrder.productId,
+  );
+  const legacyMaterial = productMatches[0];
+  if (
+    productMatches.length === 1
+    && wipLinesForProduct.length === 1
+    && legacyMaterial
+    && (legacyMaterial.bomItemId == null || legacyMaterial.bomItemId === '')
+  ) {
+    return legacyMaterial;
+  }
+
+  throw new WorkOrderChainError('persistence_failed', 'wip_material_link_ambiguous');
+}
+
+async function linkDependencies(
+  ctx: OrgActionContext,
+  fgWorkOrder: WOHeader,
+  fgMaterials: WOMaterial[],
+  wipEntries: WipChainEntry[],
+): Promise<Array<{ parentWoId: string; childWoId: string; materialLink: string | null; requiredQty: string | null }>> {
+  const dependencies: Array<{ parentWoId: string; childWoId: string; materialLink: string | null; requiredQty: string | null }> = [];
+  for (const wipEntry of wipEntries) {
+    const material = resolveMaterialForWipEntry(fgMaterials, wipEntry, wipEntries);
+    const { rows } = await ctx.client.query<{ parent_wo_id: string; child_wo_id: string; material_link: string | null; required_qty: string | null }>(
+      `insert into public.wo_dependencies
+         (org_id, parent_wo_id, child_wo_id, material_link, required_qty)
+       values
+         (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4::numeric)
+       on conflict (org_id, parent_wo_id, child_wo_id) do update
+         set material_link = coalesce(excluded.material_link, public.wo_dependencies.material_link),
+             required_qty = coalesce(excluded.required_qty, public.wo_dependencies.required_qty)
+       returning parent_wo_id::text as parent_wo_id,
+                 child_wo_id::text as child_wo_id,
+                 material_link::text as material_link,
+                 required_qty::text as required_qty`,
+      [
+        fgWorkOrder.id,
+        wipEntry.workOrder.id,
+        material.id,
+        material.requiredQty,
+      ],
+    );
+    const row = rows[0];
+    if (row) {
+      dependencies.push({
+        parentWoId: row.parent_wo_id,
+        childWoId: row.child_wo_id,
+        materialLink: row.material_link,
+        requiredQty: row.required_qty,
+      });
+    }
+import { describe, expect, it } from 'vitest';
+
+import { wallClockToInstant } from './wall-clock-time';
+
+describe('wallClockToInstant', () => {
+  it('maps a 09:00 Europe/London block to 08:00Z during BST', () => {
+    const instant = wallClockToInstant('2026-07-10', '09:00', 'Europe/London');
+    expect(instant).toBe(Date.parse('2026-07-10T08:00:00.000Z'));
+  });
+
+  it('maps a 09:00 Europe/London block to 09:00Z during GMT', () => {
+    const instant = wallClockToInstant('2026-01-10', '09:00', 'Europe/London');
+    expect(instant).toBe(Date.parse('2026-01-10T09:00:00.000Z'));
+  });
+
+  it('advances a nonexistent spring-forward wall time to the next valid minute', () => {
+    const instant = wallClockToInstant('2026-03-29', '01:30', 'Europe/London');
+    expect(instant).toBe(Date.parse('2026-03-29T01:00:00.000Z'));
+  });
+
+  it('selects the standard-time occurrence for an ambiguous fall-back wall time', () => {
+    const instant = wallClockToInstant('2026-10-25', '01:30', 'Europe/London');
+    expect(instant).toBe(Date.parse('2026-10-25T01:30:00.000Z'));
+  });
+});
+apps/web/lib/shared/wall-clock-time.ts:66:function getTimeZoneOffsetMs(utcMs: number, timeZone: string): number {
+apps/web/lib/shared/wall-clock-time.ts:68:    timeZone,
+apps/web/lib/shared/wall-clock-time.ts:94:function formatWallClockInZone(utcMs: number, timeZone: string): WallClockParts {
+apps/web/lib/shared/wall-clock-time.ts:96:    timeZone,
+apps/web/lib/shared/wall-clock-time.ts:121:function wallClockMatches(
+apps/web/lib/shared/wall-clock-time.ts:146:  timeZone: string,
+apps/web/lib/shared/wall-clock-time.ts:152:  const offsetAtNaive = getTimeZoneOffsetMs(naiveUtc, timeZone);
+apps/web/lib/shared/wall-clock-time.ts:155:  const offsetOneHourEarlier = getTimeZoneOffsetMs(naiveUtc - 60 * 60 * 1000, timeZone);
+apps/web/lib/shared/wall-clock-time.ts:156:  const offsetOneHourLater = getTimeZoneOffsetMs(naiveUtc + 60 * 60 * 1000, timeZone);
+apps/web/lib/shared/wall-clock-time.ts:161:    wallClockMatches(formatWallClockInZone(candidate, timeZone), requested, blockDate, time),
+apps/web/lib/shared/wall-clock-time.ts:166: * Resolve a wall-clock instant in `timeZone`. For ambiguous fall-back times, picks
+apps/web/lib/shared/wall-clock-time.ts:172:  timeZone: string,
+apps/web/lib/shared/wall-clock-time.ts:182:    const valid = findExactWallClockInstants(probeParts, probeDate, probeTime, timeZone);
+apps/web/lib/shared/wall-clock-time.ts:185:    valid.sort((a, b) => getTimeZoneOffsetMs(a, timeZone) - getTimeZoneOffsetMs(b, timeZone));
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/page.tsx:11: * injects rescheduleWorkOrder as the client seam. RBAC server-side:
+apps/web/app/[locale]/(app)/(modules)/scheduler/changeover-matrix/page.tsx:12: * upsertChangeoverMatrixEntry as the write seam. RBAC enforced server-side in
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_components/schedule-board-view.tsx:130:    timeZone: 'UTC',
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_components/schedule-board-view.tsx:142:    ...data.lines.map((line) => ({ key: line.id, label: line.code, sub: line.name, lineId: line.id as string | null })),
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_components/schedule-board-view.tsx:211:        {(['DRAFT', 'RELEASED', 'IN_PROGRESS'] as const).map((status) => (
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_components/schedule-board-view.tsx:235:                  {dayFmt.format(new Date(`${day}T00:00:00Z`))}
+apps/web/app/[locale]/(app)/(modules)/scheduler/_components/scheduler-view-model.ts:82: * applySchedule → markRunApplied). The run row's `status` is 'completed' as soon
+apps/web/app/[locale]/(app)/(modules)/scheduler/_components/scheduler-view-model.ts:83: * as the solve finishes, so it is NOT a reliable applied signal.
+apps/web/app/[locale]/(app)/(modules)/scheduler/_components/scheduler-view-model.ts:111: * ordered by sequence_index. `changeover_minutes` on each row is treated as the
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:30:const en = (enMessages as Record<string, any>).Planning.schedule;
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:31:const enStatus = (enMessages as Record<string, any>).Planning.woStatus;
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:91:    } as ScheduleBoardData['unscheduledPagination']);
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:130:    workOrder: data.scheduled[0] as ScheduleBoardWo,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:161:  it('highlights overlapping bars on one line as conflicts, others not', () => {
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:202:      ok: true as const,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:228:      ok: true as const,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:249:    const action = vi.fn(async () => ({ ok: false as const, error: 'invalid_range' as const }));
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:264:    renderBoard(makeData(), action as any);
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:279:      const planning = (messages as Record<string, any>).Planning;
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:286:    expect((plMessages as Record<string, any>).Planning.schedule.title).not.toBe(
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:287:      (enMessages as Record<string, any>).Planning.schedule.title,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:289:    expect((roMessages as Record<string, any>).Planning.schedule.title).toBe(
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/__tests__/schedule.test.tsx:290:      (enMessages as Record<string, any>).Planning.schedule.title,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_components/scheduler-board-view.tsx:69:const HORIZON_OPTIONS = [3, 7, 14, 30] as const;
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/scheduler-board.test.tsx:41:const en = (enMessages as Record<string, any>).Scheduler;
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/scheduler-board.test.tsx:93:    id: `as-${over.wo_id}`,
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/scheduler-board.test.tsx:148:    vi.fn(async () => ({ ok: true as const, run: runRow(), assignments: [], applied: true, stale: [] }));
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/scheduler-board.test.tsx:216:    const runAction = vi.fn(async () => ({ ok: false as const, error: 'persistence_failed' as const }));
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/scheduler-board.test.tsx:251:    const applyAction = vi.fn(async () => ({ ok: false as const, error: 'not_found' as const }));
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/scheduler-board.test.tsx:267:      const sched = (messages as Record<string, any>).Scheduler;
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/scheduler-board.test.tsx:274:    expect((plMessages as Record<string, any>).Scheduler.run.button).not.toBe(
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/scheduler-board.test.tsx:275:      (enMessages as Record<string, any>).Scheduler.run.button,
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/scheduler-board.test.tsx:277:    expect((roMessages as Record<string, any>).Scheduler.run.button).toBe(
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/scheduler-board.test.tsx:278:      (enMessages as Record<string, any>).Scheduler.run.button,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/board.ts:13:export const BOARD_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS'] as const;
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/board.ts:16:export const RESCHEDULE_LEGAL_STATUSES = ['DRAFT', 'RELEASED'] as const;
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/board.ts:104:        const a = sorted[i] as BarInterval;
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/board.ts:105:        const b = sorted[j] as BarInterval;
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/board.ts:160:    new Date(startMs + i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/board.ts:164:export const UTC_DAY_MS = 24 * 60 * 60 * 1000;
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/board.ts:246:      scheduledHours.set(key, (scheduledHours.get(key) ?? 0) + overlapMs / (60 * 60 * 1000));
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/changeover-matrix.test.tsx:33:const en = (enMessages as Record<string, any>).Scheduler.matrix;
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/changeover-matrix.test.tsx:70:      ok: true as const,
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/changeover-matrix.test.tsx:141:    const upsertAction = vi.fn(async () => ({ ok: false as const, error: 'persistence_failed' as const }));
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/changeover-matrix.test.tsx:157:      const matrix = (messages as Record<string, any>).Scheduler.matrix;
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/changeover-matrix.test.tsx:163:    expect((plMessages as Record<string, any>).Scheduler.matrix.title).not.toBe(
+apps/web/app/[locale]/(app)/(modules)/scheduler/__tests__/changeover-matrix.test.tsx:164:      (enMessages as Record<string, any>).Scheduler.matrix.title,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/wo-cycle.ts:11: * schedule board's rescheduleWorkOrder) call `findCycleInvolving` as a
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/wo-cycle.ts:43:    const node = stack.pop() as string;
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/wo-cycle.ts:72: * that `woId` sits on, return that cycle as a node path
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/wo-cycle.ts:87:    const frame = stack.pop() as { node: string; path: string[] };
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:10: *   - read  → 'scheduler.run.read'  (same as _actions/dashboard-data.ts)
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:124:         wo.planned_quantity::text as planned_quantity, wo.uom,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:125:         i.item_code, i.name as item_name
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:149:      const windowEnd = new Date(windowStart.getTime() + BOARD_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:166:          } as ScheduleBoardData & { noActiveSite: true },
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:201:          `select count(*)::int as total
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:228:        `select pcb.id::text as id,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:229:                pcb.line_id::text as line_id,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:230:                pcb.project_id::text as project_id,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:231:                pcb.trial_id::text as trial_id,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:233:                to_char(pcb.block_date, 'YYYY-MM-DD') as block_date,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:234:                pcb.start_time::text as start_time,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:235:                pcb.end_time::text as end_time,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:250:        `select line_id, capacity_hours_per_day::text as capacity_hours_per_day
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:343:      if (!(RESCHEDULE_LEGAL_STATUSES as readonly string[]).includes(current.status)) {
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:349:          `select id, site_id::text as site_id
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:397:                wo.planned_quantity::text as planned_quantity, wo.uom,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.ts:398:                null::text as item_code, null::text as item_name`,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/board-capacity.test.ts:131:    const endMs = startMs + 4 * 60 * 60 * 1000;
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/board-capacity.test.ts:135:    expect(overlaps[0]?.overlapMs).toBe(1 * 60 * 60 * 1000);
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/board-capacity.test.ts:136:    expect(overlaps[1]?.overlapMs).toBe(3 * 60 * 60 * 1000);
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/board-capacity.test.ts:157:  it('interprets wall-clock times in the site IANA timezone (BST → 08:00Z)', () => {
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_lib/board-capacity.test.ts:163:  it('interprets wall-clock times in the site IANA timezone (GMT → 09:00Z)', () => {
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/capacity-block-actions.ts:42:  if (!parsed.success) return { ok: false as const, error: 'invalid_input' as const };
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/capacity-block-actions.ts:46:    return { ok: false as const, error: 'invalid_range' as const };
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/capacity-block-actions.ts:52:        return { ok: false as const, error: 'forbidden' as const };
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/capacity-block-actions.ts:64:      if (!lineResult.rows[0]) return { ok: false as const, error: 'invalid_line' as const };
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/capacity-block-actions.ts:72:        `select tb.id::text as trial_id,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/capacity-block-actions.ts:74:                p.id::text as project_id,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/capacity-block-actions.ts:75:                p.code as project_code
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/capacity-block-actions.ts:86:      if (!trial) return { ok: false as const, error: 'trial_not_found' as const };
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/capacity-block-actions.ts:102:       returning id::text as id`,
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/capacity-block-actions.ts:116:      return { ok: true as const, id: saved.rows[0]?.id ?? null };
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/capacity-block-actions.ts:120:    return { ok: false as const, error: 'persistence_failed' as const };
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-types.ts:165:  capacityHoursPerDay: number | null;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-types.ts:166:  /** Line-specific capacity overrides; falls back to `capacityHoursPerDay` when a line is absent. */
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-types.ts:167:  capacityHoursPerDayByLine?: Record<string, number | null>;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/pm-windows.ts:7:const DAY_MS = 24 * 60 * 60 * 1000;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/pm-windows.ts:38:           e.parent_line_id::text as line_id,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/pm-windows.ts:42:           ) as start_at,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/pm-windows.ts:48:           ) as end_at
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/pm-windows.ts:65:           e.parent_line_id::text as line_id,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/pm-windows.ts:66:           (ms.next_due_date::timestamp at time zone 'UTC') as start_at,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/pm-windows.ts:68:             + ($5::numeric * interval '1 hour') as end_at
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/pm-windows.ts:108:  const raw = (params as { pm_block_hours?: unknown }).pm_block_hours;
+apps/web/app/[locale]/(app)/(modules)/planning/schedule/_actions/schedule-board.test.ts:307:    expect(spanMs).toBe(7 * 24 * 60 * 60 * 1000);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:134:  it('uses due_date as the tie-break when changeover costs are equal', () => {
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:167:    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:193:    const now = new Date('2026-06-24T12:00:00.000Z').getTime();
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:219:    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:224:      routingDurationMs: 2 * 60 * 60 * 1000,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:231:    expect(end - start).toBe(2 * 60 * 60 * 1000);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:267:    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:309:  it('rolls work past the daily capacity bucket when capacityHoursPerDay is set', () => {
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:311:    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:329:      capacityHoursPerDay: 4,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:337:    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:356:      capacityHoursPerDay: null,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:366:    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:397:  it('matches default sequencing when capacityHoursPerDay is null (empty config invariance)', () => {
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:399:    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:418:      capacityHoursPerDay: null,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:426:    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:467:        capacityHoursPerDay: null,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:468:        capacityHoursPerDayByLine: {
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:482:    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:523:    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:554:    vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:565:      capacityHoursPerDay: 6,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:574:    vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:576:    const dayUsageMs = new Map<string, number>();
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:577:    const runDurationMs = 4 * 60 * 60 * 1000;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:584:      { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 6 },
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:585:      dayUsageMs,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:589:    expect(dayUsageMs.get(`${lineKey}|2026-06-24`)).toBe(1 * 60 * 60 * 1000);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:590:    expect(dayUsageMs.get(`${lineKey}|2026-06-25`)).toBe(3 * 60 * 60 * 1000);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:595:    vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:596:    const dayUsageMs = new Map<string, number>();
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:598:    const config = { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 6 };
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:600:    const sixHoursMs = 6 * 60 * 60 * 1000;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:604:      cursor = __resolvePlannedStartForTests(lineKey, cursor, oneMinuteMs, config, dayUsageMs);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:608:    expect(dayUsageMs.get(`${lineKey}|2026-06-24`)).toBe(sixHoursMs);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:610:    const bumpedStart = __resolvePlannedStartForTests(lineKey, cursor, oneMinuteMs, config, dayUsageMs);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:612:    expect(dayUsageMs.get(`${lineKey}|2026-06-25`)).toBe(oneMinuteMs);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:617:    vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:618:    const dayUsageMs = new Map<string, number>();
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:619:    const sixHoursMs = 6 * 60 * 60 * 1000;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:621:      const dayKey = new Date(Date.parse('2026-06-24T00:00:00.000Z') + day * 24 * 60 * 60 * 1000)
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:624:      dayUsageMs.set(`${LINE_ID}|${dayKey}`, sixHoursMs);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:631:        8 * 60 * 60 * 1000,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:632:        { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 6 },
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts:633:        dayUsageMs,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:29:const OPEN_WO_STATUSES = ['DRAFT', 'RELEASED'] as const;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:30:const DAY_MS = 24 * 60 * 60 * 1000;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:148:    capacityHoursPerDay: capacity,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:154:function capacityHoursByLineFromConfigs(rows: SchedulerConfigRow[]): Record<string, number | null> {
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:277:       i.name as item_name,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:286:       coalesce(wo.planned_end_date, wo.scheduled_end_time, wo.planned_start_date, wo.created_at) as due_date,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:287:       coalesce(ap.allergen_ids, '{}'::text[]) as allergen_ids,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:288:       coalesce(routing_dur.routing_duration_ms, 0)::text as routing_duration_ms,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:289:       coalesce(process_dur.process_duration_ms, 0)::text as process_duration_ms
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:295:       select array_agg(distinct iap.allergen_code order by iap.allergen_code) as allergen_ids
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:310:         )::bigint as routing_duration_ms
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:334:         )::bigint as process_duration_ms
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:430:       from jsonb_to_recordset($2::jsonb) as x(
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:482:                  'applied_at', to_char(now() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/scheduler-actions.ts:732:        solverConfig.capacityHoursPerDayByLine = capacityHoursByLineFromConfigs(
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/scheduler-actions.test.ts:222:        insertedAssignmentPayload = JSON.parse(String(params[1])) as Array<Record<string, unknown>>;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/scheduler-actions.test.ts:395:    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/scheduler-actions.test.ts:481:  it('stamps applied assignments as approved by the distinct approver user', async () => {
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:25:  readonly code = 'capacity_infeasible' as const;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:47:  capacityHoursPerDay: null,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:58:    const perLine = config.capacityHoursPerDayByLine?.[lineKey];
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:61:  return config.capacityHoursPerDay;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:171:function bucketUsedMs(lineKey: string, dayStartMs: number, dayUsageMs: Map<string, number>): number {
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:173:  return dayUsageMs.get(bucketKey) ?? 0;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:181:  dayUsageMs: Map<string, number>,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:185:    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageMs);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:195:  dayUsageMs: Map<string, number>,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:200:    dayUsageMs.set(bucketKey, (dayUsageMs.get(bucketKey) ?? 0) + overlap.overlapMs);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:209:  dayUsageMs: Map<string, number>,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:214:    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageMs);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:231:  dayUsageMs: Map<string, number>,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:235:    capacityHours !== null && capacityHours > 0 ? capacityHours * 60 * 60 * 1000 : null;
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:251:      if (canReserveCapacity(lineKey, start, runDurationMs, capacityMs, dayUsageMs)) {
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:252:        reserveCapacity(lineKey, start, runDurationMs, dayUsageMs);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:255:      start = nextCapacityRetryStart(lineKey, start, runDurationMs, capacityMs, dayUsageMs);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:337:  const dayUsageMs = new Map<string, number>();
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:351:    const plannedStart = resolvePlannedStart(lineKey, earliestStart, runDuration, config, dayUsageMs);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:372:export function __dayUsageHoursForTests(dayUsageMs: Map<string, number>): Map<string, number> {
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:374:    [...dayUsageMs.entries()].map(([key, usedMs]) => [key, usedMs / (60 * 60 * 1000)]),
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:383:  dayUsageMs: Map<string, number>,
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:385:  return resolvePlannedStart(lineKey, earliestMs, runDurationMs, config, dayUsageMs);
+
+codex
+One issue remains visible in code: the direct `find()` fallback is gone, but product-based legacy fallback behavior still exists via `filter(...productId)` and accepts a missing `bomItemId` for a unique product. I’m checking whether that violates the explicit round contract and whether its error path can commit partial writes.
+exec
+/bin/zsh -lc "rg -n \"function durationMs|routingDurationMs|processDurationMs|resolveMaterialForWipEntry|createWorkOrderChainForContext\" 'apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts'; sed -n '35,95p' 'apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts'; sed -n '190,390p' 'apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts'; sed -n '35,85p' _meta/plans/wave-13-summary.md; rtk git diff origin/main..HEAD --stat -- . ':(exclude)_meta/**'" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13
+ succeeded in 0ms:
+apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts:143:export async function createWorkOrderChainForContext(
+apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts:509:function resolveMaterialForWipEntry(
+apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts:542:    const material = resolveMaterialForWipEntry(fgMaterials, wipEntry, wipEntries);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:86:function routingDurationMs(wo: WorkOrderForScheduling): number | null {
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:90:function processDurationMs(wo: WorkOrderForScheduling): number | null {
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:95:export function durationMs(wo: WorkOrderForScheduling): number {
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:107:  const routing = routingDurationMs(wo);
+apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:110:  const process = processDurationMs(wo);
+apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts:3:import { createWorkOrderChain, createWorkOrderChainForContext } from './create-work-order-chain';
+apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts:211:    const result = await createWorkOrderChainForContext(
+apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts:438:    const result = await createWorkOrderChainForContext(
+apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts:656:    const result = await createWorkOrderChainForContext(
+apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts:812:    const result = await createWorkOrderChainForContext(
+apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts:835:    const result = await createWorkOrderChainForContext(
+}
+
+/**
+ * Default solver config. `sequencingStrategy: 'local_search'` is stored in DB but
+ * not implemented yet — it falls back to `allergen_optimized`. `pmWindows` is
+ * optional caller input (maintenance integration loads these when available).
+ */
+export const DEFAULT_SEQUENCE_SOLVER_CONFIG: SequenceSolverConfig = {
+  sequencingStrategy: 'allergen_optimized',
+  changeoverWeight: 1,
+  duedateWeight: 1,
+  utilizationWeight: 1,
+  capacityHoursPerDay: null,
+  respectPmWindows: false,
+  pmWindows: [],
+};
+
+function cloneDefaultSolverConfig(): SequenceSolverConfig {
+  return { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, pmWindows: [] };
+}
+
+function capacityHoursForLine(lineKey: string, config: SequenceSolverConfig): number | null {
+  if (lineKey !== '__unassigned__') {
+    const perLine = config.capacityHoursPerDayByLine?.[lineKey];
+    if (perLine !== undefined) return perLine;
+  }
+  return config.capacityHoursPerDay;
+}
+
+function dueTime(wo: WorkOrderForScheduling): number {
+  return new Date(wo.due_date).getTime();
+}
+
+function compareByDueDateThenId(a: WorkOrderForScheduling, b: WorkOrderForScheduling): number {
+  const dueDelta = dueTime(a) - dueTime(b);
+  if (dueDelta !== 0) return dueDelta;
+  return a.id.localeCompare(b.id);
+}
+
+function timestampMs(value: string | Date | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const ms = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function numericMs(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function routingDurationMs(wo: WorkOrderForScheduling): number | null {
+  return numericMs(wo.routing_duration_ms);
+}
+
+function processDurationMs(wo: WorkOrderForScheduling): number | null {
+  return numericMs(wo.process_duration_ms);
+}
+
+/** Derive WO run duration: scheduled/planned window, then routing, then process masters, else 1h floor. */
+export function durationMs(wo: WorkOrderForScheduling): number {
+  if (!bom) return { ok: false, error: 'no_active_bom' };
+
+  let materialScalar: number;
+  try {
+    materialScalar = computeWoMaterialScalar({
+      plannedBaseQty: Number(input.plannedQuantity),
+      lineBasis: bom.line_basis,
+      eachPerBox: fgItem.each_per_box == null ? null : Number(fgItem.each_per_box),
+      netQtyPerEach: fgItem.net_qty_per_each == null ? null : Number(fgItem.net_qty_per_each),
+    });
+  } catch (error) {
+    if (error instanceof WoMaterialScalarError) return { ok: false, error: 'pack_hierarchy_incomplete' };
+    throw error;
+  }
+
+  if (!options?.skipFactoryReleaseGate) {
+    const releaseGate = await assertFgReleasedToFactoryForWo(ctx.client, fgItem.id);
+    if (releaseGate === 'not_released_to_factory') {
+      return { ok: false, error: 'not_released_to_factory' };
+    }
+  }
+
+  const wipLines = await loadWipBomLines(ctx, bom.id);
+  const stageLineIds = await loadStageProductionLineIds(
+    ctx,
+    fgItem.id,
+    [
+      ...wipLines.map((line) => ({ itemId: line.item_id, isFg: false })),
+      { itemId: fgItem.id, isFg: true },
+    ],
+  );
+  const wipEntries: WipChainEntry[] = [];
+  let hasWritten = false;
+  for (let index = 0; index < wipLines.length; index++) {
+    const line = wipLines[index]!;
+    const requiredQty = computeRequiredMaterialQty(line, materialScalar);
+    const existingWip = await loadWorkOrderByNumber(ctx, `${input.documentNumber}-W${index + 1}`);
+    if (existingWip) {
+      wipEntries.push({ workOrder: existingWip, bomLineId: line.id });
+      continue;
+    }
+    const created = await createWorkOrderCore(ctx, {
+      productId: line.item_id,
+      itemCode: line.component_code,
+      itemTypeAtCreation: 'intermediate',
+      documentNumber: `${input.documentNumber}-W${index + 1}`,
+      siteId: input.siteId,
+      plannedQuantity: requiredQty,
+      scheduledStartTime: input.scheduledStartTime,
+      productionLineId: stageLineIds.get(line.item_id) ?? undefined,
+      notes: `Upstream WIP for ${input.documentNumber}`,
+    });
+    if (!created.ok) {
+      if (hasWritten) throwChainCoreFailure(created.error);
+      return chainCoreFailure(created.error);
+    }
+    hasWritten = true;
+    wipEntries.push({ workOrder: created.workOrder, bomLineId: line.id });
+  }
+
+  const fgCreated = await createWorkOrderCore(
+    ctx,
+    {
+      productId: fgItem.id,
+      itemCode,
+      documentNumber: input.documentNumber,
+      siteId: input.siteId,
+      plannedQuantity: input.plannedQuantity,
+      scheduledStartTime: input.scheduledStartTime,
+      productionLineId: stageLineIds.get(fgItem.id) ?? input.productionLineId,
+      notes: input.notes,
+    },
+    options?.skipFactoryReleaseGate ? { skipFactoryReleaseGate: true } : undefined,
+  );
+  if (!fgCreated.ok) {
+    if (hasWritten) throwChainCoreFailure(fgCreated.error);
+    return chainCoreFailure(fgCreated.error);
+  }
+
+  const dependencies = await linkDependencies(ctx, fgCreated.workOrder, fgCreated.materials, wipEntries);
+  return {
+    ok: true,
+    fgWorkOrder: fgCreated.workOrder,
+    wipWorkOrders: wipEntries.map((entry) => entry.workOrder),
+    dependencies,
+    created: true,
+    fgMaterials: fgCreated.materials,
+    fgPrimarySchedule: fgCreated.primarySchedule,
+  };
+}
+
+async function loadFgWoArtifacts(
+  ctx: OrgActionContext,
+  fgWoId: string,
+): Promise<{ materials: WOMaterial[]; primarySchedule: ScheduleOutput }> {
+  const materialsResult = await ctx.client.query<{
+    id: string;
+    wo_id: string;
+    product_id: string | null;
+    material_name: string;
+    required_qty: string;
+    consumed_qty: string;
+    reserved_qty: string;
+    uom: string;
+    sequence: number;
+    material_source: string;
+    bom_item_id: string | null;
+    bom_version: number | null;
+    notes: string | null;
+  }>(
+    `select id::text as id, wo_id::text as wo_id, product_id::text as product_id,
+            material_name, required_qty::text as required_qty,
+            consumed_qty::text as consumed_qty, reserved_qty::text as reserved_qty,
+            uom, sequence, material_source, bom_item_id::text as bom_item_id,
+            bom_version, notes
+       from public.wo_materials
+      where org_id = app.current_org_id()
+        and wo_id = $1::uuid
+      order by sequence`,
+    [fgWoId],
+  );
+  const scheduleResult = await ctx.client.query<{
+    id: string;
+    planned_wo_id: string;
+    product_id: string;
+    output_role: string;
+    expected_qty: string;
+    uom: string;
+    allocation_pct: string;
+    disposition: string;
+    downstream_wo_id: string | null;
+    notes: string | null;
+  }>(
+    `select id::text as id, planned_wo_id::text as planned_wo_id, product_id::text as product_id,
+            output_role, expected_qty::text as expected_qty, uom,
+            allocation_pct::text as allocation_pct, disposition,
+            downstream_wo_id::text as downstream_wo_id, notes
+       from public.schedule_outputs
+      where org_id = app.current_org_id()
+        and planned_wo_id = $1::uuid
+        and output_role = 'primary'
+      limit 1`,
+    [fgWoId],
+  );
+  const scheduleRow = scheduleResult.rows[0];
+  if (!scheduleRow) {
+    throw new WorkOrderChainError('persistence_failed', 'fg_primary_schedule_missing');
+  }
+  return {
+    materials: materialsResult.rows.map((row) => ({
+      id: row.id,
+      woId: row.wo_id,
+      productId: row.product_id,
+      materialName: row.material_name,
+      requiredQty: row.required_qty,
+      consumedQty: row.consumed_qty,
+      reservedQty: row.reserved_qty,
+      uom: row.uom,
+      sequence: row.sequence,
+      materialSource: row.material_source,
+      bomItemId: row.bom_item_id,
+      bomVersion: row.bom_version,
+      notes: row.notes,
+    })),
+    primarySchedule: {
+      id: scheduleRow.id,
+      plannedWoId: scheduleRow.planned_wo_id,
+      productId: scheduleRow.product_id,
+      outputRole: scheduleRow.output_role,
+      expectedQty: scheduleRow.expected_qty,
+      uom: scheduleRow.uom,
+      allocationPct: scheduleRow.allocation_pct,
+      disposition: scheduleRow.disposition,
+      downstreamWoId: scheduleRow.downstream_wo_id,
+      notes: scheduleRow.notes,
+    },
+  };
+}
+
+async function loadItem(ctx: OrgActionContext, itemId: string): Promise<ItemRow | null> {
+  const { rows } = await ctx.client.query<ItemRow>(
+    `select id::text as id, item_code, output_uom, uom_base,
+            net_qty_per_each::text as net_qty_per_each,
+            each_per_box::text as each_per_box,
+            boxes_per_pallet::text as boxes_per_pallet,
+            weight_mode
+       from public.items
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [itemId],
+  );
+  return rows[0] ?? null;
+}
+
+export async function loadActiveBom(ctx: OrgActionContext, itemId: string, itemCode: string): Promise<BomHeaderRow | null> {
+  const { rows } = await ctx.client.query<BomHeaderRow>(
+    `select id::text as id, version, line_basis
+       from public.bom_headers
+      where org_id = app.current_org_id()
+        and status = 'active'
+
+**Test:** `wall-clock-time.test.ts` + `board-capacity.test.ts` — `09:00 Europe/London` → `08:00Z` (Jul BST), `09:00Z` (Jan GMT).
+
+## Gates
+- `pnpm --filter web exec tsc --noEmit` — clean
+- Vitest (35 tests): `wall-clock-time`, `board-capacity`, `sequence-solver`, `create-work-order-chain` — green
+
+## Fix round 1
+
+Adversarial review follow-up (Bugs 4/5 + cross-cutting float drift).
+
+### Cross-cutting — integer-ms bucket usage
+**Problem:** Per-day capacity buckets stored floating-point hours; 360× one-minute reservations drifted to 5.999… h and admitted a 361st WO.
+
+**Fix:** `dayUsageMs` map stores integer milliseconds end-to-end; `__dayUsageHoursForTests` converts to hours for assertions only.
+
+**Test:** `sequence-solver.test.ts` — 360 one-minute WOs fill a 6 h bucket exactly; the 361st bumps to the next UTC day.
+
+### Bug 4 — ambiguous product-ID fallback removed
+**Problem:** `linkDependencies` fell back to `fgMaterials.find(row => row.productId === …)`, silently linking duplicate WIP lines to the first material row when `bomItemId` was missing.
+
+**Fix:** `resolveMaterialForWipEntry` matches strictly by `bomItemId`; legacy product-only match allowed only when both material and WIP chain are provably unique (single row, no `bomItemId`); otherwise throws `wip_material_link_ambiguous`.
+
+**Test:** `create-work-order-chain.test.ts` — two WIP lines same product, B2 material missing `bomItemId` → explicit `{ ok: false, planningError: 'wip_material_link_ambiguous' }`.
+
+### Bug 5 — DST wall-clock validation
+**Problem:** `wallClockMatches` compared formatted time to itself, accepting nonexistent spring-forward times (e.g. `2026-03-29 01:30 Europe/London`).
+
+**Fix:** Compare formatted wall time against requested date + hour/minute (and second when present). Spring-gap policy: advance wall-clock minute-by-minute to next valid instant. Fall-back ambiguity: sort candidates by offset ascending → standard (later-offset) occurrence.
+
+**Tests:** `wall-clock-time.test.ts` — spring gap `01:30` → `02:00` local (`01:00Z`); fall-back `01:30` → standard `01:30Z`.
+
+### Gates (fix round)
+- `pnpm --filter web exec tsc --noEmit` — clean
+- Vitest (39 tests): `wall-clock-time`, `board-capacity`, `sequence-solver`, `create-work-order-chain` — green
+.../planning/schedule/__tests__/schedule.test.tsx  |   1 +
+ .../planning/schedule/_actions/schedule-board.ts   |  12 +
+ .../planning/schedule/_lib/board-capacity.test.ts  |  75 +++-
+ .../(modules)/planning/schedule/_lib/board.ts      |  45 ++-
+ .../_actions/create-work-order-chain.test.ts       | 440 +++++++++++++++++++++
+ .../_actions/create-work-order-chain.ts            |  61 ++-
+ .../_actions/__tests__/sequence-solver.test.ts     | 165 +++++++-
+ .../scheduler/_actions/sequence-solver.ts          | 129 ++++--
+ apps/web/lib/shared/wall-clock-time.test.ts        |  25 ++
+ apps/web/lib/shared/wall-clock-time.ts             | 190 +++++++++
+ 10 files changed, 1098 insertions(+), 45 deletions(-)
+
+exec
+/bin/zsh -lc "pnpm --filter web exec vitest run 'lib/shared/wall-clock-time.test.ts' 'app/[locale]/(app)/(modules)/planning/schedule/_lib/board-capacity.test.ts' 'app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts' 'app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts'" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13
+ succeeded in 595ms:
+
+ RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/apps/web
+
+
+ Test Files  4 passed (4)
+      Tests  39 passed (39)
+   Start at  13:27:07
+   Duration  213ms (transform 188ms, setup 0ms, import 231ms, tests 50ms, environment 0ms)
+
+
+codex
+All four targeted suites pass (39 tests). Bugs 1–3, integer bucket accumulation, and both DST policies are verified; the remaining decision is Bug 4, where the implementation still preserves a product-identity fallback for the “unique legacy” case despite the requested strict BOM identity.
+exec
+/bin/zsh -lc "nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts' | sed -n '505,555p'; nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts' | sed -n '630,690p'; nl -ba apps/web/lib/shared/wall-clock-time.ts | sed -n '115,195p'; nl -ba 'apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts' | sed -n '165,265p'; nl -ba 'apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts' | sed -n '590,615p'; rtk git diff --stat" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13
+ succeeded in 0ms:
+   505	    updatedAt: row.updated_at,
+   506	  };
+   507	}
+   508	
+   509	function resolveMaterialForWipEntry(
+   510	  fgMaterials: WOMaterial[],
+   511	  wipEntry: WipChainEntry,
+   512	  wipEntries: WipChainEntry[],
+   513	): WOMaterial {
+   514	  const byBomLine = fgMaterials.find((row) => row.bomItemId === wipEntry.bomLineId);
+   515	  if (byBomLine) return byBomLine;
+   516	
+   517	  const productMatches = fgMaterials.filter((row) => row.productId === wipEntry.workOrder.productId);
+   518	  const wipLinesForProduct = wipEntries.filter(
+   519	    (entry) => entry.workOrder.productId === wipEntry.workOrder.productId,
+   520	  );
+   521	  const legacyMaterial = productMatches[0];
+   522	  if (
+   523	    productMatches.length === 1
+   524	    && wipLinesForProduct.length === 1
+   525	    && legacyMaterial
+   526	    && (legacyMaterial.bomItemId == null || legacyMaterial.bomItemId === '')
+   527	  ) {
+   528	    return legacyMaterial;
+   529	  }
+   530	
+   531	  throw new WorkOrderChainError('persistence_failed', 'wip_material_link_ambiguous');
+   532	}
+   533	
+   534	async function linkDependencies(
+   535	  ctx: OrgActionContext,
+   536	  fgWorkOrder: WOHeader,
+   537	  fgMaterials: WOMaterial[],
+   538	  wipEntries: WipChainEntry[],
+   539	): Promise<Array<{ parentWoId: string; childWoId: string; materialLink: string | null; requiredQty: string | null }>> {
+   540	  const dependencies: Array<{ parentWoId: string; childWoId: string; materialLink: string | null; requiredQty: string | null }> = [];
+   541	  for (const wipEntry of wipEntries) {
+   542	    const material = resolveMaterialForWipEntry(fgMaterials, wipEntry, wipEntries);
+   543	    const { rows } = await ctx.client.query<{ parent_wo_id: string; child_wo_id: string; material_link: string | null; required_qty: string | null }>(
+   544	      `insert into public.wo_dependencies
+   545	         (org_id, parent_wo_id, child_wo_id, material_link, required_qty)
+   546	       values
+   547	         (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4::numeric)
+   548	       on conflict (org_id, parent_wo_id, child_wo_id) do update
+   549	         set material_link = coalesce(excluded.material_link, public.wo_dependencies.material_link),
+   550	             required_qty = coalesce(excluded.required_qty, public.wo_dependencies.required_qty)
+   551	       returning parent_wo_id::text as parent_wo_id,
+   552	                 child_wo_id::text as child_wo_id,
+   553	                 material_link::text as material_link,
+   554	                 required_qty::text as required_qty`,
+   555	      [
+   630	            ],
+   631	            rowCount: 2,
+   632	          };
+   633	        }
+   634	        if (q.startsWith('insert into public.wo_dependencies')) {
+   635	          dependencyInserts.push({
+   636	            parentWoId: String(params[0]),
+   637	            childWoId: String(params[1]),
+   638	            materialLink: params[2] == null ? null : String(params[2]),
+   639	            requiredQty: params[3] == null ? null : String(params[3]),
+   640	            sql,
+   641	          });
+   642	          return {
+   643	            rows: [{
+   644	              parent_wo_id: String(params[0]),
+   645	              child_wo_id: String(params[1]),
+   646	              material_link: params[2] == null ? null : String(params[2]),
+   647	              required_qty: params[3] == null ? null : String(params[3]),
+   648	            }],
+   649	            rowCount: 1,
+   650	          };
+   651	        }
+   652	        return { rows: [], rowCount: 0 };
+   653	      }),
+   654	    };
+   655	
+   656	    const result = await createWorkOrderChainForContext(
+   657	      { userId: USER_ID, orgId: ORG_ID, client },
+   658	      {
+   659	        productId: FG_ITEM_ID,
+   660	        itemCode: 'FG-DUP',
+   661	        documentNumber: 'WO-DUP',
+   662	        siteId: SITE_ID,
+   663	        plannedQuantity: '1000.0000',
+   664	      },
+   665	    );
+   666	
+   667	    expect(result).toEqual({
+   668	      ok: false,
+   669	      error: 'persistence_failed',
+   670	      planningError: 'wip_material_link_ambiguous',
+   671	      message: 'wip_material_link_ambiguous',
+   672	    });
+   673	    expect(dependencyInserts).toHaveLength(1);
+   674	    expect(dependencyInserts[0]).toMatchObject({
+   675	      parentWoId: FG_WO_ID,
+   676	      childWoId: WIP_WO_ID,
+   677	      materialLink: MATERIAL_ID,
+   678	      requiredQty: '300.000',
+   679	    });
+   680	    expect(dependencyInserts.some((row) => row.childWoId === WIP_WO_ID_2)).toBe(false);
+   681	  });
+   682	});
+   683	
+   684	describe('createWorkOrderChain mid-chain failure + factory-release gate', () => {
+   685	  beforeEach(() => {
+   686	    dependencyInserts = [];
+   687	    transactionEvents.length = 0;
+   688	    createWorkOrderCoreMock.mockReset();
+   689	    loadStageProductionLineIdsMock.mockReset();
+   690	    loadStageProductionLineIdsMock.mockResolvedValue(new Map([
+   115	    hour: Number(mapped.hour),
+   116	    minute: Number(mapped.minute),
+   117	    second: Number(mapped.second),
+   118	  };
+   119	}
+   120	
+   121	function wallClockMatches(
+   122	  formatted: WallClockParts,
+   123	  requested: WallClockParts,
+   124	  blockDate: string,
+   125	  time: string,
+   126	): boolean {
+   127	  if (formatWallDate(formatted) !== blockDate) return false;
+   128	  if (time.length <= 5) {
+   129	    return formatted.hour === requested.hour && formatted.minute === requested.minute;
+   130	  }
+   131	  return (
+   132	    formatted.hour === requested.hour
+   133	    && formatted.minute === requested.minute
+   134	    && formatted.second === requested.second
+   135	  );
+   136	}
+   137	
+   138	function instantFromOffset(parts: WallClockParts, offsetMs: number): number {
+   139	  return utcMsFromParts(parts) - offsetMs;
+   140	}
+   141	
+   142	function findExactWallClockInstants(
+   143	  parts: WallClockParts,
+   144	  blockDate: string,
+   145	  time: string,
+   146	  timeZone: string,
+   147	): number[] {
+   148	  const requested = parseWallClockParts(blockDate, time);
+   149	  if (!requested) return [];
+   150	
+   151	  const naiveUtc = utcMsFromParts(parts);
+   152	  const offsetAtNaive = getTimeZoneOffsetMs(naiveUtc, timeZone);
+   153	  const candidates = new Set<number>([instantFromOffset(parts, offsetAtNaive)]);
+   154	
+   155	  const offsetOneHourEarlier = getTimeZoneOffsetMs(naiveUtc - 60 * 60 * 1000, timeZone);
+   156	  const offsetOneHourLater = getTimeZoneOffsetMs(naiveUtc + 60 * 60 * 1000, timeZone);
+   157	  candidates.add(instantFromOffset(parts, offsetOneHourEarlier));
+   158	  candidates.add(instantFromOffset(parts, offsetOneHourLater));
+   159	
+   160	  return [...candidates].filter((candidate) =>
+   161	    wallClockMatches(formatWallClockInZone(candidate, timeZone), requested, blockDate, time),
+   162	  );
+   163	}
+   164	
+   165	/**
+   166	 * Resolve a wall-clock instant in `timeZone`. For ambiguous fall-back times, picks
+   167	 * standard (non-DST) offset. For spring-forward gaps, advances to the next valid minute.
+   168	 */
+   169	export function wallClockToInstant(
+   170	  blockDate: string,
+   171	  time: string,
+   172	  timeZone: string,
+   173	): number | null {
+   174	  const parts = parseWallClockParts(blockDate, time);
+   175	  if (!parts) return null;
+   176	
+   177	  const includeSeconds = time.length > 5;
+   178	  for (let minuteDelta = 0; minuteDelta <= 180; minuteDelta += 1) {
+   179	    const probeParts = minuteDelta === 0 ? parts : addWallMinutes(parts, minuteDelta);
+   180	    const probeDate = formatWallDate(probeParts);
+   181	    const probeTime = formatWallTime(probeParts, includeSeconds);
+   182	    const valid = findExactWallClockInstants(probeParts, probeDate, probeTime, timeZone);
+   183	    if (valid.length === 0) continue;
+   184	
+   185	    valid.sort((a, b) => getTimeZoneOffsetMs(a, timeZone) - getTimeZoneOffsetMs(b, timeZone));
+   186	    return valid[0] ?? null;
+   187	  }
+   188	
+   189	  return null;
+   190	}
+   165	    if (windowStart === null || windowEnd === null || windowEnd <= windowStart) continue;
+   166	    if (startMs < windowEnd && endMs > windowStart) return window;
+   167	  }
+   168	  return null;
+   169	}
+   170	
+   171	function bucketUsedMs(lineKey: string, dayStartMs: number, dayUsageMs: Map<string, number>): number {
+   172	  const bucketKey = dayBucketKey(lineKey, dayStartMs);
+   173	  return dayUsageMs.get(bucketKey) ?? 0;
+   174	}
+   175	
+   176	function canReserveCapacity(
+   177	  lineKey: string,
+   178	  startMs: number,
+   179	  runDurationMs: number,
+   180	  capacityMs: number,
+   181	  dayUsageMs: Map<string, number>,
+   182	): boolean {
+   183	  const endMs = startMs + runDurationMs;
+   184	  for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
+   185	    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageMs);
+   186	    if (overlap.overlapMs > capacityMs - usedMs) return false;
+   187	  }
+   188	  return true;
+   189	}
+   190	
+   191	function reserveCapacity(
+   192	  lineKey: string,
+   193	  startMs: number,
+   194	  runDurationMs: number,
+   195	  dayUsageMs: Map<string, number>,
+   196	): void {
+   197	  const endMs = startMs + runDurationMs;
+   198	  for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
+   199	    const bucketKey = dayBucketKey(lineKey, overlap.dayStartMs);
+   200	    dayUsageMs.set(bucketKey, (dayUsageMs.get(bucketKey) ?? 0) + overlap.overlapMs);
+   201	  }
+   202	}
+   203	
+   204	function nextCapacityRetryStart(
+   205	  lineKey: string,
+   206	  startMs: number,
+   207	  runDurationMs: number,
+   208	  capacityMs: number,
+   209	  dayUsageMs: Map<string, number>,
+   210	): number {
+   211	  const endMs = startMs + runDurationMs;
+   212	  let advanceTo = startMs + 60 * 1000;
+   213	  for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
+   214	    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageMs);
+   215	    const remainingMs = capacityMs - usedMs;
+   216	    if (overlap.overlapMs <= remainingMs) continue;
+   217	    if (remainingMs <= 0) {
+   218	      advanceTo = Math.max(advanceTo, overlap.dayStartMs + DAY_MS);
+   219	      continue;
+   220	    }
+   221	    advanceTo = Math.max(advanceTo, startMs + (overlap.overlapMs - remainingMs));
+   222	  }
+   223	  return advanceTo;
+   224	}
+   225	
+   226	function resolvePlannedStart(
+   227	  lineKey: string,
+   228	  earliestMs: number,
+   229	  runDurationMs: number,
+   230	  config: SequenceSolverConfig,
+   231	  dayUsageMs: Map<string, number>,
+   232	): number {
+   233	  const capacityHours = capacityHoursForLine(lineKey, config);
+   234	  const capacityMs =
+   235	    capacityHours !== null && capacityHours > 0 ? capacityHours * 60 * 60 * 1000 : null;
+   236	  const pmWindows = config.respectPmWindows ? (config.pmWindows ?? []) : [];
+   237	  let start = earliestMs;
+   238	
+   239	  for (let guard = 0; guard < MAX_CAPACITY_PLACEMENT_ATTEMPTS; guard += 1) {
+   240	    const end = start + runDurationMs;
+   241	
+   242	    const blocker = pmWindows.length > 0 ? pmWindowBlocks(lineKey, start, end, pmWindows) : null;
+   243	    if (blocker) {
+   244	      const windowEnd = timestampMs(blocker.end_at);
+   245	      if (windowEnd === null) break;
+   246	      start = Math.max(start, windowEnd);
+   247	      continue;
+   248	    }
+   249	
+   250	    if (capacityMs !== null) {
+   251	      if (canReserveCapacity(lineKey, start, runDurationMs, capacityMs, dayUsageMs)) {
+   252	        reserveCapacity(lineKey, start, runDurationMs, dayUsageMs);
+   253	        return start;
+   254	      }
+   255	      start = nextCapacityRetryStart(lineKey, start, runDurationMs, capacityMs, dayUsageMs);
+   256	      continue;
+   257	    }
+   258	
+   259	    return start;
+   260	  }
+   261	
+   262	  throw new SequenceCapacityInfeasibleError(lineKey, earliestMs, runDurationMs);
+   263	}
+   264	
+   265	function pickNextIndex(
+   590	    expect(dayUsageMs.get(`${lineKey}|2026-06-25`)).toBe(3 * 60 * 60 * 1000);
+   591	  });
+   592	
+   593	  it('bumps the 361st one-minute WO after 360 fill a 6-hour bucket without float drift', () => {
+   594	    vi.useFakeTimers();
+   595	    vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+   596	    const dayUsageMs = new Map<string, number>();
+   597	    const lineKey = LINE_ID;
+   598	    const config = { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 6 };
+   599	    const oneMinuteMs = 60 * 1000;
+   600	    const sixHoursMs = 6 * 60 * 60 * 1000;
+   601	    let cursor = Date.parse('2026-06-24T00:00:00.000Z');
+   602	
+   603	    for (let index = 0; index < 360; index += 1) {
+   604	      cursor = __resolvePlannedStartForTests(lineKey, cursor, oneMinuteMs, config, dayUsageMs);
+   605	      cursor += oneMinuteMs;
+   606	    }
+   607	
+   608	    expect(dayUsageMs.get(`${lineKey}|2026-06-24`)).toBe(sixHoursMs);
+   609	
+   610	    const bumpedStart = __resolvePlannedStartForTests(lineKey, cursor, oneMinuteMs, config, dayUsageMs);
+   611	    expect(bumpedStart).toBe(Date.parse('2026-06-25T00:00:00.000Z'));
+   612	    expect(dayUsageMs.get(`${lineKey}|2026-06-25`)).toBe(oneMinuteMs);
+   613	  });
+   614	
+   615	  it('throws SequenceCapacityInfeasibleError instead of silently scheduling over capacity', () => {
+
+
+apply patch
+patch: completed
+/Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/_meta/plans/wave-13-codex-review.md
+diff --git a/_meta/plans/wave-13-codex-review.md b/_meta/plans/wave-13-codex-review.md
+index 7ac6119792fe36223e3f30fe43b223cc37667b60..57aa02670de67e63ba66c571f904fc5006be07ca
+--- a/_meta/plans/wave-13-codex-review.md
++++ b/_meta/plans/wave-13-codex-review.md
+@@ -1,80 +1,73 @@
+-# Wave 13 Codex adversarial review
++# Wave 13 Codex re-review — fix round 1
+ 
+-Reviewed `_meta/plans/wave-13-spec.md`, `_meta/plans/wave-13-summary.md`, and `git diff origin/main..HEAD` excluding `_meta/`, with surrounding implementation and callers.
++Reviewed commit `3867eae1`, the full current implementations and callers, the fix-round summary, and the targeted runnable tests. Bugs 1–3 remain fixed. Bug 5 and the integer-ms accumulation defect are fixed. Bug 4 remains partial because the requested strict BOM-line identity contract was not fully implemented.
+ 
+-## Bug-by-bug result
++## Cross-cutting capacity arithmetic — FIXED
+ 
+-### Bug 1 — FIXED
++`apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:171-255` now carries `dayUsageMs` through lookup, admission, retry calculation, reservation, and the sequencing run. Reservations add `overlap.overlapMs` directly at `:200`; accumulated bucket state is never converted to hours. The only ms-to-hours conversion is the test-only presentation helper `__dayUsageHoursForTests` at `:372-376`, outside the capacity decision path.
+ 
+-`apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:341-357` keeps `lastWoByLine` and obtains `previous` with `lastWoByLine.get(lineKey)`. The first WO on any line gets `null`, hence zero changeover. With global order `A1(line A, milk), B1(line B, nuts), B2(line B, soy)`, B1 has no predecessor on line B and no changeover; B2 uses B1 and gets the `nuts -> soy` transition, not global predecessor A1's `milk -> soy`. The added tests pin both the cross-line case and an ordinary same-line pair.
++The capacity configuration still originates as hours and is converted once to milliseconds at `:233-235`. That is a limit conversion, not repeated bucket accumulation; for the tested 6-hour capacity it is the exact integer `21,600,000`. No float-hours bucket state or repeated float accumulation remains on the admission path.
+ 
+-The sequence-selection heuristic at `:330-334` remains global and scores candidate transitions from the global tail, but the actual time-phasing and charged changeover now use the correct per-line predecessor. That residual heuristic behavior does not recreate the reported cross-line charge or discard the real same-line predecessor.
+-
+-### Bug 2 — FIXED
+-
+-`sequence-solver.ts:176-265` removed the unchecked return after 400 attempts. A successful placement is returned only after `canReserveCapacity` validates every affected UTC-day overlap and `reserveCapacity` records them; exhaustion throws typed `SequenceCapacityInfeasibleError` (`:24-35`, `:265`). There is no residual unchecked `earliestMs` return when finite capacity applies.
+-
+-For an 8-hour WO starting at 18:00 UTC on a 6-hour/day line, `[18:00, 02:00)` is accepted as two exact buckets: 6 hours on day 1 and 2 hours on day 2. If no candidate is found in 400 attempts, the exact result is `SequenceCapacityInfeasibleError`, not an unreserved schedule.
+-
+-### Bug 3 — FIXED
+-
+-`sequence-solver.ts:183-205` uses the shared half-open `[start,end)` splitter from `planning/schedule/_lib/board.ts:184-194` for both validation and reservation. A 4-hour WO at 23:00 produces exactly 3,600,000 ms on day 1 and 10,800,000 ms on day 2. A WO ending exactly at midnight contributes nothing to the next bucket, while one starting at midnight contributes nothing to the prior bucket, so there is no boundary double-count.
+-
+-Board read-back uses the same `overlapMsWithUtcDay` semantics at `board.ts:239-247`; its utilization therefore agrees with solver reservation for cross-midnight intervals.
++`sequence-solver.test.ts:593-612` places 360 one-minute reservations, asserts the first UTC-day bucket equals exactly `21,600,000` ms, then proves the 361st starts at `2026-06-25T00:00:00.000Z` and consumes one minute in the next bucket.
+ 
+-### Bug 4 — PARTIAL (`apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts:510-513`)
++## Bug 4 — PARTIAL / FAIL
+ 
+-The normal new-chain path correctly threads each BOM line ID through `WipChainEntry` and first matches `WOMaterial.bomItemId`. The duplicate-line test proves two identical WIP products with BOM lines B1/B2 link to their respective material IDs and quantities 300/700.
++Finding:
+ 
+-However, the implementation explicitly retains `fgMaterials.find(row => row.productId === ...)` as a fallback. Concrete failure: two WIP BOM lines reference product P; FG materials contain B1/P and B2/P, but the B2 material has a missing or mismatched `bomItemId` (the stated “legacy” case). The B2 dependency falls back to the first P row, B1, reproducing the original wrong material ID and quantity. The acceptance question asks whether any `find()` by product ID remains; one does. Missing BOM identity must fail explicitly or use a genuinely unique legacy mapping, never silently choose the first repeated product.
++```text
++{severity: high, file: apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts:517, claim: The direct find()-by-productId expression was removed, but the behavioral productId fallback remains. When strict bomItemId matching fails, the function filters materials and WIP entries by productId and returns productMatches[0] when each side is unique and the material bomItemId is absent. Therefore a missing bomItemId does not always fail explicitly, contrary to the requested strict identity contract; a single-line chain can still silently link by product. A mismatched non-null bomItemId does reject, and duplicate-product ambiguity rejects. suggested-fix: Delete lines 517-529 and throw a typed missing/mismatched BOM-link error whenever the exact bomItemId lookup at lines 514-515 fails; add a single-product missing-bomItemId negative test as well as retaining the duplicate-product test.}
++```
+ 
+-### Bug 5 — PARTIAL (`apps/web/lib/shared/wall-clock-time.ts:91-98`)
++The requested duplicate-product negative test does exist at `create-work-order-chain.test.ts:467-681`: B1 and B2 use the same product, B2 has `bomItemId: null`, and the result exposes typed `planningError: 'wip_material_link_ambiguous'` without inserting B2's dependency. The production `createWorkOrderChain` lets the thrown `WorkOrderChainError` escape `withOrgContext` before mapping it, so this failure rolls back rather than committing the already inserted B1 dependency. However, that test covers only the ambiguous duplicate case and does not prove the broader stated rule that every missing BOM identity fails.
+ 
+-The ordinary BST/GMT conversions are correct and use `Intl` with the site's IANA timezone: London 09:00 maps to 08:00Z in July and 09:00Z in January. The old capacity-block `...Z` construction is removed, and no other capacity-block caller still appends `Z`. Ambiguous London 01:30 at fall-back selects the standard-time occurrence because candidates are sorted by offset.
++## Bug 5 — FIXED
+ 
+-Nonexistent spring-forward wall times are not handled as documented. `wallClockMatches` compares its formatted time string to the same formatted time string, not to the requested `time`; only the date comparison is meaningful. Concrete scenario: `2026-03-29 01:30 Europe/London` does not exist. Candidate `00:30Z` formats as 00:30 local but is nevertheless accepted because the date matches, so the function returns an instant representing the wrong wall time instead of advancing to the next valid wall minute (02:00 local) or rejecting it. The minute-probe loop at `:128-136` has the same defective predicate. There is also no test for a nonexistent or ambiguous time despite the explicit requirement.
++`apps/web/lib/shared/wall-clock-time.ts:121-136` compares the formatted candidate's hour/minute (and optional second) to parsed requested parts; it no longer compares a formatted string with itself. The exact-candidate helper uses this predicate at `:160-162`, so both the initial candidate set and every minute of the gap probe route through the corrected comparison.
+ 
+-## Cross-cutting review
++For a nonexistent time, `wallClockToInstant` advances requested wall-clock parts minute-by-minute at `:177-183` until a valid local instant exists. The London `2026-03-29 01:30` test proves advancement to local `02:00` / `01:00Z`. For ambiguous times, valid candidates are sorted by UTC offset ascending at `:185`, choosing the standard-time occurrence; the London `2026-10-25 01:30` test proves `01:30Z`, not the BST occurrence `00:30Z`.
+ 
+-### Time arithmetic — BROKEN (`sequence-solver.ts:171-203`)
++## Regression sweep
+ 
+-Bucket state is stored as floating-point hours, then converted back to milliseconds for capacity decisions. This violates the exact-ms requirement and admits over-capacity work after accumulation. Concrete schedule: on a 6-hour bucket, reserve 360 one-minute WOs. Repeated `60000 / 3600000` addition produces `5.999999999999984` hours, which reads back as `21,599,999.999999944` ms. The solver therefore sees `60,000.000000056` ms remaining and accepts a 361st one-minute WO, exceeding capacity by one minute. Store integer milliseconds in the map and convert to hours only for presentation/tests.
++- Bug 1 remains fixed: actual predecessor and charged changeover are still tracked per production line via `lastWoByLine`.
++- Bug 2 remains fixed: finite-capacity placement still throws `SequenceCapacityInfeasibleError` after bounded exhaustion; there is no unchecked placement return.
++- Bug 3 remains fixed: validation and reservation still share half-open UTC-day overlap splitting, including exact-midnight boundaries.
++- No float-hours accumulation remains in scheduler capacity bucket state. Board utilization converts exact overlaps to hours only for display/read-back aggregation, not solver admission.
++- No `... + 'Z'`, template-literal `Z` append, or equivalent UTC-forcing construction remains in the capacity-block wall-clock conversion path. The unrelated schedule UI's explicit UTC day-label construction is not a capacity-block parser.
++- No SQL reserved-keyword alias was introduced by the fix round.
+ 
+-### Complexity / SQL
++## Verification evidence
+ 
+-The new capacity work is O(number of affected day buckets) per placement attempt, capped at 400 attempts; the existing global sequencing remains O(n²). This is reasonable for normal-duration WOs, although extremely long intervals multiply the per-attempt day scan. No new SQL uses a reserved-keyword alias. The added site-timezone query is org- and site-scoped.
++Targeted test command:
+ 
+-## Verification evidence
++```text
++pnpm --filter web exec vitest run 'lib/shared/wall-clock-time.test.ts' 'app/[locale]/(app)/(modules)/planning/schedule/_lib/board-capacity.test.ts' 'app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts' 'app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts'
++```
+ 
+-Targeted tests passed after correcting paths relative to the `web` workspace. The repository-prescribed `task --wait` wrapper was unavailable (`No such file or directory`), so the tests were run directly:
++Raw stdout tail:
+ 
+ ```text
+-RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/apps/web
++ RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/apps/web
+ 
+-Test Files  4 passed (4)
+-Tests  35 passed (35)
+-Start at  13:19:32
+-Duration  167ms (transform 124ms, setup 0ms, import 184ms, tests 44ms, environment 0ms)
++ Test Files  4 passed (4)
++      Tests  39 passed (39)
++   Start at  13:27:07
++   Duration  213ms (transform 188ms, setup 0ms, import 231ms, tests 50ms, environment 0ms)
+ ```
+ 
+ Tree proof (`git diff --stat origin/main..HEAD -- . ':(exclude)_meta/**'`):
+ 
+ ```text
+ .../planning/schedule/__tests__/schedule.test.tsx  |   1 +
+-.../planning/schedule/_actions/schedule-board.ts   |  12 ++
+-.../planning/schedule/_lib/board-capacity.test.ts  |  75 ++++++-
+-.../(modules)/planning/schedule/_lib/board.ts      |  45 ++++-
+-.../_actions/create-work-order-chain.test.ts       | 222 +++++++++++++++++++++
+-.../_actions/create-work-order-chain.ts            |  26 ++-
+-.../_actions/__tests__/sequence-solver.test.ts     | 142 ++++++++++++-
+-.../scheduler/_actions/sequence-solver.ts          | 124 ++++++++++--
+-apps/web/lib/shared/wall-clock-time.test.ts        |  15 ++
+-apps/web/lib/shared/wall-clock-time.ts             | 142 +++++++++++++
+-10 files changed, 765 insertions(+), 39 deletions(-)
++.../planning/schedule/_actions/schedule-board.ts   |  12 +
++.../planning/schedule/_lib/board-capacity.test.ts  |  75 +++-
++.../(modules)/planning/schedule/_lib/board.ts      |  45 ++-
++.../_actions/create-work-order-chain.test.ts       | 440 +++++++++++++++++++++
++.../_actions/create-work-order-chain.ts            |  61 ++-
++.../_actions/__tests__/sequence-solver.test.ts     | 165 +++++++-
++.../scheduler/_actions/sequence-solver.ts          | 129 ++++--
++apps/web/lib/shared/wall-clock-time.test.ts        |  25 ++
++apps/web/lib/shared/wall-clock-time.ts             | 190 +++++++++
++10 files changed, 1098 insertions(+), 45 deletions(-)
+ ```
+ 
+ VERDICT: fail
+-
+-1. Remove the ambiguous product-ID fallback in dependency linking; missing/unmatched BOM-line identity must produce an explicit failure (or a proven unique legacy mapping), and add the negative duplicate-product test.
+-2. Fix wall-clock candidate validation to compare all requested date/time parts, define and test the exact spring-gap policy, and test the standard-time choice for a fall-back ambiguity.
+-3. Store and compare per-day usage as integer milliseconds end-to-end; add a repeated small-duration test proving the 361st one-minute WO is rejected from a 6-hour bucket.
+
+diff --git a/_meta/plans/wave-13-codex-review.md b/_meta/plans/wave-13-codex-review.md
+index 7ac6119792fe36223e3f30fe43b223cc37667b60..57aa02670de67e63ba66c571f904fc5006be07ca
+--- a/_meta/plans/wave-13-codex-review.md
++++ b/_meta/plans/wave-13-codex-review.md
+@@ -1,80 +1,73 @@
+-# Wave 13 Codex adversarial review
++# Wave 13 Codex re-review — fix round 1
+ 
+-Reviewed `_meta/plans/wave-13-spec.md`, `_meta/plans/wave-13-summary.md`, and `git diff origin/main..HEAD` excluding `_meta/`, with surrounding implementation and callers.
++Reviewed commit `3867eae1`, the full current implementations and callers, the fix-round summary, and the targeted runnable tests. Bugs 1–3 remain fixed. Bug 5 and the integer-ms accumulation defect are fixed. Bug 4 remains partial because the requested strict BOM-line identity contract was not fully implemented.
+ 
+-## Bug-by-bug result
++## Cross-cutting capacity arithmetic — FIXED
+ 
+-### Bug 1 — FIXED
++`apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:171-255` now carries `dayUsageMs` through lookup, admission, retry calculation, reservation, and the sequencing run. Reservations add `overlap.overlapMs` directly at `:200`; accumulated bucket state is never converted to hours. The only ms-to-hours conversion is the test-only presentation helper `__dayUsageHoursForTests` at `:372-376`, outside the capacity decision path.
+ 
+-`apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:341-357` keeps `lastWoByLine` and obtains `previous` with `lastWoByLine.get(lineKey)`. The first WO on any line gets `null`, hence zero changeover. With global order `A1(line A, milk), B1(line B, nuts), B2(line B, soy)`, B1 has no predecessor on line B and no changeover; B2 uses B1 and gets the `nuts -> soy` transition, not global predecessor A1's `milk -> soy`. The added tests pin both the cross-line case and an ordinary same-line pair.
++The capacity configuration still originates as hours and is converted once to milliseconds at `:233-235`. That is a limit conversion, not repeated bucket accumulation; for the tested 6-hour capacity it is the exact integer `21,600,000`. No float-hours bucket state or repeated float accumulation remains on the admission path.
+ 
+-The sequence-selection heuristic at `:330-334` remains global and scores candidate transitions from the global tail, but the actual time-phasing and charged changeover now use the correct per-line predecessor. That residual heuristic behavior does not recreate the reported cross-line charge or discard the real same-line predecessor.
+-
+-### Bug 2 — FIXED
+-
+-`sequence-solver.ts:176-265` removed the unchecked return after 400 attempts. A successful placement is returned only after `canReserveCapacity` validates every affected UTC-day overlap and `reserveCapacity` records them; exhaustion throws typed `SequenceCapacityInfeasibleError` (`:24-35`, `:265`). There is no residual unchecked `earliestMs` return when finite capacity applies.
+-
+-For an 8-hour WO starting at 18:00 UTC on a 6-hour/day line, `[18:00, 02:00)` is accepted as two exact buckets: 6 hours on day 1 and 2 hours on day 2. If no candidate is found in 400 attempts, the exact result is `SequenceCapacityInfeasibleError`, not an unreserved schedule.
+-
+-### Bug 3 — FIXED
+-
+-`sequence-solver.ts:183-205` uses the shared half-open `[start,end)` splitter from `planning/schedule/_lib/board.ts:184-194` for both validation and reservation. A 4-hour WO at 23:00 produces exactly 3,600,000 ms on day 1 and 10,800,000 ms on day 2. A WO ending exactly at midnight contributes nothing to the next bucket, while one starting at midnight contributes nothing to the prior bucket, so there is no boundary double-count.
+-
+-Board read-back uses the same `overlapMsWithUtcDay` semantics at `board.ts:239-247`; its utilization therefore agrees with solver reservation for cross-midnight intervals.
++`sequence-solver.test.ts:593-612` places 360 one-minute reservations, asserts the first UTC-day bucket equals exactly `21,600,000` ms, then proves the 361st starts at `2026-06-25T00:00:00.000Z` and consumes one minute in the next bucket.
+ 
+-### Bug 4 — PARTIAL (`apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts:510-513`)
++## Bug 4 — PARTIAL / FAIL
+ 
+-The normal new-chain path correctly threads each BOM line ID through `WipChainEntry` and first matches `WOMaterial.bomItemId`. The duplicate-line test proves two identical WIP products with BOM lines B1/B2 link to their respective material IDs and quantities 300/700.
++Finding:
+ 
+-However, the implementation explicitly retains `fgMaterials.find(row => row.productId === ...)` as a fallback. Concrete failure: two WIP BOM lines reference product P; FG materials contain B1/P and B2/P, but the B2 material has a missing or mismatched `bomItemId` (the stated “legacy” case). The B2 dependency falls back to the first P row, B1, reproducing the original wrong material ID and quantity. The acceptance question asks whether any `find()` by product ID remains; one does. Missing BOM identity must fail explicitly or use a genuinely unique legacy mapping, never silently choose the first repeated product.
++```text
++{severity: high, file: apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts:517, claim: The direct find()-by-productId expression was removed, but the behavioral productId fallback remains. When strict bomItemId matching fails, the function filters materials and WIP entries by productId and returns productMatches[0] when each side is unique and the material bomItemId is absent. Therefore a missing bomItemId does not always fail explicitly, contrary to the requested strict identity contract; a single-line chain can still silently link by product. A mismatched non-null bomItemId does reject, and duplicate-product ambiguity rejects. suggested-fix: Delete lines 517-529 and throw a typed missing/mismatched BOM-link error whenever the exact bomItemId lookup at lines 514-515 fails; add a single-product missing-bomItemId negative test as well as retaining the duplicate-product test.}
++```
+ 
+-### Bug 5 — PARTIAL (`apps/web/lib/shared/wall-clock-time.ts:91-98`)
++The requested duplicate-product negative test does exist at `create-work-order-chain.test.ts:467-681`: B1 and B2 use the same product, B2 has `bomItemId: null`, and the result exposes typed `planningError: 'wip_material_link_ambiguous'` without inserting B2's dependency. The production `createWorkOrderChain` lets the thrown `WorkOrderChainError` escape `withOrgContext` before mapping it, so this failure rolls back rather than committing the already inserted B1 dependency. However, that test covers only the ambiguous duplicate case and does not prove the broader stated rule that every missing BOM identity fails.
+ 
+-The ordinary BST/GMT conversions are correct and use `Intl` with the site's IANA timezone: London 09:00 maps to 08:00Z in July and 09:00Z in January. The old capacity-block `...Z` construction is removed, and no other capacity-block caller still appends `Z`. Ambiguous London 01:30 at fall-back selects the standard-time occurrence because candidates are sorted by offset.
++## Bug 5 — FIXED
+ 
+-Nonexistent spring-forward wall times are not handled as documented. `wallClockMatches` compares its formatted time string to the same formatted time string, not to the requested `time`; only the date comparison is meaningful. Concrete scenario: `2026-03-29 01:30 Europe/London` does not exist. Candidate `00:30Z` formats as 00:30 local but is nevertheless accepted because the date matches, so the function returns an instant representing the wrong wall time instead of advancing to the next valid wall minute (02:00 local) or rejecting it. The minute-probe loop at `:128-136` has the same defective predicate. There is also no test for a nonexistent or ambiguous time despite the explicit requirement.
++`apps/web/lib/shared/wall-clock-time.ts:121-136` compares the formatted candidate's hour/minute (and optional second) to parsed requested parts; it no longer compares a formatted string with itself. The exact-candidate helper uses this predicate at `:160-162`, so both the initial candidate set and every minute of the gap probe route through the corrected comparison.
+ 
+-## Cross-cutting review
++For a nonexistent time, `wallClockToInstant` advances requested wall-clock parts minute-by-minute at `:177-183` until a valid local instant exists. The London `2026-03-29 01:30` test proves advancement to local `02:00` / `01:00Z`. For ambiguous times, valid candidates are sorted by UTC offset ascending at `:185`, choosing the standard-time occurrence; the London `2026-10-25 01:30` test proves `01:30Z`, not the BST occurrence `00:30Z`.
+ 
+-### Time arithmetic — BROKEN (`sequence-solver.ts:171-203`)
++## Regression sweep
+ 
+-Bucket state is stored as floating-point hours, then converted back to milliseconds for capacity decisions. This violates the exact-ms requirement and admits over-capacity work after accumulation. Concrete schedule: on a 6-hour bucket, reserve 360 one-minute WOs. Repeated `60000 / 3600000` addition produces `5.999999999999984` hours, which reads back as `21,599,999.999999944` ms. The solver therefore sees `60,000.000000056` ms remaining and accepts a 361st one-minute WO, exceeding capacity by one minute. Store integer milliseconds in the map and convert to hours only for presentation/tests.
++- Bug 1 remains fixed: actual predecessor and charged changeover are still tracked per production line via `lastWoByLine`.
++- Bug 2 remains fixed: finite-capacity placement still throws `SequenceCapacityInfeasibleError` after bounded exhaustion; there is no unchecked placement return.
++- Bug 3 remains fixed: validation and reservation still share half-open UTC-day overlap splitting, including exact-midnight boundaries.
++- No float-hours accumulation remains in scheduler capacity bucket state. Board utilization converts exact overlaps to hours only for display/read-back aggregation, not solver admission.
++- No `... + 'Z'`, template-literal `Z` append, or equivalent UTC-forcing construction remains in the capacity-block wall-clock conversion path. The unrelated schedule UI's explicit UTC day-label construction is not a capacity-block parser.
++- No SQL reserved-keyword alias was introduced by the fix round.
+ 
+-### Complexity / SQL
++## Verification evidence
+ 
+-The new capacity work is O(number of affected day buckets) per placement attempt, capped at 400 attempts; the existing global sequencing remains O(n²). This is reasonable for normal-duration WOs, although extremely long intervals multiply the per-attempt day scan. No new SQL uses a reserved-keyword alias. The added site-timezone query is org- and site-scoped.
++Targeted test command:
+ 
+-## Verification evidence
++```text
++pnpm --filter web exec vitest run 'lib/shared/wall-clock-time.test.ts' 'app/[locale]/(app)/(modules)/planning/schedule/_lib/board-capacity.test.ts' 'app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts' 'app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts'
++```
+ 
+-Targeted tests passed after correcting paths relative to the `web` workspace. The repository-prescribed `task --wait` wrapper was unavailable (`No such file or directory`), so the tests were run directly:
++Raw stdout tail:
+ 
+ ```text
+-RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/apps/web
++ RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/apps/web
+ 
+-Test Files  4 passed (4)
+-Tests  35 passed (35)
+-Start at  13:19:32
+-Duration  167ms (transform 124ms, setup 0ms, import 184ms, tests 44ms, environment 0ms)
++ Test Files  4 passed (4)
++      Tests  39 passed (39)
++   Start at  13:27:07
++   Duration  213ms (transform 188ms, setup 0ms, import 231ms, tests 50ms, environment 0ms)
+ ```
+ 
+ Tree proof (`git diff --stat origin/main..HEAD -- . ':(exclude)_meta/**'`):
+ 
+ ```text
+ .../planning/schedule/__tests__/schedule.test.tsx  |   1 +
+-.../planning/schedule/_actions/schedule-board.ts   |  12 ++
+-.../planning/schedule/_lib/board-capacity.test.ts  |  75 ++++++-
+-.../(modules)/planning/schedule/_lib/board.ts      |  45 ++++-
+-.../_actions/create-work-order-chain.test.ts       | 222 +++++++++++++++++++++
+-.../_actions/create-work-order-chain.ts            |  26 ++-
+-.../_actions/__tests__/sequence-solver.test.ts     | 142 ++++++++++++-
+-.../scheduler/_actions/sequence-solver.ts          | 124 ++++++++++--
+-apps/web/lib/shared/wall-clock-time.test.ts        |  15 ++
+-apps/web/lib/shared/wall-clock-time.ts             | 142 +++++++++++++
+-10 files changed, 765 insertions(+), 39 deletions(-)
++.../planning/schedule/_actions/schedule-board.ts   |  12 +
++.../planning/schedule/_lib/board-capacity.test.ts  |  75 +++-
++.../(modules)/planning/schedule/_lib/board.ts      |  45 ++-
++.../_actions/create-work-order-chain.test.ts       | 440 +++++++++++++++++++++
++.../_actions/create-work-order-chain.ts            |  61 ++-
++.../_actions/__tests__/sequence-solver.test.ts     | 165 +++++++-
++.../scheduler/_actions/sequence-solver.ts          | 129 ++++--
++apps/web/lib/shared/wall-clock-time.test.ts        |  25 ++
++apps/web/lib/shared/wall-clock-time.ts             | 190 +++++++++
++10 files changed, 1098 insertions(+), 45 deletions(-)
+ ```
+ 
+ VERDICT: fail
+-
+-1. Remove the ambiguous product-ID fallback in dependency linking; missing/unmatched BOM-line identity must produce an explicit failure (or a proven unique legacy mapping), and add the negative duplicate-product test.
+-2. Fix wall-clock candidate validation to compare all requested date/time parts, define and test the exact spring-gap policy, and test the standard-time choice for a fall-back ambiguity.
+-3. Store and compare per-day usage as integer milliseconds end-to-end; add a repeated small-duration test proving the 361st one-minute WO is rejected from a 6-hour bucket.
+
+exec
+/bin/zsh -lc "tail -n 25 _meta/plans/wave-13-codex-review.md; rtk git status --short; rtk git diff --stat origin/main..HEAD -- . ':(exclude)_meta/**'" in /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13
+ succeeded in 0ms:
+ RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/apps/web
+
+ Test Files  4 passed (4)
+      Tests  39 passed (39)
+   Start at  13:27:07
+   Duration  213ms (transform 188ms, setup 0ms, import 231ms, tests 50ms, environment 0ms)
+```
+
+Tree proof (`git diff --stat origin/main..HEAD -- . ':(exclude)_meta/**'`):
+
+```text
+.../planning/schedule/__tests__/schedule.test.tsx  |   1 +
+.../planning/schedule/_actions/schedule-board.ts   |  12 +
+.../planning/schedule/_lib/board-capacity.test.ts  |  75 +++-
+.../(modules)/planning/schedule/_lib/board.ts      |  45 ++-
+.../_actions/create-work-order-chain.test.ts       | 440 +++++++++++++++++++++
+.../_actions/create-work-order-chain.ts            |  61 ++-
+.../_actions/__tests__/sequence-solver.test.ts     | 165 +++++++-
+.../scheduler/_actions/sequence-solver.ts          | 129 ++++--
+apps/web/lib/shared/wall-clock-time.test.ts        |  25 ++
+apps/web/lib/shared/wall-clock-time.ts             | 190 +++++++++
+10 files changed, 1098 insertions(+), 45 deletions(-)
+```
+
+VERDICT: fail
+?? _meta/plans/wave-13-codex-out.md
+?? _meta/plans/wave-13-codex-review.md
+?? _meta/plans/wave-13-codex.err
+?? _meta/plans/wave-13-composer-out.md
+?? _meta/plans/wave-13-composer-out.md.err
+?? _meta/plans/wave-13-fix-out.md
+?? _meta/plans/wave-13-fix-out.md.err
+?? _meta/plans/wave-13-fix-prompt.txt
+?? _meta/plans/wave-13-prompt.txt
+?? _meta/plans/wave-13-rereview-out.md
+?? _meta/plans/wave-13-rereview-prompt.txt
+?? _meta/plans/wave-13-rereview.err
+?? _meta/plans/wave-13-review-prompt.txt
+?? _meta/plans/wave-13-spec.md.../planning/schedule/__tests__/schedule.test.tsx  |   1 +
+ .../planning/schedule/_actions/schedule-board.ts   |  12 +
+ .../planning/schedule/_lib/board-capacity.test.ts  |  75 +++-
+ .../(modules)/planning/schedule/_lib/board.ts      |  45 ++-
+ .../_actions/create-work-order-chain.test.ts       | 440 +++++++++++++++++++++
+ .../_actions/create-work-order-chain.ts            |  61 ++-
+ .../_actions/__tests__/sequence-solver.test.ts     | 165 +++++++-
+ .../scheduler/_actions/sequence-solver.ts          | 129 ++++--
+ apps/web/lib/shared/wall-clock-time.test.ts        |  25 ++
+ apps/web/lib/shared/wall-clock-time.ts             | 190 +++++++++
+ 10 files changed, 1098 insertions(+), 45 deletions(-)
+
+diff --git a/_meta/plans/wave-13-codex-review.md b/_meta/plans/wave-13-codex-review.md
+index 7ac6119792fe36223e3f30fe43b223cc37667b60..57aa02670de67e63ba66c571f904fc5006be07ca
+--- a/_meta/plans/wave-13-codex-review.md
++++ b/_meta/plans/wave-13-codex-review.md
+@@ -1,80 +1,73 @@
+-# Wave 13 Codex adversarial review
++# Wave 13 Codex re-review — fix round 1
+ 
+-Reviewed `_meta/plans/wave-13-spec.md`, `_meta/plans/wave-13-summary.md`, and `git diff origin/main..HEAD` excluding `_meta/`, with surrounding implementation and callers.
++Reviewed commit `3867eae1`, the full current implementations and callers, the fix-round summary, and the targeted runnable tests. Bugs 1–3 remain fixed. Bug 5 and the integer-ms accumulation defect are fixed. Bug 4 remains partial because the requested strict BOM-line identity contract was not fully implemented.
+ 
+-## Bug-by-bug result
++## Cross-cutting capacity arithmetic — FIXED
+ 
+-### Bug 1 — FIXED
++`apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:171-255` now carries `dayUsageMs` through lookup, admission, retry calculation, reservation, and the sequencing run. Reservations add `overlap.overlapMs` directly at `:200`; accumulated bucket state is never converted to hours. The only ms-to-hours conversion is the test-only presentation helper `__dayUsageHoursForTests` at `:372-376`, outside the capacity decision path.
+ 
+-`apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:341-357` keeps `lastWoByLine` and obtains `previous` with `lastWoByLine.get(lineKey)`. The first WO on any line gets `null`, hence zero changeover. With global order `A1(line A, milk), B1(line B, nuts), B2(line B, soy)`, B1 has no predecessor on line B and no changeover; B2 uses B1 and gets the `nuts -> soy` transition, not global predecessor A1's `milk -> soy`. The added tests pin both the cross-line case and an ordinary same-line pair.
++The capacity configuration still originates as hours and is converted once to milliseconds at `:233-235`. That is a limit conversion, not repeated bucket accumulation; for the tested 6-hour capacity it is the exact integer `21,600,000`. No float-hours bucket state or repeated float accumulation remains on the admission path.
+ 
+-The sequence-selection heuristic at `:330-334` remains global and scores candidate transitions from the global tail, but the actual time-phasing and charged changeover now use the correct per-line predecessor. That residual heuristic behavior does not recreate the reported cross-line charge or discard the real same-line predecessor.
+-
+-### Bug 2 — FIXED
+-
+-`sequence-solver.ts:176-265` removed the unchecked return after 400 attempts. A successful placement is returned only after `canReserveCapacity` validates every affected UTC-day overlap and `reserveCapacity` records them; exhaustion throws typed `SequenceCapacityInfeasibleError` (`:24-35`, `:265`). There is no residual unchecked `earliestMs` return when finite capacity applies.
+-
+-For an 8-hour WO starting at 18:00 UTC on a 6-hour/day line, `[18:00, 02:00)` is accepted as two exact buckets: 6 hours on day 1 and 2 hours on day 2. If no candidate is found in 400 attempts, the exact result is `SequenceCapacityInfeasibleError`, not an unreserved schedule.
+-
+-### Bug 3 — FIXED
+-
+-`sequence-solver.ts:183-205` uses the shared half-open `[start,end)` splitter from `planning/schedule/_lib/board.ts:184-194` for both validation and reservation. A 4-hour WO at 23:00 produces exactly 3,600,000 ms on day 1 and 10,800,000 ms on day 2. A WO ending exactly at midnight contributes nothing to the next bucket, while one starting at midnight contributes nothing to the prior bucket, so there is no boundary double-count.
+-
+-Board read-back uses the same `overlapMsWithUtcDay` semantics at `board.ts:239-247`; its utilization therefore agrees with solver reservation for cross-midnight intervals.
++`sequence-solver.test.ts:593-612` places 360 one-minute reservations, asserts the first UTC-day bucket equals exactly `21,600,000` ms, then proves the 361st starts at `2026-06-25T00:00:00.000Z` and consumes one minute in the next bucket.
+ 
+-### Bug 4 — PARTIAL (`apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts:510-513`)
++## Bug 4 — PARTIAL / FAIL
+ 
+-The normal new-chain path correctly threads each BOM line ID through `WipChainEntry` and first matches `WOMaterial.bomItemId`. The duplicate-line test proves two identical WIP products with BOM lines B1/B2 link to their respective material IDs and quantities 300/700.
++Finding:
+ 
+-However, the implementation explicitly retains `fgMaterials.find(row => row.productId === ...)` as a fallback. Concrete failure: two WIP BOM lines reference product P; FG materials contain B1/P and B2/P, but the B2 material has a missing or mismatched `bomItemId` (the stated “legacy” case). The B2 dependency falls back to the first P row, B1, reproducing the original wrong material ID and quantity. The acceptance question asks whether any `find()` by product ID remains; one does. Missing BOM identity must fail explicitly or use a genuinely unique legacy mapping, never silently choose the first repeated product.
++```text
++{severity: high, file: apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts:517, claim: The direct find()-by-productId expression was removed, but the behavioral productId fallback remains. When strict bomItemId matching fails, the function filters materials and WIP entries by productId and returns productMatches[0] when each side is unique and the material bomItemId is absent. Therefore a missing bomItemId does not always fail explicitly, contrary to the requested strict identity contract; a single-line chain can still silently link by product. A mismatched non-null bomItemId does reject, and duplicate-product ambiguity rejects. suggested-fix: Delete lines 517-529 and throw a typed missing/mismatched BOM-link error whenever the exact bomItemId lookup at lines 514-515 fails; add a single-product missing-bomItemId negative test as well as retaining the duplicate-product test.}
++```
+ 
+-### Bug 5 — PARTIAL (`apps/web/lib/shared/wall-clock-time.ts:91-98`)
++The requested duplicate-product negative test does exist at `create-work-order-chain.test.ts:467-681`: B1 and B2 use the same product, B2 has `bomItemId: null`, and the result exposes typed `planningError: 'wip_material_link_ambiguous'` without inserting B2's dependency. The production `createWorkOrderChain` lets the thrown `WorkOrderChainError` escape `withOrgContext` before mapping it, so this failure rolls back rather than committing the already inserted B1 dependency. However, that test covers only the ambiguous duplicate case and does not prove the broader stated rule that every missing BOM identity fails.
+ 
+-The ordinary BST/GMT conversions are correct and use `Intl` with the site's IANA timezone: London 09:00 maps to 08:00Z in July and 09:00Z in January. The old capacity-block `...Z` construction is removed, and no other capacity-block caller still appends `Z`. Ambiguous London 01:30 at fall-back selects the standard-time occurrence because candidates are sorted by offset.
++## Bug 5 — FIXED
+ 
+-Nonexistent spring-forward wall times are not handled as documented. `wallClockMatches` compares its formatted time string to the same formatted time string, not to the requested `time`; only the date comparison is meaningful. Concrete scenario: `2026-03-29 01:30 Europe/London` does not exist. Candidate `00:30Z` formats as 00:30 local but is nevertheless accepted because the date matches, so the function returns an instant representing the wrong wall time instead of advancing to the next valid wall minute (02:00 local) or rejecting it. The minute-probe loop at `:128-136` has the same defective predicate. There is also no test for a nonexistent or ambiguous time despite the explicit requirement.
++`apps/web/lib/shared/wall-clock-time.ts:121-136` compares the formatted candidate's hour/minute (and optional second) to parsed requested parts; it no longer compares a formatted string with itself. The exact-candidate helper uses this predicate at `:160-162`, so both the initial candidate set and every minute of the gap probe route through the corrected comparison.
+ 
+-## Cross-cutting review
++For a nonexistent time, `wallClockToInstant` advances requested wall-clock parts minute-by-minute at `:177-183` until a valid local instant exists. The London `2026-03-29 01:30` test proves advancement to local `02:00` / `01:00Z`. For ambiguous times, valid candidates are sorted by UTC offset ascending at `:185`, choosing the standard-time occurrence; the London `2026-10-25 01:30` test proves `01:30Z`, not the BST occurrence `00:30Z`.
+ 
+-### Time arithmetic — BROKEN (`sequence-solver.ts:171-203`)
++## Regression sweep
+ 
+-Bucket state is stored as floating-point hours, then converted back to milliseconds for capacity decisions. This violates the exact-ms requirement and admits over-capacity work after accumulation. Concrete schedule: on a 6-hour bucket, reserve 360 one-minute WOs. Repeated `60000 / 3600000` addition produces `5.999999999999984` hours, which reads back as `21,599,999.999999944` ms. The solver therefore sees `60,000.000000056` ms remaining and accepts a 361st one-minute WO, exceeding capacity by one minute. Store integer milliseconds in the map and convert to hours only for presentation/tests.
++- Bug 1 remains fixed: actual predecessor and charged changeover are still tracked per production line via `lastWoByLine`.
++- Bug 2 remains fixed: finite-capacity placement still throws `SequenceCapacityInfeasibleError` after bounded exhaustion; there is no unchecked placement return.
++- Bug 3 remains fixed: validation and reservation still share half-open UTC-day overlap splitting, including exact-midnight boundaries.
++- No float-hours accumulation remains in scheduler capacity bucket state. Board utilization converts exact overlaps to hours only for display/read-back aggregation, not solver admission.
++- No `... + 'Z'`, template-literal `Z` append, or equivalent UTC-forcing construction remains in the capacity-block wall-clock conversion path. The unrelated schedule UI's explicit UTC day-label construction is not a capacity-block parser.
++- No SQL reserved-keyword alias was introduced by the fix round.
+ 
+-### Complexity / SQL
++## Verification evidence
+ 
+-The new capacity work is O(number of affected day buckets) per placement attempt, capped at 400 attempts; the existing global sequencing remains O(n²). This is reasonable for normal-duration WOs, although extremely long intervals multiply the per-attempt day scan. No new SQL uses a reserved-keyword alias. The added site-timezone query is org- and site-scoped.
++Targeted test command:
+ 
+-## Verification evidence
++```text
++pnpm --filter web exec vitest run 'lib/shared/wall-clock-time.test.ts' 'app/[locale]/(app)/(modules)/planning/schedule/_lib/board-capacity.test.ts' 'app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts' 'app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts'
++```
+ 
+-Targeted tests passed after correcting paths relative to the `web` workspace. The repository-prescribed `task --wait` wrapper was unavailable (`No such file or directory`), so the tests were run directly:
++Raw stdout tail:
+ 
+ ```text
+-RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/apps/web
++ RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/apps/web
+ 
+-Test Files  4 passed (4)
+-Tests  35 passed (35)
+-Start at  13:19:32
+-Duration  167ms (transform 124ms, setup 0ms, import 184ms, tests 44ms, environment 0ms)
++ Test Files  4 passed (4)
++      Tests  39 passed (39)
++   Start at  13:27:07
++   Duration  213ms (transform 188ms, setup 0ms, import 231ms, tests 50ms, environment 0ms)
+ ```
+ 
+ Tree proof (`git diff --stat origin/main..HEAD -- . ':(exclude)_meta/**'`):
+ 
+ ```text
+ .../planning/schedule/__tests__/schedule.test.tsx  |   1 +
+-.../planning/schedule/_actions/schedule-board.ts   |  12 ++
+-.../planning/schedule/_lib/board-capacity.test.ts  |  75 ++++++-
+-.../(modules)/planning/schedule/_lib/board.ts      |  45 ++++-
+-.../_actions/create-work-order-chain.test.ts       | 222 +++++++++++++++++++++
+-.../_actions/create-work-order-chain.ts            |  26 ++-
+-.../_actions/__tests__/sequence-solver.test.ts     | 142 ++++++++++++-
+-.../scheduler/_actions/sequence-solver.ts          | 124 ++++++++++--
+-apps/web/lib/shared/wall-clock-time.test.ts        |  15 ++
+-apps/web/lib/shared/wall-clock-time.ts             | 142 +++++++++++++
+-10 files changed, 765 insertions(+), 39 deletions(-)
++.../planning/schedule/_actions/schedule-board.ts   |  12 +
++.../planning/schedule/_lib/board-capacity.test.ts  |  75 +++-
++.../(modules)/planning/schedule/_lib/board.ts      |  45 ++-
++.../_actions/create-work-order-chain.test.ts       | 440 +++++++++++++++++++++
++.../_actions/create-work-order-chain.ts            |  61 ++-
++.../_actions/__tests__/sequence-solver.test.ts     | 165 +++++++-
++.../scheduler/_actions/sequence-solver.ts          | 129 ++++--
++apps/web/lib/shared/wall-clock-time.test.ts        |  25 ++
++apps/web/lib/shared/wall-clock-time.ts             | 190 +++++++++
++10 files changed, 1098 insertions(+), 45 deletions(-)
+ ```
+ 
+ VERDICT: fail
+-
+-1. Remove the ambiguous product-ID fallback in dependency linking; missing/unmatched BOM-line identity must produce an explicit failure (or a proven unique legacy mapping), and add the negative duplicate-product test.
+-2. Fix wall-clock candidate validation to compare all requested date/time parts, define and test the exact spring-gap policy, and test the standard-time choice for a fall-back ambiguity.
+-3. Store and compare per-day usage as integer milliseconds end-to-end; add a repeated small-duration test proving the 361st one-minute WO is rejected from a 6-hour bucket.
+
+codex
+Re-review complete and [_meta/plans/wave-13-codex-review.md](/Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/_meta/plans/wave-13-codex-review.md) overwritten.
+
+Verdict: **fail**. Capacity arithmetic and Bug 5 are fixed; Bugs 1–3 remain fixed. Bug 4 remains partial because product-based legacy fallback behavior still exists for unique products with missing `bomItemId`.
+
+Targeted verification: 4 test files, 39 tests passed. No other files modified.
+diff --git a/_meta/plans/wave-13-codex-review.md b/_meta/plans/wave-13-codex-review.md
+index 7ac6119792fe36223e3f30fe43b223cc37667b60..57aa02670de67e63ba66c571f904fc5006be07ca
+--- a/_meta/plans/wave-13-codex-review.md
++++ b/_meta/plans/wave-13-codex-review.md
+@@ -1,80 +1,73 @@
+-# Wave 13 Codex adversarial review
++# Wave 13 Codex re-review — fix round 1
+ 
+-Reviewed `_meta/plans/wave-13-spec.md`, `_meta/plans/wave-13-summary.md`, and `git diff origin/main..HEAD` excluding `_meta/`, with surrounding implementation and callers.
++Reviewed commit `3867eae1`, the full current implementations and callers, the fix-round summary, and the targeted runnable tests. Bugs 1–3 remain fixed. Bug 5 and the integer-ms accumulation defect are fixed. Bug 4 remains partial because the requested strict BOM-line identity contract was not fully implemented.
+ 
+-## Bug-by-bug result
++## Cross-cutting capacity arithmetic — FIXED
+ 
+-### Bug 1 — FIXED
++`apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:171-255` now carries `dayUsageMs` through lookup, admission, retry calculation, reservation, and the sequencing run. Reservations add `overlap.overlapMs` directly at `:200`; accumulated bucket state is never converted to hours. The only ms-to-hours conversion is the test-only presentation helper `__dayUsageHoursForTests` at `:372-376`, outside the capacity decision path.
+ 
+-`apps/web/app/[locale]/(app)/(modules)/scheduler/_actions/sequence-solver.ts:341-357` keeps `lastWoByLine` and obtains `previous` with `lastWoByLine.get(lineKey)`. The first WO on any line gets `null`, hence zero changeover. With global order `A1(line A, milk), B1(line B, nuts), B2(line B, soy)`, B1 has no predecessor on line B and no changeover; B2 uses B1 and gets the `nuts -> soy` transition, not global predecessor A1's `milk -> soy`. The added tests pin both the cross-line case and an ordinary same-line pair.
++The capacity configuration still originates as hours and is converted once to milliseconds at `:233-235`. That is a limit conversion, not repeated bucket accumulation; for the tested 6-hour capacity it is the exact integer `21,600,000`. No float-hours bucket state or repeated float accumulation remains on the admission path.
+ 
+-The sequence-selection heuristic at `:330-334` remains global and scores candidate transitions from the global tail, but the actual time-phasing and charged changeover now use the correct per-line predecessor. That residual heuristic behavior does not recreate the reported cross-line charge or discard the real same-line predecessor.
+-
+-### Bug 2 — FIXED
+-
+-`sequence-solver.ts:176-265` removed the unchecked return after 400 attempts. A successful placement is returned only after `canReserveCapacity` validates every affected UTC-day overlap and `reserveCapacity` records them; exhaustion throws typed `SequenceCapacityInfeasibleError` (`:24-35`, `:265`). There is no residual unchecked `earliestMs` return when finite capacity applies.
+-
+-For an 8-hour WO starting at 18:00 UTC on a 6-hour/day line, `[18:00, 02:00)` is accepted as two exact buckets: 6 hours on day 1 and 2 hours on day 2. If no candidate is found in 400 attempts, the exact result is `SequenceCapacityInfeasibleError`, not an unreserved schedule.
+-
+-### Bug 3 — FIXED
+-
+-`sequence-solver.ts:183-205` uses the shared half-open `[start,end)` splitter from `planning/schedule/_lib/board.ts:184-194` for both validation and reservation. A 4-hour WO at 23:00 produces exactly 3,600,000 ms on day 1 and 10,800,000 ms on day 2. A WO ending exactly at midnight contributes nothing to the next bucket, while one starting at midnight contributes nothing to the prior bucket, so there is no boundary double-count.
+-
+-Board read-back uses the same `overlapMsWithUtcDay` semantics at `board.ts:239-247`; its utilization therefore agrees with solver reservation for cross-midnight intervals.
++`sequence-solver.test.ts:593-612` places 360 one-minute reservations, asserts the first UTC-day bucket equals exactly `21,600,000` ms, then proves the 361st starts at `2026-06-25T00:00:00.000Z` and consumes one minute in the next bucket.
+ 
+-### Bug 4 — PARTIAL (`apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts:510-513`)
++## Bug 4 — PARTIAL / FAIL
+ 
+-The normal new-chain path correctly threads each BOM line ID through `WipChainEntry` and first matches `WOMaterial.bomItemId`. The duplicate-line test proves two identical WIP products with BOM lines B1/B2 link to their respective material IDs and quantities 300/700.
++Finding:
+ 
+-However, the implementation explicitly retains `fgMaterials.find(row => row.productId === ...)` as a fallback. Concrete failure: two WIP BOM lines reference product P; FG materials contain B1/P and B2/P, but the B2 material has a missing or mismatched `bomItemId` (the stated “legacy” case). The B2 dependency falls back to the first P row, B1, reproducing the original wrong material ID and quantity. The acceptance question asks whether any `find()` by product ID remains; one does. Missing BOM identity must fail explicitly or use a genuinely unique legacy mapping, never silently choose the first repeated product.
++```text
++{severity: high, file: apps/web/app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.ts:517, claim: The direct find()-by-productId expression was removed, but the behavioral productId fallback remains. When strict bomItemId matching fails, the function filters materials and WIP entries by productId and returns productMatches[0] when each side is unique and the material bomItemId is absent. Therefore a missing bomItemId does not always fail explicitly, contrary to the requested strict identity contract; a single-line chain can still silently link by product. A mismatched non-null bomItemId does reject, and duplicate-product ambiguity rejects. suggested-fix: Delete lines 517-529 and throw a typed missing/mismatched BOM-link error whenever the exact bomItemId lookup at lines 514-515 fails; add a single-product missing-bomItemId negative test as well as retaining the duplicate-product test.}
++```
+ 
+-### Bug 5 — PARTIAL (`apps/web/lib/shared/wall-clock-time.ts:91-98`)
++The requested duplicate-product negative test does exist at `create-work-order-chain.test.ts:467-681`: B1 and B2 use the same product, B2 has `bomItemId: null`, and the result exposes typed `planningError: 'wip_material_link_ambiguous'` without inserting B2's dependency. The production `createWorkOrderChain` lets the thrown `WorkOrderChainError` escape `withOrgContext` before mapping it, so this failure rolls back rather than committing the already inserted B1 dependency. However, that test covers only the ambiguous duplicate case and does not prove the broader stated rule that every missing BOM identity fails.
+ 
+-The ordinary BST/GMT conversions are correct and use `Intl` with the site's IANA timezone: London 09:00 maps to 08:00Z in July and 09:00Z in January. The old capacity-block `...Z` construction is removed, and no other capacity-block caller still appends `Z`. Ambiguous London 01:30 at fall-back selects the standard-time occurrence because candidates are sorted by offset.
++## Bug 5 — FIXED
+ 
+-Nonexistent spring-forward wall times are not handled as documented. `wallClockMatches` compares its formatted time string to the same formatted time string, not to the requested `time`; only the date comparison is meaningful. Concrete scenario: `2026-03-29 01:30 Europe/London` does not exist. Candidate `00:30Z` formats as 00:30 local but is nevertheless accepted because the date matches, so the function returns an instant representing the wrong wall time instead of advancing to the next valid wall minute (02:00 local) or rejecting it. The minute-probe loop at `:128-136` has the same defective predicate. There is also no test for a nonexistent or ambiguous time despite the explicit requirement.
++`apps/web/lib/shared/wall-clock-time.ts:121-136` compares the formatted candidate's hour/minute (and optional second) to parsed requested parts; it no longer compares a formatted string with itself. The exact-candidate helper uses this predicate at `:160-162`, so both the initial candidate set and every minute of the gap probe route through the corrected comparison.
+ 
+-## Cross-cutting review
++For a nonexistent time, `wallClockToInstant` advances requested wall-clock parts minute-by-minute at `:177-183` until a valid local instant exists. The London `2026-03-29 01:30` test proves advancement to local `02:00` / `01:00Z`. For ambiguous times, valid candidates are sorted by UTC offset ascending at `:185`, choosing the standard-time occurrence; the London `2026-10-25 01:30` test proves `01:30Z`, not the BST occurrence `00:30Z`.
+ 
+-### Time arithmetic — BROKEN (`sequence-solver.ts:171-203`)
++## Regression sweep
+ 
+-Bucket state is stored as floating-point hours, then converted back to milliseconds for capacity decisions. This violates the exact-ms requirement and admits over-capacity work after accumulation. Concrete schedule: on a 6-hour bucket, reserve 360 one-minute WOs. Repeated `60000 / 3600000` addition produces `5.999999999999984` hours, which reads back as `21,599,999.999999944` ms. The solver therefore sees `60,000.000000056` ms remaining and accepts a 361st one-minute WO, exceeding capacity by one minute. Store integer milliseconds in the map and convert to hours only for presentation/tests.
++- Bug 1 remains fixed: actual predecessor and charged changeover are still tracked per production line via `lastWoByLine`.
++- Bug 2 remains fixed: finite-capacity placement still throws `SequenceCapacityInfeasibleError` after bounded exhaustion; there is no unchecked placement return.
++- Bug 3 remains fixed: validation and reservation still share half-open UTC-day overlap splitting, including exact-midnight boundaries.
++- No float-hours accumulation remains in scheduler capacity bucket state. Board utilization converts exact overlaps to hours only for display/read-back aggregation, not solver admission.
++- No `... + 'Z'`, template-literal `Z` append, or equivalent UTC-forcing construction remains in the capacity-block wall-clock conversion path. The unrelated schedule UI's explicit UTC day-label construction is not a capacity-block parser.
++- No SQL reserved-keyword alias was introduced by the fix round.
+ 
+-### Complexity / SQL
++## Verification evidence
+ 
+-The new capacity work is O(number of affected day buckets) per placement attempt, capped at 400 attempts; the existing global sequencing remains O(n²). This is reasonable for normal-duration WOs, although extremely long intervals multiply the per-attempt day scan. No new SQL uses a reserved-keyword alias. The added site-timezone query is org- and site-scoped.
++Targeted test command:
+ 
+-## Verification evidence
++```text
++pnpm --filter web exec vitest run 'lib/shared/wall-clock-time.test.ts' 'app/[locale]/(app)/(modules)/planning/schedule/_lib/board-capacity.test.ts' 'app/[locale]/(app)/(modules)/scheduler/_actions/__tests__/sequence-solver.test.ts' 'app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain.test.ts'
++```
+ 
+-Targeted tests passed after correcting paths relative to the `web` workspace. The repository-prescribed `task --wait` wrapper was unavailable (`No such file or directory`), so the tests were run directly:
++Raw stdout tail:
+ 
+ ```text
+-RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/apps/web
++ RUN  v4.1.5 /Users/mariuszkrawczyk/Projects/monopilot-worktrees/wave13/apps/web
+ 
+-Test Files  4 passed (4)
+-Tests  35 passed (35)
+-Start at  13:19:32
+-Duration  167ms (transform 124ms, setup 0ms, import 184ms, tests 44ms, environment 0ms)
++ Test Files  4 passed (4)
++      Tests  39 passed (39)
++   Start at  13:27:07
++   Duration  213ms (transform 188ms, setup 0ms, import 231ms, tests 50ms, environment 0ms)
+ ```
+ 
+ Tree proof (`git diff --stat origin/main..HEAD -- . ':(exclude)_meta/**'`):
+ 
+ ```text
+ .../planning/schedule/__tests__/schedule.test.tsx  |   1 +
+-.../planning/schedule/_actions/schedule-board.ts   |  12 ++
+-.../planning/schedule/_lib/board-capacity.test.ts  |  75 ++++++-
+-.../(modules)/planning/schedule/_lib/board.ts      |  45 ++++-
+-.../_actions/create-work-order-chain.test.ts       | 222 +++++++++++++++++++++
+-.../_actions/create-work-order-chain.ts            |  26 ++-
+-.../_actions/__tests__/sequence-solver.test.ts     | 142 ++++++++++++-
+-.../scheduler/_actions/sequence-solver.ts          | 124 ++++++++++--
+-apps/web/lib/shared/wall-clock-time.test.ts        |  15 ++
+-apps/web/lib/shared/wall-clock-time.ts             | 142 +++++++++++++
+-10 files changed, 765 insertions(+), 39 deletions(-)
++.../planning/schedule/_actions/schedule-board.ts   |  12 +
++.../planning/schedule/_lib/board-capacity.test.ts  |  75 +++-
++.../(modules)/planning/schedule/_lib/board.ts      |  45 ++-
++.../_actions/create-work-order-chain.test.ts       | 440 +++++++++++++++++++++
++.../_actions/create-work-order-chain.ts            |  61 ++-
++.../_actions/__tests__/sequence-solver.test.ts     | 165 +++++++-
++.../scheduler/_actions/sequence-solver.ts          | 129 ++++--
++apps/web/lib/shared/wall-clock-time.test.ts        |  25 ++
++apps/web/lib/shared/wall-clock-time.ts             | 190 +++++++++
++10 files changed, 1098 insertions(+), 45 deletions(-)
+ ```
+ 
+ VERDICT: fail
+-
+-1. Remove the ambiguous product-ID fallback in dependency linking; missing/unmatched BOM-line identity must produce an explicit failure (or a proven unique legacy mapping), and add the negative duplicate-product test.
+-2. Fix wall-clock candidate validation to compare all requested date/time parts, define and test the exact spring-gap policy, and test the standard-time choice for a fall-back ambiguity.
+-3. Store and compare per-day usage as integer milliseconds end-to-end; add a repeated small-duration test proving the 361st one-minute WO is rejected from a 6-hour bucket.
+
+tokens used
+52,802
