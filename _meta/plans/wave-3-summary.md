@@ -66,3 +66,38 @@
 
 - `pnpm --filter web exec tsc --noEmit` — clean
 - Vitest (96 tests across touched files) — all green
+
+## Fix round 1
+
+Adversarial review verdict: **fail** — three required changes.
+
+### 1. Bug 2 — post-Promote yield prompt window
+
+**Finding:** `updateBomYield` allowed in-place edits only while `promote_to_production_date IS NULL`, but `promoteToProduction` stamps that date before returning `yieldPromptRequired`, so the normal Promote → yield-prompt path was blocked.
+
+**Fix:** Narrow the active-NPD handoff correction window to `promote_to_production_date IS NULL` **or** `yield_pct IS NULL` (unset yield is why the prompt fires). Once yield is saved, further edits require ECO.
+
+**Tests:** `update-bom-yield.test.ts` — post-promote unset-yield allowed; promoted BOM with yield set refused.
+
+### 2. Bug 6 — holds on new outputs + overlapping release
+
+**Finding:** WO hold create only snapshotted existing outputs; outputs registered during an open hold stayed `PENDING`. Releasing one of two overlapping WO holds restored snapshots even while the other hold remained open.
+
+**Fix:**
+- `register-output.ts`, `start-wo.ts`, `register-disassembly-output.ts` — set `qa_status` to `ON_HOLD` on insert when `v_active_holds` has an open WO hold.
+- `hold-actions.ts` release — restore per-output `qa_status` only when no other open WO hold covers the same WO (`hold_id <> releasing hold`).
+
+**Tests:** `register-output-wo-hold-inheritance.test.ts` (create-during-hold); `hold-actions.test.ts` overlapping WO holds keeps outputs `ON_HOLD`.
+
+### 3. Bug 5 — org-scoped state transition + affected-row check
+
+**Finding:** `submitForTrial` updated `formulation_versions` by `id` only (no explicit `org_id`) and did not verify a row was updated, allowing trial/audit/outbox to commit without the state write.
+
+**Fix:** `UPDATE … FROM formulations f` with `f.org_id = app.current_org_id()`, `RETURNING fv.id`, throw on zero rows so the transaction rolls back.
+
+**Tests:** `submit-for-trial.test.ts` — SQL org filter + zero-row transition returns `persistence_failed` without audit/outbox writes.
+
+### Gates (fix round)
+
+- `pnpm --filter web exec tsc --noEmit` — clean
+- Vitest (22 tests across touched fix files) — all green
