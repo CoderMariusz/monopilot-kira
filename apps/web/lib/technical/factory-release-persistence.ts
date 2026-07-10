@@ -33,6 +33,8 @@ export type ReleasedToFactoryEventInput = {
   productCode: string;
   activeBomHeaderId: string;
   activeFactorySpecId: string;
+  /** Approval-cycle discriminator — changes after recall + re-approve so re-release emits a fresh event. */
+  releaseAttemptKey: string;
 };
 
 export async function supersedePriorReleasedFactorySpecs(
@@ -56,7 +58,7 @@ export async function insertReleasedToFactoryEvent(
   input: ReleasedToFactoryEventInput,
 ): Promise<number> {
   const scopeKey = input.projectId ?? input.productCode;
-  const dedupKey = `${FACTORY_RELEASE_EVENT_APP_VERSION}:${scopeKey}:released-to-factory:${input.activeBomHeaderId}:${input.activeFactorySpecId}`;
+  const dedupKey = `${FACTORY_RELEASE_EVENT_APP_VERSION}:${scopeKey}:released-to-factory:${input.activeBomHeaderId}:${input.activeFactorySpecId}:${input.releaseAttemptKey}`;
   const aggregateId = input.projectId ?? input.productCode;
   const payload: Record<string, unknown> = {
     org_id: ctx.orgId,

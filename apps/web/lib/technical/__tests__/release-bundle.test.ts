@@ -1,7 +1,7 @@
 import { signEvent } from '@monopilot/e-sign';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { approveReleaseBundle, type QueryClient } from '../release-bundle-service';
+import { approveReleaseBundle, rejectReleaseBundle, type QueryClient } from '../release-bundle-service';
 
 vi.mock('@monopilot/e-sign', () => ({
   signEvent: vi.fn(async () => ({ signatureId: '99999999-9999-4999-8999-999999999999' })),
@@ -192,6 +192,7 @@ describe('release bundle approval BOM status compatibility', () => {
 
     expect(result).toMatchObject({ ok: false, error: 'invalid_state', message: 'factory_spec no longer in_review' });
     expect(spec.status).toBe('in_review');
+    expect(vi.mocked(signEvent)).not.toHaveBeenCalled();
     expect(calls.some((call) => normalize(call.sql).includes("set status = 'superseded'"))).toBe(false);
   });
 
@@ -209,5 +210,138 @@ describe('release bundle approval BOM status compatibility', () => {
     const supersedeIdx = calls.findIndex((call) => normalize(call.sql).includes("set status = 'superseded'"));
     expect(approveIdx).toBeGreaterThanOrEqual(0);
     expect(supersedeIdx).toBeGreaterThan(approveIdx);
+  });
+
+  it('post-lock recheck failure leaves no signature and the bundle stays retryable', async () => {
+    const { client, spec } = createClient({ bomStatus: 'active' });
+    let lockAttempts = 0;
+    const originalQuery = client.query.bind(client);
+    client.query = async (sql, params) => {
+      const n = normalize(sql);
+      if (n.includes('from public.factory_specs') && n.includes('for update')) {
+        lockAttempts += 1;
+        if (lockAttempts === 1) return { rows: [] };
+        return { rows: [{ ...spec, status: 'in_review' }] as typeof spec[] };
+      }
+      return originalQuery(sql, params);
+    };
+
+    const first = await approveReleaseBundle(ctx(client), approveInput);
+    expect(first).toMatchObject({ ok: false, error: 'invalid_state', message: 'factory_spec no longer in_review' });
+    expect(vi.mocked(signEvent)).not.toHaveBeenCalled();
+
+    const second = await approveReleaseBundle(ctx(client), approveInput);
+    expect(second.ok).toBe(true);
+    expect(vi.mocked(signEvent)).toHaveBeenCalledTimes(1);
+  });
+
+  it('signs only after factory_spec approval and supersede mutations', async () => {
+    const { client, calls } = createClient({ bomStatus: 'active' });
+
+    const result = await approveReleaseBundle(ctx(client), approveInput);
+    expect(result.ok).toBe(true);
+
+    const approveIdx = calls.findIndex(
+      (call) =>
+        normalize(call.sql).startsWith('update public.factory_specs') &&
+        normalize(call.sql).includes("set status = 'approved_for_factory'"),
+    );
+    const supersedeIdx = calls.findIndex((call) => normalize(call.sql).includes("set status = 'superseded'"));
+    const outboxIdx = calls.findIndex((call) => normalize(call.sql).startsWith('insert into public.outbox_events'));
+    expect(approveIdx).toBeGreaterThanOrEqual(0);
+    expect(supersedeIdx).toBeGreaterThan(approveIdx);
+    expect(outboxIdx).toBeGreaterThan(supersedeIdx);
+    expect(vi.mocked(signEvent).mock.invocationCallOrder[0]).toBeGreaterThan(0);
+  });
+
+  it('closeNpdReleaseLoop only updates pending release rows', async () => {
+    const { client, calls } = createClient({ bomStatus: 'active' });
+    const originalQuery = client.query.bind(client);
+    client.query = async (sql, params) => {
+      const n = normalize(sql);
+      if (n.startsWith('update public.factory_release_status')) {
+        calls.push({ sql, params });
+        expect(n).toContain("release_status in ('pending_npd_release', 'pending_technical_approval')");
+        return { rows: [] };
+      }
+      return originalQuery(sql, params);
+    };
+
+    const result = await approveReleaseBundle(ctx(client), approveInput);
+    expect(result.ok).toBe(true);
+    expect(calls.some((call) => normalize(call.sql).startsWith('update public.factory_release_status'))).toBe(true);
+  });
+});
+
+describe('rejectReleaseBundle wave-12 integrity', () => {
+  const FACTORY_SPEC_ID = '11111111-1111-4111-8111-111111111111';
+  const BOM_HEADER_ID = '22222222-2222-4222-8222-222222222222';
+  const OTHER_BOM_ID = '88888888-8888-4888-8888-888888888888';
+  const USER_ID = '44444444-4444-4444-8444-444444444444';
+  const ORG_ID = '55555555-5555-4555-8555-555555555555';
+
+  function rejectClient(options?: { auditThrows?: boolean }) {
+    let specStatus = 'in_review';
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    const client: QueryClient = {
+      async query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]) {
+        calls.push({ sql, params });
+        const n = normalize(sql);
+        if (n.includes('from public.user_roles')) return { rows: [{ ok: true }] as T[] };
+        if (n.includes('from public.factory_specs')) {
+          return {
+            rows: [
+              {
+                id: FACTORY_SPEC_ID,
+                fg_item_id: '33333333-3333-4333-8333-333333333333',
+                status: specStatus,
+                bom_header_id: BOM_HEADER_ID,
+                bom_version: 1,
+              },
+            ] as T[],
+          };
+        }
+        if (n.includes('from public.bom_headers')) {
+          return { rows: [{ id: BOM_HEADER_ID, status: 'draft', version: 1, product_id: 'FG-1', npd_project_id: null }] as T[] };
+        }
+        if (n.startsWith('update public.factory_specs') && n.includes("set status = 'draft'")) {
+          specStatus = 'draft';
+          return { rows: [{ id: FACTORY_SPEC_ID }] as T[] };
+        }
+        if (n.startsWith('insert into public.audit_log')) {
+          if (options?.auditThrows) {
+            specStatus = 'in_review';
+            throw new Error('audit_write_failed');
+          }
+          return { rows: [] as T[] };
+        }
+        throw new Error(`Unhandled SQL: ${n}`);
+      },
+    };
+    return { client, calls, getSpecStatus: () => specStatus };
+  }
+
+  it('rejects a mismatched bomHeaderId before demoting the spec', async () => {
+    const { client, getSpecStatus } = rejectClient();
+
+    const result = await rejectReleaseBundle(
+      { userId: USER_ID, orgId: ORG_ID, client },
+      { factorySpecId: FACTORY_SPEC_ID, bomHeaderId: OTHER_BOM_ID, reason: 'wrong bom' },
+    );
+
+    expect(result).toMatchObject({ ok: false, error: 'invalid_state' });
+    expect(getSpecStatus()).toBe('in_review');
+  });
+
+  it('throws on audit failure so the spec demotion rolls back', async () => {
+    const { client, getSpecStatus } = rejectClient({ auditThrows: true });
+
+    await expect(
+      rejectReleaseBundle(
+        { userId: USER_ID, orgId: ORG_ID, client },
+        { factorySpecId: FACTORY_SPEC_ID, bomHeaderId: BOM_HEADER_ID, reason: 'reject' },
+      ),
+    ).rejects.toThrow('audit_write_failed');
+    expect(getSpecStatus()).toBe('in_review');
   });
 });

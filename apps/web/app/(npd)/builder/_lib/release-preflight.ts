@@ -20,6 +20,7 @@ export type ReleasePreflightReady = {
   productCode: string;
   activeBomHeaderId: string;
   activeFactorySpecId: string;
+  factorySpecApprovedAt: string;
 };
 
 type ProjectRow = {
@@ -181,12 +182,23 @@ export async function runReleasePreflight(
 
   if (blockers.length > 0) throw new ReleasePreflightError(blockers);
 
+  const factorySpecApprovedAt = await loadFactorySpecApprovedAt(ctx, activeFactorySpecId as string);
+  if (!factorySpecApprovedAt) {
+    throw new ReleasePreflightError([
+      {
+        code: 'FACTORY_SPEC_REQUIRED',
+        message: 'Factory release requires an approved factory_spec with approval evidence.',
+      },
+    ]);
+  }
+
   return {
     projectId: project.id,
     projectCode: project.code,
     productCode: productCode as string,
     activeBomHeaderId: activeBomHeaderId as string,
     activeFactorySpecId: activeFactorySpecId as string,
+    factorySpecApprovedAt,
   };
 }
 
@@ -249,4 +261,16 @@ async function loadExistingFactorySpecId(
     [productCode],
   );
   return rows[0]?.id ?? null;
+}
+
+async function loadFactorySpecApprovedAt(ctx: OrgContextLike, factorySpecId: string): Promise<string | null> {
+  const { rows } = await ctx.client.query<{ approved_at: string | null }>(
+    `select fs.approved_at::text as approved_at
+       from public.factory_specs fs
+      where fs.org_id = app.current_org_id()
+        and fs.id = $1::uuid
+      limit 1`,
+    [factorySpecId],
+  );
+  return rows[0]?.approved_at ?? null;
 }

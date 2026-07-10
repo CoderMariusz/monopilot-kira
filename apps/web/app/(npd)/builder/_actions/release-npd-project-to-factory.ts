@@ -101,6 +101,7 @@ export async function releaseNpdProjectToFactory(
         productCode: ready.productCode,
         activeBomHeaderId: ready.activeBomHeaderId,
         activeFactorySpecId: ready.activeFactorySpecId,
+        releaseAttemptKey: ready.factorySpecApprovedAt,
       });
       const release = await upsertFactoryReleaseStatus(context, {
         projectId: ready.projectId,

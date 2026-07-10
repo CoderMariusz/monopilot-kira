@@ -61,6 +61,7 @@ type BomRow = {
 
 type FactorySpecRow = {
   id: string;
+  fg_item_id: string;
   version: number;
   status: string;
   supersedes_factory_spec_id: string | null;
@@ -107,7 +108,7 @@ async function loadBom(client: QueryClient, bomHeaderId: string): Promise<BomRow
 
 async function loadFactorySpec(client: QueryClient, specId: string): Promise<FactorySpecRow | null> {
   const { rows } = await client.query<FactorySpecRow>(
-    `select id, version, status, supersedes_factory_spec_id
+    `select id, fg_item_id, version, status, supersedes_factory_spec_id
        from public.factory_specs
       where org_id = app.current_org_id()
         and id = $1::uuid`,
@@ -132,6 +133,9 @@ function validateSupersedingBom(target: BomRow, superseding: BomRow): string | n
 }
 
 function validateSupersedingFactorySpec(target: FactorySpecRow, superseding: FactorySpecRow): string | null {
+  if (target.fg_item_id !== superseding.fg_item_id) {
+    return 'superseding factory spec must belong to the same FG item as the ECO target spec';
+  }
   const directLineage = superseding.supersedes_factory_spec_id === target.id;
   const newerVersion = Number(superseding.version) > Number(target.version);
   if (!directLineage && !newerVersion) {

@@ -339,6 +339,7 @@ export async function releaseFactorySpecToFactory(rawInput: unknown): Promise<Re
         productCode: spec.fg_item_code,
         activeBomHeaderId: spec.bom_header_id,
         activeFactorySpecId: spec.id,
+        releaseAttemptKey: spec.approved_at,
       });
 
       await supersedePriorReleasedFactorySpecs(db, spec.fg_item_id, spec.id);
