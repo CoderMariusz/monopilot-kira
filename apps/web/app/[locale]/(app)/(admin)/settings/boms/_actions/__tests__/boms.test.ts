@@ -6,6 +6,7 @@ const harness = vi.hoisted(() => ({
   calls: [] as QueryCall[],
   bomRows: [] as Array<Record<string, unknown>>,
   settingsRows: [] as Array<Record<string, unknown>>,
+  throwUndefinedColumnOnBomQuery: false,
 }));
 
 function makeClient() {
@@ -14,6 +15,9 @@ function makeClient() {
       harness.calls.push({ sql, params });
       const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
       if (normalized.includes('from public.bom_headers h')) {
+        if (harness.throwUndefinedColumnOnBomQuery) {
+          throw Object.assign(new Error('column p.name does not exist'), { code: '42703' });
+        }
         return { rows: harness.bomRows as T[], rowCount: harness.bomRows.length };
       }
       if (normalized.includes('from public.bom_settings')) {
@@ -41,6 +45,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 describe('settings BOMs data-layer contract', () => {
   beforeEach(() => {
     harness.calls = [];
+    harness.throwUndefinedColumnOnBomQuery = false;
     harness.bomRows = [
       {
         id: '44444444-4444-4444-4444-444444444444',
@@ -101,8 +106,16 @@ describe('settings BOMs data-layer contract', () => {
     const bomCall = harness.calls.find((call) => call.sql.toLowerCase().includes('from public.bom_headers h'));
     expect(bomCall, 'loader must query public.bom_headers').toBeTruthy();
     expect(bomCall?.sql).toContain('public.bom_lines');
+    expect(bomCall?.sql).toContain('p.product_name');
+    expect(bomCall?.sql).not.toMatch(/\bp\.name\b/);
     expect(bomCall?.sql).toContain('app.current_org_id()');
     expect(bomCall?.params).toEqual(['22222222-2222-2222-2222-222222222222']);
+  });
+
+  it('getBoms rethrows undefined_column (42703) instead of returning empty success', async () => {
+    harness.throwUndefinedColumnOnBomQuery = true;
+    const { getBoms } = await import('../boms');
+    await expect(getBoms('22222222-2222-2222-2222-222222222222')).rejects.toMatchObject({ code: '42703' });
   });
 
   it('getBomSettings and updateBomSettings use the org-scoped bom_settings producer', async () => {

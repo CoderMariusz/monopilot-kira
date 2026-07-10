@@ -141,7 +141,7 @@ export async function getBoms(orgId: string | null = null): Promise<BomsResult> 
       const { rows } = await context.client.query<BomDbRow>(
         `select h.id::text,
                 'BOM-' || upper(left(h.id::text, 8)) as bom_number,
-                coalesce(i.name, p.name, h.product_id, h.fa_code) as product,
+                coalesce(i.name, p.product_name, h.product_id, h.fa_code) as product,
                 h.version,
                 count(bl.id)::int as ingredients_count,
                 to_char(h.updated_at at time zone 'UTC', 'YYYY-MM-DD') as last_updated,
@@ -158,7 +158,7 @@ export async function getBoms(orgId: string | null = null): Promise<BomsResult> 
             and bl.bom_header_id = h.id
           where h.org_id = app.current_org_id()
             and h.org_id = $1::uuid
-          group by h.id, h.product_id, h.fa_code, h.version, h.updated_at, h.status, i.name, p.name
+          group by h.id, h.product_id, h.fa_code, h.version, h.updated_at, h.status, i.name, p.product_name
           order by h.updated_at desc, h.version desc`,
         [scopedOrgId],
       );
@@ -175,7 +175,12 @@ export async function getBoms(orgId: string | null = null): Promise<BomsResult> 
       return { kpis, rows: mappedRows };
     });
   } catch (error) {
-    console.error('[settings/boms] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    const pgCode =
+      error && typeof error === 'object' && 'code' in error ? String((error as { code: unknown }).code) : undefined;
+    console.error('[settings/boms] load_failed', error instanceof Error ? { message: error.message, code: pgCode } : { message: String(error), code: pgCode });
+    if (pgCode === '42703') {
+      throw error;
+    }
     return { kpis: { active: 0, draft: 0, archived: 0 }, rows: [] };
   }
 }
