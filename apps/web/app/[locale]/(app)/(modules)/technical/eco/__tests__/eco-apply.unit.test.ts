@@ -15,6 +15,7 @@ const ctx = {
     status: 'implementing',
   },
   boms: new Map<string, Record<string, unknown>>(),
+  factorySpecs: new Map<string, Record<string, unknown>>(),
   calls: [] as Call[],
 };
 
@@ -54,6 +55,12 @@ function fakeClient() {
         return { rows: row ? [row] : [] };
       }
 
+      if (s.includes('from public.factory_specs')) {
+        const id = params[0] as string;
+        const row = ctx.factorySpecs.get(id);
+        return { rows: row ? [row] : [] };
+      }
+
       if (s.startsWith('update public.bom_headers') && s.includes("set status = 'superseded'")) {
         return { rows: [{ id: 'old-active', version: 1 }] };
       }
@@ -84,6 +91,7 @@ beforeEach(() => {
   ctx.eco.ext_jsonb = {};
   ctx.eco.target_bom_header_id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
   ctx.eco.target_factory_spec_id = null;
+  ctx.factorySpecs = new Map();
   ctx.boms = new Map([
     [
       'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
@@ -190,5 +198,58 @@ describe('applyEcoOnClose', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.supersededHeaderIds).toEqual([]);
+  });
+
+  it('rejects a superseding factory spec from a different FG item', async () => {
+    const FG_X = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const FG_Y = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const TARGET_SPEC = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const SUPERSEDING_SPEC = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+
+    ctx.eco.target_bom_header_id = null;
+    ctx.eco.target_factory_spec_id = TARGET_SPEC;
+    ctx.eco.ext_jsonb = { supersedingFactorySpecId: SUPERSEDING_SPEC };
+    ctx.factorySpecs = new Map([
+      [
+        TARGET_SPEC,
+        {
+          id: TARGET_SPEC,
+          fg_item_id: FG_X,
+          version: 1,
+          status: 'approved_for_factory',
+          supersedes_factory_spec_id: null,
+        },
+      ],
+      [
+        SUPERSEDING_SPEC,
+        {
+          id: SUPERSEDING_SPEC,
+          fg_item_id: FG_Y,
+          version: 3,
+          status: 'approved_for_factory',
+          supersedes_factory_spec_id: null,
+        },
+      ],
+    ]);
+
+    const client = fakeClient();
+    const link = await validateEcoSupersessionLink(client, {
+      changeOrderId: ctx.eco.id,
+      supersedingFactorySpecId: SUPERSEDING_SPEC,
+    });
+    expect(link.ok).toBe(false);
+    if (link.ok) return;
+    expect(link.error).toBe('supersession_invalid');
+    expect(link.message).toContain('same FG item');
+
+    const close = await applyEcoOnClose(
+      { orgId: ctx.orgId, userId: ctx.userId, client },
+      ctx.eco.id,
+    );
+    expect(close).toEqual({
+      ok: false,
+      error: 'supersession_invalid',
+      message: 'superseding factory spec must belong to the same FG item as the ECO target spec',
+    });
   });
 });
