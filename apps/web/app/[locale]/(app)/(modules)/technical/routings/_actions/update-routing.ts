@@ -63,8 +63,11 @@ export async function updateRouting(rawInput: unknown): Promise<UpdateRoutingRes
       if (!(await hasPermission(ctx, ROUTING_WRITE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
       const { rows: cur } = await qc.query<{ id: string; status: string }>(
-        `select id, status from public.routings
-          where org_id = app.current_org_id() and id = $1::uuid`,
+        `select routing.id, routing.status
+           from public.routings routing
+          where routing.org_id = app.current_org_id()
+            and routing.id = $1::uuid
+          for update`,
         [input.routingId],
       );
       const routing = cur[0];

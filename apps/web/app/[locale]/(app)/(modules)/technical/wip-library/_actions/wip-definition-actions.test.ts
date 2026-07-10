@@ -30,6 +30,7 @@ import { addWipProcess } from '../../../../../../(npd)/fa/actions/wip-process-ac
 import { archiveWipDefinition, saveWipDefinition } from './wip-definition-actions';
 
 const definitionId = '33333333-3333-4333-8333-333333333333';
+const successorDefinitionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const itemId = '44444444-4444-4444-8444-444444444444';
 const ingredientItemId = '55555555-5555-4555-8555-555555555555';
 const processId = '66666666-6666-4666-8666-666666666666';
@@ -140,6 +141,9 @@ describe('wip definition actions', () => {
   it('fans update notifications through a deduped created_by project query', async () => {
     queryMock.mockImplementation(async (sql: string) => {
       const text = String(sql);
+      if (/for update/i.test(text) && /public\.wip_definitions/i.test(text)) {
+        return { rows: [{ id: definitionId }], rowCount: 1 };
+      }
       if (/select id, item_id, version, status, name, description, base_uom, yield_pct, reusable/i.test(text)) {
         return {
           rows: [{
@@ -152,12 +156,26 @@ describe('wip definition actions', () => {
             base_uom: 'kg',
             yield_pct: '100.000',
             reusable: true,
+            source_project_id: null,
           }],
         };
       }
       if (/select item_id as "itemId", qty_per_unit as "qtyPerUnit"/i.test(text)) return { rows: [] };
       if (/from public\.wip_definition_processes/i.test(text) && /process_name as "processName"/i.test(text)) return { rows: [] };
-      if (/update public\.wip_definitions/i.test(text)) return { rows: [{ id: definitionId, version: 8 }], rowCount: 1 };
+      if (/insert into public\.wip_definitions/i.test(text) && /supersedes_wip_definition_id/i.test(text)) {
+        return { rows: [{ id: successorDefinitionId, version: 8 }], rowCount: 1 };
+      }
+      if (/update public\.wip_definitions/i.test(text) && /set status = 'archived'/i.test(text)) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (/update public\.wip_definitions/i.test(text) && /set status = 'active'/i.test(text)) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (/delete from public\.wip_definition_ingredients/i.test(text)) return { rows: [], rowCount: 1 };
+      if (/delete from public\.wip_definition_processes/i.test(text)) return { rows: [], rowCount: 1 };
+      if (/delete from public\.item_allergen_profiles/i.test(text)) return { rows: [], rowCount: 1 };
+      if (/insert into public\.outbox_events/i.test(text)) return { rows: [], rowCount: 1 };
+      if (/insert into public\.user_notifications/i.test(text)) return { rows: [], rowCount: 1 };
       return { rows: [], rowCount: 1 };
     });
 

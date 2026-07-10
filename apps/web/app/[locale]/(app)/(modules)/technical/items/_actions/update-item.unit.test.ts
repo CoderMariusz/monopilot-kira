@@ -9,6 +9,8 @@ type QueryCall = { sql: string; params: readonly unknown[] };
 type FakeClient = {
   calls: QueryCall[];
   beforeStatus: string;
+  itemTypeBlock?: boolean;
+  beforeItemType?: string;
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
@@ -27,7 +29,7 @@ function normalizeSql(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function makeClient(overrides: Partial<FakeClient> = {}): FakeClient {
+function makeClient(overrides: Partial<FakeClient> & { itemTypeBlock?: boolean; beforeItemType?: string } = {}): FakeClient {
   const client: FakeClient = {
     calls: [],
     beforeStatus: 'active',
@@ -38,12 +40,15 @@ function makeClient(overrides: Partial<FakeClient> = {}): FakeClient {
       if (n.includes('from public.user_roles')) {
         return { rows: [{ ok: true }] as never[], rowCount: 1 };
       }
+      if (n.includes(') as blocked')) {
+        return { rows: [{ blocked: overrides.itemTypeBlock ?? false }] as never[], rowCount: 1 };
+      }
       if (n.startsWith('select name, item_type, status, uom_base')) {
         return {
           rows: [
             {
               name: 'Existing item',
-              item_type: 'rm',
+              item_type: overrides.beforeItemType ?? 'rm',
               status: client.beforeStatus,
               uom_base: 'kg',
               weight_mode: 'fixed',
@@ -140,5 +145,19 @@ describe('updateItem status transitions', () => {
 
     expect(res).toEqual({ ok: true, data: { id: ITEM_ID } });
     expect(client.calls.some((c) => normalizeSql(c.sql).startsWith('update public.items'))).toBe(true);
+  });
+
+  it('rejects item_type change on an active FG referenced by a BOM (N-47)', async () => {
+    install(makeClient({ beforeStatus: 'active', beforeItemType: 'fg', itemTypeBlock: true }));
+    const { updateItem } = await import('./update-item');
+
+    const res = await updateItem({ ...updatePayload('active'), itemType: 'rm' });
+
+    expect(res).toEqual({
+      ok: false,
+      error: 'item_type_immutable',
+      message: 'item_type cannot change once the item is active or referenced by BOMs, factory specs, or work orders',
+    });
+    expect(client.calls.some((c) => normalizeSql(c.sql).startsWith('update public.items'))).toBe(false);
   });
 });

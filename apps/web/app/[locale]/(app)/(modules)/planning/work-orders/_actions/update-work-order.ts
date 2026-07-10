@@ -3,6 +3,7 @@
 import { z } from 'zod';
 
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
+import { fetchEligibleFactorySpecUnderBindLock } from '../../../../../../../lib/technical/factory-spec-bind-lock';
 import { snapshotFromItemRow } from '../../../../../../../lib/uom/convert';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
@@ -41,7 +42,6 @@ type ItemSnapshotRow = {
 };
 
 type BomRow = { id: string; version: number; line_basis: string };
-type SpecRow = { id: string };
 
 const UpdateWorkOrderInput = z.object({
   id: z.string().uuid(),
@@ -112,18 +112,11 @@ async function fetchActiveBom(ctx: OrgActionContext, itemCode: string): Promise<
   return rows[0] ?? null;
 }
 
-async function fetchApprovedSpec(ctx: OrgActionContext, productId: string): Promise<SpecRow | null> {
-  const { rows } = await ctx.client.query<SpecRow>(
-    `select id
-       from public.factory_specs
-      where org_id = app.current_org_id()
-        and fg_item_id = $1::uuid
-        and status in ('approved_for_factory', 'released_to_factory')
-      order by version desc
-      limit 1`,
-    [productId],
-  );
-  return rows[0] ?? null;
+async function fetchApprovedSpecUnderBindLock(
+  ctx: OrgActionContext,
+  productId: string,
+): Promise<{ id: string } | null> {
+  return fetchEligibleFactorySpecUnderBindLock(ctx.client, productId);
 }
 
 async function resnapshotWorkOrder(
@@ -250,7 +243,7 @@ export async function updateWorkOrder(params: {
       if ((mustResnapshot || input.productId) && !item) return { ok: false, error: 'forbidden' };
 
       const bom = item ? await fetchActiveBom(ctx, item.item_code) : null;
-      const spec = item ? await fetchApprovedSpec(ctx, nextProductId) : null;
+      const spec = item ? await fetchApprovedSpecUnderBindLock(ctx, nextProductId) : null;
       const uomSnapshot = item ? snapshotFromItemRow(item) : null;
       const dbUomSnapshot = item
         ? {

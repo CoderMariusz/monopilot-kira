@@ -175,6 +175,8 @@ const CoProductInput = z.object({
 
 export const CreateBomDraftInput = z.object({
   bom_type: z.enum(['forward', 'disassembly']).optional().default('forward'),
+  /** Immutable source version — routes through bom_request_version_edit (mig 168). */
+  sourceBomHeaderId: z.string().uuid().optional(),
   // The owning FG product_code (route :itemCode). Becomes bom_headers.product_id.
   productId: z.string().trim().min(1).max(128),
   // Parent (the FG itself) cost allocation share; non-byproduct lines+co-products
@@ -191,6 +193,10 @@ export type CreateBomDraftInputType = z.input<typeof CreateBomDraftInput>;
 export type CreateBomDraftResult =
   | { ok: true; data: { id: string; version: number; warnings: BomValidationCode[] } }
   | { ok: false; error: BomActionError; code?: BomValidationCode; message?: string; rmUsabilityFailures?: BomRmUsabilityFailure[] };
+
+export type EnsureBomVersionEditDraftResult =
+  | { ok: true; data: { id: string; version: number; decision: string; supersedesBomHeaderId: string } }
+  | { ok: false; error: 'forbidden' | 'invalid_input' | 'not_found' | 'invalid_state' | 'persistence_failed'; message?: string };
 
 export type BomRmUsabilityFailure = {
   componentCode: string;

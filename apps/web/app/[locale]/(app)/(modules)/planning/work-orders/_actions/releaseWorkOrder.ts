@@ -2,6 +2,7 @@
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+import { acquireFactorySpecProductBindLock } from '../../../../../../../lib/technical/factory-spec-bind-lock';
 import { packHierarchyComplete, snapshotFromItemRow } from '../../../../../../../lib/uom/convert';
 import {
   APP_VERSION,
@@ -89,17 +90,20 @@ export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseW
     return await withOrgContext(async (ctx): Promise<ReleaseWorkOrderResult> => {
       if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
-      const current = await ctx.client.query<{ status: string }>(
-        `select status
-           from public.work_orders
-          where org_id = app.current_org_id()
-            and id = $1::uuid
-          limit 1`,
+      const current = await ctx.client.query<{ status: string; product_id: string }>(
+        `select wo.status, wo.product_id::text as product_id
+           from public.work_orders wo
+          where wo.org_id = app.current_org_id()
+            and wo.id = $1::uuid
+          limit 1
+          for update`,
         [params.id],
       );
-      const status = current.rows[0]?.status;
-      if (!status) return { ok: false, error: 'not_found' };
-      if (status !== 'DRAFT') return { ok: false, error: 'invalid_state' };
+      const row = current.rows[0];
+      if (!row) return { ok: false, error: 'not_found' };
+      if (row.status !== 'DRAFT') return { ok: false, error: 'invalid_state' };
+
+      await acquireFactorySpecProductBindLock(ctx.client, row.product_id);
 
       const preflightResult = await ctx.client.query<ReleasePreflightRow>(RELEASE_PREFLIGHT_SQL, [params.id]);
       const preflight = preflightResult.rows[0];
