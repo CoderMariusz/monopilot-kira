@@ -5,7 +5,8 @@ import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-lo
 import {
   SupplierCreateInput,
   SupplierStatusSchema,
-  hasPlanningWritePermission,
+  requireActionPermission,
+  PLANNING_SUPPLIER_MANAGE_PERMISSION,
   hasPlanningReadPermission,
   pgErrorToResult,
   toIso,
@@ -140,7 +141,8 @@ export async function createSupplier(rawInput: unknown): Promise<SupplierResult<
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_SUPPLIER_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const { rows } = await ctx.client.query<SupplierRow>(
         `insert into public.suppliers
@@ -186,7 +188,8 @@ export async function updateSupplier(rawInput: unknown): Promise<SupplierResult<
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_SUPPLIER_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const before = await ctx.client.query<SupplierRow>(
         `select id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at
@@ -271,7 +274,8 @@ export async function transitionSupplierStatus(id: string, status: string): Prom
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_SUPPLIER_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const before = await ctx.client.query<{ status: string }>(
         `select status from public.suppliers where org_id = app.current_org_id() and id = $1::uuid limit 1`,

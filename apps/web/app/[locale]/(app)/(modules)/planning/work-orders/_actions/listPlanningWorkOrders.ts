@@ -9,6 +9,7 @@ import {
   type PaginatedResult,
 } from '../../../../../../../lib/shared/pagination';
 import {
+  buildWoStatusCounts,
   mapExecution,
   mapSchedule,
   mapWoHeader,
@@ -16,7 +17,7 @@ import {
   type WOSummaryRow,
 } from './shared';
 
-const WO_LIST_WHERE = `
+const WO_LIST_FILTER_WHERE = `
          where wo.org_id = app.current_org_id()
            and ($3::uuid is null or wo.site_id = $3::uuid)
            and ($1::text is null or wo.status = $1)
@@ -37,13 +38,14 @@ const WO_LIST_WHERE = `
 export async function listPlanningWorkOrders(params: {
   status?: string;
   search?: string;
+  q?: string;
   page?: number;
   offset?: number;
   limit?: number;
   archived?: boolean;
 }): Promise<ListPlanningWorkOrdersResult> {
-  const status = params.status?.trim();
-  const search = params.search?.trim();
+  const status = params.status?.trim() || undefined;
+  const search = (params.search ?? params.q)?.trim() || undefined;
   const archived = params.archived === true;
   const page = normalizePage({
     page: params.page,
@@ -56,9 +58,10 @@ export async function listPlanningWorkOrders(params: {
   try {
     return await withOrgContext(async ({ client }): Promise<ListPlanningWorkOrdersResult> => {
       const s = await getActiveSiteId({ client });
-      const baseParams = [status || null, search || null, s, archived] as const;
+      const listParams = [status ?? null, search ?? null, s, archived] as const;
+      const countParams = [null, search ?? null, s, archived] as const;
 
-      const [countResult, dataResult] = await Promise.all([
+      const [countResult, dataResult, statusCountResult] = await Promise.all([
         client.query<{ total: number }>(
           `select count(*)::int as total
              from public.work_orders wo
@@ -66,8 +69,8 @@ export async function listPlanningWorkOrders(params: {
              left join public.org_document_settings ods
                on ods.org_id = wo.org_id
               and ods.doc_type = 'wo'
-            ${WO_LIST_WHERE}`,
-          [...baseParams],
+            ${WO_LIST_FILTER_WHERE}`,
+          [...listParams],
         ),
         client.query<WOSummaryRow>(
         `select
@@ -116,10 +119,21 @@ export async function listPlanningWorkOrders(params: {
             order by so.created_at
             limit 1
          ) sched on true
-         ${WO_LIST_WHERE}
+         ${WO_LIST_FILTER_WHERE}
          order by wo.scheduled_start_time nulls last, wo.created_at desc, wo.id desc
          limit $5 offset $6`,
-        [...baseParams, page.limit, page.offset],
+        [...listParams, page.limit, page.offset],
+        ),
+        client.query<{ status: string; n: number }>(
+          `select wo.status, count(*)::int as n
+             from public.work_orders wo
+             left join public.items i on i.id = wo.product_id and i.org_id = app.current_org_id()
+             left join public.org_document_settings ods
+               on ods.org_id = wo.org_id
+              and ods.doc_type = 'wo'
+            ${WO_LIST_FILTER_WHERE}
+            group by wo.status`,
+          [...countParams],
         ),
       ]);
       const count = await client.query<{ archived_count: string | number }>(
@@ -140,7 +154,7 @@ export async function listPlanningWorkOrders(params: {
             and wo.status in ('CLOSED', 'CANCELLED')
             and ods.archive_after_days is not null
             and wo.updated_at < now() - make_interval(days => ods.archive_after_days)`,
-        [status || null, search || null, s],
+        [status ?? null, search ?? null, s],
       );
 
       const workOrders = dataResult.rows.map((row) => ({
@@ -157,6 +171,7 @@ export async function listPlanningWorkOrders(params: {
         workOrders: pagination.items,
         pagination,
         archivedCount: Number(count.rows[0]?.archived_count ?? 0),
+        statusCounts: buildWoStatusCounts(statusCountResult.rows),
       };
     });
   } catch (error) {

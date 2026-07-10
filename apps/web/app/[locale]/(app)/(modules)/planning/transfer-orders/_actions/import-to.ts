@@ -2,31 +2,16 @@
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
-import { hasPlanningWritePermission, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
+import { requireActionPermission, PLANNING_TO_MANAGE_PERMISSION, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
 import { createTransferOrder } from './actions';
-
-export type ToImportRow = {
-  external_ref: string;
-  from_warehouse_code: string;
-  to_warehouse_code: string;
-  item_code: string;
-  qty: number;
-  uom: string;
-  date?: string;
-};
-
-export type ToImportError = { column: string; message: string };
-
-export type ToValidationResult = {
-  rows: Array<{ rowNumber: number; ok: boolean; errors: ToImportError[] }>;
-  summary: { total: number; ok: number; failed: number };
-};
-
-export type ToImportResult = {
-  created: Array<{ to_number: string; external_ref: string }>;
-  skipped: Array<{ external_ref: string; reason: string }>;
-  failed: Array<{ rowNumber: number; errors: ToImportError[] }>;
-};
+import type {
+  ToImportError,
+  ToImportResponse,
+  ToImportResult,
+  ToImportRow,
+  ToValidationResponse,
+  ToValidationResult,
+} from './import-to.types';
 
 type WarehouseLookupRow = {
   id: string;
@@ -67,10 +52,11 @@ type CreateTransferOrderLinePayload = {
   lineNo: number;
 };
 
-export async function validateToImport(rows: ToImportRow[]): Promise<ToValidationResult> {
-  return withOrgContext(async ({ userId, orgId, client }): Promise<ToValidationResult> => {
+export async function validateToImport(rows: ToImportRow[]): Promise<ToValidationResponse> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<ToValidationResponse> => {
     const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
-    await requirePlanningWritePermission(ctx);
+    const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+    if (!perm.ok) return { ok: false, error: 'forbidden' };
     return validateRows(ctx.client, rows);
   });
 }
@@ -78,8 +64,10 @@ export async function validateToImport(rows: ToImportRow[]): Promise<ToValidatio
 export async function commitToImport(
   rows: ToImportRow[],
   options: { mode: 'all_or_nothing' | 'skip_invalid' },
-): Promise<ToImportResult> {
+): Promise<ToImportResponse> {
   const validation = await validateToImport(rows);
+  if ('error' in validation) return validation;
+
   const failed = validation.rows
     .filter((row) => !row.ok)
     .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
@@ -104,9 +92,10 @@ export async function commitToImport(
     })
     .filter((row): row is ValidImportRow => row !== null);
 
-  return withOrgContext(async ({ userId, orgId, client }): Promise<ToImportResult> => {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<ToImportResponse> => {
     const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
-    await requirePlanningWritePermission(ctx);
+    const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+    if (!perm.ok) return { ok: false, error: 'forbidden' };
 
     const created: ToImportResult['created'] = [];
     const skipped: ToImportResult['skipped'] = [];
@@ -198,12 +187,6 @@ export async function commitToImport(
 
     return { created, skipped, failed: runtimeFailed };
   });
-}
-
-async function requirePlanningWritePermission(ctx: OrgActionContext): Promise<void> {
-  if (!(await hasPlanningWritePermission(ctx))) {
-    throw new ToImportForbiddenError();
-  }
 }
 
 async function validateRows(client: QueryClient, rows: ToImportRow[]): Promise<ToValidationResult> {
@@ -441,5 +424,3 @@ function numberToPlainString(value: number): string {
     maximumFractionDigits: 20,
   });
 }
-
-class ToImportForbiddenError extends Error {}

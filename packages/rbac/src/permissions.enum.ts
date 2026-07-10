@@ -568,6 +568,12 @@ export const Permission = {
   PLANNING_MRP_CONVERT: 'planning.mrp.convert',
   /** Manage planning forecasts used as MRP/MPS demand inputs. */
   PLANNING_FORECAST_MANAGE: 'planning.forecast.manage',
+  /** Create/update PO headers, lines, status transitions and PO imports. */
+  PLANNING_PO_MANAGE: 'planning.po.manage',
+  /** Create/update TO headers, lines, status transitions and TO imports. */
+  PLANNING_TO_MANAGE: 'planning.to.manage',
+  /** Create/update supplier master records and status transitions. */
+  PLANNING_SUPPLIER_MANAGE: 'planning.supplier.manage',
   /** Manage yard operations: docking, vehicle assignments, and gate movements. */
   YARD_MANAGE: 'yard.manage',
   /** Manage freight shipments, carrier assignments, and delivery scheduling. */

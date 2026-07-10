@@ -42,9 +42,10 @@ import { EmptyState } from '@monopilot/ui/EmptyState';
 
 import { WoStatusBadge } from './wo-status-badge';
 import { CreateWoModal, type CreateWoLabels } from './create-wo-modal';
+import { buildListPageHref } from '../../../../../../../lib/shared/list-page-href';
 import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
 import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
-import type { ListPlanningWorkOrdersResult, CreateWorkOrderResult, ReleaseWorkOrderResult, DeleteDraftWorkOrderResult } from '../_actions/shared';
+import type { ListPlanningWorkOrdersResult, CreateWorkOrderResult, ReleaseWorkOrderResult, DeleteDraftWorkOrderResult, WoStatusCounts } from '../_actions/shared';
 import type { FgProductOption, ProductionResources, SearchFgProductsInput } from '../_actions/wo-form-data';
 import type { PreviewWorkOrderChainResult } from '../_actions/chain-preview';
 
@@ -52,6 +53,19 @@ type WoRow = Extract<ListPlanningWorkOrdersResult, { ok: true }>['workOrders'][n
 
 const TAB_ORDER = ['all', 'DRAFT', 'RELEASED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED'] as const;
 type TabKey = (typeof TAB_ORDER)[number];
+
+export type WoListFilters = {
+  status: string;
+  search: string;
+};
+
+function listQuery(filters: WoListFilters, archived = false): Record<string, string | undefined> {
+  return {
+    status: filters.status || undefined,
+    q: filters.search || undefined,
+    archived: archived ? '1' : undefined,
+  };
+}
 
 export type WoListLabels = {
   createWo: string;
@@ -111,6 +125,8 @@ export type WoListViewProps = {
   locale: string;
   workOrders: WoRow[];
   pagination: PaginatedResult<WoRow>;
+  filters: WoListFilters;
+  statusCounts: WoStatusCounts;
   resources: ProductionResources;
   labels: WoListLabels;
   /**
@@ -149,6 +165,8 @@ export function WoListView({
   locale,
   workOrders,
   pagination,
+  filters,
+  statusCounts,
   resources,
   labels,
   archived = false,
@@ -162,42 +180,35 @@ export function WoListView({
 }: WoListViewProps) {
   const router = useRouter();
   const basePath = `/${locale}/planning/work-orders`;
-  const pageHref = (page: number) => {
-    const params = new URLSearchParams();
-    if (archived) params.set('archived', '1');
-    if (page > 1) params.set('page', String(page));
-    const q = params.toString();
-    return q ? `${basePath}?${q}` : basePath;
-  };
+  const activeTab: TabKey = (filters.status as TabKey) || 'all';
+  const pageHref = (page: number) => buildListPageHref(basePath, listQuery(filters, archived), page);
   const shown = pagination.offset + workOrders.length;
-  const [tab, setTab] = React.useState<TabKey>('all');
-  const [search, setSearch] = React.useState('');
+  const [searchDraft, setSearchDraft] = React.useState(filters.search);
   const [createOpen, setCreateOpen] = React.useState(autoOpenCreate);
   const [releasingId, setReleasingId] = React.useState<string | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [rowError, setRowError] = React.useState<{ id: string; message: string } | null>(null);
   const [createNotice, setCreateNotice] = React.useState<string | null>(null);
 
-  const counts = React.useMemo(() => {
-    const c: Record<TabKey, number> = { all: workOrders.length, DRAFT: 0, RELEASED: 0, IN_PROGRESS: 0, ON_HOLD: 0, COMPLETED: 0 };
-    for (const wo of workOrders) {
-      const k = wo.status.toUpperCase() as TabKey;
-      if (k in c && k !== 'all') c[k] += 1;
-    }
-    return c;
-  }, [workOrders]);
+  React.useEffect(() => {
+    setSearchDraft(filters.search);
+  }, [filters.search]);
 
-  const visible = React.useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return workOrders.filter((wo) => {
-      if (tab !== 'all' && wo.status.toUpperCase() !== tab) return false;
-      if (!term) return true;
-      return (
-        wo.woNumber.toLowerCase().includes(term) ||
-        (wo.itemCode ?? '').toLowerCase().includes(term)
-      );
-    });
-  }, [workOrders, tab, search]);
+  React.useEffect(() => {
+    if (searchDraft === filters.search) return;
+    const timer = window.setTimeout(() => {
+      router.push(buildListPageHref(basePath, listQuery({ ...filters, search: searchDraft }, archived), 1));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [archived, basePath, filters, router, searchDraft]);
+
+  function navigate(next: Partial<WoListFilters>) {
+    router.push(buildListPageHref(basePath, listQuery({ ...filters, ...next }, archived), 1));
+  }
+
+  function tabCount(key: TabKey): number {
+    return key === 'all' ? statusCounts.all : statusCounts[key as keyof WoStatusCounts] ?? 0;
+  }
 
   function statusLabel(status: string): string {
     const key = status.toLowerCase();
@@ -276,10 +287,10 @@ export function WoListView({
       <div className="flex items-center justify-between gap-3">
         <Input
           type="search"
-          value={search}
+          value={searchDraft}
           data-testid="wo-list-search"
           placeholder={labels.searchPlaceholder}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => setSearchDraft(e.target.value)}
           className="w-72"
         />
         <div className="flex items-center gap-2">
@@ -326,17 +337,17 @@ export function WoListView({
               key={key}
               type="button"
               role="tab"
-              aria-selected={tab === key}
+              aria-selected={activeTab === key}
               data-testid={`wo-list-tab-${key}`}
-              onClick={() => setTab(key)}
+              onClick={() => navigate({ status: key === 'all' ? '' : key })}
               className={[
                 'rounded-md px-3 py-1.5 text-sm font-medium',
-                tab === key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+                activeTab === key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
               ].join(' ')}
             >
               {labels.tabs[key]}
               <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">
-                {counts[key]}
+                {tabCount(key)}
               </span>
             </button>
           ),
@@ -358,7 +369,7 @@ export function WoListView({
           </span>
         </Link>
         <span className="ml-auto self-center text-xs text-slate-500" data-testid="wo-list-rows-count">
-          {labels.rowsCount.replace('{n}', String(visible.length))}
+          {labels.rowsCount.replace('{n}', String(pagination.total))}
         </span>
       </div>
 
@@ -372,17 +383,14 @@ export function WoListView({
       ) : null}
 
       {/* Table / empty */}
-      {visible.length === 0 ? (
+      {workOrders.length === 0 ? (
         <EmptyState
           icon="📋"
           title={labels.empty.title}
           body={labels.empty.body}
           action={{
             label: labels.empty.clear,
-            onClick: () => {
-              setSearch('');
-              setTab('all');
-            },
+            onClick: () => navigate({ status: '', search: '' }),
           }}
         />
       ) : (
@@ -401,7 +409,7 @@ export function WoListView({
               </tr>
             </thead>
             <tbody>
-              {visible.map((wo) => {
+              {workOrders.map((wo) => {
                 const lineLabel = resources.lines.find((l) => l.id === wo.productionLineId)?.code;
                 return (
                   <tr key={wo.id} data-testid={`wo-row-${wo.id}`} className="border-b border-slate-100 last:border-0">

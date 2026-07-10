@@ -21,15 +21,15 @@ import {
   type EntityImportSpecId,
   type PreviewColumnDescriptor,
 } from '../_lib/entity-import-registry';
-import type { ToImportRow } from '../../transfer-orders/_actions/import-to';
+import type { ToImportRow } from '../../transfer-orders/_actions/import-to.types';
 import type { WoImportRow } from '../../work-orders/_actions/import-wo';
 import { buildEntityTemplateCsv, type EntityCsvSpec } from '../_lib/parse-entity-csv';
 import {
   EntityImportWizard,
   type CommitMode,
-  type EntityCommitResult,
+  type EntityCommitResponse,
   type EntityImportWizardLabels,
-  type EntityValidationResult,
+  type EntityValidationResponse,
 } from './entity-import-wizard.client';
 
 export type EntityImportCardLabels = {
@@ -53,8 +53,8 @@ export type EntityImportCardProps<TRow extends ToImportRow | WoImportRow, TCreat
   templateFilename: string;
   errorReportFilename: string;
   autoOpen?: boolean;
-  validateAction: (rows: TRow[]) => Promise<EntityValidationResult>;
-  commitAction: (rows: TRow[], options: { mode: CommitMode }) => Promise<EntityCommitResult<TCreated>>;
+  validateAction: (rows: TRow[]) => Promise<EntityValidationResponse>;
+  commitAction: (rows: TRow[], options: { mode: CommitMode }) => Promise<EntityCommitResponse<TCreated>>;
 };
 
 export function EntityImportCard<TRow extends ToImportRow | WoImportRow, TCreated>(

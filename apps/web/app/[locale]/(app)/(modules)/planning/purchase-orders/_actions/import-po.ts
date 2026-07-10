@@ -2,34 +2,16 @@
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
-import { hasPlanningWritePermission, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
+import { requireActionPermission, PLANNING_PO_MANAGE_PERMISSION, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
 import { createPurchaseOrderCore } from './create-purchase-order-core';
-
-export type PoImportRow = {
-  external_ref: string;
-  supplier_code: string;
-  item_code: string;
-  qty: number;
-  uom: string;
-  price?: number;
-  currency?: string;
-  expected_delivery?: string;
-  warehouse_code?: string;
-  notes?: string;
-};
-
-export type PoImportError = { column: string; message: string };
-
-export type PoValidationResult = {
-  rows: Array<{ rowNumber: number; ok: boolean; errors: PoImportError[] }>;
-  summary: { total: number; ok: number; failed: number };
-};
-
-export type PoImportResult = {
-  created: Array<{ po_number: string; external_ref: string }>;
-  skipped: Array<{ external_ref: string; reason: string }>;
-  failed: Array<{ rowNumber: number; errors: PoImportError[] }>;
-};
+import type {
+  PoImportError,
+  PoImportResponse,
+  PoImportResult,
+  PoImportRow,
+  PoValidationResponse,
+  PoValidationResult,
+} from './import-po.types';
 
 type SupplierLookupRow = {
   id: string;
@@ -70,10 +52,11 @@ type CreatePurchaseOrderLinePayload = {
   lineNo: number;
 };
 
-export async function validatePoImport(rows: PoImportRow[]): Promise<PoValidationResult> {
-  return withOrgContext(async ({ userId, orgId, client }): Promise<PoValidationResult> => {
+export async function validatePoImport(rows: PoImportRow[]): Promise<PoValidationResponse> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<PoValidationResponse> => {
     const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
-    await requirePlanningWritePermission(ctx);
+    const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+    if (!perm.ok) return { ok: false, error: 'forbidden' };
     return validateRows(ctx.client, rows);
   });
 }
@@ -81,8 +64,10 @@ export async function validatePoImport(rows: PoImportRow[]): Promise<PoValidatio
 export async function commitPoImport(
   rows: PoImportRow[],
   options: { mode: 'all_or_nothing' | 'skip_invalid' },
-): Promise<PoImportResult> {
+): Promise<PoImportResponse> {
   const validation = await validatePoImport(rows);
+  if ('error' in validation) return validation;
+
   const failed = validation.rows
     .filter((row) => !row.ok)
     .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
@@ -106,9 +91,10 @@ export async function commitPoImport(
     })
     .filter((row): row is ValidImportRow => row !== null);
 
-  return withOrgContext(async ({ userId, orgId, client }): Promise<PoImportResult> => {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<PoImportResponse> => {
     const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
-    await requirePlanningWritePermission(ctx);
+    const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+    if (!perm.ok) return { ok: false, error: 'forbidden' };
 
     const created: PoImportResult['created'] = [];
     const skipped: PoImportResult['skipped'] = [];
@@ -198,12 +184,6 @@ export async function commitPoImport(
 
     return { created, skipped, failed: runtimeFailed };
   });
-}
-
-async function requirePlanningWritePermission(ctx: OrgActionContext): Promise<void> {
-  if (!(await hasPlanningWritePermission(ctx))) {
-    throw new PoImportForbiddenError();
-  }
 }
 
 async function validateRows(client: QueryClient, rows: PoImportRow[]): Promise<PoValidationResult> {
@@ -447,5 +427,3 @@ function numberToPlainString(value: number): string {
     maximumFractionDigits: 20,
   });
 }
-
-class PoImportForbiddenError extends Error {}

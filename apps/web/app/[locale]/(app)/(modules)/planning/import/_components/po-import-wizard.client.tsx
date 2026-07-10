@@ -43,12 +43,16 @@ import {
 } from '../_lib/parse-po-csv';
 import type {
   PoImportRow,
-  PoValidationResult,
-  PoImportResult,
-} from '../../purchase-orders/_actions/import-po';
+  PoValidationResponse,
+  PoImportResponse,
+} from '../../purchase-orders/_actions/import-po.types';
 
 type Step = 'upload' | 'validate' | 'preview' | 'result';
 const STEP_ORDER: Step[] = ['upload', 'validate', 'preview', 'result'];
+
+function isImportForbidden(value: unknown): value is { ok: false; error: 'forbidden' } {
+  return typeof value === 'object' && value !== null && 'error' in value && (value as { error: string }).error === 'forbidden';
+}
 
 export type CommitMode = 'all_or_nothing' | 'skip_invalid';
 
@@ -147,12 +151,12 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone: 'defa
 export type PoImportWizardProps = {
   locale: string;
   labels: PoImportLabels;
-  validateAction: (rows: PoImportRow[]) => Promise<PoValidationResult>;
-  commitAction: (rows: PoImportRow[], options: { mode: CommitMode }) => Promise<PoImportResult>;
+  validateAction: (rows: PoImportRow[]) => Promise<PoValidationResponse>;
+  commitAction: (rows: PoImportRow[], options: { mode: CommitMode }) => Promise<PoImportResponse>;
   /** Static SSR/RTL injection — pins a step + parsed rows without parsing a file. */
   initialStep?: Step;
   initialRows?: ParsedPoRow[];
-  initialValidation?: PoValidationResult;
+  initialValidation?: PoValidationResponse;
 };
 
 export function PoImportWizard(props: PoImportWizardProps) {
@@ -161,9 +165,9 @@ export function PoImportWizard(props: PoImportWizardProps) {
   const [step, setStep] = React.useState<Step>(props.initialStep ?? 'upload');
   const [filename, setFilename] = React.useState('');
   const [parsedRows, setParsedRows] = React.useState<ParsedPoRow[]>(props.initialRows ?? []);
-  const [validation, setValidation] = React.useState<PoValidationResult | null>(props.initialValidation ?? null);
+  const [validation, setValidation] = React.useState<PoValidationResponse | null>(props.initialValidation ?? null);
   const [mode, setMode] = React.useState<CommitMode>('all_or_nothing');
-  const [result, setResult] = React.useState<PoImportResult | null>(null);
+  const [result, setResult] = React.useState<PoImportResponse | null>(null);
   const [errorKey, setErrorKey] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
@@ -191,13 +195,17 @@ export function PoImportWizard(props: PoImportWizardProps) {
     startTransition(async () => {
       try {
         const res = await validateAction(parsedRows.map((p) => p.row));
+        if ('error' in res && res.error === 'forbidden') {
+          setErrorKey(labels.forbidden);
+          return;
+        }
         setValidation(res);
         setStep('validate');
       } catch {
-        setErrorKey(labels.forbidden);
+        setErrorKey(labels.commitFailed);
       }
     });
-  }, [labels.forbidden, parsedRows, validateAction]);
+  }, [labels.commitFailed, labels.forbidden, parsedRows, validateAction]);
 
   const runCommit = React.useCallback(() => {
     setErrorKey(null);
@@ -207,25 +215,29 @@ export function PoImportWizard(props: PoImportWizardProps) {
           parsedRows.map((p) => p.row),
           { mode },
         );
+        if ('error' in res && res.error === 'forbidden') {
+          setErrorKey(labels.forbidden);
+          return;
+        }
         setResult(res);
         setStep('result');
       } catch {
-        // The action throws only on a permission failure (PoImportForbiddenError);
-        // any other rejection surfaces as the generic commit-failed message.
         setErrorKey(labels.commitFailed);
       }
     });
-  }, [commitAction, labels.commitFailed, mode, parsedRows]);
+  }, [commitAction, labels.commitFailed, labels.forbidden, mode, parsedRows]);
 
   const downloadErrorReport = React.useCallback(() => {
-    if (!validation) return;
+    if (!validation || isImportForbidden(validation)) return;
     downloadCsv(buildPoErrorReportCsv(parsedRows, validation.rows), 'po-import-errors.csv');
   }, [parsedRows, validation]);
 
-  const summary = validation?.summary ?? { total: parsedRows.length, ok: 0, failed: 0 };
+  const validationData = validation && !isImportForbidden(validation) ? validation : null;
+  const commitResult = result && !isImportForbidden(result) ? result : null;
+  const summary = validationData?.summary ?? { total: parsedRows.length, ok: 0, failed: 0 };
   const counter = labels.counter.replace('{ok}', String(summary.ok)).replace('{failed}', String(summary.failed));
   const validationByRow = new Map<number, { ok: boolean; errors: Array<{ column: string; message: string }> }>(
-    (validation?.rows ?? []).map((r) => [r.rowNumber, { ok: r.ok, errors: r.errors }]),
+    (validationData?.rows ?? []).map((r) => [r.rowNumber, { ok: r.ok, errors: r.errors }]),
   );
   const groups = groupPoRows(parsedRows);
   const poBase = `/${locale}/planning/purchase-orders`;
@@ -434,7 +446,7 @@ export function PoImportWizard(props: PoImportWizardProps) {
         </section>
       ) : null}
 
-      {step === 'result' && result ? (
+      {step === 'result' && commitResult ? (
         <section className="card" style={{ padding: 18 }} aria-labelledby="po-import-result-h">
           <h2 id="po-import-result-h" className="card-title">
             {labels.resultTitle}
@@ -444,15 +456,15 @@ export function PoImportWizard(props: PoImportWizardProps) {
             style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}
             data-testid="po-import-result-kpis"
           >
-            <Kpi label={labels.createdKpi} value={String(result.created.length)} tone="green" />
-            <Kpi label={labels.skippedKpi} value={String(result.skipped.length)} tone="amber" />
-            <Kpi label={labels.failedKpi} value={String(result.failed.length)} tone="red" />
+            <Kpi label={labels.createdKpi} value={String(commitResult.created.length)} tone="green" />
+            <Kpi label={labels.skippedKpi} value={String(commitResult.skipped.length)} tone="amber" />
+            <Kpi label={labels.failedKpi} value={String(commitResult.failed.length)} tone="red" />
           </div>
 
           <h3 className="mt-4 text-sm font-semibold">{labels.createdHeading}</h3>
-          {result.created.length > 0 ? (
+          {commitResult.created.length > 0 ? (
             <ul className="mt-2 flex flex-col gap-1" data-testid="po-import-created-list">
-              {result.created.map((po) => (
+              {commitResult.created.map((po) => (
                 <li key={po.po_number}>
                   <a
                     className="link mono text-sm"
@@ -470,11 +482,11 @@ export function PoImportWizard(props: PoImportWizardProps) {
             </p>
           )}
 
-          {result.skipped.length > 0 ? (
+          {commitResult.skipped.length > 0 ? (
             <>
               <h3 className="mt-4 text-sm font-semibold">{labels.skippedHeading}</h3>
               <ul className="mt-2 flex flex-col gap-1" data-testid="po-import-skipped-list">
-                {result.skipped.map((s) => (
+                {commitResult.skipped.map((s) => (
                   <li key={s.external_ref} className="text-sm">
                     <span className="mono">{s.external_ref}</span> — {s.reason}
                   </li>

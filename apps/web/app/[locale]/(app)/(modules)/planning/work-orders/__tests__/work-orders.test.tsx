@@ -34,8 +34,9 @@ import { WoDetailView, type WoDetailLabels } from '../_components/wo-detail-view
 import type { ListPlanningWorkOrdersResult, GetPlanningWorkOrderResult, CreateWorkOrderResult, ReleaseWorkOrderResult, DeleteDraftWorkOrderResult } from '../_actions/shared';
 
 const refresh = vi.fn();
+const push = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh }),
+  useRouter: () => ({ push, replace: vi.fn(), prefetch: vi.fn(), refresh }),
 }));
 
 // ── Labels (the page composes these from next-intl; here we read en directly) ──
@@ -138,6 +139,17 @@ const ROWS = [
 ];
 
 const defaultWoPagination = toPaginatedResult(ROWS, ROWS.length, normalizePage({ page: 1, defaultLimit: 50 }));
+const defaultFilters = { status: '', search: '' };
+const defaultStatusCounts = {
+  all: 3,
+  DRAFT: 1,
+  RELEASED: 1,
+  IN_PROGRESS: 1,
+  ON_HOLD: 0,
+  COMPLETED: 0,
+  CLOSED: 0,
+  CANCELLED: 0,
+};
 
 function renderList(props: Partial<React.ComponentProps<typeof WoListView>> = {}) {
   const searchFgProductsAction = vi.fn().mockResolvedValue([
@@ -154,6 +166,8 @@ function renderList(props: Partial<React.ComponentProps<typeof WoListView>> = {}
       locale="en"
       workOrders={ROWS}
       pagination={defaultWoPagination}
+      filters={defaultFilters}
+      statusCounts={defaultStatusCounts}
       resources={resources}
       labels={listLabels}
       archivedCount={3}
@@ -169,6 +183,7 @@ function renderList(props: Partial<React.ComponentProps<typeof WoListView>> = {}
 
 beforeEach(() => {
   refresh.mockClear();
+  push.mockClear();
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -188,11 +203,10 @@ describe('WoListView — structure + filtering (parity: wo-list.jsx:106-262)', (
     expect(within(screen.getByTestId('wo-row-wo-2')).getByText(enWo.list.noBomBadge)).toBeInTheDocument();
   });
 
-  it('filters by status tab', () => {
+  it('navigates to the RELEASED status tab via URL', () => {
     renderList();
     fireEvent.click(screen.getByTestId('wo-list-tab-RELEASED'));
-    expect(screen.queryByTestId('wo-row-wo-1')).toBeNull();
-    expect(screen.getByTestId('wo-row-wo-2')).toBeInTheDocument();
+    expect(push).toHaveBeenCalledWith('/en/planning/work-orders?status=RELEASED');
   });
 
   it('renders an Archive tab carrying the archivedCount chip and linking to ?archived=1', () => {
@@ -218,16 +232,21 @@ describe('WoListView — structure + filtering (parity: wo-list.jsx:106-262)', (
     expect(screen.getByTestId('wo-list-tab-all')).toHaveAttribute('href', '/en/planning/work-orders');
   });
 
-  it('filters by search over WO number and item code', () => {
+  it('debounces search navigation to the URL', () => {
+    vi.useFakeTimers();
     renderList();
     fireEvent.change(screen.getByTestId('wo-list-search'), { target: { value: 'FG-003' } });
-    expect(screen.getByTestId('wo-row-wo-3')).toBeInTheDocument();
-    expect(screen.queryByTestId('wo-row-wo-1')).toBeNull();
+    expect(push).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(300);
+    expect(push).toHaveBeenCalledWith('/en/planning/work-orders?q=FG-003');
+    vi.useRealTimers();
   });
 
-  it('shows the empty-state when no rows match (parity: wo-list.jsx:152-159)', () => {
-    renderList();
-    fireEvent.change(screen.getByTestId('wo-list-search'), { target: { value: 'zzz-nope' } });
+  it('shows the empty-state when the server returns no rows', () => {
+    renderList({
+      workOrders: [],
+      pagination: toPaginatedResult([], 0, normalizePage({ page: 1, defaultLimit: 50 })),
+    });
     expect(screen.getByTestId('empty-state-root')).toHaveTextContent(enWo.list.empty.title);
   });
 });
@@ -398,6 +417,8 @@ describe('WoListView — P0-UOM create-WO output unit + conversion', () => {
         locale="en"
         workOrders={ROWS}
         pagination={defaultWoPagination}
+        filters={defaultFilters}
+        statusCounts={defaultStatusCounts}
         resources={resources}
         labels={uomLabels}
         searchFgProductsAction={searchFgProductsAction}
@@ -561,6 +582,8 @@ describe('F-D08a — conversion preview renders from the REAL i18n bundles', () 
         locale={locale}
         workOrders={ROWS}
         pagination={defaultWoPagination}
+        filters={defaultFilters}
+        statusCounts={defaultStatusCounts}
         resources={resources}
         labels={realLabels}
         searchFgProductsAction={searchFgProductsAction}
@@ -648,6 +671,8 @@ describe('WoListView — P0-UOM Order unit selector', () => {
         locale="en"
         workOrders={ROWS}
         pagination={defaultWoPagination}
+        filters={defaultFilters}
+        statusCounts={defaultStatusCounts}
         resources={resources}
         labels={uomLabels}
         searchFgProductsAction={searchFgProductsAction}

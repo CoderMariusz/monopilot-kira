@@ -35,8 +35,9 @@ import type { CreateExportJobInput, CreateExportJobResult } from '../_actions/cr
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 
 const refresh = vi.fn();
+const push = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh }),
+  useRouter: () => ({ push, replace: vi.fn(), prefetch: vi.fn(), refresh }),
 }));
 vi.mock('../_actions/actions', () => ({
   listPoWarehouses: vi.fn(async () => [{ id: 'wh-1', code: 'WH-A', name: 'Main warehouse' }]),
@@ -234,6 +235,16 @@ const SITES = [
 ];
 
 const defaultPoPagination = toPaginatedResult(ROWS, ROWS.length, normalizePage({ page: 1, defaultLimit: 50 }));
+const defaultFilters = { status: '', search: '', supplierId: '' };
+const defaultStatusCounts = {
+  all: 3,
+  draft: 1,
+  sent: 1,
+  confirmed: 1,
+  partially_received: 0,
+  received: 0,
+  cancelled: 0,
+};
 
 function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}) {
   const searchPoItemsAction = vi.fn<[unknown], Promise<ItemPickerOption[]>>().mockResolvedValue([
@@ -252,6 +263,8 @@ function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}
       locale="en"
       purchaseOrders={ROWS}
       pagination={defaultPoPagination}
+      filters={defaultFilters}
+      statusCounts={defaultStatusCounts}
       suppliers={suppliers}
       labels={listLabels}
       archivedCount={2}
@@ -270,6 +283,7 @@ function renderList(props: Partial<React.ComponentProps<typeof PoListView>> = {}
 
 beforeEach(() => {
   refresh.mockClear();
+  push.mockClear();
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -287,23 +301,27 @@ describe('PoListView — structure + filtering (parity: po-screens.jsx:56-126)',
     expect(within(screen.getByTestId('po-row-po-1')).getByText('Agro-Fresh Ltd.')).toBeInTheDocument();
   });
 
-  it('filters by status tab', () => {
+  it('navigates to the sent status tab via URL', () => {
     renderList();
     fireEvent.click(screen.getByTestId('po-list-tab-sent'));
-    expect(screen.queryByTestId('po-row-po-1')).toBeNull();
-    expect(screen.getByTestId('po-row-po-2')).toBeInTheDocument();
+    expect(push).toHaveBeenCalledWith('/en/planning/purchase-orders?status=sent');
   });
 
-  it('filters by search over PO number and supplier', () => {
+  it('debounces search navigation to the URL', () => {
+    vi.useFakeTimers();
     renderList();
     fireEvent.change(screen.getByTestId('po-list-search'), { target: { value: 'Baltic' } });
-    expect(screen.getByTestId('po-row-po-2')).toBeInTheDocument();
-    expect(screen.queryByTestId('po-row-po-1')).toBeNull();
+    expect(push).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(300);
+    expect(push).toHaveBeenCalledWith('/en/planning/purchase-orders?q=Baltic');
+    vi.useRealTimers();
   });
 
-  it('shows the empty-state when no rows match (parity: po-screens.jsx empty list)', () => {
-    renderList();
-    fireEvent.change(screen.getByTestId('po-list-search'), { target: { value: 'zzz-nope' } });
+  it('shows the empty-state when the server returns no rows', () => {
+    renderList({
+      purchaseOrders: [],
+      pagination: toPaginatedResult([], 0, normalizePage({ page: 1, defaultLimit: 50 })),
+    });
     expect(screen.getByTestId('empty-state-root')).toHaveTextContent('No purchase orders yet');
   });
 
@@ -356,10 +374,9 @@ describe('PoListView — Export to file (Wave E-IO)', () => {
     vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
-    const { createExportJobAction } = renderList();
-    // narrow the on-screen filter so we can assert it is forwarded verbatim
-    fireEvent.click(screen.getByTestId('po-list-tab-sent'));
-    fireEvent.change(screen.getByTestId('po-list-search'), { target: { value: 'PO-SENT' } });
+    const { createExportJobAction } = renderList({
+      filters: { status: 'sent', search: 'PO-SENT', supplierId: '' },
+    });
 
     fireEvent.click(screen.getByTestId('po-list-export'));
 

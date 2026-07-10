@@ -32,6 +32,7 @@ let listTotal = 1;
 
 function permissionAllowed(permission: unknown): boolean {
   if (permission === 'npd.planning.write') return allowWritePermission;
+  if (permission === 'planning.po.manage') return allowWritePermission;
   if (permission === 'scheduler.run.read') return allowReadPermission;
   return false;
 }
@@ -109,6 +110,17 @@ function makeClient(): QueryClient {
         expectSqlArity(sql, params);
         return { rows: [{ total: listTotal }], rowCount: 1 };
       }
+      if (normalized.includes('group by po.status')) {
+        expectSqlArity(sql, params);
+        return {
+          rows: [
+            { status: 'draft', n: 40 },
+            { status: 'sent', n: 30 },
+            { status: 'confirmed', n: 50 },
+          ],
+          rowCount: 3,
+        };
+      }
       if (normalized.startsWith('select count(*) as archived_count')) {
         expectSqlArity(sql, params);
         return { rows: [{ archived_count: 1 }], rowCount: 1 };
@@ -120,10 +132,10 @@ function makeClient(): QueryClient {
         return { rows: [{ is_received: fullyReceived }], rowCount: 1 };
       }
       if (normalized.startsWith('select po.id')) {
-        if (normalized.includes('limit $5::integer offset $6::integer')) {
+        if (normalized.includes('limit $6::integer offset $7::integer')) {
           expectSqlArity(sql, params);
-          const limit = Number(params[4] ?? 50);
-          const offset = Number(params[5] ?? 0);
+          const limit = Number(params[5] ?? 50);
+          const offset = Number(params[6] ?? 0);
           const allRows = Array.from({ length: listTotal }, (_, index) =>
             header({ po_number: `PO-TEST-${String(index + 1).padStart(3, '0')}`, status: currentStatus }),
           );
@@ -195,24 +207,39 @@ describe('planning purchase order actions', () => {
     expect(calls.some((sql) => sql.includes('from public.purchase_orders po'))).toBe(false);
   });
 
-  it('lists purchase orders with supplier context', async () => {
-    const result = await listPurchaseOrders({ status: 'draft', q: 'PO' });
+  it('lists purchase orders with supplier context and server-side status counts', async () => {
+    const result = await listPurchaseOrders({ status: 'draft', q: 'PO', supplierId: SUPPLIER_ID });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.data[0]).toEqual(expect.objectContaining({ poNumber: 'PO-TEST-001', supplierCode: 'SUP-TEST-01' }));
     expect(result.archivedCount).toBe(1);
+    expect(result.statusCounts).toEqual({
+      all: 120,
+      draft: 40,
+      sent: 30,
+      confirmed: 50,
+      partially_received: 0,
+      received: 0,
+      cancelled: 0,
+    });
+    const groupCall = vi.mocked(client.query).mock.calls.find(([sql]) => String(sql).includes('group by po.status'));
+    expect(groupCall?.[1]).toEqual([null, 'PO', SITE_ID, false, SUPPLIER_ID]);
   });
 
   it('passes archived=false by default and archived=true for archive views, including site_id bind', async () => {
     await listPurchaseOrders({});
     await listPurchaseOrders({ archived: true });
 
-    const listCalls = vi.mocked(client.query).mock.calls.filter(([sql]) => String(sql).includes('from public.purchase_orders po'));
-    expect(listCalls[0]?.[1]).toEqual([null, null, SITE_ID, false]);
-    expect(listCalls[1]?.[1]).toEqual([null, null, SITE_ID, false, 50, 0]);
-    expect(listCalls[3]?.[1]).toEqual([null, null, SITE_ID, true]);
-    expect(listCalls[4]?.[1]).toEqual([null, null, SITE_ID, true, 50, 0]);
+    const dataCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('limit $6::integer offset $7::integer'),
+    );
+    expect(dataCall?.[1]).toEqual([null, null, SITE_ID, false, null, 50, 0]);
+
+    const archivedDataCall = vi.mocked(client.query).mock.calls.filter(([sql]) =>
+      String(sql).includes('limit $6::integer offset $7::integer'),
+    ).at(-1);
+    expect(archivedDataCall?.[1]).toEqual([null, null, SITE_ID, true, null, 50, 0]);
   });
 
   it('page 2 offset returns the second page of rows when total exceeds limit', async () => {
@@ -231,20 +258,20 @@ describe('planning purchase order actions', () => {
     });
     expect(result.data[0]).toEqual(expect.objectContaining({ poNumber: 'PO-TEST-051' }));
     const dataCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
-      String(sql).includes('limit $5::integer offset $6::integer'),
+      String(sql).includes('limit $6::integer offset $7::integer'),
     );
-    expect(dataCall?.[1]).toEqual([null, null, SITE_ID, false, 50, 50]);
+    expect(dataCall?.[1]).toEqual([null, null, SITE_ID, false, null, 50, 50]);
   });
 
   it('narrows the list SELECT to the active site (optional predicate) when a site is active', async () => {
     await listPurchaseOrders({ status: 'draft' });
 
     const mainCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
-      String(sql).includes('from public.purchase_orders po') && String(sql).includes('limit $5::integer offset $6::integer'),
+      String(sql).includes('from public.purchase_orders po') && String(sql).includes('limit $6::integer offset $7::integer'),
     );
     // F10 — the site predicate is now an OPTIONAL narrowing filter, not a hard gate.
     expect(mainCall?.[0]).toContain('($3::uuid is null or po.site_id = $3::uuid)');
-    expect(mainCall?.[1]).toEqual(['draft', null, SITE_ID, false, 50, 0]);
+    expect(mainCall?.[1]).toEqual(['draft', null, SITE_ID, false, null, 50, 0]);
   });
 
   it('F10: lists ORG-WIDE (site bind = null) when no site is active, instead of returning an empty list', async () => {
@@ -259,10 +286,10 @@ describe('planning purchase order actions', () => {
     if (!result.ok) throw new Error(result.error);
     expect((result as { noActiveSite?: boolean }).noActiveSite).toBeUndefined();
     const mainCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
-      String(sql).includes('from public.purchase_orders po') && String(sql).includes('limit $5::integer offset $6::integer'),
+      String(sql).includes('from public.purchase_orders po') && String(sql).includes('limit $6::integer offset $7::integer'),
     );
     expect(mainCall).toBeDefined();
-    expect(mainCall?.[1]).toEqual(['draft', null, null, false, 50, 0]);
+    expect(mainCall?.[1]).toEqual(['draft', null, null, false, null, 50, 0]);
   });
 
   it('gets purchase order detail with ordered lines', async () => {

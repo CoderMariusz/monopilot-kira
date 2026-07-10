@@ -154,8 +154,32 @@ export type ListPlanningWorkOrdersResult =
       workOrders: Array<WOSummary & { latestExecution?: WOExecutionState; primarySchedule?: ScheduleOutput }>;
       pagination: PaginatedResult<WOSummary & { latestExecution?: WOExecutionState; primarySchedule?: ScheduleOutput }>;
       archivedCount: number;
+      statusCounts: WoStatusCounts;
     }
   | { ok: false; error: PlanningWorkOrderError };
+
+const WO_LIST_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CLOSED', 'CANCELLED'] as const;
+export type WoListStatus = (typeof WO_LIST_STATUSES)[number];
+export type WoStatusCounts = Record<WoListStatus, number> & { all: number };
+
+export function buildWoStatusCounts(rows: Array<{ status: string; n: number }>): WoStatusCounts {
+  const counts = WO_LIST_STATUSES.reduce(
+    (acc, status) => {
+      acc[status] = 0;
+      return acc;
+    },
+    {} as Record<WoListStatus, number>,
+  );
+  let all = 0;
+  for (const row of rows) {
+    const key = row.status.toUpperCase();
+    if ((WO_LIST_STATUSES as readonly string[]).includes(key)) {
+      counts[key as WoListStatus] = row.n;
+      all += row.n;
+    }
+  }
+  return { ...counts, all };
+}
 
 export type GetPlanningWorkOrderResult =
   | {

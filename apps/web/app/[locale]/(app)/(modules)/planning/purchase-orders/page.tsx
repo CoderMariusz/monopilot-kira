@@ -42,7 +42,7 @@ import {
   getItemSupplierPrice,
 } from './_actions/po-form-data';
 import { buildUomDropdown, type UomDropdown } from '../_actions/uom-dropdown';
-import { PoListView, type PoListLabels } from './_components/po-list-view';
+import { PoListView, type PoListFilters, type PoListLabels } from './_components/po-list-view';
 import archiveTabsStaging from '../../../../../../../../_meta/i18n-staging/archive-tabs.json';
 
 export const dynamic = 'force-dynamic';
@@ -71,8 +71,16 @@ function archiveLabel(
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ new?: string; archived?: string; page?: string }>;
+  searchParams: Promise<{ new?: string; archived?: string; page?: string; status?: string; q?: string; supplier?: string }>;
 };
+
+function parsePoFilters(sp: { status?: string; q?: string; supplier?: string }): PoListFilters {
+  return {
+    status: sp.status?.trim() ?? '',
+    search: sp.q?.trim() ?? '',
+    supplierId: sp.supplier?.trim() ?? '',
+  };
+}
 
 function parsePage(value: string | undefined): number {
   const page = Number(value);
@@ -241,15 +249,24 @@ async function ListContent({
   autoOpenCreate,
   archived,
   page,
+  filters,
 }: {
   locale: string;
   autoOpenCreate: boolean;
   archived: boolean;
   page: number;
+  filters: PoListFilters;
 }) {
   const t = await getTranslations('Planning.purchaseOrders');
+  const statusParam = filters.status || undefined;
   const [listResult, suppliers, lineCounts, orgUnits, siteContext] = await Promise.all([
-    listPurchaseOrders({ page, archived }),
+    listPurchaseOrders({
+      page,
+      archived,
+      status: statusParam,
+      q: filters.search || undefined,
+      supplierId: filters.supplierId || undefined,
+    }),
     listPoSuppliers(),
     listPurchaseOrderLineCounts(),
     listPoUnits(),
@@ -286,6 +303,8 @@ async function ListContent({
       locale={locale}
       purchaseOrders={purchaseOrders}
       pagination={{ ...listResult.pagination, items: purchaseOrders }}
+      filters={filters}
+      statusCounts={listResult.statusCounts}
       suppliers={suppliers}
       archived={archived}
       archivedCount={listResult.archivedCount}
@@ -308,6 +327,8 @@ export default async function PurchaseOrdersListPage({ params, searchParams }: P
   const autoOpenCreate = sp.new === '1';
   const archived = sp.archived === '1';
   const page = parsePage(sp.page);
+  const filters = parsePoFilters(sp);
+  const suspenseKey = `${archived}-${page}-${filters.status}-${filters.search}-${filters.supplierId}`;
   const t = await getTranslations('Planning.purchaseOrders');
 
   return (
@@ -321,8 +342,8 @@ export default async function PurchaseOrdersListPage({ params, searchParams }: P
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.planning') }, { label: t('breadcrumb.purchaseOrders') }]}
       />
-      <Suspense key={`${archived}-${page}`} fallback={<ListSkeleton />}>
-        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} page={page} />
+      <Suspense key={suspenseKey} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} page={page} filters={filters} />
       </Suspense>
     </main>
   );

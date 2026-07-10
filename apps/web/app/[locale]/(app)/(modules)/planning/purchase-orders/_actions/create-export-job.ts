@@ -26,7 +26,7 @@
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { hasPlanningWritePermission, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
+import { hasPlanningReadPermission, requireActionPermission, PLANNING_PO_MANAGE_PERMISSION, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
 import { listPurchaseOrders } from './actions';
 import { listPurchaseOrderLineCounts } from './po-form-data';
 
@@ -82,7 +82,7 @@ export async function createExportJob(rawInput: unknown = {}): Promise<CreateExp
   // re-validates `status` against the PO status enum and returns invalid_input for a
   // bogus tab; we surface that rather than exporting an unfiltered list.
   const [listResult, lineCounts] = await Promise.all([
-    listPurchaseOrders({ status: statusParam, q, archived, limit: 200 }),
+    listPurchaseOrders({ status: statusParam, q, supplierId, archived, limit: 200 }),
     listPurchaseOrderLineCounts(),
   ]);
 
@@ -90,9 +90,7 @@ export async function createExportJob(rawInput: unknown = {}): Promise<CreateExp
     return { ok: false, error: listResult.error === 'invalid_input' ? 'invalid_input' : 'persistence_failed' };
   }
 
-  // Supplier filter is a client-side narrowing on the list screen; mirror it here so
-  // the export matches what the user sees with that filter applied.
-  const rows = supplierId ? listResult.data.filter((po) => po.supplierId === supplierId) : listResult.data;
+  const rows = listResult.data;
 
   const csvLines = [PO_EXPORT_CSV_COLUMNS.join(',')];
   for (const po of rows) {
@@ -118,7 +116,8 @@ export async function createExportJob(rawInput: unknown = {}): Promise<CreateExp
   try {
     const jobId = await withOrgContext(async ({ userId, orgId, client }): Promise<string> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) throw new ExportForbiddenError();
+      const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+      if (!perm.ok) throw new ExportForbiddenError();
 
       const { rows: jobRows } = await ctx.client.query<{ id: string }>(
         `insert into public.import_export_jobs

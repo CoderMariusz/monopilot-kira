@@ -4,6 +4,9 @@ import { z } from 'zod';
 
 export const PLANNING_WRITE_PERMISSION = 'npd.planning.write';
 export const PLANNING_READ_PERMISSION = 'scheduler.run.read';
+export const PLANNING_PO_MANAGE_PERMISSION = 'planning.po.manage';
+export const PLANNING_TO_MANAGE_PERMISSION = 'planning.to.manage';
+export const PLANNING_SUPPLIER_MANAGE_PERMISSION = 'planning.supplier.manage';
 
 export type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -161,8 +164,27 @@ export async function hasPlanningWritePermission(ctx: OrgActionContext): Promise
   return hasPlanningPermission(ctx, PLANNING_WRITE_PERMISSION);
 }
 
+export async function hasPoManagePermission(ctx: OrgActionContext): Promise<boolean> {
+  return hasPlanningPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+}
+
+export async function hasToManagePermission(ctx: OrgActionContext): Promise<boolean> {
+  return hasPlanningPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+}
+
 export async function hasPlanningReadPermission(ctx: OrgActionContext): Promise<boolean> {
   return hasPlanningPermission(ctx, PLANNING_READ_PERMISSION);
+}
+
+/** Typed denial wrapper — mirrors NPD/technical action permission gates. */
+export async function requireActionPermission(
+  ctx: OrgActionContext,
+  permission: string,
+): Promise<{ ok: true } | { ok: false; error: 'forbidden' }> {
+  if (!(await hasPlanningPermission(ctx, permission))) {
+    return { ok: false, error: 'forbidden' };
+  }
+  return { ok: true };
 }
 
 export async function writeProcurementAudit(

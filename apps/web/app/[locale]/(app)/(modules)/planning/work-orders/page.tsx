@@ -30,7 +30,7 @@ import { createWorkOrderFromPlanning } from './_actions/createWorkOrder';
 import { deleteDraftWorkOrder, releaseWorkOrder } from './_actions/releaseWorkOrder';
 import { searchFgProducts, listProductionResources } from './_actions/wo-form-data';
 import { previewWorkOrderChain } from './_actions/chain-preview';
-import { WoListView, type WoListLabels } from './_components/wo-list-view';
+import { WoListView, type WoListFilters, type WoListLabels } from './_components/wo-list-view';
 import { makeImportLabel } from '../../../../../../lib/import/import-i18n-staging';
 import archiveTabsStaging from '../../../../../../../../_meta/i18n-staging/archive-tabs.json';
 
@@ -38,8 +38,15 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ new?: string; archived?: string; page?: string }>;
+  searchParams: Promise<{ new?: string; archived?: string; page?: string; status?: string; q?: string }>;
 };
+
+function parseWoFilters(sp: { status?: string; q?: string }): WoListFilters {
+  return {
+    status: sp.status?.trim() ?? '',
+    search: sp.q?.trim() ?? '',
+  };
+}
 
 function parsePage(value: string | undefined): number {
   const page = Number(value);
@@ -240,15 +247,22 @@ async function ListContent({
   autoOpenCreate,
   archived,
   page,
+  filters,
 }: {
   locale: string;
   autoOpenCreate: boolean;
   archived: boolean;
   page: number;
+  filters: WoListFilters;
 }) {
   const t = await getTranslations('Planning.workOrders');
   const [listResult, resources] = await Promise.all([
-    listPlanningWorkOrders({ page, archived }),
+    listPlanningWorkOrders({
+      page,
+      archived,
+      status: filters.status || undefined,
+      q: filters.search || undefined,
+    }),
     listProductionResources(),
   ]);
 
@@ -265,6 +279,8 @@ async function ListContent({
       locale={locale}
       workOrders={listResult.workOrders}
       pagination={listResult.pagination}
+      filters={filters}
+      statusCounts={listResult.statusCounts}
       resources={resources}
       archived={archived}
       archivedCount={listResult.archivedCount}
@@ -285,6 +301,8 @@ export default async function WorkOrdersListPage({ params, searchParams }: PageP
   const autoOpenCreate = sp.new === '1';
   const archived = sp.archived === '1';
   const page = parsePage(sp.page);
+  const filters = parseWoFilters(sp);
+  const suspenseKey = `${archived}-${page}-${filters.status}-${filters.search}`;
   const t = await getTranslations('Planning.workOrders');
 
   return (
@@ -298,8 +316,8 @@ export default async function WorkOrdersListPage({ params, searchParams }: PageP
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.planning') }, { label: t('breadcrumb.workOrders') }]}
       />
-      <Suspense key={`${archived}-${page}`} fallback={<ListSkeleton />}>
-        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} page={page} />
+      <Suspense key={suspenseKey} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} page={page} filters={filters} />
       </Suspense>
     </main>
   );
