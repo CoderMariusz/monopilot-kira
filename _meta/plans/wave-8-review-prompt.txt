@@ -1,0 +1,10 @@
+You are an adversarial code reviewer. Review branch fix/wave8-shipping.
+1. Read _meta/plans/wave-8-spec.md + _meta/plans/wave-8-summary.md. 2. Review `git diff origin/main..HEAD` (exclude _meta/), reading surrounding code.
+Per bug (partial-LP cancel restore, cross-order allocation release, case/pallet UoM normalization): FIXED / PARTIAL (file:line) / BROKEN (prove).
+Integrity checks — try to break each:
+- Bug 1: does cancel now restore stock for BOTH full and partial ships, using the immutable shipment snapshot? Any double-restore if cancelled twice (idempotency)? Does the status/version predicate lock correctly? Does the LP qty go back exactly (numeric, not float)? Is the misleading old test actually corrected (not just deleted)?
+- Bug 2: does the ship-time allocation update now restrict to the shipment's SO line AND sales order (ia.sales_order_line_id = sbc.sales_order_line_id + SO match)? Prove SO-B's allocation on a shared LP is untouched when SO-A ships. Any case where the tightened join now MISSES the correct allocation (under-release)?
+- Bug 3: is the order qty normalized to canonical inventory UoM with EXACT numeric pack factors (SQL numeric / Dec, not JS float)? Are unsupported/incomplete-hierarchy conversions REJECTED (typed error), not silently passed as raw? Is the entered qty+UoM retained for documents? Any place still comparing raw entered qty to LP qty (allocation, BOL, contents)? Check every consumer of quantity_ordered.
+- New migration? If any, is it additive + safe to auto-apply on live Vercel? Any allocation-uniqueness constraint added that could reject existing rows?
+- Any withOrgContext non-throw-return partial-commit; float math on money/qty; org-scoping gaps.
+Write review to _meta/plans/wave-8-codex-review.md ending VERDICT: pass|fail + numbered required changes. Do NOT modify other files.

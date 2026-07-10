@@ -26,13 +26,13 @@
  *                  /planning/forecasts. Folded into the item's gross requirement; when an
  *                  item receives any forecast the persisted requirement is tagged
  *                  source_type='independent' and the run demand_source flips to 'forecast'.
- *   - sales orders: sales_order_lines remainder (quantity_ordered − Σ shipped box qty on
- *                  non-cancelled shipments in shipped/delivered status, converted from
- *                  inventory/base UoM into the line order_uom before subtracting) on
+ *   - sales orders: sales_order_lines remainder (canonical quantity_ordered − Σ shipped
+ *                  box qty on non-cancelled shipments in shipped/delivered status) on
  *                  post-confirm SOs whose need-by date falls within the planning horizon
- *                  — INDEPENDENT demand (NN-PLAN-4). UoM from ext_data.order_uom with
- *                  items.uom_base fallback; each/box lines convert via the same pack-
- *                  hierarchy machinery as forecast/WO demand. SOs with no promised or
+ *                  — INDEPENDENT demand (NN-PLAN-4). Wave-8: both quantity_ordered and
+ *                  shipped box qty are canonical inventory/base units (no conversion into
+ *                  the entered order_uom), so the remainder is exact and demand is labelled
+ *                  with items.uom_base. SOs with no promised or
  *                  required ship date bucket as immediate demand (run date) and surface
  *                  an undated-SO warning on the run result.
  *   - on-hand:     v_inventory_available (mig 191; status=available + qa released)
@@ -259,12 +259,11 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
       );
 
       // 3c) Independent (sales-order) demand — open SO lines bucketed by need-by date.
-      // Shipped box contents are stored in inventory/base UoM; convert to the line
-      // order_uom before subtracting (P2-05). Undated confirmed SOs (no promised or
-      // required ship date) bucket as immediate demand on the run date (P2-06).
+      // quantity_ordered is canonical inventory qty; shipped box contents are the same grain.
+      // Undated confirmed SOs (no promised or required ship date) bucket as immediate demand on the run date (P2-06).
       const soDemand = await c.query<MrpTimedQtyBucket>(
         `select sol.product_id as product_id,
-                coalesce(sol.ext_data->>'order_uom', i.uom_base) as uom,
+                i.uom_base as uom,
                 (case
                    when so.promised_ship_date is null and so.required_delivery_date is null
                    then $3::date
@@ -282,28 +281,8 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
             and i.org_id = app.current_org_id()
            left join (
              select sbc.sales_order_line_id,
-                    sum(
-                      case
-                        when coalesce(sol_s.ext_data->>'order_uom', i_s.uom_base) in (i_s.uom_base, 'base')
-                          then sbc.quantity
-                        when coalesce(sol_s.ext_data->>'order_uom', i_s.uom_base) = 'each'
-                          and coalesce(i_s.net_qty_per_each, 0) > 0
-                          then sbc.quantity / i_s.net_qty_per_each
-                        when coalesce(sol_s.ext_data->>'order_uom', i_s.uom_base) = 'box'
-                          and coalesce(i_s.net_qty_per_each, 0) > 0
-                          and coalesce(i_s.each_per_box, 0) > 0
-                          then sbc.quantity / (i_s.net_qty_per_each * i_s.each_per_box)
-                        else null
-                      end
-                    ) as shipped_qty
+                    sum(sbc.quantity) as shipped_qty
                from public.shipment_box_contents sbc
-               join public.sales_order_lines sol_s
-                 on sol_s.id = sbc.sales_order_line_id
-                and sol_s.org_id = app.current_org_id()
-                and sol_s.deleted_at is null
-               join public.items i_s
-                 on i_s.id = sol_s.product_id
-                and i_s.org_id = app.current_org_id()
                join public.shipment_boxes sb
                  on sb.id = sbc.shipment_box_id
                 and sb.org_id = app.current_org_id()
@@ -328,7 +307,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
                    else coalesce(so.promised_ship_date, so.required_delivery_date, so.order_date)
                  end) <= $2::date
           group by sol.product_id,
-                   coalesce(sol.ext_data->>'order_uom', i.uom_base),
+                   i.uom_base,
                    case
                      when so.promised_ship_date is null and so.required_delivery_date is null
                      then $3::date

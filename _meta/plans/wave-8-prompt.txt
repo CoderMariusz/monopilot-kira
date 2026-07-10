@@ -1,0 +1,1 @@
+Implement ALL 3 bug fixes specified in _meta/plans/wave-8-spec.md (read it first, fully). Add DB-faithful tests proving each stock/traceability fix. Follow every requirement including migration discipline and the tsc/vitest gates. Commit in logical commits on branch fix/wave8-shipping. Write the per-bug summary to _meta/plans/wave-8-summary.md.

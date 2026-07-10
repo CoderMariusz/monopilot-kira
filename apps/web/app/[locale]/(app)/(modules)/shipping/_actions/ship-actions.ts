@@ -432,7 +432,15 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
             and sb.org_id = app.current_org_id()
             and sb.shipment_id = $1::uuid
             and sb.deleted_at is null
+           join public.shipments sh on sh.id = sb.shipment_id
+            and sh.org_id = app.current_org_id()
+            and sh.deleted_at is null
+           join public.sales_order_lines sol on sol.id = sbc.sales_order_line_id
+            and sol.org_id = app.current_org_id()
+            and sol.deleted_at is null
+            and sol.sales_order_id = sh.sales_order_id
           where ia.license_plate_id = sbc.license_plate_id
+            and ia.sales_order_line_id = sbc.sales_order_line_id
             and sbc.org_id = app.current_org_id()
             and sbc.deleted_at is null
             and ia.org_id = app.current_org_id()
