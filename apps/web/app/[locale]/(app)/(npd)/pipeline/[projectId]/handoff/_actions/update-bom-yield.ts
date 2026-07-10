@@ -14,9 +14,9 @@
  * `hasHandoffPermission` probe (normalized role_permissions OR legacy
  * roles.permissions jsonb cache).
  *
- * Only an ACTIVE bom_header may be updated — the freshly-promoted production BOM
- * is active; an inactive/superseded header is never re-yielded here. A no-op (no
- * matching active row) returns `not_found` (never throws). Writes an append-only
+ * Only a draft/technical_approved header, or an NPD handoff BOM that has not yet been
+ * promoted, may be updated in place. A long-lived ACTIVE production BOM must go through
+ * ECO / a new version instead.
  * audit_events row.
  *
  * A 'use server' module may export ONLY async functions; the zod schema +
@@ -52,12 +52,46 @@ export async function updateBomYield(raw: unknown): Promise<UpdateBomYieldResult
         return { ok: false as const, code: 'forbidden' as const };
       }
 
+      const eligible = await ctx.client.query<{ id: string; status: string }>(
+        `select bh.id, bh.status
+           from public.bom_headers bh
+          where bh.id = $1::uuid
+            and bh.org_id = app.current_org_id()
+          limit 1`,
+        [bomHeaderId],
+      );
+      const header = eligible.rows[0];
+      if (!header) return { ok: false as const, code: 'not_found' as const };
+
+      const mayEditInPlace =
+        header.status === 'draft' ||
+        header.status === 'technical_approved' ||
+        (header.status === 'active' &&
+          (await ctx.client.query<{ ok: boolean }>(
+            `select true as ok
+               from public.bom_headers bh
+               join public.handoff_checklists hc
+                 on hc.project_id = bh.npd_project_id
+                and hc.org_id = bh.org_id
+              where bh.id = $1::uuid
+                and bh.org_id = app.current_org_id()
+                and bh.origin_module = 'npd'
+                and bh.npd_project_id is not null
+                and hc.promote_to_production_date is null
+              limit 1`,
+            [bomHeaderId],
+          )).rows.length > 0);
+
+      if (!mayEditInPlace) {
+        return { ok: false as const, code: 'active_bom_requires_eco' as const };
+      }
+
       const updated = await ctx.client.query<{ id: string }>(
         `update public.bom_headers
             set yield_pct = $2::numeric
           where id = $1::uuid
             and org_id = app.current_org_id()
-            and status = 'active'
+            and status in ('draft', 'technical_approved', 'active')
           returning id`,
         [bomHeaderId, yieldPct],
       );

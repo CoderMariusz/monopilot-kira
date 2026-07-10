@@ -20,6 +20,7 @@ export type UpdateBomYieldCode =
   | 'invalid_input'
   | 'forbidden'
   | 'not_found'
+  | 'active_bom_requires_eco'
   | 'persistence_failed';
 
 export type UpdateBomYieldResult =
