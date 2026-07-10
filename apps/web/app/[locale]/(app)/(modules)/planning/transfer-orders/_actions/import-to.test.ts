@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 
 import type { QueryClient } from '../../_actions/procurement-shared';
-import { createTransferOrder } from './actions';
+import { createTransferOrderCore } from './create-transfer-order-core';
 import { commitToImport, validateToImport } from './import-to';
 import type { ToImportRow } from './import-to.types';
 
@@ -41,8 +41,8 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
-vi.mock('./actions', () => ({
-  createTransferOrder: vi.fn(),
+vi.mock('./create-transfer-order-core', () => ({
+  createTransferOrderCore: vi.fn(),
 }));
 
 function makeClient(): QueryClient {
@@ -90,8 +90,8 @@ function toRow(overrides: Partial<ToImportRow> = {}): ToImportRow {
   };
 }
 
-function createTransferOrderMock() {
-  return vi.mocked(createTransferOrder);
+function createTransferOrderCoreMock() {
+  return vi.mocked(createTransferOrderCore);
 }
 
 function importJobInsertCalls() {
@@ -103,13 +103,13 @@ describe('transfer order import backend', () => {
     allowPermission = true;
     existingRefs = new Set();
     client = makeClient();
-    createTransferOrderMock().mockReset();
-    createTransferOrderMock().mockImplementation(async (rawInput: unknown) => {
+    createTransferOrderCoreMock().mockReset();
+    createTransferOrderCoreMock().mockImplementation(async (_ctx: unknown, rawInput: unknown) => {
       const input = rawInput as CreateToPayload;
       return {
         ok: true,
         data: { toNumber: input.toNumber, lines: [] },
-      } as Awaited<ReturnType<typeof createTransferOrder>>;
+      } as Awaited<ReturnType<typeof createTransferOrderCore>>;
     });
   });
 
@@ -166,10 +166,10 @@ describe('transfer order import backend', () => {
       { to_number: 'TO-EXT-A', external_ref: 'TO-EXT-A' },
       { to_number: 'TO-EXT-B', external_ref: 'TO-EXT-B' },
     ]);
-    expect(createTransferOrder).toHaveBeenCalledTimes(2);
+    expect(createTransferOrderCore).toHaveBeenCalledTimes(2);
 
-    const firstPayload = createTransferOrderMock().mock.calls[0]?.[0] as CreateToPayload | undefined;
-    const secondPayload = createTransferOrderMock().mock.calls[1]?.[0] as CreateToPayload | undefined;
+    const firstPayload = createTransferOrderCoreMock().mock.calls[0]?.[1] as CreateToPayload | undefined;
+    const secondPayload = createTransferOrderCoreMock().mock.calls[1]?.[1] as CreateToPayload | undefined;
     expect(firstPayload).toEqual(
       expect.objectContaining({
         toNumber: 'TO-EXT-A',
@@ -180,7 +180,7 @@ describe('transfer order import backend', () => {
     );
     expect(firstPayload?.lines).toEqual([
       { itemId: ITEM_A_ID, qty: '10', uom: 'kg', lineNo: 1 },
-      { itemId: ITEM_B_ID, qty: '10', uom: 'ea', lineNo: 2 },
+      { itemId: ITEM_B_ID, qty: '10', uom: 'pcs', lineNo: 2 },
     ]);
     expect(secondPayload).toEqual(
       expect.objectContaining({
@@ -191,5 +191,49 @@ describe('transfer order import backend', () => {
     );
     expect(secondPayload?.lines).toHaveLength(2);
     expect(importJobInsertCalls()).toHaveLength(1);
+  });
+
+  it('commitToImport calls createTransferOrderCore on the same org context (no nested withOrgContext)', async () => {
+    await commitToImport(
+      [
+        toRow({ external_ref: 'TO-EXT-A', from_warehouse_code: 'WH-A', to_warehouse_code: 'WH-B', item_code: 'ITEM-A', uom: 'kg' }),
+        toRow({ external_ref: 'TO-EXT-B', from_warehouse_code: 'WH-B', to_warehouse_code: 'WH-A', item_code: 'ITEM-A', uom: 'kg' }),
+      ],
+      { mode: 'skip_invalid' },
+    );
+
+    const firstCtx = createTransferOrderCoreMock().mock.calls[0]?.[0];
+    const secondCtx = createTransferOrderCoreMock().mock.calls[1]?.[0];
+    expect(firstCtx).toEqual({ userId: USER_ID, orgId: ORG_ID, client });
+    expect(secondCtx).toEqual({ userId: USER_ID, orgId: ORG_ID, client });
+  });
+
+  it('commitToImport all_or_nothing rolls back order 1 when order 2 fails at runtime', async () => {
+    createTransferOrderCoreMock()
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { toNumber: 'TO-EXT-A', lines: [] },
+      } as Awaited<ReturnType<typeof createTransferOrderCore>>)
+      .mockResolvedValueOnce({
+        ok: false,
+        error: 'persistence_failed',
+        message: 'simulated failure',
+      } as Awaited<ReturnType<typeof createTransferOrderCore>>);
+
+    const result = await commitToImport(
+      [
+        toRow({ external_ref: 'TO-EXT-A', from_warehouse_code: 'WH-A', to_warehouse_code: 'WH-B', item_code: 'ITEM-A', uom: 'kg' }),
+        toRow({ external_ref: 'TO-EXT-A', from_warehouse_code: 'WH-A', to_warehouse_code: 'WH-B', item_code: 'ITEM-B', uom: 'ea' }),
+        toRow({ external_ref: 'TO-EXT-B', from_warehouse_code: 'WH-B', to_warehouse_code: 'WH-A', item_code: 'ITEM-A', uom: 'kg' }),
+        toRow({ external_ref: 'TO-EXT-B', from_warehouse_code: 'WH-B', to_warehouse_code: 'WH-A', item_code: 'ITEM-B', uom: 'box' }),
+      ],
+      { mode: 'all_or_nothing' },
+    );
+
+    expect(createTransferOrderCore).toHaveBeenCalledTimes(2);
+    expect(result.created).toEqual([]);
+    expect(result.skipped).toEqual([]);
+    expect(result.failed.length).toBeGreaterThan(0);
+    expect(importJobInsertCalls()).toHaveLength(0);
   });
 });

@@ -35,6 +35,7 @@ import {
   type ProcurementError,
   type QueryClient,
 } from '../../_actions/procurement-shared';
+import { createTransferOrderCore } from './create-transfer-order-core';
 
 type TransferOrderRow = {
   id: string;
@@ -473,63 +474,12 @@ export async function createTransferOrder(rawInput: unknown): Promise<TransferOr
   const input = parsed.data;
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
-      if (!perm.ok) return perm;
-
-      async function insertHeader(toNumber: string) {
-        return ctx.client.query<TransferOrderRow>(
-          `insert into public.transfer_orders
-             (org_id, to_number, from_warehouse_id, to_warehouse_id, status, scheduled_date, notes, created_by, updated_by)
-           values
-             (app.current_org_id(), $1, $2::uuid, $3::uuid, $4, $5::date, $6, $7::uuid, $7::uuid)
-           returning id, to_number, from_warehouse_id, to_warehouse_id, status,
-                     scheduled_date::text as scheduled_date, notes, created_at, updated_at`,
-          [
-            toNumber,
-            input.fromWarehouseId ?? null,
-            input.toWarehouseId ?? null,
-            input.status,
-            input.scheduledDate ?? null,
-            input.notes ?? null,
-            userId,
-          ],
-        );
-      }
-
-      const initialToNumber = input.toNumber ?? (await nextDocumentNumber(ctx.client, orgId, 'to', new Date()));
-      let insertResult: Awaited<ReturnType<typeof insertHeader>>;
-      try {
-        insertResult = await insertHeader(initialToNumber);
-      } catch (error) {
-        if (input.toNumber || !isPgError(error) || error.code !== '23505') throw error;
-        insertResult = await insertHeader(await nextDocumentNumber(ctx.client, orgId, 'to', new Date()));
-      }
-
-      const { rows } = insertResult;
-      const header = rows[0];
-      if (!header) return { ok: false, error: 'persistence_failed' };
-
-      for (const line of input.lines) {
-        await ctx.client.query(
-          `insert into public.transfer_order_lines
-             (org_id, to_id, item_id, qty, uom, line_no, created_by, updated_by)
-           values
-             (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5::integer, $6::uuid, $6::uuid)`,
-          [header.id, line.itemId, line.qty, line.uom, line.lineNo, userId],
-        );
-      }
-
-      await writeProcurementAudit(ctx, {
-        action: 'planning.transfer_order.created',
-        resourceType: 'transfer_order',
-        resourceId: header.id,
-        afterState: { toNumber: header.to_number, status: header.status, lineCount: input.lines.length },
-      });
-      revalidateTransferOrderPaths(header.id);
-      return { ok: true, data: { ...mapTransferOrder(header), lines: await fetchLines(ctx.client, header.id) } };
+      return createTransferOrderCore(ctx, input);
     });
+    if (result.ok) revalidateTransferOrderPaths(result.data.id);
+    return result;
   } catch (err) {
     const error = pgErrorToResult(err);
     if (error !== 'persistence_failed') return { ok: false, error };

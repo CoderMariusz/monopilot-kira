@@ -1,0 +1,12 @@
+You are an adversarial reviewer of Planning import/procurement fixes, branch fix/wave14-imports. KEY HAZARD: withOrgContext COMMITS on any non-throw return — all_or_nothing must THROW to roll back.
+1. Read _meta/plans/wave-14-spec.md + _meta/plans/wave-14-summary.md. 2. Review `git diff origin/main..HEAD` (exclude _meta/), reading surrounding code.
+Per bug (N-30 PO all_or_nothing, N-31 TO createTransferOrderCore, N-32 import zod validation, N-55 supplier FOR UPDATE, N-62 catch-weight site key, N-63 skipped-nominal signal): FIXED / PARTIAL (file:line) / BROKEN (prove with a concrete import scenario).
+Try to break each:
+- N-30: in all_or_nothing mode does a runtime failure in group 2 now THROW so group 1 is rolled back (not committed)? Is validation re-done inside the WRITE txn (not relying on the separate validation-txn snapshot)? Any remaining accumulate-then-return-normally path in all_or_nothing?
+- N-31: is createTransferOrderCore extracted to run on the CALLER's ctx/client (one shared txn), with the public createTransferOrder wrapping it in withOrgContext? Does the importer call the CORE (not the public wrapper)? Prove an all_or_nothing TO import where order 2 fails commits NO orders. Any remaining nested withOrgContext in the import path?
+- N-32: is the grouped payload safeParse'd against the SAME CreatePurchaseOrderInput zod schema single-create uses, BEFORE the core, with issues mapped to source rows? Are notes/number/currency/line-count limits enforced (no unbounded concat)? Any field still reaching the core unvalidated?
+- N-55: is the supplier row SELECT ... FOR UPDATE (or FOR SHARE) locked during the status check in the PO core, re-checked under the lock? Could a concurrent block still slip a PO through?
+- N-62 (mig 477): does the roll-up now GROUP BY + upsert on (org,item,site,day)? Is the migration safe (old (org,item,day) key was stricter → no new dup risk; nulls not distinct)? Two-site item → two rows?
+- N-63: are items with missing/zero nominal now surfaced (skipped signal / count / exception), not silently dropped? Test proves it?
+- Cross-cutting: any NEW non-throw-return-after-write partial commit? reserved-keyword alias in new SQL? non-async export from a 'use server' module (RSC build blocker)? float math?
+Write review to _meta/plans/wave-14-codex-review.md ending VERDICT: pass|fail + numbered required changes. Do NOT modify other files.

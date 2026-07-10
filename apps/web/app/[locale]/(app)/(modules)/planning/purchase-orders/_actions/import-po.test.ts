@@ -41,9 +41,13 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
-vi.mock('./create-purchase-order-core', () => ({
-  createPurchaseOrderCore: vi.fn(),
-}));
+vi.mock('./create-purchase-order-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./create-purchase-order-core')>();
+  return {
+    ...actual,
+    createPurchaseOrderCore: vi.fn(),
+  };
+});
 
 function makeClient(): QueryClient {
   const query: QueryClient['query'] = async <T = Record<string, unknown>>(
@@ -228,6 +232,57 @@ describe('purchase order import backend', () => {
     expect(result.failed).toHaveLength(1);
     expect(result.failed[0]?.errors[0]).toEqual(expect.objectContaining({ column: 'supplier_code' }));
     expect(importJobInsertCalls()).toHaveLength(0);
+  });
+
+  it('commitPoImport all_or_nothing rolls back group 1 when group 2 fails at runtime', async () => {
+    createPurchaseOrderCoreMock()
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { poNumber: 'EXT-A' },
+      } as Awaited<ReturnType<typeof createPurchaseOrderCore>>)
+      .mockResolvedValueOnce({
+        ok: false,
+        error: 'supplier_blocked',
+      } as Awaited<ReturnType<typeof createPurchaseOrderCore>>);
+
+    const result = await commitPoImport(validFourRows(), { mode: 'all_or_nothing' });
+
+    expect(createPurchaseOrderCore).toHaveBeenCalledTimes(2);
+    expect(result.created).toEqual([]);
+    expect(result.skipped).toEqual([]);
+    expect(result.failed.length).toBeGreaterThan(0);
+    expect(importJobInsertCalls()).toHaveLength(0);
+  });
+
+  it('commitPoImport rejects overlong notes via CreatePurchaseOrderInput with row-mapped errors', async () => {
+    const result = await commitPoImport([poRow({ notes: 'x'.repeat(3000) })], { mode: 'skip_invalid' });
+
+    expect(createPurchaseOrderCore).not.toHaveBeenCalled();
+    expect(result.created).toEqual([]);
+    expect(result.failed[0]?.errors[0]).toEqual(
+      expect.objectContaining({
+        column: 'notes',
+        message: expect.stringContaining('2000'),
+      }),
+    );
+  });
+
+  it('commitPoImport rejects groups over 200 lines via CreatePurchaseOrderInput', async () => {
+    const rows = Array.from({ length: 201 }, (_, index) =>
+      poRow({
+        external_ref: 'EXT-LINES',
+        supplier_code: 'SUP-A',
+        item_code: index % 2 === 0 ? 'ITEM-A' : 'ITEM-B',
+        uom: index % 2 === 0 ? 'kg' : 'ea',
+      }),
+    );
+
+    const result = await commitPoImport(rows, { mode: 'skip_invalid' });
+
+    expect(createPurchaseOrderCore).not.toHaveBeenCalled();
+    expect(result.created).toEqual([]);
+    expect(result.failed.length).toBeGreaterThan(0);
+    expect(result.failed.some((row) => row.errors.some((err) => err.column === 'item_code'))).toBe(true);
   });
 
   it('commitPoImport calls createPurchaseOrderCore on the same org context (no nested withOrgContext)', async () => {

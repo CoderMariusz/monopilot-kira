@@ -96,6 +96,7 @@ export async function runVarianceForOrg(
       itemsProcessed: summary.itemsProcessed,
       rowsWritten: summary.rowsWritten,
       alertsEmitted: summary.alertsEmitted,
+      skipped: summary.skipped,
     };
   } catch (err) {
     await client.query('rollback').catch(() => undefined);

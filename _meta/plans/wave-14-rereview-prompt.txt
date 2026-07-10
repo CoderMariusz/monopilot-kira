@@ -1,0 +1,7 @@
+Re-review after a fix round. Your prior review confirmed N-32/55/62/63 FIXED and N-30/N-31 code CORRECT but their tests were mock-only (couldn't prove rollback). The implementer added 2 DB-integration pg tests (commit 3caef844): import-po-rollback.pg.test.ts + import-to-rollback.pg.test.ts. Verify in CODE (read both new pg test files):
+- Do they gate on DATABASE_URL (describe.skip without it) and use the getOwnerConnection/getAppConnection + bindOrg seeding pattern from existing pg tests? Do they parse + collect + skip cleanly (they do: 2 files/4 tests skipped without DATABASE_URL)?
+- PO test: does it run the importer in all_or_nothing mode with group 1 valid + group 2 failing at runtime, then assert AFTER the call that group 1's PO is NOT in public.purchase_orders (count 0 = rolled back) AND no import-job/audit row persisted? Is there a best-effort contrast test proving group 1 IS committed there?
+- TO test: same shape — order 1 NOT in public.transfer_orders after a failed all_or_nothing import; contrast with best-effort.
+- Are the assertions REAL (query actual persisted state), not mocked? Correct import depths? Non-reserved SQL aliases? Do they clean up seeded rows in afterAll (org-scoped)?
+- Confirm the implementation files (import-po.ts/import-to.ts/cores) were NOT changed in this fix round (tests only).
+Overwrite _meta/plans/wave-14-codex-review.md ending VERDICT: pass|fail. Do NOT modify other files.
