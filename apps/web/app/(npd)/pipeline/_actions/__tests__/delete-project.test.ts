@@ -40,7 +40,7 @@ describe('deleteProject (N-42)', () => {
     );
   });
 
-  it('stamps gate_approvals, deletes the project, and emits npd.project.deleted atomically', async () => {
+  it('deletes the project and emits npd.project.deleted atomically', async () => {
     queryMock.mockImplementation(async (sql: string) => {
       const q = normalize(sql);
       if (q.includes('as ok')) {
@@ -49,7 +49,6 @@ describe('deleteProject (N-42)', () => {
       if (q.startsWith('select id, code') && q.includes('from public.npd_projects')) {
         return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-001' }] };
       }
-      if (q.startsWith('update public.gate_approvals')) return { rows: [] };
       if (q.startsWith('delete from public.npd_projects')) {
         return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-001' }] };
       }
@@ -60,9 +59,7 @@ describe('deleteProject (N-42)', () => {
     const result = await deleteProject({ projectId: PROJECT_ID });
 
     expect(result).toEqual({ ok: true });
-    expect(calls().some((c) => c.sql.includes('update public.gate_approvals') && c.params[1] === 'NPD-DEL-001')).toBe(
-      true,
-    );
+    expect(calls().some((c) => c.sql.includes('update public.gate_approvals'))).toBe(false);
     const outbox = calls().find((c) => c.sql.includes('insert into public.outbox_events'));
     expect(outbox?.params[0]).toBe('npd.project.deleted');
     expect(JSON.parse(String(outbox?.params[2]))).toMatchObject({
@@ -79,7 +76,6 @@ describe('deleteProject (N-42)', () => {
         return { rows: [{ ok: true }] };
       }
       if (q.startsWith('select id, code')) return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-002' }] };
-      if (q.startsWith('update public.gate_approvals')) return { rows: [] };
       if (q.startsWith('delete from public.npd_projects')) {
         return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-002' }] };
       }

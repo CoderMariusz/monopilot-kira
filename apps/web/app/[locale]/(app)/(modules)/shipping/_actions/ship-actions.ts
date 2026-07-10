@@ -618,7 +618,8 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
             and sh.id = $1::uuid
             and sh.deleted_at is null
           group by sh.id, sh.status, sh.carrier, sh.service_level, sh.tracking_number
-          limit 1`,
+          limit 1
+          for update of sh`,
         [input.shipmentId],
       );
       const shipment = shipmentRows[0];
@@ -629,11 +630,12 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
         return { ok: false, error: 'no_boxes' };
       }
 
+      const lockedStatus = shipment.status;
       const nextCarrier = input.carrier ?? null;
       const nextServiceLevel = input.serviceLevel ?? null;
       const nextTrackingNumber = input.trackingNumber ?? null;
 
-      if (shipment.status === 'shipped') {
+      if (lockedStatus === 'shipped') {
         const bolSignForbidden = await requirePermission(ctx, SHIP_BOL_SIGN);
         if (bolSignForbidden) return bolSignForbidden;
 
@@ -686,6 +688,7 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
                 updated_by = $7::uuid
           where org_id = app.current_org_id()
             and id = $1::uuid
+            and status = $8::text
             and deleted_at is null
           returning id::text`,
         [
@@ -696,9 +699,10 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
           serializedPayload,
           JSON.stringify({ bol_sha256: bolHash }),
           userId,
+          lockedStatus,
         ],
       );
-      if (!rows[0]) return { ok: false, error: 'not_found' };
+      if (!rows[0]) throw new ActionError('not_found');
 
       return { ok: true, bolRef: bolHash };
     });

@@ -54,8 +54,8 @@ two **CFR-21 e-signatures** (at G3 and G4). Entering the `packaging` stage mints
 **promotes the FG to production** through the shared factory-release flow.
 
 The lifecycle is reversible only in narrow, audited ways: a draft formulation
-version is editable until submitted; an **admin** can revert a project to an earlier
-gate (`revert-gate.ts`); a department section can be reopened
+version is editable until submitted; an operator with `npd.gate.advance` can revert
+one adjacent gate via PIN-gated e-sign (`revert-npd-gate.ts`); a department section can be reopened
 (`reopen-dept-section.ts`); a risk can re-open from `Closed → Open`. There is **no
 revert-from-Launched** and **no e-signed gate "reject" that rolls the stage back**
 (see *Known gaps*).
@@ -88,10 +88,10 @@ factory-release engine is `builder/_actions/release-npd-project-to-factory.ts` +
 | `createProject(input)` (`create-project.ts`) | Insert project at `stage='brief', gate='G0'`; allocate per-org `NPD-NNN` code; fold-in brief fields (pack format/weight, channel, claims…); seed the gate checklist from `GateChecklistTemplates`. Emits `npd.project.created`. | writes `npd_projects`, `gate_checklist_items`, `outbox_events`; reads `org_sequences`, `"Reference"."GateChecklistTemplates"` | `npd.project.create` | `deleteProject` (no dependents) |
 | `cloneProject({ sourceProjectId, …overrides })` (`clone-project.ts`) | **#3/#4 (2026-06-25):** seed a new `brief`/`G0` project from an existing one — copy header + gate checklist, apply wizard brief overrides, fresh `NPD-NNN`. Backs both the wizard **Clone existing project** card and the project-header **Duplicate** button. | writes `npd_projects`, `gate_checklist_items`, `outbox_events`; reads source `npd_projects` | `npd.project.create` | `deleteProject` (no dependents) |
 | `deleteProject({projectId})` (`delete-project.ts`) | Hard-delete a project that has no dependents (`HAS_DEPENDENTS` on FK violation). Emits `npd.project.deleted`. | deletes `npd_projects`; writes `outbox_events` | `npd.project.create` | — (terminal) |
-| `advanceProjectGate({projectId,targetStage,productCode?})` (`advance-project-gate.ts`) | **The forward driver.** Advances exactly ONE adjacent stage (`assertAdjacentStage`). Side effects keyed to the stage entered: entering `packaging` → `createFgCandidate`; `approval→handoff` → assert a valid G4 e-sign + seed handoff checklist; entering `launched` → `closeOutLegacyStagesForLaunch`. Emits `npd.gate.advanced`. | writes `npd_projects`, `product`, `formulations`, `handoff_checklists*`, `npd_legacy_closeout`, `outbox_events` | `npd.gate.advance` | `revertGate` (admin, gate-space) |
+| `advanceProjectGate({projectId,targetStage,productCode?})` (`advance-project-gate.ts`) | **The forward driver.** Advances exactly ONE adjacent stage (`assertAdjacentStage`). Side effects keyed to the stage entered: entering `packaging` → `createFgCandidate`; `approval→handoff` → assert a valid G4 e-sign + seed handoff checklist; entering `launched` → `closeOutLegacyStagesForLaunch`. Emits `npd.gate.advanced`. | writes `npd_projects`, `product`, `formulations`, `handoff_checklists*`, `npd_legacy_closeout`, `outbox_events` | `npd.gate.advance` | `revertNpdGate` (adjacent gate, PIN e-sign) |
 | `approveProjectGate({projectId,gateCode:G3\|G4,decision,notes,password?})` (`approve-project-gate.ts`) | Records a gate **approval checkpoint**. Approve = **CFR-21 e-sign** (`signEvent` intent `npd.gate.approved`) → `gate_approvals` with `esigned_at`+`esign_hash`. Reject = reason only, no password, no signature. **Does NOT auto-advance** (advance is the separate stage step). Emits `npd.gate.approved`. | writes `gate_approvals`, `e_sign_log` (approve), `outbox_events` | `npd.gate.approve` | — (the recorded checkpoint; reject is a separate record) |
 | `createOrMapFgCandidateAtG3({projectId,mode:create\|map,productCode?})` (`create-or-map-fg-candidate-at-g3.ts`) | Explicitly create or map the FG candidate while at G2/G3 (the same `createFgCandidate` that the packaging-stage advance triggers). | writes `product`, `npd_projects`, `formulations`, `outbox_events` (`fg.created`, `npd.fg_candidate_mapped`) | `npd.gate.advance` | — |
-| `revertGate / rollbackGate({projectId,targetGate:G0–G3,reason})` (`revert-gate.ts`) | **Admin-only gate revert** to any earlier gate (`ROLLBACK_VIOLATION` if not strictly earlier). Append-only audit + `npd.gate.reverted`. The one downward path. | writes `npd_projects`, `audit_events`, `outbox_events` | `requireAdmin` (`admin` perm or role code `admin`) — NOT a `npd.*` string | This **is** the reverse of `advance`; only down to G3 (cannot revert from/through Launched) |
+| `revertNpdGate({projectId,reason,pin})` (`revert-npd-gate.ts`) | **Adjacent gate revert** one step backward via CFR-21 PIN e-sign (`npd.gate.reverted`). Blocked when `npd_locked_for_release_at` is set (`NPD_RELEASE_LOCKED`). The one downward path. | writes `npd_projects`, `e_sign_log`, `outbox_events` | `npd.gate.advance` | This **is** the reverse of `advance` for one gate; cannot revert from/through Launched |
 | `closeOutLegacyStages({projectId})` (`close-out-legacy-stages.ts`) | Standalone terminal closeout (also called internally by the `handoff→launched` advance). Verifies the full launch evidence set (release status, G4 e-sign, shelf-life, allergen recompute, pilot evidence, active BOM, packaging MRP) then writes `npd_legacy_closeout` and sets `stage='launched'` (gate derives `Launched`). Emits `npd.project.legacy_stages_closed`. | writes `npd_legacy_closeout`, `npd_projects`, `outbox_events`; reads `factory_release_status`, `product`, `gate_approvals`, `bom_headers`, `pilot_runs`, `allergen_cascade_rebuild_jobs` | `npd.gate.advance` | — (terminal — **no un-launch**) |
 | `bulkAssignOwner / bulkSetPriority / bulkMoveGate(rows)` (`bulk-update-projects.ts`) | Bulk pipeline ops. `bulkMoveGate` translates a gate target into per-project single-stage `advanceProjectGate` calls (partial-success result with per-row failures). | writes `npd_projects`, `audit_events` (+ advance writes) | `npd.core.write` | per-row revert |
 | `toggleGateChecklistItem({itemId,checked})` (`toggle-gate-checklist-item.ts`) | Tick / untick a seeded gate checklist item (advisory progress only — does **not** hard-block advance). | writes `gate_checklist_items`, `audit_events` | `npd.core.write` | toggle again |
@@ -248,12 +248,12 @@ The e-sign approval is a **recorded checkpoint that no longer auto-advances**
    `ESIGN_REQUIRED` (403).
 3. `decision='rejected'` records a reason on `gate_approvals` with **no password,
    no signature** — it does **not** roll the stage back (it is a checkpoint record
-   only). Rolling a gate backwards is the **admin** `revertGate` path.
+   only). Rolling a gate backwards is the **`revertNpdGate`** path (adjacent gate, PIN e-sign).
 
 ### Reverse / downward paths
 
-- **`revertGate`** (admin only) — gate-space rollback to any strictly-earlier gate
-  `G0–G3`; cannot revert from or through `Launched`.
+- **`revertNpdGate`** — adjacent gate rollback via PIN-gated e-sign (`revert-npd-gate.ts`);
+  requires `npd.gate.advance`; blocked when release lock is set.
 - **Formulation** — `draft` is freely editable; `submitted_for_trial` and `locked`
   are not (create a new draft version to revise).
 - **Risk** — `Closed → Open` re-opens (`update-risk.ts:225-230`).
@@ -321,7 +321,7 @@ The e-sign approval is a **recorded checkpoint that no longer auto-advances**
    This **requires** a valid approved G4 e-sign (`ESIGN_REQUIRED` otherwise) and
    seeds the handoff checklist.
 5. **Reject** (`decision:'rejected'`, no password) records a reason; to roll the
-   stage backwards an **admin** uses `revertGate({targetGate, reason})`.
+   stage backwards an operator with `npd.gate.advance` uses `revertNpdGate({projectId, reason, pin})`.
 
 ### (iii) Edit a formulation
 
@@ -431,8 +431,8 @@ Grounded in the code that was read — no guesses:
    navigation relabel (`npd-nav.ts:9-12` maps prototype "FA"→"FG" in copy only).
    A full rename pass is outstanding.
 2. **No revert-from-Launched and no header un-release.** `launched` is terminal
-   (`npd_legacy_closeout`, `close-out-legacy-stages.ts`), `revertGate` is capped at
-   `G0–G3` (`revert-gate.ts:22`), and `releaseNpdProjectToFactory` /
+   (`npd_legacy_closeout`, `close-out-legacy-stages.ts`), `revertNpdGate` moves only one
+   adjacent gate backward (`revert-npd-gate.ts`), and `releaseNpdProjectToFactory` /
    `promoteToProduction` are forward-only. The documented escape for a post-release
    change is a **new** BOM/spec version via Technical — there is no NPD action that
    un-launches or un-releases a project.
@@ -443,10 +443,8 @@ Grounded in the code that was read — no guesses:
    the `app/(npd)` tree has `_actions` but no `page.tsx` of its own.
 4. **Gate "reject" does not roll back.** `approveProjectGate(decision='rejected')`
    only records a reason on `gate_approvals` (`approve-project-gate.ts:39-44`); it
-   does not move the stage. The only backward path is the **admin-gated**
-   `revertGate`, which uses the bare `admin` permission / role code — **not** a
-   `npd.*` permission string (`gate-helpers.ts:212-226`), so it sits outside the
-   `npd.*` RBAC family.
+   does not move the stage. The only backward path is **`revertNpdGate`** (PIN-gated,
+   `npd.gate.advance` permission) — not a multi-gate admin rollback.
 5. **Gate checklist is advisory, not blocking.** Seeded `gate_checklist_items` are
    progress markers only — required-but-unchecked items do **not** hard-block stage
    advance (explicit decision, `gate-helpers.ts:281-283`). The only real

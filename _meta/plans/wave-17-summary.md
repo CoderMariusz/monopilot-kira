@@ -7,11 +7,12 @@ Branch: `fix/wave17-p2-sweep`. All fixes include targeted vitest coverage; `'use
 **Problem:** `gate_approvals.project_id` SET NULL on delete left no durable project identity; `npd.project.deleted` was absent from the outbox CHECK, so emit failed behind a SAVEPOINT and the delete still committed.
 
 **Fix:**
-- Migration `482-npd-project-deleted-outbox.sql`: `gate_approvals.project_code` + `project_id_snapshot` (backfilled from live projects); outbox CHECK adds `npd.project.deleted`.
+- Migration `482-npd-project-deleted-outbox.sql`: `gate_approvals.project_code` + `project_id_snapshot` columns + outbox CHECK adds `npd.project.deleted`.
+- Migration `484-gate-approvals-project-preserve-on-set-null.sql`: DB trigger stamps durable refs on `gate_approvals.project_id` SET NULL (no app pre-delete write).
 - `events.enum.ts`: `NPD_PROJECT_DELETED`.
-- `delete-project.ts`: stamp approvals before delete; emit outbox atomically (throw on failure — no SAVEPOINT).
+- `delete-project.ts`: delete then emit outbox atomically (no pre-delete stamp).
 
-**Tests:** `delete-project.test.ts` — stamp + event + rollback on emit failure.
+**Tests:** `delete-project.test.ts`, `delete-project.pg.test.ts` — no app stamp + SET NULL preservation + FK failure leaves approval unstamped.
 
 ## N-43 — Delete unsafe `rollbackGate` (`revert-gate.ts`)
 
@@ -19,15 +20,15 @@ Branch: `fix/wave17-p2-sweep`. All fixes include targeted vitest coverage; `'use
 
 **Fix:** Deleted `revert-gate.ts`. Integration test repointed to `revertNpdGate` (adjacent, PIN-gated). Removed `rollbackGate` unit tests.
 
-**Note:** Docs under `docs/guide/` still mention `revert-gate.ts` historically; runtime path is `revert-npd-gate.ts` only.
+**Note:** Docs under `docs/guide/` repointed to `revert-npd-gate.ts` (fix round 1).
 
 ## N-48 — RM-usability TOCTOU on release bundle
 
 **Problem:** `bomRmUsabilityFails` ran before BOM row lock; concurrent `bom_lines` insert could pass check then fail AC2.
 
-**Fix:** `lockBomForApproval` (`SELECT … FOR UPDATE` on `bom_headers`); RM usability re-checked under lock after spec lock.
+**Fix:** `lockBomForApproval` (`SELECT … FOR UPDATE` on `bom_headers`); RM usability re-checked under lock. Migration `485-bom-lines-header-lock-immutability.sql` locks parent header inside `bom_lines` immutability trigger.
 
-**Tests:** `release-bundle.test.ts` — `FOR UPDATE` on BOM precedes `bom_lines` blocked count query.
+**Tests:** `release-bundle.test.ts`; `bom-lines-header-lock.pg.test.ts` — two-connection UPDATE race.
 
 ## N-53 — ECO close vs concurrent recall
 
@@ -67,6 +68,16 @@ Branch: `fix/wave17-p2-sweep`. All fixes include targeted vitest coverage; `'use
 
 **Fix:**
 - Migration `483-shipment-bol-payload.sql`: `shipments.bol_payload jsonb` + backfill from legacy JSON in `bol_pdf_url`.
-- `generateBol`: write `bol_payload`; leave `bol_pdf_url` for real URLs; on `shipped` status require `ship.bol.sign` and emit `shipping.bol.carrier_updated` audit when carrier/tracking/service change.
+- `generateBol`: write `bol_payload`; `FOR UPDATE` shipment lock; status predicate on update; throw on zero-row update; on `shipped` require `ship.bol.sign` + carrier audit.
 
-**Tests:** `ship-actions.test.ts` — `bol_payload` storage + shipped mutation gate/audit.
+**Tests:** `ship-actions.test.ts`; `generate-bol-ship-race.pg.test.ts` — packed→shipped interleaving.
+
+## Fix round 1
+
+Adversarial Codex review follow-up (N-42, N-43, N-48, N-68):
+
+- **484-gate-approvals-project-preserve-on-set-null.sql** — DB trigger preserves `project_code` / `project_id_snapshot` on `gate_approvals.project_id` SET NULL; removed app pre-delete stamp.
+- **485-bom-lines-header-lock-immutability.sql** — `bom_lines` immutability trigger locks parent `bom_headers` FOR UPDATE.
+- **Docs** — English + Polish guides repointed from deleted `revert-gate.ts` / `rollbackGate` to `revertNpdGate` / `revert-npd-gate.ts`.
+- **generateBol** — shipment `FOR UPDATE` lock, status predicate on final UPDATE, throw on zero-row update (no orphan audit).
+- **Pg tests** — `delete-project.pg.test.ts`, `bom-lines-header-lock.pg.test.ts`, `generate-bol-ship-race.pg.test.ts`.

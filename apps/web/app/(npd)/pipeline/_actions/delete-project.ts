@@ -19,9 +19,9 @@ const PG_FK_VIOLATION = '23503';
 
 /**
  * Delete an NPD project. Deleting the row cascades gate_checklist_items (ON DELETE
- * CASCADE, mig 085) and nulls gate_approvals.project_id (ON DELETE SET NULL, kept for
- * audit). gate_approvals.project_code + project_id_snapshot are stamped before delete
- * so the approval audit retains a durable project reference (mig 482).
+ * CASCADE, mig 085) and nulls gate_approvals.project_id (ON DELETE SET NULL). Durable
+ * project_code + project_id_snapshot are populated by the DB trigger on that SET NULL
+ * path (mig 484) — no app-side pre-delete stamp.
  *
  * RBAC: gated on npd.project.create (whoever can create projects can delete them).
  */
@@ -47,15 +47,6 @@ export async function deleteProject(rawInput: unknown): Promise<DeleteProjectRes
       );
       const project = existing[0];
       if (!project) return { ok: false, error: 'NOT_FOUND' };
-
-      await ctx.client.query(
-        `update public.gate_approvals
-            set project_code = $2,
-                project_id_snapshot = $1::uuid
-          where org_id = app.current_org_id()
-            and project_id = $1::uuid`,
-        [project.id, project.code],
-      );
 
       let deleted: { id: string; code: string } | undefined;
       try {

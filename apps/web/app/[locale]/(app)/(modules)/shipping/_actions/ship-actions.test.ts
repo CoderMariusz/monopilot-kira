@@ -322,6 +322,10 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('update public.shipments') && q.includes('bol_payload')) {
+        const expectedStatus = String(params[7] ?? '');
+        if (expectedStatus && expectedStatus !== shipmentStatus) {
+          return { rows: [], rowCount: 0 };
+        }
         bolUpdate = {
           shipment_id: params[0],
           carrier: params[1],
@@ -330,6 +334,7 @@ function makeClient(): QueryClient {
           bol_payload: params[4],
           ext_data: JSON.parse(params[5] as string) as Record<string, unknown>,
           updated_by: params[6],
+          locked_status: params[7],
         };
         shipmentCarrier = params[1] == null ? null : String(params[1]);
         shipmentServiceLevel = params[2] == null ? null : String(params[2]);
@@ -690,6 +695,34 @@ describe('generateBol', () => {
 
     expect(result).toEqual({ ok: false, error: 'no_boxes' });
     expect(bolUpdate).toBeNull();
+  });
+
+  it('locks the shipment with FOR UPDATE before mutating BOL fields (N-68)', async () => {
+    await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+
+    const lockQuery = queryLog.find(
+      ({ sql }) => normalize(sql).includes('from public.shipments') && normalize(sql).includes('for update of sh'),
+    );
+    const updateQuery = queryLog.find(({ sql }) => normalize(sql).includes('bol_payload'));
+    expect(lockQuery).toBeDefined();
+    expect(updateQuery?.sql).toContain("and status = $8::text");
+    expect(bolUpdate?.locked_status).toBe('packed');
+  });
+
+  it('returns not_found when the locked status no longer matches at update time', async () => {
+    shipmentStatus = 'packed';
+    const originalQuery = client.query.bind(client);
+    client.query = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+      const q = normalize(sql);
+      if (q.startsWith('update public.shipments') && q.includes('bol_payload')) {
+        return { rows: [], rowCount: 0 };
+      }
+      return originalQuery(sql, params);
+    }) as typeof client.query;
+
+    const result = await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+    expect(result).toEqual({ ok: false, error: 'not_found' });
+    expect(bolAuditEvent).toBeNull();
   });
 });
 
