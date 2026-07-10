@@ -3,7 +3,8 @@
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
 import { requireActionPermission, PLANNING_TO_MANAGE_PERMISSION, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
-import { createTransferOrder } from './actions';
+import { createTransferOrderCore } from './create-transfer-order-core';
+import { ToImportAllOrNothingError } from './to-import-errors';
 import type {
   ToImportError,
   ToImportResponse,
@@ -76,117 +77,172 @@ export async function commitToImport(
     return { created: [], skipped: [], failed };
   }
 
-  const validRows = rows
-    .map((row, index): ValidImportRow | null => {
-      const result = validation.rows[index];
-      if (!result?.ok) return null;
-      return {
-        rowNumber: index + 1,
-        row,
-        externalRef: normalizeText(row.external_ref),
-        fromWarehouseCode: normalizeText(row.from_warehouse_code),
-        toWarehouseCode: normalizeText(row.to_warehouse_code),
-        itemCode: normalizeText(row.item_code),
-        uom: normalizeText(row.uom),
-      };
-    })
-    .filter((row): row is ValidImportRow => row !== null);
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<ToImportResponse> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+      const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+      if (!perm.ok) return { ok: false, error: 'forbidden' };
 
-  return withOrgContext(async ({ userId, orgId, client }): Promise<ToImportResponse> => {
-    const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
-    const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
-    if (!perm.ok) return { ok: false, error: 'forbidden' };
-
-    const created: ToImportResult['created'] = [];
-    const skipped: ToImportResult['skipped'] = [];
-    const skippedRefs = new Set<string>();
-    const runtimeFailed: ToImportResult['failed'] = [...failed];
-
-    const existingRefs = await findExistingTransferOrderRefs(ctx.client, validRows.map((row) => row.externalRef));
-    const rowsToCreate = validRows.filter((row) => {
-      if (!existingRefs.has(row.externalRef)) return true;
-      if (!skippedRefs.has(row.externalRef)) {
-        skipped.push({ external_ref: row.externalRef, reason: `Transfer order already exists for external_ref "${row.externalRef}".` });
-        skippedRefs.add(row.externalRef);
-      }
-      return false;
-    });
-
-    const [warehouses, items] = await Promise.all([
-      loadWarehouses(ctx.client, rowsToCreate.flatMap((row) => [row.fromWarehouseCode, row.toWarehouseCode])),
-      loadActiveItems(ctx.client, rowsToCreate.map((row) => row.itemCode)),
-    ]);
-
-    for (const group of groupRows(rowsToCreate)) {
-      const fromWarehouse = warehouses.get(group.fromWarehouseCode);
-      const toWarehouse = warehouses.get(group.toWarehouseCode);
-      if (!fromWarehouse) {
-        failGroup(runtimeFailed, group, 'from_warehouse_code', `Warehouse code "${group.fromWarehouseCode}" was not found for this org.`);
-        continue;
-      }
-      if (!toWarehouse) {
-        failGroup(runtimeFailed, group, 'to_warehouse_code', `Warehouse code "${group.toWarehouseCode}" was not found for this org.`);
-        continue;
-      }
-      if (fromWarehouse.id === toWarehouse.id) {
-        failGroup(runtimeFailed, group, 'to_warehouse_code', 'Transfer source and destination warehouses must differ.');
-        continue;
+      const revalidation = await validateRows(ctx.client, rows);
+      const revalidationFailed = revalidation.rows
+        .filter((row) => !row.ok)
+        .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
+      if (options.mode === 'all_or_nothing' && revalidationFailed.length > 0) {
+        throw new ToImportAllOrNothingError(revalidationFailed);
       }
 
-      const lineInputs: CreateTransferOrderLinePayload[] = [];
-      let groupHasLookupFailure = false;
-      for (const entry of group.rows) {
-        const item = items.get(entry.itemCode);
-        if (!item) {
-          runtimeFailed.push({
-            rowNumber: entry.rowNumber,
-            errors: [{ column: 'item_code', message: `Item code "${entry.itemCode}" is not an active item for this org.` }],
-          });
-          groupHasLookupFailure = true;
-          continue;
+      const created: ToImportResult['created'] = [];
+      const skipped: ToImportResult['skipped'] = [];
+      const skippedRefs = new Set<string>();
+      const runtimeFailed: ToImportResult['failed'] = [
+        ...failed,
+        ...(options.mode === 'skip_invalid' ? revalidationFailed : []),
+      ];
+
+      const revalidatedValidRows = rows
+        .map((row, index): ValidImportRow | null => {
+          const result = revalidation.rows[index];
+          if (!result?.ok) return null;
+          return {
+            rowNumber: index + 1,
+            row,
+            externalRef: normalizeText(row.external_ref),
+            fromWarehouseCode: normalizeText(row.from_warehouse_code),
+            toWarehouseCode: normalizeText(row.to_warehouse_code),
+            itemCode: normalizeText(row.item_code),
+            uom: normalizeText(row.uom),
+          };
+        })
+        .filter((row): row is ValidImportRow => row !== null);
+
+      const existingRefs = await findExistingTransferOrderRefs(
+        ctx.client,
+        revalidatedValidRows.map((row) => row.externalRef),
+      );
+      const rowsToCreate = revalidatedValidRows.filter((row) => {
+        if (!existingRefs.has(row.externalRef)) return true;
+        if (!skippedRefs.has(row.externalRef)) {
+          skipped.push({ external_ref: row.externalRef, reason: `Transfer order already exists for external_ref "${row.externalRef}".` });
+          skippedRefs.add(row.externalRef);
         }
-        lineInputs.push({
-          itemId: item.id,
-          qty: numberToPlainString(entry.row.qty),
-          uom: normalizePieceUom(entry.uom) ?? entry.uom,
-          lineNo: lineInputs.length + 1,
-        });
-      }
-      if (groupHasLookupFailure) continue;
-
-      const result = await createTransferOrder({
-        toNumber: group.externalRef,
-        fromWarehouseId: fromWarehouse.id,
-        toWarehouseId: toWarehouse.id,
-        status: 'draft',
-        scheduledDate: firstText(group.rows, (entry) => entry.row.date),
-        lines: lineInputs,
+        return false;
       });
 
-      if (result.ok) {
-        created.push({ to_number: result.data.toNumber, external_ref: group.externalRef });
-        continue;
+      const [warehouses, items] = await Promise.all([
+        loadWarehouses(ctx.client, rowsToCreate.flatMap((row) => [row.fromWarehouseCode, row.toWarehouseCode])),
+        loadActiveItems(ctx.client, rowsToCreate.map((row) => row.itemCode)),
+      ]);
+
+      for (const group of groupRows(rowsToCreate)) {
+        const fromWarehouse = warehouses.get(group.fromWarehouseCode);
+        const toWarehouse = warehouses.get(group.toWarehouseCode);
+        if (!fromWarehouse) {
+          const groupFailed = failGroup(
+            runtimeFailed,
+            group,
+            'from_warehouse_code',
+            `Warehouse code "${group.fromWarehouseCode}" was not found for this org.`,
+          );
+          if (options.mode === 'all_or_nothing') throw new ToImportAllOrNothingError(groupFailed);
+          continue;
+        }
+        if (!toWarehouse) {
+          const groupFailed = failGroup(
+            runtimeFailed,
+            group,
+            'to_warehouse_code',
+            `Warehouse code "${group.toWarehouseCode}" was not found for this org.`,
+          );
+          if (options.mode === 'all_or_nothing') throw new ToImportAllOrNothingError(groupFailed);
+          continue;
+        }
+        if (fromWarehouse.id === toWarehouse.id) {
+          const groupFailed = failGroup(
+            runtimeFailed,
+            group,
+            'to_warehouse_code',
+            'Transfer source and destination warehouses must differ.',
+          );
+          if (options.mode === 'all_or_nothing') throw new ToImportAllOrNothingError(groupFailed);
+          continue;
+        }
+
+        const lineInputs: CreateTransferOrderLinePayload[] = [];
+        let groupHasLookupFailure = false;
+        for (const entry of group.rows) {
+          const item = items.get(entry.itemCode);
+          if (!item) {
+            runtimeFailed.push({
+              rowNumber: entry.rowNumber,
+              errors: [{ column: 'item_code', message: `Item code "${entry.itemCode}" is not an active item for this org.` }],
+            });
+            groupHasLookupFailure = true;
+            continue;
+          }
+          lineInputs.push({
+            itemId: item.id,
+            qty: numberToPlainString(entry.row.qty),
+            uom: normalizePieceUom(entry.uom) ?? entry.uom,
+            lineNo: lineInputs.length + 1,
+          });
+        }
+        if (groupHasLookupFailure) {
+          const groupFailed = group.rows
+            .filter((entry) =>
+              runtimeFailed.some(
+                (failure) =>
+                  failure.rowNumber === entry.rowNumber &&
+                  failure.errors.some((err) => err.column === 'item_code'),
+              ),
+            )
+            .map((entry) => ({
+              rowNumber: entry.rowNumber,
+              errors: runtimeFailed.find((failure) => failure.rowNumber === entry.rowNumber)?.errors ?? [],
+            }));
+          if (options.mode === 'all_or_nothing') throw new ToImportAllOrNothingError(groupFailed);
+          continue;
+        }
+
+        const result = await createTransferOrderCore(ctx, {
+          toNumber: group.externalRef,
+          fromWarehouseId: fromWarehouse.id,
+          toWarehouseId: toWarehouse.id,
+          status: 'draft',
+          scheduledDate: firstText(group.rows, (entry) => entry.row.date),
+          lines: lineInputs,
+        });
+
+        if (result.ok) {
+          created.push({ to_number: result.data.toNumber, external_ref: group.externalRef });
+          continue;
+        }
+
+        const groupFailed = failGroup(
+          runtimeFailed,
+          group,
+          'external_ref',
+          `Could not create transfer order for external_ref "${group.externalRef}": ${result.message ?? result.error}.`,
+        );
+        if (options.mode === 'all_or_nothing') throw new ToImportAllOrNothingError(groupFailed);
       }
 
-      failGroup(
-        runtimeFailed,
-        group,
-        'external_ref',
-        `Could not create transfer order for external_ref "${group.externalRef}": ${result.message ?? result.error}.`,
-      );
-    }
+      await insertImportJob(ctx.client, {
+        userId,
+        total: validation.summary.total,
+        createdCount: created.length,
+        skippedCount: skipped.length,
+        failedCount: runtimeFailed.length,
+        createdExternalRefs: created.map((row) => row.external_ref),
+      });
 
-    await insertImportJob(ctx.client, {
-      userId,
-      total: validation.summary.total,
-      createdCount: created.length,
-      skippedCount: skipped.length,
-      failedCount: runtimeFailed.length,
-      createdExternalRefs: created.map((row) => row.external_ref),
+      return { created, skipped, failed: runtimeFailed };
     });
-
-    return { created, skipped, failed: runtimeFailed };
-  });
+  } catch (err) {
+    if (err instanceof ToImportAllOrNothingError) {
+      return { created: [], skipped: [], failed: err.failed };
+    }
+    throw err;
+  }
 }
 
 async function validateRows(client: QueryClient, rows: ToImportRow[]): Promise<ToValidationResult> {
@@ -370,10 +426,14 @@ function failGroup(
   group: ImportGroup,
   column: string,
   message: string,
-): void {
+): ToImportResult['failed'] {
+  const groupFailed: ToImportResult['failed'] = [];
   for (const row of group.rows) {
-    failed.push({ rowNumber: row.rowNumber, errors: [{ column, message }] });
+    const entry = { rowNumber: row.rowNumber, errors: [{ column, message }] };
+    failed.push(entry);
+    groupFailed.push(entry);
   }
+  return groupFailed;
 }
 
 function firstText(rows: ValidImportRow[], pick: (entry: ValidImportRow) => string | undefined): string | undefined {
