@@ -61,3 +61,23 @@
 | `pnpm --filter web exec tsc --noEmit` | exit 0 |
 | `pnpm --filter web run build` | exit 0 |
 | Vitest mwo-actions + mwo-detail + pg (skip) | 40 passed |
+
+## Fix round 2
+
+**RSC rule (P1):**
+- Moved `MwoLotoStatus` to non-`'use server'` sibling `maintenance/_actions/mwo-types.ts`; `mwo-actions.ts` imports it with `import type`.
+
+**Real e-sign subject assertions (P1):**
+- `mwo-loto-signing.pg.test.ts` reads `e_sign_log` rows and asserts `intent` + `subject_hash` via `hashESignSubject({ mwoId, equipmentId })` — wrong-subject rows no longer pass.
+
+**Exploit-sequence + transition-block tests (P1):**
+- Invalid-PIN case now calls `transitionMwo(in_progress)` afterward and asserts `loto_not_verified` with MWO still `open`.
+- New action-driven exploit regression: lockout on open MWO → release rejected while open (no release signature) → `in_progress` allowed with active lockout intact.
+- Direct-SQL corrupt-state defense test and happy-path lockout→in_progress→release→completed retained separately.
+
+**Verification (fix round 2):**
+| Gate | Result |
+|------|--------|
+| `pnpm --filter web exec tsc --noEmit` | exit 0 |
+| `pnpm --filter web run build` | exit 0 |
+| Vitest mwo-actions + mwo-detail + calibration + pg (skip) | 58 passed / 6 skipped |

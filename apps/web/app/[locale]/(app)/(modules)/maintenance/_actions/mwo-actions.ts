@@ -41,6 +41,7 @@ import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import type { MwoLotoStatus } from './mwo-types';
 import {
   advancePmScheduleOnMwoCompletion,
   generateMwoFromPmScheduleCore,
@@ -190,13 +191,6 @@ export type MwoPermissions = {
   canCancel: boolean;
   canLotoApply: boolean;
   canLotoClear: boolean;
-};
-
-export type MwoLotoStatus = {
-  requiresLoto: boolean;
-  lockoutVerified: boolean;
-  lockoutActive: boolean;
-  releaseVerified: boolean;
 };
 
 // ── zod input schemas ─────────────────────────────────────────────────────────
