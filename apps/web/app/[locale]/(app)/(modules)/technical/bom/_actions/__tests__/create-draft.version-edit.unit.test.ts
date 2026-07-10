@@ -41,6 +41,12 @@ function makeClient(editCalls: { decision: string }[]): {
     if (n.includes('from public.bom_headers header') && n.includes('header.status')) {
       return { rows: [{ status: 'active' }], rowCount: 1 };
     }
+    if (n.includes('header.product_id')) {
+      return { rows: [{ product_id: 'FG-1' }], rowCount: 1 };
+    }
+    if (n.includes('from public.bom_headers header') && n.includes('for update')) {
+      return { rows: [{ id: DRAFT_HEADER_ID }], rowCount: 1 };
+    }
     if (n.includes('bom_request_version_edit')) {
       const row = editCalls[editIndex] ?? editCalls[editCalls.length - 1]!;
       editIndex += 1;

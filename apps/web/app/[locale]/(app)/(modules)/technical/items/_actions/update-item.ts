@@ -200,7 +200,17 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
       return { ok: true, data: { id: input.id } };
     });
   } catch (err) {
-    if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
+    if (isPgError(err) && err.code === '23514') {
+      const pgMessage = err instanceof Error ? err.message : String(err);
+      if (pgMessage.includes('item_type cannot change')) {
+        return {
+          ok: false,
+          error: 'item_type_immutable',
+          message: 'item_type cannot change once the item is active or referenced by BOMs, factory specs, or work orders',
+        };
+      }
+      return { ok: false, error: 'invalid_input' };
+    }
     console.error('[technical/items] updateItem persistence_failed', {
       err: err instanceof Error ? err.message : String(err),
     });

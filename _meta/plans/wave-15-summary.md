@@ -87,3 +87,21 @@ pnpm --filter web exec vitest run <7 wave-15 test files>  → 35/35 passed
 pnpm --filter web exec tsc --noEmit                        → exit 0
 pnpm --filter web run build                                → exit 0
 ```
+
+## Fix round 1
+
+DB-layer concurrency enforcement for adversarial review findings (N-20, N-22, N-23, N-47) plus RSC build blocker.
+
+**Migrations:**
+- **479** `479-bom-request-version-edit-concurrency-lock.sql` — per-(org, product) advisory xact lock in `bom_request_version_edit` with in-flight child recheck and unique_violation fallback.
+- **480** `480-items-item-type-immutable-trigger.sql` — `items_is_item_type_mutable` + advisory-lock triggers on `items`, `bom_headers`, `bom_lines`, `factory_specs`, `work_orders`.
+- **478** (amended, unmerged) — org-composite `supersedes_wip_definition_id` FK.
+
+**App fixes:**
+- Moved `EnsureBomVersionEditDraftResult` to non-server `shared.ts` (RSC build).
+- `createBomDraft`: source/product identity check + `FOR UPDATE` on returned draft before child replacement.
+- WIP clone-on-write: draft successor → archive predecessor → activate successor under row lock.
+- `fetchEligibleFactorySpecUnderBindLock` shared by create-WO and update-WO (same protocol as recall/release).
+- `updateItem` maps DB trigger `23514` to `item_type_immutable`.
+
+**New pg tests:** `bom-request-version-edit-concurrency.pg.test.ts`, `factory-spec-bind-concurrency.pg.test.ts`, `update-item-type-freeze.pg.test.ts`, `wip-definition-supersession.pg.test.ts` (skip without `DATABASE_URL`).

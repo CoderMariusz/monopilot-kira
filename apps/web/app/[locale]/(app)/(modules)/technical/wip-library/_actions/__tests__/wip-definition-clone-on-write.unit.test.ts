@@ -56,6 +56,12 @@ function makeClient() {
     if (n.startsWith('insert into public.wip_definitions') && n.includes('supersedes_wip_definition_id')) {
       return { rows: [{ id: NEW_DEF_ID, version: 4 }], rowCount: 1 };
     }
+    if (n.startsWith('update public.wip_definitions') && n.includes("set status = 'archived'")) {
+      return { rows: [], rowCount: 1 };
+    }
+    if (n.startsWith('update public.wip_definitions') && n.includes("set status = 'active'")) {
+      return { rows: [], rowCount: 1 };
+    }
     if (n.startsWith('update public.wip_definitions')) {
       throw new Error('active WIP definitions must not be updated in place on content change');
     }
@@ -98,6 +104,14 @@ describe('saveWipDefinition clone-on-write (N-22)', () => {
     const insertCall = client.calls.find((call) => normalize(call.sql).includes('supersedes_wip_definition_id'));
     expect(insertCall).toBeDefined();
     expect(insertCall!.params).toContain(ACTIVE_DEF_ID);
-    expect(client.calls.some((call) => normalize(call.sql).startsWith('update public.wip_definitions'))).toBe(false);
+    expect(client.calls.some((call) => normalize(call.sql).includes("set status = 'archived'"))).toBe(true);
+    expect(client.calls.some((call) => normalize(call.sql).includes("set status = 'active'"))).toBe(true);
+    expect(
+      client.calls.some(
+        (call) =>
+          normalize(call.sql).startsWith('update public.wip_definitions') &&
+          !normalize(call.sql).includes('set status ='),
+      ),
+    ).toBe(false);
   });
 });

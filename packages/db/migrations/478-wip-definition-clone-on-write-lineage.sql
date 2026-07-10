@@ -7,6 +7,9 @@
 alter table public.wip_definitions
   add column if not exists supersedes_wip_definition_id uuid;
 
+alter table public.wip_definitions
+  drop constraint if exists wip_definitions_supersedes_fk;
+
 do $$
 begin
   if not exists (
@@ -16,7 +19,8 @@ begin
   ) then
     alter table public.wip_definitions
       add constraint wip_definitions_supersedes_fk
-      foreign key (supersedes_wip_definition_id) references public.wip_definitions (id)
+      foreign key (supersedes_wip_definition_id, org_id)
+      references public.wip_definitions (id, org_id)
       on delete set null;
   end if;
 end $$;

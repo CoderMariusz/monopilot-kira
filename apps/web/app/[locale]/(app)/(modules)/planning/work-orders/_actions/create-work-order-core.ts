@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
+import { fetchEligibleFactorySpecUnderBindLock } from '../../../../../../../lib/technical/factory-spec-bind-lock';
 import { assertFgReleasedToFactoryForWo } from '../../../../../../../lib/planning/factory-release-wo-gate';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
 import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
@@ -169,17 +170,8 @@ export async function createWorkOrderCore(
     }
   }
 
-  const approvedSpec = await ctx.client.query<{ id: string }>(
-    `select id
-       from public.factory_specs
-      where org_id = app.current_org_id()
-        and fg_item_id = $1::uuid
-        and status in ('approved_for_factory', 'released_to_factory')
-      order by version desc
-      limit 1`,
-    [input.productId],
-  );
-  const spec = approvedSpec.rows[0];
+  const approvedSpec = await fetchEligibleFactorySpecUnderBindLock(ctx.client, input.productId);
+  const spec = approvedSpec;
 
   async function insertWorkOrderHeader(documentNumber: string) {
     return ctx.client.query<WorkOrderRow>(

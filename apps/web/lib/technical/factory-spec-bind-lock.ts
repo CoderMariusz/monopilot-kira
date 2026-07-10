@@ -24,3 +24,21 @@ export async function acquireFactorySpecProductBindLock(
     [fgItemId],
   );
 }
+
+export async function fetchEligibleFactorySpecUnderBindLock(
+  client: QueryClient,
+  fgItemId: string,
+): Promise<{ id: string } | null> {
+  await acquireFactorySpecProductBindLock(client, fgItemId);
+  const { rows } = await client.query<{ id: string }>(
+    `select spec.id::text as id
+       from public.factory_specs spec
+      where spec.org_id = app.current_org_id()
+        and spec.fg_item_id = $1::uuid
+        and spec.status in ('approved_for_factory', 'released_to_factory')
+      order by spec.version desc
+      limit 1`,
+    [fgItemId],
+  );
+  return rows[0] ?? null;
+}

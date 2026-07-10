@@ -194,6 +194,10 @@ export type CreateBomDraftResult =
   | { ok: true; data: { id: string; version: number; warnings: BomValidationCode[] } }
   | { ok: false; error: BomActionError; code?: BomValidationCode; message?: string; rmUsabilityFailures?: BomRmUsabilityFailure[] };
 
+export type EnsureBomVersionEditDraftResult =
+  | { ok: true; data: { id: string; version: number; decision: string; supersedesBomHeaderId: string } }
+  | { ok: false; error: 'forbidden' | 'invalid_input' | 'not_found' | 'invalid_state' | 'persistence_failed'; message?: string };
+
 export type BomRmUsabilityFailure = {
   componentCode: string;
   itemId: string | null;

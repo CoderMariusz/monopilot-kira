@@ -149,6 +149,17 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
     const itemId = existing?.item_id ?? await ensureDefinitionItem(ctx, data.name, data.baseUom);
     const cloneOnWrite = Boolean(existing && existing.status === 'active' && contentChanged);
 
+    if (cloneOnWrite) {
+      await ctx.client.query(
+        `select wip.id
+           from public.wip_definitions wip
+          where wip.id = $1::uuid
+            and wip.org_id = app.current_org_id()
+          for update`,
+        [existing!.id],
+      );
+    }
+
     const saved = cloneOnWrite
       ? await ctx.client.query<{ id: string; version: number }>(
           `insert into public.wip_definitions
@@ -156,8 +167,7 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
               source_project_id, supersedes_wip_definition_id, created_by)
            values
              (app.current_org_id(), $1::uuid, $2, $3, $4, $5::numeric, $6::int,
-              case when $7::boolean then 'active' else 'draft' end,
-              $7::boolean, $8::uuid, $9::uuid, $10::uuid)
+              'draft', $7::boolean, $8::uuid, $9::uuid, $10::uuid)
            returning id, version`,
           [
             itemId,
@@ -214,6 +224,26 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
     await replaceDefinitionIngredients(ctx, definitionId, data.ingredients);
     await replaceDefinitionProcesses(ctx, definitionId, data.processes);
     await refreshWipItemAllergens(ctx, itemId, data.ingredients.map((ingredient) => ingredient.itemId));
+
+    if (cloneOnWrite && data.reusable) {
+      await ctx.client.query(
+        `update public.wip_definitions wip
+            set status = 'archived',
+                updated_at = now()
+          where wip.id = $1::uuid
+            and wip.org_id = app.current_org_id()
+            and wip.status = 'active'`,
+        [existing!.id],
+      );
+      await ctx.client.query(
+        `update public.wip_definitions wip
+            set status = 'active',
+                updated_at = now()
+          where wip.id = $1::uuid
+            and wip.org_id = app.current_org_id()`,
+        [definitionId],
+      );
+    }
 
     if (existing && contentChanged) {
       await emitDefinitionUpdated(ctx, definitionId, nextVersion);

@@ -14,6 +14,7 @@ import {
   BOM_CREATE_PERMISSION,
   hasPermission,
   isPgError,
+  type EnsureBomVersionEditDraftResult,
   type OrgActionContext,
   type QueryClient,
 } from './shared';
@@ -23,10 +24,6 @@ const EnsureBomVersionEditDraftInput = z.object({
   sourceBomHeaderId: z.string().uuid(),
   notes: z.string().trim().max(2000).optional(),
 });
-
-export type EnsureBomVersionEditDraftResult =
-  | { ok: true; data: { id: string; version: number; decision: string; supersedesBomHeaderId: string } }
-  | { ok: false; error: 'forbidden' | 'invalid_input' | 'not_found' | 'invalid_state' | 'persistence_failed'; message?: string };
 
 export async function ensureBomVersionEditDraft(rawInput: unknown): Promise<EnsureBomVersionEditDraftResult> {
   const parsed = EnsureBomVersionEditDraftInput.safeParse(rawInput);

@@ -170,6 +170,23 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
       let version: number;
 
       if (input.sourceBomHeaderId) {
+        const { rows: sourceHeaderRows } = await c.query<{ product_id: string }>(
+          `select header.product_id
+             from public.bom_headers header
+            where header.org_id = app.current_org_id()
+              and header.id = $1::uuid`,
+          [input.sourceBomHeaderId],
+        );
+        const sourceHeader = sourceHeaderRows[0];
+        if (!sourceHeader) return { ok: false, error: 'not_found' };
+        if (sourceHeader.product_id !== input.productId) {
+          return {
+            ok: false,
+            error: 'invalid_input',
+            message: 'sourceBomHeaderId does not match productId',
+          };
+        }
+
         const edit = await callBomRequestVersionEdit(c, {
           sourceBomHeaderId: input.sourceBomHeaderId,
           requestedBy: userId,
@@ -178,6 +195,16 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
         if (!edit) return { ok: false, error: 'persistence_failed' };
         headerId = edit.bom_header_id;
         version = edit.version;
+
+        const { rows: lockedDraftRows } = await c.query<{ id: string }>(
+          `select header.id
+             from public.bom_headers header
+            where header.org_id = app.current_org_id()
+              and header.id = $1::uuid
+            for update`,
+          [headerId],
+        );
+        if (!lockedDraftRows[0]) return { ok: false, error: 'persistence_failed' };
 
         await c.query(
           `update public.bom_headers header
