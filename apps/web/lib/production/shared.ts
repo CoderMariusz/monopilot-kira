@@ -270,6 +270,7 @@ export type ProductionErrorCode =
   | 'quality_hold_active'
   | 'already_recorded'
   | 'uom_conversion_unavailable'
+  | 'wac_un_costed'
   | 'invalid_reference'
   | 'insufficient_input_for_output'
   | 'insufficient_lp_quantity'
