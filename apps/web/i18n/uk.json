@@ -2534,6 +2534,11 @@
           "updated": "Updated",
           "status": "Status",
           "actions": "Actions"
+        },
+        "pagination": {
+          "showing": "Показано {shown} з {total}",
+          "previous": "Попередня",
+          "next": "Наступна"
         }
       },
       "transition": {
@@ -3737,7 +3742,12 @@
       "noMatchTitle": "Немає матеріалів за фільтрами",
       "noMatchBody": "Змініть вкладку типу, статус або пошук, щоб побачити більше.",
       "errorTitle": "Не вдалося завантажити матеріали",
-      "errorBody": "Спробуйте ще раз."
+      "errorBody": "Спробуйте ще раз.",
+      "pagination": {
+        "showing": "Показано {shown} з {total}",
+        "previous": "Попередня",
+        "next": "Наступна"
+      }
     },
     "sensory": {
       "title": "Sensory evaluation",
@@ -4246,6 +4256,22 @@
           "cancel": "Cancel",
           "error": "Item search failed"
         }
+      },
+      "cloneNewVersion": "+ Нова версія",
+      "release": {
+        "action": "Випустити на виробництво",
+        "permissionTooltip": "Потрібен дозвіл Technical на затвердження, щоб випустити цю специфікацію.",
+        "title": "Випустити специфікацію на виробництво",
+        "body": "Випуск {spec} відкриває використання на виробництві для планових виробничих замовлень. Пов’язаний пакет BOM уже має бути затверджений.",
+        "confirm": "Випустити на виробництво",
+        "submitting": "Випуск…",
+        "cancel": "Скасувати",
+        "errors": {
+          "forbidden": "У вас немає дозволу випускати цю специфікацію.",
+          "generic": "Не вдалося випустити цю специфікацію. Спробуйте ще раз."
+        },
+        "handoffRequired": "Випустити через передачу NPD",
+        "handoffTooltip": "Продукти з NPD потрібно випускати з передачі NPD, а не з Technical."
       }
     },
     "releaseBundle": {
@@ -5872,7 +5898,8 @@
         "warn": "Попередження",
         "info": "Інформація"
       },
-      "deleteDisabledHint": "You do not have permission to delete finished goods."
+      "deleteDisabledHint": "You do not have permission to delete finished goods.",
+      "totalYield": "Загальний вихід"
     },
     "faDetailModals": {
       "deptCloseTitle": "Закрити відділ",
@@ -6298,7 +6325,8 @@
       "fieldOutputUnitBoxes": "boxes",
       "fieldWeeklyVolumePacks": "Weekly volume (packs/week)",
       "fieldRunsPerWeek": "Runs per week",
-      "fieldRunsPerWeekHelp": "Planning estimate only — you can revise this until launch; the final run rate is confirmed at handover."
+      "fieldRunsPerWeekHelp": "Planning estimate only — you can revise this until launch; the final run rate is confirmed at handover.",
+      "errOutputUnitBoxesPackFactors": "Одиниця виходу «ящики» вимагає ваги упаковки (г) і кількості упаковок у ящику більше 0."
     },
     "sensory": {
       "title": "Сенсорна панель",
@@ -6518,7 +6546,9 @@
       "savePacksPerBox": "Save packs per box",
       "savingPacksPerBox": "Saving…",
       "fieldScrapPct": "Scrap %",
-      "fieldScrapPctHelp": "Extra % requisitioned in the WO to cover packing loss (separate from costing Waste %)."
+      "fieldScrapPctHelp": "Extra % requisitioned in the WO to cover packing loss (separate from costing Waste %).",
+      "supplierPlaceholder": "Оберіть постачальника",
+      "supplierLegacyHint": "{name} (спадковий)"
     },
     "stepper": {
       "brief": "Бриф",
@@ -6619,7 +6649,8 @@
       "generateWarningNoLine": "Production BOM created, but no production line is set on the project — routing was not materialized.",
       "generateWarningNoProcesses": "Production BOM created, but no NPD processes were found to build a routing.",
       "generateWarningRoutingDraft": "Routing created as DRAFT — approve and activate it in Technical → Routings so work orders pick up the production steps.",
-      "generatePacksPerBoxRequired": "Set packs-per-box on the FG before generating the production BOM."
+      "generatePacksPerBoxRequired": "Set packs-per-box on the FG before generating the production BOM.",
+      "revertToNpd": "Повернути до NPD"
     },
     "pipelineCreate": {
       "title": "Створити проєкт NPD",
@@ -7289,7 +7320,12 @@
         "backToActive": "Back to active",
         "deleteDraft": "Delete draft",
         "deletingDraft": "Deleting...",
-        "confirmDeleteDraft": "Delete draft work order {wo}? This cannot be undone."
+        "confirmDeleteDraft": "Delete draft work order {wo}? This cannot be undone.",
+        "pagination": {
+          "showing": "Показано {shown} з {total}",
+          "previous": "Попередня",
+          "next": "Наступна"
+        }
       },
       "create": {
         "title": "Create work order",
@@ -7336,7 +7372,8 @@
           "activeBom": "an active BOM",
           "factorySpec": "an approved factory spec",
           "technicalHint": "These are created in Technical."
-        }
+        },
+        "chainCreatedWarning": "Створено {count} виробничих замовлень — кореневе {root}."
       },
       "detail": {
         "title": "Work order",
@@ -7626,7 +7663,12 @@
           "clear": "Clear filters"
         },
         "archivedHint": "Showing archived purchase orders (received / cancelled past the org's archive window).",
-        "backToActive": "Back to active"
+        "backToActive": "Back to active",
+        "pagination": {
+          "showing": "Показано {shown} з {total}",
+          "previous": "Попередня",
+          "next": "Наступна"
+        }
       },
       "errors": {
         "invalid_input": "That input isn't valid. Please review and try again.",
@@ -7893,7 +7935,12 @@
           "clear": "Clear filters"
         },
         "archivedHint": "Showing archived transfer orders (received / cancelled past the org's archive window).",
-        "backToActive": "Back to active"
+        "backToActive": "Back to active",
+        "pagination": {
+          "showing": "Показано {shown} з {total}",
+          "previous": "Попередня",
+          "next": "Наступна"
+        }
       },
       "errors": {
         "invalid_input": "Some fields are invalid. Please review and retry.",
@@ -9311,6 +9358,11 @@
           "afternoon": "Afternoon",
           "night": "Night"
         }
+      },
+      "pagination": {
+        "showing": "Показано {shown} з {total}",
+        "previous": "Попередня",
+        "next": "Наступна"
       }
     },
     "downtime": {

@@ -2534,6 +2534,11 @@
           "updated": "Updated",
           "status": "Status",
           "actions": "Actions"
+        },
+        "pagination": {
+          "showing": "Afișate {shown} din {total}",
+          "previous": "Anterior",
+          "next": "Următor"
         }
       },
       "transition": {
@@ -3737,7 +3742,12 @@
       "noMatchTitle": "Niciun material nu corespunde filtrelor",
       "noMatchBody": "Ajustați fila de tip, statusul sau căutarea pentru a vedea mai multe.",
       "errorTitle": "Nu s-au putut încărca materialele",
-      "errorBody": "Încercați din nou."
+      "errorBody": "Încercați din nou.",
+      "pagination": {
+        "showing": "Afișate {shown} din {total}",
+        "previous": "Anterior",
+        "next": "Următor"
+      }
     },
     "sensory": {
       "title": "Sensory evaluation",
@@ -4246,6 +4256,22 @@
           "cancel": "Cancel",
           "error": "Item search failed"
         }
+      },
+      "cloneNewVersion": "+ Versiune nouă",
+      "release": {
+        "action": "Eliberare în fabrică",
+        "permissionTooltip": "Aveți nevoie de permisiunea de aprobare Technical pentru a elibera această specificație.",
+        "title": "Eliberați specificația în fabrică",
+        "body": "Eliberarea {spec} deblochează utilizarea în fabrică pentru comenzile de lucru planificate. Pachetul BOM asociat trebuie să fie deja aprobat.",
+        "confirm": "Eliberare în fabrică",
+        "submitting": "Se eliberează…",
+        "cancel": "Anulați",
+        "errors": {
+          "forbidden": "Nu aveți permisiunea de a elibera această specificație.",
+          "generic": "Specificația nu a putut fi eliberată. Încercați din nou."
+        },
+        "handoffRequired": "Eliberați prin predare NPD",
+        "handoffTooltip": "Produsele susținute de NPD trebuie eliberate din predarea NPD, nu din Technical."
       }
     },
     "releaseBundle": {
@@ -5872,7 +5898,8 @@
         "warn": "Avertisment",
         "info": "Info"
       },
-      "deleteDisabledHint": "You do not have permission to delete finished goods."
+      "deleteDisabledHint": "You do not have permission to delete finished goods.",
+      "totalYield": "Randament total"
     },
     "faDetailModals": {
       "deptCloseTitle": "Închide departamentul",
@@ -6298,7 +6325,8 @@
       "fieldOutputUnitBoxes": "boxes",
       "fieldWeeklyVolumePacks": "Weekly volume (packs/week)",
       "fieldRunsPerWeek": "Runs per week",
-      "fieldRunsPerWeekHelp": "Planning estimate only — you can revise this until launch; the final run rate is confirmed at handover."
+      "fieldRunsPerWeekHelp": "Planning estimate only — you can revise this until launch; the final run rate is confirmed at handover.",
+      "errOutputUnitBoxesPackFactors": "Unitatea de ieșire „cutii” necesită greutatea ambalajului (g) și numărul de ambalaje per cutie mai mare decât 0."
     },
     "sensory": {
       "title": "Panel senzorial",
@@ -6518,7 +6546,9 @@
       "savePacksPerBox": "Save packs per box",
       "savingPacksPerBox": "Saving…",
       "fieldScrapPct": "Scrap %",
-      "fieldScrapPctHelp": "Extra % requisitioned in the WO to cover packing loss (separate from costing Waste %)."
+      "fieldScrapPctHelp": "Extra % requisitioned in the WO to cover packing loss (separate from costing Waste %).",
+      "supplierPlaceholder": "Selectați un furnizor",
+      "supplierLegacyHint": "{name} (moștenit)"
     },
     "stepper": {
       "brief": "Brief",
@@ -6619,7 +6649,8 @@
       "generateWarningNoLine": "Production BOM created, but no production line is set on the project — routing was not materialized.",
       "generateWarningNoProcesses": "Production BOM created, but no NPD processes were found to build a routing.",
       "generateWarningRoutingDraft": "Routing created as DRAFT — approve and activate it in Technical → Routings so work orders pick up the production steps.",
-      "generatePacksPerBoxRequired": "Set packs-per-box on the FG before generating the production BOM."
+      "generatePacksPerBoxRequired": "Set packs-per-box on the FG before generating the production BOM.",
+      "revertToNpd": "Revenire la NPD"
     },
     "pipelineCreate": {
       "title": "Creează proiect NPD",
@@ -7289,7 +7320,12 @@
         "backToActive": "Back to active",
         "deleteDraft": "Delete draft",
         "deletingDraft": "Deleting...",
-        "confirmDeleteDraft": "Delete draft work order {wo}? This cannot be undone."
+        "confirmDeleteDraft": "Delete draft work order {wo}? This cannot be undone.",
+        "pagination": {
+          "showing": "Afișate {shown} din {total}",
+          "previous": "Anterior",
+          "next": "Următor"
+        }
       },
       "create": {
         "title": "Create work order",
@@ -7336,7 +7372,8 @@
           "activeBom": "an active BOM",
           "factorySpec": "an approved factory spec",
           "technicalHint": "These are created in Technical."
-        }
+        },
+        "chainCreatedWarning": "Au fost create {count} comenzi de lucru — rădăcină {root}."
       },
       "detail": {
         "title": "Work order",
@@ -7626,7 +7663,12 @@
           "clear": "Clear filters"
         },
         "archivedHint": "Showing archived purchase orders (received / cancelled past the org's archive window).",
-        "backToActive": "Back to active"
+        "backToActive": "Back to active",
+        "pagination": {
+          "showing": "Afișate {shown} din {total}",
+          "previous": "Anterior",
+          "next": "Următor"
+        }
       },
       "errors": {
         "invalid_input": "That input isn't valid. Please review and try again.",
@@ -7893,7 +7935,12 @@
           "clear": "Clear filters"
         },
         "archivedHint": "Showing archived transfer orders (received / cancelled past the org's archive window).",
-        "backToActive": "Back to active"
+        "backToActive": "Back to active",
+        "pagination": {
+          "showing": "Afișate {shown} din {total}",
+          "previous": "Anterior",
+          "next": "Următor"
+        }
       },
       "errors": {
         "invalid_input": "Some fields are invalid. Please review and retry.",
@@ -9311,6 +9358,11 @@
           "afternoon": "Afternoon",
           "night": "Night"
         }
+      },
+      "pagination": {
+        "showing": "Afișate {shown} din {total}",
+        "previous": "Anterior",
+        "next": "Următor"
       }
     },
     "downtime": {
