@@ -13,8 +13,9 @@ import {
 } from '../../../../../../../lib/shared/pagination';
 import {
   PurchaseOrderStatusSchema,
-  hasPlanningWritePermission,
   hasPlanningReadPermission,
+  requireActionPermission,
+  PLANNING_PO_MANAGE_PERMISSION,
   isPgError,
   numeric3Schema,
   numeric4Schema,
@@ -94,8 +95,65 @@ type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
 type PurchaseOrderError = ProcurementError | 'last_line' | 'po_has_receipts' | 'po_open_quantity' | 'no_active_site' | 'ambiguous_site' | 'supplier_blocked';
 type PurchaseOrderResult<T> = { ok: true; data: T } | { ok: false; error: PurchaseOrderError; code?: PurchaseOrderError; message?: string };
 type PurchaseOrderListResult =
-  | { ok: true; data: PurchaseOrder[]; pagination: PaginatedResult<PurchaseOrder>; archivedCount: number }
+  | {
+      ok: true;
+      data: PurchaseOrder[];
+      pagination: PaginatedResult<PurchaseOrder>;
+      archivedCount: number;
+      statusCounts: PoStatusCounts;
+    }
   | { ok: false; error: ProcurementError; message?: string };
+
+const PO_LIST_STATUSES = [
+  'draft',
+  'sent',
+  'confirmed',
+  'partially_received',
+  'received',
+  'cancelled',
+] as const;
+
+export type PoListStatus = (typeof PO_LIST_STATUSES)[number];
+export type PoStatusCounts = Record<PoListStatus, number> & { all: number };
+
+function buildPoStatusCounts(rows: Array<{ status: string; n: number }>): PoStatusCounts {
+  const counts = PO_LIST_STATUSES.reduce(
+    (acc, status) => {
+      acc[status] = 0;
+      return acc;
+    },
+    {} as Record<PoListStatus, number>,
+  );
+  let all = 0;
+  for (const row of rows) {
+    const key = row.status.toLowerCase();
+    if ((PO_LIST_STATUSES as readonly string[]).includes(key)) {
+      counts[key as PoListStatus] = row.n;
+      all += row.n;
+    }
+  }
+  return { ...counts, all };
+}
+
+const PO_LIST_FILTER_WHERE = `
+            where po.org_id = app.current_org_id()
+              and ($3::uuid is null or po.site_id = $3::uuid)
+              and ($1::text is null or po.status = $1)
+              and (
+                $2::text is null
+                or po.po_number ilike '%' || $2 || '%'
+                or s.code ilike '%' || $2 || '%'
+                or s.name ilike '%' || $2 || '%'
+              )
+              and ($5::uuid is null or po.supplier_id = $5::uuid)
+              and coalesce(
+                (
+                  po.status in ('received', 'cancelled')
+                  and ods.archive_after_days is not null
+                  and po.updated_at < now() - make_interval(days => ods.archive_after_days)
+                ),
+                false
+              ) = $4::boolean`;
 
 const PO_LIST_FROM = `
            from public.purchase_orders po
@@ -331,6 +389,7 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
   const input = (params ?? {}) as {
     status?: unknown;
     q?: unknown;
+    supplierId?: unknown;
     page?: unknown;
     offset?: unknown;
     limit?: unknown;
@@ -339,6 +398,8 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
   const status = typeof input.status === 'string' ? PurchaseOrderStatusSchema.safeParse(input.status) : null;
   if (status && !status.success) return { ok: false, error: 'invalid_input' };
   const q = typeof input.q === 'string' && input.q.trim() ? input.q.trim() : null;
+  const supplierId =
+    typeof input.supplierId === 'string' && uuidSchema.safeParse(input.supplierId).success ? input.supplierId : null;
   const archived = input.archived === true;
   const page = normalizePage({
     page: typeof input.page === 'number' ? input.page : undefined,
@@ -354,25 +415,15 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
       if (!(await hasPlanningReadPermission(ctx))) return { ok: false, error: 'forbidden' };
 
       const s = await getActiveSiteId({ client });
-      const baseParams = [status?.success ? status.data : null, q, s, archived] as const;
+      const listParams = [status?.success ? status.data : null, q, s, archived, supplierId] as const;
+      const countParams = [null, q, s, archived, supplierId] as const;
 
-      const [countResult, dataResult] = await Promise.all([
+      const [countResult, dataResult, statusCountResult] = await Promise.all([
         (client as QueryClient).query<{ total: number }>(
           `select count(*)::int as total
              ${PO_LIST_FROM}
-            where po.org_id = app.current_org_id()
-              and ($3::uuid is null or po.site_id = $3::uuid)
-              and ($1::text is null or po.status = $1)
-              and ($2::text is null or po.po_number ilike '%' || $2 || '%' or s.code ilike '%' || $2 || '%')
-              and coalesce(
-                (
-                  po.status in ('received', 'cancelled')
-                  and ods.archive_after_days is not null
-                  and po.updated_at < now() - make_interval(days => ods.archive_after_days)
-                ),
-                false
-              ) = $4::boolean`,
-          [...baseParams],
+            ${PO_LIST_FILTER_WHERE}`,
+          [...listParams],
         ),
         (client as QueryClient).query<PurchaseOrderRow>(
           `select po.id, po.po_number, po.supplier_id, s.code as supplier_code, s.name as supplier_name,
@@ -380,21 +431,17 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
                   po.status, po.expected_delivery::text as expected_delivery, po.currency, po.notes,
                   po.created_at, po.updated_at
              ${PO_LIST_FROM}
-            where po.org_id = app.current_org_id()
-              and ($3::uuid is null or po.site_id = $3::uuid)
-              and ($1::text is null or po.status = $1)
-              and ($2::text is null or po.po_number ilike '%' || $2 || '%' or s.code ilike '%' || $2 || '%')
-              and coalesce(
-                (
-                  po.status in ('received', 'cancelled')
-                  and ods.archive_after_days is not null
-                  and po.updated_at < now() - make_interval(days => ods.archive_after_days)
-                ),
-                false
-              ) = $4::boolean
+            ${PO_LIST_FILTER_WHERE}
             order by po.expected_delivery asc nulls last, po.po_number asc, po.id asc
-            limit $5::integer offset $6::integer`,
-          [...baseParams, page.limit, page.offset],
+            limit $6::integer offset $7::integer`,
+          [...listParams, page.limit, page.offset],
+        ),
+        (client as QueryClient).query<{ status: string; n: number }>(
+          `select po.status, count(*)::int as n
+             ${PO_LIST_FROM}
+            ${PO_LIST_FILTER_WHERE}
+            group by po.status`,
+          [...countParams],
         ),
       ]);
       const count = await (client as QueryClient).query<{ archived_count: string | number }>(
@@ -407,15 +454,22 @@ export async function listPurchaseOrders(params: unknown = {}): Promise<Purchase
           where po.org_id = app.current_org_id()
             and ($3::uuid is null or po.site_id = $3::uuid)
             and ($1::text is null or po.status = $1)
-            and ($2::text is null or po.po_number ilike '%' || $2 || '%' or s.code ilike '%' || $2 || '%')
+            and ($2::text is null or po.po_number ilike '%' || $2 || '%' or s.code ilike '%' || $2 || '%' or s.name ilike '%' || $2 || '%')
+            and ($4::uuid is null or po.supplier_id = $4::uuid)
             and po.status in ('received', 'cancelled')
             and ods.archive_after_days is not null
             and po.updated_at < now() - make_interval(days => ods.archive_after_days)`,
-        [status?.success ? status.data : null, q, s],
+        [status?.success ? status.data : null, q, s, supplierId],
       );
       const rows = dataResult.rows.map(mapPurchaseOrder);
       const pagination = toPaginatedResult(rows, Number(countResult.rows[0]?.total ?? 0), page);
-      return { ok: true, data: pagination.items, pagination, archivedCount: Number(count.rows[0]?.archived_count ?? 0) };
+      return {
+        ok: true,
+        data: pagination.items,
+        pagination,
+        archivedCount: Number(count.rows[0]?.archived_count ?? 0),
+        statusCounts: buildPoStatusCounts(statusCountResult.rows),
+      };
     });
   } catch (err) {
     console.error('[planning/purchase-orders] listPurchaseOrders failed', err);
@@ -481,7 +535,8 @@ export async function updatePurchaseOrder(rawInput: unknown): Promise<PurchaseOr
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const before = await fetchDraftPurchaseOrderForUpdate(ctx.client, input.id);
       if (!before) return { ok: false, error: 'not_found' };
@@ -557,7 +612,8 @@ export async function addPurchaseOrderLine(rawInput: unknown): Promise<PurchaseO
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const header = await fetchDraftPurchaseOrderForUpdate(ctx.client, input.poId);
       if (!header) return { ok: false, error: 'not_found' };
@@ -633,7 +689,8 @@ export async function updatePurchaseOrderLine(rawInput: unknown): Promise<Purcha
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const header = await fetchDraftPurchaseOrderForUpdate(ctx.client, input.poId);
       if (!header) return { ok: false, error: 'not_found' };
@@ -701,7 +758,8 @@ export async function deletePurchaseOrderLine(rawInput: unknown): Promise<Purcha
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const header = await fetchDraftPurchaseOrderForUpdate(ctx.client, input.poId);
       if (!header) return { ok: false, error: 'not_found' };
@@ -800,7 +858,8 @@ export async function reopenPurchaseOrder(poId: string): Promise<PurchaseOrderRe
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrder>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const before = await fetchDraftPurchaseOrderForUpdate(ctx.client, parsed.data);
       if (!before) return { ok: false, error: 'not_found' };
@@ -880,7 +939,8 @@ export async function transitionPurchaseOrderStatus(id: string, status: string):
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrder>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const before = await ctx.client.query<{ status: string }>(
         `select status

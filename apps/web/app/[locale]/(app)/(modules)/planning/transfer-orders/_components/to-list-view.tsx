@@ -40,8 +40,10 @@ import { Badge } from '@monopilot/ui/Badge';
 import { EmptyState } from '@monopilot/ui/EmptyState';
 
 import { ToStatusBadge } from './to-status-badge';
+import { buildListPageHref } from '../../../../../../../lib/shared/list-page-href';
 import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
 import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
+import type { ToStatusCounts } from '../_actions/actions';
 import { CreateToModal, type CreateToLabels } from './create-to-modal';
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import type { WarehouseOption, SearchTransferItemsInput } from '../_actions/to-form-data';
@@ -64,6 +66,19 @@ type CreateTransferOrderResult =
 
 const TAB_ORDER = ['all', 'draft', 'in_transit', 'received', 'cancelled'] as const;
 type TabKey = (typeof TAB_ORDER)[number];
+
+export type ToListFilters = {
+  status: string;
+  search: string;
+};
+
+function listQuery(filters: ToListFilters, archived = false): Record<string, string | undefined> {
+  return {
+    status: filters.status || undefined,
+    q: filters.search || undefined,
+    archived: archived ? '1' : undefined,
+  };
+}
 
 export type ToListLabels = {
   createTo: string;
@@ -96,6 +111,8 @@ export type ToListViewProps = {
   locale: string;
   transferOrders: TransferOrderRow[];
   pagination: PaginatedResult<TransferOrderRow>;
+  filters: ToListFilters;
+  statusCounts: ToStatusCounts;
   /** Per-TO line count, keyed by TO id (the list action doesn't aggregate it). */
   lineCounts: Record<string, number>;
   warehouses: WarehouseOption[];
@@ -133,6 +150,8 @@ export function ToListView({
   locale,
   transferOrders,
   pagination,
+  filters,
+  statusCounts,
   lineCounts,
   warehouses,
   labels,
@@ -144,17 +163,31 @@ export function ToListView({
 }: ToListViewProps) {
   const router = useRouter();
   const basePath = `/${locale}/planning/transfer-orders`;
-  const pageHref = (page: number) => {
-    const params = new URLSearchParams();
-    if (archived) params.set('archived', '1');
-    if (page > 1) params.set('page', String(page));
-    const q = params.toString();
-    return q ? `${basePath}?${q}` : basePath;
-  };
+  const activeTab: TabKey = (filters.status as TabKey) || 'all';
+  const pageHref = (page: number) => buildListPageHref(basePath, listQuery(filters, archived), page);
   const shown = pagination.offset + transferOrders.length;
-  const [tab, setTab] = React.useState<TabKey>('all');
-  const [search, setSearch] = React.useState('');
+  const [searchDraft, setSearchDraft] = React.useState(filters.search);
   const [createOpen, setCreateOpen] = React.useState(autoOpenCreate);
+
+  React.useEffect(() => {
+    setSearchDraft(filters.search);
+  }, [filters.search]);
+
+  React.useEffect(() => {
+    if (searchDraft === filters.search) return;
+    const timer = window.setTimeout(() => {
+      router.push(buildListPageHref(basePath, listQuery({ ...filters, search: searchDraft }, archived), 1));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [archived, basePath, filters, router, searchDraft]);
+
+  function navigate(next: Partial<ToListFilters>) {
+    router.push(buildListPageHref(basePath, listQuery({ ...filters, ...next }, archived), 1));
+  }
+
+  function tabCount(key: TabKey): number {
+    return key === 'all' ? statusCounts.all : statusCounts[key as keyof ToStatusCounts] ?? 0;
+  }
 
   const warehouseNames = React.useMemo(() => {
     const map: Record<string, string> = {};
@@ -162,27 +195,10 @@ export function ToListView({
     return map;
   }, [warehouses]);
 
-  const counts = React.useMemo(() => {
-    const c: Record<TabKey, number> = { all: transferOrders.length, draft: 0, in_transit: 0, received: 0, cancelled: 0 };
-    for (const to of transferOrders) {
-      const k = to.status.toLowerCase() as TabKey;
-      if (k in c && k !== 'all') c[k] += 1;
-    }
-    return c;
-  }, [transferOrders]);
-
-  const visible = React.useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return transferOrders.filter((to) => {
-      if (tab !== 'all' && to.status.toLowerCase() !== tab) return false;
-      if (!term) return true;
-      return to.toNumber.toLowerCase().includes(term);
-    });
-  }, [transferOrders, tab, search]);
-
   function statusLabel(status: string): string {
     return labels.status[status.toLowerCase()] ?? status;
   }
+
   function warehouseLabel(id: string | null): string {
     if (!id) return '—';
     return warehouseNames[id] ?? '—';
@@ -193,10 +209,10 @@ export function ToListView({
       <div className="flex items-center justify-between gap-3">
         <Input
           type="search"
-          value={search}
+          value={searchDraft}
           data-testid="to-list-search"
           placeholder={labels.searchPlaceholder}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => setSearchDraft(e.target.value)}
           className="w-72"
         />
         <div className="flex items-center gap-2">
@@ -238,17 +254,17 @@ export function ToListView({
               key={key}
               type="button"
               role="tab"
-              aria-selected={tab === key}
+              aria-selected={activeTab === key}
               data-testid={`to-list-tab-${key}`}
-              onClick={() => setTab(key)}
+              onClick={() => navigate({ status: key === 'all' ? '' : key })}
               className={[
                 'rounded-md px-3 py-1.5 text-sm font-medium',
-                tab === key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+                activeTab === key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
               ].join(' ')}
             >
               {labels.tabs[key]}
               <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">
-                {counts[key]}
+                {tabCount(key)}
               </span>
             </button>
           ),
@@ -270,7 +286,7 @@ export function ToListView({
           </span>
         </Link>
         <span className="ml-auto self-center text-xs text-slate-500" data-testid="to-list-rows-count">
-          {labels.rowsCount.replace('{n}', String(visible.length))}
+          {labels.rowsCount.replace('{n}', String(pagination.total))}
         </span>
       </div>
 
@@ -283,17 +299,14 @@ export function ToListView({
         </div>
       ) : null}
 
-      {visible.length === 0 ? (
+      {transferOrders.length === 0 ? (
         <EmptyState
           icon="🚚"
           title={labels.empty.title}
           body={labels.empty.body}
           action={{
             label: labels.empty.clear,
-            onClick: () => {
-              setSearch('');
-              setTab('all');
-            },
+            onClick: () => navigate({ status: '', search: '' }),
           }}
         />
       ) : (
@@ -310,7 +323,7 @@ export function ToListView({
               </tr>
             </thead>
             <tbody>
-              {visible.map((to) => (
+              {transferOrders.map((to) => (
                 <tr key={to.id} data-testid={`to-row-${to.id}`} className="border-b border-slate-100 last:border-0">
                   <td className="px-3 py-2">
                     <Link

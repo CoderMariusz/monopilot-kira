@@ -32,8 +32,9 @@ import { normalizePage, toPaginatedResult } from '../../../../../../../lib/share
 import { ToDetailView, type ToDetailLabels, type TransferOrderDetail } from '../_components/to-detail-view';
 
 const refresh = vi.fn();
+const push = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh }),
+  useRouter: () => ({ push, replace: vi.fn(), prefetch: vi.fn(), refresh }),
 }));
 
 // ── Labels (the page composes these via next-intl; here we read en from staging) ──
@@ -117,6 +118,15 @@ const ROWS = [
 ];
 
 const defaultToPagination = toPaginatedResult(ROWS, ROWS.length, normalizePage({ page: 1, defaultLimit: 50 }));
+const defaultFilters = { status: '', search: '' };
+const defaultStatusCounts = {
+  all: 3,
+  draft: 1,
+  in_transit: 1,
+  partially_received: 0,
+  received: 1,
+  cancelled: 0,
+};
 
 function renderList(props: Partial<React.ComponentProps<typeof ToListView>> = {}) {
   const searchTransferItemsAction = vi.fn().mockResolvedValue([
@@ -128,6 +138,8 @@ function renderList(props: Partial<React.ComponentProps<typeof ToListView>> = {}
       locale="en"
       transferOrders={ROWS}
       pagination={defaultToPagination}
+      filters={defaultFilters}
+      statusCounts={defaultStatusCounts}
       lineCounts={{ 'to-1': 2, 'to-2': 1, 'to-3': 0 }}
       warehouses={warehouses}
       labels={listLabels}
@@ -154,6 +166,7 @@ function pickWarehouse(index: number, optionName: string) {
 
 beforeEach(() => {
   refresh.mockClear();
+  push.mockClear();
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -172,28 +185,28 @@ describe('ToListView — structure + filtering (parity: to-screens.jsx:8-96)', (
     expect(within(screen.getByTestId('to-row-to-1')).getByText('WH-B')).toBeInTheDocument();
   });
 
-  it('filters by status tab', () => {
+  it('navigates to the in_transit status tab via URL', () => {
     renderList();
     fireEvent.click(screen.getByTestId('to-list-tab-in_transit'));
-    expect(screen.queryByTestId('to-row-to-1')).toBeNull();
-    expect(screen.getByTestId('to-row-to-2')).toBeInTheDocument();
+    expect(push).toHaveBeenCalledWith('/en/planning/transfer-orders?status=in_transit');
   });
 
-  it('filters by search over the TO number', () => {
+  it('debounces search navigation to the URL', () => {
+    vi.useFakeTimers();
     renderList();
     fireEvent.change(screen.getByTestId('to-list-search'), { target: { value: 'RECV' } });
-    expect(screen.getByTestId('to-row-to-3')).toBeInTheDocument();
-    expect(screen.queryByTestId('to-row-to-1')).toBeNull();
+    expect(push).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(300);
+    expect(push).toHaveBeenCalledWith('/en/planning/transfer-orders?q=RECV');
+    vi.useRealTimers();
   });
 
-  it('shows the empty-state when no rows match (UI-state: empty)', () => {
-    renderList();
-    fireEvent.change(screen.getByTestId('to-list-search'), { target: { value: 'zzz-nope' } });
-    expect(screen.getByTestId('empty-state-root')).toHaveTextContent(enTo.list.empty.title);
-  });
-
-  it('renders the empty-state when the org has no transfer orders at all', () => {
-    renderList({ transferOrders: [], lineCounts: {} });
+  it('shows the empty-state when the server returns no rows', () => {
+    renderList({
+      transferOrders: [],
+      pagination: toPaginatedResult([], 0, normalizePage({ page: 1, defaultLimit: 50 })),
+      lineCounts: {},
+    });
     expect(screen.getByTestId('empty-state-root')).toHaveTextContent(enTo.list.empty.title);
     expect(screen.queryByTestId('to-list-table')).toBeNull();
   });

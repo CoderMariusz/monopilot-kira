@@ -33,7 +33,7 @@ import {
   searchTransferItems,
 } from './_actions/to-form-data';
 import { buildUomDropdown, type UomDropdown } from '../_actions/uom-dropdown';
-import { ToListView, type ToListLabels } from './_components/to-list-view';
+import { ToListView, type ToListFilters, type ToListLabels } from './_components/to-list-view';
 import { makeImportLabel } from '../../../../../../lib/import/import-i18n-staging';
 import archiveTabsStaging from '../../../../../../../../_meta/i18n-staging/archive-tabs.json';
 
@@ -41,8 +41,15 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ new?: string; archived?: string; page?: string }>;
+  searchParams: Promise<{ new?: string; archived?: string; page?: string; status?: string; q?: string }>;
 };
+
+function parseToFilters(sp: { status?: string; q?: string }): ToListFilters {
+  return {
+    status: sp.status?.trim() ?? '',
+    search: sp.q?.trim() ?? '',
+  };
+}
 
 function parsePage(value: string | undefined): number {
   const page = Number(value);
@@ -210,15 +217,22 @@ async function ListContent({
   autoOpenCreate,
   archived,
   page,
+  filters,
 }: {
   locale: string;
   autoOpenCreate: boolean;
   archived: boolean;
   page: number;
+  filters: ToListFilters;
 }) {
   const t = await getTranslations('Planning.transferOrders');
   const [listResult, warehouses, lineCounts, orgUnits] = await Promise.all([
-    listTransferOrders({ page, archived }),
+    listTransferOrders({
+      page,
+      archived,
+      status: filters.status || undefined,
+      q: filters.search || undefined,
+    }),
     listTransferWarehouses(),
     listTransferOrderLineCounts(),
     listTransferUnits(),
@@ -238,6 +252,8 @@ async function ListContent({
       locale={locale}
       transferOrders={listResult.data}
       pagination={{ ...listResult.pagination, items: listResult.data }}
+      filters={filters}
+      statusCounts={listResult.statusCounts}
       lineCounts={lineCounts}
       warehouses={warehouses}
       archived={archived}
@@ -256,6 +272,8 @@ export default async function TransferOrdersListPage({ params, searchParams }: P
   const autoOpenCreate = sp.new === '1';
   const archived = sp.archived === '1';
   const page = parsePage(sp.page);
+  const filters = parseToFilters(sp);
+  const suspenseKey = `${archived}-${page}-${filters.status}-${filters.search}`;
   const t = await getTranslations('Planning.transferOrders');
 
   return (
@@ -269,8 +287,8 @@ export default async function TransferOrdersListPage({ params, searchParams }: P
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.planning') }, { label: t('breadcrumb.transferOrders') }]}
       />
-      <Suspense key={`${archived}-${page}`} fallback={<ListSkeleton />}>
-        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} page={page} />
+      <Suspense key={suspenseKey} fallback={<ListSkeleton />}>
+        <ListContent locale={locale} autoOpenCreate={autoOpenCreate} archived={archived} page={page} filters={filters} />
       </Suspense>
     </main>
   );

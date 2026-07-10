@@ -93,6 +93,16 @@ describe('listPlanningWorkOrders', () => {
           expectSqlArity(sql, params);
           return { rows: [{ total: listTotal }], rowCount: 1 };
         }
+        if (normalized.includes('group by wo.status')) {
+          expectSqlArity(sql, params);
+          return {
+            rows: [
+              { status: 'RELEASED', n: 80 },
+              { status: 'DRAFT', n: 40 },
+            ],
+            rowCount: 2,
+          };
+        }
         if (normalized.startsWith('select count(*) as archived_count')) {
           expectSqlArity(sql, params);
           return { rows: [{ archived_count: 2 }], rowCount: 1 };
@@ -134,6 +144,18 @@ describe('listPlanningWorkOrders', () => {
       hasMore: true,
     });
     expect(result.archivedCount).toBe(2);
+    expect(result.statusCounts).toEqual({
+      all: 120,
+      DRAFT: 40,
+      RELEASED: 80,
+      IN_PROGRESS: 0,
+      ON_HOLD: 0,
+      COMPLETED: 0,
+      CLOSED: 0,
+      CANCELLED: 0,
+    });
+    const groupCall = vi.mocked(client.query).mock.calls.find(([sql]) => String(sql).includes('group by wo.status'));
+    expect(groupCall?.[1]).toEqual([null, 'FG', SITE_ID, false]);
     const dataCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
       String(sql).includes('to_jsonb(exec.*)'),
     );

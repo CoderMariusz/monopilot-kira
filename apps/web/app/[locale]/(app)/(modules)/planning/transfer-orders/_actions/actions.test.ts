@@ -101,6 +101,16 @@ function makeClient(): QueryClient {
         expectSqlArity(sql, params);
         return { rows: [{ total: listTotal }], rowCount: 1 };
       }
+      if (normalized.includes('group by transfer_orders.status')) {
+        expectSqlArity(sql, params);
+        return {
+          rows: [
+            { status: 'draft', n: 2 },
+            { status: 'in_transit', n: 1 },
+          ],
+          rowCount: 2,
+        };
+      }
       if (normalized.startsWith('select count(*) as archived_count')) {
         expectSqlArity(sql, params);
         return { rows: [{ archived_count: 1 }], rowCount: 1 };
@@ -267,24 +277,40 @@ describe('planning transfer order actions', () => {
     client = makeClient();
   });
 
-  it('lists transfer orders under org scope', async () => {
+  it('lists transfer orders under org scope with grouped status counts', async () => {
     const result = await listTransferOrders({ status: 'draft', q: 'TO' });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.data[0]).toEqual(expect.objectContaining({ toNumber: 'TO-TEST-001' }));
     expect(result.archivedCount).toBe(1);
+    expect(result.statusCounts).toEqual({
+      all: 3,
+      draft: 2,
+      in_transit: 1,
+      partially_received: 0,
+      received: 0,
+      cancelled: 0,
+    });
+    const groupCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('group by transfer_orders.status'),
+    );
+    expect(groupCall?.[1]).toEqual([null, 'TO', false]);
   });
 
   it('passes archived=false by default and archived=true for archive views', async () => {
     await listTransferOrders({});
     await listTransferOrders({ archived: true });
 
-    const listCalls = vi.mocked(client.query).mock.calls.filter(([sql]) => String(sql).includes('from public.transfer_orders transfer_orders'));
-    expect(listCalls[0]?.[1]).toEqual([null, null, false]);
-    expect(listCalls[1]?.[1]).toEqual([null, null, false, 50, 0]);
-    expect(listCalls[3]?.[1]).toEqual([null, null, true]);
-    expect(listCalls[4]?.[1]).toEqual([null, null, true, 50, 0]);
+    const dataCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('limit $4::integer offset $5::integer'),
+    );
+    expect(dataCall?.[1]).toEqual([null, null, false, 50, 0]);
+
+    const archivedDataCall = vi.mocked(client.query).mock.calls.filter(([sql]) =>
+      String(sql).includes('limit $4::integer offset $5::integer'),
+    ).at(-1);
+    expect(archivedDataCall?.[1]).toEqual([null, null, true, 50, 0]);
   });
 
   it('page 2 offset returns the second page of rows when total exceeds limit', async () => {

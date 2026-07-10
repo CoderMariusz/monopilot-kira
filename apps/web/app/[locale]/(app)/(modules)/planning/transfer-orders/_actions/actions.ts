@@ -23,7 +23,8 @@ import {
   TransferOrderCreateInput,
   TransferOrderStatusSchema,
   dateSchema,
-  hasPlanningWritePermission,
+  requireActionPermission,
+  PLANNING_TO_MANAGE_PERMISSION,
   isPgError,
   numeric3Schema,
   pgErrorToResult,
@@ -101,8 +102,50 @@ type TransferOrderDetail = TransferOrder & { lines: TransferOrderLine[] };
 type TransferOrderError = ProcurementError | 'last_line';
 type TransferOrderResult<T> = { ok: true; data: T } | { ok: false; error: TransferOrderError; code?: TransferOrderError; message?: string };
 type TransferOrderListResult =
-  | { ok: true; data: TransferOrder[]; pagination: PaginatedResult<TransferOrder>; archivedCount: number }
+  | {
+      ok: true;
+      data: TransferOrder[];
+      pagination: PaginatedResult<TransferOrder>;
+      archivedCount: number;
+      statusCounts: ToStatusCounts;
+    }
   | { ok: false; error: ProcurementError; message?: string };
+
+const TO_LIST_STATUSES = ['draft', 'in_transit', 'partially_received', 'received', 'cancelled'] as const;
+export type ToListStatus = (typeof TO_LIST_STATUSES)[number];
+export type ToStatusCounts = Record<ToListStatus, number> & { all: number };
+
+function buildToStatusCounts(rows: Array<{ status: string; n: number }>): ToStatusCounts {
+  const counts = TO_LIST_STATUSES.reduce(
+    (acc, status) => {
+      acc[status] = 0;
+      return acc;
+    },
+    {} as Record<ToListStatus, number>,
+  );
+  let all = 0;
+  for (const row of rows) {
+    const key = row.status.toLowerCase();
+    if ((TO_LIST_STATUSES as readonly string[]).includes(key)) {
+      counts[key as ToListStatus] = row.n;
+      all += row.n;
+    }
+  }
+  return { ...counts, all };
+}
+
+const TO_LIST_FILTER_WHERE = `
+            where transfer_orders.org_id = app.current_org_id()
+              and ($1::text is null or transfer_orders.status = $1)
+              and ($2::text is null or transfer_orders.to_number ilike '%' || $2 || '%')
+              and coalesce(
+                (
+                  transfer_orders.status in ('received', 'cancelled')
+                  and ods.archive_after_days is not null
+                  and transfer_orders.updated_at < now() - make_interval(days => ods.archive_after_days)
+                ),
+                false
+              ) = $3::boolean`;
 
 const TO_LIST_FROM = `from public.transfer_orders transfer_orders
            left join public.org_document_settings ods
@@ -342,23 +385,15 @@ export async function listTransferOrders(params: unknown = {}): Promise<Transfer
 
   try {
     return await withOrgContext(async ({ client }): Promise<TransferOrderListResult> => {
-      const baseParams = [status?.success ? status.data : null, q, archived] as const;
-      const [countResult, dataResult] = await Promise.all([
+      const listParams = [status?.success ? status.data : null, q, archived] as const;
+      const countParams = [null, q, archived] as const;
+
+      const [countResult, dataResult, statusCountResult] = await Promise.all([
         (client as QueryClient).query<{ total: number }>(
           `select count(*)::int as total
              ${TO_LIST_FROM}
-            where transfer_orders.org_id = app.current_org_id()
-              and ($1::text is null or transfer_orders.status = $1)
-              and ($2::text is null or transfer_orders.to_number ilike '%' || $2 || '%')
-              and coalesce(
-                (
-                  transfer_orders.status in ('received', 'cancelled')
-                  and ods.archive_after_days is not null
-                  and transfer_orders.updated_at < now() - make_interval(days => ods.archive_after_days)
-                ),
-                false
-              ) = $3::boolean`,
-          [...baseParams],
+            ${TO_LIST_FILTER_WHERE}`,
+          [...listParams],
         ),
         (client as QueryClient).query<TransferOrderRow>(
           `select transfer_orders.id, transfer_orders.to_number, transfer_orders.from_warehouse_id,
@@ -366,20 +401,17 @@ export async function listTransferOrders(params: unknown = {}): Promise<Transfer
                   transfer_orders.scheduled_date::text as scheduled_date, transfer_orders.notes,
                   transfer_orders.created_at, transfer_orders.updated_at
              ${TO_LIST_FROM}
-            where transfer_orders.org_id = app.current_org_id()
-              and ($1::text is null or transfer_orders.status = $1)
-              and ($2::text is null or transfer_orders.to_number ilike '%' || $2 || '%')
-              and coalesce(
-                (
-                  transfer_orders.status in ('received', 'cancelled')
-                  and ods.archive_after_days is not null
-                  and transfer_orders.updated_at < now() - make_interval(days => ods.archive_after_days)
-                ),
-                false
-              ) = $3::boolean
+            ${TO_LIST_FILTER_WHERE}
             order by transfer_orders.scheduled_date asc nulls last, transfer_orders.to_number asc, transfer_orders.id asc
             limit $4::integer offset $5::integer`,
-          [...baseParams, page.limit, page.offset],
+          [...listParams, page.limit, page.offset],
+        ),
+        (client as QueryClient).query<{ status: string; n: number }>(
+          `select transfer_orders.status, count(*)::int as n
+             ${TO_LIST_FROM}
+            ${TO_LIST_FILTER_WHERE}
+            group by transfer_orders.status`,
+          [...countParams],
         ),
       ]);
       const count = await (client as QueryClient).query<{ archived_count: string | number }>(
@@ -398,7 +430,13 @@ export async function listTransferOrders(params: unknown = {}): Promise<Transfer
       );
       const rows = dataResult.rows.map(mapTransferOrder);
       const pagination = toPaginatedResult(rows, Number(countResult.rows[0]?.total ?? 0), page);
-      return { ok: true, data: pagination.items, pagination, archivedCount: Number(count.rows[0]?.archived_count ?? 0) };
+      return {
+        ok: true,
+        data: pagination.items,
+        pagination,
+        archivedCount: Number(count.rows[0]?.archived_count ?? 0),
+        statusCounts: buildToStatusCounts(statusCountResult.rows),
+      };
     });
   } catch (err) {
     console.error('[planning/transfer-orders] listTransferOrders failed', err);
@@ -437,7 +475,8 @@ export async function createTransferOrder(rawInput: unknown): Promise<TransferOr
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       async function insertHeader(toNumber: string) {
         return ctx.client.query<TransferOrderRow>(
@@ -507,7 +546,8 @@ export async function updateTransferOrder(rawInput: unknown): Promise<TransferOr
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrder>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const previous = await fetchDraftTransferOrderForUpdate(ctx.client, input.id);
       if (!previous) return { ok: false, error: 'not_found' };
@@ -587,7 +627,8 @@ export async function addTransferOrderLine(id: string, rawInput: unknown): Promi
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const header = await fetchDraftTransferOrderForUpdate(ctx.client, input.toId);
       if (!header) return { ok: false, error: 'not_found' };
@@ -648,7 +689,8 @@ export async function updateTransferOrderLine(
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const header = await fetchDraftTransferOrderForUpdate(ctx.client, input.toId);
       if (!header) return { ok: false, error: 'not_found' };
@@ -715,7 +757,8 @@ export async function deleteTransferOrderLine(id: string, lineId: string): Promi
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       const header = await fetchDraftTransferOrderForUpdate(ctx.client, input.toId);
       if (!header) return { ok: false, error: 'not_found' };
@@ -1167,7 +1210,8 @@ export async function transitionTransferOrderStatus(id: string, status: string):
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrder>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+      const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+      if (!perm.ok) return perm;
 
       // FOR UPDATE: serialize concurrent transitions of the same TO — the loser
       // re-reads a terminal/changed status and fails the state-machine guard

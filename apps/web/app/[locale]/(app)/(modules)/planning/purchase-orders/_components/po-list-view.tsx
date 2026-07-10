@@ -47,8 +47,10 @@ import { Select } from '@monopilot/ui/Select';
 import { EmptyState } from '@monopilot/ui/EmptyState';
 
 import { downloadCsv } from '../../../../../../../lib/shared/download';
+import { buildListPageHref } from '../../../../../../../lib/shared/list-page-href';
 import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
 import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
+import type { PoStatusCounts } from '../_actions/actions';
 
 import { PoStatusBadge } from './po-status-badge';
 import {
@@ -77,6 +79,21 @@ export type PoRow = {
 
 const TAB_ORDER = ['all', 'draft', 'sent', 'confirmed', 'partially_received', 'received', 'cancelled'] as const;
 type TabKey = (typeof TAB_ORDER)[number];
+
+export type PoListFilters = {
+  status: string;
+  search: string;
+  supplierId: string;
+};
+
+function listQuery(filters: PoListFilters, archived = false): Record<string, string | undefined> {
+  return {
+    status: filters.status || undefined,
+    q: filters.search || undefined,
+    supplier: filters.supplierId || undefined,
+    archived: archived ? '1' : undefined,
+  };
+}
 
 export type PoListLabels = {
   createPo: string;
@@ -122,6 +139,8 @@ export type PoListViewProps = {
   locale: string;
   purchaseOrders: PoRow[];
   pagination: PaginatedResult<PoRow>;
+  filters: PoListFilters;
+  statusCounts: PoStatusCounts;
   suppliers: PoSupplierOption[];
   labels: PoListLabels;
   /**
@@ -171,6 +190,8 @@ export function PoListView({
   locale,
   purchaseOrders,
   pagination,
+  filters,
+  statusCounts,
   suppliers,
   labels,
   archived = false,
@@ -186,20 +207,29 @@ export function PoListView({
 }: PoListViewProps) {
   const router = useRouter();
   const basePath = `/${locale}/planning/purchase-orders`;
-  const pageHref = (page: number) => {
-    const params = new URLSearchParams();
-    if (archived) params.set('archived', '1');
-    if (page > 1) params.set('page', String(page));
-    const q = params.toString();
-    return q ? `${basePath}?${q}` : basePath;
-  };
+  const activeTab: TabKey = (filters.status as TabKey) || 'all';
+  const pageHref = (page: number) => buildListPageHref(basePath, listQuery(filters, archived), page);
   const shown = pagination.offset + purchaseOrders.length;
-  const [tab, setTab] = React.useState<TabKey>('all');
-  const [search, setSearch] = React.useState('');
-  const [supplierFilter, setSupplierFilter] = React.useState('');
+  const [searchDraft, setSearchDraft] = React.useState(filters.search);
   const [createOpen, setCreateOpen] = React.useState(autoOpenCreate);
   const [exporting, setExporting] = React.useState(false);
   const [exportError, setExportError] = React.useState(false);
+
+  React.useEffect(() => {
+    setSearchDraft(filters.search);
+  }, [filters.search]);
+
+  React.useEffect(() => {
+    if (searchDraft === filters.search) return;
+    const timer = window.setTimeout(() => {
+      router.push(buildListPageHref(basePath, listQuery({ ...filters, search: searchDraft }, archived), 1));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [archived, basePath, filters, router, searchDraft]);
+
+  function navigate(next: Partial<PoListFilters>) {
+    router.push(buildListPageHref(basePath, listQuery({ ...filters, ...next }, archived), 1));
+  }
 
   async function handleExport() {
     if (exporting) return;
@@ -208,9 +238,9 @@ export function PoListView({
     try {
       // Pass the CURRENT filter state so the export mirrors exactly what is on screen.
       const result = await createExportJobAction({
-        status: tab,
-        q: search.trim() || undefined,
-        supplierId: supplierFilter || undefined,
+        status: activeTab,
+        q: filters.search.trim() || undefined,
+        supplierId: filters.supplierId || undefined,
         archived,
       });
       if (!result.ok) {
@@ -231,36 +261,9 @@ export function PoListView({
     }
   }
 
-  const counts = React.useMemo(() => {
-    const c: Record<TabKey, number> = {
-      all: purchaseOrders.length,
-      draft: 0,
-      sent: 0,
-      confirmed: 0,
-      partially_received: 0,
-      received: 0,
-      cancelled: 0,
-    };
-    for (const po of purchaseOrders) {
-      const k = po.status.toLowerCase() as TabKey;
-      if (k in c && k !== 'all') c[k] += 1;
-    }
-    return c;
-  }, [purchaseOrders]);
-
-  const visible = React.useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return purchaseOrders.filter((po) => {
-      if (tab !== 'all' && po.status.toLowerCase() !== tab) return false;
-      if (supplierFilter && po.supplierId !== supplierFilter) return false;
-      if (!term) return true;
-      return (
-        po.poNumber.toLowerCase().includes(term) ||
-        (po.supplierCode ?? '').toLowerCase().includes(term) ||
-        (po.supplierName ?? '').toLowerCase().includes(term)
-      );
-    });
-  }, [purchaseOrders, tab, search, supplierFilter]);
+  function tabCount(key: TabKey): number {
+    return key === 'all' ? statusCounts.all : statusCounts[key] ?? 0;
+  }
 
   function statusLabel(status: string): string {
     return labels.status[status.toLowerCase()] ?? status;
@@ -275,10 +278,10 @@ export function PoListView({
       <div className="flex items-center justify-between gap-3">
         <Input
           type="search"
-          value={search}
+          value={searchDraft}
           data-testid="po-list-search"
           placeholder={labels.searchPlaceholder}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => setSearchDraft(e.target.value)}
           className="w-72"
         />
         <div className="flex items-center gap-2">
@@ -345,17 +348,17 @@ export function PoListView({
               key={key}
               type="button"
               role="tab"
-              aria-selected={tab === key}
+              aria-selected={activeTab === key}
               data-testid={`po-list-tab-${key}`}
-              onClick={() => setTab(key)}
+              onClick={() => navigate({ status: key === 'all' ? '' : key })}
               className={[
                 'rounded-md px-3 py-1.5 text-sm font-medium',
-                tab === key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+                activeTab === key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
               ].join(' ')}
             >
               {tabLabel(key)}
               <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">
-                {counts[key]}
+                {tabCount(key)}
               </span>
             </button>
           ),
@@ -391,8 +394,8 @@ export function PoListView({
       <div className="flex flex-wrap items-center gap-3">
         <div className="w-56">
           <Select
-            value={supplierFilter}
-            onValueChange={setSupplierFilter}
+            value={filters.supplierId}
+            onValueChange={(value) => navigate({ supplierId: value })}
             aria-label={labels.supplierFilterLabel}
             options={[
               { value: '', label: labels.allSuppliers },
@@ -404,32 +407,24 @@ export function PoListView({
           type="button"
           className="text-xs text-blue-700 hover:underline"
           data-testid="po-list-clear"
-          onClick={() => {
-            setSearch('');
-            setTab('all');
-            setSupplierFilter('');
-          }}
+          onClick={() => navigate({ status: '', search: '', supplierId: '' })}
         >
           {labels.clearFilters}
         </button>
         <span className="ml-auto text-xs text-slate-500" data-testid="po-list-rows-count">
-          {labels.rowsCount.replace('{n}', String(visible.length))}
+          {labels.rowsCount.replace('{n}', String(pagination.total))}
         </span>
       </div>
 
       {/* Table / empty */}
-      {visible.length === 0 ? (
+      {purchaseOrders.length === 0 ? (
         <EmptyState
           icon="📦"
           title={labels.empty.title}
           body={labels.empty.body}
           action={{
             label: labels.empty.clear,
-            onClick: () => {
-              setSearch('');
-              setTab('all');
-              setSupplierFilter('');
-            },
+            onClick: () => navigate({ status: '', search: '', supplierId: '' }),
           }}
         />
       ) : (
@@ -447,7 +442,7 @@ export function PoListView({
               </tr>
             </thead>
             <tbody>
-              {visible.map((po) => (
+              {purchaseOrders.map((po) => (
                 <tr key={po.id} data-testid={`po-row-${po.id}`} className="border-b border-slate-100 last:border-0">
                   <td className="px-3 py-2">
                     <Link
