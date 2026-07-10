@@ -69,3 +69,31 @@ pnpm exec vitest run --config vitest.ui.config.ts \
 1. `fix(production): server-side WO list pagination, search, and status filters`
 2. `fix(technical): server-side items/materials list pagination and search`
 3. `fix(i18n): wave-4 missing locale keys, remove .bak files, parity test`
+
+## Fix round 1
+
+Adversarial review (`wave-4-codex-review.md`) required four changes:
+
+1. **Chooser consumers truncated to 50 rows** — `listItems()` now uses `ITEM_CHOOSER_MAX_LIMIT` (200) when `page`/`offset` are omitted; paginated list pages still default to 50. BOM modals (`bom-edit-dialog`, `new-bom-modal`, `disassembly-bom-create`) pass `limit: ITEM_CHOOSER_MAX_LIMIT` explicitly. Regression tests assert chooser vs list defaults.
+
+2. **Status/D365 filters client-side on one page** — `status` and `d365` URL params (`?status=&d365=`) are parsed on the items page and applied in SQL (`ITEM_LIST_FILTERS`). `ItemsTableClient` drives filter pills via `buildListPageHref` (no client-side row filtering); pagination totals match the filtered WHERE.
+
+3. **Filtered zero-match showed catalog-empty** — `listItems` sets `state: 'empty'` only when the unfiltered scoped catalog has zero rows (`typeCounts.all === 0` with no active filters). Filtered no-match keeps `state: 'ready'` so the table, search, and filter controls remain usable.
+
+4. **Locale parity test gaps** — `wave-4-locale-parity.test.ts` now asserts every Bug 3 path (including the full `npd.faProductionTab` leaf pack from `en.json`) across all four locales. Added missing `npd.projectWizard` output-unit keys, `technical.wip.process.yieldPct`, and `faProductionTab` process/line strings in `ro.json` and `uk.json`.
+
+### Gates (fix round 1)
+
+```text
+pnpm --filter web exec tsc --noEmit          # clean
+pnpm exec vitest run:
+  technical/items/_actions/list-items.test.ts
+  i18n/__tests__/wave-4-locale-parity.test.ts
+  production/_actions/list-work-orders.test.ts
+  → PASS 609 / FAIL 0 (action + i18n)
+
+pnpm exec vitest run --config vitest.ui.config.ts \
+  production/wos/_components/__tests__/wo-list-screen.test.tsx
+  technical/items/_components/__tests__/items-table-i18n.test.tsx
+  → PASS 9 / FAIL 0
+```

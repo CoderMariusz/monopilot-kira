@@ -4104,6 +4104,7 @@
         "throughput": "Throughput / hour",
         "throughputUom": "Throughput UoM",
         "setupCost": "Setup cost",
+        "yieldPct": "Randament %",
         "edit": "Edit",
         "remove": "Remove",
         "rolesHeader": "Roles",
@@ -6020,12 +6021,22 @@
         "publishWipConfirm": "Publish",
         "publishWipCancel": "Cancel",
         "publishWipPublishing": "Publishing…",
-        "publishWipError": "Could not publish the WIP definition"
+        "publishWipError": "Could not publish the WIP definition",
+        "lineLabel": "Linie",
+        "linePlaceholder": "Implicit proiect",
+        "lineSaveError": "Linia procesului nu a putut fi salvată",
+        "consumptionLabel": "Ingrediente consumate",
+        "consumptionPlaceholder": "Atribuiți ingredient…",
+        "consumptionEmpty": "Niciun ingredient atribuit",
+        "consumptionSaveError": "Ingredientul nu a putut fi atribuit",
+        "removeConsumption": "Eliminați ingredientul"
       },
       "productionLine": "Production line",
       "productionLinePlaceholder": "Select a line…",
       "productionLineEmpty": "No production lines configured for this site.",
       "productionLineSaveError": "Could not save the production line",
+      "productionLineDefault": "Linie implicită",
+      "productionLineHelper": "Se aplică când un proces nu are linie proprie. Liniile per proces o suprascriu.",
       "processYieldPct": "Yield %",
       "effectiveKgPerPackHint": "effective {qty} kg/pack after process yields"
     },
@@ -6787,7 +6798,12 @@
       "fieldWeeklyVolumePacksPlaceholder": "e.g. 5000",
       "fieldRunsPerWeek": "Runs per week (estimate)",
       "fieldRunsPerWeekPlaceholder": "e.g. 3",
-      "fieldRunsPerWeekHelp": "Planning estimate only — revise later on the project brief as volumes firm up."
+      "fieldRunsPerWeekHelp": "Planning estimate only — revise later on the project brief as volumes firm up.",
+      "fieldOutputUnit": "Unitate de ieșire",
+      "fieldOutputUnitKg": "kg",
+      "fieldOutputUnitPieces": "bucăți",
+      "fieldOutputUnitBoxes": "cutii",
+      "errorBoxesOutputUnit": "Unitatea de ieșire „cutii” necesită greutatea ambalajului (g) și numărul de ambalaje per cutie mai mare decât 0."
     },
     "faBomTab": {
       "title": "BOM (vizualizare calculată)",

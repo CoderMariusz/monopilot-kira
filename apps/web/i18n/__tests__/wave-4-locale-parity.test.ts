@@ -36,7 +36,17 @@ const WAVE4_KEY_PATHS = [
   'Planning.transferOrders.list.pagination.previous',
   'Planning.transferOrders.list.pagination.next',
   'npd.faRightPanel.totalYield',
+  'npd.projectWizard.fieldOutputUnit',
+  'npd.projectWizard.fieldOutputUnitKg',
+  'npd.projectWizard.fieldOutputUnitPieces',
+  'npd.projectWizard.fieldOutputUnitBoxes',
+  'npd.projectWizard.errorBoxesOutputUnit',
   'npd.briefStage.errOutputUnitBoxesPackFactors',
+  'technical.wip.process.yieldPct',
+  'npd.handoff.revertToNpd',
+  'npd.packaging.supplierPlaceholder',
+  'npd.packaging.supplierLegacyHint',
+  'Planning.workOrders.create.chainCreatedWarning',
   'production.wos.pagination.showing',
   'production.wos.pagination.previous',
   'production.wos.pagination.next',
@@ -48,22 +58,6 @@ const WAVE4_KEY_PATHS = [
   'technical.materials.pagination.next',
 ] as const;
 
-const PL_ONLY_KEY_PATHS = [
-  'npd.projectWizard.fieldOutputUnit',
-  'npd.projectWizard.fieldOutputUnitKg',
-  'npd.projectWizard.fieldOutputUnitPieces',
-  'npd.projectWizard.fieldOutputUnitBoxes',
-  'npd.projectWizard.errorBoxesOutputUnit',
-  'technical.wip.process.yieldPct',
-] as const;
-
-const RO_UK_KEY_PATHS = [
-  'npd.handoff.revertToNpd',
-  'npd.packaging.supplierPlaceholder',
-  'npd.packaging.supplierLegacyHint',
-  'Planning.workOrders.create.chainCreatedWarning',
-] as const;
-
 function getAtPath(root: unknown, path: string): unknown {
   return path.split('.').reduce<unknown>((node, key) => {
     if (node && typeof node === 'object' && key in (node as Record<string, unknown>)) {
@@ -72,6 +66,29 @@ function getAtPath(root: unknown, path: string): unknown {
     return undefined;
   }, root);
 }
+
+function collectLeafPaths(node: unknown, prefix: string): string[] {
+  if (typeof node === 'string') {
+    return prefix ? [prefix] : [];
+  }
+  if (!node || typeof node !== 'object' || Array.isArray(node)) {
+    return [];
+  }
+  const entries = Object.entries(node as Record<string, unknown>);
+  if (entries.length === 0) return [];
+  return entries.flatMap(([key, value]) => {
+    const next = prefix ? `${prefix}.${key}` : key;
+    if (typeof value === 'string') return [next];
+    return collectLeafPaths(value, next);
+  });
+}
+
+const FA_PRODUCTION_TAB_PATHS = collectLeafPaths(
+  (en as { npd: { faProductionTab: unknown } }).npd.faProductionTab,
+  'npd.faProductionTab',
+);
+
+const ALL_WAVE4_KEY_PATHS = [...WAVE4_KEY_PATHS, ...FA_PRODUCTION_TAB_PATHS];
 
 function isRealString(value: unknown, path: string): boolean {
   return (
@@ -83,23 +100,9 @@ function isRealString(value: unknown, path: string): boolean {
 }
 
 describe('wave-4 locale parity', () => {
-  for (const path of WAVE4_KEY_PATHS) {
+  for (const path of ALL_WAVE4_KEY_PATHS) {
     it.each(Object.keys(LOCALES))('%s has %s', (locale) => {
       const value = getAtPath(LOCALES[locale as keyof typeof LOCALES], path);
-      expect(isRealString(value, path), `${locale}:${path}=${String(value)}`).toBe(true);
-    });
-  }
-
-  for (const path of PL_ONLY_KEY_PATHS) {
-    it(`pl has ${path}`, () => {
-      const value = getAtPath(pl, path);
-      expect(isRealString(value, path)).toBe(true);
-    });
-  }
-
-  for (const path of RO_UK_KEY_PATHS) {
-    it.each(['ro', 'uk'] as const)('%s has %s', (locale) => {
-      const value = getAtPath(LOCALES[locale], path);
       expect(isRealString(value, path), `${locale}:${path}=${String(value)}`).toBe(true);
     });
   }

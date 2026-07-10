@@ -4104,6 +4104,7 @@
         "throughput": "Throughput / hour",
         "throughputUom": "Throughput UoM",
         "setupCost": "Setup cost",
+        "yieldPct": "Вихід %",
         "edit": "Edit",
         "remove": "Remove",
         "rolesHeader": "Roles",
@@ -6020,12 +6021,22 @@
         "publishWipConfirm": "Publish",
         "publishWipCancel": "Cancel",
         "publishWipPublishing": "Publishing…",
-        "publishWipError": "Could not publish the WIP definition"
+        "publishWipError": "Could not publish the WIP definition",
+        "lineLabel": "Лінія",
+        "linePlaceholder": "Типово для проєкту",
+        "lineSaveError": "Не вдалося зберегти лінію процесу",
+        "consumptionLabel": "Спожиті інгредієнти",
+        "consumptionPlaceholder": "Призначити інгредієнт…",
+        "consumptionEmpty": "Інгредієнти не призначено",
+        "consumptionSaveError": "Не вдалося призначити інгредієнт",
+        "removeConsumption": "Видалити інгредієнт"
       },
       "productionLine": "Production line",
       "productionLinePlaceholder": "Select a line…",
       "productionLineEmpty": "No production lines configured for this site.",
       "productionLineSaveError": "Could not save the production line",
+      "productionLineDefault": "Лінія за замовчуванням",
+      "productionLineHelper": "Застосовується, коли процес не має власної лінії. Лінії окремих процесів мають пріоритет.",
       "processYieldPct": "Yield %",
       "effectiveKgPerPackHint": "effective {qty} kg/pack after process yields"
     },
@@ -6787,7 +6798,12 @@
       "fieldWeeklyVolumePacksPlaceholder": "e.g. 5000",
       "fieldRunsPerWeek": "Runs per week (estimate)",
       "fieldRunsPerWeekPlaceholder": "e.g. 3",
-      "fieldRunsPerWeekHelp": "Planning estimate only — revise later on the project brief as volumes firm up."
+      "fieldRunsPerWeekHelp": "Planning estimate only — revise later on the project brief as volumes firm up.",
+      "fieldOutputUnit": "Одиниця виходу",
+      "fieldOutputUnitKg": "кг",
+      "fieldOutputUnitPieces": "штуки",
+      "fieldOutputUnitBoxes": "коробки",
+      "errorBoxesOutputUnit": "Одиниця виходу «коробки» вимагає маси упаковки (г) і кількості упаковок у коробці більше 0."
     },
     "faBomTab": {
       "title": "BOM (обчислений вигляд)",
