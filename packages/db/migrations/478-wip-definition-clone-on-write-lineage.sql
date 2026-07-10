@@ -10,20 +10,11 @@ alter table public.wip_definitions
 alter table public.wip_definitions
   drop constraint if exists wip_definitions_supersedes_fk;
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-     where conname = 'wip_definitions_supersedes_fk'
-       and conrelid = 'public.wip_definitions'::regclass
-  ) then
-    alter table public.wip_definitions
-      add constraint wip_definitions_supersedes_fk
-      foreign key (supersedes_wip_definition_id, org_id)
-      references public.wip_definitions (id, org_id)
-      on delete set null;
-  end if;
-end $$;
+alter table public.wip_definitions
+  add constraint wip_definitions_supersedes_fk
+  foreign key (supersedes_wip_definition_id, org_id)
+  references public.wip_definitions (id, org_id)
+  on delete set null (supersedes_wip_definition_id);
 
 drop index if exists public.wip_definitions_org_lower_name_active_uq;
 

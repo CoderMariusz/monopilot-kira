@@ -105,3 +105,15 @@ DB-layer concurrency enforcement for adversarial review findings (N-20, N-22, N-
 - `updateItem` maps DB trigger `23514` to `item_type_immutable`.
 
 **New pg tests:** `bom-request-version-edit-concurrency.pg.test.ts`, `factory-spec-bind-concurrency.pg.test.ts`, `update-item-type-freeze.pg.test.ts`, `wip-definition-supersession.pg.test.ts` (skip without `DATABASE_URL`).
+
+## Fix round 2
+
+Addresses Codex re-review findings 1–3 (N-22 lock ordering + composite FK delete, N-23 test evidence).
+
+**N-22 lock ordering:** `saveWipDefinition` now `FOR UPDATE` locks the requested predecessor before loading/comparing content and computing `nextVersion`; rebases onto the current active successor when a concurrent save already archived the requested id; asserts predecessor archive `rowCount === 1` before activating the successor (`SUPERCEDE_CONFLICT` on race).
+
+**N-22 composite FK (mig 478):** `ON DELETE SET NULL (supersedes_wip_definition_id)` so only the nullable lineage column is cleared (org_id stays NOT NULL).
+
+**N-23 test:** `factory-spec-bind-concurrency.pg.test.ts` coordinates recall/bind with explicit barriers — recall holds `technical:factory_spec_bind` open while `createWorkOrderCore` runs; asserts no WO commits with `active_factory_spec_id` pointing at the recalled spec.
+
+**N-22 test:** `wip-definition-supersession.pg.test.ts` runs two concurrent `saveWipDefinition` calls against the same active id; asserts monotonic versions (v4 then v5), single active row, lineage chain, and preserved archived predecessor content.

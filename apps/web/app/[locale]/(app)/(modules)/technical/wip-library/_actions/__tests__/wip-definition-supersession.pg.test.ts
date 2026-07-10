@@ -8,6 +8,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getAppConnection, getOwnerConnection } from '../../../../../../../../../../packages/db/src/clients.js';
+import { saveWipDefinition } from '../wip-definition-actions';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runPg = databaseUrl ? describe : describe.skip;
@@ -15,38 +16,26 @@ const runPg = databaseUrl ? describe : describe.skip;
 const tenantId = randomUUID();
 const orgId = randomUUID();
 const userId = randomUUID();
+const roleId = randomUUID();
 const itemId = randomUUID();
 const activeDefId = randomUUID();
 
-async function withOrgClient(
-  appPool: pg.Pool,
-  ownerPool: pg.Pool,
-  fn: (client: pg.PoolClient) => Promise<void>,
-): Promise<void> {
-  const sessionToken = randomUUID();
-  await ownerPool.query(
-    `insert into app.session_org_contexts (session_token, org_id, user_id)
-     values ($1::uuid, $2::uuid, $3::uuid)
-     on conflict (session_token) do update
-       set org_id = excluded.org_id, user_id = excluded.user_id`,
-    [sessionToken, orgId, userId],
-  );
-  const client = await appPool.connect();
-  try {
-    await client.query('begin');
-    await client.query('select app.set_org_context($1::uuid, $2::uuid)', [sessionToken, orgId]);
-    await fn(client);
-    await client.query('commit');
-  } catch (error) {
-    await client.query('rollback').catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
-    await ownerPool
-      .query('delete from app.session_org_contexts where session_token = $1::uuid', [sessionToken])
-      .catch(() => undefined);
-  }
-}
+const baseSaveInput = {
+  id: activeDefId,
+  name: 'Cream base',
+  baseUom: 'kg' as const,
+  yieldPct: 100,
+  reusable: true,
+  ingredients: [] as Array<{ itemId: string; qtyPerUnit: number; uom: string; sequence: number }>,
+  processes: [] as Array<{
+    processName: string;
+    displayOrder: number;
+    durationHours: number;
+    additionalCost: number;
+    setupCost: number;
+    roles: Array<{ roleGroup: string; headcount: number }>;
+  }>,
+};
 
 runPg('WIP definition supersession lifecycle (real Postgres)', () => {
   let ownerPool: pg.Pool;
@@ -55,6 +44,11 @@ runPg('WIP definition supersession lifecycle (real Postgres)', () => {
   beforeAll(async () => {
     ownerPool = getOwnerConnection();
     appPool = getAppConnection();
+
+    process.env.NODE_ENV = 'test';
+    process.env.VITEST = 'true';
+    process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID = userId;
+    process.env.NEXT_SERVER_ACTION_ORG_ID = orgId;
 
     await ownerPool.query(
       `insert into public.tenants (id, name, region_cluster, data_plane_url)
@@ -69,10 +63,22 @@ runPg('WIP definition supersession lifecycle (real Postgres)', () => {
       [orgId, tenantId, `w15-wip-${orgId.slice(0, 8)}`],
     );
     await ownerPool.query(
+      `insert into public.roles (id, org_id, slug, code, name, permissions)
+       values ($1, $2, 'wip-editor', 'wip-editor', 'WIP Editor', '["technical.wip.edit"]'::jsonb)
+       on conflict (id) do nothing`,
+      [roleId, orgId],
+    );
+    await ownerPool.query(
       `insert into public.users (id, org_id, email, name)
        values ($1, $2, $3, 'Wave15 WIP User')
        on conflict (id) do nothing`,
       [userId, orgId, `w15-wip-${userId}@example.test`],
+    );
+    await ownerPool.query(
+      `insert into public.user_roles (user_id, role_id, org_id)
+       values ($1, $2, $3)
+       on conflict do nothing`,
+      [userId, roleId, orgId],
     );
     await ownerPool.query(
       `insert into public.items (id, org_id, item_code, item_type, name, uom_base, status)
@@ -90,9 +96,16 @@ runPg('WIP definition supersession lifecycle (real Postgres)', () => {
   });
 
   afterAll(async () => {
+    delete process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID;
+    delete process.env.NEXT_SERVER_ACTION_ORG_ID;
+
+    await ownerPool?.query('delete from public.user_notifications where org_id = $1', [orgId]).catch(() => undefined);
+    await ownerPool?.query('delete from public.outbox_events where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.wip_definition_ingredients where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.wip_definitions where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.items where org_id = $1', [orgId]).catch(() => undefined);
+    await ownerPool?.query('delete from public.user_roles where user_id = $1', [userId]).catch(() => undefined);
+    await ownerPool?.query('delete from public.roles where id = $1', [roleId]).catch(() => undefined);
     await ownerPool?.query('delete from public.users where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.organizations where id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.tenants where id = $1', [tenantId]).catch(() => undefined);
@@ -100,58 +113,60 @@ runPg('WIP definition supersession lifecycle (real Postgres)', () => {
     await ownerPool?.end();
   });
 
-  it('archives the predecessor and activates the successor without unique-index violations', async () => {
-    let successorId = '';
-    await withOrgClient(appPool, ownerPool, async (client) => {
-      await client.query(
-        `select wip.id
-           from public.wip_definitions wip
-          where wip.id = $1::uuid
-            and wip.org_id = app.current_org_id()
-          for update`,
-        [activeDefId],
-      );
+  it('serializes concurrent saveWipDefinition calls into monotonic versions with preserved lineage', async () => {
+    const [firstResult, secondResult] = await Promise.all([
+      saveWipDefinition({ ...baseSaveInput, description: 'concurrent save A' }),
+      saveWipDefinition({ ...baseSaveInput, description: 'concurrent save B' }),
+    ]);
 
-      const inserted = await client.query<{ id: string }>(
-        `insert into public.wip_definitions
-           (org_id, item_id, name, description, base_uom, yield_pct, version, status, reusable,
-            supersedes_wip_definition_id, created_by)
-         values
-           (app.current_org_id(), $1::uuid, 'Cream base', 'v4 content', 'kg', 100::numeric, 4, 'draft', true,
-            $2::uuid, $3::uuid)
-         returning id::text`,
-        [itemId, activeDefId, userId],
-      );
-      successorId = inserted.rows[0]?.id ?? '';
-      expect(successorId).toBeTruthy();
+    expect(firstResult).toMatchObject({ ok: true });
+    expect(secondResult).toMatchObject({ ok: true });
+    if (!firstResult.ok || !secondResult.ok) return;
 
-      await client.query(
-        `update public.wip_definitions wip
-            set status = 'archived', updated_at = now()
-          where wip.id = $1::uuid
-            and wip.org_id = app.current_org_id()
-            and wip.status = 'active'`,
-        [activeDefId],
-      );
-      await client.query(
-        `update public.wip_definitions wip
-            set status = 'active', updated_at = now()
-          where wip.id = $1::uuid
-            and wip.org_id = app.current_org_id()`,
-        [successorId],
-      );
-    });
+    const versions = [firstResult.version, secondResult.version].sort((a, b) => a - b);
+    expect(versions).toEqual([4, 5]);
 
-    const { rows } = await ownerPool.query<{ id: string; status: string; description: string | null }>(
-      `select id::text, status, description
+    const { rows } = await ownerPool.query<{
+      id: string;
+      version: number;
+      status: string;
+      description: string | null;
+      supersedes_wip_definition_id: string | null;
+    }>(
+      `select id::text,
+              version,
+              status,
+              description,
+              supersedes_wip_definition_id::text
          from public.wip_definitions
         where org_id = $1::uuid
           and lower(name) = lower('Cream base')
         order by version`,
       [orgId],
     );
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ id: activeDefId, status: 'archived', description: null });
-    expect(rows[1]).toMatchObject({ id: successorId, status: 'active', description: 'v4 content' });
+
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toMatchObject({
+      id: activeDefId,
+      version: 3,
+      status: 'archived',
+      description: null,
+      supersedes_wip_definition_id: null,
+    });
+
+    const activeRows = rows.filter((row) => row.status === 'active');
+    expect(activeRows).toHaveLength(1);
+    expect(activeRows[0]?.version).toBe(5);
+
+    const successorIds = new Set([firstResult.id, secondResult.id]);
+    expect(successorIds.size).toBe(2);
+
+    const v4 = rows.find((row) => row.version === 4);
+    const v5 = rows.find((row) => row.version === 5);
+    expect(v4?.supersedes_wip_definition_id).toBe(activeDefId);
+    expect(v5?.supersedes_wip_definition_id).toBe(v4?.id);
+    expect(v4?.description).toMatch(/concurrent save/);
+    expect(v5?.description).toMatch(/concurrent save/);
+    expect(v4?.description).not.toBe(v5?.description);
   });
 });

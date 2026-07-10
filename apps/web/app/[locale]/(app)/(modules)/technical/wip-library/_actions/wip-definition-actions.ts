@@ -141,24 +141,23 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
     const existing = data.id ? await loadExistingDefinition(ctx, data.id) : null;
     if (data.id && !existing) return { ok: false, error: 'WIP definition not found', code: 'NOT_FOUND', status: 404 };
 
-    const beforeContent = existing ? await loadDefinitionContent(ctx, existing.id, existing) : null;
+    const writeTarget = existing ? await resolveWipWriteTarget(ctx, data.id!) : null;
+    if (existing && !writeTarget) {
+      return {
+        ok: false,
+        error: 'WIP definition was superseded concurrently',
+        code: 'SUPERCEDE_CONFLICT',
+        status: 409,
+      };
+    }
+
+    const beforeContent = writeTarget ? await loadDefinitionContent(ctx, writeTarget.id, writeTarget) : null;
     const afterContent = canonicalInputContent(data);
     const contentChanged = !beforeContent || JSON.stringify(beforeContent) !== JSON.stringify(afterContent);
-    const nextVersion = existing ? existing.version + (contentChanged ? 1 : 0) : 1;
+    const nextVersion = writeTarget ? writeTarget.version + (contentChanged ? 1 : 0) : 1;
 
-    const itemId = existing?.item_id ?? await ensureDefinitionItem(ctx, data.name, data.baseUom);
-    const cloneOnWrite = Boolean(existing && existing.status === 'active' && contentChanged);
-
-    if (cloneOnWrite) {
-      await ctx.client.query(
-        `select wip.id
-           from public.wip_definitions wip
-          where wip.id = $1::uuid
-            and wip.org_id = app.current_org_id()
-          for update`,
-        [existing!.id],
-      );
-    }
+    const itemId = writeTarget?.item_id ?? await ensureDefinitionItem(ctx, data.name, data.baseUom);
+    const cloneOnWrite = Boolean(writeTarget && writeTarget.status === 'active' && contentChanged);
 
     const saved = cloneOnWrite
       ? await ctx.client.query<{ id: string; version: number }>(
@@ -177,12 +176,12 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
             data.yieldPct,
             nextVersion,
             data.reusable,
-            existing!.source_project_id,
-            existing!.id,
+            writeTarget!.source_project_id,
+            writeTarget!.id,
             ctx.userId,
           ],
         )
-      : existing
+      : writeTarget
       ? await ctx.client.query<{ id: string; version: number }>(
           `update public.wip_definitions
               set name = $2,
@@ -198,7 +197,7 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
               and org_id = app.current_org_id()
           returning id, version`,
           [
-            existing.id,
+            writeTarget.id,
             data.name,
             data.description ?? null,
             data.baseUom,
@@ -226,15 +225,18 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
     await refreshWipItemAllergens(ctx, itemId, data.ingredients.map((ingredient) => ingredient.itemId));
 
     if (cloneOnWrite && data.reusable) {
-      await ctx.client.query(
+      const archived = await ctx.client.query(
         `update public.wip_definitions wip
             set status = 'archived',
                 updated_at = now()
           where wip.id = $1::uuid
             and wip.org_id = app.current_org_id()
             and wip.status = 'active'`,
-        [existing!.id],
+        [writeTarget!.id],
       );
+      if (archived.rowCount !== 1) {
+        throw new Error('WIP_SUPERCEDE_CONFLICT');
+      }
       await ctx.client.query(
         `update public.wip_definitions wip
             set status = 'active',
@@ -245,7 +247,7 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
       );
     }
 
-    if (existing && contentChanged) {
+    if (writeTarget && contentChanged) {
       await emitDefinitionUpdated(ctx, definitionId, nextVersion);
       await fanOutDefinitionNotifications(ctx, definitionId, data.name, nextVersion);
     }
@@ -550,6 +552,59 @@ export async function markAllRead(): Promise<ActionResult> {
     );
     return { ok: true };
   });
+}
+
+async function lockWipDefinitionForUpdate(ctx: OrgContextLike, id: string): Promise<void> {
+  await ctx.client.query(
+    `select wip.id
+       from public.wip_definitions wip
+      where wip.id = $1::uuid
+        and wip.org_id = app.current_org_id()
+      for update`,
+    [id],
+  );
+}
+
+async function findActiveWipDefinitionByName(
+  ctx: OrgContextLike,
+  name: string,
+): Promise<ExistingDefinition | null> {
+  const { rows } = await ctx.client.query<ExistingDefinition>(
+    `select id, item_id, version, status, name, description, base_uom, yield_pct, reusable, source_project_id
+       from public.wip_definitions wip
+      where wip.org_id = app.current_org_id()
+        and lower(wip.name) = lower($1::text)
+        and wip.status = 'active'
+      limit 1
+      for update`,
+    [name],
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * Lock the requested row first, then resolve the row we actually write against.
+ * Concurrent supersession may archive the requested id; rebase onto the current active successor.
+ */
+async function resolveWipWriteTarget(
+  ctx: OrgContextLike,
+  requestedId: string,
+): Promise<ExistingDefinition | null> {
+  await lockWipDefinitionForUpdate(ctx, requestedId);
+  let current = await loadExistingDefinition(ctx, requestedId);
+  if (!current) return null;
+
+  if (current.status === 'archived') {
+    const activeSuccessor = await findActiveWipDefinitionByName(ctx, current.name);
+    if (!activeSuccessor) return null;
+    current = activeSuccessor;
+  }
+
+  if (current.status === 'active' || current.status === 'draft') {
+    return current;
+  }
+
+  return null;
 }
 
 async function loadExistingDefinition(ctx: OrgContextLike, id: string): Promise<ExistingDefinition | null> {
