@@ -2,7 +2,13 @@
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { isStrongPassword } from './password-policy';
-import { SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT } from './user-role-policy';
+import {
+  grantSubsetViolated,
+  hasSuperRole,
+  isPrivilegedSystemRole,
+  readCallerPermissions,
+  readRolePermissions,
+} from './role-grant-guards';
 import { createSupabaseAuthAdmin } from './supabase-admin';
 
 /**
@@ -36,7 +42,6 @@ import { createSupabaseAuthAdmin } from './supabase-admin';
  */
 
 const CREATE_PERMISSION = 'settings.users.invite';
-const SUPER_ROLE_CODES = ['owner', 'admin', 'org_admin'] as const;
 
 export type CreateUserWithPasswordInput = {
   email: string;
@@ -103,65 +108,6 @@ function normalizeString(value: unknown): string | null {
  */
 // (Factory moved to ./supabase-admin — shared with the invite path since f4.1.)
 
-async function hasSuperRole(client: QueryClient, userId: string, orgId: string): Promise<boolean> {
-  const { rows } = await client.query<{ ok: boolean }>(
-    `select true as ok
-       from public.user_roles ur
-       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-      where ur.user_id = $1::uuid
-        and ur.org_id = $2::uuid
-        and (r.code = any($3::text[]) or r.slug = any($3::text[]))
-      limit 1`,
-    [userId, orgId, SUPER_ROLE_CODES],
-  );
-  return rows[0]?.ok === true;
-}
-
-async function readCallerPermissions(client: QueryClient, userId: string, orgId: string): Promise<Set<string>> {
-  const { rows } = await client.query<{ permission: string }>(
-    `select distinct permission
-       from (
-         select rp.permission
-           from public.user_roles ur
-           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-           join public.role_permissions rp on rp.role_id = r.id
-          where ur.user_id = $1::uuid
-            and ur.org_id = $2::uuid
-         union
-         select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
-           from public.user_roles ur
-           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-          where ur.user_id = $1::uuid
-            and ur.org_id = $2::uuid
-       ) grants
-      where permission is not null`,
-    [userId, orgId],
-  );
-  return new Set(rows.map((row) => row.permission));
-}
-
-async function readRolePermissions(client: QueryClient, roleId: string): Promise<string[]> {
-  const { rows } = await client.query<{ permission: string }>(
-    `select distinct permission
-       from (
-         select rp.permission
-           from public.role_permissions rp
-           join public.roles r on r.id = rp.role_id
-          where r.org_id = app.current_org_id()
-            and r.id = $1::uuid
-         union
-         select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
-           from public.roles r
-          where r.org_id = app.current_org_id()
-            and r.id = $1::uuid
-       ) grants
-      where permission is not null
-      order by permission`,
-    [roleId],
-  );
-  return rows.map((row) => row.permission);
-}
-
 export async function createUserWithPassword(
   input: CreateUserWithPasswordInput,
 ): Promise<CreateUserWithPasswordResult> {
@@ -220,7 +166,7 @@ export async function createUserWithPassword(
     if (!role || role.org_id !== orgId) {
       return { ok: false, error: 'invalid_input' };
     }
-    if (SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT.has(role.code)) {
+    if (isPrivilegedSystemRole(role)) {
       // Dedicated code so the UI can surface "this role cannot be self-served"
       // rather than the opaque invalid_input that gives no field-level guidance.
       return { ok: false, error: 'forbidden_role' };
@@ -235,7 +181,7 @@ export async function createUserWithPassword(
         readCallerPermissions(client, userId, orgId),
         readRolePermissions(client, roleId),
       ]);
-      if (targetPermissions.some((permission) => !callerPermissions.has(permission))) {
+      if (grantSubsetViolated(callerPermissions, targetPermissions)) {
         return { ok: false, error: 'forbidden_role' };
       }
     }

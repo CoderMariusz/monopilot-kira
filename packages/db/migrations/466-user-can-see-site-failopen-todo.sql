@@ -1,0 +1,18 @@
+-- Migration 466 — Document app.user_can_see_site fail-open semantics (comment-only).
+--
+-- Wave 7 app-layer fix (assign-user-sites) now refuses empty site assignments for
+-- ordinary users. The RLS predicate still treats zero user_sites rows as unrestricted
+-- (mig 383 condition 3) — a staged backfill + restrictive flip is required before
+-- changing the function body. See _meta/plans/wave-7-summary.md for the follow-up.
+
+comment on function app.user_can_see_site(uuid) is
+  'Site visibility predicate for RESTRICTIVE RLS policies (mig 383). '
+  'TODO(wave-7-rls-flip): condition (3) currently returns TRUE when the user has zero '
+  'public.user_sites rows (fail-open / opt-in rollout). After backfilling assignments '
+  'for all non-admin users, flip (3) to restrictive semantics (zero rows = no site '
+  'access). Condition (2) admin-slug bypass (r.slug in org.access.admin, '
+  'org.platform.admin, owner, admin, org_admin) is the explicit all-site authority '
+  'path today. Conditions (1) null current_user_id and (4) null p_site_id remain '
+  'fail-open and are UNDECIDED for the staged flip — resolve explicitly in the '
+  'follow-up migration; do not assume admin-slug is the only unrestricted branch. '
+  'Do NOT flip without the backfill window documented in mig 382.';
