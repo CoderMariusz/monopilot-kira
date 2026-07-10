@@ -345,4 +345,37 @@ describe('ReceivePoItemScreen', () => {
     expect(screen.getByRole('button', { name: 'Receive' })).toBeDisabled();
     expect(scannerFetch.mock.calls.some((call) => call[0] === '/api/warehouse/scanner/receive-line')).toBe(false);
   });
+
+  it('maps unsupported_currency API errors to the localized non-GBP receipt message', async () => {
+    scannerFetch.mockImplementation((path: string) => {
+      if (path.includes('/pos/po-1')) return poResponse();
+      if (path === '/api/warehouse/scanner/location') {
+        return jsonResponse({
+          ok: true,
+          locations: [
+            {
+              id: 'loc-9',
+              code: 'A-01-01',
+              name: 'Rack A',
+              warehouseId: 'wh-1',
+              warehouseCode: 'WH1',
+              locationType: 'rack',
+            },
+          ],
+        });
+      }
+      return jsonResponse({ ok: false, error: 'unsupported_currency' }, 422);
+    });
+
+    render(<ReceivePoItemScreen locale="en" poId="po-1" lineId="line-1" labels={getScannerLabels('en')} />);
+
+    expect(await screen.findByText('RM-BEEF')).toBeInTheDocument();
+    await userEvent.click(await waitForReceiveEnabled());
+
+    await waitFor(() => {
+      expect(scannerFetch.mock.calls.some((call) => call[0] === '/api/warehouse/scanner/receive-line')).toBe(true);
+    });
+    const alert = await screen.findByTestId('receive-po-error');
+    expect(alert).toHaveTextContent(/not in GBP/i);
+  });
 });

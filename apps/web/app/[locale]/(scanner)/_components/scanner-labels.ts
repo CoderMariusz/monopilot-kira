@@ -177,6 +177,8 @@ interface ScannerLabelsShape {
     resolving: string;
     locationNotFound: string;
     resolvedLabel: string;
+    unsupportedCurrency: string;
+    unknownCurrency: string;
     status: Record<string, string>;
   };
   settings: {
@@ -627,6 +629,9 @@ const en: ScannerLabelsShape = {
     resolving: "Resolving location…",
     locationNotFound: "Location not found.",
     resolvedLabel: "Selected location",
+    unsupportedCurrency:
+      "Receipt blocked — this PO is not in GBP. Change the PO currency to GBP before receiving.",
+    unknownCurrency: "Receipt blocked — the purchase order currency is missing or invalid.",
     status: {
       sent: "Sent",
       confirmed: "Confirmed",
@@ -1108,6 +1113,9 @@ const pl: ScannerLabelsShape = {
     resolving: "Wyszukiwanie lokalizacji…",
     locationNotFound: "Nie znaleziono lokalizacji.",
     resolvedLabel: "Wybrana lokalizacja",
+    unsupportedCurrency:
+      "Przyjęcie zablokowane — to ZZ nie jest w GBP. Zmień walutę ZZ na GBP przed przyjęciem.",
+    unknownCurrency: "Przyjęcie zablokowane — waluta zamówienia jest brakująca lub nieprawidłowa.",
     status: {
       sent: "Wysłane",
       confirmed: "Potwierdzone",

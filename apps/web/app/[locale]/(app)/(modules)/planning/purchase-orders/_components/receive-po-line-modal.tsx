@@ -78,6 +78,7 @@ export type ReceivePoLineLabels = {
     no_warehouse: string;
     invalid_location: string;
     invalid_state: string;
+    wac_unsupported_currency: string;
     error: string;
   };
 };

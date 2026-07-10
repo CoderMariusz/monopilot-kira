@@ -99,5 +99,37 @@ pnpm --filter web exec vitest run \
   lib/uom/piece.test.ts \
   lib/production/output/__tests__/register-output-uom.test.ts \
   lib/production/output/__tests__/register-output-wac-valuation.test.ts \
-  app/[locale]/(app)/(modules)/warehouse/_actions/receipt-corrections-actions.test.ts
+  lib/production/output/__tests__/register-output-wac-un-costed.test.ts \
+  app/[locale]/(app)/(modules)/warehouse/_actions/receipt-corrections-actions.test.ts \
+  app/[locale]/(app)/(modules)/planning/purchase-orders/__tests__/po-receive-line.test.tsx \
+  app/[locale]/(scanner)/scanner/receive-po/[poId]/[lineId]/_components/receive-po-item-screen.test.tsx
 ```
+
+---
+
+## Fix round 1
+
+Adversarial review verdict: **fail** → three required changes implemented.
+
+### 1. Localized `wac_unsupported_currency` desktop/scanner receipt error
+
+**Review finding:** Desktop receive returned `wac_unsupported_currency` but the modal label map and locales had no key, so users saw a generic error.
+
+**Fix:** Added `wac_unsupported_currency` to `ReceivePoLineLabels.errors` and wired it through planning PO detail (`[id]/page.tsx`), warehouse desktop receive (`wh-receive-labels.ts` + `receive-po/[poId]/page.tsx`), and all four `i18n` locales (`en`/`pl`/`ro`/`uk`). Message explains that valuation requires GBP and that foreign-currency POs may be created/edited but cannot be received until FX is supported. Scanner `receive-po-item-screen` maps API `unsupported_currency` / `unknown_currency` codes to localized `scanner-labels` strings; RTL test added.
+
+**EUR/PLN PO policy (documented):** Non-GBP PO creation/import remains allowed; receipt is blocked at WAC booking with an actionable error until FX conversion exists.
+
+### 2. Bug 4 — retain `wo.uom_snapshot` for pack→kg conversion
+
+**Review finding:** `resolveWacDeltaQtyKg` read current `items` pack metadata instead of the immutable WO snapshot.
+
+**Fix:** Added `resolveWacDeltaQtyKgFromSnapshot` in `upsert-wac.ts` (SQL `::numeric`, snapshot params only). `registerOutput.resolveQtyKg` uses `snapshotFromItemRow(wo.uom_snapshot)` + the new helper. Tests: snapshot-vs-item-master regression (item master has different factors), decimal precision case (`7 × 3 × 0.3333 = 6.999`), mock asserts item-master SQL is never called for qty resolution.
+
+### 3. Bug 5 — observable caller block for un-costed consumption
+
+**Review finding:** `registerOutput` persisted `wac_un_costed_lines` in `ext_jsonb` after writes and returned success; no caller could warn or block.
+
+**Fix:** Preflight `resolveOutputWacContribution` before any output/LP/stock writes; when `excluded === 'un_costed'` with lines, throw `ProductionActionError('wac_un_costed', 422, { unCostedLines })` so the transaction rolls back. Added `register-output-wac-un-costed.test.ts` proving no `wo_outputs` insert occurs. Updated valuation test: no-cost-basis path still succeeds without WAC booking (empty `unCostedLines` is not a hard block).
+
+**Fix-round gates:** `pnpm --filter web exec tsc --noEmit` ✅ | 101/101 touched vitest tests ✅
+

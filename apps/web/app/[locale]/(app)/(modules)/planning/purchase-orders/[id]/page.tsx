@@ -286,6 +286,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
           no_warehouse: t('receive.modal.errors.no_warehouse'),
           invalid_location: t('receive.modal.errors.invalid_location'),
           invalid_state: t('receive.modal.errors.invalid_state'),
+          wac_unsupported_currency: t('receive.modal.errors.wac_unsupported_currency'),
           error: t('receive.modal.errors.error'),
         },
       },
