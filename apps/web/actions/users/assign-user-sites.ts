@@ -3,6 +3,7 @@
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { hasAllSiteAuthority } from './role-grant-guards';
 
 const FORBIDDEN = 'forbidden' as const;
 
@@ -17,8 +18,9 @@ const FORBIDDEN = 'forbidden' as const;
 // the new "Assign sites" affordance shares that server-trusted flag.
 //
 // Semantics: assignments are REPLACED transactionally (delete-then-insert) so
-// the submitted set is authoritative. Empty siteIds = unassign all = 0 rows =
-// UNRESTRICTED (the enforcement lib degrades to all-org-sites on 0 rows).
+// the submitted set is authoritative. Empty siteIds is only permitted for users
+// with explicit all-site authority (admin-class roles); ordinary users must
+// retain at least one site assignment.
 const ASSIGN_PERMISSION = 'settings.roles.assign';
 
 type QueryClient = {
@@ -32,7 +34,15 @@ export type AssignUserSitesInput = {
 
 export type AssignUserSitesResult =
   | { ok: true; data: { userId: string; siteIds: string[] } }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
+  | {
+      ok: false;
+      error:
+        | 'invalid_input'
+        | 'forbidden'
+        | 'not_found'
+        | 'empty_site_assignment_forbidden'
+        | 'persistence_failed';
+    };
 
 function normalizeId(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -115,10 +125,14 @@ export async function assignUserSites(input: AssignUserSitesInput): Promise<Assi
         return { ok: false, error: 'invalid_input' };
       }
 
+      if (siteIds.length === 0 && !(await hasAllSiteAuthority(client as QueryClient, targetUserId, orgId))) {
+        return { ok: false, error: 'empty_site_assignment_forbidden' };
+      }
+
       // Replace transactionally: the submitted set is authoritative. The
       // delete clears prior assignments (org-scoped via app.current_org_id());
       // the insert (unnest) writes one row per site with the actor as
-      // assigned_by. Empty siteIds → delete only → 0 rows = unrestricted.
+      // assigned_by. Empty siteIds is only reached for all-site authority roles.
       const { rows: replacedRows } = await (client as QueryClient).query<{ replaced: string | null }>(
         `with deleted as (
             delete from public.user_sites
