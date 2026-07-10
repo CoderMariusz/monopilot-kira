@@ -88,16 +88,16 @@ export async function readCallerPermissions(
   orgId: string,
 ): Promise<Set<string>> {
   const { rows } = await client.query<{ permission: string }>(
-    `select distinct grant as permission
+    `select distinct perm as permission
        from (
-         select rp.permission as grant
+         select rp.permission as perm
            from public.user_roles ur
            join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
            join public.role_permissions rp on rp.role_id = r.id
           where ur.user_id = $1::uuid
             and ur.org_id = $2::uuid
          union
-         select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as grant
+         select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as perm
            from public.user_roles ur
            join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
           where ur.user_id = $1::uuid
@@ -105,7 +105,7 @@ export async function readCallerPermissions(
          union
          -- Permission gates match r.code / r.slug via exact equality (e.g. r.code = $3).
          -- Only dotted values are permission-shaped; bare role identifiers (operator) are not grants.
-         select r.code as grant
+         select r.code as perm
            from public.user_roles ur
            join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
           where ur.user_id = $1::uuid
@@ -113,7 +113,7 @@ export async function readCallerPermissions(
             and r.code is not null
             and r.code like '%.%'
          union
-         select r.slug as grant
+         select r.slug as perm
            from public.user_roles ur
            join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
           where ur.user_id = $1::uuid
@@ -121,7 +121,7 @@ export async function readCallerPermissions(
             and r.slug is not null
             and r.slug like '%.%'
        ) grants
-      where grant is not null`,
+      where perm is not null`,
     [userId, orgId],
   );
   return new Set(rows.map((row) => row.permission));
@@ -129,37 +129,37 @@ export async function readCallerPermissions(
 
 export async function readRolePermissions(client: RoleGrantQueryClient, roleId: string): Promise<string[]> {
   const { rows } = await client.query<{ permission: string }>(
-    `select distinct grant as permission
+    `select distinct perm as permission
        from (
-         select rp.permission as grant
+         select rp.permission as perm
            from public.role_permissions rp
            join public.roles r on r.id = rp.role_id
           where r.org_id = app.current_org_id()
             and r.id = $1::uuid
          union
-         select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as grant
+         select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as perm
            from public.roles r
           where r.org_id = app.current_org_id()
             and r.id = $1::uuid
          union
          -- Permission gates match r.code / r.slug via exact equality (e.g. r.code = $3).
          -- Only dotted values are permission-shaped; bare role identifiers (operator) are not grants.
-         select r.code as grant
+         select r.code as perm
            from public.roles r
           where r.org_id = app.current_org_id()
             and r.id = $1::uuid
             and r.code is not null
             and r.code like '%.%'
          union
-         select r.slug as grant
+         select r.slug as perm
            from public.roles r
           where r.org_id = app.current_org_id()
             and r.id = $1::uuid
             and r.slug is not null
             and r.slug like '%.%'
        ) grants
-      where grant is not null
-      order by grant`,
+      where perm is not null
+      order by perm`,
     [roleId],
   );
   return rows.map((row) => row.permission);

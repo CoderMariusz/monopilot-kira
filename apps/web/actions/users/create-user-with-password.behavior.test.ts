@@ -80,7 +80,7 @@ function makeClient(opts: FakeClientOptions): FakeClient {
         return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
       }
 
-      if (norm.startsWith('select distinct grant as permission') && norm.includes('from public.user_roles ur')) {
+      if (norm.startsWith('select distinct perm as permission') && norm.includes('from public.user_roles ur')) {
         const grants = new Set(opts.actorPermissions ?? ['settings.users.invite']);
         for (const code of opts.actorRoleCodes ?? []) {
           if (code.includes('.')) grants.add(code);
@@ -90,7 +90,7 @@ function makeClient(opts: FakeClientOptions): FakeClient {
       }
 
       if (
-        norm.startsWith('select distinct grant as permission')
+        norm.startsWith('select distinct perm as permission')
         && norm.includes('from public.role_permissions rp')
         && norm.includes('app.current_org_id()')
       ) {
