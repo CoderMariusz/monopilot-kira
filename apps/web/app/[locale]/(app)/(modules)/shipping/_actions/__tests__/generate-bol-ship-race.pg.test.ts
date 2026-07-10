@@ -8,7 +8,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { generateBol } from '../ship-actions';
-import { getAppConnection, getOwnerConnection } from '../../../../../../packages/db/src/clients.js';
+import { getAppConnection, getOwnerConnection } from '../../../../../../../../../packages/db/src/clients.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runPg = databaseUrl ? describe : describe.skip;
