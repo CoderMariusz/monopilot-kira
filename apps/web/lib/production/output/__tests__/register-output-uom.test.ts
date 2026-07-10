@@ -12,6 +12,7 @@ const TX_ID = '55555555-5555-4555-8555-555555555555';
 
 let client: QueryClient;
 let woSnapshot: Record<string, unknown> | null;
+let itemMasterPack: { net_qty_per_each: string; each_per_box: number } | null;
 let insertedQtyKg: string | null;
 let insertedQtyUnits: string | null;
 let insertedUnitsUom: string | null;
@@ -61,17 +62,35 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 0 };
       }
       if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
+        throw new Error('resolveQtyKg must use WO snapshot SQL, not item master');
+      }
+      if (normalized.includes('as qty_kg') && normalized.includes('as resolved') && !normalized.includes('from public.items')) {
         const qty = String(params[0] ?? '0');
         const uom = String(params[1] ?? '').toLowerCase();
-        if (uom === 'box' && woSnapshot?.each_per_box == null) {
+        const uomBase = String(params[2] ?? '').toLowerCase();
+        const netQtyPerEach = params[3] == null ? null : Number(params[3]);
+        const eachPerBox = params[4] == null ? null : Number(params[4]);
+        if (uom === 'box' && (eachPerBox == null || netQtyPerEach == null)) {
           return { rows: [{ qty_kg: '0', resolved: false }], rowCount: 1 };
         }
-        if (uom === 'box') {
-          return { rows: [{ qty_kg: '300.000', resolved: true }], rowCount: 1 };
+        if (uom === 'each' && netQtyPerEach == null) {
+          return { rows: [{ qty_kg: '0', resolved: false }], rowCount: 1 };
         }
-        return { rows: [{ qty_kg: qty, resolved: true }], rowCount: 1 };
+        if (uom === 'kg' || (uom === 'base' && uomBase === 'kg') || uom === uomBase) {
+          return { rows: [{ qty_kg: qty, resolved: true }], rowCount: 1 };
+        }
+        if (uom === 'each' && netQtyPerEach != null) {
+          const product = (Number(qty) * netQtyPerEach).toFixed(3);
+          return { rows: [{ qty_kg: product, resolved: true }], rowCount: 1 };
+        }
+        if (uom === 'box' && netQtyPerEach != null && eachPerBox != null) {
+          const product = (Number(qty) * eachPerBox * netQtyPerEach).toFixed(3);
+          return { rows: [{ qty_kg: product, resolved: true }], rowCount: 1 };
+        }
+        return { rows: [{ qty_kg: '0', resolved: false }], rowCount: 1 };
       }
       if (normalized.includes('from public.items')) {
+        const master = itemMasterPack ?? { net_qty_per_each: '0.1000', each_per_box: 10 };
         return {
           rows: [
             {
@@ -81,6 +100,8 @@ function makeClient(): QueryClient {
               nominal_weight: null,
               variance_tolerance_pct: null,
               cost_per_kg: '2.50',
+              net_qty_per_each: master.net_qty_per_each,
+              each_per_box: master.each_per_box,
             },
           ],
           rowCount: 1,
@@ -204,6 +225,7 @@ describe('registerOutput UOM quantity resolution', () => {
       boxes_per_pallet: null,
       weight_mode: 'fixed',
     };
+    itemMasterPack = { net_qty_per_each: '9.9999', each_per_box: 99 };
     insertedQtyKg = null;
     insertedQtyUnits = null;
     insertedUnitsUom = null;
@@ -242,11 +264,46 @@ describe('registerOutput UOM quantity resolution', () => {
       output_type: 'primary',
       product_id: PRODUCT_ID,
       qty_kg: '111.000',
-      qtyUnits: '300.000',
+      qtyUnits: '3.000',
       unitsUom: 'box',
     });
 
-    expect(insertedQtyKg).toBe('300.000');
+    expect(insertedQtyKg).toBe('3.000');
+  });
+
+  it('uses WO snapshot pack factors, not current item master metadata', async () => {
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qtyUnits: '3.000',
+      unitsUom: 'box',
+    });
+
+    // 3 boxes × 10 each × 0.1 kg = 3.000 (snapshot), not 3 × 99 × 9.9999 from item master.
+    expect(insertedQtyKg).toBe('3.000');
+  });
+
+  it('preserves decimal precision via snapshot SQL numeric conversion', async () => {
+    woSnapshot = {
+      output_uom: 'box',
+      uom_base: 'kg',
+      net_qty_per_each: '0.3333',
+      each_per_box: 3,
+      boxes_per_pallet: null,
+      weight_mode: 'fixed',
+    };
+
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qtyUnits: '7.000',
+      unitsUom: 'box',
+    });
+
+    // 7 × 3 × 0.3333 = 6.9993 — not 7.0 from binary float.
+    expect(insertedQtyKg).toBe('6.999');
   });
 
   it('falls back to legacy qty_kg when no unit quantity is provided', async () => {

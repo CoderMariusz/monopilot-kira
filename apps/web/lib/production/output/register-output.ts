@@ -41,7 +41,8 @@
 import { z } from 'zod';
 
 import { resolveOutputWacContribution } from '../../finance/resolve-output-wac';
-import { resolveWacDeltaQtyKg, upsertWac } from '../../finance/upsert-wac';
+import { resolveWacDeltaQtyKgFromSnapshot, upsertWac } from '../../finance/upsert-wac';
+import { snapshotFromItemRow } from '../../uom/convert';
 import { makeLpNumber, makeStockMoveNumber } from '../../warehouse/lp-create';
 import {
   PRODUCTION_OUTPUT_RECORDED_EVENT,
@@ -624,6 +625,21 @@ export async function registerOutput(
   }
   const item = await loadItem(ctx, input.product_id);
 
+  const wacContribution = await resolveOutputWacContribution(ctx.client, {
+    woId,
+    qtyKg: resolvedQtyKg,
+    standardCostPerKg: item.cost_per_kg,
+  });
+  if (
+    !wacContribution.applied &&
+    wacContribution.excluded === 'un_costed' &&
+    wacContribution.unCostedLines.length > 0
+  ) {
+    throw new ProductionActionError('wac_un_costed', 422, {
+      unCostedLines: wacContribution.unCostedLines,
+    });
+  }
+
   // 4. WO must be in a recordable lifecycle state (read-only).
   const status = await readWoExecutionStatus(ctx, woId);
   if (status === null || !OUTPUT_RECORDABLE_STATES.has(status)) {
@@ -825,31 +841,7 @@ export async function registerOutput(
     ],
   );
 
-  const wacContribution = await resolveOutputWacContribution(ctx.client, {
-    woId,
-    qtyKg: resolvedQtyKg,
-    standardCostPerKg: item.cost_per_kg,
-  });
-  if (!wacContribution.applied) {
-    await ctx.client.query(
-      `update public.wo_outputs
-          set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $2::jsonb,
-              updated_by = $3::uuid,
-              updated_at = now()
-        where org_id = app.current_org_id()
-          and id = $1::uuid`,
-      [
-        outputId,
-        JSON.stringify({
-          wac_excluded: wacContribution.excluded,
-          ...(wacContribution.unCostedLines.length > 0
-            ? { wac_un_costed_lines: wacContribution.unCostedLines }
-            : {}),
-        }),
-        input.operator_id ?? ctx.userId,
-      ],
-    );
-  } else {
+  if (wacContribution.applied) {
     await upsertWac(ctx.client, {
       orgId: ctx.orgId,
       siteId: wo.site_id,
@@ -920,10 +912,17 @@ async function resolveQtyKg(
 ): Promise<string> {
   if (input.actualWeightKg) return input.actualWeightKg;
   if (input.qtyUnits && input.unitsUom) {
-    const resolution = await resolveWacDeltaQtyKg(client, {
-      itemId: input.product_id,
+    const snap = snapshotFromItemRow({ ...(wo.uom_snapshot ?? {}), uom_base: wo.uom });
+    const resolution = await resolveWacDeltaQtyKgFromSnapshot(client, {
       qty: input.qtyUnits,
       uom: input.unitsUom,
+      uomBase: snap.uomBase,
+      netQtyPerEach:
+        snap.netQtyPerEach != null && Number.isFinite(snap.netQtyPerEach)
+          ? String(snap.netQtyPerEach)
+          : null,
+      eachPerBox:
+        snap.eachPerBox != null && Number.isFinite(snap.eachPerBox) ? String(snap.eachPerBox) : null,
     });
     if (!resolution.resolved) {
       throw new ProductionActionError('uom_conversion_unavailable', 422, {
