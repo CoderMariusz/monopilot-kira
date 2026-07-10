@@ -57,6 +57,20 @@ function makeClient(): QueryClient {
       if (normalized.includes('from public.user_roles')) {
         return { rows: [{ ok: true }], rowCount: 1 };
       }
+      if (normalized.includes('select c.id::text as consumption_id')) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
+        const qty = String(params[0] ?? '0');
+        const uom = String(params[1] ?? '').toLowerCase();
+        if (uom === 'box' && woSnapshot?.each_per_box == null) {
+          return { rows: [{ qty_kg: '0', resolved: false }], rowCount: 1 };
+        }
+        if (uom === 'box') {
+          return { rows: [{ qty_kg: '300.000', resolved: true }], rowCount: 1 };
+        }
+        return { rows: [{ qty_kg: qty, resolved: true }], rowCount: 1 };
+      }
       if (normalized.includes('from public.items')) {
         return {
           rows: [
@@ -289,7 +303,7 @@ describe('registerOutput UOM quantity resolution', () => {
     expect(normalize(sequenceCountSql!)).toContain('and correction_of_id is null');
   });
 
-  it('rejects unavailable pack conversion from the WO snapshot', async () => {
+  it('rejects unavailable pack conversion via SQL UoM resolution', async () => {
     woSnapshot = {
       output_uom: 'each',
       uom_base: 'kg',

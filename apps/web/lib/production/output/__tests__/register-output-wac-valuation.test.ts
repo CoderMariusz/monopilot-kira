@@ -34,6 +34,9 @@ function makeClient(standardCostPerKg: string | null): QueryClient {
         };
       }
       if (n.includes('from public.user_roles')) return { rows: [{ ok: true }], rowCount: 1 };
+      if (n.includes('select c.id::text as consumption_id')) {
+        return { rows: [], rowCount: 0 };
+      }
       if (n.includes('from public.items')) {
         return {
           rows: [

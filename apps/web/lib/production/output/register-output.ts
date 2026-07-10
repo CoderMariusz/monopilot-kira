@@ -41,8 +41,7 @@
 import { z } from 'zod';
 
 import { resolveOutputWacContribution } from '../../finance/resolve-output-wac';
-import { upsertWac } from '../../finance/upsert-wac';
-import { snapshotFromItemRow, toBaseQty, TypedError } from '../../uom/convert';
+import { resolveWacDeltaQtyKg, upsertWac } from '../../finance/upsert-wac';
 import { makeLpNumber, makeStockMoveNumber } from '../../warehouse/lp-create';
 import {
   PRODUCTION_OUTPUT_RECORDED_EVENT,
@@ -618,7 +617,7 @@ export async function registerOutput(
   // 3. load WO + item
   const wo = await loadWo(ctx, woId);
   await assertOutputProductAllowed(ctx, woId, input.product_id, input.output_type);
-  const resolvedQtyKg = resolveQtyKg(wo, input);
+  const resolvedQtyKg = await resolveQtyKg(ctx.client, wo, input);
   // V-PROD-03: registered output quantity must be > 0.
   if (toMicro(resolvedQtyKg) <= 0n) {
     throw new ProductionActionError('invalid_input', 422, { fields: ['qty_kg'] });
@@ -841,7 +840,12 @@ export async function registerOutput(
           and id = $1::uuid`,
       [
         outputId,
-        JSON.stringify({ wac_excluded: wacContribution.excluded }),
+        JSON.stringify({
+          wac_excluded: wacContribution.excluded,
+          ...(wacContribution.unCostedLines.length > 0
+            ? { wac_un_costed_lines: wacContribution.unCostedLines }
+            : {}),
+        }),
         input.operator_id ?? ctx.userId,
       ],
     );
@@ -909,21 +913,24 @@ export async function registerOutput(
     label_pdf_url: null, // T-033
   };
 }
-function resolveQtyKg(wo: WoRow, input: RegisterOutputInputType): string {
+async function resolveQtyKg(
+  client: OrgContextLike['client'],
+  wo: WoRow,
+  input: RegisterOutputInputType,
+): Promise<string> {
   if (input.actualWeightKg) return input.actualWeightKg;
   if (input.qtyUnits && input.unitsUom) {
-    try {
-      const snapshotRow = wo.uom_snapshot ?? {};
-      const snap = snapshotFromItemRow({ ...snapshotRow, uom_base: wo.uom });
-      return toBaseQty(snap, Number(input.qtyUnits), input.unitsUom).toFixed(3);
-    } catch (error) {
-      if (error instanceof TypedError && error.code === 'uom_conversion_unavailable') {
-        throw new ProductionActionError('uom_conversion_unavailable', 422, {
-          fields: ['qtyUnits', 'unitsUom'],
-        });
-      }
-      throw error;
+    const resolution = await resolveWacDeltaQtyKg(client, {
+      itemId: input.product_id,
+      qty: input.qtyUnits,
+      uom: input.unitsUom,
+    });
+    if (!resolution.resolved) {
+      throw new ProductionActionError('uom_conversion_unavailable', 422, {
+        fields: ['qtyUnits', 'unitsUom'],
+      });
     }
+    return resolution.qtyKg;
   }
   return input.qty_kg ?? input.qtyKg ?? '0';
 }
