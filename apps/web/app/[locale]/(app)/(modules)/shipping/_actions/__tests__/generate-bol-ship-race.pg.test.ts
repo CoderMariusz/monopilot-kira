@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
+import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { generateBol, shipShipment } from '../ship-actions';
@@ -27,7 +27,15 @@ const boxId = randomUUID();
 const contentId = randomUUID();
 const lpId = randomUUID();
 
-const BOL_RACE_FLIP_FN = 'test_w17_bol_race_flip_on_bol_update';
+const BOL_RACE_SKIP_FN = 'test_w17_bol_skip_bol_row_update';
+const SHIPMENT_FOR_UPDATE_SQL = /from public\.shipments sh[\s\S]*for update of sh/i;
+const BOL_UPDATE_SQL = /update public\.shipments[\s\S]*bol_payload/i;
+
+type BolRaceHooks = {
+  beforeShipmentForUpdate?: () => void | Promise<void>;
+  onBolShipmentLocked?: () => void;
+  beforeBolUpdate?: () => void | Promise<void>;
+};
 
 function createBarrier() {
   const waiters = new Map<string, Array<() => void>>();
@@ -47,6 +55,33 @@ function createBarrier() {
       for (const resolve of waiters.get(name) ?? []) resolve();
       waiters.delete(name);
     },
+  };
+}
+
+function wrapClientWithBolRaceHooks(client: pg.PoolClient, hooks: BolRaceHooks): pg.PoolClient {
+  const nativeQuery = client.query.bind(client);
+  client.query = async (queryText, values) => {
+    const sql = typeof queryText === 'string' ? queryText : (queryText.text ?? '');
+    if (SHIPMENT_FOR_UPDATE_SQL.test(sql)) {
+      await hooks.beforeShipmentForUpdate?.();
+      hooks.onBolShipmentLocked?.();
+    }
+    if (BOL_UPDATE_SQL.test(sql)) {
+      await hooks.beforeBolUpdate?.();
+    }
+    return nativeQuery(queryText, values);
+  };
+  return client;
+}
+
+function installGlobalBolRaceHooks(hooks: BolRaceHooks): () => void {
+  const originalConnect = pg.Pool.prototype.connect;
+  pg.Pool.prototype.connect = async function connectWithBolRaceHooks(this: pg.Pool, ...args) {
+    const client = await originalConnect.apply(this, args);
+    return wrapClientWithBolRaceHooks(client, hooks);
+  };
+  return () => {
+    pg.Pool.prototype.connect = originalConnect;
   };
 }
 
@@ -108,6 +143,24 @@ async function resetPackedShipment(ownerPool: pg.Pool): Promise<void> {
             ext_data = '{}'::jsonb
       where id = $1::uuid`,
     [shipmentId],
+  );
+}
+
+async function setShipBolSignGranted(ownerPool: pg.Pool, granted: boolean): Promise<void> {
+  if (granted) {
+    await ownerPool.query(
+      `insert into public.role_permissions (role_id, permission)
+       values ($1, 'ship.bol.sign')
+       on conflict do nothing`,
+      [roleId],
+    );
+    return;
+  }
+  await ownerPool.query(
+    `delete from public.role_permissions
+      where role_id = $1::uuid
+        and permission = 'ship.bol.sign'`,
+    [roleId],
   );
 }
 
@@ -219,11 +272,11 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
     await ownerPool.query(
       `create table if not exists public.test_w17_bol_race_config (
          shipment_id uuid primary key,
-         flip_status_on_bol_update boolean not null default false
+         skip_bol_row_update boolean not null default false
        )`,
     );
     await ownerPool.query(
-      `create or replace function public.${BOL_RACE_FLIP_FN}()
+      `create or replace function public.${BOL_RACE_SKIP_FN}()
        returns trigger
        language plpgsql
        as $$
@@ -232,32 +285,27 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
            select 1
              from public.test_w17_bol_race_config cfg
             where cfg.shipment_id = old.id
-              and cfg.flip_status_on_bol_update
+              and cfg.skip_bol_row_update
          )
-         and old.status = 'packed'
          and new.bol_payload is distinct from old.bol_payload then
-           update public.shipments sh
-              set status = 'shipped',
-                  shipped_at = coalesce(sh.shipped_at, now())
-            where sh.id = old.id
-              and sh.status = 'packed';
+           return null;
          end if;
          return new;
        end;
        $$`,
     );
-    await ownerPool.query(`drop trigger if exists ${BOL_RACE_FLIP_FN} on public.shipments`);
+    await ownerPool.query(`drop trigger if exists ${BOL_RACE_SKIP_FN} on public.shipments`);
     await ownerPool.query(
-      `create trigger ${BOL_RACE_FLIP_FN}
+      `create trigger ${BOL_RACE_SKIP_FN}
          before update on public.shipments
          for each row
-         execute function public.${BOL_RACE_FLIP_FN}()`,
+         execute function public.${BOL_RACE_SKIP_FN}()`,
     );
   });
 
   afterAll(async () => {
-    await ownerPool?.query(`drop trigger if exists ${BOL_RACE_FLIP_FN} on public.shipments`).catch(() => undefined);
-    await ownerPool?.query(`drop function if exists public.${BOL_RACE_FLIP_FN}()`).catch(() => undefined);
+    await ownerPool?.query(`drop trigger if exists ${BOL_RACE_SKIP_FN} on public.shipments`).catch(() => undefined);
+    await ownerPool?.query(`drop function if exists public.${BOL_RACE_SKIP_FN}()`).catch(() => undefined);
     await ownerPool?.query('drop table if exists public.test_w17_bol_race_config').catch(() => undefined);
     await ownerPool?.query('delete from public.audit_events where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.shipment_box_contents where org_id = $1', [orgId]).catch(() => undefined);
@@ -279,34 +327,50 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
     await ownerPool?.end();
   });
 
-  it('requires ship.bol.sign when a concurrent ship commits before BOL carrier update', async () => {
+  it('requires ship.bol.sign when generateBol runs on a shipped shipment', async () => {
     await ownerPool.query(
       `update public.shipments
           set status = 'shipped',
               carrier = 'Original',
-              tracking_number = 'OLD-1'
+              tracking_number = 'OLD-1',
+              bol_payload = '{"legacy":true}'::jsonb
         where id = $1::uuid`,
       [shipmentId],
     );
 
-    const result = await withActionActor(() =>
-      generateBol({ shipmentId, carrier: 'Sneaky Carrier', trackingNumber: 'NEW-1' }),
-    );
+    await setShipBolSignGranted(ownerPool, false);
+    try {
+      const result = await withActionActor(() =>
+        generateBol({ shipmentId, carrier: 'Sneaky Carrier', trackingNumber: 'NEW-1' }),
+      );
 
-    expect(result).toEqual({ ok: false, error: 'forbidden' });
+      expect(result).toEqual({ ok: false, error: 'forbidden' });
 
-    const { rows } = await ownerPool.query<{ carrier: string | null; tracking_number: string | null }>(
-      `select carrier, tracking_number from public.shipments where id = $1::uuid`,
-      [shipmentId],
-    );
-    expect(rows[0]).toMatchObject({ carrier: 'Original', tracking_number: 'OLD-1' });
+      const { rows } = await ownerPool.query<{
+        carrier: string | null;
+        tracking_number: string | null;
+        bol_payload: unknown;
+      }>(
+        `select carrier, tracking_number, bol_payload
+           from public.shipments
+          where id = $1::uuid`,
+        [shipmentId],
+      );
+      expect(rows[0]).toMatchObject({
+        carrier: 'Original',
+        tracking_number: 'OLD-1',
+        bol_payload: { legacy: true },
+      });
 
-    const { rows: audits } = await ownerPool.query(
-      `select id from public.audit_events
-        where org_id = $1::uuid and action = 'shipping.bol.carrier_updated'`,
-      [orgId],
-    );
-    expect(audits).toHaveLength(0);
+      const { rows: audits } = await ownerPool.query(
+        `select id from public.audit_events
+          where org_id = $1::uuid and action = 'shipping.bol.carrier_updated'`,
+        [orgId],
+      );
+      expect(audits).toHaveLength(0);
+    } finally {
+      await setShipBolSignGranted(ownerPool, true);
+    }
   });
 
   it('writes BOL payload and carrier audit when ship commits before generateBol acquires the lock', async () => {
@@ -396,62 +460,100 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
 
   it('serializes packed→shipped behind generateBol shipment lock and persists BOL fields', async () => {
     await resetPackedShipment(ownerPool);
-
-    const bolPromise = withActionActor(() =>
-      generateBol({ shipmentId, carrier: 'BOL Carrier', trackingNumber: 'BOL-1' }),
-    );
-    const shipPromise = withActionActor(() => shipShipment(shipmentId));
-
-    const bolResult = await bolPromise;
-    expect(bolResult.ok).toBe(true);
-    if (!bolResult.ok) return;
-
-    const { rows: afterBol } = await ownerPool.query<{
-      status: string;
-      carrier: string | null;
-      tracking_number: string | null;
-      bol_payload: Record<string, unknown> | null;
-    }>(
-      `select status, carrier, tracking_number, bol_payload
-         from public.shipments
-        where id = $1::uuid`,
-      [shipmentId],
-    );
-    expect(afterBol[0]?.status).toBe('packed');
-    expect(afterBol[0]?.carrier).toBe('BOL Carrier');
-    expect(afterBol[0]?.tracking_number).toBe('BOL-1');
-    expect(afterBol[0]?.bol_payload).toMatchObject({
-      shipmentId,
-      carrier: 'BOL Carrier',
-      trackingNumber: 'BOL-1',
+    const barrier = createBarrier();
+    const restoreHooks = installGlobalBolRaceHooks({
+      onBolShipmentLocked() {
+        barrier.signal('bol-holds-lock');
+      },
     });
 
-    const shipResult = await shipPromise;
-    expect(shipResult).toEqual({ ok: true });
+    try {
+      const shipPromise = (async () => {
+        await barrier.wait('bol-holds-lock');
+        return withActionActor(() => shipShipment(shipmentId));
+      })();
 
-    const { rows: afterShip } = await ownerPool.query<{ status: string; carrier: string | null }>(
-      `select status, carrier from public.shipments where id = $1::uuid`,
-      [shipmentId],
-    );
-    expect(afterShip[0]?.status).toBe('shipped');
-    expect(afterShip[0]?.carrier).toBe('BOL Carrier');
+      const bolPromise = withActionActor(() =>
+        generateBol({ shipmentId, carrier: 'BOL Carrier', trackingNumber: 'BOL-1' }),
+      );
+
+      const bolResult = await bolPromise;
+      expect(bolResult.ok).toBe(true);
+      if (!bolResult.ok) return;
+
+      const { rows: afterBol } = await ownerPool.query<{
+        status: string;
+        carrier: string | null;
+        tracking_number: string | null;
+        bol_payload: Record<string, unknown> | null;
+      }>(
+        `select status, carrier, tracking_number, bol_payload
+           from public.shipments
+          where id = $1::uuid`,
+        [shipmentId],
+      );
+      expect(afterBol[0]?.status).toBe('packed');
+      expect(afterBol[0]?.carrier).toBe('BOL Carrier');
+      expect(afterBol[0]?.tracking_number).toBe('BOL-1');
+      expect(afterBol[0]?.bol_payload).toMatchObject({
+        shipmentId,
+        carrier: 'BOL Carrier',
+        trackingNumber: 'BOL-1',
+      });
+
+      const shipResult = await shipPromise;
+      expect(shipResult).toEqual({ ok: true });
+
+      const { rows: afterShip } = await ownerPool.query<{ status: string; carrier: string | null }>(
+        `select status, carrier from public.shipments where id = $1::uuid`,
+        [shipmentId],
+      );
+      expect(afterShip[0]?.status).toBe('shipped');
+      expect(afterShip[0]?.carrier).toBe('BOL Carrier');
+    } finally {
+      restoreHooks();
+    }
   });
 
-  it('throws not_found with no orphan audit when status flips between lock read and BOL update', async () => {
+  it('throws not_found with no orphan audit when ship commits before the status-predicated BOL update', async () => {
     await resetPackedShipment(ownerPool);
     await ownerPool.query(
-      `insert into public.test_w17_bol_race_config (shipment_id, flip_status_on_bol_update)
+      `insert into public.test_w17_bol_race_config (shipment_id, skip_bol_row_update)
        values ($1::uuid, true)
        on conflict (shipment_id) do update
-         set flip_status_on_bol_update = excluded.flip_status_on_bol_update`,
+         set skip_bol_row_update = excluded.skip_bol_row_update`,
       [shipmentId],
     );
 
-    const result = await withActionActor(() =>
-      generateBol({ shipmentId, carrier: 'Flip Carrier', trackingNumber: 'FLIP-1' }),
-    );
+    const barrier = createBarrier();
+    const restoreHooks = installGlobalBolRaceHooks({
+      async beforeShipmentForUpdate() {
+        barrier.signal('bol-paused-before-lock');
+        await barrier.wait('ship-committed');
+      },
+    });
 
-    expect(result).toEqual({ ok: false, error: 'not_found' });
+    let shipResult: Awaited<ReturnType<typeof shipShipment>>;
+    let result: Awaited<ReturnType<typeof generateBol>>;
+    try {
+      const shipPromise = (async () => {
+        await barrier.wait('bol-paused-before-lock');
+        shipResult = await withActionActor(() => shipShipment(shipmentId));
+        barrier.signal('ship-committed');
+        return shipResult;
+      })();
+
+      const bolPromise = withActionActor(() =>
+        generateBol({ shipmentId, carrier: 'Flip Carrier', trackingNumber: 'FLIP-1' }),
+      );
+
+      [result, shipResult] = await Promise.all([bolPromise, shipPromise]);
+    } finally {
+      restoreHooks();
+    }
+
+    expect(shipResult!).toEqual({ ok: true });
+    expect(result!).toEqual({ ok: false, error: 'not_found' });
 
     const { rows } = await ownerPool.query<{
       status: string;

@@ -88,3 +88,9 @@ Codex re-review follow-up (N-42 migration semantics, N-68 race regression proof)
 
 - **484-gate-approvals-project-preserve-on-set-null.sql** — replaced broken `gate_approvals` SET NULL trigger with `BEFORE DELETE` on `npd_projects` that stamps `project_code` + `project_id_snapshot` while the parent row still exists (rolls back with failed delete).
 - **generate-bol-ship-race.pg.test.ts** — drives real `generateBol` / `shipShipment` with opposing `FOR UPDATE` lock + flip trigger; asserts shipped-path audit + BOL payload, packed-path BOL persistence, and `not_found` with no orphan audit on zero-row update.
+
+## Fix round 3
+
+Codex re-review follow-up (N-68 pg harness only — production `generateBol` unchanged):
+
+- **generate-bol-ship-race.pg.test.ts** — shipped-path denial case revokes `ship.bol.sign` before `generateBol` and restores it in `finally`; asserts carrier/BOL payload unchanged and zero audit rows. Replaced self-modifying `BEFORE UPDATE` flip trigger with a `RETURN NULL` skip trigger plus two-connection barriers: BOL-wins race uses pool hooks so `shipShipment` blocks on `generateBol`'s `FOR UPDATE` until BOL commits on `packed`; zero-row path pauses before the shipment lock read so `shipShipment` commits first, then `generateBol` hits empty `RETURNING` (`not_found`) with no orphan audit.
