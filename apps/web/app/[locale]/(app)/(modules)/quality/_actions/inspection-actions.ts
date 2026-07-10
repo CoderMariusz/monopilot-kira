@@ -16,7 +16,7 @@ import {
   toPaginatedResult,
   type PaginatedResult,
 } from '../../../../../../lib/shared/pagination';
-import { releaseLpQaForContext } from '../../warehouse/_actions/lp-qa-actions';
+import { transitionWoOutputQaForContext } from '../../../../../../lib/production/output/transition-output-qa';
 import { createHoldForContext } from './hold-actions';
 
 type QueryClient = {
@@ -265,7 +265,7 @@ function mapDetailRow(row: Parameters<typeof mapListRow>[0] & {
 
 async function findActiveHoldForReference(
   ctx: QualityContext,
-  params: { referenceType: 'lp' | 'grn'; referenceId: string },
+  params: { referenceType: 'lp' | 'grn'; referenceId: string; reasonText: string },
 ): Promise<string | null> {
   const { rows } = await ctx.client.query<{ id: string }>(
     `select id::text
@@ -273,30 +273,40 @@ async function findActiveHoldForReference(
       where org_id = app.current_org_id()
         and reference_type = $1
         and reference_id = $2::uuid
+        and reason_free_text = $4
         and hold_status = any($3::text[])
         and released_at is null
       order by created_at desc
       limit 1
       for update`,
-    [params.referenceType, params.referenceId, [...ACTIVE_HOLD_STATUSES]],
+    [params.referenceType, params.referenceId, [...ACTIVE_HOLD_STATUSES], params.reasonText],
   );
   return rows[0]?.id ?? null;
 }
 
 async function createInspectionHoldIfMissing(
   ctx: QualityContext,
-  params: { referenceType: 'lp' | 'grn'; referenceId: string; lpIds: string[]; reasonText: string; priority: 'high' | 'critical' },
+  params: {
+    referenceType: 'lp' | 'grn';
+    referenceId: string;
+    lpIds: string[];
+    reasonText: string;
+    priority: 'high' | 'critical';
+    inspectionId: string;
+  },
 ): Promise<void> {
+  const reasonText = `Inspection ${params.inspectionId}: ${params.reasonText}`;
   const existing = await findActiveHoldForReference(ctx, {
     referenceType: params.referenceType,
     referenceId: params.referenceId,
+    reasonText,
   });
   if (existing) return;
 
   const hold = await createHoldForContext(ctx, {
     referenceType: params.referenceType,
     referenceId: params.referenceId,
-    reasonText: params.reasonText,
+    reasonText,
     priority: params.priority,
     lpIds: params.lpIds,
   });
@@ -320,24 +330,15 @@ async function findReceivedLpIdsForGrn(ctx: QualityContext, grnId: string): Prom
   return rows.map((row) => row.id);
 }
 
-async function findLpIdForWoOutput(ctx: QualityContext, woOutputId: string): Promise<string> {
-  const { rows } = await ctx.client.query<{ lp_id: string | null }>(
-    `select lp_id::text
-       from public.wo_outputs
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-      limit 1
-      for update`,
-    [woOutputId],
-  );
-  const lpId = rows[0]?.lp_id;
-  if (!lpId) throw new Error('wo_output has no license plate to release');
-  return lpId;
-}
-
 async function applyLpDecisionSideEffects(
   ctx: QualityContext,
-  params: { referenceType: ReferenceType; referenceId: string; decision: Decision; note: string | null },
+  params: {
+    inspectionId: string;
+    referenceType: ReferenceType;
+    referenceId: string;
+    decision: Decision;
+    note: string | null;
+  },
 ): Promise<'released' | 'rejected' | 'on_hold' | null> {
   if (params.referenceType === 'grn') {
     if (params.decision !== 'fail') return null;
@@ -349,21 +350,29 @@ async function applyLpDecisionSideEffects(
       lpIds,
       reasonText: params.note ?? 'failed GRN inspection',
       priority: 'high',
+      inspectionId: params.inspectionId,
     });
     return 'on_hold';
   }
 
   if (params.referenceType === 'wo_output') {
     if (params.decision !== 'pass') return null;
-    const lpId = await findLpIdForWoOutput(ctx, params.referenceId);
-    // Deliberate: the signed inspection decision is the gated act (quality.inspection perms + signEvent); the LP release is its side effect — bypassing quality.batch.release here is an R-G1 SHOULD-3 owner-flagged decision (wave F3).
-    const released = await releaseLpQaForContext(
+    const transitioned = await transitionWoOutputQaForContext(
       { userId: ctx.userId, orgId: ctx.orgId, client: ctx.client },
-      { lpId, decision: 'released', note: params.note ?? undefined },
-      { requirePermission: false },
+      {
+        outputId: params.referenceId,
+        decision: 'PASSED',
+        note: params.note ?? undefined,
+      },
     );
-    if (!released.ok) throw new Error(released.message ?? released.reason);
-    return released.data.qaStatus;
+    if (!transitioned.ok) {
+      if (transitioned.reason === 'not_found') throw new Error('wo_output not found');
+      if (transitioned.reason === 'invalid_state') {
+        throw new Error(transitioned.message ?? 'invalid_state');
+      }
+      throw new Error('quality_hold_active');
+    }
+    return transitioned.data.lpQaStatus;
   }
 
   if (params.referenceType !== 'lp') return null;
@@ -407,6 +416,7 @@ async function applyLpDecisionSideEffects(
       lpIds: [params.referenceId],
       reasonText: params.note ?? 'inspection hold',
       priority: 'high',
+      inspectionId: params.inspectionId,
     });
   }
   return qaStatus;
@@ -958,6 +968,7 @@ export async function submitInspectionDecision(input: {
       if (!row) throw new Error('quality inspection decision update did not return a row');
 
       const qaStatus = await applyLpDecisionSideEffects(ctx, {
+        inspectionId: current.id,
         referenceType: current.reference_type,
         referenceId: current.reference_id,
         decision: parsed.decision,
