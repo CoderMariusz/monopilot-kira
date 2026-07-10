@@ -850,36 +850,49 @@ export async function releaseHoldCore(
   }
 
   if (current.reference_type === 'wo' && input.disposition === 'release') {
-    const snapshots = await ctx.client.query<{ snapshots: Record<string, string> | null }>(
-      `select ext_jsonb -> 'wo_output_qa_snapshots' as snapshots
-         from public.quality_holds
+    const otherOpenHold = await ctx.client.query<{ hold_id: string }>(
+      `select hold_id
+         from public.v_active_holds
         where org_id = app.current_org_id()
-          and id = $1::uuid`,
-      [input.holdId],
+          and reference_type = 'wo'
+          and reference_id = $1::uuid
+          and hold_id <> $2::uuid
+        limit 1`,
+      [current.reference_id, input.holdId],
     );
-    const qaSnapshots = snapshots.rows[0]?.snapshots ?? {};
-    for (const [outputId, priorQaStatus] of Object.entries(qaSnapshots)) {
+
+    if (otherOpenHold.rows.length === 0) {
+      const snapshots = await ctx.client.query<{ snapshots: Record<string, string> | null }>(
+        `select ext_jsonb -> 'wo_output_qa_snapshots' as snapshots
+           from public.quality_holds
+          where org_id = app.current_org_id()
+            and id = $1::uuid`,
+        [input.holdId],
+      );
+      const qaSnapshots = snapshots.rows[0]?.snapshots ?? {};
+      for (const [outputId, priorQaStatus] of Object.entries(qaSnapshots)) {
+        await ctx.client.query(
+          `update public.wo_outputs
+              set qa_status = $3,
+                  updated_by = $2::uuid
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+              and wo_id = $4::uuid
+              and qa_status = 'ON_HOLD'`,
+          [outputId, ctx.userId, priorQaStatus, current.reference_id],
+        );
+      }
+      // Outputs placed on hold after create (no snapshot) fall back to PENDING.
       await ctx.client.query(
         `update public.wo_outputs
-            set qa_status = $3,
+            set qa_status = 'PENDING',
                 updated_by = $2::uuid
           where org_id = app.current_org_id()
-            and id = $1::uuid
-            and wo_id = $4::uuid
+            and wo_id = $1::uuid
             and qa_status = 'ON_HOLD'`,
-        [outputId, ctx.userId, priorQaStatus, current.reference_id],
+        [current.reference_id, ctx.userId],
       );
     }
-    // Outputs placed on hold after create (no snapshot) fall back to PENDING.
-    await ctx.client.query(
-      `update public.wo_outputs
-          set qa_status = 'PENDING',
-              updated_by = $2::uuid
-        where org_id = app.current_org_id()
-          and wo_id = $1::uuid
-          and qa_status = 'ON_HOLD'`,
-      [current.reference_id, ctx.userId],
-    );
   }
 
   await writeOutbox(ctx, {

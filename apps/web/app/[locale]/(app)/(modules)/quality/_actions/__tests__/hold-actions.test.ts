@@ -24,6 +24,7 @@ let permissionOverrides: Record<string, boolean> = {};
 let holdAlreadyReleased = false;
 let holdReferenceType: 'lp' | 'wo' = 'lp';
 let otherActiveHoldLpIds: string[] = [];
+let otherActiveWoHold = false;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -173,6 +174,15 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.includes('from public.v_active_holds') && q.includes("reference_type = 'wo'")) {
+        if (q.includes('hold_id <>')) {
+          return {
+            rows: otherActiveWoHold ? [{ hold_id: '99999999-9999-4999-8999-999999999999' }] : [],
+            rowCount: otherActiveWoHold ? 1 : 0,
+          };
+        }
+      }
+
       if (q.includes('from public.v_active_holds')) {
         const lpId = String(params[0] ?? '');
         const blocked = otherActiveHoldLpIds.includes(lpId);
@@ -254,6 +264,7 @@ describe('quality hold server actions', () => {
     holdAlreadyReleased = false;
     holdReferenceType = 'lp';
     otherActiveHoldLpIds = [];
+    otherActiveWoHold = false;
     client = makeClient();
     vi.clearAllMocks();
   });
@@ -342,6 +353,58 @@ describe('quality hold server actions', () => {
           params?.[2] === 'PASSED',
       );
     expect(restorePassed).toBeDefined();
+  });
+
+  it('keeps WO outputs ON_HOLD when another open WO hold remains after release', async () => {
+    holdReferenceType = 'wo';
+    otherActiveWoHold = true;
+
+    const created = await createHold({
+      referenceType: 'wo',
+      referenceId: WO_ID,
+      reasonText: 'line stop',
+      priority: 'high',
+    });
+    expect(created.ok).toBe(true);
+
+    const released = await releaseHold({
+      holdId: HOLD_ID,
+      disposition: 'release',
+      reasonText: 'cleared',
+      signature: { password: 'pw' },
+    });
+    expect(released.ok).toBe(true);
+
+    const otherHoldCheck = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql]) =>
+          normalize(String(sql)).includes('from public.v_active_holds') &&
+          normalize(String(sql)).includes("reference_type = 'wo'") &&
+          normalize(String(sql)).includes('hold_id <>'),
+      );
+    expect(otherHoldCheck?.[1]).toEqual([WO_ID, HOLD_ID]);
+
+    const restorePassed = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql, params]) =>
+          normalize(String(sql)).startsWith('update public.wo_outputs') &&
+          params?.[0] === 'out-1' &&
+          params?.[2] === 'PASSED',
+      );
+    expect(restorePassed).toBeUndefined();
+
+    const blanketPending = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql, params]) =>
+          normalize(String(sql)).startsWith('update public.wo_outputs') &&
+          params?.[0] === WO_ID &&
+          params?.[1] === USER_ID &&
+          normalize(String(sql)).includes("qa_status = 'pending'"),
+      );
+    expect(blanketPending).toBeUndefined();
   });
 
   it('creates a batch hold with reference_text instead of requiring a UUID reference', async () => {

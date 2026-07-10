@@ -699,12 +699,22 @@ export async function registerOutput(
       `insert into public.wo_outputs
          (org_id, site_id, transaction_id, wo_id, output_type, product_id, lp_id,
           batch_number, qty_kg, uom, catch_weight_details, registered_by, created_by,
-          expiry_date, qty_units, units_uom, actual_weight_kg)
+          expiry_date, qty_units, units_uom, actual_weight_kg, qa_status)
        values
          (app.current_org_id(), $15::uuid, $1::uuid, $2::uuid, $3, $4::uuid, $5::uuid,
           $6, $7::numeric, $8, $9::jsonb, $10::uuid, $10::uuid,
           case when $11::int is not null then (current_date + ($11::int || ' days')::interval)::date else null end,
-          $12::numeric, $13, $14::numeric)
+          $12::numeric, $13, $14::numeric,
+          case
+            when exists (
+              select 1
+                from public.v_active_holds h
+               where h.org_id = app.current_org_id()
+                 and h.reference_type = 'wo'
+                 and h.reference_id = $2::uuid
+            ) then 'ON_HOLD'
+            else 'PENDING'
+          end)
        returning id, lp_id, to_char(expiry_date, 'YYYY-MM-DD') as expiry_date`,
       [
         input.transaction_id,
