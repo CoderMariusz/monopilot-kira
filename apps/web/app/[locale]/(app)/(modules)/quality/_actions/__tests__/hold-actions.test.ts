@@ -91,6 +91,35 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.includes('from public.wo_outputs') && q.includes('qa_status')) {
+        return {
+          rows: [
+            { id: 'out-1', qa_status: 'PASSED' },
+            { id: 'out-2', qa_status: 'PENDING' },
+          ],
+          rowCount: 2,
+        };
+      }
+
+      if (q.startsWith('update public.quality_holds') && q.includes('wo_output_qa_snapshots')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.wo_outputs') && q.includes("qa_status = 'on_hold'")) {
+        return { rows: [], rowCount: 2 };
+      }
+
+      if (q.startsWith('select ext_jsonb') && q.includes('wo_output_qa_snapshots')) {
+        return {
+          rows: [{ snapshots: { 'out-1': 'PASSED', 'out-2': 'PENDING' } }],
+          rowCount: 1,
+        };
+      }
+
+      if (q.startsWith('update public.wo_outputs') && q.includes('and wo_id = $4::uuid')) {
+        return { rows: [], rowCount: 1 };
+      }
+
       if (q.includes('from public.license_plates') && q.includes('quantity::text')) {
         return {
           rows: [
@@ -278,6 +307,41 @@ describe('quality hold server actions', () => {
     expect(lpUpdate?.[1]).toEqual([[LP_ID], USER_ID, ['consumed', 'merged', 'shipped', 'returned']]);
     const outbox = calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.outbox_events'));
     expect(outbox?.[1]?.[0]).toBe('quality.hold.created');
+  });
+
+  it('snapshots WO output qa_status on hold create and restores PASSED on release', async () => {
+    holdReferenceType = 'wo';
+
+    const created = await createHold({
+      referenceType: 'wo',
+      referenceId: WO_ID,
+      reasonText: 'line stop',
+      priority: 'high',
+    });
+    expect(created.ok).toBe(true);
+
+    const snapshotUpdate = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => normalize(String(sql)).includes('wo_output_qa_snapshots'));
+    expect(snapshotUpdate).toBeDefined();
+
+    const released = await releaseHold({
+      holdId: HOLD_ID,
+      disposition: 'release',
+      reasonText: 'cleared',
+      signature: { password: 'pw' },
+    });
+    expect(released.ok).toBe(true);
+
+    const restorePassed = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql, params]) =>
+          normalize(String(sql)).startsWith('update public.wo_outputs') &&
+          params?.[0] === 'out-1' &&
+          params?.[2] === 'PASSED',
+      );
+    expect(restorePassed).toBeDefined();
   });
 
   it('creates a batch hold with reference_text instead of requiring a UUID reference', async () => {
