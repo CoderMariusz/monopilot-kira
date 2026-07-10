@@ -21,7 +21,7 @@ import {
   type EntityImportSpecId,
   type PreviewColumnDescriptor,
 } from '../_lib/entity-import-registry';
-import type { ToImportRow } from '../../transfer-orders/_actions/import-to';
+import type { ToImportRow } from '../../transfer-orders/_actions/import-to.types';
 import type { WoImportRow } from '../../work-orders/_actions/import-wo';
 import { buildEntityTemplateCsv, type EntityCsvSpec } from '../_lib/parse-entity-csv';
 import {

@@ -5,7 +5,7 @@
  */
 
 import type { PreviewColumn } from '../_components/entity-import-wizard.client';
-import type { ToImportRow } from '../../transfer-orders/_actions/import-to';
+import type { ToImportRow } from '../../transfer-orders/_actions/import-to.types';
 import type { WoImportRow } from '../../work-orders/_actions/import-wo';
 import { type EntityCsvSpec } from './parse-entity-csv';
 import { TO_IMPORT_SPEC } from './to-spec';

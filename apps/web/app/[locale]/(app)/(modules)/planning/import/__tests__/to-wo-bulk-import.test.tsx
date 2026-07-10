@@ -34,7 +34,7 @@ import {
 } from '../_lib/parse-entity-csv';
 import { TO_IMPORT_SPEC, TO_IMPORT_COLUMNS } from '../_lib/to-spec';
 import { WO_IMPORT_SPEC, WO_IMPORT_COLUMNS } from '../_lib/wo-spec';
-import type { ToImportRow, ToImportResult } from '../../transfer-orders/_actions/import-to';
+import type { ToImportRow, ToImportResult } from '../../transfer-orders/_actions/import-to.types';
 import type { WoImportRow, WoImportResult } from '../../work-orders/_actions/import-wo';
 
 afterEach(cleanup);

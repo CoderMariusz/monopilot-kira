@@ -33,7 +33,8 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { validatePoImport, commitPoImport } from '../purchase-orders/_actions/import-po';
-import { validateToImport, commitToImport, type ToImportRow, type ToImportResult } from '../transfer-orders/_actions/import-to';
+import { validateToImport, commitToImport } from '../transfer-orders/_actions/import-to';
+import type { ToImportRow, ToImportResult } from '../transfer-orders/_actions/import-to.types';
 import { validateWoImport, commitWoImport, type WoImportRow, type WoImportResult } from '../work-orders/_actions/import-wo';
 import { canImportPurchaseOrders, canImportTransferOrders, canImportWorkOrders } from './_actions/can-import-po';
 import { EntityImportCard } from './_components/entity-import-card.client';

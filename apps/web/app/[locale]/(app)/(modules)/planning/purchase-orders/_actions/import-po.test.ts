@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { QueryClient } from '../../_actions/procurement-shared';
 import { createPurchaseOrderCore } from './create-purchase-order-core';
-import { commitPoImport, validatePoImport, type PoImportRow } from './import-po';
+import { commitPoImport, validatePoImport } from './import-po';
+import type { PoImportRow } from './import-po.types';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';

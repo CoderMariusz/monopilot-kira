@@ -22,7 +22,7 @@ import type {
   PoImportRow,
   PoValidationResponse,
   PoImportResponse,
-} from '../../purchase-orders/_actions/import-po';
+} from '../../purchase-orders/_actions/import-po.types';
 
 export type PoImportCardLabels = {
   cardTitle: string;

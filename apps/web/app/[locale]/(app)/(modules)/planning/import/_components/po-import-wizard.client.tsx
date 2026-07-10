@@ -45,7 +45,7 @@ import type {
   PoImportRow,
   PoValidationResponse,
   PoImportResponse,
-} from '../../purchase-orders/_actions/import-po';
+} from '../../purchase-orders/_actions/import-po.types';
 
 type Step = 'upload' | 'validate' | 'preview' | 'result';
 const STEP_ORDER: Step[] = ['upload', 'validate', 'preview', 'result'];

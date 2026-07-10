@@ -114,3 +114,23 @@ Adversarial review (`_meta/plans/wave-2-codex-review.md`) required three changes
 
 - `pnpm --filter web exec tsc --noEmit` — clean
 - Vitest: import action tests, can-import gate tests, import hub RSC test, import wizard UI tests — all green
+
+## Fix round 2
+
+Re-review (`_meta/plans/wave-2-codex-review.md`) flagged a deploy blocker: fix round 1 exported type aliases from `'use server'` modules (`import-po.ts`, `import-to.ts`), which Next rejects at build time.
+
+### Move PO/TO import types out of server-action modules
+
+**Finding:** `PoImportForbidden`, `PoValidationResponse`, `PoImportResponse`, `ToImportForbidden`, `ToValidationResponse`, and `ToImportResponse` (plus row/result/error types) were exported from `'use server'` files. Project rule: server-action modules may export only async functions.
+
+**Fix:**
+- Added `import-po.types.ts` and `import-to.types.ts` siblings (same pattern as `receive-po-line.types.ts`)
+- `import-po.ts` / `import-to.ts` now export only `validate*` and `commit*` async functions; types imported with `import type`
+- Updated clients, CSV helpers, registry, and tests to import types from the `.types.ts` siblings
+
+**Tests:** Same targeted suites as fix round 1 — all green.
+
+### Gates (fix round 2)
+
+- `pnpm --filter web exec tsc --noEmit` — clean
+- Vitest: import action tests (18), can-import gate + hub RSC tests, import wizard UI tests (24) — all green

@@ -31,7 +31,7 @@ import {
   groupPoRows,
   parsePoCsv,
 } from '../_lib/parse-po-csv';
-import type { PoValidationResult, PoImportResult } from '../../purchase-orders/_actions/import-po';
+import type { PoValidationResult, PoImportResult } from '../../purchase-orders/_actions/import-po.types';
 
 afterEach(cleanup);
 
