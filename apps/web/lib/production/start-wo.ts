@@ -244,7 +244,18 @@ export async function startWo(
          (org_id, site_id, transaction_id, wo_id, output_type, product_id, batch_number, qty_kg, uom,
           qa_status, registered_by, created_by)
        values (app.current_org_id(), $8::uuid, $1::uuid, $2::uuid, $3, $4::uuid,
-               $5, 0, $6, 'PENDING', $7::uuid, $7::uuid)
+               $5, 0, $6,
+               case
+                 when exists (
+                   select 1
+                     from public.v_active_holds h
+                    where h.org_id = app.current_org_id()
+                      and h.reference_type = 'wo'
+                      and h.reference_id = $2::uuid
+                 ) then 'ON_HOLD'
+                 else 'PENDING'
+               end,
+               $7::uuid, $7::uuid)
        on conflict (transaction_id) do nothing
        returning id`,
       [

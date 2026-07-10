@@ -1,11 +1,9 @@
 import { cascadeAllergensForChangedItem } from '../../../../../lib/technical/allergens/cascade';
 import {
-  AUDIT_BOM_PUBLISH,
-  EVENT_FG_BOM_RELEASED,
   validateBomApprovalGuards,
-  writeAudit,
-  writeOutbox,
+  type OrgActionContext,
 } from '../../../../[locale]/(app)/(modules)/technical/bom/_actions/shared';
+import { publishBomVersion } from '../../../../../lib/technical/bom-publish-service';
 import { type GateProjectRow } from './gate-helpers';
 import {
   compoundedYieldPctForComponent,
@@ -871,58 +869,36 @@ async function createActiveNpdBom(
     throw new NpdBomActivationValidationError(guard.code, guard.message);
   }
 
-  // ORDER MATTERS (walk-4 blocker): bom_headers_active_version_idx is a partial
-  // UNIQUE on (org_id, product_id) WHERE status='active' — the OLD active header
-  // must be superseded BEFORE the new one flips to active, or the flip violates
-  // the index and the whole promote rolls back.
-  if (supersedesBom) {
-    await ctx.client.query(
-      `update public.bom_headers
-          set status = 'superseded',
-              effective_to = current_date,
-              updated_at = now()
-        where org_id = app.current_org_id()
-          and id = $1::uuid
-          and status = 'active'`,
-      [supersedesBom.id],
-    );
-  }
-
-  await ctx.client.query(
+  // NPD promote is the technical approval step — record approver fields, then publish
+  // through the canonical service (draft → technical_approved → active guards).
+  const { rows: approved } = await ctx.client.query<{ version: number }>(
     `update public.bom_headers
-        set status = 'active',
+        set status = 'technical_approved',
             approved_by = $2::uuid,
             approved_at = now()
       where org_id = app.current_org_id()
-        and id = $1::uuid`,
+        and id = $1::uuid
+        and status = 'draft'
+      returning version`,
     [header.id, ctx.userId],
   );
+  if (approved.length === 0) {
+    throw new Error('NPD BOM activation failed: header is not draft');
+  }
 
-  const supersededHeaderIds = supersedesBom ? [supersedesBom.id] : [];
-  await writeAudit(ctx.client, {
-    orgId: ctx.orgId,
-    actorUserId: ctx.userId,
-    action: AUDIT_BOM_PUBLISH,
-    resourceId: header.id,
-    beforeState: {
-      status: 'draft',
-      supersededVersions: supersedesBom ? [supersedesBom.version] : [],
-    },
-    afterState: { status: 'active', productId: productCode, version: header.version },
+  const publishCtx: OrgActionContext = { userId: ctx.userId, orgId: ctx.orgId, client: ctx.client };
+  const published = await publishBomVersion(publishCtx, {
+    bomHeaderId: header.id,
+    productId: productCode,
+    version: header.version,
+    skipPermissionCheck: true,
   });
-  await writeOutbox(ctx.client, {
-    orgId: ctx.orgId,
-    eventType: EVENT_FG_BOM_RELEASED,
-    aggregateType: 'bom_header',
-    aggregateId: header.id,
-    payload: {
-      product_id: productCode,
-      version: header.version,
-      status: 'active',
-      superseded_header_ids: supersededHeaderIds,
-      actor_user_id: ctx.userId,
-    },
-  });
+  if (!published.ok) {
+    throw new Error(
+      published.message ??
+        `NPD BOM publish failed: ${published.error}${published.code ? ` (${published.code})` : ''}`,
+    );
+  }
 
   return header;
 }

@@ -37,7 +37,11 @@ function isIngredientQuery(sql: string): boolean {
 }
 
 /** Default rows for canonical BOM activation guards (cycle, RM usability, outbox, audit). */
-function bomActivationGuardDefaults(sql: string, params: readonly unknown[]): unknown[] | null {
+function bomActivationGuardDefaults(
+  sql: string,
+  params: readonly unknown[],
+  getLastBomVersion: () => number,
+): unknown[] | null {
   if (sql.includes("h.status = 'active' and h.item_id is not null")) return [];
   if (sql.startsWith('select distinct allergen_code') && sql.includes("presence = 'free_from'")) return [];
   if (sql.startsWith('select id, status, updated_at from public.items')) {
@@ -57,6 +61,19 @@ function bomActivationGuardDefaults(sql: string, params: readonly unknown[]): un
     }];
   }
   if (sql.startsWith('select allergen_code, intensity from public.item_allergen_profiles')) return [];
+  if (sql.startsWith('select id, status, product_id, version from public.bom_headers')) {
+    return [{
+      id: params[0] ?? BOM,
+      status: 'technical_approved',
+      product_id: 'FG-001',
+      version: getLastBomVersion(),
+    }];
+  }
+  if (sql.includes("set status = 'technical_approved'")) return [{ version: getLastBomVersion() }];
+  if (sql.includes("set status = 'active'") && sql.includes("status = 'technical_approved'")) {
+    return [{ version: getLastBomVersion() }];
+  }
+  if (sql.includes("set status = 'superseded'") && sql.includes("status = 'active'")) return [];
   if (sql.startsWith('insert into public.outbox_events')) return [];
   if (sql.startsWith('insert into public.audit_log')) return [];
   return null;
@@ -65,10 +82,14 @@ function bomActivationGuardDefaults(sql: string, params: readonly unknown[]): un
 function createClient(
   handler: (sql: string, params: readonly unknown[]) => unknown[],
   options?: { hasProcessAssignments?: boolean; crossOrgPoisonInProcessAssignments?: boolean },
-): QueryClient & { calls: Call[] } {
+): QueryClient & { calls: Call[]; lastBomVersion: number } {
   const calls: Call[] = [];
+  let lastBomVersion = 1;
   return {
     calls,
+    get lastBomVersion() {
+      return lastBomVersion;
+    },
     async query(sql: string, params: readonly unknown[] = []) {
       calls.push({ sql, params });
       const normalized = normalize(sql);
@@ -79,14 +100,18 @@ function createClient(
         }
         return { rows: [{ has_assignments: options?.hasProcessAssignments ?? false }] as never[] };
       }
+      const guardFallback = bomActivationGuardDefaults(normalized, params, () => lastBomVersion);
+      if (guardFallback) return { rows: guardFallback as never[] };
       try {
-        return { rows: handler(normalized, params) as never[] };
+        const rows = handler(normalized, params) as never[];
+        if (normalized.startsWith('insert into public.bom_headers') && rows[0]?.version != null) {
+          lastBomVersion = Number(rows[0].version);
+        }
+        return { rows };
       } catch (error) {
         if (!(error instanceof Error && error.message.startsWith('Unhandled SQL'))) {
           throw error;
         }
-        const guardFallback = bomActivationGuardDefaults(normalized, params);
-        if (guardFallback) return { rows: guardFallback as never[] };
         if (normalized.includes('group by wp.wip_definition_id')) {
           return { rows: [] as never[] };
         }
@@ -656,12 +681,11 @@ describe('materializeNpdBom', () => {
     const headerUpdates = client.calls
       .map((call, index) => ({ sql: normalize(call.sql), index }))
       .filter((c) => c.sql.startsWith('update public.bom_headers'));
-    const supersedeIdx = headerUpdates.find((c) => c.sql.includes("set status = 'superseded'"))?.index;
+    const technicalApprovedIdx = headerUpdates.find((c) => c.sql.includes("set status = 'technical_approved'"))?.index;
     const activateIdx = headerUpdates.find((c) => c.sql.includes("set status = 'active'"))?.index;
-    expect(supersedeIdx).toBeDefined();
+    expect(technicalApprovedIdx).toBeDefined();
     expect(activateIdx).toBeDefined();
-    // Partial unique (org, product) WHERE active: old must leave 'active' first.
-    expect(supersedeIdx!).toBeLessThan(activateIdx!);
+    expect(technicalApprovedIdx!).toBeLessThan(activateIdx!);
   });
 
   it('creates a new BOM version and supersedes stale active NPD BOMs', async () => {
@@ -706,7 +730,8 @@ describe('materializeNpdBom', () => {
       normalize(call.sql).startsWith('update public.bom_headers') &&
       normalize(call.sql).includes("set status = 'superseded'"),
     );
-    expect(supersede?.params).toEqual([BOM]);
+    expect(supersede?.params?.[0]).toBe('FG-001');
+    expect(supersede?.params?.[1]).toBe('99999999-9999-4999-8999-999999999999');
   });
 
   it('copies packaging substitutes and upgrades pre-existing FG item UOMs', async () => {
@@ -1417,7 +1442,7 @@ describe('materializeNpdBom', () => {
     );
 
     const activeFlip = client.calls.find(
-      (call) => normalize(call.sql).includes("set status = 'active'") && normalize(call.sql).includes('approved_by'),
+      (call) => normalize(call.sql).includes("set status = 'active'") && normalize(call.sql).includes("technical_approved"),
     );
     expect(activeFlip).toBeUndefined();
   });

@@ -16,6 +16,7 @@ const HOLD_ID = '33333333-3333-4333-8333-333333333333';
 const LP_ID = '44444444-4444-4444-8444-444444444444';
 const TERMINAL_LP_ID = '55555555-5555-4555-8555-555555555555';
 const WO_ID = '66666666-6666-4666-8666-666666666666';
+const HOLD_B_ID = '99999999-9999-4999-8999-999999999999';
 const REASON_ID = '77777777-7777-4777-8777-777777777777';
 
 let client: QueryClient;
@@ -24,11 +25,21 @@ let permissionOverrides: Record<string, boolean> = {};
 let holdAlreadyReleased = false;
 let holdReferenceType: 'lp' | 'wo' = 'lp';
 let otherActiveHoldLpIds: string[] = [];
+let otherActiveWoHold = false;
+let overlappingWoHoldIds: string[] = [];
+let releasedWoHoldIds = new Set<string>();
+let woHoldReleaseMutex: Promise<void> = Promise.resolve();
+let woHoldReleaseUnlock: (() => void) | null = null;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
-  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, client }),
-  ),
+  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) => {
+    try {
+      return await action({ userId: USER_ID, orgId: ORG_ID, client });
+    } finally {
+      woHoldReleaseUnlock?.();
+      woHoldReleaseUnlock = null;
+    }
+  }),
 }));
 
 vi.mock('../../../../../../../lib/site/site-context', () => ({
@@ -91,6 +102,35 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.includes('from public.wo_outputs') && q.includes('qa_status')) {
+        return {
+          rows: [
+            { id: 'out-1', qa_status: 'PASSED' },
+            { id: 'out-2', qa_status: 'PENDING' },
+          ],
+          rowCount: 2,
+        };
+      }
+
+      if (q.startsWith('update public.quality_holds') && q.includes('wo_output_qa_snapshots')) {
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (q.startsWith('update public.wo_outputs') && q.includes("qa_status = 'on_hold'")) {
+        return { rows: [], rowCount: 2 };
+      }
+
+      if (q.startsWith('select ext_jsonb') && q.includes('wo_output_qa_snapshots')) {
+        return {
+          rows: [{ snapshots: { 'out-1': 'PASSED', 'out-2': 'PENDING' } }],
+          rowCount: 1,
+        };
+      }
+
+      if (q.startsWith('update public.wo_outputs') && q.includes('and wo_id = $4::uuid')) {
+        return { rows: [], rowCount: 1 };
+      }
+
       if (q.includes('from public.license_plates') && q.includes('quantity::text')) {
         return {
           rows: [
@@ -115,22 +155,39 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('select id::text, hold_number')) {
+        const holdId = String(params[0] ?? HOLD_ID);
+        const alreadyReleased = holdAlreadyReleased || releasedWoHoldIds.has(holdId);
         return {
           rows: [
             {
-              id: HOLD_ID,
-              hold_number: 'HLD-00001000',
+              id: holdId,
+              hold_number: holdId === HOLD_ID ? 'HLD-00001000' : 'HLD-00001001',
               reference_type: holdReferenceType,
               reference_id: holdReferenceType === 'wo' ? WO_ID : LP_ID,
-              hold_status: holdAlreadyReleased ? 'released' : 'open',
-              released_at: holdAlreadyReleased ? '2026-06-11T11:00:00.000Z' : null,
+              hold_status: alreadyReleased ? 'released' : 'open',
+              released_at: alreadyReleased ? '2026-06-11T11:00:00.000Z' : null,
             },
           ],
           rowCount: 1,
         };
       }
 
+      if (q.includes('pg_advisory_xact_lock') && q.includes('wo-hold-release')) {
+        const previous = woHoldReleaseMutex;
+        let release!: () => void;
+        woHoldReleaseMutex = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        await previous;
+        woHoldReleaseUnlock = release;
+        return { rows: [], rowCount: 1 };
+      }
+
       if (q.startsWith('update public.quality_holds')) {
+        const holdId = String(params[0] ?? HOLD_ID);
+        if (q.includes("hold_status = 'released'")) {
+          releasedWoHoldIds.add(holdId);
+        }
         return { rows: [{ released_at: '2026-06-11T12:00:00.000Z' }], rowCount: 1 };
       }
 
@@ -142,6 +199,25 @@ function makeClient(): QueryClient {
           ],
           rowCount: 2,
         };
+      }
+
+      if (q.includes('from public.v_active_holds') && q.includes("reference_type = 'wo'")) {
+        if (q.includes('hold_id <>')) {
+          const releasingHoldId = String(params[1] ?? '');
+          const peerHoldIds =
+            overlappingWoHoldIds.length > 0
+              ? overlappingWoHoldIds
+              : otherActiveWoHold
+                ? [HOLD_B_ID]
+                : [];
+          const stillOpen = peerHoldIds.filter(
+            (holdId) => holdId !== releasingHoldId && !releasedWoHoldIds.has(holdId),
+          );
+          return {
+            rows: stillOpen.length > 0 ? [{ hold_id: stillOpen[0] }] : [],
+            rowCount: stillOpen.length > 0 ? 1 : 0,
+          };
+        }
       }
 
       if (q.includes('from public.v_active_holds')) {
@@ -225,6 +301,11 @@ describe('quality hold server actions', () => {
     holdAlreadyReleased = false;
     holdReferenceType = 'lp';
     otherActiveHoldLpIds = [];
+    otherActiveWoHold = false;
+    overlappingWoHoldIds = [];
+    releasedWoHoldIds = new Set();
+    woHoldReleaseMutex = Promise.resolve();
+    woHoldReleaseUnlock = null;
     client = makeClient();
     vi.clearAllMocks();
   });
@@ -278,6 +359,131 @@ describe('quality hold server actions', () => {
     expect(lpUpdate?.[1]).toEqual([[LP_ID], USER_ID, ['consumed', 'merged', 'shipped', 'returned']]);
     const outbox = calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.outbox_events'));
     expect(outbox?.[1]?.[0]).toBe('quality.hold.created');
+  });
+
+  it('snapshots WO output qa_status on hold create and restores PASSED on release', async () => {
+    holdReferenceType = 'wo';
+
+    const created = await createHold({
+      referenceType: 'wo',
+      referenceId: WO_ID,
+      reasonText: 'line stop',
+      priority: 'high',
+    });
+    expect(created.ok).toBe(true);
+
+    const snapshotUpdate = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => normalize(String(sql)).includes('wo_output_qa_snapshots'));
+    expect(snapshotUpdate).toBeDefined();
+
+    const released = await releaseHold({
+      holdId: HOLD_ID,
+      disposition: 'release',
+      reasonText: 'cleared',
+      signature: { password: 'pw' },
+    });
+    expect(released.ok).toBe(true);
+
+    const restorePassed = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql, params]) =>
+          normalize(String(sql)).startsWith('update public.wo_outputs') &&
+          params?.[0] === 'out-1' &&
+          params?.[2] === 'PASSED',
+      );
+    expect(restorePassed).toBeDefined();
+  });
+
+  it('keeps WO outputs ON_HOLD when another open WO hold remains after release', async () => {
+    holdReferenceType = 'wo';
+    otherActiveWoHold = true;
+
+    const created = await createHold({
+      referenceType: 'wo',
+      referenceId: WO_ID,
+      reasonText: 'line stop',
+      priority: 'high',
+    });
+    expect(created.ok).toBe(true);
+
+    const released = await releaseHold({
+      holdId: HOLD_ID,
+      disposition: 'release',
+      reasonText: 'cleared',
+      signature: { password: 'pw' },
+    });
+    expect(released.ok).toBe(true);
+
+    const otherHoldCheck = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql]) =>
+          normalize(String(sql)).includes('from public.v_active_holds') &&
+          normalize(String(sql)).includes("reference_type = 'wo'") &&
+          normalize(String(sql)).includes('hold_id <>'),
+      );
+    expect(otherHoldCheck?.[1]).toEqual([WO_ID, HOLD_ID]);
+
+    const restorePassed = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql, params]) =>
+          normalize(String(sql)).startsWith('update public.wo_outputs') &&
+          params?.[0] === 'out-1' &&
+          params?.[2] === 'PASSED',
+      );
+    expect(restorePassed).toBeUndefined();
+
+    const blanketPending = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql, params]) =>
+          normalize(String(sql)).startsWith('update public.wo_outputs') &&
+          params?.[0] === WO_ID &&
+          params?.[1] === USER_ID &&
+          normalize(String(sql)).includes("qa_status = 'pending'"),
+      );
+    expect(blanketPending).toBeUndefined();
+  });
+
+  it('restores WO outputs after concurrent release of the last two overlapping holds', async () => {
+    holdReferenceType = 'wo';
+    overlappingWoHoldIds = [HOLD_ID, HOLD_B_ID];
+
+    const [first, second] = await Promise.all([
+      releaseHold({
+        holdId: HOLD_ID,
+        disposition: 'release',
+        reasonText: 'cleared A',
+        signature: { password: 'pw' },
+      }),
+      releaseHold({
+        holdId: HOLD_B_ID,
+        disposition: 'release',
+        reasonText: 'cleared B',
+        signature: { password: 'pw' },
+      }),
+    ]);
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+
+    const advisoryLocks = vi
+      .mocked(client.query)
+      .mock.calls.filter(([sql]) => normalize(String(sql)).includes('wo-hold-release'));
+    expect(advisoryLocks.length).toBeGreaterThanOrEqual(2);
+
+    const restorePassed = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql, params]) =>
+          normalize(String(sql)).startsWith('update public.wo_outputs') &&
+          params?.[0] === 'out-1' &&
+          params?.[2] === 'PASSED',
+      );
+    expect(restorePassed).toBeDefined();
   });
 
   it('creates a batch hold with reference_text instead of requiring a UUID reference', async () => {

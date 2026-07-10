@@ -79,7 +79,8 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
 
       const row = loaded.rows[0];
       if (!row) return { ok: false, error: 'not_found' };
-      if (row.state !== 'locked') return { ok: false, error: 'VERSION_NOT_LOCKED' };
+      if (row.state === 'locked') return { ok: false, error: 'VERSION_NOT_LOCKED' };
+      if (row.state !== 'draft') return { ok: false, error: 'VERSION_NOT_LOCKED' };
       if (!isTotalPctInRange(row.total_pct)) return { ok: false, error: 'TOTAL_PCT_OUT_OF_RANGE' };
       if (Number(row.missing_cost_count) > 0) return { ok: false, error: 'MISSING_COST' };
       if (Number(row.missing_nutrition_target_count) > 0) {
@@ -105,6 +106,21 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
            )`,
           [projectId, versionId, ctx.userId],
         );
+      }
+
+      const stateTransition = await ctx.client.query<{ id: string }>(
+        `update public.formulation_versions fv
+            set state = 'submitted_for_trial'
+           from public.formulations f
+          where fv.id = $1::uuid
+            and fv.formulation_id = f.id
+            and f.org_id = app.current_org_id()
+            and fv.state = 'draft'
+          returning fv.id`,
+        [versionId],
+      );
+      if (!stateTransition.rows[0]) {
+        throw new Error('formulation_version_state_transition_failed');
       }
 
       await ctx.client.query(

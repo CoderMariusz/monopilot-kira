@@ -53,9 +53,6 @@ function makeClient(): QueryClient {
       if (n.includes('from public.wo_executions')) {
         return { rows: [{ status: 'in_progress' }], rowCount: 1 };
       }
-      if (n.includes('from public.v_active_holds')) {
-        return { rows: [], rowCount: 0 };
-      }
       if (n.startsWith('select pg_advisory_xact_lock')) {
         return { rows: [], rowCount: 1 };
       }
@@ -73,6 +70,21 @@ function makeClient(): QueryClient {
       }
       if (n.startsWith('insert into public.wo_outputs')) {
         return { rows: [{ id: '77777777-7777-4777-8777-777777777777', lp_id: null, expiry_date: null }], rowCount: 1 };
+      }
+      if (
+        (n.startsWith('select') || n.startsWith('with')) &&
+        n.includes('from public.v_active_holds')
+      ) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (n.includes('with material_wac as')) {
+        return {
+          rows: [{ material_cost: '10', prior_wac_booked: '0', output_baseline_kg: String(params[1] ?? '0') }],
+          rowCount: 1,
+        };
+      }
+      if (n.startsWith('select case') && n.includes('cost_per_kg')) {
+        return { rows: [{ cost_per_kg: '1.00', output_value: '10' }], rowCount: 1 };
       }
       if (n.startsWith('insert into public.outbox_events')) {
         return { rows: [], rowCount: 1 };
