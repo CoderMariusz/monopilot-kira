@@ -14,9 +14,10 @@
  * `hasHandoffPermission` probe (normalized role_permissions OR legacy
  * roles.permissions jsonb cache).
  *
- * Only a draft/technical_approved header, or an NPD handoff BOM that has not yet been
- * promoted, may be updated in place. A long-lived ACTIVE production BOM must go through
- * ECO / a new version instead.
+ * Only a draft/technical_approved header, or an NPD handoff BOM still in the promote
+ * yield-correction window (pre-promote, or post-promote while yield_pct is still unset),
+ * may be updated in place. A long-lived ACTIVE production BOM must go through ECO / a
+ * new version instead.
  * audit_events row.
  *
  * A 'use server' module may export ONLY async functions; the zod schema +
@@ -77,7 +78,10 @@ export async function updateBomYield(raw: unknown): Promise<UpdateBomYieldResult
                 and bh.org_id = app.current_org_id()
                 and bh.origin_module = 'npd'
                 and bh.npd_project_id is not null
-                and hc.promote_to_production_date is null
+                and (
+                  hc.promote_to_production_date is null
+                  or bh.yield_pct is null
+                )
               limit 1`,
             [bomHeaderId],
           )).rows.length > 0);

@@ -13,6 +13,7 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 let client: QueryClient;
 let headerStatus = 'active';
 let handoffPromotePending = true;
+let yieldPctUnset = true;
 let allowPermission = true;
 
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
@@ -41,7 +42,9 @@ function makeClient(): QueryClient {
         return { rows: headerStatus ? [{ id: BOM_ID, status: headerStatus }] : [] };
       }
       if (q.includes('handoff_checklists') && q.includes('promote_to_production_date')) {
-        return { rows: handoffPromotePending ? [{ ok: true }] : [] };
+        const eligible =
+          handoffPromotePending || (headerStatus === 'active' && yieldPctUnset);
+        return { rows: eligible ? [{ ok: true }] : [] };
       }
       if (q.startsWith('update public.bom_headers') && q.includes('yield_pct')) {
         return { rows: [{ id: BOM_ID }] };
@@ -59,6 +62,7 @@ describe('updateBomYield', () => {
     allowPermission = true;
     headerStatus = 'active';
     handoffPromotePending = true;
+    yieldPctUnset = true;
     client = makeClient();
   });
 
@@ -68,21 +72,40 @@ describe('updateBomYield', () => {
     expect(result).toEqual({ ok: true });
   });
 
-  it('refuses yield edits on a promoted ACTIVE BOM with active_bom_requires_eco', async () => {
+  it('allows yield save after promote when yield_pct is still unset (post-promote prompt window)', async () => {
     handoffPromotePending = false;
+    yieldPctUnset = true;
+
+    const result = await updateBomYield({ bomHeaderId: BOM_ID, yieldPct: 96 });
+
+    expect(result).toEqual({ ok: true });
+    const eligibility = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => normalize(String(sql)).includes('handoff_checklists'));
+    expect(normalize(String(eligibility?.[0]))).toContain('bh.yield_pct is null');
+  });
+
+  it('refuses yield edits on a promoted ACTIVE BOM once yield_pct is set', async () => {
+    handoffPromotePending = false;
+    yieldPctUnset = false;
 
     const result = await updateBomYield({ bomHeaderId: BOM_ID, yieldPct: 96 });
 
     expect(result).toEqual({ ok: false, code: 'active_bom_requires_eco' });
-    expect(client.query).not.toHaveBeenCalledWith(
-      expect.stringContaining('yield_pct'),
-      expect.anything(),
-    );
+    const yieldUpdate = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql]) =>
+          normalize(String(sql)).startsWith('update public.bom_headers') &&
+          normalize(String(sql)).includes('yield_pct'),
+      );
+    expect(yieldUpdate).toBeUndefined();
   });
 
   it('allows yield edits on draft headers', async () => {
     headerStatus = 'draft';
     handoffPromotePending = false;
+    yieldPctUnset = false;
 
     const result = await updateBomYield({ bomHeaderId: BOM_ID, yieldPct: 96 });
 
