@@ -108,13 +108,20 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
         );
       }
 
-      await ctx.client.query(
-        `update public.formulation_versions
+      const stateTransition = await ctx.client.query<{ id: string }>(
+        `update public.formulation_versions fv
             set state = 'submitted_for_trial'
-          where id = $1::uuid
-            and state = 'draft'`,
+           from public.formulations f
+          where fv.id = $1::uuid
+            and fv.formulation_id = f.id
+            and f.org_id = app.current_org_id()
+            and fv.state = 'draft'
+          returning fv.id`,
         [versionId],
       );
+      if (!stateTransition.rows[0]) {
+        throw new Error('formulation_version_state_transition_failed');
+      }
 
       await ctx.client.query(
         `insert into public.formulation_audit_log

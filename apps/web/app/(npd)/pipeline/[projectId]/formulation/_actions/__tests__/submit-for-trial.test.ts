@@ -35,6 +35,7 @@ describe('submitForTrial nutrition gate', () => {
       })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: versionId }] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
 
@@ -45,6 +46,34 @@ describe('submitForTrial nutrition gate', () => {
 
     const stateUpdate = queryMock.mock.calls.find(([sql]) => String(sql).includes("set state = 'submitted_for_trial'"));
     expect(stateUpdate).toBeDefined();
+    expect(String(stateUpdate?.[0])).toContain('f.org_id = app.current_org_id()');
+    expect(String(stateUpdate?.[0])).toContain('returning fv.id');
+  });
+
+  it('throws when the state transition affects zero rows so trial/audit cannot commit alone', async () => {
+    const { submitForTrial } = await import('../submit-for-trial');
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          formulation_id: '55555555-5555-4555-8555-555555555555',
+          version_id: versionId,
+          state: 'draft',
+          product_code: 'FG-1',
+          total_pct: '100.000',
+          missing_cost_count: 0,
+          missing_nutrition_target_count: 0,
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(submitForTrial({ projectId, versionId })).resolves.toEqual({
+      ok: false,
+      error: 'persistence_failed',
+    });
+
+    expect(queryMock.mock.calls.some(([sql]) => String(sql).includes('formulation_audit_log'))).toBe(false);
+    expect(queryMock.mock.calls.some(([sql]) => String(sql).includes('outbox_events'))).toBe(false);
   });
 
   it('rejects locked versions (must submit from draft first)', async () => {
