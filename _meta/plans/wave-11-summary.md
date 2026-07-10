@@ -85,3 +85,18 @@ pnpm --filter web exec vitest run "app/[locale]/(app)/(admin)/settings/boms/_act
 ```
 
 Integration cases in `wave11-built-flag-integrity.test.ts` require `DATABASE_URL` (skip cleanly without it; run in CI).
+
+---
+
+## Fix round 1
+
+Adversarial review findings: N-25 `current_user` guard ineffective inside SECURITY DEFINER INSTEAD-OF trigger; N-27 missing post-389 WIP columns + reassignment gap.
+
+| # | File | Bug |
+|---|------|-----|
+| **473** | `packages/db/migrations/473-product-built-v18-guard-guc-audit.sql` | N-25 |
+| **474** | `packages/db/migrations/474-wip-process-built-reset-extend.sql` | N-27 |
+
+**N-25 (473):** `fa_reset_product_built_for_edit` sets transaction-local `app.built_reset_audited='on'` before `UPDATE product SET built=false`; `product_instead_of_update_fn` raises `V18_BUILT_DOWNGRADE_REQUIRES_AUDIT` on true→false downgrade unless that GUC is set. Tests: `N-25c` (grant `built`, direct downgrade → V18); `N-25b` narrowed to N-24 privilege denial only.
+
+**N-27 (474):** UPDATE trigger extended to `throughput_per_hour`, `throughput_uom`, `setup_cost`, `wip_definition_id`, `yield_pct`, `line_id`; reassignment resets+emits for both OLD and NEW FG parents via org-qualified `prod_detail` lookups. Tests: `N-27b` (costing fields), `N-27c` (two-product reassignment).

@@ -72,6 +72,12 @@ async function cleanupProduct(pool: pg.Pool, code: string) {
   await ownerQueryWithOrgContext(pool, orgId, 'delete from public.product where product_code = $1', [code]);
 }
 
+async function cleanupProducts(pool: pg.Pool, codes: string[]) {
+  for (const code of codes) {
+    await cleanupProduct(pool, code);
+  }
+}
+
 async function seedBuiltProduct(pool: pg.Pool, code: string) {
   await cleanupProduct(pool, code);
   await ownerQueryWithOrgContext(
@@ -137,6 +143,8 @@ describe('Wave 11 built-flag migration contracts (static)', () => {
     '470-prod-detail-built-reset-insert-delete.sql',
     '471-wip-process-built-reset.sql',
     '472-items-built-reset-on-label-edit.sql',
+    '473-product-built-v18-guard-guc-audit.sql',
+    '474-wip-process-built-reset-extend.sql',
   ] as const;
 
   it.each(migrations)('%s exists and uses idempotent patterns', (filename) => {
@@ -154,11 +162,24 @@ describe('Wave 11 built-flag migration contracts (static)', () => {
     expect(sql).toMatch(/grant update \(%s\) on public\.product to app_user/i);
   });
 
-  it('469 switches V18 downgrade guard to current_user', () => {
-    const sql = readFileSync(resolve(packageRoot, 'migrations/469-product-built-v18-guard-current-user.sql'), 'utf8');
-    expect(sql).toMatch(/if new\.built is false and old\.built is true and current_user = 'app_user'/i);
+  it('473 switches V18 downgrade guard to app.built_reset_audited GUC', () => {
+    const sql = readFileSync(resolve(packageRoot, 'migrations/473-product-built-v18-guard-guc-audit.sql'), 'utf8');
+    expect(sql).toMatch(/current_setting\('app\.built_reset_audited', true\)/i);
+    expect(sql).toMatch(/set_config\('app\.built_reset_audited', 'on', true\)/i);
     expect(sql).toMatch(/V18_BUILT_DOWNGRADE_REQUIRES_AUDIT/i);
-    expect(sql).not.toMatch(/if new\.built is false and old\.built is true and session_user = 'app_user'/i);
+    expect(sql).not.toMatch(/current_user = 'app_user'/i);
+  });
+
+  it('474 extends wip process built-reset UPDATE columns and reassignment', () => {
+    const sql = readFileSync(resolve(packageRoot, 'migrations/474-wip-process-built-reset-extend.sql'), 'utf8');
+    expect(sql).toMatch(/throughput_per_hour/i);
+    expect(sql).toMatch(/throughput_uom/i);
+    expect(sql).toMatch(/setup_cost/i);
+    expect(sql).toMatch(/wip_definition_id/i);
+    expect(sql).toMatch(/yield_pct/i);
+    expect(sql).toMatch(/line_id/i);
+    expect(sql).toMatch(/old\.prod_detail_id is distinct from new\.prod_detail_id/i);
+    expect(sql).toMatch(/pd\.org_id = old\.org_id/i);
   });
 });
 
@@ -231,14 +252,30 @@ runIntegrationSuite('Wave 11 built-flag integrity (integration)', () => {
     expect(await countBuiltResetEvents(ownerPool, productCode, 'prod_detail')).toBeGreaterThan(0);
   });
 
-  it('N-25b: app_user direct built downgrade is blocked', async () => {
+  it('N-25b: app_user direct built downgrade is blocked by column privilege (N-24)', async () => {
     await seedBuiltProduct(ownerPool, productCode);
 
     await withAppOrgContext(appPool, ownerPool, async (client) => {
       await expect(
         client.query('update public.product set built = false where product_code = $1', [productCode]),
-      ).rejects.toThrow(/permission denied|V18_BUILT_DOWNGRADE_REQUIRES_AUDIT|42501|23514/i);
+      ).rejects.toThrow(/permission denied|42501/i);
     });
+
+    expect(await readBuilt(ownerPool, productCode)).toBe(true);
+  });
+
+  it('N-25c: unaudited built downgrade reaching INSTEAD-OF guard raises V18', async () => {
+    await seedBuiltProduct(ownerPool, productCode);
+    await ownerQueryWithOrgContext(ownerPool, orgId, 'grant update (built) on public.product to app_user');
+    try {
+      await withAppOrgContext(appPool, ownerPool, async (client) => {
+        await expect(
+          client.query('update public.product set built = false where product_code = $1', [productCode]),
+        ).rejects.toThrow(/V18_BUILT_DOWNGRADE_REQUIRES_AUDIT/);
+      });
+    } finally {
+      await ownerQueryWithOrgContext(ownerPool, orgId, 'revoke update (built) on public.product from app_user');
+    }
 
     expect(await readBuilt(ownerPool, productCode)).toBe(true);
   });
@@ -314,6 +351,122 @@ runIntegrationSuite('Wave 11 built-flag integrity (integration)', () => {
       [wipId],
     );
     expect(await readBuilt(ownerPool, productCode)).toBe(false);
+  });
+
+  it('N-27b: wip process app-written costing fields reset built', async () => {
+    if (!hasWipTable) return;
+
+    const fieldUpdates = [
+      { label: 'throughput_per_hour', sql: 'throughput_per_hour = 120.5' },
+      { label: 'throughput_uom', sql: "throughput_uom = 'kg'" },
+      { label: 'setup_cost', sql: 'setup_cost = 42.25' },
+      { label: 'yield_pct', sql: 'yield_pct = 97.5' },
+    ] as const;
+
+    const detail = await ownerQueryWithOrgContext<{ id: string }>(
+      ownerPool,
+      orgId,
+      `insert into public.prod_detail (product_code, org_id, component_index, intermediate_code)
+       values ($1, $2, 1, 'INT-WIP-FIELDS')
+       returning id::text as id`,
+      [productCode, orgId],
+    );
+    const prodDetailId = detail.rows[0]?.id;
+    expect(prodDetailId).toBeTruthy();
+
+    const wip = await ownerQueryWithOrgContext<{ id: string }>(
+      ownerPool,
+      orgId,
+      `insert into public.npd_wip_processes (org_id, prod_detail_id, process_name, display_order)
+       values ($1, $2::uuid, 'Costing', 1)
+       returning id::text as id`,
+      [orgId, prodDetailId],
+    );
+    const wipId = wip.rows[0]?.id;
+    expect(wipId).toBeTruthy();
+
+    for (const field of fieldUpdates) {
+      await ownerQueryWithOrgContext(ownerPool, orgId, 'update public.product set built = true where product_code = $1', [
+        productCode,
+      ]);
+      expect(await readBuilt(ownerPool, productCode)).toBe(true);
+
+      await ownerQueryWithOrgContext(
+        ownerPool,
+        orgId,
+        `update public.npd_wip_processes set ${field.sql} where id = $1::uuid`,
+        [wipId],
+      );
+      expect(await readBuilt(ownerPool, productCode), field.label).toBe(false);
+    }
+  });
+
+  it('N-27c: wip process reassignment resets built on both old and new FG parents', async () => {
+    if (!hasWipTable) return;
+
+    const productCodeA = 'W11-BUILT-A';
+    const productCodeB = 'W11-BUILT-B';
+    await cleanupProducts(ownerPool, [productCodeA, productCodeB]);
+    await seedBuiltProduct(ownerPool, productCodeA);
+    await seedBuiltProduct(ownerPool, productCodeB);
+
+    const detailA = await ownerQueryWithOrgContext<{ id: string }>(
+      ownerPool,
+      orgId,
+      `insert into public.prod_detail (product_code, org_id, component_index, intermediate_code)
+       values ($1, $2, 1, 'INT-A')
+       returning id::text as id`,
+      [productCodeA, orgId],
+    );
+    const detailB = await ownerQueryWithOrgContext<{ id: string }>(
+      ownerPool,
+      orgId,
+      `insert into public.prod_detail (product_code, org_id, component_index, intermediate_code)
+       values ($1, $2, 1, 'INT-B')
+       returning id::text as id`,
+      [productCodeB, orgId],
+    );
+    const prodDetailIdA = detailA.rows[0]?.id;
+    const prodDetailIdB = detailB.rows[0]?.id;
+    expect(prodDetailIdA).toBeTruthy();
+    expect(prodDetailIdB).toBeTruthy();
+
+    await ownerQueryWithOrgContext(ownerPool, orgId, 'update public.product set built = true where product_code = any($1::text[])', [
+      [productCodeA, productCodeB],
+    ]);
+    expect(await readBuilt(ownerPool, productCodeA)).toBe(true);
+    expect(await readBuilt(ownerPool, productCodeB)).toBe(true);
+
+    const wip = await ownerQueryWithOrgContext<{ id: string }>(
+      ownerPool,
+      orgId,
+      `insert into public.npd_wip_processes (org_id, prod_detail_id, process_name, display_order)
+       values ($1, $2::uuid, 'Transfer', 1)
+       returning id::text as id`,
+      [orgId, prodDetailIdA],
+    );
+    const wipId = wip.rows[0]?.id;
+    expect(wipId).toBeTruthy();
+
+    await ownerQueryWithOrgContext(ownerPool, orgId, 'update public.product set built = true where product_code = any($1::text[])', [
+      [productCodeA, productCodeB],
+    ]);
+
+    await ownerQueryWithOrgContext(
+      ownerPool,
+      orgId,
+      `update public.npd_wip_processes
+          set prod_detail_id = $2::uuid
+        where id = $1::uuid`,
+      [wipId, prodDetailIdB],
+    );
+
+    expect(await readBuilt(ownerPool, productCodeA)).toBe(false);
+    expect(await readBuilt(ownerPool, productCodeB)).toBe(false);
+    expect(await countBuiltResetEvents(ownerPool, productCodeA, 'npd_wip_processes')).toBeGreaterThan(0);
+    expect(await countBuiltResetEvents(ownerPool, productCodeB, 'npd_wip_processes')).toBeGreaterThan(0);
+
+    await cleanupProducts(ownerPool, [productCodeA, productCodeB]);
   });
 
   it('N-28: direct items label/GTIN edit on built FG resets built', async () => {
