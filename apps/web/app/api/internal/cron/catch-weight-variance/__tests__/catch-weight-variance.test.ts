@@ -37,6 +37,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 // apps/web/app/api/internal/cron/catch-weight-variance/__tests__ → repo root packages/db/migrations
 const migrationsDir = resolve(here, '../../../../../../../../packages/db/migrations');
 const migration188 = resolve(migrationsDir, '188-catch-weight-variance-daily.sql');
+const migration477 = resolve(migrationsDir, '477-catch-weight-variance-site-day-key.sql');
 // Stale test contract: migration 189 was consolidated into the full outbox event union filename.
 const migration189 = resolve(migrationsDir, '189-outbox-events-full-union.sql');
 const libSrc = resolve(here, '../../../../../../lib/cron/catch-weight-variance.ts');
@@ -48,6 +49,9 @@ const orgRole = '18800000-0000-4000-8000-00000000a111';
 const orgUser = '18800000-0000-4000-8000-00000000aaaa';
 const catchItem = '18800000-0000-4000-8000-0000000011cc'; // weight_mode='catch'
 const fixedItem = '18800000-0000-4000-8000-0000000011ff'; // weight_mode='fixed'
+const zeroNominalItem = '18800000-0000-4000-8000-0000000011aa';
+const siteA = '18800000-0000-4000-8000-00000000a001';
+const siteB = '18800000-0000-4000-8000-00000000b002';
 const DAY = '2026-06-01';
 
 async function ensureAppUser(adminPool: pg.Pool) {
@@ -93,15 +97,16 @@ async function insertWeighings(
   nominal: number,
   variancePct: number,
   count: number,
+  siteId?: string | null,
 ) {
   const actual = nominal * (1 + variancePct / 100);
   await asOrg(appPool, ownerPool, orgA, async (c) => {
     for (let i = 0; i < count; i += 1) {
       await c.query(
         `insert into public.work_order_items
-           (org_id, item_id, nominal_weight, actual_weight, captured_at)
-         values ($1, $2, $3, $4, $5::timestamptz)`,
-        [orgA, itemId, nominal, actual, `${DAY}T08:00:00Z`],
+           (org_id, site_id, item_id, nominal_weight, actual_weight, captured_at)
+         values ($1, $2, $3, $4, $5, $6::timestamptz)`,
+        [orgA, siteId ?? null, itemId, nominal, actual, `${DAY}T08:00:00Z`],
       );
     }
   });
@@ -142,9 +147,9 @@ runIntegrationTest('T-031 catch-weight variance — DB behaviour', () => {
     appPool = getAppConnection();
     await ensureAppUser(adminPool);
 
-    // Idempotent re-apply of 188 + 189.
+    // Idempotent re-apply of 188 + 477.
     await adminPool.query(readFileSync(migration188, 'utf8'));
-    await adminPool.query(readFileSync(migration189, 'utf8'));
+    await adminPool.query(readFileSync(migration477, 'utf8'));
 
     await adminPool.query(
       `insert into public.tenants (id, name, region_cluster, data_plane_url)
@@ -176,9 +181,10 @@ runIntegrationTest('T-031 catch-weight variance — DB behaviour', () => {
       await c.query(
         `insert into public.items (id, org_id, item_code, item_type, name, uom_base, weight_mode, nominal_weight)
          values ($1, $2, 'FG-CW-CATCH', 'fg', 'Catch FG', 'kg', 'catch', 200),
-                ($3, $2, 'FG-CW-FIXED', 'fg', 'Fixed FG', 'kg', 'fixed', 250)
+                ($3, $2, 'FG-CW-FIXED', 'fg', 'Fixed FG', 'kg', 'fixed', 250),
+                ($4, $2, 'FG-CW-ZERO', 'fg', 'Zero nominal FG', 'kg', 'catch', 0)
          on conflict (id) do nothing`,
-        [catchItem, orgA, fixedItem],
+        [catchItem, orgA, fixedItem, zeroNominalItem],
       );
     });
   }, 60_000);
@@ -265,6 +271,53 @@ runIntegrationTest('T-031 catch-weight variance — DB behaviour', () => {
       [orgA, fixedItem],
     );
     expect(rows.rowCount).toBe(0);
+  });
+
+  it('two-site catch-weight item produces separate variance rows per site', async () => {
+    await cleanup();
+    await insertWeighings(appPool, adminPool, catchItem, 200, 4, 10, siteA);
+    await insertWeighings(appPool, adminPool, catchItem, 200, 8, 10, siteB);
+
+    const summary = await asOrg(appPool, adminPool, orgA, (c) =>
+      computeCatchWeightVarianceForOrg(c, orgA, DAY),
+    );
+
+    expect(summary.rowsWritten).toBe(2);
+    expect(summary.rows.map((row) => row.siteId).sort()).toEqual([siteA, siteB].sort());
+
+    const persisted = await adminPool.query<{ site_id: string | null }>(
+      `select site_id from public.catch_weight_variance_daily
+        where org_id = $1 and item_id = $2 and day = $3::date
+        order by site_id`,
+      [orgA, catchItem, DAY],
+    );
+    expect(persisted.rowCount).toBe(2);
+  });
+
+  it('zero-nominal catch-weight weighings are reported as skipped, not silently omitted', async () => {
+    await cleanup();
+    await asOrg(appPool, adminPool, orgA, async (c) => {
+      await c.query(
+        `insert into public.work_order_items
+           (org_id, item_id, nominal_weight, actual_weight, captured_at)
+         values ($1, $2, 0, 210, $3::timestamptz)`,
+        [orgA, zeroNominalItem, `${DAY}T08:00:00Z`],
+      );
+    });
+
+    const summary = await asOrg(appPool, adminPool, orgA, (c) =>
+      computeCatchWeightVarianceForOrg(c, orgA, DAY),
+    );
+
+    expect(summary.rowsWritten).toBe(0);
+    expect(summary.skipped).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          itemId: zeroNominalItem,
+          reason: 'zero_nominal',
+        }),
+      ]),
+    );
   });
 
   it('cron per-org path (runVarianceForOrg) computes + persists for the org', async () => {
