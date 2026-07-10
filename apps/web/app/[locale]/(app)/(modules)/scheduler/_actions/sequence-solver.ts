@@ -5,6 +5,10 @@ import {
   resolveChangeoverTransition,
   transitionScore,
 } from './changeover-matrix-lookup';
+import {
+  UTC_DAY_MS,
+  utcDayOverlapsForInterval,
+} from '../../planning/schedule/_lib/board';
 import type {
   ChangeoverMatrixEntry,
   PmWindow,
@@ -14,7 +18,21 @@ import type {
 } from './scheduler-types';
 
 const DEFAULT_MIN_DURATION_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * 60 * 60 * 1000;
+const DAY_MS = UTC_DAY_MS;
+const MAX_CAPACITY_PLACEMENT_ATTEMPTS = 400;
+
+export class SequenceCapacityInfeasibleError extends Error {
+  readonly code = 'capacity_infeasible' as const;
+
+  constructor(
+    readonly lineKey: string,
+    readonly earliestMs: number,
+    readonly runDurationMs: number,
+  ) {
+    super(`No feasible capacity placement for ${runDurationMs}ms on line ${lineKey}`);
+    this.name = 'SequenceCapacityInfeasibleError';
+  }
+}
 
 /**
  * Default solver config. `sequencingStrategy: 'local_search'` is stored in DB but
@@ -130,12 +148,6 @@ function utilizationPenalty(
   return (transitionMinutes / runMinutes) * utilizationWeight;
 }
 
-function startOfUtcDay(ms: number): number {
-  const day = new Date(ms);
-  day.setUTCHours(0, 0, 0, 0);
-  return day.getTime();
-}
-
 function dayBucketKey(lineKey: string, ms: number): string {
   return `${lineKey}|${new Date(ms).toISOString().slice(0, 10)}`;
 }
@@ -156,6 +168,64 @@ function pmWindowBlocks(
   return null;
 }
 
+function bucketUsedMs(lineKey: string, dayStartMs: number, dayUsageHours: Map<string, number>): number {
+  const bucketKey = dayBucketKey(lineKey, dayStartMs);
+  return (dayUsageHours.get(bucketKey) ?? 0) * 60 * 60 * 1000;
+}
+
+function canReserveCapacity(
+  lineKey: string,
+  startMs: number,
+  runDurationMs: number,
+  capacityMs: number,
+  dayUsageHours: Map<string, number>,
+): boolean {
+  const endMs = startMs + runDurationMs;
+  for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
+    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageHours);
+    if (overlap.overlapMs > capacityMs - usedMs) return false;
+  }
+  return true;
+}
+
+function reserveCapacity(
+  lineKey: string,
+  startMs: number,
+  runDurationMs: number,
+  dayUsageHours: Map<string, number>,
+): void {
+  const endMs = startMs + runDurationMs;
+  for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
+    const bucketKey = dayBucketKey(lineKey, overlap.dayStartMs);
+    dayUsageHours.set(
+      bucketKey,
+      (dayUsageHours.get(bucketKey) ?? 0) + overlap.overlapMs / (60 * 60 * 1000),
+    );
+  }
+}
+
+function nextCapacityRetryStart(
+  lineKey: string,
+  startMs: number,
+  runDurationMs: number,
+  capacityMs: number,
+  dayUsageHours: Map<string, number>,
+): number {
+  const endMs = startMs + runDurationMs;
+  let advanceTo = startMs + 60 * 1000;
+  for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
+    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageHours);
+    const remainingMs = capacityMs - usedMs;
+    if (overlap.overlapMs <= remainingMs) continue;
+    if (remainingMs <= 0) {
+      advanceTo = Math.max(advanceTo, overlap.dayStartMs + DAY_MS);
+      continue;
+    }
+    advanceTo = Math.max(advanceTo, startMs + (overlap.overlapMs - remainingMs));
+  }
+  return advanceTo;
+}
+
 function resolvePlannedStart(
   lineKey: string,
   earliestMs: number,
@@ -169,7 +239,7 @@ function resolvePlannedStart(
   const pmWindows = config.respectPmWindows ? (config.pmWindows ?? []) : [];
   let start = earliestMs;
 
-  for (let guard = 0; guard < 400; guard += 1) {
+  for (let guard = 0; guard < MAX_CAPACITY_PLACEMENT_ATTEMPTS; guard += 1) {
     const end = start + runDurationMs;
 
     const blocker = pmWindows.length > 0 ? pmWindowBlocks(lineKey, start, end, pmWindows) : null;
@@ -181,23 +251,18 @@ function resolvePlannedStart(
     }
 
     if (capacityMs !== null) {
-      const bucketKey = dayBucketKey(lineKey, start);
-      const usedMs = (dayUsageHours.get(bucketKey) ?? 0) * 60 * 60 * 1000;
-      const remainingMs = capacityMs - usedMs;
-      if (remainingMs <= 0 || runDurationMs > remainingMs) {
-        start = startOfUtcDay(start) + DAY_MS;
-        continue;
+      if (canReserveCapacity(lineKey, start, runDurationMs, capacityMs, dayUsageHours)) {
+        reserveCapacity(lineKey, start, runDurationMs, dayUsageHours);
+        return start;
       }
+      start = nextCapacityRetryStart(lineKey, start, runDurationMs, capacityMs, dayUsageHours);
+      continue;
     }
 
-    if (capacityMs !== null) {
-      const bucketKey = dayBucketKey(lineKey, start);
-      dayUsageHours.set(bucketKey, (dayUsageHours.get(bucketKey) ?? 0) + runDurationMs / (60 * 60 * 1000));
-    }
     return start;
   }
 
-  return earliestMs;
+  throw new SequenceCapacityInfeasibleError(lineKey, earliestMs, runDurationMs);
 }
 
 function pickNextIndex(
@@ -273,21 +338,23 @@ export function sequenceWorkOrders(
   const now = Date.now();
   const plannedEndByLine = new Map<string, number>();
   const dayUsageHours = new Map<string, number>();
+  const lastWoByLine = new Map<string, WorkOrderForScheduling>();
 
   return sequence.map((workOrder, index) => {
-    const previous = index === 0 ? null : sequence[index - 1];
+    const lineKey = workOrder.production_line_id ?? '__unassigned__';
+    const previous = lastWoByLine.get(lineKey) ?? null;
     const profile = normalizedAllergenIds(workOrder.allergen_ids);
     const toKey = allergenProfileKey(profile);
     const { transitionMinutes } = previous
       ? changeoverBetween(previous, workOrder, matrix, config.changeoverWeight)
       : { transitionMinutes: 0 };
     const changeoverCost = transitionMinutes;
-    const lineKey = workOrder.production_line_id ?? '__unassigned__';
     const earliestStart = Math.max(now, (plannedEndByLine.get(lineKey) ?? now) + changeoverCost * 60 * 1000);
     const runDuration = durationMs(workOrder);
     const plannedStart = resolvePlannedStart(lineKey, earliestStart, runDuration, config, dayUsageHours);
     const plannedEnd = plannedStart + runDuration;
     plannedEndByLine.set(lineKey, plannedEnd);
+    lastWoByLine.set(lineKey, workOrder);
     cumulative += changeoverCost;
 
     return {
@@ -302,4 +369,19 @@ export function sequenceWorkOrders(
       work_order: workOrder,
     };
   });
+}
+
+/** @internal Test helper — exposes per-line/day reserved hours after a sequencing run. */
+export function __dayUsageHoursForTests(dayUsageHours: Map<string, number>): Map<string, number> {
+  return new Map(dayUsageHours);
+}
+
+export function __resolvePlannedStartForTests(
+  lineKey: string,
+  earliestMs: number,
+  runDurationMs: number,
+  config: SequenceSolverConfig,
+  dayUsageHours: Map<string, number>,
+): number {
+  return resolvePlannedStart(lineKey, earliestMs, runDurationMs, config, dayUsageHours);
 }

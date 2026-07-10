@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_SEQUENCE_SOLVER_CONFIG, sequenceWorkOrders } from '../sequence-solver';
+import {
+  DEFAULT_SEQUENCE_SOLVER_CONFIG,
+  SequenceCapacityInfeasibleError,
+  __resolvePlannedStartForTests,
+  sequenceWorkOrders,
+} from '../sequence-solver';
 import { ATP_STEP_MINUTES, CLEANING_STEP_MINUTES } from '../changeover-matrix-lookup';
 import type { ChangeoverMatrixEntry, WorkOrderForScheduling } from '../scheduler-types';
 
@@ -470,5 +475,140 @@ describe('sequenceWorkOrders', () => {
     const byWo = Object.fromEntries(result.map((row) => [row.wo_id, row.planned_start_at]));
     expect(byWo[lineASecond.id]).toBe('2026-06-25T00:00:00.000Z');
     expect(byWo[lineBSecond.id]).toBe('2026-06-24T16:00:00.000Z');
+  });
+
+  it('does not charge cross-line changeover when global sequence spans different lines', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const LINE_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const LINE_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const lineAFirst = wo({
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      lineId: LINE_A,
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T09:00:00.000Z',
+    });
+    const lineBFirst = wo({
+      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['nuts'],
+      lineId: LINE_B,
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T09:00:00.000Z',
+    });
+    const lineBSecond = wo({
+      id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      due: '2026-06-03T08:00:00.000Z',
+      allergens: ['soy'],
+      lineId: LINE_B,
+      scheduledStart: '2026-06-03T08:00:00.000Z',
+      scheduledEnd: '2026-06-03T09:00:00.000Z',
+    });
+    const entries = [
+      matrix('milk', 'soy', 45, { requires_cleaning: true }),
+      matrix('nuts', 'soy', 15, { requires_cleaning: false }),
+    ];
+
+    const result = sequenceWorkOrders([lineAFirst, lineBFirst, lineBSecond], entries);
+    const lineBSecondAssignment = result.find((row) => row.wo_id === lineBSecond.id);
+
+    expect(lineBSecondAssignment?.changeover_cost).toBe(15);
+    expect(lineBSecondAssignment?.planned_start_at).toBe('2026-06-24T13:15:00.000Z');
+  });
+
+  it('applies same-line changeover against the per-line predecessor', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const LINE_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const lineAFirst = wo({
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      lineId: LINE_A,
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T09:00:00.000Z',
+    });
+    const lineASecond = wo({
+      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['soy'],
+      lineId: LINE_A,
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T09:00:00.000Z',
+    });
+    const entries = [matrix('milk', 'soy', 20, { requires_cleaning: false })];
+
+    const result = sequenceWorkOrders([lineAFirst, lineASecond], entries);
+    const gapMinutes =
+      (new Date(result[1].planned_start_at).getTime() - new Date(result[0].planned_end_at ?? '').getTime()) /
+      (60 * 1000);
+
+    expect(gapMinutes).toBe(20);
+    expect(result[1].changeover_cost).toBe(20);
+  });
+
+  it('splits an 8h WO across two 6h/day buckets instead of bypassing capacity', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+    const eightHourWo = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T16:00:00.000Z',
+    });
+
+    const result = sequenceWorkOrders([eightHourWo], [], {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      capacityHoursPerDay: 6,
+    });
+
+    expect(result[0].planned_start_at).toBe('2026-06-24T18:00:00.000Z');
+    expect(result[0].planned_end_at).toBe('2026-06-25T02:00:00.000Z');
+  });
+
+  it('reserves 1h on day one and 3h on day two for a 4h WO starting at 23:00 UTC', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+    const lineKey = LINE_ID;
+    const dayUsageHours = new Map<string, number>();
+    const runDurationMs = 4 * 60 * 60 * 1000;
+    const earliestMs = Date.parse('2026-06-24T23:00:00.000Z');
+
+    const plannedStart = __resolvePlannedStartForTests(
+      lineKey,
+      earliestMs,
+      runDurationMs,
+      { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 6 },
+      dayUsageHours,
+    );
+
+    expect(plannedStart).toBe(earliestMs);
+    expect(dayUsageHours.get(`${lineKey}|2026-06-24`)).toBe(1);
+    expect(dayUsageHours.get(`${lineKey}|2026-06-25`)).toBe(3);
+  });
+
+  it('throws SequenceCapacityInfeasibleError instead of silently scheduling over capacity', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+    const dayUsageHours = new Map<string, number>();
+    for (let day = 0; day < 400; day += 1) {
+      const dayKey = new Date(Date.parse('2026-06-24T00:00:00.000Z') + day * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+      dayUsageHours.set(`${LINE_ID}|${dayKey}`, 6);
+    }
+
+    expect(() =>
+      __resolvePlannedStartForTests(
+        LINE_ID,
+        Date.parse('2026-06-24T00:00:00.000Z'),
+        8 * 60 * 60 * 1000,
+        { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 6 },
+        dayUsageHours,
+      ),
+    ).toThrow(SequenceCapacityInfeasibleError);
   });
 });
