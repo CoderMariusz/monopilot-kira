@@ -90,13 +90,6 @@ class MockClient implements QueryClient {
       };
     }
 
-    if (normalized.includes('from public.v_active_holds')) {
-      return {
-        rows: activeHold ? ([activeHold] as T[]) : ([] as T[]),
-        rowCount: activeHold ? 1 : 0,
-      };
-    }
-
     if (normalized.includes('from public.bom_co_products')) {
       return { rows: coProducts as T[], rowCount: coProducts.length };
     }
@@ -170,6 +163,16 @@ class MockClient implements QueryClient {
       return {
         rows: [{ id: `bbbbbbbb-0000-4000-8000-${String(this.outputSequence).padStart(12, '0')}` }] as T[],
         rowCount: 1,
+      };
+    }
+
+    if (
+      (normalized.startsWith('select') || normalized.startsWith('with')) &&
+      normalized.includes('from public.v_active_holds')
+    ) {
+      return {
+        rows: activeHold ? ([activeHold] as T[]) : ([] as T[]),
+        rowCount: activeHold ? 1 : 0,
       };
     }
 

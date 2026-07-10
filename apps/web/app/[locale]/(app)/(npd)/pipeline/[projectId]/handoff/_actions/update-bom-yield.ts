@@ -53,54 +53,45 @@ export async function updateBomYield(raw: unknown): Promise<UpdateBomYieldResult
         return { ok: false as const, code: 'forbidden' as const };
       }
 
-      const eligible = await ctx.client.query<{ id: string; status: string }>(
-        `select bh.id, bh.status
-           from public.bom_headers bh
+      const updated = await ctx.client.query<{ id: string }>(
+        `update public.bom_headers bh
+            set yield_pct = $2::numeric
           where bh.id = $1::uuid
             and bh.org_id = app.current_org_id()
-          limit 1`,
-        [bomHeaderId],
-      );
-      const header = eligible.rows[0];
-      if (!header) return { ok: false as const, code: 'not_found' as const };
-
-      const mayEditInPlace =
-        header.status === 'draft' ||
-        header.status === 'technical_approved' ||
-        (header.status === 'active' &&
-          (await ctx.client.query<{ ok: boolean }>(
-            `select true as ok
-               from public.bom_headers bh
-               join public.handoff_checklists hc
-                 on hc.project_id = bh.npd_project_id
-                and hc.org_id = bh.org_id
-              where bh.id = $1::uuid
-                and bh.org_id = app.current_org_id()
+            and (
+              bh.status in ('draft', 'technical_approved')
+              or (
+                bh.status = 'active'
                 and bh.origin_module = 'npd'
                 and bh.npd_project_id is not null
-                and (
-                  hc.promote_to_production_date is null
-                  or bh.yield_pct is null
+                and exists (
+                  select 1
+                    from public.handoff_checklists hc
+                   where hc.project_id = bh.npd_project_id
+                     and hc.org_id = bh.org_id
+                     and (
+                       hc.promote_to_production_date is null
+                       or bh.yield_pct is null
+                     )
                 )
-              limit 1`,
-            [bomHeaderId],
-          )).rows.length > 0);
-
-      if (!mayEditInPlace) {
-        return { ok: false as const, code: 'active_bom_requires_eco' as const };
-      }
-
-      const updated = await ctx.client.query<{ id: string }>(
-        `update public.bom_headers
-            set yield_pct = $2::numeric
-          where id = $1::uuid
-            and org_id = app.current_org_id()
-            and status in ('draft', 'technical_approved', 'active')
-          returning id`,
+              )
+            )
+          returning bh.id`,
         [bomHeaderId, yieldPct],
       );
       const row = updated.rows[0];
-      if (!row) return { ok: false as const, code: 'not_found' as const };
+      if (!row) {
+        const exists = await ctx.client.query<{ id: string }>(
+          `select bh.id
+             from public.bom_headers bh
+            where bh.id = $1::uuid
+              and bh.org_id = app.current_org_id()
+            limit 1`,
+          [bomHeaderId],
+        );
+        if (!exists.rows[0]) return { ok: false as const, code: 'not_found' as const };
+        return { ok: false as const, code: 'active_bom_requires_eco' as const };
+      }
 
       await ctx.client.query(
         `insert into public.audit_events

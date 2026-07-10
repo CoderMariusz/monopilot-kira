@@ -101,3 +101,36 @@ Adversarial review verdict: **fail** — three required changes.
 
 - `pnpm --filter web exec tsc --noEmit` — clean
 - Vitest (22 tests across touched fix files) — all green
+
+## Fix round 2
+
+Adversarial re-review verdict: **fail** — three remaining required changes.
+
+### 1. Post-Promote yield — atomic one-shot update
+
+**Finding:** Eligibility (`yield_pct is null`) was checked in a separate `SELECT` from the `UPDATE`, so concurrent post-Promote retries could both pass the check and overwrite an already-set active BOM.
+
+**Fix:** Collapsed eligibility + mutation into a single `UPDATE … WHERE` (NPD handoff window includes `bh.yield_pct is null` for promoted headers). Zero-row update falls back to an existence probe to distinguish `not_found` from `active_bom_requires_eco`.
+
+**Tests:** `update-bom-yield.test.ts` — concurrent retry race allows exactly one success.
+
+### 2. Overlapping WO hold release — serialize per WO
+
+**Finding:** Concurrent release of the last two overlapping WO holds could both skip output restoration (each saw the other's uncommitted hold as still open).
+
+**Fix:** `releaseHoldCore` takes a per-WO `pg_advisory_xact_lock` before checking `v_active_holds` and restoring `wo_outputs` snapshots.
+
+**Tests:** `hold-actions.test.ts` — concurrent dual release restores `out-1` to `PASSED` after serialization.
+
+### 3. Output test fakes — embedded hold lookup in INSERT
+
+**Finding:** Fix round 1 embedded `v_active_holds` inside `INSERT INTO wo_outputs`; existing fakes matched that fragment first and returned no row → `persistence_failed` (12 regressions).
+
+**Fix:** Reordered mocks to handle `insert into public.wo_outputs` before standalone / `WITH` hold-view lookups; extended disassembly mock to cover `holdsGuard`'s `WITH target_lp` query shape.
+
+**Tests:** `register-output-product-validation.test.ts`, `register-disassembly-output.test.ts`, `register-output-wo-hold-inheritance.test.ts` — all green.
+
+### Gates (fix round 2)
+
+- `pnpm --filter web exec tsc --noEmit` — clean
+- Vitest (43 tests across touched files) — all green

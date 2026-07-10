@@ -850,6 +850,13 @@ export async function releaseHoldCore(
   }
 
   if (current.reference_type === 'wo' && input.disposition === 'release') {
+    await ctx.client.query(
+      `select pg_advisory_xact_lock(
+         hashtext(app.current_org_id()::text || ':wo-hold-release:' || $1::text)
+       )`,
+      [current.reference_id],
+    );
+
     const otherOpenHold = await ctx.client.query<{ hold_id: string }>(
       `select hold_id
          from public.v_active_holds
