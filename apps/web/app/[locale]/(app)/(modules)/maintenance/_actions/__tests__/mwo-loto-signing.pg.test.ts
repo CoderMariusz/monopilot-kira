@@ -9,12 +9,12 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { setPin } from '../../../../../../packages/auth/src/verify-pin';
+import { setPin } from '../../../../../../../../../packages/auth/src/verify-pin.js';
 import {
   databaseUrl,
   withActionActor,
-} from '../../../../(npd)/brief/actions/__tests__/brief-integration-helpers';
-import { ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../tests/helpers/owner-org-context.js';
+} from '../../../../../../(npd)/brief/actions/__tests__/brief-integration-helpers';
+import { ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../tests/helpers/owner-org-context.js';
 import {
   transitionMwo,
   verifyMwoLotoLockout,
