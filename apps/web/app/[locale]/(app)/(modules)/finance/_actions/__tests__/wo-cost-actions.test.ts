@@ -15,6 +15,8 @@ const DEDUP_SETUP_WO_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const CORRECTION_WO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const PLN_WO_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const HISTORIC_WO_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const MIXED_ITEM_WO_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const MULTI_COST_WO_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 
 type QueryCall = { sql: string; params: unknown[] };
 
@@ -100,7 +102,39 @@ const client = {
               raw_qty: '5',
               qty_kg: '5.000',
               cost_per_kg: '25.000000',
-              cost_currency: 'PLN',
+              has_non_gbp_currency: true,
+              unresolved_uom: false,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (params?.[0] === MIXED_ITEM_WO_ID) {
+        return {
+          rows: [
+            {
+              item_code: 'RM-MIX',
+              uom: null,
+              raw_qty: '2',
+              qty_kg: '2.000',
+              cost_per_kg: '4.000000',
+              has_non_gbp_currency: true,
+              unresolved_uom: false,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (params?.[0] === MULTI_COST_WO_ID) {
+        return {
+          rows: [
+            {
+              item_code: 'RM-GBP',
+              uom: null,
+              raw_qty: '2',
+              qty_kg: '2.000',
+              cost_per_kg: '4.000000',
+              has_non_gbp_currency: false,
               unresolved_uom: false,
             },
           ],
@@ -116,7 +150,7 @@ const client = {
               raw_qty: '2',
               qty_kg: '2.000',
               cost_per_kg: '3.500000',
-              cost_currency: 'GBP',
+              has_non_gbp_currency: false,
               unresolved_uom: false,
             },
           ],
@@ -132,7 +166,7 @@ const client = {
               raw_qty: '200',
               qty_kg: '1.000',
               cost_per_kg: '2.400000',
-              cost_currency: 'GBP',
+              has_non_gbp_currency: false,
               unresolved_uom: false,
             },
             {
@@ -141,7 +175,7 @@ const client = {
               raw_qty: '200',
               qty_kg: '0',
               cost_per_kg: '2.400000',
-              cost_currency: 'GBP',
+              has_non_gbp_currency: false,
               unresolved_uom: true,
             },
           ],
@@ -404,7 +438,10 @@ describe('listCompletedWoCosts', () => {
     expect(materialsQuery?.sql).not.toContain('and effective_to is null');
     expect(materialsQuery?.params).toEqual([COSTED_WO_ID, '2026-06-11', 'GBP']);
     expect(materialsQuery?.sql).toContain('when lower(c.uom) = \'each\' and i.net_qty_per_each is not null');
-    expect(materialsQuery?.sql).toContain('bool_or(qty_kg is null) as unresolved_uom');
+    expect(materialsQuery?.sql).toContain('bool_or(cost_currency is distinct from $3::text) as has_non_gbp_currency');
+    expect(materialsQuery?.sql).toContain('sum(coalesce(qty_kg, 0) * coalesce(cost_per_kg, 0))');
+    expect(materialsQuery?.sql).not.toContain('max(cost_currency)');
+    expect(materialsQuery?.sql).not.toContain('max(cost_per_kg)');
   });
 
   it('rejects WO actual cost when a material row is costed in a non-GBP currency', async () => {
@@ -413,8 +450,32 @@ describe('listCompletedWoCosts', () => {
     expect(result).toEqual({
       ok: false,
       reason: 'unsupported_currency',
-      message: expect.stringContaining('PLN'),
+      message: expect.stringContaining('RM-PLN'),
     });
+  });
+
+  it('rejects WO actual cost when the same item has both GBP and EUR consumption rows', async () => {
+    const result = await computeWoActualCost(MIXED_ITEM_WO_ID);
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'unsupported_currency',
+      message: expect.stringContaining('RM-MIX'),
+    });
+
+    const materialsQuery = calls.find((call) => call.sql.includes('from public.wo_material_consumption'));
+    expect(materialsQuery?.sql).toContain('bool_or(cost_currency is distinct from $3::text)');
+  });
+
+  it('sums same-item consumptions at different GBP costs via row-grain qty×cost, not qty×max(cost)', async () => {
+    const result = await computeWoActualCost(MULTI_COST_WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.materials).toEqual([
+      { itemCode: 'RM-GBP', qtyKg: '2.000', costPerKg: '4.000000', cost: '8.0000' },
+    ]);
+    expect(result.data.materialsTotal).toBe('8.0000');
   });
 
   it('prefers immutable consumption WAC snapshots over later item_cost_history rolls', async () => {

@@ -322,6 +322,88 @@ run('03-technical cost history (V-TEC-50..53, RLS + RBAC, real DB)', () => {
     await owner.query(`update public.items set cost_per_kg = null where id = $1`, [seed.itemAId]);
   });
 
+  it('insert between two closed intervals slots the new row without overlap', async () => {
+    await owner.query(
+      `insert into public.item_cost_history (org_id, item_id, cost_per_kg, currency, effective_from, effective_to, source)
+       values
+         ($1, $2, '5.0000'::numeric, 'PLN', '2026-06-01', '2026-06-09', 'manual'),
+         ($1, $2, '7.0000'::numeric, 'PLN', '2026-06-15', '2026-06-20', 'manual')`,
+      [seed.orgAId, seed.itemAId],
+    );
+
+    const result = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
+      postCost({ itemId: seed.itemAId, costPerKg: '6.2500', currency: 'PLN', effectiveFrom: '2026-06-12', source: 'manual' }),
+    );
+    expect(result.ok).toBe(true);
+
+    const rows = await owner.query<{
+      cost_per_kg: string;
+      effective_from: string;
+      effective_to: string | null;
+    }>(
+      `select cost_per_kg::text, effective_from::text, effective_to::text
+         from public.item_cost_history
+        where item_id = $1
+        order by effective_from asc`,
+      [seed.itemAId],
+    );
+    expect(rows.rows).toEqual([
+      { cost_per_kg: '5.0000', effective_from: '2026-06-01', effective_to: '2026-06-11' },
+      { cost_per_kg: '6.2500', effective_from: '2026-06-12', effective_to: '2026-06-14' },
+      { cost_per_kg: '7.0000', effective_from: '2026-06-15', effective_to: '2026-06-20' },
+    ]);
+
+    await owner.query(`delete from public.item_cost_history where item_id = $1`, [seed.itemAId]);
+    await owner.query(`update public.items set cost_per_kg = null where id = $1`, [seed.itemAId]);
+  });
+
+  it('concurrent newest-date writes leave exactly one open non-overlapping row', async () => {
+    await owner.query(
+      `insert into public.item_cost_history (org_id, item_id, cost_per_kg, currency, effective_from, source)
+       values ($1, $2, '8.0000'::numeric, 'PLN', '2026-07-01', 'manual')`,
+      [seed.orgAId, seed.itemAId],
+    );
+
+    const forwardDate = '2026-07-10';
+    const [first, second] = await Promise.all([
+      withActionActor(seed.editorAUserId, seed.orgAId, () =>
+        postCost({ itemId: seed.itemAId, costPerKg: '9.0000', currency: 'PLN', effectiveFrom: forwardDate, source: 'manual' }),
+      ),
+      withActionActor(seed.editorAUserId, seed.orgAId, () =>
+        postCost({ itemId: seed.itemAId, costPerKg: '9.5000', currency: 'PLN', effectiveFrom: forwardDate, source: 'manual' }),
+      ),
+    ]);
+    expect(first.ok || second.ok).toBe(true);
+
+    const openRows = await owner.query<{ cost_per_kg: string; effective_from: string }>(
+      `select cost_per_kg::text, effective_from::text
+         from public.item_cost_history
+        where item_id = $1
+          and effective_to is null`,
+      [seed.itemAId],
+    );
+    expect(openRows.rowCount).toBe(1);
+    expect(openRows.rows[0]!.effective_from).toBe(forwardDate);
+    expect(['9.0000', '9.5000']).toContain(openRows.rows[0]!.cost_per_kg);
+
+    const overlap = await owner.query<{ n: number }>(
+      `select count(*)::int as n
+         from public.item_cost_history a
+         join public.item_cost_history b
+           on b.org_id = a.org_id
+          and b.item_id = a.item_id
+          and b.id <> a.id
+        where a.item_id = $1
+          and a.effective_from <= coalesce(b.effective_to, 'infinity'::date)
+          and b.effective_from <= coalesce(a.effective_to, 'infinity'::date)`,
+      [seed.itemAId],
+    );
+    expect(overlap.rows[0]!.n).toBe(0);
+
+    await owner.query(`delete from public.item_cost_history where item_id = $1`, [seed.itemAId]);
+    await owner.query(`update public.items set cost_per_kg = null where id = $1`, [seed.itemAId]);
+  });
+
   it('AC4: GET returns rows ordered effective_from DESC', async () => {
     await owner.query(
       `insert into public.item_cost_history (org_id, item_id, cost_per_kg, currency, effective_from, effective_to, source)

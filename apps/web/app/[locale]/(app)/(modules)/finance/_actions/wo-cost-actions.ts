@@ -133,7 +133,7 @@ type MaterialRow = {
   raw_qty: string;
   qty_kg: string;
   cost_per_kg: string | null;
-  cost_currency: string | null;
+  has_non_gbp_currency: boolean;
   unresolved_uom: boolean;
 };
 
@@ -335,8 +335,14 @@ async function computeWoActualCostInContext(
             case when qty_kg is null then uom else null end as uom,
             sum(raw_qty)::text as raw_qty,
             coalesce(sum(qty_kg), 0)::text as qty_kg,
-            max(cost_per_kg)::text as cost_per_kg,
-            max(cost_currency)::text as cost_currency,
+            case
+              when coalesce(sum(qty_kg), 0) > 0
+              then (
+                sum(coalesce(qty_kg, 0) * coalesce(cost_per_kg, 0)) / sum(qty_kg)
+              )::text
+              else null
+            end as cost_per_kg,
+            bool_or(cost_currency is distinct from $3::text) as has_non_gbp_currency,
             bool_or(qty_kg is null) as unresolved_uom
        from converted
       group by item_code, case when qty_kg is null then uom else null end
@@ -479,14 +485,12 @@ async function computeWoActualCostInContext(
   const downtimeMinText = Math.max(0, downtimeMin).toFixed(6);
 
   const resolvedMaterials = materials.rows.filter((row) => !row.unresolved_uom);
-  const mixedCurrencyMaterial = resolvedMaterials.find(
-    (row) => row.cost_currency != null && row.cost_currency !== WO_REPORTING_CURRENCY,
-  );
+  const mixedCurrencyMaterial = resolvedMaterials.find((row) => row.has_non_gbp_currency);
   if (mixedCurrencyMaterial) {
     return {
       ok: false,
       reason: 'unsupported_currency',
-      message: `Material ${mixedCurrencyMaterial.item_code ?? 'UNKNOWN'} is costed in ${mixedCurrencyMaterial.cost_currency}; WO actual cost requires ${WO_REPORTING_CURRENCY} (no FX conversion).`,
+      message: `Material ${mixedCurrencyMaterial.item_code ?? 'UNKNOWN'} includes non-${WO_REPORTING_CURRENCY} consumption; WO actual cost requires ${WO_REPORTING_CURRENCY} (no FX conversion).`,
     };
   }
 

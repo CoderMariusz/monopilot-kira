@@ -44,3 +44,15 @@
 
 - `pnpm --filter web exec tsc --noEmit` — clean
 - Vitest (22 tests): recipe cost, portfolio cost, write-cost-ledger, wo-cost-actions — all green
+
+---
+
+## Fix round 1
+
+**BUG 1 — build blocker:** Removed `export { MIXED_CURRENCY_ROLLUP_MARKER }` from `'use server'` `list-portfolio-cost.ts`; marker stays in non-server `recipe-cost-rollup-sql.ts` for import-only use.
+
+**BUG 2 + 3 — consumption grain:** WO materials SQL now uses `bool_or(cost_currency is distinct from 'GBP')` (not `max(currency)`) and `sum(qty_kg × cost_per_kg) / sum(qty_kg)` weighted cost (not `max(cost_per_kg)`). Tests: mixed EUR+GBP same item → `unsupported_currency`; two GBP consumptions at £3+£5 → £8 total not £10.
+
+**BUG 4 — concurrency:** `writeItemCostLedger` takes `pg_advisory_xact_lock(hashtext(org||'::'||item||'::costledger'))` before anchor reads. Migration `467-item-cost-history-one-open-per-item.sql` adds partial unique index on `(org_id, item_id) where effective_to is null`. Tests: unit between-closed-intervals + lock ordering; integration between-closed + concurrent forward writes → one open row, no overlap.
+
+**Gates:** `tsc --noEmit` clean; 20 targeted vitest tests green.

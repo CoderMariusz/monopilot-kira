@@ -8,8 +8,6 @@ import {
 } from '../../_actions/recipe-cost-rollup-sql';
 import type { QueryClient } from '../../_actions/shared';
 
-export { MIXED_CURRENCY_ROLLUP_MARKER };
-
 type PortfolioCostRow = {
   fg_code: string;
   fg_name: string | null;

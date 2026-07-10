@@ -46,6 +46,14 @@ async function resolveEffectiveDate(qc: QueryClient, effectiveFrom?: string): Pr
   return rows[0]?.eff_date ?? new Date().toISOString().slice(0, 10);
 }
 
+/** Serialize interval surgery per org/item so concurrent writes cannot leave overlapping open rows. */
+async function acquireCostLedgerLock(qc: QueryClient, orgId: string, itemId: string): Promise<void> {
+  await qc.query(
+    `select pg_advisory_xact_lock(hashtext($1::text || '::' || $2::text || '::costledger'))`,
+    [orgId, itemId],
+  );
+}
+
 async function loadIntervalAnchors(
   qc: QueryClient,
   itemId: string,
@@ -153,6 +161,7 @@ export async function writeItemCostLedger(
   }
 
   const effDate = await resolveEffectiveDate(qc, input.effectiveFrom);
+  await acquireCostLedgerLock(qc, orgId, input.itemId);
   const anchor = await loadIntervalAnchors(qc, input.itemId, effDate);
 
   if (anchor.open_id && anchor.open_from && effDate > anchor.open_from) {
