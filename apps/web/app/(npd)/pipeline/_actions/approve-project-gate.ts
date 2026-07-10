@@ -10,11 +10,11 @@ import {
   GATE_APPROVE_PERMISSION,
   GATE_APPROVED_EVENT,
   deterministicApprovalHash,
+  assertAdjacentStage,
   emitOutbox,
   gateForStage,
   getBlockers,
   loadProjectForUpdate,
-  nextStage,
   requireActionPermission,
   seedHandoffChecklist,
   serializeGateError,
@@ -79,15 +79,15 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
         return { ok: false, error: 'GATE_MISMATCH', status: 409 };
       }
 
-      // E-sign approval is now a CHECKPOINT RECORD — it no longer auto-advances the
-      // project. Advancement is stage-driven via advanceProjectGate; the G4 e-sign
-      // recorded here is what assertG4ESignForHandoff verifies for approval→handoff.
-      // Blockers are still checked against the current stage's gate checklist.
-      const nextStg = nextStage(project.current_stage) as AnyStage | null;
+      // G3/G4 e-sign approval records the checkpoint signature. Stage advancement only
+      // happens when the target stage is adjacent to the current stage (pilot→approval
+      // for G3, approval→handoff for G4) — never by skipping intermediate G3 substages.
+      const targetStage =
+        parsed.data.decision === 'approved'
+          ? approvalTargetStage(project.current_stage, parsed.data.gateCode)
+          : null;
       const blockers =
-        parsed.data.decision === 'approved' && nextStg
-          ? await getBlockers(context, project, nextStg)
-          : [];
+        targetStage ? await getBlockers(context, project, targetStage) : [];
       if (blockers.length > 0) return { ok: false, error: 'BLOCKERS_PRESENT', status: 409, blockers };
 
       let currentGate: ReturnType<typeof gateForStage> = project.current_gate;
@@ -140,16 +140,14 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
       if (!approvalId) return { ok: false, error: 'PERSISTENCE_FAILED', status: 500 };
 
       let currentStage = project.current_stage as AnyStage;
-      if (parsed.data.decision === 'approved') {
-        const targetStage = approvalTargetStage(project.current_stage, parsed.data.gateCode);
-        if (targetStage) {
-          if (project.current_stage === 'approval' && targetStage === 'handoff') {
-            await seedHandoffChecklist(context, project);
-          }
-          await updateProjectStage(context, project.id, targetStage);
-          currentStage = targetStage;
-          currentGate = gateForStage(targetStage);
+      if (parsed.data.decision === 'approved' && targetStage) {
+        assertAdjacentStage(project.current_stage, targetStage);
+        if (project.current_stage === 'approval' && targetStage === 'handoff') {
+          await seedHandoffChecklist(context, project);
         }
+        await updateProjectStage(context, project.id, targetStage);
+        currentStage = targetStage;
+        currentGate = gateForStage(targetStage);
       }
 
       await emitOutbox(context, {
@@ -201,7 +199,7 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
 }
 
 function approvalTargetStage(currentStage: string, gateCode: 'G3' | 'G4'): AnyStage | null {
-  if (gateCode === 'G3') return 'approval';
+  if (gateCode === 'G3' && currentStage === 'pilot') return 'approval';
   if (gateCode === 'G4' && currentStage === 'approval') return 'handoff';
   return null;
 }

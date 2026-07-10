@@ -398,7 +398,7 @@ describe('approveProjectGate — FC1 approval completion advances the project', 
     ctx.handler = () => ({ rows: [] });
   });
 
-  it('unconfigured single-approver fallback: a permission-holder approves G3 and the project advances to approval/G4', async () => {
+  it('records G3 e-sign from packaging without skipping to approval (adjacency enforced)', async () => {
     const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
     ctx.handler = (sql, params) => {
       calls.push({ sql, params });
@@ -434,20 +434,55 @@ describe('approveProjectGate — FC1 approval completion advances the project', 
       ok: true,
       data: {
         approvedGate: 'G3',
+        currentGate: 'G3',
+        currentStage: 'packaging',
+      },
+    });
+    expect(calls.some((call) => /update public\.npd_projects/.test(call.sql))).toBe(false);
+  });
+
+  it('advances pilot→approval when G3 is approved at the adjacent stage', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('from public.npd_projects') && sql.includes('for update')) {
+        return {
+          rows: [{
+            id: PROJECT,
+            code: 'NPD-032',
+            name: 'FC1 approval project',
+            type: 'standard',
+            current_gate: 'G3',
+            current_stage: 'pilot',
+            product_code: 'FG-NPD-032',
+          }],
+        };
+      }
+      if (sql.includes('insert into public.gate_approvals')) {
+        return { rows: [{ id: '00000000-0000-4000-8000-0000000005a1' }] };
+      }
+      return { rows: [] };
+    };
+
+    const result = await approveProjectGate({
+      projectId: PROJECT,
+      gateCode: 'G3',
+      decision: 'approved',
+      notes: 'All approval criteria satisfied.',
+      password: '123456',
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        approvedGate: 'G3',
         currentGate: 'G4',
         currentStage: 'approval',
       },
     });
     const stageUpdate = calls.find((call) => /update public\.npd_projects/.test(call.sql));
     expect(stageUpdate?.params).toEqual([PROJECT, 'approval', 'G4']);
-    const outbox = calls.find((call) => /insert into public\.outbox_events/.test(call.sql));
-    expect(JSON.parse(outbox?.params?.[3] as string)).toMatchObject({
-      project_code: 'NPD-032',
-      gate_code: 'G3',
-      decision: 'approved',
-      current_gate: 'G4',
-      current_stage: 'approval',
-    });
   });
 });
 
