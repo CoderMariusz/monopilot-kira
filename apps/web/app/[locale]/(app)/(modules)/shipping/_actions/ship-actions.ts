@@ -138,6 +138,51 @@ async function writePodAuditEvent(
   return auditId;
 }
 
+async function writeBolCarrierAuditEvent(
+  ctx: ShippingContext,
+  params: {
+    shipmentId: string;
+    beforeState: Record<string, unknown>;
+    afterState: Record<string, unknown>;
+  },
+): Promise<void> {
+  const { rows } = await ctx.client.query<{ id: number }>(
+    `insert into public.audit_events (
+       org_id,
+       actor_user_id,
+       actor_type,
+       action,
+       resource_type,
+       resource_id,
+       before_state,
+       after_state,
+       request_id,
+       retention_class
+     )
+     values (
+       app.current_org_id(),
+       $1::uuid,
+       'user',
+       'shipping.bol.carrier_updated',
+       'shipment',
+       $2,
+       $3::jsonb,
+       $4::jsonb,
+       $5::uuid,
+       'operational'
+     )
+     returning id`,
+    [
+      ctx.userId,
+      params.shipmentId,
+      JSON.stringify(params.beforeState),
+      JSON.stringify(params.afterState),
+      randomUUID(),
+    ],
+  );
+  if (typeof rows[0]?.id !== 'number') throw new ActionError('persistence_failed');
+}
+
 function toNumber(value: unknown): number {
   if (typeof value === 'number') return value;
   if (typeof value === 'bigint') return Number(value);
@@ -554,10 +599,16 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
       const { rows: shipmentRows } = await ctx.client.query<{
         id: string;
         status: string;
+        carrier: string | null;
+        service_level: string | null;
+        tracking_number: string | null;
         box_count: number | string | bigint | null;
       }>(
         `select sh.id::text,
                 sh.status,
+                sh.carrier,
+                sh.service_level,
+                sh.tracking_number,
                 count(distinct sb.id)::int as box_count
            from public.shipments sh
            left join public.shipment_boxes sb on sb.shipment_id = sh.id
@@ -566,7 +617,7 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
           where sh.org_id = app.current_org_id()
             and sh.id = $1::uuid
             and sh.deleted_at is null
-          group by sh.id, sh.status
+          group by sh.id, sh.status, sh.carrier, sh.service_level, sh.tracking_number
           limit 1`,
         [input.shipmentId],
       );
@@ -578,13 +629,43 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
         return { ok: false, error: 'no_boxes' };
       }
 
+      const nextCarrier = input.carrier ?? null;
+      const nextServiceLevel = input.serviceLevel ?? null;
+      const nextTrackingNumber = input.trackingNumber ?? null;
+
+      if (shipment.status === 'shipped') {
+        const bolSignForbidden = await requirePermission(ctx, SHIP_BOL_SIGN);
+        if (bolSignForbidden) return bolSignForbidden;
+
+        const carrierFieldsChanged =
+          nextCarrier !== shipment.carrier ||
+          nextServiceLevel !== shipment.service_level ||
+          nextTrackingNumber !== shipment.tracking_number;
+
+        if (carrierFieldsChanged) {
+          await writeBolCarrierAuditEvent(ctx, {
+            shipmentId: input.shipmentId,
+            beforeState: {
+              carrier: shipment.carrier,
+              service_level: shipment.service_level,
+              tracking_number: shipment.tracking_number,
+            },
+            afterState: {
+              carrier: nextCarrier,
+              service_level: nextServiceLevel,
+              tracking_number: nextTrackingNumber,
+            },
+          });
+        }
+      }
+
       const lpRows = await fetchShipmentLps(ctx, input.shipmentId);
       const bolPayload = {
         shipmentId: input.shipmentId,
         orgId,
-        carrier: input.carrier ?? null,
-        serviceLevel: input.serviceLevel ?? null,
-        trackingNumber: input.trackingNumber ?? null,
+        carrier: nextCarrier,
+        serviceLevel: nextServiceLevel,
+        trackingNumber: nextTrackingNumber,
         generatedAt: new Date().toISOString(),
         licensePlates: lpRows.map((lp) => ({
           lpId: lp.lp_id,
@@ -599,7 +680,7 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
             set carrier = $2::text,
                 service_level = $3::text,
                 tracking_number = $4::text,
-                bol_pdf_url = $5::text,
+                bol_payload = $5::jsonb,
                 ext_data = coalesce(ext_data, '{}'::jsonb) || $6::jsonb,
                 updated_at = now(),
                 updated_by = $7::uuid
@@ -609,9 +690,9 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
           returning id::text`,
         [
           input.shipmentId,
-          input.carrier ?? null,
-          input.serviceLevel ?? null,
-          input.trackingNumber ?? null,
+          nextCarrier,
+          nextServiceLevel,
+          nextTrackingNumber,
           serializedPayload,
           JSON.stringify({ bol_sha256: bolHash }),
           userId,
