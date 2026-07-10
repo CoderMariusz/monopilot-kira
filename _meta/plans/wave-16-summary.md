@@ -79,3 +79,9 @@
 | `pnpm --filter web exec tsc --noEmit` | clean |
 | `pnpm --filter web run build` | `BUILD_EXIT=0` |
 | `packages/db` nutrition cascade contract test | PASS (integration skips without `DATABASE_URL`) |
+
+## Fix round 1
+
+**N-17 review gap:** Unit test only substring-checked INSERT…SELECT column names; mocks cannot prove Postgres value carry-over.
+
+**Fix (test-only):** Added `create-version.pg.test.ts` — seeds a source `formulation_version` + ingredient with non-default `processing_overhead_pct` (12.75), `batch_size_kg` / `target_yield_pct` / `target_price_eur`, `cost_currency` (`PLN`), and non-null `substitute_item_id` / `wip_definition_id` / `npd_wip_process_id`; runs real `createFormulationVersion` via `withOrgContext`; asserts cloned header + ingredient values match source and new version is `draft` with `version_number` 2. Skips without `DATABASE_URL` (`const run = process.env.DATABASE_URL ? describe : describe.skip`). Production `create-version.ts` unchanged.
