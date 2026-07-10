@@ -105,6 +105,9 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
     if (err instanceof BookReceiptWacError && err.code === 'unknown_currency') {
       return { ok: false, error: 'error' };
     }
+    if (err instanceof BookReceiptWacError && err.code === 'unsupported_currency') {
+      return { ok: false, error: 'wac_unsupported_currency' };
+    }
     if (err instanceof Error && err.message === 'invalid_qty') return { ok: false, error: 'invalid_qty' };
     console.error('[warehouse] receivePoLineDesktop failed', err);
     return { ok: false, error: 'error' };

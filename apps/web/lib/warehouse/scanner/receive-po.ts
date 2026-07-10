@@ -393,6 +393,9 @@ export async function receiveScannerPoLine(
     if (err instanceof BookReceiptWacError && err.code === 'unresolved_uom') {
       throw new ReceivePoError('unresolved_uom', 422);
     }
+    if (err instanceof BookReceiptWacError && (err.code === 'unsupported_currency' || err.code === 'unknown_currency')) {
+      throw new ReceivePoError(err.code, 422);
+    }
     throw err;
   } finally {
     await cleanupTxnOrgContext(client, orgContextToken);

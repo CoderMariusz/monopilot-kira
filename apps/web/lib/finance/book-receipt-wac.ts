@@ -1,4 +1,4 @@
-import { resolveWacDeltaQtyKg, upsertWac } from './upsert-wac';
+import { resolveWacDeltaQtyKg, upsertWac, WAC_VALUATION_CURRENCY_CODE } from './upsert-wac';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -7,7 +7,7 @@ type QueryClient = {
   ): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
-export type BookReceiptWacErrorCode = 'unknown_currency' | 'unresolved_uom';
+export type BookReceiptWacErrorCode = 'unknown_currency' | 'unsupported_currency' | 'unresolved_uom';
 
 export class BookReceiptWacError extends Error {
   readonly code: BookReceiptWacErrorCode;
@@ -22,7 +22,9 @@ export class BookReceiptWacError extends Error {
     const message =
       code === 'unknown_currency'
         ? `Unknown currency code for WAC booking: ${details.currencyCode ?? 'unknown'}`
-        : `Cannot receive into WAC: UoM "${details.uom ?? 'unknown'}" cannot be converted to kg for valuation`;
+        : code === 'unsupported_currency'
+          ? `WAC booking requires base currency ${WAC_VALUATION_CURRENCY_CODE}; PO currency is ${details.currencyCode ?? 'unknown'}`
+          : `Cannot receive into WAC: UoM "${details.uom ?? 'unknown'}" cannot be converted to kg for valuation`;
     super(message);
     this.name = 'BookReceiptWacError';
     this.code = code;
@@ -83,8 +85,12 @@ export async function bookReceiptWacAfterGrnItem(
 
   const receivedQtyKg = wacResolution.qtyKg;
   const receivedValue = await multiplyNumeric(client, receipt.qty, line.unit_price);
-  const currencyCode = normalizeCurrencyCode(line.currency);
-  await assertResolvableCurrency(client, currencyCode);
+  const poCurrencyCode = parsePoCurrencyCode(line.currency);
+  await assertResolvableCurrency(client, poCurrencyCode);
+  if (poCurrencyCode !== WAC_VALUATION_CURRENCY_CODE) {
+    throw new BookReceiptWacError('unsupported_currency', { currencyCode: poCurrencyCode });
+  }
+  const wacCurrencyCode = WAC_VALUATION_CURRENCY_CODE;
   await upsertWac(client, {
     orgId: ctx.orgId,
     siteId: ctx.siteId,
@@ -92,7 +98,7 @@ export async function bookReceiptWacAfterGrnItem(
     deltaQtyKg: receivedQtyKg,
     deltaValue: receivedValue,
     updatedBy: ctx.userId,
-    currencyCode,
+    currencyCode: wacCurrencyCode,
   });
   await client.query(
     `update public.grn_items
@@ -107,7 +113,7 @@ export async function bookReceiptWacAfterGrnItem(
       JSON.stringify({
         wac_qty_kg: receivedQtyKg,
         wac_value: receivedValue,
-        wac_currency_code: currencyCode,
+        wac_currency_code: wacCurrencyCode,
       }),
       receipt.grnItemId,
     ],
@@ -152,9 +158,12 @@ async function loadLineUnitPrice(
   return rows[0] ?? null;
 }
 
-function normalizeCurrencyCode(currency: string | null | undefined): string {
+function parsePoCurrencyCode(currency: string | null | undefined): string {
   const normalized = currency?.trim().toUpperCase();
-  return normalized && normalized.length === 3 ? normalized : 'GBP';
+  if (!normalized || normalized.length !== 3) {
+    throw new BookReceiptWacError('unknown_currency', { currencyCode: currency ?? undefined });
+  }
+  return normalized;
 }
 
 async function assertResolvableCurrency(client: QueryClient, currencyCode: string): Promise<void> {

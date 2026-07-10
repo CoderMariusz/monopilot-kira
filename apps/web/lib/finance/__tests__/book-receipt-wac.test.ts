@@ -5,6 +5,7 @@ import {
   BookReceiptWacError,
   preflightReceiptWacResolvability,
 } from '../book-receipt-wac';
+import { WAC_VALUATION_CURRENCY_CODE } from '../upsert-wac';
 
 const ORG_ID = '00000000-0000-4000-8000-00000000000a';
 const USER_ID = '00000000-0000-4000-8000-0000000000aa';
@@ -18,8 +19,8 @@ describe('bookReceiptWacAfterGrnItem', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
-  it('books EUR receipts into the EUR currency bucket (not NULL, not GBP)', async () => {
-    const client = new BookReceiptWacMockClient({ poCurrency: 'EUR' });
+  it('books GBP receipts into the org base-currency WAC pool', async () => {
+    const client = new BookReceiptWacMockClient({ poCurrency: 'GBP' });
 
     await bookReceiptWacAfterGrnItem(
       client,
@@ -36,20 +37,65 @@ describe('bookReceiptWacAfterGrnItem', () => {
     const currencyLookup = client.calls.find((call) =>
       normalize(call.sql).includes('from public.currencies where code = $1'),
     );
-    expect(currencyLookup?.params).toEqual(['EUR']);
+    expect(currencyLookup?.params).toEqual(['GBP']);
 
     const grnUpdate = client.calls.find(
       (call) => normalize(call.sql).startsWith('update public.grn_items') && normalize(call.sql).includes('ext_jsonb'),
     );
     expect(JSON.parse(String(grnUpdate?.params?.[2]))).toMatchObject({
-      wac_currency_code: 'EUR',
+      wac_currency_code: WAC_VALUATION_CURRENCY_CODE,
     });
     expect(client.upsertCalls).toHaveLength(1);
     expect(client.upsertCalls[0]).toMatchObject({
-      currencyCode: 'EUR',
+      currencyCode: WAC_VALUATION_CURRENCY_CODE,
       deltaQtyKg: '10',
       deltaValue: '42',
     });
+  });
+
+  it('rejects non-base PO currency with unsupported_currency (no FX conversion)', async () => {
+    const client = new BookReceiptWacMockClient({ poCurrency: 'EUR' });
+
+    await expect(
+      bookReceiptWacAfterGrnItem(
+        client,
+        { orgId: ORG_ID, userId: USER_ID, siteId: SITE_ID },
+        {
+          grnItemId: GRN_ITEM_ID,
+          itemId: ITEM_ID,
+          qty: '10',
+          uom: 'kg',
+          poLineId: LINE_ID,
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: 'unsupported_currency',
+      currencyCode: 'EUR',
+    } satisfies Partial<BookReceiptWacError>);
+
+    expect(client.upsertCalls).toHaveLength(0);
+  });
+
+  it('throws unknown_currency when the PO currency is missing or invalid', async () => {
+    const client = new BookReceiptWacMockClient({ poCurrency: '' });
+
+    await expect(
+      bookReceiptWacAfterGrnItem(
+        client,
+        { orgId: ORG_ID, userId: USER_ID, siteId: SITE_ID },
+        {
+          grnItemId: GRN_ITEM_ID,
+          itemId: ITEM_ID,
+          qty: '5',
+          uom: 'kg',
+          poLineId: LINE_ID,
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: 'unknown_currency',
+    } satisfies Partial<BookReceiptWacError>);
+
+    expect(client.upsertCalls).toHaveLength(0);
   });
 
   it('throws a typed error when the PO currency is not seeded in currencies', async () => {

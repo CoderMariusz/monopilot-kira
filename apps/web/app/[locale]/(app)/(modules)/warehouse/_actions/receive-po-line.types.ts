@@ -19,6 +19,7 @@ export type DesktopReceiveError =
   | 'invalid_location'
   | 'invalid_state'
   | 'wac_unresolved_uom'
+  | 'wac_unsupported_currency'
   | 'error';
 
 export type DesktopReceiveResult =
