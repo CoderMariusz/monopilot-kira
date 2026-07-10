@@ -145,7 +145,7 @@ run('createFormulationVersion — REAL Postgres value carry-over (N-17)', () => 
       `insert into public.formulation_versions
          (id, formulation_id, version_number, state, batch_size_kg, target_yield_pct,
           target_price_eur, processing_overhead_pct, created_by_user)
-       values ($1, $2, 1, 'locked', $3, $4, $5, $6, $7)
+       values ($1, $2, 1, 'draft', $3, $4, $5, $6, $7)
        on conflict (id) do nothing`,
       [
         sourceVersionId,
@@ -177,12 +177,30 @@ run('createFormulationVersion — REAL Postgres value carry-over (N-17)', () => 
         SOURCE_COST_CURRENCY,
       ],
     );
+    // Lock the source AFTER seeding ingredients — mig 452's
+    // formulation_ingredients_reject_locked_version_mutation trigger blocks
+    // ingredient INSERT on a locked version, so the ingredient must be seeded
+    // while the source is still draft. "Add version" clones from this locked current.
+    await ownerPool.query(
+      `update public.formulation_versions set state = 'locked' where id = $1`,
+      [sourceVersionId],
+    );
   }, 120_000);
 
   afterAll(async () => {
     delete process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID;
     delete process.env.NEXT_SERVER_ACTION_ORG_ID;
 
+    // Unlock all versions first: mig 452's reject-locked-mutation trigger can
+    // block the cascade delete of a locked version's ingredient tree.
+    await ownerPool
+      ?.query(
+        `update public.formulation_versions fv set state = 'draft'
+           from public.formulations f
+          where fv.formulation_id = f.id and f.org_id = $1`,
+        [orgId],
+      )
+      .catch(() => undefined);
     await ownerPool?.query('delete from public.formulation_audit_log where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.formulations where org_id = $1', [orgId]).catch(() => undefined);
     await ownerPool?.query('delete from public.npd_wip_processes where org_id = $1', [orgId]).catch(() => undefined);
