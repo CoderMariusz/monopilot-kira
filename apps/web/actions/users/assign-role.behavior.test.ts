@@ -176,6 +176,10 @@ describe('assignRole behavior', () => {
     });
     expect(permissionCall?.params[2]).toBe('settings.roles.assign');
     expect(permissionCall?.sql).toContain("coalesce(r.permissions, '[]'::jsonb) ? $3");
+    // Security contract: the direct authorization query must NOT treat r.slug as a
+    // permission source (only role_permissions + r.permissions json). The subset
+    // computation is a separate query; permissionCall is narrowed to the auth query above.
+    expect(permissionCall?.sql).not.toContain('r.slug');
     expect(currentClient.updatedRoleId).toBe(OPERATOR_ROLE_ID);
     expect(currentClient.auditRows[0]).toMatchObject({
       action: 'settings.role.assigned',
