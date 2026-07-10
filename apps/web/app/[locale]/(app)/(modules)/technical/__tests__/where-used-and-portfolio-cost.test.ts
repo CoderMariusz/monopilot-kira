@@ -67,7 +67,15 @@ describe('technical where-used and portfolio cost read actions', () => {
     expect(sql).toContain('bl.uom as component_uom');
     expect(sql).toContain('bl.org_id = app.current_org_id()');
     expect(sql).toContain('bl.component_code = $1');
+    expect(sql).toContain("ph.status = 'active'");
     expect(sql).toContain('ph.item_id <> ( select id from public.items where org_id = app.current_org_id() and item_code = $1 )');
+  });
+
+  it('filters where-used to active BOM headers only (N-46)', async () => {
+    queryMock.mockResolvedValueOnce({ rows: [] });
+    await listWhereUsed('RM-2001');
+    const sql = normalize(calls()[0]!.sql);
+    expect(sql).toContain("ph.status = 'active'");
   });
 
   it('returns an empty where-used list for blank input without querying', async () => {

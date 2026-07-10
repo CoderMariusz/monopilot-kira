@@ -37,6 +37,7 @@ export async function listWhereUsed(rawCode: unknown): Promise<WhereUsedResult[]
              on i.org_id = ph.org_id and i.id = ph.item_id
           where bl.org_id = app.current_org_id()
             and bl.component_code = $1
+            and ph.status = 'active'
             and ph.item_id is not null
             and ph.item_id <> (
               select id
