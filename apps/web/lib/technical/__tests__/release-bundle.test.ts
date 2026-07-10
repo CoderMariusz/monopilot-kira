@@ -71,7 +71,12 @@ function createClient(options: { bomStatus: string; specBomVersion?: number; bom
         }
         return { rows: [{ ...spec }] as T[] };
       }
-      if (n.includes('from public.bom_headers') && n.startsWith('select')) return { rows: [{ ...bom }] as T[] };
+      if (n.includes('from public.bom_headers') && n.startsWith('select')) {
+        if (n.includes('for update')) {
+          return { rows: [{ ...bom }] as T[] };
+        }
+        return { rows: [{ ...bom }] as T[] };
+      }
       if (n.includes('from public.bom_lines') && n.includes('count(*)::int as blocked')) {
         return { rows: [{ blocked: 0 }] as T[] };
       }
@@ -161,6 +166,20 @@ describe('release bundle approval BOM status compatibility', () => {
     expect(result).toMatchObject({ ok: true, data: { bomStatus: 'technical_approved' } });
     expect(bom.status).toBe('technical_approved');
     expect(calls.some((call) => normalize(call.sql).startsWith('update public.bom_headers'))).toBe(true);
+  });
+
+  it('locks the BOM with FOR UPDATE before the RM-usability check (N-48)', async () => {
+    const { client, calls } = createClient({ bomStatus: 'draft' });
+
+    const result = await approveReleaseBundle(ctx(client), approveInput);
+
+    expect(result.ok).toBe(true);
+    const lockIdx = calls.findIndex(
+      (call) => normalize(call.sql).includes('from public.bom_headers') && normalize(call.sql).includes('for update'),
+    );
+    const rmIdx = calls.findIndex((call) => normalize(call.sql).includes('from public.bom_lines') && normalize(call.sql).includes('blocked'));
+    expect(lockIdx).toBeGreaterThanOrEqual(0);
+    expect(rmIdx).toBeGreaterThan(lockIdx);
   });
 
   it('rejects a spec/BOM version mismatch before signing or mutating', async () => {

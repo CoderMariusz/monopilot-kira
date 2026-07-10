@@ -168,6 +168,18 @@ async function loadBom(client: QueryClient, id: string): Promise<BomRow | null> 
   return rows[0] ?? null;
 }
 
+async function lockBomForApproval(client: QueryClient, id: string): Promise<BomRow | null> {
+  const { rows } = await client.query<BomRow>(
+    `select id, status, version, product_id, npd_project_id
+       from public.bom_headers
+      where id = $1::uuid
+        and org_id = app.current_org_id()
+      for update`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
 /**
  * F2 — bundle-internal consistency: the factory_spec's FG item (fg_item_id →
  * items, org-scoped via RLS + the app.current_org_id() predicate) must carry
@@ -387,14 +399,8 @@ export async function approveReleaseBundle(
   }
 
   // AC2 — release blocker on either side rejects the whole approval atomically. RM
-  // usability is the BOM-side blocker we can enforce against the migrated schema.
-  if (await bomRmUsabilityFails(ctx.client, bom.id)) {
-    return {
-      ok: false,
-      error: 'release_blocked',
-      message: 'BOM has lines referencing inactive items (RM usability failed)',
-    };
-  }
+  // usability is checked under row locks below so concurrent BOM edits cannot slip
+  // inactive items in between validation and approval.
 
   try {
     const lockedSpec = await lockFactorySpecForApproval(ctx.client, spec.id);
@@ -406,6 +412,26 @@ export async function approveReleaseBundle(
         ok: false,
         error: 'invalid_state',
         message: `factory_spec is paired to BOM ${lockedSpec.bom_header_id ?? 'none'} v${lockedSpec.bom_version ?? 'none'}; expected BOM ${bom.id} v${bom.version}`,
+      };
+    }
+
+    const lockedBom = await lockBomForApproval(ctx.client, bom.id);
+    if (!lockedBom) {
+      return { ok: false, error: 'not_found' };
+    }
+    if (!['draft', 'in_review', 'technical_approved', 'active'].includes(lockedBom.status)) {
+      return {
+        ok: false,
+        error: 'invalid_state',
+        message: `BOM ${lockedBom.id} is ${lockedBom.status}; the bundle requires a draft/in_review/technical_approved/active BOM`,
+      };
+    }
+
+    if (await bomRmUsabilityFails(ctx.client, lockedBom.id)) {
+      return {
+        ok: false,
+        error: 'release_blocked',
+        message: 'BOM has lines referencing inactive items (RM usability failed)',
       };
     }
 
@@ -422,14 +448,15 @@ export async function approveReleaseBundle(
           and org_id = app.current_org_id()
           and status = 'in_review'
         returning id`,
-      [spec.id, bom.id, bom.version, ctx.userId],
+      [spec.id, lockedBom.id, lockedBom.version, ctx.userId],
     );
     if (updatedSpec.rows.length === 0) {
       throw new Error('factory_spec_no_longer_in_review');
     }
 
-    const approvedBomStatus: 'technical_approved' | 'active' = bom.status === 'active' ? 'active' : 'technical_approved';
-    if (bom.status === 'draft' || bom.status === 'in_review') {
+    const approvedBomStatus: 'technical_approved' | 'active' =
+      lockedBom.status === 'active' ? 'active' : 'technical_approved';
+    if (lockedBom.status === 'draft' || lockedBom.status === 'in_review') {
       // Approve the BOM version in the SAME transaction (both sides or neither).
       const updatedBom = await ctx.client.query<{ id: string }>(
         `update public.bom_headers
@@ -439,7 +466,7 @@ export async function approveReleaseBundle(
           where id = $1::uuid
             and status in ('draft', 'in_review')
           returning id`,
-        [bom.id, ctx.userId],
+        [lockedBom.id, ctx.userId],
       );
       if (updatedBom.rows.length === 0) {
         throw new Error('bom_no_longer_approvable');
@@ -469,11 +496,11 @@ export async function approveReleaseBundle(
           intent: BUNDLE_APPROVE_INTENT,
           subject: {
             factorySpecId: spec.id,
-            bomHeaderId: bom.id,
+            bomHeaderId: lockedBom.id,
             fgItemId: spec.fg_item_id,
-            bomVersion: bom.version,
+            bomVersion: lockedBom.version,
           },
-          nonce: `${spec.id}:${bom.id}:approve`,
+          nonce: `${spec.id}:${lockedBom.id}:approve`,
           reason: input.reason,
         },
         { client: ctx.client as never },
@@ -493,8 +520,8 @@ export async function approveReleaseBundle(
       aggregateId: spec.id,
       payload: {
         factorySpecId: spec.id,
-        bomHeaderId: bom.id,
-        bomVersion: bom.version,
+        bomHeaderId: lockedBom.id,
+        bomVersion: lockedBom.version,
         fgItemId: spec.fg_item_id,
         signatureId,
         approvedBy: ctx.userId,
@@ -504,7 +531,7 @@ export async function approveReleaseBundle(
     // T-081 adapter (DB side): set the NPD soft uuid + close the canonical loop.
     const factoryReleaseStatusId = await closeNpdReleaseLoop(ctx.client, {
       orgId: ctx.orgId,
-      bom,
+      bom: lockedBom,
       factorySpecId: spec.id,
       releaseEventId,
       approvedBy: ctx.userId,
@@ -517,8 +544,8 @@ export async function approveReleaseBundle(
       resourceId: spec.id,
       afterState: {
         factorySpecId: spec.id,
-        bomHeaderId: bom.id,
-        bomVersion: bom.version,
+        bomHeaderId: lockedBom.id,
+        bomVersion: lockedBom.version,
         signatureId,
         releaseEventId,
         factoryReleaseStatusId,
@@ -529,7 +556,7 @@ export async function approveReleaseBundle(
       ok: true,
       data: {
         factorySpecId: spec.id,
-        bomHeaderId: bom.id,
+        bomHeaderId: lockedBom.id,
         factorySpecStatus: 'approved_for_factory',
         bomStatus: approvedBomStatus,
         evidenceBundleId: signatureId,
