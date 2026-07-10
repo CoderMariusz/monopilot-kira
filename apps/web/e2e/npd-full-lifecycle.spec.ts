@@ -206,7 +206,7 @@ async function selfAdvanceGate(
 
 // ── spec ──────────────────────────────────────────────────────────────────────
 
-test.describe('T-098 NPD full lifecycle: Brief → Project → G3 FG → G4 release → Launched closeout', () => {
+test.describe.serial('T-098 NPD full lifecycle: Brief → Project → G3 FG → G4 release → Launched closeout', () => {
   // Gate: entire describe block skips when no live server is configured.
   test.skip(
     !baseURL,
@@ -381,7 +381,7 @@ test.describe('T-098 NPD full lifecycle: Brief → Project → G3 FG → G4 rele
 
   test('4a · advances the project from G0 to G1 (self-advance)', async ({ page }) => {
     ensureDir(artifactDir);
-    test.skip(!projectId && !projectCode, 'project id not captured — run full suite sequentially');
+    expect(projectId, 'project id captured from step 3 — prior step must pass').toBeTruthy();
 
     await signIn(page);
 
@@ -401,7 +401,7 @@ test.describe('T-098 NPD full lifecycle: Brief → Project → G3 FG → G4 rele
 
   test('4b · advances the project from G1 to G2 (self-advance)', async ({ page }) => {
     ensureDir(artifactDir);
-    test.skip(!projectId, 'project id not captured — run full suite sequentially');
+    expect(projectId, 'project id captured — prior step must pass').toBeTruthy();
 
     await signIn(page);
     await openGateScreen(page, projectId);
@@ -415,7 +415,7 @@ test.describe('T-098 NPD full lifecycle: Brief → Project → G3 FG → G4 rele
     page,
   }) => {
     ensureDir(artifactDir);
-    test.skip(!projectId, 'project id not captured — run full suite sequentially');
+    expect(projectId, 'project id captured — prior step must pass').toBeTruthy();
 
     await signIn(page);
     await openGateScreen(page, projectId);
@@ -514,7 +514,7 @@ test.describe('T-098 NPD full lifecycle: Brief → Project → G3 FG → G4 rele
     page,
   }) => {
     ensureDir(artifactDir);
-    test.skip(!projectId, 'project id not captured — run full suite sequentially');
+    expect(projectId, 'project id captured — prior step must pass').toBeTruthy();
 
     await signIn(page);
     await openGateScreen(page, projectId);
@@ -555,7 +555,7 @@ test.describe('T-098 NPD full lifecycle: Brief → Project → G3 FG → G4 rele
     page,
   }) => {
     ensureDir(artifactDir);
-    test.skip(!projectId, 'project id not captured — run full suite sequentially');
+    expect(projectId, 'project id captured — prior step must pass').toBeTruthy();
     test.skip(!adminPassword, 'PLAYWRIGHT_ADMIN_PASSWORD unset — G4 e-sign required for release');
 
     await signIn(page);
@@ -690,7 +690,7 @@ test.describe('T-098 NPD full lifecycle: Brief → Project → G3 FG → G4 rele
 
   test('8 · advances the project from G4 to Launched', async ({ page }) => {
     ensureDir(artifactDir);
-    test.skip(!projectId, 'project id not captured — run full suite sequentially');
+    expect(projectId, 'project id captured — prior step must pass').toBeTruthy();
 
     await signIn(page);
     await openGateScreen(page, projectId);
@@ -774,7 +774,7 @@ test.describe('T-098 NPD full lifecycle: Brief → Project → G3 FG → G4 rele
     page,
   }) => {
     ensureDir(artifactDir);
-    test.skip(!projectId, 'project id not captured — run full suite sequentially');
+    expect(projectId, 'project id captured — prior step must pass').toBeTruthy();
 
     await signIn(page);
     await openPipelineBoard(page);

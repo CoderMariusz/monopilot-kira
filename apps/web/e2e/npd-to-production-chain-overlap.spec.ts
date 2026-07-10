@@ -184,11 +184,8 @@ test.describe('NPD → production chain + schedule-overlap flow', () => {
     const firstRowLink = page
       .locator('[data-testid^="wo-row-"] a[href*="/planning/work-orders/"]')
       .first();
-    if (!(await firstRowLink.count())) {
-      console.log('[chain-overlap] no WO rows — seed at least one work order to exercise the detail view.');
-      test.skip(true, 'no work orders present to open');
-      return;
-    }
+    const rowCount = await firstRowLink.count();
+    expect(rowCount, 'at least one work order must be seeded to exercise the detail view').toBeGreaterThan(0);
     await firstRowLink.click();
     await page.waitForURL(/\/planning\/work-orders\/[a-f0-9-]{36}/, { timeout: 10_000 });
     await expect(page.getByTestId('wo-detail-view'), 'WO detail renders').toBeVisible({
