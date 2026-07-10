@@ -176,11 +176,14 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
     expect(flow.projectId, 'project created in step 1').toBeTruthy();
     await signIn(page);
 
-    // Open the recipe stage — the shared project header carries the FG-mint affordance.
-    await page.goto(url(`/${L}/pipeline/${flow.projectId}/formulation`), {
+    // Open the brief stage — the shared project header carries the FG-mint
+    // affordance and renders reliably here even before a recipe row exists (the
+    // /formulation editor is empty until the brief is completed on a fresh blank
+    // project, so we drive the mint from the header on /brief).
+    await page.goto(url(`/${L}/pipeline/${flow.projectId}/brief`), {
       waitUntil: 'domcontentloaded',
     });
-    await expect(page.getByTestId('project-header'), 'project header on recipe stage').toBeVisible({
+    await expect(page.getByTestId('project-header'), 'project header on the stage page').toBeVisible({
       timeout: 10_000,
     });
 
@@ -207,7 +210,10 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
         waitUntil: 'domcontentloaded',
       });
       const modal = page.getByRole('dialog', { name: /advance gate/i });
-      if (!(await modal.count())) break; // terminal / no next gate
+      // The modal host hydrates from the ?modal= query param after load — wait for
+      // it rather than reading a count() before the client island mounts.
+      await modal.waitFor({ state: 'visible', timeout: 8_000 }).catch(() => undefined);
+      if (!(await modal.isVisible().catch(() => false))) break; // terminal / no next gate
       // First click the primary advance. If required stage checks are incomplete,
       // an override alert appears and demands a note before the button re-enables
       // as "Override and advance" — a real user flow.
@@ -225,7 +231,7 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
         await modal.getByRole('button', { name: /override and advance/i }).click().catch(() => undefined);
       }
       await modal.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
-      await page.goto(url(`/${L}/pipeline/${flow.projectId}/formulation`), {
+      await page.goto(url(`/${L}/pipeline/${flow.projectId}/brief`), {
         waitUntil: 'domcontentloaded',
       });
       createBtn = page.getByTestId('project-header-create-fg');
