@@ -218,19 +218,15 @@ export async function resolveEdgeSecurityContext(request: unknown): Promise<Edge
 
   const claims = decodeJwtClaims(accessToken);
   const app = claims.app_metadata ?? {};
-  const user = claims.user_metadata ?? {};
-  const role = roleClaim(stringClaim(app.role, app.role_code, user.role, user.role_code, claims.role));
-  const onboardingCompletedAt = stringClaim(
-    app.onboarding_completed_at,
-    user.onboarding_completed_at,
-  ) ?? null;
+  const role = roleClaim(stringClaim(app.role, app.role_code, claims.role));
+  const onboardingCompletedAt = stringClaim(app.onboarding_completed_at) ?? null;
 
   return {
     accessToken,
     onboardingCompletedAt,
-    orgId: stringClaim(app.org_id, user.org_id, claims.org_id),
+    orgId: stringClaim(app.org_id, claims.org_id),
     role,
-    sessionIdleTimeoutMinutes: numericClaim(app.idle_timeout_min ?? user.idle_timeout_min, DEFAULT_IDLE_TIMEOUT_MINUTES),
+    sessionIdleTimeoutMinutes: numericClaim(app.idle_timeout_min, DEFAULT_IDLE_TIMEOUT_MINUTES),
   };
 }
 

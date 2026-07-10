@@ -103,6 +103,35 @@ describe('lib/auth/edge-middleware-policy (T-035 edge runtime helper)', () => {
     expect(ctx.accessToken).toBe(sessionJwt);
   });
 
+  it('resolveEdgeSecurityContext ignores forged user_metadata for session-policy fields', async () => {
+    const { resolveEdgeSecurityContext } = (await import(HELPER_PATH)) as {
+      resolveEdgeSecurityContext: (request: Request) => Promise<{
+        accessToken: string | null;
+        role: string;
+        onboardingCompletedAt: string | null;
+        sessionIdleTimeoutMinutes: number;
+      }>;
+    };
+    const payload = Buffer.from(JSON.stringify({
+      app_metadata: { role: 'member' },
+      user_metadata: {
+        role: 'admin',
+        onboarding_completed_at: '2099-01-01T00:00:00.000Z',
+        idle_timeout_min: 99999,
+      },
+    })).toString('base64url');
+    const token = `stub.${payload}.sig`;
+
+    const ctx = await resolveEdgeSecurityContext(new Request('https://app.example.com/dashboard', {
+      headers: { authorization: `Bearer ${token}` },
+    }));
+
+    expect(ctx.accessToken).toBe(token);
+    expect(ctx.role).toBe('member');
+    expect(ctx.onboardingCompletedAt).toBeNull();
+    expect(ctx.sessionIdleTimeoutMinutes).toBe(60);
+  });
+
   it('resolveEdgeSecurityContext keeps onboardingCompletedAt null for a valid token that lacks onboarding claim', async () => {
     const { resolveEdgeSecurityContext } = (await import(HELPER_PATH)) as {
       resolveEdgeSecurityContext: (request: Request) => Promise<{ accessToken: string | null; onboardingCompletedAt: string | null; role: string }>;
