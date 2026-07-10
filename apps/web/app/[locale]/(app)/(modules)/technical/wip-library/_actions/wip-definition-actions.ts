@@ -50,6 +50,7 @@ type ExistingDefinition = {
   base_uom: string;
   yield_pct: string | number;
   reusable: boolean;
+  source_project_id: string | null;
 };
 
 type SaveWipDefinitionData = typeof saveWipDefinitionInputSchema._output;
@@ -146,11 +147,32 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
     const nextVersion = existing ? existing.version + (contentChanged ? 1 : 0) : 1;
 
     const itemId = existing?.item_id ?? await ensureDefinitionItem(ctx, data.name, data.baseUom);
-    // U3: the "reusable" toggle IS the publication decision — a reusable
-    // definition must be pickable, and the recipe picker requires 'active'.
-    // Without this, library-authored definitions were draft dead-ends
-    // (Gate-5b re-walk HIGH). Un-toggling never downgrades an active row.
-    const saved = existing
+    const cloneOnWrite = Boolean(existing && existing.status === 'active' && contentChanged);
+
+    const saved = cloneOnWrite
+      ? await ctx.client.query<{ id: string; version: number }>(
+          `insert into public.wip_definitions
+             (org_id, item_id, name, description, base_uom, yield_pct, version, status, reusable,
+              source_project_id, supersedes_wip_definition_id, created_by)
+           values
+             (app.current_org_id(), $1::uuid, $2, $3, $4, $5::numeric, $6::int,
+              case when $7::boolean then 'active' else 'draft' end,
+              $7::boolean, $8::uuid, $9::uuid, $10::uuid)
+           returning id, version`,
+          [
+            itemId,
+            data.name,
+            data.description ?? null,
+            data.baseUom,
+            data.yieldPct,
+            nextVersion,
+            data.reusable,
+            existing!.source_project_id,
+            existing!.id,
+            ctx.userId,
+          ],
+        )
+      : existing
       ? await ctx.client.query<{ id: string; version: number }>(
           `update public.wip_definitions
               set name = $2,
@@ -502,7 +524,7 @@ export async function markAllRead(): Promise<ActionResult> {
 
 async function loadExistingDefinition(ctx: OrgContextLike, id: string): Promise<ExistingDefinition | null> {
   const { rows } = await ctx.client.query<ExistingDefinition>(
-    `select id, item_id, version, status, name, description, base_uom, yield_pct, reusable
+    `select id, item_id, version, status, name, description, base_uom, yield_pct, reusable, source_project_id
        from public.wip_definitions
       where id = $1::uuid
         and org_id = app.current_org_id()
