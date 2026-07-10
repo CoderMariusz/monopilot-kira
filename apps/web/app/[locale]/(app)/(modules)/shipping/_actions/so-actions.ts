@@ -22,6 +22,7 @@ import {
 } from './so-transitions';
 import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext } from './so-status-write';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+import { OrderLineUomError, resolveOrderQtyToInventoryQty } from '../../../../../../lib/shipping/order-line-uom';
 import {
   DEFAULT_SO_LIST_PAGE_SIZE,
   normalizePage,
@@ -30,7 +31,7 @@ import {
 import type {
   ActionFailure,
   ActionResult,
-  AllocateSalesOrderSuccess,
+  AllocateSalesOrderResult,
   CreateSalesOrderResult,
   ForbiddenFailure,
   GetSalesOrderResult,
@@ -62,11 +63,6 @@ type AllocationStatus = 'unallocated' | 'partially_allocated' | 'allocated';
 type InvalidInputFailure = { ok: false; error: 'invalid_input'; message?: string };
 type PersistenceFailure = { ok: false; error: 'persistence_failed'; message?: string };
 
-type AllocateSalesOrderResult =
-  | AllocateSalesOrderSuccess
-  | ForbiddenFailure
-  | IllegalTransitionError
-  | InsufficientStockError;
 type SoCancelBlockedError = { ok: false; error: 'so_cancel_blocked_shipped' };
 type TransitionSalesOrderStatusResult = ActionResult<
   SalesOrder | null,
@@ -309,7 +305,7 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
             sol.product_id::text,
             i.item_code,
             i.name as item_name,
-            sol.quantity_ordered::text,
+            coalesce(sol.ext_data->>'order_qty', sol.quantity_ordered::text) as quantity_ordered,
             coalesce(sol.ext_data->>'order_uom', i.uom_base) as uom,
             sol.quantity_allocated::text
        from public.sales_order_lines sol
@@ -575,13 +571,33 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       }
     }
 
-    const resolvedLines: Array<{ item_id: string; qty: string; uom: string; unitPriceGbp: string }> = [];
+    const resolvedLines: Array<{
+      item_id: string;
+      order_qty: string;
+      inventory_qty: string;
+      uom: string;
+      unitPriceGbp: string;
+    }> = [];
     for (const line of input.lines) {
       const item = itemsById.get(line.item_id);
       if (!item) return { ok: false, error: 'invalid_input', message: 'Unknown sales order item' };
+      let inventoryQty: string;
+      try {
+        inventoryQty = await resolveOrderQtyToInventoryQty(ctx.client, {
+          itemId: line.item_id,
+          orderQty: line.qty,
+          orderUom: line.uom,
+        });
+      } catch (err) {
+        if (err instanceof OrderLineUomError) {
+          return { ok: false, error: 'unresolved_uom', message: err.message, uom: err.uom };
+        }
+        throw err;
+      }
       resolvedLines.push({
         item_id: line.item_id,
-        qty: line.qty,
+        order_qty: line.qty,
+        inventory_qty: inventoryQty,
         uom: line.uom,
         unitPriceGbp: resolveSalesLinePrice(item, {
           customerPrice: customerPricesByItemId.get(line.item_id) ?? null,
@@ -612,8 +628,19 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
           (org_id, sales_order_id, line_number, product_id, quantity_ordered, quantity_allocated,
            unit_price_gbp, line_total_gbp, ext_data, created_by, updated_by)
          values ($1::uuid, $2::uuid, $3::integer, $4::uuid, $5::numeric, 0,
-                 $6::numeric, ($5::numeric * $6::numeric), jsonb_build_object('order_uom', $7::text), $8::uuid, $8::uuid)`,
-        [orgId, soId, index + 1, line.item_id, line.qty, line.unitPriceGbp, line.uom, userId],
+                 $6::numeric, ($7::numeric * $6::numeric),
+                 jsonb_build_object('order_uom', $8::text, 'order_qty', $7::text), $9::uuid, $9::uuid)`,
+        [
+          orgId,
+          soId,
+          index + 1,
+          line.item_id,
+          line.inventory_qty,
+          line.unitPriceGbp,
+          line.order_qty,
+          line.uom,
+          userId,
+        ],
       );
     }
 
@@ -671,13 +698,20 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
       site_id: string | null;
       product_id: string;
       quantity_ordered: string;
+      order_qty: string | null;
+      order_uom: string | null;
     }>(
-      `select id::text, site_id::text, product_id::text, quantity_ordered::text
-         from public.sales_order_lines
-        where org_id = app.current_org_id()
-          and sales_order_id = $1::uuid
-          and deleted_at is null
-        order by line_number`,
+      `select sol.id::text,
+              sol.site_id::text,
+              sol.product_id::text,
+              sol.quantity_ordered::text,
+              sol.ext_data->>'order_qty' as order_qty,
+              sol.ext_data->>'order_uom' as order_uom
+         from public.sales_order_lines sol
+        where sol.org_id = app.current_org_id()
+          and sol.sales_order_id = $1::uuid
+          and sol.deleted_at is null
+        order by sol.line_number`,
       [id],
     );
 
@@ -695,7 +729,24 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
     let soonestNearExpiry: { date: string; days: number } | null = null;
 
     for (const line of lines) {
-      let needed = decimalToUnits(line.quantity_ordered);
+      let needed: bigint;
+      let inventoryNeededQty: string;
+      try {
+        inventoryNeededQty =
+          line.order_uom != null
+            ? await resolveOrderQtyToInventoryQty(ctx.client, {
+                itemId: line.product_id,
+                orderQty: line.order_qty ?? line.quantity_ordered,
+                orderUom: line.order_uom,
+              })
+            : line.quantity_ordered;
+        needed = decimalToUnits(inventoryNeededQty);
+      } catch (err) {
+        if (err instanceof OrderLineUomError) {
+          return { ok: false, error: 'unresolved_uom', message: err.message, uom: err.uom };
+        }
+        throw err;
+      }
       let available = 0n;
       const allocations: Array<{ lpId: string; qty: string }> = [];
 
@@ -767,7 +818,7 @@ export async function allocateSalesOrder(id: string): Promise<AllocateSalesOrder
           ok: false,
           error: 'INSUFFICIENT_STOCK',
           item_id: line.product_id,
-          needed: line.quantity_ordered,
+          needed: inventoryNeededQty,
           available: unitsToDecimal(available),
         };
       }

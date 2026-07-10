@@ -40,6 +40,10 @@ let allocationRows: Array<{ sales_order_line_id: string; lp_id: string; qty: str
 let lpReserved: Record<string, string> = {};
 let lineAllocatedQty = '0';
 let lineSiteId: string | null = null;
+let lineProductId = ITEM_ID;
+let lineQuantityOrdered = '10';
+let lineOrderQty: string | null = null;
+let lineOrderUom: string | null = null;
 let candidateRows: Array<{
   lp_id: string;
   available_qty: string;
@@ -49,6 +53,19 @@ let candidateRows: Array<{
 let nearExpiryWarnDays: string = '7';
 let customerActive = true;
 let customerDeleted = false;
+let itemPackFactors: Record<
+  string,
+  { uom_base: string; output_uom: string; net_qty_per_each: string | null; each_per_box: number | null; boxes_per_pallet: number | null }
+> = {
+  [ITEM_ID]: { uom_base: 'kg', output_uom: 'base', net_qty_per_each: null, each_per_box: null, boxes_per_pallet: null },
+  [ITEM_ID_2]: {
+    uom_base: 'pcs',
+    output_uom: 'each',
+    net_qty_per_each: '1',
+    each_per_box: 12,
+    boxes_per_pallet: null,
+  },
+};
 let orgUnitCodes = ['kg', 'g', 'l', 'ml', 'pcs', 'pack', 'box', 'pallet', 'case'];
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
 let listTotal = 1;
@@ -74,6 +91,24 @@ function decimalAdd(a: string, b: string): string {
   const whole = units / 1_000_000n;
   const fraction = (units % 1_000_000n).toString().padStart(6, '0').replace(/0+$/, '');
   return `${whole.toString()}${fraction ? `.${fraction}` : ''}`;
+}
+
+function resolveInventoryQtyMock(orderQty: string, orderUom: string, itemId: string): { inventory_qty: string; resolved: boolean } {
+  const item = itemPackFactors[itemId];
+  if (!item) return { inventory_qty: '0', resolved: false };
+  const uom = orderUom.trim().toLowerCase();
+  const qty = Number(orderQty);
+  if (uom === 'kg' || uom === item.uom_base.toLowerCase()) {
+    return { inventory_qty: orderQty, resolved: true };
+  }
+  if (uom === 'case' || uom === 'box') {
+    if (item.each_per_box == null) return { inventory_qty: '0', resolved: false };
+    return { inventory_qty: String(qty * item.each_per_box), resolved: true };
+  }
+  if (uom === 'pcs' || uom === 'each') {
+    return { inventory_qty: orderQty, resolved: true };
+  }
+  return { inventory_qty: '0', resolved: false };
 }
 
 function makeClient(): QueryClient {
@@ -125,17 +160,22 @@ function makeClient(): QueryClient {
           rowCount: orgUnitCodes.length,
         };
       }
+      if (q.includes('as inventory_qty') && q.includes('from public.items i')) {
+        const resolved = resolveInventoryQtyMock(String(params[0]), String(params[1]), String(params[2]));
+        return { rows: [resolved], rowCount: 1 };
+      }
       if (q.startsWith('insert into public.sales_order_lines')) {
         const quantityOrdered = params[4] as string;
         const unitPriceGbp = params[5] as string;
+        const orderQty = params[6] as string;
         insertedLines.push({
           sales_order_id: params[1],
           line_number: params[2],
           product_id: params[3],
           quantity_ordered: quantityOrdered,
           unit_price_gbp: unitPriceGbp,
-          line_total_gbp: `${Number(quantityOrdered) * Number(unitPriceGbp)}`,
-          ext_data: { order_uom: params[6] },
+          line_total_gbp: `${Number(orderQty) * Number(unitPriceGbp)}`,
+          ext_data: { order_uom: params[7], order_qty: orderQty },
         });
         return { rows: [], rowCount: 1 };
       }
@@ -204,7 +244,22 @@ function makeClient(): QueryClient {
           rowCount: 1,
         };
       }
-      if (q.startsWith('select sol.id::text')) {
+      if (q.startsWith('select sol.id::text') && q.includes("ext_data->>'order_qty' as order_qty")) {
+        return {
+          rows: [
+            {
+              id: LINE_ID,
+              site_id: lineSiteId,
+              product_id: lineProductId,
+              quantity_ordered: lineQuantityOrdered,
+              order_qty: lineOrderQty,
+              order_uom: lineOrderUom,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (q.startsWith('select sol.id::text') && q.includes('item_code')) {
         return {
           rows: [
             {
@@ -241,9 +296,6 @@ function makeClient(): QueryClient {
       if (q.startsWith('update public.sales_order_lines') && q.includes('set quantity_allocated = 0')) {
         lineAllocatedQty = '0';
         return { rows: [], rowCount: 1 };
-      }
-      if (q.startsWith('select id::text, site_id::text')) {
-        return { rows: [{ id: LINE_ID, site_id: lineSiteId, product_id: ITEM_ID, quantity_ordered: '10' }], rowCount: 1 };
       }
       if (q.includes("feature_flags->>'near_expiry_warn_days'")) {
         return { rows: [{ warn_days: nearExpiryWarnDays }], rowCount: 1 };
@@ -293,6 +345,10 @@ beforeEach(() => {
   lpReserved = {};
   lineAllocatedQty = '0';
   lineSiteId = null;
+  lineProductId = ITEM_ID;
+  lineQuantityOrdered = '10';
+  lineOrderQty = null;
+  lineOrderUom = null;
   candidateRows = [];
   nearExpiryWarnDays = '7';
   customerActive = true;
@@ -441,7 +497,7 @@ describe('createSalesOrder', () => {
         quantity_ordered: '10',
         unit_price_gbp: '7.2500',
         line_total_gbp: '72.5',
-        ext_data: { order_uom: 'kg' },
+        ext_data: { order_uom: 'kg', order_qty: '10' },
       },
     ]);
     expect(nextCacheMocks.revalidateLocalized).toHaveBeenCalledWith('/shipping');
@@ -474,16 +530,16 @@ describe('createSalesOrder', () => {
         quantity_ordered: '10',
         unit_price_gbp: '7.2500',
         line_total_gbp: '72.5',
-        ext_data: { order_uom: 'kg' },
+        ext_data: { order_uom: 'kg', order_qty: '10' },
       },
       {
         sales_order_id: SO_ID,
         line_number: 2,
         product_id: ITEM_ID_2,
-        quantity_ordered: '5',
+        quantity_ordered: '60',
         unit_price_gbp: '7.2500',
         line_total_gbp: '36.25',
-        ext_data: { order_uom: 'case' },
+        ext_data: { order_uom: 'case', order_qty: '5' },
       },
     ]);
   });
@@ -494,12 +550,14 @@ describe('createSalesOrder', () => {
     await createSalesOrder({
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
-      lines: [{ item_id: ITEM_ID, qty: '3', uom: 'case' }],
+      lines: [{ item_id: ITEM_ID_2, qty: '3', uom: 'case' }],
     });
 
     expect(insertedLines[0]).toMatchObject({
+      quantity_ordered: '36',
       unit_price_gbp: '2.5000',
-      ext_data: { order_uom: 'case' },
+      line_total_gbp: '7.5',
+      ext_data: { order_uom: 'case', order_qty: '3' },
     });
   });
 
@@ -529,7 +587,7 @@ describe('createSalesOrder', () => {
 
     expect(insertedLines[0]).toMatchObject({
       unit_price_gbp: '6.5000',
-      ext_data: { order_uom: 'kg' },
+      ext_data: { order_uom: 'kg', order_qty: '4' },
     });
     expect(queryLog.some((entry) => normalize(entry.sql).includes('from public.customer_item_prices'))).toBe(true);
   });
@@ -546,7 +604,7 @@ describe('createSalesOrder', () => {
 
     expect(insertedLines[0]).toMatchObject({
       unit_price_gbp: '3.0000',
-      ext_data: { order_uom: 'kg' },
+      ext_data: { order_uom: 'kg', order_qty: '2' },
     });
   });
 
@@ -754,6 +812,36 @@ describe('allocateSalesOrder', () => {
     ]);
     expect(lpReserved).toEqual({ [LP_1]: '6', [LP_2]: '4' });
     expect(lineAllocatedQty).toBe('10');
+  });
+
+  it('allocates 36 inventory units when the order line is 3 cases with each_per_box=12', async () => {
+    status = 'confirmed';
+    lineProductId = ITEM_ID_2;
+    lineQuantityOrdered = '36';
+    lineOrderQty = '3';
+    lineOrderUom = 'case';
+    candidateRows = [{ lp_id: LP_1, available_qty: '40' }];
+
+    const result = await allocateSalesOrder(SO_ID);
+
+    expect(result).toMatchObject({ ok: true, data: { id: SO_ID, status: 'allocated' } });
+    expect(allocationRows).toEqual([
+      { sales_order_line_id: LINE_ID, lp_id: LP_1, qty: '36', status: 'allocated' },
+    ]);
+    expect(lineAllocatedQty).toBe('36');
+  });
+
+  it('returns unresolved_uom when pack hierarchy cannot convert the entered order UoM', async () => {
+    status = 'confirmed';
+    lineProductId = ITEM_ID;
+    lineQuantityOrdered = '3';
+    lineOrderQty = '3';
+    lineOrderUom = 'case';
+
+    const result = await allocateSalesOrder(SO_ID);
+
+    expect(result).toMatchObject({ ok: false, error: 'unresolved_uom', uom: 'case' });
+    expect(allocationRows).toEqual([]);
   });
 
   it('returns INSUFFICIENT_STOCK without writing allocations when stock is short', async () => {

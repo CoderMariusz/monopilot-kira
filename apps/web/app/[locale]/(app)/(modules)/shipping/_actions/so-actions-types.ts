@@ -75,12 +75,21 @@ export type NearExpiryAllocationWarning = {
   affectedLpCount: number;
 };
 
+export type UnresolvedUomFailure = { ok: false; error: 'unresolved_uom'; message?: string; uom?: string };
+
 export type AllocateSalesOrderSuccess = {
   ok: true;
   data: SalesOrder | null;
   nearExpiryWarning?: NearExpiryAllocationWarning;
 };
 
+export type AllocateSalesOrderResult =
+  | AllocateSalesOrderSuccess
+  | ForbiddenFailure
+  | IllegalTransitionError
+  | InsufficientStockError
+  | UnresolvedUomFailure;
+
 export type ListSalesOrdersResult = ActionResult<PaginatedResult<SalesOrderListRow>>;
 export type GetSalesOrderResult = ActionResult<SalesOrder | null>;
-export type CreateSalesOrderResult = ActionResult<SalesOrder | null, ActionFailure>;
+export type CreateSalesOrderResult = ActionResult<SalesOrder | null, ActionFailure | UnresolvedUomFailure>;
