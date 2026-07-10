@@ -64,7 +64,12 @@ function wrapClientWithBolRaceHooks(client: pg.PoolClient, hooks: BolRaceHooks):
     const sql = typeof queryText === 'string' ? queryText : (queryText.text ?? '');
     if (SHIPMENT_FOR_UPDATE_SQL.test(sql)) {
       await hooks.beforeShipmentForUpdate?.();
+      // Execute the SELECT ... FOR UPDATE FIRST so the row lock is genuinely held,
+      // THEN signal lock-acquired. Signalling before nativeQuery ran let the
+      // competing ship transaction commit before A owned the lock (flaky race).
+      const locked = await nativeQuery(queryText, values);
       hooks.onBolShipmentLocked?.();
+      return locked;
     }
     if (BOL_UPDATE_SQL.test(sql)) {
       await hooks.beforeBolUpdate?.();
