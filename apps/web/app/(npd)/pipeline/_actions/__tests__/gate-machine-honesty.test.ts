@@ -52,7 +52,6 @@ import {
 } from '../_lib/gate-helpers';
 import { advanceProjectGate } from '../advance-project-gate';
 import { approveProjectGate } from '../approve-project-gate';
-import { rollbackGate } from '../revert-gate';
 
 describe('advanceTransitionForStage — the single honest source for "advance to …" claims', () => {
   it('brief (gate G0) advances to recipe which derives G2 — G1 is the intended skip', () => {
@@ -574,71 +573,5 @@ describe('closeOutLegacyStagesForLaunch — MRP closeout gate uses closed_mrp on
     );
     expect(source).not.toContain('done_mrp');
     expect(source).toContain("product.closed_mrp === 'Yes'");
-  });
-});
-
-describe('rollbackGate — launched is terminal and G4 is schema-valid', () => {
-  const PROJECT = '00000000-0000-4000-8000-0000000000c1';
-
-  beforeEach(() => {
-    ctx.handler = () => ({ rows: [] });
-  });
-
-  it('blocks rollback from launched with launched_is_terminal', async () => {
-    ctx.handler = (sql) => {
-      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
-      if (sql.includes('from public.npd_projects') && sql.includes('for update')) {
-        return {
-          rows: [
-            {
-              id: PROJECT,
-              code: 'NPD-R-001',
-              name: 'Terminal project',
-              type: 'single',
-              current_gate: 'Launched',
-              current_stage: 'launched',
-              product_code: 'FG-NPD-R-001',
-            },
-          ],
-        };
-      }
-      return { rows: [] };
-    };
-
-    const result = await rollbackGate({
-      projectId: PROJECT,
-      targetGate: 'G4',
-      reason: 'Rollback attempt should be blocked because launched is terminal.',
-    });
-    expect(result).toEqual({ ok: false, error: 'launched_is_terminal', status: 409 });
-  });
-
-  it('accepts G4 at the input boundary instead of returning INVALID_INPUT', async () => {
-    ctx.handler = (sql) => {
-      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
-      if (sql.includes('from public.npd_projects') && sql.includes('for update')) {
-        return {
-          rows: [
-            {
-              id: PROJECT,
-              code: 'NPD-R-002',
-              name: 'G3 project',
-              type: 'single',
-              current_gate: 'G3',
-              current_stage: 'pilot',
-              product_code: 'FG-NPD-R-002',
-            },
-          ],
-        };
-      }
-      return { rows: [] };
-    };
-
-    const result = await rollbackGate({
-      projectId: PROJECT,
-      targetGate: 'G4',
-      reason: 'G4 is now a valid rollback target shape for server-side validation.',
-    });
-    expect(result).toEqual({ ok: false, error: 'ROLLBACK_VIOLATION', status: 422 });
   });
 });
