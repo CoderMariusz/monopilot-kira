@@ -1,4 +1,5 @@
 import { EventType } from '../../../../packages/outbox/src/events.enum';
+import { pieceUomToWacEach } from '../uom/piece';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -185,6 +186,7 @@ export async function resolveWacDeltaQtyKg(
   client: QueryClient,
   { itemId, qty, uom }: { itemId: string; qty: string; uom: string },
 ): Promise<WacDeltaQtyKgResolution> {
+  const resolveUom = pieceUomToWacEach(uom) ?? uom;
   const { rows } = await client.query<{ qty_kg: string; resolved: boolean }>(
     `select (
        case
@@ -211,7 +213,7 @@ export async function resolveWacDeltaQtyKg(
       where i.org_id = app.current_org_id()
         and i.id = $3::uuid
       limit 1`,
-    [qty, uom, itemId],
+    [qty, resolveUom, itemId],
   );
   const row = rows[0];
   if (!row) {
@@ -321,6 +323,7 @@ export async function applyConsumptionWacReversal(
       orgId: input.orgId,
       itemId: input.itemId,
       qtyKg: resolution.qtyKg,
+      currencyCode: WAC_VALUATION_CURRENCY_CODE,
     });
     reversal = {
       deltaQtyKg: negateDecimalString(debit.deltaQtyKg),
@@ -336,6 +339,7 @@ export async function applyConsumptionWacReversal(
     deltaQtyKg: reversal.deltaQtyKg,
     deltaValue: reversal.deltaValue,
     updatedBy: input.updatedBy,
+    currencyCode: WAC_VALUATION_CURRENCY_CODE,
   });
 
   return {
@@ -383,6 +387,7 @@ export async function applyShipmentWacCancelCredits(
       deltaQtyKg: debit.qty_kg,
       deltaValue: debit.wac_value,
       updatedBy: input.updatedBy,
+      currencyCode: WAC_VALUATION_CURRENCY_CODE,
     });
   }
 }
