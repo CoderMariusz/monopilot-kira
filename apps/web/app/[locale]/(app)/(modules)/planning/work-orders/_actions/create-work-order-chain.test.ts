@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createWorkOrderChain, createWorkOrderChainForContext, resolveMaterialForWipEntry } from './create-work-order-chain';
+import { createWorkOrderChain, createWorkOrderChainForContext } from './create-work-order-chain';
+import { resolveMaterialForWipEntry } from './shared';
 import type { QueryClient } from './shared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -855,7 +856,7 @@ describe('resolveMaterialForWipEntry — BOM-line link identity', () => {
     consumedQty: '0', reservedQty: '0', uom: 'kg', sequence: 1, materialSource: 'bom',
     bomItemId: null, bomVersion: 1, notes: null, ...over,
   });
-  const wip = (productId: string, bomLineId: string): import('./create-work-order-chain').WipChainEntry =>
+  const wip = (productId: string, bomLineId: string): import('./shared').WipChainEntry =>
     ({ workOrder: { productId } as never, bomLineId });
 
   it('links strictly by bomItemId when present', () => {

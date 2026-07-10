@@ -13,6 +13,10 @@ import {
   type OrgActionContext,
   type ScheduleOutput,
   type WOMaterial,
+  type WipChainEntry,
+  type ChainErrorCode,
+  WorkOrderChainError,
+  resolveMaterialForWipEntry,
   type WOHeader,
 } from './shared';
 
@@ -36,17 +40,6 @@ type ChainOptions = {
   skipFactoryReleaseGate?: boolean;
 };
 
-type ChainErrorCode =
-  | 'invalid_input'
-  | 'forbidden'
-  | 'not_found'
-  | 'no_active_bom'
-  | 'pack_hierarchy_incomplete'
-  | 'no_active_site'
-  | 'document_mask_missing'
-  | 'not_released_to_factory'
-  | 'wo_create_failed'
-  | 'persistence_failed';
 
 type ChainResult =
   | {
@@ -86,16 +79,7 @@ type WipBomLineRow = {
   scrap_pct: string;
 };
 
-export type WipChainEntry = {
-  workOrder: WOHeader;
-  bomLineId: string;
-};
 
-class WorkOrderChainError extends Error {
-  constructor(readonly code: ChainErrorCode, readonly planningError?: string) {
-    super(planningError ? `${code}:${planningError}` : code);
-  }
-}
 
 function mapCoreErrorToChainCode(coreError: string | undefined): ChainErrorCode {
   return coreError === 'no_active_site'
@@ -506,31 +490,6 @@ async function loadWorkOrderByNumber(ctx: OrgActionContext, woNumber: string): P
   };
 }
 
-// Exported for unit tests: strict bom-line link, provably-unique legacy fallback, else reject.
-export function resolveMaterialForWipEntry(
-  fgMaterials: WOMaterial[],
-  wipEntry: WipChainEntry,
-  wipEntries: WipChainEntry[],
-): WOMaterial {
-  const byBomLine = fgMaterials.find((row) => row.bomItemId === wipEntry.bomLineId);
-  if (byBomLine) return byBomLine;
-
-  const productMatches = fgMaterials.filter((row) => row.productId === wipEntry.workOrder.productId);
-  const wipLinesForProduct = wipEntries.filter(
-    (entry) => entry.workOrder.productId === wipEntry.workOrder.productId,
-  );
-  const legacyMaterial = productMatches[0];
-  if (
-    productMatches.length === 1
-    && wipLinesForProduct.length === 1
-    && legacyMaterial
-    && (legacyMaterial.bomItemId == null || legacyMaterial.bomItemId === '')
-  ) {
-    return legacyMaterial;
-  }
-
-  throw new WorkOrderChainError('persistence_failed', 'wip_material_link_ambiguous');
-}
 
 async function linkDependencies(
   ctx: OrgActionContext,
