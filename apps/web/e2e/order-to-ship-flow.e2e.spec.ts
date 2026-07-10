@@ -215,7 +215,7 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
     const confirm = page.getByTestId('so-action-confirm');
     if ((await confirm.count()) && !(await confirm.isDisabled().catch(() => true))) {
       await confirm.click();
-      await expect(page.getByTestId('so-status-confirmed'), 'SO advances to confirmed').toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId('so-status-confirmed').first(), 'SO advances to confirmed').toBeVisible({ timeout: 10_000 });
     } else {
       console.log('[order-to-ship] confirm affordance unavailable — SO may already be past draft.');
     }

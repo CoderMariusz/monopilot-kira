@@ -212,8 +212,15 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
       // an override alert appears and demands a note before the button re-enables
       // as "Override and advance" — a real user flow.
       await modal.getByRole('button', { name: /advance to|override and advance/i }).last().click().catch(() => undefined);
+      // A fresh project's brief is incomplete (e.g. "Runs per week") so the first
+      // click surfaces an override alert + note field ASYNC; wait for either the
+      // modal to close (checks passed) or the note field to appear, then override.
       const overrideNote = modal.getByRole('textbox', { name: /override note/i });
-      if (await overrideNote.count()) {
+      await Promise.race([
+        overrideNote.waitFor({ state: 'visible', timeout: 6_000 }).catch(() => undefined),
+        modal.waitFor({ state: 'hidden', timeout: 6_000 }).catch(() => undefined),
+      ]);
+      if (await overrideNote.isVisible().catch(() => false)) {
         await overrideNote.fill('E2E flow-spec advance — override incomplete stage checks (test project)');
         await modal.getByRole('button', { name: /override and advance/i }).click().catch(() => undefined);
       }
