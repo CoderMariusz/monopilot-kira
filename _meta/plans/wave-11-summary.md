@@ -100,3 +100,18 @@ Adversarial review findings: N-25 `current_user` guard ineffective inside SECURI
 **N-25 (473):** `fa_reset_product_built_for_edit` sets transaction-local `app.built_reset_audited='on'` before `UPDATE product SET built=false`; `product_instead_of_update_fn` raises `V18_BUILT_DOWNGRADE_REQUIRES_AUDIT` on true→false downgrade unless that GUC is set. Tests: `N-25c` (grant `built`, direct downgrade → V18); `N-25b` narrowed to N-24 privilege denial only.
 
 **N-27 (474):** UPDATE trigger extended to `throughput_per_hour`, `throughput_uom`, `setup_cost`, `wip_definition_id`, `yield_pct`, `line_id`; reassignment resets+emits for both OLD and NEW FG parents via org-qualified `prod_detail` lookups. Tests: `N-27b` (costing fields), `N-27c` (two-product reassignment).
+
+---
+
+## Fix round 2
+
+Adversarial review: mig 473 `app.built_reset_audited` GUC is client-forgeable (not authorization); mig 468 view-only lockdown left `fg_npd_ext.built` + `product_legacy.built` directly writable by `app_user`.
+
+| # | File | Bug |
+|---|------|-----|
+| **475** | `packages/db/migrations/475-built-base-table-grant-lockdown.sql` | N-25 |
+| **476** | `packages/db/migrations/476-remove-forgeable-guc-built-guard.sql` | N-25 |
+
+**N-25 (475+476):** REVOKE `UPDATE(built)` from `app_user` on `public.product`, `public.fg_npd_ext`, `public.product_legacy` (and `public.fa` if ever granted); dynamic column-grant for all other columns. Remove `app.built_reset_audited` GUC from helper + INSTEAD-OF guard — column grants are the audit boundary; `fa_reset_product_built_for_edit` (SECURITY DEFINER owner) is the sole built writer and emits `fa.built_reset`. Keep false→true High/Open risk check. Tests: `N-24` (base-table privileges), `N-25b/c` (view + product_legacy denial), `N-25d` (forged GUC still denied).
+
+**N-27 (P2):** Integration `N-27d` — `line_id` + `wip_definition_id` updates with seeded `production_lines` / `wip_definitions` rows assert built reset + `fa.built_reset`.
