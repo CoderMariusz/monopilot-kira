@@ -1,18 +1,5 @@
 /**
  * Lane A1 — 03-technical Materials list page (NEW route, TEC-003).
- *
- * Real Supabase-backed list of public.items filtered to material types
- * (rm + intermediate) — org-scoped via listItems({ itemTypes }) → withOrgContext +
- * RLS (`app.current_org_id()`). No service-role bypass, no hardcoded/mock data.
- * Loading / empty / error / permission-denied / ready states are all rendered.
- * Detail links reuse the existing item-detail route (/technical/items/[item_code]).
- *
- * Prototype parity: prototypes/design/Monopilot Design System/technical/
- * other-screens.jsx:304-352 — `MaterialsListScreen` (TEC-003): breadcrumb
- * (Technical › Materials) + 20/700 page title + one-line muted description, pills
- * filter by type, dense design table (mono codes, type badge, UoM, cost/UoM,
- * updated, 5-tone status badge), EmptyState. The interactive list lives in
- * materials-table.client.tsx; this server page resolves data + labels only.
  */
 
 import Link from 'next/link';
@@ -24,17 +11,30 @@ import { MaterialsTableClient, type MaterialsTableLabels } from './_components/m
 
 export const dynamic = 'force-dynamic';
 
-// Material types in our item master. The prototype (other-screens.jsx:307/315)
-// lists raw materials, intermediates AND packaging as the consumed-material domain
-// (`typeTag.packaging = badge-amber`); we mirror that 1:1 now that 'packaging' is a
-// first-class item_type (migs 255/256). fg / co_product / byproduct are NOT
-// materials and stay out of this list.
 const MATERIAL_TYPES: readonly ItemType[] = ['rm', 'ingredient', 'intermediate', 'packaging'];
 
-export default async function TechnicalMaterialsPage() {
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+export default async function TechnicalMaterialsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ type?: string; q?: string; page?: string }>;
+}) {
   const locale = await getLocale();
+  const sp = await searchParams;
+  const page = parsePage(sp?.page);
+  const search = sp?.q?.trim() ?? '';
+  const initialType = MATERIAL_TYPES.find((tab) => tab === sp?.type);
   const t = await getTranslations('technical.materials');
-  const { items, canCreate, state } = await listItems({ itemTypes: MATERIAL_TYPES });
+  const { items, canCreate, state, pagination, typeCounts } = await listItems({
+    itemTypes: MATERIAL_TYPES,
+    page,
+    search: search || undefined,
+    itemType: initialType,
+  });
 
   const typeTabs: Array<{ key: 'all' | ItemType; label: string }> = [
     { key: 'all', label: t('tabs.all') },
@@ -58,6 +58,11 @@ export default async function TechnicalMaterialsPage() {
     noMatchTitle: t('noMatchTitle'),
     noMatchBody: t('noMatchBody'),
     countSummary: t('countSummary'),
+    pagination: {
+      showing: t('pagination.showing'),
+      previous: t('pagination.previous'),
+      next: t('pagination.next'),
+    },
     typeLabels: {
       rm: t('types.rm'),
       ingredient: t('types.ingredient'),
@@ -84,8 +89,6 @@ export default async function TechnicalMaterialsPage() {
           <p className="helper mt-1 max-w-3xl">{t('description')}</p>
         </div>
         {canCreate ? (
-          // Absolute locale-less href — relative `../items` resolved against
-          // /technical/materials to /<locale>/items → 404 (same class as the BOM CTA).
           <Link href={`/${locale}/technical/items`} prefetch={false} className="btn btn-secondary">
             {t('manageInItems')}
           </Link>
@@ -106,7 +109,15 @@ export default async function TechnicalMaterialsPage() {
           </div>
         </div>
       ) : (
-        <MaterialsTableClient items={items} typeTabs={typeTabs} labels={tableLabels} />
+        <MaterialsTableClient
+          locale={locale}
+          items={items}
+          pagination={pagination}
+          typeCounts={typeCounts}
+          filters={{ search, type: initialType ?? '' }}
+          typeTabs={typeTabs}
+          labels={tableLabels}
+        />
       )}
     </main>
   );

@@ -13,10 +13,14 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { type SelectOption } from '@monopilot/ui/Select';
 
 import { type ItemListItem, type ItemStatus, type ItemType } from '../_actions/shared';
+import { buildListPageHref } from '../../../../../../../lib/shared/list-page-href';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 import { type DeactivateLabels } from './deactivate-modal';
 import { type ItemWizardLabels } from './item-create-wizard';
 import { type StatusTransitionLabels } from './item-transition-labels';
@@ -56,6 +60,7 @@ export type ItemsTableLabels = {
   searchPlaceholder: string;
   /** Footer counter — carries {shown}/{total} placeholders (list.footer). */
   footer: string;
+  pagination: ListPaginationLabels;
   /** Accessible labels sourced from the same technical.items namespace. */
   aria: {
     itemType: string;
@@ -140,7 +145,11 @@ function tabTone(key: 'all' | ItemType): string {
 }
 
 export function ItemsTableClient({
+  locale,
   items,
+  pagination,
+  typeCounts,
+  filters,
   canEdit,
   canDeactivate,
   editLabel,
@@ -157,7 +166,11 @@ export function ItemsTableClient({
   supplierIdByCode = {},
   initialTab,
 }: {
+  locale: string;
   items: ItemListItem[];
+  pagination: PaginatedResult<ItemListItem>;
+  typeCounts: Record<ItemType, number> & { all: number };
+  filters: { search: string; type: string };
   canEdit: boolean;
   canDeactivate: boolean;
   editLabel: string;
@@ -178,28 +191,65 @@ export function ItemsTableClient({
   /** W2-T4 — pre-selected type tab (deep-link ?type=fg from the retired settings Products screen). */
   initialTab?: ItemType;
 }) {
-  const [tab, setTab] = React.useState<'all' | ItemType>(initialTab ?? 'all');
+  const router = useRouter();
+  const basePath = `/${locale}/technical/items`;
+  const activeTab: 'all' | ItemType = filters.type ? (filters.type as ItemType) : 'all';
+  const pageHref = (page: number) =>
+    buildListPageHref(
+      basePath,
+      {
+        type: activeTab === 'all' ? undefined : activeTab,
+        q: filters.search || undefined,
+      },
+      page,
+    );
+  const shown = pagination.offset + items.length;
   const [status, setStatus] = React.useState<'all' | ItemStatus>('all');
   const [d365, setD365] = React.useState<string>('all');
-  const [query, setQuery] = React.useState('');
+  const [searchDraft, setSearchDraft] = React.useState(filters.search);
 
-  const typeCounts = React.useMemo(() => {
-    const counts: Record<string, number> = { all: items.length };
-    for (const it of items) counts[it.itemType] = (counts[it.itemType] ?? 0) + 1;
-    return counts;
-  }, [items]);
+  React.useEffect(() => {
+    setSearchDraft(filters.search);
+  }, [filters.search]);
+
+  React.useEffect(() => {
+    if (searchDraft === filters.search) return;
+    const timer = window.setTimeout(() => {
+      router.push(
+        buildListPageHref(
+          basePath,
+          {
+            type: activeTab === 'all' ? undefined : activeTab,
+            q: searchDraft || undefined,
+          },
+          1,
+        ),
+      );
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, basePath, filters.search, router, searchDraft]);
+
+  function navigateType(next: 'all' | ItemType) {
+    router.push(
+      buildListPageHref(
+        basePath,
+        {
+          type: next === 'all' ? undefined : next,
+          q: filters.search || undefined,
+        },
+        1,
+      ),
+    );
+  }
 
   const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
     const d365Match = D365_FILTERS.find((f) => f.key === d365)?.match ?? (() => true);
     return items.filter((it) => {
-      if (tab !== 'all' && it.itemType !== tab) return false;
       if (status !== 'all' && it.status !== status) return false;
       if (!d365Match(it.d365SyncStatus)) return false;
-      if (q && !`${it.itemCode} ${it.name}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [items, tab, status, d365, query]);
+  }, [items, status, d365]);
 
   const tabLabel = (key: 'all' | ItemType) => labels.tabLabels[key] ?? key;
   const statusFilterLabel = (key: 'all' | ItemStatus) => labels.statusFilterLabels[key] ?? key;
@@ -207,7 +257,9 @@ export function ItemsTableClient({
   const typeLabel = (t: ItemType) => labels.typeLabels[t] ?? t;
   const statusLabel = (s: ItemStatus) => labels.statusLabels[s] ?? s;
   const col = labels.columns;
-  const footerText = labels.footer.replace('{shown}', String(filtered.length)).replace('{total}', String(items.length));
+  const footerText = labels.footer
+    .replace('{shown}', String(shown))
+    .replace('{total}', String(pagination.total));
 
   return (
     <div className="space-y-3">
@@ -218,9 +270,9 @@ export function ItemsTableClient({
             key={key}
             type="button"
             role="tab"
-            aria-selected={tab === key}
-            className={`tabs-counted-tab${tab === key ? ' active' : ''}`}
-            onClick={() => setTab(key)}
+            aria-selected={activeTab === key}
+            className={`tabs-counted-tab${activeTab === key ? ' active' : ''}`}
+            onClick={() => navigateType(key)}
           >
             <span>{tabLabel(key)}</span>
             <span className={`tabs-counted-pill ${tabTone(key)}`}>{typeCounts[key] ?? 0}</span>
@@ -235,8 +287,8 @@ export function ItemsTableClient({
           className="form-input max-w-xs"
           placeholder={labels.searchPlaceholder}
           aria-label={labels.aria.search}
-          value={query}
-          onChange={(e) => setQuery(e.currentTarget.value)}
+          value={searchDraft}
+          onChange={(e) => setSearchDraft(e.currentTarget.value)}
         />
         <div className="pills" role="group" aria-label={labels.aria.statusFilter}>
           {STATUS_FILTER_KEYS.map((key) => (
@@ -352,6 +404,14 @@ export function ItemsTableClient({
             </tbody>
           </table>
         )}
+        <ListPaginationFooter
+          shown={shown}
+          total={pagination.total}
+          previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+          nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+          labels={labels.pagination}
+          testId="items-list-pagination"
+        />
       </div>
 
       <p className="helper">{footerText}</p>

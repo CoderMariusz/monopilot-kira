@@ -70,19 +70,24 @@ function buildDeactivateLabels(t: Translator): DeactivateLabels {
 }
 
 export default async function TechnicalItemsPage({
+  params,
   searchParams,
 }: {
-  searchParams?: Promise<{ modal?: string; type?: string }>;
+  params: Promise<{ locale: string }>;
+  searchParams?: Promise<{ modal?: string; type?: string; q?: string; page?: string }>;
 }) {
-  // F6 — the "+ New item" CTA is rendered twice (header + empty-state). The
-  // ?modal=create deep-link auto-open must be owned by exactly ONE instance
-  // (the always-present header CTA) to avoid a double modal.
-  const params = await searchParams;
-  const autoOpenCreate = params?.modal === 'create';
-  // W2-T4 — ?type=<item_type> deep-link pre-selects a type tab. The retired
-  // /settings/products screen redirects here with ?type=fg (finished goods).
-  const initialTab: ItemType | undefined = ITEM_TYPES.find((tab) => tab === params?.type);
-  const { items, canCreate, canEdit, canDeactivate, state, limit, total, truncated } = await listItems();
+  const { locale } = await params;
+  const sp = await searchParams;
+  const autoOpenCreate = sp?.modal === 'create';
+  const page = Number(sp?.page);
+  const parsedPage = Number.isInteger(page) && page > 0 ? page : 1;
+  const initialType = ITEM_TYPES.find((tab) => tab === sp?.type);
+  const search = sp?.q?.trim() ?? '';
+  const { items, canCreate, canEdit, canDeactivate, state, pagination, typeCounts } = await listItems({
+    page: parsedPage,
+    search: search || undefined,
+    itemType: initialType,
+  });
   const t = await getTranslations('technical.items');
   const tItems = await getTranslations('items');
 
@@ -162,6 +167,11 @@ export default async function TechnicalItemsPage({
     searchPlaceholder: t('list.searchPlaceholder'),
     // {shown}/{total} are interpolated client-side — t.raw avoids next-intl FORMATTING_ERROR.
     footer: t.raw('list.footer') as string,
+    pagination: {
+      showing: t('list.pagination.showing'),
+      previous: t('list.pagination.previous'),
+      next: t('list.pagination.next'),
+    },
     aria: {
       itemType: t('create.fields.itemType'),
       search: t('list.searchPlaceholder'),
@@ -219,14 +229,13 @@ export default async function TechnicalItemsPage({
         </div>
       ) : (
         <>
-          {truncated ? (
-            <div role="alert" className="alert alert-amber">
-              {t('list.truncated', { limit, total })}
-            </div>
-          ) : null}
           <ItemsTableClient
-            initialTab={initialTab}
+            locale={locale}
+            initialTab={initialType}
             items={items}
+            pagination={pagination}
+            typeCounts={typeCounts}
+            filters={{ search, type: initialType ?? '' }}
             canEdit={canEdit}
             canDeactivate={canDeactivate}
             editLabel={editLabel}
