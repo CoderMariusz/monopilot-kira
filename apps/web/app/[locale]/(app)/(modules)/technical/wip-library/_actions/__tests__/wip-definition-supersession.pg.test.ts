@@ -69,10 +69,10 @@ runPg('WIP definition supersession lifecycle (real Postgres)', () => {
       [roleId, orgId],
     );
     await ownerPool.query(
-      `insert into public.users (id, org_id, email, name)
-       values ($1, $2, $3, 'Wave15 WIP User')
+      `insert into public.users (id, org_id, email, name, role_id)
+       values ($1, $2, $3, 'Wave15 WIP User', $4)
        on conflict (id) do nothing`,
-      [userId, orgId, `w15-wip-${userId}@example.test`],
+      [userId, orgId, `w15-wip-${userId}@example.test`, roleId],
     );
     await ownerPool.query(
       `insert into public.user_roles (user_id, role_id, org_id)

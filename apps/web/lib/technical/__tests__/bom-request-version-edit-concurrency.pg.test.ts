@@ -69,8 +69,12 @@ runPg('bom_request_version_edit concurrency (real Postgres)', () => {
       [orgId, tenantId, `w15-bom-${orgId.slice(0, 8)}`],
     );
     await ownerPool.query(
-      `insert into public.users (id, org_id, email, name)
-       values ($1, $2, $3, 'Wave15 BOM User')
+      `insert into public.users (id, org_id, email, name, role_id)
+       select $1, $2, $3, 'Wave15 BOM User', r.id
+         from public.roles r
+        where r.org_id = $2
+        order by r.slug
+        limit 1
        on conflict (id) do nothing`,
       [userId, orgId, `w15-bom-${userId}@example.test`],
     );

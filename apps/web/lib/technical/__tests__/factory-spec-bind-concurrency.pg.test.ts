@@ -112,15 +112,15 @@ runPg('factory-spec recall vs WO bind lock (real Postgres)', () => {
     );
     await ownerPool.query(
       `insert into public.roles (id, org_id, slug, code, name, permissions)
-       values ($1, $2, 'planner', 'planner', 'Wave15 Planner', '["npd.planning.write"]'::jsonb)
+       values ($1, $2, 'w15-planner', 'w15-planner', 'Wave15 Planner', '["npd.planning.write"]'::jsonb)
        on conflict (id) do nothing`,
       [roleId, orgId],
     );
     await ownerPool.query(
-      `insert into public.users (id, org_id, email, name)
-       values ($1, $2, $3, 'Wave15 Recall User')
+      `insert into public.users (id, org_id, email, name, role_id)
+       values ($1, $2, $3, 'Wave15 Recall User', $4)
        on conflict (id) do nothing`,
-      [userId, orgId, `w15-recall-${userId}@example.test`],
+      [userId, orgId, `w15-recall-${userId}@example.test`, roleId],
     );
     await ownerPool.query(
       `insert into public.user_roles (user_id, role_id, org_id)
@@ -129,7 +129,7 @@ runPg('factory-spec recall vs WO bind lock (real Postgres)', () => {
       [userId, roleId, orgId],
     );
     await ownerPool.query(
-      `insert into public.sites (id, org_id, code, name, timezone, created_by)
+      `insert into public.sites (id, org_id, site_code, name, timezone, created_by)
        values ($1, $2, 'W15', 'Wave15 Recall Site', 'UTC', $3)
        on conflict (id) do nothing`,
       [siteId, orgId, userId],
@@ -149,8 +149,8 @@ runPg('factory-spec recall vs WO bind lock (real Postgres)', () => {
     );
     await ownerPool.query(
       `insert into public.factory_specs
-         (id, org_id, fg_item_id, spec_code, version, status, released_by, released_at)
-       values ($1, $2, $3, $4, 1, 'released_to_factory', $5, now())
+         (id, org_id, fg_item_id, spec_code, version, status, approved_by, approved_at, released_by, released_at)
+       values ($1, $2, $3, $4, 1, 'released_to_factory', $5, now(), $5, now())
        on conflict (id) do nothing`,
       [specId, orgId, fgItemId, specCode, userId],
     );
