@@ -35,6 +35,8 @@
  * `'use server'`: ONLY async functions + serialisable types exported.
  */
 
+import type pg from 'pg';
+import { EPinFailedError, ESignPolicyError, signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
@@ -59,6 +61,8 @@ const MNT_READ_PERMISSION = 'mnt.asset.read';
 const MNT_MWO_REQUEST_PERMISSION = 'mnt.mwo.request';
 const MNT_MWO_EXECUTE_PERMISSION = 'mnt.mwo.execute';
 const MNT_MWO_CANCEL_PERMISSION = 'mnt.mwo.cancel';
+const MNT_LOTO_APPLY_PERMISSION = 'mnt.loto.apply';
+const MNT_LOTO_CLEAR_PERMISSION = 'mnt.loto.clear';
 
 // ── Closed vocabularies (migration 201 CHECK constraints) ────────────────────
 export type MwoState =
@@ -105,7 +109,14 @@ const LEGAL_TRANSITIONS: Record<MwoState, readonly MwoTransition[]> = {
 
 type ActionFailure = {
   ok: false;
-  reason: 'forbidden' | 'not_found' | 'invalid_transition' | 'error';
+  reason:
+    | 'forbidden'
+    | 'not_found'
+    | 'invalid_transition'
+    | 'loto_not_verified'
+    | 'loto_same_actor'
+    | 'esign_failed'
+    | 'error';
   message?: string;
 };
 type ActionResult<T> = { ok: true; data: T } | ActionFailure;
@@ -209,24 +220,102 @@ const transitionSchema = z.object({
   note: z.string().trim().max(4000).optional(),
 });
 
+const lotoSignatureSchema = z.object({
+  password: z.string().min(1),
+  nonce: z.string().min(1).optional(),
+});
+
+const verifyLotoLockoutSchema = z.object({
+  mwoId: uuidSchema,
+  signature: lotoSignatureSchema,
+});
+
+const verifyLotoReleaseSchema = z.object({
+  mwoId: uuidSchema,
+  signature: lotoSignatureSchema,
+});
+
+function maintenanceActionError(err: unknown): ActionFailure {
+  if (err instanceof EPinFailedError) {
+    return { ok: false, reason: 'esign_failed', message: err.message };
+  }
+  if (err instanceof ESignPolicyError) {
+    return { ok: false, reason: 'esign_failed', message: err.message };
+  }
+  return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+}
+
 // ── helpers (module-private; shared with the mig-185/198 action pattern) ─────
 async function writeOutbox(
   ctx: MaintenanceContext,
   params: {
-    eventType: 'maintenance.mwo.created' | 'maintenance.mwo.completed';
+    eventType:
+      | 'maintenance.mwo.created'
+      | 'maintenance.mwo.completed'
+      | 'maintenance.loto.applied'
+      | 'maintenance.loto.released';
     aggregateId: string;
+    aggregateType?: 'mwo' | 'mwo_loto';
     payload: Record<string, unknown>;
   },
 ): Promise<void> {
   await ctx.client.query(
     `insert into public.outbox_events
        (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values (app.current_org_id(), $1, 'mwo', $2::uuid, $3::jsonb, 'maintenance-mwo-v1')`,
+     values (app.current_org_id(), $1, $4, $2::uuid, $3::jsonb, 'maintenance-mwo-v1')`,
     [
       params.eventType,
       params.aggregateId,
       JSON.stringify({ org_id: ctx.orgId, actor_user_id: ctx.userId, ...params.payload }),
+      params.aggregateType ?? 'mwo',
     ],
+  );
+}
+
+type LotoGateRow = {
+  zero_energy_verified_by: string | null;
+  verified_at: Date | string | null;
+  released_by: string | null;
+  released_at: Date | string | null;
+};
+
+async function readLotoGate(ctx: MaintenanceContext, mwoId: string): Promise<LotoGateRow | null> {
+  const { rows } = await ctx.client.query<LotoGateRow>(
+    `select zero_energy_verified_by::text,
+            verified_at,
+            released_by::text,
+            released_at
+       from public.mwo_loto_checklists
+      where org_id = app.current_org_id()
+        and mwo_id = $1::uuid
+      limit 1`,
+    [mwoId],
+  );
+  return rows[0] ?? null;
+}
+
+function lotoLockoutSatisfied(loto: LotoGateRow | null): boolean {
+  return Boolean(loto?.zero_energy_verified_by && loto.verified_at);
+}
+
+function lotoReleaseSatisfied(loto: LotoGateRow | null): boolean {
+  return Boolean(loto?.released_by);
+}
+
+async function ensureLotoChecklistRow(ctx: MaintenanceContext, mwoId: string): Promise<void> {
+  await ctx.client.query(
+    `insert into public.mwo_loto_checklists (org_id, site_id, mwo_id)
+     select w.org_id, w.site_id, w.id
+       from public.maintenance_work_orders w
+      where w.org_id = app.current_org_id()
+        and w.id = $1::uuid
+        and not exists (
+          select 1
+            from public.mwo_loto_checklists lc
+           where lc.org_id = w.org_id
+             and lc.mwo_id = w.id
+        )`,
+    [mwoId],
   );
 }
 
@@ -713,6 +802,207 @@ export async function generateMwoFromPmSchedule(input: {
 }
 
 /**
+ * LOTO lockout verify (actor 1): e-sign + persist zero_energy_verified_by on
+ * mwo_loto_checklists. Gate: mnt.loto.apply. Equipment must require LOTO.
+ */
+export async function verifyMwoLotoLockout(input: {
+  mwoId: string;
+  signature: { password: string; nonce?: string };
+}): Promise<ActionResult<{ mwoId: string; verifiedAt: string }>> {
+  try {
+    const parsed = verifyLotoLockoutSchema.parse(input);
+    return await withOrgContext(async (ctx: MaintenanceContext): Promise<ActionResult<{ mwoId: string; verifiedAt: string }>> => {
+      if (!(await hasPermission(ctx, MNT_LOTO_APPLY_PERMISSION))) {
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      const mwo = await ctx.client.query<{
+        id: string;
+        mwo_number: string;
+        equipment_id: string | null;
+        requires_loto: boolean;
+      }>(
+        `select w.id::text,
+                w.mwo_number,
+                w.equipment_id::text,
+                coalesce(e.requires_loto, false) as requires_loto
+           from public.maintenance_work_orders w
+           left join public.equipment e
+             on e.id = w.equipment_id and e.org_id = w.org_id
+          where w.org_id = app.current_org_id()
+            and w.id = $1::uuid
+          for update of w`,
+        [parsed.mwoId],
+      );
+      const row = mwo.rows[0];
+      if (!row) return { ok: false, reason: 'not_found' };
+      if (!row.requires_loto) {
+        return { ok: false, reason: 'error', message: 'equipment does not require LOTO' };
+      }
+
+      const existing = await readLotoGate(ctx, parsed.mwoId);
+      if (lotoLockoutSatisfied(existing)) {
+        return { ok: false, reason: 'error', message: 'LOTO lockout is already verified' };
+      }
+
+      const receipt = await signEvent(
+        {
+          signerUserId: ctx.userId,
+          pin: parsed.signature.password,
+          intent: 'mnt.loto.lockout',
+          subject: { mwoId: parsed.mwoId, equipmentId: row.equipment_id },
+          reason: 'LOTO zero-energy lockout verify',
+          nonce: parsed.signature.nonce,
+        },
+        { client: ctx.client as unknown as pg.PoolClient },
+      );
+
+      await ensureLotoChecklistRow(ctx, parsed.mwoId);
+      const updated = await ctx.client.query<{ verified_at: Date | string }>(
+        `update public.mwo_loto_checklists
+            set zero_energy_verified_by = $2::uuid,
+                verified_at = pg_catalog.now(),
+                updated_at = pg_catalog.now()
+          where org_id = app.current_org_id()
+            and mwo_id = $1::uuid
+            and zero_energy_verified_by is null
+          returning verified_at`,
+        [parsed.mwoId, ctx.userId],
+      );
+      const verifiedAt = updated.rows[0]?.verified_at;
+      if (!verifiedAt) throw new Error('LOTO lockout update did not return a row');
+
+      await writeOutbox(ctx, {
+        eventType: 'maintenance.loto.applied',
+        aggregateId: parsed.mwoId,
+        aggregateType: 'mwo_loto',
+        payload: {
+          mwo_id: parsed.mwoId,
+          mwo_number: row.mwo_number,
+          equipment_id: row.equipment_id,
+          signature_hash: receipt.subjectHash,
+        },
+      });
+
+      return {
+        ok: true,
+        data: {
+          mwoId: parsed.mwoId,
+          verifiedAt: toIso(verifiedAt) ?? '',
+        },
+      };
+    });
+  } catch (err) {
+    return maintenanceActionError(err);
+  }
+}
+
+/**
+ * LOTO release verify (actor 2): distinct-actor e-sign + released_by on
+ * mwo_loto_checklists. Gate: mnt.loto.clear.
+ */
+export async function verifyMwoLotoRelease(input: {
+  mwoId: string;
+  signature: { password: string; nonce?: string };
+}): Promise<ActionResult<{ mwoId: string; releasedAt: string }>> {
+  try {
+    const parsed = verifyLotoReleaseSchema.parse(input);
+    return await withOrgContext(async (ctx: MaintenanceContext): Promise<ActionResult<{ mwoId: string; releasedAt: string }>> => {
+      if (!(await hasPermission(ctx, MNT_LOTO_CLEAR_PERMISSION))) {
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      const mwo = await ctx.client.query<{
+        id: string;
+        mwo_number: string;
+        equipment_id: string | null;
+        requires_loto: boolean;
+      }>(
+        `select w.id::text,
+                w.mwo_number,
+                w.equipment_id::text,
+                coalesce(e.requires_loto, false) as requires_loto
+           from public.maintenance_work_orders w
+           left join public.equipment e
+             on e.id = w.equipment_id and e.org_id = w.org_id
+          where w.org_id = app.current_org_id()
+            and w.id = $1::uuid
+          for update of w`,
+        [parsed.mwoId],
+      );
+      const row = mwo.rows[0];
+      if (!row) return { ok: false, reason: 'not_found' };
+      if (!row.requires_loto) {
+        return { ok: false, reason: 'error', message: 'equipment does not require LOTO' };
+      }
+
+      const existing = await readLotoGate(ctx, parsed.mwoId);
+      if (!lotoLockoutSatisfied(existing)) {
+        return { ok: false, reason: 'loto_not_verified', message: 'LOTO lockout must be verified before release' };
+      }
+      if (lotoReleaseSatisfied(existing)) {
+        return { ok: false, reason: 'error', message: 'LOTO release is already verified' };
+      }
+      if (existing?.zero_energy_verified_by === ctx.userId) {
+        return {
+          ok: false,
+          reason: 'loto_same_actor',
+          message: 'LOTO release signer must be distinct from the lockout verifier',
+        };
+      }
+
+      const receipt = await signEvent(
+        {
+          signerUserId: ctx.userId,
+          pin: parsed.signature.password,
+          intent: 'mnt.loto.release',
+          subject: { mwoId: parsed.mwoId, equipmentId: row.equipment_id },
+          reason: 'LOTO release verify',
+          nonce: parsed.signature.nonce,
+        },
+        { client: ctx.client as unknown as pg.PoolClient },
+      );
+
+      const updated = await ctx.client.query<{ released_at: Date | string }>(
+        `update public.mwo_loto_checklists
+            set released_by = $2::uuid,
+                released_at = pg_catalog.now(),
+                updated_at = pg_catalog.now()
+          where org_id = app.current_org_id()
+            and mwo_id = $1::uuid
+            and released_by is null
+          returning released_at`,
+        [parsed.mwoId, ctx.userId],
+      );
+      const releasedAt = updated.rows[0]?.released_at;
+      if (!releasedAt) throw new Error('LOTO release update did not return a row');
+
+      await writeOutbox(ctx, {
+        eventType: 'maintenance.loto.released',
+        aggregateId: parsed.mwoId,
+        aggregateType: 'mwo_loto',
+        payload: {
+          mwo_id: parsed.mwoId,
+          mwo_number: row.mwo_number,
+          equipment_id: row.equipment_id,
+          signature_hash: receipt.subjectHash,
+        },
+      });
+
+      return {
+        ok: true,
+        data: {
+          mwoId: parsed.mwoId,
+          releasedAt: toIso(releasedAt) ?? '',
+        },
+      };
+    });
+  } catch (err) {
+    return maintenanceActionError(err);
+  }
+}
+
+/**
  * Transition an MWO along the server-side legal map (see LEGAL_TRANSITIONS).
  * Gates: start/complete → mnt.mwo.execute; cancel → mnt.mwo.cancel (SoD).
  * The row is locked (FOR UPDATE) before the legality check so two concurrent
@@ -738,12 +1028,19 @@ export async function transitionMwo(input: {
         state: MwoState;
         schedule_id: string | null;
         source: MwoSource;
+        requires_loto: boolean;
       }>(
-        `select id::text, state, schedule_id::text, source
-           from public.maintenance_work_orders
-          where org_id = app.current_org_id()
-            and id = $1::uuid
-          for update`,
+        `select w.id::text,
+                w.state,
+                w.schedule_id::text,
+                w.source,
+                coalesce(e.requires_loto, false) as requires_loto
+           from public.maintenance_work_orders w
+           left join public.equipment e
+             on e.id = w.equipment_id and e.org_id = w.org_id
+          where w.org_id = app.current_org_id()
+            and w.id = $1::uuid
+          for update of w`,
         [parsed.mwoId],
       );
       const row = current.rows[0];
@@ -755,6 +1052,24 @@ export async function transitionMwo(input: {
           reason: 'invalid_transition',
           message: `${row.state} -> ${parsed.to} is not a legal MWO transition`,
         };
+      }
+
+      if (row.requires_loto && (parsed.to === 'in_progress' || parsed.to === 'completed')) {
+        const loto = await readLotoGate(ctx, parsed.mwoId);
+        if (parsed.to === 'in_progress' && !lotoLockoutSatisfied(loto)) {
+          return {
+            ok: false,
+            reason: 'loto_not_verified',
+            message: 'LOTO lockout verification is required before starting work',
+          };
+        }
+        if (parsed.to === 'completed' && !lotoReleaseSatisfied(loto)) {
+          return {
+            ok: false,
+            reason: 'loto_not_verified',
+            message: 'LOTO release verification is required before completing work',
+          };
+        }
       }
 
       const updated = await ctx.client.query<MwoDbRow>(
