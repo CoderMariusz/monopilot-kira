@@ -3,9 +3,11 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright config — pragmatic foundation wire (Slot F-3).
  *
- * Discovers spec files under apps/web/e2e and apps/web/tests so existing
- * smoke specs keep running. The webServer block is opt-in via PLAYWRIGHT_WEB_SERVER
- * so CI can run spec discovery without spawning the local preview server.
+ * Discovers Playwright specs only under apps/web/e2e (includes *.spec.ts and
+ * *.e2e.spec.ts naming). Vitest specs under apps/web/tests are excluded so
+ * `playwright test --list` does not wander into unit-test files.
+ * The webServer block is opt-in via PLAYWRIGHT_WEB_SERVER so CI can run spec
+ * discovery without spawning the local preview server.
  */
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3100';
 const previewURL = new URL(baseURL);
@@ -14,7 +16,7 @@ const previewPort = previewURL.port || (previewURL.protocol === 'https:' ? '443'
 
 export default defineConfig({
   testDir: './apps/web',
-  testMatch: ['**/e2e/**/*.spec.{js,ts}', '**/tests/**/*.spec.{js,ts}'],
+  testMatch: ['**/e2e/**/*.spec.ts', '**/e2e/**/*.e2e.spec.ts'],
   outputDir: './apps/web/e2e/test-results',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
