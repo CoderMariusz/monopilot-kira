@@ -88,3 +88,12 @@ pnpm --filter web run build   # required after 'use server' export changes
 ```
 
 Integration catch-weight tests skip without `DATABASE_URL`.
+
+## Fix round 1
+
+Reviewer gap (N-30 / N-31): mock-only rollback tests could not prove persisted rollback. Added real-Postgres integration tests gated on `DATABASE_URL`:
+
+- `purchase-orders/_actions/__tests__/import-po-rollback.pg.test.ts` — group 1 valid, group 2 hits **blocked supplier** at runtime; `all_or_nothing` asserts zero `purchase_orders` rows for group 1 and zero `import_export_jobs`; `skip_invalid` contrast asserts group 1 committed + import job persisted.
+- `transfer-orders/_actions/__tests__/import-to-rollback.pg.test.ts` — order 1 performs real inserts; order 2 forced `persistence_failed` via call-2 spy (TO core has no blocked-supplier analogue); same post-txn assertions for `transfer_orders` + `import_export_jobs`; `skip_invalid` contrast included.
+
+No implementation changes to `import-po.ts`, `import-to.ts`, or cores. PG tests parse and skip cleanly without `DATABASE_URL`.
