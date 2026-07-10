@@ -1,43 +1,37 @@
 -- Migration 484 (W17 / N-42): DB-driven gate_approval project preservation on delete.
 --
 -- gate_approvals.project_id is SET NULL when npd_projects is deleted (mig 085).
--- Stamp project_code + project_id_snapshot in that SET NULL path so the app does
--- not need a pre-delete UPDATE (which soft-failed under withOrgContext).
+-- Stamp project_code + project_id_snapshot from the still-existing parent row in a
+-- BEFORE DELETE trigger on npd_projects so durable refs survive SET NULL. The stamp
+-- runs in the delete transaction and rolls back if a later FK failure aborts delete.
 
-create or replace function public.gate_approvals_preserve_project_on_set_null()
+drop trigger if exists gate_approvals_preserve_project_on_set_null on public.gate_approvals;
+drop function if exists public.gate_approvals_preserve_project_on_set_null();
+
+create or replace function public.npd_projects_stamp_gate_approvals_on_delete()
 returns trigger
 language plpgsql
 as $$
 begin
-  if tg_op = 'UPDATE'
-     and old.project_id is not null
-     and new.project_id is null then
-    select p.code, p.id
-      into new.project_code, new.project_id_snapshot
-      from public.npd_projects p
-     where p.id = old.project_id
-       and p.org_id = old.org_id;
+  update public.gate_approvals ga
+     set project_code = old.code,
+         project_id_snapshot = old.id
+   where ga.org_id = old.org_id
+     and ga.project_id = old.id
+     and (
+       ga.project_code is distinct from old.code
+       or ga.project_id_snapshot is distinct from old.id
+     );
 
-    if new.project_code is null then
-      new.project_code := coalesce(
-        new.project_code,
-        (select p.code from public.npd_projects p where p.id = old.project_id)
-      );
-    end if;
-    if new.project_id_snapshot is null then
-      new.project_id_snapshot := coalesce(new.project_id_snapshot, old.project_id);
-    end if;
-  end if;
-
-  return new;
+  return old;
 end;
 $$;
 
-drop trigger if exists gate_approvals_preserve_project_on_set_null on public.gate_approvals;
-create trigger gate_approvals_preserve_project_on_set_null
-  before update of project_id on public.gate_approvals
+drop trigger if exists npd_projects_stamp_gate_approvals_on_delete on public.npd_projects;
+create trigger npd_projects_stamp_gate_approvals_on_delete
+  before delete on public.npd_projects
   for each row
-  execute function public.gate_approvals_preserve_project_on_set_null();
+  execute function public.npd_projects_stamp_gate_approvals_on_delete();
 
-comment on function public.gate_approvals_preserve_project_on_set_null() is
-  'When gate_approvals.project_id is SET NULL on npd_projects delete, retain durable project_code and project_id_snapshot for audit.';
+comment on function public.npd_projects_stamp_gate_approvals_on_delete() is
+  'Before npd_projects delete, stamp gate_approvals with durable project_code and project_id_snapshot so SET NULL on project_id retains audit identity.';

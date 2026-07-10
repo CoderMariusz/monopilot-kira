@@ -81,3 +81,10 @@ Adversarial Codex review follow-up (N-42, N-43, N-48, N-68):
 - **Docs** — English + Polish guides repointed from deleted `revert-gate.ts` / `rollbackGate` to `revertNpdGate` / `revert-npd-gate.ts`.
 - **generateBol** — shipment `FOR UPDATE` lock, status predicate on final UPDATE, throw on zero-row update (no orphan audit).
 - **Pg tests** — `delete-project.pg.test.ts`, `bom-lines-header-lock.pg.test.ts`, `generate-bol-ship-race.pg.test.ts`.
+
+## Fix round 2
+
+Codex re-review follow-up (N-42 migration semantics, N-68 race regression proof):
+
+- **484-gate-approvals-project-preserve-on-set-null.sql** — replaced broken `gate_approvals` SET NULL trigger with `BEFORE DELETE` on `npd_projects` that stamps `project_code` + `project_id_snapshot` while the parent row still exists (rolls back with failed delete).
+- **generate-bol-ship-race.pg.test.ts** — drives real `generateBol` / `shipShipment` with opposing `FOR UPDATE` lock + flip trigger; asserts shipped-path audit + BOL payload, packed-path BOL persistence, and `not_found` with no orphan audit on zero-row update.
