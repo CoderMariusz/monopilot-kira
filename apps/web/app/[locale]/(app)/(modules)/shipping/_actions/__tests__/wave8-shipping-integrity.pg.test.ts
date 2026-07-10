@@ -7,11 +7,11 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { getAppConnection, getOwnerConnection } from '../../../../../../../../packages/db/src/clients.js';
-import { setPin } from '../../../../../../../../packages/auth/src/verify-pin.js';
+import { getAppConnection, getOwnerConnection } from '../../../../../../../../../packages/db/src/clients.js';
+import { setPin } from '../../../../../../../../../packages/auth/src/verify-pin.js';
 import { cancelShipment } from '../cancelShipment';
 import { LIVE_ALLOCATION_SQL, SHIP_CLOSED_ALLOCATION_REASON } from '../so-transitions';
-import { ORDER_QTY_TO_INVENTORY_SQL, resolveOrderQtyToInventoryQty } from '../../../../../../lib/shipping/order-line-uom';
+import { ORDER_QTY_TO_INVENTORY_SQL, resolveOrderQtyToInventoryQty } from '../../../../../../../lib/shipping/order-line-uom';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runPg = databaseUrl ? describe : describe.skip;
@@ -229,11 +229,6 @@ runPg('wave-8 shipping stock integrity (real Postgres)', () => {
         .query('delete from app.session_org_contexts where session_token = $1::uuid', [sessionToken])
         .catch(() => undefined);
     }
-  });
-
-    await ownerPool?.query('delete from public.tenants where id = $1', [tenantId]).catch(() => undefined);
-    await appPool?.end();
-    await ownerPool?.end();
   });
 
   function cancelInput(shipmentId: string) {

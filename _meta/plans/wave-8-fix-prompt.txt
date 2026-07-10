@@ -1,0 +1,14 @@
+An adversarial reviewer FAILED your wave. Read: 1) _meta/plans/wave-8-spec.md, 2) _meta/plans/wave-8-summary.md, 3) _meta/plans/wave-8-codex-review.md (FULL text). Bug 2 is FIXED. Implement the required changes for Bug 1 (PARTIAL) and Bug 3 (BROKEN):
+
+BUG 1 — cancel restore must be SNAPSHOT-AUTHORITATIVE:
+- `lockShipmentLps` currently drives LP membership from the MUTABLE `shipment_box_contents` CTE and only left-joins `shipped_license_plates` (cancelShipment.ts:207-244). An LP present in the immutable snapshot but absent from current box contents is never restored → stock stays depleted on cancel.
+- FIX: drive the restore set FROM `shipped_license_plates` (the immutable snapshot) as the authoritative membership, with a deliberate legacy fallback ONLY when no snapshot row exists. Quantity comes from the snapshot.
+- Replace the copied-UPDATE pg test with a REAL action-level PostgreSQL test that actually calls `cancelShipment` and covers: full restore, partial restore, snapshot/contents divergence (LP in snapshot but not in current contents), and repeat/concurrent cancellation idempotency.
+
+BUG 3 — do NOT mix entered vs canonical grain across consumers:
+- `fetchSalesOrder` aliases `ext_data.order_qty` (ENTERED, e.g. 3 cases) to `quantity_ordered` while keeping canonical `quantity_allocated` (36 base) (so-actions.ts:303-310), then `mapLineRow`→`lineAllocationStatus(quantity_ordered, quantity_allocated)` compares 3 vs 36 → reports fully-allocated far too early, and displayed allocated has no matching UoM.
+  FIX: keep BOTH entered and canonical explicit in the read model; compute allocation status from CANONICAL quantity_ordered vs quantity_allocated; display entered qty/UoM separately (or convert allocated to entered UoM exactly for display). Do NOT overload one field with two units.
+- MRP open-SO demand (planning/_actions/mrp.ts:261-336) subtracts an entered-UoM-converted shipped qty from the now-CANONICAL sol.quantity_ordered → e.g. 3 cases×12 with 12 shipped computes 36-1=35 cases; and it only recognizes 'box' so literal 'case' yields null shipped → demand stays 36 labelled 'case'.
+  FIX: use ONE consistent grain — prefer canonical `quantity_ordered - shipped_base_qty` labelled in canonical inventory UoM. Add regression tests for a partially-shipped CASE order and a PALLET order.
+
+RULES: all qty math in SQL numeric (no JS float in production paths). Reuse the lib/shipping/order-line-uom helper. If a migration is needed it must be additive + safe on live (say so loudly). Gates: tsc clean; touched .ts vitest default config (pg tests need DATABASE_URL — if unavailable, still WRITE them correctly and note they run in CI). Commit on branch. Append "## Fix round 1" to _meta/plans/wave-8-summary.md.

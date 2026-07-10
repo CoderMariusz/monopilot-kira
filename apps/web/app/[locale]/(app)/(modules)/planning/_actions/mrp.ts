@@ -26,13 +26,13 @@
  *                  /planning/forecasts. Folded into the item's gross requirement; when an
  *                  item receives any forecast the persisted requirement is tagged
  *                  source_type='independent' and the run demand_source flips to 'forecast'.
- *   - sales orders: sales_order_lines remainder (quantity_ordered − Σ shipped box qty on
- *                  non-cancelled shipments in shipped/delivered status, converted from
- *                  inventory/base UoM into the line order_uom before subtracting) on
+ *   - sales orders: sales_order_lines remainder (canonical quantity_ordered − Σ shipped
+ *                  box qty on non-cancelled shipments in shipped/delivered status) on
  *                  post-confirm SOs whose need-by date falls within the planning horizon
- *                  — INDEPENDENT demand (NN-PLAN-4). UoM from ext_data.order_uom with
- *                  items.uom_base fallback; each/box lines convert via the same pack-
- *                  hierarchy machinery as forecast/WO demand. SOs with no promised or
+ *                  — INDEPENDENT demand (NN-PLAN-4). Wave-8: both quantity_ordered and
+ *                  shipped box qty are canonical inventory/base units (no conversion into
+ *                  the entered order_uom), so the remainder is exact and demand is labelled
+ *                  with items.uom_base. SOs with no promised or
  *                  required ship date bucket as immediate demand (run date) and surface
  *                  an undated-SO warning on the run result.
  *   - on-hand:     v_inventory_available (mig 191; status=available + qa released)
