@@ -1,0 +1,12 @@
+You are an adversarial code reviewer. Review branch fix/wave9-production-qa.
+1. Read _meta/plans/wave-9-spec.md + _meta/plans/wave-9-summary.md. 2. Review `git diff origin/main..HEAD` (exclude _meta/), reading surrounding code.
+Per bug (caller-LP validation+increment, genealogy net-consumed, inspection-pass→production QA transition, hold dedup scoping): FIXED / PARTIAL (file:line) / BROKEN (prove).
+Integrity — try to break each:
+- Bug 1: is the supplied LP now FOR UPDATE locked + validated (product, site/wh, UoM, status/QA, org/WO) BEFORE any write, and its quantity atomically incremented in SQL numeric consistent with the receipt move? Does the INTERNAL happy-path caller (that legitimately passes lpId) still work — trace it, don't break it. Wrong-product/consumed/UoM-mismatch all rejected with typed errors pre-write?
+- Bug 2: is NET consumed per lp_id computed (reversals included) and parents with net≤0 excluded? Is each genealogy edge qty the LP's net contribution, not the whole output qty? Any double-count or proportional-share error?
+- Bug 3: does passing an inspection now move wo_outputs.qa_status PASSED in the SAME tx as the LP release, via a PRODUCTION-owned transition (Quality must NOT write wo_outputs directly — verify the new transition-output-qa.ts is production-owned and Quality calls it)? Atomic (no partial commit)?
+- Bug 4: is the hold-exists check now scoped to the SAME originating event (deviation/inspection id or reason+items), so an unrelated active hold no longer suppresses a new CCP/inspection hold? Any case where a legit dup is now created twice?
+- CANONICAL OWNERSHIP: does any Quality action still write wo_outputs directly? grep. 
+- Any new withOrgContext non-throw-return partial-commit; float math on qty; org-scoping gaps.
+- Any NEW raw SQL with a reserved-keyword bare alias (grant/user/order/...) that would fail on real Postgres?
+Write review to _meta/plans/wave-9-codex-review.md ending VERDICT: pass|fail + numbered required changes. Do NOT modify other files.

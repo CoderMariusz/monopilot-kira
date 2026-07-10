@@ -1,0 +1,7 @@
+Re-review round 2. Your prior review (_meta/plans/wave-9-codex-review.md) had ONLY Bug 2 remaining with 2 HIGH gaps: (1) concurrency — advisory lock keyed on (WO, output type) let concurrent different-output-type registrations collectively over-attribute a parent; (2) mixed parent-consumption UoMs summed under min(uom) without a guard. The implementer applied fix round 2 (commit 600db08c + "## Fix round 2" in _meta/plans/wave-9-summary.md): genealogy allocation now locks WO-wide via pg_advisory_xact_lock(hashtext(woId||'::genealogy')); mixed UoM rejected via `having count(distinct mc.uom) > 1` typed error; a new register-output-genealogy.pg.test.ts added.
+Verify in CODE:
+1. Is genealogy allocation now serialized for the WHOLE WO (lock no longer includes output type), so two concurrent different-output-type registrations cannot collectively exceed a parent's net consumption? Is the parent-remaining cap now enforced under that lock (atomic invariant, not just read-time)?
+2. Are mixed-UoM parents rejected with a typed error (not silently summed under min)? 
+3. Does the new pg test exercise the real SQL for concurrency + mixed-UoM (parses/collects; skips without DATABASE_URL)?
+4. Regressions: Bugs 1/3/4 + canonical ownership stay fixed; no new reserved-keyword alias (must PREPARE on real PG); no float qty math; no withOrgContext partial-commit.
+Overwrite _meta/plans/wave-9-codex-review.md ending VERDICT: pass|fail. Do NOT modify other files.

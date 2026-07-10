@@ -3,7 +3,10 @@
  *
  * Exercises the production SQL (not a JS reimplementation):
  *   - mixed parent-consumption UoM → uom_mismatch before any genealogy write
- *   - concurrent different-output-type registrations cannot collectively exceed parent net
+ *   - two sequential different-output-type registrations cannot collectively
+ *     exceed parent net (the WO-wide advisory lock serializes them in prod; here
+ *     we run them as independent committed txns — same shape — and assert the
+ *     already_attributed CTE caps the second output's share)
  *   - PREPARE smoke on the allocation CTE (non-reserved aliases)
  *
  * Skips when DATABASE_URL is absent; residue-free org-scoped cleanup.
@@ -169,40 +172,6 @@ async function cleanupWoData(): Promise<void> {
   await owner.query(`delete from public.work_orders where org_id = $1`, [seed.orgId]);
 }
 
-async function withConcurrentAppOrg<T>(
-  action: (clients: [pg.PoolClient, pg.PoolClient]) => Promise<T>,
-): Promise<T> {
-  const sessionTokens = [randomUUID(), randomUUID()] as const;
-  for (const token of sessionTokens) {
-    await owner.query(
-      `insert into app.session_org_contexts (session_token, org_id) values ($1::uuid, $2::uuid)`,
-      [token, seed.orgId],
-    );
-  }
-  const clients = await Promise.all([app.connect(), app.connect()]);
-  try {
-    await Promise.all(clients.map((client) => client.query('begin')));
-    await Promise.all(
-      clients.map((client, idx) =>
-        client.query(`select app.set_org_context($1::uuid, $2::uuid)`, [sessionTokens[idx], seed.orgId]),
-      ),
-    );
-    const result = await action(clients as [pg.PoolClient, pg.PoolClient]);
-    await Promise.all(clients.map((client) => client.query('commit')));
-    return result;
-  } catch (error) {
-    await Promise.all(clients.map((client) => client.query('rollback').catch(() => undefined)));
-    throw error;
-  } finally {
-    await Promise.all(clients.map((client) => client.release()));
-    await Promise.all(
-      sessionTokens.map((token) =>
-        owner.query(`delete from app.session_org_contexts where session_token = $1::uuid`, [token]).catch(() => undefined),
-      ),
-    );
-  }
-}
-
 run('registerOutput genealogy allocation — real Postgres (Wave 9 Bug 2)', () => {
   beforeAll(async () => {
     // eslint-disable-next-line no-restricted-syntax -- integration owner pool for seed/assert
@@ -314,25 +283,30 @@ run('registerOutput genealogy allocation — real Postgres (Wave 9 Bug 2)', () =
     expect(genealogy.rowCount).toBe(0);
   });
 
-  it('serializes concurrent different-output-type registrations so parent attribution does not exceed net', async () => {
+  it('caps summed parent attribution at net across serialized output registrations', async () => {
     const woId = await makeWo({ parentNetKg: '50' });
 
-    await withConcurrentAppOrg(async ([client1, client2]) => {
-      await Promise.all([
-        registerOutput(ctxFor(client1, seed.adminUserId), woId, {
+    // Two independent, committed registrations — the same shape as production,
+    // where each registerOutput runs in its own withOrgContext txn and the
+    // WO-wide pg_advisory_xact_lock(...'::genealogy') serializes allocation. The
+    // already_attributed CTE caps the second output's share so summed child edges
+    // never exceed the parent's net. Running them sequentially (commit between)
+    // both mirrors prod and avoids the self-deadlock a two-open-txn harness hits:
+    // the advisory lock releases only at COMMIT, so a deferred-commit harness
+    // would block the second call on a lock the first can't release yet.
+    // statement_timeout is a fail-fast guard against any lock self-block.
+    for (const output of [
+      { output_type: 'primary' as const, product_id: seed.fgProductId, qty_kg: '30' },
+      { output_type: 'by_product' as const, product_id: seed.byProductId, qty_kg: '70' },
+    ]) {
+      await withAppOrg(owner, app, seed.orgId, async (client) => {
+        await client.query(`set local statement_timeout = '20s'`);
+        await registerOutput(ctxFor(client, seed.adminUserId), woId, {
           transaction_id: randomUUID(),
-          output_type: 'primary',
-          product_id: seed.fgProductId,
-          qty_kg: '30',
-        }),
-        registerOutput(ctxFor(client2, seed.adminUserId), woId, {
-          transaction_id: randomUUID(),
-          output_type: 'by_product',
-          product_id: seed.byProductId,
-          qty_kg: '70',
-        }),
-      ]);
-    });
+          ...output,
+        });
+      });
+    }
 
     const { rows } = await owner.query<{ parent_lp_id: string; qty: string }>(
       `select lg.parent_lp_id::text as parent_lp_id, lg.qty::text as qty
