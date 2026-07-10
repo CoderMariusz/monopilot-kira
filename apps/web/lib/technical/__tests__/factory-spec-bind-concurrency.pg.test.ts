@@ -45,6 +45,25 @@ function createBarrier() {
   };
 }
 
+/**
+ * Signals when createWorkOrderCore's path issues the production factory-spec bind lock.
+ * Recall waits on this so overlap is proven at the advisory lock, not before txn start.
+ */
+function observeFactorySpecBindLock(
+  client: pg.PoolClient,
+  onProductionBindLock: () => void,
+): pg.PoolClient {
+  const nativeQuery = client.query.bind(client);
+  client.query = async (queryText, values) => {
+    const sql = typeof queryText === 'string' ? queryText : queryText.text ?? '';
+    if (/pg_advisory_xact_lock/i.test(sql) && /factory_spec_bind/i.test(sql)) {
+      onProductionBindLock();
+    }
+    return nativeQuery(queryText, values);
+  };
+  return client;
+}
+
 async function withOpenOrgClient<T>(
   appPool: pg.Pool,
   ownerPool: pg.Pool,
@@ -174,7 +193,7 @@ runPg('factory-spec recall vs WO bind lock (real Postgres)', () => {
         await acquireFactorySpecProductBindLock(client, fgItemId);
         barrier.signal('lock-held');
 
-        await barrier.wait('bind-started');
+        await barrier.wait('bind-at-lock');
 
         await client.query(
           `update public.factory_specs
@@ -195,11 +214,13 @@ runPg('factory-spec recall vs WO bind lock (real Postgres)', () => {
 
     const bindTx = (async () => {
       await barrier.wait('lock-held');
-      barrier.signal('bind-started');
 
       return withOpenOrgClient(appPool, ownerPool, async (client) => {
+        const observingClient = observeFactorySpecBindLock(client, () => {
+          barrier.signal('bind-at-lock');
+        });
         const result = await createWorkOrderCore(
-          { userId, orgId, client },
+          { userId, orgId, client: observingClient },
           {
             productId: fgItemId,
             itemCode,

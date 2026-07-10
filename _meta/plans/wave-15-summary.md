@@ -117,3 +117,11 @@ Addresses Codex re-review findings 1–3 (N-22 lock ordering + composite FK dele
 **N-23 test:** `factory-spec-bind-concurrency.pg.test.ts` coordinates recall/bind with explicit barriers — recall holds `technical:factory_spec_bind` open while `createWorkOrderCore` runs; asserts no WO commits with `active_factory_spec_id` pointing at the recalled spec.
 
 **N-22 test:** `wip-definition-supersession.pg.test.ts` runs two concurrent `saveWipDefinition` calls against the same active id; asserts monotonic versions (v4 then v5), single active row, lineage chain, and preserved archived predecessor content.
+
+## Fix round 3
+
+Test-only fixes for Codex re-review findings 1–2 (no production code changes).
+
+**Finding 2 (N-22 regression):** `wip-definition-actions.test.ts` — updated `fans update notifications through a deduped created_by project query` SQL mock for clone-on-write (`FOR UPDATE` lock, successor insert, predecessor archive `rowCount: 1`, activation) while preserving notification/dedup assertions. Full suite green (8/8).
+
+**Finding 1 (N-23 overlap):** `factory-spec-bind-concurrency.pg.test.ts` — recall now waits on `bind-at-lock`, signaled by a test-only client wrapper when `createWorkOrderCore` issues `pg_advisory_xact_lock` for `technical:factory_spec_bind` (after txn/org-context are established). Proves bind blocks at the production advisory lock while recall holds it; retained committed-WO + no-bind-to-recalled-spec assertions.
