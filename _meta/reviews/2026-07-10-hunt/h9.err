@@ -1,0 +1,3319 @@
+warning: `--full-auto` is deprecated; use `--sandbox workspace-write` instead.
+Reading additional input from stdin...
+OpenAI Codex v0.144.1
+--------
+workdir: /Users/mariuszkrawczyk/Projects/monopilot-kira
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: none
+reasoning summaries: none
+session id: 019f4adc-4927-7f51-9f87-1ecf4b589669
+--------
+user
+You are a READ-ONLY static bug hunter on this repo (Next.js App Router + Supabase MES; DB ground truth = packages/db/migrations). Do NOT modify files. Every finding needs file:line evidence + severity P0/P1/P2. Also list CLEAN areas you verified and what you did NOT cover. Output findings as markdown. Do NOT re-report known bugs: WAC currency pool asymmetry, planning list client-side filters over paginated slice, missing planning.po/to/supplier RBAC, materialize-npd-bom state bypass, releaseWorkOrder heal-write, G3 approve stage jump, formulation submitted_for_trial dead state, hold release qa_status blanket reset, i18n missing key packs, tautological parity-evidence specs, hard-cap 200 lists.
+YOUR AREA: Finance/costing — lib/finance + technical/cost + cost ledgers + pricing. LENS: money math — float arithmetic, rounding drift across ledger entries, sign errors on reversals/credits, cost history precision, currency handling OUTSIDE the known WAC pool bug.
+codex
+I’ll perform a read-only audit of the finance/costing paths, trace monetary values back to migration types, and run only non-mutating searches. I’ll exclude the listed known bugs and report exact file:line evidence, clean areas, and coverage gaps.
+exec
+/bin/zsh -lc "sed -n '1,240p' /Users/mariuszkrawczyk/.codex/RTK.md && sed -n '1,260p' .claude/skills/MON-verify-and-review/SKILL.md" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+# RTK - Rust Token Killer (Codex CLI)
+
+**Usage**: Token-optimized CLI proxy for shell commands.
+
+## Rule
+
+Always prefix shell commands with `rtk`.
+
+Examples:
+
+```bash
+rtk git status
+rtk cargo test
+rtk npm run build
+rtk pytest -q
+```
+
+## Meta Commands
+
+```bash
+rtk gain            # Token savings analytics
+rtk gain --history  # Recent command savings history
+rtk proxy <cmd>     # Run raw command without filtering
+```
+
+## Verification
+
+```bash
+rtk --version
+rtk gain
+which rtk
+```
+---
+name: MON-verify-and-review
+description: The analysis, verification and self-review schema EVERY agent working on MonoPilot Kira must follow — writers before coding and before claiming done, reviewers when cross-reviewing a diff, orchestrators when arbitrating findings. Use whenever you implement, review, or merge ANY change here (code, migration, UI), whenever a prod error digest appears, and whenever you are about to write "done", "fixed" or "passing". Battle-tested 2026-07-07: this schema caught ~35 real defects before prod in one day.
+tags: [monopilot, review, verification, migrations, rsc, self-review]
+---
+
+# MON-verify-and-review
+
+One schema, three hats: **writer**, **reviewer**, **arbiter**. Unit tests here mock the
+database and the RSC runtime, so the two places bugs actually live — live Postgres
+triggers and the server→client boundary — are invisible to green test suites. That is
+why every step below exists.
+
+## 1. Writer — before coding
+
+- Trace the real flow end-to-end first (route → action → SQL → trigger → consumer).
+  The smallest diff in the wrong place is a second bug.
+- Verify schema claims against the **live DB**, never against drizzle mirrors or your
+  memory: `select column_name from information_schema.columns where table_name='…'`.
+  (A whole sweep statement once targeted a column that did not exist.)
+- Before writing to ANY table, list its triggers:
+  ```sql
+  select t.tgname, p.proname from pg_trigger t
+  join pg_class c on c.oid=t.tgrelid join pg_proc p on p.oid=t.tgfoid
+  where c.relname='<table>' and not t.tgisinternal;
+  ```
+  Immutability guards exist on: `grn_items` (completed GRN), `bom_lines` (active header —
+  ANY line op rejected), `factory_specs` (clone-on-write), `formulation_ingredients`
+  (locked version), `bom_snapshots`. New tables get them too — always check.
+- Known ordering contract: a new BOM header is created **draft-first** — insert header
+  as draft → insert lines → supersede old active → activate. Never lines-into-active.
+- Wave0 lock: `org_id` (never tenant_id), RLS via `app.current_org_id()` on every hop.
+
+## 2. Writer — RSC and server-action rules (3 prod screens died on this in one day)
+
+- Props crossing server→client must be JSON-serializable. No inline closures
+  (`action={(p) => f(p, opts)}` from a page = crash on hard load), no function-valued
+  fields inside label/config objects. Fix pattern: named `'use server'` wrapper action;
+  pure exported helpers that take the data object as an argument.
+- `'use server'` modules export **only async functions** — a `export type`/const passes
+  tsc and kills `next build`.
+- Every fixed page gets a serializability regression test (walk the props object,
+  assert no `typeof === 'function'` — see `item-wizard-labels.test.ts`).
+
+## 3. Writer — migrations
+
+- Additive by default; number = next free (check `packages/db/migrations/`). Vercel
+  build **auto-applies** migrations on push — there is no "later".
+- **Data migration ritual (mandatory):**
+  1. Backup every affected table first: `\copy (select * from t) to '_meta/backups/<date>-<wave>/t.csv' csv header`.
+  2. **Dry-run on the live DB**: copy of the file with `commit;` → `rollback;`, run with
+     `ON_ERROR_STOP=1`, and embed *probes* — one statement that must PASS and one that
+     must still FAIL (guard intact). A dry-run once caught a phantom column and a
+     freeze-trigger that both reviews missed.
+  3. Idempotent (run-twice mentally), `RAISE NOTICE` row counts per statement.
+  4. Frozen history (completed GRNs, snapshots) is skipped-with-notice and normalized
+     on read — never rewritten.
+  5. If old code can write legacy values during the deploy window: ship a self-contained
+     post-deploy sweep file **outside** `packages/db/migrations/` (the runner globs only
+     that dir) and run it manually after READY.
+
+## 4. Writer — self-review before claiming done
+
+- Re-read your diff cold. For every function you changed, grep its OTHER callers — the
+  root-cause fix lives where all callers route through.
+- Paste **real** command output for tsc and each test file. A self-declared GREEN with
+  no output is a FAIL. `CI=true pnpm install` first if node_modules is broken.
+- State explicitly what you did NOT do and every ambiguity you resolved (and why).
+  Honest gaps get fixed in review; hidden gaps become prod incidents.
+- Commit early and often to your track branch. Never push. Never work in /tmp
+  (a session crash once erased an entire wave of uncommitted /tmp worktrees).
+
+## 5. Reviewer — cross-review a diff
+
+- Writer ≠ reviewer, different model family. You get diff + the writer's spec
+  (`.agent-prompt.md`) + arbitration questions. Read FULL files, not just hunks —
+  several fixes land the same day; the diff may be stale.
+- Hunt ranked REAL defects only (no style nits), in this order:
+  1. live-DB safety (triggers, FKs, uniques, deploy-window),
+  2. security (org scoping on every SQL hop, RBAC, gate bypasses),
+  3. correctness (mass balance / double-count / vanish paths; positional SQL params vs tests),
+  4. contract for sibling tracks (fields the UI or chain expects),
+  5. overengineering (single-use abstractions, duplicated SQL that will drift).
+- Verify the writer's own inventory yourself (grep again). Run the test suites yourself
+  when the sandbox allows; report honestly when it doesn't.
+- Verdict: `MERGE` / `FIX-FIRST (list)` / `REWORK`. Each finding: severity, file:line,
+  concrete failure scenario, minimal fix.
+
+## 6. Arbiter — before findings go back to the writer
+
+- Confirm each finding **in the code yourself** before accepting it. Codex/Composer
+  reviews include plausible-but-wrong items.
+- "This diff reintroduces X" on a branch → check **branch-base drift** first
+  (`git diff main...branch --name-only`) — the branch may simply predate the fix.
+- Reject fixes that ADD abstraction (shared fixtures, wrapper layers) when the finding
+  was about deletion; reject deleting files whose types can't move into a
+  `'use server'` module.
+- Decide contract questions explicitly (e.g. "domain is per-product, not per-project")
+  and write the DECISION into the fix prompt — writers implement decisions, not debates.
+- Small surgical fixes (≤ ~20 lines, you fully understand them) you may apply yourself;
+  everything else goes back to the writing engine. High-risk reworks get a Codex re-check.
+
+## 7. After merge — the gate is on main, and prod is the last reviewer
+
+- Serial merge; on merged main: tsc + the union of touched test suites (branch-green is
+  not merge-green — conflict resolutions and sibling tracks interact).
+- After deploy READY: drive the changed flow in the browser on prod. Any 500 → pull the
+  Vercel runtime error digest (`get_runtime_errors`) — it names the real exception the
+  UI hides. Fix root-cause the same day; each live-found bug class gets added to §1-§3.
+
+exec
+/bin/zsh -lc "rtk rg --files apps/web packages | rg '(lib/finance|technical/.*/cost|technical/cost|cost|pricing|ledger)' | head -300" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+apps/web/lib/corrections/__tests__/correct-ledger-entry.test.ts
+apps/web/lib/corrections/correct-ledger-entry.ts
+apps/web/lib/costing/compute-waterfall.test.ts
+apps/web/lib/costing/__tests__/npd-cost-engine.test.ts
+apps/web/lib/costing/compute-waterfall.ts
+packages/db/migrations/396-item-effective-cost-view.sql
+packages/db/migrations/108-costing-scenario-params.sql
+packages/db/__tests__/item-cost-history.migration.test.ts
+packages/db/__tests__/costing.test.ts
+packages/db/migrations/269-settings-process-costing.sql
+packages/db/schema/cost-history.ts
+packages/db/schema/costing.ts
+apps/web/lib/npd/__tests__/wip-cost.test.ts
+apps/web/lib/npd/wip-cost.ts
+packages/db/migrations/429-npd-cost-engine-inputs.sql
+packages/db/migrations/405-effective-cost-reads-supplier-spec.sql
+packages/db/migrations/400-item-cost-history-currency-default-gbp.sql
+packages/db/migrations/087-costing.sql
+packages/db/migrations/310-cost-source-disassembly-allocation.sql
+packages/db/migrations/397-formulation-ingredients-cost-currency.sql
+packages/db/migrations/422-npd-costing-nutrition-stage.sql
+packages/db/migrations/160-item-cost-history.sql
+packages/db/migrations/451-routing-operations-setup-cost.sql
+apps/web/lib/finance/resolve-output-wac.ts
+apps/web/lib/finance/upsert-wac.ts
+apps/web/lib/finance/__tests__/book-receipt-wac.test.ts
+apps/web/lib/finance/__tests__/resolve-output-wac.test.ts
+apps/web/lib/finance/__tests__/upsert-wac.pg.test.ts
+apps/web/lib/finance/__tests__/upsert-wac.test.ts
+apps/web/lib/finance/book-receipt-wac.ts
+apps/web/lib/production/__tests__/stock-moves-production-ledger.pg.test.ts
+apps/web/app/[locale]/(app)/(admin)/settings/npd-cost-params/page.tsx
+apps/web/app/[locale]/(app)/(admin)/settings/npd-cost-params/npd-cost-params-screen.client.tsx
+apps/web/app/[locale]/(app)/(admin)/settings/npd-cost-params/_actions/npd-cost-params-schema.ts
+apps/web/app/[locale]/(app)/(admin)/settings/npd-cost-params/_actions/upsert-npd-cost-params.ts
+apps/web/app/[locale]/(app)/(npd)/_actions/get-costing-rollup.ts
+apps/web/app/[locale]/(app)/(admin)/settings/npd-cost-params/_actions/__tests__/npd-cost-params-actions.test.ts
+apps/web/app/[locale]/(app)/(admin)/settings/npd-cost-params/_actions/list-npd-cost-params.ts
+apps/web/app/[locale]/(app)/(npd)/costing/rollup/page.tsx
+apps/web/app/[locale]/(app)/(npd)/costing/rollup/_components/rollup-table.tsx
+apps/web/app/[locale]/(app)/(npd)/costing/rollup/rollup.test.tsx
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/page.tsx
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/formulation/_components/cost-panel.tsx
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_components/costing-screen.tsx
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_components/__tests__/costing-screen.compute.test.tsx
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_components/__tests__/costing-screen.test.tsx
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_components/__tests__/costing-screen.evidence.test.tsx
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_components/waterfall-bar.tsx
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/formulation/_components/__tests__/cost-panel.test.tsx
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/formulation/_components/__tests__/formulation-editor.process-cost.test.tsx
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts
+apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/cost-import/page.tsx
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/save-scenario.ts
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/save-costing-inputs-schema.ts
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/__tests__/cost-engine-adapter.test.ts
+apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/cost-import/_components/cost-import.client.tsx
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/__tests__/save-costing-inputs.test.ts
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/__tests__/compute.test.ts
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/save-costing-inputs.ts
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing-nutrition/page.tsx
+apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/cost-import/__tests__/tec-052-cost-import-from-d365.test.tsx
+apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/cost-import/_actions/trigger-cost-import.ts
+apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/cost-import/_actions/load-d365-cost-import.ts
+apps/web/app/[locale]/(app)/(modules)/finance/_components/__tests__/wo-cost-table.test.tsx
+apps/web/app/[locale]/(app)/(modules)/finance/_components/wo-cost-table.client.tsx
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/__tests__/wo-cost-actions.test.ts
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/__tests__/wo-cost-math.test.ts
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-math.ts
+apps/web/app/[locale]/(app)/(modules)/technical/routings/__tests__/routing-cost-preview-crew.test.ts
+apps/web/app/[locale]/(app)/(modules)/technical/routings/__tests__/routing-cost-preview.integration.test.ts
+apps/web/app/[locale]/(app)/(modules)/technical/routings/_actions/cost-preview.ts
+apps/web/app/[locale]/(app)/(modules)/technical/routings/_actions/cost-preview-shared.ts
+apps/web/app/[locale]/(app)/(modules)/technical/items/[item_code]/_components/__tests__/item-overview-effective-cost.test.tsx
+apps/web/app/[locale]/(app)/(modules)/technical/cost/page.tsx
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/page.tsx
+apps/web/app/[locale]/(app)/(modules)/technical/cost/__tests__/list-recipe-cost.test.ts
+apps/web/app/[locale]/(app)/(modules)/technical/cost/__tests__/cost.integration.test.ts
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-cost-history.ts
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/post-cost.ts
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-cost-items.ts
+apps/web/app/[locale]/(app)/(modules)/technical/cost/history/page.tsx
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/numeric.ts
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/recipe-cost.client.tsx
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/cost-manager.client.tsx
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/__tests__/recipe-cost.test.tsx
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/__tests__/cost-manager.test.tsx
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/__tests__/numeric.test.ts
+apps/web/app/[locale]/(app)/(modules)/technical/__tests__/where-used-and-portfolio-cost.test.ts
+apps/web/app/[locale]/(app)/(modules)/technical/costs/d365-import/page.tsx
+
+exec
+/bin/zsh -lc "rtk sed -n '1,260p' apps/web/lib/finance/upsert-wac.ts; rtk sed -n '1,240p' apps/web/lib/finance/book-receipt-wac.ts; rtk sed -n '1,240p' apps/web/lib/finance/resolve-output-wac.ts; rtk sed -n '1,280p' 'apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts'; rtk sed -n '1,280p' 'apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/post-cost.ts'" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+import { EventType } from '../../../../packages/outbox/src/events.enum';
+
+type QueryClient = {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<{ rows: T[]; rowCount?: number | null }>;
+};
+
+export const WAC_OUTBOX_APP_VERSION = 'finance-wac-v1';
+
+export type WacAnomalySourceRef = {
+  aggregateType: string;
+  aggregateId: string;
+  dedupKey: string;
+};
+
+type UpsertWacInput = {
+  orgId: string;
+  siteId: string | null;
+  itemId: string;
+  deltaQtyKg: string;
+  deltaValue: string;
+  updatedBy: string;
+  /** ISO currency code for the WAC bucket; defaults to GBP when omitted. */
+  currencyCode?: string;
+  /** Links a clamp anomaly to the stock move that caused it. */
+  sourceRef?: WacAnomalySourceRef;
+};
+
+/** Default WAC bucket when callers omit currency (org base currency; no FX conversion). */
+export const WAC_VALUATION_CURRENCY_CODE = 'GBP';
+
+const DEFAULT_WAC_CURRENCY_CODE = WAC_VALUATION_CURRENCY_CODE;
+
+/** Coherent clamp: zero value only when qty is zero; keep positive qty even at zero value. */
+const WAC_COHERENT_FINAL_CTE = `coherent as (
+       select greatest(raw_qty_kg, 0) as coerced_qty,
+              greatest(raw_value, 0) as coerced_value,
+              raw_qty_kg,
+              raw_value
+         from computed
+     ),
+     final as (
+       select coerced_qty as total_qty_kg,
+              case when coerced_qty = 0 then 0 else coerced_value end as total_value,
+              (
+                raw_qty_kg < 0
+                or raw_value < 0
+                or (greatest(raw_qty_kg, 0) = 0 and greatest(raw_value, 0) > 0)
+              ) as clamped
+         from coherent
+     )`;
+
+const WAC_COHERENT_CONFLICT_QTY = `(
+       with computed as (
+         select public.item_wac_state.total_qty_kg + $3::numeric as raw_qty_kg,
+                public.item_wac_state.total_value + $4::numeric as raw_value
+       ),
+       coherent as (
+         select greatest(raw_qty_kg, 0) as coerced_qty,
+                greatest(raw_value, 0) as coerced_value
+           from computed
+       )
+       select coerced_qty
+         from coherent
+     )`;
+
+const WAC_COHERENT_CONFLICT_VALUE = `(
+       with computed as (
+         select public.item_wac_state.total_qty_kg + $3::numeric as raw_qty_kg,
+                public.item_wac_state.total_value + $4::numeric as raw_value
+       ),
+       coherent as (
+         select greatest(raw_qty_kg, 0) as coerced_qty,
+                greatest(raw_value, 0) as coerced_value
+           from computed
+       )
+       select case when coerced_qty = 0 then 0 else coerced_value end
+         from coherent
+     )`;
+
+type WacUpdateResult = {
+  totalQtyKg: string;
+  totalValue: string;
+  clamped: boolean;
+  excluded?: 'unresolved_uom';
+  availableQtyKg?: string;
+  availableValue?: string;
+  rawQtyKg?: string;
+  rawValue?: string;
+};
+
+export async function upsertWac(
+  client: QueryClient,
+  { orgId, siteId, itemId, deltaQtyKg, deltaValue, updatedBy, currencyCode = DEFAULT_WAC_CURRENCY_CODE, sourceRef }: UpsertWacInput,
+): Promise<WacUpdateResult> {
+  if (isZeroDecimalString(deltaQtyKg) && !isZeroDecimalString(deltaValue)) {
+    console.warn('[wac] unresolved_uom', { orgId, itemId, deltaQtyKg, deltaValue });
+    const { rows } = await client.query<WacUpdateResult>(
+      `select total_qty_kg::text as "totalQtyKg",
+              total_value::text as "totalValue",
+              false as clamped
+         from public.item_wac_state
+        where org_id = $1::uuid
+          and item_id = $2::uuid
+          and currency_id = (select id from public.currencies where code = $3::text)`,
+      [orgId, itemId, currencyCode],
+    );
+    return { ...(rows[0] ?? { totalQtyKg: '0', totalValue: '0', clamped: false }), excluded: 'unresolved_uom' };
+  }
+
+  const { rows } = await client.query<WacUpdateResult>(
+    `with existing as materialized (
+       select total_qty_kg, total_value
+         from public.item_wac_state
+        where org_id = $1::uuid
+          and item_id = $2::uuid
+          and currency_id = (select id from public.currencies where code = $7::text)
+        for update
+     ),
+     computed as (
+       select coalesce((select total_qty_kg from existing), 0) + $3::numeric as raw_qty_kg,
+              coalesce((select total_value from existing), 0) + $4::numeric as raw_value
+     ),
+     ${WAC_COHERENT_FINAL_CTE},
+     upserted as (
+       insert into public.item_wac_state (
+         org_id, site_id, item_id, currency_id, total_qty_kg, total_value, updated_by, updated_at
+       )
+       select $1::uuid,
+              $6::uuid,
+              $2::uuid,
+              (select id from public.currencies where code = $7::text),
+              final.total_qty_kg,
+              final.total_value,
+              $5::uuid,
+              now()
+         from final
+       on conflict (org_id, item_id, currency_id) do update set
+         site_id = coalesce(excluded.site_id, public.item_wac_state.site_id),
+         total_qty_kg = ${WAC_COHERENT_CONFLICT_QTY},
+         total_value = ${WAC_COHERENT_CONFLICT_VALUE},
+         updated_by = $5::uuid,
+         updated_at = now()
+       returning total_qty_kg::text, total_value::text
+     )
+     select upserted.total_qty_kg as "totalQtyKg",
+            upserted.total_value as "totalValue",
+            final.clamped,
+            coalesce((select total_qty_kg::text from existing), '0') as "availableQtyKg",
+            coalesce((select total_value::text from existing), '0') as "availableValue",
+            (select raw_qty_kg::text from computed) as "rawQtyKg",
+            (select raw_value::text from computed) as "rawValue"
+       from upserted
+       cross join final`,
+    [orgId, itemId, deltaQtyKg, deltaValue, updatedBy, siteId, currencyCode],
+  );
+  const result = rows[0] ?? { totalQtyKg: '0', totalValue: '0', clamped: false };
+  if (result.clamped) {
+    await recordWacUnderflowAnomaly(client, {
+      orgId,
+      siteId,
+      itemId,
+      currencyCode,
+      deltaQtyKg,
+      deltaValue,
+      availableQtyKg: result.availableQtyKg ?? '0',
+      availableValue: result.availableValue ?? '0',
+      rawQtyKg: result.rawQtyKg ?? '0',
+      rawValue: result.rawValue ?? '0',
+      sourceRef,
+    });
+  }
+  return result;
+}
+
+export type WacDeltaQtyKgResolution = {
+  qtyKg: string;
+  resolved: boolean;
+  marker?: 'unresolved_uom';
+};
+
+export async function resolveWacDeltaQtyKg(
+  client: QueryClient,
+  { itemId, qty, uom }: { itemId: string; qty: string; uom: string },
+): Promise<WacDeltaQtyKgResolution> {
+  const { rows } = await client.query<{ qty_kg: string; resolved: boolean }>(
+    `select (
+       case
+         when lower($2::text) = 'kg' then $1::numeric
+         when lower($2::text) = 'base' and lower(coalesce(i.uom_base, '')) = 'kg' then $1::numeric
+         when lower($2::text) = lower(coalesce(i.uom_base, '')) and lower(coalesce(i.uom_base, '')) = 'kg' then $1::numeric
+         when lower($2::text) = 'each' and i.net_qty_per_each is not null then $1::numeric * i.net_qty_per_each
+         when lower($2::text) = 'box' and i.net_qty_per_each is not null and i.each_per_box is not null
+           then $1::numeric * i.each_per_box::numeric * i.net_qty_per_each
+         else $1::numeric
+       end
+     )::text as qty_kg,
+     (
+       case
+         when lower($2::text) = 'kg' then true
+         when lower($2::text) = 'base' and lower(coalesce(i.uom_base, '')) = 'kg' then true
+         when lower($2::text) = lower(coalesce(i.uom_base, '')) and lower(coalesce(i.uom_base, '')) = 'kg' then true
+         when lower($2::text) = 'each' and i.net_qty_per_each is not null then true
+         when lower($2::text) = 'box' and i.net_qty_per_each is not null and i.each_per_box is not null then true
+         else false
+       end
+     ) as resolved
+       from public.items i
+      where i.org_id = app.current_org_id()
+        and i.id = $3::uuid
+      limit 1`,
+    [qty, uom, itemId],
+  );
+  const row = rows[0];
+  if (!row) {
+    console.warn('[wac] unresolved_uom', { itemId, uom, qty });
+    return { qtyKg: '0', resolved: false, marker: 'unresolved_uom' };
+  }
+  if (!row.resolved) {
+    console.warn('[wac] unresolved_uom', { itemId, uom, qty });
+    return { qtyKg: '0', resolved: false, marker: 'unresolved_uom' };
+  }
+  return { qtyKg: row.qty_kg, resolved: row.resolved };
+}
+
+export type WacReversalDelta = {
+  deltaQtyKg: string;
+  deltaValue: string;
+  source: 'snapshot' | 'fallback';
+};
+
+/** Reverses a prior WAC credit (output void, receipt void): negate booked qty/value. */
+export function computeWacReversalDelta(input: {
+  extJsonb: unknown;
+  fallbackQtyKg: string;
+  fallbackValue: string;
+}): WacReversalDelta {
+  const snapshot = readWacContributionSnapshot(input.extJsonb);
+  if (snapshot) {
+    return {
+      deltaQtyKg: negateDecimalString(snapshot.wac_qty_kg),
+      deltaValue: negateDecimalString(snapshot.wac_value),
+      source: 'snapshot',
+    };
+  }
+
+  return {
+    deltaQtyKg: negateDecimalString(input.fallbackQtyKg),
+    deltaValue: negateDecimalString(input.fallbackValue),
+    source: 'fallback',
+  };
+}
+
+/** Reverses a prior WAC debit (consumption reverse, ship cancel): restore booked qty/value. */
+export function computeWacDebitReversalDelta(input: {
+  extJsonb: unknown;
+  fallbackQtyKg: string;
+  fallbackValue: string;
+import { resolveWacDeltaQtyKg, upsertWac } from './upsert-wac';
+
+type QueryClient = {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<{ rows: T[]; rowCount?: number | null }>;
+};
+
+export type BookReceiptWacErrorCode = 'unknown_currency' | 'unresolved_uom';
+
+export class BookReceiptWacError extends Error {
+  readonly code: BookReceiptWacErrorCode;
+  readonly currencyCode?: string;
+  readonly uom?: string;
+  readonly qty?: string;
+
+  constructor(
+    code: BookReceiptWacErrorCode,
+    details: { currencyCode?: string; uom?: string; qty?: string } = {},
+  ) {
+    const message =
+      code === 'unknown_currency'
+        ? `Unknown currency code for WAC booking: ${details.currencyCode ?? 'unknown'}`
+        : `Cannot receive into WAC: UoM "${details.uom ?? 'unknown'}" cannot be converted to kg for valuation`;
+    super(message);
+    this.name = 'BookReceiptWacError';
+    this.code = code;
+    this.currencyCode = details.currencyCode;
+    this.uom = details.uom;
+    this.qty = details.qty;
+  }
+}
+
+export type ReceiptWacContext = {
+  orgId: string;
+  userId: string;
+  siteId: string | null;
+};
+
+export type ReceiptWacInput = {
+  grnItemId: string;
+  itemId: string;
+  qty: string;
+  uom: string;
+  poLineId: string;
+};
+
+export type ReceiptWacPreflightInput = Omit<ReceiptWacInput, 'grnItemId'>;
+
+/**
+ * Reject WAC-governed PO receipts whose UoM cannot be converted to kg before any
+ * GRN/LP/grn_item writes (P1-08). No-op when the PO line has no unit price.
+ */
+export async function preflightReceiptWacResolvability(
+  client: QueryClient,
+  ctx: ReceiptWacContext,
+  receipt: ReceiptWacPreflightInput,
+): Promise<void> {
+  const line = await loadLineUnitPrice(client, ctx.orgId, receipt.poLineId);
+  if (!line) return;
+
+  await assertWacUomResolvable(client, {
+    itemId: line.item_id,
+    qty: receipt.qty,
+    uom: receipt.uom,
+  });
+}
+
+export async function bookReceiptWacAfterGrnItem(
+  client: QueryClient,
+  ctx: ReceiptWacContext,
+  receipt: ReceiptWacInput,
+): Promise<void> {
+  const line = await loadLineUnitPrice(client, ctx.orgId, receipt.poLineId);
+  if (!line) return;
+
+  const wacResolution = await assertWacUomResolvable(client, {
+    itemId: line.item_id,
+    qty: receipt.qty,
+    uom: receipt.uom,
+  });
+
+  const receivedQtyKg = wacResolution.qtyKg;
+  const receivedValue = await multiplyNumeric(client, receipt.qty, line.unit_price);
+  const currencyCode = normalizeCurrencyCode(line.currency);
+  await assertResolvableCurrency(client, currencyCode);
+  await upsertWac(client, {
+    orgId: ctx.orgId,
+    siteId: ctx.siteId,
+    itemId: line.item_id,
+    deltaQtyKg: receivedQtyKg,
+    deltaValue: receivedValue,
+    updatedBy: ctx.userId,
+    currencyCode,
+  });
+  await client.query(
+    `update public.grn_items
+        set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $3::jsonb,
+            updated_by = $2::uuid,
+            updated_at = now()
+      where org_id = $1::uuid
+          and id = $4::uuid`,
+    [
+      ctx.orgId,
+      ctx.userId,
+      JSON.stringify({
+        wac_qty_kg: receivedQtyKg,
+        wac_value: receivedValue,
+        wac_currency_code: currencyCode,
+      }),
+      receipt.grnItemId,
+    ],
+  );
+}
+
+async function assertWacUomResolvable(
+  client: QueryClient,
+  receipt: { itemId: string; qty: string; uom: string },
+): Promise<{ qtyKg: string; resolved: true }> {
+  const wacResolution = await resolveWacDeltaQtyKg(client, {
+    itemId: receipt.itemId,
+    qty: receipt.qty,
+    uom: receipt.uom,
+  });
+  if (!wacResolution.resolved) {
+    // PO receipts with a unit price are WAC-governed: block unvalued stock rather than
+    // committing inventory while silently skipping valuation (P1-08).
+    throw new BookReceiptWacError('unresolved_uom', { uom: receipt.uom, qty: receipt.qty });
+  }
+  return { qtyKg: wacResolution.qtyKg, resolved: true };
+}
+
+async function loadLineUnitPrice(
+  client: QueryClient,
+  orgId: string,
+  poLineId: string,
+): Promise<{ item_id: string; unit_price: string; currency: string } | null> {
+  const { rows } = await client.query<{ item_id: string; unit_price: string; currency: string }>(
+    `select pol.item_id::text,
+            pol.unit_price::text as unit_price,
+            po.currency
+       from public.purchase_order_lines pol
+       join public.purchase_orders po
+         on po.org_id = pol.org_id
+        and po.id = pol.po_id
+      where pol.org_id = $1::uuid
+        and pol.id = $2::uuid
+      limit 1`,
+    [orgId, poLineId],
+  );
+  return rows[0] ?? null;
+}
+
+function normalizeCurrencyCode(currency: string | null | undefined): string {
+  const normalized = currency?.trim().toUpperCase();
+  return normalized && normalized.length === 3 ? normalized : 'GBP';
+}
+
+async function assertResolvableCurrency(client: QueryClient, currencyCode: string): Promise<void> {
+  const { rows } = await client.query<{ id: string }>(
+    `select id::text
+       from public.currencies
+      where code = $1::text
+      limit 1`,
+    [currencyCode],
+  );
+  if (!rows[0]?.id) {
+    throw new BookReceiptWacError('unknown_currency', { currencyCode });
+  }
+}
+
+async function multiplyNumeric(client: QueryClient, left: string, right: string | null): Promise<string> {
+  const { rows } = await client.query<{ value: string }>(
+    `select ($1::numeric * coalesce($2::numeric, 0))::text as value`,
+    [left, right ?? '0'],
+  );
+  return rows[0]?.value ?? '0';
+}
+type QueryClient = {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<{ rows: T[]; rowCount?: number | null }>;
+};
+
+export type OutputWacResolution =
+  | {
+      applied: true;
+      deltaQtyKg: string;
+      deltaValue: string;
+      costPerKg: string;
+      source: 'wo_computed' | 'standard';
+    }
+  | { applied: false; excluded: 'un_costed' };
+
+type WoOutputCostBasisRow = {
+  material_cost: string;
+  prior_wac_booked: string;
+  output_baseline_kg: string;
+};
+
+/**
+ * Resolves the WAC credit for a forward FG output registration.
+ * Prefers WO actual material cost (consumption wac_value snapshots, then costed kg rows);
+ * falls back to item standard cost_per_kg. Skips when no cost basis exists (never books 0).
+ */
+export async function resolveOutputWacContribution(
+  client: QueryClient,
+  input: {
+    woId: string;
+    qtyKg: string;
+    standardCostPerKg: string | null;
+  },
+): Promise<OutputWacResolution> {
+  const { rows } = await client.query<WoOutputCostBasisRow>(
+    `with material_wac as (
+       select coalesce(
+                sum(nullif(c.ext_jsonb->>'wac_value', '')::numeric),
+                0
+              ) as material_cost
+         from public.wo_material_consumption c
+        where c.org_id = app.current_org_id()
+          and c.wo_id = $1::uuid
+          and c.correction_of_id is null
+     ),
+     material_costed as (
+       select coalesce(
+                sum(
+                  coalesce(
+                    nullif(c.ext_jsonb->>'wac_value', '')::numeric,
+                    (
+                      case
+                        when lower(c.uom) = 'kg' then c.qty_consumed
+                        when lower(c.uom) = lower(coalesce(i.uom_base, ''))
+                          and lower(coalesce(i.uom_base, '')) = 'kg'
+                          then c.qty_consumed
+                        when lower(c.uom) = 'each' and i.net_qty_per_each is not null
+                          then c.qty_consumed * i.net_qty_per_each
+                        when lower(c.uom) = 'box'
+                          and i.net_qty_per_each is not null
+                          and i.each_per_box is not null
+                          then c.qty_consumed * i.each_per_box::numeric * i.net_qty_per_each
+                        else null
+                      end
+                    ) * coalesce(ch.cost_per_kg, i.cost_per_kg)
+                  )
+                ),
+                0
+              ) as material_cost
+         from public.wo_material_consumption c
+         left join public.items i
+           on i.org_id = c.org_id
+          and i.id = c.component_id
+         left join lateral (
+           select cost_per_kg
+             from public.item_cost_history
+            where org_id = app.current_org_id()
+              and item_id = c.component_id
+              and effective_to is null
+            order by effective_from desc
+            limit 1
+         ) ch on true
+        where c.org_id = app.current_org_id()
+          and c.wo_id = $1::uuid
+          and c.correction_of_id is null
+     ),
+     prior_outputs as (
+       select coalesce(sum(o.qty_kg), 0) as prior_output_kg,
+              coalesce(
+                sum(nullif(o.ext_jsonb->>'wac_value', '')::numeric),
+                0
+              ) as prior_wac_booked
+         from public.wo_outputs o
+        where o.org_id = app.current_org_id()
+          and o.wo_id = $1::uuid
+          and o.correction_of_id is null
+     ),
+     wo_baseline as (
+       select case
+                when lower(wo.uom) = 'kg' then wo.planned_quantity
+                else null
+              end as planned_output_kg
+         from public.work_orders wo
+        where wo.org_id = app.current_org_id()
+          and wo.id = $1::uuid
+     )
+     select case
+              when (select material_cost from material_wac) > 0
+                then (select material_cost from material_wac)
+              else (select material_cost from material_costed)
+            end::text as material_cost,
+            (select prior_wac_booked from prior_outputs)::text as prior_wac_booked,
+            greatest(
+              coalesce((select planned_output_kg from wo_baseline), 0),
+              (select prior_output_kg from prior_outputs) + $2::numeric
+            )::text as output_baseline_kg`,
+    [input.woId, input.qtyKg],
+  );
+
+  const basis = rows[0];
+  const materialCost = basis?.material_cost ?? '0';
+  const priorWacBooked = basis?.prior_wac_booked ?? '0';
+  const outputBaselineKg = basis?.output_baseline_kg ?? '0';
+
+  const computed = await client.query<{ cost_per_kg: string | null; output_value: string | null }>(
+    `select case
+              when $1::numeric > 0 and $2::numeric > 0
+                then ($1::numeric / $2::numeric)::text
+              else null
+            end as cost_per_kg,
+            case
+              when $1::numeric > 0 and $2::numeric > 0
+                then least(
+                  ($1::numeric / $2::numeric) * $3::numeric,
+                  $1::numeric - $4::numeric
+                )::text
+              else null
+            end as output_value`,
+    [materialCost, outputBaselineKg, input.qtyKg, priorWacBooked],
+  );
+  const computedRow = computed.rows[0];
+  if (computedRow?.cost_per_kg && computedRow.output_value && !isZeroDecimal(computedRow.cost_per_kg)) {
+    return {
+      applied: true,
+      deltaQtyKg: input.qtyKg,
+      deltaValue: computedRow.output_value,
+      costPerKg: computedRow.cost_per_kg,
+      source: 'wo_computed',
+    };
+  }
+
+  if (input.standardCostPerKg != null && !isZeroDecimal(input.standardCostPerKg)) {
+    const standard = await client.query<{ output_value: string }>(
+      `select ($1::numeric * $2::numeric)::text as output_value`,
+      [input.qtyKg, input.standardCostPerKg],
+    );
+    const outputValue = standard.rows[0]?.output_value ?? '0';
+    return {
+      applied: true,
+      deltaQtyKg: input.qtyKg,
+      deltaValue: outputValue,
+      costPerKg: input.standardCostPerKg,
+      source: 'standard',
+    };
+  }
+
+  return { applied: false, excluded: 'un_costed' };
+}
+
+function isZeroDecimal(value: string): boolean {
+  return /^-?0+(?:\.0+)?$/.test(value.trim());
+}
+/**
+ * Shared canonical item-cost ledger writer.
+ *
+ * This is the single implementation behind Technical cost writes: it inserts
+ * item_cost_history, applies V-TEC-53 in SQL NUMERIC space, and denormalizes
+ * items.cost_per_kg from the same string-bound ::numeric value.
+ */
+
+import {
+  APPROVER_GUARDED_SOURCES,
+  HIGH_VARIANCE_RATIO,
+  type CostSource,
+  type QueryClient,
+  writeAudit,
+} from './shared';
+
+export type WriteItemCostLedgerInput = {
+  itemId: string;
+  costPerKg: string;
+  currency: string;
+  effectiveFrom?: string;
+  source: CostSource;
+  approverUserId?: string;
+  notes?: string;
+};
+
+export type WriteItemCostLedgerResult =
+  | { ok: true; data: { id: string; itemId: string; itemCode: string; costPerKg: string; effectiveFrom: string } }
+  | { ok: false; error: 'not_found' | 'approver_required' | 'persistence_failed'; message?: string };
+
+export async function writeItemCostLedger(
+  qc: QueryClient,
+  params: {
+    orgId: string;
+    userId: string;
+    input: WriteItemCostLedgerInput;
+  },
+): Promise<WriteItemCostLedgerResult> {
+  const { orgId, userId, input } = params;
+
+  const { rows: itemRows } = await qc.query<{ id: string; item_code: string; current_cost: string | null }>(
+    `select i.id,
+            i.item_code,
+            (select ch.cost_per_kg::text
+               from public.item_cost_history ch
+              where ch.org_id = app.current_org_id()
+                and ch.item_id = i.id
+                and ch.effective_to is null
+              order by ch.effective_from desc
+              limit 1) as current_cost
+       from public.items i
+      where i.org_id = app.current_org_id()
+        and i.id = $1::uuid`,
+    [input.itemId],
+  );
+  const item = itemRows[0];
+  if (!item) return { ok: false, error: 'not_found' };
+
+  if (APPROVER_GUARDED_SOURCES.has(input.source) && item.current_cost !== null && !input.approverUserId) {
+    const { rows: guardRows } = await qc.query<{ exceeds: boolean }>(
+      `select (
+         $1::numeric > 0
+         and (abs($2::numeric - $1::numeric) / $1::numeric) > $3::numeric
+       ) as exceeds`,
+      [item.current_cost, input.costPerKg, HIGH_VARIANCE_RATIO],
+    );
+    if (guardRows[0]?.exceeds) {
+      return { ok: false, error: 'approver_required', message: 'cost change > 20% requires an approver (V-TEC-53)' };
+    }
+  }
+
+  const effectiveFromExpr = input.effectiveFrom ? '$2::date' : 'current_date';
+  const closeParams: unknown[] = input.effectiveFrom ? [input.itemId, input.effectiveFrom] : [input.itemId];
+  await qc.query(
+    `update public.item_cost_history
+        set effective_to = greatest(
+              (${effectiveFromExpr} - interval '1 day')::date,
+              effective_from
+            )
+      where org_id = app.current_org_id()
+        and item_id = $1::uuid
+        and effective_to is null`,
+    closeParams,
+  );
+
+  const insertParams: unknown[] = input.effectiveFrom
+    ? [input.itemId, input.costPerKg, input.currency, input.source, userId, input.effectiveFrom]
+    : [input.itemId, input.costPerKg, input.currency, input.source, userId];
+  const { rows: inserted } = await qc.query<{ id: string; effective_from: string }>(
+    `insert into public.item_cost_history
+       (org_id, item_id, cost_per_kg, currency, effective_from, source, created_by)
+     values
+       (app.current_org_id(), $1::uuid, $2::numeric, $3, ${effectiveFromExpr}, $4, $5::uuid)
+     returning id, effective_from::text as effective_from`,
+    insertParams,
+  );
+  const row = inserted[0];
+  if (!row) return { ok: false, error: 'persistence_failed' };
+
+  await qc.query(
+    `update public.items
+        set cost_per_kg = $2::numeric
+      where org_id = app.current_org_id()
+        and id = $1::uuid`,
+    [input.itemId, input.costPerKg],
+  );
+
+  await writeAudit(qc, {
+    orgId,
+    actorUserId: userId,
+    action: 'item_cost.recorded',
+    resourceId: row.id,
+    beforeState: { costPerKg: item.current_cost },
+    afterState: {
+      itemId: input.itemId,
+      costPerKg: input.costPerKg,
+      currency: input.currency,
+      effectiveFrom: row.effective_from,
+      source: input.source,
+      approverUserId: input.approverUserId ?? null,
+      notes: input.notes ?? null,
+    },
+  });
+
+  return {
+    ok: true,
+    data: { id: row.id, itemId: input.itemId, itemCode: item.item_code, costPerKg: input.costPerKg, effectiveFrom: row.effective_from },
+  };
+}
+'use server';
+
+/**
+ * 03-technical Cost History (T-021): POST a new cost roll.
+ *
+ * Gated on the real `technical.cost.edit` RBAC permission (seeded to the
+ * org-admin family by migration 154). Runs inside withOrgContext so RLS scopes
+ * every statement to the caller's org. zod-validated against migration 160's
+ * CHECK constraints + PRD §11.6 V-TEC-50..53.
+ *
+ * Write path (PRD §11.2 / §11.6, AC3):
+ *   1. Resolve the current active cost row (effective_to IS NULL) for the item.
+ *   2. V-TEC-53: if source ∈ {manual, supplier_update} AND a current active cost
+ *      exists AND |new - current| / current > 0.20 AND no approver was supplied
+ *      → 422 approver_required. d365_sync / variance_roll bypass the guard.
+ *   3. Close the prior active row: effective_to = new.effective_from - 1 day.
+ *   4. Insert the new history row with `source`.
+ *   5. Denormalize items.cost_per_kg = new value.
+ *   6. Audit-log the write (dual-owned with Finance — Technical writes ONLY
+ *      items.cost_per_kg + item_cost_history, never Finance costing tables).
+ *
+ * NUMERIC-exact: the >20% delta test, the effective_to close and the cost
+ * comparison are all evaluated in SQL against NUMERIC / DATE columns. The cost
+ * value is bound as a string parameter cast to ::numeric — JS float math never
+ * touches a cost. V-TEC-50 / V-TEC-51 are enforced both in zod and by the DB
+ * (cost_per_kg_nonnegative_check; effective_from validated below + at the API).
+ */
+
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { safeRevalidatePath } from '../../items/_actions/revalidate';
+import {
+  COST_EDIT_PERMISSION,
+  hasPermission,
+  isPgError,
+  type OrgActionContext,
+  PostCostInput,
+  type PostCostResult,
+  type QueryClient,
+} from './shared';
+import { writeItemCostLedger } from './write-cost-ledger';
+
+export async function postCost(rawInput: unknown): Promise<PostCostResult> {
+  const parsed = PostCostInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  // V-TEC-51: effective_from must be <= current date (no future-dating the
+  // active row). Compared as a calendar date (string) — no float involved.
+  if (input.effectiveFrom) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (input.effectiveFrom > today) {
+      return { ok: false, error: 'invalid_input', message: 'effective_from must be <= today (V-TEC-51)' };
+    }
+  }
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<PostCostResult> => {
+      const qc = client as QueryClient;
+      const ctx: OrgActionContext = { userId, orgId, client: qc };
+      if (!(await hasPermission(ctx, COST_EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+      const result = await writeItemCostLedger(qc, { orgId, userId, input });
+      if (!result.ok) return result;
+      safeRevalidatePath('/technical/items');
+      // Also refresh the item's detail page so its Cost tab reflects the new roll
+      // without a manual reload. The detail route is keyed by item_code, not the uuid.
+      safeRevalidatePath(`/technical/items/${result.data.itemCode}`);
+      return result;
+    });
+  } catch (err) {
+    // 23514 check_violation = cost_per_kg_nonnegative_check / effective_range_check.
+    if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
+    console.error('[technical/cost] postCost persistence_failed', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+exec
+/bin/zsh -lc "rtk rg -n \"parseFloat|parseInt|Number\\(|Math\\.(round|floor|ceil)|toFixed|\\+.*cost|cost.*\\+|price|currency|amount|variance\" apps/web/lib/finance apps/web/lib/costing 'apps/web/app/[locale]/(app)/(modules)/technical/cost' 'apps/web/app/[locale]/(app)/(modules)/finance' 'apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing' --glob '"'!**/*.test.*'"' --glob '"'!**/__tests__/**'"'" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/page.tsx:2: * Legacy /costing route — redirects to the merged Costing + Nutrition stage (D5).
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/page.tsx:58:              <div key={total.currency}>
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/page.tsx:60:                <p className="text-xs text-slate-500">{total.currency}</p>
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/page.tsx:95:                <th className="px-4 py-3">{t('columns.currency')}</th>
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/page.tsx:100:                <tr key={`${row.itemId}:${row.currency}`} className="text-slate-700">
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/page.tsx:106:                  <td className="px-4 py-3">{row.currency}</td>
+apps/web/lib/costing/compute-waterfall.ts:19:  'Margin vs target price',
+apps/web/lib/costing/compute-waterfall.ts:29:  // without a cost must BLOCK the compute, never silently price as zero.
+apps/web/lib/costing/compute-waterfall.ts:175:    // margin, never a value re-derived from the toFixed(4) round-trip via
+apps/web/lib/costing/compute-waterfall.ts:213:    packWeightKg: packWeightKg.toFixed(6),
+apps/web/lib/costing/compute-waterfall.ts:214:    packsPerCase: packsPerCase.toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:215:    avgBatchQty: avgBatchQty.toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:217:    packsPerBatch: packsPerBatch.toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:284:  const marginPct = Dec.from(marginPctFull).toFixed(4);
+apps/web/lib/costing/compute-waterfall.ts:299:    valueEur: cumulatives[idx]!.toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:311:    rawCostEur: input.raw.toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:313:    targetPriceEur: input.target.toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:320:      rawCostEur: input.raw.toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:321:      yieldPct: Dec.from(input.yieldPct).toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:322:      processLabourEur: input.labour.toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:323:      setupEur: input.setup.toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:324:      packagingEur: input.packaging.toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:325:      overheadEur: input.overhead.toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:326:      logisticsEur: input.logistics.toFixed(4),
+apps/web/lib/costing/compute-waterfall.ts:416:  return target.sub(total).div(target).mul(HUNDRED).toFixed(4);
+apps/web/lib/costing/compute-waterfall.ts:427:  return current.sub(prev).div(prev).mul(HUNDRED).toFixed(4);
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/inventory-valuation-types.ts:15:  currency: string;
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/inventory-valuation-types.ts:19:  currency: string;
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts:80:  const n = Number(trimmed);
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts:86:  const num = Number(trimDecimal(a));
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts:87:  const den = Number(trimDecimal(b));
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts:89:  return (num / den).toFixed(4);
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts:94:  const num = Number(trimDecimal(a));
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts:95:  const factor = Number(trimDecimal(b));
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts:97:  return (num * factor).toFixed(4);
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_components/waterfall-bar.tsx:28:  /** Formatted, currency-prefixed display value (e.g. "€15.17"). */
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/get-inventory-valuation.ts:29:  currency: string;
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/get-inventory-valuation.ts:48:         c.code as currency,
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/get-inventory-valuation.ts:72:      on c.id = wac.currency_id
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/get-inventory-valuation.ts:94:      currency: row.currency,
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/get-inventory-valuation.ts:105:    grandByCurrency.set(row.currency, (grandByCurrency.get(row.currency) ?? 0n) + micro);
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/get-inventory-valuation.ts:109:    .map(([currency, totalValueMicro]) => ({
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/get-inventory-valuation.ts:110:      currency,
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/get-inventory-valuation.ts:113:    .sort((a, b) => a.currency.localeCompare(b.currency));
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/get-inventory-valuation.ts:137:              currency,
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/get-inventory-valuation.ts:142:          and currency is not null
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/get-inventory-valuation.ts:144:        group by item_id, item_code, item_name, wac, currency
+apps/web/app/[locale]/(app)/(modules)/finance/valuation/_actions/get-inventory-valuation.ts:153:           or currency is null
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts:2: * Costing stage page loader + Server Action adapters (shared by costing-nutrition merge).
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts:100:    margin: 'Margin vs target price',
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts:159:  const frac = fracRaw.slice(0, Number(SCALE)).padEnd(Number(SCALE), '0');
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts:168:  const frac = (abs % FACTOR).toString().padStart(Number(SCALE), '0');
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts:177:  target_price_eur: string;
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts:261:    case 'Margin vs target price':
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts:268:function toNullableNumber(value: string | number | null | undefined): number | null {
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts:270:  const parsed = typeof value === 'number' ? value : Number(value);
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts:289:      packsPerCase: toNullableNumber(units?.packsPerCase),
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts:387:                target_price_eur::text as target_price_eur,
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts:436:          const revenue = b.target_price_eur;
+apps/web/app/[locale]/(app)/(modules)/finance/page.tsx:17:  const page = Number(value);
+apps/web/app/[locale]/(app)/(modules)/finance/page.tsx:26:  const days = Number(value);
+apps/web/app/[locale]/(app)/(modules)/technical/cost/page.tsx:4: * Real BOM-driven standard-cost roll-up (org-scoped via withOrgContext + RLS).
+apps/web/app/[locale]/(app)/(modules)/technical/cost/page.tsx:11: *   (CostingScreen) — KPI row + cost breakdown bars + total + yield note.
+apps/web/app/[locale]/(app)/(modules)/technical/cost/page.tsx:16: * Ownership (dual with Finance): reads ONLY items.cost_per_kg + bom_*; never the
+apps/web/app/[locale]/(app)/(modules)/technical/cost/page.tsx:17: * Finance standard-cost / valuation / variance tables. NUMERIC-exact (strings).
+apps/web/lib/finance/upsert-wac.ts:25:  /** ISO currency code for the WAC bucket; defaults to GBP when omitted. */
+apps/web/lib/finance/upsert-wac.ts:26:  currencyCode?: string;
+apps/web/lib/finance/upsert-wac.ts:31:/** Default WAC bucket when callers omit currency (org base currency; no FX conversion). */
+apps/web/lib/finance/upsert-wac.ts:96:  { orgId, siteId, itemId, deltaQtyKg, deltaValue, updatedBy, currencyCode = DEFAULT_WAC_CURRENCY_CODE, sourceRef }: UpsertWacInput,
+apps/web/lib/finance/upsert-wac.ts:107:          and currency_id = (select id from public.currencies where code = $3::text)`,
+apps/web/lib/finance/upsert-wac.ts:108:      [orgId, itemId, currencyCode],
+apps/web/lib/finance/upsert-wac.ts:119:          and currency_id = (select id from public.currencies where code = $7::text)
+apps/web/lib/finance/upsert-wac.ts:129:         org_id, site_id, item_id, currency_id, total_qty_kg, total_value, updated_by, updated_at
+apps/web/lib/finance/upsert-wac.ts:140:       on conflict (org_id, item_id, currency_id) do update set
+apps/web/lib/finance/upsert-wac.ts:157:    [orgId, itemId, deltaQtyKg, deltaValue, updatedBy, siteId, currencyCode],
+apps/web/lib/finance/upsert-wac.ts:165:      currencyCode,
+apps/web/lib/finance/upsert-wac.ts:426:  currencyCode?: string;
+apps/web/lib/finance/upsert-wac.ts:481:    currencyCode: input.currencyCode,
+apps/web/lib/finance/upsert-wac.ts:490:  const currencyCode = input.currencyCode ?? DEFAULT_WAC_CURRENCY_CODE;
+apps/web/lib/finance/upsert-wac.ts:504:    currencyCode,
+apps/web/lib/finance/upsert-wac.ts:513:    currencyCode,
+apps/web/lib/finance/upsert-wac.ts:523:  const currencyCode = input.currencyCode ?? DEFAULT_WAC_CURRENCY_CODE;
+apps/web/lib/finance/upsert-wac.ts:540:    currencyCode,
+apps/web/lib/finance/upsert-wac.ts:549:    currencyCode,
+apps/web/lib/finance/upsert-wac.ts:565:  input: { orgId: string; itemId: string; qtyKg: string; currencyCode: string },
+apps/web/lib/finance/upsert-wac.ts:573:          and currency_id = (select id from public.currencies where code = $4::text)
+apps/web/lib/finance/upsert-wac.ts:577:    [input.orgId, input.itemId, input.qtyKg, input.currencyCode],
+apps/web/lib/finance/upsert-wac.ts:584:  input: { orgId: string; itemId: string; qtyKg: string; currencyCode?: string },
+apps/web/lib/finance/upsert-wac.ts:586:  const currencyCode = input.currencyCode ?? DEFAULT_WAC_CURRENCY_CODE;
+apps/web/lib/finance/upsert-wac.ts:596:          and currency_id = (select id from public.currencies where code = $4::text)
+apps/web/lib/finance/upsert-wac.ts:601:    [input.orgId, input.itemId, input.qtyKg, currencyCode],
+apps/web/lib/finance/upsert-wac.ts:620:    currencyCode: string;
+apps/web/lib/finance/upsert-wac.ts:650:        currency_code: input.currencyCode,
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/save-scenario.ts:46://   marginPct < 100 (>=100 => 1-margin <= 0 => div-by-zero / negative price).
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/save-scenario.ts:113:           (org_id, product_code, scenario, raw_cost_eur, margin_pct, target_price_eur, params, computed_at)
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/save-scenario.ts:118:               target_price_eur = excluded.target_price_eur,
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:106:    currency: string | null;
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:152:  currency: string | null;
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:182:  const downtime = toMicro(Math.max(0, downtimeMin).toFixed(6));
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:207:  const downtimeMinutes = toMicro(Math.max(0, downtimeMin).toFixed(6));
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:364:              and lr.currency = 'GBP'
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:403:              and lr.currency = 'GBP'
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:428:            'GBP'::text as currency,
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:464:  const downtimeMinText = Math.max(0, downtimeMin).toFixed(6);
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:519:        currency: processRow?.currency ?? null,
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:586:        const pagination = toPaginatedResult(costRows, Number(countResult.rows[0]?.total ?? 0), page);
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:636:          data: { days, woCount: Number(countResult.rows[0]?.total ?? woCount), wasteCost: microToFixed(wasteCost, 4) },
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/cost-manager.client.tsx:8: *     (`CostHistoryScreen`, TEC-015): sparkline of std cost (zł) + a
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/cost-manager.client.tsx:18: * >20% high-variance approver gate is enforced server-side (postCost / V-TEC-53);
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/cost-manager.client.tsx:95:  // audit_log only — see _actions/shared.ts). The last cell carries the currency.
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/cost-manager.client.tsx:116:    variance_roll: 'Variance roll',
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/cost-manager.client.tsx:192:  const costs = rows.map((r) => Number(r.costPerKg)).filter((n) => Number.isFinite(n));
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/cost-manager.client.tsx:262:  const [currency, setCurrency] = React.useState('GBP');
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/cost-manager.client.tsx:277:        currency,
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/cost-manager.client.tsx:331:                name="currency"
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/cost-manager.client.tsx:334:                value={currency}
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/cost-manager.client.tsx:435:                <td className="text-sm">{row.currency}</td>
+apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-math.ts:67:    materialsTotal += cost;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/page.tsx:11:  currency: string;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/page.tsx:14:type SortKey = 'fg_code' | 'fg_name' | 'total_recipe_cost' | 'currency';
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/page.tsx:89:                    ['currency', 'Currency'],
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/page.tsx:104:                    <td className="px-3 py-2 tabular-nums">{row.total_recipe_cost.toFixed(2)}</td>
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/page.tsx:105:                    <td className="px-3 py-2">{row.currency}</td>
+apps/web/lib/finance/book-receipt-wac.ts:10:export type BookReceiptWacErrorCode = 'unknown_currency' | 'unresolved_uom';
+apps/web/lib/finance/book-receipt-wac.ts:14:  readonly currencyCode?: string;
+apps/web/lib/finance/book-receipt-wac.ts:20:    details: { currencyCode?: string; uom?: string; qty?: string } = {},
+apps/web/lib/finance/book-receipt-wac.ts:23:      code === 'unknown_currency'
+apps/web/lib/finance/book-receipt-wac.ts:24:        ? `Unknown currency code for WAC booking: ${details.currencyCode ?? 'unknown'}`
+apps/web/lib/finance/book-receipt-wac.ts:29:    this.currencyCode = details.currencyCode;
+apps/web/lib/finance/book-receipt-wac.ts:53: * GRN/LP/grn_item writes (P1-08). No-op when the PO line has no unit price.
+apps/web/lib/finance/book-receipt-wac.ts:85:  const receivedValue = await multiplyNumeric(client, receipt.qty, line.unit_price);
+apps/web/lib/finance/book-receipt-wac.ts:86:  const currencyCode = normalizeCurrencyCode(line.currency);
+apps/web/lib/finance/book-receipt-wac.ts:87:  await assertResolvableCurrency(client, currencyCode);
+apps/web/lib/finance/book-receipt-wac.ts:95:    currencyCode,
+apps/web/lib/finance/book-receipt-wac.ts:110:        wac_currency_code: currencyCode,
+apps/web/lib/finance/book-receipt-wac.ts:127:    // PO receipts with a unit price are WAC-governed: block unvalued stock rather than
+apps/web/lib/finance/book-receipt-wac.ts:138:): Promise<{ item_id: string; unit_price: string; currency: string } | null> {
+apps/web/lib/finance/book-receipt-wac.ts:139:  const { rows } = await client.query<{ item_id: string; unit_price: string; currency: string }>(
+apps/web/lib/finance/book-receipt-wac.ts:141:            pol.unit_price::text as unit_price,
+apps/web/lib/finance/book-receipt-wac.ts:142:            po.currency
+apps/web/lib/finance/book-receipt-wac.ts:155:function normalizeCurrencyCode(currency: string | null | undefined): string {
+apps/web/lib/finance/book-receipt-wac.ts:156:  const normalized = currency?.trim().toUpperCase();
+apps/web/lib/finance/book-receipt-wac.ts:160:async function assertResolvableCurrency(client: QueryClient, currencyCode: string): Promise<void> {
+apps/web/lib/finance/book-receipt-wac.ts:166:    [currencyCode],
+apps/web/lib/finance/book-receipt-wac.ts:169:    throw new BookReceiptWacError('unknown_currency', { currencyCode });
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/numeric.ts:8: * computed exactly to one decimal place — never via `Number()` math on a cost.
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:12: *     bind them straight into NUMERIC columns ($n::numeric). No Number() / float.
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:124:  target_price_eur: string | null;
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:205:           (org_id, product_code, scenario, raw_cost_eur, margin_pct, target_price_eur, params, computed_at)
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:210:               target_price_eur = excluded.target_price_eur,
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:301:            coalesce(fv.target_price_eur, p.target_retail_price_eur)::text as target_price_eur,
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:380:        targetPriceEur: recipe.target_price_eur,
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:529:        ? Dec.from(perPack).div(Dec.from(row.pack_weight_kg)).toFixed(4)
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:669:            coalesce(sum(wdi.qty_per_unit * vec.amount) filter (where vec.amount is not null), 0)::text
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:671:            bool_or(vec.amount is null) as composition_missing_cost
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:738:       (org_id, product_code, scenario, raw_cost_eur, margin_pct, target_price_eur, params, computed_at)
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:743:           target_price_eur = excluded.target_price_eur,
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/recipe-cost.client.tsx:8: *   (CostingScreen) — KPI row (Std cost / Yield / Components / Costed lines) +
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/recipe-cost.client.tsx:9: *   a cost-breakdown bar list (per component) + the total + a yield note.
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/recipe-cost.client.tsx:11: * Real data only: the product picker + the rolled-up cost come from getRecipeCost
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/recipe-cost.client.tsx:17: * bar widths are the ONLY place Number() is used, for geometry only.
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/recipe-cost.client.tsx:51:  // "Export cost sheet" (prototype other-screens.jsx:547) + CSV column headers.
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/recipe-cost.client.tsx:190:  const totalNum = total != null ? Number(total) : 0;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/recipe-cost.client.tsx:215:                const lineNum = line.lineCost != null ? Number(line.lineCost) : 0;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_components/recipe-cost.client.tsx:234:                            <span className="font-normal text-muted-foreground">· {pct.toFixed(1)}%</span>
+apps/web/app/[locale]/(app)/(modules)/technical/cost/history/page.tsx:4: * Real Supabase-backed cost-history surface (org-scoped via withOrgContext + RLS).
+apps/web/app/[locale]/(app)/(modules)/technical/cost/history/page.tsx:5: * The server component loads the item list + the `technical.cost.edit` gate; the
+apps/web/app/[locale]/(app)/(modules)/technical/cost/history/page.tsx:7: * + Date/Source/Cost/Δ% table, and the cost-edit modal (postCost, with the >20%
+apps/web/app/[locale]/(app)/(modules)/technical/cost/history/page.tsx:8: * variance approver gate).
+apps/web/app/[locale]/(app)/(modules)/technical/cost/history/page.tsx:16: * edits ONLY items.cost_per_kg + item_cost_history; never Finance costing tables.
+apps/web/app/[locale]/(app)/(modules)/technical/cost/history/page.tsx:57:    fieldCurrency: t('modal.currency'),
+apps/web/app/[locale]/(app)/(modules)/technical/cost/history/page.tsx:69:      variance_roll: t('source.variance_roll'),
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts:10:  currency: string;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts:17:  currency: string;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts:42:                (select sum(bl.quantity * vec.amount)::text
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts:50:                    and vec.amount is not null) as total_recipe_cost,
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts:51:                (select case when count(distinct vec.currency) > 1 then 'MIXED' else max(vec.currency) end
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts:59:                    and vec.amount is not null) as currency
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts:71:        total_recipe_cost: Number(row.total_recipe_cost ?? '0'),
+apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts:72:        currency: row.currency,
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-cost-items.ts:6: * Lists the org's items (id + code + name + current denormalized cost_per_kg)
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/post-cost.ts:15: *      → 422 approver_required. d365_sync / variance_roll bypass the guard.
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/post-cost.ts:20: *      items.cost_per_kg + item_cost_history, never Finance costing tables).
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/post-cost.ts:26: * (cost_per_kg_nonnegative_check; effective_from validated below + at the API).
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts:20:  currency: string;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts:87:    ? [input.itemId, input.costPerKg, input.currency, input.source, userId, input.effectiveFrom]
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts:88:    : [input.itemId, input.costPerKg, input.currency, input.source, userId];
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts:91:       (org_id, item_id, cost_per_kg, currency, effective_from, source, created_by)
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts:117:      currency: input.currency,
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:6: * Real BOM-driven standard-cost roll-up under withOrgContext + RLS
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:17: *   (CostingScreen) — Std/Target/Selling/Margin KPIs + a cost breakdown bar list +
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:20: * Ownership (dual with Finance): this reads ONLY items.cost_per_kg + bom_* and
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:22: * valuation / variance tables. There is no target/selling price in Technical's
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:62:  currency: string;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:75:  currency: string;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:100:  currency: string;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:111:  currency: string;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:158:        bomVersion: Number(r.bom_version),
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:190:                (select sum(bl.quantity * vec.amount)::text
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:198:                    and vec.amount is not null) as total_material_cost,
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:199:                (select case when count(distinct vec.currency) > 1 then 'MIXED' else max(vec.currency) end
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:207:                    and vec.amount is not null) as currency
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:237:            currency: 'none',
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:249:                vec.amount::text as unit_cost,
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:250:                (bl.quantity * vec.amount)::text as line_cost,
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:251:                vec.currency as currency
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:271:        currency: r.currency,
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:277:        bomVersion: Number(header.bom_version),
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:281:        currency: header.currency,
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:12: *   - V-TEC-52: currency ∈ ISO 4217 supported list.
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:14: *     {manual, supplier_update}. d365_sync and variance_roll bypass V-TEC-53.
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:20: * DUAL-OWNED with 10-finance: this module writes ONLY items.cost_per_kg +
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:21: * item_cost_history (Technical's master cost + history). It NEVER writes Finance
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:22: * standard-cost / valuation / variance tables.
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:36:export const COST_SOURCES = ['manual', 'd365_sync', 'supplier_update', 'variance_roll'] as const;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:40:// Sources that are subject to the >20% high-variance approver guard (V-TEC-53).
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:41:// d365_sync + variance_roll are system rolls and bypass the guard.
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:44:// High-variance threshold (V-TEC-53). Kept as a string so the comparison stays
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:70:  currency: string;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:96:  currency: z
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:101:    .refine((v) => isIso4217Currency(v), { message: 'currency must be an ISO 4217 code (V-TEC-52)' })
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:113:  // satisfies V-TEC-53 for a high-variance manual/supplier_update change.
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:138:// technical.cost.* outbox event would require extending the enum SoT + its drift
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-cost-history.ts:6: * Org-scoped read of public.item_cost_history under withOrgContext + RLS
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-cost-history.ts:32:  currency: string;
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-cost-history.ts:40:const SOURCE_SET = new Set<CostSource>(['manual', 'd365_sync', 'supplier_update', 'variance_roll']);
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-cost-history.ts:47:    currency: row.currency,
+apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-cost-history.ts:71:                currency,
+
+exec
+/bin/zsh -lc "rtk sed -n '1,260p' 'apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-math.ts'; rtk sed -n '140,540p' 'apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts'; rtk sed -n '1,130p' 'apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts'; rtk sed -n '170,290p' 'apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts'; rtk sed -n '1,220p' packages/db/migrations/160-item-cost-history.sql; rtk sed -n '1,220p' packages/db/migrations/396-item-effective-cost-view.sql; rtk sed -n '1,180p' packages/db/migrations/405-effective-cost-reads-supplier-spec.sql" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+import { microToDecimal, microToFixed, mulMicro, toMicro, MICRO_SCALE } from '../../../../../../lib/shared/decimal';
+
+export type MaterialCostInput = {
+  itemCode: string;
+  qtyKg: string;
+  costPerKg: string | null;
+};
+
+export type LaborCostInput = {
+  runtimeMin: string;
+  staffing: string;
+  ratePerHour: string;
+};
+
+export type WoActualCostMathInput = {
+  materials: MaterialCostInput[];
+  labor: LaborCostInput | null;
+  setupCost: string | null;
+  machineCost: string | null;
+  wasteKg: string;
+  outputKg: string;
+};
+
+export type WoActualCostMaterial = {
+  itemCode: string;
+  qtyKg: string;
+  costPerKg: string;
+  cost: string;
+};
+
+export type WoActualCostLabor = {
+  runtimeMin: string;
+  staffing: string;
+  ratePerHour: string;
+  cost: string;
+};
+
+export type WoActualCostTotals = {
+  materials: WoActualCostMaterial[];
+  materialsTotal: string;
+  labor: WoActualCostLabor | null;
+  machineCost: string;
+  setupCost: string;
+  wasteCost: string;
+  totalCost: string;
+  costPerKgOutput: string | null;
+};
+
+function divMicro(numerator: bigint, denominator: bigint): bigint {
+  if (denominator === 0n) return 0n;
+  const neg = (numerator < 0n) !== (denominator < 0n);
+  const absNum = numerator < 0n ? -numerator : numerator;
+  const absDen = denominator < 0n ? -denominator : denominator;
+  const rounded = (absNum * MICRO_SCALE + absDen / 2n) / absDen;
+  return neg ? -rounded : rounded;
+}
+
+export function computeWoActualCostTotals(input: WoActualCostMathInput): WoActualCostTotals {
+  let materialQtyTotal = 0n;
+  let materialsTotal = 0n;
+
+  const materials = input.materials.map((material) => {
+    const qty = toMicro(material.qtyKg);
+    const costPerKg = toMicro(material.costPerKg ?? '0');
+    const cost = mulMicro(qty, costPerKg);
+    materialQtyTotal += qty;
+    materialsTotal += cost;
+
+    return {
+      itemCode: material.itemCode,
+      qtyKg: microToFixed(qty, 3),
+      costPerKg: microToFixed(costPerKg, 6),
+      cost: microToFixed(cost, 4),
+    };
+  });
+
+  const labor =
+    input.labor == null
+      ? null
+      : (() => {
+          const runtimeMin = toMicro(input.labor.runtimeMin);
+          const staffing = toMicro(input.labor.staffing);
+          const ratePerHour = toMicro(input.labor.ratePerHour);
+          const runtimeHours = divMicro(runtimeMin, toMicro('60'));
+          const staffedHours = mulMicro(runtimeHours, staffing);
+          const cost = mulMicro(staffedHours, ratePerHour);
+          return {
+            rawCost: cost,
+            runtimeMin: microToFixed(runtimeMin, 3),
+            staffing: microToDecimal(staffing),
+            ratePerHour: microToFixed(ratePerHour, 4),
+            cost: microToFixed(cost, 4),
+          };
+        })();
+
+  const avgMaterialCostPerKg = materialQtyTotal === 0n ? 0n : divMicro(materialsTotal, materialQtyTotal);
+  const wasteCost = mulMicro(toMicro(input.wasteKg), avgMaterialCostPerKg);
+  const setupCost = toMicro(input.setupCost ?? '0');
+  const machineCost = toMicro(input.machineCost ?? '0');
+  const laborCost = labor == null ? 0n : labor.rawCost;
+  const totalCost = materialsTotal + laborCost + machineCost + setupCost + wasteCost;
+  const outputKg = toMicro(input.outputKg);
+
+  return {
+    materials,
+    materialsTotal: microToFixed(materialsTotal, 4),
+    labor:
+      labor == null
+        ? null
+        : {
+            runtimeMin: labor.runtimeMin,
+            staffing: labor.staffing,
+            ratePerHour: labor.ratePerHour,
+            cost: labor.cost,
+          },
+    machineCost: microToFixed(machineCost, 4),
+    setupCost: microToFixed(setupCost, 4),
+    wasteCost: microToFixed(wasteCost, 4),
+    totalCost: microToFixed(totalCost, 4),
+    costPerKgOutput: outputKg === 0n ? null : microToFixed(divMicro(totalCost, outputKg), 4),
+  };
+}
+  product_name: string | null;
+  started_at: string | Date | null;
+  completed_at: string | Date | null;
+  output_kg: string;
+  waste_kg: string;
+};
+
+type ProcessRow = {
+  operation_name: string | null;
+  row_key: string | null;
+  cost_mode: 'per_hour' | 'per_run' | null;
+  cost_rate: string | null;
+  currency: string | null;
+  staffing_count: string | null;
+  setup_cost: string | null;
+  expected_duration_minutes: string | null;
+  has_labor_rate: boolean | null;
+};
+
+type DowntimeRow = {
+  started_at: string | Date;
+  ended_at: string | Date | null;
+};
+
+function iso(value: string | Date | null): string | null {
+  if (value == null) return null;
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+function minutesBetween(start: string | Date | null, end: string | Date | null): string {
+  if (start == null || end == null) return '0';
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return '0';
+  const elapsedMs = BigInt(endMs - startMs);
+  const minuteMicros = (elapsedMs * MICRO_SCALE + 30_000n) / 60_000n;
+  return microToFixed(minuteMicros, 6);
+}
+
+function clampRuntime(runtimeMin: string, downtimeMin: number): string {
+  const runtime = toMicro(runtimeMin);
+  if (runtime <= 0n) return '0';
+  const downtime = toMicro(Math.max(0, downtimeMin).toFixed(6));
+  const actual = runtime > downtime ? runtime - downtime : 0n;
+  return microToFixed(actual, 6);
+}
+
+function divRound(numerator: bigint, denominator: bigint): bigint {
+  if (denominator === 0n) return 0n;
+  const neg = (numerator < 0n) !== (denominator < 0n);
+  const absNum = numerator < 0n ? -numerator : numerator;
+  const absDen = denominator < 0n ? -denominator : denominator;
+  const rounded = (absNum + absDen / 2n) / absDen;
+  return neg ? -rounded : rounded;
+}
+
+function divMicro(numerator: bigint, denominator: bigint): bigint {
+  if (denominator === 0n) return 0n;
+  const neg = (numerator < 0n) !== (denominator < 0n);
+  const absNum = numerator < 0n ? -numerator : numerator;
+  const absDen = denominator < 0n ? -denominator : denominator;
+  const rounded = (absNum * MICRO_SCALE + absDen / 2n) / absDen;
+  return neg ? -rounded : rounded;
+}
+
+function downtimeCostFromLaborRate(downtimeMin: number, laborRatePerHour: string | null): string {
+  if (laborRatePerHour == null) return '0.0000';
+  const downtimeMinutes = toMicro(Math.max(0, downtimeMin).toFixed(6));
+  const ratePerHour = toMicro(laborRatePerHour);
+  const cost = divRound(downtimeMinutes * ratePerHour, toMicro('60'));
+  return microToFixed(cost, 4);
+}
+
+function asDays(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
+    ? Math.min(value, 365)
+    : fallback;
+}
+
+function hasComputedCostInputs(row: WoActualCost): boolean {
+  return toMicro(row.totalCost) !== 0n;
+}
+
+function normalizeLaborInput(
+  runtimeMin: string,
+  staffingCount: string,
+  aggregatedRatePerHour: string,
+): { runtimeMin: string; staffing: string; ratePerHour: string } {
+  const staffingMicro = toMicro(staffingCount);
+  if (staffingMicro <= toMicro('1')) {
+    return { runtimeMin, staffing: staffingCount, ratePerHour: aggregatedRatePerHour };
+  }
+  const perSeatRate = divMicro(toMicro(aggregatedRatePerHour), staffingMicro);
+  return {
+    runtimeMin,
+    staffing: staffingCount,
+    ratePerHour: microToFixed(perSeatRate, 4),
+  };
+}
+
+async function computeWoActualCostInContext(
+  ctx: FinanceContext,
+  woId: string,
+): Promise<FinanceActionResult<WoActualCost>> {
+  if (!(await hasPermission(ctx, FINANCE_COSTS_READ_PERMISSION))) {
+    return { ok: false, reason: 'forbidden' };
+  }
+
+  const base = await ctx.client.query<WoBaseRow>(
+    `select wo.id::text as wo_id,
+            wo.wo_number,
+            i.item_code as product_code,
+            i.name as product_name,
+            coalesce(x.started_at, wo.started_at) as started_at,
+            coalesce(x.completed_at, wo.completed_at) as completed_at,
+            coalesce(sum(o.qty_kg), 0)::text as output_kg,
+            coalesce(w.waste_kg, '0')::text as waste_kg
+       from public.work_orders wo
+       left join public.wo_executions x
+         on x.org_id = app.current_org_id()
+        and x.wo_id = wo.id
+       left join public.items i
+         on i.org_id = app.current_org_id()
+        and i.id = wo.product_id
+       left join public.wo_outputs o
+         on o.org_id = app.current_org_id()
+        and o.wo_id = wo.id
+       left join (
+         select wo_id, sum(qty_kg)::text as waste_kg
+           from public.wo_waste_log
+          where org_id = app.current_org_id()
+          group by wo_id
+       ) w on w.wo_id = wo.id
+      where wo.org_id = app.current_org_id()
+        and wo.id = $1::uuid
+        and (
+          wo.status in ('COMPLETED', 'CLOSED')
+          or x.status in ('completed', 'closed')
+        )
+      group by wo.id, wo.wo_number, i.item_code, i.name, x.started_at, x.completed_at, w.waste_kg`,
+    [woId],
+  );
+  const wo = base.rows[0];
+  if (!wo) return { ok: false, reason: 'not_found' };
+  const woDate = wo.started_at
+    ? new Date(wo.started_at).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+
+  const materials = await ctx.client.query<MaterialRow>(
+    `with converted as (
+       select coalesce(i.item_code, c.component_id::text) as item_code,
+              c.uom,
+              c.qty_consumed::numeric as raw_qty,
+              case
+                when lower(c.uom) = 'kg' then c.qty_consumed::numeric
+                when lower(c.uom) = 'base' and lower(coalesce(i.uom_base, '')) = 'kg' then c.qty_consumed::numeric
+                when lower(c.uom) = lower(coalesce(i.uom_base, '')) and lower(coalesce(i.uom_base, '')) = 'kg' then c.qty_consumed::numeric
+                when lower(c.uom) = 'each' and i.net_qty_per_each is not null
+                  then c.qty_consumed::numeric * i.net_qty_per_each
+                when lower(c.uom) = 'box' and i.net_qty_per_each is not null and i.each_per_box is not null
+                  then c.qty_consumed::numeric * i.each_per_box::numeric * i.net_qty_per_each
+                else null
+              end as qty_kg,
+              coalesce(ch.cost_per_kg, i.cost_per_kg) as cost_per_kg
+         from public.wo_material_consumption c
+         left join public.items i
+           on i.org_id = app.current_org_id()
+          and i.id = c.component_id
+         left join lateral (
+           select cost_per_kg
+             from public.item_cost_history
+            where org_id = app.current_org_id()
+              and item_id = c.component_id
+              and effective_to is null
+            order by effective_from desc
+            limit 1
+         ) ch on true
+        where c.org_id = app.current_org_id()
+          and c.wo_id = $1::uuid
+     )
+     select item_code,
+            case when qty_kg is null then uom else null end as uom,
+            sum(raw_qty)::text as raw_qty,
+            coalesce(sum(qty_kg), 0)::text as qty_kg,
+            max(cost_per_kg)::text as cost_per_kg,
+            bool_or(qty_kg is null) as unresolved_uom
+       from converted
+      group by item_code, case when qty_kg is null then uom else null end
+      order by item_code, case when qty_kg is null then uom else null end`,
+    [woId],
+  );
+
+  const process = await ctx.client.query<ProcessRow>(
+    `with op as (
+       select sequence,
+              operation_name,
+              coalesce(expected_duration_minutes, 0)::numeric as expected_duration_minutes,
+              crew
+         from public.wo_operations
+        where org_id = app.current_org_id()
+          and wo_id = $1::uuid
+     ),
+     direct_op_rate as (
+       select op.sequence,
+              op.operation_name,
+              op.expected_duration_minutes,
+              null::uuid as process_default_id,
+              sum(coalesce((crew.headcount)::numeric, 0) * coalesce(lr.rate_per_hour, 0)) as crew_rate_per_hour,
+              '1'::text as staffing_count,
+              0::numeric as setup_cost,
+              bool_or(lr.rate_per_hour is not null) as has_rate
+         from op
+         left join lateral jsonb_to_recordset(
+           case
+             when jsonb_typeof(coalesce(op.crew, '[]'::jsonb)) = 'array'
+               then coalesce(op.crew, '[]'::jsonb)
+             else '[]'::jsonb
+           end
+         ) as crew(role_group text, headcount numeric) on true
+         left join lateral (
+           select rate_per_hour
+             from public.labor_rates lr
+            where lr.org_id = app.current_org_id()
+              and lower(lr.role_group) = lower(crew.role_group)
+              and lr.currency = 'GBP'
+              and lr.effective_from <= $2::date
+            order by lr.effective_from desc, lr.created_at desc
+            limit 1
+         ) lr on true
+        where op.crew is not null
+        group by op.sequence, op.operation_name, op.expected_duration_minutes
+     ),
+     defaults_op_rate as (
+       select op.sequence,
+              op.operation_name,
+              op.expected_duration_minutes,
+              md.process_default_id,
+              sum(coalesce(lr.rate_per_hour, 0) * coalesce(pdr.default_headcount, 0)) as crew_rate_per_hour,
+              coalesce(nullif(sum(pdr.default_headcount), 0), 1)::text as staffing_count,
+              md.setup_cost,
+              bool_or(lr.rate_per_hour is not null) as has_rate
+         from op
+         join lateral (
+           select pd.id as process_default_id,
+                  coalesce(pd.setup_cost, 0)::numeric as setup_cost
+             from "Reference"."ManufacturingOperations" mo
+             join public.npd_process_defaults pd
+               on pd.org_id = app.current_org_id()
+              and pd.operation_id = mo.id
+            where mo.org_id = app.current_org_id()
+              and lower(btrim(mo.operation_name)) = lower(btrim(op.operation_name))
+              and mo.is_active = true
+            order by mo.id asc, pd.id asc
+            limit 1
+         ) md on true
+         left join public.npd_process_default_roles pdr
+           on pdr.org_id = app.current_org_id()
+          and pdr.process_default_id = md.process_default_id
+         left join lateral (
+           select rate_per_hour
+             from public.labor_rates lr
+            where lr.org_id = app.current_org_id()
+              and lower(lr.role_group) = lower(pdr.role_group)
+              and lr.currency = 'GBP'
+              and lr.effective_from <= $2::date
+            order by lr.effective_from desc, lr.created_at desc
+            limit 1
+         ) lr on true
+        where op.crew is null
+        group by op.sequence, op.operation_name, op.expected_duration_minutes, md.process_default_id, md.setup_cost
+     ),
+     op_rate as (
+       select * from direct_op_rate
+       union all
+       select * from defaults_op_rate
+     )
+     select (array_agg(operation_name order by sequence))[1] as operation_name,
+            (array_agg(process_default_id::text order by sequence) filter (where process_default_id is not null))[1] as row_key,
+            'per_hour'::text as cost_mode,
+            case
+              when coalesce(sum(expected_duration_minutes), 0) > 0
+               and bool_or(has_rate)
+              then (
+                sum(crew_rate_per_hour * (expected_duration_minutes / 60.0))
+                / (sum(expected_duration_minutes) / 60.0)
+              )::text
+              else null
+            end as cost_rate,
+            'GBP'::text as currency,
+            (array_agg(staffing_count order by sequence))[1] as staffing_count,
+            nullif((
+              select sum(distinct_setup.setup_cost)
+                from (
+                  select distinct on (process_default_id)
+                         process_default_id,
+                         setup_cost
+                    from op_rate
+                   where process_default_id is not null
+                   order by process_default_id
+                ) distinct_setup
+            ), 0)::text as setup_cost,
+            nullif(sum(expected_duration_minutes), 0)::text as expected_duration_minutes,
+            coalesce(bool_or(has_rate), false) as has_labor_rate
+       from op_rate`,
+    [woId, woDate],
+  );
+  const processRow = process.rows[0];
+
+  const downtime = await ctx.client.query<DowntimeRow>(
+    `select started_at, ended_at
+       from public.downtime_events
+      where org_id = app.current_org_id()
+        and wo_id = $1::uuid`,
+    [woId],
+  );
+  const downtimeMin =
+    wo.started_at && wo.completed_at
+      ? totalDowntimeMinutes(
+          downtime.rows.map((row) => ({ startedAt: row.started_at, endedAt: row.ended_at })),
+          wo.started_at,
+          wo.completed_at,
+        )
+      : 0;
+  const runtimeMin = clampRuntime(minutesBetween(wo.started_at, wo.completed_at), downtimeMin);
+  const downtimeMinText = Math.max(0, downtimeMin).toFixed(6);
+
+  const hasHourlyLabor = processRow?.cost_rate != null;
+  const laborRuntimeMin = processRow?.expected_duration_minutes ?? runtimeMin;
+  const laborBasis = hasHourlyLabor
+    ? processRow?.expected_duration_minutes != null
+      ? 'planned_duration'
+      : 'actual_runtime'
+    : null;
+  const downtimeCost = hasHourlyLabor ? downtimeCostFromLaborRate(downtimeMin, processRow!.cost_rate!) : '0.0000';
+  const resolvedMaterials = materials.rows.filter((row) => !row.unresolved_uom);
+  const totals = computeWoActualCostTotals({
+    materials: resolvedMaterials.map((row) => ({
+      itemCode: row.item_code ?? 'UNKNOWN',
+      qtyKg: row.qty_kg,
+      costPerKg: row.cost_per_kg,
+    })),
+    labor: hasHourlyLabor
+      ? normalizeLaborInput(
+          laborRuntimeMin,
+          processRow?.staffing_count ?? '1',
+          processRow!.cost_rate!,
+        )
+      : null,
+    machineCost: null,
+    setupCost: processRow?.setup_cost ?? null,
+    wasteKg: wo.waste_kg,
+    outputKg: wo.output_kg,
+  });
+
+  return {
+    ok: true,
+    data: {
+      woId: wo.wo_id,
+      woNumber: wo.wo_number,
+      product: { itemCode: wo.product_code, name: wo.product_name },
+      outputKg: wo.output_kg,
+      ...totals,
+      unresolvedUom: materials.rows
+        .filter((row) => row.unresolved_uom)
+        .map((row) => ({
+          itemCode: row.item_code ?? 'UNKNOWN',
+          uom: row.uom,
+          qty: row.raw_qty,
+        })),
+      laborBasis,
+      plannedRuntimeMin: processRow?.expected_duration_minutes ?? null,
+      actualRuntimeMin: runtimeMin,
+      downtimeMin: downtimeMinText,
+      downtimeCost,
+      zeroCost: toMicro(totals.totalCost) === 0n,
+      processResolution: {
+        operationName: processRow?.operation_name ?? null,
+        processRowKey: processRow?.row_key ?? null,
+        costMode: hasHourlyLabor ? 'per_hour' : null,
+        currency: processRow?.currency ?? null,
+        note:
+          processRow?.has_labor_rate
+            ? 'Matched WO operation crew snapshots or Settings process-default roles to GBP effective labor rates.'
+            : 'no labor rate matched from WO operation crew or process-default roles',
+      },
+    },
+  };
+}
+
+export async function computeWoActualCost(woId: string): Promise<FinanceActionResult<WoActualCost>> {
+  try {
+    return await withOrgContext(
+      async ({ userId, orgId, client }): Promise<FinanceActionResult<WoActualCost>> =>
+        computeWoActualCostInContext({ userId, orgId, client: client as QueryClient }, woId),
+    );
+  } catch (error) {
+    console.error('[finance] computeWoActualCost failed', error);
+    return { ok: false, reason: 'error' };
+  }
+}
+
+'use server';
+
+import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import type { QueryClient } from '../../_actions/shared';
+
+type PortfolioCostRow = {
+  fg_code: string;
+  fg_name: string | null;
+  total_recipe_cost: string | null;
+  currency: string;
+};
+
+type PortfolioCostResult = {
+  fg_code: string;
+  fg_name: string;
+  total_recipe_cost: number;
+  currency: string;
+};
+
+export async function listPortfolioCost(): Promise<PortfolioCostResult[]> {
+  try {
+    return await withOrgContext(async ({ client }): Promise<PortfolioCostResult[]> => {
+      const qc = client as QueryClient;
+      const { rows } = await qc.query<PortfolioCostRow>(
+        `with latest_bom as (
+           select distinct on (i.item_code)
+                  bh.id,
+                  bh.item_id,
+                  bh.version,
+                  bh.status
+             from public.bom_headers bh
+             join public.items i
+               on i.id = bh.item_id
+              and i.org_id = app.current_org_id()
+            where bh.org_id = app.current_org_id()
+              and bh.item_id is not null
+              and bh.status <> 'archived'
+            order by i.item_code, bh.version desc
+         )
+         select i.item_code as fg_code,
+                i.name as fg_name,
+                (select sum(bl.quantity * vec.amount)::text
+                   from public.bom_lines bl
+                   left join public.items ci
+                          on ci.org_id = app.current_org_id()
+                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
+                  where bl.org_id = app.current_org_id()
+                    and bl.bom_header_id = lb.id
+                    and vec.amount is not null) as total_recipe_cost,
+                (select case when count(distinct vec.currency) > 1 then 'MIXED' else max(vec.currency) end
+                   from public.bom_lines bl
+                   left join public.items ci
+                          on ci.org_id = app.current_org_id()
+                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
+                  where bl.org_id = app.current_org_id()
+                    and bl.bom_header_id = lb.id
+                    and vec.amount is not null) as currency
+           from public.items i
+           left join latest_bom lb
+                  on lb.item_id = i.id
+          where i.org_id = app.current_org_id()
+            and i.item_type = 'fg'
+          order by i.item_code asc`,
+      );
+
+      return rows.map((row) => ({
+        fg_code: row.fg_code,
+        fg_name: row.fg_name ?? '',
+        total_recipe_cost: Number(row.total_recipe_cost ?? '0'),
+        currency: row.currency,
+      }));
+    });
+  } catch (error) {
+    console.error('[technical/cost/portfolio] listPortfolioCost load_failed', {
+      err: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+}
+  }
+}
+
+export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeCostResult> {
+  const productCode = typeof rawProductCode === 'string' ? rawProductCode.trim() : '';
+  if (!productCode) return { ok: false, state: 'error' };
+
+  try {
+    return await withOrgContext(async ({ client }): Promise<GetRecipeCostResult> => {
+      const qc = client as QueryClient;
+
+      // The latest non-archived BOM header for this product, with the SQL-computed
+      // material roll-up. The Σ(quantity × cost_per_kg) is done in NUMERIC space.
+      const headerResult = await qc.query<HeaderRow>(
+        `select bh.id,
+                i.item_code as product_code,
+                i.name,
+                bh.version    as bom_version,
+                bh.status     as bom_status,
+                bh.yield_pct::text as yield_pct,
+                (select sum(bl.quantity * vec.amount)::text
+                   from public.bom_lines bl
+                   left join public.items ci
+                          on ci.org_id = app.current_org_id()
+                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
+                  where bl.org_id = app.current_org_id()
+                    and bl.bom_header_id = bh.id
+                    and vec.amount is not null) as total_material_cost,
+                (select case when count(distinct vec.currency) > 1 then 'MIXED' else max(vec.currency) end
+                   from public.bom_lines bl
+                   left join public.items ci
+                          on ci.org_id = app.current_org_id()
+                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
+                  where bl.org_id = app.current_org_id()
+                    and bl.bom_header_id = bh.id
+                    and vec.amount is not null) as currency
+           from public.bom_headers bh
+           join public.items i
+             on i.id = bh.item_id
+            and i.org_id = app.current_org_id()
+          where bh.org_id = app.current_org_id()
+            and bh.item_id = (
+              select fi.id
+                from public.items fi
+               where fi.org_id = app.current_org_id()
+                 and fi.item_code = $1
+            )
+            and bh.status <> 'archived'
+          order by bh.version desc
+          limit 1`,
+        [productCode],
+      );
+
+      const header = headerResult.rows[0];
+      if (!header) {
+        return {
+          ok: true,
+          state: 'empty',
+          cost: {
+            productCode,
+            name: null,
+            bomVersion: 0,
+            bomStatus: 'none',
+            yieldPct: '100.000',
+            totalMaterialCost: null,
+            currency: 'none',
+            lines: [],
+          },
+        };
+      }
+
+      const lineResult = await qc.query<LineRow>(
+        `select bl.component_code,
+                ci.name as component_name,
+                bl.component_type,
+                bl.quantity::text as quantity,
+                bl.uom,
+                vec.amount::text as unit_cost,
+                (bl.quantity * vec.amount)::text as line_cost,
+                vec.currency as currency
+           from public.bom_lines bl
+           left join public.items ci
+                  on ci.org_id = app.current_org_id()
+                 and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+           left join public.v_item_effective_cost vec on vec.item_id = ci.id
+          where bl.org_id = app.current_org_id()
+            and bl.bom_header_id = $1::uuid
+          order by bl.component_code asc`,
+        [header.id],
+      );
+
+      const lines: RecipeCostLine[] = lineResult.rows.map((r) => ({
+        componentCode: r.component_code,
+        componentName: r.component_name,
+        componentType: r.component_type,
+        quantity: r.quantity,
+        uom: r.uom,
+        unitCost: r.unit_cost,
+        lineCost: r.line_cost,
+        currency: r.currency,
+      }));
+
+      const cost: RecipeCost = {
+        productCode,
+        name: header.name,
+        bomVersion: Number(header.bom_version),
+        bomStatus: header.bom_status,
+        yieldPct: header.yield_pct,
+        totalMaterialCost: header.total_material_cost,
+        currency: header.currency,
+        lines,
+      };
+
+      return { ok: true, state: lines.length ? 'ready' : 'empty', cost };
+    });
+  } catch (error) {
+    console.error('[technical/cost] getRecipeCost load_failed', {
+      err: error instanceof Error ? error.message : String(error),
+    });
+-- Migration 160: 03-Technical — item_cost_history (cost rolls per item).
+-- PRD: docs/prd/03-TECHNICAL-PRD.md §5.3, §11.1, §11.2 (T-003).
+--
+-- DUAL-OWNED with 10-finance: Technical owns the master cost edit + this history
+-- table; Finance owns standard-cost/valuation/variance (NOT created here).
+--
+-- Wave0 lock: org_id is the business scope (NOT tenant_id); RLS via app.current_org_id().
+-- NUMERIC precision is MANDATORY for every cost column — never an inexact binary type.
+-- currency stays CHAR(3) — ISO 4217 validated at the API layer (V-TEC-52).
+-- source CHECK enforces the four allowed enum values.
+-- site_id is day-1 nullable (no FK / registry) — the sites registry + backfill land
+-- in 14-multi-site (T-030); the org-scoped RLS predicate stays org-only for now.
+-- Do NOT back-fill items.cost_per_kg here — that runs in T-021 (cost API).
+
+create table if not exists public.item_cost_history (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  site_id uuid,
+  item_id uuid not null references public.items(id) on delete cascade,
+
+  cost_per_kg numeric(10, 4) not null,
+  currency char(3) not null default 'PLN',
+  effective_from date not null default current_date,
+  effective_to date,
+  source text,
+
+  created_by uuid references public.users(id) on delete restrict,
+  created_at timestamptz not null default pg_catalog.now(),
+  updated_at timestamptz not null default pg_catalog.now(),
+
+  constraint item_cost_history_source_check check (
+    source is null or source in ('manual', 'd365_sync', 'supplier_update', 'variance_roll')
+  ),
+  constraint item_cost_history_cost_per_kg_nonnegative_check check (
+    cost_per_kg >= 0
+  ),
+  constraint item_cost_history_effective_range_check check (
+    effective_to is null or effective_to >= effective_from
+  )
+);
+
+-- AC2: active-cost lookup ordered effective_from DESC; also covers the item_id FK.
+create index if not exists idx_item_cost_active
+  on public.item_cost_history (org_id, item_id, effective_from desc);
+
+alter table public.item_cost_history enable row level security;
+alter table public.item_cost_history force row level security;
+
+drop policy if exists item_cost_history_org_isolation on public.item_cost_history;
+create policy item_cost_history_org_isolation
+  on public.item_cost_history
+  for all
+  to app_user
+  using (org_id = app.current_org_id())
+  with check (org_id = app.current_org_id());
+
+revoke all on public.item_cost_history from public;
+revoke all on public.item_cost_history from app_user;
+grant select, insert, update, delete on public.item_cost_history to app_user;
+
+create or replace function public.item_cost_history_set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+drop trigger if exists item_cost_history_set_updated_at on public.item_cost_history;
+create trigger item_cost_history_set_updated_at
+  before update on public.item_cost_history
+  for each row execute function public.item_cost_history_set_updated_at();
+-- 396-item-effective-cost-view.sql
+-- DB cleanup audit Phase 2 — single source of truth for an item's INTERNAL / standard
+-- cost (recipe BOM cost, portfolio cost, NPD costing waterfall). Consolidates the
+-- scattered, inconsistent reads (items.cost_per_kg [opaque currency], items.list_price_gbp
+-- [GBP], item_cost_history [currency-bearing ledger]) into one view so every consumer
+-- resolves the same amount the same way AND carries the real currency — ending the
+-- GBP/PLN-silently-labelled-EUR class of rozjazd.
+--   Priority: item_cost_history active row (the ledger SoT, with currency) -> items.list_price_gbp (GBP).
+--   items.cost_per_kg is intentionally NOT a source: it is a denormalised write-through cache
+--   of item_cost_history with no currency of its own.
+-- Set-based callers JOIN this view; per-item / date-specific callers should resolve
+-- from the same ledger (item_cost_history, e.g. write-cost-ledger.ts). A shared TS
+-- resolver that wraps both is a planned follow-up.
+-- SECURITY INVOKER so items / item_cost_history RLS (org scoping) applies to the caller.
+create or replace view public.v_item_effective_cost
+  with (security_invoker = true)
+as
+select i.org_id,
+       i.id        as item_id,
+       i.item_code,
+       coalesce(ch.cost_per_kg, i.list_price_gbp)                          as amount,
+       case when ch.cost_per_kg   is not null then nullif(trim(ch.currency), '')
+            when i.list_price_gbp is not null then 'GBP'
+            else null end                                                  as currency,
+       case when ch.cost_per_kg   is not null then 'cost_history'
+            when i.list_price_gbp is not null then 'list_price'
+            else 'none' end                                                as source
+  from public.items i
+  left join lateral (
+    select ch.cost_per_kg, ch.currency
+      from public.item_cost_history ch
+     where ch.org_id = i.org_id
+       and ch.item_id = i.id
+       and ch.effective_to is null
+     order by ch.effective_from desc
+     limit 1
+  ) ch on true;
+
+grant select on public.v_item_effective_cost to app_user;
+-- 405-effective-cost-reads-supplier-spec.sql
+-- "One price" single-source (owner): a supplied item's price is owned by
+-- supplier_specs.unit_price. Extend v_item_effective_cost to read it as a source tier so
+-- the SAME value feeds both the PO prefill (getItemSupplierPrice already reads supplier_specs)
+-- AND recipe/BOM/portfolio cost (this view) — no duplication, and a wizard-created item whose
+-- price lives on its supplier spec no longer falls through to a missing list_price.
+-- Priority: item_cost_history (explicit internal cost ledger) -> supplier_specs.unit_price
+-- (active+approved, latest effective purchase price) -> items.list_price_gbp (fallback).
+create or replace view public.v_item_effective_cost
+  with (security_invoker = true)
+as
+select i.org_id,
+       i.id        as item_id,
+       i.item_code,
+       coalesce(ch.cost_per_kg, ss.unit_price, i.list_price_gbp)            as amount,
+       case when ch.cost_per_kg   is not null then nullif(trim(ch.currency), '')
+            when ss.unit_price    is not null then coalesce(nullif(trim(ss.price_currency), ''), 'GBP')
+            when i.list_price_gbp is not null then 'GBP'
+            else null end                                                  as currency,
+       case when ch.cost_per_kg   is not null then 'cost_history'
+            when ss.unit_price    is not null then 'supplier_spec'
+            when i.list_price_gbp is not null then 'list_price'
+            else 'none' end                                                as source
+  from public.items i
+  left join lateral (
+    select ch.cost_per_kg, ch.currency
+      from public.item_cost_history ch
+     where ch.org_id = i.org_id
+       and ch.item_id = i.id
+       and ch.effective_to is null
+     order by ch.effective_from desc
+     limit 1
+  ) ch on true
+  left join lateral (
+    select ss.unit_price, ss.price_currency
+      from public.supplier_specs ss
+     where ss.org_id = i.org_id
+       and ss.item_id = i.id
+       and ss.lifecycle_status = 'active'
+       and ss.review_status = 'approved'
+       and ss.unit_price is not null
+     order by ss.effective_from desc nulls last, ss.updated_at desc nulls last
+     limit 1
+  ) ss on true;
+
+grant select on public.v_item_effective_cost to app_user;
+
+exec
+/bin/zsh -lc "rtk sed -n '1,140p' 'apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts'; rtk sed -n '130,210p' 'apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts'; rtk rg -n \"costEngineAdapter|build.*Cost|divideDecimal|multiplyDecimal\" 'apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing'" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+/**
+ * Thin adapter between the cost-engine loader contract and CostingScreen UI.
+ * Contract tweaks should land here only.
+ */
+
+export type CostEngineUnits = {
+  packWeightKg: string | null;
+  packsPerCase: number | null;
+  avgBatchQty: string | null;
+  fgBaseUom: string | null;
+  packsPerBatch: string | null;
+};
+
+export type CostEngineStepKey =
+  | 'raw_materials'
+  | 'yield_loss'
+  | 'process_labour'
+  | 'setup'
+  | 'packaging'
+  | 'overhead'
+  | 'logistics'
+  | 'total'
+  | 'margin';
+
+export type CostEngineResult = {
+  status: 'ok' | 'fail' | 'blocked';
+  missing: string[];
+  steps: Array<{ key: CostEngineStepKey; valuePerPackEur: string }>;
+  units: CostEngineUnits;
+};
+
+export type WaterfallRowView = {
+  key: CostEngineStepKey;
+  label: string;
+  perKg: string | null;
+  perPack: string;
+  perBatch: string | null;
+  isTotal: boolean;
+};
+
+const STEP_ORDER: CostEngineStepKey[] = [
+  'raw_materials',
+  'yield_loss',
+  'process_labour',
+  'setup',
+  'packaging',
+  'overhead',
+  'logistics',
+  'total',
+  'margin',
+];
+
+/** Default EN labels; PL mandated names noted in i18n report. */
+export const DEFAULT_STEP_LABELS: Record<CostEngineStepKey, string> = {
+  raw_materials: 'Surowce',
+  yield_loss: 'Strata',
+  process_labour: 'Praca procesów',
+  setup: 'Setup',
+  packaging: 'Opakowania',
+  overhead: 'Overhead',
+  logistics: 'Logistyka',
+  total: 'Koszt całkowity',
+  margin: 'Marża vs cena docelowa',
+};
+
+export type MissingItemLink = {
+  key: string;
+  label: string;
+  href: string;
+};
+
+function trimDecimal(value: string): string {
+  return value.trim();
+}
+
+function isPositiveDecimal(value: string | null | undefined): value is string {
+  if (value == null) return false;
+  const trimmed = trimDecimal(value);
+  if (trimmed === '' || trimmed === '0' || trimmed === '0.0' || trimmed === '0.00') return false;
+  const n = Number(trimmed);
+  return Number.isFinite(n) && n > 0;
+}
+
+/** Display-only derivation — never persisted. */
+function divideDecimal(a: string, b: string): string | null {
+  const num = Number(trimDecimal(a));
+  const den = Number(trimDecimal(b));
+  if (!Number.isFinite(num) || !Number.isFinite(den) || den <= 0) return null;
+  return (num / den).toFixed(4);
+}
+
+/** Display-only derivation — never persisted. */
+function multiplyDecimal(a: string, b: string): string | null {
+  const num = Number(trimDecimal(a));
+  const factor = Number(trimDecimal(b));
+  if (!Number.isFinite(num) || !Number.isFinite(factor)) return null;
+  return (num * factor).toFixed(4);
+}
+
+export function adaptWaterfallRows(
+  result: CostEngineResult,
+  labels: Partial<Record<CostEngineStepKey, string>> = {},
+): WaterfallRowView[] {
+  const byKey = new Map(result.steps.map((step) => [step.key, step.valuePerPackEur]));
+  const { packWeightKg, packsPerBatch } = result.units;
+
+  return STEP_ORDER.map((key) => {
+    const perPack = byKey.get(key) ?? '0';
+    const perKg = isPositiveDecimal(packWeightKg) ? divideDecimal(perPack, packWeightKg) : null;
+    const perBatch = isPositiveDecimal(packsPerBatch) ? multiplyDecimal(perPack, packsPerBatch) : null;
+    return {
+      key,
+      label: labels[key] ?? DEFAULT_STEP_LABELS[key],
+      perKg,
+      perPack,
+      perBatch,
+      isTotal: key === 'total',
+    };
+  });
+}
+
+const MISSING_LINK_RULES: Array<{
+  match: RegExp;
+  label: string;
+  segment: 'formulation' | 'brief' | 'packaging';
+}> = [
+  { match: /yield/i, label: 'Yield', segment: 'formulation' },
+  { match: /volume|weekly/i, label: 'Weekly volume', segment: 'brief' },
+  { match: /runs/i, label: 'Runs per week', segment: 'brief' },
+  { match: /packs?_per_case|packaging/i, label: 'Packs per case', segment: 'packaging' },
+];
+
+export function adaptMissingChecklist(
+  missing: string[],
+  locale: string,
+  projectId: string,
+): MissingItemLink[] {
+  const base = `/${locale}/pipeline/${projectId}`;
+  const seen = new Set<string>();
+
+          const msgKey = 'step_' + stepKey.replace(/[A-Z]/g, (ch) => '_' + ch.toLowerCase());
+          try {
+            const value = t(msgKey);
+            translated[stepKey] =
+              !value || value === msgKey || value.includes('npd.costing') ? stepDefault : value;
+          } catch {
+            translated[stepKey] = stepDefault;
+          }
+        }
+        labels[key] = translated as never;
+      } else {
+        labels[key] = fallback as never;
+      }
+      return labels;
+    }, {} as CostingLabels);
+  } catch {
+    return { ...DEFAULT_COSTING_LABELS };
+  }
+}
+
+const SCALE = 4n;
+const FACTOR = 10n ** SCALE;
+
+function parseDec(value: string): bigint {
+  const trimmed = (value ?? '0').trim();
+  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) return 0n;
+  const negative = trimmed.startsWith('-');
+  const unsigned = negative ? trimmed.slice(1) : trimmed;
+  const [int, fracRaw = ''] = unsigned.split('.');
+  const frac = fracRaw.slice(0, Number(SCALE)).padEnd(Number(SCALE), '0');
+  const scaled = BigInt(int + frac);
+  return negative ? -scaled : scaled;
+}
+
+function formatDec(scaled: bigint): string {
+  const negative = scaled < 0n;
+  const abs = negative ? -scaled : scaled;
+  const int = abs / FACTOR;
+  const frac = (abs % FACTOR).toString().padStart(Number(SCALE), '0');
+  return `${negative && scaled !== 0n ? '-' : ''}${int}.${frac}`;
+}
+
+type BreakdownRow = {
+  id: string;
+  scenario: string;
+  raw_cost_eur: string;
+  margin_pct: string;
+  target_price_eur: string;
+  params: (CostingParams & {
+    units?: {
+      packWeightKg?: string | null;
+      packsPerCase?: string | number | null;
+      avgBatchQty?: string | null;
+      fgBaseUom?: string | null;
+      packsPerBatch?: string | null;
+    };
+    missing?: string[];
+  }) | null;
+};
+
+type StepRow = {
+  breakdown_id: string;
+  step_index: number;
+  step_name: string;
+  value_eur: string;
+  delta_pct: string | null;
+};
+
+function resolveWarnPct(row: { value_int: number | null; value_text: string | null } | undefined): string {
+  if (!row) return DEFAULT_WARN_PCT;
+  if (row.value_int !== null && row.value_int !== undefined) return String(row.value_int);
+  if (row.value_text && /^-?\d+(\.\d+)?$/.test(row.value_text.trim())) return row.value_text.trim();
+  return DEFAULT_WARN_PCT;
+}
+
+function marginStatus(marginPct: string, warnPct: string): CostingStatus {
+  const margin = parseDec(marginPct);
+  if (margin < 0n) return 'fail';
+  return margin < parseDec(warnPct) ? 'warn' : 'ok';
+}
+
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts:85:function divideDecimal(a: string, b: string): string | null {
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts:93:function multiplyDecimal(a: string, b: string): string | null {
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts:109:    const perKg = isPositiveDecimal(packWeightKg) ? divideDecimal(perPack, packWeightKg) : null;
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/cost-engine-adapter.ts:110:    const perBatch = isPositiveDecimal(packsPerBatch) ? multiplyDecimal(perPack, packsPerBatch) : null;
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_lib/page-loader.ts:118:export async function buildCostingLabels(locale: string): Promise<CostingLabels> {
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:388:        wipComponents: buildWipComponents(wipCosts.rows, wipProcesses.rows),
+apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/costing/_actions/compute.ts:625:function buildWipComponents(costRows: WipComponentCostRow[], processRows: WipProcessRow[]): NpdWipComponentInput[] {
+
+exec
+/bin/zsh -lc "rtk rg -n \"wo_waste_log|wasteCost|waste_cost|waste kg|wasteKg\" docs _meta apps/web packages/db/migrations --glob '"'!**/*.json'"' | head -160; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts' | sed -n '45,115p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts' | sed -n '184,258p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts' | sed -n '34,78p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts' | sed -n '292,340p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-math.ts' | sed -n '55,105p'" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+packages/db/migrations/183-production-waste-downtime.sql:1:-- Migration 183: 08-Production — wo_waste_log + downtime_events (+ downtime_source_enum) + the
+packages/db/migrations/183-production-waste-downtime.sql:4:-- Tasks: _meta/atomic-tasks/08-production/tasks/T-004.json (wo_waste_log),
+packages/db/migrations/183-production-waste-downtime.sql:13:-- Retention: wo_waste_log is a 3-year-retention operational log (§5.5) — enforced by the
+packages/db/migrations/183-production-waste-downtime.sql:87:-- wo_waste_log (T-004, §9.5) — categorized waste capture.
+packages/db/migrations/183-production-waste-downtime.sql:89:create table if not exists public.wo_waste_log (
+packages/db/migrations/183-production-waste-downtime.sql:107:  constraint wo_waste_log_transaction_id_unique unique (transaction_id),
+packages/db/migrations/183-production-waste-downtime.sql:108:  constraint wo_waste_log_qty_kg_positive_check check (qty_kg > 0)     -- V-PROD-05 red-line
+packages/db/migrations/183-production-waste-downtime.sql:111:create index if not exists idx_waste_wo on public.wo_waste_log (wo_id);
+packages/db/migrations/183-production-waste-downtime.sql:112:create index if not exists idx_waste_category_time on public.wo_waste_log (category_id, recorded_at);
+packages/db/migrations/183-production-waste-downtime.sql:113:create index if not exists idx_waste_tenant_time on public.wo_waste_log (org_id, recorded_at);
+packages/db/migrations/183-production-waste-downtime.sql:115:alter table public.wo_waste_log enable row level security;
+packages/db/migrations/183-production-waste-downtime.sql:116:alter table public.wo_waste_log force row level security;
+packages/db/migrations/183-production-waste-downtime.sql:117:drop policy if exists wo_waste_log_org_context on public.wo_waste_log;
+packages/db/migrations/183-production-waste-downtime.sql:118:create policy wo_waste_log_org_context
+packages/db/migrations/183-production-waste-downtime.sql:119:  on public.wo_waste_log
+packages/db/migrations/183-production-waste-downtime.sql:124:revoke all on public.wo_waste_log from public;
+packages/db/migrations/183-production-waste-downtime.sql:125:revoke all on public.wo_waste_log from app_user;
+packages/db/migrations/183-production-waste-downtime.sql:126:grant select, insert, update, delete on public.wo_waste_log to app_user;
+packages/db/migrations/183-production-waste-downtime.sql:138:drop trigger if exists wo_waste_log_set_updated_at on public.wo_waste_log;
+packages/db/migrations/183-production-waste-downtime.sql:139:create trigger wo_waste_log_set_updated_at
+packages/db/migrations/183-production-waste-downtime.sql:140:  before update on public.wo_waste_log
+docs/prd/02-SETTINGS-PRD.md:778:| 14 | `waste_cost_allocator_v1` | conditional | P1 | 10-FIN §10 | 10-FIN + 08-PROD waste events | Full-loss vs recovery allocation (consumer `waste_categories` 02-SETTINGS §8) |
+docs/prd/02-SETTINGS-PRD.md:832:| 14 | **`waste_categories`** (v3.1, z 08-PROD) | 08-PROD §8 + 10-FIN §10 `waste_cost_allocator_v1` consumer | ~6-10 rows (trim/yield_loss/contamination/expired/packaging/test_sample/other) + full_loss vs recovery flag | [UNIVERSAL] |
+packages/db/migrations/293-corrections-foundation.sql:19:alter table public.wo_waste_log
+packages/db/migrations/293-corrections-foundation.sql:22:comment on column public.wo_waste_log.correction_of_id is
+packages/db/migrations/293-corrections-foundation.sql:23:  'Soft self-reference to the original wo_waste_log row corrected by this counter-entry. No FK: ledger retention/export must not couple correction rows to source-row lifecycle.';
+packages/db/migrations/293-corrections-foundation.sql:25:create index if not exists idx_wo_waste_log_correction_of_id
+packages/db/migrations/293-corrections-foundation.sql:26:  on public.wo_waste_log (correction_of_id)
+packages/db/migrations/293-corrections-foundation.sql:33:alter table public.wo_waste_log
+packages/db/migrations/293-corrections-foundation.sql:34:  drop constraint if exists wo_waste_log_qty_kg_positive_check;
+packages/db/migrations/293-corrections-foundation.sql:36:alter table public.wo_waste_log
+packages/db/migrations/293-corrections-foundation.sql:37:  add constraint wo_waste_log_qty_kg_positive_check
+packages/db/migrations/293-corrections-foundation.sql:44:comment on constraint wo_waste_log_qty_kg_positive_check on public.wo_waste_log is
+packages/db/migrations/335-wo-waste-log-lp-id.sql:1:alter table public.wo_waste_log
+packages/db/migrations/335-wo-waste-log-lp-id.sql:4:create index if not exists idx_wo_waste_log_lp_id
+packages/db/migrations/335-wo-waste-log-lp-id.sql:5:  on public.wo_waste_log(lp_id)
+docs/prd/08-PRODUCTION-PRD.md:66:| 4 | `wo_waste_log` table | L1 | 08-PROD |
+docs/prd/08-PRODUCTION-PRD.md:83:- **08-c Output + Waste** (3-4 sesji) — wo_outputs (primary/co/by), wo_waste_log, catch weight entry, output yield gate, 05-WH LP creation integration
+docs/prd/08-PRODUCTION-PRD.md:141:| Waste % | <3% | `wo_waste_log.qty / wo_material_consumption.qty` | Weekly |
+docs/prd/08-PRODUCTION-PRD.md:197:| `wo_waste_log` | exec via SCN-084 | approve over-threshold | read | read | - | - |
+docs/prd/08-PRODUCTION-PRD.md:349:| `wo_waste_log` | 3 years | Analytics + audit |
+docs/prd/08-PRODUCTION-PRD.md:543:- `wo_waste_log` table
+docs/prd/08-PRODUCTION-PRD.md:722:- KPI: total waste kg + % this period, benchmark vs target
+docs/prd/08-PRODUCTION-PRD.md:763:- Per-line shift summary card: WOs completed (codes + products + qty), WOs in progress, output kg vs target, waste kg + %, downtime min + top category, yield %, FEFO compliance %.
+docs/prd/08-PRODUCTION-PRD.md:789:**Source tables:** `wo_executions`, `wo_outputs`, `wo_material_consumption`, `wo_waste_log`, `downtime_events`, `operator_kpis_monthly`. Pre-aggregated period KPIs cached for 5 min (read-mostly).
+docs/prd/08-PRODUCTION-PRD.md:1082:| `wo_waste_log` | Waste events | 3 years | ~4000/year |
+docs/prd/08-PRODUCTION-PRD.md:1177:### 9.5 `wo_waste_log`
+docs/prd/08-PRODUCTION-PRD.md:1180:CREATE TABLE wo_waste_log (
+docs/prd/08-PRODUCTION-PRD.md:1194:CREATE INDEX idx_waste_wo ON wo_waste_log(wo_id);
+docs/prd/08-PRODUCTION-PRD.md:1195:CREATE INDEX idx_waste_category_time ON wo_waste_log(category_id, recorded_at);
+docs/prd/08-PRODUCTION-PRD.md:1196:CREATE INDEX idx_waste_tenant_time ON wo_waste_log(tenant_id, recorded_at);
+docs/prd/08-PRODUCTION-PRD.md:1376:LEFT JOIN wo_waste_log w ON w.operator_id = c.operator_id
+docs/prd/08-PRODUCTION-PRD.md:1556:| Waste % | `sum(wo_waste_log.qty_kg) / sum(wo_material_consumption.qty_consumed)` | <3% | both | Weekly |
+docs/prd/08-PRODUCTION-PRD.md:1854:- [ ] `wo_executions`, `wo_material_consumption`, `wo_outputs`, `wo_waste_log`, `downtime_events`, `changeover_events`, `allergen_changeover_validations`, `oee_snapshots`, `production_outbox_events`, `d365_push_dlq` tables deployed with RLS
+docs/prd/08-PRODUCTION-PRD.md:1950:- SC-08-c-01: `wo_outputs`, `wo_waste_log` tables
+docs/prd/08-PRODUCTION-PRD.md:2075:| 10-FINANCE | wo_outputs + wo_material_consumption + wo_waste_log | Costing calc, WIP valuation |
+docs/prd/08-PRODUCTION-PRD.md:2101:- V-PROD-05: wo_waste_log.category_id must reference active waste_categories row
+_meta/atomic-tasks/08-production/STATUS.md:15:| T-004 | wo_waste_log migration + RLS | ⬜ | Absent |
+packages/db/migrations/411-f1-audit-actions-disassembly-idempotency-site-backfill.sql:44:update public.wo_waste_log w
+docs/prd/06-SCANNER-P1-PRD.md:690:| FR-SC-BE-052 | `POST /api/production/scanner/waste` — `{wo_id, waste_category_id, qty, production_phase, notes?}`. NIE tworzy LP (waste nie trafia do magazynu). Creates `wo_waste_log` entry. Kategorie: `waste_categories` (fat, floor, giveaway, rework, other — configurable per org per 02-SETTINGS). | HIGH |
+packages/db/migrations/295-wo-outputs-correction-qty-check.sql:3:-- Wave R2 gap: migration 293 relaxed the signed-quantity rule on wo_waste_log
+packages/db/migrations/296-corrections-hardening.sql:115:create unique index if not exists uq_wo_waste_log_one_correction
+packages/db/migrations/296-corrections-hardening.sql:116:  on public.wo_waste_log (org_id, correction_of_id)
+packages/db/migrations/296-corrections-hardening.sql:119:comment on index public.uq_wo_waste_log_one_correction is
+packages/db/migrations/259-demo-wo-seed.sql:117:  insert into public.wo_waste_log (id, transaction_id, org_id, wo_id, category_id, qty_kg, reason_code, reason_notes, shift_id, recorded_at)
+_meta/atomic-tasks/10-finance/coverage.md:46:| §10.1 cost_method_selector_v1, §10.2 waste_cost_allocator_v1, §10.3 std_cost_approval_v1 stub, §10.4 registry delta | tasks/T-022.json | d | T2-api | covered |
+_meta/atomic-tasks/10-finance/coverage.md:120:| T-015 | 08-production | work_orders + wo_outputs + wo_waste_log + consumption_events FKs |
+docs/guide/modules/15-oee.md:86:| `getAllLinesLiveStatus(orgId)` | One row **per `production_lines` row**: the line + its current active WO (a `lateral` pick of the line's `RELEASED`/`IN_PROGRESS`/`ON_HOLD` WO, in-progress first), good/scrap **kg** rolled up live from `wo_outputs`(`qa_status<>'FAILED'` vs `=FAILED`) + `wo_waste_log`, the **latest** snapshot's `oee_pct` (`lateral` over `oee_snapshots` newest-first), and a `last_activity_at` = `max()` of snapshot/WO/execution/output/waste timestamps. Status derived (`deriveStatus`) from runtime + `production_lines.status`. Ordered by line code. | `production_lines`, `work_orders`, `wo_executions`, `items`, `wo_outputs`, `wo_waste_log`, `oee_snapshots` | **none** (RLS only — see gaps) |
+docs/guide/modules/15-oee.md:132:                   waste    = Σ wo_waste_log.qty_kg
+docs/guide/modules/15-oee.md:216:   shift, WO number, A/P/Q/OEE %, output kg, downtime min, waste kg; any missing
+docs/guide/modules/15-oee.md:271:- `wo_outputs` / `wo_waste_log` — live good/scrap **kg** rollup for the Andon card
+_meta/atomic-tasks/10-finance/STATUS.md:37:| T-022 | T2-api | Register cost_method_selector_v1 + waste_cost_allocator_v1 | ⬜ | No DSL rule registrations. Depends on T-021 + 02-settings rules_registry. |
+_meta/atomic-tasks/10-finance/STATUS.md:55:- [ ] 08-production work_orders / wo_outputs / wo_waste_log tables — needed by T-015, T-017, T-018, T-024
+docs/guide/modules/08-production.md:12:> 08-production is the **canonical owner** of `wo_outputs`, `wo_waste_log`,
+docs/guide/modules/08-production.md:93:| `recordWaste` (`waste/record-waste.ts`, via `…/waste/route.ts` + scanner `…/waste/route.ts`) | Insert a categorized `wo_waste_log` row (qty **always kg**, >0). WO must be recordable. Resolves `category_code → waste_categories.id` (unknown/inactive → `invalid_reference`). **holdsGuard FIRST**. Emits `production.waste.recorded` (feeds the yield gate, finance loss, reporting). Idempotent on `transaction_id`. | reads `work_orders`, `wo_executions`, `waste_categories`; writes `wo_waste_log`, `outbox_events` | `production.waste.write` | `voidWasteEntry` |
+docs/guide/modules/08-production.md:106:| `voidWasteEntry({wasteId,reasonCode,note})` | **R2** — void a `wo_waste_log` row. **No e-sign** (lower-stakes). Inserts a negated-qty storno (`correction_of_id`); writes audit `production.waste.corrected`. mig-296 unique partial index `(org_id, correction_of_id)` backstops double-void → `already_corrected`. | reads `wo_waste_log`, `work_orders`, `wo_executions`; writes `wo_waste_log`, `audit_events` | `production.waste.correct` (+ `production.corrections.closed_wo` if WO closed) | **is** the reverse of `recordWaste` |
+docs/guide/modules/08-production.md:135:| `getWorkOrderDetail` (`get-work-order-detail.ts`) | WO detail bundle for the 8/9-tab screen (components, outputs, waste, downtime, QA, genealogy, history; corrected-row exclusion via `correction_of_id`). | `work_orders`, `wo_materials`, `wo_outputs`, `wo_waste_log`, `downtime_events`, `wo_material_consumption`, `wo_status_history`, `wo_events`, `bom_co_products` | `production.oee.read` |
+docs/guide/modules/08-production.md:204:recordWaste ──► wo_waste_log row (kg)
+docs/guide/modules/08-production.md:347:- `wo_waste_log` — **canonical** waste table (kg; storno).
+_meta/atomic-tasks/10-finance/BOOTSTRAP-REPORT-2026-05-14.md:47:- **08-production:** work_orders, wo_outputs, wo_waste_log, consumption_events, wo_executions.completed event, §12 outbox pattern reference.
+docs/prd/10-FINANCE-PRD.md:9:**Consumer of:** 08-PRODUCTION (`wo_outputs`, `wo_waste_log`, `wo_executions.status='COMPLETED'` trigger, INTEGRATIONS stage 2 outbox pattern = stage 5 template), 05-WAREHOUSE (LP cost snapshot, FIFO layer lifecycle at consume/output), 03-TECHNICAL (`items.cost_per_kg` source, BOM structure + `bom_co_products.allocation_pct`, item_type rm/intermediate/fa/co_product/byproduct), 09-QUALITY (`ncr_reports.claim_value_eur` + `ncr_type='yield_issue'` monthly aggregation, `quality_holds` freeze cost P2), 04-PLANNING-BASIC (WO dependency DAG for recursive cost rollup), 07-PLANNING-EXT (Prophet P2 budget forecast bridge, changeover cost from `changeover_matrix`), 02-SETTINGS (D365 Constants §11, DSL rules registry §7, reference tables §8 — `cost_centers`, `currencies`, `gl_account_mappings`, `tax_codes`), 00-FOUNDATION (R14 idempotency, R15 anti-corruption).
+docs/prd/10-FINANCE-PRD.md:45:| DSL rules | 0 registered → **2 registered w 02-SETTINGS §7** (`cost_method_selector_v1`, `waste_cost_allocator_v1`) + 1 stub P2 (`standard_cost_approval_v1`) |
+docs/prd/10-FINANCE-PRD.md:146:| `wo_waste_log` + `waste_categories` | **08-PROD §9.5** + **02-SETTINGS §8** | 10-FIN reads for waste cost calc per category |
+docs/prd/10-FINANCE-PRD.md:150:| DSL rules registry | **02-SETTINGS §7** | 10-FIN **registers** `cost_method_selector_v1` + `waste_cost_allocator_v1` |
+docs/prd/10-FINANCE-PRD.md:352:  waste_cost_actual NUMERIC(15,4) NOT NULL DEFAULT 0,  -- sum from wo_waste_log × cost_per_kg per category
+docs/prd/10-FINANCE-PRD.md:353:  total_cost_actual NUMERIC(15,4) GENERATED ALWAYS AS (material_cost_actual + labor_cost_actual + overhead_cost_actual + waste_cost_actual) STORED,
+docs/prd/10-FINANCE-PRD.md:360:  total_variance NUMERIC(15,4) GENERATED ALWAYS AS ((material_cost_actual + labor_cost_actual + overhead_cost_actual + waste_cost_actual) - (material_cost_standard + labor_cost_standard + overhead_cost_standard)) STORED,
+docs/prd/10-FINANCE-PRD.md:365:  unit_cost_actual NUMERIC(15,4) GENERATED ALWAYS AS (CASE WHEN qty_produced_actual > 0 THEN (material_cost_actual + labor_cost_actual + overhead_cost_actual + waste_cost_actual) / qty_produced_actual ELSE 0 END) STORED,
+docs/prd/10-FINANCE-PRD.md:461:10-c (WO Actual Costing)    blocks on 10-b, 08-PRODUCTION (wo_executions, wo_outputs, wo_waste_log events)
+docs/prd/10-FINANCE-PRD.md:493:| 08-PROD §9.5 (wo_waste_log) | 10-c | Read category_id + qty_kg | Hard block (waste cost) |
+docs/prd/10-FINANCE-PRD.md:503:| 02-SETTINGS §8 (waste_categories) | 10-c | Join on wo_waste_log.category_id | Hard block |
+docs/prd/10-FINANCE-PRD.md:739:                  + waste_cost_actual            -- z wo_waste_log × waste_categories.cost_per_kg × qty
+docs/prd/10-FINANCE-PRD.md:828:Per `wo_waste_log` record:
+docs/prd/10-FINANCE-PRD.md:830:waste_cost_line = waste_log.qty_kg × waste_category.cost_allocation_rate
+docs/prd/10-FINANCE-PRD.md:835:- **P2:** Apply DSL rule `waste_cost_allocator_v1` (może zwrócić partial recovery credit)
+docs/prd/10-FINANCE-PRD.md:837:Waste cost aggregated per WO → `work_order_costs.waste_cost_actual`.
+docs/prd/10-FINANCE-PRD.md:879:### 10.2 `waste_cost_allocator_v1` [UNIVERSAL]
+docs/prd/10-FINANCE-PRD.md:882:**Trigger:** On `wo_waste_log` insert
+docs/prd/10-FINANCE-PRD.md:886:rule_id: waste_cost_allocator_v1
+docs/prd/10-FINANCE-PRD.md:888:entity: wo_waste_log → work_order_costs.waste_cost_actual
+docs/prd/10-FINANCE-PRD.md:902:        action: waste_cost = qty_kg × unit_cost
+docs/prd/10-FINANCE-PRD.md:904:        action: waste_cost = qty_kg × (unit_cost - category.recovery_value_per_kg)
+docs/prd/10-FINANCE-PRD.md:906:        action: waste_cost = 0  (credit GL scrap_revenue instead, handled w EPIC 10-K)
+docs/prd/10-FINANCE-PRD.md:908:  - waste_cost (added to work_order_costs.waste_cost_actual)
+docs/prd/10-FINANCE-PRD.md:957:14. `waste_cost_allocator_v1` ✅
+docs/prd/10-FINANCE-PRD.md:997:| V-FIN-WO-05 | block | `status='closed'` requires all `wo_outputs` registered AND all `wo_waste_log` final |
+docs/prd/10-FINANCE-PRD.md:1211:| `waste.logged` (08-PROD §9.5) | `handle_waste_logged` | Query rule `waste_cost_allocator_v1` → compute waste_cost → update `work_order_costs.waste_cost_actual` |
+docs/prd/10-FINANCE-PRD.md:1383:- `waste_cost_allocator_v1` (owner: 10-FIN, version 1.0, P1)
+docs/prd/10-FINANCE-PRD.md:1393:- Added 3 DSL rules from 10-FINANCE v3.0 (cost_method_selector_v1, waste_cost_allocator_v1, standard_cost_approval_v1 stub) → rules registry §7 total 15 rules.
+docs/prd/10-FINANCE-PRD.md:1467:| DSL rules registered | 2 P1 (cost_method_selector_v1, waste_cost_allocator_v1) + 1 stub P2 (standard_cost_approval_v1) |
+docs/guide/modules/10-finance.md:56:- **Waste** — `wo_waste_log.qty_kg` costed at the WO's weighted-average material
+docs/guide/modules/10-finance.md:88:| `listCompletedWoCosts({days?})` (`wo-cost-actions.ts:341`) | The `/finance` page loader. Lists the **25 most recent** WOs `COMPLETED`/`CLOSED` (or `wo_executions.status in (completed,closed)`) within the window (`days` clamped 1..365, default 30), then rolls each up via `computeWoActualCostInContext`. **Pure read** — never writes. | reads `work_orders`, `wo_executions`, `wo_outputs`, `wo_waste_log`, `wo_material_consumption`, `items`, `wo_operations`, `reference_tables` (`processes`), `downtime_events`; **writes nothing** | `fin.costs.read` | — (read-only) |
+docs/guide/modules/10-finance.md:90:| `computeWoActualCostTotals(input)` (`wo-cost-math.ts:62`) | Pure NUMERIC kernel (no DB, no `'use server'`). materials Σ(qty×cost), labor = runtimeHours × staffing × ratePerHour, waste = wasteKg × avg material cost, total = materials+labor+machine+setup+waste, `costPerKgOutput = total/outputKg`. Micro-scaled bigint math, banker-free half-up rounding (`divMicro`). | — (in-memory) | — (called inside the action under the gate) | — |
+docs/guide/modules/10-finance.md:213:- `wo_waste_log` — **canonical (08-production)**; `qty_kg` costed at WAC material cost.
+docs/guide/modules/06-scanner.md:18:> `wo_waste_log` / `wo_material_consumption` — the scanner **writes via the same
+docs/guide/modules/06-scanner.md:118:| `POST …/wos/[id]/waste` (`waste/route.ts`) | Log a categorized `wo_waste_log` row (qty **always kg**, `> 0`) via shared `recordWaste`. `shift_id` defaults to the session shift else `'scanner'`. | writes via `recordWaste` (`wo_waste_log`, `outbox_events`) + `scanner_audit_log` | scanner session | desktop `voidWasteEntry` |
+docs/guide/modules/06-scanner.md:470:- `wo_waste_log` — **canonical (08-production)** waste (kg).
+docs/guide/03-module-howto.md:193:| **WO detail** (`/production/wos/[id]`) | **Start**, **Consume** material (desktop consume), **record Output** (+ QA release), **record Waste**, **record Downtime**; **corrections**: **Void output**, **Void waste**, **Reverse consumption** | consume LP picker + qty; output qty + QA; waste qty (**always kg**); downtime reason/duration; void/reverse reason code + e-sign | 8 tabs. Owns `wo_outputs` (canonical), `wo_waste_log`, `downtime_events`; produces `oee_snapshots` on WO COMPLETE. Corrections (`reverseConsumptionAction`, `voidWasteEntryAction`, `voidWoOutputAction`) post **storno** counter-entries (R2). Output emits `production.output.recorded`; consume passes the T-064 quality consume gate. |
+_meta/atomic-tasks/06-scanner-p1/STATUS.md:128:| T-051 | Scanner production writes delegate to 08-production (canonical-owner fix) | ⬜ PENDING | BLOCKER B4. Retag T-042 + audit T-039 so wo_outputs/wo_waste_log/wo_material_consumption writes delegate to 08-production. After 08 exposes output/waste/consume services + 09 T-064 gate. |
+apps/web/lib/corrections/__tests__/correct-ledger-entry.test.ts:46:      if (normalized.startsWith('insert into public.wo_waste_log')) {
+apps/web/lib/corrections/__tests__/correct-ledger-entry.test.ts:137:      table: 'wo_waste_log',
+apps/web/lib/corrections/__tests__/correct-ledger-entry.test.ts:147:      table: 'wo_waste_log',
+apps/web/lib/corrections/__tests__/correct-ledger-entry.test.ts:157:    const inserts = queries.filter((q) => normalize(q.sql).startsWith('insert into public.wo_waste_log'));
+docs/guide/01-golden-flow-end-to-end.md:313:Canonical owner of `wo_outputs`, `wo_waste_log`, `downtime_events`, OEE snapshots.
+docs/guide/01-golden-flow-end-to-end.md:347:`recordWaste(...)` — `apps/web/lib/production/waste/record-waste.ts` → `wo_waste_log`
+docs/guide/01-golden-flow-end-to-end.md:355:- **`voidWasteEntry(...)`** (R2) — voids a `wo_waste_log` entry with a counter-entry.
+docs/guide/01-golden-flow-end-to-end.md:461:        WASTE["recordWaste → wo_waste_log (kg)"]
+docs/guide/01-golden-flow-end-to-end.md:535:                     recordWaste → wo_waste_log (kg)
+docs/guide/pl/modules/15-oee.md:87:| `getAllLinesLiveStatus(orgId)` | Jeden wiersz **na rekord `production_lines`**: linia + jej bieżące aktywne ZP (wybór `lateral` ZP linii o statusie `RELEASED`/`IN_PROGRESS`/`ON_HOLD`, w toku jako pierwsze), dobre/złomowane **kg** zsumowane na żywo z `wo_outputs` (`qa_status<>'FAILED'` vs `=FAILED`) + `wo_waste_log`, **najnowsze** `oee_pct` z migawki (wybór `lateral` po `oee_snapshots` od najnowszych), oraz `last_activity_at` = `max()` z dat migawek/ZP/wykonania/wyników/odpadów. Status wyprowadzany (`deriveStatus`) na podstawie czasu pracy + `production_lines.status`. Posortowane po kodzie linii. | `production_lines`, `work_orders`, `wo_executions`, `items`, `wo_outputs`, `wo_waste_log`, `oee_snapshots` | **brak** (wyłącznie RLS — zob. braki) |
+docs/guide/pl/modules/15-oee.md:134:                   waste    = Σ wo_waste_log.qty_kg
+docs/guide/pl/modules/15-oee.md:276:- `wo_outputs` / `wo_waste_log` — żywe zestawienie dobrych/złomowanych **kg** dla
+docs/guide/pl/modules/08-production.md:15:> `wo_waste_log`, `downtime_events` oraz jedynym **producentem**
+docs/guide/pl/modules/08-production.md:99:| `recordWaste` (`waste/record-waste.ts`, przez `…/waste/route.ts` + skaner `…/waste/route.ts`) | Wstawia skategoryzowany wiersz `wo_waste_log` (ilość **zawsze w kg**, >0). ZP musi być w stanie rejestracji. Rozwiązuje `category_code → waste_categories.id` (nieznany/nieaktywny → `invalid_reference`). **holdsGuard NAJPIERW**. Emituje `production.waste.recorded` (zasila bramkę wydajności, stratę finansową, raportowanie). Idempotentny na `transaction_id`. | czyta `work_orders`, `wo_executions`, `waste_categories`; zapisuje `wo_waste_log`, `outbox_events` | `production.waste.write` | `voidWasteEntry` |
+docs/guide/pl/modules/08-production.md:112:| `voidWasteEntry({wasteId,reasonCode,note})` | **R2** — unieważnia wiersz `wo_waste_log`. **Bez e-podpisu** (niższe ryzyko). Wstawia storno z negowaną ilością (`correction_of_id`); zapisuje audyt `production.waste.corrected`. Częściowy indeks unikalny `(org_id, correction_of_id)` z mig-296 zabezpiecza przed podwójnym unieważnieniem → `already_corrected`. | czyta `wo_waste_log`, `work_orders`, `wo_executions`; zapisuje `wo_waste_log`, `audit_events` | Bramka: `production.waste.correct` (+ `production.corrections.closed_wo` gdy ZP zamknięte). **Jest** odwróceniem `recordWaste` |
+docs/guide/pl/modules/08-production.md:141:| `getWorkOrderDetail` (`get-work-order-detail.ts`) | Pakiet szczegółów ZP dla ekranu 8/9 zakładek (komponenty, wyroby, odpady, przestoje, QA, genealogia, historia; wiersze skorygowane wykluczone przez `correction_of_id`). | `work_orders`, `wo_materials`, `wo_outputs`, `wo_waste_log`, `downtime_events`, `wo_material_consumption`, `wo_status_history`, `wo_events`, `bom_co_products` | `production.oee.read` |
+docs/guide/pl/modules/08-production.md:212:recordWaste ──► wo_waste_log row (kg)
+docs/guide/pl/modules/08-production.md:386:- `wo_waste_log` — **kanoniczna** tabela odpadów (kg; storno).
+docs/guide/pl/modules/10-finance.md:64:- **Straty** — `wo_waste_log.qty_kg` wyceniane po średnim ważonym koszcie
+docs/guide/pl/modules/10-finance.md:98:| `listCompletedWoCosts({days?})` (`wo-cost-actions.ts:341`) | Ładownik strony `/finance`. Wyświetla **25 ostatnich** ZP o statusie `COMPLETED`/`CLOSED` (lub `wo_executions.status in (completed,closed)`) w oknie czasowym (`days` ograniczone do 1..365, domyślnie 30), a następnie oblicza każde przez `computeWoActualCostInContext`. **Czysty odczyt** — nic nie zapisuje. | odczytuje `work_orders`, `wo_executions`, `wo_outputs`, `wo_waste_log`, `wo_material_consumption`, `items`, `wo_operations`, `reference_tables` (`processes`), `downtime_events`; **nic nie zapisuje** | `fin.costs.read` | — (tylko odczyt) |
+docs/guide/pl/modules/10-finance.md:225:- `wo_waste_log` — **kanoniczne (08-production)**; `qty_kg` wyceniane po koszcie
+_meta/handoffs/2026-04-20-c4-sesja2-close.md:28:| **Q8 ✅** | DSL rules = 2 P1 (`cost_method_selector_v1`, `waste_cost_allocator_v1`) + 1 P2 stub (`standard_cost_approval_v1`) | Spójny pattern z 07/08/09 module rule registrations |
+_meta/handoffs/2026-04-20-c4-sesja2-close.md:36:| 1 | **2 DSL rules registered w 02-SETTINGS §7** (`cost_method_selector_v1` FIFO/WAC per-org, `waste_cost_allocator_v1` full-loss/recovery) + 1 P2 stub (`standard_cost_approval_v1`) | §10 | [UNIVERSAL] |
+_meta/handoffs/2026-04-20-c4-sesja2-close.md:57:- Consumer `waste.logged` event → rule `waste_cost_allocator_v1` apply ✅
+_meta/handoffs/2026-04-20-c4-sesja2-close.md:87:- Registers 2 DSL rules w §7 (cost_method_selector_v1, waste_cost_allocator_v1) + 1 P2 stub ✅
+docs/guide/pl/modules/06-scanner.md:19:> `wo_outputs` / `wo_waste_log` / `wo_material_consumption` — skaner **zapisuje przez
+docs/guide/pl/modules/06-scanner.md:128:| `POST …/wos/[id]/waste` (`waste/route.ts`) | Rejestruje skategoryzowany wiersz `wo_waste_log` (ilość **zawsze w kg**, `> 0`) przez wspólny `recordWaste`. `shift_id` domyślnie przyjmuje zmianę sesji, w przeciwnym razie `'scanner'`. | zapisuje przez `recordWaste` (`wo_waste_log`, `outbox_events`) + `scanner_audit_log` | sesja skanera | `voidWasteEntry` pulpitu |
+docs/guide/pl/modules/06-scanner.md:496:- `wo_waste_log` — **kanoniczny (08-production)** odpad (kg).
+_meta/handoffs/2026-04-20-c2-sesja3-close.md:114:| **06-SCN §8.5 SCN-084 waste categories** | 08-PROD owns `waste_categories` config + `wo_waste_log` table + waste_tracking dashboard |
+apps/web/lib/production/waste/__tests__/record-waste.gates.test.ts:85:      if (n.startsWith('insert into public.wo_waste_log')) {
+apps/web/lib/production/waste/__tests__/record-waste.gates.test.ts:175:  it('maps stock_moves 23505 to already_recorded like wo_waste_log', async () => {
+apps/web/lib/production/waste/record-waste.ts:3: * public.wo_waste_log and emit production.waste.recorded. Feeds the yield gate
+apps/web/lib/production/waste/record-waste.ts:14: *   6. INSERT wo_waste_log (qty_kg > 0 enforced by schema; R14 idempotency on
+apps/web/lib/production/waste/record-waste.ts:87:/** wo_waste_log qty_kg subtracts 1:1 from license_plates.quantity — LP uom must be kg. */
+apps/web/lib/production/waste/record-waste.ts:261:  // 6. INSERT wo_waste_log (+ ledger-visible LP decrement when lp_id present).
+apps/web/lib/production/waste/record-waste.ts:295:      `insert into public.wo_waste_log
+docs/guide/pl/PRZEPLYW-E2E-TESTOWY.md:91:        F4["recordWaste to wo_waste_log (kg)"]
+apps/web/lib/production/oee-snapshot-producer.ts:34: *                    waste    = SUM(wo_waste_log.qty_kg).
+apps/web/lib/production/oee-snapshot-producer.ts:50: * qty deltas (output/waste kg) pass through as NUMERIC text — no JS float roundtrip.
+apps/web/lib/production/oee-snapshot-producer.ts:140:  wasteKg: number,
+apps/web/lib/production/oee-snapshot-producer.ts:143:  const denom = good + Math.max(rejectedKg, 0) + Math.max(wasteKg, 0);
+    45	               from public.item_cost_history ch
+    46	              where ch.org_id = app.current_org_id()
+    47	                and ch.item_id = i.id
+    48	                and ch.effective_to is null
+    49	              order by ch.effective_from desc
+    50	              limit 1) as current_cost
+    51	       from public.items i
+    52	      where i.org_id = app.current_org_id()
+    53	        and i.id = $1::uuid`,
+    54	    [input.itemId],
+    55	  );
+    56	  const item = itemRows[0];
+    57	  if (!item) return { ok: false, error: 'not_found' };
+    58	
+    59	  if (APPROVER_GUARDED_SOURCES.has(input.source) && item.current_cost !== null && !input.approverUserId) {
+    60	    const { rows: guardRows } = await qc.query<{ exceeds: boolean }>(
+    61	      `select (
+    62	         $1::numeric > 0
+    63	         and (abs($2::numeric - $1::numeric) / $1::numeric) > $3::numeric
+    64	       ) as exceeds`,
+    65	      [item.current_cost, input.costPerKg, HIGH_VARIANCE_RATIO],
+    66	    );
+    67	    if (guardRows[0]?.exceeds) {
+    68	      return { ok: false, error: 'approver_required', message: 'cost change > 20% requires an approver (V-TEC-53)' };
+    69	    }
+    70	  }
+    71	
+    72	  const effectiveFromExpr = input.effectiveFrom ? '$2::date' : 'current_date';
+    73	  const closeParams: unknown[] = input.effectiveFrom ? [input.itemId, input.effectiveFrom] : [input.itemId];
+    74	  await qc.query(
+    75	    `update public.item_cost_history
+    76	        set effective_to = greatest(
+    77	              (${effectiveFromExpr} - interval '1 day')::date,
+    78	              effective_from
+    79	            )
+    80	      where org_id = app.current_org_id()
+    81	        and item_id = $1::uuid
+    82	        and effective_to is null`,
+    83	    closeParams,
+    84	  );
+    85	
+    86	  const insertParams: unknown[] = input.effectiveFrom
+    87	    ? [input.itemId, input.costPerKg, input.currency, input.source, userId, input.effectiveFrom]
+    88	    : [input.itemId, input.costPerKg, input.currency, input.source, userId];
+    89	  const { rows: inserted } = await qc.query<{ id: string; effective_from: string }>(
+    90	    `insert into public.item_cost_history
+    91	       (org_id, item_id, cost_per_kg, currency, effective_from, source, created_by)
+    92	     values
+    93	       (app.current_org_id(), $1::uuid, $2::numeric, $3, ${effectiveFromExpr}, $4, $5::uuid)
+    94	     returning id, effective_from::text as effective_from`,
+    95	    insertParams,
+    96	  );
+    97	  const row = inserted[0];
+    98	  if (!row) return { ok: false, error: 'persistence_failed' };
+    99	
+   100	  await qc.query(
+   101	    `update public.items
+   102	        set cost_per_kg = $2::numeric
+   103	      where org_id = app.current_org_id()
+   104	        and id = $1::uuid`,
+   105	    [input.itemId, input.costPerKg],
+   106	  );
+   107	
+   108	  await writeAudit(qc, {
+   109	    orgId,
+   110	    actorUserId: userId,
+   111	    action: 'item_cost.recorded',
+   112	    resourceId: row.id,
+   113	    beforeState: { costPerKg: item.current_cost },
+   114	    afterState: {
+   115	      itemId: input.itemId,
+   184	        `select bh.id,
+   185	                i.item_code as product_code,
+   186	                i.name,
+   187	                bh.version    as bom_version,
+   188	                bh.status     as bom_status,
+   189	                bh.yield_pct::text as yield_pct,
+   190	                (select sum(bl.quantity * vec.amount)::text
+   191	                   from public.bom_lines bl
+   192	                   left join public.items ci
+   193	                          on ci.org_id = app.current_org_id()
+   194	                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+   195	                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
+   196	                  where bl.org_id = app.current_org_id()
+   197	                    and bl.bom_header_id = bh.id
+   198	                    and vec.amount is not null) as total_material_cost,
+   199	                (select case when count(distinct vec.currency) > 1 then 'MIXED' else max(vec.currency) end
+   200	                   from public.bom_lines bl
+   201	                   left join public.items ci
+   202	                          on ci.org_id = app.current_org_id()
+   203	                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+   204	                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
+   205	                  where bl.org_id = app.current_org_id()
+   206	                    and bl.bom_header_id = bh.id
+   207	                    and vec.amount is not null) as currency
+   208	           from public.bom_headers bh
+   209	           join public.items i
+   210	             on i.id = bh.item_id
+   211	            and i.org_id = app.current_org_id()
+   212	          where bh.org_id = app.current_org_id()
+   213	            and bh.item_id = (
+   214	              select fi.id
+   215	                from public.items fi
+   216	               where fi.org_id = app.current_org_id()
+   217	                 and fi.item_code = $1
+   218	            )
+   219	            and bh.status <> 'archived'
+   220	          order by bh.version desc
+   221	          limit 1`,
+   222	        [productCode],
+   223	      );
+   224	
+   225	      const header = headerResult.rows[0];
+   226	      if (!header) {
+   227	        return {
+   228	          ok: true,
+   229	          state: 'empty',
+   230	          cost: {
+   231	            productCode,
+   232	            name: null,
+   233	            bomVersion: 0,
+   234	            bomStatus: 'none',
+   235	            yieldPct: '100.000',
+   236	            totalMaterialCost: null,
+   237	            currency: 'none',
+   238	            lines: [],
+   239	          },
+   240	        };
+   241	      }
+   242	
+   243	      const lineResult = await qc.query<LineRow>(
+   244	        `select bl.component_code,
+   245	                ci.name as component_name,
+   246	                bl.component_type,
+   247	                bl.quantity::text as quantity,
+   248	                bl.uom,
+   249	                vec.amount::text as unit_cost,
+   250	                (bl.quantity * vec.amount)::text as line_cost,
+   251	                vec.currency as currency
+   252	           from public.bom_lines bl
+   253	           left join public.items ci
+   254	                  on ci.org_id = app.current_org_id()
+   255	                 and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+   256	           left join public.v_item_effective_cost vec on vec.item_id = ci.id
+   257	          where bl.org_id = app.current_org_id()
+   258	            and bl.bom_header_id = $1::uuid
+    34	              and i.org_id = app.current_org_id()
+    35	            where bh.org_id = app.current_org_id()
+    36	              and bh.item_id is not null
+    37	              and bh.status <> 'archived'
+    38	            order by i.item_code, bh.version desc
+    39	         )
+    40	         select i.item_code as fg_code,
+    41	                i.name as fg_name,
+    42	                (select sum(bl.quantity * vec.amount)::text
+    43	                   from public.bom_lines bl
+    44	                   left join public.items ci
+    45	                          on ci.org_id = app.current_org_id()
+    46	                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+    47	                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
+    48	                  where bl.org_id = app.current_org_id()
+    49	                    and bl.bom_header_id = lb.id
+    50	                    and vec.amount is not null) as total_recipe_cost,
+    51	                (select case when count(distinct vec.currency) > 1 then 'MIXED' else max(vec.currency) end
+    52	                   from public.bom_lines bl
+    53	                   left join public.items ci
+    54	                          on ci.org_id = app.current_org_id()
+    55	                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+    56	                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
+    57	                  where bl.org_id = app.current_org_id()
+    58	                    and bl.bom_header_id = lb.id
+    59	                    and vec.amount is not null) as currency
+    60	           from public.items i
+    61	           left join latest_bom lb
+    62	                  on lb.item_id = i.id
+    63	          where i.org_id = app.current_org_id()
+    64	            and i.item_type = 'fg'
+    65	          order by i.item_code asc`,
+    66	      );
+    67	
+    68	      return rows.map((row) => ({
+    69	        fg_code: row.fg_code,
+    70	        fg_name: row.fg_name ?? '',
+    71	        total_recipe_cost: Number(row.total_recipe_cost ?? '0'),
+    72	        currency: row.currency,
+    73	      }));
+    74	    });
+    75	  } catch (error) {
+    76	    console.error('[technical/cost/portfolio] listPortfolioCost load_failed', {
+    77	      err: error instanceof Error ? error.message : String(error),
+    78	    });
+   292	              c.qty_consumed::numeric as raw_qty,
+   293	              case
+   294	                when lower(c.uom) = 'kg' then c.qty_consumed::numeric
+   295	                when lower(c.uom) = 'base' and lower(coalesce(i.uom_base, '')) = 'kg' then c.qty_consumed::numeric
+   296	                when lower(c.uom) = lower(coalesce(i.uom_base, '')) and lower(coalesce(i.uom_base, '')) = 'kg' then c.qty_consumed::numeric
+   297	                when lower(c.uom) = 'each' and i.net_qty_per_each is not null
+   298	                  then c.qty_consumed::numeric * i.net_qty_per_each
+   299	                when lower(c.uom) = 'box' and i.net_qty_per_each is not null and i.each_per_box is not null
+   300	                  then c.qty_consumed::numeric * i.each_per_box::numeric * i.net_qty_per_each
+   301	                else null
+   302	              end as qty_kg,
+   303	              coalesce(ch.cost_per_kg, i.cost_per_kg) as cost_per_kg
+   304	         from public.wo_material_consumption c
+   305	         left join public.items i
+   306	           on i.org_id = app.current_org_id()
+   307	          and i.id = c.component_id
+   308	         left join lateral (
+   309	           select cost_per_kg
+   310	             from public.item_cost_history
+   311	            where org_id = app.current_org_id()
+   312	              and item_id = c.component_id
+   313	              and effective_to is null
+   314	            order by effective_from desc
+   315	            limit 1
+   316	         ) ch on true
+   317	        where c.org_id = app.current_org_id()
+   318	          and c.wo_id = $1::uuid
+   319	     )
+   320	     select item_code,
+   321	            case when qty_kg is null then uom else null end as uom,
+   322	            sum(raw_qty)::text as raw_qty,
+   323	            coalesce(sum(qty_kg), 0)::text as qty_kg,
+   324	            max(cost_per_kg)::text as cost_per_kg,
+   325	            bool_or(qty_kg is null) as unresolved_uom
+   326	       from converted
+   327	      group by item_code, case when qty_kg is null then uom else null end
+   328	      order by item_code, case when qty_kg is null then uom else null end`,
+   329	    [woId],
+   330	  );
+   331	
+   332	  const process = await ctx.client.query<ProcessRow>(
+   333	    `with op as (
+   334	       select sequence,
+   335	              operation_name,
+   336	              coalesce(expected_duration_minutes, 0)::numeric as expected_duration_minutes,
+   337	              crew
+   338	         from public.wo_operations
+   339	        where org_id = app.current_org_id()
+   340	          and wo_id = $1::uuid
+    55	  return neg ? -rounded : rounded;
+    56	}
+    57	
+    58	export function computeWoActualCostTotals(input: WoActualCostMathInput): WoActualCostTotals {
+    59	  let materialQtyTotal = 0n;
+    60	  let materialsTotal = 0n;
+    61	
+    62	  const materials = input.materials.map((material) => {
+    63	    const qty = toMicro(material.qtyKg);
+    64	    const costPerKg = toMicro(material.costPerKg ?? '0');
+    65	    const cost = mulMicro(qty, costPerKg);
+    66	    materialQtyTotal += qty;
+    67	    materialsTotal += cost;
+    68	
+    69	    return {
+    70	      itemCode: material.itemCode,
+    71	      qtyKg: microToFixed(qty, 3),
+    72	      costPerKg: microToFixed(costPerKg, 6),
+    73	      cost: microToFixed(cost, 4),
+    74	    };
+    75	  });
+    76	
+    77	  const labor =
+    78	    input.labor == null
+    79	      ? null
+    80	      : (() => {
+    81	          const runtimeMin = toMicro(input.labor.runtimeMin);
+    82	          const staffing = toMicro(input.labor.staffing);
+    83	          const ratePerHour = toMicro(input.labor.ratePerHour);
+    84	          const runtimeHours = divMicro(runtimeMin, toMicro('60'));
+    85	          const staffedHours = mulMicro(runtimeHours, staffing);
+    86	          const cost = mulMicro(staffedHours, ratePerHour);
+    87	          return {
+    88	            rawCost: cost,
+    89	            runtimeMin: microToFixed(runtimeMin, 3),
+    90	            staffing: microToDecimal(staffing),
+    91	            ratePerHour: microToFixed(ratePerHour, 4),
+    92	            cost: microToFixed(cost, 4),
+    93	          };
+    94	        })();
+    95	
+    96	  const avgMaterialCostPerKg = materialQtyTotal === 0n ? 0n : divMicro(materialsTotal, materialQtyTotal);
+    97	  const wasteCost = mulMicro(toMicro(input.wasteKg), avgMaterialCostPerKg);
+    98	  const setupCost = toMicro(input.setupCost ?? '0');
+    99	  const machineCost = toMicro(input.machineCost ?? '0');
+   100	  const laborCost = labor == null ? 0n : labor.rawCost;
+   101	  const totalCost = materialsTotal + laborCost + machineCost + setupCost + wasteCost;
+   102	  const outputKg = toMicro(input.outputKg);
+   103	
+   104	  return {
+   105	    materials,
+
+exec
+/bin/zsh -lc "rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts' | sed -n '80,122p'; rtk nl -ba packages/db/migrations/160-item-cost-history.sql | sed -n '10,40p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts' | sed -n '350,435p'; rtk nl -ba packages/db/migrations/405-effective-cost-reads-supplier-spec.sql | sed -n '12,45p'; rtk git status --short" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+    80	// but is ALWAYS bound to the DB as ::numeric — the string form is preferred so a
+    81	// caller can send an exact decimal that survives JSON without float rounding.
+    82	//
+    83	// V-TEC-50 (>= 0) is enforced both here (fast client-side reject) and by the
+    84	// item_cost_history_cost_per_kg_nonnegative_check CHECK constraint.
+    85	export const CostPerKgInput = z
+    86	  .union([z.string(), z.number()])
+    87	  .transform((v) => (typeof v === 'number' ? String(v) : v.trim()))
+    88	  .refine((v) => /^\d+(\.\d+)?$/.test(v), {
+    89	    message: 'cost_per_kg must be a non-negative decimal (V-TEC-50)',
+    90	  });
+    91	
+    92	export const PostCostInput = z.object({
+    93	  itemId: z.string().uuid(),
+    94	  costPerKg: CostPerKgInput,
+    95	  // V-TEC-52: ISO 4217. CHAR(3) in the DB; upper-cased + validated here.
+    96	  currency: z
+    97	    .string()
+    98	    .trim()
+    99	    .length(3)
+   100	    .transform((v) => v.toUpperCase())
+   101	    .refine((v) => isIso4217Currency(v), { message: 'currency must be an ISO 4217 code (V-TEC-52)' })
+   102	    .optional()
+   103	    .default('GBP'),
+   104	  // V-TEC-51: effective_from <= current date. Defaults to today (the active row).
+   105	  effectiveFrom: z
+   106	    .string()
+   107	    .regex(/^\d{4}-\d{2}-\d{2}$/, 'effective_from must be an ISO date (YYYY-MM-DD)')
+   108	    .optional(),
+   109	  source: z.enum(COST_SOURCES),
+   110	  // Free-text reason persisted in the audit trail; required for manual edits.
+   111	  notes: z.string().trim().max(2000).optional(),
+   112	  // Presence of an approver (e.g. an X-Approver header / approver user id) is what
+   113	  // satisfies V-TEC-53 for a high-variance manual/supplier_update change.
+   114	  approverUserId: z.string().uuid().optional(),
+   115	});
+   116	export type PostCostInputType = z.input<typeof PostCostInput>;
+   117	
+   118	export type PostCostResult =
+   119	  | { ok: true; data: { id: string; itemId: string; itemCode: string; costPerKg: string; effectiveFrom: string } }
+   120	  | { ok: false; error: CostActionError; message?: string };
+   121	
+   122	// ── GET history input ─────────────────────────────────────────────────────────
+    10	-- source CHECK enforces the four allowed enum values.
+    11	-- site_id is day-1 nullable (no FK / registry) — the sites registry + backfill land
+    12	-- in 14-multi-site (T-030); the org-scoped RLS predicate stays org-only for now.
+    13	-- Do NOT back-fill items.cost_per_kg here — that runs in T-021 (cost API).
+    14	
+    15	create table if not exists public.item_cost_history (
+    16	  id uuid primary key default gen_random_uuid(),
+    17	  org_id uuid not null references public.organizations(id) on delete cascade,
+    18	  site_id uuid,
+    19	  item_id uuid not null references public.items(id) on delete cascade,
+    20	
+    21	  cost_per_kg numeric(10, 4) not null,
+    22	  currency char(3) not null default 'PLN',
+    23	  effective_from date not null default current_date,
+    24	  effective_to date,
+    25	  source text,
+    26	
+    27	  created_by uuid references public.users(id) on delete restrict,
+    28	  created_at timestamptz not null default pg_catalog.now(),
+    29	  updated_at timestamptz not null default pg_catalog.now(),
+    30	
+    31	  constraint item_cost_history_source_check check (
+    32	    source is null or source in ('manual', 'd365_sync', 'supplier_update', 'variance_roll')
+    33	  ),
+    34	  constraint item_cost_history_cost_per_kg_nonnegative_check check (
+    35	    cost_per_kg >= 0
+    36	  ),
+    37	  constraint item_cost_history_effective_range_check check (
+    38	    effective_to is null or effective_to >= effective_from
+    39	  )
+    40	);
+   350	              bool_or(lr.rate_per_hour is not null) as has_rate
+   351	         from op
+   352	         left join lateral jsonb_to_recordset(
+   353	           case
+   354	             when jsonb_typeof(coalesce(op.crew, '[]'::jsonb)) = 'array'
+   355	               then coalesce(op.crew, '[]'::jsonb)
+   356	             else '[]'::jsonb
+   357	           end
+   358	         ) as crew(role_group text, headcount numeric) on true
+   359	         left join lateral (
+   360	           select rate_per_hour
+   361	             from public.labor_rates lr
+   362	            where lr.org_id = app.current_org_id()
+   363	              and lower(lr.role_group) = lower(crew.role_group)
+   364	              and lr.currency = 'GBP'
+   365	              and lr.effective_from <= $2::date
+   366	            order by lr.effective_from desc, lr.created_at desc
+   367	            limit 1
+   368	         ) lr on true
+   369	        where op.crew is not null
+   370	        group by op.sequence, op.operation_name, op.expected_duration_minutes
+   371	     ),
+   372	     defaults_op_rate as (
+   373	       select op.sequence,
+   374	              op.operation_name,
+   375	              op.expected_duration_minutes,
+   376	              md.process_default_id,
+   377	              sum(coalesce(lr.rate_per_hour, 0) * coalesce(pdr.default_headcount, 0)) as crew_rate_per_hour,
+   378	              coalesce(nullif(sum(pdr.default_headcount), 0), 1)::text as staffing_count,
+   379	              md.setup_cost,
+   380	              bool_or(lr.rate_per_hour is not null) as has_rate
+   381	         from op
+   382	         join lateral (
+   383	           select pd.id as process_default_id,
+   384	                  coalesce(pd.setup_cost, 0)::numeric as setup_cost
+   385	             from "Reference"."ManufacturingOperations" mo
+   386	             join public.npd_process_defaults pd
+   387	               on pd.org_id = app.current_org_id()
+   388	              and pd.operation_id = mo.id
+   389	            where mo.org_id = app.current_org_id()
+   390	              and lower(btrim(mo.operation_name)) = lower(btrim(op.operation_name))
+   391	              and mo.is_active = true
+   392	            order by mo.id asc, pd.id asc
+   393	            limit 1
+   394	         ) md on true
+   395	         left join public.npd_process_default_roles pdr
+   396	           on pdr.org_id = app.current_org_id()
+   397	          and pdr.process_default_id = md.process_default_id
+   398	         left join lateral (
+   399	           select rate_per_hour
+   400	             from public.labor_rates lr
+   401	            where lr.org_id = app.current_org_id()
+   402	              and lower(lr.role_group) = lower(pdr.role_group)
+   403	              and lr.currency = 'GBP'
+   404	              and lr.effective_from <= $2::date
+   405	            order by lr.effective_from desc, lr.created_at desc
+   406	            limit 1
+   407	         ) lr on true
+   408	        where op.crew is null
+   409	        group by op.sequence, op.operation_name, op.expected_duration_minutes, md.process_default_id, md.setup_cost
+   410	     ),
+   411	     op_rate as (
+   412	       select * from direct_op_rate
+   413	       union all
+   414	       select * from defaults_op_rate
+   415	     )
+   416	     select (array_agg(operation_name order by sequence))[1] as operation_name,
+   417	            (array_agg(process_default_id::text order by sequence) filter (where process_default_id is not null))[1] as row_key,
+   418	            'per_hour'::text as cost_mode,
+   419	            case
+   420	              when coalesce(sum(expected_duration_minutes), 0) > 0
+   421	               and bool_or(has_rate)
+   422	              then (
+   423	                sum(crew_rate_per_hour * (expected_duration_minutes / 60.0))
+   424	                / (sum(expected_duration_minutes) / 60.0)
+   425	              )::text
+   426	              else null
+   427	            end as cost_rate,
+   428	            'GBP'::text as currency,
+   429	            (array_agg(staffing_count order by sequence))[1] as staffing_count,
+   430	            nullif((
+   431	              select sum(distinct_setup.setup_cost)
+   432	                from (
+   433	                  select distinct on (process_default_id)
+   434	                         process_default_id,
+   435	                         setup_cost
+    12	select i.org_id,
+    13	       i.id        as item_id,
+    14	       i.item_code,
+    15	       coalesce(ch.cost_per_kg, ss.unit_price, i.list_price_gbp)            as amount,
+    16	       case when ch.cost_per_kg   is not null then nullif(trim(ch.currency), '')
+    17	            when ss.unit_price    is not null then coalesce(nullif(trim(ss.price_currency), ''), 'GBP')
+    18	            when i.list_price_gbp is not null then 'GBP'
+    19	            else null end                                                  as currency,
+    20	       case when ch.cost_per_kg   is not null then 'cost_history'
+    21	            when ss.unit_price    is not null then 'supplier_spec'
+    22	            when i.list_price_gbp is not null then 'list_price'
+    23	            else 'none' end                                                as source
+    24	  from public.items i
+    25	  left join lateral (
+    26	    select ch.cost_per_kg, ch.currency
+    27	      from public.item_cost_history ch
+    28	     where ch.org_id = i.org_id
+    29	       and ch.item_id = i.id
+    30	       and ch.effective_to is null
+    31	     order by ch.effective_from desc
+    32	     limit 1
+    33	  ) ch on true
+    34	  left join lateral (
+    35	    select ss.unit_price, ss.price_currency
+    36	      from public.supplier_specs ss
+    37	     where ss.org_id = i.org_id
+    38	       and ss.item_id = i.id
+    39	       and ss.lifecycle_status = 'active'
+    40	       and ss.review_status = 'approved'
+    41	       and ss.unit_price is not null
+    42	     order by ss.effective_from desc nulls last, ss.updated_at desc nulls last
+    43	     limit 1
+    44	  ) ss on true;
+    45	
+?? _meta/plans/2026-07-10-bugfix-waves.md
+?? _meta/plans/wave-1-spec.md
+?? _meta/plans/wave-2-spec.md
+?? _meta/reviews/2026-07-08-deepdive-bughunt.md
+?? _meta/reviews/2026-07-08-npd-browser-walks.md
+?? _meta/reviews/2026-07-08-ux-audit-A.md
+?? _meta/reviews/2026-07-08-ux-audit-B.md
+?? _meta/reviews/2026-07-09-deep-scan-report.md
+?? _meta/reviews/2026-07-10-hunt/
+?? _meta/reviews/2026-07-10-resume-plan.md
+exec
+/bin/zsh -lc "rtk rg -n \"cost_per_kg\" packages/db/migrations | head -60; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-cost-history.ts' | sed -n '35,90p'" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+packages/db/migrations/255-packaging-item-type.sql:23:   uom_base, weight_mode, cost_per_kg)
+packages/db/migrations/255-packaging-item-type.sql:34:  v.cost_per_kg
+packages/db/migrations/255-packaging-item-type.sql:41:) as v(item_code, name, description, cost_per_kg)
+packages/db/migrations/255-packaging-item-type.sql:48:      cost_per_kg   = excluded.cost_per_kg,
+packages/db/migrations/249-npd-ingredient-catalog-seed.sql:8:-- the org had only 4 placeholder test rows with NO cost_per_kg, so a recipe could
+packages/db/migrations/249-npd-ingredient-catalog-seed.sql:11:-- + spice + functional catalog with realistic EUR cost_per_kg and uom_base='kg' so
+packages/db/migrations/249-npd-ingredient-catalog-seed.sql:21:   uom_base, weight_mode, cost_per_kg)
+packages/db/migrations/249-npd-ingredient-catalog-seed.sql:25:  'kg', 'fixed', v.cost_per_kg
+packages/db/migrations/249-npd-ingredient-catalog-seed.sql:64:) as v(item_code, item_type, name, description, product_group, cost_per_kg)
+packages/db/migrations/249-npd-ingredient-catalog-seed.sql:71:      cost_per_kg   = excluded.cost_per_kg,
+packages/db/migrations/420-outbox-settings-user-created-with-password.sql:55:      'finance.cost_per_kg.changed',
+packages/db/migrations/396-item-effective-cost-view.sql:4:-- scattered, inconsistent reads (items.cost_per_kg [opaque currency], items.list_price_gbp
+packages/db/migrations/396-item-effective-cost-view.sql:9:--   items.cost_per_kg is intentionally NOT a source: it is a denormalised write-through cache
+packages/db/migrations/396-item-effective-cost-view.sql:21:       coalesce(ch.cost_per_kg, i.list_price_gbp)                          as amount,
+packages/db/migrations/396-item-effective-cost-view.sql:22:       case when ch.cost_per_kg   is not null then nullif(trim(ch.currency), '')
+packages/db/migrations/396-item-effective-cost-view.sql:25:       case when ch.cost_per_kg   is not null then 'cost_history'
+packages/db/migrations/396-item-effective-cost-view.sql:30:    select ch.cost_per_kg, ch.currency
+packages/db/migrations/247-outbox-check-add-storage-rules-updated.sql:48:      'finance.cost_per_kg.changed',
+packages/db/migrations/199-finance-schema-and-rbac-seed.sql:423:      'finance.cost_per_kg.changed',
+packages/db/migrations/301-e6-mrp-perms-and-event-seed.sql:61:      'finance.cost_per_kg.changed',
+packages/db/migrations/458-finance-wac-underflow-outbox.sql:34:      'finance.cost_per_kg.changed',
+packages/db/migrations/093-formulations.sql:59:  cost_per_kg_eur numeric,
+packages/db/migrations/093-formulations.sql:70:  constraint formulation_ingredients_cost_per_kg_eur_check
+packages/db/migrations/093-formulations.sql:71:    check (cost_per_kg_eur is null or cost_per_kg_eur >= 0),
+packages/db/migrations/405-effective-cost-reads-supplier-spec.sql:15:       coalesce(ch.cost_per_kg, ss.unit_price, i.list_price_gbp)            as amount,
+packages/db/migrations/405-effective-cost-reads-supplier-spec.sql:16:       case when ch.cost_per_kg   is not null then nullif(trim(ch.currency), '')
+packages/db/migrations/405-effective-cost-reads-supplier-spec.sql:20:       case when ch.cost_per_kg   is not null then 'cost_history'
+packages/db/migrations/405-effective-cost-reads-supplier-spec.sql:26:    select ch.cost_per_kg, ch.currency
+packages/db/migrations/418-outbox-settings-user-reactivated.sql:60:      'finance.cost_per_kg.changed',
+packages/db/migrations/217-outbox-check-full-foundation-union.sql:49:      'finance.cost_per_kg.changed',
+packages/db/migrations/313-items-list-price.sql:2:-- with a resolver seam for a future per-customer price list). Nullable; cost_per_kg stays the COST.
+packages/db/migrations/432-technical-wip-permissions.sql:131:      'finance.cost_per_kg.changed',
+packages/db/migrations/153-items-master.sql:30:  cost_per_kg numeric(18, 6),
+packages/db/migrations/153-items-master.sql:60:  constraint items_cost_per_kg_nonnegative_check check (
+packages/db/migrations/153-items-master.sql:61:    cost_per_kg is null or cost_per_kg >= 0
+packages/db/migrations/452-locked-formulation-allow-process-assignment.sql:32:               new.cost_per_kg_eur, new.allergens_inherited, new.sequence,
+packages/db/migrations/452-locked-formulation-allow-process-assignment.sql:37:               old.cost_per_kg_eur, old.allergens_inherited, old.sequence,
+packages/db/migrations/160-item-cost-history.sql:13:-- Do NOT back-fill items.cost_per_kg here — that runs in T-021 (cost API).
+packages/db/migrations/160-item-cost-history.sql:21:  cost_per_kg numeric(10, 4) not null,
+packages/db/migrations/160-item-cost-history.sql:34:  constraint item_cost_history_cost_per_kg_nonnegative_check check (
+packages/db/migrations/160-item-cost-history.sql:35:    cost_per_kg >= 0
+packages/db/migrations/397-formulation-ingredients-cost-currency.sql:3:-- alongside the amount. formulation_ingredients.cost_per_kg_eur is misnamed: it stores
+    35	  source: string | null;
+    36	  created_by: string | null;
+    37	  created_at: string | Date;
+    38	};
+    39	
+    40	const SOURCE_SET = new Set<CostSource>(['manual', 'd365_sync', 'supplier_update', 'variance_roll']);
+    41	
+    42	function mapRow(row: HistoryDbRow): CostHistoryRow {
+    43	  return {
+    44	    id: String(row.id),
+    45	    itemId: String(row.item_id),
+    46	    costPerKg: row.cost_per_kg,
+    47	    currency: row.currency,
+    48	    effectiveFrom: row.effective_from,
+    49	    effectiveTo: row.effective_to,
+    50	    source: row.source && SOURCE_SET.has(row.source as CostSource) ? (row.source as CostSource) : null,
+    51	    createdBy: row.created_by,
+    52	    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    53	  };
+    54	}
+    55	
+    56	export async function listCostHistory(rawInput: unknown): Promise<ListCostHistoryResult> {
+    57	  const parsed = ListCostHistoryInput.safeParse(rawInput);
+    58	  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+    59	  const input = parsed.data;
+    60	
+    61	  try {
+    62	    return await withOrgContext(async ({ userId, orgId, client }): Promise<ListCostHistoryResult> => {
+    63	      const qc = client as QueryClient;
+    64	      const ctx: OrgActionContext = { userId, orgId, client: qc };
+    65	      if (!(await hasPermission(ctx, COST_EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
+    66	
+    67	      const { rows } = await qc.query<HistoryDbRow>(
+    68	        `select id,
+    69	                item_id,
+    70	                cost_per_kg::text as cost_per_kg,
+    71	                currency,
+    72	                effective_from::text as effective_from,
+    73	                effective_to::text as effective_to,
+    74	                source,
+    75	                created_by::text as created_by,
+    76	                created_at
+    77	           from public.item_cost_history
+    78	          where org_id = app.current_org_id()
+    79	            and item_id = $1::uuid
+    80	          order by effective_from desc, created_at desc`,
+    81	        [input.itemId],
+    82	      );
+    83	
+    84	      return { ok: true, data: { rows: rows.map(mapRow) } };
+    85	    });
+    86	  } catch (error) {
+    87	    console.error('[technical/cost] listCostHistory load_failed', {
+    88	      err: error instanceof Error ? error.message : String(error),
+    89	    });
+    90	    return { ok: false, error: 'persistence_failed' };
+
+codex
+# Finance/costing static audit
+
+## Findings
+
+### P1 — Recipe and portfolio totals add unlike currencies without conversion
+
+Evidence:
+
+- [`list-recipe-cost.ts:190`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:190) computes `sum(bl.quantity * vec.amount)` across all components.
+- [`list-recipe-cost.ts:199`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/list-recipe-cost.ts:199) separately detects multiple currencies and merely labels the result `MIXED`.
+- [`list-portfolio-cost.ts:42`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts:42) repeats the same raw summation.
+- [`405-effective-cost-reads-supplier-spec.sql:15`](/Users/mariuszkrawczyk/Projects/monopilot-kira/packages/db/migrations/405-effective-cost-reads-supplier-spec.sql:15) confirms the effective-cost view can return cost-history, supplier-price, or GBP fallback amounts.
+- [`405-effective-cost-reads-supplier-spec.sql:16`](/Users/mariuszkrawczyk/Projects/monopilot-kira/packages/db/migrations/405-effective-cost-reads-supplier-spec.sql:16) carries each amount’s actual currency.
+
+A BOM containing `10 GBP` and `10 EUR` is reported as numeric total `20 MIXED`. That number is not a monetary value and can feed incorrect recipe comparisons and portfolio decisions.
+
+Suggested fix: require a single currency or convert every component through an effective-dated FX rate into an explicit reporting currency before aggregation. Do not emit a summed amount when currencies remain mixed.
+
+---
+
+### P1 — WO actual costing silently combines non-GBP material costs with GBP labor/setup
+
+Evidence:
+
+- [`wo-cost-actions.ts:303`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:303) selects only `cost_per_kg`, discarding the associated `item_cost_history.currency`.
+- [`wo-cost-actions.ts:309`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:309) reads the currency-bearing cost ledger without selecting currency.
+- [`wo-cost-actions.ts:364`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:364) explicitly selects GBP labor rates.
+- [`wo-cost-actions.ts:428`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:428) declares the process cost currency as GBP.
+- [`wo-cost-math.ts:101`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-math.ts:101) adds material, labor, setup, machine, and waste figures as if they shared one currency.
+
+For example, a material ledger value of `25 PLN/kg` is added directly to GBP labor. The resulting WO total and cost/kg have no valid currency basis.
+
+Suggested fix: resolve all components, labor, setup, and waste into an explicit WO/reporting currency using effective-dated FX, or block the calculation on currency mismatch.
+
+---
+
+### P1 — Historical WO costs are repriced using today’s active material cost
+
+Evidence:
+
+- [`wo-cost-actions.ts:309`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:309) queries `item_cost_history`.
+- [`wo-cost-actions.ts:313`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:313) restricts the lookup to `effective_to is null`.
+- [`wo-cost-actions.ts:314`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/finance/_actions/wo-cost-actions.ts:314) orders active rows by effective date, but never compares them with the WO or consumption date.
+
+Reopening a completed WO cost report after a new standard-cost roll changes its “actual” material cost retroactively. This also makes historical variance non-reproducible.
+
+Suggested fix: prefer the immutable cost/WAC snapshot stored with each consumption entry. If a fallback is required, select the history interval containing the consumption or WO accounting date.
+
+---
+
+### P1 — Backdated cost insertion creates incorrect history intervals
+
+Evidence:
+
+- [`write-cost-ledger.ts:75`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts:75) updates whichever row is currently open.
+- [`write-cost-ledger.ts:76`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts:76) sets its end date with `greatest(new_date - 1 day, effective_from)`.
+- [`write-cost-ledger.ts:90`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts:90) then inserts the backdated row without an `effective_to`.
+
+If an active cost begins July 10 and a user inserts a July 1 cost, the July 10 row is closed on July 10 while the July 1 row becomes open indefinitely. The older insertion incorrectly becomes the current cost, and July 10 overlaps both ranges.
+
+Suggested fix: locate the immediately preceding and following history records around the requested date; close the predecessor at `new_date - 1`, set the new row’s end to `next_date - 1`, and enforce non-overlapping intervals with a database exclusion constraint.
+
+---
+
+### P2 — Accepted cost precision exceeds ledger precision and creates divergent values
+
+Evidence:
+
+- [`shared.ts:85`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/shared.ts:85) accepts an arbitrary number of decimal places.
+- [`160-item-cost-history.sql:21`](/Users/mariuszkrawczyk/Projects/monopilot-kira/packages/db/migrations/160-item-cost-history.sql:21) stores only `numeric(10,4)`.
+- [`write-cost-ledger.ts:93`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts:93) inserts the unquantized input, allowing PostgreSQL to round it to four decimals.
+- [`write-cost-ledger.ts:102`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts:102) writes the same input to `items.cost_per_kg`, whose schema is `numeric(18,6)`.
+- [`write-cost-ledger.ts:117`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/_actions/write-cost-ledger.ts:117) audits and returns the original, unrounded input.
+
+Submitting `1.234567` records `1.2346` in history, `1.234567` in the item cache, and reports `1.234567` to the caller/audit trail.
+
+Suggested fix: define one canonical scale, reject excess precision or quantize once in SQL, and use the returned stored value for the cache, audit event, and response.
+
+---
+
+### P2 — Portfolio monetary totals are converted from exact NUMERIC text to binary float
+
+Evidence:
+
+- [`list-portfolio-cost.ts:42`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts:42) correctly computes the total in PostgreSQL `NUMERIC`.
+- [`list-portfolio-cost.ts:71`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/_actions/list-portfolio-cost.ts:71) converts that exact decimal to JavaScript `Number`.
+- [`portfolio/page.tsx:104`](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/technical/cost/portfolio/page.tsx:104) formats the resulting float with `toFixed(2)`.
+
+Large totals or values near half-cent boundaries can display or sort incorrectly after binary-float conversion.
+
+Suggested fix: keep totals as decimal strings and use the existing fixed-point/BigInt decimal helpers for formatting and comparisons.
+
+## Clean areas verified
+
+- `lib/finance/upsert-wac.ts` performs quantity/value mutations in PostgreSQL `NUMERIC`, not JavaScript floats.
+- WAC credit and debit reversals use negated decimal strings and prefer immutable contribution snapshots.
+- Receipt price multiplication is performed by PostgreSQL `NUMERIC`.
+- `wo-cost-math.ts` uses micro-scaled `bigint` arithmetic with explicit rounding.
+- The NPD waterfall core uses its decimal abstraction rather than native float arithmetic for persisted calculations.
+- Inventory valuation totals aggregate fixed-point `bigint` values per currency instead of combining currencies.
+- Cost-history and item cost columns are `NUMERIC`, not floating-point database types.
+- No files were modified. Existing untracked workspace files were left untouched.
+- The excluded known WAC currency-pool asymmetry was not re-reported.
+
+## Not covered
+
+- Live Supabase contents, triggers, and deployed migration state.
+- D365 integration behavior beyond the local cost/pricing read paths.
+- Tax, invoicing, payment, GL export, and customer-specific price-list logic.
+- Full browser/UI behavior and localization.
+- Runtime concurrency tests for simultaneous cost rolls or WAC updates.
+- Exhaustive supplier/PO pricing outside paths feeding effective item cost.
+- Previously listed known bugs from the request.
+tokens used
+62,013

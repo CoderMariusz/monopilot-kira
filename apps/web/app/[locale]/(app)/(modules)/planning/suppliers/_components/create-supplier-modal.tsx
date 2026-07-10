@@ -105,7 +105,7 @@ const CURRENCY_RX = /^[A-Z]{3}$/;
 export function CreateSupplierModal({ open, onOpenChange, labels, createSupplierAction, onCreated }: CreateSupplierModalProps) {
   const [code, setCode] = React.useState('');
   const [name, setName] = React.useState('');
-  const [currency, setCurrency] = React.useState('EUR');
+  const [currency, setCurrency] = React.useState('GBP');
   const [leadTime, setLeadTime] = React.useState('7');
   const [status, setStatus] = React.useState<SupplierStatus>('active');
   const [email, setEmail] = React.useState('');

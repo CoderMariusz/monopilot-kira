@@ -1,0 +1,3264 @@
+warning: `--full-auto` is deprecated; use `--sandbox workspace-write` instead.
+Reading additional input from stdin...
+OpenAI Codex v0.144.1
+--------
+workdir: /Users/mariuszkrawczyk/Projects/monopilot-kira
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: none
+reasoning summaries: none
+session id: 019f4ada-60db-79f0-b8f3-ab80a22793ad
+--------
+user
+You are a READ-ONLY static bug hunter on this repo (Next.js App Router + Supabase MES; DB ground truth = packages/db/migrations). Do NOT modify files. Every finding needs file:line evidence + severity P0/P1/P2. Also list CLEAN areas you verified and what you did NOT cover. Output findings as markdown. Do NOT re-report known bugs: WAC currency pool asymmetry, planning list client-side filters over paginated slice, missing planning.po/to/supplier RBAC, materialize-npd-bom state bypass, releaseWorkOrder heal-write, G3 approve stage jump, formulation submitted_for_trial dead state, hold release qa_status blanket reset, i18n missing key packs, tautological parity-evidence specs, hard-cap 200 lists.
+YOUR AREA: Planning purchase-orders + suppliers + imports — (modules)/planning/{purchase-orders,suppliers} + import-po/import-to. LENS: transaction safety & validation — check-then-insert races, partial commits, import rows that bypass validation done in single-create path, status transitions without guards.
+codex
+I’ll trace the specified actions and their DB constraints/migrations, then report only evidence-backed, non-excluded issues. I’m first reading the repository’s mandatory verification schema and local operating rules.
+exec
+/bin/zsh -lc "sed -n '1,240p' /Users/mariuszkrawczyk/.codex/RTK.md && sed -n '1,280p' .claude/skills/MON-verify-and-review/SKILL.md" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+# RTK - Rust Token Killer (Codex CLI)
+
+**Usage**: Token-optimized CLI proxy for shell commands.
+
+## Rule
+
+Always prefix shell commands with `rtk`.
+
+Examples:
+
+```bash
+rtk git status
+rtk cargo test
+rtk npm run build
+rtk pytest -q
+```
+
+## Meta Commands
+
+```bash
+rtk gain            # Token savings analytics
+rtk gain --history  # Recent command savings history
+rtk proxy <cmd>     # Run raw command without filtering
+```
+
+## Verification
+
+```bash
+rtk --version
+rtk gain
+which rtk
+```
+---
+name: MON-verify-and-review
+description: The analysis, verification and self-review schema EVERY agent working on MonoPilot Kira must follow — writers before coding and before claiming done, reviewers when cross-reviewing a diff, orchestrators when arbitrating findings. Use whenever you implement, review, or merge ANY change here (code, migration, UI), whenever a prod error digest appears, and whenever you are about to write "done", "fixed" or "passing". Battle-tested 2026-07-07: this schema caught ~35 real defects before prod in one day.
+tags: [monopilot, review, verification, migrations, rsc, self-review]
+---
+
+# MON-verify-and-review
+
+One schema, three hats: **writer**, **reviewer**, **arbiter**. Unit tests here mock the
+database and the RSC runtime, so the two places bugs actually live — live Postgres
+triggers and the server→client boundary — are invisible to green test suites. That is
+why every step below exists.
+
+## 1. Writer — before coding
+
+- Trace the real flow end-to-end first (route → action → SQL → trigger → consumer).
+  The smallest diff in the wrong place is a second bug.
+- Verify schema claims against the **live DB**, never against drizzle mirrors or your
+  memory: `select column_name from information_schema.columns where table_name='…'`.
+  (A whole sweep statement once targeted a column that did not exist.)
+- Before writing to ANY table, list its triggers:
+  ```sql
+  select t.tgname, p.proname from pg_trigger t
+  join pg_class c on c.oid=t.tgrelid join pg_proc p on p.oid=t.tgfoid
+  where c.relname='<table>' and not t.tgisinternal;
+  ```
+  Immutability guards exist on: `grn_items` (completed GRN), `bom_lines` (active header —
+  ANY line op rejected), `factory_specs` (clone-on-write), `formulation_ingredients`
+  (locked version), `bom_snapshots`. New tables get them too — always check.
+- Known ordering contract: a new BOM header is created **draft-first** — insert header
+  as draft → insert lines → supersede old active → activate. Never lines-into-active.
+- Wave0 lock: `org_id` (never tenant_id), RLS via `app.current_org_id()` on every hop.
+
+## 2. Writer — RSC and server-action rules (3 prod screens died on this in one day)
+
+- Props crossing server→client must be JSON-serializable. No inline closures
+  (`action={(p) => f(p, opts)}` from a page = crash on hard load), no function-valued
+  fields inside label/config objects. Fix pattern: named `'use server'` wrapper action;
+  pure exported helpers that take the data object as an argument.
+- `'use server'` modules export **only async functions** — a `export type`/const passes
+  tsc and kills `next build`.
+- Every fixed page gets a serializability regression test (walk the props object,
+  assert no `typeof === 'function'` — see `item-wizard-labels.test.ts`).
+
+## 3. Writer — migrations
+
+- Additive by default; number = next free (check `packages/db/migrations/`). Vercel
+  build **auto-applies** migrations on push — there is no "later".
+- **Data migration ritual (mandatory):**
+  1. Backup every affected table first: `\copy (select * from t) to '_meta/backups/<date>-<wave>/t.csv' csv header`.
+  2. **Dry-run on the live DB**: copy of the file with `commit;` → `rollback;`, run with
+     `ON_ERROR_STOP=1`, and embed *probes* — one statement that must PASS and one that
+     must still FAIL (guard intact). A dry-run once caught a phantom column and a
+     freeze-trigger that both reviews missed.
+  3. Idempotent (run-twice mentally), `RAISE NOTICE` row counts per statement.
+  4. Frozen history (completed GRNs, snapshots) is skipped-with-notice and normalized
+     on read — never rewritten.
+  5. If old code can write legacy values during the deploy window: ship a self-contained
+     post-deploy sweep file **outside** `packages/db/migrations/` (the runner globs only
+     that dir) and run it manually after READY.
+
+## 4. Writer — self-review before claiming done
+
+- Re-read your diff cold. For every function you changed, grep its OTHER callers — the
+  root-cause fix lives where all callers route through.
+- Paste **real** command output for tsc and each test file. A self-declared GREEN with
+  no output is a FAIL. `CI=true pnpm install` first if node_modules is broken.
+- State explicitly what you did NOT do and every ambiguity you resolved (and why).
+  Honest gaps get fixed in review; hidden gaps become prod incidents.
+- Commit early and often to your track branch. Never push. Never work in /tmp
+  (a session crash once erased an entire wave of uncommitted /tmp worktrees).
+
+## 5. Reviewer — cross-review a diff
+
+- Writer ≠ reviewer, different model family. You get diff + the writer's spec
+  (`.agent-prompt.md`) + arbitration questions. Read FULL files, not just hunks —
+  several fixes land the same day; the diff may be stale.
+- Hunt ranked REAL defects only (no style nits), in this order:
+  1. live-DB safety (triggers, FKs, uniques, deploy-window),
+  2. security (org scoping on every SQL hop, RBAC, gate bypasses),
+  3. correctness (mass balance / double-count / vanish paths; positional SQL params vs tests),
+  4. contract for sibling tracks (fields the UI or chain expects),
+  5. overengineering (single-use abstractions, duplicated SQL that will drift).
+- Verify the writer's own inventory yourself (grep again). Run the test suites yourself
+  when the sandbox allows; report honestly when it doesn't.
+- Verdict: `MERGE` / `FIX-FIRST (list)` / `REWORK`. Each finding: severity, file:line,
+  concrete failure scenario, minimal fix.
+
+## 6. Arbiter — before findings go back to the writer
+
+- Confirm each finding **in the code yourself** before accepting it. Codex/Composer
+  reviews include plausible-but-wrong items.
+- "This diff reintroduces X" on a branch → check **branch-base drift** first
+  (`git diff main...branch --name-only`) — the branch may simply predate the fix.
+- Reject fixes that ADD abstraction (shared fixtures, wrapper layers) when the finding
+  was about deletion; reject deleting files whose types can't move into a
+  `'use server'` module.
+- Decide contract questions explicitly (e.g. "domain is per-product, not per-project")
+  and write the DECISION into the fix prompt — writers implement decisions, not debates.
+- Small surgical fixes (≤ ~20 lines, you fully understand them) you may apply yourself;
+  everything else goes back to the writing engine. High-risk reworks get a Codex re-check.
+
+## 7. After merge — the gate is on main, and prod is the last reviewer
+
+- Serial merge; on merged main: tsc + the union of touched test suites (branch-green is
+  not merge-green — conflict resolutions and sibling tracks interact).
+- After deploy READY: drive the changed flow in the browser on prod. Any 500 → pull the
+  Vercel runtime error digest (`get_runtime_errors`) — it names the real exception the
+  UI hides. Fix root-cause the same day; each live-found bug class gets added to §1-§3.
+
+exec
+/bin/zsh -lc "rtk rg --files 'apps/web/app' | rtk rg '/planning/(purchase-orders|suppliers)|import-(po|to)'" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 186ms:
+apps/web/app/[locale]/(app)/(modules)/planning/import/_actions/can-import-po.ts
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/page.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/[id]/scorecard/page.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/[id]/scorecard/_components/scorecard-view.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/[id]/scorecard/__tests__/scorecard.test.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/[id]/page.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_components/supplier-types.ts
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_components/supplier-status-badge.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_components/supplier-labels.ts
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_components/create-supplier-modal.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_components/supplier-list-view.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_components/edit-supplier-modal.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_components/supplier-detail-view.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/__tests__/suppliers.test.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.test.ts
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/page.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/import/page.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/[id]/page.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_components/po-detail-view.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_components/create-po-modal.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_components/po-status-badge.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_components/receive-po-line-modal.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_components/po-list-view.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_components/po-line-modal.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_components/edit-po-modal.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_components/po-bulk-import-view.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/__tests__/purchase-orders.test.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/__tests__/po-edit.test.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/__tests__/po-bulk-import-view.test.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/__tests__/po-receive-line.test.tsx
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/receive-po-line.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/po-form-data.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.test.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/actions.test.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/__tests__/update-nullable-fields.test.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-export-job.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/receive-po-line.types.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/receive-po-line.test.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/po-form-data.test.ts
+
+exec
+/bin/zsh -lc "rtk sed -n '1,280p' 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts'; rtk sed -n '1,260p' 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts'; rtk sed -n '1,320p' 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts'; rtk sed -n '1,300p' 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts'" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+'use server';
+
+import { z } from 'zod';
+
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+import {
+  DEFAULT_PO_LIST_PAGE_SIZE,
+  normalizePage,
+  toPaginatedResult,
+  type PaginatedResult,
+} from '../../../../../../../lib/shared/pagination';
+import {
+  PurchaseOrderStatusSchema,
+  hasPlanningWritePermission,
+  hasPlanningReadPermission,
+  isPgError,
+  numeric3Schema,
+  numeric4Schema,
+  pgErrorToResult,
+  toIso,
+  uuidSchema,
+  writeProcurementAudit,
+  type OrgActionContext,
+  type ProcurementError,
+  type QueryClient,
+} from '../../_actions/procurement-shared';
+import {
+  CreatePurchaseOrderInput,
+  createPurchaseOrderCore,
+} from './create-purchase-order-core';
+
+type PurchaseOrderRow = {
+  id: string;
+  po_number: string;
+  supplier_id: string;
+  supplier_code: string | null;
+  supplier_name: string | null;
+  destination_warehouse_id?: string | null;
+  destination_warehouse_name?: string | null;
+  status: string;
+  expected_delivery: string | null;
+  currency: string;
+  notes: string | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+};
+
+type PurchaseOrderLineRow = {
+  id: string;
+  po_id: string;
+  item_id: string;
+  item_code: string | null;
+  item_name: string | null;
+  qty: string;
+  uom: string;
+  unit_price: string;
+  line_no: number;
+  received_qty: string | null;
+};
+
+type PurchaseOrderLine = {
+  id: string;
+  poId: string;
+  itemId: string;
+  itemCode: string | null;
+  itemName: string | null;
+  qty: string;
+  uom: string;
+  unitPrice: string;
+  lineNo: number;
+  /** Sum of grn_items.received_qty for this PO line (non-cancelled GRNs). */
+  receivedQty: string;
+};
+
+type PurchaseOrder = {
+  id: string;
+  poNumber: string;
+  supplierId: string;
+  supplierCode: string | null;
+  supplierName: string | null;
+  destinationWarehouseId: string | null;
+  destinationWarehouseName: string | null;
+  status: string;
+  expectedDelivery: string | null;
+  currency: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
+type PurchaseOrderError = ProcurementError | 'last_line' | 'po_has_receipts' | 'po_open_quantity' | 'no_active_site' | 'ambiguous_site' | 'supplier_blocked';
+type PurchaseOrderResult<T> = { ok: true; data: T } | { ok: false; error: PurchaseOrderError; code?: PurchaseOrderError; message?: string };
+type PurchaseOrderListResult =
+  | { ok: true; data: PurchaseOrder[]; pagination: PaginatedResult<PurchaseOrder>; archivedCount: number }
+  | { ok: false; error: ProcurementError; message?: string };
+
+const PO_LIST_FROM = `
+           from public.purchase_orders po
+           left join public.suppliers s on s.org_id = app.current_org_id() and s.id = po.supplier_id
+           left join public.warehouses w on w.org_id = app.current_org_id() and w.id = po.destination_warehouse_id
+           left join public.org_document_settings ods
+             on ods.org_id = po.org_id
+            and ods.doc_type = 'po'`;
+
+const UpdatePurchaseOrderInput = z.object({
+  id: uuidSchema,
+  supplierId: uuidSchema.optional(),
+  expectedDelivery: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || /^\d{4}-\d{2}-\d{2}$/.test(value), 'Invalid date')
+    .optional(),
+  currency: z.string().trim().length(3).optional(),
+  notes: z.string().trim().max(2000).optional(),
+});
+
+const AddPurchaseOrderLineInput = z.object({
+  poId: uuidSchema,
+  itemId: uuidSchema,
+  qty: numeric3Schema,
+  uom: z.string().trim().min(1).max(32),
+  unitPrice: numeric4Schema,
+});
+
+const UpdatePurchaseOrderLineInput = z.object({
+  poId: uuidSchema,
+  lineId: uuidSchema,
+  qty: numeric3Schema.optional(),
+  uom: z.string().trim().min(1).max(32).optional(),
+  unitPrice: numeric4Schema.optional(),
+});
+
+const DeletePurchaseOrderLineInput = z.object({
+  poId: uuidSchema,
+  lineId: uuidSchema,
+});
+
+function mapPurchaseOrder(row: PurchaseOrderRow): PurchaseOrder {
+  return {
+    id: row.id,
+    poNumber: row.po_number,
+    supplierId: row.supplier_id,
+    supplierCode: row.supplier_code,
+    supplierName: row.supplier_name,
+    destinationWarehouseId: row.destination_warehouse_id ?? null,
+    destinationWarehouseName: row.destination_warehouse_name ?? null,
+    status: row.status,
+    expectedDelivery: row.expected_delivery,
+    currency: row.currency,
+    notes: row.notes,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+export async function listPoWarehouses(): Promise<Array<{ id: string; code: string; name: string }>> {
+  try {
+    return await withOrgContext(async ({ client }) => {
+      const { rows } = await (client as QueryClient).query<{ id: string; code: string; name: string }>(
+        `select id, code, name
+           from public.warehouses
+          where org_id = app.current_org_id()
+          order by code`,
+      );
+      return rows.map((r) => ({ id: r.id, code: r.code, name: r.name }));
+    });
+  } catch {
+    return [];
+  }
+}
+
+function mapLine(row: PurchaseOrderLineRow): PurchaseOrderLine {
+  return {
+    id: row.id,
+    poId: row.po_id,
+    itemId: row.item_id,
+    itemCode: row.item_code,
+    itemName: row.item_name,
+    qty: String(row.qty),
+    uom: row.uom,
+    unitPrice: String(row.unit_price),
+    lineNo: Number(row.line_no),
+    receivedQty: String(row.received_qty ?? '0'),
+  };
+}
+
+async function fetchLines(client: QueryClient, poId: string): Promise<PurchaseOrderLine[]> {
+  // Received = Σ grn_items.received_qty per PO line. GRNs are joined to scope the
+  // org and to exclude cancelled receipts; DRAFT GRNs count — the scanner receive
+  // flow books receipts onto a draft day-GRN and the PO status flip (receive-po.ts)
+  // already counts them, so the detail page must agree with the chip/status.
+  const { rows } = await client.query<PurchaseOrderLineRow>(
+    `select l.id, l.po_id, l.item_id, i.item_code, i.name as item_name,
+            l.qty::text as qty, l.uom, l.unit_price::text as unit_price, l.line_no,
+            coalesce(rec.received_qty, 0)::text as received_qty
+       from public.purchase_order_lines l
+       left join public.items i on i.org_id = app.current_org_id() and i.id = l.item_id
+       left join (
+         select gi.po_line_id, sum(gi.received_qty) as received_qty
+           from public.grn_items gi
+           join public.grns g
+             on g.id = gi.grn_id
+            and g.org_id = app.current_org_id()
+            and g.status <> 'cancelled'
+          where gi.org_id = app.current_org_id()
+            and gi.po_line_id is not null
+            and gi.cancelled_at is null
+          group by gi.po_line_id
+       ) rec on rec.po_line_id = l.id
+      where l.org_id = app.current_org_id()
+        and l.po_id = $1::uuid
+      order by l.line_no asc`,
+    [poId],
+  );
+  return rows.map(mapLine);
+}
+
+async function fetchDraftPurchaseOrderForUpdate(client: QueryClient, poId: string): Promise<PurchaseOrderRow | null> {
+  const { rows } = await client.query<PurchaseOrderRow>(
+    `select po.id, po.po_number, po.supplier_id, s.code as supplier_code, s.name as supplier_name,
+            null::uuid as destination_warehouse_id, null::text as destination_warehouse_name,
+            po.status, po.expected_delivery::text as expected_delivery, po.currency, po.notes,
+            po.created_at, po.updated_at
+       from public.purchase_orders po
+       left join public.suppliers s on s.org_id = app.current_org_id() and s.id = po.supplier_id
+      where po.org_id = app.current_org_id()
+        and po.id = $1::uuid
+      limit 1
+      for update of po`,
+    [poId],
+  );
+  return rows[0] ?? null;
+}
+
+async function isPurchaseOrderFullyReceived(client: QueryClient, poId: string): Promise<boolean> {
+  const { rows } = await client.query<{ is_received: boolean }>(
+    `select bool_and(coalesce(rec.received_qty, 0) >= pol.qty) as is_received
+       from public.purchase_order_lines pol
+       left join (
+         select po_line_id, sum(received_qty) as received_qty
+           from public.grn_items
+          where org_id = app.current_org_id()
+            and po_line_id is not null
+            and cancelled_at is null
+          group by po_line_id
+       ) rec on rec.po_line_id = pol.id
+      where pol.org_id = app.current_org_id()
+        and pol.po_id = $1::uuid`,
+    [poId],
+  );
+  return rows[0]?.is_received === true;
+}
+
+async function getPurchaseOrderReceiptState(client: QueryClient, poId: string): Promise<{ activeReceivedCount: number; grnLineCount: number }> {
+  const { rows } = await client.query<{ active_received_count: string | number; grn_line_count: string | number }>(
+    `select count(*) filter (
+              where gi.cancelled_at is null
+                and coalesce(g.status, 'draft') <> 'cancelled'
+                and gi.received_qty > 0
+            ) as active_received_count,
+            count(*) filter (
+              where gi.cancelled_at is null
+                and coalesce(g.status, 'draft') <> 'cancelled'
+            ) as grn_line_count
+       from public.grn_items gi
+       left join public.grns g
+         on g.org_id = app.current_org_id()
+        and g.id = gi.grn_id
+      where gi.org_id = app.current_org_id()
+        and (
+          gi.po_line_id in (
+            select pol.id
+              from public.purchase_order_lines pol
+             where pol.org_id = app.current_org_id()
+               and pol.po_id = $1::uuid
+          )
+          or g.po_id = $1::uuid
+import { z } from 'zod';
+
+import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
+import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
+import {
+  PurchaseOrderCreateInput,
+  hasPlanningWritePermission,
+  isPgError,
+  toIso,
+  uuidSchema,
+  writeProcurementAudit,
+  type OrgActionContext,
+  type ProcurementError,
+  type QueryClient,
+} from '../../_actions/procurement-shared';
+
+type PurchaseOrderRow = {
+  id: string;
+  po_number: string;
+  supplier_id: string;
+  supplier_code: string | null;
+  supplier_name: string | null;
+  destination_warehouse_id?: string | null;
+  destination_warehouse_name?: string | null;
+  status: string;
+  expected_delivery: string | null;
+  currency: string;
+  notes: string | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+};
+
+type PurchaseOrderLineRow = {
+  id: string;
+  po_id: string;
+  item_id: string;
+  item_code: string | null;
+  item_name: string | null;
+  qty: string;
+  uom: string;
+  unit_price: string;
+  line_no: number;
+  received_qty: string | null;
+};
+
+type PurchaseOrderLine = {
+  id: string;
+  poId: string;
+  itemId: string;
+  itemCode: string | null;
+  itemName: string | null;
+  qty: string;
+  uom: string;
+  unitPrice: string;
+  lineNo: number;
+  receivedQty: string;
+};
+
+type PurchaseOrder = {
+  id: string;
+  poNumber: string;
+  supplierId: string;
+  supplierCode: string | null;
+  supplierName: string | null;
+  destinationWarehouseId: string | null;
+  destinationWarehouseName: string | null;
+  status: string;
+  expectedDelivery: string | null;
+  currency: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
+
+export type PurchaseOrderError =
+  | ProcurementError
+  | 'last_line'
+  | 'po_has_receipts'
+  | 'po_open_quantity'
+  | 'no_active_site'
+  | 'ambiguous_site'
+  | 'supplier_blocked';
+
+export type PurchaseOrderResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: PurchaseOrderError; code?: PurchaseOrderError; message?: string };
+
+export const CreatePurchaseOrderInput = PurchaseOrderCreateInput.extend({
+  destinationWarehouseId: uuidSchema.optional(),
+});
+
+export type CreatePurchaseOrderInputType = z.infer<typeof CreatePurchaseOrderInput>;
+
+export type CreatePurchaseOrderCoreContext = OrgActionContext;
+
+function mapPurchaseOrder(row: PurchaseOrderRow): PurchaseOrder {
+  return {
+    id: row.id,
+    poNumber: row.po_number,
+    supplierId: row.supplier_id,
+    supplierCode: row.supplier_code,
+    supplierName: row.supplier_name,
+    destinationWarehouseId: row.destination_warehouse_id ?? null,
+    destinationWarehouseName: row.destination_warehouse_name ?? null,
+    status: row.status,
+    expectedDelivery: row.expected_delivery,
+    currency: row.currency,
+    notes: row.notes,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+function mapLine(row: PurchaseOrderLineRow): PurchaseOrderLine {
+  return {
+    id: row.id,
+    poId: row.po_id,
+    itemId: row.item_id,
+    itemCode: row.item_code,
+    itemName: row.item_name,
+    qty: String(row.qty),
+    uom: row.uom,
+    unitPrice: String(row.unit_price),
+    lineNo: Number(row.line_no),
+    receivedQty: String(row.received_qty ?? '0'),
+  };
+}
+
+async function fetchLines(client: QueryClient, poId: string): Promise<PurchaseOrderLine[]> {
+  const { rows } = await client.query<PurchaseOrderLineRow>(
+    `select l.id, l.po_id, l.item_id, i.item_code, i.name as item_name,
+            l.qty::text as qty, l.uom, l.unit_price::text as unit_price, l.line_no,
+            coalesce(rec.received_qty, 0)::text as received_qty
+       from public.purchase_order_lines l
+       left join public.items i on i.org_id = app.current_org_id() and i.id = l.item_id
+       left join (
+         select gi.po_line_id, sum(gi.received_qty) as received_qty
+           from public.grn_items gi
+           join public.grns g
+             on g.id = gi.grn_id
+            and g.org_id = app.current_org_id()
+            and g.status <> 'cancelled'
+          where gi.org_id = app.current_org_id()
+            and gi.po_line_id is not null
+            and gi.cancelled_at is null
+          group by gi.po_line_id
+       ) rec on rec.po_line_id = l.id
+      where l.org_id = app.current_org_id()
+        and l.po_id = $1::uuid
+      order by l.line_no asc`,
+    [poId],
+  );
+  return rows.map(mapLine);
+}
+
+export async function createPurchaseOrderCore(
+  ctx: CreatePurchaseOrderCoreContext,
+  input: CreatePurchaseOrderInputType,
+): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+  const { userId, orgId } = ctx;
+  if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+  const siteResolution = await resolveWriteSiteId(ctx.client);
+  if (!siteResolution.ok) return { ok: false, error: siteResolution.reason };
+  const siteId = siteResolution.siteId;
+
+  const { rows: supplierRows } = await ctx.client.query<{ status: string }>(
+    `select status
+       from public.suppliers
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [input.supplierId],
+  );
+  const supplier = supplierRows[0];
+  if (!supplier) return { ok: false, error: 'not_found' };
+  if (supplier.status === 'blocked') {
+    return { ok: false, error: 'supplier_blocked', code: 'supplier_blocked', message: 'Supplier is blocked' };
+  }
+
+  async function insertHeader(poNumber: string) {
+    return ctx.client.query<PurchaseOrderRow>(
+      `insert into public.purchase_orders
+         (org_id, site_id, po_number, supplier_id, destination_warehouse_id, status, expected_delivery, currency, notes, created_by, updated_by)
+       values
+         (app.current_org_id(), $9::uuid, $1, $2::uuid, $3::uuid, $4, $5::date, $6, $7, $8::uuid, $8::uuid)
+       returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
+                 destination_warehouse_id, null::text as destination_warehouse_name,
+                 status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
+      [
+        poNumber,
+        input.supplierId,
+        input.destinationWarehouseId ?? null,
+        'draft',
+        input.expectedDelivery ?? null,
+        input.currency,
+        input.notes ?? null,
+        userId,
+        siteId,
+      ],
+    );
+  }
+
+  const initialPoNumber = input.poNumber ?? (await nextDocumentNumber(ctx.client, orgId, 'po', new Date()));
+  let insertResult: Awaited<ReturnType<typeof insertHeader>>;
+  try {
+    insertResult = await insertHeader(initialPoNumber);
+  } catch (error) {
+    if (input.poNumber || !isPgError(error) || error.code !== '23505') throw error;
+    insertResult = await insertHeader(await nextDocumentNumber(ctx.client, orgId, 'po', new Date()));
+  }
+
+  const { rows } = insertResult;
+  const header = rows[0];
+  if (!header) return { ok: false, error: 'persistence_failed' };
+
+  for (const line of input.lines) {
+    await ctx.client.query(
+      `insert into public.purchase_order_lines
+         (org_id, po_id, item_id, qty, uom, unit_price, line_no, created_by, updated_by)
+       values
+         (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5::numeric, $6::integer, $7::uuid, $7::uuid)`,
+      [header.id, line.itemId, line.qty, line.uom, line.unitPrice, line.lineNo, userId],
+    );
+  }
+
+  await writeProcurementAudit(ctx, {
+    action: 'planning.purchase_order.created',
+    resourceType: 'purchase_order',
+    resourceId: header.id,
+    afterState: {
+      poNumber: header.po_number,
+      status: header.status,
+      lineCount: input.lines.length,
+      destinationWarehouseId: input.destinationWarehouseId ?? null,
+    },
+  });
+
+  return { ok: true, data: { ...mapPurchaseOrder(header), lines: await fetchLines(ctx.client, header.id) } };
+}
+'use server';
+
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
+import { hasPlanningWritePermission, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
+import { createPurchaseOrderCore } from './create-purchase-order-core';
+
+export type PoImportRow = {
+  external_ref: string;
+  supplier_code: string;
+  item_code: string;
+  qty: number;
+  uom: string;
+  price?: number;
+  currency?: string;
+  expected_delivery?: string;
+  warehouse_code?: string;
+  notes?: string;
+};
+
+export type PoImportError = { column: string; message: string };
+
+export type PoValidationResult = {
+  rows: Array<{ rowNumber: number; ok: boolean; errors: PoImportError[] }>;
+  summary: { total: number; ok: number; failed: number };
+};
+
+export type PoImportResult = {
+  created: Array<{ po_number: string; external_ref: string }>;
+  skipped: Array<{ external_ref: string; reason: string }>;
+  failed: Array<{ rowNumber: number; errors: PoImportError[] }>;
+};
+
+type SupplierLookupRow = {
+  id: string;
+  code: string;
+  currency: string | null;
+};
+
+type ItemLookupRow = {
+  id: string;
+  item_code: string;
+  uom_base: string;
+  uom_secondary: string | null;
+};
+
+type UnitLookupRow = { code: string };
+type ExistingPurchaseOrderRow = { po_number: string };
+
+type ValidImportRow = {
+  rowNumber: number;
+  row: PoImportRow;
+  externalRef: string;
+  supplierCode: string;
+  itemCode: string;
+  uom: string;
+};
+
+type ImportGroup = {
+  supplierCode: string;
+  externalRef: string;
+  rows: ValidImportRow[];
+};
+
+type CreatePurchaseOrderLinePayload = {
+  itemId: string;
+  qty: string;
+  uom: string;
+  unitPrice: string;
+  lineNo: number;
+};
+
+export async function validatePoImport(rows: PoImportRow[]): Promise<PoValidationResult> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<PoValidationResult> => {
+    const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+    await requirePlanningWritePermission(ctx);
+    return validateRows(ctx.client, rows);
+  });
+}
+
+export async function commitPoImport(
+  rows: PoImportRow[],
+  options: { mode: 'all_or_nothing' | 'skip_invalid' },
+): Promise<PoImportResult> {
+  const validation = await validatePoImport(rows);
+  const failed = validation.rows
+    .filter((row) => !row.ok)
+    .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
+
+  if (options.mode === 'all_or_nothing' && failed.length > 0) {
+    return { created: [], skipped: [], failed };
+  }
+
+  const validRows = rows
+    .map((row, index): ValidImportRow | null => {
+      const result = validation.rows[index];
+      if (!result?.ok) return null;
+      return {
+        rowNumber: index + 1,
+        row,
+        externalRef: normalizeText(row.external_ref),
+        supplierCode: normalizeText(row.supplier_code),
+        itemCode: normalizeText(row.item_code),
+        uom: normalizeText(row.uom),
+      };
+    })
+    .filter((row): row is ValidImportRow => row !== null);
+
+  return withOrgContext(async ({ userId, orgId, client }): Promise<PoImportResult> => {
+    const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+    await requirePlanningWritePermission(ctx);
+
+    const created: PoImportResult['created'] = [];
+    const skipped: PoImportResult['skipped'] = [];
+    const skippedRefs = new Set<string>();
+    const runtimeFailed: PoImportResult['failed'] = [...failed];
+
+    const existingRefs = await findExistingPurchaseOrderRefs(ctx.client, validRows.map((row) => row.externalRef));
+    const rowsToCreate = validRows.filter((row) => {
+      if (!existingRefs.has(row.externalRef)) return true;
+      if (!skippedRefs.has(row.externalRef)) {
+        skipped.push({ external_ref: row.externalRef, reason: `Purchase order already exists for external_ref "${row.externalRef}".` });
+        skippedRefs.add(row.externalRef);
+      }
+      return false;
+    });
+
+    const [suppliers, items] = await Promise.all([
+      loadSuppliers(ctx.client, rowsToCreate.map((row) => row.supplierCode)),
+      loadActiveItems(ctx.client, rowsToCreate.map((row) => row.itemCode)),
+    ]);
+
+    for (const group of groupRows(rowsToCreate)) {
+      const alreadyExists = await checkPoNumberExists(ctx.client, group.externalRef);
+      if (alreadyExists) {
+        failGroup(runtimeFailed, group, 'po_number', `Purchase order number "${group.externalRef}" already exists (duplicate_po_number).`);
+        continue;
+      }
+
+      const supplier = suppliers.get(group.supplierCode);
+      if (!supplier) {
+        failGroup(runtimeFailed, group, 'supplier_code', `Supplier code "${group.supplierCode}" was not found for this org.`);
+        continue;
+      }
+
+      const lineInputs: CreatePurchaseOrderLinePayload[] = [];
+      let groupHasLookupFailure = false;
+      for (const entry of group.rows) {
+        const item = items.get(entry.itemCode);
+        if (!item) {
+          runtimeFailed.push({
+            rowNumber: entry.rowNumber,
+            errors: [{ column: 'item_code', message: `Item code "${entry.itemCode}" is not an active item for this org.` }],
+          });
+          groupHasLookupFailure = true;
+          continue;
+        }
+        lineInputs.push({
+          itemId: item.id,
+          qty: numberToPlainString(entry.row.qty),
+          uom: entry.uom,
+          unitPrice: numberToPlainString(entry.row.price ?? 0),
+          lineNo: lineInputs.length + 1,
+        });
+      }
+      if (groupHasLookupFailure) continue;
+
+      const result = await createPurchaseOrderCore(ctx, {
+        poNumber: group.externalRef,
+        supplierId: supplier.id,
+        status: 'draft',
+        expectedDelivery: firstText(group.rows, (entry) => entry.row.expected_delivery),
+        currency: firstText(group.rows, (entry) => entry.row.currency) ?? supplier.currency ?? 'GBP',
+        notes: joinNotes(group.rows),
+        lines: lineInputs,
+      });
+
+      if (result.ok) {
+        created.push({ po_number: result.data.poNumber, external_ref: group.externalRef });
+        continue;
+      }
+
+      failGroup(
+        runtimeFailed,
+        group,
+        'external_ref',
+        `Could not create purchase order for external_ref "${group.externalRef}": ${result.error}.`,
+      );
+    }
+
+    await insertImportJob(ctx.client, {
+      userId,
+      total: validation.summary.total,
+      createdCount: created.length,
+      skippedCount: skipped.length,
+      failedCount: runtimeFailed.length,
+    });
+
+    return { created, skipped, failed: runtimeFailed };
+  });
+}
+
+async function requirePlanningWritePermission(ctx: OrgActionContext): Promise<void> {
+  if (!(await hasPlanningWritePermission(ctx))) {
+    throw new PoImportForbiddenError();
+  }
+}
+
+async function validateRows(client: QueryClient, rows: PoImportRow[]): Promise<PoValidationResult> {
+  const [suppliers, items, units] = await Promise.all([
+    loadSuppliers(client, rows.map((row) => row.supplier_code)),
+    loadActiveItems(client, rows.map((row) => row.item_code)),
+    loadOrgUnits(client, rows.map((row) => row.uom)),
+  ]);
+
+  const results = rows.map((row, index) => {
+    const error = validateRow(row, suppliers, items, units);
+    return { rowNumber: index + 1, ok: error === null, errors: error ? [error] : [] };
+  });
+  const ok = results.filter((row) => row.ok).length;
+  return { rows: results, summary: { total: rows.length, ok, failed: rows.length - ok } };
+}
+
+function validateRow(
+  row: PoImportRow,
+  suppliers: Map<string, SupplierLookupRow>,
+  items: Map<string, ItemLookupRow>,
+  units: Set<string>,
+): PoImportError | null {
+  const externalRef = normalizeText(row.external_ref);
+  if (!externalRef) return { column: 'external_ref', message: 'External reference is required.' };
+
+  const supplierCode = normalizeText(row.supplier_code);
+  if (!supplierCode) return { column: 'supplier_code', message: 'Supplier code is required.' };
+  if (!suppliers.has(supplierCode)) {
+    return { column: 'supplier_code', message: `Supplier code "${supplierCode}" was not found for this org.` };
+  }
+
+  const itemCode = normalizeText(row.item_code);
+  if (!itemCode) return { column: 'item_code', message: 'Item code is required.' };
+  const item = items.get(itemCode);
+  if (!item) return { column: 'item_code', message: `Item code "${itemCode}" is not an active item for this org.` };
+
+  const uom = normalizeText(row.uom);
+  if (!uom) return { column: 'uom', message: 'UoM is required.' };
+  if (!isValidUomForItem(uom, item, units)) {
+    return { column: 'uom', message: `UoM "${uom}" is not valid for item code "${itemCode}".` };
+  }
+
+  if (!Number.isFinite(row.qty) || row.qty <= 0) {
+    return { column: 'qty', message: `Quantity "${String(row.qty)}" must be greater than 0.` };
+  }
+  if (decimalPlaces(row.qty) > 3) {
+    return { column: 'qty', message: `Quantity "${numberToPlainString(row.qty)}" must have at most 3 decimal places.` };
+  }
+
+  if (row.price !== undefined) {
+    if (!Number.isFinite(row.price) || row.price < 0) {
+      return { column: 'price', message: `Price "${String(row.price)}" must be greater than or equal to 0.` };
+    }
+    if (decimalPlaces(row.price) > 4) {
+      return { column: 'price', message: `Price "${numberToPlainString(row.price)}" must have at most 4 decimal places.` };
+    }
+  }
+
+  const expectedDelivery = normalizeText(row.expected_delivery);
+  if (expectedDelivery) {
+    if (!isValidIsoDate(expectedDelivery)) {
+      return { column: 'expected_delivery', message: `Expected delivery "${expectedDelivery}" must be a YYYY-MM-DD date.` };
+    }
+    if (expectedDelivery < todayUtcDate()) {
+      return { column: 'expected_delivery', message: `Expected delivery "${expectedDelivery}" must not be in the past.` };
+    }
+  }
+
+  return null;
+}
+
+async function loadSuppliers(client: QueryClient, rawCodes: string[]): Promise<Map<string, SupplierLookupRow>> {
+  const codes = uniqueNormalized(rawCodes);
+  if (codes.length === 0) return new Map();
+  const { rows } = await client.query<SupplierLookupRow>(
+    `select id, code, currency
+       from public.suppliers
+      where org_id = app.current_org_id()
+        and code = any($1::text[])`,
+    [codes],
+  );
+  return new Map(rows.map((row) => [row.code, row]));
+}
+
+async function loadActiveItems(client: QueryClient, rawCodes: string[]): Promise<Map<string, ItemLookupRow>> {
+  const codes = uniqueNormalized(rawCodes);
+  if (codes.length === 0) return new Map();
+  const { rows } = await client.query<ItemLookupRow>(
+    `select id, item_code, uom_base, uom_secondary
+       from public.items
+      where org_id = app.current_org_id()
+        and item_code = any($1::text[])
+        and status = 'active'`,
+    [codes],
+  );
+  return new Map(rows.map((row) => [row.item_code, row]));
+}
+
+async function loadOrgUnits(client: QueryClient, rawCodes: string[]): Promise<Set<string>> {
+  const codes = uniqueNormalized(rawCodes);
+  if (codes.length === 0) return new Set();
+  const { rows } = await client.query<UnitLookupRow>(
+    `select code
+       from public.unit_of_measure
+      where org_id = app.current_org_id()
+        and deleted_at is null
+        and code = any($1::text[])`,
+    [codes],
+  );
+  return new Set(rows.map((row) => row.code));
+}
+
+async function checkPoNumberExists(client: QueryClient, poNumber: string): Promise<boolean> {
+'use server';
+
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
+import { hasPlanningWritePermission, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
+import { createTransferOrder } from './actions';
+
+export type ToImportRow = {
+  external_ref: string;
+  from_warehouse_code: string;
+  to_warehouse_code: string;
+  item_code: string;
+  qty: number;
+  uom: string;
+  date?: string;
+};
+
+export type ToImportError = { column: string; message: string };
+
+export type ToValidationResult = {
+  rows: Array<{ rowNumber: number; ok: boolean; errors: ToImportError[] }>;
+  summary: { total: number; ok: number; failed: number };
+};
+
+export type ToImportResult = {
+  created: Array<{ to_number: string; external_ref: string }>;
+  skipped: Array<{ external_ref: string; reason: string }>;
+  failed: Array<{ rowNumber: number; errors: ToImportError[] }>;
+};
+
+type WarehouseLookupRow = {
+  id: string;
+  code: string;
+};
+
+type ItemLookupRow = {
+  id: string;
+  item_code: string;
+  uom_base: string;
+  uom_secondary: string | null;
+};
+
+type UnitLookupRow = { code: string };
+type ExistingTransferOrderRow = { to_number: string };
+
+type ValidImportRow = {
+  rowNumber: number;
+  row: ToImportRow;
+  externalRef: string;
+  fromWarehouseCode: string;
+  toWarehouseCode: string;
+  itemCode: string;
+  uom: string;
+};
+
+type ImportGroup = {
+  fromWarehouseCode: string;
+  toWarehouseCode: string;
+  externalRef: string;
+  rows: ValidImportRow[];
+};
+
+type CreateTransferOrderLinePayload = {
+  itemId: string;
+  qty: string;
+  uom: string;
+  lineNo: number;
+};
+
+export async function validateToImport(rows: ToImportRow[]): Promise<ToValidationResult> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<ToValidationResult> => {
+    const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+    await requirePlanningWritePermission(ctx);
+    return validateRows(ctx.client, rows);
+  });
+}
+
+export async function commitToImport(
+  rows: ToImportRow[],
+  options: { mode: 'all_or_nothing' | 'skip_invalid' },
+): Promise<ToImportResult> {
+  const validation = await validateToImport(rows);
+  const failed = validation.rows
+    .filter((row) => !row.ok)
+    .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
+
+  if (options.mode === 'all_or_nothing' && failed.length > 0) {
+    return { created: [], skipped: [], failed };
+  }
+
+  const validRows = rows
+    .map((row, index): ValidImportRow | null => {
+      const result = validation.rows[index];
+      if (!result?.ok) return null;
+      return {
+        rowNumber: index + 1,
+        row,
+        externalRef: normalizeText(row.external_ref),
+        fromWarehouseCode: normalizeText(row.from_warehouse_code),
+        toWarehouseCode: normalizeText(row.to_warehouse_code),
+        itemCode: normalizeText(row.item_code),
+        uom: normalizeText(row.uom),
+      };
+    })
+    .filter((row): row is ValidImportRow => row !== null);
+
+  return withOrgContext(async ({ userId, orgId, client }): Promise<ToImportResult> => {
+    const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+    await requirePlanningWritePermission(ctx);
+
+    const created: ToImportResult['created'] = [];
+    const skipped: ToImportResult['skipped'] = [];
+    const skippedRefs = new Set<string>();
+    const runtimeFailed: ToImportResult['failed'] = [...failed];
+
+    const existingRefs = await findExistingTransferOrderRefs(ctx.client, validRows.map((row) => row.externalRef));
+    const rowsToCreate = validRows.filter((row) => {
+      if (!existingRefs.has(row.externalRef)) return true;
+      if (!skippedRefs.has(row.externalRef)) {
+        skipped.push({ external_ref: row.externalRef, reason: `Transfer order already exists for external_ref "${row.externalRef}".` });
+        skippedRefs.add(row.externalRef);
+      }
+      return false;
+    });
+
+    const [warehouses, items] = await Promise.all([
+      loadWarehouses(ctx.client, rowsToCreate.flatMap((row) => [row.fromWarehouseCode, row.toWarehouseCode])),
+      loadActiveItems(ctx.client, rowsToCreate.map((row) => row.itemCode)),
+    ]);
+
+    for (const group of groupRows(rowsToCreate)) {
+      const fromWarehouse = warehouses.get(group.fromWarehouseCode);
+      const toWarehouse = warehouses.get(group.toWarehouseCode);
+      if (!fromWarehouse) {
+        failGroup(runtimeFailed, group, 'from_warehouse_code', `Warehouse code "${group.fromWarehouseCode}" was not found for this org.`);
+        continue;
+      }
+      if (!toWarehouse) {
+        failGroup(runtimeFailed, group, 'to_warehouse_code', `Warehouse code "${group.toWarehouseCode}" was not found for this org.`);
+        continue;
+      }
+      if (fromWarehouse.id === toWarehouse.id) {
+        failGroup(runtimeFailed, group, 'to_warehouse_code', 'Transfer source and destination warehouses must differ.');
+        continue;
+      }
+
+      const lineInputs: CreateTransferOrderLinePayload[] = [];
+      let groupHasLookupFailure = false;
+      for (const entry of group.rows) {
+        const item = items.get(entry.itemCode);
+        if (!item) {
+          runtimeFailed.push({
+            rowNumber: entry.rowNumber,
+            errors: [{ column: 'item_code', message: `Item code "${entry.itemCode}" is not an active item for this org.` }],
+          });
+          groupHasLookupFailure = true;
+          continue;
+        }
+        lineInputs.push({
+          itemId: item.id,
+          qty: numberToPlainString(entry.row.qty),
+          uom: entry.uom,
+          lineNo: lineInputs.length + 1,
+        });
+      }
+      if (groupHasLookupFailure) continue;
+
+      const result = await createTransferOrder({
+        toNumber: group.externalRef,
+        fromWarehouseId: fromWarehouse.id,
+        toWarehouseId: toWarehouse.id,
+        status: 'draft',
+        scheduledDate: firstText(group.rows, (entry) => entry.row.date),
+        lines: lineInputs,
+      });
+
+      if (result.ok) {
+        created.push({ to_number: result.data.toNumber, external_ref: group.externalRef });
+        continue;
+      }
+
+      failGroup(
+        runtimeFailed,
+        group,
+        'external_ref',
+        `Could not create transfer order for external_ref "${group.externalRef}": ${result.message ?? result.error}.`,
+      );
+    }
+
+    await insertImportJob(ctx.client, {
+      userId,
+      total: validation.summary.total,
+      createdCount: created.length,
+      skippedCount: skipped.length,
+      failedCount: runtimeFailed.length,
+      createdExternalRefs: created.map((row) => row.external_ref),
+    });
+
+    return { created, skipped, failed: runtimeFailed };
+  });
+}
+
+async function requirePlanningWritePermission(ctx: OrgActionContext): Promise<void> {
+  if (!(await hasPlanningWritePermission(ctx))) {
+    throw new ToImportForbiddenError();
+  }
+}
+
+async function validateRows(client: QueryClient, rows: ToImportRow[]): Promise<ToValidationResult> {
+  const [warehouses, items, units] = await Promise.all([
+    loadWarehouses(client, rows.flatMap((row) => [row.from_warehouse_code, row.to_warehouse_code])),
+    loadActiveItems(client, rows.map((row) => row.item_code)),
+    loadOrgUnits(client, rows.map((row) => row.uom)),
+  ]);
+
+  const results = rows.map((row, index) => {
+    const errors = validateRow(row, warehouses, items, units);
+    return { rowNumber: index + 1, ok: errors.length === 0, errors };
+  });
+  const ok = results.filter((row) => row.ok).length;
+  return { rows: results, summary: { total: rows.length, ok, failed: rows.length - ok } };
+}
+
+function validateRow(
+  row: ToImportRow,
+  warehouses: Map<string, WarehouseLookupRow>,
+  items: Map<string, ItemLookupRow>,
+  units: Set<string>,
+): ToImportError[] {
+  const errors: ToImportError[] = [];
+
+  const externalRef = normalizeText(row.external_ref);
+  if (!externalRef) errors.push({ column: 'external_ref', message: 'External reference is required.' });
+
+  const fromWarehouseCode = normalizeText(row.from_warehouse_code);
+  const toWarehouseCode = normalizeText(row.to_warehouse_code);
+  const fromWarehouse = warehouses.get(fromWarehouseCode);
+  const toWarehouse = warehouses.get(toWarehouseCode);
+  if (!fromWarehouseCode) {
+    errors.push({ column: 'from_warehouse_code', message: 'Source warehouse code is required.' });
+  } else if (!fromWarehouse) {
+    errors.push({ column: 'from_warehouse_code', message: `Warehouse code "${fromWarehouseCode}" was not found for this org.` });
+  }
+  if (!toWarehouseCode) {
+    errors.push({ column: 'to_warehouse_code', message: 'Destination warehouse code is required.' });
+  } else if (!toWarehouse) {
+    errors.push({ column: 'to_warehouse_code', message: `Warehouse code "${toWarehouseCode}" was not found for this org.` });
+  }
+  if (fromWarehouse && toWarehouse && fromWarehouse.id === toWarehouse.id) {
+    errors.push({ column: 'to_warehouse_code', message: 'Transfer source and destination warehouses must differ.' });
+  }
+
+  const itemCode = normalizeText(row.item_code);
+  const item = items.get(itemCode);
+  if (!itemCode) {
+    errors.push({ column: 'item_code', message: 'Item code is required.' });
+  } else if (!item) {
+    errors.push({ column: 'item_code', message: `Item code "${itemCode}" is not an active item for this org.` });
+  }
+
+  const uom = normalizeText(row.uom);
+  if (!uom) {
+    errors.push({ column: 'uom', message: 'UoM is required.' });
+  } else if (item && !isValidUomForItem(uom, item, units)) {
+    errors.push({ column: 'uom', message: `UoM "${uom}" is not valid for item code "${itemCode}".` });
+  }
+
+  if (!Number.isFinite(row.qty) || row.qty <= 0) {
+    errors.push({ column: 'qty', message: `Quantity "${String(row.qty)}" must be greater than 0.` });
+  } else if (decimalPlaces(row.qty) > 3) {
+    errors.push({ column: 'qty', message: `Quantity "${numberToPlainString(row.qty)}" must have at most 3 decimal places.` });
+  }
+
+  const date = normalizeText(row.date);
+  if (date && !isValidIsoDate(date)) {
+    errors.push({ column: 'date', message: `Date "${date}" must be a YYYY-MM-DD date.` });
+  }
+
+  return errors;
+}
+
+async function loadWarehouses(client: QueryClient, rawCodes: string[]): Promise<Map<string, WarehouseLookupRow>> {
+  const codes = uniqueNormalized(rawCodes);
+  if (codes.length === 0) return new Map();
+  const { rows } = await client.query<WarehouseLookupRow>(
+    `select id, code
+       from public.warehouses
+      where org_id = app.current_org_id()
+        and code = any($1::text[])`,
+    [codes],
+  );
+  return new Map(rows.map((row) => [row.code, row]));
+}
+
+async function loadActiveItems(client: QueryClient, rawCodes: string[]): Promise<Map<string, ItemLookupRow>> {
+  const codes = uniqueNormalized(rawCodes);
+  if (codes.length === 0) return new Map();
+  const { rows } = await client.query<ItemLookupRow>(
+    `select id, item_code, uom_base, uom_secondary
+       from public.items
+
+exec
+/bin/zsh -lc "rtk rg -n \"export async function|status|insert into|update public|delete from|checkPoNumber|findExisting|groupRows|insertImportJob\" 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts' 'apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts'; rtk sed -n '1,360p' 'apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts'" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:26:  status: string;
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:39:  status: string;
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:75:    status: row.status,
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:82:export async function listSuppliers(params: unknown = {}): Promise<SupplierResult<Supplier[]>> {
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:83:  const input = (params ?? {}) as { status?: unknown; q?: unknown; limit?: unknown };
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:84:  const status = typeof input.status === 'string' ? SupplierStatusSchema.safeParse(input.status) : null;
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:85:  if (status && !status.success) return { ok: false, error: 'invalid_input' };
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:95:        `select id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:98:            and ($1::text is null or status = $1)
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:102:        [status?.success ? status.data : null, q, limit],
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:112:export async function getSupplier(id: string): Promise<SupplierResult<Supplier>> {
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:119:        `select id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:135:export async function createSupplier(rawInput: unknown): Promise<SupplierResult<Supplier>> {
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:146:        `insert into public.suppliers
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:147:           (org_id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_by, updated_by)
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:150:         returning id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at`,
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:157:          input.status,
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:168:        afterState: { code: row.code, name: row.name, status: row.status },
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:181:export async function updateSupplier(rawInput: unknown): Promise<SupplierResult<Supplier>> {
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:192:        `select id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:208:        `update public.suppliers
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:213:                status = $6,
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:218:        returning id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at`,
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:225:          input.status,
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:243:          status: previous.status,
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:252:          status: row.status,
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:267:export async function transitionSupplierStatus(id: string, status: string): Promise<SupplierResult<Supplier>> {
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:268:  const parsed = SupplierStatusSchema.safeParse(status);
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:276:      const before = await ctx.client.query<{ status: string }>(
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:277:        `select status from public.suppliers where org_id = app.current_org_id() and id = $1::uuid limit 1`,
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:284:        `update public.suppliers
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:285:            set status = $2,
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:289:        returning id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at`,
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:295:        action: 'planning.supplier.status_changed',
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:298:        beforeState: { status: previous.status },
+apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:299:        afterState: { status: row.status },
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:73:export async function validatePoImport(rows: PoImportRow[]): Promise<PoValidationResult> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:81:export async function commitPoImport(
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:118:    const existingRefs = await findExistingPurchaseOrderRefs(ctx.client, validRows.map((row) => row.externalRef));
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:133:    for (const group of groupRows(rowsToCreate)) {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:134:      const alreadyExists = await checkPoNumberExists(ctx.client, group.externalRef);
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:171:        status: 'draft',
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:191:    await insertImportJob(ctx.client, {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:300:        and status = 'active'`,
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:320:async function checkPoNumberExists(client: QueryClient, poNumber: string): Promise<boolean> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:332:async function findExistingPurchaseOrderRefs(client: QueryClient, rawRefs: string[]): Promise<Set<string>> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:345:async function insertImportJob(
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:350:    `insert into public.import_export_jobs
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:351:       (org_id, kind, target, status, progress_processed, progress_total, download_url, created_by, completed_at, metadata)
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:367:function groupRows(rows: ValidImportRow[]): ImportGroup[] {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:42:  status: string;
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:85:  status: string;
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:150:    status: row.status,
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:159:export async function listPoWarehouses(): Promise<Array<{ id: string; code: string; name: string }>> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:193:  // flow books receipts onto a draft day-GRN and the PO status flip (receive-po.ts)
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:194:  // already counts them, so the detail page must agree with the chip/status.
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:207:            and g.status <> 'cancelled'
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:225:            po.status, po.expected_delivery::text as expected_delivery, po.currency, po.notes,
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:261:                and coalesce(g.status, 'draft') <> 'cancelled'
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:266:                and coalesce(g.status, 'draft') <> 'cancelled'
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:294:  const { rows } = await client.query<{ id: string; status: string }>(
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:295:    `select id, status
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:304:  if (supplier.status === 'blocked') return 'supplier_blocked';
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:330:export async function listPurchaseOrders(params: unknown = {}): Promise<PurchaseOrderListResult> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:332:    status?: unknown;
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:339:  const status = typeof input.status === 'string' ? PurchaseOrderStatusSchema.safeParse(input.status) : null;
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:340:  if (status && !status.success) return { ok: false, error: 'invalid_input' };
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:357:      const baseParams = [status?.success ? status.data : null, q, s, archived] as const;
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:365:              and ($1::text is null or po.status = $1)
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:369:                  po.status in ('received', 'cancelled')
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:380:                  po.status, po.expected_delivery::text as expected_delivery, po.currency, po.notes,
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:385:              and ($1::text is null or po.status = $1)
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:389:                  po.status in ('received', 'cancelled')
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:409:            and ($1::text is null or po.status = $1)
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:411:            and po.status in ('received', 'cancelled')
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:414:        [status?.success ? status.data : null, q, s],
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:426:export async function getPurchaseOrder(id: string): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:436:                po.status, po.expected_delivery::text as expected_delivery, po.currency, po.notes,
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:456:export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:476:export async function updatePurchaseOrder(rawInput: unknown): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:488:      if (before.status !== 'draft') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:499:        `update public.purchase_orders
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:507:            and status = 'draft'
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:509:                  status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:552:export async function addPurchaseOrderLine(rawInput: unknown): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:564:      if (header.status !== 'draft') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:571:            `insert into public.purchase_order_lines
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:584:                       and status = 'draft'
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:628:export async function updatePurchaseOrderLine(rawInput: unknown): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:640:      if (header.status !== 'draft') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:657:        `update public.purchase_order_lines l
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:667:            and po.status = 'draft'
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:696:export async function deletePurchaseOrderLine(rawInput: unknown): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:708:      if (header.status !== 'draft') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:736:        `delete from public.purchase_order_lines l
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:742:            and po.status = 'draft'
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:755:         update public.purchase_order_lines pol
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:784:// Server-side state machine for PO status. Terminal states (received, cancelled)
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:796:export async function reopenPurchaseOrder(poId: string): Promise<PurchaseOrderResult<PurchaseOrder>> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:812:      if (before.status !== 'sent' && before.status !== 'cancelled') {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:822:        `update public.purchase_orders
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:823:            set status = 'draft',
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:827:            and status in ('sent', 'cancelled')
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:836:                 and coalesce(g.status, 'draft') <> 'cancelled'
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:848:                  status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:861:        action: 'planning.purchase_order.status_changed',
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:864:        beforeState: { status: before.status },
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:865:        afterState: { status: row.status },
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:876:export async function transitionPurchaseOrderStatus(id: string, status: string): Promise<PurchaseOrderResult<PurchaseOrder>> {
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:877:  const parsed = PurchaseOrderStatusSchema.safeParse(status);
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:885:      const before = await ctx.client.query<{ status: string }>(
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:886:        `select status
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:908:      const allowed = PO_TRANSITIONS[previous.status] ?? [];
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:916:        `update public.purchase_orders
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:917:            set status = $2,
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:922:                  status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:928:        action: 'planning.purchase_order.status_changed',
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:931:        beforeState: { status: previous.status },
+apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:932:        afterState: { status: row.status },
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:70:export async function validateToImport(rows: ToImportRow[]): Promise<ToValidationResult> {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:78:export async function commitToImport(
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:116:    const existingRefs = await findExistingTransferOrderRefs(ctx.client, validRows.map((row) => row.externalRef));
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:131:    for (const group of groupRows(rowsToCreate)) {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:172:        status: 'draft',
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:190:    await insertImportJob(ctx.client, {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:303:        and status = 'active'`,
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:323:async function findExistingTransferOrderRefs(client: QueryClient, rawRefs: string[]): Promise<Set<string>> {
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:336:async function insertImportJob(
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:348:    `insert into public.import_export_jobs
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:349:       (org_id, kind, target, status, progress_processed, progress_total, download_url, created_by, completed_at, metadata)
+apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:366:function groupRows(rows: ValidImportRow[]): ImportGroup[] {
+'use server';
+
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+import {
+  SupplierCreateInput,
+  SupplierStatusSchema,
+  hasPlanningWritePermission,
+  hasPlanningReadPermission,
+  pgErrorToResult,
+  toIso,
+  uuidSchema,
+  writeProcurementAudit,
+  type OrgActionContext,
+  type ProcurementError,
+  type QueryClient,
+} from '../../_actions/procurement-shared';
+
+type SupplierRow = {
+  id: string;
+  code: string;
+  name: string;
+  contact_jsonb: Record<string, unknown>;
+  currency: string;
+  lead_time_days: number;
+  status: string;
+  notes: string | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+};
+
+type Supplier = {
+  id: string;
+  code: string;
+  name: string;
+  contact: Record<string, unknown>;
+  currency: string;
+  leadTimeDays: number;
+  status: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type SupplierResult<T> = { ok: true; data: T } | { ok: false; error: ProcurementError; message?: string };
+
+const SupplierUpdateInput = SupplierCreateInput.extend({
+  id: uuidSchema,
+});
+
+// Family-(a) round-trip fix: the create/transition mutations had NO server-cache
+// revalidation, so the supplier list (and the detail header) could re-render stale
+// after a write — only the client's router.refresh() saved it, and a fresh server
+// navigation showed the pre-write rows. Mirror the shipped location.ts / PO / TO
+// revalidate pattern. The action has no locale in scope, so revalidate the dynamic
+// [locale] page segment (covers en/pl/ro/uk) plus the per-id detail when known.
+function revalidateSupplierPaths(supplierId?: string): void {
+  try {
+    revalidateLocalized('/planning/suppliers', 'page');
+    if (supplierId) revalidateLocalized(`/planning/suppliers/${supplierId}`, 'page');
+  } catch (err) {
+    if (process.env.VITEST) return;
+    console.warn('[planning/suppliers] revalidate_skipped', err instanceof Error ? { message: err.message } : { message: String(err) });
+  }
+}
+
+function mapSupplier(row: SupplierRow): Supplier {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    contact: row.contact_jsonb,
+    currency: row.currency,
+    leadTimeDays: Number(row.lead_time_days),
+    status: row.status,
+    notes: row.notes,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+export async function listSuppliers(params: unknown = {}): Promise<SupplierResult<Supplier[]>> {
+  const input = (params ?? {}) as { status?: unknown; q?: unknown; limit?: unknown };
+  const status = typeof input.status === 'string' ? SupplierStatusSchema.safeParse(input.status) : null;
+  if (status && !status.success) return { ok: false, error: 'invalid_input' };
+  const q = typeof input.q === 'string' && input.q.trim() ? input.q.trim() : null;
+  const limit = typeof input.limit === 'number' && Number.isInteger(input.limit) ? Math.min(Math.max(input.limit, 1), 200) : 100;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier[]>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningReadPermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await ctx.client.query<SupplierRow>(
+        `select id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at
+           from public.suppliers
+          where org_id = app.current_org_id()
+            and ($1::text is null or status = $1)
+            and ($2::text is null or code ilike '%' || $2 || '%' or name ilike '%' || $2 || '%')
+          order by code asc
+          limit $3::integer`,
+        [status?.success ? status.data : null, q, limit],
+      );
+      return { ok: true, data: rows.map(mapSupplier) };
+    });
+  } catch (err) {
+    console.error('[planning/suppliers] listSuppliers failed', err);
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function getSupplier(id: string): Promise<SupplierResult<Supplier>> {
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningReadPermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await ctx.client.query<SupplierRow>(
+        `select id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at
+           from public.suppliers
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1`,
+        [id],
+      );
+      const row = rows[0];
+      return row ? { ok: true, data: mapSupplier(row) } : { ok: false, error: 'not_found' };
+    });
+  } catch (err) {
+    console.error('[planning/suppliers] getSupplier failed', err);
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function createSupplier(rawInput: unknown): Promise<SupplierResult<Supplier>> {
+  const parsed = SupplierCreateInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await ctx.client.query<SupplierRow>(
+        `insert into public.suppliers
+           (org_id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_by, updated_by)
+         values
+           (app.current_org_id(), $1, $2, $3::jsonb, $4, $5::integer, $6, $7, $8::uuid, $8::uuid)
+         returning id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at`,
+        [
+          input.code,
+          input.name,
+          JSON.stringify(input.contact ?? {}),
+          input.currency,
+          input.leadTimeDays,
+          input.status,
+          input.notes ?? null,
+          userId,
+        ],
+      );
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'persistence_failed' };
+      await writeProcurementAudit(ctx, {
+        action: 'planning.supplier.created',
+        resourceType: 'supplier',
+        resourceId: row.id,
+        afterState: { code: row.code, name: row.name, status: row.status },
+      });
+      revalidateSupplierPaths(row.id);
+      return { ok: true, data: mapSupplier(row) };
+    });
+  } catch (err) {
+    const error = pgErrorToResult(err);
+    if (error !== 'persistence_failed') return { ok: false, error };
+    console.error('[planning/suppliers] createSupplier failed', err);
+    return { ok: false, error };
+  }
+}
+
+export async function updateSupplier(rawInput: unknown): Promise<SupplierResult<Supplier>> {
+  const parsed = SupplierUpdateInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const before = await ctx.client.query<SupplierRow>(
+        `select id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at
+           from public.suppliers
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1
+          for update`,
+        [input.id],
+      );
+      const previous = before.rows[0];
+      if (!previous) return { ok: false, error: 'not_found' };
+
+      const { rows, rowCount } = await ctx.client.query<SupplierRow>(
+        // `code` is the supplier natural key and is referenced by loose text
+        // soft-refs (supplier_specs.supplier_code, npd_packaging_components.supplier_code)
+        // that have NO FK cascade — editing it would silently desync them, so it is
+        // intentionally immutable here (renames would be a separate, cascade-aware op).
+        `update public.suppliers
+            set name = $2,
+                contact_jsonb = $3::jsonb,
+                currency = $4,
+                lead_time_days = $5::integer,
+                status = $6,
+                notes = $7,
+                updated_by = $8::uuid
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+        returning id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at`,
+        [
+          input.id,
+          input.name,
+          JSON.stringify(input.contact ?? {}),
+          input.currency,
+          input.leadTimeDays,
+          input.status,
+          input.notes ?? null,
+          userId,
+        ],
+      );
+      const row = rows[0];
+      if (rowCount === 0 || !row) return { ok: false, error: 'not_found' };
+
+      await writeProcurementAudit(ctx, {
+        action: 'planning.supplier.updated',
+        resourceType: 'supplier',
+        resourceId: row.id,
+        beforeState: {
+          code: previous.code,
+          name: previous.name,
+          contact: previous.contact_jsonb,
+          currency: previous.currency,
+          leadTimeDays: Number(previous.lead_time_days),
+          status: previous.status,
+          notes: previous.notes,
+        },
+        afterState: {
+          code: row.code,
+          name: row.name,
+          contact: row.contact_jsonb,
+          currency: row.currency,
+          leadTimeDays: Number(row.lead_time_days),
+          status: row.status,
+          notes: row.notes,
+        },
+      });
+      revalidateSupplierPaths(row.id);
+      return { ok: true, data: mapSupplier(row) };
+    });
+  } catch (err) {
+    const error = pgErrorToResult(err);
+    if (error !== 'persistence_failed') return { ok: false, error };
+    console.error('[planning/suppliers] updateSupplier failed', err);
+    return { ok: false, error };
+  }
+}
+
+export async function transitionSupplierStatus(id: string, status: string): Promise<SupplierResult<Supplier>> {
+  const parsed = SupplierStatusSchema.safeParse(status);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const before = await ctx.client.query<{ status: string }>(
+        `select status from public.suppliers where org_id = app.current_org_id() and id = $1::uuid limit 1`,
+        [id],
+      );
+      const previous = before.rows[0];
+      if (!previous) return { ok: false, error: 'not_found' };
+
+      const { rows } = await ctx.client.query<SupplierRow>(
+        `update public.suppliers
+            set status = $2,
+                updated_by = $3::uuid
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+        returning id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at`,
+        [id, parsed.data, userId],
+      );
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'not_found' };
+      await writeProcurementAudit(ctx, {
+        action: 'planning.supplier.status_changed',
+        resourceType: 'supplier',
+        resourceId: row.id,
+        beforeState: { status: previous.status },
+        afterState: { status: row.status },
+      });
+      revalidateSupplierPaths(row.id);
+      return { ok: true, data: mapSupplier(row) };
+    });
+  } catch (err) {
+    console.error('[planning/suppliers] transitionSupplierStatus failed', err);
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+codex
+The main risk pattern is emerging around import atomicity: validation and commit run in separate transactions, and the import loops can encounter runtime failures after earlier groups have been created. I’m verifying whether those failures roll back, and whether database uniqueness/foreign keys close the race windows.
+exec
+/bin/zsh -lc "rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts' | rtk sed -n '70,215p;315,390p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts' | rtk sed -n '65,210p;315,385p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts' | rtk sed -n '470,545p;780,945p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts' | rtk sed -n '180,310p'; rtk rg -n \"create table.*(purchase_orders|transfer_orders|suppliers)|unique.*(po_number|to_number|suppliers)|purchase_orders.*unique|transfer_orders.*unique|supplier_status|purchase_order_status\" packages/db/migrations" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+    70	  lineNo: number;
+    71	};
+    72	
+    73	export async function validatePoImport(rows: PoImportRow[]): Promise<PoValidationResult> {
+    74	  return withOrgContext(async ({ userId, orgId, client }): Promise<PoValidationResult> => {
+    75	    const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+    76	    await requirePlanningWritePermission(ctx);
+    77	    return validateRows(ctx.client, rows);
+    78	  });
+    79	}
+    80	
+    81	export async function commitPoImport(
+    82	  rows: PoImportRow[],
+    83	  options: { mode: 'all_or_nothing' | 'skip_invalid' },
+    84	): Promise<PoImportResult> {
+    85	  const validation = await validatePoImport(rows);
+    86	  const failed = validation.rows
+    87	    .filter((row) => !row.ok)
+    88	    .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
+    89	
+    90	  if (options.mode === 'all_or_nothing' && failed.length > 0) {
+    91	    return { created: [], skipped: [], failed };
+    92	  }
+    93	
+    94	  const validRows = rows
+    95	    .map((row, index): ValidImportRow | null => {
+    96	      const result = validation.rows[index];
+    97	      if (!result?.ok) return null;
+    98	      return {
+    99	        rowNumber: index + 1,
+   100	        row,
+   101	        externalRef: normalizeText(row.external_ref),
+   102	        supplierCode: normalizeText(row.supplier_code),
+   103	        itemCode: normalizeText(row.item_code),
+   104	        uom: normalizeText(row.uom),
+   105	      };
+   106	    })
+   107	    .filter((row): row is ValidImportRow => row !== null);
+   108	
+   109	  return withOrgContext(async ({ userId, orgId, client }): Promise<PoImportResult> => {
+   110	    const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+   111	    await requirePlanningWritePermission(ctx);
+   112	
+   113	    const created: PoImportResult['created'] = [];
+   114	    const skipped: PoImportResult['skipped'] = [];
+   115	    const skippedRefs = new Set<string>();
+   116	    const runtimeFailed: PoImportResult['failed'] = [...failed];
+   117	
+   118	    const existingRefs = await findExistingPurchaseOrderRefs(ctx.client, validRows.map((row) => row.externalRef));
+   119	    const rowsToCreate = validRows.filter((row) => {
+   120	      if (!existingRefs.has(row.externalRef)) return true;
+   121	      if (!skippedRefs.has(row.externalRef)) {
+   122	        skipped.push({ external_ref: row.externalRef, reason: `Purchase order already exists for external_ref "${row.externalRef}".` });
+   123	        skippedRefs.add(row.externalRef);
+   124	      }
+   125	      return false;
+   126	    });
+   127	
+   128	    const [suppliers, items] = await Promise.all([
+   129	      loadSuppliers(ctx.client, rowsToCreate.map((row) => row.supplierCode)),
+   130	      loadActiveItems(ctx.client, rowsToCreate.map((row) => row.itemCode)),
+   131	    ]);
+   132	
+   133	    for (const group of groupRows(rowsToCreate)) {
+   134	      const alreadyExists = await checkPoNumberExists(ctx.client, group.externalRef);
+   135	      if (alreadyExists) {
+   136	        failGroup(runtimeFailed, group, 'po_number', `Purchase order number "${group.externalRef}" already exists (duplicate_po_number).`);
+   137	        continue;
+   138	      }
+   139	
+   140	      const supplier = suppliers.get(group.supplierCode);
+   141	      if (!supplier) {
+   142	        failGroup(runtimeFailed, group, 'supplier_code', `Supplier code "${group.supplierCode}" was not found for this org.`);
+   143	        continue;
+   144	      }
+   145	
+   146	      const lineInputs: CreatePurchaseOrderLinePayload[] = [];
+   147	      let groupHasLookupFailure = false;
+   148	      for (const entry of group.rows) {
+   149	        const item = items.get(entry.itemCode);
+   150	        if (!item) {
+   151	          runtimeFailed.push({
+   152	            rowNumber: entry.rowNumber,
+   153	            errors: [{ column: 'item_code', message: `Item code "${entry.itemCode}" is not an active item for this org.` }],
+   154	          });
+   155	          groupHasLookupFailure = true;
+   156	          continue;
+   157	        }
+   158	        lineInputs.push({
+   159	          itemId: item.id,
+   160	          qty: numberToPlainString(entry.row.qty),
+   161	          uom: entry.uom,
+   162	          unitPrice: numberToPlainString(entry.row.price ?? 0),
+   163	          lineNo: lineInputs.length + 1,
+   164	        });
+   165	      }
+   166	      if (groupHasLookupFailure) continue;
+   167	
+   168	      const result = await createPurchaseOrderCore(ctx, {
+   169	        poNumber: group.externalRef,
+   170	        supplierId: supplier.id,
+   171	        status: 'draft',
+   172	        expectedDelivery: firstText(group.rows, (entry) => entry.row.expected_delivery),
+   173	        currency: firstText(group.rows, (entry) => entry.row.currency) ?? supplier.currency ?? 'GBP',
+   174	        notes: joinNotes(group.rows),
+   175	        lines: lineInputs,
+   176	      });
+   177	
+   178	      if (result.ok) {
+   179	        created.push({ po_number: result.data.poNumber, external_ref: group.externalRef });
+   180	        continue;
+   181	      }
+   182	
+   183	      failGroup(
+   184	        runtimeFailed,
+   185	        group,
+   186	        'external_ref',
+   187	        `Could not create purchase order for external_ref "${group.externalRef}": ${result.error}.`,
+   188	      );
+   189	    }
+   190	
+   191	    await insertImportJob(ctx.client, {
+   192	      userId,
+   193	      total: validation.summary.total,
+   194	      createdCount: created.length,
+   195	      skippedCount: skipped.length,
+   196	      failedCount: runtimeFailed.length,
+   197	    });
+   198	
+   199	    return { created, skipped, failed: runtimeFailed };
+   200	  });
+   201	}
+   202	
+   203	async function requirePlanningWritePermission(ctx: OrgActionContext): Promise<void> {
+   204	  if (!(await hasPlanningWritePermission(ctx))) {
+   205	    throw new PoImportForbiddenError();
+   206	  }
+   207	}
+   208	
+   209	async function validateRows(client: QueryClient, rows: PoImportRow[]): Promise<PoValidationResult> {
+   210	  const [suppliers, items, units] = await Promise.all([
+   211	    loadSuppliers(client, rows.map((row) => row.supplier_code)),
+   212	    loadActiveItems(client, rows.map((row) => row.item_code)),
+   213	    loadOrgUnits(client, rows.map((row) => row.uom)),
+   214	  ]);
+   215	
+   315	    [codes],
+   316	  );
+   317	  return new Set(rows.map((row) => row.code));
+   318	}
+   319	
+   320	async function checkPoNumberExists(client: QueryClient, poNumber: string): Promise<boolean> {
+   321	  const { rows } = await client.query<{ exists: boolean }>(
+   322	    `select exists(
+   323	       select 1 from public.purchase_orders
+   324	        where org_id = app.current_org_id()
+   325	          and po_number = $1
+   326	     ) as exists`,
+   327	    [poNumber],
+   328	  );
+   329	  return rows[0]?.exists === true;
+   330	}
+   331	
+   332	async function findExistingPurchaseOrderRefs(client: QueryClient, rawRefs: string[]): Promise<Set<string>> {
+   333	  const refs = uniqueNormalized(rawRefs);
+   334	  if (refs.length === 0) return new Set();
+   335	  const { rows } = await client.query<ExistingPurchaseOrderRow>(
+   336	    `select po_number
+   337	       from public.purchase_orders
+   338	      where org_id = app.current_org_id()
+   339	        and po_number = any($1::text[])`,
+   340	    [refs],
+   341	  );
+   342	  return new Set(rows.map((row) => row.po_number));
+   343	}
+   344	
+   345	async function insertImportJob(
+   346	  client: QueryClient,
+   347	  input: { userId: string; total: number; createdCount: number; skippedCount: number; failedCount: number },
+   348	): Promise<void> {
+   349	  await client.query(
+   350	    `insert into public.import_export_jobs
+   351	       (org_id, kind, target, status, progress_processed, progress_total, download_url, created_by, completed_at, metadata)
+   352	     values
+   353	       (app.current_org_id(), 'import', 'purchase_orders', 'completed', $1::integer, $1::integer, null, $2::uuid, pg_catalog.now(), $3::jsonb)`,
+   354	    [
+   355	      input.total,
+   356	      input.userId,
+   357	      JSON.stringify({
+   358	        total: input.total,
+   359	        created_count: input.createdCount,
+   360	        skipped_count: input.skippedCount,
+   361	        failed_count: input.failedCount,
+   362	      }),
+   363	    ],
+   364	  );
+   365	}
+   366	
+   367	function groupRows(rows: ValidImportRow[]): ImportGroup[] {
+   368	  const groups = new Map<string, ImportGroup>();
+   369	  for (const row of rows) {
+   370	    const key = `${row.supplierCode}\u0000${row.externalRef}`;
+   371	    const group = groups.get(key);
+   372	    if (group) {
+   373	      group.rows.push(row);
+   374	    } else {
+   375	      groups.set(key, { supplierCode: row.supplierCode, externalRef: row.externalRef, rows: [row] });
+   376	    }
+   377	  }
+   378	  return Array.from(groups.values());
+   379	}
+   380	
+   381	function failGroup(
+   382	  failed: PoImportResult['failed'],
+   383	  group: ImportGroup,
+   384	  column: string,
+   385	  message: string,
+   386	): void {
+   387	  for (const row of group.rows) {
+   388	    failed.push({ rowNumber: row.rowNumber, errors: [{ column, message }] });
+   389	  }
+   390	}
+    65	  qty: string;
+    66	  uom: string;
+    67	  lineNo: number;
+    68	};
+    69	
+    70	export async function validateToImport(rows: ToImportRow[]): Promise<ToValidationResult> {
+    71	  return withOrgContext(async ({ userId, orgId, client }): Promise<ToValidationResult> => {
+    72	    const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+    73	    await requirePlanningWritePermission(ctx);
+    74	    return validateRows(ctx.client, rows);
+    75	  });
+    76	}
+    77	
+    78	export async function commitToImport(
+    79	  rows: ToImportRow[],
+    80	  options: { mode: 'all_or_nothing' | 'skip_invalid' },
+    81	): Promise<ToImportResult> {
+    82	  const validation = await validateToImport(rows);
+    83	  const failed = validation.rows
+    84	    .filter((row) => !row.ok)
+    85	    .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
+    86	
+    87	  if (options.mode === 'all_or_nothing' && failed.length > 0) {
+    88	    return { created: [], skipped: [], failed };
+    89	  }
+    90	
+    91	  const validRows = rows
+    92	    .map((row, index): ValidImportRow | null => {
+    93	      const result = validation.rows[index];
+    94	      if (!result?.ok) return null;
+    95	      return {
+    96	        rowNumber: index + 1,
+    97	        row,
+    98	        externalRef: normalizeText(row.external_ref),
+    99	        fromWarehouseCode: normalizeText(row.from_warehouse_code),
+   100	        toWarehouseCode: normalizeText(row.to_warehouse_code),
+   101	        itemCode: normalizeText(row.item_code),
+   102	        uom: normalizeText(row.uom),
+   103	      };
+   104	    })
+   105	    .filter((row): row is ValidImportRow => row !== null);
+   106	
+   107	  return withOrgContext(async ({ userId, orgId, client }): Promise<ToImportResult> => {
+   108	    const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+   109	    await requirePlanningWritePermission(ctx);
+   110	
+   111	    const created: ToImportResult['created'] = [];
+   112	    const skipped: ToImportResult['skipped'] = [];
+   113	    const skippedRefs = new Set<string>();
+   114	    const runtimeFailed: ToImportResult['failed'] = [...failed];
+   115	
+   116	    const existingRefs = await findExistingTransferOrderRefs(ctx.client, validRows.map((row) => row.externalRef));
+   117	    const rowsToCreate = validRows.filter((row) => {
+   118	      if (!existingRefs.has(row.externalRef)) return true;
+   119	      if (!skippedRefs.has(row.externalRef)) {
+   120	        skipped.push({ external_ref: row.externalRef, reason: `Transfer order already exists for external_ref "${row.externalRef}".` });
+   121	        skippedRefs.add(row.externalRef);
+   122	      }
+   123	      return false;
+   124	    });
+   125	
+   126	    const [warehouses, items] = await Promise.all([
+   127	      loadWarehouses(ctx.client, rowsToCreate.flatMap((row) => [row.fromWarehouseCode, row.toWarehouseCode])),
+   128	      loadActiveItems(ctx.client, rowsToCreate.map((row) => row.itemCode)),
+   129	    ]);
+   130	
+   131	    for (const group of groupRows(rowsToCreate)) {
+   132	      const fromWarehouse = warehouses.get(group.fromWarehouseCode);
+   133	      const toWarehouse = warehouses.get(group.toWarehouseCode);
+   134	      if (!fromWarehouse) {
+   135	        failGroup(runtimeFailed, group, 'from_warehouse_code', `Warehouse code "${group.fromWarehouseCode}" was not found for this org.`);
+   136	        continue;
+   137	      }
+   138	      if (!toWarehouse) {
+   139	        failGroup(runtimeFailed, group, 'to_warehouse_code', `Warehouse code "${group.toWarehouseCode}" was not found for this org.`);
+   140	        continue;
+   141	      }
+   142	      if (fromWarehouse.id === toWarehouse.id) {
+   143	        failGroup(runtimeFailed, group, 'to_warehouse_code', 'Transfer source and destination warehouses must differ.');
+   144	        continue;
+   145	      }
+   146	
+   147	      const lineInputs: CreateTransferOrderLinePayload[] = [];
+   148	      let groupHasLookupFailure = false;
+   149	      for (const entry of group.rows) {
+   150	        const item = items.get(entry.itemCode);
+   151	        if (!item) {
+   152	          runtimeFailed.push({
+   153	            rowNumber: entry.rowNumber,
+   154	            errors: [{ column: 'item_code', message: `Item code "${entry.itemCode}" is not an active item for this org.` }],
+   155	          });
+   156	          groupHasLookupFailure = true;
+   157	          continue;
+   158	        }
+   159	        lineInputs.push({
+   160	          itemId: item.id,
+   161	          qty: numberToPlainString(entry.row.qty),
+   162	          uom: entry.uom,
+   163	          lineNo: lineInputs.length + 1,
+   164	        });
+   165	      }
+   166	      if (groupHasLookupFailure) continue;
+   167	
+   168	      const result = await createTransferOrder({
+   169	        toNumber: group.externalRef,
+   170	        fromWarehouseId: fromWarehouse.id,
+   171	        toWarehouseId: toWarehouse.id,
+   172	        status: 'draft',
+   173	        scheduledDate: firstText(group.rows, (entry) => entry.row.date),
+   174	        lines: lineInputs,
+   175	      });
+   176	
+   177	      if (result.ok) {
+   178	        created.push({ to_number: result.data.toNumber, external_ref: group.externalRef });
+   179	        continue;
+   180	      }
+   181	
+   182	      failGroup(
+   183	        runtimeFailed,
+   184	        group,
+   185	        'external_ref',
+   186	        `Could not create transfer order for external_ref "${group.externalRef}": ${result.message ?? result.error}.`,
+   187	      );
+   188	    }
+   189	
+   190	    await insertImportJob(ctx.client, {
+   191	      userId,
+   192	      total: validation.summary.total,
+   193	      createdCount: created.length,
+   194	      skippedCount: skipped.length,
+   195	      failedCount: runtimeFailed.length,
+   196	      createdExternalRefs: created.map((row) => row.external_ref),
+   197	    });
+   198	
+   199	    return { created, skipped, failed: runtimeFailed };
+   200	  });
+   201	}
+   202	
+   203	async function requirePlanningWritePermission(ctx: OrgActionContext): Promise<void> {
+   204	  if (!(await hasPlanningWritePermission(ctx))) {
+   205	    throw new ToImportForbiddenError();
+   206	  }
+   207	}
+   208	
+   209	async function validateRows(client: QueryClient, rows: ToImportRow[]): Promise<ToValidationResult> {
+   210	  const [warehouses, items, units] = await Promise.all([
+   315	      where org_id = app.current_org_id()
+   316	        and deleted_at is null
+   317	        and code = any($1::text[])`,
+   318	    [codes],
+   319	  );
+   320	  return new Set(rows.map((row) => row.code));
+   321	}
+   322	
+   323	async function findExistingTransferOrderRefs(client: QueryClient, rawRefs: string[]): Promise<Set<string>> {
+   324	  const refs = uniqueNormalized(rawRefs);
+   325	  if (refs.length === 0) return new Set();
+   326	  const { rows } = await client.query<ExistingTransferOrderRow>(
+   327	    `select to_number
+   328	       from public.transfer_orders
+   329	      where org_id = app.current_org_id()
+   330	        and to_number = any($1::text[])`,
+   331	    [refs],
+   332	  );
+   333	  return new Set(rows.map((row) => row.to_number));
+   334	}
+   335	
+   336	async function insertImportJob(
+   337	  client: QueryClient,
+   338	  input: {
+   339	    userId: string;
+   340	    total: number;
+   341	    createdCount: number;
+   342	    skippedCount: number;
+   343	    failedCount: number;
+   344	    createdExternalRefs: string[];
+   345	  },
+   346	): Promise<void> {
+   347	  await client.query(
+   348	    `insert into public.import_export_jobs
+   349	       (org_id, kind, target, status, progress_processed, progress_total, download_url, created_by, completed_at, metadata)
+   350	     values
+   351	       (app.current_org_id(), 'import', 'transfer_orders', 'completed', $1::integer, $1::integer, null, $2::uuid, pg_catalog.now(), $3::jsonb)`,
+   352	    [
+   353	      input.total,
+   354	      input.userId,
+   355	      JSON.stringify({
+   356	        total: input.total,
+   357	        created_count: input.createdCount,
+   358	        skipped_count: input.skippedCount,
+   359	        failed_count: input.failedCount,
+   360	        created_external_refs: input.createdExternalRefs,
+   361	      }),
+   362	    ],
+   363	  );
+   364	}
+   365	
+   366	function groupRows(rows: ValidImportRow[]): ImportGroup[] {
+   367	  const groups = new Map<string, ImportGroup>();
+   368	  for (const row of rows) {
+   369	    const key = `${row.fromWarehouseCode}\u0000${row.toWarehouseCode}\u0000${row.externalRef}`;
+   370	    const group = groups.get(key);
+   371	    if (group) {
+   372	      group.rows.push(row);
+   373	    } else {
+   374	      groups.set(key, {
+   375	        fromWarehouseCode: row.fromWarehouseCode,
+   376	        toWarehouseCode: row.toWarehouseCode,
+   377	        externalRef: row.externalRef,
+   378	        rows: [row],
+   379	      });
+   380	    }
+   381	  }
+   382	  return Array.from(groups.values());
+   383	}
+   384	
+   385	function failGroup(
+   470	    if (error !== 'persistence_failed') return { ok: false, error };
+   471	    console.error('[planning/purchase-orders] createPurchaseOrder failed', err);
+   472	    return { ok: false, error };
+   473	  }
+   474	}
+   475	
+   476	export async function updatePurchaseOrder(rawInput: unknown): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+   477	  const parsed = UpdatePurchaseOrderInput.safeParse(rawInput);
+   478	  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+   479	  const input = parsed.data;
+   480	
+   481	  try {
+   482	    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+   483	      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+   484	      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+   485	
+   486	      const before = await fetchDraftPurchaseOrderForUpdate(ctx.client, input.id);
+   487	      if (!before) return { ok: false, error: 'not_found' };
+   488	      if (before.status !== 'draft') return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+   489	
+   490	      if (input.supplierId) {
+   491	        const supplierCheck = await ensureSupplierInOrg(ctx.client, input.supplierId);
+   492	        if (supplierCheck === 'not_found') return { ok: false, error: 'not_found' };
+   493	        if (supplierCheck === 'supplier_blocked' && input.supplierId !== before.supplier_id) {
+   494	          return { ok: false, error: 'supplier_blocked', code: 'supplier_blocked', message: 'Supplier is blocked' };
+   495	        }
+   496	      }
+   497	
+   498	      const { rows } = await ctx.client.query<PurchaseOrderRow>(
+   499	        `update public.purchase_orders
+   500	            set supplier_id = coalesce($2::uuid, supplier_id),
+   501	                expected_delivery = case when $7::boolean then nullif($3, '')::date else expected_delivery end,
+   502	                currency = coalesce($4, currency),
+   503	                notes = case when $8::boolean then nullif($5, '') else notes end,
+   504	                updated_by = $6::uuid
+   505	          where org_id = app.current_org_id()
+   506	            and id = $1::uuid
+   507	            and status = 'draft'
+   508	        returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
+   509	                  status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
+   510	        [
+   511	          input.id,
+   512	          input.supplierId ?? null,
+   513	          input.expectedDelivery ?? null,
+   514	          input.currency ?? null,
+   515	          input.notes ?? null,
+   516	          userId,
+   517	          input.expectedDelivery !== undefined,
+   518	          input.notes !== undefined,
+   519	        ],
+   520	      );
+   521	      const row = rows[0];
+   522	      if (!row) return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+   523	
+   524	      await writeProcurementAudit(ctx, {
+   525	        action: 'planning.purchase_order.updated',
+   526	        resourceType: 'purchase_order',
+   527	        resourceId: row.id,
+   528	        beforeState: {
+   529	          supplierId: before.supplier_id,
+   530	          expectedDelivery: before.expected_delivery,
+   531	          currency: before.currency,
+   532	          notes: before.notes,
+   533	        },
+   534	        afterState: {
+   535	          supplierId: row.supplier_id,
+   536	          expectedDelivery: row.expected_delivery,
+   537	          currency: row.currency,
+   538	          notes: row.notes,
+   539	        },
+   540	      });
+   541	      revalidatePurchaseOrderPaths(row.id);
+   542	      return { ok: true, data: { ...mapPurchaseOrder(row), lines: await fetchLines(ctx.client, row.id) } };
+   543	    });
+   544	  } catch (err) {
+   545	    const error = pgErrorToResult(err);
+   780	    return { ok: false, error };
+   781	  }
+   782	}
+   783	
+   784	// Server-side state machine for PO status. Terminal states (received, cancelled)
+   785	// have no legal successors. The client surfaces only legal transitions, but we
+   786	// re-validate here so a forged/stale request can never apply an illegal jump.
+   787	const PO_TRANSITIONS: Record<string, readonly string[]> = {
+   788	  draft: ['sent', 'cancelled'],
+   789	  sent: ['draft', 'confirmed', 'cancelled'],
+   790	  confirmed: ['cancelled'],
+   791	  partially_received: ['cancelled'],
+   792	  received: [],
+   793	  cancelled: [],
+   794	};
+   795	
+   796	export async function reopenPurchaseOrder(poId: string): Promise<PurchaseOrderResult<PurchaseOrder>> {
+   797	  const parsed = uuidSchema.safeParse(poId);
+   798	  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+   799	
+   800	  try {
+   801	    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrder>> => {
+   802	      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+   803	      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+   804	
+   805	      const before = await fetchDraftPurchaseOrderForUpdate(ctx.client, parsed.data);
+   806	      if (!before) return { ok: false, error: 'not_found' };
+   807	      // Reopen un-sends a SENT po OR un-cancels a CANCELLED po, both back to
+   808	      // draft (the detail UI shows "Przywróć do wersji roboczej" for cancelled).
+   809	      // PO_TRANSITIONS treats cancelled as terminal, so this is the dedicated
+   810	      // reopen path; the po_has_receipts guard below still blocks reopening a po
+   811	      // that has receipts.
+   812	      if (before.status !== 'sent' && before.status !== 'cancelled') {
+   813	        return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+   814	      }
+   815	
+   816	      const receiptState = await getPurchaseOrderReceiptState(ctx.client, parsed.data);
+   817	      if (receiptState.activeReceivedCount > 0 || receiptState.grnLineCount > 0) {
+   818	        return { ok: false, error: 'po_has_receipts', code: 'po_has_receipts' };
+   819	      }
+   820	
+   821	      const { rows } = await ctx.client.query<PurchaseOrderRow>(
+   822	        `update public.purchase_orders
+   823	            set status = 'draft',
+   824	                updated_by = $2::uuid
+   825	          where org_id = app.current_org_id()
+   826	            and id = $1::uuid
+   827	            and status in ('sent', 'cancelled')
+   828	            and not exists (
+   829	              select 1
+   830	                from public.grn_items gi
+   831	                left join public.grns g
+   832	                  on g.org_id = app.current_org_id()
+   833	                 and g.id = gi.grn_id
+   834	               where gi.org_id = app.current_org_id()
+   835	                 and gi.cancelled_at is null
+   836	                 and coalesce(g.status, 'draft') <> 'cancelled'
+   837	                 and (
+   838	                   gi.po_line_id in (
+   839	                     select pol.id
+   840	                       from public.purchase_order_lines pol
+   841	                      where pol.org_id = app.current_org_id()
+   842	                        and pol.po_id = $1::uuid
+   843	                   )
+   844	                   or g.po_id = $1::uuid
+   845	                 )
+   846	            )
+   847	        returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
+   848	                  status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
+   849	        [parsed.data, userId],
+   850	      );
+   851	      const row = rows[0];
+   852	      if (!row) {
+   853	        const currentReceiptState = await getPurchaseOrderReceiptState(ctx.client, parsed.data);
+   854	        if (currentReceiptState.activeReceivedCount > 0 || currentReceiptState.grnLineCount > 0) {
+   855	          return { ok: false, error: 'po_has_receipts', code: 'po_has_receipts' };
+   856	        }
+   857	        return { ok: false, error: 'invalid_state', code: 'invalid_state' };
+   858	      }
+   859	
+   860	      await writeProcurementAudit(ctx, {
+   861	        action: 'planning.purchase_order.status_changed',
+   862	        resourceType: 'purchase_order',
+   863	        resourceId: row.id,
+   864	        beforeState: { status: before.status },
+   865	        afterState: { status: row.status },
+   866	      });
+   867	      revalidatePurchaseOrderPaths(row.id);
+   868	      return { ok: true, data: mapPurchaseOrder(row) };
+   869	    });
+   870	  } catch (err) {
+   871	    console.error('[planning/purchase-orders] reopenPurchaseOrder failed', err);
+   872	    return { ok: false, error: 'persistence_failed' };
+   873	  }
+   874	}
+   875	
+   876	export async function transitionPurchaseOrderStatus(id: string, status: string): Promise<PurchaseOrderResult<PurchaseOrder>> {
+   877	  const parsed = PurchaseOrderStatusSchema.safeParse(status);
+   878	  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+   879	
+   880	  try {
+   881	    return await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrder>> => {
+   882	      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+   883	      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+   884	
+   885	      const before = await ctx.client.query<{ status: string }>(
+   886	        `select status
+   887	           from public.purchase_orders
+   888	          where org_id = app.current_org_id()
+   889	            and id = $1::uuid
+   890	          limit 1
+   891	          for update`,
+   892	        [id],
+   893	      );
+   894	      const previous = before.rows[0];
+   895	      if (!previous) return { ok: false, error: 'not_found' };
+   896	
+   897	      if (parsed.data === 'received' || parsed.data === 'partially_received') {
+   898	        const receiptState = await getPurchaseOrderReceiptState(ctx.client, id);
+   899	        if (parsed.data === 'partially_received' && receiptState.activeReceivedCount === 0) {
+   900	          return { ok: false, error: 'po_open_quantity', code: 'po_open_quantity' };
+   901	        }
+   902	        if (parsed.data === 'received' && !(await isPurchaseOrderFullyReceived(ctx.client, id))) {
+   903	          return { ok: false, error: 'po_open_quantity', code: 'po_open_quantity' };
+   904	        }
+   905	      }
+   906	
+   907	      // Guard the transition server-side against the legal state machine.
+   908	      const allowed = PO_TRANSITIONS[previous.status] ?? [];
+   909	      if (!allowed.includes(parsed.data)) return { ok: false, error: 'invalid_state' };
+   910	      if (parsed.data === 'cancelled') {
+   911	        const receiptState = await getPurchaseOrderReceiptState(ctx.client, id);
+   912	        if (receiptState.activeReceivedCount > 0) return { ok: false, error: 'po_has_receipts', code: 'po_has_receipts' };
+   913	      }
+   914	
+   915	      const { rows } = await ctx.client.query<PurchaseOrderRow>(
+   916	        `update public.purchase_orders
+   917	            set status = $2,
+   918	                updated_by = $3::uuid
+   919	          where org_id = app.current_org_id()
+   920	            and id = $1::uuid
+   921	        returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
+   922	                  status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
+   923	        [id, parsed.data, userId],
+   924	      );
+   925	      const row = rows[0];
+   926	      if (!row) return { ok: false, error: 'not_found' };
+   927	      await writeProcurementAudit(ctx, {
+   928	        action: 'planning.purchase_order.status_changed',
+   929	        resourceType: 'purchase_order',
+   930	        resourceId: row.id,
+   931	        beforeState: { status: previous.status },
+   932	        afterState: { status: row.status },
+   933	      });
+   934	      revalidatePurchaseOrderPaths(row.id);
+   935	      return { ok: true, data: mapPurchaseOrder(row) };
+   936	    });
+   937	  } catch (err) {
+   938	    console.error('[planning/purchase-orders] transitionPurchaseOrderStatus failed', err);
+   939	    return { ok: false, error: 'persistence_failed' };
+   940	  }
+   941	}
+   180	
+   181	export async function updateSupplier(rawInput: unknown): Promise<SupplierResult<Supplier>> {
+   182	  const parsed = SupplierUpdateInput.safeParse(rawInput);
+   183	  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+   184	  const input = parsed.data;
+   185	
+   186	  try {
+   187	    return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier>> => {
+   188	      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+   189	      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+   190	
+   191	      const before = await ctx.client.query<SupplierRow>(
+   192	        `select id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at
+   193	           from public.suppliers
+   194	          where org_id = app.current_org_id()
+   195	            and id = $1::uuid
+   196	          limit 1
+   197	          for update`,
+   198	        [input.id],
+   199	      );
+   200	      const previous = before.rows[0];
+   201	      if (!previous) return { ok: false, error: 'not_found' };
+   202	
+   203	      const { rows, rowCount } = await ctx.client.query<SupplierRow>(
+   204	        // `code` is the supplier natural key and is referenced by loose text
+   205	        // soft-refs (supplier_specs.supplier_code, npd_packaging_components.supplier_code)
+   206	        // that have NO FK cascade — editing it would silently desync them, so it is
+   207	        // intentionally immutable here (renames would be a separate, cascade-aware op).
+   208	        `update public.suppliers
+   209	            set name = $2,
+   210	                contact_jsonb = $3::jsonb,
+   211	                currency = $4,
+   212	                lead_time_days = $5::integer,
+   213	                status = $6,
+   214	                notes = $7,
+   215	                updated_by = $8::uuid
+   216	          where org_id = app.current_org_id()
+   217	            and id = $1::uuid
+   218	        returning id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at`,
+   219	        [
+   220	          input.id,
+   221	          input.name,
+   222	          JSON.stringify(input.contact ?? {}),
+   223	          input.currency,
+   224	          input.leadTimeDays,
+   225	          input.status,
+   226	          input.notes ?? null,
+   227	          userId,
+   228	        ],
+   229	      );
+   230	      const row = rows[0];
+   231	      if (rowCount === 0 || !row) return { ok: false, error: 'not_found' };
+   232	
+   233	      await writeProcurementAudit(ctx, {
+   234	        action: 'planning.supplier.updated',
+   235	        resourceType: 'supplier',
+   236	        resourceId: row.id,
+   237	        beforeState: {
+   238	          code: previous.code,
+   239	          name: previous.name,
+   240	          contact: previous.contact_jsonb,
+   241	          currency: previous.currency,
+   242	          leadTimeDays: Number(previous.lead_time_days),
+   243	          status: previous.status,
+   244	          notes: previous.notes,
+   245	        },
+   246	        afterState: {
+   247	          code: row.code,
+   248	          name: row.name,
+   249	          contact: row.contact_jsonb,
+   250	          currency: row.currency,
+   251	          leadTimeDays: Number(row.lead_time_days),
+   252	          status: row.status,
+   253	          notes: row.notes,
+   254	        },
+   255	      });
+   256	      revalidateSupplierPaths(row.id);
+   257	      return { ok: true, data: mapSupplier(row) };
+   258	    });
+   259	  } catch (err) {
+   260	    const error = pgErrorToResult(err);
+   261	    if (error !== 'persistence_failed') return { ok: false, error };
+   262	    console.error('[planning/suppliers] updateSupplier failed', err);
+   263	    return { ok: false, error };
+   264	  }
+   265	}
+   266	
+   267	export async function transitionSupplierStatus(id: string, status: string): Promise<SupplierResult<Supplier>> {
+   268	  const parsed = SupplierStatusSchema.safeParse(status);
+   269	  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+   270	
+   271	  try {
+   272	    return await withOrgContext(async ({ userId, orgId, client }): Promise<SupplierResult<Supplier>> => {
+   273	      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+   274	      if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+   275	
+   276	      const before = await ctx.client.query<{ status: string }>(
+   277	        `select status from public.suppliers where org_id = app.current_org_id() and id = $1::uuid limit 1`,
+   278	        [id],
+   279	      );
+   280	      const previous = before.rows[0];
+   281	      if (!previous) return { ok: false, error: 'not_found' };
+   282	
+   283	      const { rows } = await ctx.client.query<SupplierRow>(
+   284	        `update public.suppliers
+   285	            set status = $2,
+   286	                updated_by = $3::uuid
+   287	          where org_id = app.current_org_id()
+   288	            and id = $1::uuid
+   289	        returning id, code, name, contact_jsonb, currency, lead_time_days, status, notes, created_at, updated_at`,
+   290	        [id, parsed.data, userId],
+   291	      );
+   292	      const row = rows[0];
+   293	      if (!row) return { ok: false, error: 'not_found' };
+   294	      await writeProcurementAudit(ctx, {
+   295	        action: 'planning.supplier.status_changed',
+   296	        resourceType: 'supplier',
+   297	        resourceId: row.id,
+   298	        beforeState: { status: previous.status },
+   299	        afterState: { status: row.status },
+   300	      });
+   301	      revalidateSupplierPaths(row.id);
+   302	      return { ok: true, data: mapSupplier(row) };
+   303	    });
+   304	  } catch (err) {
+   305	    console.error('[planning/suppliers] transitionSupplierStatus failed', err);
+   306	    return { ok: false, error: 'persistence_failed' };
+   307	  }
+   308	}
+packages/db/migrations/162-lab-supplier.sql:96:  supplier_status text not null default 'pending',      -- 'pending'|'approved'|'blocked'
+packages/db/migrations/162-lab-supplier.sql:123:  constraint supplier_specs_supplier_status_check check (
+packages/db/migrations/162-lab-supplier.sql:124:    supplier_status in ('pending', 'approved', 'blocked')
+packages/db/migrations/251-demo-manufacturing-ops-and-supplier-specs.sql:50:  (org_id, item_id, supplier_code, supplier_status, spec_version,
+packages/db/migrations/251-demo-manufacturing-ops-and-supplier-specs.sql:108:  set supplier_status     = 'approved',
+packages/db/migrations/263-planning-transfer-orders.sql:8:create table if not exists public.transfer_orders (
+packages/db/migrations/263-planning-transfer-orders.sql:22:  constraint transfer_orders_org_to_number_unique unique (org_id, to_number),
+packages/db/migrations/257-packaging-supplier-specs-seed.sql:12:  (org_id, item_id, supplier_code, supplier_status, spec_version,
+packages/db/migrations/257-packaging-supplier-specs-seed.sql:35:  set supplier_status     = 'approved',
+packages/db/migrations/215-multi-site-sites-registry-context.sql:287:create table if not exists public.inter_site_transfer_orders (
+packages/db/migrations/215-multi-site-sites-registry-context.sql:317:  constraint inter_site_transfer_orders_org_to_number_uq unique (org_id, to_number),
+packages/db/migrations/261-planning-suppliers.sql:7:create table if not exists public.suppliers (
+packages/db/migrations/174-supplier-specs-phase1-governance.sql:6:-- supplier_status / lifecycle_status / review_status vocabularies, approval+rejection audit
+packages/db/migrations/174-supplier-specs-phase1-governance.sql:176:  if v_spec.supplier_status <> 'approved' then
+packages/db/migrations/174-supplier-specs-phase1-governance.sql:273:    org_id, site_id, item_id, supplier_code, supplier_status,
+packages/db/migrations/262-planning-purchase-orders.sql:7:create table if not exists public.purchase_orders (
+packages/db/migrations/262-planning-purchase-orders.sql:21:  constraint purchase_orders_org_po_number_unique unique (org_id, po_number),
+
+exec
+/bin/zsh -lc "rtk rg -n \"export async function createTransferOrder|const TransferOrderCreate|insert into public.transfer_order|return \\{ ok: false\" 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts' | rtk sed -n '380,520p'; rtk nl -ba packages/db/migrations/261-planning-suppliers.sql | rtk sed -n '1,70p'; rtk nl -ba packages/db/migrations/262-planning-purchase-orders.sql | rtk sed -n '1,100p'; rtk nl -ba packages/db/migrations/263-planning-transfer-orders.sql | rtk sed -n '1,95p'; rtk rg -n \"SupplierCreateInput|PurchaseOrderCreateInput|SupplierStatusSchema\" 'apps/web/app/[locale]/(app)/(modules)/planning/_actions/procurement-shared.ts'" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 109ms:
+43:export const SupplierStatusSchema = z.enum(['active', 'inactive', 'blocked']);
+54:export const SupplierCreateInput = z.object({
+60:  status: SupplierStatusSchema.default('active'),
+72:export const PurchaseOrderCreateInput = z.object({
+
+exec
+/bin/zsh -lc "rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/_actions/procurement-shared.ts' | rtk sed -n '35,100p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts' | rtk sed -n '75,115p;135,210p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts' | rtk sed -n '215,285p;390,470p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts' | rtk sed -n '210,285p;385,460p'" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+    35	  .regex(/^\d+(?:\.\d{1,3})?$/)
+    36	  .refine((value) => Number(value) > 0, 'quantity must be positive');
+    37	export const numeric4Schema = z
+    38	  .string()
+    39	  .trim()
+    40	  .regex(/^\d+(?:\.\d{1,4})?$/)
+    41	  .refine((value) => Number(value) >= 0, 'unit price must be non-negative');
+    42	
+    43	export const SupplierStatusSchema = z.enum(['active', 'inactive', 'blocked']);
+    44	export const PurchaseOrderStatusSchema = z.enum([
+    45	  'draft',
+    46	  'sent',
+    47	  'confirmed',
+    48	  'partially_received',
+    49	  'received',
+    50	  'cancelled',
+    51	]);
+    52	export const TransferOrderStatusSchema = z.enum(['draft', 'in_transit', 'partially_received', 'received', 'cancelled']);
+    53	
+    54	export const SupplierCreateInput = z.object({
+    55	  code: z.string().trim().min(1).max(80),
+    56	  name: z.string().trim().min(1).max(255),
+    57	  contact: z.record(z.string(), z.unknown()).optional(),
+    58	  currency: z.string().trim().length(3).default('GBP'),
+    59	  leadTimeDays: z.number().int().min(0).max(3650).default(0),
+    60	  status: SupplierStatusSchema.default('active'),
+    61	  notes: z.string().trim().max(2000).optional(),
+    62	});
+    63	
+    64	export const PurchaseOrderLineInput = z.object({
+    65	  itemId: uuidSchema,
+    66	  qty: numeric3Schema,
+    67	  uom: z.string().trim().min(1).max(32),
+    68	  unitPrice: numeric4Schema.default('0'),
+    69	  lineNo: z.number().int().positive(),
+    70	});
+    71	
+    72	export const PurchaseOrderCreateInput = z.object({
+    73	  poNumber: z.preprocess(
+    74	    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    75	    z.string().trim().min(1).max(80).optional(),
+    76	  ),
+    77	  supplierId: uuidSchema,
+    78	  status: PurchaseOrderStatusSchema.default('draft'),
+    79	  expectedDelivery: dateSchema.optional(),
+    80	  currency: z.string().trim().length(3).default('GBP'),
+    81	  notes: z.string().trim().max(2000).optional(),
+    82	  lines: z.array(PurchaseOrderLineInput).min(1).max(200),
+    83	});
+    84	
+    85	export const TransferOrderLineInput = z.object({
+    86	  itemId: uuidSchema,
+    87	  qty: numeric3Schema,
+    88	  uom: z.string().trim().min(1).max(32),
+    89	  lineNo: z.number().int().positive(),
+    90	});
+    91	
+    92	export const TransferOrderCreateInput = z.object({
+    93	  toNumber: z.preprocess(
+    94	    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    95	    z.string().trim().min(1).max(80).optional(),
+    96	  ),
+    97	  fromWarehouseId: uuidSchema.optional(),
+    98	  toWarehouseId: uuidSchema.optional(),
+    99	  status: TransferOrderStatusSchema.default('draft'),
+   100	  scheduledDate: dateSchema.optional(),
+    75	export type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
+    76	
+    77	export type PurchaseOrderError =
+    78	  | ProcurementError
+    79	  | 'last_line'
+    80	  | 'po_has_receipts'
+    81	  | 'po_open_quantity'
+    82	  | 'no_active_site'
+    83	  | 'ambiguous_site'
+    84	  | 'supplier_blocked';
+    85	
+    86	export type PurchaseOrderResult<T> =
+    87	  | { ok: true; data: T }
+    88	  | { ok: false; error: PurchaseOrderError; code?: PurchaseOrderError; message?: string };
+    89	
+    90	export const CreatePurchaseOrderInput = PurchaseOrderCreateInput.extend({
+    91	  destinationWarehouseId: uuidSchema.optional(),
+    92	});
+    93	
+    94	export type CreatePurchaseOrderInputType = z.infer<typeof CreatePurchaseOrderInput>;
+    95	
+    96	export type CreatePurchaseOrderCoreContext = OrgActionContext;
+    97	
+    98	function mapPurchaseOrder(row: PurchaseOrderRow): PurchaseOrder {
+    99	  return {
+   100	    id: row.id,
+   101	    poNumber: row.po_number,
+   102	    supplierId: row.supplier_id,
+   103	    supplierCode: row.supplier_code,
+   104	    supplierName: row.supplier_name,
+   105	    destinationWarehouseId: row.destination_warehouse_id ?? null,
+   106	    destinationWarehouseName: row.destination_warehouse_name ?? null,
+   107	    status: row.status,
+   108	    expectedDelivery: row.expected_delivery,
+   109	    currency: row.currency,
+   110	    notes: row.notes,
+   111	    createdAt: toIso(row.created_at),
+   112	    updatedAt: toIso(row.updated_at),
+   113	  };
+   114	}
+   115	
+   135	            coalesce(rec.received_qty, 0)::text as received_qty
+   136	       from public.purchase_order_lines l
+   137	       left join public.items i on i.org_id = app.current_org_id() and i.id = l.item_id
+   138	       left join (
+   139	         select gi.po_line_id, sum(gi.received_qty) as received_qty
+   140	           from public.grn_items gi
+   141	           join public.grns g
+   142	             on g.id = gi.grn_id
+   143	            and g.org_id = app.current_org_id()
+   144	            and g.status <> 'cancelled'
+   145	          where gi.org_id = app.current_org_id()
+   146	            and gi.po_line_id is not null
+   147	            and gi.cancelled_at is null
+   148	          group by gi.po_line_id
+   149	       ) rec on rec.po_line_id = l.id
+   150	      where l.org_id = app.current_org_id()
+   151	        and l.po_id = $1::uuid
+   152	      order by l.line_no asc`,
+   153	    [poId],
+   154	  );
+   155	  return rows.map(mapLine);
+   156	}
+   157	
+   158	export async function createPurchaseOrderCore(
+   159	  ctx: CreatePurchaseOrderCoreContext,
+   160	  input: CreatePurchaseOrderInputType,
+   161	): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+   162	  const { userId, orgId } = ctx;
+   163	  if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+   164	
+   165	  const siteResolution = await resolveWriteSiteId(ctx.client);
+   166	  if (!siteResolution.ok) return { ok: false, error: siteResolution.reason };
+   167	  const siteId = siteResolution.siteId;
+   168	
+   169	  const { rows: supplierRows } = await ctx.client.query<{ status: string }>(
+   170	    `select status
+   171	       from public.suppliers
+   172	      where org_id = app.current_org_id()
+   173	        and id = $1::uuid
+   174	      limit 1`,
+   175	    [input.supplierId],
+   176	  );
+   177	  const supplier = supplierRows[0];
+   178	  if (!supplier) return { ok: false, error: 'not_found' };
+   179	  if (supplier.status === 'blocked') {
+   180	    return { ok: false, error: 'supplier_blocked', code: 'supplier_blocked', message: 'Supplier is blocked' };
+   181	  }
+   182	
+   183	  async function insertHeader(poNumber: string) {
+   184	    return ctx.client.query<PurchaseOrderRow>(
+   185	      `insert into public.purchase_orders
+   186	         (org_id, site_id, po_number, supplier_id, destination_warehouse_id, status, expected_delivery, currency, notes, created_by, updated_by)
+   187	       values
+   188	         (app.current_org_id(), $9::uuid, $1, $2::uuid, $3::uuid, $4, $5::date, $6, $7, $8::uuid, $8::uuid)
+   189	       returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
+   190	                 destination_warehouse_id, null::text as destination_warehouse_name,
+   191	                 status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
+   192	      [
+   193	        poNumber,
+   194	        input.supplierId,
+   195	        input.destinationWarehouseId ?? null,
+   196	        'draft',
+   197	        input.expectedDelivery ?? null,
+   198	        input.currency,
+   199	        input.notes ?? null,
+   200	        userId,
+   201	        siteId,
+   202	      ],
+   203	    );
+   204	  }
+   205	
+   206	  const initialPoNumber = input.poNumber ?? (await nextDocumentNumber(ctx.client, orgId, 'po', new Date()));
+   207	  let insertResult: Awaited<ReturnType<typeof insertHeader>>;
+   208	  try {
+   209	    insertResult = await insertHeader(initialPoNumber);
+   210	  } catch (error) {
+   215	
+   216	  const results = rows.map((row, index) => {
+   217	    const error = validateRow(row, suppliers, items, units);
+   218	    return { rowNumber: index + 1, ok: error === null, errors: error ? [error] : [] };
+   219	  });
+   220	  const ok = results.filter((row) => row.ok).length;
+   221	  return { rows: results, summary: { total: rows.length, ok, failed: rows.length - ok } };
+   222	}
+   223	
+   224	function validateRow(
+   225	  row: PoImportRow,
+   226	  suppliers: Map<string, SupplierLookupRow>,
+   227	  items: Map<string, ItemLookupRow>,
+   228	  units: Set<string>,
+   229	): PoImportError | null {
+   230	  const externalRef = normalizeText(row.external_ref);
+   231	  if (!externalRef) return { column: 'external_ref', message: 'External reference is required.' };
+   232	
+   233	  const supplierCode = normalizeText(row.supplier_code);
+   234	  if (!supplierCode) return { column: 'supplier_code', message: 'Supplier code is required.' };
+   235	  if (!suppliers.has(supplierCode)) {
+   236	    return { column: 'supplier_code', message: `Supplier code "${supplierCode}" was not found for this org.` };
+   237	  }
+   238	
+   239	  const itemCode = normalizeText(row.item_code);
+   240	  if (!itemCode) return { column: 'item_code', message: 'Item code is required.' };
+   241	  const item = items.get(itemCode);
+   242	  if (!item) return { column: 'item_code', message: `Item code "${itemCode}" is not an active item for this org.` };
+   243	
+   244	  const uom = normalizeText(row.uom);
+   245	  if (!uom) return { column: 'uom', message: 'UoM is required.' };
+   246	  if (!isValidUomForItem(uom, item, units)) {
+   247	    return { column: 'uom', message: `UoM "${uom}" is not valid for item code "${itemCode}".` };
+   248	  }
+   249	
+   250	  if (!Number.isFinite(row.qty) || row.qty <= 0) {
+   251	    return { column: 'qty', message: `Quantity "${String(row.qty)}" must be greater than 0.` };
+   252	  }
+   253	  if (decimalPlaces(row.qty) > 3) {
+   254	    return { column: 'qty', message: `Quantity "${numberToPlainString(row.qty)}" must have at most 3 decimal places.` };
+   255	  }
+   256	
+   257	  if (row.price !== undefined) {
+   258	    if (!Number.isFinite(row.price) || row.price < 0) {
+   259	      return { column: 'price', message: `Price "${String(row.price)}" must be greater than or equal to 0.` };
+   260	    }
+   261	    if (decimalPlaces(row.price) > 4) {
+   262	      return { column: 'price', message: `Price "${numberToPlainString(row.price)}" must have at most 4 decimal places.` };
+   263	    }
+   264	  }
+   265	
+   266	  const expectedDelivery = normalizeText(row.expected_delivery);
+   267	  if (expectedDelivery) {
+   268	    if (!isValidIsoDate(expectedDelivery)) {
+   269	      return { column: 'expected_delivery', message: `Expected delivery "${expectedDelivery}" must be a YYYY-MM-DD date.` };
+   270	    }
+   271	    if (expectedDelivery < todayUtcDate()) {
+   272	      return { column: 'expected_delivery', message: `Expected delivery "${expectedDelivery}" must not be in the past.` };
+   273	    }
+   274	  }
+   275	
+   276	  return null;
+   277	}
+   278	
+   279	async function loadSuppliers(client: QueryClient, rawCodes: string[]): Promise<Map<string, SupplierLookupRow>> {
+   280	  const codes = uniqueNormalized(rawCodes);
+   281	  if (codes.length === 0) return new Map();
+   282	  const { rows } = await client.query<SupplierLookupRow>(
+   283	    `select id, code, currency
+   284	       from public.suppliers
+   285	      where org_id = app.current_org_id()
+   390	}
+   391	
+   392	function firstText(rows: ValidImportRow[], pick: (entry: ValidImportRow) => string | undefined): string | undefined {
+   393	  for (const row of rows) {
+   394	    const value = normalizeText(pick(row));
+   395	    if (value) return value;
+   396	  }
+   397	  return undefined;
+   398	}
+   399	
+   400	function joinNotes(rows: ValidImportRow[]): string | undefined {
+   401	  const notes = rows.map((entry) => normalizeText(entry.row.notes)).filter((note) => note.length > 0);
+   402	  return notes.length > 0 ? notes.join('\n') : undefined;
+   403	}
+   404	
+   405	function isValidUomForItem(uom: string, item: ItemLookupRow, units: Set<string>): boolean {
+   406	  const normalizedUom = normalizePieceUom(uom) ?? uom;
+   407	  const itemUoms = new Set(
+   408	    [normalizeText(item.uom_base), normalizeText(item.uom_secondary)]
+   409	      .filter((value) => value.length > 0)
+   410	      .map((value) => normalizePieceUom(value) ?? value),
+   411	  );
+   412	  const orgUnits = new Set([...units].map((code) => normalizePieceUom(code) ?? code));
+   413	  return itemUoms.has(normalizedUom) || orgUnits.has(normalizedUom);
+   414	}
+   415	
+   416	function normalizeText(value: string | undefined | null): string {
+   417	  return typeof value === 'string' ? value.trim() : '';
+   418	}
+   419	
+   420	function uniqueNormalized(values: string[]): string[] {
+   421	  return Array.from(new Set(values.map(normalizeText).filter((value) => value.length > 0)));
+   422	}
+   423	
+   424	function isValidIsoDate(value: string): boolean {
+   425	  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+   426	  const date = new Date(`${value}T00:00:00.000Z`);
+   427	  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+   428	}
+   429	
+   430	function todayUtcDate(): string {
+   431	  const now = new Date();
+   432	  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString().slice(0, 10);
+   433	}
+   434	
+   435	function decimalPlaces(value: number): number {
+   436	  const plain = numberToPlainString(value);
+   437	  const [, fraction = ''] = plain.split('.');
+   438	  return fraction.replace(/0+$/, '').length;
+   439	}
+   440	
+   441	function numberToPlainString(value: number): string {
+   442	  if (!Number.isFinite(value)) return String(value);
+   443	  const raw = String(value);
+   444	  if (!/[eE]/.test(raw)) return raw;
+   445	  return value.toLocaleString('en-US', {
+   446	    useGrouping: false,
+   447	    maximumFractionDigits: 20,
+   448	  });
+   449	}
+   450	
+   451	class PoImportForbiddenError extends Error {}
+   210	  const [warehouses, items, units] = await Promise.all([
+   211	    loadWarehouses(client, rows.flatMap((row) => [row.from_warehouse_code, row.to_warehouse_code])),
+   212	    loadActiveItems(client, rows.map((row) => row.item_code)),
+   213	    loadOrgUnits(client, rows.map((row) => row.uom)),
+   214	  ]);
+   215	
+   216	  const results = rows.map((row, index) => {
+   217	    const errors = validateRow(row, warehouses, items, units);
+   218	    return { rowNumber: index + 1, ok: errors.length === 0, errors };
+   219	  });
+   220	  const ok = results.filter((row) => row.ok).length;
+   221	  return { rows: results, summary: { total: rows.length, ok, failed: rows.length - ok } };
+   222	}
+   223	
+   224	function validateRow(
+   225	  row: ToImportRow,
+   226	  warehouses: Map<string, WarehouseLookupRow>,
+   227	  items: Map<string, ItemLookupRow>,
+   228	  units: Set<string>,
+   229	): ToImportError[] {
+   230	  const errors: ToImportError[] = [];
+   231	
+   232	  const externalRef = normalizeText(row.external_ref);
+   233	  if (!externalRef) errors.push({ column: 'external_ref', message: 'External reference is required.' });
+   234	
+   235	  const fromWarehouseCode = normalizeText(row.from_warehouse_code);
+   236	  const toWarehouseCode = normalizeText(row.to_warehouse_code);
+   237	  const fromWarehouse = warehouses.get(fromWarehouseCode);
+   238	  const toWarehouse = warehouses.get(toWarehouseCode);
+   239	  if (!fromWarehouseCode) {
+   240	    errors.push({ column: 'from_warehouse_code', message: 'Source warehouse code is required.' });
+   241	  } else if (!fromWarehouse) {
+   242	    errors.push({ column: 'from_warehouse_code', message: `Warehouse code "${fromWarehouseCode}" was not found for this org.` });
+   243	  }
+   244	  if (!toWarehouseCode) {
+   245	    errors.push({ column: 'to_warehouse_code', message: 'Destination warehouse code is required.' });
+   246	  } else if (!toWarehouse) {
+   247	    errors.push({ column: 'to_warehouse_code', message: `Warehouse code "${toWarehouseCode}" was not found for this org.` });
+   248	  }
+   249	  if (fromWarehouse && toWarehouse && fromWarehouse.id === toWarehouse.id) {
+   250	    errors.push({ column: 'to_warehouse_code', message: 'Transfer source and destination warehouses must differ.' });
+   251	  }
+   252	
+   253	  const itemCode = normalizeText(row.item_code);
+   254	  const item = items.get(itemCode);
+   255	  if (!itemCode) {
+   256	    errors.push({ column: 'item_code', message: 'Item code is required.' });
+   257	  } else if (!item) {
+   258	    errors.push({ column: 'item_code', message: `Item code "${itemCode}" is not an active item for this org.` });
+   259	  }
+   260	
+   261	  const uom = normalizeText(row.uom);
+   262	  if (!uom) {
+   263	    errors.push({ column: 'uom', message: 'UoM is required.' });
+   264	  } else if (item && !isValidUomForItem(uom, item, units)) {
+   265	    errors.push({ column: 'uom', message: `UoM "${uom}" is not valid for item code "${itemCode}".` });
+   266	  }
+   267	
+   268	  if (!Number.isFinite(row.qty) || row.qty <= 0) {
+   269	    errors.push({ column: 'qty', message: `Quantity "${String(row.qty)}" must be greater than 0.` });
+   270	  } else if (decimalPlaces(row.qty) > 3) {
+   271	    errors.push({ column: 'qty', message: `Quantity "${numberToPlainString(row.qty)}" must have at most 3 decimal places.` });
+   272	  }
+   273	
+   274	  const date = normalizeText(row.date);
+   275	  if (date && !isValidIsoDate(date)) {
+   276	    errors.push({ column: 'date', message: `Date "${date}" must be a YYYY-MM-DD date.` });
+   277	  }
+   278	
+   279	  return errors;
+   280	}
+   281	
+   282	async function loadWarehouses(client: QueryClient, rawCodes: string[]): Promise<Map<string, WarehouseLookupRow>> {
+   283	  const codes = uniqueNormalized(rawCodes);
+   284	  if (codes.length === 0) return new Map();
+   285	  const { rows } = await client.query<WarehouseLookupRow>(
+   385	function failGroup(
+   386	  failed: ToImportResult['failed'],
+   387	  group: ImportGroup,
+   388	  column: string,
+   389	  message: string,
+   390	): void {
+   391	  for (const row of group.rows) {
+   392	    failed.push({ rowNumber: row.rowNumber, errors: [{ column, message }] });
+   393	  }
+   394	}
+   395	
+   396	function firstText(rows: ValidImportRow[], pick: (entry: ValidImportRow) => string | undefined): string | undefined {
+   397	  for (const row of rows) {
+   398	    const value = normalizeText(pick(row));
+   399	    if (value) return value;
+   400	  }
+   401	  return undefined;
+   402	}
+   403	
+   404	function isValidUomForItem(uom: string, item: ItemLookupRow, units: Set<string>): boolean {
+   405	  const normalizedUom = normalizePieceUom(uom) ?? uom;
+   406	  const itemUoms = new Set(
+   407	    [normalizeText(item.uom_base), normalizeText(item.uom_secondary)]
+   408	      .filter((value) => value.length > 0)
+   409	      .map((value) => normalizePieceUom(value) ?? value),
+   410	  );
+   411	  const orgUnits = new Set([...units].map((code) => normalizePieceUom(code) ?? code));
+   412	  return itemUoms.has(normalizedUom) || orgUnits.has(normalizedUom);
+   413	}
+   414	
+   415	function normalizeText(value: string | undefined | null): string {
+   416	  return typeof value === 'string' ? value.trim() : '';
+   417	}
+   418	
+   419	function uniqueNormalized(values: string[]): string[] {
+   420	  return Array.from(new Set(values.map(normalizeText).filter((value) => value.length > 0)));
+   421	}
+   422	
+   423	function isValidIsoDate(value: string): boolean {
+   424	  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+   425	  const date = new Date(`${value}T00:00:00.000Z`);
+   426	  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+   427	}
+   428	
+   429	function decimalPlaces(value: number): number {
+   430	  const plain = numberToPlainString(value);
+   431	  const [, fraction = ''] = plain.split('.');
+   432	  return fraction.replace(/0+$/, '').length;
+   433	}
+   434	
+   435	function numberToPlainString(value: number): string {
+   436	  if (!Number.isFinite(value)) return String(value);
+   437	  const raw = String(value);
+   438	  if (!/[eE]/.test(raw)) return raw;
+   439	  return value.toLocaleString('en-US', {
+   440	    useGrouping: false,
+   441	    maximumFractionDigits: 20,
+   442	  });
+   443	}
+   444	
+   445	class ToImportForbiddenError extends Error {}
+
+exec
+/bin/zsh -lc "rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts' | rtk sed -n '450,475p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts' | rtk sed -n '158,205p'; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.test.ts' | rtk rg \"all_or_nothing|partial|failed|created\"; rtk nl -ba 'apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.test.ts' | rtk rg \"all_or_nothing|currency|notes|external_ref|partial\"" in /Users/mariuszkrawczyk/Projects/monopilot-kira
+ succeeded in 0ms:
+   450	  } catch (err) {
+   451	    console.error('[planning/purchase-orders] getPurchaseOrder failed', err);
+   452	    return { ok: false, error: 'persistence_failed' };
+   453	  }
+   454	}
+   455	
+   456	export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+   457	  const parsed = CreatePurchaseOrderInput.safeParse(rawInput);
+   458	  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+   459	  const input = parsed.data;
+   460	
+   461	  try {
+   462	    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
+   463	      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+   464	      return createPurchaseOrderCore(ctx, input);
+   465	    });
+   466	    if (result.ok) revalidatePurchaseOrderPaths(result.data.id);
+   467	    return result;
+   468	  } catch (err) {
+   469	    const error = pgErrorToResult(err);
+   470	    if (error !== 'persistence_failed') return { ok: false, error };
+   471	    console.error('[planning/purchase-orders] createPurchaseOrder failed', err);
+   472	    return { ok: false, error };
+   473	  }
+   474	}
+   475	
+   158	export async function createPurchaseOrderCore(
+   159	  ctx: CreatePurchaseOrderCoreContext,
+   160	  input: CreatePurchaseOrderInputType,
+   161	): Promise<PurchaseOrderResult<PurchaseOrderDetail>> {
+   162	  const { userId, orgId } = ctx;
+   163	  if (!(await hasPlanningWritePermission(ctx))) return { ok: false, error: 'forbidden' };
+   164	
+   165	  const siteResolution = await resolveWriteSiteId(ctx.client);
+   166	  if (!siteResolution.ok) return { ok: false, error: siteResolution.reason };
+   167	  const siteId = siteResolution.siteId;
+   168	
+   169	  const { rows: supplierRows } = await ctx.client.query<{ status: string }>(
+   170	    `select status
+   171	       from public.suppliers
+   172	      where org_id = app.current_org_id()
+   173	        and id = $1::uuid
+   174	      limit 1`,
+   175	    [input.supplierId],
+   176	  );
+   177	  const supplier = supplierRows[0];
+   178	  if (!supplier) return { ok: false, error: 'not_found' };
+   179	  if (supplier.status === 'blocked') {
+   180	    return { ok: false, error: 'supplier_blocked', code: 'supplier_blocked', message: 'Supplier is blocked' };
+   181	  }
+   182	
+   183	  async function insertHeader(poNumber: string) {
+   184	    return ctx.client.query<PurchaseOrderRow>(
+   185	      `insert into public.purchase_orders
+   186	         (org_id, site_id, po_number, supplier_id, destination_warehouse_id, status, expected_delivery, currency, notes, created_by, updated_by)
+   187	       values
+   188	         (app.current_org_id(), $9::uuid, $1, $2::uuid, $3::uuid, $4, $5::date, $6, $7, $8::uuid, $8::uuid)
+   189	       returning id, po_number, supplier_id, null::text as supplier_code, null::text as supplier_name,
+   190	                 destination_warehouse_id, null::text as destination_warehouse_name,
+   191	                 status, expected_delivery::text as expected_delivery, currency, notes, created_at, updated_at`,
+   192	      [
+   193	        poNumber,
+   194	        input.supplierId,
+   195	        input.destinationWarehouseId ?? null,
+   196	        'draft',
+   197	        input.expectedDelivery ?? null,
+   198	        input.currency,
+   199	        input.notes ?? null,
+   200	        userId,
+   201	        siteId,
+   202	      ],
+   203	    );
+   204	  }
+   205	
+   118	    expect(result.summary).toEqual({ total: 1, ok: 0, failed: 1 });
+   130	    expect(result.summary).toEqual({ total: 1, ok: 0, failed: 1 });
+   150	    expect(result.failed).toEqual([]);
+   151	    expect(result.created).toEqual([
+    14	type SupplierFixture = { id: string; code: string; currency: string };
+    28	  { id: SUPPLIER_A_ID, code: 'SUP-A', currency: 'EUR' },
+    29	  { id: SUPPLIER_B_ID, code: 'SUP-B', currency: 'GBP' },
+    86	    external_ref: 'EXT-A',
+    92	    currency: 'EUR',
+    94	    notes: 'imported',
+   101	    poRow({ external_ref: 'EXT-A', supplier_code: 'SUP-A', item_code: 'ITEM-A', uom: 'kg' }),
+   102	    poRow({ external_ref: 'EXT-A', supplier_code: 'SUP-A', item_code: 'ITEM-B', uom: 'ea' }),
+   103	    poRow({ external_ref: 'EXT-B', supplier_code: 'SUP-B', item_code: 'ITEM-A', uom: 'kg', currency: 'GBP' }),
+   104	    poRow({ external_ref: 'EXT-B', supplier_code: 'SUP-B', item_code: 'ITEM-B', uom: 'box', currency: 'GBP' }),
+   140	      poRow({ external_ref: 'EXT-BAD-SUP', supplier_code: 'SUP-MISSING' }),
+   141	      poRow({ external_ref: 'EXT-PAST', expected_delivery: '2026-06-22' }),
+   164	      { po_number: 'EXT-A', external_ref: 'EXT-A' },
+   165	      { po_number: 'EXT-B', external_ref: 'EXT-B' },
+   188	  it('commitPoImport skips a re-commit when every external_ref already exists', async () => {
+   196	      { external_ref: 'EXT-A', reason: 'Purchase order already exists for external_ref "EXT-A".' },
+   197	      { external_ref: 'EXT-B', reason: 'Purchase order already exists for external_ref "EXT-B".' },
+   201	  it("commitPoImport all_or_nothing writes nothing when one of three rows is invalid", async () => {
+   204	        poRow({ external_ref: 'EXT-1', supplier_code: 'SUP-A' }),
+   205	        poRow({ external_ref: 'EXT-2', supplier_code: 'SUP-MISSING' }),
+   206	        poRow({ external_ref: 'EXT-3', supplier_code: 'SUP-B', currency: 'GBP' }),
+   208	      { mode: 'all_or_nothing' },
+   247	    expect(result.created).toEqual([{ po_number: 'EXT-B', external_ref: 'EXT-B' }]);
+
+codex
+# Static bug hunt: planning procurement/imports
+
+## Findings
+
+### P1 — PO `all_or_nothing` imports can commit successful groups alongside runtime failures
+
+`all_or_nothing` aborts only when the preliminary validation reports an error. Validation runs in a separate `withOrgContext` transaction at [import-po.ts:85](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:85), followed by the write transaction at [import-po.ts:109](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:109).
+
+Inside the write transaction, runtime lookup/create failures are appended to `runtimeFailed` and execution continues at [import-po.ts:133](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:133) and [import-po.ts:183](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:183). The callback then returns normally at [import-po.ts:199](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:199), committing previously created POs.
+
+Failure scenario: validation succeeds; before commit, an item becomes inactive or a supplier disappears/becomes blocked. An earlier group is inserted, the later group becomes `failed`, and `all_or_nothing` returns a mixed created/failed result instead of rolling everything back.
+
+Suggested fix: revalidate inside the write transaction and, in `all_or_nothing` mode, throw on any runtime failure so `withOrgContext` rolls back. Convert the thrown domain error to the import result outside the transaction.
+
+### P1 — TO `all_or_nothing` imports commit each order in an independent transaction
+
+The outer import transaction begins at [import-to.ts:107](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:107), but each group calls the public `createTransferOrder` action at [import-to.ts:168](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:168). That action opens its own `withOrgContext` transaction at [actions.ts:438](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:438) and returns after committing at [actions.ts:492](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/actions.ts:492).
+
+Later group failures are merely accumulated at [import-to.ts:182](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:182), and the import returns normally at [import-to.ts:199](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/transfer-orders/_actions/import-to.ts:199). Rolling back the outer transaction cannot undo already committed TO transactions.
+
+Failure scenario: group one commits successfully; group two hits a concurrent duplicate, deleted warehouse, or persistence failure. The caller selected `all_or_nothing` but group one remains permanently committed.
+
+Suggested fix: extract a transaction-aware `createTransferOrderCore(ctx, input)` analogous to the PO core, use the outer import client for every group, and throw on the first runtime failure in `all_or_nothing` mode.
+
+### P1 — PO import bypasses the runtime schema used by single-create
+
+Single-create validates with `CreatePurchaseOrderInput.safeParse` at [actions.ts:456](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:456). That schema limits PO numbers to 80 characters, currency to exactly three characters, notes to 2,000 characters, and lines to 200 at [procurement-shared.ts:72](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/_actions/procurement-shared.ts:72).
+
+Import validation checks none of those limits: after validating price/date, it returns success at [import-po.ts:257](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:257). Notes from every grouped row are concatenated without a length limit at [import-po.ts:400](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:400). The import then invokes `createPurchaseOrderCore` directly at [import-po.ts:168](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/import-po.ts:168); its TypeScript input type provides no runtime validation before insertion at [create-purchase-order-core.ts:158](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts:158).
+
+The database columns are unconstrained `text` fields at [262-planning-purchase-orders.sql:10](/Users/mariuszkrawczyk/Projects/monopilot-kira/packages/db/migrations/262-planning-purchase-orders.sql:10), so malformed currencies, oversized references/notes, and groups exceeding 200 lines are persisted.
+
+Suggested fix: construct the grouped payload and run `CreatePurchaseOrderInput.safeParse` before calling the core, mapping schema issues back to source rows.
+
+### P2 — Blocking a supplier races with PO creation
+
+PO creation checks supplier status using an unlocked read at [create-purchase-order-core.ts:169](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts:169), then inserts the PO later at [create-purchase-order-core.ts:183](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/create-purchase-order-core.ts:183).
+
+Supplier status changes likewise read without `FOR UPDATE` at [suppliers/actions.ts:276](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:276) and update at [suppliers/actions.ts:283](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:283). The PO schema has only a supplier FK, not a blocked-status guard, at [262-planning-purchase-orders.sql:11](/Users/mariuszkrawczyk/Projects/monopilot-kira/packages/db/migrations/262-planning-purchase-orders.sql:11).
+
+Failure scenario: PO creation reads `active`; another transaction changes the supplier to `blocked` and commits; PO creation then inserts successfully against the now-blocked supplier.
+
+Suggested fix: lock the supplier row during the status check and coordinate supplier blocking with that lock, or enforce the invariant in a database trigger/function that checks the current supplier status atomically.
+
+## CLEAN areas verified
+
+- PO header edits lock the row and restrict both the pre-check and update to `draft`: [actions.ts:486](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:486), [actions.ts:505](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:505).
+- PO status transitions use a server-side transition table, lock the header, and enforce receipt guards: [actions.ts:787](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:787), [actions.ts:885](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:885).
+- PO reopening combines its receipt check with an atomic `NOT EXISTS` update guard: [actions.ts:821](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/actions.ts:821).
+- Database uniqueness constraints close ordinary duplicate-number insertion races for PO and TO numbers: [262-planning-purchase-orders.sql:21](/Users/mariuszkrawczyk/Projects/monopilot-kira/packages/db/migrations/262-planning-purchase-orders.sql:21), [263-planning-transfer-orders.sql:22](/Users/mariuszkrawczyk/Projects/monopilot-kira/packages/db/migrations/263-planning-transfer-orders.sql:22).
+- Supplier create/update inputs have runtime validation and supplier updates lock the row: [procurement-shared.ts:54](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/_actions/procurement-shared.ts:54), [suppliers/actions.ts:191](/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/app/[locale]/(app)/(modules)/planning/suppliers/_actions/actions.ts:191).
+- Import lookups and writes consistently scope data through `app.current_org_id()`.
+
+## Not covered
+
+- UI rendering, accessibility, localization, pagination, and prototype parity.
+- Receiving/GRN behavior beyond the status guards directly called by PO actions.
+- Planning modules outside purchase orders, suppliers, `import-po`, and `import-to`.
+- Live Supabase trigger inspection or concurrency execution; this was read-only static analysis.
+- Test execution; no files or repository state were modified.
+tokens used
+64,200
