@@ -66,6 +66,7 @@ type ShipmentRow = {
 type ShipmentLpRow = {
   lp_id: string;
   site_id: string | null;
+  current_status: string;
   from_status: string;
   shipped_qty: string;
   reserved_qty: string;
@@ -231,6 +232,7 @@ async function lockShipmentLps(ctx: ShippingContext, shipmentId: string): Promis
      )
      select lp.id::text as lp_id,
             lp.site_id::text,
+            lp.status as current_status,
             coalesce(snapshot.prior_status, case when lp.status = 'shipped' then 'available' else lp.status end) as from_status,
             coalesce(snapshot.shipped_qty, shipment_lps.shipped_qty)::text as shipped_qty,
             lp.reserved_qty::text,
@@ -627,11 +629,22 @@ export async function cancelShipment(input: ShippingReversalInput): Promise<Ship
                     updated_by = $4::uuid
               where org_id = app.current_org_id()
                 and id = $1::uuid
-                and status = 'shipped'`,
+                and $2::numeric > 0
+                and (
+                  status = 'shipped'
+                  or status = $3::text
+                )`,
             [lp.lp_id, lp.shipped_qty, lp.from_status, userId],
           );
           if (rowCount !== 1) throw new ActionError('persistence_failed');
-          await writeLpTransition(ctx, shipment, { ...lp, from_status: 'shipped' }, lp.from_status, parsed.reasonCode ?? null, parsed.note ?? null);
+          await writeLpTransition(
+            ctx,
+            shipment,
+            { ...lp, from_status: lp.current_status },
+            lp.from_status,
+            parsed.reasonCode ?? null,
+            parsed.note ?? null,
+          );
         }
 
         const shipmentExtData =

@@ -180,6 +180,7 @@ function makeClient(): QueryClient {
             {
               lp_id: LP_ID,
               site_id: SITE_ID,
+              current_status: lpStatus,
               from_status: snapshot.prior_status,
               shipped_qty: snapshot.shipped_qty,
               reserved_qty: lpReservedQty,
@@ -239,7 +240,7 @@ function makeClient(): QueryClient {
       if (q.startsWith('with shipment_lps') && q.includes('update public.license_plates lp')) {
         lpQuantity = '4.000';
         lpReservedQty = '0.000';
-        lpStatus = 'shipped';
+        lpStatus = 'available';
         return {
           rows: [{ id: LP_ID, shipped_qty: '6.000', prior_status: 'available', prior_reserved_qty: '6.000' }],
           rowCount: 1,
@@ -466,7 +467,7 @@ describe('cancelShipment', () => {
     await expect(shipShipment(SHIPMENT_ID)).resolves.toEqual({ ok: true });
     expect(lpQuantity).toBe('4.000');
     expect(lpReservedQty).toBe('0.000');
-    expect(lpStatus).toBe('shipped');
+    expect(lpStatus).toBe('available');
     expect(lpShipSnapshot).toEqual([
       { lp_id: LP_ID, shipped_qty: '6.000', prior_status: 'available', prior_reserved_qty: '6.000' },
     ]);
