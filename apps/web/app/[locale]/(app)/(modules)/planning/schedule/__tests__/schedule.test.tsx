@@ -93,6 +93,7 @@ function makeData(over: Partial<ScheduleBoardData> = {}): ScheduleBoardData {
   return {
     windowStart: WINDOW_START,
     windowEnd: WINDOW_END,
+    siteTimezone: 'UTC',
     lines: [
       { id: LINE_1, code: 'LINE-01', name: 'Line One' },
       { id: LINE_2, code: 'LINE-02', name: 'Line Two' },
