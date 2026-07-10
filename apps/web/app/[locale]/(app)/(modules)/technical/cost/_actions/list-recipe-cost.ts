@@ -25,6 +25,7 @@
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { bomMaterialCurrencySql, bomMaterialTotalSql } from './recipe-cost-rollup-sql';
 import type { QueryClient } from './shared';
 
 export type CostedProductOption = {
@@ -187,24 +188,8 @@ export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeC
                 bh.version    as bom_version,
                 bh.status     as bom_status,
                 bh.yield_pct::text as yield_pct,
-                (select sum(bl.quantity * vec.amount)::text
-                   from public.bom_lines bl
-                   left join public.items ci
-                          on ci.org_id = app.current_org_id()
-                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
-                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
-                  where bl.org_id = app.current_org_id()
-                    and bl.bom_header_id = bh.id
-                    and vec.amount is not null) as total_material_cost,
-                (select case when count(distinct vec.currency) > 1 then 'MIXED' else max(vec.currency) end
-                   from public.bom_lines bl
-                   left join public.items ci
-                          on ci.org_id = app.current_org_id()
-                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
-                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
-                  where bl.org_id = app.current_org_id()
-                    and bl.bom_header_id = bh.id
-                    and vec.amount is not null) as currency
+                ${bomMaterialTotalSql()} as total_material_cost,
+                ${bomMaterialCurrencySql()} as currency
            from public.bom_headers bh
            join public.items i
              on i.id = bh.item_id

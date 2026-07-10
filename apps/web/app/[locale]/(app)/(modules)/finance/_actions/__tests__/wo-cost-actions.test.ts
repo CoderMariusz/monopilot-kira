@@ -13,6 +13,10 @@ const FRACTIONAL_WO_ID = '88888888-8888-4888-8888-888888888888';
 const DEDUP_MO_WO_ID = '99999999-9999-4999-8999-999999999999';
 const DEDUP_SETUP_WO_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const CORRECTION_WO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const PLN_WO_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const HISTORIC_WO_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const MIXED_ITEM_WO_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const MULTI_COST_WO_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 
 type QueryCall = { sql: string; params: unknown[] };
 
@@ -89,6 +93,70 @@ const client = {
 
     if (normalized.includes('from public.wo_material_consumption')) {
       if (params?.[0] === CREW_WO_ID || params?.[0] === CORRECTION_WO_ID) return { rows: [], rowCount: 0 };
+      if (params?.[0] === PLN_WO_ID) {
+        return {
+          rows: [
+            {
+              item_code: 'RM-PLN',
+              uom: null,
+              raw_qty: '5',
+              qty_kg: '5.000',
+              cost_per_kg: '25.000000',
+              has_non_gbp_currency: true,
+              unresolved_uom: false,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (params?.[0] === MIXED_ITEM_WO_ID) {
+        return {
+          rows: [
+            {
+              item_code: 'RM-MIX',
+              uom: null,
+              raw_qty: '2',
+              qty_kg: '2.000',
+              cost_per_kg: '4.000000',
+              has_non_gbp_currency: true,
+              unresolved_uom: false,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (params?.[0] === MULTI_COST_WO_ID) {
+        return {
+          rows: [
+            {
+              item_code: 'RM-GBP',
+              uom: null,
+              raw_qty: '2',
+              qty_kg: '2.000',
+              cost_per_kg: '4.000000',
+              has_non_gbp_currency: false,
+              unresolved_uom: false,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (params?.[0] === HISTORIC_WO_ID) {
+        return {
+          rows: [
+            {
+              item_code: 'RM-SNAP',
+              uom: null,
+              raw_qty: '2',
+              qty_kg: '2.000',
+              cost_per_kg: '3.500000',
+              has_non_gbp_currency: false,
+              unresolved_uom: false,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
       if (params?.[0] === COSTED_WO_ID) {
         return {
           rows: [
@@ -98,6 +166,7 @@ const client = {
               raw_qty: '200',
               qty_kg: '1.000',
               cost_per_kg: '2.400000',
+              has_non_gbp_currency: false,
               unresolved_uom: false,
             },
             {
@@ -106,6 +175,7 @@ const client = {
               raw_qty: '200',
               qty_kg: '0',
               cost_per_kg: '2.400000',
+              has_non_gbp_currency: false,
               unresolved_uom: true,
             },
           ],
@@ -359,11 +429,68 @@ describe('listCompletedWoCosts', () => {
     expect(row?.wasteCost).toBe('0.0000');
     expect(row?.costPerKgOutput).toBe('2.2400');
 
-    const materialsQuery = calls.find((call) => call.sql.includes('from public.wo_material_consumption'));
-    expect(materialsQuery?.sql).toContain('left join lateral');
-    expect(materialsQuery?.sql).toContain('from public.item_cost_history');
+    const materialsQuery = calls.find(
+      (call) => call.sql.includes('from public.wo_material_consumption') && call.params[0] === COSTED_WO_ID,
+    );
+    expect(materialsQuery?.sql).toContain('nullif(c.ext_jsonb->>\'wac_avg_cost\'');
+    expect(materialsQuery?.sql).toContain('coalesce(c.consumed_at::date, $2::date)');
+    expect(materialsQuery?.sql).toContain('and (effective_to is null or effective_to >=');
+    expect(materialsQuery?.sql).not.toContain('and effective_to is null');
+    expect(materialsQuery?.params).toEqual([COSTED_WO_ID, '2026-06-11', 'GBP']);
     expect(materialsQuery?.sql).toContain('when lower(c.uom) = \'each\' and i.net_qty_per_each is not null');
-    expect(materialsQuery?.sql).toContain('bool_or(qty_kg is null) as unresolved_uom');
+    expect(materialsQuery?.sql).toContain('bool_or(cost_currency is distinct from $3::text) as has_non_gbp_currency');
+    expect(materialsQuery?.sql).toContain('sum(coalesce(qty_kg, 0) * coalesce(cost_per_kg, 0))');
+    expect(materialsQuery?.sql).not.toContain('max(cost_currency)');
+    expect(materialsQuery?.sql).not.toContain('max(cost_per_kg)');
+  });
+
+  it('rejects WO actual cost when a material row is costed in a non-GBP currency', async () => {
+    const result = await computeWoActualCost(PLN_WO_ID);
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'unsupported_currency',
+      message: expect.stringContaining('RM-PLN'),
+    });
+  });
+
+  it('rejects WO actual cost when the same item has both GBP and EUR consumption rows', async () => {
+    const result = await computeWoActualCost(MIXED_ITEM_WO_ID);
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'unsupported_currency',
+      message: expect.stringContaining('RM-MIX'),
+    });
+
+    const materialsQuery = calls.find((call) => call.sql.includes('from public.wo_material_consumption'));
+    expect(materialsQuery?.sql).toContain('bool_or(cost_currency is distinct from $3::text)');
+  });
+
+  it('sums same-item consumptions at different GBP costs via row-grain qty×cost, not qty×max(cost)', async () => {
+    const result = await computeWoActualCost(MULTI_COST_WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.materials).toEqual([
+      { itemCode: 'RM-GBP', qtyKg: '2.000', costPerKg: '4.000000', cost: '8.0000' },
+    ]);
+    expect(result.data.materialsTotal).toBe('8.0000');
+  });
+
+  it('prefers immutable consumption WAC snapshots over later item_cost_history rolls', async () => {
+    const result = await computeWoActualCost(HISTORIC_WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.materials).toEqual([
+      { itemCode: 'RM-SNAP', qtyKg: '2.000', costPerKg: '3.500000', cost: '7.0000' },
+    ]);
+    expect(result.data.materialsTotal).toBe('7.0000');
+
+    const materialsQuery = calls.find((call) => call.sql.includes('from public.wo_material_consumption'));
+    expect(materialsQuery?.sql).toContain('nullif(c.ext_jsonb->>\'wac_avg_cost\'');
+    expect(materialsQuery?.sql).toContain('coalesce(c.consumed_at::date, $2::date)');
   });
 });
 

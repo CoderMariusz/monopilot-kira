@@ -1,6 +1,11 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import {
+  MIXED_CURRENCY_ROLLUP_MARKER,
+  portfolioMaterialCurrencySql,
+  portfolioMaterialTotalSql,
+} from '../../_actions/recipe-cost-rollup-sql';
 import type { QueryClient } from '../../_actions/shared';
 
 type PortfolioCostRow = {
@@ -13,7 +18,8 @@ type PortfolioCostRow = {
 type PortfolioCostResult = {
   fg_code: string;
   fg_name: string;
-  total_recipe_cost: number;
+  /** null when component currencies differ (no invalid cross-currency sum). */
+  total_recipe_cost: number | null;
   currency: string;
 };
 
@@ -39,24 +45,8 @@ export async function listPortfolioCost(): Promise<PortfolioCostResult[]> {
          )
          select i.item_code as fg_code,
                 i.name as fg_name,
-                (select sum(bl.quantity * vec.amount)::text
-                   from public.bom_lines bl
-                   left join public.items ci
-                          on ci.org_id = app.current_org_id()
-                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
-                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
-                  where bl.org_id = app.current_org_id()
-                    and bl.bom_header_id = lb.id
-                    and vec.amount is not null) as total_recipe_cost,
-                (select case when count(distinct vec.currency) > 1 then 'MIXED' else max(vec.currency) end
-                   from public.bom_lines bl
-                   left join public.items ci
-                          on ci.org_id = app.current_org_id()
-                         and (ci.id = bl.item_id or ci.item_code = bl.component_code)
-                   left join public.v_item_effective_cost vec on vec.item_id = ci.id
-                  where bl.org_id = app.current_org_id()
-                    and bl.bom_header_id = lb.id
-                    and vec.amount is not null) as currency
+                ${portfolioMaterialTotalSql()} as total_recipe_cost,
+                ${portfolioMaterialCurrencySql()} as currency
            from public.items i
            left join latest_bom lb
                   on lb.item_id = i.id
@@ -68,7 +58,10 @@ export async function listPortfolioCost(): Promise<PortfolioCostResult[]> {
       return rows.map((row) => ({
         fg_code: row.fg_code,
         fg_name: row.fg_name ?? '',
-        total_recipe_cost: Number(row.total_recipe_cost ?? '0'),
+        total_recipe_cost:
+          row.total_recipe_cost == null || row.currency === MIXED_CURRENCY_ROLLUP_MARKER
+            ? null
+            : Number(row.total_recipe_cost),
         currency: row.currency,
       }));
     });
