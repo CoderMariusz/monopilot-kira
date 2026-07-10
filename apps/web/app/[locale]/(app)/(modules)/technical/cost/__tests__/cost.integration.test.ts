@@ -283,6 +283,45 @@ run('03-technical cost history (V-TEC-50..53, RLS + RBAC, real DB)', () => {
     await owner.query(`update public.items set cost_per_kg = null where id = $1`, [seed.itemAId]);
   });
 
+  it('backdated cost insert slots before the open row without making the older row current', async () => {
+    await owner.query(
+      `insert into public.item_cost_history (org_id, item_id, cost_per_kg, currency, effective_from, source)
+       values ($1, $2, '10.0000'::numeric, 'PLN', '2026-07-10', 'manual')`,
+      [seed.orgAId, seed.itemAId],
+    );
+    await owner.query(`update public.items set cost_per_kg = '10.0000'::numeric where id = $1`, [seed.itemAId]);
+
+    const result = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
+      postCost({ itemId: seed.itemAId, costPerKg: '8.0000', currency: 'PLN', effectiveFrom: '2026-07-01', source: 'manual' }),
+    );
+    expect(result.ok).toBe(true);
+
+    const rows = await owner.query<{
+      cost_per_kg: string;
+      effective_from: string;
+      effective_to: string | null;
+    }>(
+      `select cost_per_kg::text, effective_from::text, effective_to::text
+         from public.item_cost_history
+        where item_id = $1
+        order by effective_from asc`,
+      [seed.itemAId],
+    );
+    expect(rows.rows).toEqual([
+      { cost_per_kg: '8.0000', effective_from: '2026-07-01', effective_to: '2026-07-09' },
+      { cost_per_kg: '10.0000', effective_from: '2026-07-10', effective_to: null },
+    ]);
+
+    const denorm = await owner.query<{ cost_per_kg: string }>(
+      `select cost_per_kg::text from public.items where id = $1`,
+      [seed.itemAId],
+    );
+    expect(denorm.rows[0]!.cost_per_kg).toBe('10.000000');
+
+    await owner.query(`delete from public.item_cost_history where item_id = $1`, [seed.itemAId]);
+    await owner.query(`update public.items set cost_per_kg = null where id = $1`, [seed.itemAId]);
+  });
+
   it('AC4: GET returns rows ordered effective_from DESC', async () => {
     await owner.query(
       `insert into public.item_cost_history (org_id, item_id, cost_per_kg, currency, effective_from, effective_to, source)
