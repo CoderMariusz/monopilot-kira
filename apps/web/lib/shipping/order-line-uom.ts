@@ -146,3 +146,57 @@ export async function resolveOrderQtyToInventoryQty(
   }
   return row.inventory_qty;
 }
+
+/**
+ * Inline SQL expr for fetchSalesOrder: convert line allocated inventory qty to the
+ * entered order UoM using the joined items row (`i`) and sales_order_lines row (`sol`).
+ */
+export const SALES_ORDER_LINE_ALLOCATED_TO_ORDER_SQL = `(
+       case
+         when sol.ext_data->>'order_uom' is null
+              or lower(sol.ext_data->>'order_uom') in (lower(coalesce(i.uom_base, '')), 'base')
+           then sol.quantity_allocated
+         when lower(sol.ext_data->>'order_uom') in ('pcs', 'ea', 'szt', 'each')
+           then case
+                  when lower(coalesce(i.uom_base, '')) = 'kg'
+                       and i.net_qty_per_each is not null
+                       and i.net_qty_per_each > 0
+                    then sol.quantity_allocated / i.net_qty_per_each
+                  when lower(coalesce(i.uom_base, '')) in ('pcs', 'ea', 'szt')
+                       or i.output_uom in ('each', 'box')
+                    then sol.quantity_allocated
+                  else sol.quantity_allocated
+                end
+         when lower(sol.ext_data->>'order_uom') in ('box', 'cases', 'case', 'carton', 'cartons', 'pack', 'boxes')
+           then case
+                  when lower(coalesce(i.uom_base, '')) = 'kg'
+                       and i.net_qty_per_each is not null
+                       and i.net_qty_per_each > 0
+                       and i.each_per_box is not null
+                       and i.each_per_box > 0
+                    then sol.quantity_allocated / (i.each_per_box::numeric * i.net_qty_per_each)
+                  when i.each_per_box is not null and i.each_per_box > 0
+                    then sol.quantity_allocated / i.each_per_box::numeric
+                  else sol.quantity_allocated
+                end
+         when lower(sol.ext_data->>'order_uom') = 'pallet'
+           then case
+                  when i.boxes_per_pallet is not null
+                       and i.boxes_per_pallet > 0
+                       and i.each_per_box is not null
+                       and i.each_per_box > 0
+                       and lower(coalesce(i.uom_base, '')) = 'kg'
+                       and i.net_qty_per_each is not null
+                       and i.net_qty_per_each > 0
+                    then sol.quantity_allocated
+                         / (i.boxes_per_pallet::numeric * i.each_per_box::numeric * i.net_qty_per_each)
+                  when i.boxes_per_pallet is not null
+                       and i.boxes_per_pallet > 0
+                       and i.each_per_box is not null
+                       and i.each_per_box > 0
+                    then sol.quantity_allocated / (i.boxes_per_pallet::numeric * i.each_per_box::numeric)
+                  else sol.quantity_allocated
+                end
+         else sol.quantity_allocated
+       end
+     )::text`;

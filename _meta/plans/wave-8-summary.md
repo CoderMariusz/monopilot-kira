@@ -44,3 +44,34 @@ No migration added. Allocation uniqueness remains the existing non-unique index;
 
 - `pnpm --filter web exec tsc --noEmit` — clean
 - Touched vitest — 75 passed (pg suite skips without `DATABASE_URL`)
+
+## Fix round 1
+
+### Bug 1 (PARTIAL → FIXED) — Snapshot-authoritative cancel restore
+
+**Root cause:** `lockShipmentLps` drove LP membership from mutable `shipment_box_contents` and only left-joined `shipped_license_plates`. An LP present in the immutable snapshot but absent from current box contents was never restored.
+
+**Fix:** `restore_set` CTE drives from `shipped_license_plates` as authoritative membership; legacy `shipment_lps` fallback applies only when the snapshot array is empty. Quantity always comes from the snapshot (or legacy contents aggregate).
+
+**Tests:** Replaced copied UPDATE pg test with real `cancelShipment` action tests — full restore, partial restore, snapshot/content divergence, repeat idempotency, and legacy no-snapshot fallback.
+
+### Bug 3 (BROKEN → FIXED) — Entered vs canonical grain across consumers
+
+**Root cause:** `fetchSalesOrder` aliased entered `order_qty` to `quantity_ordered` while `quantity_allocated` stayed canonical, so allocation status compared 3 cases to 36 each. MRP open-SO demand subtracted entered-UoM-converted shipped qty from canonical `quantity_ordered`.
+
+**Fix:**
+- `SalesOrderLine` now exposes both entered (`qty`/`uom`) and canonical (`inventory_qty`/`inventory_uom`) fields; allocation status computed from canonical; `allocated_qty` converted to entered UoM via `SALES_ORDER_LINE_ALLOCATED_TO_ORDER_SQL`.
+- MRP open-SO demand uses one grain: `quantity_ordered - shipped_base_qty` labelled with `i.uom_base`.
+
+**Tests:**
+- `so-actions.test.ts` — case order reports `partially_allocated` at 12/36 canonical, displays 1/3 cases.
+- `mrp.test.ts` — canonical remainder regression for partially-shipped case and pallet orders; updated P2-05 SQL parity assertions.
+
+### Migration note
+
+No migration added.
+
+### Gates (fix round 1)
+
+- `pnpm --filter web exec tsc --noEmit` — clean
+- Touched vitest — 100 passed (pg suite skips without `DATABASE_URL`)

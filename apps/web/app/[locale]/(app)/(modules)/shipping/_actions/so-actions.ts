@@ -22,7 +22,7 @@ import {
 } from './so-transitions';
 import { readLockedSalesOrderStatus, writeSalesOrderStatusInContext } from './so-status-write';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
-import { OrderLineUomError, resolveOrderQtyToInventoryQty } from '../../../../../../lib/shipping/order-line-uom';
+import { OrderLineUomError, resolveOrderQtyToInventoryQty, SALES_ORDER_LINE_ALLOCATED_TO_ORDER_SQL } from '../../../../../../lib/shipping/order-line-uom';
 import {
   DEFAULT_SO_LIST_PAGE_SIZE,
   normalizePage,
@@ -239,20 +239,27 @@ function mapLineRow(row: {
   product_id: string;
   item_code: string | null;
   item_name: string | null;
-  quantity_ordered: string;
-  uom: string | null;
+  inventory_qty: string;
+  inventory_uom: string | null;
+  order_qty: string;
+  order_uom: string | null;
   quantity_allocated: string;
+  allocated_qty_display: string;
 }): SalesOrderLine {
+  const inventoryUom = row.inventory_uom ?? '';
+  const orderUom = row.order_uom ?? inventoryUom;
   return {
     id: row.id,
     line_no: row.line_number,
     item_id: row.product_id,
     item_code: row.item_code,
     item_name: row.item_name,
-    qty: row.quantity_ordered,
-    uom: row.uom ?? '',
-    allocated_qty: row.quantity_allocated,
-    allocation_status: lineAllocationStatus(row.quantity_ordered, row.quantity_allocated),
+    qty: row.order_qty,
+    uom: orderUom,
+    inventory_qty: row.inventory_qty,
+    inventory_uom: inventoryUom,
+    allocated_qty: row.allocated_qty_display,
+    allocation_status: lineAllocationStatus(row.inventory_qty, row.quantity_allocated),
   };
 }
 
@@ -296,18 +303,24 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
     product_id: string;
     item_code: string | null;
     item_name: string | null;
-    quantity_ordered: string;
-    uom: string | null;
+    inventory_qty: string;
+    inventory_uom: string | null;
+    order_qty: string;
+    order_uom: string | null;
     quantity_allocated: string;
+    allocated_qty_display: string;
   }>(
     `select sol.id::text,
             sol.line_number,
             sol.product_id::text,
             i.item_code,
             i.name as item_name,
-            coalesce(sol.ext_data->>'order_qty', sol.quantity_ordered::text) as quantity_ordered,
-            coalesce(sol.ext_data->>'order_uom', i.uom_base) as uom,
-            sol.quantity_allocated::text
+            sol.quantity_ordered::text as inventory_qty,
+            i.uom_base as inventory_uom,
+            coalesce(sol.ext_data->>'order_qty', sol.quantity_ordered::text) as order_qty,
+            coalesce(sol.ext_data->>'order_uom', i.uom_base) as order_uom,
+            sol.quantity_allocated::text as quantity_allocated,
+            ${SALES_ORDER_LINE_ALLOCATED_TO_ORDER_SQL} as allocated_qty_display
        from public.sales_order_lines sol
        left join public.items i on i.id = sol.product_id and i.org_id = app.current_org_id()
       where sol.org_id = app.current_org_id()

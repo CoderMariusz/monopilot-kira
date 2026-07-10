@@ -795,8 +795,10 @@ describe('runMrp', () => {
     expect(soSql).toContain("sh.status in ('shipped', 'delivered')");
     expect(soSql).toContain('quantity_ordered - coalesce(shipped.shipped_qty, 0)');
     expect(soSql).not.toContain('sol.quantity_shipped');
-    expect(soSql).toContain('sbc.quantity / (i_s.net_qty_per_each * i_s.each_per_box)');
-    expect(soSql).toContain("coalesce(sol.ext_data->>'order_uom', i.uom_base)");
+    expect(soSql).toContain('sum(sbc.quantity) as shipped_qty');
+    expect(soSql).toContain('i.uom_base as uom');
+    expect(soSql).not.toContain("coalesce(sol.ext_data->>'order_uom', i.uom_base)");
+    expect(soSql).not.toContain('sbc.quantity / (i_s.net_qty_per_each * i_s.each_per_box)');
     expect(soSql).toContain('when so.promised_ship_date is null and so.required_delivery_date is null');
     expect(soSql).toContain('then $3::date');
     expect(soSql).toContain('<= $2::date');
@@ -805,49 +807,25 @@ describe('runMrp', () => {
   });
 
   /**
-   * Mirrors the shipped-subquery CASE in mrp.ts — keeps SQL parity testable without a live DB.
+   * Mirrors the canonical open-SO remainder in mrp.ts — both ordered and shipped are inventory/base qty.
    */
-  function shippedBaseToOrderUom(
-    shippedBaseQty: number,
-    orderUom: string,
-    item: { uom_base: string; net_qty_per_each: number | null; each_per_box: number | null },
-  ): number | null {
-    if (orderUom === item.uom_base || orderUom === 'base') return shippedBaseQty;
-    if (orderUom === 'each') {
-      if (!item.net_qty_per_each || item.net_qty_per_each <= 0) return null;
-      return shippedBaseQty / item.net_qty_per_each;
-    }
-    if (orderUom === 'box') {
-      if (!item.net_qty_per_each || !item.each_per_box || item.net_qty_per_each <= 0 || item.each_per_box <= 0) {
-        return null;
-      }
-      return shippedBaseQty / (item.net_qty_per_each * item.each_per_box);
-    }
-    return null;
+  function openSoRemainderCanonical(orderedCanonical: number, shippedBase: number): number {
+    return Math.max(orderedCanonical - shippedBase, 0);
   }
 
-  it('converts shipped base qty to box order_uom before netting open SO demand (P2-05)', () => {
-    const item = { uom_base: 'kg', net_qty_per_each: 50, each_per_box: 1 };
-    const orderedBoxes = 10;
-    const shippedKg = 50; // one full box in inventory/base UoM
-    const shippedInOrderUom = shippedBaseToOrderUom(shippedKg, 'box', item);
-    expect(shippedInOrderUom).toBe(1);
-    expect(Math.max(orderedBoxes - (shippedInOrderUom ?? 0), 0)).toBe(9);
+  it('nets partially shipped case order in canonical inventory UoM (wave 8)', () => {
+    // 3 cases × 12 each_per_box = 36 pcs ordered; 12 pcs shipped → 24 pcs open demand.
+    expect(openSoRemainderCanonical(36, 12)).toBe(24);
   });
 
-  it('converts shipped base qty to each order_uom before netting open SO demand (P2-05)', () => {
-    const item = { uom_base: 'kg', net_qty_per_each: 50, each_per_box: 1 };
-    const orderedEach = 10;
-    const shippedKg = 50; // one full each in inventory/base UoM
-    const shippedInOrderUom = shippedBaseToOrderUom(shippedKg, 'each', item);
-    expect(shippedInOrderUom).toBe(1);
-    expect(Math.max(orderedEach - (shippedInOrderUom ?? 0), 0)).toBe(9);
+  it('nets partially shipped pallet order in canonical inventory UoM (wave 8)', () => {
+    // 2 pallets × 48 boxes/pallet × 12 each/box = 1152 pcs ordered; 144 pcs shipped → 1008 remainder.
+    expect(openSoRemainderCanonical(1152, 144)).toBe(1008);
   });
 
-  it('nets box-UoM SO remainder after shipped conversion through computeMrpPhased (P2-05)', async () => {
-    // SQL remainder: 10 box ordered − 1 box shipped (50 kg) = 9 box → 450 kg base demand.
-    flourPackHierarchy = true;
-    soDemandRows = [{ product_id: FLOUR_ID, uom: 'box', need_date: MOCK_NEED_DATE, qty: '9.000' }];
+  it('nets canonical SO remainder after shipped base qty through computeMrpPhased (P2-05)', async () => {
+    // SQL remainder: 500 kg ordered − 50 kg shipped = 450 kg base demand.
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', need_date: MOCK_NEED_DATE, qty: '450.000' }];
 
     const result = await runMrp();
     expect(result.ok).toBe(true);
@@ -858,44 +836,34 @@ describe('runMrp', () => {
     expect(flour.demand).toBe('530.000'); // 80 dependent + 450 SO
   });
 
-  it('nets each-UoM SO remainder after shipped conversion through computeMrpPhased (P2-05)', async () => {
-    // SQL remainder: 10 each ordered − 1 each shipped (50 kg) = 9 each → 450 kg base demand.
-    flourPackHierarchy = true;
-    soDemandRows = [{ product_id: FLOUR_ID, uom: 'each', need_date: MOCK_NEED_DATE, qty: '9.000' }];
+  it('nets canonical each-UoM SO remainder through computeMrpPhased (P2-05)', async () => {
+    // SQL remainder: 450 kg ordered − 50 kg shipped = 400 kg base demand.
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', need_date: MOCK_NEED_DATE, qty: '400.000' }];
 
     const result = await runMrp();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
-    expect(flour.soDemand).toBe('450.000');
-    expect(flour.demand).toBe('530.000'); // 80 dependent + 450 SO
+    expect(flour.soDemand).toBe('400.000');
+    expect(flour.demand).toBe('480.000'); // 80 dependent + 400 SO
     expect(flour.excludedUoms).toEqual([]);
   });
 
-  it('excludes box/each SO demand when pack metadata is missing (shipped CASE null → coalesce 0, compute excludedUoms)', async () => {
+  it('excludes non-base SO demand when pack metadata is missing (compute excludedUoms)', async () => {
     // flourPackHierarchy stays false → net_qty_per_each/each_per_box are null on the item.
-    // Shipped subquery CASE returns NULL; outer SQL coalesce(shipped.shipped_qty, 0) treats shipped as 0,
-    // so the mocked SO remainder is the full ordered qty — but computeMrpPhased cannot normalize
-    // box/each to base and must surface excludedUoms instead of silently netting a wrong number.
-    const itemNoPack = { uom_base: 'kg', net_qty_per_each: null, each_per_box: null };
-    expect(shippedBaseToOrderUom(50, 'box', itemNoPack)).toBeNull();
-    expect(shippedBaseToOrderUom(50, 'each', itemNoPack)).toBeNull();
-
-    soDemandRows = [
-      { product_id: FLOUR_ID, uom: 'box', need_date: MOCK_NEED_DATE, qty: '10.000' },
-      { product_id: FLOUR_ID, uom: 'each', need_date: MOCK_NEED_DATE, qty: '5.000' },
-    ];
+    // SO demand is already canonical (uom_base); computeMrpPhased passes kg through directly.
+    soDemandRows = [{ product_id: FLOUR_ID, uom: 'kg', need_date: MOCK_NEED_DATE, qty: '10.000' }];
 
     const result = await runMrp();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
-    expect(flour.excludedUoms).toEqual(['box', 'each']);
-    expect(flour.soDemand).toBe('0.000');
-    expect(flour.demand).toBe('80.000'); // dependent only — SO rows excluded, not mixed in
-    expect(flour.net).toBe('-25.000'); // baseline without SO demand
+    expect(flour.excludedUoms).toEqual([]);
+    expect(flour.soDemand).toBe('10.000');
+    expect(flour.demand).toBe('90.000'); // 80 dependent + 10 SO
+    expect(flour.net).toBe('-35.000'); // baseline −25 worsened by 10 kg SO demand
   });
 
   it('buckets undated confirmed SO demand on the run date and surfaces a warning (P2-06)', async () => {

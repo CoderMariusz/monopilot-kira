@@ -30,8 +30,15 @@ export type SalesOrderLine = {
   item_id: string;
   item_code: string | null;
   item_name: string | null;
+  /** Entered order quantity for display/documents. */
   qty: string;
+  /** Entered order UoM for display/documents. */
   uom: string;
+  /** Canonical inventory quantity (quantity_ordered column). */
+  inventory_qty: string;
+  /** Canonical inventory UoM (item uom_base). */
+  inventory_uom: string;
+  /** Allocated quantity in entered UoM when convertible, else canonical. */
   allocated_qty: string;
   allocation_status: AllocationStatus;
 };

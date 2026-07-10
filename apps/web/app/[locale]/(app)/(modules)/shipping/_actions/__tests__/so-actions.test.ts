@@ -260,17 +260,28 @@ function makeClient(): QueryClient {
         };
       }
       if (q.startsWith('select sol.id::text') && q.includes('item_code')) {
+        const inventoryUom = lineOrderUom === 'case' ? 'pcs' : 'kg';
+        const orderQty = lineOrderQty ?? lineQuantityOrdered;
+        const orderUom = lineOrderUom ?? inventoryUom;
+        const allocatedCanonical = lineAllocatedQty;
+        let allocatedDisplay = allocatedCanonical;
+        if (orderUom === 'case' && lineProductId === ITEM_ID_2) {
+          allocatedDisplay = String(Number(allocatedCanonical) / 12);
+        }
         return {
           rows: [
             {
               id: LINE_ID,
               line_number: 1,
-              product_id: ITEM_ID,
-              item_code: 'FG-001',
-              item_name: 'Finished Good 001',
-              quantity_ordered: '10',
-              uom: 'kg',
-              quantity_allocated: lineAllocatedQty,
+              product_id: lineProductId === ITEM_ID_2 ? ITEM_ID_2 : ITEM_ID,
+              item_code: lineProductId === ITEM_ID_2 ? 'FG-002' : 'FG-001',
+              item_name: lineProductId === ITEM_ID_2 ? 'Finished Good 002' : 'Finished Good 001',
+              inventory_qty: lineQuantityOrdered,
+              inventory_uom: inventoryUom,
+              order_qty: orderQty,
+              order_uom: orderUom,
+              quantity_allocated: allocatedCanonical,
+              allocated_qty_display: allocatedDisplay,
             },
           ],
           rowCount: 1,
@@ -469,7 +480,36 @@ describe('SO read actions', () => {
             item_name: 'Finished Good 001',
             qty: '10',
             uom: 'kg',
+            inventory_qty: '10',
+            inventory_uom: 'kg',
             allocated_qty: '4',
+            allocation_status: 'partially_allocated',
+          },
+        ],
+      },
+    });
+  });
+
+  it('reports allocation status from canonical inventory qty for case orders', async () => {
+    lineAllocatedQty = '12';
+    lineQuantityOrdered = '36';
+    lineOrderQty = '3';
+    lineOrderUom = 'case';
+    lineProductId = ITEM_ID_2;
+
+    const result = await getSalesOrder(SO_ID);
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        allocation_status: 'partially_allocated',
+        lines: [
+          {
+            qty: '3',
+            uom: 'case',
+            inventory_qty: '36',
+            inventory_uom: 'pcs',
+            allocated_qty: '1',
             allocation_status: 'partially_allocated',
           },
         ],

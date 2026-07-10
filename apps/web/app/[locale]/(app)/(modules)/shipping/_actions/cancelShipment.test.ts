@@ -168,7 +168,7 @@ function makeClient(): QueryClient {
         };
       }
 
-      if (q.startsWith('with shipment_lps') && q.includes('shipment_lp_snapshots')) {
+      if (q.includes('restore_set') && q.includes('shipment_lp_snapshots')) {
         const snapshot = lpShipSnapshot[0] ?? {
           lp_id: LP_ID,
           shipped_qty: '6.000',
