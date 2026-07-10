@@ -45,8 +45,11 @@ async function transition(
       if (!(await hasPermission(ctx, ROUTING_APPROVE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
       const { rows: cur } = await qc.query<{ id: string; status: string; item_id: string }>(
-        `select id, status, item_id from public.routings
-          where org_id = app.current_org_id() and id = $1::uuid`,
+        `select routing.id, routing.status, routing.item_id
+           from public.routings routing
+          where routing.org_id = app.current_org_id()
+            and routing.id = $1::uuid
+          for update`,
         [input.routingId],
       );
       const routing = cur[0];
