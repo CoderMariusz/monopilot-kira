@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 
+import { formatCost } from '../_components/numeric';
 import { listPortfolioCost } from './_actions/list-portfolio-cost';
 
 type PortfolioCostResult = {
   fg_code: string;
   fg_name: string;
-  total_recipe_cost: number | null;
+  total_recipe_cost: string | null;
   currency: string;
 };
 
@@ -17,9 +18,10 @@ function sortRows(rows: PortfolioCostResult[], key: SortKey, direction: 'asc' | 
   return [...rows].sort((a, b) => {
     const av = a[key];
     const bv = b[key];
-    const result = typeof av === 'number' && typeof bv === 'number'
-      ? av - bv
-      : String(av).localeCompare(String(bv));
+    const result =
+      key === 'total_recipe_cost' && typeof av === 'string' && typeof bv === 'string'
+        ? av.localeCompare(bv, undefined, { numeric: true })
+        : String(av).localeCompare(String(bv));
     return direction === 'asc' ? result : -result;
   });
 }
@@ -102,7 +104,7 @@ export default function TechnicalPortfolioCostPage() {
                     <td className="px-3 py-2 font-mono">{row.fg_code}</td>
                     <td className="px-3 py-2">{row.fg_name || 'N/A'}</td>
                     <td className="px-3 py-2 tabular-nums">
-                      {row.total_recipe_cost == null ? '—' : row.total_recipe_cost.toFixed(2)}
+                      {row.total_recipe_cost == null ? '—' : formatCost(row.total_recipe_cost, 2)}
                     </td>
                     <td className="px-3 py-2">{row.currency}</td>
                   </tr>
