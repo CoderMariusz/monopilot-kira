@@ -3,6 +3,14 @@
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import {
+  canAssignPrivilegedRoles,
+  grantSubsetViolated,
+  hasSuperRole,
+  isPrivilegedSystemRole,
+  readCallerPermissions,
+  readRolePermissions,
+} from './role-grant-guards';
 
 const FORBIDDEN = 'forbidden' as const;
 
@@ -23,7 +31,15 @@ export type AssignRoleInput = {
 
 export type AssignRoleResult =
   | { ok: true; data: { targetUserId: string; roleId: string } }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
+  | {
+      ok: false;
+      error:
+        | 'invalid_input'
+        | 'forbidden'
+        | 'forbidden_privileged_role'
+        | 'not_found'
+        | 'persistence_failed';
+    };
 
 type AssignRoleMutationRow = {
   role_found: boolean;
@@ -72,6 +88,36 @@ export async function assignRole(input: AssignRoleInput): Promise<AssignRoleResu
   return withOrgContext(async ({ userId, orgId, client }) => {
     try {
       await requirePermission('settings.roles.assign')({ client, userId, orgId });
+
+      const { rows: targetRoleRows } = await client.query<{
+        id: string;
+        code: string;
+        slug: string | null;
+      }>(
+        `select id, code, slug
+           from public.roles
+          where id = $1::uuid
+            and org_id = $2::uuid`,
+        [roleId, orgId],
+      );
+      const targetRole = targetRoleRows[0];
+      if (!targetRole) {
+        return { ok: false, error: 'not_found' };
+      }
+
+      if (isPrivilegedSystemRole(targetRole) && !(await canAssignPrivilegedRoles(client, userId, orgId))) {
+        return { ok: false, error: 'forbidden_privileged_role' };
+      }
+
+      if (!(await hasSuperRole(client, userId, orgId))) {
+        const [callerPermissions, targetPermissions] = await Promise.all([
+          readCallerPermissions(client, userId, orgId),
+          readRolePermissions(client, roleId),
+        ]);
+        if (grantSubsetViolated(callerPermissions, targetPermissions)) {
+          return { ok: false, error: 'forbidden_privileged_role' };
+        }
+      }
 
       const { rows: mutationRows } = await client.query<AssignRoleMutationRow>(
         `with target_role as (
