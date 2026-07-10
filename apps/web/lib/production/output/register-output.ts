@@ -158,11 +158,12 @@ type SuppliedOutputLpRow = {
   status: string;
   qa_status: string;
   site_id: string | null;
+  warehouse_id: string;
   wo_id: string | null;
   location_id: string | null;
 };
 
-type ConsumedLpContribution = { lp_id: string; net_qty: string };
+type GenealogyAllocation = { lp_id: string; alloc_qty: string; uom: string };
 
 const TERMINAL_OUTPUT_LP_STATUSES = ['consumed', 'merged', 'shipped', 'returned', 'destroyed'] as const;
 
@@ -354,28 +355,91 @@ async function nextBatchNumber(
 }
 
 /**
- * Genealogy source (F-B08): net consumed qty per LP from the canonical consumption
- * ledger (wo_material_consumption — the only consume writer), including negative
- * reversal counter-rows. Parents with net <= 0 are excluded; per-parent genealogy
- * qty is the net contribution, not the full output qty.
+ * Genealogy source (F-B08): allocate each parent's net consumed qty across this WO's
+ * output LPs proportionally to the registering output's share of total WO output,
+ * capped by remaining unattributed parent qty and (for mass-compatible UoMs) this
+ * output qty so summed child edges never exceed the parent's net consumption.
  */
-async function loadConsumedLpContributions(
+async function allocateGenealogyContributionsForOutput(
   ctx: OrgContextLike,
   woId: string,
-): Promise<ConsumedLpContribution[]> {
-  const { rows } = await ctx.client.query<ConsumedLpContribution>(
-    `select lp_id::text as lp_id,
-            sum(qty_consumed)::text as net_qty
-       from public.wo_material_consumption
-      where org_id = app.current_org_id()
-        and wo_id = $1::uuid
-        and lp_id <> '00000000-0000-0000-0000-000000000000'::uuid
-      group by lp_id
-     having sum(qty_consumed) > 0::numeric
-      order by min(consumed_at) asc, lp_id asc`,
-    [woId],
+  outputQty: string,
+  outputUom: string,
+): Promise<GenealogyAllocation[]> {
+  const { rows } = await ctx.client.query<GenealogyAllocation & { consumption_uom: string }>(
+    `with parent_net as (
+       select mc.lp_id,
+              sum(mc.qty_consumed) as net_qty,
+              min(mc.uom) as consumption_uom
+         from public.wo_material_consumption mc
+        where mc.org_id = app.current_org_id()
+          and mc.wo_id = $1::uuid
+          and mc.lp_id <> '00000000-0000-0000-0000-000000000000'::uuid
+        group by mc.lp_id
+       having sum(mc.qty_consumed) > 0::numeric
+     ),
+     wo_output_total as (
+       select coalesce(sum(o.qty_kg), 0::numeric) as total_output_qty
+         from public.wo_outputs o
+        where o.org_id = app.current_org_id()
+          and o.wo_id = $1::uuid
+          and o.correction_of_id is null
+     ),
+     already_attributed as (
+       select lg.parent_lp_id,
+              sum(lg.qty) as attributed_qty
+         from public.lp_genealogy lg
+         join public.license_plates child_lp
+           on child_lp.org_id = lg.org_id
+          and child_lp.id = lg.child_lp_id
+         join public.wo_outputs o
+           on o.org_id = child_lp.org_id
+          and o.lp_id = child_lp.id
+          and o.wo_id = $1::uuid
+        where lg.org_id = app.current_org_id()
+          and lg.relation_type = 'consumed'
+        group by lg.parent_lp_id
+     )
+     select pn.lp_id::text as lp_id,
+            least(
+              pn.net_qty * $2::numeric / nullif(wot.total_output_qty, 0::numeric),
+              pn.net_qty - coalesce(aa.attributed_qty, 0::numeric),
+              case
+                when pn.consumption_uom = $3 and $3 in ('kg', 'g', 'lb')
+                  then $2::numeric
+                else pn.net_qty
+              end
+            )::text as alloc_qty,
+            pn.consumption_uom as uom,
+            pn.consumption_uom
+       from parent_net pn
+       cross join wo_output_total wot
+       left join already_attributed aa on aa.parent_lp_id = pn.lp_id
+      where wot.total_output_qty > 0::numeric
+        and least(
+              pn.net_qty * $2::numeric / wot.total_output_qty,
+              pn.net_qty - coalesce(aa.attributed_qty, 0::numeric),
+              case
+                when pn.consumption_uom = $3 and $3 in ('kg', 'g', 'lb')
+                  then $2::numeric
+                else pn.net_qty
+              end
+            ) > 0::numeric
+      order by pn.lp_id asc`,
+    [woId, outputQty, outputUom],
   );
-  return rows;
+
+  for (const row of rows) {
+    if (row.consumption_uom !== outputUom) {
+      throw new ProductionActionError('uom_mismatch', 409, {
+        uom: row.consumption_uom,
+        expected_uom: outputUom,
+        message: 'Parent consumption UoM does not match the output UoM for genealogy allocation.',
+      });
+    }
+  }
+
+  return rows.map(({ lp_id, alloc_qty, uom }) => ({ lp_id, alloc_qty, uom }));
 }
 
 /**
@@ -391,6 +455,7 @@ async function validateAndLockSuppliedOutputLp(
     uom: string;
     woId: string;
     woSiteId: string | null;
+    destinationWarehouseId: string;
   },
 ): Promise<SuppliedOutputLpRow> {
   const { rows } = await ctx.client.query<SuppliedOutputLpRow>(
@@ -401,6 +466,7 @@ async function validateAndLockSuppliedOutputLp(
             lp.status,
             lp.qa_status,
             lp.site_id::text as site_id,
+            lp.warehouse_id::text as warehouse_id,
             lp.wo_id::text as wo_id,
             lp.location_id::text as location_id
        from public.license_plates lp
@@ -423,12 +489,33 @@ async function validateAndLockSuppliedOutputLp(
   if (lp.uom !== params.uom) {
     throw new ProductionActionError('uom_mismatch', 409, { uom: lp.uom, expected_uom: params.uom });
   }
-  if (params.woSiteId && lp.site_id && lp.site_id !== params.woSiteId) {
+  if (!lp.warehouse_id) {
     throw new ProductionActionError('invalid_reference', 422, {
       field: 'lp_id',
-      message: 'Supplied license plate site does not match the work order site.',
+      message: 'Supplied license plate has no warehouse scope.',
     });
   }
+  if (lp.warehouse_id !== params.destinationWarehouseId) {
+    throw new ProductionActionError('invalid_reference', 422, {
+      field: 'lp_id',
+      message: 'Supplied license plate warehouse does not match the work order output destination.',
+    });
+  }
+  if (params.woSiteId) {
+    if (!lp.site_id) {
+      throw new ProductionActionError('invalid_reference', 422, {
+        field: 'lp_id',
+        message: 'Supplied license plate site is required for a site-scoped work order.',
+      });
+    }
+    if (lp.site_id !== params.woSiteId) {
+      throw new ProductionActionError('invalid_reference', 422, {
+        field: 'lp_id',
+        message: 'Supplied license plate site does not match the work order site.',
+      });
+    }
+  }
+  // wo_id null is allowed — internal reuse of a pre-created output shell LP for this WO.
   if (lp.wo_id && lp.wo_id !== params.woId) {
     throw new ProductionActionError('invalid_reference', 422, {
       field: 'lp_id',
@@ -631,7 +718,12 @@ async function createOutputLp(
     });
   }
 
-  const consumedParents = await loadConsumedLpContributions(ctx, input.woId);
+  const consumedParents = await allocateGenealogyContributionsForOutput(
+    ctx,
+    input.woId,
+    input.quantity,
+    input.uom,
+  );
   const consumedLpIds = consumedParents.map((parent) => parent.lp_id);
   const parentLpId = consumedLpIds[0] ?? null;
   const lpNumber = makeLpNumber();
@@ -676,7 +768,7 @@ async function createOutputLp(
          )
          values (app.current_org_id(), $1::uuid, $2::uuid, 'consumed', $3::numeric, $4)
          on conflict (org_id, child_lp_id, parent_lp_id, relation_type) do nothing`,
-        [lp.id, parent.lp_id, parent.net_qty, input.uom],
+        [lp.id, parent.lp_id, parent.alloc_qty, parent.uom],
       );
     }
   }
@@ -813,6 +905,13 @@ export async function registerOutput(
   const outputUom = input.uom ?? wo.uom;
   let suppliedLp: SuppliedOutputLpRow | null = null;
   if (input.lp_id) {
+    const destinationWarehouse = await resolveWarehouseForSessionSite(ctx);
+    if (!destinationWarehouse) {
+      throw new ProductionActionError('no_warehouse_for_site', 409, {
+        reason: 'no_warehouse_for_site',
+        message: NO_WAREHOUSE_FOR_SITE_MESSAGE,
+      });
+    }
     suppliedLp = await validateAndLockSuppliedOutputLp(ctx, {
       lpId: input.lp_id,
       productId: input.product_id,
@@ -820,6 +919,7 @@ export async function registerOutput(
       uom: outputUom,
       woId,
       woSiteId: wo.site_id,
+      destinationWarehouseId: destinationWarehouse.id,
     });
   }
 
@@ -932,7 +1032,7 @@ export async function registerOutput(
 
   const outputLp = suppliedLp
     ? {
-        rows: [{ site_id: wo.site_id, location_id: suppliedLp.location_id }],
+        rows: [{ site_id: suppliedLp.site_id, location_id: suppliedLp.location_id }],
       }
     : await ctx.client.query<OutputLpMoveRow>(
         `select site_id::text as site_id,

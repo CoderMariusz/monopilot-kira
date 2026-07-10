@@ -13,9 +13,12 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const SITE_ID = '22222222-2222-4222-8222-222222222223';
 const WO_ID = '33333333-3333-4333-8333-333333333333';
+const OTHER_WO_ID = '33333333-3333-4333-8333-333333333334';
 const PRODUCT_ID = '44444444-4444-4444-8444-444444444444';
 const OTHER_PRODUCT_ID = '44444444-4444-4444-8444-444444444445';
 const LP_ID = '77777777-7777-4777-8777-777777777777';
+const WAREHOUSE_ID = '77777777-7777-4777-8777-777777777778';
+const OTHER_WAREHOUSE_ID = '77777777-7777-4777-8777-777777777779';
 const LOCATION_ID = '88888888-8888-4888-8888-888888888888';
 const TX_ID = '55555555-5555-4555-8555-555555555555';
 
@@ -25,7 +28,8 @@ type LpFixture = {
   uom: string;
   status: string;
   qa_status: string;
-  site_id: string;
+  site_id: string | null;
+  warehouse_id: string;
   wo_id: string | null;
 };
 
@@ -104,6 +108,12 @@ function makeClient(): QueryClient {
           rowCount: 1,
         };
       }
+      if (n.includes('from public.warehouses')) {
+        return {
+          rows: [{ id: WAREHOUSE_ID, default_location_id: LOCATION_ID }],
+          rowCount: 1,
+        };
+      }
       if (n.includes('from public.license_plates lp') && n.includes('for update of lp')) {
         return {
           rows: [
@@ -115,6 +125,7 @@ function makeClient(): QueryClient {
               status: lpFixture.status,
               qa_status: lpFixture.qa_status,
               site_id: lpFixture.site_id,
+              warehouse_id: lpFixture.warehouse_id,
               wo_id: lpFixture.wo_id,
               location_id: LOCATION_ID,
             },
@@ -147,6 +158,7 @@ describe('registerOutput — caller-supplied LP integrity (Wave 9 Bug 1)', () =>
       status: 'received',
       qa_status: 'pending',
       site_id: SITE_ID,
+      warehouse_id: WAREHOUSE_ID,
       wo_id: WO_ID,
     };
     client = makeClient();
@@ -181,6 +193,40 @@ describe('registerOutput — caller-supplied LP integrity (Wave 9 Bug 1)', () =>
     });
   });
 
+  it('rejects a supplied LP whose warehouse does not match the WO destination', async () => {
+    lpFixture.warehouse_id = OTHER_WAREHOUSE_ID;
+
+    await expect(registerOutput(makeCtx(), WO_ID, baseBody())).rejects.toMatchObject({
+      code: 'invalid_reference',
+      status: 422,
+    });
+  });
+
+  it('rejects a supplied LP with null site on a site-scoped work order', async () => {
+    lpFixture.site_id = null;
+
+    await expect(registerOutput(makeCtx(), WO_ID, baseBody())).rejects.toMatchObject({
+      code: 'invalid_reference',
+      status: 422,
+    });
+  });
+
+  it('rejects a supplied LP already bound to a different work order', async () => {
+    lpFixture.wo_id = OTHER_WO_ID;
+
+    await expect(registerOutput(makeCtx(), WO_ID, baseBody())).rejects.toMatchObject({
+      code: 'invalid_reference',
+      status: 422,
+    });
+  });
+
+  it('allows a supplied LP with null wo_id for internal reuse on this work order', async () => {
+    lpFixture.wo_id = null;
+
+    const result = await registerOutput(makeCtx(), WO_ID, baseBody());
+    expect(result.lp_id).toBe(LP_ID);
+  });
+
   it('increments the supplied LP quantity by the output qty in the same flow', async () => {
     const result = await registerOutput(makeCtx(), WO_ID, baseBody());
 
@@ -188,5 +234,12 @@ describe('registerOutput — caller-supplied LP integrity (Wave 9 Bug 1)', () =>
     expect(result.lp_number).toBeNull();
     const increment = queryCalls.find((call) => normalize(call.sql).includes('quantity + $2::numeric'));
     expect(increment?.params).toEqual([LP_ID, '25.500', USER_ID]);
+  });
+
+  it('uses the locked supplied LP site_id on the stock move', async () => {
+    await registerOutput(makeCtx(), WO_ID, baseBody());
+
+    const stockMove = queryCalls.find((call) => normalize(call.sql).startsWith('insert into public.stock_moves'));
+    expect(stockMove?.params?.[0]).toBe(lpFixture.site_id);
   });
 });

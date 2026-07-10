@@ -40,3 +40,38 @@ Branch: `fix/wave9-production-qa`. No migrations added.
 pnpm --filter web exec tsc --noEmit  # clean
 pnpm exec vitest run (6 touched test files from apps/web)  # 65 passed
 ```
+
+## Fix round 1
+
+Adversarial Codex review follow-up on `fix/wave9-production-qa`.
+
+### Bug 2 — genealogy double-count across multiple outputs
+
+**Fix:** `allocateGenealogyContributionsForOutput` allocates each parent's net consumed proportionally to this output's share of total WO output, subtracts genealogy already attributed to prior child LPs, caps by remaining parent qty and (for mass UoMs) this output qty. Genealogy edges label qty with the parent **consumption** UoM; mismatched consumption/output UoM is rejected.
+
+**Tests:** `register-output-genealogy-net-consumed.test.ts` — two-output regression (100 kg parent, two 50 kg outputs → summed edges = 100).
+
+### Bug 1 — supplied-LP site/warehouse validation
+
+**Fix:** `validateAndLockSuppliedOutputLp` now locks and validates `warehouse_id` + `site_id`; rejects null site on site-scoped WOs and warehouse mismatch vs the WO output destination; stock moves use the locked LP's `site_id`. `wo_id` null remains allowed for internal reuse; non-null conflicting `wo_id` is rejected.
+
+**Tests:** `register-output-supplied-lp.test.ts` — warehouse mismatch, null site, different-WO rejection, null-`wo_id` reuse allowed, stock move uses locked LP site.
+
+### Bug 3 — hold-active path commits PASSED without LP release
+
+**Fix:** `transitionWoOutputQaForContext` checks `assertNoActiveHoldForLp` **before** writing `wo_outputs.qa_status`; active hold returns `{ ok: false, reason: 'quality_hold_active' }` with no partial commit.
+
+**Tests:** `transition-output-qa.test.ts` — active hold leaves output `PENDING` and skips LP update.
+
+### Canonical ownership — Quality hold/release → production API
+
+**Fix:** `applyWoOutputHoldForContext` + `restoreWoOutputsAfterWoHoldReleaseForContext` in `transition-output-qa.ts`; `hold-actions.ts` routes WO hold create/release through these (W3 snapshot/restore semantics unchanged).
+
+**Tests:** `transition-output-qa.test.ts` — snapshot/restore hold helpers.
+
+### Gates (fix round)
+
+```text
+pnpm --filter web exec tsc --noEmit  # clean
+pnpm --filter web exec vitest run lib/production/output/__tests__/*.test.ts quality/__tests__/haccp-actions.test.ts quality/_actions/__tests__/inspection-actions.test.ts  # 69 passed
+```
