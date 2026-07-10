@@ -1,7 +1,3 @@
--- Migration 459 (NUMBER COLLISION — see also 459-yield-gate-override-reasons.sql):
--- Both files share prefix 459; runner orders by numeric prefix then filename (lexicographic).
--- Renumbering applied migrations is unsafe (schema_migrations checksum gate). Both are
--- tracked independently by filename in schema_migrations.
 -- F1 fix: refuse invalid prefix / serial-capacity exhaustion BEFORE next_sscc_serial()
 -- so a failed mint does not burn sscc_counters. Pack routes through generate_sscc (canonical).
 

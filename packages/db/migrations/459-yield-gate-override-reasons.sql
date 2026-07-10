@@ -1,8 +1,4 @@
--- Migration 459 (NUMBER COLLISION — see also 459-generate-sscc-validate-before-increment.sql):
--- Both files share prefix 459; runner orders by numeric prefix then filename (lexicographic).
--- Renumbering applied migrations is unsafe (schema_migrations checksum gate). Both are
--- tracked independently by filename in schema_migrations.
--- 08-Production yield-gate override reason taxonomy (NN-PROD-6).
+-- Migration 459: 08-Production yield-gate override reason taxonomy (NN-PROD-6).
 -- Global read-only reference list for supervisor yield-gate bypass reasons.
 -- App validation mirrors this seed in apps/web/lib/production/yield-gate-override.ts.
 -- Skipped 455 (parallel buffer). Idempotent, additive, live-safe.
