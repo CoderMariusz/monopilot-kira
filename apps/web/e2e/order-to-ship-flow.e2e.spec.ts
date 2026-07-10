@@ -113,21 +113,14 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
     await expect(form, 'create-SO form is reachable via ?new=1').toBeVisible({ timeout: 12_000 });
     await shot(page, '01-create-form');
 
-    if (!(await pickCustomer(page, form))) {
-      console.log('[order-to-ship] no customer available and none creatable — cannot build SO. Degrade.');
-      test.skip(true, 'no customer to build a Sales Order — data-shape branch.');
-      return;
-    }
+    const picked = await pickCustomer(page, form);
+    expect(picked, 'a customer must be available or creatable to build a Sales Order [critical mutation]').toBe(true);
 
     // Pick a finished-good line item from the real items master.
     await page.getByTestId('item-picker-trigger').first().click();
     await expect(page.getByTestId('item-picker-options')).toBeVisible({ timeout: 8_000 });
-    if (!(await page.getByTestId('item-picker-option').count())) {
-      console.log('[order-to-ship] no FG items seeded — cannot build a SO line. Degrade.');
-      await page.keyboard.press('Escape').catch(() => undefined);
-      test.skip(true, 'no FG item to build a Sales Order line — data-shape branch.');
-      return;
-    }
+    const itemOptionCount = await page.getByTestId('item-picker-option').count();
+    expect(itemOptionCount, 'at least one FG item must be seeded to build a SO line [critical mutation]').toBeGreaterThan(0);
     await page.getByTestId('item-picker-option').first().click();
     chain.itemCode = ((await page.getByTestId('create-so-line-item').first().innerText().catch(() => '')) || '')
       .trim()
@@ -174,7 +167,7 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
 
   // ── Step 2: confirm → allocate; allocation never exceeds ordered.
   test('2 · confirms then allocates — quantity_allocated never exceeds quantity_ordered', async ({ page }) => {
-    test.skip(!chain.soId, 'no SO created in step 1');
+    expect(chain.soId, 'SO created in step 1').toBeTruthy();
     await signIn(page);
     await page.goto(url(`/${L}/shipping/${chain.soId}`), { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('so-detail-view')).toBeVisible({ timeout: 12_000 });
@@ -207,7 +200,7 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
 
   // ── Step 3: create a shipment + pack a box → every sealed box gets a valid SSCC-18.
   test('3 · creates a shipment and packs a box — each sealed box carries a valid SSCC-18', async ({ page }) => {
-    test.skip(!chain.soId, 'no SO id from step 1');
+    expect(chain.soId, 'SO id from step 1').toBeTruthy();
     await signIn(page);
     await page.goto(url(`/${L}/shipping/${chain.soId}`), { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('so-detail-view')).toBeVisible({ timeout: 12_000 });
@@ -225,13 +218,11 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
     }
 
     const packView = page.getByTestId('shipment-pack-view');
-    if (!(await packView.count())) {
-      console.log('[order-to-ship] no pack view reachable — shipment may not have been created (no allocated LPs).');
-      await shot(page, '05-no-pack-view');
-      return;
-    }
-    await expect(packView).toBeVisible({ timeout: 15_000 });
+    await expect(packView, 'shipment pack view reachable after create [critical mutation]').toBeVisible({
+      timeout: 15_000,
+    });
     chain.shipmentId = /\/shipments\/([a-f0-9-]{36})/.exec(page.url())?.[1] ?? '';
+    expect(chain.shipmentId, 'shipment id captured after create').toBeTruthy();
 
     // Pack a licence plate into a box when one is supplied; degrade gracefully otherwise.
     const lpInput = page.getByTestId('pack-lp-input');
@@ -279,7 +270,7 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
 
   // ── Step 4: ship (with a BOL).
   test('4 · generates a BOL and ships the shipment — shipped-at is stamped', async ({ page }) => {
-    test.skip(!chain.shipmentId, 'no shipment created in step 3');
+    expect(chain.shipmentId, 'shipment created in step 3').toBeTruthy();
     await signIn(page);
     await page.goto(url(`/${L}/shipping/shipments/${chain.shipmentId}`), { waitUntil: 'domcontentloaded' });
 
@@ -320,7 +311,7 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
   test('5 · records POD — submit stays DISABLED until proof URL + reason + e-sign, then delivers', async ({
     page,
   }) => {
-    test.skip(!chain.shipmentId, 'no shipment created in step 3');
+    expect(chain.shipmentId, 'shipment created in step 3').toBeTruthy();
     await signIn(page);
     await page.goto(url(`/${L}/shipping/shipments/${chain.shipmentId}`), { waitUntil: 'domcontentloaded' });
 
@@ -369,7 +360,7 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
 
   // ── Step 6: delivered can't regress to shipped.
   test('6 · a delivered shipment cannot regress to shipped', async ({ page }) => {
-    test.skip(!chain.delivered, 'shipment was not delivered in step 5');
+    expect(chain.delivered, 'shipment delivered in step 5').toBe(true);
     await signIn(page);
     await page.goto(url(`/${L}/shipping/shipments/${chain.shipmentId}`), { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('shipment-ship-controls')).toBeVisible({ timeout: 12_000 });
@@ -423,11 +414,7 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
         await page.keyboard.press('Escape').catch(() => undefined);
       }
     }
-    if (!built) {
-      console.log('[order-to-ship] no supplier+item pair to build a PO — purchasing tail degraded (RTL fallback covers it).');
-      test.skip(true, 'no supplier+item pair for a PO — data-shape branch.');
-      return;
-    }
+    expect(built, 'supplier+item pair available to build a PO [critical mutation]').toBe(true);
 
     poItemCode = ((await page.getByTestId('create-po-line-item').first().innerText().catch(() => '')) || '')
       .trim()

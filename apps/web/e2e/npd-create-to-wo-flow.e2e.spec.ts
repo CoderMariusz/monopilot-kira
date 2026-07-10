@@ -173,7 +173,7 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
   test('2 · minting the FG candidate STAYS on the recipe stage (no /fg redirect) [B2]', async ({
     page,
   }) => {
-    test.skip(!flow.projectId, 'no project created in step 1');
+    expect(flow.projectId, 'project created in step 1').toBeTruthy();
     await signIn(page);
 
     // Open the recipe stage — the shared project header carries the FG-mint affordance.
@@ -217,9 +217,9 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
     }
 
     if (!(await createBtn.count())) {
-      console.log('[npd-flow] FG-mint affordance not reachable (project not at the G2/G3 gate that exposes it) — data/flow-shape branch, degrading. B2 asserted only when a mint is actually performed.');
-      await shot(page, '04-no-mint-affordance');
-      return;
+      throw new Error(
+        'FG-mint affordance not reachable — project must be at the G2/G3 gate that exposes Create FG [critical mutation]',
+      );
     }
 
     await createBtn.click();
@@ -244,9 +244,7 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
     await page.waitForTimeout(1_500);
     if (await errorAlert.count()) {
       const msg = (await errorAlert.innerText().catch(() => '')).trim();
-      console.log(`[npd-flow] FG mint returned an error (${msg}) — not a B2 redirect; degrading.`);
-      await shot(page, '04-fg-mint-error');
-      return;
+      throw new Error(`FG mint failed — critical mutation must succeed: "${msg}"`);
     }
 
     flow.mintPerformed = true;
@@ -254,13 +252,12 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
       .toHaveURL(/\/pipeline\/[a-f0-9-]{36}/, { timeout: 8_000 });
     expect(page.url(), 'minting must NOT redirect to the /fg detail page [B2]').not.toMatch(/\/fg\//);
 
-    // The now-linked FG surfaces its "Open FG" link — capture the productCode for steps 5.
     const linked = page.getByTestId('project-header-open-fg');
-    if (await linked.count()) {
-      const href = (await linked.getAttribute('href')) ?? '';
-      flow.productCode = /\/fg\/([^/?#]+)/.exec(href)?.[1] ?? '';
-    }
+    await expect(linked, 'FG is linked after minting [critical mutation]').toBeVisible({ timeout: 8_000 });
+    const href = (await linked.getAttribute('href')) ?? '';
+    flow.productCode = /\/fg\/([^/?#]+)/.exec(href)?.[1] ?? '';
     if (!flow.productCode && suggested) flow.productCode = suggested.trim();
+    expect(flow.productCode, 'minted FG product code captured').toBeTruthy();
     await shot(page, '05-fg-minted-stayed-on-stage');
     console.log(`[npd-flow] minted FG ${flow.productCode || '?'} and stayed on the recipe stage (B2 held).`);
   });
@@ -269,7 +266,7 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
   test('3 · adding a recipe ingredient satisfies the "at least one ingredient" gate [B1-gate]', async ({
     page,
   }) => {
-    test.skip(!flow.projectId, 'no project created in step 1');
+    expect(flow.projectId, 'project created in step 1').toBeTruthy();
     await signIn(page);
     await page.goto(url(`/${L}/pipeline/${flow.projectId}/formulation`), {
       waitUntil: 'domcontentloaded',
@@ -363,7 +360,7 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
   test('4 · a packaging component with a supplier SAVES (no "Could not save the component") [B1]', async ({
     page,
   }) => {
-    test.skip(!flow.projectId, 'no project created in step 1');
+    expect(flow.projectId, 'project created in step 1').toBeTruthy();
     await signIn(page);
     await page.goto(url(`/${L}/pipeline/${flow.projectId}/packaging`), {
       waitUntil: 'domcontentloaded',
@@ -530,11 +527,9 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
     // Note: create-wo-product-search does not exist — the product picker is ItemPicker.
     const rowsBefore = await page.locator('[data-testid^="wo-link-"]').count();
     const pickerTrigger = page.getByTestId('item-picker-trigger').first();
-    if (!(await pickerTrigger.count())) {
-      console.log('[npd-flow] create-WO product picker (item-picker-trigger) not found — cannot build a WO; degrading.');
-      await shot(page, '15-no-product-picker');
-      return;
-    }
+    await expect(pickerTrigger, 'create-WO product picker present [critical mutation]').toBeVisible({
+      timeout: 8_000,
+    });
     await pickerTrigger.click();
     await page.getByTestId('item-picker-options').waitFor({ timeout: 8_000 }).catch(() => undefined);
     // Prefer our minted FG when its code is searchable; else take the first option.
@@ -544,12 +539,9 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
       await page.waitForTimeout(400);
     }
     const option = page.getByTestId('item-picker-option').first();
-    if (!(await option.count())) {
-      console.log('[npd-flow] no product options in the create-WO picker — degrading.');
-      await page.keyboard.press('Escape').catch(() => undefined);
-      await shot(page, '15-no-product-options');
-      return;
-    }
+    await expect(option, 'at least one product option in create-WO picker [critical mutation]').toBeVisible({
+      timeout: 8_000,
+    });
     await option.click();
     await expect(page.getByTestId('create-wo-selected-product'), 'a product is selected for the WO').toBeVisible({
       timeout: 8_000,
