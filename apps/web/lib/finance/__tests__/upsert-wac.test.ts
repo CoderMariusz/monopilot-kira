@@ -516,63 +516,69 @@ describe('creditWacAtAvgCost', () => {
   });
 });
 
-describe('WAC multi-currency buckets', () => {
+describe('WAC valuation currency pool', () => {
   it('defaults omitted currencyCode to org base GBP', () => {
     expect(WAC_VALUATION_CURRENCY_CODE).toBe('GBP');
   });
 
-  it('books EUR and GBP receipts into separate currency buckets without cross-contamination', async () => {
+  it('receipt credit and consumption debit share the same GBP pool', async () => {
     const client = new WacMockClient();
     await upsertWac(client, {
       orgId: ORG_ID,
       siteId: SITE_ID,
       itemId: ITEM_ID,
       deltaQtyKg: '10',
-      deltaValue: '42',
+      deltaValue: '100',
       updatedBy: USER_ID,
-      currencyCode: 'EUR',
-    });
-    await upsertWac(client, {
-      orgId: ORG_ID,
-      siteId: SITE_ID,
-      itemId: ITEM_ID,
-      deltaQtyKg: '5',
-      deltaValue: '50',
-      updatedBy: USER_ID,
-      currencyCode: 'GBP',
+      currencyCode: WAC_VALUATION_CURRENCY_CODE,
     });
 
-    expect(client.getBucket('EUR')).toMatchObject({ totalQtyKg: '10', totalValue: '42', avgCost: '4.2' });
-    expect(client.getBucket('GBP')).toMatchObject({ totalQtyKg: '5', totalValue: '50', avgCost: '10' });
-    expect(client.calls[0]?.params?.[6]).toBe('EUR');
-    expect(client.calls[1]?.params?.[6]).toBe('GBP');
-  });
-
-  it('debits within the same currency bucket as the receipt', async () => {
-    const client = new WacMockClient();
-    await upsertWac(client, {
-      orgId: ORG_ID,
-      siteId: SITE_ID,
-      itemId: ITEM_ID,
-      deltaQtyKg: '10',
-      deltaValue: '42',
-      updatedBy: USER_ID,
-      currencyCode: 'EUR',
-    });
-
-    await debitWac(client, {
+    const debit = await debitWac(client, {
       orgId: ORG_ID,
       siteId: SITE_ID,
       itemId: ITEM_ID,
       qty: '4',
       uom: 'kg',
       updatedBy: USER_ID,
-      currencyCode: 'EUR',
     });
+    expect(debit.applied).toBe(true);
+    expect(client.getBucket('GBP')).toMatchObject({ totalQtyKg: '6', totalValue: '60', avgCost: '10' });
+    expect(client.calls[0]?.params?.[6]).toBe('GBP');
+    expect(client.calls.at(-1)?.params?.[6]).toBe('GBP');
+  });
 
-    expect(client.getBucket('EUR')).toMatchObject({ totalQtyKg: '6', totalValue: '25.2', avgCost: '4.2' });
-    expect(client.getBucket('GBP')).toBeNull();
-    expect(client.calls.at(-1)?.params?.[6]).toBe('EUR');
+  it('consumption reversal credits the same GBP pool as the original debit', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      deltaQtyKg: '100',
+      deltaValue: '1000',
+      updatedBy: USER_ID,
+    });
+    const debit = await debitWac(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      qty: '40',
+      uom: 'kg',
+      updatedBy: USER_ID,
+    });
+    if (!debit.applied) throw new Error('expected debit');
+
+    const reversal = await applyConsumptionWacReversal(client, {
+      orgId: ORG_ID,
+      siteId: SITE_ID,
+      itemId: ITEM_ID,
+      extJsonb: { wac_qty_kg: debit.qtyKg, wac_value: debit.valueDebited },
+      fallbackQty: '40',
+      fallbackUom: 'kg',
+      updatedBy: USER_ID,
+    });
+    expect(reversal).toMatchObject({ applied: true });
+    expect(client.getBucket('GBP')).toMatchObject({ totalQtyKg: '100', totalValue: '1000', avgCost: '10' });
+    expect(client.calls.at(-1)?.params?.[6]).toBe('GBP');
   });
 });
 
@@ -592,6 +598,28 @@ describe('resolveWacDeltaQtyKg', () => {
 
     expect(result).toEqual({ qtyKg: '48', resolved: true });
     expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it('maps canonical pcs to each for WAC kg resolution', async () => {
+    const client = new ResolveWacMockClient({ resolved: true, qtyKg: '2.500' });
+
+    const result = await resolveWacDeltaQtyKg(client, {
+      itemId: ITEM_ID,
+      qty: '5',
+      uom: 'pcs',
+    });
+
+    expect(result).toEqual({ qtyKg: '2.500', resolved: true });
+    expect(client.lastUomParam).toBe('each');
+  });
+
+  it('maps legacy szt/ea piece aliases to each for WAC kg resolution', async () => {
+    const client = new ResolveWacMockClient({ resolved: true, qtyKg: '1.000' });
+
+    for (const uom of ['szt', 'ea'] as const) {
+      await resolveWacDeltaQtyKg(client, { itemId: ITEM_ID, qty: '2', uom });
+      expect(client.lastUomParam).toBe('each');
+    }
   });
 
   it('returns resolved:false with unresolved_uom marker instead of raw fallback qty and warns', async () => {
@@ -783,7 +811,7 @@ describe('receivePoLineDesktop WAC integration', () => {
     const wacIndex = currentClient.calls.findIndex((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
     expect(lpIndex).toBeGreaterThanOrEqual(0);
     expect(wacIndex).toBeGreaterThan(lpIndex);
-    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '10', '42', USER_ID, SITE_ID, 'EUR']);
+    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '10', '42', USER_ID, SITE_ID, 'GBP']);
   });
 
   it('unit-mixing case: box item with kg conversion computes WAC on kg basis', async () => {
@@ -801,7 +829,7 @@ describe('receivePoLineDesktop WAC integration', () => {
 
     expect(result).toMatchObject({ ok: true, lpId: 'lp-1' });
     const wacIndex = currentClient.calls.findIndex((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
-    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '48', '100', USER_ID, SITE_ID, 'EUR']);
+    expect(currentClient.calls[wacIndex]?.params).toEqual([ORG_ID, ITEM_ID, '48', '100', USER_ID, SITE_ID, 'GBP']);
   });
 
   it('unresolved-UoM receipt is rejected before WAC can be skipped silently', async () => {
@@ -818,6 +846,24 @@ describe('receivePoLineDesktop WAC integration', () => {
     });
 
     expect(result).toEqual({ ok: false, error: 'wac_unresolved_uom' });
+    const wacWrite = currentClient.calls.find((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
+    expect(wacWrite).toBeUndefined();
+  });
+
+  it('rejects non-base PO currency before booking WAC', async () => {
+    currentClient = new ReceiveMockClient({ poCurrency: 'EUR' });
+    const { receivePoLineDesktop } = await import(
+      '../../../app/[locale]/(app)/(modules)/planning/purchase-orders/_actions/receive-po-line'
+    );
+
+    const result = await receivePoLineDesktop({
+      poLineId: LINE_ID,
+      qty: '10.000',
+      batchNumber: 'B-EUR',
+      bestBefore: '2026-07-01',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'wac_unsupported_currency' });
     const wacWrite = currentClient.calls.find((call) => normalize(call.sql).includes('insert into public.item_wac_state'));
     expect(wacWrite).toBeUndefined();
   });
@@ -998,12 +1044,14 @@ class ReceiveMockClient implements QueryClient {
   unitPrice: string;
   wacQtyKg: string | null;
   wacResolved: boolean | null;
+  poCurrency: string;
 
-  constructor(options: { lineUom?: string; unitPrice?: string; wacQtyKg?: string; wacResolved?: boolean } = {}) {
+  constructor(options: { lineUom?: string; unitPrice?: string; wacQtyKg?: string; wacResolved?: boolean; poCurrency?: string } = {}) {
     this.lineUom = options.lineUom ?? 'kg';
     this.unitPrice = options.unitPrice ?? '4.20';
     this.wacQtyKg = options.wacQtyKg ?? null;
     this.wacResolved = options.wacResolved ?? null;
+    this.poCurrency = options.poCurrency ?? 'GBP';
   }
 
   async query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }> {
@@ -1032,7 +1080,7 @@ class ReceiveMockClient implements QueryClient {
       };
     }
     if (normalized.startsWith('select pol.item_id::text, pol.unit_price::text as unit_price')) {
-      return { rows: [{ item_id: ITEM_ID, unit_price: this.unitPrice, currency: 'EUR' }] as T[] };
+      return { rows: [{ item_id: ITEM_ID, unit_price: this.unitPrice, currency: this.poCurrency }] as T[] };
     }
     if (normalized.includes('from public.currencies where code = $1')) {
       const code = String(params?.[0] ?? '');
@@ -1145,11 +1193,14 @@ function coerceWacTotals(rawQty: string, rawValue: string): { totalQtyKg: string
 }
 
 class ResolveWacMockClient {
+  lastUomParam: string | undefined;
+
   constructor(private readonly options: { resolved?: boolean; qtyKg?: string; missingItem?: boolean }) {}
 
   async query<T = Record<string, unknown>>(sql: string, params: readonly unknown[] = []): Promise<{ rows: T[]; rowCount?: number | null }> {
     const normalized = normalize(sql);
     if (normalized.includes('from public.items i') && normalized.includes('as qty_kg')) {
+      this.lastUomParam = String(params[1] ?? '');
       if (this.options.missingItem) return { rows: [] };
       return {
         rows: [{

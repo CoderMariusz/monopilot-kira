@@ -131,7 +131,7 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
     ]);
   });
 
-  it('books EUR into currencies.code=EUR (not NULL, not GBP)', async () => {
+  it('books explicit currencyCode into the requested bucket (legacy callers)', async () => {
     const eurItemId = randomUUID();
     await upsertWac(ownerPool, {
       orgId,
@@ -153,7 +153,6 @@ runIntegrationSuite('upsertWac real Postgres behavior', () => {
     );
 
     expect(rows).toEqual([{ currency_code: 'EUR' }]);
-    expect(rows[0]?.currency_code).not.toBe('GBP');
   });
 
   it('computes exact weighted-average cost after a second receipt hits the conflict path', async () => {
