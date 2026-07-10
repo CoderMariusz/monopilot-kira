@@ -153,7 +153,10 @@ export async function recallFactorySpecInTransaction(
 
   await ctx.client.query(
     `update public.factory_release_status
-        set release_status = 'approved_for_factory',
+        set release_status = 'pending_technical_approval',
+            factory_available_at = null,
+            factory_approved_by = null,
+            release_event_id = null,
             updated_at = now()
       where org_id = app.current_org_id()
         and active_factory_spec_id = $1::uuid
