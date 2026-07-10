@@ -26,7 +26,7 @@ type FakeClientOptions = {
   permissionGranted?: boolean;
   targetUserFound?: boolean;
   allSitesValid?: boolean;
-  targetRoleCodes?: string[];
+  targetRoleSlugs?: string[];
 };
 
 type FakeClient = {
@@ -43,7 +43,7 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
   const permissionGranted = options.permissionGranted ?? true;
   const targetUserFound = options.targetUserFound ?? true;
   const allSitesValid = options.allSitesValid ?? true;
-  const targetRoleCodes = options.targetRoleCodes ?? [];
+  const targetRoleSlugs = options.targetRoleSlugs ?? [];
   const calls: QueryCall[] = [];
   const client: FakeClient = {
     calls,
@@ -60,9 +60,9 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
         return permissionGranted ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
 
-      if (norm.includes('r.code = any($3::text[])')) {
+      if (norm.includes('r.slug = any($3::text[])')) {
         const allowed = new Set(params[2] as readonly string[]);
-        const ok = targetRoleCodes.some((code) => allowed.has(code));
+        const ok = targetRoleSlugs.some((slug) => allowed.has(slug));
         return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
       }
 
@@ -169,7 +169,7 @@ describe('assignUserSites behavior', () => {
   });
 
   it('refuses empty siteIds for an ordinary user so zero rows cannot mean unrestricted', async () => {
-    bindClient(makeClient({ targetRoleCodes: [] }));
+    bindClient(makeClient({ targetRoleSlugs: [] }));
     const { assignUserSites } = await loadAssignUserSites();
 
     const result = await assignUserSites({ userId: TARGET_USER_ID, siteIds: [] });
@@ -181,7 +181,7 @@ describe('assignUserSites behavior', () => {
   });
 
   it('allows empty siteIds for an admin-class target user with explicit all-site authority', async () => {
-    bindClient(makeClient({ targetRoleCodes: ['admin'] }));
+    bindClient(makeClient({ targetRoleSlugs: ['admin'] }));
     const { assignUserSites } = await loadAssignUserSites();
 
     const result = await assignUserSites({ userId: TARGET_USER_ID, siteIds: [] });
@@ -190,6 +190,18 @@ describe('assignUserSites behavior', () => {
     expect(currentClient.deletedFor).toEqual([TARGET_USER_ID]);
     expect(currentClient.insertedSiteIds).toHaveLength(0);
     expect(currentClient.auditRows[0]).toMatchObject({ action: 'settings.user.sites_assigned' });
+  });
+
+  it('refuses empty siteIds when the target has admin-family code but a non-admin slug', async () => {
+    bindClient(makeClient({ targetRoleSlugs: ['custom-operator'] }));
+    const { assignUserSites } = await loadAssignUserSites();
+
+    const result = await assignUserSites({ userId: TARGET_USER_ID, siteIds: [] });
+
+    expect(result).toEqual({ ok: false, error: 'empty_site_assignment_forbidden' });
+    expect(currentClient.deletedFor).toHaveLength(0);
+    expect(currentClient.insertedSiteIds).toHaveLength(0);
+    expect(currentClient.auditRows).toHaveLength(0);
   });
 
   it('returns not_found when the target user is not in the caller org (no mutation)', async () => {

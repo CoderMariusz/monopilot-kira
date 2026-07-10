@@ -5,6 +5,7 @@ const ACTOR_USER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const TARGET_USER_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const OPERATOR_ROLE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const OWNER_ROLE_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const INVITE_CODE_ROLE_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 
 const { _withOrgContextRunner } = vi.hoisted(() => ({
   _withOrgContextRunner: vi.fn(),
@@ -80,18 +81,25 @@ function makeClient(options: {
       }
 
       if (norm.includes('from public.user_roles ur') && norm.includes('jsonb_array_elements_text')) {
+        const grants = new Set(client.actorPermissions);
+        for (const code of client.actorRoleCodes) {
+          if (code.includes('.')) grants.add(code);
+        }
         return {
-          rows: client.actorPermissions.map((permission) => ({ permission })),
-          rowCount: client.actorPermissions.length,
+          rows: [...grants].map((permission) => ({ permission })),
+          rowCount: grants.size,
         };
       }
 
       if (norm.includes('from public.role_permissions rp') && norm.includes('app.current_org_id()')) {
         const roleId = params[0] as string;
-        const permissions = client.rolePermissionsById[roleId] ?? [];
+        const role = client.rolesById[roleId];
+        const grants = new Set(client.rolePermissionsById[roleId] ?? []);
+        if (role?.code?.includes('.')) grants.add(role.code);
+        if (role?.slug?.includes('.')) grants.add(role.slug);
         return {
-          rows: permissions.map((permission) => ({ permission })),
-          rowCount: permissions.length,
+          rows: [...grants].map((permission) => ({ permission })),
+          rowCount: grants.size,
         };
       }
 
@@ -231,5 +239,33 @@ describe('assignRole behavior', () => {
     expect(result).toEqual({ ok: false, error: 'forbidden_privileged_role' });
     expect(currentClient.updatedRoleId).toBeNull();
     expect(currentClient.auditRows).toHaveLength(0);
+  });
+
+  it('rejects a custom role whose code grants a permission via empty permission stores', async () => {
+    currentClient = makeClient({
+      actorRoleCodes: [],
+      actorPermissions: ['settings.roles.assign'],
+      rolesById: {
+        [INVITE_CODE_ROLE_ID]: {
+          id: INVITE_CODE_ROLE_ID,
+          code: 'settings.users.invite',
+          slug: 'settings.users.invite',
+        },
+      },
+      rolePermissionsById: {
+        [INVITE_CODE_ROLE_ID]: [],
+      },
+    });
+    _withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: ACTOR_USER_ID, orgId: ORG_ID, sessionToken: 'session-token', client: currentClient }),
+    );
+    const { assignRole } = await loadAssignRole();
+
+    const result = await assignRole({ targetUserId: TARGET_USER_ID, roleId: INVITE_CODE_ROLE_ID });
+
+    expect(result).toEqual({ ok: false, error: 'forbidden_privileged_role' });
+    expect(currentClient.updatedRoleId).toBeNull();
+    expect(currentClient.auditRows).toHaveLength(0);
+    expect(currentClient.outboxPayloads).toHaveLength(0);
   });
 });

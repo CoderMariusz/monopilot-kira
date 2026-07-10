@@ -10,5 +10,9 @@ comment on function app.user_can_see_site(uuid) is
   'TODO(wave-7-rls-flip): condition (3) currently returns TRUE when the user has zero '
   'public.user_sites rows (fail-open / opt-in rollout). After backfilling assignments '
   'for all non-admin users, flip (3) to restrictive semantics (zero rows = no site '
-  'access) and keep admin-slug bypass (condition 2) as the only unrestricted path. '
+  'access). Condition (2) admin-slug bypass (r.slug in org.access.admin, '
+  'org.platform.admin, owner, admin, org_admin) is the explicit all-site authority '
+  'path today. Conditions (1) null current_user_id and (4) null p_site_id remain '
+  'fail-open and are UNDECIDED for the staged flip — resolve explicitly in the '
+  'follow-up migration; do not assume admin-slug is the only unrestricted branch. '
   'Do NOT flip without the backfill window documented in mig 382.';

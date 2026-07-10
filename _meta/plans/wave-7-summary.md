@@ -29,7 +29,7 @@
 **Hole:** `assignUserSites` accepted `siteIds: []`, deleting all `user_sites` rows. With mig 383 RLS, zero rows means unrestricted all-site access — silent privilege expansion.
 
 **Fix (app-layer now):**
-- `assign-user-sites.ts` refuses empty assignments unless the **target** user has explicit all-site authority (admin slug family from mig 383: owner/admin/org_admin/org.access.admin/org.platform.admin).
+- `assign-user-sites.ts` refuses empty assignments unless the **target** user has explicit all-site authority (mig 383 condition 2: admin slug family only — `org.access.admin` / `org.platform.admin` / `owner` / `admin` / `org_admin`).
 - New typed error: `empty_site_assignment_forbidden`.
 
 **Migration 466 (comment-only):** `466-user-can-see-site-failopen-todo.sql` adds `COMMENT ON FUNCTION app.user_can_see_site` documenting the fail-open condition (3) and intended restrictive flip. **No function body change.**
@@ -48,7 +48,7 @@
 1. Backfill `user_sites` for every non-admin user who should be site-restricted.
 2. Deploy app-layer guards (this wave).
 3. Monitor / grace window.
-4. Ship a **separate** migration that changes `app.user_can_see_site` body — remove zero-row fail-open, keep admin-slug bypass (condition 2) as the only unrestricted path.
+4. Ship a **separate** migration that changes `app.user_can_see_site` body — remove zero-row fail-open, tighten admin-slug bypass (condition 2), and **explicitly decide** whether conditions (1) null-user and (4) null-site remain fail-open (they are undecided; do not assume admin-slug is the only unrestricted branch).
 
 See migration `466-user-can-see-site-failopen-todo.sql` COMMENT for the canonical TODO anchor.
 
@@ -61,5 +61,29 @@ pnpm --filter web exec tsc --noEmit          # clean
 pnpm --filter web exec vitest run \
   actions/users/assign-role.behavior.test.ts \
   actions/users/assign-user-sites.behavior.test.ts \
-  lib/auth/edge-middleware-policy.test.ts    # 19 passed
+  lib/auth/edge-middleware-policy.test.ts    # 21 passed
 ```
+
+---
+
+## Fix round 1 (2026-07-10 — adversarial review)
+
+### Bug 1 — code/slug-as-grant bypass (P0)
+
+**Hole:** `readRolePermissions()` / `readCallerPermissions()` counted only `role_permissions` and JSONB `permissions`, but authorization gates also grant via `r.code` / `r.slug` matching a permission string. A caller with only `settings.roles.assign` could create a custom role with `code='settings.users.invite'` and empty stores, pass subset check (`[] ⊆ caller`), assign it, and gain invite capability.
+
+**Fix:** Both effective-permission readers now union permission-shaped role `code` and `slug` (dotted strings gates match via `r.code = $3` / `r.slug = $3`) into the grant set. Subset check rejects the exploit.
+
+**Proof:** `assign-role.behavior.test.ts` — custom `settings.users.invite` role with empty permission stores rejected when caller lacks that grant.
+
+### Bug 3 — all-site authority predicate drift (P1)
+
+**Hole:** `hasAllSiteAuthority()` used `r.code = any(...) or r.slug = any(...)`, broader than mig 383 condition (2) which is **slug-only**. A role with admin-family `code` but non-admin `slug` could clear site assignments while RLS would not treat them as unrestricted admin.
+
+**Fix:** `hasAllSiteAuthority()` now uses the exact mig 383 slug predicate (`r.slug = any(array['org.access.admin', ...])`). Renamed constant to `ALL_SITE_AUTHORITY_ROLE_SLUGS`.
+
+**Proof:** `assign-user-sites.behavior.test.ts` — empty `siteIds` refused when target slug is non-admin (even if code were admin-family).
+
+### Migration 466 + deferred RLS wording
+
+Corrected COMMENT and summary: admin-slug bypass (condition 2) is the explicit all-site authority path today, but conditions (1) null-user and (4) null-site remain fail-open and are **undecided** for the staged flip — follow-up must resolve them explicitly.
