@@ -25,6 +25,7 @@
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
+import { WAC_VALUATION_CURRENCY_CODE } from '../../../../../../lib/finance/upsert-wac';
 import {
   DEFAULT_FINANCE_WO_COST_PAGE_SIZE,
   normalizePage,
@@ -40,6 +41,8 @@ import {
 } from './wo-cost-math';
 
 const FINANCE_COSTS_READ_PERMISSION = 'fin.costs.read';
+/** WO actual-cost reporting currency — labor/setup are GBP; no FX conversion table exists. */
+const WO_REPORTING_CURRENCY = WAC_VALUATION_CURRENCY_CODE;
 
 const COMPLETED_WO_FROM = `
              from public.work_orders wo
@@ -73,7 +76,7 @@ export type FinanceContext = {
 
 export type FinanceActionResult<T> =
   | { ok: true; data: T }
-  | { ok: false; reason: 'forbidden' | 'not_found' | 'error'; message?: string };
+  | { ok: false; reason: 'forbidden' | 'not_found' | 'error' | 'unsupported_currency'; message?: string };
 
 export type WoActualCost = {
   woId: string;
@@ -130,6 +133,7 @@ type MaterialRow = {
   raw_qty: string;
   qty_kg: string;
   cost_per_kg: string | null;
+  cost_currency: string | null;
   unresolved_uom: boolean;
 };
 
@@ -300,20 +304,30 @@ async function computeWoActualCostInContext(
                   then c.qty_consumed::numeric * i.each_per_box::numeric * i.net_qty_per_each
                 else null
               end as qty_kg,
-              coalesce(ch.cost_per_kg, i.cost_per_kg) as cost_per_kg
+              coalesce(
+                nullif(c.ext_jsonb->>'wac_avg_cost', '')::numeric,
+                ch.cost_per_kg,
+                i.cost_per_kg
+              ) as cost_per_kg,
+              case
+                when nullif(trim(c.ext_jsonb->>'wac_avg_cost'), '') is not null then $3::text
+                when ch.cost_per_kg is not null then ch.currency
+                else coalesce(ch.currency, 'PLN')
+              end as cost_currency
          from public.wo_material_consumption c
          left join public.items i
            on i.org_id = app.current_org_id()
           and i.id = c.component_id
          left join lateral (
-           select cost_per_kg
+           select cost_per_kg, currency
              from public.item_cost_history
             where org_id = app.current_org_id()
               and item_id = c.component_id
-              and effective_to is null
+              and effective_from <= coalesce(c.consumed_at::date, $2::date)
+              and (effective_to is null or effective_to >= coalesce(c.consumed_at::date, $2::date))
             order by effective_from desc
             limit 1
-         ) ch on true
+         ) ch on nullif(trim(c.ext_jsonb->>'wac_avg_cost'), '') is null
         where c.org_id = app.current_org_id()
           and c.wo_id = $1::uuid
      )
@@ -322,11 +336,12 @@ async function computeWoActualCostInContext(
             sum(raw_qty)::text as raw_qty,
             coalesce(sum(qty_kg), 0)::text as qty_kg,
             max(cost_per_kg)::text as cost_per_kg,
+            max(cost_currency)::text as cost_currency,
             bool_or(qty_kg is null) as unresolved_uom
        from converted
       group by item_code, case when qty_kg is null then uom else null end
       order by item_code, case when qty_kg is null then uom else null end`,
-    [woId],
+    [woId, woDate, WO_REPORTING_CURRENCY],
   );
 
   const process = await ctx.client.query<ProcessRow>(
@@ -463,6 +478,18 @@ async function computeWoActualCostInContext(
   const runtimeMin = clampRuntime(minutesBetween(wo.started_at, wo.completed_at), downtimeMin);
   const downtimeMinText = Math.max(0, downtimeMin).toFixed(6);
 
+  const resolvedMaterials = materials.rows.filter((row) => !row.unresolved_uom);
+  const mixedCurrencyMaterial = resolvedMaterials.find(
+    (row) => row.cost_currency != null && row.cost_currency !== WO_REPORTING_CURRENCY,
+  );
+  if (mixedCurrencyMaterial) {
+    return {
+      ok: false,
+      reason: 'unsupported_currency',
+      message: `Material ${mixedCurrencyMaterial.item_code ?? 'UNKNOWN'} is costed in ${mixedCurrencyMaterial.cost_currency}; WO actual cost requires ${WO_REPORTING_CURRENCY} (no FX conversion).`,
+    };
+  }
+
   const hasHourlyLabor = processRow?.cost_rate != null;
   const laborRuntimeMin = processRow?.expected_duration_minutes ?? runtimeMin;
   const laborBasis = hasHourlyLabor
@@ -471,7 +498,6 @@ async function computeWoActualCostInContext(
       : 'actual_runtime'
     : null;
   const downtimeCost = hasHourlyLabor ? downtimeCostFromLaborRate(downtimeMin, processRow!.cost_rate!) : '0.0000';
-  const resolvedMaterials = materials.rows.filter((row) => !row.unresolved_uom);
   const totals = computeWoActualCostTotals({
     materials: resolvedMaterials.map((row) => ({
       itemCode: row.item_code ?? 'UNKNOWN',
