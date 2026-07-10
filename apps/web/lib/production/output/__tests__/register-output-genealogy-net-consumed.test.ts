@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { type OrgContextLike, type QueryClient } from '../../shared';
+import { ProductionActionError, type OrgContextLike, type QueryClient } from '../../shared';
 import { registerOutput } from '../register-output';
 
 const upsertWacMock = vi.hoisted(() => vi.fn());
@@ -21,12 +21,14 @@ const OUTPUT_LP_ID_2 = '99999999-9999-4999-8999-999999999998';
 const TX_ID = '55555555-5555-4555-8555-555555555555';
 const TX_ID_2 = '55555555-5555-4555-8555-555555555556';
 
+const BY_PRODUCT_ID = '55555555-5555-4555-8555-555555555555';
 type ParentNet = { lp_id: string; net_qty: string; uom: string };
+type ConsumptionRow = { lp_id: string; qty: string; uom: string };
 type OutputRow = { qty_kg: string };
 type GenealogyEdge = { parent_lp_id: string; child_lp_id: string; qty: string; uom: string };
 
 let client: QueryClient;
-let parentNetRows: ParentNet[];
+let consumptionRows: ConsumptionRow[];
 let outputRows: OutputRow[];
 let genealogyEdges: GenealogyEdge[];
 let createdLpCounter: number;
@@ -36,11 +38,41 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').toLowerCase();
 }
 
+function parentNetRowsFromConsumption(): ParentNet[] {
+  const byLp = new Map<string, { qty: number; uoms: Set<string> }>();
+  for (const row of consumptionRows) {
+    const entry = byLp.get(row.lp_id) ?? { qty: 0, uoms: new Set<string>() };
+    entry.qty += Number(row.qty);
+    entry.uoms.add(row.uom);
+    byLp.set(row.lp_id, entry);
+  }
+  return [...byLp.entries()]
+    .filter(([, entry]) => entry.qty > 0)
+    .map(([lp_id, entry]) => ({
+      lp_id,
+      net_qty: entry.qty.toFixed(3),
+      uom: [...entry.uoms].sort()[0]!,
+    }));
+}
+
+function mixedUomParents(): Array<{ lp_id: string; uoms: string[] }> {
+  const byLp = new Map<string, Set<string>>();
+  for (const row of consumptionRows) {
+    const uoms = byLp.get(row.lp_id) ?? new Set<string>();
+    uoms.add(row.uom);
+    byLp.set(row.lp_id, uoms);
+  }
+  return [...byLp.entries()]
+    .filter(([, uoms]) => uoms.size > 1)
+    .map(([lp_id, uoms]) => ({ lp_id, uoms: [...uoms].sort() }));
+}
+
 function makeCtx(): OrgContextLike {
   return { userId: USER_ID, orgId: ORG_ID, siteId: SITE_ID, client };
 }
 
 function allocateForOutput(outputQty: string, outputUom: string): Array<{ lp_id: string; alloc_qty: string; uom: string }> {
+  const parentNetRows = parentNetRowsFromConsumption();
   const totalOutput = outputRows.reduce((sum, row) => sum + Number(row.qty_kg), 0);
   return parentNetRows
     .map((parent) => {
@@ -73,10 +105,11 @@ function makeClient(): QueryClient {
       }
       if (n.includes('from public.user_roles')) return { rows: [{ ok: true }], rowCount: 1 };
       if (n.includes('from public.items')) {
+        const productId = String(params[0] ?? PRODUCT_ID);
         return {
           rows: [
             {
-              id: PRODUCT_ID,
+              id: productId,
               weight_mode: 'fixed',
               shelf_life_days: null,
               nominal_weight: null,
@@ -88,6 +121,13 @@ function makeClient(): QueryClient {
         };
       }
       if (n.includes('from public.wo_executions')) return { rows: [{ status: 'in_progress' }], rowCount: 1 };
+      if (n.includes('pg_advisory_xact_lock') && n.includes('genealogy')) {
+        return { rows: [{ pg_advisory_xact_lock: true }], rowCount: 1 };
+      }
+      if (n.includes('having count(distinct mc.uom) > 1')) {
+        const rows = mixedUomParents();
+        return { rows, rowCount: rows.length };
+      }
       if (n.includes('count(*)::text as seq')) return { rows: [{ seq: String(outputRows.length) }], rowCount: 1 };
       if (n.includes('with cfg as')) {
         return {
@@ -169,9 +209,9 @@ function makeClient(): QueryClient {
 
 describe('registerOutput — genealogy net consumed qty (Wave 9 Bug 2)', () => {
   beforeEach(() => {
-    parentNetRows = [
-      { lp_id: PARENT_A, net_qty: '60.000', uom: 'kg' },
-      { lp_id: PARENT_B, net_qty: '40.000', uom: 'kg' },
+    consumptionRows = [
+      { lp_id: PARENT_A, qty: '60.000', uom: 'kg' },
+      { lp_id: PARENT_B, qty: '40.000', uom: 'kg' },
     ];
     outputRows = [];
     genealogyEdges = [];
@@ -202,7 +242,7 @@ describe('registerOutput — genealogy net consumed qty (Wave 9 Bug 2)', () => {
   });
 
   it('excludes parents whose consumption was fully reversed (net <= 0)', async () => {
-    parentNetRows = [{ lp_id: PARENT_B, net_qty: '40.000', uom: 'kg' }];
+    consumptionRows = [{ lp_id: PARENT_B, qty: '40.000', uom: 'kg' }];
 
     await registerOutput(makeCtx(), WO_ID, {
       transaction_id: TX_ID,
@@ -219,7 +259,7 @@ describe('registerOutput — genealogy net consumed qty (Wave 9 Bug 2)', () => {
   });
 
   it('allocates parent net consumption across two outputs without double-counting', async () => {
-    parentNetRows = [{ lp_id: PARENT_A, net_qty: '100.000', uom: 'kg' }];
+    consumptionRows = [{ lp_id: PARENT_A, qty: '100.000', uom: 'kg' }];
 
     await registerOutput(makeCtx(), WO_ID, {
       transaction_id: TX_ID,
@@ -240,5 +280,63 @@ describe('registerOutput — genealogy net consumed qty (Wave 9 Bug 2)', () => {
     const summed = parentEdges.reduce((sum, edge) => sum + Number(edge.qty), 0);
     expect(summed).toBe(100);
     expect(parentEdges.every((edge) => edge.uom === 'kg')).toBe(true);
+  });
+
+  it('acquires a WO-level genealogy advisory lock before allocation', async () => {
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qty_kg: '10.000',
+    });
+
+    const lockCall = queryCalls.find(
+      (call) => normalize(call.sql).includes('pg_advisory_xact_lock') && normalize(call.sql).includes('genealogy'),
+    );
+    expect(lockCall?.params).toEqual([WO_ID]);
+  });
+
+  it('rejects mixed parent-consumption UoM before writing genealogy', async () => {
+    consumptionRows = [
+      { lp_id: PARENT_A, qty: '30.000', uom: 'kg' },
+      { lp_id: PARENT_A, qty: '20.000', uom: 'lb' },
+    ];
+
+    await expect(
+      registerOutput(makeCtx(), WO_ID, {
+        transaction_id: TX_ID,
+        output_type: 'primary',
+        product_id: PRODUCT_ID,
+        qty_kg: '10.000',
+      }),
+    ).rejects.toMatchObject({
+      name: 'ProductionActionError',
+      code: 'uom_mismatch',
+      details: expect.objectContaining({ lp_id: PARENT_A, uoms: ['kg', 'lb'] }),
+    } satisfies Partial<ProductionActionError>);
+
+    expect(genealogyEdges).toHaveLength(0);
+  });
+
+  it('caps parent attribution across different output types to remaining net consumption', async () => {
+    consumptionRows = [{ lp_id: PARENT_A, qty: '50.000', uom: 'kg' }];
+
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qty_kg: '30.000',
+    });
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID_2,
+      output_type: 'by_product',
+      product_id: BY_PRODUCT_ID,
+      qty_kg: '70.000',
+    });
+
+    const parentEdges = genealogyEdges.filter((edge) => edge.parent_lp_id === PARENT_A);
+    expect(parentEdges).toHaveLength(2);
+    const summed = parentEdges.reduce((sum, edge) => sum + Number(edge.qty), 0);
+    expect(summed).toBe(50);
   });
 });

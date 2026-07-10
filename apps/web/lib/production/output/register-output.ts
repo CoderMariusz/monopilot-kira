@@ -366,6 +366,33 @@ async function allocateGenealogyContributionsForOutput(
   outputQty: string,
   outputUom: string,
 ): Promise<GenealogyAllocation[]> {
+  // Serialize ALL genealogy allocation for this WO (not per output type) so
+  // concurrent registrations cannot collectively exceed each parent's net consumption.
+  await ctx.client.query(
+    `select pg_advisory_xact_lock(hashtext($1::text || '::genealogy'))`,
+    [woId],
+  );
+
+  const { rows: mixedUomParents } = await ctx.client.query<{ lp_id: string; uoms: string[] }>(
+    `select mc.lp_id::text as lp_id,
+            array_agg(distinct mc.uom order by mc.uom) as uoms
+       from public.wo_material_consumption mc
+      where mc.org_id = app.current_org_id()
+        and mc.wo_id = $1::uuid
+        and mc.lp_id <> '00000000-0000-0000-0000-000000000000'::uuid
+      group by mc.lp_id
+     having count(distinct mc.uom) > 1`,
+    [woId],
+  );
+  if (mixedUomParents.length > 0) {
+    const mixed = mixedUomParents[0]!;
+    throw new ProductionActionError('uom_mismatch', 409, {
+      lp_id: mixed.lp_id,
+      uoms: mixed.uoms,
+      message: 'Parent LP has consumption ledger rows in more than one UoM; cannot allocate genealogy.',
+    });
+  }
+
   const { rows } = await ctx.client.query<GenealogyAllocation & { consumption_uom: string }>(
     `with parent_net as (
        select mc.lp_id,
@@ -377,6 +404,7 @@ async function allocateGenealogyContributionsForOutput(
           and mc.lp_id <> '00000000-0000-0000-0000-000000000000'::uuid
         group by mc.lp_id
        having sum(mc.qty_consumed) > 0::numeric
+          and count(distinct mc.uom) = 1
      ),
      wo_output_total as (
        select coalesce(sum(o.qty_kg), 0::numeric) as total_output_qty

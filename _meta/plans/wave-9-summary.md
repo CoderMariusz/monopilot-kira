@@ -69,9 +69,33 @@ Adversarial Codex review follow-up on `fix/wave9-production-qa`.
 
 **Tests:** `transition-output-qa.test.ts` — snapshot/restore hold helpers.
 
-### Gates (fix round)
+### Gates (fix round 1)
 
 ```text
 pnpm --filter web exec tsc --noEmit  # clean
 pnpm --filter web exec vitest run lib/production/output/__tests__/*.test.ts quality/__tests__/haccp-actions.test.ts quality/_actions/__tests__/inspection-actions.test.ts  # 69 passed
 ```
+
+## Fix round 2
+
+Codex re-review follow-up — remaining Bug 2 genealogy gaps.
+
+### WO-level genealogy serialization
+
+**Fix:** `allocateGenealogyContributionsForOutput` now acquires `pg_advisory_xact_lock(hashtext(woId || '::genealogy'))` before reading `already_attributed` or inserting edges, serializing ALL output registrations for a WO (not per output type). The `least(...remaining...)` cap is enforced under this lock as an atomic invariant.
+
+**Tests:** `register-output-genealogy-net-consumed.test.ts` — WO-level lock assertion; different-output-type cap (primary 30 kg + by_product 70 kg against 50 kg parent net → summed edges = 50). `register-output-genealogy.pg.test.ts` — concurrent different-output-type registration on real Postgres.
+
+### Mixed parent-consumption UoM rejection
+
+**Fix:** Before allocation, query parents with `count(distinct mc.uom) > 1` and throw `uom_mismatch`. The `parent_net` CTE also requires `count(distinct mc.uom) = 1` — no silent `sum(qty)` under `min(uom)`.
+
+**Tests:** mock mixed-UoM rejection; `register-output-genealogy.pg.test.ts` mixed kg+lb rejection + PREPARE smoke on production CTE SQL.
+
+### Gates (fix round 2)
+
+```text
+pnpm --filter web exec tsc --noEmit  # clean
+pnpm --filter web exec vitest run lib/production/output/__tests__/register-output-genealogy-net-consumed.test.ts lib/production/output/__tests__/register-output-genealogy.pg.test.ts  # green
+```
+
