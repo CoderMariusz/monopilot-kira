@@ -51,7 +51,7 @@ let activeHold = false;
 // S2 idempotency: when true the quality_holds existence-lookup mock returns an
 // EXISTING hold, exercising the early-return short-circuit in
 // createInspectionHoldIfMissing (inspection-actions.ts).
-let existingInspectionHoldForRef = false;
+let existingInspectionHoldReason: string | null = null;
 let listTotal = 1;
 
 vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
@@ -156,8 +156,8 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
       if (q.includes('from public.quality_holds') && q.includes('reference_type = $1')) {
-        // S2: simulate an existing active hold when the test sets existingInspectionHoldForRef=true.
-        if (existingInspectionHoldForRef) {
+        const reasonText = String(params[3] ?? '');
+        if (existingInspectionHoldReason && existingInspectionHoldReason === reasonText) {
           return { rows: [{ id: HOLD_ID }], rowCount: 1 };
         }
         return { rows: [], rowCount: 0 };
@@ -174,11 +174,26 @@ function makeClient(): QueryClient {
       if (q.startsWith('select lp_id::text') && q.includes('from public.wo_outputs')) {
         return { rows: [{ lp_id: LP_ID }], rowCount: 1 };
       }
+      if (q.startsWith('select id::text, qa_status, lp_id::text') && q.includes('from public.wo_outputs')) {
+        return { rows: [{ id: WOO_ID, qa_status: 'PENDING', lp_id: LP_ID }], rowCount: 1 };
+      }
+      if (q.startsWith('update public.wo_outputs') && q.includes('set qa_status = $2')) {
+        return { rows: [{ id: WOO_ID, qa_status: params[1], lp_id: LP_ID }], rowCount: 1 };
+      }
       if (q.startsWith('select id::text, lp_number, status, qa_status')) {
         return {
           rows: [{ id: LP_ID, lp_number: 'LP-4820', status: 'received', qa_status: 'pending' }],
           rowCount: 1,
         };
+      }
+      if (q.startsWith('select id::text, status, qa_status') && q.includes('from public.license_plates')) {
+        return {
+          rows: [{ id: LP_ID, status: 'received', qa_status: 'pending' }],
+          rowCount: 1,
+        };
+      }
+      if (q.startsWith('update public.license_plates') && q.includes('returning status')) {
+        return { rows: [{ status: 'available' }], rowCount: 1 };
       }
       if (q.startsWith('insert into public.lp_state_history')) {
         return { rows: [], rowCount: 1 };
@@ -246,7 +261,7 @@ beforeEach(() => {
   inspectionReferenceId = LP_ID;
   inspectionParameters = [{ name: 'visual', actual: 'ok', pass: true }];
   activeHold = false;
-  existingInspectionHoldForRef = false;
+  existingInspectionHoldReason = null;
   listTotal = 1;
   client = makeClient();
   vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
@@ -465,7 +480,7 @@ describe('submitInspectionDecision (review fix F8 — base decision flow)', () =
     const holdInsert = findCall('insert into public.quality_holds');
     expect(holdInsert).toBeTruthy();
     expect(holdInsert?.[0]).toContain('site_id');
-    expect(holdInsert?.[1]).toEqual(['lp', LP_ID, null, 'checked', 'high', null, USER_ID, SITE_ID, null]);
+    expect(holdInsert?.[1]?.[3]).toBe(`Inspection ${INSP_ID}: checked`);
     const itemInsert = findCall('insert into public.quality_hold_items');
     expect(itemInsert).toBeTruthy();
     // decimal qty stays a string end-to-end
@@ -514,20 +529,20 @@ describe('submitInspectionDecision (review fix F8 — base decision flow)', () =
     const lpLookup = findCall('from public.grn_items');
     expect(lpLookup?.[1]).toEqual([GRN_ID]);
     const holdInsert = findCall('insert into public.quality_holds');
-    expect(holdInsert?.[1]).toEqual(['grn', GRN_ID, null, 'checked', 'high', null, USER_ID, SITE_ID, null]);
+    expect(holdInsert?.[1]?.[3]).toBe(`Inspection ${INSP_ID}: checked`);
     const lpUpdate = findCall('update public.license_plates');
     expect(lpUpdate?.[1]).toEqual([[LP_ID], USER_ID, ['consumed', 'merged', 'shipped', 'returned']]);
   });
 
-  it('decision=pass for a WO output releases the output LP via the warehouse QA writer', async () => {
+  it('decision=pass for a WO output transitions wo_outputs QA and releases the LP atomically', async () => {
     inspectionReferenceType = 'wo_output';
     inspectionReferenceId = WOO_ID;
 
     const res = await submitInspectionDecision({ ...baseInput, decision: 'pass' });
 
     expect(res).toMatchObject({ ok: true, data: { status: 'passed', qaStatus: 'released' } });
-    const outputLookup = findCall('from public.wo_outputs');
-    expect(outputLookup?.[1]).toEqual([WOO_ID]);
+    const outputTransition = findCall('update public.wo_outputs');
+    expect(outputTransition?.[1]).toEqual([WOO_ID, 'PASSED']);
     const lpTransition = vi.mocked(client.query).mock.calls.find(([sql, params]) => {
       const q = normalize(String(sql));
       return q.startsWith('update public.license_plates') && params?.[1] === 'released';
@@ -607,9 +622,8 @@ describe('createInspection — site_id on INSERT', () => {
 // ── S2: createInspectionHoldIfMissing idempotency ────────────────────────────
 
 describe('createInspectionHoldIfMissing — hold existence short-circuit', () => {
-  it('S2a decision=hold: when an active hold already exists for the LP, no new INSERT happens', async () => {
-    // The LP already has an open hold.
-    existingInspectionHoldForRef = true;
+  it('S2a decision=hold: when an active hold already exists for the same inspection event, no new INSERT happens', async () => {
+    existingInspectionHoldReason = `Inspection ${INSP_ID}: inspection hold`;
 
     const res = await submitInspectionDecision({
       inspectionId: INSP_ID,
@@ -618,20 +632,35 @@ describe('createInspectionHoldIfMissing — hold existence short-circuit', () =>
     });
 
     expect(res.ok).toBe(true);
-    // Action must still succeed — it short-circuits gracefully.
     expect(res).toMatchObject({ ok: true });
 
-    // No quality_holds INSERT must have happened.
     const holdInserts = vi
       .mocked(client.query)
       .mock.calls.filter(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'));
     expect(holdInserts).toHaveLength(0);
   });
 
-  it('S2b decision=fail for GRN: when a GRN hold already exists, no new INSERT happens', async () => {
+  it('Wave 9 Bug 4: an unrelated active hold on the same LP does not suppress a new inspection hold', async () => {
+    existingInspectionHoldReason = 'Unrelated allergen investigation hold';
+
+    const res = await submitInspectionDecision({
+      inspectionId: INSP_ID,
+      decision: 'hold',
+      signature: { password: 'pin-1234' },
+    });
+
+    expect(res.ok).toBe(true);
+    const holdInserts = vi
+      .mocked(client.query)
+      .mock.calls.filter(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'));
+    expect(holdInserts.length).toBeGreaterThan(0);
+    expect(holdInserts[0]?.[1]?.[3]).toBe(`Inspection ${INSP_ID}: inspection hold`);
+  });
+
+  it('S2b decision=fail for GRN: when a GRN hold already exists for the same inspection event, no new INSERT happens', async () => {
     inspectionReferenceType = 'grn';
     inspectionReferenceId = GRN_ID;
-    existingInspectionHoldForRef = true;
+    existingInspectionHoldReason = `Inspection ${INSP_ID}: failed GRN inspection`;
 
     const res = await submitInspectionDecision({
       inspectionId: INSP_ID,

@@ -276,6 +276,7 @@ export type ProductionErrorCode =
   | 'insufficient_lp_quantity'
   | 'lp_not_wasteable'
   | 'lp_not_released'
+  | 'lp_not_receivable'
   | 'uom_mismatch'
   // W9-K-II (F-A04): output-LP creation needs an org default warehouse; 409
   // when the org has none configured (mirrors the scanner GRN receive contract).

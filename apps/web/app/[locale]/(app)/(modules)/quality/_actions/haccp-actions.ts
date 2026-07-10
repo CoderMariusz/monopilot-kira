@@ -241,7 +241,7 @@ async function findOutputLpsInCcpHoldWindow(
 
 async function findActiveHoldForReference(
   ctx: QualityContext,
-  params: { referenceType: 'lp' | 'wo'; referenceId: string },
+  params: { referenceType: 'lp' | 'wo'; referenceId: string; reasonText: string },
 ): Promise<ActiveHold | null> {
   const { rows } = await ctx.client.query<ActiveHold>(
     `select id::text
@@ -249,27 +249,36 @@ async function findActiveHoldForReference(
       where org_id = app.current_org_id()
         and reference_type = $1
         and reference_id = $2::uuid
+        and reason_free_text = $4
         and hold_status = any($3::text[])
         and released_at is null
       order by created_at desc
       limit 1
       for update`,
-    [params.referenceType, params.referenceId, [...ACTIVE_HOLD_STATUSES]],
+    [params.referenceType, params.referenceId, [...ACTIVE_HOLD_STATUSES], params.reasonText],
   );
   return rows[0] ?? null;
 }
 
 async function createCcpDeviationHoldIfMissing(
   ctx: QualityContext,
-  params: { referenceType: 'lp' | 'wo'; referenceId: string; lpIds?: string[]; ccpCode: string; measuredValue: string },
+  params: {
+    referenceType: 'lp' | 'wo';
+    referenceId: string;
+    lpIds?: string[];
+    ccpCode: string;
+    measuredValue: string;
+    monitoringLogId: string;
+  },
 ): Promise<ActiveHold> {
+  const reasonText = `CCP breach ${params.ccpCode} (log ${params.monitoringLogId}): measured value ${params.measuredValue} was outside configured limits.`;
   const existing = await findActiveHoldForReference(ctx, {
     referenceType: params.referenceType,
     referenceId: params.referenceId,
+    reasonText,
   });
   if (existing) return existing;
 
-  const reasonText = `CCP breach ${params.ccpCode}: measured value ${params.measuredValue} was outside configured limits.`;
   const hold = await createHoldForContext(ctx, {
     referenceType: params.referenceType,
     referenceId: params.referenceId,
@@ -776,6 +785,7 @@ export async function recordMonitoring(data: {
             referenceId: lp.id,
             ccpCode: ccp.ccp_code,
             measuredValue: parsed.measuredValue,
+            monitoringLogId: logId,
           });
           firstLpHold ??= hold;
         }
@@ -786,6 +796,7 @@ export async function recordMonitoring(data: {
           lpIds: outputLps.map((lp) => lp.id),
           ccpCode: ccp.ccp_code,
           measuredValue: parsed.measuredValue,
+          monitoringLogId: logId,
         });
 
         const linkedHold = firstLpHold ?? woHold;

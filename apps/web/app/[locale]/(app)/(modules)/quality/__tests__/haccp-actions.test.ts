@@ -28,10 +28,8 @@ let permissions: Set<string>;
 let ccpLimits: { min: string | null; max: string | null };
 let outputLpIds: string[];
 let openedDeviationLogIds: Set<string>;
-// S2 idempotency: when a referenceId is present here the mock returns an
-// EXISTING hold for that reference — simulating the "hold already open" short-
-// circuit in createCcpDeviationHoldIfMissing (haccp-actions.ts).
-let existingHoldsForReference: Set<string>;
+// S2 idempotency: maps referenceId -> exact reason_free_text for an existing hold.
+let existingHoldsForReference: Map<string, string>;
 
 vi.mock('@monopilot/e-sign', () => ({
   signEvent: vi.fn(async () => ({
@@ -193,11 +191,10 @@ function makeClient(): QueryClient {
       }
 
       if (q.includes('from public.quality_holds') && q.includes('reference_type = $1')) {
-        // S2: If the referenceId ($2) is in existingHoldsForReference, simulate an
-        // existing active hold so the INSERT short-circuit in
-        // createCcpDeviationHoldIfMissing is exercised.
         const refId = String(params[1]);
-        if (existingHoldsForReference.has(refId)) {
+        const reasonText = String(params[3] ?? '');
+        const existingReason = existingHoldsForReference.get(refId);
+        if (existingReason && existingReason === reasonText) {
           return { rows: [{ id: HOLD_ID }], rowCount: 1 };
         }
         return { rows: [], rowCount: 0 };
@@ -292,7 +289,7 @@ describe('quality HACCP server actions', () => {
     ccpLimits = { min: '70.0000', max: '75.0000' };
     outputLpIds = [LP_ID, LP_ID_2];
     openedDeviationLogIds = new Set();
-    existingHoldsForReference = new Set();
+    existingHoldsForReference = new Map();
     client = makeClient();
     vi.clearAllMocks();
   });
@@ -399,17 +396,9 @@ describe('quality HACCP server actions', () => {
       .mock.calls.filter(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'));
     expect(holdInserts.map((call) => call[1]?.[0])).toEqual(['lp', 'lp', 'wo']);
     expect(holdInserts.map((call) => call[1]?.[1])).toEqual([LP_ID, LP_ID_2, WO_ID]);
-    expect(holdInserts[2]?.[1]).toEqual([
-      'wo',
-      WO_ID,
-      null,
-      'CCP breach CCP-COOK: measured value 69.9999 was outside configured limits.',
-      'critical',
-      null,
-      USER_ID,
-      SITE_ID,
-      null,
-    ]);
+    expect(holdInserts[2]?.[1]?.[3]).toBe(
+      `CCP breach CCP-COOK (log ${LOG_ID}): measured value 69.9999 was outside configured limits.`,
+    );
     const holdLink = vi.mocked(client.query).mock.calls.find(([sql]) => normalize(String(sql)).startsWith('update public.ccp_deviations') && normalize(String(sql)).includes('set hold_id'));
     expect(holdLink?.[1]).toEqual([DEVIATION_ID, HOLD_ID]);
     const holdOutbox = vi.mocked(client.query).mock.calls.find(
@@ -524,31 +513,47 @@ describe('quality HACCP server actions', () => {
 
   // ── S2: hold existence short-circuit idempotency ──────────────────────────
 
-  it('S2 createCcpDeviationHoldIfMissing: when an active hold already exists for the LP, no new INSERT happens', async () => {
+  it('S2 createCcpDeviationHoldIfMissing: when an active hold already exists for the same event reason, no new INSERT happens', async () => {
     ccpLimits = { min: '70.0000', max: null };
 
-    // Simulate LP_ID and LP_ID_2 already having open holds.
-    existingHoldsForReference = new Set([LP_ID, LP_ID_2, WO_ID]);
+    const reasonText = `CCP breach CCP-COOK (log ${LOG_ID}): measured value 69.9999 was outside configured limits.`;
+    existingHoldsForReference.set(LP_ID, reasonText);
+    existingHoldsForReference.set(LP_ID_2, reasonText);
+    existingHoldsForReference.set(WO_ID, reasonText);
 
     const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999', woId: WO_ID });
 
     expect(result.ok).toBe(true);
-    // The action must succeed — it reuses the existing hold ID, not an error.
     expect(result).toMatchObject({ ok: true, data: { withinLimits: false, ncrId: NCR_ID, outboxEmitted: true } });
 
-    // No new quality_holds INSERT must have happened (all references returned an
-    // existing row from findActiveHoldForReference).
     const holdInserts = vi
       .mocked(client.query)
       .mock.calls.filter(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'));
     expect(holdInserts).toHaveLength(0);
   });
 
-  it('S2 createCcpDeviationHoldIfMissing: when only the WO already has a hold but LPs do not, LP holds are inserted and WO hold is reused', async () => {
+  it('Wave 9 Bug 4: an unrelated active hold on the same WO does not suppress a new CCP-deviation hold', async () => {
     ccpLimits = { min: '70.0000', max: null };
 
-    // Only the WO already has a hold; LP_ID and LP_ID_2 do not.
-    existingHoldsForReference = new Set([WO_ID]);
+    existingHoldsForReference.set(WO_ID, 'Unrelated manual hold on this work order');
+
+    const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999', woId: WO_ID });
+
+    expect(result.ok).toBe(true);
+
+    const holdInserts = vi
+      .mocked(client.query)
+      .mock.calls.filter(([sql]) => normalize(String(sql)).startsWith('insert into public.quality_holds'));
+    const insertedRefIds = holdInserts.map((call) => call[1]?.[1]);
+    expect(insertedRefIds).toContain(WO_ID);
+    expect(insertedRefIds).toContain(LP_ID);
+  });
+
+  it('S2 createCcpDeviationHoldIfMissing: when only the WO already has a hold for the same event but LPs do not, LP holds are inserted and WO hold is reused', async () => {
+    ccpLimits = { min: '70.0000', max: null };
+
+    const reasonText = `CCP breach CCP-COOK (log ${LOG_ID}): measured value 69.9999 was outside configured limits.`;
+    existingHoldsForReference.set(WO_ID, reasonText);
 
     const result = await recordMonitoring({ ccpId: CCP_ID, measuredValue: '69.9999', woId: WO_ID });
 
