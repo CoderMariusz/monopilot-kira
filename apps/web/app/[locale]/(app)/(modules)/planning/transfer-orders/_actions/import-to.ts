@@ -148,7 +148,7 @@ export async function commitToImport(
         lineInputs.push({
           itemId: item.id,
           qty: numberToPlainString(entry.row.qty),
-          uom: entry.uom,
+          uom: normalizePieceUom(entry.uom) ?? entry.uom,
           lineNo: lineInputs.length + 1,
         });
       }

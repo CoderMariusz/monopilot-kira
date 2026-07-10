@@ -85,8 +85,11 @@ async function run(): Promise<void> {
     );
   }
 
-  // 2. Sort by numeric prefix (not lex order)
-  const migrationFiles = allFiles.slice().sort((a, b) => numericPrefix(a) - numericPrefix(b));
+  // 2. Sort by numeric prefix, then filename for deterministic ordering when prefixes collide.
+  const migrationFiles = allFiles.slice().sort((a, b) => {
+    const prefixDiff = numericPrefix(a) - numericPrefix(b);
+    return prefixDiff !== 0 ? prefixDiff : a.localeCompare(b);
+  });
 
   // 3. Connect to the database
   const pool: pg.Pool = getOwnerConnection();

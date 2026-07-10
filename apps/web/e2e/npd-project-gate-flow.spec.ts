@@ -161,7 +161,7 @@ async function resolveLatestProjectId(
 
 // ── spec ─────────────────────────────────────────────────────────────────────
 
-test.describe('T-062 NPD: create project → advance G0→G1→G2 → approve G3 (e-sign)', () => {
+test.describe.serial('T-062 NPD: create project → advance G0→G1→G2 → approve G3 (e-sign)', () => {
   // Gate: entire describe block skips when no live server is configured.
   test.skip(!baseURL, 'PLAYWRIGHT_BASE_URL unset — live authenticated server required (Gate-5 only).');
 
@@ -247,7 +247,7 @@ test.describe('T-062 NPD: create project → advance G0→G1→G2 → approve G3
 
   test('2 · advances the project from G0 to G1 (self-advance via AdvanceGateModal)', async ({ page }) => {
     ensureDir(artifactDir);
-    test.skip(!projectId && !projectCode, 'project id not captured from step 1 — run full suite sequentially');
+    expect(projectId || projectCode, 'project id captured from step 1 — prior step must pass').toBeTruthy();
 
     await signIn(page);
 
@@ -300,7 +300,7 @@ test.describe('T-062 NPD: create project → advance G0→G1→G2 → approve G3
 
   test('3 · advances the project from G1 to G2 (self-advance)', async ({ page }) => {
     ensureDir(artifactDir);
-    test.skip(!projectId, 'project id not captured — run full suite sequentially');
+    expect(projectId, 'project id captured — prior step must pass').toBeTruthy();
 
     await signIn(page);
     await openGateScreen(page, projectId);
@@ -336,7 +336,7 @@ test.describe('T-062 NPD: create project → advance G0→G1→G2 → approve G3
     page,
   }) => {
     ensureDir(artifactDir);
-    test.skip(!projectId, 'project id not captured — run full suite sequentially');
+    expect(projectId, 'project id captured — prior step must pass').toBeTruthy();
 
     await signIn(page);
     await openGateScreen(page, projectId);
@@ -409,7 +409,7 @@ test.describe('T-062 NPD: create project → advance G0→G1→G2 → approve G3
     page,
   }) => {
     ensureDir(artifactDir);
-    test.skip(!projectId, 'project id not captured — run full suite sequentially');
+    expect(projectId, 'project id captured — prior step must pass').toBeTruthy();
 
     await signIn(page);
     await openGateScreen(page, projectId);
