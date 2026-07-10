@@ -548,6 +548,9 @@ const expectedCanonicalPermissions = [
   'planning.mrp.run',
   'planning.mrp.convert',
   'planning.forecast.manage',
+  'planning.po.manage',
+  'planning.to.manage',
+  'planning.supplier.manage',
   'yard.manage',
   'freight.manage',
 ] as const;
