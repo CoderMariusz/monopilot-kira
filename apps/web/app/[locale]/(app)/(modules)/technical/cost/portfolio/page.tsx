@@ -7,7 +7,7 @@ import { listPortfolioCost } from './_actions/list-portfolio-cost';
 type PortfolioCostResult = {
   fg_code: string;
   fg_name: string;
-  total_recipe_cost: number;
+  total_recipe_cost: number | null;
   currency: string;
 };
 
@@ -101,7 +101,9 @@ export default function TechnicalPortfolioCostPage() {
                   <tr key={row.fg_code} className="border-b border-slate-100">
                     <td className="px-3 py-2 font-mono">{row.fg_code}</td>
                     <td className="px-3 py-2">{row.fg_name || 'N/A'}</td>
-                    <td className="px-3 py-2 tabular-nums">{row.total_recipe_cost.toFixed(2)}</td>
+                    <td className="px-3 py-2 tabular-nums">
+                      {row.total_recipe_cost == null ? '—' : row.total_recipe_cost.toFixed(2)}
+                    </td>
                     <td className="px-3 py-2">{row.currency}</td>
                   </tr>
                 ))}

@@ -105,7 +105,7 @@ describe('technical where-used and portfolio cost read actions', () => {
       {
         fg_code: 'FG-1002',
         fg_name: '',
-        total_recipe_cost: 0,
+        total_recipe_cost: null,
         currency: 'PLN',
       },
     ]);
@@ -117,12 +117,36 @@ describe('technical where-used and portfolio cost read actions', () => {
     expect(sql).toContain('from public.items i');
     expect(sql).toContain('i.item_code as fg_code');
     expect(sql).toContain('i.name as fg_name');
-    // Phase-2 cost SSoT: cost comes from the canonical v_item_effective_cost view (amount + currency), not bare ci.cost_per_kg.
-    expect(sql).toContain('sum(bl.quantity * vec.amount)::text');
+    expect(sql).toContain('when count(distinct vec.currency) > 1 then null');
+    expect(sql).toContain("then 'mixed_currency'");
     expect(sql).toContain('left join public.v_item_effective_cost vec on vec.item_id = ci.id');
     expect(sql).toContain("i.item_type = 'fg'");
     expect(sql).toContain('i.org_id = app.current_org_id()');
     expect(sql).toContain('bl.org_id = app.current_org_id()');
+  });
+
+  it('returns null portfolio totals when FG recipe components mix currencies', async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [
+        {
+          fg_code: 'FG-MIX',
+          fg_name: 'Mixed basket',
+          total_recipe_cost: null,
+          currency: 'mixed_currency',
+        },
+      ],
+    });
+
+    const result = await listPortfolioCost();
+
+    expect(result).toEqual([
+      {
+        fg_code: 'FG-MIX',
+        fg_name: 'Mixed basket',
+        total_recipe_cost: null,
+        currency: 'mixed_currency',
+      },
+    ]);
   });
 
   it('logs and returns empty rows when a read action fails', async () => {
