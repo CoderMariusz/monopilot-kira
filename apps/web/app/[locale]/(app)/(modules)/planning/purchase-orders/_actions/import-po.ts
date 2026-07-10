@@ -4,6 +4,8 @@ import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
 import { requireActionPermission, PLANNING_PO_MANAGE_PERMISSION, type OrgActionContext, type QueryClient } from '../../_actions/procurement-shared';
 import { createPurchaseOrderCore } from './create-purchase-order-core';
+import { validateImportGroupSchema } from './import-po-schema';
+import { PoImportAllOrNothingError } from './po-import-errors';
 import type {
   PoImportError,
   PoImportResponse,
@@ -76,114 +78,174 @@ export async function commitPoImport(
     return { created: [], skipped: [], failed };
   }
 
-  const validRows = rows
-    .map((row, index): ValidImportRow | null => {
-      const result = validation.rows[index];
-      if (!result?.ok) return null;
-      return {
-        rowNumber: index + 1,
-        row,
-        externalRef: normalizeText(row.external_ref),
-        supplierCode: normalizeText(row.supplier_code),
-        itemCode: normalizeText(row.item_code),
-        uom: normalizeText(row.uom),
-      };
-    })
-    .filter((row): row is ValidImportRow => row !== null);
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<PoImportResponse> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
+      const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+      if (!perm.ok) return { ok: false, error: 'forbidden' };
 
-  return withOrgContext(async ({ userId, orgId, client }): Promise<PoImportResponse> => {
-    const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
-    const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
-    if (!perm.ok) return { ok: false, error: 'forbidden' };
-
-    const created: PoImportResult['created'] = [];
-    const skipped: PoImportResult['skipped'] = [];
-    const skippedRefs = new Set<string>();
-    const runtimeFailed: PoImportResult['failed'] = [...failed];
-
-    const existingRefs = await findExistingPurchaseOrderRefs(ctx.client, validRows.map((row) => row.externalRef));
-    const rowsToCreate = validRows.filter((row) => {
-      if (!existingRefs.has(row.externalRef)) return true;
-      if (!skippedRefs.has(row.externalRef)) {
-        skipped.push({ external_ref: row.externalRef, reason: `Purchase order already exists for external_ref "${row.externalRef}".` });
-        skippedRefs.add(row.externalRef);
-      }
-      return false;
-    });
-
-    const [suppliers, items] = await Promise.all([
-      loadSuppliers(ctx.client, rowsToCreate.map((row) => row.supplierCode)),
-      loadActiveItems(ctx.client, rowsToCreate.map((row) => row.itemCode)),
-    ]);
-
-    for (const group of groupRows(rowsToCreate)) {
-      const alreadyExists = await checkPoNumberExists(ctx.client, group.externalRef);
-      if (alreadyExists) {
-        failGroup(runtimeFailed, group, 'po_number', `Purchase order number "${group.externalRef}" already exists (duplicate_po_number).`);
-        continue;
+      const revalidation = await validateRows(ctx.client, rows);
+      const revalidationFailed = revalidation.rows
+        .filter((row) => !row.ok)
+        .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
+      if (options.mode === 'all_or_nothing' && revalidationFailed.length > 0) {
+        throw new PoImportAllOrNothingError(revalidationFailed);
       }
 
-      const supplier = suppliers.get(group.supplierCode);
-      if (!supplier) {
-        failGroup(runtimeFailed, group, 'supplier_code', `Supplier code "${group.supplierCode}" was not found for this org.`);
-        continue;
-      }
+      const created: PoImportResult['created'] = [];
+      const skipped: PoImportResult['skipped'] = [];
+      const skippedRefs = new Set<string>();
+      const runtimeFailed: PoImportResult['failed'] = [
+        ...failed,
+        ...(options.mode === 'skip_invalid' ? revalidationFailed : []),
+      ];
 
-      const lineInputs: CreatePurchaseOrderLinePayload[] = [];
-      let groupHasLookupFailure = false;
-      for (const entry of group.rows) {
-        const item = items.get(entry.itemCode);
-        if (!item) {
-          runtimeFailed.push({
-            rowNumber: entry.rowNumber,
-            errors: [{ column: 'item_code', message: `Item code "${entry.itemCode}" is not an active item for this org.` }],
-          });
-          groupHasLookupFailure = true;
-          continue;
+      const revalidatedValidRows = rows
+        .map((row, index): ValidImportRow | null => {
+          const result = revalidation.rows[index];
+          if (!result?.ok) return null;
+          return {
+            rowNumber: index + 1,
+            row,
+            externalRef: normalizeText(row.external_ref),
+            supplierCode: normalizeText(row.supplier_code),
+            itemCode: normalizeText(row.item_code),
+            uom: normalizeText(row.uom),
+          };
+        })
+        .filter((row): row is ValidImportRow => row !== null);
+
+      const existingRefs = await findExistingPurchaseOrderRefs(
+        ctx.client,
+        revalidatedValidRows.map((row) => row.externalRef),
+      );
+      const rowsToCreate = revalidatedValidRows.filter((row) => {
+        if (!existingRefs.has(row.externalRef)) return true;
+        if (!skippedRefs.has(row.externalRef)) {
+          skipped.push({ external_ref: row.externalRef, reason: `Purchase order already exists for external_ref "${row.externalRef}".` });
+          skippedRefs.add(row.externalRef);
         }
-        lineInputs.push({
-          itemId: item.id,
-          qty: numberToPlainString(entry.row.qty),
-          uom: entry.uom,
-          unitPrice: numberToPlainString(entry.row.price ?? 0),
-          lineNo: lineInputs.length + 1,
-        });
-      }
-      if (groupHasLookupFailure) continue;
-
-      const result = await createPurchaseOrderCore(ctx, {
-        poNumber: group.externalRef,
-        supplierId: supplier.id,
-        status: 'draft',
-        expectedDelivery: firstText(group.rows, (entry) => entry.row.expected_delivery),
-        currency: firstText(group.rows, (entry) => entry.row.currency) ?? supplier.currency ?? 'GBP',
-        notes: joinNotes(group.rows),
-        lines: lineInputs,
+        return false;
       });
 
-      if (result.ok) {
-        created.push({ po_number: result.data.poNumber, external_ref: group.externalRef });
-        continue;
+      const [suppliers, items] = await Promise.all([
+        loadSuppliers(ctx.client, rowsToCreate.map((row) => row.supplierCode)),
+        loadActiveItems(ctx.client, rowsToCreate.map((row) => row.itemCode)),
+      ]);
+
+      for (const group of groupRows(rowsToCreate)) {
+        const alreadyExists = await checkPoNumberExists(ctx.client, group.externalRef);
+        if (alreadyExists) {
+          const groupFailed = failGroup(runtimeFailed, group, 'po_number', `Purchase order number "${group.externalRef}" already exists (duplicate_po_number).`);
+          if (options.mode === 'all_or_nothing') throw new PoImportAllOrNothingError(groupFailed);
+          continue;
+        }
+
+        const supplier = suppliers.get(group.supplierCode);
+        if (!supplier) {
+          const groupFailed = failGroup(
+            runtimeFailed,
+            group,
+            'supplier_code',
+            `Supplier code "${group.supplierCode}" was not found for this org.`,
+          );
+          if (options.mode === 'all_or_nothing') throw new PoImportAllOrNothingError(groupFailed);
+          continue;
+        }
+
+        const lineInputs: CreatePurchaseOrderLinePayload[] = [];
+        let groupHasLookupFailure = false;
+        for (const entry of group.rows) {
+          const item = items.get(entry.itemCode);
+          if (!item) {
+            runtimeFailed.push({
+              rowNumber: entry.rowNumber,
+              errors: [{ column: 'item_code', message: `Item code "${entry.itemCode}" is not an active item for this org.` }],
+            });
+            groupHasLookupFailure = true;
+            continue;
+          }
+          lineInputs.push({
+            itemId: item.id,
+            qty: numberToPlainString(entry.row.qty),
+            uom: entry.uom,
+            unitPrice: numberToPlainString(entry.row.price ?? 0),
+            lineNo: lineInputs.length + 1,
+          });
+        }
+        if (groupHasLookupFailure) {
+          const groupFailed = group.rows
+            .filter((entry) =>
+              runtimeFailed.some(
+                (failure) =>
+                  failure.rowNumber === entry.rowNumber &&
+                  failure.errors.some((err) => err.column === 'item_code'),
+              ),
+            )
+            .map((entry) => ({
+              rowNumber: entry.rowNumber,
+              errors: runtimeFailed.find((failure) => failure.rowNumber === entry.rowNumber)?.errors ?? [],
+            }));
+          if (options.mode === 'all_or_nothing') throw new PoImportAllOrNothingError(groupFailed);
+          continue;
+        }
+
+        const schemaErrors = validateImportGroupSchema(group, {
+          poNumber: group.externalRef,
+          supplierId: supplier.id,
+          expectedDelivery: firstText(group.rows, (entry) => entry.row.expected_delivery),
+          currency: firstText(group.rows, (entry) => entry.row.currency) ?? supplier.currency ?? 'GBP',
+          notes: joinNotes(group.rows),
+          lines: lineInputs,
+        });
+        if (schemaErrors.length > 0) {
+          for (const rowError of schemaErrors) {
+            runtimeFailed.push(rowError);
+          }
+          if (options.mode === 'all_or_nothing') throw new PoImportAllOrNothingError(schemaErrors);
+          continue;
+        }
+
+        const result = await createPurchaseOrderCore(ctx, {
+          poNumber: group.externalRef,
+          supplierId: supplier.id,
+          status: 'draft',
+          expectedDelivery: firstText(group.rows, (entry) => entry.row.expected_delivery),
+          currency: firstText(group.rows, (entry) => entry.row.currency) ?? supplier.currency ?? 'GBP',
+          notes: joinNotes(group.rows),
+          lines: lineInputs,
+        });
+
+        if (result.ok) {
+          created.push({ po_number: result.data.poNumber, external_ref: group.externalRef });
+          continue;
+        }
+
+        const groupFailed = failGroup(
+          runtimeFailed,
+          group,
+          'external_ref',
+          `Could not create purchase order for external_ref "${group.externalRef}": ${result.error}.`,
+        );
+        if (options.mode === 'all_or_nothing') throw new PoImportAllOrNothingError(groupFailed);
       }
 
-      failGroup(
-        runtimeFailed,
-        group,
-        'external_ref',
-        `Could not create purchase order for external_ref "${group.externalRef}": ${result.error}.`,
-      );
-    }
+      await insertImportJob(ctx.client, {
+        userId,
+        total: validation.summary.total,
+        createdCount: created.length,
+        skippedCount: skipped.length,
+        failedCount: runtimeFailed.length,
+      });
 
-    await insertImportJob(ctx.client, {
-      userId,
-      total: validation.summary.total,
-      createdCount: created.length,
-      skippedCount: skipped.length,
-      failedCount: runtimeFailed.length,
+      return { created, skipped, failed: runtimeFailed };
     });
-
-    return { created, skipped, failed: runtimeFailed };
-  });
+  } catch (err) {
+    if (err instanceof PoImportAllOrNothingError) {
+      return { created: [], skipped: [], failed: err.failed };
+    }
+    throw err;
+  }
 }
 
 async function validateRows(client: QueryClient, rows: PoImportRow[]): Promise<PoValidationResult> {
@@ -363,10 +425,14 @@ function failGroup(
   group: ImportGroup,
   column: string,
   message: string,
-): void {
+): PoImportResult['failed'] {
+  const groupFailed: PoImportResult['failed'] = [];
   for (const row of group.rows) {
-    failed.push({ rowNumber: row.rowNumber, errors: [{ column, message }] });
+    const entry = { rowNumber: row.rowNumber, errors: [{ column, message }] };
+    failed.push(entry);
+    groupFailed.push(entry);
   }
+  return groupFailed;
 }
 
 function firstText(rows: ValidImportRow[], pick: (entry: ValidImportRow) => string | undefined): string | undefined {
