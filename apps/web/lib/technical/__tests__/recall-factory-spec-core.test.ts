@@ -4,6 +4,7 @@ import { recallFactorySpecInTransaction } from '../recall-factory-spec-core';
 
 const SPEC_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
+const FG_ITEM_ID = '33333333-3333-4333-8333-333333333333';
 
 type ReleaseStatusRow = {
   release_status: string;
@@ -35,6 +36,7 @@ describe('recallFactorySpecInTransaction wave-12 integrity', () => {
             rows: [
               {
                 id: SPEC_ID,
+                fg_item_id: FG_ITEM_ID,
                 spec_code: 'FS-1',
                 version: 1,
                 status: 'released_to_factory',
@@ -46,6 +48,7 @@ describe('recallFactorySpecInTransaction wave-12 integrity', () => {
             ] as T[],
           };
         }
+        if (n.includes('pg_advisory_xact_lock')) return { rows: [{ pg_advisory_xact_lock: true }] as T[] };
         if (n.includes('from public.work_orders')) return { rows: [] as T[] };
         if (n.startsWith('update public.factory_specs') && n.includes("set status = 'draft'")) {
           return { rows: [{ id: SPEC_ID }] as T[] };
@@ -74,5 +77,44 @@ describe('recallFactorySpecInTransaction wave-12 integrity', () => {
     expect(releaseRow.factory_approved_by).toBeNull();
     expect(releaseRow.release_event_id).toBeNull();
     expect(releaseRow.active_factory_spec_id).toBe(SPEC_ID);
+  });
+
+  it('acquires the product bind advisory lock before checking blocking work orders', async () => {
+    const calls: string[] = [];
+    const client = {
+      async query<T = Record<string, unknown>>(sql: string) {
+        const n = norm(sql);
+        calls.push(n);
+        if (n.includes('from public.factory_specs') && n.includes('for update')) {
+          return {
+            rows: [
+              {
+                id: SPEC_ID,
+                fg_item_id: FG_ITEM_ID,
+                spec_code: 'FS-1',
+                version: 1,
+                status: 'released_to_factory',
+                approved_by: USER_ID,
+                approved_at: '2026-07-01T09:00:00.000Z',
+                released_by: USER_ID,
+                released_at: '2026-07-01T10:00:00.000Z',
+              },
+            ] as T[],
+          };
+        }
+        if (n.includes('pg_advisory_xact_lock')) return { rows: [{ pg_advisory_xact_lock: true }] as T[] };
+        if (n.includes('from public.work_orders')) return { rows: [] as T[] };
+        if (n.startsWith('update public.factory_specs')) return { rows: [{ id: SPEC_ID }] as T[] };
+        if (n.startsWith('update public.factory_release_status')) return { rows: [] as T[] };
+        if (n.startsWith('insert into public.audit_events')) return { rows: [] as T[] };
+        throw new Error(`Unhandled SQL: ${n}`);
+      },
+    };
+
+    await recallFactorySpecInTransaction({ userId: USER_ID, client }, { specId: SPEC_ID });
+    const lockIndex = calls.findIndex((sql) => sql.includes('pg_advisory_xact_lock'));
+    const woIndex = calls.findIndex((sql) => sql.includes('from public.work_orders'));
+    expect(lockIndex).toBeGreaterThan(-1);
+    expect(woIndex).toBeGreaterThan(lockIndex);
   });
 });

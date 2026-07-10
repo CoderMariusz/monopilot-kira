@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { acquireFactorySpecProductBindLock } from './factory-spec-bind-lock';
+
 export type RecallFactorySpecCoreContext = {
   userId: string;
   client: {
@@ -12,6 +14,7 @@ export type RecallFactorySpecCoreContext = {
 
 type FactorySpecRow = {
   id: string;
+  fg_item_id: string;
   spec_code: string;
   version: number;
   status: string;
@@ -38,17 +41,18 @@ async function loadFactorySpecForUpdate(
   specId: string,
 ): Promise<FactorySpecRow | null> {
   const { rows } = await client.query<FactorySpecRow>(
-    `select id::text as id,
-            spec_code,
-            version,
-            status,
-            approved_by::text as approved_by,
-            approved_at::text as approved_at,
-            released_by::text as released_by,
-            released_at::text as released_at
-       from public.factory_specs
-      where org_id = app.current_org_id()
-        and id = $1::uuid
+    `select spec.id::text as id,
+            spec.fg_item_id::text as fg_item_id,
+            spec.spec_code,
+            spec.version,
+            spec.status,
+            spec.approved_by::text as approved_by,
+            spec.approved_at::text as approved_at,
+            spec.released_by::text as released_by,
+            spec.released_at::text as released_at
+       from public.factory_specs spec
+      where spec.org_id = app.current_org_id()
+        and spec.id = $1::uuid
       limit 1
       for update`,
     [specId],
@@ -129,6 +133,8 @@ export async function recallFactorySpecInTransaction(
     }
     return { ok: true, recalled: false };
   }
+
+  await acquireFactorySpecProductBindLock(ctx.client, spec.fg_item_id);
 
   const blockingWoCodes = await loadBlockingWorkOrders(ctx.client, spec.id);
   if (blockingWoCodes.length > 0) {

@@ -54,6 +54,13 @@ function makeClient(): QueryClient {
           rowCount: 1,
         };
       }
+      if (normalized.includes('select wo.status, wo.product_id') || normalized.includes('for update') && normalized.includes('from public.work_orders wo')) {
+        if (!currentStatus) return { rows: [], rowCount: 0 };
+        return { rows: [{ status: currentStatus, product_id: PRODUCT_ID }], rowCount: 1 };
+      }
+      if (normalized.includes('pg_advisory_xact_lock')) {
+        return { rows: [{ pg_advisory_xact_lock: true }], rowCount: 1 };
+      }
       if (normalized.startsWith('select status from public.work_orders')) {
         return { rows: currentStatus ? [{ status: currentStatus }] : [], rowCount: currentStatus ? 1 : 0 };
       }
@@ -242,6 +249,16 @@ describe('releaseWorkOrder', () => {
       expect.stringContaining("'output_uom', i.output_uom"),
       [WO_ID, USER_ID],
     );
+  });
+
+  it('acquires the factory-spec product bind advisory lock before binding active_factory_spec_id', async () => {
+    await releaseWorkOrder({ id: WO_ID });
+
+    expect(sqlCalls().some((sql) => sql.includes('pg_advisory_xact_lock'))).toBe(true);
+    const lockIndex = sqlCalls().findIndex((sql) => sql.includes('pg_advisory_xact_lock'));
+    const healIndex = sqlCalls().findIndex((sql) => sql.includes('returning active_bom_header_id'));
+    expect(lockIndex).toBeGreaterThan(-1);
+    expect(healIndex).toBeGreaterThan(lockIndex);
   });
 
   it('returns forbidden when the caller lacks planning write permission', async () => {
