@@ -106,17 +106,17 @@ runPg('TO import all_or_nothing rollback (real Postgres)', () => {
       );
     }
     await ownerPool.query(
-      `insert into public.warehouses (id, org_id, code, name)
-       values ($1, $2, $3, 'Wave14 WH A'),
-              ($4, $2, $5, 'Wave14 WH B')
+      `insert into public.warehouses (id, org_id, code, name, warehouse_type)
+       values ($1, $2, $3, 'Wave14 WH A', 'main'),
+              ($4, $2, $5, 'Wave14 WH B', 'main')
        on conflict (id) do nothing`,
       [whAId, orgId, WH_A, whBId, WH_B],
     );
     await ownerPool.query(
       `insert into public.items
          (id, org_id, item_code, item_type, name, uom_base, output_uom, each_per_box, status, uom_secondary)
-       values ($1, $2, $3, 'rm', 'Wave14 Item A', 'kg', 'kg', 1, 'active', null),
-              ($4, $2, $5, 'fg', 'Wave14 Item B', 'pcs', 'each', 12, 'active', 'box')
+       values ($1, $2, $3, 'rm', 'Wave14 Item A', 'kg', 'base', 1, 'active', null),
+              ($4, $2, $5, 'fg', 'Wave14 Item B', 'pcs', 'base', 12, 'active', 'box')
        on conflict (id) do nothing`,
       [itemAId, orgId, ITEM_A, itemBId, ITEM_B],
     );
