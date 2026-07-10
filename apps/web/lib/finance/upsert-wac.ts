@@ -1,4 +1,5 @@
 import { EventType } from '../../../../packages/outbox/src/events.enum';
+import { pieceUomToWacEach } from '../uom/piece';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -181,10 +182,62 @@ export type WacDeltaQtyKgResolution = {
   marker?: 'unresolved_uom';
 };
 
+export type WacSnapshotQtyKgInput = {
+  qty: string;
+  uom: string;
+  uomBase: string;
+  netQtyPerEach: string | null;
+  eachPerBox: string | null;
+};
+
+const WAC_SNAPSHOT_QTY_KG_SQL = `select (
+       case
+         when lower($2::text) = 'kg' then $1::numeric
+         when lower($2::text) = 'base' and lower(coalesce($3::text, '')) = 'kg' then $1::numeric
+         when lower($2::text) = lower(coalesce($3::text, '')) and lower(coalesce($3::text, '')) = 'kg' then $1::numeric
+         when lower($2::text) = 'each' and $4::numeric is not null then $1::numeric * $4::numeric
+         when lower($2::text) = 'box' and $4::numeric is not null and $5::numeric is not null
+           then $1::numeric * $5::numeric * $4::numeric
+         else $1::numeric
+       end
+     )::text as qty_kg,
+     (
+       case
+         when lower($2::text) = 'kg' then true
+         when lower($2::text) = 'base' and lower(coalesce($3::text, '')) = 'kg' then true
+         when lower($2::text) = lower(coalesce($3::text, '')) and lower(coalesce($3::text, '')) = 'kg' then true
+         when lower($2::text) = 'each' and $4::numeric is not null then true
+         when lower($2::text) = 'box' and $4::numeric is not null and $5::numeric is not null then true
+         else false
+       end
+     ) as resolved`;
+
+/** Pack→kg using immutable WO snapshot factors (not current item master). */
+export async function resolveWacDeltaQtyKgFromSnapshot(
+  client: QueryClient,
+  input: WacSnapshotQtyKgInput,
+): Promise<WacDeltaQtyKgResolution> {
+  const resolveUom = pieceUomToWacEach(input.uom) ?? input.uom;
+  const { rows } = await client.query<{ qty_kg: string; resolved: boolean }>(WAC_SNAPSHOT_QTY_KG_SQL, [
+    input.qty,
+    resolveUom,
+    input.uomBase,
+    input.netQtyPerEach,
+    input.eachPerBox,
+  ]);
+  const row = rows[0];
+  if (!row?.resolved) {
+    console.warn('[wac] unresolved_uom', { uom: input.uom, qty: input.qty, source: 'wo_snapshot' });
+    return { qtyKg: '0', resolved: false, marker: 'unresolved_uom' };
+  }
+  return { qtyKg: row.qty_kg, resolved: true };
+}
+
 export async function resolveWacDeltaQtyKg(
   client: QueryClient,
   { itemId, qty, uom }: { itemId: string; qty: string; uom: string },
 ): Promise<WacDeltaQtyKgResolution> {
+  const resolveUom = pieceUomToWacEach(uom) ?? uom;
   const { rows } = await client.query<{ qty_kg: string; resolved: boolean }>(
     `select (
        case
@@ -211,7 +264,7 @@ export async function resolveWacDeltaQtyKg(
       where i.org_id = app.current_org_id()
         and i.id = $3::uuid
       limit 1`,
-    [qty, uom, itemId],
+    [qty, resolveUom, itemId],
   );
   const row = rows[0];
   if (!row) {
@@ -321,6 +374,7 @@ export async function applyConsumptionWacReversal(
       orgId: input.orgId,
       itemId: input.itemId,
       qtyKg: resolution.qtyKg,
+      currencyCode: WAC_VALUATION_CURRENCY_CODE,
     });
     reversal = {
       deltaQtyKg: negateDecimalString(debit.deltaQtyKg),
@@ -336,6 +390,7 @@ export async function applyConsumptionWacReversal(
     deltaQtyKg: reversal.deltaQtyKg,
     deltaValue: reversal.deltaValue,
     updatedBy: input.updatedBy,
+    currencyCode: WAC_VALUATION_CURRENCY_CODE,
   });
 
   return {
@@ -383,6 +438,7 @@ export async function applyShipmentWacCancelCredits(
       deltaQtyKg: debit.qty_kg,
       deltaValue: debit.wac_value,
       updatedBy: input.updatedBy,
+      currencyCode: WAC_VALUATION_CURRENCY_CODE,
     });
   }
 }

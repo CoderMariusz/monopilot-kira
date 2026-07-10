@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizePieceUom, normalizeBomSnapshotJsonUoms, pieceUomsEqual } from './piece';
+import { normalizePieceUom, normalizeBomSnapshotJsonUoms, pieceUomsEqual, pieceUomToWacEach } from './piece';
 
 describe('normalizePieceUom', () => {
   it('maps legacy szt and ea to pcs', () => {
@@ -18,6 +18,19 @@ describe('normalizePieceUom', () => {
     expect(normalizePieceUom('')).toBeUndefined();
     expect(normalizePieceUom(null)).toBeUndefined();
     expect(normalizePieceUom(undefined)).toBeUndefined();
+  });
+});
+
+describe('pieceUomToWacEach', () => {
+  it('maps canonical and legacy piece codes to each for WAC SQL', () => {
+    expect(pieceUomToWacEach('pcs')).toBe('each');
+    expect(pieceUomToWacEach('szt')).toBe('each');
+    expect(pieceUomToWacEach('ea')).toBe('each');
+  });
+
+  it('passes through non-piece UoM codes unchanged', () => {
+    expect(pieceUomToWacEach('kg')).toBe('kg');
+    expect(pieceUomToWacEach('box')).toBe('box');
   });
 });
 

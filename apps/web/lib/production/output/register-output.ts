@@ -41,8 +41,8 @@
 import { z } from 'zod';
 
 import { resolveOutputWacContribution } from '../../finance/resolve-output-wac';
-import { upsertWac } from '../../finance/upsert-wac';
-import { snapshotFromItemRow, toBaseQty, TypedError } from '../../uom/convert';
+import { resolveWacDeltaQtyKgFromSnapshot, upsertWac } from '../../finance/upsert-wac';
+import { woSnapshotWacQtyFields } from '../../uom/convert';
 import { makeLpNumber, makeStockMoveNumber } from '../../warehouse/lp-create';
 import {
   PRODUCTION_OUTPUT_RECORDED_EVENT,
@@ -618,12 +618,27 @@ export async function registerOutput(
   // 3. load WO + item
   const wo = await loadWo(ctx, woId);
   await assertOutputProductAllowed(ctx, woId, input.product_id, input.output_type);
-  const resolvedQtyKg = resolveQtyKg(wo, input);
+  const resolvedQtyKg = await resolveQtyKg(ctx.client, wo, input);
   // V-PROD-03: registered output quantity must be > 0.
   if (toMicro(resolvedQtyKg) <= 0n) {
     throw new ProductionActionError('invalid_input', 422, { fields: ['qty_kg'] });
   }
   const item = await loadItem(ctx, input.product_id);
+
+  const wacContribution = await resolveOutputWacContribution(ctx.client, {
+    woId,
+    qtyKg: resolvedQtyKg,
+    standardCostPerKg: item.cost_per_kg,
+  });
+  if (
+    !wacContribution.applied &&
+    wacContribution.excluded === 'un_costed' &&
+    wacContribution.unCostedLines.length > 0
+  ) {
+    throw new ProductionActionError('wac_un_costed', 422, {
+      unCostedLines: wacContribution.unCostedLines,
+    });
+  }
 
   // 4. WO must be in a recordable lifecycle state (read-only).
   const status = await readWoExecutionStatus(ctx, woId);
@@ -826,26 +841,7 @@ export async function registerOutput(
     ],
   );
 
-  const wacContribution = await resolveOutputWacContribution(ctx.client, {
-    woId,
-    qtyKg: resolvedQtyKg,
-    standardCostPerKg: item.cost_per_kg,
-  });
-  if (!wacContribution.applied) {
-    await ctx.client.query(
-      `update public.wo_outputs
-          set ext_jsonb = coalesce(ext_jsonb, '{}'::jsonb) || $2::jsonb,
-              updated_by = $3::uuid,
-              updated_at = now()
-        where org_id = app.current_org_id()
-          and id = $1::uuid`,
-      [
-        outputId,
-        JSON.stringify({ wac_excluded: wacContribution.excluded }),
-        input.operator_id ?? ctx.userId,
-      ],
-    );
-  } else {
+  if (wacContribution.applied) {
     await upsertWac(ctx.client, {
       orgId: ctx.orgId,
       siteId: wo.site_id,
@@ -909,21 +905,27 @@ export async function registerOutput(
     label_pdf_url: null, // T-033
   };
 }
-function resolveQtyKg(wo: WoRow, input: RegisterOutputInputType): string {
+async function resolveQtyKg(
+  client: OrgContextLike['client'],
+  wo: WoRow,
+  input: RegisterOutputInputType,
+): Promise<string> {
   if (input.actualWeightKg) return input.actualWeightKg;
   if (input.qtyUnits && input.unitsUom) {
-    try {
-      const snapshotRow = wo.uom_snapshot ?? {};
-      const snap = snapshotFromItemRow({ ...snapshotRow, uom_base: wo.uom });
-      return toBaseQty(snap, Number(input.qtyUnits), input.unitsUom).toFixed(3);
-    } catch (error) {
-      if (error instanceof TypedError && error.code === 'uom_conversion_unavailable') {
-        throw new ProductionActionError('uom_conversion_unavailable', 422, {
-          fields: ['qtyUnits', 'unitsUom'],
-        });
-      }
-      throw error;
+    const snap = woSnapshotWacQtyFields(wo.uom_snapshot, wo.uom);
+    const resolution = await resolveWacDeltaQtyKgFromSnapshot(client, {
+      qty: input.qtyUnits,
+      uom: input.unitsUom,
+      uomBase: snap.uomBase,
+      netQtyPerEach: snap.netQtyPerEach,
+      eachPerBox: snap.eachPerBox,
+    });
+    if (!resolution.resolved) {
+      throw new ProductionActionError('uom_conversion_unavailable', 422, {
+        fields: ['qtyUnits', 'unitsUom'],
+      });
     }
+    return resolution.qtyKg;
   }
   return input.qty_kg ?? input.qtyKg ?? '0';
 }

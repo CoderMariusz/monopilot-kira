@@ -81,6 +81,8 @@ const receiveLabels: NonNullable<PoDetailLabels['receive']> = {
       no_warehouse: 'No warehouse configured — set one up in Settings.',
       invalid_location: 'That location is invalid.',
       invalid_state: 'no longer a draft',
+      wac_unsupported_currency:
+        'Receipt is blocked because this purchase order is not in GBP. Change the PO currency to GBP before receiving.',
       error: 'save failed',
     },
   },
@@ -245,6 +247,19 @@ describe('Desktop PO line receive affordance', () => {
     await screen.findByTestId('po-receive-form');
     fireEvent.click(screen.getByTestId('po-receive-submit'));
     expect(await screen.findByTestId('po-receive-error')).toHaveTextContent('No warehouse configured — set one up in Settings.');
+  });
+
+  it('maps wac_unsupported_currency to a dedicated non-GBP valuation alert', async () => {
+    const receive = vi
+      .fn()
+      .mockResolvedValue({ ok: false, error: 'wac_unsupported_currency' } satisfies DesktopReceiveResult);
+    renderDetail({ receive });
+    fireEvent.click(screen.getByTestId('po-line-receive-line-1'));
+    await screen.findByTestId('po-receive-form');
+    fireEvent.click(screen.getByTestId('po-receive-submit'));
+    const alert = await screen.findByTestId('po-receive-error');
+    expect(alert).toHaveAttribute('role', 'alert');
+    expect(alert).toHaveTextContent('not in GBP');
   });
 
   it('validates qty locally before calling the action (never submits an empty qty)', async () => {

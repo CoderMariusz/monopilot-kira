@@ -15,6 +15,14 @@ export function normalizePieceUom(uom: string | null | undefined): string | unde
   return trimmed;
 }
 
+/** Map canonical/legacy piece-count UoMs to the WAC SQL grain (`each`) for kg conversion. */
+export function pieceUomToWacEach(uom: string | null | undefined): string | undefined {
+  const normalized = normalizePieceUom(uom);
+  if (normalized === CANONICAL_PIECE_UOM) return 'each';
+  const trimmed = uom?.trim();
+  return trimmed && trimmed !== '' ? trimmed : undefined;
+}
+
 /** Case-sensitive equality after piece-code normalization (scanner LP matching uses raw SQL equality post-migration). */
 export function pieceUomsEqual(a: string | null | undefined, b: string | null | undefined): boolean {
   const left = normalizePieceUom(a) ?? a ?? '';

@@ -264,7 +264,7 @@ describe('receipt corrections actions', () => {
       '-39.900000',
       USER_ID,
       SITE_ID,
-      'EUR',
+      'GBP',
     ]);
     expect(queries.some((q) => normalize(q.sql).includes('from public.items i') && normalize(q.sql).includes('as qty_kg'))).toBe(false);
   });
@@ -284,7 +284,7 @@ describe('receipt corrections actions', () => {
       '-42',
       USER_ID,
       SITE_ID,
-      'EUR',
+      'GBP',
     ]);
     expect(console.warn).toHaveBeenCalledWith('[wac] reversal_fallback', { grnItemId: GRN_ITEM_ID });
   });

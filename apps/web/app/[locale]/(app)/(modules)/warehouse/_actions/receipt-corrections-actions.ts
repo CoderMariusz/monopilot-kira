@@ -143,14 +143,7 @@ function readWacContributionSnapshot(
   };
 }
 
-function resolveReceiptWacCurrencyCode(input: {
-  snapshot?: { wac_currency_code?: string };
-  poCurrency: string | null;
-}): string {
-  const fromSnapshot = input.snapshot?.wac_currency_code?.trim().toUpperCase();
-  if (fromSnapshot && fromSnapshot.length === 3) return fromSnapshot;
-  const fromPo = input.poCurrency?.trim().toUpperCase();
-  if (fromPo && fromPo.length === 3) return fromPo;
+function resolveReceiptWacCurrencyCode(): string {
   return WAC_VALUATION_CURRENCY_CODE;
 }
 
@@ -460,10 +453,7 @@ export async function cancelGrnLine(input: unknown): Promise<
       );
 
       const wacSnapshot = readWacContributionSnapshot(line.ext_jsonb);
-      const wacCurrencyCode = resolveReceiptWacCurrencyCode({
-        snapshot: wacSnapshot ?? undefined,
-        poCurrency: line.po_currency,
-      });
+      const wacCurrencyCode = resolveReceiptWacCurrencyCode();
       let deltaQtyKg: string | undefined;
       let deltaValue: string | undefined;
       if (wacSnapshot) {

@@ -193,7 +193,15 @@ export function ReceivePoItemScreen({
       setPrintState("idle");
     } catch (err) {
       const message = err instanceof Error ? err.message : "receive_failed";
-      setError(message === "invalid_location" ? L.locationNotFound : message);
+      const mapped =
+        message === "invalid_location"
+          ? L.locationNotFound
+          : message === "unsupported_currency"
+            ? L.unsupportedCurrency
+            : message === "unknown_currency"
+              ? L.unknownCurrency
+              : message;
+      setError(mapped);
     } finally {
       setSubmitting(false);
     }
@@ -311,7 +319,13 @@ export function ReceivePoItemScreen({
               <Keypad value={qty} onChange={setQty} />
             </Field>
             {overReceive && <Banner kind="warn" title={L.overTitle}>{L.overBody}</Banner>}
-            {error && <Banner kind="err" title={error}>{error}</Banner>}
+            {error && (
+              <div data-testid="receive-po-error">
+                <Banner kind="err" title={error}>
+                  {error}
+                </Banner>
+              </div>
+            )}
           </div>
         )}
         {done && line && (

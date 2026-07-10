@@ -7898,6 +7898,7 @@
             "no_warehouse": "Brak skonfigurowanego magazynu — skonfiguruj go w Ustawieniach przed przyjęciem.",
             "invalid_location": "Ta lokalizacja docelowa jest nieprawidłowa.",
             "invalid_state": "Tego zamówienia nie można przyjąć w obecnym statusie.",
+            "wac_unsupported_currency": "Przyjęcie jest zablokowane, ponieważ to zamówienie nie jest w GBP. Wycena zapasów wymaga obecnie GBP — zmień walutę ZZ na GBP przed przyjęciem lub utwórz zamówienie ponownie w GBP. Zamówienia w obcej walucie można nadal tworzyć i edytować, ale nie można ich przyjąć, dopóki nie będzie obsługiwana konwersja FX.",
             "error": "Coś poszło nie tak podczas przyjmowania. Spróbuj ponownie."
           }
         }

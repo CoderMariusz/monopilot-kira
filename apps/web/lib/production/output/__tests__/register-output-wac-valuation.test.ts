@@ -34,6 +34,9 @@ function makeClient(standardCostPerKg: string | null): QueryClient {
         };
       }
       if (n.includes('from public.user_roles')) return { rows: [{ ok: true }], rowCount: 1 };
+      if (n.includes('select c.id::text as consumption_id')) {
+        return { rows: [], rowCount: 0 };
+      }
       if (n.includes('from public.items')) {
         return {
           rows: [
@@ -105,7 +108,7 @@ describe('registerOutput WAC valuation', () => {
     client = makeClient(null);
   });
 
-  it('flags un_costed and skips WAC when standard cost is null and WO has no computed cost', async () => {
+  it('succeeds without WAC booking when standard cost is null and WO has no computed cost', async () => {
     await registerOutput(makeCtx(), WO_ID, {
       transaction_id: TX_ID,
       output_type: 'primary',
@@ -114,11 +117,7 @@ describe('registerOutput WAC valuation', () => {
     });
 
     expect(wacUpsertCalls).toBe(0);
-    expect(wacSnapshotUpdate?.params).toEqual([
-      '66666666-6666-4666-8666-666666666666',
-      JSON.stringify({ wac_excluded: 'un_costed' }),
-      USER_ID,
-    ]);
+    expect(wacSnapshotUpdate).toBeNull();
   });
 
   it('books WAC from standard cost when WO has no computed material cost', async () => {

@@ -3,12 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { resolveOutputWacContribution } from '../resolve-output-wac';
 
 const WO_ID = '33333333-3333-4333-8333-333333333333';
+const CONSUMPTION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const COMPONENT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function makeClient(handlers: {
+  unCostedLines?: Array<{ consumption_id: string; component_id: string; qty: string; uom: string }>;
   materialCost?: string;
   priorWacBooked?: string;
   outputBaselineKg?: string;
@@ -19,6 +22,12 @@ function makeClient(handlers: {
   return {
     query: async (sql: string, params: readonly unknown[] = []) => {
       const n = normalize(sql);
+      if (n.includes('select c.id::text as consumption_id')) {
+        return {
+          rows: handlers.unCostedLines ?? [],
+          rowCount: (handlers.unCostedLines ?? []).length,
+        };
+      }
       if (n.includes('with material_wac as')) {
         return {
           rows: [
@@ -99,6 +108,38 @@ describe('resolveOutputWacContribution', () => {
     });
   });
 
+  it('reports un_costed consumption lines instead of silently understating WO cost', async () => {
+    const client = makeClient({
+      unCostedLines: [
+        {
+          consumption_id: CONSUMPTION_ID,
+          component_id: COMPONENT_ID,
+          qty: '5',
+          uom: 'pallet',
+        },
+      ],
+    });
+
+    const result = await resolveOutputWacContribution(client, {
+      woId: WO_ID,
+      qtyKg: '11',
+      standardCostPerKg: '2.50',
+    });
+
+    expect(result).toEqual({
+      applied: false,
+      excluded: 'un_costed',
+      unCostedLines: [
+        {
+          consumptionId: CONSUMPTION_ID,
+          componentId: COMPONENT_ID,
+          qty: '5',
+          uom: 'pallet',
+        },
+      ],
+    });
+  });
+
   it('skips WAC when neither WO computed cost nor standard cost exists', async () => {
     const client = makeClient({
       materialCost: '0',
@@ -111,7 +152,7 @@ describe('resolveOutputWacContribution', () => {
       standardCostPerKg: null,
     });
 
-    expect(result).toEqual({ applied: false, excluded: 'un_costed' });
+    expect(result).toEqual({ applied: false, excluded: 'un_costed', unCostedLines: [] });
   });
 
   it('books only the current output share for partial forward registrations', async () => {
