@@ -80,16 +80,24 @@ async function collectLinkIds(page: Page, prefix: string): Promise<Set<string>> 
   return ids;
 }
 
-/** Return the first list link id that was not present in `before` (the just-created row). */
+/**
+ * Return the first list link id that was not present in `before` (the just-created row).
+ * The list refreshes via router.refresh() after the modal closes, so the new row may land
+ * a moment later — poll up to ~12s instead of a single immediate read.
+ */
 async function findNewLinkId(page: Page, prefix: string, before: Set<string>): Promise<string> {
-  const links = page.locator(`[data-testid^="${prefix}-"]`);
-  const count = await links.count();
-  for (let i = 0; i < count; i += 1) {
-    const tid = (await links.nth(i).getAttribute('data-testid')) ?? '';
-    const id = tid.replace(`${prefix}-`, '');
-    if (id && !before.has(id)) return id;
+  const deadline = Date.now() + 12_000;
+  for (;;) {
+    const links = page.locator(`[data-testid^="${prefix}-"]`);
+    const count = await links.count();
+    for (let i = 0; i < count; i += 1) {
+      const tid = (await links.nth(i).getAttribute('data-testid')) ?? '';
+      const id = tid.replace(`${prefix}-`, '');
+      if (id && !before.has(id)) return id;
+    }
+    if (Date.now() >= deadline) return '';
+    await page.waitForTimeout(500);
   }
-  return '';
 }
 
 /** Pick a customer in the create-SO modal; create a throwaway one if the org has none. */

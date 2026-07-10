@@ -58,9 +58,10 @@ test.describe('Technical BOM row actions parity evidence', () => {
     await page.screenshot({ path: path.join(evidenceDir, '03-delete-confirm.png'), fullPage: true });
     await page.keyboard.press('Escape').catch(() => undefined);
 
+    await page.goto(`${baseURL}/en/technical/bom`, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-screen="technical-bom-list"]')).toBeVisible({ timeout: 12_000 });
     const activeTab = page.getByRole('tab', { name: /active/i });
     await expect(activeTab, 'Active BOM tab is present').toBeVisible();
-    await page.goto(`${baseURL}/en/technical/bom`, { waitUntil: 'domcontentloaded' });
     await activeTab.click();
     const activeLink = page.locator('[data-screen="technical-bom-list"] tbody tr td a').first();
     await expect(activeLink, 'at least one active BOM row is present').toBeVisible({ timeout: 10_000 });
