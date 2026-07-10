@@ -18,6 +18,7 @@
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { callBomRequestVersionEdit } from '../../../../../../../lib/technical/bom-request-version-edit';
 import { safeRevalidatePath } from './revalidate';
 import { buildGraph, detectCycle } from './cycle-detection';
 import {
@@ -165,27 +166,63 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
         return { ok: false, error: 'invalid_input', message: productReference.message };
       }
 
-      // ── version = previous_max + 1 (org + product scoped) ──────────────────────
-      const { rows: verRows } = await c.query<{ next_version: number }>(
-        `select coalesce(max(version), 0) + 1 as next_version
-           from public.bom_headers
-          where org_id = app.current_org_id()
-            and item_id = (select id from public.items where org_id = app.current_org_id() and item_code = $1)`,
-        [input.productId],
-      );
-      const version = Number(verRows[0]?.next_version ?? 1);
+      let headerId: string;
+      let version: number;
 
-      // ── INSERT header (draft) + lines + co-products, atomically in the txn ─────
-      const { rows: headerRows } = await c.query<{ id: string }>(
-        `insert into public.bom_headers
-           (org_id, product_id, item_id, origin_module, status, version, yield_pct, effective_from, notes, created_by_user, app_version, bom_type)
-         values
-           (app.current_org_id(), $1, (select id from public.items where org_id = app.current_org_id() and item_code = $1), 'technical', 'draft', $2, $3::numeric, coalesce($4::date, current_date), $5, $6::uuid, 'technical-bom-v1', $7)
-         returning id`,
-        [input.productId, version, input.yieldPct, input.effectiveFrom ?? null, input.notes ?? null, userId, input.bom_type],
-      );
-      const headerId = headerRows[0]?.id;
-      if (!headerId) return { ok: false, error: 'persistence_failed' };
+      if (input.sourceBomHeaderId) {
+        const edit = await callBomRequestVersionEdit(c, {
+          sourceBomHeaderId: input.sourceBomHeaderId,
+          requestedBy: userId,
+          notes: input.notes ?? null,
+        });
+        if (!edit) return { ok: false, error: 'persistence_failed' };
+        headerId = edit.bom_header_id;
+        version = edit.version;
+
+        await c.query(
+          `update public.bom_headers header
+              set yield_pct = $2::numeric,
+                  effective_from = coalesce($3::date, header.effective_from),
+                  notes = coalesce($4, header.notes),
+                  bom_type = $5
+            where header.org_id = app.current_org_id()
+              and header.id = $1::uuid`,
+          [headerId, input.yieldPct, input.effectiveFrom ?? null, input.notes ?? null, input.bom_type],
+        );
+        await c.query(
+          `delete from public.bom_lines line
+            where line.org_id = app.current_org_id()
+              and line.bom_header_id = $1::uuid`,
+          [headerId],
+        );
+        await c.query(
+          `delete from public.bom_co_products cp
+            where cp.org_id = app.current_org_id()
+              and cp.bom_header_id = $1::uuid`,
+          [headerId],
+        );
+      } else {
+        // ── version = previous_max + 1 (org + product scoped) ──────────────────────
+        const { rows: verRows } = await c.query<{ next_version: number }>(
+          `select coalesce(max(version), 0) + 1 as next_version
+             from public.bom_headers
+            where org_id = app.current_org_id()
+              and item_id = (select id from public.items where org_id = app.current_org_id() and item_code = $1)`,
+          [input.productId],
+        );
+        version = Number(verRows[0]?.next_version ?? 1);
+
+        const { rows: headerRows } = await c.query<{ id: string }>(
+          `insert into public.bom_headers
+             (org_id, product_id, item_id, origin_module, status, version, yield_pct, effective_from, notes, created_by_user, app_version, bom_type)
+           values
+             (app.current_org_id(), $1, (select id from public.items where org_id = app.current_org_id() and item_code = $1), 'technical', 'draft', $2, $3::numeric, coalesce($4::date, current_date), $5, $6::uuid, 'technical-bom-v1', $7)
+           returning id`,
+          [input.productId, version, input.yieldPct, input.effectiveFrom ?? null, input.notes ?? null, userId, input.bom_type],
+        );
+        headerId = headerRows[0]?.id ?? '';
+        if (!headerId) return { ok: false, error: 'persistence_failed' };
+      }
 
       for (let i = 0; i < input.lines.length; i++) {
         const line = input.lines[i]!;

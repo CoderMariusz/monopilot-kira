@@ -55,6 +55,7 @@ import { Select } from '@monopilot/ui/Select';
 
 import { createBomDraft } from '../_actions/create-draft';
 import { addBomLine } from '../_actions/line-actions';
+import { ensureBomVersionEditDraft } from '../_actions/request-version-edit';
 import type { BomStatus, BomValidationCode, ComponentType } from '../_actions/shared';
 import { listItems } from '../../items/_actions/list-items';
 import { ITEM_CHOOSER_MAX_LIMIT } from '../../../../../../../lib/shared/pagination';
@@ -391,6 +392,29 @@ export function ComponentAddModal({
 
       const carriedLines = context.bomHeaderId ? context.existingLines ?? [] : [];
       const carriedCoProducts = context.bomHeaderId ? context.coProducts ?? [] : [];
+
+      if (context.bomHeaderId && RELEASED_STATUSES.has(context.sourceStatus)) {
+        const fork = await ensureBomVersionEditDraft({ sourceBomHeaderId: context.bomHeaderId });
+        if (!fork.ok) {
+          if (fork.error === 'forbidden') setError(t('forbidden'));
+          else setError(fork.message ?? t('saveError'));
+          return;
+        }
+        const result = await addBomLine({ bomHeaderId: fork.data.id, ...newLine });
+        if (result.ok) {
+          onAdded?.({ id: fork.data.id, version: fork.data.version });
+          router.refresh();
+          onClose();
+        } else if (result.error === 'forbidden') {
+          setError(t('forbidden'));
+        } else if (result.error === 'validation_failed') {
+          setUsability({ kind: 'blocked', code: result.code ?? 'V-TEC-14', message: result.message ?? '' });
+        } else {
+          setError(result.message ?? t('saveError'));
+        }
+        return;
+      }
+
       // V-TEC-12: parent share = 100 − Σ non-byproduct co-product allocations,
       // reconstructing the validity the source version already satisfied.
       const parentAllocationPct =
@@ -398,6 +422,7 @@ export function ComponentAddModal({
 
       const result = await createBomDraft({
         productId: context.productId,
+        ...(context.bomHeaderId ? { sourceBomHeaderId: context.bomHeaderId } : {}),
         lines: [...carriedLines, newLine],
         coProducts: carriedCoProducts,
         parentAllocationPct,
@@ -633,6 +658,7 @@ export function VersionSaveModal({
         100 - carriedCoProducts.filter((cp) => !cp.isByproduct).reduce((acc, cp) => acc + cp.allocationPct, 0);
       const result = await createBomDraft({
         productId: context.productId,
+        ...(context.bomHeaderId ? { sourceBomHeaderId: context.bomHeaderId } : {}),
         notes: `${label.trim()} — ${reason.trim()}`,
         lines,
         coProducts: carriedCoProducts,
