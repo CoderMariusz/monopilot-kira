@@ -20,8 +20,8 @@ import { buildPoTemplateCsv } from '../_lib/parse-po-csv';
 import { PoImportWizard, type PoImportLabels } from './po-import-wizard.client';
 import type {
   PoImportRow,
-  PoValidationResult,
-  PoImportResult,
+  PoValidationResponse,
+  PoImportResponse,
 } from '../../purchase-orders/_actions/import-po';
 
 export type PoImportCardLabels = {
@@ -38,8 +38,8 @@ export type PoImportCardProps = {
   labels: PoImportCardLabels;
   /** Open the wizard immediately on mount (?source=po deep-link from the PO list). */
   autoOpen?: boolean;
-  validateAction: (rows: PoImportRow[]) => Promise<PoValidationResult>;
-  commitAction: (rows: PoImportRow[], options: { mode: 'all_or_nothing' | 'skip_invalid' }) => Promise<PoImportResult>;
+  validateAction: (rows: PoImportRow[]) => Promise<PoValidationResponse>;
+  commitAction: (rows: PoImportRow[], options: { mode: 'all_or_nothing' | 'skip_invalid' }) => Promise<PoImportResponse>;
 };
 
 export function PoImportCard({ locale, labels, autoOpen = false, validateAction, commitAction }: PoImportCardProps) {

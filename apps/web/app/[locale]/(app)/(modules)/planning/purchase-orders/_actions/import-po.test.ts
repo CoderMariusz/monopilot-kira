@@ -135,6 +135,19 @@ describe('purchase order import backend', () => {
     vi.useRealTimers();
   });
 
+  it('validatePoImport returns typed forbidden when caller lacks planning.po.manage', async () => {
+    allowPermission = false;
+    await expect(validatePoImport([poRow()])).resolves.toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('commitPoImport returns typed forbidden when caller lacks planning.po.manage', async () => {
+    allowPermission = false;
+    await expect(commitPoImport(validFourRows(), { mode: 'skip_invalid' })).resolves.toEqual({
+      ok: false,
+      error: 'forbidden',
+    });
+  });
+
   it('validatePoImport reports bad supplier_code and past expected_delivery with echoed values', async () => {
     const result = await validatePoImport([
       poRow({ external_ref: 'EXT-BAD-SUP', supplier_code: 'SUP-MISSING' }),

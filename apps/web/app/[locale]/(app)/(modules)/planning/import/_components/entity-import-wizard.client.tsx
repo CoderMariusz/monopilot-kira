@@ -45,6 +45,10 @@ import {
 type Step = 'upload' | 'validate' | 'preview' | 'result';
 const STEP_ORDER: Step[] = ['upload', 'validate', 'preview', 'result'];
 
+function isImportForbidden(value: unknown): value is { ok: false; error: 'forbidden' } {
+  return typeof value === 'object' && value !== null && 'error' in value && (value as { error: string }).error === 'forbidden';
+}
+
 function createdDocNumber(created: unknown, numberField: string): string {
   const value = (created as Record<string, unknown>)[numberField];
   return value == null ? '' : String(value);
@@ -61,6 +65,8 @@ export type CommitMode = 'all_or_nothing' | 'skip_invalid';
 export type RowConversion = { display: string };
 
 /** Shape every entity validation result conforms to (PO/TO have no convertedQty). */
+export type EntityImportForbidden = { ok: false; error: 'forbidden' };
+
 export type EntityValidationResult = {
   rows: Array<{
     rowNumber: number;
@@ -76,6 +82,9 @@ export type EntityCommitResult<TCreated> = {
   skipped: Array<{ external_ref: string; reason: string }>;
   failed: Array<{ rowNumber: number; errors: Array<{ column: string; message: string }> }>;
 };
+
+export type EntityValidationResponse = EntityValidationResult | EntityImportForbidden;
+export type EntityCommitResponse<TCreated> = EntityCommitResult<TCreated> | EntityImportForbidden;
 
 export type EntityImportWizardLabels = {
   stepUpload: string;
@@ -149,12 +158,12 @@ export type EntityImportWizardProps<TRow, TCreated> = {
   /** Path the result links + "Go to list" CTA point at (e.g. transfer-orders). */
   listPath: string;
   errorReportFilename: string;
-  validateAction: (rows: TRow[]) => Promise<EntityValidationResult>;
-  commitAction: (rows: TRow[], options: { mode: CommitMode }) => Promise<EntityCommitResult<TCreated>>;
+  validateAction: (rows: TRow[]) => Promise<EntityValidationResponse>;
+  commitAction: (rows: TRow[], options: { mode: CommitMode }) => Promise<EntityCommitResponse<TCreated>>;
   /** Static SSR/RTL injection — pins a step + parsed rows without parsing a file. */
   initialStep?: Step;
   initialRows?: ParsedEntityRow<TRow>[];
-  initialValidation?: EntityValidationResult;
+  initialValidation?: EntityValidationResponse;
 };
 
 function Stepper({ active, labels, testid }: { active: Step; labels: EntityImportWizardLabels; testid: string }) {
@@ -217,9 +226,9 @@ export function EntityImportWizard<TRow, TCreated>(props: EntityImportWizardProp
   const [step, setStep] = React.useState<Step>(props.initialStep ?? 'upload');
   const [filename, setFilename] = React.useState('');
   const [parsedRows, setParsedRows] = React.useState<ParsedEntityRow<TRow>[]>(props.initialRows ?? []);
-  const [validation, setValidation] = React.useState<EntityValidationResult | null>(props.initialValidation ?? null);
+  const [validation, setValidation] = React.useState<EntityValidationResponse | null>(props.initialValidation ?? null);
   const [mode, setMode] = React.useState<CommitMode>('all_or_nothing');
-  const [result, setResult] = React.useState<EntityCommitResult<TCreated> | null>(null);
+  const [result, setResult] = React.useState<EntityCommitResponse<TCreated> | null>(null);
   const [errorKey, setErrorKey] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
@@ -247,13 +256,17 @@ export function EntityImportWizard<TRow, TCreated>(props: EntityImportWizardProp
     startTransition(async () => {
       try {
         const res = await validateAction(parsedRows.map((p) => p.row));
+        if ('error' in res && res.error === 'forbidden') {
+          setErrorKey(labels.forbidden);
+          return;
+        }
         setValidation(res);
         setStep('validate');
       } catch {
-        setErrorKey(labels.forbidden);
+        setErrorKey(labels.commitFailed);
       }
     });
-  }, [labels.forbidden, parsedRows, validateAction]);
+  }, [labels.commitFailed, labels.forbidden, parsedRows, validateAction]);
 
   const runCommit = React.useCallback(() => {
     setErrorKey(null);
@@ -263,27 +276,31 @@ export function EntityImportWizard<TRow, TCreated>(props: EntityImportWizardProp
           parsedRows.map((p) => p.row),
           { mode },
         );
+        if ('error' in res && res.error === 'forbidden') {
+          setErrorKey(labels.forbidden);
+          return;
+        }
         setResult(res);
         setStep('result');
       } catch {
-        // The action throws only on a permission failure; any other rejection
-        // surfaces as the generic commit-failed message.
         setErrorKey(labels.commitFailed);
       }
     });
-  }, [commitAction, labels.commitFailed, mode, parsedRows]);
+  }, [commitAction, labels.commitFailed, labels.forbidden, mode, parsedRows]);
 
   const downloadErrorReport = React.useCallback(() => {
-    if (!validation) return;
+    if (!validation || isImportForbidden(validation)) return;
     downloadCsv(buildEntityErrorReportCsv(parsedRows, validation.rows, spec), errorReportFilename);
   }, [errorReportFilename, parsedRows, spec, validation]);
 
-  const summary = validation?.summary ?? { total: parsedRows.length, ok: 0, failed: 0 };
+  const validationData = validation && !isImportForbidden(validation) ? validation : null;
+  const commitResult = result && !isImportForbidden(result) ? result : null;
+  const summary = validationData?.summary ?? { total: parsedRows.length, ok: 0, failed: 0 };
   const counter = labels.counter.replace('{ok}', String(summary.ok)).replace('{failed}', String(summary.failed));
   const validationByRow = new Map<
     number,
     { ok: boolean; errors: Array<{ column: string; message: string }>; convertedQty?: RowConversion }
-  >((validation?.rows ?? []).map((r) => [r.rowNumber, { ok: r.ok, errors: r.errors, convertedQty: r.convertedQty }]));
+  >((validationData?.rows ?? []).map((r) => [r.rowNumber, { ok: r.ok, errors: r.errors, convertedQty: r.convertedQty }]));
   const groups = groupEntityRows(parsedRows, spec);
   const listBase = `/${locale}${listPath}`;
   const conversionColSpan = showConversion ? 5 : 4;
@@ -516,7 +533,7 @@ export function EntityImportWizard<TRow, TCreated>(props: EntityImportWizardProp
         </section>
       ) : null}
 
-      {step === 'result' && result ? (
+      {step === 'result' && commitResult ? (
         <section className="card" style={{ padding: 18 }} aria-labelledby={`${testid}-import-result-h`}>
           <h2 id={`${testid}-import-result-h`} className="card-title">
             {labels.resultTitle}
@@ -526,15 +543,15 @@ export function EntityImportWizard<TRow, TCreated>(props: EntityImportWizardProp
             style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}
             data-testid={`${testid}-import-result-kpis`}
           >
-            <Kpi label={labels.createdKpi} value={String(result.created.length)} tone="green" />
-            <Kpi label={labels.skippedKpi} value={String(result.skipped.length)} tone="amber" />
-            <Kpi label={labels.failedKpi} value={String(result.failed.length)} tone="red" />
+            <Kpi label={labels.createdKpi} value={String(commitResult.created.length)} tone="green" />
+            <Kpi label={labels.skippedKpi} value={String(commitResult.skipped.length)} tone="amber" />
+            <Kpi label={labels.failedKpi} value={String(commitResult.failed.length)} tone="red" />
           </div>
 
           <h3 className="mt-4 text-sm font-semibold">{labels.createdHeading}</h3>
-          {result.created.length > 0 ? (
+          {commitResult.created.length > 0 ? (
             <ul className="mt-2 flex flex-col gap-1" data-testid={`${testid}-import-created-list`}>
-              {result.created.map((created) => {
+              {commitResult.created.map((created) => {
                 const number = createdDocNumber(created, createdNumberField);
                 return (
                   <li key={number}>
@@ -555,11 +572,11 @@ export function EntityImportWizard<TRow, TCreated>(props: EntityImportWizardProp
             </p>
           )}
 
-          {result.skipped.length > 0 ? (
+          {commitResult.skipped.length > 0 ? (
             <>
               <h3 className="mt-4 text-sm font-semibold">{labels.skippedHeading}</h3>
               <ul className="mt-2 flex flex-col gap-1" data-testid={`${testid}-import-skipped-list`}>
-                {result.skipped.map((s) => (
+                {commitResult.skipped.map((s) => (
                   <li key={s.external_ref} className="text-sm">
                     <span className="mono">{s.external_ref}</span> — {s.reason}
                   </li>

@@ -112,6 +112,19 @@ describe('transfer order import backend', () => {
     });
   });
 
+  it('validateToImport returns typed forbidden when caller lacks planning.to.manage', async () => {
+    allowPermission = false;
+    await expect(validateToImport([toRow()])).resolves.toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('commitToImport returns typed forbidden when caller lacks planning.to.manage', async () => {
+    allowPermission = false;
+    await expect(commitToImport([toRow()], { mode: 'skip_invalid' })).resolves.toEqual({
+      ok: false,
+      error: 'forbidden',
+    });
+  });
+
   it('validateToImport flags same-warehouse rows', async () => {
     const result = await validateToImport([toRow({ to_warehouse_code: 'WH-A' })]);
 
@@ -166,7 +179,7 @@ describe('transfer order import backend', () => {
     );
     expect(firstPayload?.lines).toEqual([
       { itemId: ITEM_A_ID, qty: '10', uom: 'kg', lineNo: 1 },
-      { itemId: ITEM_B_ID, qty: '10', uom: 'pcs', lineNo: 2 },
+      { itemId: ITEM_B_ID, qty: '10', uom: 'ea', lineNo: 2 },
     ]);
     expect(secondPayload).toEqual(
       expect.objectContaining({

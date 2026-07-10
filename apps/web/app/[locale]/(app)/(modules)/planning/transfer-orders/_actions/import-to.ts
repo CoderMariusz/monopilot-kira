@@ -17,6 +17,8 @@ export type ToImportRow = {
 
 export type ToImportError = { column: string; message: string };
 
+export type ToImportForbidden = { ok: false; error: 'forbidden' };
+
 export type ToValidationResult = {
   rows: Array<{ rowNumber: number; ok: boolean; errors: ToImportError[] }>;
   summary: { total: number; ok: number; failed: number };
@@ -27,6 +29,9 @@ export type ToImportResult = {
   skipped: Array<{ external_ref: string; reason: string }>;
   failed: Array<{ rowNumber: number; errors: ToImportError[] }>;
 };
+
+export type ToValidationResponse = ToValidationResult | ToImportForbidden;
+export type ToImportResponse = ToImportResult | ToImportForbidden;
 
 type WarehouseLookupRow = {
   id: string;
@@ -67,10 +72,11 @@ type CreateTransferOrderLinePayload = {
   lineNo: number;
 };
 
-export async function validateToImport(rows: ToImportRow[]): Promise<ToValidationResult> {
-  return withOrgContext(async ({ userId, orgId, client }): Promise<ToValidationResult> => {
+export async function validateToImport(rows: ToImportRow[]): Promise<ToValidationResponse> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<ToValidationResponse> => {
     const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
-    await requirePlanningWritePermission(ctx);
+    const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+    if (!perm.ok) return { ok: false, error: 'forbidden' };
     return validateRows(ctx.client, rows);
   });
 }
@@ -78,8 +84,10 @@ export async function validateToImport(rows: ToImportRow[]): Promise<ToValidatio
 export async function commitToImport(
   rows: ToImportRow[],
   options: { mode: 'all_or_nothing' | 'skip_invalid' },
-): Promise<ToImportResult> {
+): Promise<ToImportResponse> {
   const validation = await validateToImport(rows);
+  if ('error' in validation) return validation;
+
   const failed = validation.rows
     .filter((row) => !row.ok)
     .map((row) => ({ rowNumber: row.rowNumber, errors: row.errors }));
@@ -104,9 +112,10 @@ export async function commitToImport(
     })
     .filter((row): row is ValidImportRow => row !== null);
 
-  return withOrgContext(async ({ userId, orgId, client }): Promise<ToImportResult> => {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<ToImportResponse> => {
     const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
-    await requirePlanningWritePermission(ctx);
+    const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+    if (!perm.ok) return { ok: false, error: 'forbidden' };
 
     const created: ToImportResult['created'] = [];
     const skipped: ToImportResult['skipped'] = [];
@@ -198,11 +207,6 @@ export async function commitToImport(
 
     return { created, skipped, failed: runtimeFailed };
   });
-}
-
-async function requirePlanningWritePermission(ctx: OrgActionContext): Promise<void> {
-  const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
-  if (!perm.ok) throw new ToImportForbiddenError();
 }
 
 async function validateRows(client: QueryClient, rows: ToImportRow[]): Promise<ToValidationResult> {
@@ -440,5 +444,3 @@ function numberToPlainString(value: number): string {
     maximumFractionDigits: 20,
   });
 }
-
-class ToImportForbiddenError extends Error {}

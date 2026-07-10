@@ -71,3 +71,46 @@
 
 - `pnpm --filter web exec tsc --noEmit` — clean
 - Vitest (touched files): PO/WO/TO/supplier action tests + list UI tests — all green
+
+---
+
+## Fix round 1
+
+Adversarial review (`_meta/plans/wave-2-codex-review.md`) required three changes:
+
+### 1. Migration 464 — preserve `npd.planning.write` predecessor holders
+
+**Finding:** Hard-coded admin/planner role families omitted custom roles (e.g. `buyer`) that already held `npd.planning.write`, causing a live RBAC regression.
+
+**Fix:** Extended `seed_planning_procurement_manage_permissions_for_org` with migration-319-style CTEs: every role holding `npd.planning.write` in `role_permissions` or `roles.permissions` jsonb now also receives `planning.po.manage`, `planning.to.manage`, and `planning.supplier.manage`.
+
+**Tests:** `packages/db/__tests__/planning-procurement-manage-permissions.test.ts` — static SQL contract + integration probe with a custom `buyer` role.
+
+### 2. Import page gates — domain-specific permissions
+
+**Finding:** `canImportPurchaseOrders` checked `npd.planning.write` while import actions require `planning.po.manage` / `planning.to.manage`; hub used one boolean for PO and TO.
+
+**Fix:**
+- `canImportPurchaseOrders()` → `planning.po.manage`
+- `canImportTransferOrders()` → `planning.to.manage`
+- `canImportWorkOrders()` → `npd.planning.write` (WO import unchanged)
+- Hub renders each card only when its matching gate passes; denied panel when none pass
+- Dedicated import pages use the matching gate (`transfer-orders/import` → TO manage)
+
+**Tests:** `import/_actions/can-import-po.test.ts`
+
+### 3. Typed `forbidden` import results
+
+**Finding:** Import actions threw private error classes; commit UI mapped permission denial to generic `commitFailed`.
+
+**Fix:**
+- `validatePoImport` / `commitPoImport` and TO equivalents return `{ ok: false, error: 'forbidden' }` at the action boundary (no throws)
+- `PoImportWizard` + `EntityImportWizard` branch on `error === 'forbidden'` for validate and commit
+- Removed `PoImportForbiddenError` / `ToImportForbiddenError`
+
+**Tests:** `import-po.test.ts` and `import-to.test.ts` denial cases at exported action boundary.
+
+### Gates (fix round)
+
+- `pnpm --filter web exec tsc --noEmit` — clean
+- Vitest: import action tests, can-import gate tests, import hub RSC test, import wizard UI tests — all green
