@@ -32,6 +32,12 @@ const MWO: MwoDetailRow = {
     equipmentCode: 'EQ-01',
     equipmentName: 'Mixer 1',
   },
+  loto: {
+    requiresLoto: false,
+    lockoutVerified: false,
+    lockoutActive: false,
+    releaseVerified: false,
+  },
 };
 
 const LABELS: MwoDetailLabels = {
@@ -75,6 +81,25 @@ const LABELS: MwoDetailLabels = {
     pmInterval: 'Interval',
     description: 'Description',
     denied: '', error: '', notFound: '',
+    lotoActiveBanner: 'LOTO active',
+    lotoPendingBanner: 'LOTO required',
+    lotoApply: 'Apply LOTO',
+    lotoClear: 'Clear LOTO',
+  },
+  loto: {
+    lockoutTitle: 'Apply LOTO',
+    releaseTitle: 'Clear LOTO',
+    signaturePassword: 'PIN',
+    submitLockout: 'Verify',
+    submitRelease: 'Verify',
+    submitting: '…',
+    cancel: 'Cancel',
+    errorRequired: 'Required',
+    errorFailed: 'Failed',
+    errorForbidden: 'Forbidden',
+    errorEsign: 'E-sign failed',
+    errorSameActor: 'Same actor',
+    errorInvalidTransition: 'Invalid state',
   },
 };
 
@@ -85,8 +110,10 @@ describe('MwoDetailClient', () => {
         locale="en"
         mwo={MWO}
         labels={LABELS}
-        permissions={{ canExecute: true, canCancel: false }}
+        permissions={{ canExecute: true, canCancel: false, canLotoApply: false, canLotoClear: false }}
         transitionMwoAction={vi.fn()}
+        verifyLotoLockoutAction={vi.fn()}
+        verifyLotoReleaseAction={vi.fn()}
       />,
     );
 
@@ -102,8 +129,10 @@ describe('MwoDetailClient', () => {
         locale="en"
         mwo={MWO}
         labels={LABELS}
-        permissions={{ canExecute: true, canCancel: false }}
+        permissions={{ canExecute: true, canCancel: false, canLotoApply: false, canLotoClear: false }}
         transitionMwoAction={vi.fn()}
+        verifyLotoLockoutAction={vi.fn()}
+        verifyLotoReleaseAction={vi.fn()}
       />,
     );
 

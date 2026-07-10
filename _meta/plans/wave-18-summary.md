@@ -40,3 +40,24 @@
 | `pnpm --filter web exec tsc --noEmit` | exit 0 |
 | `pnpm --filter web run build` | exit 0 |
 | Vitest (mwo-actions + calibration-actions) | 18 passed |
+
+## Fix round 1
+
+**N-39 LOTO lifecycle (CRITICAL):**
+- `lotoActiveLockout` gate: `in_progress` requires verified lockout with `released_by IS NULL`; cleared lockout re-blocks start (`loto_not_verified`).
+- `verifyMwoLotoRelease` only allowed when MWO is `in_progress`; `verifyMwoLotoLockout` only when `open`.
+- Regression tests: lockout→release→start rejected (unit + pg); happy path lockout→in_progress→release→completed.
+
+**N-39 UI (MAJOR):**
+- MWO detail page wires `verifyMwoLotoLockout` / `verifyMwoLotoRelease` via PIN modal (`mwo-loto-modal.tsx`), gated on `mnt.loto.apply` / `mnt.loto.clear` and `equipment.requires_loto`.
+- LOTO status banner + Apply/Clear controls on execution detail; Start disabled until active lockout.
+
+**N-39 real e-sign tests (MAJOR):**
+- `mwo-loto-signing.pg.test.ts`: real `signEvent` path — invalid PIN writes neither `mwo_loto_checklists` nor `e_sign_log`; valid PIN creates `mnt.loto.lockout` / `mnt.loto.release` rows. Skips without `DATABASE_URL`.
+
+**Verification (fix round):**
+| Gate | Result |
+|------|--------|
+| `pnpm --filter web exec tsc --noEmit` | exit 0 |
+| `pnpm --filter web run build` | exit 0 |
+| Vitest mwo-actions + mwo-detail + pg (skip) | 40 passed |

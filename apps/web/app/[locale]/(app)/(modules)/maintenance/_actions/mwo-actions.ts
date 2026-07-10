@@ -151,6 +151,7 @@ export type MwoDetailRow = MwoListRow & {
   description: string | null;
   scheduleId: string | null;
   pmSource: MwoPmSource | null;
+  loto: MwoLotoStatus;
 };
 
 export type MwoListData = {
@@ -187,6 +188,15 @@ export type MwoPermissions = {
   canCreate: boolean;
   canExecute: boolean;
   canCancel: boolean;
+  canLotoApply: boolean;
+  canLotoClear: boolean;
+};
+
+export type MwoLotoStatus = {
+  requiresLoto: boolean;
+  lockoutVerified: boolean;
+  lockoutActive: boolean;
+  releaseVerified: boolean;
 };
 
 // ── zod input schemas ─────────────────────────────────────────────────────────
@@ -294,12 +304,27 @@ async function readLotoGate(ctx: MaintenanceContext, mwoId: string): Promise<Lot
   return rows[0] ?? null;
 }
 
-function lotoLockoutSatisfied(loto: LotoGateRow | null): boolean {
+function lotoLockoutRecorded(loto: LotoGateRow | null): boolean {
   return Boolean(loto?.zero_energy_verified_by && loto.verified_at);
+}
+
+/** Active lockout: verified and not yet released — required to start work. */
+function lotoActiveLockout(loto: LotoGateRow | null): boolean {
+  return lotoLockoutRecorded(loto) && !loto?.released_by;
 }
 
 function lotoReleaseSatisfied(loto: LotoGateRow | null): boolean {
   return Boolean(loto?.released_by);
+}
+
+function mapLotoStatus(requiresLoto: boolean, loto: LotoGateRow | null): MwoLotoStatus {
+  const lockoutVerified = lotoLockoutRecorded(loto);
+  return {
+    requiresLoto,
+    lockoutVerified,
+    lockoutActive: lotoActiveLockout(loto),
+    releaseVerified: lotoReleaseSatisfied(loto),
+  };
 }
 
 async function ensureLotoChecklistRow(ctx: MaintenanceContext, mwoId: string): Promise<void> {
@@ -416,17 +441,27 @@ async function allocateMwoNumber(ctx: MaintenanceContext): Promise<string> {
 export async function getMwoPermissions(): Promise<MwoPermissions> {
   try {
     return await withOrgContext(async (ctx: MaintenanceContext): Promise<MwoPermissions> => {
-      const [canRead, canCreate, canExecute, canCancel] = await Promise.all([
-        hasPermission(ctx, MNT_READ_PERMISSION),
-        hasPermission(ctx, MNT_MWO_REQUEST_PERMISSION),
-        hasPermission(ctx, MNT_MWO_EXECUTE_PERMISSION),
-        hasPermission(ctx, MNT_MWO_CANCEL_PERMISSION),
-      ]);
-      return { canRead, canCreate, canExecute, canCancel };
+      const [canRead, canCreate, canExecute, canCancel, canLotoApply, canLotoClear] =
+        await Promise.all([
+          hasPermission(ctx, MNT_READ_PERMISSION),
+          hasPermission(ctx, MNT_MWO_REQUEST_PERMISSION),
+          hasPermission(ctx, MNT_MWO_EXECUTE_PERMISSION),
+          hasPermission(ctx, MNT_MWO_CANCEL_PERMISSION),
+          hasPermission(ctx, MNT_LOTO_APPLY_PERMISSION),
+          hasPermission(ctx, MNT_LOTO_CLEAR_PERMISSION),
+        ]);
+      return { canRead, canCreate, canExecute, canCancel, canLotoApply, canLotoClear };
     });
   } catch (err) {
     console.error('[maintenance] getMwoPermissions failed', err);
-    return { canRead: false, canCreate: false, canExecute: false, canCancel: false };
+    return {
+      canRead: false,
+      canCreate: false,
+      canExecute: false,
+      canCancel: false,
+      canLotoApply: false,
+      canLotoClear: false,
+    };
   }
 }
 
@@ -565,6 +600,11 @@ export async function getMwoById(mwoId: string): Promise<ActionResult<MwoDetailR
           schedule_next_due: string | null;
           schedule_interval_basis: PmScheduleRow['intervalBasis'] | null;
           schedule_interval_value: number | null;
+          requires_loto: boolean;
+          loto_zero_energy_verified_by: string | null;
+          loto_verified_at: Date | string | null;
+          loto_released_by: string | null;
+          loto_released_at: Date | string | null;
         }
       >(
         `select w.id::text,
@@ -585,12 +625,19 @@ export async function getMwoById(mwoId: string): Promise<ActionResult<MwoDetailR
                 s.schedule_type,
                 s.next_due_date::text as schedule_next_due,
                 s.interval_basis as schedule_interval_basis,
-                s.interval_value as schedule_interval_value
+                s.interval_value as schedule_interval_value,
+                coalesce(e.requires_loto, false) as requires_loto,
+                lc.zero_energy_verified_by::text as loto_zero_energy_verified_by,
+                lc.verified_at as loto_verified_at,
+                lc.released_by::text as loto_released_by,
+                lc.released_at as loto_released_at
            from public.maintenance_work_orders w
            left join public.equipment e
              on e.id = w.equipment_id and e.org_id = w.org_id
            left join public.maintenance_schedules s
              on s.id = w.schedule_id and s.org_id = w.org_id
+           left join public.mwo_loto_checklists lc
+             on lc.mwo_id = w.id and lc.org_id = w.org_id
           where w.org_id = app.current_org_id()
             and w.id = $1::uuid
           limit 1`,
@@ -612,6 +659,12 @@ export async function getMwoById(mwoId: string): Promise<ActionResult<MwoDetailR
               equipmentName: row.equipment_name,
             }
           : null;
+      const loto = mapLotoStatus(row.requires_loto, {
+        zero_energy_verified_by: row.loto_zero_energy_verified_by,
+        verified_at: row.loto_verified_at,
+        released_by: row.loto_released_by,
+        released_at: row.loto_released_at,
+      });
 
       return {
         ok: true,
@@ -620,6 +673,7 @@ export async function getMwoById(mwoId: string): Promise<ActionResult<MwoDetailR
           description: row.requester_reason,
           scheduleId: row.schedule_id,
           pmSource,
+          loto,
         },
       };
     });
@@ -821,10 +875,12 @@ export async function verifyMwoLotoLockout(input: {
         mwo_number: string;
         equipment_id: string | null;
         requires_loto: boolean;
+        state: MwoState;
       }>(
         `select w.id::text,
                 w.mwo_number,
                 w.equipment_id::text,
+                w.state,
                 coalesce(e.requires_loto, false) as requires_loto
            from public.maintenance_work_orders w
            left join public.equipment e
@@ -839,9 +895,16 @@ export async function verifyMwoLotoLockout(input: {
       if (!row.requires_loto) {
         return { ok: false, reason: 'error', message: 'equipment does not require LOTO' };
       }
+      if (row.state !== 'open') {
+        return {
+          ok: false,
+          reason: 'invalid_transition',
+          message: 'LOTO lockout can only be applied while the MWO is open',
+        };
+      }
 
       const existing = await readLotoGate(ctx, parsed.mwoId);
-      if (lotoLockoutSatisfied(existing)) {
+      if (lotoLockoutRecorded(existing)) {
         return { ok: false, reason: 'error', message: 'LOTO lockout is already verified' };
       }
 
@@ -917,10 +980,12 @@ export async function verifyMwoLotoRelease(input: {
         mwo_number: string;
         equipment_id: string | null;
         requires_loto: boolean;
+        state: MwoState;
       }>(
         `select w.id::text,
                 w.mwo_number,
                 w.equipment_id::text,
+                w.state,
                 coalesce(e.requires_loto, false) as requires_loto
            from public.maintenance_work_orders w
            left join public.equipment e
@@ -935,10 +1000,21 @@ export async function verifyMwoLotoRelease(input: {
       if (!row.requires_loto) {
         return { ok: false, reason: 'error', message: 'equipment does not require LOTO' };
       }
+      if (row.state !== 'in_progress') {
+        return {
+          ok: false,
+          reason: 'invalid_transition',
+          message: 'LOTO release is only allowed while work is in progress',
+        };
+      }
 
       const existing = await readLotoGate(ctx, parsed.mwoId);
-      if (!lotoLockoutSatisfied(existing)) {
-        return { ok: false, reason: 'loto_not_verified', message: 'LOTO lockout must be verified before release' };
+      if (!lotoActiveLockout(existing)) {
+        return {
+          ok: false,
+          reason: 'loto_not_verified',
+          message: 'An active LOTO lockout is required before release',
+        };
       }
       if (lotoReleaseSatisfied(existing)) {
         return { ok: false, reason: 'error', message: 'LOTO release is already verified' };
@@ -1056,11 +1132,11 @@ export async function transitionMwo(input: {
 
       if (row.requires_loto && (parsed.to === 'in_progress' || parsed.to === 'completed')) {
         const loto = await readLotoGate(ctx, parsed.mwoId);
-        if (parsed.to === 'in_progress' && !lotoLockoutSatisfied(loto)) {
+        if (parsed.to === 'in_progress' && !lotoActiveLockout(loto)) {
           return {
             ok: false,
             reason: 'loto_not_verified',
-            message: 'LOTO lockout verification is required before starting work',
+            message: 'LOTO active lockout verification is required before starting work',
           };
         }
         if (parsed.to === 'completed' && !lotoReleaseSatisfied(loto)) {
