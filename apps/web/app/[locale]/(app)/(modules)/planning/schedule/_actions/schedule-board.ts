@@ -155,6 +155,7 @@ export async function getScheduleBoard(input?: {
           data: {
             windowStart: windowStart.toISOString(),
             windowEnd: windowEnd.toISOString(),
+            siteTimezone: 'UTC',
             lines: [],
             scheduled: [],
             unscheduled: [],
@@ -165,6 +166,16 @@ export async function getScheduleBoard(input?: {
           } as ScheduleBoardData & { noActiveSite: true },
         };
       }
+
+      const siteTimezoneResult = await ctx.client.query<{ timezone: string }>(
+        `select timezone
+           from public.sites
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1`,
+        [s],
+      );
+      const siteTimezone = siteTimezoneResult.rows[0]?.timezone ?? 'UTC';
 
       const linesResult = await ctx.client.query<ScheduleBoardLine>(
         `select id, code, name
@@ -249,6 +260,7 @@ export async function getScheduleBoard(input?: {
         data: {
           windowStart: windowStart.toISOString(),
           windowEnd: windowEnd.toISOString(),
+          siteTimezone,
           lines,
           scheduled,
           unscheduled: unscheduledItems,

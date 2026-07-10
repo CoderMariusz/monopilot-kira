@@ -1,0 +1,10 @@
+You are an adversarial reviewer of scheduler algorithm fixes, branch fix/wave13-scheduler.
+1. Read _meta/plans/wave-13-spec.md + _meta/plans/wave-13-summary.md. 2. Review `git diff origin/main..HEAD` (exclude _meta/), reading surrounding code.
+Per bug: FIXED / PARTIAL (file:line) / BROKEN (prove with a concrete schedule scenario).
+- Bug 1 (per-line changeover): is `previous` now derived from the SAME line's last-scheduled WO, not the global sequence predecessor? Prove two WOs on different lines incur no cross-line changeover AND the real same-line predecessor IS used. Any line with no prior WO handled (first WO on a line = no changeover)?
+- Bug 2 (WO > daily capacity): is the silent 400-iter fallthrough removed? Does an over-capacity WO now either SPLIT across daily buckets (reserving overlap per day) or REJECT as infeasible (typed error) — never schedule unchecked? Walk an 8h WO on a 6h/day line: exact buckets or exact error. Any residual unchecked earliestMs return?
+- Bug 3 (cross-midnight): does the solver now intersect the WO interval with EVERY affected day bucket and reserve the overlap in each (matching board.ts:210 semantics)? A 4h WO at 23:00 → 1h day1 + 3h day2? Does capacity read-back agree with reservation now? Any double-count or off-by-one at the midnight boundary?
+- Bug 4 (repeated WIP): is the dependency now linked by bom_item_id/BOM-line id, not productId find()? Prove an FG BOM with the same WIP item on two lines yields two dependencies each with its OWN material row+qty. Any remaining find()-by-productId?
+- Bug 5 (DST tz): are capacity-block wall times now converted via the SITE IANA timezone (not appended 'Z')? 09:00 London → 08:00Z in BST, 09:00Z in GMT? Is a real tz library/Intl used correctly (not a fixed offset)? Nonexistent/ambiguous DST wall times handled? Any place still appending 'Z'?
+- Cross-cutting: time math exact (ms/minute, no float drift)? any perf regression from per-line/per-bucket loops (complexity)? reserved-keyword alias in any new SQL? 
+Write review to _meta/plans/wave-13-codex-review.md ending VERDICT: pass|fail + numbered required changes. Do NOT modify other files.

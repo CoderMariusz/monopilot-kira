@@ -7,6 +7,7 @@
  */
 
 import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
+import { wallClockToInstant } from '../../../../../../../lib/shared/wall-clock-time';
 
 /** WO statuses that appear on the board (planning-phase + running). */
 export const BOARD_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS'] as const;
@@ -64,6 +65,8 @@ export type ScheduleLineDayUtilization = {
 export type ScheduleBoardData = {
   windowStart: string; // ISO, UTC midnight today
   windowEnd: string; // ISO, windowStart + 7d
+  /** IANA timezone for the active site — capacity-block wall times are interpreted here. */
+  siteTimezone: string;
   lines: ScheduleBoardLine[];
   scheduled: ScheduleBoardWo[];
   unscheduled: ScheduleBoardWo[];
@@ -119,10 +122,13 @@ export function barInterval(wo: ScheduleBoardWo): BarInterval | null {
   return { id: wo.id, lineId: wo.productionLineId, startMs, endMs: Math.max(endMs, startMs) };
 }
 
-export function capacityBlockInterval(block: ScheduleCapacityBlock): BarInterval | null {
-  const startMs = Date.parse(`${block.blockDate}T${block.startTime}Z`);
-  const endMs = Date.parse(`${block.blockDate}T${block.endTime}Z`);
-  if (Number.isNaN(startMs) || Number.isNaN(endMs)) return null;
+export function capacityBlockInterval(
+  block: ScheduleCapacityBlock,
+  siteTimezone: string,
+): BarInterval | null {
+  const startMs = wallClockToInstant(block.blockDate, block.startTime, siteTimezone);
+  const endMs = wallClockToInstant(block.blockDate, block.endTime, siteTimezone);
+  if (startMs === null || endMs === null) return null;
   return { id: block.id, lineId: block.lineId, startMs, endMs: Math.max(endMs, startMs) };
 }
 
@@ -155,14 +161,39 @@ export function windowDayKeys(windowStartIso: string, days: number = BOARD_WINDO
   );
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+export const UTC_DAY_MS = 24 * 60 * 60 * 1000;
+
+/** UTC midnight for the day containing `ms`. */
+export function startOfUtcDayMs(ms: number): number {
+  const day = new Date(ms);
+  day.setUTCHours(0, 0, 0, 0);
+  return day.getTime();
+}
 
 /** Milliseconds of [startMs, endMs) overlapping a UTC day bucket. */
 export function overlapMsWithUtcDay(startMs: number, endMs: number, dayStartMs: number): number {
-  const dayEndMs = dayStartMs + DAY_MS;
+  const dayEndMs = dayStartMs + UTC_DAY_MS;
   const overlapStart = Math.max(startMs, dayStartMs);
   const overlapEnd = Math.min(endMs, dayEndMs);
   return Math.max(0, overlapEnd - overlapStart);
+}
+
+export type UtcDayOverlap = {
+  dayStartMs: number;
+  overlapMs: number;
+};
+
+/** Split [startMs, endMs) into per-UTC-day overlap slices (shared with the scheduler solver). */
+export function utcDayOverlapsForInterval(startMs: number, endMs: number): UtcDayOverlap[] {
+  if (endMs <= startMs) return [];
+  const overlaps: UtcDayOverlap[] = [];
+  let dayStartMs = startOfUtcDayMs(startMs);
+  while (dayStartMs < endMs) {
+    const overlapMs = overlapMsWithUtcDay(startMs, endMs, dayStartMs);
+    if (overlapMs > 0) overlaps.push({ dayStartMs, overlapMs });
+    dayStartMs += UTC_DAY_MS;
+  }
+  return overlaps;
 }
 
 function numericCapacity(value: string | number | null | undefined): number | null {
@@ -208,7 +239,7 @@ export function computeLineDayUtilization(input: {
     const interval = barInterval(wo);
     if (!interval?.lineId) continue;
     for (let index = 0; index < days; index += 1) {
-      const dayStartMs = windowStartMs + index * DAY_MS;
+      const dayStartMs = windowStartMs + index * UTC_DAY_MS;
       const overlapMs = overlapMsWithUtcDay(interval.startMs, interval.endMs, dayStartMs);
       if (overlapMs <= 0) continue;
       const key = `${interval.lineId}|${dayKeys[index]}`;
