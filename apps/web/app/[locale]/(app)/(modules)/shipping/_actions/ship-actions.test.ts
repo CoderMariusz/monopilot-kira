@@ -464,6 +464,18 @@ describe('shipShipment', () => {
     ]);
   });
 
+  it('scopes allocation release to the packed SO line on a shared LP', async () => {
+    await shipShipment(SHIPMENT_ID);
+
+    const allocationRelease = queryLog.find(
+      ({ sql }) =>
+        normalize(sql).startsWith('update public.inventory_allocations ia') &&
+        normalize(sql).includes('closed_reason'),
+    );
+    expect(allocationRelease?.sql).toContain('ia.sales_order_line_id = sbc.sales_order_line_id');
+    expect(allocationRelease?.sql).toContain('sol.sales_order_id = sh.sales_order_id');
+  });
+
   it('returns lp_blocked_for_ship and does not update LPs when a shipment LP is blocked', async () => {
     blockedLpRows = [{ lp_number: 'LP-0001', reason: 'hold' }];
 
