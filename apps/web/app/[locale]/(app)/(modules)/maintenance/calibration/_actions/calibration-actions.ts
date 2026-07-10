@@ -13,10 +13,13 @@
  * FAIL result: sets calibration_instruments.active = false (schema has no
  * out_of_service column — active is the follow-up marker).
  *
- * E-sign: dual-sign (calibrated_by + reviewer_signed_by) is T-015 follow-up;
- * see TODO in recordCalibration.
+ * E-sign: CFR-21 Part 11 PIN/password via signEvent (intent mnt.calib.record)
+ * before persisting the immutable calibration record; certificate_sha256 stores
+ * the subject hash. Dual reviewer sign is T-015 follow-up.
  */
 
+import type pg from 'pg';
+import { EPinFailedError, ESignPolicyError, signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
@@ -53,7 +56,7 @@ const MNT_CALIB_RECORD_PERMISSION = 'mnt.calib.record';
 
 type ActionFailure = {
   ok: false;
-  reason: 'forbidden' | 'not_found' | 'validation_error' | 'conflict' | 'error';
+  reason: 'forbidden' | 'not_found' | 'validation_error' | 'conflict' | 'esign_failed' | 'error';
   message?: string;
 };
 type ActionResult<T> = { ok: true; data: T } | ActionFailure;
@@ -374,6 +377,7 @@ export async function recordCalibration(input: {
   testPoints?: Array<{ reference: string; measured: string | number; tolerance_pct?: number }>;
   notes?: string;
   certificateRef?: string;
+  signature: { password: string; nonce?: string };
 }): Promise<ActionResult<{ recordId: string; nextDueDate: string }>> {
   try {
     const parsed = recordCalibrationSchema.parse(input);
@@ -422,19 +426,41 @@ export async function recordCalibration(input: {
           : computeNextDueDate(calibratedAt, instrumentRow.calibration_interval_days);
         const testPointsJson = JSON.stringify(parsed.testPoints ?? []);
 
-        // TODO(e-sign follow-up — F4-H2): dualSign for calibrated_by + reviewer_signed_by
-        // per T-015/T-124; store certificate_sha256 on cert upload lane.
+        let signatureHash: string;
+        try {
+          const receipt = await signEvent(
+            {
+              signerUserId: ctx.userId,
+              pin: parsed.signature.password,
+              intent: 'mnt.calib.record',
+              subject: {
+                instrumentId: parsed.instrumentId,
+                result: parsed.result,
+                calibratedAt: calibratedAt.toISOString(),
+              },
+              reason: parsed.result,
+              nonce: parsed.signature.nonce,
+            },
+            { client: ctx.client as unknown as pg.PoolClient },
+          );
+          signatureHash = receipt.subjectHash;
+        } catch (err) {
+          if (err instanceof EPinFailedError || err instanceof ESignPolicyError) {
+            return { ok: false, reason: 'esign_failed', message: err.message };
+          }
+          throw err;
+        }
 
         const inserted = await ctx.client.query<{ id: string }>(
           `insert into public.calibration_records (
              org_id, instrument_id, calibrated_at, calibrated_by,
              standard_applied, test_points, result, certificate_file_url,
-             next_due_date, notes, created_by
+             certificate_sha256, next_due_date, notes, created_by
            )
            values (
              app.current_org_id(), $1::uuid, $2::timestamptz, $3::uuid,
              $4, $5::jsonb, $6, $7,
-             $8::date, $9, $3::uuid
+             $8, $9::date, $10, $3::uuid
            )
            returning id::text`,
           [
@@ -445,6 +471,7 @@ export async function recordCalibration(input: {
             testPointsJson,
             parsed.result,
             parsed.certificateRef ?? null,
+            signatureHash,
             nextDueDate,
             parsed.notes ?? null,
           ],

@@ -50,6 +50,10 @@ export const recordCalibrationSchema = z.object({
   testPoints: z.array(testPointSchema).max(50).optional(),
   notes: z.string().trim().max(4000).optional(),
   certificateRef: z.string().trim().max(500).optional(),
+  signature: z.object({
+    password: z.string().min(1),
+    nonce: z.string().min(1).optional(),
+  }),
 });
 
 export type CalibrationPermissions = {

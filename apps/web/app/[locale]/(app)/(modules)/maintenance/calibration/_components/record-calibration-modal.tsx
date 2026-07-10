@@ -21,12 +21,14 @@ export type RecordCalibrationLabels = {
   notes: string;
   certificateRef: string;
   certificatePlaceholder: string;
+  signaturePassword: string;
   submit: string;
   submitting: string;
   cancel: string;
   errorRequired: string;
   errorFailed: string;
   errorForbidden: string;
+  errorEsign: string;
 };
 
 type RecordCalibrationAction = (input: {
@@ -36,6 +38,7 @@ type RecordCalibrationAction = (input: {
   testPoints?: Array<{ reference: string; measured: string | number; tolerance_pct?: number }>;
   notes?: string;
   certificateRef?: string;
+  signature: { password: string };
 }) => Promise<{ ok: boolean; reason?: string }>;
 
 const RESULTS = ['PASS', 'FAIL', 'OUT_OF_SPEC'] as const;
@@ -61,6 +64,7 @@ export function RecordCalibrationModal({
   const [measuredValues, setMeasuredValues] = useState('');
   const [notes, setNotes] = useState('');
   const [certificateRef, setCertificateRef] = useState('');
+  const [signaturePassword, setSignaturePassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
 
@@ -71,7 +75,7 @@ export function RecordCalibrationModal({
   };
 
   const submit = () => {
-    if (!instrumentId || !calibratedAt) {
+    if (!instrumentId || !calibratedAt || !signaturePassword.trim()) {
       setError(labels.errorRequired);
       return;
     }
@@ -97,13 +101,16 @@ export function RecordCalibrationModal({
         testPoints,
         notes: notes.trim() || undefined,
         certificateRef: certificateRef.trim() || undefined,
+        signature: { password: signaturePassword },
       });
       if (actionResult.ok) onRecorded();
       else
         setError(
           actionResult.reason === 'forbidden'
             ? labels.errorForbidden
-            : labels.errorFailed,
+            : actionResult.reason === 'esign_failed'
+              ? labels.errorEsign
+              : labels.errorFailed,
         );
     });
   };
@@ -188,6 +195,18 @@ export function RecordCalibrationModal({
             onChange={(e) => setCertificateRef(e.target.value)}
             placeholder={labels.certificatePlaceholder}
             data-testid="calibration-record-certificate"
+            className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-slate-700">{labels.signaturePassword}</span>
+          <input
+            type="password"
+            value={signaturePassword}
+            onChange={(e) => setSignaturePassword(e.target.value)}
+            autoComplete="current-password"
+            data-testid="calibration-record-signature"
             className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
           />
         </label>

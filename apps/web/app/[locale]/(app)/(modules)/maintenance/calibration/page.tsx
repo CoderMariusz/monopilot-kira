@@ -115,6 +115,8 @@ function buildLabels(t: CalibrationTranslator): CalibrationRegisterLabels {
       errorRequired: t('record.errorRequired'),
       errorFailed: t('record.errorFailed'),
       errorForbidden: t('record.errorForbidden'),
+      signaturePassword: t('record.signaturePassword'),
+      errorEsign: t('record.errorEsign'),
     },
   };
 }
