@@ -197,8 +197,10 @@ test.describe('Order → ship: SO create → confirm → allocate → pack (SSCC
       timeout: 8_000,
     });
     await expect(page.getByTestId('so-lines-table')).toContainText(chain.itemCode);
-    // HARD: a freshly created SO is DRAFT.
-    await expect(page.getByTestId('so-status-draft'), 'a new SO is born DRAFT').toBeVisible({ timeout: 8_000 });
+    // HARD: a freshly created SO is DRAFT. The detail view renders the status
+    // badge twice (header + summary) → scope to the first to avoid a strict-mode
+    // multiple-match on the shared testid.
+    await expect(page.getByTestId('so-status-draft').first(), 'a new SO is born DRAFT').toBeVisible({ timeout: 8_000 });
     await shot(page, '03-so-draft');
     console.log(`[order-to-ship] SO ${chain.soId} draft (item ${chain.itemCode || '?'})`);
   });

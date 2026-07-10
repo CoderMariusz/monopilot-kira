@@ -78,8 +78,10 @@ test.describe('Technical PL i18n parity evidence', () => {
         { exact: true },
       ),
     ).toBeVisible();
+    // Assert the always-rendered panel TITLE, not the data-dependent empty-state
+    // (with ECOs seeded the empty text never renders and i18n parity still holds).
     await expect(
-      page.getByText(String((dashPL as { recentChanges?: { empty?: string } }).recentChanges?.empty ?? ''), {
+      page.getByText(String((dashPL as { recentChanges?: { title?: string } }).recentChanges?.title ?? ''), {
         exact: true,
       }),
     ).toBeVisible();

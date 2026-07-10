@@ -199,24 +199,25 @@ test.describe.serial('NPD create → FG mint → recipe → packaging → produc
     // reachable yet; best-effort advance the stage a few times to surface it, then
     // degrade gracefully if the gate flow is not seeded that far.
     let createBtn = page.getByTestId('project-header-create-fg');
-    for (let i = 0; i < 3 && !(await createBtn.count()); i++) {
-      const advance = page.getByTestId('project-header-advance');
-      if (!(await advance.count())) break;
-      await advance.click().catch(() => undefined);
-      // Advance-gate modal → submit the transition when it is not blocked.
+    for (let i = 0; i < 4 && !(await createBtn.count()); i++) {
+      // The header Advance button is disabled until the stage is advanceable; the
+      // gate modal itself is always reachable via ?modal=advanceGate (the kanban
+      // "Advance →" affordance opens it the same way) and offers an override path.
+      await page.goto(url(`/${L}/pipeline/${flow.projectId}/brief?modal=advanceGate`), {
+        waitUntil: 'domcontentloaded',
+      });
       const modal = page.getByRole('dialog', { name: /advance gate/i });
-      if (await modal.count()) {
-        // First click the primary advance. If required stage checks are
-        // incomplete, an override alert appears and demands a note before the
-        // button re-enables as "Override and advance" — a real user flow.
-        await modal.getByRole('button', { name: /advance to|override and advance/i }).last().click().catch(() => undefined);
-        const overrideNote = modal.getByRole('textbox', { name: /override note/i });
-        if (await overrideNote.count()) {
-          await overrideNote.fill('E2E flow-spec advance — override incomplete stage checks (test project)');
-          await modal.getByRole('button', { name: /override and advance/i }).click().catch(() => undefined);
-        }
-        await modal.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
+      if (!(await modal.count())) break; // terminal / no next gate
+      // First click the primary advance. If required stage checks are incomplete,
+      // an override alert appears and demands a note before the button re-enables
+      // as "Override and advance" — a real user flow.
+      await modal.getByRole('button', { name: /advance to|override and advance/i }).last().click().catch(() => undefined);
+      const overrideNote = modal.getByRole('textbox', { name: /override note/i });
+      if (await overrideNote.count()) {
+        await overrideNote.fill('E2E flow-spec advance — override incomplete stage checks (test project)');
+        await modal.getByRole('button', { name: /override and advance/i }).click().catch(() => undefined);
       }
+      await modal.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
       await page.goto(url(`/${L}/pipeline/${flow.projectId}/formulation`), {
         waitUntil: 'domcontentloaded',
       });
