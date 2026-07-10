@@ -27,6 +27,11 @@ export type PublishBomVersionParams = {
    * (e.g. ECO apply-on-close retry after a prior successful publish).
    */
   allowAlreadyActive?: boolean;
+  /**
+   * When true, skip the BOM_VERSION_PUBLISH_PERMISSION probe — for trusted in-txn callers
+   * (e.g. NPD handoff materialize) that already enforced their own RBAC gate.
+   */
+  skipPermissionCheck?: boolean;
 };
 
 export type PublishBomVersionResult =
@@ -68,7 +73,7 @@ export async function publishBomVersion(
   ctx: OrgActionContext,
   params: PublishBomVersionParams,
 ): Promise<PublishBomVersionResult> {
-  if (!(await hasPermission(ctx, BOM_VERSION_PUBLISH_PERMISSION))) {
+  if (!params.skipPermissionCheck && !(await hasPermission(ctx, BOM_VERSION_PUBLISH_PERMISSION))) {
     return { ok: false, error: 'forbidden' };
   }
 
