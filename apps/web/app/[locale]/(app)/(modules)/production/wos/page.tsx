@@ -5,7 +5,8 @@
  * `/production/wos`) lands here. Server Component: gates + reads org-scoped data
  * via the `listWorkOrders` Server Action (production.oee.read, the same read
  * permission the dashboard loader uses), then hands view-models + i18n labels to
- * the presentational <WoListScreen> which owns the client-side tab/search state.
+ * the presentational <WoListScreen>. Filter state is URL-driven (?q=, ?status=,
+ * ?page=).
  *
  * UI states: loading (Suspense skeleton, no CLS), empty (no released WOs copy),
  * error (live read failed → banner, never a 500), permission-denied (forbidden →
@@ -26,11 +27,34 @@ import { buildWoModalLabels } from '../_actions/wo-modal-labels';
 import {
   WoListScreen,
   type WoListActions,
+  type WoListFilters,
   type WoListLabels,
 } from './_components/wo-list-screen';
 
-// Org-scoped DB read per request — never statically prerendered.
 export const dynamic = 'force-dynamic';
+
+type PageProps = {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
+};
+
+function parsePage(value: string | undefined): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function parseStatus(value: string | undefined): WoListStatus | '' {
+  const status = value?.trim() ?? '';
+  const allowed: WoListStatus[] = [
+    'planned',
+    'in_progress',
+    'paused',
+    'completed',
+    'closed',
+    'cancelled',
+  ];
+  return allowed.includes(status as WoListStatus) ? (status as WoListStatus) : '';
+}
 
 function WoListSkeleton() {
   return (
@@ -41,11 +65,23 @@ function WoListSkeleton() {
   );
 }
 
-async function WoListContent({ locale }: { locale: string }) {
+async function WoListContent({
+  locale,
+  page,
+  filters,
+}: {
+  locale: string;
+  page: number;
+  filters: WoListFilters;
+}) {
   const t = await getTranslations('production.wos');
-  // 14-multi-site (CL4): topbar site picker cookie; null = All sites (no filter).
   const siteId = await getActiveSiteId();
-  const result = await listWorkOrders({ siteId });
+  const result = await listWorkOrders({
+    siteId,
+    search: filters.search || undefined,
+    status: (filters.status || 'all') as WoListStatus | 'all',
+    page,
+  });
 
   if (!result.ok && result.reason === 'forbidden') {
     return (
@@ -71,7 +107,7 @@ async function WoListContent({ locale }: { locale: string }) {
     );
   }
 
-  const { rows, statusCounts } = result.data;
+  const { rows, statusCounts, pagination } = result.data;
 
   const tabKeys: Array<'all' | WoListStatus> = [
     'all',
@@ -93,7 +129,7 @@ async function WoListContent({ locale }: { locale: string }) {
 
   const labels: WoListLabels = {
     title: t('title'),
-    countLine: t('countLine', { count: rows.length }),
+    countLine: t('countLine', { count: pagination.total }),
     searchPlaceholder: t('searchPlaceholder'),
     rowsLabel: t('rowsLabel', { count: 0 }).replace('0', '{count}'),
     emptyAll: t('emptyAll'),
@@ -105,6 +141,11 @@ async function WoListContent({ locale }: { locale: string }) {
     resumeAction: t('action.resume'),
     startAction: t('action.start'),
     viewAction: t('action.view'),
+    pagination: {
+      showing: t('pagination.showing'),
+      previous: t('pagination.previous'),
+      next: t('pagination.next'),
+    },
     tab: tabKeys.reduce(
       (acc, k) => {
         acc[k] = t(`tab.${k}`);
@@ -132,8 +173,6 @@ async function WoListContent({ locale }: { locale: string }) {
     },
   };
 
-  // Org-level action affordances (RBAC + downtime categories) for the per-row
-  // Start / Pause / Resume controls. A failed read just hides the row actions.
   const actionCtx = await getWoListActionContext();
   const at = await getTranslations('production.wos.actions');
   const actions: WoListActions | null = actionCtx.ok
@@ -151,6 +190,8 @@ async function WoListContent({ locale }: { locale: string }) {
     <WoListScreen
       rows={rows}
       statusCounts={statusCounts}
+      pagination={pagination}
+      filters={filters}
       labels={labels}
       locale={locale}
       actions={actions}
@@ -158,12 +199,14 @@ async function WoListContent({ locale }: { locale: string }) {
   );
 }
 
-export default async function ProductionWoListPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function ProductionWoListPage({ params, searchParams }: PageProps) {
   const { locale } = await params;
+  const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const filters: WoListFilters = {
+    search: sp.q?.trim() ?? '',
+    status: parseStatus(sp.status),
+  };
   const t = await getTranslations('production.wos');
 
   return (
@@ -177,8 +220,8 @@ export default async function ProductionWoListPage({
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.production') }, { label: t('breadcrumb.workOrders') }]}
       />
-      <Suspense fallback={<WoListSkeleton />}>
-        <WoListContent locale={locale} />
+      <Suspense key={`${filters.status}-${filters.search}-${page}`} fallback={<WoListSkeleton />}>
+        <WoListContent locale={locale} page={page} filters={filters} />
       </Suspense>
     </main>
   );

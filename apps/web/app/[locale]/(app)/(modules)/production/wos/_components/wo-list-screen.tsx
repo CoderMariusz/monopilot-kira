@@ -4,33 +4,23 @@
  * P-L1 — `/production/wos` WO list screen (prototype wo-list.jsx:4-106).
  *
  * Presentational client component: receives already-loaded, org-scoped rows +
- * status counts + i18n labels from the server page and owns ONLY the client-side
- * tab + search filter state (prototype's `tab` / `search` useState). No data
- * fetching, no permission logic (both resolved server-side).
- *
- * Prototype parity:
- *   - status tabs (all / in_progress / paused / ready→planned / completed / draft)
- *     with per-tab counts                                       → wo-list.jsx:8-40
- *   - search box (WO number / product / item code)             → wo-list.jsx:42-50
- *   - dense table: WO number (mono) + allergen badge, item/product, line, status
- *     badge, planned, progress bar, output, schedule           → wo-list.jsx:52-101
- *   - rows link to the WO detail (`/production/wos/<id>`)      → wo-list.jsx:72 onOpenWo
- *
- * Deviations: the prototype's "draft" / "ready" tabs map to this screen's
- * `planned` materialized state (Production has no DRAFT — release happens in
- * 04-PLANNING); the "+ Release WO" control is never rendered (red-line). The
- * per-row Start/Pause/Resume action buttons are deferred to a follow-up lane and
- * rendered DISABLED with an explanatory title so nothing looks broken.
+ * status counts + i18n labels from the server page. Filter state is URL-driven
+ * (?q=, ?status=, ?page=) — search debounces into the query string; tabs and
+ * pagination navigate via router.push.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
+import { buildListPageHref } from '../../../../../../../lib/shared/list-page-href';
+import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
+import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 import type { WoListStatus, WorkOrderListItem } from '../../_actions/list-work-orders';
 import { WoRowActions } from './modals/wo-row-actions';
 import type {
@@ -62,6 +52,11 @@ const TAB_ORDER: Array<'all' | WoListStatus> = [
   'cancelled',
 ];
 
+export type WoListFilters = {
+  status: string;
+  search: string;
+};
+
 export type WoListLabels = {
   title: string;
   countLine: string;
@@ -78,6 +73,7 @@ export type WoListLabels = {
   viewAction: string;
   tab: Record<'all' | WoListStatus, string>;
   status: Record<WoListStatus, string>;
+  pagination: ListPaginationLabels;
   col: {
     wo: string;
     product: string;
@@ -90,6 +86,13 @@ export type WoListLabels = {
     actions: string;
   };
 };
+
+function listQuery(filters: WoListFilters): Record<string, string | undefined> {
+  return {
+    status: filters.status || undefined,
+    q: filters.search || undefined,
+  };
+}
 
 function ProgressBar({ pct, label }: { pct: number; label: string }) {
   const color = pct >= 80 ? 'bg-emerald-500' : pct >= 40 ? 'bg-sky-500' : 'bg-amber-500';
@@ -117,9 +120,6 @@ export type WoListActions = {
   modalLabels: WoModalLabels;
 };
 
-// Formatters live IN this client module — passing them as props from the RSC
-// page crashed live with the Next16 "Functions cannot be passed to Client
-// Components" error (vitest can't catch it; wave-P1 live verify did).
 const QTY_FMT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 function fmtQty(n: number): string {
   return QTY_FMT.format(Math.round(n));
@@ -157,39 +157,54 @@ function lineCsvValue(row: WorkOrderListItem): string {
 export function WoListScreen({
   rows,
   statusCounts,
+  pagination,
+  filters,
   labels,
   locale = 'en',
   actions,
 }: {
   rows: WorkOrderListItem[];
   statusCounts: Record<WoListStatus, number>;
+  pagination: PaginatedResult<WorkOrderListItem>;
+  filters: WoListFilters;
   labels: WoListLabels;
   locale?: string;
   /** Null when the action-context read failed/forbade — rows show no actions. */
   actions: WoListActions | null;
 }) {
-  const [tab, setTab] = useState<'all' | WoListStatus>('all');
-  const [search, setSearch] = useState('');
+  const router = useRouter();
+  const basePath = `/${locale}/production/wos`;
+  const activeTab: 'all' | WoListStatus = (filters.status as WoListStatus) || 'all';
+  const pageHref = (page: number) => buildListPageHref(basePath, listQuery(filters), page);
+  const shown = pagination.offset + rows.length;
+  const [searchDraft, setSearchDraft] = useState(filters.search);
   const [overProducedOnly, setOverProducedOnly] = useState(false);
+
+  useEffect(() => {
+    setSearchDraft(filters.search);
+  }, [filters.search]);
+
+  useEffect(() => {
+    if (searchDraft === filters.search) return;
+    const timer = window.setTimeout(() => {
+      router.push(buildListPageHref(basePath, listQuery({ ...filters, search: searchDraft }), 1));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [basePath, filters, router, searchDraft]);
+
+  function navigate(next: Partial<WoListFilters>) {
+    router.push(buildListPageHref(basePath, listQuery({ ...filters, ...next }), 1));
+  }
 
   const tabCount = (k: 'all' | WoListStatus): number =>
     k === 'all'
-      ? rows.length
-      : statusCounts[k] ?? rows.filter((r) => r.status === k).length;
+      ? Object.values(statusCounts).reduce((sum, n) => sum + n, 0)
+      : statusCounts[k] ?? 0;
 
   const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter(
-      (r) =>
-        (tab === 'all' || r.status === tab) &&
-        (!overProducedOnly || r.overProductionFlagged) &&
-        (q === '' ||
-          r.woNumber.toLowerCase().includes(q) ||
-          r.productId.toLowerCase().includes(q) ||
-          (r.itemCode ?? '').toLowerCase().includes(q) ||
-          (r.productName ?? '').toLowerCase().includes(q)),
-    );
-  }, [rows, tab, search, overProducedOnly]);
+    if (!overProducedOnly) return rows;
+    return rows.filter((r) => r.overProductionFlagged);
+  }, [rows, overProducedOnly]);
 
   function exportCsv() {
     const csvRows = visible.map((row) => [
@@ -205,16 +220,17 @@ export function WoListScreen({
     downloadCsv(toCsv(WO_CSV_HEADERS, csvRows), `production-wos-${isoDateStamp()}.csv`);
   }
 
+  const hasActiveFilters = Boolean(filters.search || filters.status);
+
   return (
     <div className="flex flex-col gap-4">
       <p data-testid="wo-list-count-line" className="text-xs text-slate-500">
-        {labels.countLine}
+        {labels.countLine.replace('{count}', String(pagination.total))}
       </p>
 
-      {/* Status tabs */}
       <div role="tablist" aria-label={labels.col.status} className="flex flex-wrap gap-1 border-b border-slate-200">
         {TAB_ORDER.map((k) => {
-          const on = tab === k;
+          const on = activeTab === k;
           return (
             <button
               key={k}
@@ -222,7 +238,7 @@ export function WoListScreen({
               type="button"
               aria-selected={on}
               data-testid={`wo-tab-${k}`}
-              onClick={() => setTab(k)}
+              onClick={() => navigate({ status: k === 'all' ? '' : k })}
               className={[
                 'flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition',
                 on
@@ -239,12 +255,11 @@ export function WoListScreen({
         })}
       </div>
 
-      {/* Search + row count */}
       <Card className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
         <input
           type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchDraft}
+          onChange={(e) => setSearchDraft(e.target.value)}
           placeholder={labels.searchPlaceholder}
           aria-label={labels.searchPlaceholder}
           data-testid="wo-list-search"
@@ -277,12 +292,11 @@ export function WoListScreen({
         </button>
       </Card>
 
-      {/* Table / empty states */}
       <Card
         data-testid="wo-list-table-card"
         className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
       >
-        {rows.length === 0 ? (
+        {pagination.total === 0 && !hasActiveFilters ? (
           <p data-testid="wo-list-empty" className="px-4 py-10 text-center text-sm text-slate-500">
             {labels.emptyAll}
           </p>
@@ -345,8 +359,6 @@ export function WoListScreen({
                         ) : null}
                       </div>
                     ) : (
-                      // Product join missed — muted em-dash with the uuid only as a
-                      // hover title for debugging, never a naked uuid in the cell.
                       <span className="text-slate-400" title={r.productId}>—</span>
                     )}
                   </TableCell>
@@ -416,16 +428,19 @@ export function WoListScreen({
             </TableBody>
           </Table>
         )}
+        <ListPaginationFooter
+          shown={shown}
+          total={pagination.total}
+          previousHref={pagination.page > 1 ? pageHref(pagination.page - 1) : null}
+          nextHref={pagination.hasMore ? pageHref(pagination.page + 1) : null}
+          labels={labels.pagination}
+          testId="wo-list-pagination"
+        />
       </Card>
     </div>
   );
 }
 
-/**
- * Per-row lifecycle action — DEFERRED to a follow-up lane that wires the action
- * modals. Rendered DISABLED with an explanatory title so the row never looks
- * broken / clickable. Mirrors the prototype's per-status control (wo-list.jsx:89-95).
- */
 function RowAction({ status, labels }: { status: WoListStatus; labels: WoListLabels }) {
   const map: Partial<Record<WoListStatus, string>> = {
     in_progress: labels.pauseAction,
