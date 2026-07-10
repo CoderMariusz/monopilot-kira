@@ -152,7 +152,14 @@ export async function createWorkOrderChainForContext(
   if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) {
     return { ok: false, error: 'forbidden' };
   }
-  return createWorkOrderChainInContext(ctx, parsed.data, options);
+  try {
+    return await createWorkOrderChainInContext(ctx, parsed.data, options);
+  } catch (error) {
+    if (error instanceof WorkOrderChainError) {
+      return { ok: false, error: error.code, planningError: error.planningError, message: error.planningError };
+    }
+    throw error;
+  }
 }
 
 async function createWorkOrderChainInContext(
@@ -499,6 +506,31 @@ async function loadWorkOrderByNumber(ctx: OrgActionContext, woNumber: string): P
   };
 }
 
+function resolveMaterialForWipEntry(
+  fgMaterials: WOMaterial[],
+  wipEntry: WipChainEntry,
+  wipEntries: WipChainEntry[],
+): WOMaterial {
+  const byBomLine = fgMaterials.find((row) => row.bomItemId === wipEntry.bomLineId);
+  if (byBomLine) return byBomLine;
+
+  const productMatches = fgMaterials.filter((row) => row.productId === wipEntry.workOrder.productId);
+  const wipLinesForProduct = wipEntries.filter(
+    (entry) => entry.workOrder.productId === wipEntry.workOrder.productId,
+  );
+  const legacyMaterial = productMatches[0];
+  if (
+    productMatches.length === 1
+    && wipLinesForProduct.length === 1
+    && legacyMaterial
+    && (legacyMaterial.bomItemId == null || legacyMaterial.bomItemId === '')
+  ) {
+    return legacyMaterial;
+  }
+
+  throw new WorkOrderChainError('persistence_failed', 'wip_material_link_ambiguous');
+}
+
 async function linkDependencies(
   ctx: OrgActionContext,
   fgWorkOrder: WOHeader,
@@ -507,10 +539,7 @@ async function linkDependencies(
 ): Promise<Array<{ parentWoId: string; childWoId: string; materialLink: string | null; requiredQty: string | null }>> {
   const dependencies: Array<{ parentWoId: string; childWoId: string; materialLink: string | null; requiredQty: string | null }> = [];
   for (const wipEntry of wipEntries) {
-    const material =
-      fgMaterials.find((row) => row.bomItemId === wipEntry.bomLineId)
-      ?? fgMaterials.find((row) => row.productId === wipEntry.workOrder.productId)
-      ?? null;
+    const material = resolveMaterialForWipEntry(fgMaterials, wipEntry, wipEntries);
     const { rows } = await ctx.client.query<{ parent_wo_id: string; child_wo_id: string; material_link: string | null; required_qty: string | null }>(
       `insert into public.wo_dependencies
          (org_id, parent_wo_id, child_wo_id, material_link, required_qty)
@@ -526,8 +555,8 @@ async function linkDependencies(
       [
         fgWorkOrder.id,
         wipEntry.workOrder.id,
-        material?.id ?? null,
-        material?.requiredQty ?? null,
+        material.id,
+        material.requiredQty,
       ],
     );
     const row = rows[0];

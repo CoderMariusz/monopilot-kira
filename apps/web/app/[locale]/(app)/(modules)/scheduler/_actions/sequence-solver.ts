@@ -168,9 +168,9 @@ function pmWindowBlocks(
   return null;
 }
 
-function bucketUsedMs(lineKey: string, dayStartMs: number, dayUsageHours: Map<string, number>): number {
+function bucketUsedMs(lineKey: string, dayStartMs: number, dayUsageMs: Map<string, number>): number {
   const bucketKey = dayBucketKey(lineKey, dayStartMs);
-  return (dayUsageHours.get(bucketKey) ?? 0) * 60 * 60 * 1000;
+  return dayUsageMs.get(bucketKey) ?? 0;
 }
 
 function canReserveCapacity(
@@ -178,11 +178,11 @@ function canReserveCapacity(
   startMs: number,
   runDurationMs: number,
   capacityMs: number,
-  dayUsageHours: Map<string, number>,
+  dayUsageMs: Map<string, number>,
 ): boolean {
   const endMs = startMs + runDurationMs;
   for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
-    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageHours);
+    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageMs);
     if (overlap.overlapMs > capacityMs - usedMs) return false;
   }
   return true;
@@ -192,15 +192,12 @@ function reserveCapacity(
   lineKey: string,
   startMs: number,
   runDurationMs: number,
-  dayUsageHours: Map<string, number>,
+  dayUsageMs: Map<string, number>,
 ): void {
   const endMs = startMs + runDurationMs;
   for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
     const bucketKey = dayBucketKey(lineKey, overlap.dayStartMs);
-    dayUsageHours.set(
-      bucketKey,
-      (dayUsageHours.get(bucketKey) ?? 0) + overlap.overlapMs / (60 * 60 * 1000),
-    );
+    dayUsageMs.set(bucketKey, (dayUsageMs.get(bucketKey) ?? 0) + overlap.overlapMs);
   }
 }
 
@@ -209,12 +206,12 @@ function nextCapacityRetryStart(
   startMs: number,
   runDurationMs: number,
   capacityMs: number,
-  dayUsageHours: Map<string, number>,
+  dayUsageMs: Map<string, number>,
 ): number {
   const endMs = startMs + runDurationMs;
   let advanceTo = startMs + 60 * 1000;
   for (const overlap of utcDayOverlapsForInterval(startMs, endMs)) {
-    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageHours);
+    const usedMs = bucketUsedMs(lineKey, overlap.dayStartMs, dayUsageMs);
     const remainingMs = capacityMs - usedMs;
     if (overlap.overlapMs <= remainingMs) continue;
     if (remainingMs <= 0) {
@@ -231,7 +228,7 @@ function resolvePlannedStart(
   earliestMs: number,
   runDurationMs: number,
   config: SequenceSolverConfig,
-  dayUsageHours: Map<string, number>,
+  dayUsageMs: Map<string, number>,
 ): number {
   const capacityHours = capacityHoursForLine(lineKey, config);
   const capacityMs =
@@ -251,11 +248,11 @@ function resolvePlannedStart(
     }
 
     if (capacityMs !== null) {
-      if (canReserveCapacity(lineKey, start, runDurationMs, capacityMs, dayUsageHours)) {
-        reserveCapacity(lineKey, start, runDurationMs, dayUsageHours);
+      if (canReserveCapacity(lineKey, start, runDurationMs, capacityMs, dayUsageMs)) {
+        reserveCapacity(lineKey, start, runDurationMs, dayUsageMs);
         return start;
       }
-      start = nextCapacityRetryStart(lineKey, start, runDurationMs, capacityMs, dayUsageHours);
+      start = nextCapacityRetryStart(lineKey, start, runDurationMs, capacityMs, dayUsageMs);
       continue;
     }
 
@@ -337,7 +334,7 @@ export function sequenceWorkOrders(
   let cumulative = 0;
   const now = Date.now();
   const plannedEndByLine = new Map<string, number>();
-  const dayUsageHours = new Map<string, number>();
+  const dayUsageMs = new Map<string, number>();
   const lastWoByLine = new Map<string, WorkOrderForScheduling>();
 
   return sequence.map((workOrder, index) => {
@@ -351,7 +348,7 @@ export function sequenceWorkOrders(
     const changeoverCost = transitionMinutes;
     const earliestStart = Math.max(now, (plannedEndByLine.get(lineKey) ?? now) + changeoverCost * 60 * 1000);
     const runDuration = durationMs(workOrder);
-    const plannedStart = resolvePlannedStart(lineKey, earliestStart, runDuration, config, dayUsageHours);
+    const plannedStart = resolvePlannedStart(lineKey, earliestStart, runDuration, config, dayUsageMs);
     const plannedEnd = plannedStart + runDuration;
     plannedEndByLine.set(lineKey, plannedEnd);
     lastWoByLine.set(lineKey, workOrder);
@@ -372,8 +369,10 @@ export function sequenceWorkOrders(
 }
 
 /** @internal Test helper — exposes per-line/day reserved hours after a sequencing run. */
-export function __dayUsageHoursForTests(dayUsageHours: Map<string, number>): Map<string, number> {
-  return new Map(dayUsageHours);
+export function __dayUsageHoursForTests(dayUsageMs: Map<string, number>): Map<string, number> {
+  return new Map(
+    [...dayUsageMs.entries()].map(([key, usedMs]) => [key, usedMs / (60 * 60 * 1000)]),
+  );
 }
 
 export function __resolvePlannedStartForTests(
@@ -381,7 +380,7 @@ export function __resolvePlannedStartForTests(
   earliestMs: number,
   runDurationMs: number,
   config: SequenceSolverConfig,
-  dayUsageHours: Map<string, number>,
+  dayUsageMs: Map<string, number>,
 ): number {
-  return resolvePlannedStart(lineKey, earliestMs, runDurationMs, config, dayUsageHours);
+  return resolvePlannedStart(lineKey, earliestMs, runDurationMs, config, dayUsageMs);
 }

@@ -573,7 +573,7 @@ describe('sequenceWorkOrders', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
     const lineKey = LINE_ID;
-    const dayUsageHours = new Map<string, number>();
+    const dayUsageMs = new Map<string, number>();
     const runDurationMs = 4 * 60 * 60 * 1000;
     const earliestMs = Date.parse('2026-06-24T23:00:00.000Z');
 
@@ -582,23 +582,46 @@ describe('sequenceWorkOrders', () => {
       earliestMs,
       runDurationMs,
       { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 6 },
-      dayUsageHours,
+      dayUsageMs,
     );
 
     expect(plannedStart).toBe(earliestMs);
-    expect(dayUsageHours.get(`${lineKey}|2026-06-24`)).toBe(1);
-    expect(dayUsageHours.get(`${lineKey}|2026-06-25`)).toBe(3);
+    expect(dayUsageMs.get(`${lineKey}|2026-06-24`)).toBe(1 * 60 * 60 * 1000);
+    expect(dayUsageMs.get(`${lineKey}|2026-06-25`)).toBe(3 * 60 * 60 * 1000);
+  });
+
+  it('bumps the 361st one-minute WO after 360 fill a 6-hour bucket without float drift', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+    const dayUsageMs = new Map<string, number>();
+    const lineKey = LINE_ID;
+    const config = { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 6 };
+    const oneMinuteMs = 60 * 1000;
+    const sixHoursMs = 6 * 60 * 60 * 1000;
+    let cursor = Date.parse('2026-06-24T00:00:00.000Z');
+
+    for (let index = 0; index < 360; index += 1) {
+      cursor = __resolvePlannedStartForTests(lineKey, cursor, oneMinuteMs, config, dayUsageMs);
+      cursor += oneMinuteMs;
+    }
+
+    expect(dayUsageMs.get(`${lineKey}|2026-06-24`)).toBe(sixHoursMs);
+
+    const bumpedStart = __resolvePlannedStartForTests(lineKey, cursor, oneMinuteMs, config, dayUsageMs);
+    expect(bumpedStart).toBe(Date.parse('2026-06-25T00:00:00.000Z'));
+    expect(dayUsageMs.get(`${lineKey}|2026-06-25`)).toBe(oneMinuteMs);
   });
 
   it('throws SequenceCapacityInfeasibleError instead of silently scheduling over capacity', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
-    const dayUsageHours = new Map<string, number>();
+    const dayUsageMs = new Map<string, number>();
+    const sixHoursMs = 6 * 60 * 60 * 1000;
     for (let day = 0; day < 400; day += 1) {
       const dayKey = new Date(Date.parse('2026-06-24T00:00:00.000Z') + day * 24 * 60 * 60 * 1000)
         .toISOString()
         .slice(0, 10);
-      dayUsageHours.set(`${LINE_ID}|${dayKey}`, 6);
+      dayUsageMs.set(`${LINE_ID}|${dayKey}`, sixHoursMs);
     }
 
     expect(() =>
@@ -607,7 +630,7 @@ describe('sequenceWorkOrders', () => {
         Date.parse('2026-06-24T00:00:00.000Z'),
         8 * 60 * 60 * 1000,
         { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 6 },
-        dayUsageHours,
+        dayUsageMs,
       ),
     ).toThrow(SequenceCapacityInfeasibleError);
   });

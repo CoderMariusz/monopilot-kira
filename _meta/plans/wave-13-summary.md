@@ -38,3 +38,32 @@
 ## Gates
 - `pnpm --filter web exec tsc --noEmit` — clean
 - Vitest (35 tests): `wall-clock-time`, `board-capacity`, `sequence-solver`, `create-work-order-chain` — green
+
+## Fix round 1
+
+Adversarial review follow-up (Bugs 4/5 + cross-cutting float drift).
+
+### Cross-cutting — integer-ms bucket usage
+**Problem:** Per-day capacity buckets stored floating-point hours; 360× one-minute reservations drifted to 5.999… h and admitted a 361st WO.
+
+**Fix:** `dayUsageMs` map stores integer milliseconds end-to-end; `__dayUsageHoursForTests` converts to hours for assertions only.
+
+**Test:** `sequence-solver.test.ts` — 360 one-minute WOs fill a 6 h bucket exactly; the 361st bumps to the next UTC day.
+
+### Bug 4 — ambiguous product-ID fallback removed
+**Problem:** `linkDependencies` fell back to `fgMaterials.find(row => row.productId === …)`, silently linking duplicate WIP lines to the first material row when `bomItemId` was missing.
+
+**Fix:** `resolveMaterialForWipEntry` matches strictly by `bomItemId`; legacy product-only match allowed only when both material and WIP chain are provably unique (single row, no `bomItemId`); otherwise throws `wip_material_link_ambiguous`.
+
+**Test:** `create-work-order-chain.test.ts` — two WIP lines same product, B2 material missing `bomItemId` → explicit `{ ok: false, planningError: 'wip_material_link_ambiguous' }`.
+
+### Bug 5 — DST wall-clock validation
+**Problem:** `wallClockMatches` compared formatted time to itself, accepting nonexistent spring-forward times (e.g. `2026-03-29 01:30 Europe/London`).
+
+**Fix:** Compare formatted wall time against requested date + hour/minute (and second when present). Spring-gap policy: advance wall-clock minute-by-minute to next valid instant. Fall-back ambiguity: sort candidates by offset ascending → standard (later-offset) occurrence.
+
+**Tests:** `wall-clock-time.test.ts` — spring gap `01:30` → `02:00` local (`01:00Z`); fall-back `01:30` → standard `01:30Z`.
+
+### Gates (fix round)
+- `pnpm --filter web exec tsc --noEmit` — clean
+- Vitest (39 tests): `wall-clock-time`, `board-capacity`, `sequence-solver`, `create-work-order-chain` — green

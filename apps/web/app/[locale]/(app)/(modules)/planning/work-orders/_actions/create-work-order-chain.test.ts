@@ -463,6 +463,224 @@ describe('createWorkOrderChain duplicate WIP BOM lines', () => {
   });
 });
 
+describe('createWorkOrderChain duplicate WIP BOM lines with missing bomItemId', () => {
+  beforeEach(() => {
+    dependencyInserts = [];
+    transactionEvents.length = 0;
+    createWorkOrderCoreMock.mockReset();
+    loadStageProductionLineIdsMock.mockReset();
+    loadStageProductionLineIdsMock.mockResolvedValue(new Map([
+      [WIP_ITEM_ID, WIP_STAGE_LINE_ID],
+      [FG_ITEM_ID, FG_STAGE_LINE_ID],
+    ]));
+    vi.mocked(assertFgReleasedToFactoryForWo).mockResolvedValue('ok');
+    createWorkOrderCoreMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workOrder: {
+          id: WIP_WO_ID,
+          woNumber: 'WO-DUP-W1',
+          productId: WIP_ITEM_ID,
+          itemTypeAtCreation: 'intermediate',
+          plannedQuantity: '300.0000',
+          producedQuantity: null,
+          uom: 'kg',
+          status: 'DRAFT',
+          scheduledStartTime: null,
+          scheduledEndTime: null,
+          productionLineId: WIP_STAGE_LINE_ID,
+          priority: 'normal',
+          sourceOfDemand: 'manual',
+          sourceReference: null,
+          notes: null,
+          createdAt: '2026-07-07T00:00:00.000Z',
+          updatedAt: '2026-07-07T00:00:00.000Z',
+        },
+        materials: [],
+        primarySchedule: { id: 'schedule-wip-1' },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        workOrder: {
+          id: WIP_WO_ID_2,
+          woNumber: 'WO-DUP-W2',
+          productId: WIP_ITEM_ID,
+          itemTypeAtCreation: 'intermediate',
+          plannedQuantity: '700.0000',
+          producedQuantity: null,
+          uom: 'kg',
+          status: 'DRAFT',
+          scheduledStartTime: null,
+          scheduledEndTime: null,
+          productionLineId: WIP_STAGE_LINE_ID,
+          priority: 'normal',
+          sourceOfDemand: 'manual',
+          sourceReference: null,
+          notes: null,
+          createdAt: '2026-07-07T00:00:00.000Z',
+          updatedAt: '2026-07-07T00:00:00.000Z',
+        },
+        materials: [],
+        primarySchedule: { id: 'schedule-wip-2' },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        workOrder: {
+          id: FG_WO_ID,
+          woNumber: 'WO-DUP',
+          productId: FG_ITEM_ID,
+          itemTypeAtCreation: 'fg',
+          plannedQuantity: '1000.0000',
+          producedQuantity: null,
+          uom: 'kg',
+          status: 'DRAFT',
+          scheduledStartTime: null,
+          scheduledEndTime: null,
+          productionLineId: FG_STAGE_LINE_ID,
+          priority: 'normal',
+          sourceOfDemand: 'manual',
+          sourceReference: null,
+          notes: null,
+          createdAt: '2026-07-07T00:00:00.000Z',
+          updatedAt: '2026-07-07T00:00:00.000Z',
+        },
+        materials: [
+          {
+            id: MATERIAL_ID,
+            woId: FG_WO_ID,
+            productId: WIP_ITEM_ID,
+            materialName: 'WIP-STAGE-A',
+            requiredQty: '300.000',
+            consumedQty: '0.000',
+            reservedQty: '0.000',
+            uom: 'kg',
+            sequence: 1,
+            materialSource: 'stock',
+            bomItemId: BOM_LINE_1,
+            bomVersion: 1,
+            notes: null,
+          },
+          {
+            id: MATERIAL_ID_LINE_2,
+            woId: FG_WO_ID,
+            productId: WIP_ITEM_ID,
+            materialName: 'WIP-STAGE-B',
+            requiredQty: '700.000',
+            consumedQty: '0.000',
+            reservedQty: '0.000',
+            uom: 'kg',
+            sequence: 2,
+            materialSource: 'stock',
+            bomItemId: null,
+            bomVersion: 1,
+            notes: null,
+          },
+        ],
+        primarySchedule: { id: 'schedule-fg', plannedWoId: FG_WO_ID },
+      });
+  });
+
+  it('fails explicitly when a duplicate WIP line material is missing bomItemId', async () => {
+    const client: QueryClient = {
+      query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+        const q = normalize(sql);
+        if (q.includes('from public.user_roles')) {
+          return { rows: [{ ok: true }], rowCount: 1 };
+        }
+        if (q.includes('from public.items') && q.includes('item_code')) {
+          return {
+            rows: [{
+              id: FG_ITEM_ID,
+              item_code: 'FG-DUP',
+              output_uom: 'base',
+              uom_base: 'kg',
+              net_qty_per_each: null,
+              each_per_box: null,
+              boxes_per_pallet: null,
+              weight_mode: 'fixed',
+            }],
+            rowCount: 1,
+          };
+        }
+        if (q.includes('from public.work_orders') && q.includes('wo_number = $1')) {
+          return { rows: [], rowCount: 0 };
+        }
+        if (q.includes('from public.bom_headers')) {
+          return { rows: [{ id: BOM_ID, version: 1, line_basis: 'per_base' }], rowCount: 1 };
+        }
+        if (q.includes('component_type = \'wip\'') || (q.includes('from public.bom_lines') && q.includes('wip'))) {
+          return {
+            rows: [
+              {
+                id: BOM_LINE_1,
+                line_no: 10,
+                item_id: WIP_ITEM_ID,
+                component_code: 'WIP-STAGE-A',
+                quantity: '0.3',
+                scrap_pct: '0',
+              },
+              {
+                id: BOM_LINE_2,
+                line_no: 20,
+                item_id: WIP_ITEM_ID,
+                component_code: 'WIP-STAGE-B',
+                quantity: '0.7',
+                scrap_pct: '5',
+              },
+            ],
+            rowCount: 2,
+          };
+        }
+        if (q.startsWith('insert into public.wo_dependencies')) {
+          dependencyInserts.push({
+            parentWoId: String(params[0]),
+            childWoId: String(params[1]),
+            materialLink: params[2] == null ? null : String(params[2]),
+            requiredQty: params[3] == null ? null : String(params[3]),
+            sql,
+          });
+          return {
+            rows: [{
+              parent_wo_id: String(params[0]),
+              child_wo_id: String(params[1]),
+              material_link: params[2] == null ? null : String(params[2]),
+              required_qty: params[3] == null ? null : String(params[3]),
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+
+    const result = await createWorkOrderChainForContext(
+      { userId: USER_ID, orgId: ORG_ID, client },
+      {
+        productId: FG_ITEM_ID,
+        itemCode: 'FG-DUP',
+        documentNumber: 'WO-DUP',
+        siteId: SITE_ID,
+        plannedQuantity: '1000.0000',
+      },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'persistence_failed',
+      planningError: 'wip_material_link_ambiguous',
+      message: 'wip_material_link_ambiguous',
+    });
+    expect(dependencyInserts).toHaveLength(1);
+    expect(dependencyInserts[0]).toMatchObject({
+      parentWoId: FG_WO_ID,
+      childWoId: WIP_WO_ID,
+      materialLink: MATERIAL_ID,
+      requiredQty: '300.000',
+    });
+    expect(dependencyInserts.some((row) => row.childWoId === WIP_WO_ID_2)).toBe(false);
+  });
+});
+
 describe('createWorkOrderChain mid-chain failure + factory-release gate', () => {
   beforeEach(() => {
     dependencyInserts = [];

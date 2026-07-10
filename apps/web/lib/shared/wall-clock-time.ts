@@ -1,6 +1,10 @@
 /**
  * Wall-clock date + time in an IANA timezone → UTC epoch ms.
  * Uses Intl only — no extra date library.
+ *
+ * DST policies:
+ * - Ambiguous fall-back times: select the standard-time (later offset) occurrence.
+ * - Spring-forward gaps: advance to the next valid wall minute on the same date.
  */
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -29,8 +33,34 @@ function parseWallClockParts(blockDate: string, time: string): WallClockParts | 
   };
 }
 
+function formatWallDate(parts: WallClockParts): string {
+  return `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+}
+
+function formatWallTime(parts: WallClockParts, includeSeconds: boolean): string {
+  const hh = String(parts.hour).padStart(2, '0');
+  const mm = String(parts.minute).padStart(2, '0');
+  if (!includeSeconds) return `${hh}:${mm}`;
+  const ss = String(parts.second).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
 function utcMsFromParts(parts: WallClockParts): number {
   return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+}
+
+function addWallMinutes(parts: WallClockParts, minutes: number): WallClockParts {
+  const carrier = new Date(
+    Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute + minutes, parts.second),
+  );
+  return {
+    year: carrier.getUTCFullYear(),
+    month: carrier.getUTCMonth() + 1,
+    day: carrier.getUTCDate(),
+    hour: carrier.getUTCHours(),
+    minute: carrier.getUTCMinutes(),
+    second: carrier.getUTCSeconds(),
+  };
 }
 
 function getTimeZoneOffsetMs(utcMs: number, timeZone: string): number {
@@ -88,17 +118,48 @@ function formatWallClockInZone(utcMs: number, timeZone: string): WallClockParts 
   };
 }
 
-function wallClockMatches(parts: WallClockParts, blockDate: string, time: string): boolean {
-  const date = `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
-  const hh = String(parts.hour).padStart(2, '0');
-  const mm = String(parts.minute).padStart(2, '0');
-  const ss = String(parts.second).padStart(2, '0');
-  const normalizedTime = time.length <= 5 ? `${hh}:${mm}` : `${hh}:${mm}:${ss}`;
-  return date === blockDate && normalizedTime === (time.length <= 5 ? `${hh}:${mm}` : `${hh}:${mm}:${ss}`);
+function wallClockMatches(
+  formatted: WallClockParts,
+  requested: WallClockParts,
+  blockDate: string,
+  time: string,
+): boolean {
+  if (formatWallDate(formatted) !== blockDate) return false;
+  if (time.length <= 5) {
+    return formatted.hour === requested.hour && formatted.minute === requested.minute;
+  }
+  return (
+    formatted.hour === requested.hour
+    && formatted.minute === requested.minute
+    && formatted.second === requested.second
+  );
 }
 
 function instantFromOffset(parts: WallClockParts, offsetMs: number): number {
   return utcMsFromParts(parts) - offsetMs;
+}
+
+function findExactWallClockInstants(
+  parts: WallClockParts,
+  blockDate: string,
+  time: string,
+  timeZone: string,
+): number[] {
+  const requested = parseWallClockParts(blockDate, time);
+  if (!requested) return [];
+
+  const naiveUtc = utcMsFromParts(parts);
+  const offsetAtNaive = getTimeZoneOffsetMs(naiveUtc, timeZone);
+  const candidates = new Set<number>([instantFromOffset(parts, offsetAtNaive)]);
+
+  const offsetOneHourEarlier = getTimeZoneOffsetMs(naiveUtc - 60 * 60 * 1000, timeZone);
+  const offsetOneHourLater = getTimeZoneOffsetMs(naiveUtc + 60 * 60 * 1000, timeZone);
+  candidates.add(instantFromOffset(parts, offsetOneHourEarlier));
+  candidates.add(instantFromOffset(parts, offsetOneHourLater));
+
+  return [...candidates].filter((candidate) =>
+    wallClockMatches(formatWallClockInZone(candidate, timeZone), requested, blockDate, time),
+  );
 }
 
 /**
@@ -113,30 +174,17 @@ export function wallClockToInstant(
   const parts = parseWallClockParts(blockDate, time);
   if (!parts) return null;
 
-  const naiveUtc = utcMsFromParts(parts);
-  const offsetAtNaive = getTimeZoneOffsetMs(naiveUtc, timeZone);
-  const candidates = new Set<number>([instantFromOffset(parts, offsetAtNaive)]);
+  const includeSeconds = time.length > 5;
+  for (let minuteDelta = 0; minuteDelta <= 180; minuteDelta += 1) {
+    const probeParts = minuteDelta === 0 ? parts : addWallMinutes(parts, minuteDelta);
+    const probeDate = formatWallDate(probeParts);
+    const probeTime = formatWallTime(probeParts, includeSeconds);
+    const valid = findExactWallClockInstants(probeParts, probeDate, probeTime, timeZone);
+    if (valid.length === 0) continue;
 
-  const offsetOneHourEarlier = getTimeZoneOffsetMs(naiveUtc - 60 * 60 * 1000, timeZone);
-  const offsetOneHourLater = getTimeZoneOffsetMs(naiveUtc + 60 * 60 * 1000, timeZone);
-  candidates.add(instantFromOffset(parts, offsetOneHourEarlier));
-  candidates.add(instantFromOffset(parts, offsetOneHourLater));
-
-  const valid = [...candidates].filter((candidate) =>
-    wallClockMatches(formatWallClockInZone(candidate, timeZone), blockDate, time),
-  );
-  if (valid.length === 0) {
-    for (let minute = 1; minute <= 180; minute += 1) {
-      const probe = naiveUtc + minute * 60 * 1000;
-      const offset = getTimeZoneOffsetMs(probe, timeZone);
-      const candidate = instantFromOffset(parts, offset);
-      if (wallClockMatches(formatWallClockInZone(candidate, timeZone), blockDate, time)) {
-        return candidate;
-      }
-    }
-    return null;
+    valid.sort((a, b) => getTimeZoneOffsetMs(a, timeZone) - getTimeZoneOffsetMs(b, timeZone));
+    return valid[0] ?? null;
   }
 
-  valid.sort((a, b) => getTimeZoneOffsetMs(a, timeZone) - getTimeZoneOffsetMs(b, timeZone));
-  return valid[0] ?? null;
+  return null;
 }
