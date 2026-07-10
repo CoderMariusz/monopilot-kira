@@ -169,11 +169,12 @@ export async function createPurchaseOrderCore(
   const siteId = siteResolution.siteId;
 
   const { rows: supplierRows } = await ctx.client.query<{ status: string }>(
-    `select status
-       from public.suppliers
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-      limit 1`,
+    `select supplier_row.status
+       from public.suppliers supplier_row
+      where supplier_row.org_id = app.current_org_id()
+        and supplier_row.id = $1::uuid
+      limit 1
+      for update`,
     [input.supplierId],
   );
   const supplier = supplierRows[0];
