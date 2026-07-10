@@ -1,34 +1,43 @@
 'use server';
 
 /**
- * Wave E-IO (decision #6) — Bulk PO import hub: server-side RBAC gate.
+ * Wave E-IO (decision #6) — Bulk import hub: server-side RBAC gates.
  *
- * The hub page (Server Component) must decide whether to render the PO import
- * wizard or a permission-denied panel WITHOUT trusting any client flag. The
- * canonical import action (import-po.ts) already enforces npd.planning.write on
- * every validate/commit call (fail-closed) — this reader resolves the same gate
- * once so the page can hide the action up front and never render-then-disable.
- *
- * It reuses the shared procurement permission helper; it does NOT re-implement
- * the gate. Returns a boolean only — no PII, no org id, no UUID.
+ * The hub and dedicated import pages resolve domain-specific permissions once so
+ * each importer renders only when the matching action gate would allow it.
+ * Import actions re-check on every validate/commit call (fail-closed).
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
   hasPlanningWritePermission,
+  hasPoManagePermission,
+  hasToManagePermission,
   type OrgActionContext,
   type QueryClient,
 } from '../../_actions/procurement-shared';
 
-export async function canImportPurchaseOrders(): Promise<boolean> {
+async function resolveImportPermission(
+  check: (ctx: OrgActionContext) => Promise<boolean>,
+): Promise<boolean> {
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<boolean> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as unknown as QueryClient };
-      return hasPlanningWritePermission(ctx);
+      return check(ctx);
     });
   } catch {
-    // A resolution failure (no verified session / no org row) is treated as
-    // "not permitted" — the page renders the denied state, never a 500.
     return false;
   }
+}
+
+export async function canImportPurchaseOrders(): Promise<boolean> {
+  return resolveImportPermission(hasPoManagePermission);
+}
+
+export async function canImportTransferOrders(): Promise<boolean> {
+  return resolveImportPermission(hasToManagePermission);
+}
+
+export async function canImportWorkOrders(): Promise<boolean> {
+  return resolveImportPermission(hasPlanningWritePermission);
 }

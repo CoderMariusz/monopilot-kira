@@ -35,7 +35,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 import { validatePoImport, commitPoImport } from '../purchase-orders/_actions/import-po';
 import { validateToImport, commitToImport, type ToImportRow, type ToImportResult } from '../transfer-orders/_actions/import-to';
 import { validateWoImport, commitWoImport, type WoImportRow, type WoImportResult } from '../work-orders/_actions/import-wo';
-import { canImportPurchaseOrders } from './_actions/can-import-po';
+import { canImportPurchaseOrders, canImportTransferOrders, canImportWorkOrders } from './_actions/can-import-po';
 import { EntityImportCard } from './_components/entity-import-card.client';
 import { PoImportCard, type PoImportCardLabels } from './_components/po-import-card.client';
 import { buildToImportCardProps, buildWoImportCardProps } from './_lib/import-hub-card-props';
@@ -116,7 +116,12 @@ export default async function PlanningImportHubPage({ params, searchParams }: Pa
 
   // All three importers gate on the same planning-write permission, resolved
   // once server-side (fail-closed). The actions re-check on every call.
-  const canImport = await canImportPurchaseOrders();
+  const [canImportPo, canImportTo, canImportWo] = await Promise.all([
+    canImportPurchaseOrders(),
+    canImportTransferOrders(),
+    canImportWorkOrders(),
+  ]);
+  const canImportAny = canImportPo || canImportTo || canImportWo;
   const poLabels = buildPoCardLabels(t);
   const toCardProps = buildToImportCardProps(t, locale, sp.source === 'to');
   const woCardProps = buildWoImportCardProps(t, locale, sp.source === 'wo');
@@ -133,25 +138,31 @@ export default async function PlanningImportHubPage({ params, searchParams }: Pa
         breadcrumb={[{ label: t('breadcrumb.planning') }, { label: t('breadcrumb.import') }]}
       />
 
-      {canImport ? (
+      {canImportAny ? (
         <div className="flex flex-col gap-4">
-          <PoImportCard
-            locale={locale}
-            labels={poLabels}
-            autoOpen={sp.source === 'po'}
-            validateAction={validatePoImport}
-            commitAction={commitPoImport}
-          />
-          <EntityImportCard<ToImportRow, ToImportResult['created'][number]>
-            {...toCardProps}
-            validateAction={validateToImport}
-            commitAction={commitToImport}
-          />
-          <EntityImportCard<WoImportRow, WoImportResult['created'][number]>
-            {...woCardProps}
-            validateAction={validateWoImport}
-            commitAction={commitWoImport}
-          />
+          {canImportPo ? (
+            <PoImportCard
+              locale={locale}
+              labels={poLabels}
+              autoOpen={sp.source === 'po'}
+              validateAction={validatePoImport}
+              commitAction={commitPoImport}
+            />
+          ) : null}
+          {canImportTo ? (
+            <EntityImportCard<ToImportRow, ToImportResult['created'][number]>
+              {...toCardProps}
+              validateAction={validateToImport}
+              commitAction={commitToImport}
+            />
+          ) : null}
+          {canImportWo ? (
+            <EntityImportCard<WoImportRow, WoImportResult['created'][number]>
+              {...woCardProps}
+              validateAction={validateWoImport}
+              commitAction={commitWoImport}
+            />
+          ) : null}
         </div>
       ) : (
         <div

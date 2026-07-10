@@ -164,6 +164,14 @@ export async function hasPlanningWritePermission(ctx: OrgActionContext): Promise
   return hasPlanningPermission(ctx, PLANNING_WRITE_PERMISSION);
 }
 
+export async function hasPoManagePermission(ctx: OrgActionContext): Promise<boolean> {
+  return hasPlanningPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
+}
+
+export async function hasToManagePermission(ctx: OrgActionContext): Promise<boolean> {
+  return hasPlanningPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
+}
+
 export async function hasPlanningReadPermission(ctx: OrgActionContext): Promise<boolean> {
   return hasPlanningPermission(ctx, PLANNING_READ_PERMISSION);
 }

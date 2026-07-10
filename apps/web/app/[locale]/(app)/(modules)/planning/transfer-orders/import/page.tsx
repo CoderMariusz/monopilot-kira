@@ -33,7 +33,7 @@ import { previewToImport, type PreviewToRow } from '../../../../../../../lib/imp
 import { confirmToImport } from '../../../../../../../lib/import/to-import-actions';
 import type { ImportError } from '../../../../../../../lib/import/po-import-validator';
 import { makeImportLabel } from '../../../../../../../lib/import/import-i18n-staging';
-import { canImportPurchaseOrders } from '../../import/_actions/can-import-po';
+import { canImportTransferOrders } from '../../import/_actions/can-import-po';
 import { ToBulkImportView } from './_components/to-bulk-import-view';
 import type { ToBulkImportLabels } from './_components/to-bulk-import-columns';
 
@@ -106,7 +106,7 @@ function buildLabels(tx: (key: string) => string): ToBulkImportLabels {
 async function ImportContent({ locale }: { locale: string }) {
   const t = await getTranslations('Planning.transferOrders');
   const tx = makeImportLabel(t, 'to', locale);
-  const canImport = await canImportPurchaseOrders();
+  const canImport = await canImportTransferOrders();
 
   if (!canImport) {
     return (

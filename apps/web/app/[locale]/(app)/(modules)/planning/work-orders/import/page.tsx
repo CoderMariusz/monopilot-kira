@@ -33,7 +33,7 @@ import { previewWoImport, type PreviewWoRow } from '../../../../../../../lib/imp
 import { confirmWoImport } from '../../../../../../../lib/import/wo-import-actions';
 import type { ImportError } from '../../../../../../../lib/import/po-import-validator';
 import { makeImportLabel } from '../../../../../../../lib/import/import-i18n-staging';
-import { canImportPurchaseOrders } from '../../import/_actions/can-import-po';
+import { canImportWorkOrders } from '../../import/_actions/can-import-po';
 import { WoBulkImportView } from './_components/wo-bulk-import-view';
 import type { WoBulkImportLabels } from './_components/wo-bulk-import-columns';
 
@@ -105,7 +105,7 @@ function buildLabels(tx: (key: string) => string): WoBulkImportLabels {
 async function ImportContent({ locale }: { locale: string }) {
   const t = await getTranslations('Planning.workOrders');
   const tx = makeImportLabel(t, 'wo', locale);
-  const canImport = await canImportPurchaseOrders();
+  const canImport = await canImportWorkOrders();
 
   if (!canImport) {
     return (
