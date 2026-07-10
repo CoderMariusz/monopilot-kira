@@ -107,7 +107,7 @@ describe('technical where-used and portfolio cost read actions', () => {
       {
         fg_code: 'FG-1001',
         fg_name: 'Cooked sausage',
-        total_recipe_cost: 12.3456,
+        total_recipe_cost: '12.3456',
         currency: 'PLN',
       },
       {
@@ -131,6 +131,27 @@ describe('technical where-used and portfolio cost read actions', () => {
     expect(sql).toContain("i.item_type = 'fg'");
     expect(sql).toContain('i.org_id = app.current_org_id()');
     expect(sql).toContain('bl.org_id = app.current_org_id()');
+    expect(sql).toContain('bl.item_id is not null and ci.id = bl.item_id');
+    expect(sql).toContain('bl.item_id is null and ci.item_code = bl.component_code');
+  });
+
+  it('preserves exact decimal portfolio totals without a Number() round-trip (N-57)', async () => {
+    const exactTotal = '9007199254740991.05';
+    queryMock.mockResolvedValueOnce({
+      rows: [
+        {
+          fg_code: 'FG-PREC',
+          fg_name: 'Precision FG',
+          total_recipe_cost: exactTotal,
+          currency: 'GBP',
+        },
+      ],
+    });
+
+    const result = await listPortfolioCost();
+
+    expect(result[0]?.total_recipe_cost).toBe(exactTotal);
+    expect(result[0]?.total_recipe_cost).not.toBe(Number(exactTotal));
   });
 
   it('returns null portfolio totals when FG recipe components mix currencies', async () => {

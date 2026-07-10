@@ -57,8 +57,9 @@ fabryczną** i **promuje FG do produkcji** przez wspólny przepływ zwolnienia
 fabrycznego.
 
 Cykl życia jest odwracalny jedynie w wąskich, audytowanych przypadkach: wersja
-robocza formulacji jest edytowalna do momentu zgłoszenia; **administrator** może
-cofnąć projekt do wcześniejszego gate'u (`revert-gate.ts`); sekcja działu może
+robocza formulacji jest edytowalna do momentu zgłoszenia; operator z uprawnieniem
+`npd.gate.advance` może cofnąć jeden sąsiedni gate przez podpis PIN
+(`revert-npd-gate.ts`); sekcja działu może
 być ponownie otwarta (`reopen-dept-section.ts`); ryzyko może powrócić ze stanu
 `Closed → Open`. **Nie istnieje** cofnięcie ze stanu Launched ani „odrzucenie"
 podpisanego elektronicznie gate'u, które cofałoby etap (zob. *Znane luki*).
@@ -95,10 +96,10 @@ zwolnienia fabrycznego to
 | `createProject(input)` (`create-project.ts`) | Wstawia projekt na `stage='brief', gate='G0'`; przydziela per-org kod `NPD-NNN`; wbudowuje pola briefu (format opakowania/waga, kanał, twierdzenia…); zaszczepia listę kontrolną gate'u z `GateChecklistTemplates`. Emituje `npd.project.created`. | writes `npd_projects`, `gate_checklist_items`, `outbox_events`; reads `org_sequences`, `"Reference"."GateChecklistTemplates"` | `npd.project.create` | `deleteProject` (brak zależności) |
 | `cloneProject({ sourceProjectId, …overrides })` (`clone-project.ts`) | **#3/#4 (2026-06-25):** tworzy nowy projekt `brief`/`G0` na bazie istniejącego — kopiuje nagłówek + listę kontrolną gate'u, nakłada nadpisania briefu z kreatora, nowy `NPD-NNN`. Zasila kafelek **Sklonuj istniejący projekt** w kreatorze oraz przycisk **Duplikuj** w nagłówku projektu. | writes `npd_projects`, `gate_checklist_items`, `outbox_events`; reads źródłowy `npd_projects` | `npd.project.create` | `deleteProject` (brak zależności) |
 | `deleteProject({projectId})` (`delete-project.ts`) | Trwale usuwa projekt bez zależności (`HAS_DEPENDENTS` przy naruszeniu FK). Emituje `npd.project.deleted`. | deletes `npd_projects`; writes `outbox_events` | `npd.project.create` | — (terminalne) |
-| `advanceProjectGate({projectId,targetStage,productCode?})` (`advance-project-gate.ts`) | **Główny mechanizm przesuwania do przodu.** Przesuwa dokładnie JEDEN sąsiadujący etap (`assertAdjacentStage`). Efekty uboczne powiązane z wchodzonym etapem: wejście `packaging` → `createFgCandidate`; `approval→handoff` → weryfikacja ważnego podpisu G4 + zaszczepienie listy kontrolnej handoff; wejście `launched` → `closeOutLegacyStagesForLaunch`. Emituje `npd.gate.advanced`. | writes `npd_projects`, `product`, `formulations`, `handoff_checklists*`, `npd_legacy_closeout`, `outbox_events` | `npd.gate.advance` | `revertGate` (administrator, przestrzeń gate'ów) |
+| `advanceProjectGate({projectId,targetStage,productCode?})` (`advance-project-gate.ts`) | **Główny mechanizm przesuwania do przodu.** Przesuwa dokładnie JEDEN sąsiadujący etap (`assertAdjacentStage`). Efekty uboczne powiązane z wchodzonym etapem: wejście `packaging` → `createFgCandidate`; `approval→handoff` → weryfikacja ważnego podpisu G4 + zaszczepienie listy kontrolnej handoff; wejście `launched` → `closeOutLegacyStagesForLaunch`. Emituje `npd.gate.advanced`. | writes `npd_projects`, `product`, `formulations`, `handoff_checklists*`, `npd_legacy_closeout`, `outbox_events` | `npd.gate.advance` | `revertNpdGate` (sąsiedni gate, podpis PIN) |
 | `approveProjectGate({projectId,gateCode:G3\|G4,decision,notes,password?})` (`approve-project-gate.ts`) | Rejestruje **punkt kontrolny zatwierdzenia** gate'u. Zatwierdzenie = **podpis elektroniczny CFR-21** (`signEvent` intent `npd.gate.approved`) → `gate_approvals` z `esigned_at`+`esign_hash`. Odrzucenie = tylko powód, bez hasła, bez podpisu. **Nie przesuwa automatycznie** (przesunięcie to osobny krok). Emituje `npd.gate.approved`. | writes `gate_approvals`, `e_sign_log` (zatwierdzenie), `outbox_events` | `npd.gate.approve` | — (zarejestrowany punkt kontrolny; odrzucenie to osobny rekord) |
 | `createOrMapFgCandidateAtG3({projectId,mode:create\|map,productCode?})` (`create-or-map-fg-candidate-at-g3.ts`) | Jawnie tworzy lub mapuje kandydata FG podczas G2/G3 (ta sama `createFgCandidate`, którą wyzwala przesunięcie do etapu packaging). | writes `product`, `npd_projects`, `formulations`, `outbox_events` (`fg.created`, `npd.fg_candidate_mapped`) | `npd.gate.advance` | — |
-| `revertGate / rollbackGate({projectId,targetGate:G0–G3,reason})` (`revert-gate.ts`) | **Cofnięcie gate'u tylko przez administratora** do dowolnego wcześniejszego gate'u (`ROLLBACK_VIOLATION` jeśli nie ściśle wcześniejszy). Audyt tylko-dopisywany + `npd.gate.reverted`. Jedyna ścieżka w dół. | writes `npd_projects`, `audit_events`, `outbox_events` | `requireAdmin` (`admin` uprawnienie lub kod roli `admin`) — NIE string `npd.*` | To **jest** odwróceniem `advance`; tylko do G3 (nie można cofnąć przez Launched) |
+| `revertNpdGate({projectId,reason,pin})` (`revert-npd-gate.ts`) | **Cofnięcie sąsiedniego gate'u** o jeden krok wstecz przez podpis PIN CFR-21 (`npd.gate.reverted`). Zablokowane, gdy ustawiono `npd_locked_for_release_at` (`NPD_RELEASE_LOCKED`). Jedyna ścieżka w dół. | writes `npd_projects`, `e_sign_log`, `outbox_events` | `npd.gate.advance` | To **jest** odwróceniem `advance` o jeden gate; nie można cofnąć przez Launched |
 | `closeOutLegacyStages({projectId})` (`close-out-legacy-stages.ts`) | Samodzielne terminalne zamknięcie (wywoływane też wewnętrznie przez przesunięcie `handoff→launched`). Weryfikuje pełny zestaw dowodów wdrożenia (status zwolnienia, podpis G4, termin przydatności, przeliczenie alergenów, dowód próby pilotażowej, aktywne BOM, pakowanie MRP), następnie zapisuje `npd_legacy_closeout` i ustawia `stage='launched'` (gate wyznacza `Launched`). Emituje `npd.project.legacy_stages_closed`. | writes `npd_legacy_closeout`, `npd_projects`, `outbox_events`; reads `factory_release_status`, `product`, `gate_approvals`, `bom_headers`, `pilot_runs`, `allergen_cascade_rebuild_jobs` | `npd.gate.advance` | — (terminalne — **brak cofnięcia wdrożenia**) |
 | `bulkAssignOwner / bulkSetPriority / bulkMoveGate(rows)` (`bulk-update-projects.ts`) | Masowe operacje na potoku. `bulkMoveGate` tłumaczy docelowy gate na per-projekt wywołania `advanceProjectGate` o jeden etap (wynik częściowego sukcesu z błędami per wiersz). | writes `npd_projects`, `audit_events` (+ zapisy przesunięcia) | `npd.core.write` | cofnięcie per wiersz |
 | `toggleGateChecklistItem({itemId,checked})` (`toggle-gate-checklist-item.ts`) | Zaznaczenie / odznaczenie zaszczepionego elementu listy kontrolnej gate'u (tylko orientacyjny postęp — **nie blokuje** twardego przesunięcia). | writes `gate_checklist_items`, `audit_events` | `npd.core.write` | ponowne przełączenie |
@@ -256,13 +257,12 @@ już automatycznie** (`approve-project-gate.ts:78-81`):
    niego `ESIGN_REQUIRED` (403).
 3. `decision='rejected'` rejestruje powód w `gate_approvals` **bez hasła,
    bez podpisu** — **nie** cofa etapu (to wyłącznie rekord punktu kontrolnego).
-   Cofanie gate'u wstecz to ścieżka **administratora** przez `revertGate`.
+   Cofanie gate'u wstecz to ścieżka **`revertNpdGate`** (sąsiedni gate, podpis PIN).
 
 ### Ścieżki odwrócenia / w dół
 
-- **`revertGate`** (tylko administrator) — cofnięcie w przestrzeni gate'ów do
-  dowolnego ściśle wcześniejszego gate'u `G0–G3`; nie można cofnąć przez
-  `Launched`.
+- **`revertNpdGate`** — cofnięcie sąsiedniego gate'u przez podpis PIN (`revert-npd-gate.ts`);
+  wymaga `npd.gate.advance`; zablokowane przy aktywnej blokadzie zwolnienia.
 - **Formulacja** — `draft` jest swobodnie edytowalny; `submitted_for_trial` i
   `locked` nie są (utwórz nową wersję roboczą, aby zmienić).
 - **Ryzyko** — `Closed → Open` ponownie otwiera (`update-risk.ts:225-230`).
@@ -351,7 +351,7 @@ Nagłówek projektu ma przycisk **Duplikuj** (real `cloneProject`, #3/#4) oraz u
    Wymaga **ważnego zatwierdzonego podpisu G4** (w przeciwnym razie
    `ESIGN_REQUIRED`) oraz zaszczepienia listy kontrolnej handoff.
 5. **Odrzucenie** (`decision:'rejected'`, bez hasła) rejestruje powód; aby cofnąć
-   etap **administrator** używa `revertGate({targetGate, reason})`.
+   etap operator z `npd.gate.advance` używa `revertNpdGate({projectId, reason, pin})`.
 
 ### (iii) Edytuj formulację
 
@@ -467,7 +467,7 @@ Oparte na przeczytanym kodzie — żadnych domysłów:
    tylko w treści). Pełne przejście nazewnictwa jest do zrobienia.
 2. **Brak cofnięcia ze stanu Wdrożony i brak cofnięcia nagłówka zwolnienia.**
    `launched` jest terminalny (`npd_legacy_closeout`, `close-out-legacy-stages.ts`),
-   `revertGate` jest ograniczony do `G0–G3` (`revert-gate.ts:22`), a
+   `revertNpdGate` cofa tylko jeden sąsiedni gate (`revert-npd-gate.ts`), a
    `releaseNpdProjectToFactory` / `promoteToProduction` są jednokierunkowe.
    Udokumentowana ścieżka dla zmiany po zwolnieniu to **nowa** wersja BOM/specyfikacji
    przez Techniczny — w NPD nie istnieje akcja cofająca wdrożenie ani zwolnienie.
@@ -478,10 +478,8 @@ Oparte na przeczytanym kodzie — żadnych domysłów:
    jest kruche; drzewo `app/(npd)` ma `_actions` ale nie ma własnego `page.tsx`.
 4. **„Odrzucenie" gate'u nie cofa etapu.** `approveProjectGate(decision='rejected')`
    rejestruje jedynie powód w `gate_approvals` (`approve-project-gate.ts:39-44`);
-   nie przesuwa etapu. Jedyna ścieżka wstecz to **bramkowany przez administratora**
-   `revertGate`, który używa uprawnienia/kodu roli `admin` — **nie** stringa
-   uprawnień `npd.*` (`gate-helpers.ts:212-226`), więc leży poza rodziną RBAC
-   `npd.*`.
+   nie przesuwa etapu. Jedyna ścieżka wstecz to **`revertNpdGate`** (podpis PIN,
+   uprawnienie `npd.gate.advance`) — nie wielogate'owe cofnięcie administratora.
 5. **Lista kontrolna gate'u jest orientacyjna, nie blokująca.** Zaszczepione
    `gate_checklist_items` to wyłącznie znaczniki postępu — wymagane, ale
    niezaznaczone elementy **nie blokują** twardego przesunięcia (świadoma decyzja,

@@ -252,4 +252,47 @@ describe('applyEcoOnClose', () => {
       message: 'superseding factory spec must belong to the same FG item as the ECO target spec',
     });
   });
+
+  it('rejects product-less BOM pairs instead of treating null===null as a match (N-54)', async () => {
+    ctx.eco.ext_jsonb = { supersedingBomHeaderId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
+    ctx.boms.set('dddddddd-dddd-4ddd-8ddd-dddddddddddd', {
+      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      product_id: null,
+      version: 1,
+      status: 'active',
+      supersedes_bom_header_id: null,
+    });
+    ctx.boms.set('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', {
+      id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      product_id: null,
+      version: 2,
+      status: 'technical_approved',
+      supersedes_bom_header_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    });
+
+    const result = await applyEcoOnClose(
+      { orgId: ctx.orgId, userId: ctx.userId, client: fakeClient() },
+      ctx.eco.id,
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'supersession_invalid',
+      message: 'superseding BOM pair must reference a product; product-less BOMs cannot be closed through ECO',
+    });
+  });
+
+  it('locks the superseding BOM with FOR UPDATE before publish (N-53)', async () => {
+    ctx.eco.ext_jsonb = { supersedingBomHeaderId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
+
+    const result = await applyEcoOnClose(
+      { orgId: ctx.orgId, userId: ctx.userId, client: fakeClient() },
+      ctx.eco.id,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(
+      ctx.calls.some((c) => norm(c.sql).includes('from public.bom_headers') && norm(c.sql).includes('for update')),
+    ).toBe(true);
+  });
 });

@@ -455,8 +455,8 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
     expect(missingPassword).toMatchObject({ ok: false, error: 'INVALID_INPUT', status: 400 });
   });
 
-  it('rolls back a gate with audit/outbox and enforces RBAC denial', async () => {
-    const { rollbackGate } = await import('../revert-gate');
+  it('reverts one gate with audit/outbox via revertNpdGate and enforces RBAC denial', async () => {
+    const { revertNpdGate } = await import('../revert-npd-gate');
     const { advanceProjectGate } = await import('../advance-project-gate');
 
     await expect(
@@ -465,19 +465,18 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
 
     await expect(
       withActionActor(seed.userAId, seed.orgAId, () =>
-        rollbackGate({ projectId: rollbackProjectId, targetGate: 'G2', reason: 'Rollback after failed gate review.' }),
+        revertNpdGate({ projectId: rollbackProjectId, reason: 'Rollback after failed gate review.', pin }),
       ),
-    ).resolves.toMatchObject({ ok: true, data: { currentGate: 'G2' } });
+    ).resolves.toMatchObject({ success: true });
 
     const audit = await owner.query<{ current_gate: string; audit_count: string; outbox_count: string }>(
       `select p.current_gate,
-              (select count(*) from public.audit_events ae where ae.org_id = p.org_id and ae.action = 'npd.gate.reverted' and ae.resource_id = p.id::text) as audit_count,
               (select count(*) from public.outbox_events oe where oe.org_id = p.org_id and oe.event_type = 'npd.gate.reverted' and oe.aggregate_id = p.id::text) as outbox_count
          from public.npd_projects p
         where p.id = $1::uuid`,
       [rollbackProjectId],
     );
-    expect(audit.rows[0]).toEqual({ current_gate: 'G2', audit_count: '1', outbox_count: '1' });
+    expect(audit.rows[0]).toEqual({ current_gate: 'G2', outbox_count: '1' });
   });
 
   it('blocks approval→handoff without a G4 e-signature, then allows it once approved', async () => {

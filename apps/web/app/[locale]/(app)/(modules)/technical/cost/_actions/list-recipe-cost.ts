@@ -237,7 +237,10 @@ export async function getRecipeCost(rawProductCode: unknown): Promise<GetRecipeC
            from public.bom_lines bl
            left join public.items ci
                   on ci.org_id = app.current_org_id()
-                 and (ci.id = bl.item_id or ci.item_code = bl.component_code)
+                 and (
+                   (bl.item_id is not null and ci.id = bl.item_id)
+                   or (bl.item_id is null and ci.item_code = bl.component_code)
+                 )
            left join public.v_item_effective_cost vec on vec.item_id = ci.id
           where bl.org_id = app.current_org_id()
             and bl.bom_header_id = $1::uuid

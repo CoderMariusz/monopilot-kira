@@ -106,6 +106,18 @@ async function loadBom(client: QueryClient, bomHeaderId: string): Promise<BomRow
   return rows[0] ?? null;
 }
 
+async function loadBomForUpdate(client: QueryClient, bomHeaderId: string): Promise<BomRow | null> {
+  const { rows } = await client.query<BomRow>(
+    `select id, product_id, version, status, supersedes_bom_header_id
+       from public.bom_headers
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      for update`,
+    [bomHeaderId],
+  );
+  return rows[0] ?? null;
+}
+
 async function loadFactorySpec(client: QueryClient, specId: string): Promise<FactorySpecRow | null> {
   const { rows } = await client.query<FactorySpecRow>(
     `select id, fg_item_id, version, status, supersedes_factory_spec_id
@@ -117,7 +129,22 @@ async function loadFactorySpec(client: QueryClient, specId: string): Promise<Fac
   return rows[0] ?? null;
 }
 
+async function loadFactorySpecForUpdate(client: QueryClient, specId: string): Promise<FactorySpecRow | null> {
+  const { rows } = await client.query<FactorySpecRow>(
+    `select id, fg_item_id, version, status, supersedes_factory_spec_id
+       from public.factory_specs
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      for update`,
+    [specId],
+  );
+  return rows[0] ?? null;
+}
+
 function validateSupersedingBom(target: BomRow, superseding: BomRow): string | null {
+  if (target.product_id == null || superseding.product_id == null) {
+    return 'superseding BOM pair must reference a product; product-less BOMs cannot be closed through ECO';
+  }
   if (target.product_id !== superseding.product_id) {
     return 'superseding BOM must belong to the same product as the ECO target BOM';
   }
@@ -165,7 +192,7 @@ export async function applyEcoOnClose(ctx: OrgActionContext, changeOrderId: stri
 
     const [targetBom, supersedingBom] = await Promise.all([
       loadBom(ctx.client, eco.target_bom_header_id),
-      loadBom(ctx.client, supersedingBomHeaderId),
+      loadBomForUpdate(ctx.client, supersedingBomHeaderId),
     ]);
     if (!targetBom || !supersedingBom) {
       return { ok: false, error: 'supersession_invalid', message: 'linked BOM header not found' };
@@ -174,12 +201,21 @@ export async function applyEcoOnClose(ctx: OrgActionContext, changeOrderId: stri
     const bomValidation = validateSupersedingBom(targetBom, supersedingBom);
     if (bomValidation) return { ok: false, error: 'supersession_invalid', message: bomValidation };
 
+    const productId = supersedingBom.product_id;
+    if (!productId) {
+      return {
+        ok: false,
+        error: 'supersession_invalid',
+        message: 'superseding BOM pair must reference a product; product-less BOMs cannot be closed through ECO',
+      };
+    }
+
     if (supersedingBom.status === 'technical_approved') {
       // publishBomVersion defaults to conflict on already-active; ECO close skips publish
       // when the linked superseding BOM is already active (idempotent path below).
       const publish = await publishBomVersion(ctx, {
         bomHeaderId: supersedingBom.id,
-        productId: supersedingBom.product_id!,
+        productId,
         version: Number(supersedingBom.version),
       });
       if (!publish.ok) {
@@ -205,7 +241,7 @@ export async function applyEcoOnClose(ctx: OrgActionContext, changeOrderId: stri
         applied: true,
         bomPublished: {
           bomHeaderId: supersedingBom.id,
-          productId: supersedingBom.product_id!,
+          productId,
           version: Number(supersedingBom.version),
         },
       },
@@ -223,7 +259,7 @@ export async function applyEcoOnClose(ctx: OrgActionContext, changeOrderId: stri
 
     const [targetSpec, supersedingSpec] = await Promise.all([
       loadFactorySpec(ctx.client, eco.target_factory_spec_id),
-      loadFactorySpec(ctx.client, supersedingFactorySpecId),
+      loadFactorySpecForUpdate(ctx.client, supersedingFactorySpecId),
     ]);
     if (!targetSpec || !supersedingSpec) {
       return { ok: false, error: 'supersession_invalid', message: 'linked factory spec not found' };

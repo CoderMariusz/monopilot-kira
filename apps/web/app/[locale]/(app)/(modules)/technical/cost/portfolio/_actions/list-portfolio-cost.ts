@@ -19,7 +19,7 @@ type PortfolioCostResult = {
   fg_code: string;
   fg_name: string;
   /** null when component currencies differ (no invalid cross-currency sum). */
-  total_recipe_cost: number | null;
+  total_recipe_cost: string | null;
   currency: string;
 };
 
@@ -61,7 +61,7 @@ export async function listPortfolioCost(): Promise<PortfolioCostResult[]> {
         total_recipe_cost:
           row.total_recipe_cost == null || row.currency === MIXED_CURRENCY_ROLLUP_MARKER
             ? null
-            : Number(row.total_recipe_cost),
+            : row.total_recipe_cost,
         currency: row.currency,
       }));
     });

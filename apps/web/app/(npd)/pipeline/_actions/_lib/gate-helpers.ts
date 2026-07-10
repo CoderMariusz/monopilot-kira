@@ -187,8 +187,8 @@ export class GateActionError extends Error {
 
 // ─── Gate-space navigation primitives (legacy) ───
 // The advance engine is now STAGE-native (nextStage / assertAdjacentStage above).
-// These gate primitives remain for revert-gate.ts, which still reasons in gate space
-// (admin rollback to an earlier gate), and as the documented gate adjacency rule.
+// Gate primitives remain for revert-npd-gate.ts, which reasons in gate space
+// (admin rollback to the previous gate), and as the documented gate adjacency rule.
 export function nextGate(gate: ProjectGate): ProjectGate | null {
   const index = GATES.indexOf(gate);
   if (index < 0 || index >= GATES.length - 1) return null;
@@ -414,7 +414,7 @@ export async function updateProjectStage(
 }
 
 /**
- * Legacy gate-only setter (kept for revert-gate / approve-gate which still reason in
+ * Legacy gate-only setter (kept for revert-npd-gate / approve-gate which still reason in
  * gate space). It derives a representative stage for the target gate so current_stage
  * never drifts. For G3 (4 stages) it lands on the FIRST G3 stage (packaging); for a
  * downward gate revert this is the safe, earliest stage of that gate.

@@ -104,7 +104,7 @@ packaging · costing · **gate** · **approval** · **handoff**.
   `apps/web/app/(npd)/pipeline/_actions/approve-project-gate.ts`
   - Gated on `npd.gate.approve`; writes a gate-approval row, CFR-21 e-sign
     (`npd.gate.approved|rejected`), emits the `GATE_APPROVED_EVENT`.
-  - `revert-gate.ts` reverses a gate decision.
+  - `revert-npd-gate.ts` reverts one adjacent gate via PIN-gated e-sign.
 
 ### Release to factory (the acceptance moment)
 

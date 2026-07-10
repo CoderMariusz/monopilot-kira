@@ -55,6 +55,10 @@ let remainingShipmentCount = 0;
 let bolUpdate: Record<string, unknown> | null = null;
 let podUpdate: Record<string, unknown> | null = null;
 let podAuditEvent: Record<string, unknown> | null = null;
+let bolAuditEvent: Record<string, unknown> | null = null;
+let shipmentCarrier: string | null = null;
+let shipmentServiceLevel: string | null = null;
+let shipmentTrackingNumber: string | null = null;
 let soLineAllocationDecrements: Array<{ line_id: string; qty: string }> = [];
 let outboxEvents: Array<{
   aggregateId: string;
@@ -159,12 +163,25 @@ function makeClient(): QueryClient {
             {
               id: SHIPMENT_ID,
               status: shipmentStatus,
+              carrier: shipmentCarrier,
+              service_level: shipmentServiceLevel,
+              tracking_number: shipmentTrackingNumber,
               sales_order_id: SO_ID,
               box_count: boxCount,
             },
           ],
           rowCount: 1,
         };
+      }
+
+      if (q.startsWith('insert into public.audit_events') && q.includes('shipping.bol.carrier_updated')) {
+        bolAuditEvent = {
+          action: 'shipping.bol.carrier_updated',
+          resource_id: params[1],
+          before_state: JSON.parse(String(params[2])),
+          after_state: JSON.parse(String(params[3])),
+        };
+        return { rows: [{ id: 42 }], rowCount: 1 };
       }
 
       // recordPod's status pre-check — select id/status/(sales_order_id)/bol_signed_pdf_url.
@@ -304,16 +321,24 @@ function makeClient(): QueryClient {
         return { rows: [{ remaining_count: remainingShipmentCount }], rowCount: 1 };
       }
 
-      if (q.startsWith('update public.shipments') && q.includes('bol_pdf_url')) {
+      if (q.startsWith('update public.shipments') && q.includes('bol_payload')) {
+        const expectedStatus = String(params[7] ?? '');
+        if (expectedStatus && expectedStatus !== shipmentStatus) {
+          return { rows: [], rowCount: 0 };
+        }
         bolUpdate = {
           shipment_id: params[0],
           carrier: params[1],
           service_level: params[2],
           tracking_number: params[3],
-          bol_pdf_url: params[4],
+          bol_payload: params[4],
           ext_data: JSON.parse(params[5] as string) as Record<string, unknown>,
           updated_by: params[6],
+          locked_status: params[7],
         };
+        shipmentCarrier = params[1] == null ? null : String(params[1]);
+        shipmentServiceLevel = params[2] == null ? null : String(params[2]);
+        shipmentTrackingNumber = params[3] == null ? null : String(params[3]);
         return { rows: [{ id: params[0] }], rowCount: 1 };
       }
 
@@ -365,6 +390,10 @@ beforeEach(() => {
   bolUpdate = null;
   podUpdate = null;
   podAuditEvent = null;
+  bolAuditEvent = null;
+  shipmentCarrier = null;
+  shipmentServiceLevel = null;
+  shipmentTrackingNumber = null;
   vi.mocked(signEvent).mockReset();
   vi.mocked(signEvent).mockResolvedValue({ signatureId: SIGNATURE_ID });
   soLineAllocationDecrements = [];
@@ -576,7 +605,7 @@ describe('sealShipment', () => {
 });
 
 describe('generateBol', () => {
-  it('stores the BOL JSON text and SHA-256 hash in shipment ext_data', async () => {
+  it('stores the BOL payload in bol_payload and SHA-256 hash in shipment ext_data', async () => {
     const result = await generateBol({
       shipmentId: SHIPMENT_ID,
       carrier: 'DHL',
@@ -586,8 +615,8 @@ describe('generateBol', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const storedBol = JSON.parse(String(bolUpdate?.bol_pdf_url)) as Record<string, unknown>;
-    const expectedHash = createHash('sha256').update(String(bolUpdate?.bol_pdf_url)).digest('hex');
+    const storedBol = JSON.parse(String(bolUpdate?.bol_payload)) as Record<string, unknown>;
+    const expectedHash = createHash('sha256').update(String(bolUpdate?.bol_payload)).digest('hex');
     expect(result.bolRef).toBe(expectedHash);
     expect(bolUpdate).toMatchObject({
       shipment_id: SHIPMENT_ID,
@@ -609,7 +638,44 @@ describe('generateBol', () => {
         { lpId: LP_2, lpNumber: 'LP-0002' },
       ],
     });
-    expect(String(bolUpdate?.bol_pdf_url)).not.toMatch(/^data:/);
+    expect(bolUpdate?.bol_pdf_url).toBeUndefined();
+  });
+
+  it('requires ship.bol.sign and audits carrier changes on shipped shipments', async () => {
+    shipmentStatus = 'shipped';
+    shipmentCarrier = 'Old Carrier';
+    shipmentTrackingNumber = 'OLD-1';
+    grantedPermissions = new Set(['ship.ship.confirm']);
+
+    const forbidden = await generateBol({
+      shipmentId: SHIPMENT_ID,
+      carrier: 'New Carrier',
+      trackingNumber: 'NEW-1',
+    });
+    expect(forbidden).toEqual({ ok: false, error: 'forbidden' });
+    expect(bolUpdate).toBeNull();
+    expect(bolAuditEvent).toBeNull();
+
+    grantedPermissions = new Set(['ship.ship.confirm', 'ship.bol.sign']);
+    const result = await generateBol({
+      shipmentId: SHIPMENT_ID,
+      carrier: 'New Carrier',
+      trackingNumber: 'NEW-1',
+    });
+    expect(result.ok).toBe(true);
+    expect(bolAuditEvent).toMatchObject({
+      action: 'shipping.bol.carrier_updated',
+      before_state: {
+        carrier: 'Old Carrier',
+        service_level: null,
+        tracking_number: 'OLD-1',
+      },
+      after_state: {
+        carrier: 'New Carrier',
+        service_level: null,
+        tracking_number: 'NEW-1',
+      },
+    });
   });
 
   it('rejects BOL generation for cancelled shipments', async () => {
@@ -629,6 +695,34 @@ describe('generateBol', () => {
 
     expect(result).toEqual({ ok: false, error: 'no_boxes' });
     expect(bolUpdate).toBeNull();
+  });
+
+  it('locks the shipment with FOR UPDATE before mutating BOL fields (N-68)', async () => {
+    await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+
+    const lockQuery = queryLog.find(
+      ({ sql }) => normalize(sql).includes('from public.shipments') && normalize(sql).includes('for update of sh'),
+    );
+    const updateQuery = queryLog.find(({ sql }) => normalize(sql).includes('bol_payload'));
+    expect(lockQuery).toBeDefined();
+    expect(updateQuery?.sql).toContain("and status = $8::text");
+    expect(bolUpdate?.locked_status).toBe('packed');
+  });
+
+  it('returns not_found when the locked status no longer matches at update time', async () => {
+    shipmentStatus = 'packed';
+    const originalQuery = client.query.bind(client);
+    client.query = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+      const q = normalize(sql);
+      if (q.startsWith('update public.shipments') && q.includes('bol_payload')) {
+        return { rows: [], rowCount: 0 };
+      }
+      return originalQuery(sql, params);
+    }) as typeof client.query;
+
+    const result = await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+    expect(result).toEqual({ ok: false, error: 'not_found' });
+    expect(bolAuditEvent).toBeNull();
   });
 });
 

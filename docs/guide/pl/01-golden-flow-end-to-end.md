@@ -123,7 +123,7 @@ opakowania · koszty · **brama** · **zatwierdzenie** · **przekazanie**.
   `apps/web/app/(npd)/pipeline/_actions/approve-project-gate.ts`
   - Wymaga uprawnień `npd.gate.approve`; zapisuje wiersz zatwierdzenia bramy, podpis
     elektroniczny CFR-21 (`npd.gate.approved|rejected`), emituje `GATE_APPROVED_EVENT`.
-  - `revert-gate.ts` cofa decyzję na bramie.
+  - `revert-npd-gate.ts` cofa jeden sąsiedni gate przez podpis PIN.
 
 ### Zwolnienie do fabryki (moment akceptacji)
 
