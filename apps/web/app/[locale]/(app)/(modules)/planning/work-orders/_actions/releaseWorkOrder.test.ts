@@ -57,6 +57,24 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('select status from public.work_orders')) {
         return { rows: currentStatus ? [{ status: currentStatus }] : [], rowCount: currentStatus ? 1 : 0 };
       }
+      if (
+        normalized.startsWith('select') &&
+        normalized.includes('coalesce(wo.active_factory_spec_id') &&
+        !normalized.startsWith('update public.work_orders')
+      ) {
+        return {
+          rows: [
+            {
+              active_bom_header_id: healedBomId,
+              active_factory_spec_id: healedSpecId,
+              output_uom: outputUom,
+              net_qty_per_each: netQtyPerEach,
+              each_per_box: eachPerBox,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
       if (normalized.startsWith('update public.work_orders') && normalized.includes('returning active_bom_header_id')) {
         return {
           rows: [
@@ -180,6 +198,20 @@ describe('releaseWorkOrder', () => {
     const result = await releaseWorkOrder({ id: WO_ID });
 
     expect(result).toEqual({ ok: false, error: 'pack_hierarchy_incomplete' });
+  });
+
+  it('leaves the WO row unchanged when a release gate refuses (no heal UPDATE)', async () => {
+    healedBomId = null;
+    healedSpecId = '99999999-9999-4999-8999-999999999999';
+
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'factory_release_incomplete',
+      missing: ['active_bom'],
+    });
+    expect(sqlCalls().some((sql) => sql.startsWith('update public.work_orders'))).toBe(false);
   });
 
   it('NEVER blocks a base (bulk) FG even with no pack factors', async () => {

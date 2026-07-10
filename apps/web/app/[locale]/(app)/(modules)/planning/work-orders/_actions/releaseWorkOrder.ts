@@ -25,9 +25,61 @@ type DraftWorkOrderDeleteRow = Pick<WorkOrderRow, 'id' | 'wo_number' | 'status' 
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const RELEASE_PREFLIGHT_SQL = `select
+    coalesce(wo.active_factory_spec_id, (
+      select fs.id
+        from public.factory_specs fs
+       where fs.org_id = app.current_org_id()
+         and fs.fg_item_id = wo.product_id
+         and fs.status in ('approved_for_factory', 'released_to_factory')
+       order by fs.version desc
+       limit 1
+    )) as active_factory_spec_id,
+    coalesce(wo.active_bom_header_id, (
+      select bh.id
+        from public.bom_headers bh
+       where bh.org_id = app.current_org_id()
+         and bh.item_id = wo.product_id
+         and bh.status = 'active'
+       order by bh.version desc
+       limit 1
+    )) as active_bom_header_id,
+    (select i.output_uom from public.items i
+      where i.id = wo.product_id and i.org_id = app.current_org_id()) as output_uom,
+    (select i.net_qty_per_each::text from public.items i
+      where i.id = wo.product_id and i.org_id = app.current_org_id()) as net_qty_per_each,
+    (select i.each_per_box::text from public.items i
+      where i.id = wo.product_id and i.org_id = app.current_org_id()) as each_per_box
+  from public.work_orders wo
+ where wo.org_id = app.current_org_id()
+   and wo.id = $1::uuid
+   and wo.status = 'DRAFT'`;
+
 function revalidateWorkOrderDeletePaths(id: string): void {
   revalidateLocalized('/planning/work-orders');
   revalidateLocalized(`/planning/work-orders/${id}`);
+}
+
+function evaluateReleasePreflight(preflight: ReleasePreflightRow): ReleaseWorkOrderResult | null {
+  if (preflight.output_uom === 'each' || preflight.output_uom === 'box') {
+    const snap = snapshotFromItemRow({
+      output_uom: preflight.output_uom,
+      net_qty_per_each: preflight.net_qty_per_each,
+      each_per_box: preflight.each_per_box,
+    });
+    if (!packHierarchyComplete(snap)) {
+      return { ok: false, error: 'pack_hierarchy_incomplete' };
+    }
+  }
+
+  const missing: Array<'active_bom' | 'factory_spec'> = [];
+  if (!preflight.active_bom_header_id) missing.push('active_bom');
+  if (!preflight.active_factory_spec_id) missing.push('factory_spec');
+  if (missing.length > 0) {
+    return { ok: false, error: 'factory_release_incomplete', missing };
+  }
+
+  return null;
 }
 
 export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseWorkOrderResult> {
@@ -48,6 +100,13 @@ export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseW
       const status = current.rows[0]?.status;
       if (!status) return { ok: false, error: 'not_found' };
       if (status !== 'DRAFT') return { ok: false, error: 'invalid_state' };
+
+      const preflightResult = await ctx.client.query<ReleasePreflightRow>(RELEASE_PREFLIGHT_SQL, [params.id]);
+      const preflight = preflightResult.rows[0];
+      if (!preflight) return { ok: false, error: 'invalid_state' };
+
+      const gateFailure = evaluateReleasePreflight(preflight);
+      if (gateFailure) return gateFailure;
 
       const healed = await ctx.client.query<ReleasePreflightRow>(
         `update public.work_orders wo
@@ -96,30 +155,7 @@ export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseW
                       where i.id = wo.product_id and i.org_id = app.current_org_id()) as each_per_box`,
         [params.id, ctx.userId],
       );
-      const preflight = healed.rows[0];
-      if (!preflight) return { ok: false, error: 'invalid_state' };
-
-      // O-2 pack-hierarchy gate — a FG packed in each/box must carry the factors
-      // needed to convert that pack unit to base, or output/consume conversion
-      // fails later at production time. Bulk FG (output_uom='base') is legitimate
-      // and is NEVER blocked here.
-      if (preflight.output_uom === 'each' || preflight.output_uom === 'box') {
-        const snap = snapshotFromItemRow({
-          output_uom: preflight.output_uom,
-          net_qty_per_each: preflight.net_qty_per_each,
-          each_per_box: preflight.each_per_box,
-        });
-        if (!packHierarchyComplete(snap)) {
-          return { ok: false, error: 'pack_hierarchy_incomplete' };
-        }
-      }
-
-      const missing: Array<'active_bom' | 'factory_spec'> = [];
-      if (!preflight.active_bom_header_id) missing.push('active_bom');
-      if (!preflight.active_factory_spec_id) missing.push('factory_spec');
-      if (missing.length > 0) {
-        return { ok: false, error: 'factory_release_incomplete', missing };
-      }
+      if (!healed.rows[0]) return { ok: false, error: 'invalid_state' };
 
       const updated = await ctx.client.query<WorkOrderRow>(
         `update public.work_orders wo
