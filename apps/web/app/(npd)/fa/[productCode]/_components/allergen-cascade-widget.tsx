@@ -25,7 +25,7 @@
  *   - SVG cascade diagram + 30s polling                 → deferred (BL-NPD-05; out_of_scope: no SVG animation).
  *
  * RBAC: `canWrite` is resolved server-side (page) and never trusted from the client —
- * the Refresh + per-allergen Override controls are omitted when false (no render-then-disable).
+ * Refresh is omitted when false; Override renders disabled with a reason (never silent).
  */
 
 import React from 'react';
@@ -94,6 +94,8 @@ export type AllergenCascadeLabels = AllergenOverrideLabels & {
   sourceRm: string;
   sourceProcess: string;
   sourceOverride: string;
+  /** Shown when canWrite but the override Server Action was not injected across the RSC boundary. */
+  overrideUnavailable?: string;
   // Declaration accept control (FG-final sign-off — satisfies approval criterion C5).
   declarationTitle: string;
   declarationDescription: string;
@@ -661,7 +663,26 @@ export function AllergenCascadeWidget({
                     >
                       {labels.override}
                     </button>
-                  ) : null}
+                  ) : canWrite ? (
+                    <span
+                      data-testid={`allergen-override-unavailable-${code}`}
+                      className="text-xs text-slate-400"
+                      title={labels.overrideUnavailable ?? labels.forbidden}
+                    >
+                      {labels.overrideUnavailable ?? labels.forbidden}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      data-testid={`allergen-override-disabled-${code}`}
+                      aria-label={`${labels.override} ${displayName(code)} — ${labels.forbidden}`}
+                      title={labels.forbidden}
+                      className="cursor-not-allowed text-xs text-slate-400"
+                    >
+                      {labels.override}
+                    </button>
+                  )}
                 </li>
               );
             })}

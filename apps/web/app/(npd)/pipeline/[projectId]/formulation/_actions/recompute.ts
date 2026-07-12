@@ -78,12 +78,20 @@ const PG_UNDEFINED_TABLE = '42P01';
  * exact (never a binary float). Returns an empty map (graceful degradation)
  * when the canonical table has not yet been provisioned.
  */
+type RmNutritionLoadResult = {
+  nutritionByRm: Map<string, Record<string, string>>;
+  /** False only when Reference.RawMaterials is missing (42P01) — not when the query returns zero rows. */
+  sourceAvailable: boolean;
+};
+
 async function loadRmNutrition(
   client: { query: (sql: string, params?: unknown[]) => Promise<{ rows: RawMaterialNutritionRow[] }> },
   rmCodes: string[],
-): Promise<Map<string, Record<string, string>>> {
-  const out = new Map<string, Record<string, string>>();
-  if (rmCodes.length === 0) return out;
+): Promise<RmNutritionLoadResult> {
+  const nutritionByRm = new Map<string, Record<string, string>>();
+  if (rmCodes.length === 0) {
+    return { nutritionByRm, sourceAvailable: true };
+  }
   const uniqueCodes = [...new Set(rmCodes)];
 
   let rows: RawMaterialNutritionRow[];
@@ -102,7 +110,7 @@ async function loadRmNutrition(
       console.warn(
         '[recomputeAndCache] Reference.RawMaterials missing (migration 103 not applied) — nutrition_json will be empty',
       );
-      return out;
+      return { nutritionByRm, sourceAvailable: false };
     }
     throw err;
   }
@@ -116,9 +124,9 @@ async function loadRmNutrition(
       // Coerce to string at the boundary; the pure function keeps it exact.
       perNutrient[nutrient] = String(value);
     }
-    out.set(row.rm_code, perNutrient);
+    nutritionByRm.set(row.rm_code, perNutrient);
   }
-  return out;
+  return { nutritionByRm, sourceAvailable: true };
 }
 
 export async function recomputeAndCache(rawInput: RecomputeInput): Promise<RecomputeResult> {
@@ -178,7 +186,7 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
     );
 
     // ── per-RM nutrition (canonical Reference.RawMaterials.nutrition_per_100g) ─
-    const nutritionByRm = await loadRmNutrition(
+    const { nutritionByRm, sourceAvailable: nutritionSourceAvailable } = await loadRmNutrition(
       client,
       ingRes.rows.map((r) => r.rm_code),
     );
@@ -228,7 +236,12 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
        values ($1::uuid, $2::jsonb, $3::jsonb, $4::jsonb, now())
        on conflict (version_id) do update
          set cost_json = excluded.cost_json,
-             nutrition_json = excluded.nutrition_json,
+             nutrition_json = case
+               when not $5::boolean
+                 and excluded.nutrition_json = '{}'::jsonb
+                 then formulation_calc_cache.nutrition_json
+               else excluded.nutrition_json
+             end,
              allergen_json = excluded.allergen_json,
              computed_at = excluded.computed_at`,
       [
@@ -236,6 +249,7 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
         JSON.stringify(costJson),
         JSON.stringify(result.nutrition),
         JSON.stringify({ allergens: result.allergens }),
+        nutritionSourceAvailable,
       ],
     );
 

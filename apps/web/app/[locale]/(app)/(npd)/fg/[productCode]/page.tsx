@@ -1745,8 +1745,9 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
       dropdowns={dept.dropdowns}
       labels={technicalLabels}
       state="ready"
-      allergenSlot={allergenSlot}
-    />
+    >
+      {allergenSlot}
+    </FaTechnicalTab>
   );
   const procurementNode = (
     <FaProcurementTab

@@ -181,10 +181,10 @@ export async function createWorkOrder(
       if (options?.allowChain) {
         const hasWipLines = await latestActiveBomHasWipLines(ctx, parsed.data.productId, parsed.data.itemCode);
         if (hasWipLines) {
-          return createWorkOrderChainFromPlanning(ctx, params);
+          return createWorkOrderChainFromPlanning(ctx, parsed.data);
         }
       }
-      return createWorkOrderCore(ctx, params);
+      return createWorkOrderCore(ctx, parsed.data);
     });
     if (result.ok) {
       revalidateLocalized('/planning/work-orders');

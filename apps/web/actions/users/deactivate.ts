@@ -107,14 +107,14 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
         return { ok: false, error: 'forbidden' } as const;
       }
 
-      const { rows } = await client.query<{ id: string }>(
+      const { rows } = await client.query<{ id: string; updated_at: string }>(
         `update public.users
             set is_active = false,
                 updated_at = now()
           where id = $1::uuid
             and org_id = $2::uuid
             and is_active = true
-        returning id`,
+        returning id, updated_at::text as updated_at`,
         [targetUserId, orgId],
       );
       if (rows.length === 0) {
@@ -145,6 +145,9 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
         ],
       );
 
+      const deactivatedAt = rows[0]!.updated_at;
+      const dedupKey = `settings.user.deactivated:${targetUserId}:${deactivatedAt}`;
+
       await client.query(
         `insert into public.outbox_events
            (org_id, event_type, aggregate_type, aggregate_id, payload, app_version, dedup_key)
@@ -157,8 +160,9 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
             org_id: orgId,
             target_user_id: targetUserId,
             actor_user_id: userId,
+            deactivated_at: deactivatedAt,
           }),
-          `settings.user.deactivated:${targetUserId}`,
+          dedupKey,
         ],
       );
 

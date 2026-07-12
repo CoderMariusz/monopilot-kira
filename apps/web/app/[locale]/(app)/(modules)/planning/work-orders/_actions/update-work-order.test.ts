@@ -299,6 +299,18 @@ describe('updateWorkOrder', () => {
     expect(params[12]).toBe(false);
   });
 
+  it('persists civil-date UTC midnight on scheduled start edit ($14 flag set)', async () => {
+    const civilMidnight = '2026-07-21T00:00:00.000Z';
+    const result = await updateWorkOrder({ id: WO_ID, scheduledStartTime: civilMidnight });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.workOrder.scheduledStartTime).toBe(civilMidnight);
+    const params = updateWorkOrderCall();
+    expect(params[3]).toBe(civilMidnight);
+    expect(params[13]).toBe(true);
+  });
+
   it('clears scheduled start time when null is explicitly present', async () => {
     currentScheduledStartTime = '2026-06-20T08:00:00.000Z';
 

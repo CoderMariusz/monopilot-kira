@@ -14,8 +14,7 @@
  *  - Manual-override marker on FA-final Contains badges (border-amber parity).
  *  - The five required UI states (loading / empty / ready / error / permission_denied).
  *  - i18n: the component renders LABELS (message values), never inline English literals.
- *  - RBAC: the per-allergen Override control + Refresh are omitted when canWrite=false
- *    (server-resolved gate; never render-then-disable).
+ *  - RBAC: Refresh is omitted when canWrite=false; Override renders disabled with reason.
  *  - Refresh button invokes the (debounced) refresh action exactly once per click burst.
  */
 
@@ -165,12 +164,15 @@ describe('AllergenCascadeWidget — parity + states', () => {
     expect(gluten).toHaveAttribute('data-manual', 'false');
   });
 
-  it('omits Override + Refresh controls when canWrite=false (RBAC gate)', () => {
+  it('shows disabled Override affordance with forbidden reason when canWrite=false (RBAC gate)', () => {
     render(
       <AllergenCascadeWidget data={DATA} labels={LABELS} canWrite={false} state="ready" refreshAction={vi.fn()} />,
     );
     expect(screen.queryByRole('button', { name: LABELS.refresh })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: new RegExp(LABELS.override) })).not.toBeInTheDocument();
+    const disabled = screen.getByTestId('allergen-override-disabled-gluten');
+    expect(disabled).toBeDisabled();
+    expect(disabled).toHaveAttribute('title', LABELS.forbidden);
+    expect(screen.queryByTestId('allergen-override-trigger-gluten')).not.toBeInTheDocument();
   });
 
   it('renders all five required UI states', () => {
@@ -209,7 +211,7 @@ describe('AllergenCascadeWidget — parity + states', () => {
   });
 });
 
-describe('AllergenCascadeWidget — override action (B2d)', () => {
+describe('AllergenCascadeWidget — override action (B2d / C1d)', () => {
   it('opens the override modal and calls setAllergenOverride on save', async () => {
     const setAllergenOverrideAction = vi.fn().mockResolvedValue({ ok: true });
     render(
@@ -237,6 +239,20 @@ describe('AllergenCascadeWidget — override action (B2d)', () => {
       'remove',
       'QA reviewed supplier dossier for gluten override',
     );
+  });
+
+  it('shows override-unavailable instead of a dead Override button when action is missing', () => {
+    render(
+      <AllergenCascadeWidget
+        data={DATA}
+        labels={{ ...LABELS, overrideUnavailable: 'Override unavailable' }}
+        canWrite
+        state="ready"
+        refreshAction={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('allergen-override-trigger-gluten')).not.toBeInTheDocument();
+    expect(screen.getByTestId('allergen-override-unavailable-gluten')).toHaveTextContent('Override unavailable');
   });
 });
 

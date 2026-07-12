@@ -62,6 +62,7 @@ const ALLERGEN_LABELS: AllergenCascadeLabels = {
   refresh: 'a.refresh',
   refreshing: 'a.refreshing',
   override: 'a.override',
+  overrideUnavailable: 'a.overrideUnavailable',
   sectionDerived: 'a.sectionDerived',
   sectionDerivedSource: 'a.sectionDerivedSource',
   sectionDeltas: 'a.sectionDeltas',
@@ -151,7 +152,7 @@ describe('FaTechnicalTab allergen slot — reachability wiring', () => {
     expect(within(widget).getByTestId('allergen-may-contain-nuts')).toBeInTheDocument();
   });
 
-  it('exposes Refresh + the per-allergen Override entry point when canWrite', () => {
+  it('exposes Refresh and Override when canWrite and the override action is wired', () => {
     renderTab(
       <AllergenCascadeWidget
         data={DATA}
@@ -159,10 +160,25 @@ describe('FaTechnicalTab allergen slot — reachability wiring', () => {
         canWrite
         state="ready"
         refreshAction={vi.fn()}
+        setAllergenOverrideAction={vi.fn().mockResolvedValue({ ok: true })}
       />,
     );
     expect(screen.getByRole('button', { name: ALLERGEN_LABELS.refresh })).toBeInTheDocument();
     expect(screen.getByTestId('allergen-override-trigger-gluten')).toBeInTheDocument();
+  });
+
+  it('shows override-unavailable (not a silent no-op) when canWrite but action is missing', () => {
+    renderTab(
+      <AllergenCascadeWidget
+        data={DATA}
+        labels={{ ...ALLERGEN_LABELS, overrideUnavailable: 'Override unavailable' }}
+        canWrite
+        state="ready"
+        refreshAction={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('allergen-override-trigger-gluten')).not.toBeInTheDocument();
+    expect(screen.getByTestId('allergen-override-unavailable-gluten')).toHaveTextContent('Override unavailable');
   });
 
   it('invokes the reused refresh action (debounced) from inside the slot', async () => {
