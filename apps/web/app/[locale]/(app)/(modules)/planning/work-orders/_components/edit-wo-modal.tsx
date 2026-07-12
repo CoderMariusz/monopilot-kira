@@ -40,6 +40,7 @@ import {
   type OutputUom,
   type UomSnapshot,
 } from '../../../../../../../lib/uom/convert';
+import { civilDateToUtcIso, utcIsoToCivilDate } from '../../../../../../../lib/planning/civil-date';
 import type { FgProductOption, ProductionResources, SearchFgProductsInput } from '../_actions/wo-form-data';
 
 type PickedProduct = {
@@ -87,6 +88,7 @@ export type EditWoLabels = {
     forbidden: string;
     not_found: string;
     invalid_state: string;
+    chain_child_not_editable?: string;
     uom_conversion_unavailable?: string;
     persistence_failed: string;
   };
@@ -132,7 +134,7 @@ function fmtKg(n: number): string {
 }
 
 function toDateInput(iso: string | null): string {
-  return iso ? iso.slice(0, 10) : '';
+  return utcIsoToCivilDate(iso);
 }
 
 export function EditWoModal({
@@ -286,7 +288,7 @@ export function EditWoModal({
         scheduledStartTime:
           scheduledStart !== toDateInput(initial.scheduledStartTime)
             ? scheduledStart
-              ? new Date(scheduledStart + 'T00:00:00').toISOString()
+              ? civilDateToUtcIso(scheduledStart)
               : null
             : undefined,
         productionLineId:

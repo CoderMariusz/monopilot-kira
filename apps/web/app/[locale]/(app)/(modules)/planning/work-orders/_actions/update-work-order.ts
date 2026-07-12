@@ -4,6 +4,15 @@ import { z } from 'zod';
 
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 import { fetchActiveProductionLineSite, productionLineMatchesWoSite } from '../../../../../../../lib/planning/production-line-site';
+import {
+  ChainQtySyncRollbackError,
+  loadAndLockParentChainEdges,
+  preflightParentChainEdges,
+  propagateParentWoChainQuantities,
+  reconcileQtyEnteredOnBaseEdit,
+  snapshotFromItemSnapshotRow,
+  type ChainEdgeSnapshot,
+} from '../../../../../../../lib/planning/wo-chain-qty-sync';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
 import { fetchEligibleFactorySpecUnderBindLock } from '../../../../../../../lib/technical/factory-spec-bind-lock';
 import { snapshotFromItemRow } from '../../../../../../../lib/uom/convert';
@@ -31,6 +40,8 @@ type WorkOrderForUpdateRow = {
   scheduled_start_time: string | Date | null;
   production_line_id: string | null;
   notes: string | null;
+  qty_entered: string | null;
+  qty_entered_uom: string | null;
 };
 
 type ItemSnapshotRow = {
@@ -64,7 +75,8 @@ const UpdateWorkOrderInput = z.object({
 async function fetchWorkOrderForUpdate(ctx: OrgActionContext, id: string): Promise<WorkOrderForUpdateRow | null> {
   const { rows } = await ctx.client.query<WorkOrderForUpdateRow>(
     `select id, status, site_id::text as site_id, product_id, planned_quantity::text as planned_quantity,
-            scheduled_start_time, production_line_id, ext_jsonb->>'notes' as notes
+            scheduled_start_time, production_line_id, ext_jsonb->>'notes' as notes,
+            qty_entered::text as qty_entered, qty_entered_uom
        from public.work_orders
       where org_id = app.current_org_id()
         and id = $1::uuid
@@ -262,6 +274,34 @@ export async function updateWorkOrder(params: {
           }
         : null;
 
+      let chainEdges: ChainEdgeSnapshot[] = [];
+      if (input.plannedQuantity !== undefined) {
+        chainEdges = await loadAndLockParentChainEdges(ctx, input.id);
+        await preflightParentChainEdges(ctx, chainEdges);
+      }
+
+      const productChanged = input.productId !== undefined;
+      let qtyEnteredWrite = false;
+      let nextQtyEntered: string | null = current.qty_entered;
+      let nextQtyEnteredUom: string | null = current.qty_entered_uom;
+      if (input.plannedQuantity !== undefined) {
+        if (productChanged) {
+          qtyEnteredWrite = true;
+          nextQtyEntered = null;
+          nextQtyEnteredUom = null;
+        } else if (item) {
+          const reconciled = reconcileQtyEnteredOnBaseEdit({
+            nextPlannedBaseQty: nextPlannedQuantity,
+            qtyEntered: current.qty_entered,
+            qtyEnteredUom: current.qty_entered_uom,
+            snapshot: snapshotFromItemSnapshotRow(item),
+          });
+          qtyEnteredWrite = true;
+          nextQtyEntered = reconciled.qtyEntered;
+          nextQtyEnteredUom = reconciled.qtyEnteredUom;
+        }
+      }
+
       const updated = await ctx.client.query<WorkOrderRow>(
         `update public.work_orders wo
             set product_id = $2::uuid,
@@ -272,6 +312,14 @@ export async function updateWorkOrder(params: {
                 scheduled_start_time = case when $14::boolean then $4::timestamptz else wo.scheduled_start_time end,
                 production_line_id = case when $15::boolean then $5::uuid else wo.production_line_id end,
                 uom_snapshot = case when $8::boolean then $12::jsonb else wo.uom_snapshot end,
+                qty_entered = case
+                  when $16::boolean then $17::numeric
+                  else wo.qty_entered
+                end,
+                qty_entered_uom = case
+                  when $16::boolean then $18::text
+                  else wo.qty_entered_uom
+                end,
                 ext_jsonb = case
                   -- clear: drop the key. jsonb_set(target,path,NULL) returns NULL
                   -- for the WHOLE jsonb, which violates ext_jsonb NOT NULL — so a
@@ -307,7 +355,10 @@ export async function updateWorkOrder(params: {
           dbUomSnapshot ? JSON.stringify(dbUomSnapshot) : null,                              // $12
           input.notes !== undefined,                                                         // $13
           input.scheduledStartTime !== undefined,                                            // $14
-          input.productionLineId !== undefined,                                              // $15 — explicit set/clear flag
+          input.productionLineId !== undefined,                                              // $15
+          qtyEnteredWrite,                                                                   // $16
+          nextQtyEntered,                                                                    // $17
+          nextQtyEnteredUom,                                                                 // $18
         ],
       );
       const workOrder = updated.rows[0];
@@ -333,6 +384,10 @@ export async function updateWorkOrder(params: {
           item,
         });
         if (resnapshotResult) return resnapshotResult;
+      }
+
+      if (input.plannedQuantity !== undefined) {
+        await propagateParentWoChainQuantities(ctx, input.id, ctx.userId, chainEdges);
       }
 
       await ctx.client.query(
@@ -362,6 +417,9 @@ export async function updateWorkOrder(params: {
     }
     return result;
   } catch (error) {
+    if (error instanceof ChainQtySyncRollbackError) {
+      return { ok: false, error: error.code };
+    }
     console.error('[updateWorkOrder] persistence_failed', error);
     return { ok: false, error: 'persistence_failed' };
   }

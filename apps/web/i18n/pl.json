@@ -8313,7 +8313,8 @@
         "collapse": "Ukryj",
         "columns": {
           "run": "Uruchomienie",
-          "date": "Data",
+          "runDate": "Data uruchomienia",
+          "horizon": "Początek horyzontu",
           "items": "Pozycje",
           "exceptions": "Braki",
           "status": "Status"

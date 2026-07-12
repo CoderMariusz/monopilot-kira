@@ -44,6 +44,7 @@ import { createHash } from 'node:crypto';
 
 import { toMicro } from '../../../../../../lib/shared/decimal';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import { debitWac } from '../../../../../../lib/finance/upsert-wac';
 import {
   isNilOrZeroLpId,
@@ -364,7 +365,7 @@ export async function recordDesktopConsumption(
   }
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<ConsumeActionResult<RecordDesktopConsumptionData>> => {
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<ConsumeActionResult<RecordDesktopConsumptionData>> => {
       const ctx: ProductionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasPermission(ctx, CONSUMPTION_WRITE_PERMISSION))) {
         return { ok: false, reason: 'forbidden' };
@@ -728,6 +729,12 @@ export async function recordDesktopConsumption(
         },
       };
     });
+
+    if (result.ok && !result.data.replay) {
+      revalidateLocalized('/production', 'page');
+      revalidateLocalized(`/production/wos/${woId}`, 'page');
+    }
+    return result;
   } catch (error) {
     console.error('[production] recordDesktopConsumption failed', error);
     return { ok: false, reason: 'error' };

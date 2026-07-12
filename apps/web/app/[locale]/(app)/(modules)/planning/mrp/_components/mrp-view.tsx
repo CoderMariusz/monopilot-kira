@@ -88,7 +88,7 @@ export type MrpLabels = {
     error: string;
     expand: string;
     collapse: string;
-    columns: { run: string; date: string; items: string; exceptions: string; status: string };
+    columns: { run: string; runDate: string; horizon: string; items: string; exceptions: string; status: string };
     requirements: {
       item: string;
       gross: string;
@@ -307,12 +307,14 @@ function PreviousRuns({
   listRunsAction,
   getRunRequirementsAction,
   refreshKey,
+  timeFormatter,
 }: {
   labels: MrpLabels;
   listRunsAction: () => Promise<MrpRunsListResult>;
   getRunRequirementsAction: (runId: string) => Promise<MrpRunRequirementsResult>;
   /** Bumped after a persisted run so the list reloads. */
   refreshKey: number;
+  timeFormatter?: (iso: string) => string;
 }) {
   const [runs, setRuns] = useState<MrpRunSummary[] | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'forbidden' | 'error'>('loading');
@@ -358,6 +360,15 @@ function PreviousRuns({
     }
   };
 
+  const formatRunTime = (iso: string): string => {
+    if (timeFormatter) return timeFormatter(iso);
+    try {
+      return new Date(iso).toLocaleString();
+    } catch {
+      return iso;
+    }
+  };
+
   // Permission-denied for the list read mirrors the page-level denied state —
   // the section simply hides (the main view already showed the denied note).
   if (state === 'forbidden') return null;
@@ -388,7 +399,8 @@ function PreviousRuns({
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                 <th className="px-3 py-2">{labels.previousRuns.columns.run}</th>
-                <th className="px-3 py-2">{labels.previousRuns.columns.date}</th>
+                <th className="px-3 py-2">{labels.previousRuns.columns.runDate}</th>
+                <th className="px-3 py-2">{labels.previousRuns.columns.horizon}</th>
                 <th className="px-3 py-2 text-right">{labels.previousRuns.columns.items}</th>
                 <th className="px-3 py-2 text-right">{labels.previousRuns.columns.exceptions}</th>
                 <th className="px-3 py-2">{labels.previousRuns.columns.status}</th>
@@ -403,7 +415,12 @@ function PreviousRuns({
                   <React.Fragment key={run.id}>
                     <tr data-testid={`mrp-run-${run.runNumber}`}>
                       <td className="px-3 py-2 font-mono text-xs font-semibold text-slate-800">{run.runNumber}</td>
-                      <td className="px-3 py-2 text-slate-600">{run.horizonStart}</td>
+                      <td className="px-3 py-2 text-slate-600" data-testid={`mrp-run-date-${run.runNumber}`}>
+                        {formatRunTime(run.createdAt)}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600" data-testid={`mrp-run-horizon-${run.runNumber}`}>
+                        {run.horizonStart}
+                      </td>
                       <td className="px-3 py-2 text-right font-mono">{run.requirementCount}</td>
                       <td className="px-3 py-2 text-right">
                         <span className={run.exceptionCount > 0 ? 'badge badge-red' : 'badge badge-green'}>
@@ -426,7 +443,7 @@ function PreviousRuns({
                     </tr>
                     {expanded ? (
                       <tr data-testid={`mrp-run-ledger-${run.runNumber}`}>
-                        <td colSpan={6} className="bg-slate-50 px-3 py-2">
+                        <td colSpan={7} className="bg-slate-50 px-3 py-2">
                           {ledger === 'loading' || ledger === undefined ? (
                             <div className="py-2 text-xs text-slate-500">{labels.previousRuns.loading}</div>
                           ) : ledger === 'error' ? (
@@ -729,6 +746,7 @@ export function MrpView({
         listRunsAction={listRunsAction}
         getRunRequirementsAction={getRunRequirementsAction}
         refreshKey={runsRefreshKey}
+        timeFormatter={timeFormatter}
       />
     </div>
   );

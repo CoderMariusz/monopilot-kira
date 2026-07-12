@@ -43,6 +43,7 @@ import {
   type OutputUom,
   type UomSnapshot,
 } from '../../../../../../../lib/uom/convert';
+import { civilDateToUtcIso } from '../../../../../../../lib/planning/civil-date';
 import type { CreateWorkOrderResult } from '../_actions/shared';
 import type { FgProductOption, ProductionResources, SearchFgProductsInput } from '../_actions/wo-form-data';
 
@@ -303,17 +304,15 @@ export function CreateWoModal({
         plannedQuantity: plannedBase,
         quantityEntered: quantity.trim(),
         quantityEnteredUom: orderUom,
-        // Parse the date-only input as LOCAL midnight (`+ 'T00:00:00'`) before
-        // converting to ISO. `new Date('2026-06-15')` parses as UTC midnight, which
-        // rolls back to the previous calendar day in UTC+ zones — the scheduled day
-        // the user picked must be preserved in their own timezone.
-        scheduledStartTime: scheduledStart ? new Date(scheduledStart + 'T00:00:00').toISOString() : undefined,
+        // Civil date: persist UTC midnight of the picked calendar day (B1b).
+        scheduledStartTime: scheduledStart ? civilDateToUtcIso(scheduledStart) : undefined,
         productionLineId: lineId || undefined,
         notes: notes.trim() || undefined,
       });
 
       if (!result.ok) {
-        setFormError(labels.errors[result.error] ?? labels.errors.persistence_failed);
+        const map = labels.errors as Record<string, string>;
+        setFormError(map[result.error] ?? labels.errors.persistence_failed);
         setPending(false);
         return;
       }

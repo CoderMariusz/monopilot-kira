@@ -37,7 +37,7 @@ const QUICK_ACTIONS: Array<{
   { key: "receive", route: "/warehouse", variant: "secondary" },
   { key: "qualityCheck", route: "/quality", variant: "secondary" },
   { key: "createShipment", route: "/shipping", variant: "secondary" },
-  { key: "runMrp", route: "/scheduler", variant: "secondary", requires: "runMrp" },
+  { key: "runMrp", route: "/planning/mrp", variant: "secondary", requires: "runMrp" },
 ];
 
 /**

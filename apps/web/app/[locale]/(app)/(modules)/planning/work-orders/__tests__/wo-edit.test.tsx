@@ -177,12 +177,20 @@ describe('WO DRAFT edit affordance (Wave R1)', () => {
     fireEvent.click(screen.getByTestId('edit-wo-submit'));
     await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
     const payload = update.mock.calls[0][0];
-    expect(payload).toMatchObject({ id: 'wo-1', plannedQuantity: '300', productionLineId: 'line-1', notes: 'keep cold' });
+    expect(payload).toMatchObject({ id: 'wo-1', plannedQuantity: '300', notes: 'keep cold' });
     expect(payload.productId).toBeUndefined();
-    // Schedule is sent as an ISO datetime (the modal parses the date input at LOCAL
-    // midnight before toISOString — same intentional behaviour as create-wo). The
-    // exact UTC string is timezone-dependent; assert it is a valid ISO instant.
-    expect(payload.scheduledStartTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(payload.productionLineId).toBeUndefined();
+    expect(payload.scheduledStartTime).toBeUndefined();
+  });
+
+  it('B1b: sends civil-date UTC midnight when scheduled start changes', async () => {
+    const { update } = renderDetail();
+    fireEvent.click(screen.getByTestId('wo-edit-order'));
+    await screen.findByTestId('edit-wo-form');
+    fireEvent.change(screen.getByTestId('edit-wo-scheduled-start'), { target: { value: '2026-07-15' } });
+    fireEvent.click(screen.getByTestId('edit-wo-submit'));
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update.mock.calls[0][0].scheduledStartTime).toBe('2026-07-15T00:00:00.000Z');
   });
 
   it('sends productId (re-snapshot) when the product changes', async () => {

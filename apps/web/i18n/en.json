@@ -9285,7 +9285,8 @@
         "collapse": "Hide",
         "columns": {
           "run": "Run",
-          "date": "Date",
+          "runDate": "Run date",
+          "horizon": "Horizon start",
           "items": "Items",
           "exceptions": "Shortages",
           "status": "Status"
