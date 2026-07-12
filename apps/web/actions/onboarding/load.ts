@@ -17,6 +17,15 @@ const STEP_NUMBER_TO_KEY: Record<number, OnboardingStepKey> = {
   6: 'completion',
 };
 
+const ALL_ONBOARDING_STEP_KEYS: OnboardingStepKey[] = [
+  'org_profile',
+  'first_warehouse',
+  'first_location',
+  'first_product',
+  'first_wo',
+  'completion',
+];
+
 export type LoadedOrganization = {
   id: string;
   name: string;
@@ -115,6 +124,8 @@ export async function loadOnboardingContext(): Promise<LoadOnboardingContextResu
       const whRow = whRes.rows[0];
 
       const state = normalizeOnboardingState(orgRow.onboarding_state);
+      const onboardingCompletedAt = toIsoOrNull(orgRow.onboarding_completed_at);
+      const completedSteps = onboardingCompletedAt ? ALL_ONBOARDING_STEP_KEYS : state.completedSteps;
       return {
         ok: true,
         organization: {
@@ -124,14 +135,14 @@ export async function loadOnboardingContext(): Promise<LoadOnboardingContextResu
           locale: orgRow.locale ?? 'pl',
           currency: orgRow.currency ?? 'GBP',
           gs1Prefix: orgRow.gs1_prefix ?? '',
-          onboardingCompletedAt: toIsoOrNull(orgRow.onboarding_completed_at),
+          onboardingCompletedAt,
           onboardingStartedAt: state.startedAt,
         },
         onboardingState: {
-          currentStep: state.currentStep,
-          completedSteps: state.completedSteps,
-          skippedSteps: state.skippedSteps,
-          skippedStepNumbers: state.skippedStepNumbers,
+          currentStep: onboardingCompletedAt ? 'completion' : state.currentStep,
+          completedSteps,
+          skippedSteps: onboardingCompletedAt ? [] : state.skippedSteps,
+          skippedStepNumbers: onboardingCompletedAt ? [] : state.skippedStepNumbers,
           firstWoAt: state.firstWoAt,
           savedAt: state.lastActivityAt ?? '',
         },

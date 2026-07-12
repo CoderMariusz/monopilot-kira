@@ -147,6 +147,17 @@ describe('updateItem status transitions', () => {
     expect(client.calls.some((c) => normalizeSql(c.sql).startsWith('update public.items'))).toBe(true);
   });
 
+  it('allows blocked -> active (reactivate via edit wizard)', async () => {
+    install(makeClient({ beforeStatus: 'blocked' }));
+    const { updateItem } = await import('./update-item');
+
+    const res = await updateItem(updatePayload('active'));
+
+    expect(res).toEqual({ ok: true, data: { id: ITEM_ID } });
+    const updateCall = client.calls.find((c) => normalizeSql(c.sql).startsWith('update public.items'));
+    expect(updateCall?.params[3]).toBe('active');
+  });
+
   it('rejects item_type change on an active FG referenced by a BOM (N-47)', async () => {
     install(makeClient({ beforeStatus: 'active', beforeItemType: 'fg', itemTypeBlock: true }));
     const { updateItem } = await import('./update-item');

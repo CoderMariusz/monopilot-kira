@@ -17,12 +17,15 @@ import {
 
 export type ItemWizardLabels = {
   title: string;
+  editTitle: string;
   subtitle: string;
   cancel: string;
   back: string;
   next: string;
   create: string;
   creating: string;
+  saveChanges: string;
+  saving: string;
   steps: { basic: string; classification: string; weight: string; review: string };
   fields: {
     itemCode: string;
@@ -74,12 +77,13 @@ export type ItemWizardLabels = {
   catchHint: string;
   /** Wizard-only helper shown under the "Intermediate" item type — "= WIP (work in progress)". */
   intermediateHint: string;
-  review: { ready: string; packaging: string };
+  review: { ready: string; readyEdit: string; packaging: string };
   warnings: {
     supplierSpecNotSaved: string;
   };
   errors: {
     codeRequired: string;
+    codeInvalid: string;
     nameRequired: string;
     uomRequired: string;
     netRequired: string;
@@ -93,9 +97,9 @@ export type ItemWizardLabels = {
 /** Pure formatter over the labels DATA — labels cross the RSC server→client
  *  boundary, so the bundle must stay serializable (no function fields). */
 export function formatItemActionError(
-  labels: Pick<ItemWizardLabels, 'actionErrors' | 'actionErrorsGeneric'>,
+  labels: Pick<ItemWizardLabels, 'actionErrors' | 'actionErrorsGeneric' | 'errors'>,
   error: ItemsActionError,
-  ctx?: { itemCode?: string },
+  ctx?: { itemCode?: string; serverMessage?: string },
 ): string {
   if (error === 'already_exists') {
     const code = ctx?.itemCode?.trim();
@@ -104,17 +108,30 @@ export function formatItemActionError(
     }
     return labels.actionErrorsGeneric.already_exists;
   }
+  if (error === 'invalid_input' && ctx?.serverMessage?.trim()) {
+    const message = ctx.serverMessage.trim();
+    if (message.includes('item_code must be alphanumeric')) {
+      return labels.errors.codeInvalid;
+    }
+    if (message === 'invalid_transition') {
+      return labels.actionErrors.invalid_input;
+    }
+    return message;
+  }
   return labels.actionErrors[error];
 }
 
 export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
   title: 'Create item',
+  editTitle: 'Edit item',
   subtitle: 'Universal item master — links to BOM, spec and allergen matrix.',
   cancel: 'Cancel',
   back: 'Back',
   next: 'Next',
   create: 'Create item',
   creating: 'Creating…',
+  saveChanges: 'Save changes',
+  saving: 'Saving…',
   steps: { basic: 'Basic info', classification: 'Classification', weight: 'Weight & shelf life', review: 'Review & create' },
   fields: {
     itemCode: 'Item code',
@@ -180,12 +197,17 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
   packagingHelp: 'How Planning orders WOs and production registers output for this item.',
   catchHint: 'Catch weight requires nominal weight, gross weight max and a variance tolerance.',
   intermediateHint: '= WIP (work in progress)',
-  review: { ready: 'Ready to create. An audit record will be logged.', packaging: 'Pack hierarchy' },
+  review: {
+    ready: 'Ready to create. An audit record will be logged.',
+    readyEdit: 'Ready to save your changes. An audit record will be logged.',
+    packaging: 'Pack hierarchy',
+  },
   warnings: {
     supplierSpecNotSaved: 'Item created but supplier price NOT saved.',
   },
   errors: {
     codeRequired: 'Item code is required (min 1 char).',
+    codeInvalid: 'Item code must be alphanumeric with . _ - separators.',
     nameRequired: 'Name is required (min 1 char).',
     uomRequired: 'Base UoM is required.',
     netRequired: 'Net content per each is required (> 0) for Each / Box output.',
@@ -245,12 +267,15 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
 
   return {
     title: t('create.title'),
+    editTitle: get('edit.title', D.editTitle),
     subtitle: t('create.subtitle'),
     cancel: t('create.cancel'),
     back: t('create.back'),
     next: t('create.next'),
     create: t('create.create'),
     creating: t('create.creating'),
+    saveChanges: get('edit.saveChanges', D.saveChanges),
+    saving: get('edit.saving', D.saving),
     steps: {
       basic: t('create.steps.basic'),
       classification: t('create.steps.classification'),
@@ -323,6 +348,7 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
     intermediateHint: t('create.intermediateHint'),
     review: {
       ready: t('create.review.ready'),
+      readyEdit: get('edit.review.ready', D.review.readyEdit),
       packaging: get('create.review.packaging', D.review.packaging),
     },
     warnings: {
@@ -330,6 +356,7 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
     },
     errors: {
       codeRequired: t('create.errors.codeRequired'),
+      codeInvalid: get('create.errors.codeInvalid', D.errors.codeInvalid),
       nameRequired: t('create.errors.nameRequired'),
       uomRequired: t('create.errors.uomRequired'),
       netRequired: get('create.errors.netRequired', D.errors.netRequired),

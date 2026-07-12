@@ -69,6 +69,21 @@ describe('/settings/onboarding entry-point panel', () => {
     expect(screen.getByTestId('onboarding-progress')).toHaveTextContent('6 / 6');
   });
 
+  it('does not show partial step progress when onboarding_completed_at is set but JSON state is stale', async () => {
+    mocks.loadOnboardingContext.mockResolvedValue({
+      ok: true,
+      organization: { id: 'o1', name: 'Apex', onboardingCompletedAt: '2026-06-02T00:00:00.000Z', onboardingStartedAt: '2026-06-01T00:00:00.000Z' },
+      onboardingState: { currentStep: 'first_product', completedSteps: ['org_profile', 'first_warehouse', 'first_location'], skippedSteps: [], skippedStepNumbers: [], firstWoAt: null, savedAt: '2026-06-01T12:00:00.000Z' },
+      firstWarehouse: null,
+    });
+
+    await renderPage();
+
+    expect(screen.getByTestId('onboarding-status')).toHaveTextContent(/complete/i);
+    expect(screen.getByTestId('onboarding-progress')).toHaveTextContent('6 / 6');
+    expect(screen.getByTestId('onboarding-progress')).not.toHaveTextContent('3 / 6');
+  });
+
   it('does not fabricate state when onboarding context is unavailable', async () => {
     mocks.loadOnboardingContext.mockResolvedValue({ ok: false, error: 'forbidden' });
     const { container } = await renderPage();
