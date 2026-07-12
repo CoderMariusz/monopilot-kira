@@ -148,12 +148,11 @@ export type FaTechnicalTabProps = {
   /** Test/wiring seam: override the write path (defaults to T-009 updateFaCell). */
   onPersistCell?: (productCode: string, columnKey: string, value: unknown) => Promise<unknown>;
   /**
-   * Server-rendered allergen cascade widget (REAL, org-scoped data + RBAC resolved
-   * server-side in the FA-detail loader). When provided it REPLACES the reserved
-   * "Allergens loading…" placeholder, making the built allergen feature reachable
-   * inside the Technical tab. When omitted (e.g. standalone tests) the placeholder
-   * is rendered so the slot is never lost.
+   * Server-rendered allergen cascade (REAL data). Prefer `children` so Server
+   * Actions wired in AllergenCascadeSection survive the client boundary; the
+   * legacy `allergenSlot` prop is kept for tests.
    */
+  children?: React.ReactNode;
   allergenSlot?: React.ReactNode;
 };
 
@@ -369,6 +368,7 @@ export function FaTechnicalTab({
   labels,
   state = 'ready',
   onPersistCell,
+  children,
   allergenSlot,
 }: FaTechnicalTabProps) {
   const ordered = React.useMemo(() => sortColumns(columns), [columns]);
@@ -531,7 +531,7 @@ export function FaTechnicalTab({
           loader injects the server-rendered AllergenCascadeWidget (REAL data +
           server-resolved RBAC) it REPLACES the placeholder, making the built
           allergen feature reachable inside the Technical tab. */}
-      {allergenSlot ?? <TechnicalAllergenSlot labels={labels} />}
+      {children ?? allergenSlot ?? <TechnicalAllergenSlot labels={labels} />}
 
       <span className="sr-only">{productCode}</span>
     </section>

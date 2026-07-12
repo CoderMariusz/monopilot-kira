@@ -81,6 +81,7 @@ const DEFAULT_LABELS: AllergenCascadeLabels = {
   sourceRm: 'Source: raw material / process (auto-derived)',
   sourceProcess: 'Source: precautionary (RM trace / conditional process)',
   sourceOverride: 'Source: manual override (audit-logged)',
+  overrideUnavailable: 'Override unavailable (action not wired)',
   // override modal
   auditWarning:
     'Overriding the auto-cascaded allergen status requires a reason. This override is audit-logged with your name and timestamp, and flagged for review on the next cascade refresh.',
@@ -114,9 +115,9 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof AllergenCascadeLab
 function translateLabel(t: (key: string) => string, key: keyof AllergenCascadeLabels): string {
   try {
     const value = t(key);
-    return value === key ? DEFAULT_LABELS[key] : value;
+    return value === key ? DEFAULT_LABELS[key] ?? key : value;
   } catch {
-    return DEFAULT_LABELS[key];
+    return DEFAULT_LABELS[key] ?? key;
   }
 }
 
