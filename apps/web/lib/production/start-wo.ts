@@ -37,6 +37,10 @@ import {
   hasPermission,
   writeOutbox,
 } from './shared';
+import {
+  assertUpstreamWipReady,
+  upstreamWipNotReadyMessage,
+} from '../planning/upstream-wip-dependency-gate';
 import { applyTransition } from './wo-state-machine';
 
 /** planning output_role → production output_type (canonical 1:1, §9.4). */
@@ -117,6 +121,14 @@ export async function startWo(
     active_factory_spec_id: activeFactorySpecId,
   });
   if (!snapshotBinding.ok) return snapshotBinding;
+
+  const upstreamGate = await assertUpstreamWipReady(client, input.woId, 'start');
+  if (upstreamGate) {
+    return fail('upstream_wip_not_ready', {
+      message: upstreamWipNotReadyMessage(upstreamGate),
+      details: upstreamGate,
+    });
+  }
 
   // (3) Allergen changeover gate — hard-block when this WO's line has an
   // incomplete allergen-relevant changeover. changeover_events has no boolean

@@ -164,6 +164,13 @@ const VERB_TIMESTAMP: Record<WoTransition, string> = {
   cancel: 'cancelled_at',
 };
 
+/** Mirrored timestamp columns on work_orders (migration 176). */
+const WORK_ORDER_VERB_TIMESTAMP: Partial<Record<WoTransition, string>> = {
+  start: 'started_at',
+  pause: 'paused_at',
+  complete: 'completed_at',
+};
+
 export type ApplyTransitionInput = {
   woId: string;
   verb: WoTransition;
@@ -180,12 +187,14 @@ export type ApplyTransitionInput = {
  * Errors (closed set):
  *   not_found                — WO row absent for this org (returned).
  *   invalid_state_transition — verb illegal for the current materialized state (returned).
- *   persistence_failed       — unexpected DB error (returned).
  *   concurrent_modification  — optimistic-lock CAS miss: THROWN as
  *                              WoConcurrentModificationError (NOT returned) so the
  *                              enclosing txn rolls back the already-appended
  *                              wo_events row. Callers that return on `!ok` propagate
  *                              the throw unchanged; the route maps it to 409.
+ *
+ * Post-validation persistence errors THROW (never return persistence_failed) so
+ * withOrgContext rolls back wo_events + wo_executions when work_orders mirroring fails.
  *
  * R14 idempotency: a replay with the same transactionId returns the existing
  * materialized state WITHOUT a second event or version bump.
@@ -268,10 +277,18 @@ export async function applyTransition(
     }
 
     // (4) Mirror canonical state onto work_orders for planning/read-model parity.
+    const woTsCol = WORK_ORDER_VERB_TIMESTAMP[input.verb];
     await client.query(
-      `update public.work_orders
-          set status = $2, updated_by = $3::uuid
-        where org_id = app.current_org_id() and id = $1::uuid`,
+      woTsCol
+        ? `update public.work_orders
+              set status = $2,
+                  ${woTsCol} = pg_catalog.now(),
+                  updated_by = $3::uuid
+            where org_id = app.current_org_id() and id = $1::uuid`
+        : `update public.work_orders
+              set status = $2,
+                  updated_by = $3::uuid
+            where org_id = app.current_org_id() and id = $1::uuid`,
       [input.woId, WO_TO_WORK_ORDER_STATUS[toStatus], ctx.userId],
     );
 
@@ -280,15 +297,18 @@ export async function applyTransition(
     // Optimistic-lock CAS miss must propagate (NOT be swallowed into a returned
     // persistence_failed) so withOrgContext rolls back the orphan wo_events row.
     if (err instanceof WoConcurrentModificationError) throw err;
-    // A concurrent replay racing the same transaction_id hits the UNIQUE
-    // constraint (23505) — treat as a successful idempotent replay.
-    if (isPgError(err) && err.code === '23505') {
+    // A concurrent replay racing the same transaction_id hits wo_events_transaction_id_unique
+    // — treat as a successful idempotent replay. Any other 23505 must roll back.
+    if (
+      isPgError(err) &&
+      err.code === '23505' &&
+      'constraint' in err &&
+      (err as { constraint?: string }).constraint === 'wo_events_transaction_id_unique'
+    ) {
       const cur = await loadOrInitExecution(ctx, input.woId);
       if (cur) return { ok: true, data: cur };
     }
-    return fail('persistence_failed', {
-      message: err instanceof Error ? err.message : String(err),
-    });
+    throw err;
   }
 }
 

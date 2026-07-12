@@ -30,6 +30,7 @@ export type PlanningWorkOrderError =
   | 'ambiguous_site'
   | 'document_mask_missing'
   | 'not_released_to_factory'
+  | 'chain_delete_blocked'
   | 'persistence_failed';
 
 export type EnteredUom = 'base' | 'each' | 'box';
@@ -223,7 +224,18 @@ export type CreateWorkOrderResult =
 export type ReleaseWorkOrderResult =
   | { ok: true; workOrder: WOHeader }
   | { ok: false; error: PlanningWorkOrderError }
-  | { ok: false; error: 'factory_release_incomplete'; missing: Array<'active_bom' | 'factory_spec'> };
+  | {
+      ok: false;
+      error: 'factory_release_incomplete';
+      missing: Array<'active_bom' | 'factory_spec'>;
+      message?: string;
+    }
+  | {
+      ok: false;
+      error: 'upstream_wip_not_ready';
+      message: string;
+      details?: unknown;
+    };
 
 export type DeleteDraftWorkOrderResult =
   | { ok: true; id: string }

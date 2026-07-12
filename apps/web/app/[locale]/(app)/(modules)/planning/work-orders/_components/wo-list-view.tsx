@@ -239,11 +239,13 @@ export function WoListView({
     try {
       const result = await releaseWorkOrderAction({ id: wo.id });
       if (!result.ok) {
-        const r = result as { error: string; missing?: readonly string[] };
+        const r = result as { error: string; missing?: readonly string[]; message?: string };
         const message =
           r.error === 'factory_release_incomplete'
-            ? factoryIncompleteMessage(r.missing ?? [])
-            : labels.releaseError[r.error] ?? labels.releaseError.persistence_failed;
+            ? r.message ?? factoryIncompleteMessage(r.missing ?? [])
+            : r.error === 'upstream_wip_not_ready' && r.message
+              ? r.message
+              : labels.releaseError[r.error] ?? labels.releaseError.persistence_failed;
         setRowError({ id: wo.id, message });
         setReleasingId(null);
         return;

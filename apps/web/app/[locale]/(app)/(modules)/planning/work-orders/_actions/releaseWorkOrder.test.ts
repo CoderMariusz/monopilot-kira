@@ -19,6 +19,8 @@ let outputUom: string | null = 'base';
 let netQtyPerEach: string | null = null;
 let eachPerBox: string | null = null;
 let deletedCount = 1;
+let chainDeleteBlocked = false;
+let upstreamBlockers: Array<{ child_wo_number: string; child_status: string }> = [];
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -36,6 +38,9 @@ function makeClient(): QueryClient {
       const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
       if (normalized.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+      }
+      if (normalized.includes('with recursive chain')) {
+        return { rows: [{ blocked: chainDeleteBlocked }], rowCount: 1 };
       }
       if (normalized.startsWith('select id, wo_number, status')) {
         const id = String(params[0]);
@@ -129,6 +134,20 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('insert into public.audit_events')) {
         return { rows: [], rowCount: 1 };
       }
+      if (normalized.includes('from public.wo_dependencies')) {
+        return {
+          rows: upstreamBlockers.map((b, i) => ({
+            child_wo_id: `child-${i}`,
+            child_wo_number: b.child_wo_number,
+            child_status: b.child_status,
+            required_qty: '100',
+            posted_output_kg: '0',
+            release_blocked: b.child_status.toUpperCase() === 'DRAFT',
+            start_complete_blocked: true,
+          })),
+          rowCount: upstreamBlockers.length,
+        };
+      }
       if (normalized.startsWith('delete from public.work_orders')) {
         return { rows: [], rowCount: deletedCount };
       }
@@ -151,6 +170,8 @@ describe('releaseWorkOrder', () => {
     netQtyPerEach = null;
     eachPerBox = null;
     deletedCount = 1;
+    chainDeleteBlocked = false;
+    upstreamBlockers = [];
     client = makeClient();
   });
 
@@ -176,6 +197,7 @@ describe('releaseWorkOrder', () => {
       ok: false,
       error: 'factory_release_incomplete',
       missing: ['active_bom', 'factory_spec'],
+      message: expect.stringContaining('factory spec'),
     });
     expect(client.query).not.toHaveBeenCalledWith(
       expect.stringContaining("set status = 'RELEASED'"),
@@ -217,6 +239,7 @@ describe('releaseWorkOrder', () => {
       ok: false,
       error: 'factory_release_incomplete',
       missing: ['active_bom'],
+      message: expect.stringContaining('factory spec'),
     });
     expect(sqlCalls().some((sql) => sql.startsWith('update public.work_orders'))).toBe(false);
   });
@@ -239,6 +262,19 @@ describe('releaseWorkOrder', () => {
     const result = await releaseWorkOrder({ id: WO_ID });
 
     expect(result.ok).toBe(true);
+  });
+
+  it('returns upstream_wip_not_ready when a prerequisite WIP child is still DRAFT (C3/S5)', async () => {
+    upstreamBlockers = [{ child_wo_number: 'WIP-CHILD', child_status: 'DRAFT' }];
+
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'upstream_wip_not_ready',
+      message: expect.stringContaining('WIP-CHILD'),
+    });
+    expect(sqlCalls().some((sql) => sql.includes("set status = 'released'"))).toBe(false);
   });
 
   it('stamps the UOM snapshot during the self-heal preflight', async () => {
@@ -305,6 +341,13 @@ describe('releaseWorkOrder', () => {
 
     expect(result).toEqual({ ok: false, error: 'forbidden' });
     expect(sqlCalls().some((sql) => sql.startsWith('select id, wo_number, status'))).toBe(false);
+  });
+
+  it('blocks deleting a draft WO that is part of an active production chain (C5)', async () => {
+    chainDeleteBlocked = true;
+    const result = await deleteDraftWorkOrder({ id: WO_ID });
+    expect(result).toEqual({ ok: false, error: 'chain_delete_blocked' });
+    expect(sqlCalls().some((sql) => sql.startsWith('delete from public.work_orders'))).toBe(false);
   });
 
   it('respects org scope: a WO outside app.current_org_id is not found and not deleted', async () => {

@@ -3,7 +3,11 @@ import { createHash } from 'node:crypto';
 import { NextRequest } from 'next/server';
 
 import { assertWoNotOnHold } from '../../../../../../../lib/production/holds-guard';
-import { assertLpConsumableForProduction } from '../../../../../../../lib/production/lp-safety-guard';
+import {
+  isNilOrZeroLpId,
+  normalizePersistedQuantity,
+  resolveConsumptionLp,
+} from '../../../../../../../lib/production/consume-material-core';
 import { debitWac } from '../../../../../../../lib/finance/upsert-wac';
 import {
   APP_VERSION,
@@ -63,7 +67,7 @@ type ConsumedLpMoveRow = {
   location_id: string | null;
 };
 
-const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+const NIL_UUID = '00000000-0000-0000-0000-000000000000'; // retained for audit log nullable lp_id only
 
 function numericJson(value: string | null): number {
   if (value === null) return 0;
@@ -94,6 +98,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
   if (!isDecimalString(qty) || qty === '0' || /^0+(\.0+)?$/.test(qty)) {
     return scannerValidationError(request, body, operation, 'invalid_qty', 422, { woId, clientOpId });
+  }
+  let normalizedQty: string;
+  try {
+    normalizedQty = normalizePersistedQuantity(qty);
+  } catch {
+    return scannerValidationError(request, body, operation, 'invalid_qty', 422, { woId, clientOpId });
+  }
+  if (lpId && isNilOrZeroLpId(lpId)) {
+    return scannerValidationError(request, body, operation, 'invalid_input', 422, { woId, clientOpId });
   }
   if (!lpId && !reasonCode) {
     return scannerValidationError(request, body, operation, 'reason_required', 422, { woId, clientOpId, materialId });
@@ -192,46 +205,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
           return scannerError('wo_not_recordable', 422, { status: executionStatus });
         }
 
-        if (lpId) {
-          const lpGate = await assertLpConsumableForProduction(
-            { client, userId: session.user_id } as unknown as Pick<ProductionContext, 'client' | 'userId'>,
-            lpId,
-          );
-          if (!lpGate.ok) {
-            if (lpGate.error === 'quality_hold_active') {
-              // T-064 contract (holds-guard.ts:5-9): an active hold MUST emit
-              // `production.consume.blocked`. Nothing stock-mutating has run
-              // yet in this txn (locks + reads only), so COMMIT persists just
-              // the outbox event; dedup_key (clientOpId) keeps retries no-ops.
-              const emitCtx = {
-                client,
-                userId: session.user_id,
-                orgId: session.org_id,
-              } as unknown as ProductionContext;
-              await emitConsumeBlocked(
-                emitCtx,
-                new QualityHoldError({
-                  hold: lpGate.hold,
-                  woId,
-                  blockedPath: 'consume',
-                  transactionId: clientOpId,
-                  lpId,
-                  lotId: null,
-                }),
-              );
-              await client.query('commit');
-            } else {
-              await client.query('rollback');
-            }
-            await auditAttempt(client, session, 'production.scanner.wos.consume', lpGate.error, {
-              woId,
-              materialId,
-              lpId,
-            });
-            return scannerError(lpGate.error, 409);
-          }
-        }
-
       // Two-tier gate, BOTH flags read in the same locked statement:
       //   warn tier  (overconsume_warn_pct,      absent = 0) — proceed + warn,
       //   approve tier (overconsume_threshold_pct, absent = 0) — PIN approval.
@@ -291,7 +264,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             )
           limit 1
           for update of wm`,
-        [session.org_id, woId, materialId, qty],
+        [session.org_id, woId, materialId, normalizedQty],
       );
       const gate = materialGateRes.rows[0];
       if (!gate) {
@@ -313,7 +286,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         const overPayload = {
           requiredQty: numericJson(gate.required_qty),
           consumedQty: numericJson(gate.consumed_qty),
-          attemptedQty: numericJson(qty),
+          attemptedQty: numericJson(normalizedQty),
           thresholdPct: numericJson(gate.threshold_pct),
           overPct: numericJson(gate.over_pct),
         };
@@ -392,6 +365,82 @@ export async function POST(request: NextRequest, context: RouteContext) {
         approverUserId = approver.id;
       }
 
+      const lpResolution = await resolveConsumptionLp(
+        { client, userId: session.user_id } as unknown as Pick<ProductionContext, 'client' | 'userId'>,
+        {
+          explicitLpId: lpId,
+          productIds: [gate.product_id, gate.substitute_item_id].filter((id): id is string => Boolean(id)),
+          uom: gate.uom,
+          qty: normalizedQty,
+        },
+      );
+      if (!lpResolution.ok) {
+        if (lpResolution.error === 'quality_hold_active') {
+          const emitCtx = {
+            client,
+            userId: session.user_id,
+            orgId: session.org_id,
+          } as ProductionContext;
+          await emitConsumeBlocked(
+            emitCtx,
+            new QualityHoldError({
+              hold: lpResolution.hold!,
+              woId,
+              blockedPath: 'consume',
+              transactionId: clientOpId,
+              lpId: lpId ?? null,
+              lotId: null,
+            }),
+          );
+          await client.query('commit');
+        } else {
+          await client.query('rollback');
+        }
+        await auditAttempt(client, session, 'production.scanner.wos.consume', lpResolution.error, {
+          woId,
+          materialId,
+          lpId,
+        });
+        return scannerError(lpResolution.error === 'invalid_input' ? 'invalid_input' : lpResolution.error, 409);
+      }
+
+      const resolvedLpId = lpResolution.lpId;
+      const lpRes = await client.query<ConsumedLpMoveRow>(
+        `update public.license_plates
+            set quantity = quantity - $3::numeric,
+                status = case when quantity - $3::numeric = 0 then 'consumed' else status end,
+                consumed_by_wo_id = $4::uuid,
+                updated_by = $5::uuid,
+                updated_at = now()
+          where org_id = $1::uuid
+            and id = $2::uuid
+            and product_id = any($6::uuid[])
+            and uom = $7
+            and quantity - $3::numeric >= reserved_qty
+            and app.user_can_see_site(site_id)
+          returning id, product_id::text as product_id, quantity::text as quantity, site_id::text as site_id, location_id::text as location_id`,
+        [
+          session.org_id,
+          resolvedLpId,
+          normalizedQty,
+          woId,
+          session.user_id,
+          [gate.product_id, gate.substitute_item_id].filter(Boolean),
+          gate.uom,
+        ],
+      );
+      if (!lpRes.rows[0]) {
+        await client.query('rollback');
+        await auditAttempt(client, session, 'production.scanner.wos.consume', 'lp_unavailable', {
+          woId,
+          materialId,
+          lpId: resolvedLpId,
+        });
+        return scannerError('lp_unavailable', 409);
+      }
+      const consumedLpMove = lpRes.rows[0];
+      const consumedItemId = consumedLpMove.product_id;
+
       const materialRes = await client.query<MaterialUpdateRow>(
         `update public.wo_materials
             set consumed_qty = consumed_qty + $4::numeric
@@ -407,7 +456,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
                  and app.user_can_see_site(wo.site_id)
             )
           returning id, product_id, material_name, consumed_qty::text as consumed_qty, uom`,
-        [session.org_id, woId, materialId, qty],
+        [session.org_id, woId, materialId, normalizedQty],
       );
       const material = materialRes.rows[0];
       if (!material) {
@@ -419,38 +468,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
         return scannerError('invalid_material', 422);
       }
 
-      let fefoAdherence = true;
-      let consumedLpMove: ConsumedLpMoveRow | null = null;
-      let consumedItemId = material.product_id;
-      if (lpId) {
-        const lpRes = await client.query<ConsumedLpMoveRow>(
-          `update public.license_plates
-              set quantity = quantity - $3::numeric,
-                  status = case when quantity - $3::numeric = 0 then 'consumed' else status end,
-                  consumed_by_wo_id = $4::uuid,
-                  updated_by = $5::uuid,
-                  updated_at = now()
-            where org_id = $1::uuid
-              and id = $2::uuid
-              and product_id = any($6::uuid[])
-              and uom = $7
-              and quantity - $3::numeric >= reserved_qty
-              and app.user_can_see_site(site_id)
-            returning id, product_id::text as product_id, quantity::text as quantity, site_id::text as site_id, location_id::text as location_id`,
-          [session.org_id, lpId, qty, woId, session.user_id, [material.product_id, gate.substitute_item_id].filter(Boolean), material.uom],
-        );
-        if (!lpRes.rows[0]) {
-          await client.query('rollback');
-          await auditAttempt(client, session, 'production.scanner.wos.consume', 'lp_unavailable', {
-            woId,
-            materialId,
-            lpId,
-          });
-          return scannerError('lp_unavailable', 409);
-        }
-        consumedLpMove = lpRes.rows[0];
-        consumedItemId = consumedLpMove.product_id;
-
+      let fefoAdherence = lpResolution.fefoAutoResolved;
+      if (!lpResolution.fefoAutoResolved) {
         const fefo = await client.query<{ violates: boolean }>(
           `select exists (
                     select 1
@@ -468,7 +487,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
                        and (chosen.expiry_date is null
                             or cand.expiry_date < chosen.expiry_date)
                   ) as violates`,
-          [session.org_id, lpId, consumedItemId, material.uom],
+          [session.org_id, resolvedLpId, consumedItemId, material.uom],
         );
         fefoAdherence = !(fefo.rows[0]?.violates ?? false);
       }
@@ -479,15 +498,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
             operator_id, fefo_adherence_flag, ext_jsonb)
          values
            ($10::uuid, $1::uuid, $2::uuid, $3::uuid,
-            coalesce($4::uuid, '00000000-0000-0000-0000-000000000000'::uuid),
+            $4::uuid,
             $5::numeric, $6, $7::uuid, $8, $9::jsonb)
          returning id::text as id`,
         [
           txnId,
           woId,
           consumedItemId,
-          lpId,
-          qty,
+          resolvedLpId,
+          normalizedQty,
           material.uom,
           session.user_id,
           fefoAdherence,
@@ -511,7 +530,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         orgId: session.org_id,
         siteId: null,
         itemId: consumedItemId,
-        qty,
+        qty: normalizedQty,
         uom: material.uom,
         updatedBy: session.user_id,
       });
@@ -542,54 +561,52 @@ export async function POST(request: NextRequest, context: RouteContext) {
             JSON.stringify({
               wac_excluded: 'unresolved_uom',
               wac_uom: material.uom,
-              wac_qty: qty,
+              wac_qty: normalizedQty,
             }),
             consumptionId,
           ],
         );
       }
 
-      if (lpId && lpId !== NIL_UUID) {
-        if (!consumedLpMove) {
-          throw new Error('scanner consume: missing LP movement row after LP decrement');
-        }
-        await client.query(
-          `insert into public.stock_moves (
-             org_id, site_id, move_number, lp_id, move_type, from_location_id,
-             quantity, uom, reason_code, reason_text, transaction_id, wo_id, wo_material_id,
-             status, ext_jsonb, created_by, updated_by
-           )
-           values (
-             app.current_org_id(), $1::uuid, $2, $3::uuid, 'consume_to_wo', $4::uuid,
-             $5::numeric, $6, 'production_consume', 'Scanner WO material consumption',
-             $7::uuid, $8::uuid, $9::uuid, 'completed', $10::jsonb, $11::uuid, $11::uuid
-           )
-           on conflict (org_id, transaction_id) do nothing`,
-          [
-            consumedLpMove.site_id,
-            makeStockMoveNumber(txnId),
-            lpId,
-            consumedLpMove.location_id,
-            qty,
-            material.uom,
-            txnId,
-            woId,
-            material.id,
-            JSON.stringify({ source: 'scanner', wo_id: woId, consumption_id: consumptionId, clientOpId }),
-            session.user_id,
-          ],
-        );
-        await emitMaterialConsumed(client, {
-          aggregateId: consumptionId,
-          woId,
-          lpId,
-          itemId: consumedItemId,
-          qty,
-          uom: material.uom,
-          orgId: session.org_id,
-          actor: session.user_id,
-        });
+      if (!consumedLpMove) {
+        throw new Error('scanner consume: missing LP movement row after LP decrement');
       }
+      await client.query(
+        `insert into public.stock_moves (
+           org_id, site_id, move_number, lp_id, move_type, from_location_id,
+           quantity, uom, reason_code, reason_text, transaction_id, wo_id, wo_material_id,
+           status, ext_jsonb, created_by, updated_by
+         )
+         values (
+           app.current_org_id(), $1::uuid, $2, $3::uuid, 'consume_to_wo', $4::uuid,
+           $5::numeric, $6, 'production_consume', 'Scanner WO material consumption',
+           $7::uuid, $8::uuid, $9::uuid, 'completed', $10::jsonb, $11::uuid, $11::uuid
+         )
+         on conflict (org_id, transaction_id) do nothing`,
+        [
+          consumedLpMove.site_id,
+          makeStockMoveNumber(txnId),
+          resolvedLpId,
+          consumedLpMove.location_id,
+          normalizedQty,
+          material.uom,
+          txnId,
+          woId,
+          material.id,
+          JSON.stringify({ source: 'scanner', wo_id: woId, consumption_id: consumptionId, clientOpId }),
+          session.user_id,
+        ],
+      );
+      await emitMaterialConsumed(client, {
+        aggregateId: consumptionId,
+        woId,
+        lpId: resolvedLpId,
+        itemId: consumedItemId,
+        qty: normalizedQty,
+        uom: material.uom,
+        orgId: session.org_id,
+        actor: session.user_id,
+      });
 
       await client.query(
         `insert into public.scanner_audit_log (
@@ -604,13 +621,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
           session.user_id,
           session.device_id,
           'production.scanner.wos.consume',
-          lpId,
+          resolvedLpId,
           woId,
           clientOpId,
           JSON.stringify({
             materialId,
             materialName: material.material_name,
-            qty,
+            qty: normalizedQty,
             ...(reasonCode ? { reasonCode } : {}),
             // consumedQty/uom/warnPct mirror the success response so an
             // idempotent replay can reconstruct the original payload.

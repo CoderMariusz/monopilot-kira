@@ -20,6 +20,10 @@
 
 import { randomUUID } from 'node:crypto';
 
+import type pg from 'pg';
+
+import { signEvent } from '@monopilot/e-sign';
+
 import { computeWacReversalDelta, upsertWac } from '../finance/upsert-wac';
 import { assertWoNotOnHold, holdsGuard } from './holds-guard';
 import { recordWoCompletionSnapshot } from './oee-snapshot-producer';
@@ -35,14 +39,24 @@ import {
 } from './shared';
 import { applyTransition } from './wo-state-machine';
 import {
+  assertUpstreamWipReady,
+  upstreamWipNotReadyMessage,
+} from '../planning/upstream-wip-dependency-gate';
+import {
   isYieldGateOverrideReasonCode,
   YIELD_GATE_OVERRIDE_REASON_CODES,
 } from './yield-gate-override';
+import { evaluateClosedProductionStrict } from './evaluate-closed-production-strict';
 
 export type CompleteWoInput = {
   woId: string;
   transactionId: string;
   overrideReasonCode?: string | null;
+  /** CFR-21 e-sign for yield-gate override (required when override path is taken). */
+  overrideSignerUserId?: string;
+  overridePin?: string;
+  overrideEsignReason?: string;
+  overrideNonce?: string;
 };
 
 async function writeYieldGateOverrideAudit(
@@ -114,6 +128,14 @@ export async function completeWo(
     });
   }
 
+  const upstreamGate = await assertUpstreamWipReady(client, input.woId, 'complete');
+  if (upstreamGate) {
+    return fail('upstream_wip_not_ready', {
+      message: upstreamWipNotReadyMessage(upstreamGate),
+      details: upstreamGate,
+    });
+  }
+
   // Output yield gate: collect the WO's registered outputs (with their LP/lot).
   const outputs = await client.query<{
     id: string;
@@ -175,13 +197,26 @@ export async function completeWo(
     [input.woId],
   );
   const primaryGreen = greenRes.rows[0]?.green === true;
+  const strictGate = await evaluateClosedProductionStrict(client, input.woId);
+  const consumptionWithinTolerance = strictGate?.within_tolerance !== false;
+  const yieldGateGreen = primaryGreen && consumptionWithinTolerance;
   let persistedOverrideReasonCode: string | null = null;
-  if (!primaryGreen) {
+  let yieldOverrideSignatureId: string | null = null;
+  if (!yieldGateGreen) {
     const overrideCode = input.overrideReasonCode?.trim() ?? '';
     if (!overrideCode) {
+      const failureCode = !primaryGreen
+        ? 'output_yield_gate_failed'
+        : 'consumption_yield_out_of_tolerance';
       return fail('closed_production_strict_failed', {
-        message: 'output yield gate not green — no primary output registered',
-        details: { code: 'output_yield_gate_failed', outputsRegistered: outputs.rows.length },
+        message: !primaryGreen
+          ? 'output yield gate not green — no primary output registered'
+          : 'actual consumption/yield is outside configured tolerance — supervisor override required',
+        details: {
+          code: failureCode,
+          outputsRegistered: outputs.rows.length,
+          strictGate,
+        },
       });
     }
     if (!isYieldGateOverrideReasonCode(overrideCode)) {
@@ -196,6 +231,42 @@ export async function completeWo(
     if (!(await hasPermission(ctx, 'production.wo.override_yield'))) {
       return fail('forbidden');
     }
+
+    const esignReason = input.overrideEsignReason?.trim() ?? '';
+    const esignPin = input.overridePin?.trim() ?? '';
+    if (!esignReason) {
+      return fail('invalid_input', {
+        message: 'e-sign reason is required for yield-gate override (CFR-21 Part 11)',
+      });
+    }
+    if (!esignPin) {
+      return fail('invalid_input', { message: 'e-sign PIN is required for yield-gate override' });
+    }
+
+    const signerUserId = input.overrideSignerUserId?.trim() || ctx.userId;
+    try {
+      const receipt = await signEvent(
+        {
+          signerUserId,
+          pin: esignPin,
+          intent: 'prod.wo.yield_override',
+          subject: {
+            woId: input.woId,
+            transactionId: input.transactionId,
+            overrideReasonCode: overrideCode,
+          },
+          nonce: input.overrideNonce,
+          reason: esignReason,
+        },
+        { client: ctx.client as unknown as pg.PoolClient },
+      );
+      yieldOverrideSignatureId = receipt.signatureId;
+    } catch (err) {
+      return fail('esign_failed', {
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+
     persistedOverrideReasonCode = overrideCode;
   }
 
@@ -206,9 +277,22 @@ export async function completeWo(
     context: {
       overrideReasonCode: persistedOverrideReasonCode,
       outputsRegistered: outputs.rows.length,
+      ...(yieldOverrideSignatureId
+        ? {
+            yieldOverrideSignatureId,
+            yieldOverrideSignerUserId: input.overrideSignerUserId?.trim() || ctx.userId,
+          }
+        : {}),
     },
   });
-  if (!transition.ok) return transition;
+  if (!transition.ok) {
+    if (yieldOverrideSignatureId) {
+      throw new Error(
+        `complete transition failed after yield-override e-sign was persisted (${transition.error}) — rolling back the signature to preserve CFR-21 atomicity`,
+      );
+    }
+    return transition;
+  }
 
   if (persistedOverrideReasonCode) {
     await writeYieldGateOverrideAudit(ctx, {
@@ -269,6 +353,7 @@ export async function completeWo(
       completedAt: transition.data.completedAt,
       outputsRegistered: outputs.rows.length,
       overrideReasonCode: persistedOverrideReasonCode,
+      ...(yieldOverrideSignatureId ? { yieldOverrideSignatureId } : {}),
     },
   });
 
