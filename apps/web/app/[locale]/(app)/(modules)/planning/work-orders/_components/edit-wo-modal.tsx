@@ -118,8 +118,8 @@ export type EditWoModalProps = {
     id: string;
     productId?: string;
     plannedQuantity?: string;
-    scheduledStartTime?: string;
-    productionLineId?: string;
+    scheduledStartTime?: string | null;
+    productionLineId?: string | null;
     notes?: string;
   }) => Promise<EditWoResult>;
   onSaved: () => void;
@@ -283,8 +283,16 @@ export function EditWoModal({
         // Only send productId when it actually changed (re-snapshot trigger).
         productId: changedProduct ? changedProduct.id : undefined,
         plannedQuantity: plannedBase,
-        scheduledStartTime: scheduledStart ? new Date(scheduledStart + 'T00:00:00').toISOString() : undefined,
-        productionLineId: lineId || undefined,
+        scheduledStartTime:
+          scheduledStart !== toDateInput(initial.scheduledStartTime)
+            ? scheduledStart
+              ? new Date(scheduledStart + 'T00:00:00').toISOString()
+              : null
+            : undefined,
+        productionLineId:
+          lineId !== (initial.productionLineId ?? '')
+            ? lineId || null
+            : undefined,
         // Send the (possibly empty) string so the action can tell "cleared"
         // ('' -> JSON null) from "unchanged". `|| undefined` silently dropped a
         // clear: the action read undefined as "keep" and the old note survived.

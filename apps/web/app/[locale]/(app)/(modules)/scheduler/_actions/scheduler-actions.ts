@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import {
   hasPermission,
   type OrgActionContext,
@@ -26,7 +27,8 @@ const SCHEDULER_ASSIGNMENT_APPROVE_PERMISSION = 'scheduler.assignment.approve';
 const SCHEDULER_MATRIX_READ_PERMISSION = 'scheduler.matrix.read';
 const SCHEDULER_MATRIX_EDIT_PERMISSION = 'scheduler.matrix.edit';
 const OPTIMIZER_VERSION = 'e8-greedy-v1';
-const OPEN_WO_STATUSES = ['DRAFT', 'RELEASED'] as const;
+/** Only released WOs are schedulable — drafts are not releasable onto the board. */
+const SCHEDULABLE_WO_STATUSES = ['RELEASED'] as const;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SCHEDULER_RUN_COMPLETED_EVENT = 'scheduler.run.completed';
 const PLANNING_SCHEDULE_PUBLISHED_EVENT = 'planning.schedule.published';
@@ -264,6 +266,7 @@ async function loadOpenWorkOrders(
   ctx: OrgActionContext,
   lineId: string | null,
   horizonDays: number,
+  siteId: string | null,
 ): Promise<WorkOrderForScheduling[]> {
   const horizonEnd = new Date(Date.now() + horizonDays * DAY_MS).toISOString();
   const { rows } = await ctx.client.query<WorkOrderForScheduling>(
@@ -291,6 +294,9 @@ async function loadOpenWorkOrders(
      left join public.items i
        on i.org_id = wo.org_id
       and i.id = wo.product_id
+     left join public.production_lines pl
+       on pl.org_id = wo.org_id
+      and pl.id = wo.production_line_id
      left join lateral (
        select array_agg(distinct iap.allergen_code order by iap.allergen_code) as allergen_ids
          from public.item_allergen_profiles iap
@@ -343,8 +349,19 @@ async function loadOpenWorkOrders(
       and wo.status = any($1::varchar[])
       and coalesce(wo.planned_start_date, wo.scheduled_start_time, wo.created_at) < $2::timestamptz
       and ($3::uuid is null or wo.production_line_id = $3::uuid)
+      and (
+        $4::uuid is null
+        or wo.site_id = $4::uuid
+        or (wo.site_id is null and pl.site_id = $4::uuid)
+      )
+      and (
+        $4::uuid is null
+        or wo.production_line_id is null
+        or pl.site_id is null
+        or pl.site_id = $4::uuid
+      )
     order by due_date asc, wo.id asc`,
-    [[...OPEN_WO_STATUSES], horizonEnd, lineId],
+    [[...SCHEDULABLE_WO_STATUSES], horizonEnd, lineId, siteId],
   );
   return rows;
 }
@@ -710,9 +727,11 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
       );
       if (horizonDays < 1 || horizonDays > 30) return { ok: false, error: 'invalid_input' };
 
+      const siteId = await getActiveSiteId({ client: ctx.client });
+
       const started = Date.now();
       const [workOrders, matrix] = await Promise.all([
-        loadOpenWorkOrders(ctx, lineId, horizonDays),
+        loadOpenWorkOrders(ctx, lineId, horizonDays, siteId),
         loadChangeoverMatrixForRun(ctx, lineId),
       ]);
       const baseSolverConfig = solverConfigFromRow(schedulerConfig);

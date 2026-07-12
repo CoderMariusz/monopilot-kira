@@ -132,8 +132,8 @@ export function WoDetailView({
     id: string;
     productId?: string;
     plannedQuantity?: string;
-    scheduledStartTime?: string;
-    productionLineId?: string;
+    scheduledStartTime?: string | null;
+    productionLineId?: string | null;
     notes?: string;
   }) => Promise<EditWoResult>;
   deleteDraftWorkOrderAction?: (params: { id: string }) => Promise<DeleteDraftWorkOrderResult>;

@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
@@ -133,6 +134,8 @@ async function createWorkOrderChainFromPlanning(
     documentNumber,
     siteId: siteResolution.siteId,
     plannedQuantity: conversionResult.plannedBaseQty,
+    quantityEntered: parsed.data.quantityEntered,
+    quantityEnteredUom: parsed.data.quantityEnteredUom,
     scheduledStartTime: parsed.data.scheduledStartTime,
     productionLineId: parsed.data.productionLineId,
     notes: parsed.data.notes,
@@ -171,7 +174,7 @@ export async function createWorkOrder(
   options?: CreateWorkOrderOptions,
 ): Promise<CreateWorkOrderResult> {
   try {
-    return await withOrgContext(async (ctx): Promise<CreateWorkOrderResult> => {
+    const result = await withOrgContext(async (ctx): Promise<CreateWorkOrderResult> => {
       const parsed = CreateWorkOrderInput.safeParse(params);
       if (!parsed.success) return { ok: false, error: 'invalid_input', issues: parsed.error.issues };
 
@@ -183,6 +186,11 @@ export async function createWorkOrder(
       }
       return createWorkOrderCore(ctx, params);
     });
+    if (result.ok) {
+      revalidateLocalized('/planning/work-orders');
+      revalidateLocalized(`/planning/work-orders/${result.workOrder.id}`);
+    }
+    return result;
   } catch (error) {
     console.error('[createWorkOrder] persistence_failed', error);
     return { ok: false, error: 'persistence_failed' };

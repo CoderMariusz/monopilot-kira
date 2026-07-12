@@ -380,9 +380,10 @@ export type WoDetailActions = {
 // Formatters live IN this client module — passing them as props from the RSC
 // page crashed live (Next16 "Functions cannot be passed to Client Components";
 // wave-P1 live verify, digests 568085975/520930007).
-const QTY_FMT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+const DISPLAY_QTY_FMT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
 function fmtQty(n: number): string {
-  return QTY_FMT.format(Math.round(n));
+  if (!Number.isFinite(n)) return '—';
+  return DISPLAY_QTY_FMT.format(n);
 }
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';

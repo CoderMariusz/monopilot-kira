@@ -103,6 +103,7 @@ async function BoardContent({ locale }: { locale: string }) {
       invalid_input: t('errors.invalid_input'),
       forbidden: t('errors.forbidden'),
       not_found: t('errors.not_found'),
+      sod_violation: t('errors.sod_violation'),
       persistence_failed: t('errors.persistence_failed'),
     },
   };

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { updateWorkOrder } from './update-work-order';
 import type { QueryClient } from './shared';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -9,6 +10,7 @@ const WO_ID = '33333333-3333-4333-8333-333333333333';
 const PRODUCT_A_ID = '44444444-4444-4444-8444-444444444444';
 const PRODUCT_B_ID = '55555555-5555-4555-8555-555555555555';
 const LINE_ID = '66666666-6666-4666-8666-666666666666';
+const SITE_ID = '88888888-8888-4888-8888-888888888888';
 const BOM_A_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const BOM_B_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const SPEC_B_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -21,6 +23,11 @@ let lineInOrg = true;
 let raceUpdate = false;
 let currentScheduledStartTime: string | null = null;
 let currentLineId: string | null = null;
+let lineSiteId: string | null = SITE_ID;
+
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: vi.fn(),
+}));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -72,12 +79,13 @@ function makeClient(): QueryClient {
       if (normalized.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
       }
-      if (normalized.startsWith('select id, status, product_id')) {
+      if (normalized.startsWith('select id, status, site_id')) {
         return {
           rows: [
             {
               id: WO_ID,
               status: currentStatus,
+              site_id: SITE_ID,
               product_id: PRODUCT_A_ID,
               planned_quantity: '100.000',
               scheduled_start_time: currentScheduledStartTime,
@@ -89,7 +97,10 @@ function makeClient(): QueryClient {
         };
       }
       if (normalized.includes('from public.production_lines')) {
-        return { rows: lineInOrg ? [{ id: LINE_ID }] : [], rowCount: lineInOrg ? 1 : 0 };
+        return {
+          rows: lineInOrg ? [{ id: LINE_ID, site_id: lineSiteId }] : [],
+          rowCount: lineInOrg ? 1 : 0,
+        };
       }
       if (normalized.startsWith('select id, item_code, output_uom')) {
         return { rows: productInOrg ? [itemRow(String(params[0]))] : [], rowCount: productInOrg ? 1 : 0 };
@@ -160,6 +171,7 @@ describe('updateWorkOrder', () => {
     raceUpdate = false;
     currentScheduledStartTime = null;
     currentLineId = null;
+    lineSiteId = SITE_ID;
     client = makeClient();
   });
 
@@ -330,5 +342,24 @@ describe('updateWorkOrder', () => {
     const params = updateWorkOrderCall();
     // $15 (idx 14) = false (not provided)
     expect(params[14]).toBe(false);
+  });
+
+  it('A3-S1: rejects a cross-site production line on edit', async () => {
+    lineSiteId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+    await expect(updateWorkOrder({ id: WO_ID, productionLineId: LINE_ID })).resolves.toEqual({
+      ok: false,
+      error: 'line_site_mismatch',
+    });
+  });
+
+  it('A3-S4: revalidates planning list and detail routes after update', async () => {
+    vi.mocked(revalidateLocalized).mockClear();
+
+    const result = await updateWorkOrder({ id: WO_ID, notes: 'refresh me' });
+
+    expect(result.ok).toBe(true);
+    expect(revalidateLocalized).toHaveBeenCalledWith('/planning/work-orders');
+    expect(revalidateLocalized).toHaveBeenCalledWith(`/planning/work-orders/${WO_ID}`);
   });
 });

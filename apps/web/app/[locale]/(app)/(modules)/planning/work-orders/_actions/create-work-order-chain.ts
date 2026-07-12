@@ -32,6 +32,13 @@ const Input = z.object({
     .refine((value) => Number(value) > 0),
   scheduledStartTime: z.string().datetime({ offset: true }).optional(),
   productionLineId: z.string().uuid().optional(),
+  quantityEntered: z
+    .string()
+    .trim()
+    .regex(/^\d+(?:\.\d{1,4})?$/)
+    .refine((value) => Number(value) > 0)
+    .optional(),
+  quantityEnteredUom: z.enum(['base', 'each', 'box']).optional(),
   notes: z.string().trim().max(2000).optional(),
 });
 
@@ -197,6 +204,7 @@ async function createWorkOrderChainInContext(
   const stageLineIds = await loadStageProductionLineIds(
     ctx,
     fgItem.id,
+    input.siteId,
     [
       ...wipLines.map((line) => ({ itemId: line.item_id, isFg: false })),
       { itemId: fgItem.id, isFg: true },
@@ -239,8 +247,10 @@ async function createWorkOrderChainInContext(
       documentNumber: input.documentNumber,
       siteId: input.siteId,
       plannedQuantity: input.plannedQuantity,
+      quantityEntered: input.quantityEntered,
+      quantityEnteredUom: input.quantityEnteredUom,
       scheduledStartTime: input.scheduledStartTime,
-      productionLineId: stageLineIds.get(fgItem.id) ?? input.productionLineId,
+      productionLineId: input.productionLineId,
       notes: input.notes,
     },
     options?.skipFactoryReleaseGate ? { skipFactoryReleaseGate: true } : undefined,

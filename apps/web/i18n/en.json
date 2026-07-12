@@ -12042,6 +12042,7 @@
       "invalid_input": "Invalid input. Check the horizon and try again.",
       "forbidden": "You do not have permission to perform this action.",
       "not_found": "This run could not be found.",
+      "sod_violation": "You cannot apply a schedule you created. Ask another scheduler approver to apply this run.",
       "persistence_failed": "Something went wrong. Please try again."
     },
     "matrix": {

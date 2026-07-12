@@ -259,6 +259,18 @@ describe('SchedulerBoardView — apply behind a confirm', () => {
     expect(await screen.findByTestId('scheduler-apply-error')).toHaveTextContent(en.errors.not_found);
     expect(screen.getByTestId('scheduler-proposal')).toBeInTheDocument();
   });
+
+  it('A3-S10: surfaces sod_violation from applySchedule in the UI', async () => {
+    const applyAction = vi.fn(async () => ({ ok: false as const, error: 'sod_violation' as const }));
+    renderBoard({ applyAction });
+    fireEvent.click(screen.getByTestId('scheduler-run-button'));
+    await screen.findByTestId('scheduler-proposal');
+
+    fireEvent.click(screen.getByTestId('scheduler-apply-button'));
+    fireEvent.click(await screen.findByTestId('scheduler-apply-confirm'));
+
+    expect(await screen.findByTestId('scheduler-apply-error')).toHaveTextContent(en.errors.sod_violation);
+  });
 });
 
 describe('i18n — Scheduler locale parity', () => {

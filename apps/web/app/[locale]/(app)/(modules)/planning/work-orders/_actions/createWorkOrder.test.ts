@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createWorkOrder } from './createWorkOrder';
 import type { QueryClient } from './shared';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -14,6 +15,7 @@ let client: QueryClient;
 let allowPermission = true;
 let hasActiveSite = true;
 let explicitSiteBelongs = true;
+let lineSiteId = SITE_ID;
 let hasBom = true;
 let bomLineBasis = 'per_base';
 let hasRouting = true;
@@ -32,6 +34,10 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: vi.fn(),
 }));
 
 function makeClient(): QueryClient {
@@ -63,6 +69,12 @@ function makeClient(): QueryClient {
       }
       if (normalized.includes('from public.items') && normalized.includes('output_uom')) {
         return { rows: [itemUom], rowCount: 1 };
+      }
+      if (normalized.includes('from public.production_lines') && normalized.includes("status = 'active'")) {
+        return {
+          rows: [{ id: String(params[0]), site_id: lineSiteId }],
+          rowCount: 1,
+        };
       }
       if (normalized.startsWith('insert into public.work_orders')) {
         if (failNextHeaderInsert) {
@@ -155,6 +167,7 @@ describe('createWorkOrder', () => {
     allowPermission = true;
     hasActiveSite = true;
     explicitSiteBelongs = true;
+    lineSiteId = SITE_ID;
     hasBom = true;
     bomLineBasis = 'per_base';
     hasRouting = true;
@@ -356,6 +369,7 @@ describe('createWorkOrder', () => {
   it('uses an explicit document number and site without advancing the WO sequence', async () => {
     const explicitSiteId = '77777777-7777-4777-8777-777777777777';
     const lineId = '66666666-6666-4666-8666-666666666666';
+    lineSiteId = explicitSiteId;
 
     const result = await createWorkOrder({
       productId: PRODUCT_ID,
@@ -410,5 +424,78 @@ describe('createWorkOrder', () => {
     // No WO header insert may have happened (no orphaned null-site WO).
     const calls = (client.query as ReturnType<typeof vi.fn>).mock.calls.map(([sql]: [string]) => String(sql));
     expect(calls.some((sql: string) => sql.includes('insert into public.work_orders'))).toBe(false);
+  });
+
+  it('A3-S1: rejects a production line assigned to another site', async () => {
+    lineSiteId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const lineId = '66666666-6666-4666-8666-666666666666';
+
+    const result = await createWorkOrder({
+      productId: PRODUCT_ID,
+      itemCode: 'FG-NPD-004',
+      plannedQuantity: '1000.000',
+      siteId: SITE_ID,
+      productionLineId: lineId,
+    });
+
+    expect(result).toEqual({ ok: false, error: 'line_site_mismatch' });
+    const calls = (client.query as ReturnType<typeof vi.fn>).mock.calls.map(([sql]: [string]) => String(sql));
+    expect(calls.some((sql: string) => sql.includes('insert into public.work_orders'))).toBe(false);
+  });
+
+  it('A3-S1: keeps production_line_id null when no line is selected', async () => {
+    const result = await createWorkOrder({
+      productId: PRODUCT_ID,
+      itemCode: 'FG-NPD-004',
+      plannedQuantity: '1000.000',
+    });
+
+    expect(result.ok).toBe(true);
+    const headerCall = (client.query as ReturnType<typeof vi.fn>).mock.calls.find(([sql]: [string]) =>
+      String(sql).replace(/\s+/g, ' ').toLowerCase().startsWith('insert into public.work_orders'),
+    );
+    const [, params] = headerCall as [string, readonly unknown[]];
+    expect(params[6]).toBeNull();
+  });
+
+  it('A3-S3: persists qty_entered and qty_entered_uom for box entry', async () => {
+    itemUom = {
+      output_uom: 'box',
+      uom_base: 'kg',
+      net_qty_per_each: '1.0000',
+      each_per_box: '10',
+      boxes_per_pallet: null,
+      weight_mode: 'fixed',
+    };
+
+    const result = await createWorkOrder({
+      productId: PRODUCT_ID,
+      itemCode: 'FG-NPD-004',
+      plannedQuantity: '100.000',
+      quantityEntered: '100',
+      quantityEnteredUom: 'box',
+    });
+
+    expect(result.ok).toBe(true);
+    const headerCall = (client.query as ReturnType<typeof vi.fn>).mock.calls.find(([sql]: [string]) =>
+      String(sql).replace(/\s+/g, ' ').toLowerCase().startsWith('insert into public.work_orders'),
+    );
+    const [, params] = headerCall as [string, readonly unknown[]];
+    expect(params[11]).toBe('100');
+    expect(params[12]).toBe('box');
+  });
+
+  it('A3-S4: revalidates planning list and detail routes after create', async () => {
+    vi.mocked(revalidateLocalized).mockClear();
+
+    const result = await createWorkOrder({
+      productId: PRODUCT_ID,
+      itemCode: 'FG-NPD-004',
+      plannedQuantity: '1000.000',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(revalidateLocalized).toHaveBeenCalledWith('/planning/work-orders');
+    expect(revalidateLocalized).toHaveBeenCalledWith(expect.stringMatching(/^\/planning\/work-orders\//));
   });
 });
