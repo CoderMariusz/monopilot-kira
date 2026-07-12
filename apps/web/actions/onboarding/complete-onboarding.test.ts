@@ -33,7 +33,14 @@ vi.mock('../../lib/auth/supabase-server', () => ({
 
 vi.mock('../../lib/i18n/revalidate-localized', () => ({
   revalidateLocalized: _revalidateLocalized,
-})));
+}));
+
+vi.mock('../../lib/auth/stamp-onboarding-claim', () => ({
+  stampOnboardingClaim: vi.fn(async (userId: string, completedAt: string) => {
+    _stampedClaims.push({ userId, completedAt });
+    return true;
+  }),
+}));
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: _createClient,

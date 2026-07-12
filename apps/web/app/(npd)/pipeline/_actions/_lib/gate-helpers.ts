@@ -935,7 +935,7 @@ function isMissingFgCodeMaskError(error: unknown): boolean {
   return error.message === 'entity_code_settings_missing:fg' || error.message === 'entity_code_mask_missing:fg';
 }
 
-function fallbackFgProductCode(projectCode: string): string {
+export function fallbackFgProductCode(projectCode: string): string {
   // Plan→FG: the FG code drops the "NPD" project prefix so NPD-012 → FG-012 (NOT FG-NPD-012).
   // Safe because the FG↔project link is a stored FK (npd_projects.product_code / items.npd_project_id),
   // never re-parsed back out of the code string — so the produced code can be a clean FG-<number>.

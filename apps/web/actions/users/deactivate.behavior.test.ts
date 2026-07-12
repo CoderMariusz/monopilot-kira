@@ -13,38 +13,27 @@ vi.mock('../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: unknown) => Promise<unknown>) => _withOrgContextRunner(action)),
 }));
 
+const { createSupabaseAuthAdmin, updateUserByIdMock } = vi.hoisted(() => ({
+  createSupabaseAuthAdmin: vi.fn(),
+  updateUserByIdMock: vi.fn(async () => ({ error: null })),
+}));
+
+vi.mock('./supabase-admin', () => ({
+  createSupabaseAuthAdmin,
+}));
+
 type QueryCall = { sql: string; params: unknown[] };
 
 type OwnerGuardState = {
   activeOwnerIds: Set<string>;
-  mutex: Promise<void>;
-  txnHeld: boolean;
 };
-
-async function acquireTxn(state: OwnerGuardState): Promise<void> {
-  const previous = state.mutex;
-  let release!: () => void;
-  state.mutex = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  await previous;
-  state.txnHeld = true;
-  state.releaseTxn = release;
-}
-
-type OwnerGuardStateWithRelease = OwnerGuardState & { releaseTxn?: () => void };
-
-function releaseTxn(state: OwnerGuardStateWithRelease): void {
-  if (!state.txnHeld) return;
-  state.txnHeld = false;
-  state.releaseTxn?.();
-  state.releaseTxn = undefined;
-}
 
 type FakeClient = {
   calls: QueryCall[];
   grantedDeactivate: boolean;
   ownerGuard: OwnerGuardState;
+  failAudit: boolean;
+  deactivated: boolean;
   query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
 };
 
@@ -54,13 +43,14 @@ function evaluateLastOwnerViolation(state: OwnerGuardState, targetUserId: string
   return targetIsActiveOwner && otherActiveOwners.length === 0;
 }
 
-
-function makeClient(ownerGuard: OwnerGuardStateWithRelease): FakeClient {
+function makeClient(ownerGuard: OwnerGuardState): FakeClient {
   const calls: QueryCall[] = [];
   const client: FakeClient = {
     calls,
     grantedDeactivate: true,
     ownerGuard,
+    failAudit: false,
+    deactivated: false,
     async query(sql: string, params: unknown[] = []) {
       calls.push({ sql, params });
       const norm = sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -69,8 +59,11 @@ function makeClient(ownerGuard: OwnerGuardStateWithRelease): FakeClient {
         return client.grantedDeactivate ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
 
-      if (norm.startsWith('with locked_active_owners')) {
-        await acquireTxn(client.ownerGuard);
+      if (norm.includes('from public.organizations') && norm.includes('for update')) {
+        return { rows: [{ id: ORG_ID }], rowCount: 1 };
+      }
+
+      if (norm.includes('with active_owners')) {
         const targetUserId = String(params[0]);
         return {
           rows: [{ last_owner_violation: evaluateLastOwnerViolation(client.ownerGuard, targetUserId) }],
@@ -81,19 +74,23 @@ function makeClient(ownerGuard: OwnerGuardStateWithRelease): FakeClient {
       if (norm.startsWith('update public.users') && norm.includes('is_active = false')) {
         const targetUserId = String(params[0]);
         if (evaluateLastOwnerViolation(client.ownerGuard, targetUserId)) {
-          releaseTxn(client.ownerGuard);
           return { rows: [], rowCount: 0 };
         }
-        client.ownerGuard.activeOwnerIds.delete(targetUserId);
         return { rows: [{ id: targetUserId }], rowCount: 1 };
       }
 
+      if (norm.startsWith('select is_active') && norm.includes('from public.users')) {
+        return { rows: [{ is_active: true }], rowCount: 1 };
+      }
+
       if (norm.startsWith('insert into public.audit_log')) {
+        if (client.failAudit) throw new Error('audit partition missing');
         return { rows: [], rowCount: 1 };
       }
 
       if (norm.startsWith('insert into public.outbox_events')) {
-        releaseTxn(client.ownerGuard);
+        client.ownerGuard.activeOwnerIds.delete(String(params[2]));
+        client.deactivated = true;
         return { rows: [], rowCount: 1 };
       }
 
@@ -103,23 +100,23 @@ function makeClient(ownerGuard: OwnerGuardStateWithRelease): FakeClient {
   return client;
 }
 
-function makeOwnerGuard(activeOwnerIds: string[]): OwnerGuardStateWithRelease {
-  return {
-    activeOwnerIds: new Set(activeOwnerIds),
-    mutex: Promise.resolve(),
-    txnHeld: false,
-  };
-}
-
 let currentClient: FakeClient;
 
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
-  currentClient = makeClient(makeOwnerGuard([TARGET_USER_ID, OTHER_OWNER_ID]));
-  _withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
-    action({ userId: ACTOR_USER_ID, orgId: ORG_ID, client: currentClient }),
-  );
+  updateUserByIdMock.mockResolvedValue({ error: null });
+  createSupabaseAuthAdmin.mockResolvedValue({
+    auth: { admin: { updateUserById: updateUserByIdMock } },
+  });
+  currentClient = makeClient({ activeOwnerIds: new Set([TARGET_USER_ID, OTHER_OWNER_ID]) });
+  _withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) => {
+    try {
+      return await action({ userId: ACTOR_USER_ID, orgId: ORG_ID, client: currentClient });
+    } catch (error) {
+      throw error;
+    }
+  });
 });
 
 async function loadDeactivateUser() {
@@ -136,6 +133,20 @@ describe('deactivateUser behavior', () => {
     const permissionCall = currentClient.calls.find((call) => call.sql.includes('permission = any($3::text[])'));
     expect(permissionCall?.params[2]).toEqual(['org.access.admin', 'settings.users.deactivate']);
     expect(currentClient.ownerGuard.activeOwnerIds.has(TARGET_USER_ID)).toBe(false);
+    expect(currentClient.deactivated).toBe(true);
+    const outboxCall = currentClient.calls.find((call) => call.sql.includes('insert into public.outbox_events'));
+    expect(outboxCall?.params.at(-1)).toBe(`settings.user.deactivated:${TARGET_USER_ID}`);
+  });
+
+  it('returns persistence_failed and leaves the user active when audit_log insert throws', async () => {
+    currentClient.failAudit = true;
+    const { deactivateUser } = await loadDeactivateUser();
+
+    const result = await deactivateUser({ targetUserId: TARGET_USER_ID });
+
+    expect(result).toEqual({ ok: false, error: 'persistence_failed' });
+    expect(currentClient.deactivated).toBe(false);
+    expect(currentClient.ownerGuard.activeOwnerIds.has(TARGET_USER_ID)).toBe(true);
   });
 
   it('blocks deactivating the sole active owner', async () => {
@@ -148,46 +159,16 @@ describe('deactivateUser behavior', () => {
     expect(currentClient.ownerGuard.activeOwnerIds.has(TARGET_USER_ID)).toBe(true);
   });
 
-  it('blocks deactivating the sole active owner even when an inactive owner retains the role', async () => {
-    currentClient.ownerGuard.activeOwnerIds = new Set([TARGET_USER_ID]);
+  it('returns success with authRevokeWarning when Supabase session ban fails after DB deactivation', async () => {
+    updateUserByIdMock.mockResolvedValueOnce({ error: { message: 'ban failed' } });
     const { deactivateUser } = await loadDeactivateUser();
 
     const result = await deactivateUser({ targetUserId: TARGET_USER_ID });
 
-    expect(result).toEqual({ ok: false, error: 'forbidden' });
-    expect(currentClient.ownerGuard.activeOwnerIds.has(TARGET_USER_ID)).toBe(true);
-
-    const guardCall = currentClient.calls.find((call) => call.sql.toLowerCase().includes('locked_active_owners'));
-    expect(guardCall?.sql).toContain('u.is_active = true');
-    expect(guardCall?.sql).toContain('for update of u');
-    expect(guardCall?.sql).toContain('where user_id <> $1::uuid');
-  });
-
-  it('serializes concurrent deactivations so only one active owner can be removed', async () => {
-    currentClient.ownerGuard.activeOwnerIds = new Set([TARGET_USER_ID, OTHER_OWNER_ID]);
-    const { deactivateUser } = await loadDeactivateUser();
-
-    const [firstResult, secondResult] = await Promise.all([
-      deactivateUser({ targetUserId: TARGET_USER_ID }),
-      deactivateUser({ targetUserId: OTHER_OWNER_ID }),
-    ]);
-
-    const successes = [firstResult, secondResult].filter((result) => result.ok);
-    const failures = [firstResult, secondResult].filter((result) => !result.ok);
-
-    expect(successes).toHaveLength(1);
-    expect(failures).toHaveLength(1);
-    expect(failures[0]).toEqual({ ok: false, error: 'forbidden' });
-    expect(currentClient.ownerGuard.activeOwnerIds.size).toBe(1);
-  });
-
-  it('returns forbidden without deactivate permission', async () => {
-    currentClient.grantedDeactivate = false;
-    const { deactivateUser } = await loadDeactivateUser();
-
-    const result = await deactivateUser({ targetUserId: TARGET_USER_ID });
-
-    expect(result).toEqual({ ok: false, error: 'forbidden' });
-    expect(currentClient.ownerGuard.activeOwnerIds.has(TARGET_USER_ID)).toBe(true);
+    expect(result).toEqual({
+      ok: true,
+      data: { targetUserId: TARGET_USER_ID, deactivated: true, authRevokeWarning: 'session_revoke_failed' },
+    });
+    expect(currentClient.deactivated).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { createServerSupabaseClient } from '../../lib/auth/supabase-server';
+import { stampOnboardingClaim } from '../../lib/auth/stamp-onboarding-claim';
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 
 export type CompleteOnboardingInput = { orgId: string };
@@ -19,32 +20,6 @@ function toIsoString(value: string | Date | null | undefined): string | null {
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
   if (typeof value === 'string') return value.length > 0 ? value : null;
   return null;
-}
-
-async function createSupabaseAuthAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('completeOnboarding requires Supabase service-role auth metadata env');
-  }
-  const { createClient } = await import('@supabase/supabase-js');
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
-
-async function stampOnboardingClaim(userId: string, completedAt: string): Promise<boolean> {
-  const supabase = await createSupabaseAuthAdmin();
-  const current = await supabase.auth.admin.getUserById(userId);
-  if (current.error || !current.data.user) return false;
-
-  const appMetadata = current.data.user.app_metadata ?? {};
-  const userMetadata = current.data.user.user_metadata ?? {};
-  const updated = await supabase.auth.admin.updateUserById(userId, {
-    app_metadata: { ...appMetadata, onboarding_completed_at: completedAt },
-    user_metadata: { ...userMetadata, onboarding_completed_at: completedAt },
-  });
-  return !updated.error;
 }
 
 async function refreshCurrentSession(): Promise<boolean> {
