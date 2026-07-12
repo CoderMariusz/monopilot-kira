@@ -232,11 +232,14 @@ export async function saveDraft(input: {
           wip_definition_id: ingredient.wipDefinitionId,
           substitute_item_id: substituteItemId,
           qty_kg: ingredient.qtyKg,
-          // F-B12: master cost wins; client value is the documented fallback.
-          // WIP reference rows NEVER take a client cost — their real cost comes
-          // from the definition via the cost engine; anything else is fabricated.
-          cost_per_kg_eur: ingredient.wipDefinitionId ? masterCost : (masterCost ?? ingredient.costPerKgEur),
-          cost_currency: masterCurrency ?? ingredient.costCurrency,
+          // F-B12: manual cost wins when the user typed one; master cost is the
+          // fallback when the editable field is empty (WIP/intermediate lines often
+          // have no master cost until the user enters a manual €/kg).
+          cost_per_kg_eur: ingredient.costPerKgEur ?? masterCost,
+          cost_currency:
+            ingredient.costPerKgEur != null
+              ? ingredient.costCurrency
+              : (masterCurrency ?? ingredient.costCurrency),
           // F-A06: client payload IGNORED. Item-linked line → profile-derived
           // full array (truly-empty profile → []); free-text line → server-side
           // carryover of what was already persisted (never the wire value).

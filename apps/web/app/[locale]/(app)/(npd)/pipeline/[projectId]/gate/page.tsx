@@ -133,6 +133,7 @@ const DEFAULT_CHECKLIST_LABELS: GateChecklistLabels = {
   current: 'Current',
   blockingBadge: '{count} blocking',
   notStarted: 'Not started',
+  completed: 'Completed',
   completedBy: 'Completed by {by} · {at}',
   required: 'Required',
   optional: 'Optional',

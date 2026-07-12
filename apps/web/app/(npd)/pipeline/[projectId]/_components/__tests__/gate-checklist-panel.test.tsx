@@ -42,6 +42,7 @@ const LABELS: GateChecklistLabels = {
   current: 'lbl.current',
   blockingBadge: '{count} blocking',
   notStarted: 'lbl.notStarted',
+  completed: 'lbl.completed',
   completedBy: 'Completed by {by} · {at}',
   required: 'lbl.required',
   optional: 'lbl.optional',
@@ -361,6 +362,18 @@ describe('GateChecklistPanel — optimistic toggle + RBAC', () => {
     expect(toggle).toHaveBeenCalledWith({ projectId: PROJECT.id, itemId: 'g2-b3', done: true });
     // Optimistically marked done → blocker badge gone, advance button enabled.
     expect(screen.queryByTestId('gate-blocker-alert')).toBeNull();
+  });
+
+  it('shows completed status (not "Not started") when an item is checked without completer metadata', async () => {
+    const user = userEvent.setup();
+    const toggle = vi.fn().mockResolvedValue({ ok: true });
+    renderPanel({ toggleGateChecklistItem: toggle });
+    const blocker = screen
+      .getAllByTestId('gate-checklist-item')
+      .find((i) => i.getAttribute('data-item-id') === 'g2-b3')!;
+    await user.click(within(blocker).getByRole('checkbox'));
+    expect(within(blocker).getByText('lbl.completed')).toBeInTheDocument();
+    expect(within(blocker).queryByText('lbl.notStarted')).toBeNull();
   });
 
   it('rolls back the optimistic toggle when the Server Action fails', async () => {

@@ -3,9 +3,8 @@
  *
  * SSOT: public.item_allergen_profiles. The action IGNORES the client's
  * allergensInherited payload and re-derives the FULL allergen array per line
- * from the line's item_id. Cost comes from public.v_item_effective_cost
- * (master), with the client value only as a documented fallback when the
- * master has no cost.
+ * from the line's item_id. Cost prefers the user-typed value; when empty,
+ * falls back to public.v_item_effective_cost (master).
  *
  * Pure unit suite — withOrgContext is mocked; the client mock routes by SQL
  * shape and CAPTURES the insert payload so we assert exactly what would be
@@ -36,6 +35,8 @@ const ITEM_B = '77777777-7777-4777-8777-777777777777';
 const ITEM_C = '88888888-8888-4888-8888-888888888888';
 /** Substitute that introduces an extra allergen not present on ITEM_A. */
 const ITEM_D = '99999999-9999-4999-8999-999999999999';
+const WIP_DEF_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const WIP_ITEM_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 let client: QueryClient;
 /** Captured $2 of the formulation_ingredients INSERT (the persisted rows). */
@@ -77,6 +78,11 @@ function makeClient(): QueryClient {
         return { rows: canonicalCodes.map((code) => ({ allergen_code: code })) };
       }
       if (q.startsWith('delete from public.formulation_ingredients')) return { rows: [] };
+      if (q.includes('from public.wip_definitions')) {
+        return {
+          rows: [{ id: WIP_DEF_ID, item_id: WIP_ITEM_ID }],
+        };
+      }
       if (q.includes('from public.items')) {
         expect(q).toContain('left join public.v_item_effective_cost');
         const requested = (params[0] as string[]) ?? [];
@@ -85,6 +91,7 @@ function makeClient(): QueryClient {
           [ITEM_B]: { id: ITEM_B, cost_per_kg: null, cost_currency: null },
           [ITEM_C]: { id: ITEM_C, cost_per_kg: '8.8800', cost_currency: 'GBP' },
           [ITEM_D]: { id: ITEM_D, cost_per_kg: '7.7700', cost_currency: 'GBP' },
+          [WIP_ITEM_ID]: { id: WIP_ITEM_ID, cost_per_kg: null, cost_currency: null },
         };
         return { rows: requested.filter((id) => known[id]).map((id) => known[id]) };
       }
@@ -117,6 +124,7 @@ function makeClient(): QueryClient {
         return { rows: [] };
       }
       if (q.startsWith('insert into public.formulation_audit_log')) return { rows: [] };
+      if (q.startsWith('insert into public.wip_definition_acks')) return { rows: [] };
       throw new Error(`unexpected query in save-draft.ssot.test: ${q.slice(0, 120)}`);
     }),
   };
@@ -255,11 +263,21 @@ describe('saveDraft — F-A06 allergen SSOT (client payload ignored)', () => {
 });
 
 describe('saveDraft — F-B12 cost from the effective-cost view', () => {
-  it('uses the effective-cost view when the master has one (client value ignored)', async () => {
+  it('persists the user-typed cost when both master and manual values exist (manual wins)', async () => {
     await saveDraft({
       projectId: PROJECT_ID,
       versionId: VERSION_ID,
-      ingredients: [line({ costPerKgEur: '1.00', costCurrency: 'USD' })],
+      ingredients: [line({ costPerKgEur: '3.75', costCurrency: 'USD' })],
+    });
+    expect(insertedRows?.[0]?.cost_per_kg_eur).toBe('3.75');
+    expect(insertedRows?.[0]?.cost_currency).toBe('USD');
+  });
+
+  it('falls back to the master cost when the user left the cost field empty', async () => {
+    await saveDraft({
+      projectId: PROJECT_ID,
+      versionId: VERSION_ID,
+      ingredients: [line({ costPerKgEur: null, costCurrency: null })],
     });
     expect(insertedRows?.[0]?.cost_per_kg_eur).toBe('9.9900');
     expect(insertedRows?.[0]?.cost_currency).toBe('GBP');
@@ -273,6 +291,24 @@ describe('saveDraft — F-B12 cost from the effective-cost view', () => {
     });
     expect(insertedRows?.[0]?.cost_per_kg_eur).toBe('2.50');
     expect(insertedRows?.[0]?.cost_currency).toBeNull();
+  });
+
+  it('persists a manual WIP ingredient cost when the linked item has no master cost', async () => {
+    await saveDraft({
+      projectId: PROJECT_ID,
+      versionId: VERSION_ID,
+      ingredients: [
+        line({
+          rmCode: 'WIP-BASE',
+          itemId: WIP_ITEM_ID,
+          wipDefinitionId: WIP_DEF_ID,
+          costPerKgEur: '3.75',
+          sequence: 1,
+        }),
+      ],
+    });
+    expect(insertedRows?.[0]?.wip_definition_id).toBe(WIP_DEF_ID);
+    expect(insertedRows?.[0]?.cost_per_kg_eur).toBe('3.75');
   });
 });
 
