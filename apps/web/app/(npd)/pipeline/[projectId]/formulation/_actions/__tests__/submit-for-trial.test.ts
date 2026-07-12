@@ -107,7 +107,7 @@ describe('submitForTrial lock gate (S19)', () => {
     const gateSql = String(queryMock.mock.calls[0]?.[0]);
     expect(gateSql).toContain('from requested r');
     expect(gateSql).toContain('cross join lateral');
-    expect(gateSql).toContain('order by fv.version_no desc');
+    expect(gateSql).toContain('order by fv.version_number desc');
     expect(gateSql).toContain('group by rv.formulation_id, rv.version_id, rv.state, rv.product_code, rv.rank');
     expect(gateSql).not.toMatch(
       /union all\s+select f\.id, fv\.id[\s\S]*where f\.project_id = \$1::uuid[\s\S]*and fv\.state = 'locked'/i,

@@ -53,7 +53,7 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
                  join public.formulation_versions fv on fv.formulation_id = f.id
                 where f.id = r.formulation_id
                   and fv.state = 'locked'
-                order by fv.version_no desc
+                order by fv.version_number desc
                 limit 1
              ) fb
             where r.state <> 'locked'
