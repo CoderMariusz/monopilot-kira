@@ -11,6 +11,25 @@ vi.mock('../oee-snapshot-producer', () => ({
   recordWoCompletionSnapshot: vi.fn(async () => undefined),
 }));
 
+vi.mock('@monopilot/e-sign', () => ({
+  signEvent: vi.fn(async () => ({ signatureId: 'yield-override-sig-1' })),
+}));
+
+vi.mock('../evaluate-closed-production-strict', () => ({
+  evaluateClosedProductionStrict: vi.fn(async () => ({
+    output_kg: '3',
+    posted_consumption_kg: '0.08',
+    effective_yield_pct: '100',
+    expected_input_kg: '3',
+    within_tolerance: true,
+  })),
+}));
+
+vi.mock('../../planning/upstream-wip-dependency-gate', () => ({
+  assertUpstreamWipReady: vi.fn(async () => null),
+  upstreamWipNotReadyMessage: vi.fn(),
+}));
+
 vi.mock('../wo-state-machine', () => ({
   applyTransition: vi.fn(async () => ({
     ok: true,
@@ -22,7 +41,9 @@ vi.mock('../wo-state-machine', () => ({
 }));
 
 import { holdsGuard, assertWoNotOnHold } from '../holds-guard';
+import { signEvent } from '@monopilot/e-sign';
 import { completeWo } from '../complete-cancel-wo';
+import { evaluateClosedProductionStrict } from '../evaluate-closed-production-strict';
 import { QualityHoldError } from '../shared';
 import { recordWoCompletionSnapshot } from '../oee-snapshot-producer';
 import { applyTransition } from '../wo-state-machine';
@@ -107,6 +128,13 @@ describe('completeWo yield gate', () => {
     primaryOutputGreen = false;
     vi.clearAllMocks();
     vi.mocked(assertWoNotOnHold).mockResolvedValue({ ok: true });
+    vi.mocked(evaluateClosedProductionStrict).mockResolvedValue({
+      output_kg: '3',
+      posted_consumption_kg: '0.08',
+      effective_yield_pct: '100',
+      expected_input_kg: '3',
+      within_tolerance: true,
+    });
   });
 
   it('fails when the only primary output is voided by a correction counter-entry', async () => {
@@ -171,24 +199,55 @@ describe('completeWo yield gate', () => {
       woId: WO_ID,
       transactionId: TX_ID,
       overrideReasonCode: 'scrap_quality',
+      overridePin: '123456',
+      overrideEsignReason: 'supervisor attestation',
     });
 
     expect(result).toMatchObject({ ok: false, error: 'forbidden' });
     expect(applyTransition).not.toHaveBeenCalled();
+    expect(signEvent).not.toHaveBeenCalled();
   });
 
-  it('allows a taxonomy override code when the supervisor permission is present', async () => {
+  it('rejects taxonomy override without CFR-21 e-sign attestation', async () => {
     const result = await completeWo(makeCtx(), {
       woId: WO_ID,
       transactionId: TX_ID,
       overrideReasonCode: 'scrap_quality',
     });
 
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'invalid_input',
+      message: expect.stringContaining('e-sign reason is required'),
+    });
+    expect(signEvent).not.toHaveBeenCalled();
+    expect(applyTransition).not.toHaveBeenCalled();
+  });
+
+  it('allows a taxonomy override code when supervisor permission and e-sign are present', async () => {
+    const result = await completeWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      overrideReasonCode: 'scrap_quality',
+      overridePin: '123456',
+      overrideEsignReason: 'supervisor attestation for low yield',
+    });
+
     expect(result.ok).toBe(true);
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'prod.wo.yield_override',
+        reason: 'supervisor attestation for low yield',
+      }),
+      expect.anything(),
+    );
     expect(applyTransition).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        context: expect.objectContaining({ overrideReasonCode: 'scrap_quality' }),
+        context: expect.objectContaining({
+          overrideReasonCode: 'scrap_quality',
+          yieldOverrideSignatureId: 'yield-override-sig-1',
+        }),
       }),
     );
     expect(recordWoCompletionSnapshot).toHaveBeenCalled();
@@ -199,6 +258,8 @@ describe('completeWo yield gate', () => {
       woId: WO_ID,
       transactionId: TX_ID,
       overrideReasonCode: 'equipment_failure',
+      overridePin: '123456',
+      overrideEsignReason: 'equipment failure attestation',
     });
 
     expect(result.ok).toBe(true);
@@ -257,5 +318,67 @@ describe('completeWo yield gate', () => {
       }),
     );
     expect(recordWoCompletionSnapshot).toHaveBeenCalled();
+  });
+
+  it('rejects completion when consumption is zero with positive output and no override (C4)', async () => {
+    primaryOutputGreen = true;
+    vi.mocked(evaluateClosedProductionStrict).mockResolvedValue({
+      output_kg: '3',
+      posted_consumption_kg: '0',
+      effective_yield_pct: '100',
+      expected_input_kg: '3',
+      within_tolerance: false,
+    });
+
+    const result = await completeWo(makeCtx(), { woId: WO_ID, transactionId: TX_ID });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'closed_production_strict_failed',
+      details: { code: 'consumption_yield_out_of_tolerance' },
+    });
+    expect(applyTransition).not.toHaveBeenCalled();
+  });
+
+  it('rejects completion when consumption is far below tolerance and no override is supplied (C4)', async () => {
+    primaryOutputGreen = true;
+    vi.mocked(evaluateClosedProductionStrict).mockResolvedValue({
+      output_kg: '3',
+      posted_consumption_kg: '0.08',
+      effective_yield_pct: '100',
+      expected_input_kg: '3',
+      within_tolerance: false,
+    });
+
+    const result = await completeWo(makeCtx(), { woId: WO_ID, transactionId: TX_ID });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'closed_production_strict_failed',
+      details: { code: 'consumption_yield_out_of_tolerance' },
+    });
+    expect(applyTransition).not.toHaveBeenCalled();
+  });
+
+  it('allows completion with a valid taxonomy override when consumption is out of tolerance (C4)', async () => {
+    primaryOutputGreen = true;
+    vi.mocked(evaluateClosedProductionStrict).mockResolvedValue({
+      output_kg: '3',
+      posted_consumption_kg: '0.08',
+      effective_yield_pct: '100',
+      expected_input_kg: '3',
+      within_tolerance: false,
+    });
+
+    const result = await completeWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      overrideReasonCode: 'material_shortage',
+      overridePin: '123456',
+      overrideEsignReason: 'material shortage attestation',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(applyTransition).toHaveBeenCalled();
   });
 });

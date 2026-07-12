@@ -223,7 +223,18 @@ export type CreateWorkOrderResult =
 export type ReleaseWorkOrderResult =
   | { ok: true; workOrder: WOHeader }
   | { ok: false; error: PlanningWorkOrderError }
-  | { ok: false; error: 'factory_release_incomplete'; missing: Array<'active_bom' | 'factory_spec'> };
+  | {
+      ok: false;
+      error: 'factory_release_incomplete';
+      missing: Array<'active_bom' | 'factory_spec'>;
+      message?: string;
+    }
+  | {
+      ok: false;
+      error: 'upstream_wip_not_ready';
+      message: string;
+      details?: unknown;
+    };
 
 export type DeleteDraftWorkOrderResult =
   | { ok: true; id: string }

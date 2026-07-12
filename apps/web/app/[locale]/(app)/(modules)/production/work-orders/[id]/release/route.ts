@@ -17,9 +17,13 @@ export async function POST(
   }
 
   const status = ERROR_STATUS[result.error] ?? 500;
-  const details = 'missing' in result ? { missing: result.missing } : undefined;
+  const details =
+    'missing' in result ? { missing: result.missing } :
+    'details' in result ? { details: result.details } :
+    undefined;
+  const message = 'message' in result ? result.message : undefined;
   return NextResponse.json(
-    { ok: false, error: result.error, details },
+    { ok: false, error: result.error, message, details },
     { status },
   );
 }

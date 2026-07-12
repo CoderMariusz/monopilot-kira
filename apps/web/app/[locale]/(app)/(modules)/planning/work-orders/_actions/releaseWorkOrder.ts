@@ -2,6 +2,10 @@
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+import {
+  assertUpstreamWipReady,
+  upstreamWipNotReadyMessage,
+} from '../../../../../../../lib/planning/upstream-wip-dependency-gate';
 import { acquireFactorySpecProductBindLock } from '../../../../../../../lib/technical/factory-spec-bind-lock';
 import { packHierarchyComplete, snapshotFromItemRow } from '../../../../../../../lib/uom/convert';
 import {
@@ -77,7 +81,13 @@ function evaluateReleasePreflight(preflight: ReleasePreflightRow): ReleaseWorkOr
   if (!preflight.active_bom_header_id) missing.push('active_bom');
   if (!preflight.active_factory_spec_id) missing.push('factory_spec');
   if (missing.length > 0) {
-    return { ok: false, error: 'factory_release_incomplete', missing };
+    return {
+      ok: false,
+      error: 'factory_release_incomplete',
+      missing,
+      message:
+        'Factory spec or active BOM missing — generate and complete the factory spec in Technical before release.',
+    };
   }
 
   return null;
@@ -111,6 +121,16 @@ export async function releaseWorkOrder(params: { id: string }): Promise<ReleaseW
 
       const gateFailure = evaluateReleasePreflight(preflight);
       if (gateFailure) return gateFailure;
+
+      const upstreamGate = await assertUpstreamWipReady(ctx.client, params.id, 'release');
+      if (upstreamGate) {
+        return {
+          ok: false,
+          error: 'upstream_wip_not_ready',
+          message: upstreamWipNotReadyMessage(upstreamGate),
+          details: upstreamGate,
+        };
+      }
 
       const healed = await ctx.client.query<ReleasePreflightRow>(
         `update public.work_orders wo
