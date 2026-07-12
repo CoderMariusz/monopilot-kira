@@ -341,6 +341,9 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       bomVersion: t('overview.bomVersion'),
       consumption: t('overview.consumption'),
       consumptionKpi: t('overview.consumptionKpi'),
+      consumptionMixedUnits: t.has('overview.consumptionMixedUnits')
+        ? t('overview.consumptionMixedUnits')
+        : 'Per UoM',
       outputKpi: t('overview.outputKpi'),
       allergenYes: t('overview.allergenYes'),
       allergenNo: t('overview.allergenNo'),

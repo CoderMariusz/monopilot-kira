@@ -192,6 +192,7 @@ export type WoDetailLabels = {
     bomVersion: string;
     consumption: string;
     consumptionKpi: string;
+    consumptionMixedUnits: string;
     outputKpi: string;
     allergenYes: string;
     allergenNo: string;
@@ -796,9 +797,30 @@ export function WoDetailScreen({
           <div>
             <div className="mb-1 flex justify-between text-xs text-slate-600">
               <span>{labels.overview.consumption}</span>
-              <b className="font-mono">{h.consumptionPct.toFixed(1)}%</b>
+              {h.consumptionMixedUnits ? (
+                <b className="font-mono text-[11px]">{labels.overview.consumptionMixedUnits}</b>
+              ) : (
+                <b className="font-mono">{(h.consumptionPct ?? 0).toFixed(1)}%</b>
+              )}
             </div>
-            <ProgressBar pct={h.consumptionPct} label={`${labels.overview.consumption} ${h.consumptionPct}%`} />
+            {h.consumptionMixedUnits ? (
+              <div className="flex flex-col gap-2" data-testid="wo-consumption-by-uom">
+                {h.consumptionByUom.map((row) => (
+                  <div key={row.uom}>
+                    <div className="mb-1 flex justify-between text-[11px] text-slate-500">
+                      <span className="font-mono uppercase">{row.uom}</span>
+                      <span className="font-mono tabular-nums">{row.progressPct.toFixed(1)}%</span>
+                    </div>
+                    <ProgressBar
+                      pct={row.progressPct}
+                      label={`${labels.overview.consumption} ${row.uom} ${row.progressPct}%`}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <ProgressBar pct={h.consumptionPct ?? 0} label={`${labels.overview.consumption} ${h.consumptionPct ?? 0}%`} />
+            )}
           </div>
           <div>
             <div className="mb-1 flex justify-between text-xs text-slate-600">
@@ -860,7 +882,14 @@ export function WoDetailScreen({
 
             {/* KPI mini-cards */}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <Kpi label={labels.overview.consumptionKpi} value={`${h.consumptionPct.toFixed(1)}%`} />
+              <Kpi
+                label={labels.overview.consumptionKpi}
+                value={
+                  h.consumptionMixedUnits
+                    ? h.consumptionByUom.map((row) => `${row.uom} ${row.progressPct.toFixed(1)}%`).join(' · ')
+                    : `${(h.consumptionPct ?? 0).toFixed(1)}%`
+                }
+              />
               <Kpi label={labels.overview.outputKpi} value={`${h.outputPct.toFixed(1)}%`} />
             </div>
           </Card>

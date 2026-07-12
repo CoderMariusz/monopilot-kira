@@ -36,6 +36,7 @@ const WOO_ID = '77777777-7777-4777-8777-777777777777';
 const GRN_ID = '99999999-9999-4999-8999-999999999999';
 const ASSIGNEE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const SITE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const PRODUCT_ID = '55555555-5555-4555-8555-555555555555';
 
 let client: QueryClient;
 let allowPermission = true;
@@ -53,6 +54,7 @@ let activeHold = false;
 // createInspectionHoldIfMissing (inspection-actions.ts).
 let existingInspectionHoldReason: string | null = null;
 let listTotal = 1;
+let specResolveRows: Array<Record<string, string>> = [];
 
 vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
 vi.mock('@monopilot/e-sign', () => ({ signEvent: vi.fn(async () => ({ subjectHash: 'hash' })) }));
@@ -76,7 +78,7 @@ const DETAIL_ROW = {
   reference_type: 'lp',
   reference_id: LP_ID,
   reference_display: 'LP-4820',
-  product_id: null,
+  product_id: PRODUCT_ID,
   product_code: 'RM-1001',
   product_name: 'Beef trim',
   status: 'on_hold',
@@ -230,6 +232,9 @@ function makeClient(): QueryClient {
       if (q.includes('from public.quality_inspections qi') && q.includes('qi.id = $1::uuid')) {
         return { rows: [{ ...DETAIL_ROW, hold_id: holdRows === 'one' ? HOLD_ID : null }] };
       }
+      if (q.includes('from public.quality_specifications qs')) {
+        return { rows: specResolveRows };
+      }
       if (q.includes('from public.license_plates lp')) {
         return {
           rows: [
@@ -263,6 +268,7 @@ beforeEach(() => {
   activeHold = false;
   existingInspectionHoldReason = null;
   listTotal = 1;
+  specResolveRows = [];
   client = makeClient();
   vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
   vi.mocked(signEvent).mockClear();
@@ -368,6 +374,35 @@ describe('getInspectionDetail — holdId deep link', () => {
     allowPermission = false;
     const res = await getInspectionDetail(INSP_ID);
     expect(res).toEqual({ ok: false, reason: 'forbidden' });
+  });
+});
+
+describe('getInspectionDetail — parameter template resolution (S15)', () => {
+  it('resolves editable parameters from the active incoming spec when stored parameters are empty', async () => {
+    specResolveRows = [
+      {
+        spec_id: 'spec-1',
+        parameter_name: 'Visual',
+        target_value: null,
+        min_value: null,
+        max_value: null,
+        unit: null,
+      },
+    ];
+    const res = await getInspectionDetail(INSP_ID);
+    expect(res.ok).toBe(true);
+    if (!res.ok || !res.data) throw new Error('expected detail');
+    expect(res.data.parameterResolution).toBe('resolved');
+    expect(res.data.parameters).toEqual([{ name: 'Visual', actual: '', pass: false }]);
+  });
+
+  it('returns missing_template when the product has no active incoming spec', async () => {
+    specResolveRows = [];
+    const res = await getInspectionDetail(INSP_ID);
+    expect(res.ok).toBe(true);
+    if (!res.ok || !res.data) throw new Error('expected detail');
+    expect(res.data.parameterResolution).toBe('missing_template');
+    expect(res.data.parameters).toEqual([]);
   });
 });
 

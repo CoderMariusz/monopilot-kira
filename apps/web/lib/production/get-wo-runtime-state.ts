@@ -5,7 +5,7 @@
  * + output progress for one WO. Read-only (no outbox / no mutation). RLS-scoped
  * to app.current_org_id() so cross-tenant WOs are invisible (return not_found).
  *
- * consumption_progress_pct = sum(consumed) / sum(required) over wo_materials.
+ * consumption_progress_pct = per-UoM when mixed; single scalar only when one UoM.
  * output_progress_pct = sum(wo_outputs.qty_kg) / planned_quantity.
  *
  * NUMERIC-exact: the totals (sum required/consumed/output) and the per-component
@@ -23,6 +23,7 @@ import {
   fail,
   hasPermission,
 } from './shared';
+import { summarizeConsumptionProgress } from './consumption-progress';
 
 export type WoComponentProgress = {
   componentId: string;
@@ -45,7 +46,10 @@ export type WoRuntimeState = {
   startedAt: string | null;
   completedAt: string | null;
   elapsedMin: number | null;
-  consumptionProgressPct: number;
+  /** Null when the WO BOM mixes UoMs (kg + pcs) — never sum unlike units. */
+  consumptionProgressPct: number | null;
+  consumptionMixedUnits: boolean;
+  consumptionByUom: Array<{ uom: string; progressPct: number; consumedQty: string; requiredQty: string }>;
   outputProgressPct: number;
   components: WoComponentProgress[];
   outputs: WoOutputProgress[];
@@ -92,10 +96,12 @@ export async function getWoRuntimeState(
     required_qty: string;
     consumed_qty: string;
     remaining_qty: string;
+    uom: string;
   }>(
     `select product_id,
             required_qty,
             consumed_qty,
+            uom,
             to_char(required_qty - consumed_qty, 'FM999999999990.000') as remaining_qty
        from public.wo_materials
       where org_id = app.current_org_id() and wo_id = $1::uuid
@@ -130,19 +136,13 @@ export async function getWoRuntimeState(
     batchNumber: o.batch_number,
   }));
 
-  // NUMERIC-exact progress percentages: the SUMs and the divisions run in SQL as
-  // NUMERIC and are rounded to 1 dp THERE. JS only reads the final number — it
-  // never sums/divides kg through binary float (the gate-relevant math is exact).
+  // Per-UoM consumption progress — never sum kg + pcs into one scalar.
+  const consumptionSummary = summarizeConsumptionProgress(materials.rows);
+
   const progress = await client.query<{
-    consumption_pct: string | null;
     output_pct: string | null;
   }>(
     `select
-       (select case when coalesce(sum(required_qty), 0) > 0
-                    then round(sum(consumed_qty) / sum(required_qty) * 100, 1)
-                    else 0 end
-          from public.wo_materials
-         where org_id = app.current_org_id() and wo_id = $1::uuid) as consumption_pct,
        (select case when $2::numeric > 0
                     then round(coalesce(sum(qty_kg), 0) / $2::numeric * 100, 1)
                     else 0 end
@@ -150,7 +150,7 @@ export async function getWoRuntimeState(
          where org_id = app.current_org_id() and wo_id = $1::uuid) as output_pct`,
     [woId, woRow.planned_quantity],
   );
-  const consumptionProgressPct = Number(progress.rows[0]?.consumption_pct ?? 0);
+  const consumptionProgressPct = consumptionSummary.progressPct;
   const outputProgressPct = Number(progress.rows[0]?.output_pct ?? 0);
 
   const startedAt = toIso(woRow.started_at);
@@ -172,6 +172,8 @@ export async function getWoRuntimeState(
       completedAt,
       elapsedMin,
       consumptionProgressPct,
+      consumptionMixedUnits: consumptionSummary.mixedUnits,
+      consumptionByUom: consumptionSummary.byUom,
       outputProgressPct,
       components,
       outputs: outputRows,

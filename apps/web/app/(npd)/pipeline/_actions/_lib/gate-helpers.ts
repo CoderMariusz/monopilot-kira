@@ -297,9 +297,9 @@ export async function loadProjectForUpdate(ctx: OrgContextLike, projectId: strin
 
 /**
  * Blockers that must be resolved before advancing the project's CURRENT stage.
- * Checklist completeness is advisory by product decision: seeded checklist rows are
- * progress markers, but required/uncompleted items do not hard-block stage advance.
- * The FG-already-linked guard fires only when ENTERING the FG candidate stage.
+ * Required gate-checklist items block advance unless a recorded override (reason +
+ * audit row) is supplied via advanceProjectGate.override — same path as other
+ * soft-gate missing fields.
  */
 export async function getBlockers(
   ctx: OrgContextLike,
@@ -307,9 +307,6 @@ export async function getBlockers(
   targetStage: AnyStage,
 ): Promise<GateBlocker[]> {
   const blockers: GateBlocker[] = [];
-
-  // Gate checklist rows are advisory progress markers. Required-but-unchecked
-  // items must stay visible to the UI, but they do not hard-block stage advance.
 
   // Recipe guard: leaving the `recipe` stage requires the formulation's current
   // version to have at least one ingredient. This is the ONLY real completeness

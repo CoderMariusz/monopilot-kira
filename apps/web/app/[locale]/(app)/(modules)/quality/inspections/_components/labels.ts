@@ -155,6 +155,10 @@ export function buildInspectionDetailLabels(t: QaInspectionsTranslator): Inspect
       notes: t('detail.params.notes'),
       notesPlaceholder: t('detail.params.notesPlaceholder'),
       formIncomplete: 'Complete all required fields to continue.',
+      missingTemplateTitle: 'No inspection template for this material',
+      missingTemplateBody:
+        'Assign an active incoming quality specification with parameters before recording a Pass/Fail/Hold decision.',
+      assignTemplateLink: 'Open quality specifications →',
     },
     overall: {
       label: t('detail.overall.label'),
