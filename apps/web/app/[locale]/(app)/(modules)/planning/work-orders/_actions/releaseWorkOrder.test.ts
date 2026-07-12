@@ -19,6 +19,7 @@ let outputUom: string | null = 'base';
 let netQtyPerEach: string | null = null;
 let eachPerBox: string | null = null;
 let deletedCount = 1;
+let chainDeleteBlocked = false;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -36,6 +37,9 @@ function makeClient(): QueryClient {
       const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
       if (normalized.includes('from public.user_roles')) {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+      }
+      if (normalized.includes('with recursive chain')) {
+        return { rows: [{ blocked: chainDeleteBlocked }], rowCount: 1 };
       }
       if (normalized.startsWith('select id, wo_number, status')) {
         const id = String(params[0]);
@@ -151,6 +155,7 @@ describe('releaseWorkOrder', () => {
     netQtyPerEach = null;
     eachPerBox = null;
     deletedCount = 1;
+    chainDeleteBlocked = false;
     client = makeClient();
   });
 
@@ -305,6 +310,13 @@ describe('releaseWorkOrder', () => {
 
     expect(result).toEqual({ ok: false, error: 'forbidden' });
     expect(sqlCalls().some((sql) => sql.startsWith('select id, wo_number, status'))).toBe(false);
+  });
+
+  it('blocks deleting a draft WO that is part of an active production chain (C5)', async () => {
+    chainDeleteBlocked = true;
+    const result = await deleteDraftWorkOrder({ id: WO_ID });
+    expect(result).toEqual({ ok: false, error: 'chain_delete_blocked' });
+    expect(sqlCalls().some((sql) => sql.startsWith('delete from public.work_orders'))).toBe(false);
   });
 
   it('respects org scope: a WO outside app.current_org_id is not found and not deleted', async () => {

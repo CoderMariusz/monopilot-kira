@@ -161,6 +161,10 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         'errors.pack_hierarchy_incomplete',
         'This product is packed in boxes/eaches but the pack factors (net weight per each, eaches per box) are not set — fix the item master in Technical before releasing.',
       ),
+      chain_delete_blocked: opt(
+        'errors.chain_delete_blocked',
+        'This draft work order is part of an active production chain and cannot be deleted. Cancel it instead.',
+      ),
     },
     factoryReleaseIncomplete: {
       title: optTpl(

@@ -30,6 +30,7 @@ type State = {
   lpHeld: boolean;
   lpProductId: string;
   substituteItemId: string | null;
+  fefoAutoLpAvailable: boolean;
   woExecutionStatus: 'planned' | 'in_progress' | 'paused' | 'completed' | 'closed' | 'cancelled' | null;
 };
 
@@ -83,6 +84,20 @@ function makeClient(): QueryClient {
           ? {
               rows: [{
                 id: LP_ID,
+                product_id: state.lpProductId,
+                status: state.lpStatus,
+                site_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                location_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              }],
+              rowCount: 1,
+            }
+          : { rows: [], rowCount: 0 };
+      }
+      if (n.includes('from public.v_inventory_available cand') && n.includes('for update of lp')) {
+        return state.fefoAutoLpAvailable && state.lpDecrementSucceeds
+          ? {
+              rows: [{
+                lp_id: LP_ID,
                 product_id: state.lpProductId,
                 status: state.lpStatus,
                 site_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -226,6 +241,7 @@ beforeEach(() => {
     lpHeld: false,
     lpProductId: PRODUCT_ID,
     substituteItemId: null,
+    fefoAutoLpAvailable: true,
     woExecutionStatus: 'in_progress',
   };
   queries = [];
@@ -260,7 +276,7 @@ describe('recordDesktopConsumption — conditional UPDATE', () => {
       expect(result.data.lpId).toBe(LP_ID);
     }
     const update = queries.find((q) => normalize(q.sql).startsWith('update public.wo_materials'));
-    expect(update?.params).toEqual([ORG_ID, WO_ID, MATERIAL_ID, '2.500']);
+    expect(update?.params).toEqual([ORG_ID, WO_ID, MATERIAL_ID, '2.5']);
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(true);
     expect(queries.some((q) => normalize(q.sql).includes('insert into public.item_wac_state'))).toBe(true);
     const wacSnapshot = queries.find(
@@ -268,7 +284,7 @@ describe('recordDesktopConsumption — conditional UPDATE', () => {
     );
     expect(wacSnapshot).toBeDefined();
     expect(JSON.parse(String(wacSnapshot?.params[1]))).toMatchObject({
-      wac_qty_kg: '2.500',
+      wac_qty_kg: '2.5',
       wac_value: '25',
       wac_avg_cost: '10',
     });
@@ -284,7 +300,7 @@ describe('recordDesktopConsumption — conditional UPDATE', () => {
     const stockMove = queries.find((q) => normalize(q.sql).startsWith('insert into public.stock_moves'));
     expect(stockMove).toBeDefined();
     expect(normalize(stockMove!.sql)).toContain("'consume_to_wo'");
-    expect(stockMove!.params).toEqual(expect.arrayContaining([LP_ID, '2.500', 'kg', WO_ID, MATERIAL_ID]));
+    expect(stockMove!.params).toEqual(expect.arrayContaining([LP_ID, '2.5', 'kg', WO_ID, MATERIAL_ID]));
 
     const history = queries.find((q) => normalize(q.sql).startsWith('insert into public.lp_state_history'));
     expect(history).toBeDefined();
@@ -316,7 +332,7 @@ describe('recordDesktopConsumption — conditional UPDATE', () => {
       wo_id: WO_ID,
       lp_id: LP_ID,
       item_id: PRODUCT_ID,
-      qty: '2.500',
+      qty: '2.5',
       uom: 'kg',
       org_id: ORG_ID,
       actor: USER_ID,
@@ -497,18 +513,73 @@ describe('recordDesktopConsumption — idempotent replay', () => {
   });
 });
 
-describe('recordDesktopConsumption — no-LP path', () => {
+describe('recordDesktopConsumption — no-LP / reason-code path (C1/C2)', () => {
+  it('rejects an explicit zero UUID lpId before any stock mutation', async () => {
+    const result = await recordDesktopConsumption({
+      ...VALID_INPUT,
+      lpId: '00000000-0000-0000-0000-000000000000',
+    });
+    expect(result).toEqual({ ok: false, reason: 'invalid_input' });
+    expect(queries.length).toBe(0);
+  });
+
+  it('reason-code path auto-resolves FEFO LP, decrements stock, and never uses zero UUID', async () => {
+    const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: null, reasonCode: 'silo-draw' });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.lpId).toBe(LP_ID);
+    const ledger = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
+    expect(ledger?.params[3]).toBe(LP_ID);
+    expect(ledger?.params[7]).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(true);
+  });
+
+  it('rejects reason-code consume when the only FEFO LP is on hold (C2)', async () => {
+    state.lpHeld = true;
+    const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: null, reasonCode: 'silo-draw' });
+    expect(result).toEqual({ ok: false, reason: 'quality_hold_active' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
+  });
+
+  it('rejects reason-code consume when no eligible FEFO LP exists', async () => {
+    state.fefoAutoLpAvailable = false;
+    const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: null, reasonCode: 'silo-draw' });
+    expect(result).toEqual({ ok: false, reason: 'lp_unavailable' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
+  });
+});
+
+describe('recordDesktopConsumption — fractional qty persistence (S6)', () => {
+  it('persists 2.52 kg without integer rounding', async () => {
+    const result = await recordDesktopConsumption({ ...VALID_INPUT, qty: '2.52' });
+    expect(result.ok).toBe(true);
+    const update = queries.find((q) => normalize(q.sql).startsWith('update public.wo_materials'));
+    expect(update?.params[3]).toBe('2.52');
+    const ledger = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
+    expect(ledger?.params[4]).toBe('2.52');
+  });
+
+  it('persists 0.48 kg without rounding to zero', async () => {
+    const result = await recordDesktopConsumption({ ...VALID_INPUT, qty: '0.48' });
+    expect(result.ok).toBe(true);
+    const ledger = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
+    expect(ledger?.params[4]).toBe('0.48');
+  });
+});
+
+describe('recordDesktopConsumption — no-LP path (legacy describe)', () => {
   it('rejects no-LP manual consumption without reasonCode', async () => {
     const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: null });
     expect(result).toEqual({ ok: false, reason: 'reason_required' });
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
   });
 
-  it('skips the LP update and logs reasonCode in ext_jsonb when lpId is omitted with a reason', async () => {
+  it('auto-resolves FEFO LP and logs reasonCode in ext_jsonb when lpId is omitted with a reason', async () => {
     const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: null, reasonCode: 'silo-draw' });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.data.lpId).toBeNull();
-    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+    if (result.ok) expect(result.data.lpId).toBe(LP_ID);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(true);
     const ledger = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
     expect(ledger).toBeDefined();
     const ext = ledger!.params.find((p) => typeof p === 'string' && (p as string).includes('reasonCode')) as string;

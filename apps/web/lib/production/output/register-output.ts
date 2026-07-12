@@ -840,15 +840,59 @@ export async function registerOutput(
     throw new ProductionActionError('forbidden', 403);
   }
 
-  // 3. load WO + item
+  // 3. load WO + item (catch-weight qty must be derived before persistence — S17).
   const wo = await loadWo(ctx, woId);
   await assertOutputProductAllowed(ctx, woId, input.product_id, input.output_type);
-  const resolvedQtyKg = await resolveQtyKg(ctx.client, wo, input);
+  const item = await loadItem(ctx, input.product_id);
+
+  let catchSummary: CatchWeightSummary | null = null;
+  let catchDetailsJson: string | null = null;
+  let persistedQtyUnits: string | null = input.qtyUnits ?? null;
+  let persistedActualWeightKg: string | null = input.actualWeightKg ?? null;
+
+  if (item.weight_mode === 'catch') {
+    if (!input.catch_weight_kg_per_unit || input.catch_weight_kg_per_unit.length === 0) {
+      throw new ProductionActionError('invalid_input', 422, {
+        fields: ['catch_weight_kg_per_unit'],
+      });
+    }
+    const reference = item.nominal_weight ?? '0';
+    const tolerance =
+      input.catch_weight_tolerance_pct ??
+      (item.variance_tolerance_pct != null
+        ? Number(item.variance_tolerance_pct) / 100
+        : DEFAULT_CATCH_WEIGHT_TOLERANCE);
+    catchSummary = computeCatchWeightSummary(
+      input.catch_weight_kg_per_unit,
+      reference,
+      tolerance,
+    );
+    catchDetailsJson = JSON.stringify({
+      per_unit_kg: input.catch_weight_kg_per_unit,
+      avg_kg: catchSummary.avg_kg,
+      total_kg: catchSummary.total_kg,
+      variance_pct: catchSummary.variance_pct,
+      variance_warning: catchSummary.warning,
+      reference_kg: reference,
+      tolerance,
+    });
+    persistedQtyUnits = String(input.catch_weight_kg_per_unit.length);
+    persistedActualWeightKg = catchSummary.total_kg;
+  } else if (input.catch_weight_kg_per_unit && input.catch_weight_kg_per_unit.length > 0) {
+    throw new ProductionActionError('invalid_input', 422, {
+      fields: ['catch_weight_kg_per_unit'],
+      message: "item.weight_mode is 'fixed' — catch weights not accepted",
+    });
+  }
+
+  const resolvedQtyKg =
+    item.weight_mode === 'catch' && catchSummary
+      ? catchSummary.total_kg
+      : await resolveQtyKg(ctx.client, wo, input);
   // V-PROD-03: registered output quantity must be > 0.
   if (toMicro(resolvedQtyKg) <= 0n) {
     throw new ProductionActionError('invalid_input', 422, { fields: ['qty_kg'] });
   }
-  const item = await loadItem(ctx, input.product_id);
 
   const wacContribution = await resolveOutputWacContribution(ctx.client, {
     woId,
@@ -889,44 +933,6 @@ export async function registerOutput(
   // 6. batch_number + expiry_date (V-PROD-04).
   const batchNumber =
     input.batch_number ?? (await nextBatchNumber(ctx, woId, wo.wo_number, input.output_type));
-
-  // 7. catch-weight (T-032).
-  let catchSummary: CatchWeightSummary | null = null;
-  let catchDetailsJson: string | null = null;
-  if (item.weight_mode === 'catch') {
-    if (!input.catch_weight_kg_per_unit || input.catch_weight_kg_per_unit.length === 0) {
-      throw new ProductionActionError('invalid_input', 422, {
-        fields: ['catch_weight_kg_per_unit'],
-      });
-    }
-    const reference = item.nominal_weight ?? '0';
-    const tolerance =
-      input.catch_weight_tolerance_pct ??
-      (item.variance_tolerance_pct != null
-        ? Number(item.variance_tolerance_pct) / 100
-        : DEFAULT_CATCH_WEIGHT_TOLERANCE);
-    catchSummary = computeCatchWeightSummary(
-      input.catch_weight_kg_per_unit,
-      reference,
-      tolerance,
-    );
-    catchDetailsJson = JSON.stringify({
-      per_unit_kg: input.catch_weight_kg_per_unit,
-      avg_kg: catchSummary.avg_kg,
-      total_kg: catchSummary.total_kg,
-      variance_pct: catchSummary.variance_pct,
-      variance_warning: catchSummary.warning,
-      reference_kg: reference,
-      tolerance,
-    });
-  } else if (input.catch_weight_kg_per_unit && input.catch_weight_kg_per_unit.length > 0) {
-    // Red-line: do not require/accept catch weights for non-catch items silently;
-    // a caller sending them against a 'fixed' item is an input error.
-    throw new ProductionActionError('invalid_input', 422, {
-      fields: ['catch_weight_kg_per_unit'],
-      message: "item.weight_mode is 'fixed' — catch weights not accepted",
-    });
-  }
 
   const massBalanceWarning = await evaluateMassBalanceGate(ctx, woId, resolvedQtyKg);
 
@@ -989,9 +995,9 @@ export async function registerOutput(
         catchDetailsJson,
         input.operator_id ?? ctx.userId,
         item.shelf_life_days,
-        input.qtyUnits ?? null,
+        persistedQtyUnits,
         input.unitsUom ?? null,
-        input.actualWeightKg ?? null,
+        persistedActualWeightKg,
         wo.site_id,
       ],
     );
@@ -1152,9 +1158,9 @@ export async function registerOutput(
       batch_number: batchNumber,
       qty_kg: resolvedQtyKg,
       uom: outputUom,
-      qty_units: input.qtyUnits ?? null,
+      qty_units: persistedQtyUnits,
       units_uom: input.unitsUom ?? null,
-      actual_weight_kg: input.actualWeightKg ?? null,
+      actual_weight_kg: persistedActualWeightKg,
       catch_weight_variance_warning: catchSummary?.warning ?? false,
       mass_balance_warning: massBalanceWarning ?? null,
       actor_user_id: ctx.userId,

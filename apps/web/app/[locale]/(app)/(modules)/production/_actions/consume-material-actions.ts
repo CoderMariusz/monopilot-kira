@@ -45,8 +45,12 @@ import { createHash } from 'node:crypto';
 import { toMicro } from '../../../../../../lib/shared/decimal';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { debitWac } from '../../../../../../lib/finance/upsert-wac';
+import {
+  isNilOrZeroLpId,
+  normalizePersistedQuantity,
+  resolveConsumptionLp,
+} from '../../../../../../lib/production/consume-material-core';
 import { assertWoNotOnHold } from '../../../../../../lib/production/holds-guard';
-import { assertLpConsumableForProduction } from '../../../../../../lib/production/lp-safety-guard';
 import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import {
   APP_VERSION,
@@ -60,7 +64,6 @@ import {
 } from '../../../../../../lib/production/shared';
 
 const CONSUMPTION_WRITE_PERMISSION = 'production.consumption.write';
-const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
 export type RecordDesktopConsumptionInput = {
   woId: string;
@@ -336,7 +339,7 @@ export async function recordDesktopConsumption(
 ): Promise<ConsumeActionResult<RecordDesktopConsumptionData>> {
   const woId = asTrimmed(input?.woId);
   const materialId = asTrimmed(input?.materialId);
-  const qty = asTrimmed(input?.qty);
+  const rawQty = asTrimmed(input?.qty);
   const lpId = asTrimmed(input?.lpId);
   const reasonCode = asTrimmed(input?.reasonCode);
   const clientOpId = asTrimmed(input?.clientOpId);
@@ -344,10 +347,16 @@ export async function recordDesktopConsumption(
   if (!woId || !isUuid(woId) || !materialId || !isUuid(materialId) || !clientOpId) {
     return { ok: false, reason: 'invalid_input' };
   }
-  if (!qty || !isPositiveDecimalString(qty)) {
+  if (!rawQty || !isPositiveDecimalString(rawQty)) {
     return { ok: false, reason: 'invalid_qty' };
   }
-  if (lpId && !isUuid(lpId)) {
+  let qty: string;
+  try {
+    qty = normalizePersistedQuantity(rawQty);
+  } catch {
+    return { ok: false, reason: 'invalid_qty' };
+  }
+  if (lpId && (!isUuid(lpId) || isNilOrZeroLpId(lpId))) {
     return { ok: false, reason: 'invalid_input' };
   }
   if (!lpId && !reasonCode) {
@@ -426,30 +435,6 @@ export async function recordDesktopConsumption(
         };
       }
 
-      if (lpId) {
-        const lpGate = await assertLpConsumableForProduction(ctx, lpId);
-        if (!lpGate.ok) {
-          if (lpGate.error === 'quality_hold_active') {
-            // T-064 contract (holds-guard.ts:5-9): an active hold MUST emit
-            // `production.consume.blocked`. Nothing has mutated yet in this
-            // txn, so the outbox row commits with the normal (non-throwing)
-            // withOrgContext return path; dedup_key keeps retries idempotent.
-            await emitConsumeBlocked(
-              ctx,
-              new QualityHoldError({
-                hold: lpGate.hold,
-                woId,
-                blockedPath: 'consume',
-                transactionId: txnId,
-                lpId,
-                lotId: null,
-              }),
-            );
-          }
-          return { ok: false, reason: lpGate.error };
-        }
-      }
-
       // (3) Two-tier over-consumption gate under the same transaction before
       // mutation — BOTH flags read in the same locked statement (mirrors the
       // scanner route): warn tier (overconsume_warn_pct, absent = 0) proceeds
@@ -526,73 +511,69 @@ export async function recordDesktopConsumption(
           }
         : undefined;
 
-      let lpLedgerInput: Omit<Parameters<typeof writeConsumeLedger>[1], 'consumptionId'> | null = null;
-      let consumedItemId = gate.product_id;
-      if (lpId) {
-        const lpAvailability = await ctx.client.query<{
-          id: string;
-          product_id: string;
-          status: string;
-          site_id: string | null;
-          location_id: string | null;
-        }>(
-          `select lp.id::text as id,
-                  lp.product_id::text as product_id,
-                  lp.status,
-                  lp.site_id::text as site_id,
-                  lp.location_id::text as location_id
-             from public.license_plates lp
-            where lp.org_id = app.current_org_id()
-              and lp.id = $1::uuid
-              and lp.product_id = any($2::uuid[])
-              and lp.uom = $3
-              and lp.quantity - $4::numeric >= lp.reserved_qty
-            limit 1
-            for update`,
-          [lpId, [gate.product_id, gate.substitute_item_id].filter(Boolean), gate.uom, qty],
-        );
-        if (!lpAvailability.rows[0]) {
-          return { ok: false, reason: 'lp_unavailable' };
+      const lpResolution = await resolveConsumptionLp(ctx, {
+        explicitLpId: lpId,
+        productIds: [gate.product_id, gate.substitute_item_id].filter((id): id is string => Boolean(id)),
+        uom: gate.uom,
+        qty,
+      });
+      if (!lpResolution.ok) {
+        if (lpResolution.error === 'quality_hold_active') {
+          await emitConsumeBlocked(
+            ctx,
+            new QualityHoldError({
+              hold: lpResolution.hold!,
+              woId,
+              blockedPath: 'consume',
+              transactionId: txnId,
+              lpId: lpId ?? null,
+              lotId: null,
+            }),
+          );
         }
-
-        const lpBefore = lpAvailability.rows[0];
-        consumedItemId = lpBefore.product_id;
-        const lpRes = await ctx.client.query<{ id: string; quantity: string }>(
-          `update public.license_plates
-              set quantity = quantity - $3::numeric,
-                  status = case when quantity - $3::numeric = 0 then 'consumed' else status end,
-                  consumed_by_wo_id = $4::uuid,
-                  updated_by = $5::uuid,
-                  updated_at = now()
-            where org_id = $1::uuid
-              and id = $2::uuid
-              and product_id = any($6::uuid[])
-              and uom = $7
-              and quantity - $3::numeric >= reserved_qty
-            returning id::text, quantity::text as quantity`,
-          [orgId, lpId, qty, woId, userId, [gate.product_id, gate.substitute_item_id].filter(Boolean), gate.uom],
-        );
-        if (!lpRes.rows[0]) {
-          throw new Error('recordDesktopConsumption: LP decrement failed after availability gate');
-        }
-
-        const lpToState = toMicro(lpRes.rows[0].quantity) <= 0n ? 'consumed' : lpBefore.status;
-        lpLedgerInput = {
-          orgId,
-          userId,
-          woId,
-          materialId: gate.id,
-          lpId,
-          qty,
-          uom: gate.uom,
-          siteId: lpBefore.site_id,
-          locationId: lpBefore.location_id,
-          fromState: lpBefore.status,
-          toState: lpToState,
-          stockMoveTransactionId: txnId,
-          lpStateTransactionId: lpStateTransactionId(orgId, clientOpId),
+        return {
+          ok: false,
+          reason: lpResolution.error === 'invalid_input' ? 'invalid_input' : lpResolution.error,
         };
       }
+
+      const resolvedLpId = lpResolution.lpId;
+      let consumedItemId = lpResolution.productId;
+      const lpRes = await ctx.client.query<{ id: string; quantity: string }>(
+        `update public.license_plates
+            set quantity = quantity - $3::numeric,
+                status = case when quantity - $3::numeric = 0 then 'consumed' else status end,
+                consumed_by_wo_id = $4::uuid,
+                updated_by = $5::uuid,
+                updated_at = now()
+          where org_id = $1::uuid
+            and id = $2::uuid
+            and product_id = any($6::uuid[])
+            and uom = $7
+            and quantity - $3::numeric >= reserved_qty
+          returning id::text, quantity::text as quantity`,
+        [orgId, resolvedLpId, qty, woId, userId, [gate.product_id, gate.substitute_item_id].filter(Boolean), gate.uom],
+      );
+      if (!lpRes.rows[0]) {
+        return { ok: false, reason: 'lp_unavailable' };
+      }
+
+      const lpToState = toMicro(lpRes.rows[0].quantity) <= 0n ? 'consumed' : lpResolution.status;
+      const lpLedgerInput: Omit<Parameters<typeof writeConsumeLedger>[1], 'consumptionId'> = {
+        orgId,
+        userId,
+        woId,
+        materialId: gate.id,
+        lpId: resolvedLpId,
+        qty,
+        uom: gate.uom,
+        siteId: lpResolution.siteId,
+        locationId: lpResolution.locationId,
+        fromState: lpResolution.status,
+        toState: lpToState,
+        stockMoveTransactionId: txnId,
+        lpStateTransactionId: lpStateTransactionId(orgId, clientOpId),
+      };
 
       // (4) Conditional UPDATE of consumed_qty — MIRRORS the scanner route.
       const materialRes = await ctx.client.query<{
@@ -617,9 +598,8 @@ export async function recordDesktopConsumption(
         throw new Error('recordDesktopConsumption: material update failed after material gate');
       }
 
-      let fefoAdherence = true;
-      if (lpId) {
-        // FEFO adherence: was a strictly-earlier-expiry candidate skipped?
+      let fefoAdherence = lpResolution.fefoAutoResolved;
+      if (!lpResolution.fefoAutoResolved) {
         const fefo = await ctx.client.query<{ violates: boolean }>(
           `select exists (
                     select 1
@@ -635,7 +615,7 @@ export async function recordDesktopConsumption(
                        and (chosen.expiry_date is null
                             or cand.expiry_date < chosen.expiry_date)
                   ) as violates`,
-          [consumedItemId, lpId, material.uom],
+          [consumedItemId, resolvedLpId, material.uom],
         );
         fefoAdherence = !(fefo.rows[0]?.violates ?? false);
       }
@@ -649,14 +629,14 @@ export async function recordDesktopConsumption(
             operator_id, fefo_adherence_flag, ext_jsonb)
          values
            (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid,
-            coalesce($4::uuid, '00000000-0000-0000-0000-000000000000'::uuid),
+            $4::uuid,
             $5::numeric, $6, $7::uuid, $8, $9::jsonb)
          returning id::text as id`,
         [
           txnId,
           woId,
           consumedItemId,
-          lpId,
+          resolvedLpId,
           qty,
           material.uom,
           userId,
@@ -721,24 +701,20 @@ export async function recordDesktopConsumption(
         );
       }
 
-      if (lpId && lpId !== NIL_UUID) {
-        if (lpLedgerInput) {
-          await writeConsumeLedger(ctx.client, {
-            ...lpLedgerInput,
-            consumptionId,
-          });
-        }
-        await emitMaterialConsumed(ctx.client, {
-          aggregateId: consumptionId,
-          woId,
-          lpId,
-          itemId: consumedItemId,
-          qty,
-          uom: material.uom,
-          orgId,
-          actor: userId,
-        });
-      }
+      await writeConsumeLedger(ctx.client, {
+        ...lpLedgerInput,
+        consumptionId,
+      });
+      await emitMaterialConsumed(ctx.client, {
+        aggregateId: consumptionId,
+        woId,
+        lpId: resolvedLpId,
+        itemId: consumedItemId,
+        qty,
+        uom: material.uom,
+        orgId,
+        actor: userId,
+      });
 
       return {
         ok: true,
@@ -746,7 +722,7 @@ export async function recordDesktopConsumption(
           materialId: material.id,
           consumedQty: material.consumed_qty,
           uom: material.uom,
-          lpId: lpId ?? null,
+          lpId: resolvedLpId,
           replay: false,
           ...(warning ? { warning } : {}),
         },

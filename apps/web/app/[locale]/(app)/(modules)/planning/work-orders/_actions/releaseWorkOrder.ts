@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { assertDraftWorkOrderDeletable } from '../../../../../../../lib/planning/wo-chain-delete-guard';
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 import { acquireFactorySpecProductBindLock } from '../../../../../../../lib/technical/factory-spec-bind-lock';
 import { packHierarchyComplete, snapshotFromItemRow } from '../../../../../../../lib/uom/convert';
@@ -215,6 +216,9 @@ export async function deleteDraftWorkOrder(params: { id: string }): Promise<Dele
       const row = current.rows[0];
       if (!row) return { ok: false, error: 'not_found' };
       if (row.status !== 'DRAFT') return { ok: false, error: 'invalid_state' };
+
+      const chainGate = await assertDraftWorkOrderDeletable(ctx.client, row.id);
+      if (!chainGate.ok) return chainGate;
 
       await ctx.client.query(
         `insert into public.wo_status_history

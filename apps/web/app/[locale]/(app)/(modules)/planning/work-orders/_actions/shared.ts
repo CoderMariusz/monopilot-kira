@@ -30,6 +30,7 @@ export type PlanningWorkOrderError =
   | 'ambiguous_site'
   | 'document_mask_missing'
   | 'not_released_to_factory'
+  | 'chain_delete_blocked'
   | 'persistence_failed';
 
 export type EnteredUom = 'base' | 'each' | 'box';
