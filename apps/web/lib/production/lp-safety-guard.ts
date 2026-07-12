@@ -58,13 +58,14 @@ export async function assertLpConsumableForProduction(
   const lp = rows[0];
   if (!lp) return { ok: false, error: 'lp_unavailable' };
 
+  // Hold before generic availability — a quarantined/held LP must not mask as shortage.
+  const activeHold = await holdsGuard(ctx, { lpId });
+  if (activeHold) return { ok: false, error: 'quality_hold_active', hold: activeHold };
+
   if (lp.qa_status !== 'released') return { ok: false, error: 'lp_not_released' };
   if (lp.status !== 'available') return { ok: false, error: 'lp_unavailable' };
   if (lp.expired) return { ok: false, error: 'lp_expired' };
   if (lp.lock_is_active_for_other_user) return { ok: false, error: 'lp_locked' };
-
-  const activeHold = await holdsGuard(ctx, { lpId });
-  if (activeHold) return { ok: false, error: 'quality_hold_active', hold: activeHold };
 
   return { ok: true };
 }

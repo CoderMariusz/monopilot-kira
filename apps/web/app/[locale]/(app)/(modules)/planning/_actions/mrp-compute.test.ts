@@ -654,7 +654,7 @@ describe('computeMrpPhased — weekly buckets (C3b)', () => {
     expect(shortage.net).toBe('-20.000');
   });
 
-  it('clamps release to today and flags expedite when lead time exceeds time-to-bucket', () => {
+  it('clamps release to today and flags expedite when lead time exceeds time-to-bucket (S12)', () => {
     const week2 = buckets[1]!;
     const { bucketRows } = computeMrpPhased({
       items: [RM_FLOUR],

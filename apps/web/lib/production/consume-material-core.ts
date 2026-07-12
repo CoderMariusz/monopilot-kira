@@ -1,5 +1,5 @@
+import { holdsGuard, type ActiveHold } from './holds-guard';
 import { assertLpConsumableForProduction } from './lp-safety-guard';
-import type { ActiveHold } from './holds-guard';
 import type { LpConsumeSafetyError } from './lp-safety-guard';
 import type { ProductionContext, QueryClient } from './shared';
 
@@ -134,6 +134,50 @@ export async function selectFefoConsumableLpForUpdate(
   };
 }
 
+/**
+ * When FEFO finds no consumable LP, detect whether stock exists but is blocked
+ * by an active quality hold (so callers surface hold — not a generic shortage).
+ */
+async function findHeldConsumableLpId(
+  client: QueryClient,
+  input: {
+    productIds: readonly string[];
+    uom: string;
+    qty: string;
+  },
+): Promise<string | null> {
+  const { rows } = await client.query<{ lp_id: string }>(
+    `select lp.id::text as lp_id
+       from public.license_plates lp
+      where lp.org_id = app.current_org_id()
+        and lp.product_id = any($1::uuid[])
+        and lp.uom = $2
+        and lp.qa_status in ('released', 'on_hold')
+        and lp.status = 'available'
+        and lp.quantity - $3::numeric >= lp.reserved_qty
+        and exists (
+          select 1
+            from public.v_active_holds h
+           where h.org_id = lp.org_id
+             and (
+               (h.reference_type = 'lp' and h.reference_id = lp.id)
+               or (
+                 h.reference_type = 'batch'
+                 and h.reference_text is not null
+                 and lower(trim(h.reference_text)) in (
+                   nullif(lower(trim(lp.batch_number)), ''),
+                   nullif(lower(trim(lp.supplier_batch_number)), '')
+                 )
+               )
+             )
+        )
+      order by lp.expiry_date asc nulls last, lp.lp_number asc
+      limit 1`,
+    [input.productIds, input.uom, input.qty],
+  );
+  return rows[0]?.lp_id ?? null;
+}
+
 export type ResolveConsumptionLpResult =
   | {
       ok: true;
@@ -220,7 +264,18 @@ export async function resolveConsumptionLp(
     uom: input.uom,
     qty,
   });
-  if (!fefo) return { ok: false, error: 'lp_unavailable' };
+  if (!fefo) {
+    const heldLpId = await findHeldConsumableLpId(ctx.client, {
+      productIds,
+      uom: input.uom,
+      qty,
+    });
+    if (heldLpId) {
+      const hold = await holdsGuard(ctx, { lpId: heldLpId });
+      if (hold) return { ok: false, error: 'quality_hold_active', hold };
+    }
+    return { ok: false, error: 'lp_unavailable' };
+  }
 
   const lpGate = await assertLpConsumableForProduction(ctx, fefo.lpId);
   if (!lpGate.ok) {
