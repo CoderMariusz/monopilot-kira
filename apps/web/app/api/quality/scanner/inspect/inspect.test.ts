@@ -58,20 +58,31 @@ function request(body: Record<string, unknown>): Request {
   });
 }
 
+const LP_NUMBER = 'LP-SCAN-001';
+
 describe('quality scanner inspect route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     allowPermission = true;
     activeHold = false;
     fakeClient.query.mockReset();
-    fakeClient.query.mockImplementation(async (sql: string) => {
+    fakeClient.query.mockImplementation(async (sql: string, params?: readonly unknown[]) => {
       const q = normalize(sql);
 
       if (q.includes('from public.scanner_audit_log') && q.includes('client_op_id')) {
         return { rows: [], rowCount: 0 };
       }
-      if (q.startsWith('select id::text, product_id::text')) {
-        return { rows: [{ id: LP_ID, product_id: PRODUCT_ID }], rowCount: 1 };
+      if (q.includes('from public.license_plates') && q.includes('for update')) {
+        return {
+          rows: [{
+            id: LP_ID,
+            product_id: PRODUCT_ID,
+            lp_number: LP_NUMBER,
+            status: 'received',
+            qa_status: 'pending',
+          }],
+          rowCount: 1,
+        };
       }
       if (q.startsWith('insert into public.quality_inspections')) {
         return { rows: [{ id: INSPECTION_ID }], rowCount: 1 };
@@ -83,7 +94,15 @@ describe('quality scanner inspect route', () => {
         };
       }
       if (q.startsWith('update public.license_plates')) {
-        return { rows: [{ id: LP_ID }], rowCount: 1 };
+        const qaStatus = String(params?.[1] ?? 'released');
+        const status = qaStatus === 'released' ? 'available' : qaStatus === 'rejected' ? 'blocked' : 'received';
+        return {
+          rows: [{ id: LP_ID, lp_number: LP_NUMBER, status, qa_status: qaStatus }],
+          rowCount: 1,
+        };
+      }
+      if (q.startsWith('insert into public.lp_state_history')) {
+        return { rows: [], rowCount: 1 };
       }
       if (q.startsWith('insert into public.quality_holds')) {
         return { rows: [{ id: HOLD_ID, hold_number: 'HLD-00000001' }], rowCount: 1 };
@@ -225,7 +244,7 @@ describe('quality scanner inspect route', () => {
     expect(calls).toContain('rollback');
   });
 
-  it('passes inspection and releases the LP when no active hold exists', async () => {
+  it('passes inspection and promotes a received LP to available when no active hold exists (S14)', async () => {
     const { POST } = await import('./route');
     activeHold = false;
 
@@ -242,7 +261,15 @@ describe('quality scanner inspect route', () => {
     const lpUpdate = fakeClient.query.mock.calls.find((call) =>
       normalize(String(call[0])).startsWith('update public.license_plates'),
     );
+    expect(String(lpUpdate?.[0])).toContain("when $2 = 'released' and status = 'received' then 'available'");
     expect(lpUpdate?.[1]).toEqual([LP_ID, 'released', session.user_id, ['consumed', 'merged', 'shipped', 'returned']]);
+    const history = fakeClient.query.mock.calls.find((call) =>
+      normalize(String(call[0])).startsWith('insert into public.lp_state_history'),
+    );
+    expect(history?.[1]?.[0]).toBe(LP_ID);
+    expect(history?.[1]?.[1]).toBe('received');
+    expect(history?.[1]?.[2]).toBe('available');
+    expect(String(history?.[0])).toContain("'qa_status_changed'");
   });
 
   it('returns forbidden when the scanner user lacks quality.inspection.execute', async () => {
@@ -269,7 +296,7 @@ describe('quality scanner inspect route', () => {
       if (q.includes('from public.scanner_audit_log') && q.includes('client_op_id')) {
         return { rows: [], rowCount: 0 };
       }
-      if (q.startsWith('select id::text, product_id::text')) {
+      if (q.includes('from public.license_plates') && q.includes('for update')) {
         return { rows: [], rowCount: 0 };
       }
       return { rows: [], rowCount: 0 };

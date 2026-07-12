@@ -17,6 +17,7 @@ type StageLineRow = {
 export async function loadStageProductionLineIds(
   ctx: OrgActionContext,
   fgItemId: string,
+  woSiteId: string,
   stageItemIds: Array<{ itemId: string; isFg: boolean }>,
 ): Promise<Map<string, string | null>> {
   const byItem = new Map<string, string | null>();
@@ -30,13 +31,24 @@ export async function loadStageProductionLineIds(
          from unnest($1::uuid[], $2::boolean[]) as s(item_id, is_fg)
      )
      select s.item_id::text as item_id,
-            coalesce(
-              routing_line.line_id,
-              wip_item_line.line_id,
-              wip_def_line.line_id,
-              fg_process_line.line_id,
-              project_line.production_line_id
-            )::text as production_line_id
+            case
+              when coalesce(
+                routing_line.line_id,
+                wip_item_line.line_id,
+                wip_def_line.line_id,
+                fg_process_line.line_id,
+                project_line.production_line_id
+              ) is null then null
+              when pl_site.site_id is null or pl_site.site_id = $4::uuid
+                then coalesce(
+                  routing_line.line_id,
+                  wip_item_line.line_id,
+                  wip_def_line.line_id,
+                  fg_process_line.line_id,
+                  project_line.production_line_id
+                )::text
+              else null
+            end as production_line_id
        from stages s
        left join lateral (
          select ro.line_id
@@ -94,8 +106,21 @@ export async function loadStageProductionLineIds(
           where fg.org_id = app.current_org_id()
             and fg.id = $3::uuid
           limit 1
-       ) project_line on true`,
-    [itemIds, stageItemIds.map((stage) => stage.isFg), fgItemId],
+       ) project_line on true
+       left join lateral (
+         select pl.site_id
+           from public.production_lines pl
+          where pl.org_id = app.current_org_id()
+            and pl.id = coalesce(
+              routing_line.line_id,
+              wip_item_line.line_id,
+              wip_def_line.line_id,
+              fg_process_line.line_id,
+              project_line.production_line_id
+            )
+          limit 1
+       ) pl_site on true`,
+    [itemIds, stageItemIds.map((stage) => stage.isFg), fgItemId, woSiteId],
   );
 
   for (const row of rows) {

@@ -336,6 +336,12 @@ export default function AuthorizationPoliciesScreen(pageProps: AuthorizationPage
   const copy: Copy = (key) => pageProps.labels[key];
   const [auditReason, setAuditReason] = useState('');
   const [npdMinApprovers, setNpdMinApprovers] = useState(policies?.npd?.minApprovers ?? defaultPolicies.npd!.minApprovers);
+  const [technicalMinApprovers, setTechnicalMinApprovers] = useState(
+    policies?.technical?.minApprovers ?? defaultPolicies.technical!.minApprovers,
+  );
+  const [technicalDualSignOff, setTechnicalDualSignOff] = useState(
+    policies?.technical?.requireDualSignOff ?? defaultPolicies.technical!.requireDualSignOff,
+  );
   const [fieldAlert, setFieldAlert] = useState<string | null>(null);
   const [serverBlockers, setServerBlockers] = useState<Blocker[]>([]);
   const [saved, setSaved] = useState(false);
@@ -344,6 +350,8 @@ export default function AuthorizationPoliciesScreen(pageProps: AuthorizationPage
   const resetEdits = () => {
     setAuditReason('');
     setNpdMinApprovers(policies?.npd?.minApprovers ?? defaultPolicies.npd!.minApprovers);
+    setTechnicalMinApprovers(policies?.technical?.minApprovers ?? defaultPolicies.technical!.minApprovers);
+    setTechnicalDualSignOff(policies?.technical?.requireDualSignOff ?? defaultPolicies.technical!.requireDualSignOff);
     setFieldAlert(null);
     setServerBlockers([]);
     setSaved(false);
@@ -358,22 +366,52 @@ export default function AuthorizationPoliciesScreen(pageProps: AuthorizationPage
       return;
     }
 
-    const result = await updateAuthorizationPolicy({
+    if (technicalDualSignOff && technicalMinApprovers < 2) {
+      setFieldAlert(copy('policySaveError'));
+      setServerBlockers([
+        {
+          code: 'min_approvers_invalid',
+          policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY,
+          message: copy('blockerMinApproversInvalid'),
+        },
+      ]);
+      setSaved(false);
+      return;
+    }
+
+    const npdResult = await updateAuthorizationPolicy({
       policyCode: NPD_POST_RELEASE_EDIT_POLICY,
       auditReason: trimmedReason,
       patch: { min_approvers: npdMinApprovers },
     });
 
-    if (result.ok) {
+    if (!npdResult.ok) {
+      const failedResult = npdResult as Extract<UpdateAuthorizationPolicyResult, { ok: false }>;
+      setFieldAlert(copy('policySaveError'));
+      setServerBlockers(failedResult.blockers ?? []);
+      setSaved(false);
+      return;
+    }
+
+    const technicalResult = await updateAuthorizationPolicy({
+      policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY,
+      auditReason: trimmedReason,
+      patch: {
+        min_approvers: technicalMinApprovers,
+        settings_json: { require_dual_sign_off: technicalDualSignOff },
+      },
+    });
+
+    if (technicalResult.ok) {
       setFieldAlert(null);
       setServerBlockers([]);
       setSaved(true);
       return;
     }
 
-    const failedResult = result as Extract<UpdateAuthorizationPolicyResult, { ok: false }>;
+    const failedTechnical = technicalResult as Extract<UpdateAuthorizationPolicyResult, { ok: false }>;
     setFieldAlert(copy('policySaveError'));
-    setServerBlockers(failedResult.blockers ?? []);
+    setServerBlockers(failedTechnical.blockers ?? []);
     setSaved(false);
   };
 
@@ -478,13 +516,31 @@ export default function AuthorizationPoliciesScreen(pageProps: AuthorizationPage
             {roleLabels(policies.technical.approverRoleCodes, roles, copy)}
           </SRow>
           <SRow label={copy('approvalThresholds')}>
-            <div className="space-y-1">
-              <div>
-                {copy('minimumApprovers')}: {policies.technical.minApprovers}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span>{copy('minimumApprovers')}</span>
+                <Input
+                  aria-label={copy('minimumApprovers')}
+                  className="form-input w-20"
+                  min={1}
+                  type="number"
+                  value={technicalMinApprovers}
+                  disabled={!mayEdit}
+                  onChange={(event) => setTechnicalMinApprovers(Number(event.currentTarget.value))}
+                />
               </div>
-              <div>
-                {copy('dualSignOff')}: {policies.technical.requireDualSignOff ? copy('dualSignOffRequired') : copy('dualSignOffNotRequired')}
-              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  aria-label={copy('dualSignOff')}
+                  type="checkbox"
+                  checked={technicalDualSignOff}
+                  disabled={!mayEdit}
+                  onChange={(event) => setTechnicalDualSignOff(event.currentTarget.checked)}
+                />
+                <span>
+                  {copy('dualSignOff')}: {technicalDualSignOff ? copy('dualSignOffRequired') : copy('dualSignOffNotRequired')}
+                </span>
+              </label>
               <div className="text-xs text-slate-500">
                 {copy('version')} {policies.technical.version}
               </div>

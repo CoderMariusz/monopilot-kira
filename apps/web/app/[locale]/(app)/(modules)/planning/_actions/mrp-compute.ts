@@ -8,7 +8,7 @@
  *   onHand     = Σ v_inventory_available.quantity        (status=available, qa released)
  *   reserved   = Σ v_inventory_available.reserved_qty    (same view; see caveat below)
  *   openSupply = Σ open-PO line remainder (qty − received via grn_items, non-cancelled GRNs)
- *              + Σ schedule_outputs.expected_qty of open WOs (disposition='to_stock')
+ *              + Σ schedule_outputs.expected_qty of RELEASED/IN_PROGRESS WOs (disposition='to_stock')
  *   demand     = Σ greatest(wo_materials.required_qty − consumed_qty, 0)   (DEPENDENT)
  *                across WOs in DRAFT / RELEASED / IN_PROGRESS
  *              + Σ demand_forecasts.qty (mig 302, base UoM) for the run horizon  (INDEPENDENT)
@@ -532,8 +532,11 @@ function buildSuggestedAction(
   const gap = minQty - net > -net ? minQty - net : -net;
   const qtyMicro = gap > reorderQty ? gap : reorderQty;
   const hasLead = leadDays !== null && leadDays !== undefined && Number.isFinite(leadDays);
-  const dueDate =
+  let dueDate =
     singleBucketMode && hasLead ? addDaysIso(todayIso, leadDays!) : bucketDate;
+  if (dueDate < todayIso) {
+    dueDate = todayIso;
+  }
   let releaseDate: string | null = null;
   let isLate = false;
   if (hasLead) {
@@ -544,6 +547,9 @@ function buildSuggestedAction(
     } else {
       releaseDate = rawRelease;
     }
+  } else if (bucketDate < todayIso) {
+    releaseDate = todayIso;
+    isLate = true;
   }
   return {
     type: item.item_type === 'intermediate' || item.item_type === 'fg' ? 'make' : 'buy',

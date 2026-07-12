@@ -84,14 +84,10 @@ describe('receivePoLineDesktop', () => {
       inspectionId: null,
     });
     expect(findCall('insert into public.grns')).toBeTruthy();
-    expect(findCall('insert into public.license_plates')?.sql).toContain("'available', 'pending'");
-    const autoPutawayHistory = findCalls('insert into public.lp_state_history').find((call) =>
-      call.sql.includes("'received', 'available'"),
-    );
-    expect(autoPutawayHistory?.sql).toContain(
-      '(org_id, lp_id, from_state, to_state, reason_code, stock_move_id, transaction_id, created_by)',
-    );
-    expect(autoPutawayHistory?.params).toEqual(['lp-1', 'auto_putaway_po_receive', null, expect.any(String), USER_ID]);
+    expect(findCall('insert into public.license_plates')?.sql).toContain("'received', 'pending'");
+    expect(
+      findCalls('insert into public.lp_state_history').some((call) => call.sql.includes("'received', 'available'")),
+    ).toBe(false);
     expect(findCall('insert into public.grn_items')).toBeTruthy();
     const poUpdate = findCall('update public.purchase_orders');
     expect(poUpdate?.sql).toContain("status in ('sent', 'confirmed', 'partially_received')");

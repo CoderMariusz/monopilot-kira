@@ -15,7 +15,7 @@ vi.mock('../../lib/auth/with-org-context', () => ({
 
 vi.mock('../../lib/i18n/revalidate-localized', () => ({
   revalidateLocalized: _revalidateLocalized,
-})));
+}));
 
 const repoRoot = resolve(__dirname, '../../../..');
 const preflightPath = resolve(repoRoot, 'apps/web/actions/authorization/preflight.ts');
@@ -266,6 +266,24 @@ describe('authorization policy helpers and preflights (TASK-000216/T-126 RED)', 
     });
 
     expect(result).toEqual({ ok: false, error: 'policy_not_found' });
+    expect(statementIndex('update public.org_authorization_policies')).toBe(-1);
+    expect(currentClient.mutations).toEqual([]);
+  });
+
+  it('rejects technical dual-sign policy updates with min_approvers < 2 at the mutation boundary', async () => {
+    currentClient.actorPermissions.add(SETTINGS_AUTHORIZATION_EDIT);
+
+    const { updateAuthorizationPolicy } = await loadActionsModule();
+    const result = await updateAuthorizationPolicy({
+      policyCode: TECHNICAL_POLICY,
+      auditReason: 'invalid dual-sign config',
+      patch: {
+        min_approvers: 1,
+        settings_json: { require_dual_sign_off: true },
+      } as Partial<PolicyRow>,
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input' });
     expect(statementIndex('update public.org_authorization_policies')).toBe(-1);
     expect(currentClient.mutations).toEqual([]);
   });

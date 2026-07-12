@@ -240,14 +240,17 @@ export const resolveContextFromSupabase = cache(async function resolveContextFro
   // Resolve org_id from public.users (authoritative) — NOT from JWT claims,
   // which can drift after admin moves a user between orgs.
   const owner = getOwnerPool();
-  const res = await owner.query<{ org_id: string }>(
-    `select org_id from public.users where id = $1::uuid`,
+  const res = await owner.query<{ org_id: string; is_active: boolean }>(
+    `select org_id, is_active from public.users where id = $1::uuid`,
     [userId],
   );
   if (res.rowCount !== 1 || !res.rows[0]?.org_id) {
     throw new Error(
       `withOrgContext: no public.users row resolves org_id for verified user ${userId}`,
     );
+  }
+  if (res.rows[0].is_active === false) {
+    throw new Error(`withOrgContext: user ${userId} is deactivated`);
   }
 
   const homeOrgId = res.rows[0].org_id;

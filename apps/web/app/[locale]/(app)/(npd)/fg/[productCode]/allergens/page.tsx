@@ -41,6 +41,7 @@ type AllergensPageProps = {
   // Test-only injection seam (mirrors the risks/page.tsx convention).
   data?: AllergenCascadeData | null;
   canWrite?: boolean;
+  canAcceptDeclaration?: boolean;
   state?: WidgetState;
 };
 
@@ -58,6 +59,7 @@ export default async function AllergensPage(propsInput: unknown = {}) {
         state: props.state ?? (props.data ? 'ready' : 'empty'),
         data: props.data ?? null,
         canWrite: props.canWrite ?? false,
+        canAcceptDeclaration: props.canAcceptDeclaration ?? false,
         displayNames: {},
       }
     : await loadAllergenCascade(productCode, locale);

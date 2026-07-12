@@ -131,6 +131,8 @@ export type CreateWoLabels = {
     not_released_to_factory?: string;
     /** C5 — draft WO delete blocked when chain peer is active. */
     chain_delete_blocked?: string;
+    /** A3 — production line belongs to a different site than the WO. */
+    line_site_mismatch?: string;
   };
   noBomWarning: string;
   /** Shown when a multi-stage FG creates upstream WIP work orders alongside the root. */

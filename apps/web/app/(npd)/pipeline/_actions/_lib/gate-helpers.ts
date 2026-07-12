@@ -297,9 +297,9 @@ export async function loadProjectForUpdate(ctx: OrgContextLike, projectId: strin
 
 /**
  * Blockers that must be resolved before advancing the project's CURRENT stage.
- * Checklist completeness is advisory by product decision: seeded checklist rows are
- * progress markers, but required/uncompleted items do not hard-block stage advance.
- * The FG-already-linked guard fires only when ENTERING the FG candidate stage.
+ * Required gate-checklist items block advance unless a recorded override (reason +
+ * audit row) is supplied via advanceProjectGate.override — same path as other
+ * soft-gate missing fields.
  */
 export async function getBlockers(
   ctx: OrgContextLike,
@@ -307,9 +307,6 @@ export async function getBlockers(
   targetStage: AnyStage,
 ): Promise<GateBlocker[]> {
   const blockers: GateBlocker[] = [];
-
-  // Gate checklist rows are advisory progress markers. Required-but-unchecked
-  // items must stay visible to the UI, but they do not hard-block stage advance.
 
   // Recipe guard: leaving the `recipe` stage requires the formulation's current
   // version to have at least one ingredient. This is the ONLY real completeness
@@ -938,7 +935,7 @@ function isMissingFgCodeMaskError(error: unknown): boolean {
   return error.message === 'entity_code_settings_missing:fg' || error.message === 'entity_code_mask_missing:fg';
 }
 
-function fallbackFgProductCode(projectCode: string): string {
+export function fallbackFgProductCode(projectCode: string): string {
   // Plan→FG: the FG code drops the "NPD" project prefix so NPD-012 → FG-012 (NOT FG-NPD-012).
   // Safe because the FG↔project link is a stored FK (npd_projects.product_code / items.npd_project_id),
   // never re-parsed back out of the code string — so the produced code can be a clean FG-<number>.

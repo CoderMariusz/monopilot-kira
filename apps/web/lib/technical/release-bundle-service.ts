@@ -29,7 +29,12 @@
 
 import { z } from 'zod';
 
-import { signEvent } from '@monopilot/e-sign';
+import { hashESignSubject, signEvent } from '@monopilot/e-sign';
+import {
+  runTechnicalApprovalPreflight,
+  readAuthorizationPolicy,
+  TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY,
+} from '../../actions/authorization/preflight';
 import {
   guardBusinessFieldEdit,
   guardStatusTransition,
@@ -75,12 +80,16 @@ export type BundleActionError =
 export interface ApproveBundleData {
   factorySpecId: string;
   bomHeaderId: string;
-  factorySpecStatus: 'approved_for_factory';
-  bomStatus: 'technical_approved' | 'active';
+  factorySpecStatus: 'approved_for_factory' | 'in_review';
+  bomStatus: 'technical_approved' | 'active' | 'draft' | 'in_review';
   evidenceBundleId: string;
   signatureId: string;
   /** Set when the FG is NPD-originated and the release adapter closed the loop. */
   factoryReleaseStatusId: string | null;
+  /** Present while distinct approver signatures are still being collected. */
+  approvalStatus?: 'pending' | 'complete';
+  approvalsCollected?: number;
+  approvalsRequired?: number;
 }
 
 export type ApproveBundleResult =
@@ -115,6 +124,70 @@ export const RejectBundleInput = z.object({
   reason: z.string().trim().min(1).max(512),
 });
 export type RejectBundleInputType = z.infer<typeof RejectBundleInput>;
+
+function toPolicyNumber(value: number | string | null | undefined): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') return Number(value);
+  return 0;
+}
+
+async function resolveRequiredBundleApprovers(client: QueryClient): Promise<number> {
+  const policy = await readAuthorizationPolicy(client, TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY);
+  const minApprovers = Math.max(1, toPolicyNumber(policy?.min_approvers ?? 1));
+  const dualSign = Boolean(policy?.settings_json?.require_dual_sign_off);
+  return dualSign ? Math.max(2, minApprovers) : minApprovers;
+}
+
+async function countDistinctBundleApprovals(
+  client: QueryClient,
+  subjectHash: string,
+  nonce: string,
+): Promise<number> {
+  const { rows } = await client.query<{ n: number }>(
+    `select count(distinct signer_user_id)::int as n
+       from public.e_sign_log
+      where org_id = app.current_org_id()
+        and intent = $1
+        and subject_hash = $2
+        and nonce = $3`,
+    [BUNDLE_APPROVE_INTENT, subjectHash, nonce],
+  );
+  return rows[0]?.n ?? 0;
+}
+
+async function callerAlreadyApprovedBundle(
+  client: QueryClient,
+  signerUserId: string,
+  subjectHash: string,
+  nonce: string,
+): Promise<boolean> {
+  const { rows } = await client.query<{ exists: boolean }>(
+    `select exists (
+       select 1
+         from public.e_sign_log
+        where org_id = app.current_org_id()
+          and signer_user_id = $1::uuid
+          and intent = $2
+          and subject_hash = $3
+          and nonce = $4
+     ) as exists`,
+    [signerUserId, BUNDLE_APPROVE_INTENT, subjectHash, nonce],
+  );
+  return rows[0]?.exists === true;
+}
+
+function bundleApprovalSubject(spec: FactorySpecRow, bom: BomRow) {
+  return {
+    factorySpecId: spec.id,
+    bomHeaderId: bom.id,
+    fgItemId: spec.fg_item_id,
+    bomVersion: bom.version,
+  };
+}
+
+function bundleApprovalNonce(specId: string, bomId: string): string {
+  return `${specId}:${bomId}:approve`;
+}
 
 function isPgError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
@@ -435,8 +508,80 @@ export async function approveReleaseBundle(
       };
     }
 
-    // Approve the factory_spec version (in place is legal here: in_review is mutable; the
-    // migration-165 trigger only guards already-approved rows).
+    const preflight = await runTechnicalApprovalPreflight({ client: ctx.client });
+    if (!preflight.ok) {
+      return {
+        ok: false,
+        error: 'forbidden',
+        message: 'Technical product-spec approval policy is misconfigured',
+      };
+    }
+
+    const approvalsRequired = await resolveRequiredBundleApprovers(ctx.client);
+    const approvalSubject = bundleApprovalSubject(lockedSpec, lockedBom);
+    const approvalNonce = bundleApprovalNonce(lockedSpec.id, lockedBom.id);
+    const subjectHash = hashESignSubject(approvalSubject);
+
+    if (await callerAlreadyApprovedBundle(ctx.client, ctx.userId, subjectHash, approvalNonce)) {
+      return {
+        ok: false,
+        error: 'invalid_state',
+        message: 'This approver has already signed this bundle; a distinct second approver is required',
+      };
+    }
+
+    let signatureId: string;
+    try {
+      const receipt = await signEvent(
+        {
+          signerUserId: ctx.userId,
+          pin: input.pin,
+          intent: BUNDLE_APPROVE_INTENT,
+          subject: approvalSubject,
+          nonce: approvalNonce,
+          reason: input.reason,
+        },
+        { client: ctx.client as never },
+      );
+      signatureId = receipt.signatureId;
+    } catch (err) {
+      throw err;
+    }
+
+    const approvalsCollected = await countDistinctBundleApprovals(ctx.client, subjectHash, approvalNonce);
+    if (approvalsCollected < approvalsRequired) {
+      await writeAudit(ctx.client, {
+        orgId: ctx.orgId,
+        actorUserId: ctx.userId,
+        action: 'factory_spec.bundle_approval_recorded',
+        resourceId: lockedSpec.id,
+        afterState: {
+          factorySpecId: lockedSpec.id,
+          bomHeaderId: lockedBom.id,
+          signatureId,
+          approvalsCollected,
+          approvalsRequired,
+        },
+      });
+
+      return {
+        ok: true,
+        data: {
+          factorySpecId: lockedSpec.id,
+          bomHeaderId: lockedBom.id,
+          factorySpecStatus: 'in_review',
+          bomStatus: lockedBom.status as ApproveBundleData['bomStatus'],
+          evidenceBundleId: signatureId,
+          signatureId,
+          factoryReleaseStatusId: null,
+          approvalStatus: 'pending',
+          approvalsCollected,
+          approvalsRequired,
+        },
+      };
+    }
+
+    // All required distinct approvers have signed — perform the atomic factory-usable transition.
     const updatedSpec = await ctx.client.query<{ id: string }>(
       `update public.factory_specs
           set status = 'approved_for_factory',
@@ -457,7 +602,6 @@ export async function approveReleaseBundle(
     const approvedBomStatus: 'technical_approved' | 'active' =
       lockedBom.status === 'active' ? 'active' : 'technical_approved';
     if (lockedBom.status === 'draft' || lockedBom.status === 'in_review') {
-      // Approve the BOM version in the SAME transaction (both sides or neither).
       const updatedBom = await ctx.client.query<{ id: string }>(
         `update public.bom_headers
             set status = 'technical_approved',
@@ -473,8 +617,6 @@ export async function approveReleaseBundle(
       }
     }
 
-    // Supersede only after the target spec + BOM updates succeeded so a failed
-    // approval cannot orphan the currently usable version.
     await ctx.client.query(
       `update public.factory_specs
           set status = 'superseded'
@@ -485,34 +627,6 @@ export async function approveReleaseBundle(
       [spec.fg_item_id, spec.id],
     );
 
-    // AC1 (link) — sign only after lock + rechecks + state mutations succeed so a
-    // transient race never persists an orphaned signature (deterministic nonce replay).
-    let signatureId: string;
-    try {
-      const receipt = await signEvent(
-        {
-          signerUserId: ctx.userId,
-          pin: input.pin,
-          intent: BUNDLE_APPROVE_INTENT,
-          subject: {
-            factorySpecId: spec.id,
-            bomHeaderId: lockedBom.id,
-            fgItemId: spec.fg_item_id,
-            bomVersion: lockedBom.version,
-          },
-          nonce: `${spec.id}:${lockedBom.id}:approve`,
-          reason: input.reason,
-        },
-        { client: ctx.client as never },
-      );
-      signatureId = receipt.signatureId;
-    } catch (err) {
-      // After writes: throw so withOrgContext rolls back the partial approval.
-      throw err;
-    }
-
-    // AC1 — emit the canonical Technical event. The outbox INSERT is in the same txn as
-    // the state change (atomic; rollback drops the event with the state).
     const releaseEventId = await emitOutbox(ctx.client, {
       orgId: ctx.orgId,
       eventType: 'technical.factory_spec.approved',
@@ -525,10 +639,11 @@ export async function approveReleaseBundle(
         fgItemId: spec.fg_item_id,
         signatureId,
         approvedBy: ctx.userId,
+        approvalsCollected,
+        approvalsRequired,
       },
     });
 
-    // T-081 adapter (DB side): set the NPD soft uuid + close the canonical loop.
     const factoryReleaseStatusId = await closeNpdReleaseLoop(ctx.client, {
       orgId: ctx.orgId,
       bom: lockedBom,
@@ -549,6 +664,8 @@ export async function approveReleaseBundle(
         signatureId,
         releaseEventId,
         factoryReleaseStatusId,
+        approvalsCollected,
+        approvalsRequired,
       },
     });
 
@@ -562,6 +679,9 @@ export async function approveReleaseBundle(
         evidenceBundleId: signatureId,
         signatureId,
         factoryReleaseStatusId,
+        approvalStatus: 'complete',
+        approvalsCollected,
+        approvalsRequired,
       },
     };
   } catch (err) {

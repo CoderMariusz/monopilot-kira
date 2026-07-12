@@ -10,6 +10,7 @@ import {
   readRolePermissions,
 } from './role-grant-guards';
 import { createSupabaseAuthAdmin } from './supabase-admin';
+import { syncUserOnboardingClaimFromOrg } from '../../lib/auth/sync-user-onboarding-claim';
 
 /**
  * createUserWithPassword — admin-only "create a user directly with a password,
@@ -52,7 +53,7 @@ export type CreateUserWithPasswordInput = {
 };
 
 export type CreateUserWithPasswordResult =
-  | { ok: true; data: { email: string; userId: string } }
+  | { ok: true; data: { email: string; userId: string; onboardingClaimSynced?: boolean } }
   | {
       ok: false;
       error:
@@ -129,7 +130,7 @@ export async function createUserWithPassword(
   const name = normalizeString(input?.name) ?? email;
   const language = normalizeString(input?.language) ?? 'pl';
 
-  return withOrgContext(async ({ userId, orgId, client }) => {
+  const result = await withOrgContext(async ({ userId, orgId, client }) => {
     // ── Admin gate (same permission the invite path uses), checked BEFORE any
     //    auth user is created. Fail-closed: an explicit grant of
     //    settings.users.invite via role_permissions, role code/slug, or the
@@ -318,4 +319,27 @@ export async function createUserWithPassword(
       return { ok: false, error: 'persistence_failed' };
     }
   });
+
+  if (result.ok && result.data) {
+    let onboardingClaimSynced = true;
+    try {
+      onboardingClaimSynced = await syncUserOnboardingClaimFromOrg(result.data.userId);
+    } catch (error) {
+      onboardingClaimSynced = false;
+      console.error(
+        '[createUserWithPassword] onboarding claim sync failed; user can recover on next login',
+        error,
+      );
+    }
+    return {
+      ok: true,
+      data: {
+        email: result.data.email,
+        userId: result.data.userId,
+        onboardingClaimSynced,
+      },
+    };
+  }
+
+  return result as CreateUserWithPasswordResult;
 }

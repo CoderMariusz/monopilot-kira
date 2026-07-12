@@ -86,6 +86,9 @@ export type InspectionDetailLabels = {
     notes: string;
     notesPlaceholder: string;
     formIncomplete: string;
+    missingTemplateTitle: string;
+    missingTemplateBody: string;
+    assignTemplateLink: string;
   };
   overall: {
     label: string;
@@ -178,6 +181,7 @@ export function InspectionDetailClient({
     inspection.status === 'cancelled' ||
     inspection.decidedAt != null;
   const editable = canDecide && !decided;
+  const missingTemplate = inspection.parameterResolution === 'missing_template' && editable;
 
   const [params, setParams] = useState<EditableParam[]>(
     (inspection.parameters ?? []).map(toEditable),
@@ -274,7 +278,23 @@ export function InspectionDetailClient({
             <h2 className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
               {labels.header.title}
             </h2>
-            {params.length === 0 ? (
+            {missingTemplate ? (
+              <div
+                role="alert"
+                data-testid="inspection-missing-template"
+                className="mx-4 my-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+              >
+                <p className="font-medium">{labels.params.missingTemplateTitle}</p>
+                <p className="mt-1 text-xs">{labels.params.missingTemplateBody}</p>
+                <Link
+                  href={`/${locale}/quality/specifications`}
+                  data-testid="inspection-assign-template-link"
+                  className="mt-2 inline-block text-xs font-medium text-sky-700 hover:underline"
+                >
+                  {labels.params.assignTemplateLink}
+                </Link>
+              </div>
+            ) : params.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-slate-500">{labels.params.empty}</p>
             ) : (
               <Table aria-label={labels.header.title}>
@@ -491,7 +511,8 @@ export function InspectionDetailClient({
                   type="button"
                   data-testid="inspection-decision-pass"
                   onClick={() => openEsign('pass')}
-                  className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+                  disabled={missingTemplate || params.length === 0}
+                  className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition enabled:hover:bg-emerald-700 disabled:opacity-50"
                 >
                   🔒 {labels.decision.pass}
                 </button>
@@ -499,7 +520,8 @@ export function InspectionDetailClient({
                   type="button"
                   data-testid="inspection-decision-fail"
                   onClick={() => openEsign('fail')}
-                  className="w-full rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+                  disabled={missingTemplate || params.length === 0}
+                  className="w-full rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white transition enabled:hover:bg-red-700 disabled:opacity-50"
                 >
                   🔒 {labels.decision.fail}
                 </button>
@@ -507,7 +529,8 @@ export function InspectionDetailClient({
                   type="button"
                   data-testid="inspection-decision-hold"
                   onClick={() => openEsign('hold')}
-                  className="w-full rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-amber-600"
+                  disabled={missingTemplate || params.length === 0}
+                  className="w-full rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-white transition enabled:hover:bg-amber-600 disabled:opacity-50"
                 >
                   🔒 {labels.decision.hold}
                 </button>

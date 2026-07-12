@@ -1620,7 +1620,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
   // (own withOrgContext + RLS + server-resolved npd.allergen.write). Skipped for
   // the injected (test-only) path, which renders the reserved placeholder instead.
   const allergenLoad: AllergenLoad = injected
-    ? { state: 'empty', data: null, canWrite: false, displayNames: {} }
+    ? { state: 'empty', data: null, canWrite: false, canAcceptDeclaration: false, displayNames: {} }
     : await loadAllergenCascade(fa.productCode, locale);
   const allergenSlot = injected ? undefined : (
     <AllergenCascadeSection labels={allergenLabels} load={allergenLoad} />

@@ -32,8 +32,8 @@ async function updateWorkOrderAction(params: {
   id: string;
   productId?: string;
   plannedQuantity?: string;
-  scheduledStartTime?: string;
-  productionLineId?: string;
+  scheduledStartTime?: string | null;
+  productionLineId?: string | null;
   notes?: string;
 }) {
   'use server';

@@ -2,6 +2,8 @@
 
 import { z } from 'zod';
 
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+import { fetchActiveProductionLineSite, productionLineMatchesWoSite } from '../../../../../../../lib/planning/production-line-site';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
 import { fetchEligibleFactorySpecUnderBindLock } from '../../../../../../../lib/technical/factory-spec-bind-lock';
 import { snapshotFromItemRow } from '../../../../../../../lib/uom/convert';
@@ -23,6 +25,7 @@ type UpdateWorkOrderResult =
 type WorkOrderForUpdateRow = {
   id: string;
   status: string;
+  site_id: string | null;
   product_id: string;
   planned_quantity: string;
   scheduled_start_time: string | Date | null;
@@ -60,7 +63,7 @@ const UpdateWorkOrderInput = z.object({
 
 async function fetchWorkOrderForUpdate(ctx: OrgActionContext, id: string): Promise<WorkOrderForUpdateRow | null> {
   const { rows } = await ctx.client.query<WorkOrderForUpdateRow>(
-    `select id, status, product_id, planned_quantity::text as planned_quantity,
+    `select id, status, site_id::text as site_id, product_id, planned_quantity::text as planned_quantity,
             scheduled_start_time, production_line_id, ext_jsonb->>'notes' as notes
        from public.work_orders
       where org_id = app.current_org_id()
@@ -86,16 +89,17 @@ async function fetchItemSnapshot(ctx: OrgActionContext, productId: string): Prom
   return rows[0] ?? null;
 }
 
-async function ensureProductionLineInOrg(ctx: OrgActionContext, lineId: string): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ id: string }>(
-    `select id
-       from public.production_lines
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-      limit 1`,
-    [lineId],
-  );
-  return rows.length > 0;
+async function ensureProductionLineForWoSite(
+  ctx: OrgActionContext,
+  lineId: string,
+  woSiteId: string | null,
+): Promise<'ok' | 'forbidden' | 'line_site_mismatch'> {
+  const line = await fetchActiveProductionLineSite(ctx.client, lineId);
+  if (!line) return 'forbidden';
+  if (woSiteId && !productionLineMatchesWoSite(line.site_id, woSiteId)) {
+    return 'line_site_mismatch';
+  }
+  return 'ok';
 }
 
 async function fetchActiveBom(ctx: OrgActionContext, itemCode: string): Promise<BomRow | null> {
@@ -217,14 +221,14 @@ export async function updateWorkOrder(params: {
   productId?: string;
   plannedQuantity?: string;
   scheduledStartTime?: string | null;
-  productionLineId?: string;
+  productionLineId?: string | null;
   notes?: string;
 }): Promise<UpdateWorkOrderResult> {
   const parsed = UpdateWorkOrderInput.safeParse(params);
   if (!parsed.success) return { ok: false, error: 'invalid_input', issues: parsed.error.issues };
 
   try {
-    return await withOrgContext(async (ctx): Promise<UpdateWorkOrderResult> => {
+    const result = await withOrgContext(async (ctx): Promise<UpdateWorkOrderResult> => {
       if (!(await hasPermission(ctx, PLANNING_WO_WRITE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
       const input = parsed.data;
@@ -232,8 +236,10 @@ export async function updateWorkOrder(params: {
       if (!current) return { ok: false, error: 'not_found' };
       if (current.status !== 'DRAFT') return { ok: false, error: 'invalid_state' };
 
-      if (input.productionLineId && !(await ensureProductionLineInOrg(ctx, input.productionLineId))) {
-        return { ok: false, error: 'forbidden' };
+      if (input.productionLineId) {
+        const lineCheck = await ensureProductionLineForWoSite(ctx, input.productionLineId, current.site_id);
+        if (lineCheck === 'forbidden') return { ok: false, error: 'forbidden' };
+        if (lineCheck === 'line_site_mismatch') return { ok: false, error: 'line_site_mismatch' };
       }
 
       const nextProductId = input.productId ?? current.product_id;
@@ -350,6 +356,11 @@ export async function updateWorkOrder(params: {
 
       return { ok: true, workOrder: mapWoHeader(workOrder) };
     });
+    if (result.ok) {
+      revalidateLocalized('/planning/work-orders');
+      revalidateLocalized(`/planning/work-orders/${parsed.data.id}`);
+    }
+    return result;
   } catch (error) {
     console.error('[updateWorkOrder] persistence_failed', error);
     return { ok: false, error: 'persistence_failed' };

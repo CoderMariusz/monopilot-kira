@@ -2,6 +2,7 @@
 
 import { hasAnyPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { createSupabaseAuthAdmin } from './supabase-admin';
 
 const FORBIDDEN = 'forbidden' as const;
 
@@ -16,7 +17,15 @@ export type DeactivateUserInput = {
 };
 
 export type DeactivateUserResult =
-  | { ok: true; data: { targetUserId: string; deactivated: true } }
+  | {
+      ok: true;
+      data: {
+        targetUserId: string;
+        deactivated: true;
+        /** DB deactivation succeeded but Supabase session ban failed — user should sign out / retry. */
+        authRevokeWarning?: 'session_revoke_failed';
+      };
+    }
   | {
       ok: false;
       error: 'invalid_input' | 'forbidden' | 'self_deactivation' | 'not_found' | 'persistence_failed';
@@ -33,8 +42,10 @@ async function isLastOwnerViolation(
   targetUserId: string,
   orgId: string,
 ): Promise<boolean> {
+  await client.query(`select id from public.organizations where id = $1::uuid for update`, [orgId]);
+
   const { rows } = await client.query<{ last_owner_violation: boolean }>(
-    `with locked_active_owners as (
+    `with active_owners as (
         select distinct u.id as user_id
           from public.user_roles ur
           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
@@ -42,25 +53,37 @@ async function isLastOwnerViolation(
          where ur.org_id = $2::uuid
            and u.is_active = true
            and (r.code = 'owner' or r.slug = 'owner')
-         for update of u
-      ),
-      target_is_active_owner as (
-        select exists (
-          select 1
-            from locked_active_owners lao
-           where lao.user_id = $1::uuid
-        ) as value
-      ),
-      other_active_owner_count as (
-        select count(distinct user_id)::int as value
-          from locked_active_owners
-         where user_id <> $1::uuid
       )
-      select coalesce((select value from target_is_active_owner), false)
-           and coalesce((select value from other_active_owner_count), 0) = 0 as last_owner_violation`,
+      select exists (
+               select 1 from active_owners ao where ao.user_id = $1::uuid
+             )
+         and (
+               select count(*)::int from active_owners ao where ao.user_id <> $1::uuid
+             ) = 0 as last_owner_violation`,
     [targetUserId, orgId],
   );
   return rows[0]?.last_owner_violation === true;
+}
+
+async function revokeAuthSessions(targetUserId: string): Promise<{ ok: true } | { ok: false; error: unknown }> {
+  try {
+    const supabase = await createSupabaseAuthAdmin();
+    const { error } = await supabase.auth.admin.updateUserById(targetUserId, { ban_duration: '876000h' });
+    if (error) {
+      console.error('[deactivateUser] auth session revoke failed (user remains inactive in public.users)', {
+        targetUserId,
+        message: error.message,
+      });
+      return { ok: false, error };
+    }
+    return { ok: true };
+  } catch (error) {
+    console.error('[deactivateUser] auth session revoke failed (user remains inactive in public.users)', {
+      targetUserId,
+      error,
+    });
+    return { ok: false, error };
+  }
 }
 
 export async function deactivateUser(input: DeactivateUserInput): Promise<DeactivateUserResult> {
@@ -69,19 +92,19 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
     return { ok: false, error: 'invalid_input' };
   }
 
-  return withOrgContext(async ({ userId, orgId, client }) => {
-    try {
+  try {
+    const result = await withOrgContext(async ({ userId, orgId, client }) => {
       const permCtx = { client, userId, orgId };
       if (!(await hasAnyPermission(permCtx, [...DEACTIVATE_PERMISSIONS]))) {
-        return { ok: false, error: 'forbidden' };
+        return { ok: false, error: 'forbidden' } as const;
       }
 
       if (targetUserId === userId) {
-        return { ok: false, error: 'self_deactivation' };
+        return { ok: false, error: 'self_deactivation' } as const;
       }
 
       if (await isLastOwnerViolation(client, targetUserId, orgId)) {
-        return { ok: false, error: 'forbidden' };
+        return { ok: false, error: 'forbidden' } as const;
       }
 
       const { rows } = await client.query<{ id: string }>(
@@ -90,11 +113,23 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
                 updated_at = now()
           where id = $1::uuid
             and org_id = $2::uuid
+            and is_active = true
         returning id`,
         [targetUserId, orgId],
       );
       if (rows.length === 0) {
-        return { ok: false, error: 'not_found' };
+        const existing = await client.query<{ is_active: boolean }>(
+          `select is_active
+             from public.users
+            where id = $1::uuid
+              and org_id = $2::uuid
+            limit 1`,
+          [targetUserId, orgId],
+        );
+        if (existing.rows[0]?.is_active === false) {
+          return { ok: true, data: { targetUserId, deactivated: true } } as const;
+        }
+        return { ok: false, error: 'not_found' } as const;
       }
 
       await client.query(
@@ -112,8 +147,8 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
 
       await client.query(
         `insert into public.outbox_events
-           (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-         values ($1::uuid, $2, 'user', $3::uuid, $4::jsonb, 'settings-deactivate-user-v1')`,
+           (org_id, event_type, aggregate_type, aggregate_id, payload, app_version, dedup_key)
+         values ($1::uuid, $2, 'user', $3::uuid, $4::jsonb, 'settings-deactivate-user-v1', $5)`,
         [
           orgId,
           'settings.user.deactivated',
@@ -123,15 +158,32 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
             target_user_id: targetUserId,
             actor_user_id: userId,
           }),
+          `settings.user.deactivated:${targetUserId}`,
         ],
       );
 
-      return { ok: true, data: { targetUserId, deactivated: true } };
-    } catch (error) {
-      if (error === FORBIDDEN) {
-        return { ok: false, error: 'forbidden' };
+      return { ok: true, data: { targetUserId, deactivated: true } } as const;
+    });
+
+    if (result.ok) {
+      const revoked = await revokeAuthSessions(targetUserId);
+      if (!revoked.ok) {
+        return {
+          ok: true,
+          data: {
+            ...result.data,
+            authRevokeWarning: 'session_revoke_failed',
+          },
+        };
       }
-      return { ok: false, error: 'persistence_failed' };
     }
-  });
+
+    return result;
+  } catch (error) {
+    if (error === FORBIDDEN) {
+      return { ok: false, error: 'forbidden' };
+    }
+    console.error('[deactivateUser] persistence failed', error);
+    return { ok: false, error: 'persistence_failed' };
+  }
 }

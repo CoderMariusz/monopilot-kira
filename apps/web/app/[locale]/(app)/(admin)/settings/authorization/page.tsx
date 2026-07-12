@@ -181,6 +181,10 @@ function technicalBlockers(row: AuthorizationPolicyRow, labels: AuthorizationScr
   if (!row.is_enabled && !row.enabled) blockers.push({ code: 'approval_policy_disabled', policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY, message: labels.blockerApprovalPolicyDisabled });
   if (!row.approval_gate_rule_code) blockers.push({ code: 'gate_rule_missing', policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY, message: labels.blockerGateRuleMissing });
   if (toNumber(row.min_approvers, 0) < 1) blockers.push({ code: 'min_approvers_invalid', policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY, message: labels.blockerMinApproversInvalid });
+  const requireDualSignOff = Boolean(row.settings_json?.require_dual_sign_off ?? DEFAULT_REQUIRE_DUAL_SIGN_OFF);
+  if (requireDualSignOff && toNumber(row.min_approvers, 0) < 2) {
+    blockers.push({ code: 'min_approvers_invalid', policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY, message: labels.blockerMinApproversInvalid });
+  }
   if (!row.approver_role_codes?.length) blockers.push({ code: 'approver_role_missing', policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY, message: labels.blockerApproverRoleMissing });
   return blockers;
 }

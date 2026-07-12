@@ -39,8 +39,8 @@
  *   - PO supply:   purchase_order_lines remainder (qty − Σ grn_items.received_qty,
  *                  non-cancelled GRNs — same join shape as purchase-orders/_actions
  *                  fetchLines) on open POs (sent/confirmed/partially_received)
- *   - production:  schedule_outputs.expected_qty (mig 177, planning-owned) of open
- *                  WOs with disposition='to_stock' — intermediates incoming supply
+ *   - production:  schedule_outputs.expected_qty (mig 177, planning-owned) of RELEASED/IN_PROGRESS
+ *                  WOs with disposition='to_stock' — schedulable WIP supply only (S11)
  *   - thresholds:  reorder_thresholds (mig 178) + suppliers.lead_time_days (mig 261)
  *
  * RBAC: reads gate on `scheduler.run.read` (the planning READ gate the dashboard
@@ -51,6 +51,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { nextDocumentNumber } from '../../../../../../lib/documents/numbering';
+import { pickProcurementSupplierId, fetchNonBlockedSupplierIds, resolveProcurementSuppliersForItems } from '../../../../../../lib/procurement/resolve-item-supplier';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../lib/production/wo-material-scalar';
 import { resolveWriteSiteId } from '../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQty } from '../../../../../../lib/uom/convert';
@@ -95,8 +96,10 @@ type QueryClient = {
 /** Planning read gate — byte-matches the module-registry planning-basic gate. */
 const PLANNING_READ_PERMISSION = 'scheduler.run.read';
 
-/** WO statuses whose materials count as open demand / whose outputs count as incoming supply. */
-const OPEN_WO_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS'];
+/** WO statuses whose unconsumed materials count as open dependent demand. */
+const OPEN_WO_DEMAND_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS'];
+/** WO statuses whose schedule_outputs count as schedulable incoming supply (released WIP only). */
+const SCHEDULABLE_WO_SUPPLY_STATUSES = ['RELEASED', 'IN_PROGRESS'];
 /** PO statuses that represent committed open supply (draft POs are not yet committed). */
 const OPEN_PO_STATUSES = ['sent', 'confirmed', 'partially_received'];
 /**
@@ -243,7 +246,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
             and coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date <= $3::date
           group by m.product_id, m.uom,
                    coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date`,
-        [OPEN_WO_STATUSES, startedAt.toISOString(), horizonEnd],
+        [OPEN_WO_DEMAND_STATUSES, startedAt.toISOString(), horizonEnd],
       );
 
       // 3b) Independent (forecast) demand — demand_forecasts (mig 302), per ISO week.
@@ -384,7 +387,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
             )
           group by so.product_id, so.uom,
                    coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date`,
-        [OPEN_WO_STATUSES, startedAt.toISOString(), horizonEnd],
+        [SCHEDULABLE_WO_SUPPLY_STATUSES, startedAt.toISOString(), horizonEnd],
       );
 
       // 6) Reorder thresholds (mig 178) + the preferred supplier's lead time
@@ -579,7 +582,7 @@ async function persistMrpRun(
     if (requirement.rows[0]) requirementIds.set(reqKey, requirement.rows[0].id);
   }
 
-  await persistPlannedOrders(c, run.id, bucketRows, requirementIds);
+  await persistPlannedOrders(c, run.id, bucketRows, requirementIds, today);
   await emitMrpCompletedEvent(c, userId, run.id, {
     requirements: bucketRows.length,
     planned_orders: suggestionCount,
@@ -615,6 +618,7 @@ async function persistPlannedOrders(
   runId: string,
   bucketRows: MrpBucketRow[],
   requirementIds: Map<string, string>,
+  today: string,
 ): Promise<void> {
   await c.query(
     `delete from public.mrp_planned_orders
@@ -624,12 +628,39 @@ async function persistPlannedOrders(
     [runId],
   );
 
+  const buyItemIds = [
+    ...new Set(
+      bucketRows
+        .filter((row) => row.suggestedAction?.type === 'buy')
+        .map((row) => row.itemId),
+    ),
+  ];
+  const supplierByItem = await resolveProcurementSuppliersForItems(c, buyItemIds, OPEN_PO_STATUSES);
+  const supplierCandidates = new Set<string>();
+  for (const row of bucketRows) {
+    if (row.suggestedAction?.type !== 'buy') continue;
+    if (row.suggestedAction.supplierId) supplierCandidates.add(row.suggestedAction.supplierId);
+    const resolved = supplierByItem.get(row.itemId);
+    if (resolved) supplierCandidates.add(resolved.supplierId);
+  }
+  const eligibleSupplierIds = await fetchNonBlockedSupplierIds(c, [...supplierCandidates]);
+
   for (const row of bucketRows) {
     if (!row.suggestedAction) continue;
-    const dueDate = row.suggestedAction.dueDate ?? row.bucketDate;
-    const releaseDate = row.suggestedAction.releaseDate ?? null;
+    const rawDueDate = row.suggestedAction.dueDate ?? row.bucketDate;
+    const dueDate = rawDueDate < today ? today : rawDueDate;
+    const preferredSupplierId = row.suggestedAction.supplierId;
+    const supplierId =
+      row.suggestedAction.type === 'buy'
+        ? pickProcurementSupplierId(row.itemId, preferredSupplierId, supplierByItem, eligibleSupplierIds)
+        : preferredSupplierId;
+    let releaseDate = row.suggestedAction.releaseDate ?? null;
+    if (releaseDate !== null && releaseDate < today) {
+      releaseDate = today;
+    }
+    const isLate = row.suggestedAction.isLate ?? (releaseDate === today && rawDueDate < today);
     const reqKey = `${row.itemId}:${row.bucketDate}`;
-    const notes = row.suggestedAction.isLate
+    const notes = isLate
       ? `expedite: release clamped to planning start — MRP ${row.suggestedAction.type} suggestion for ${row.itemCode} (${row.bucketDate})`
       : `MRP ${row.suggestedAction.type} suggestion for ${row.itemCode} (${row.bucketDate})`;
     await c.query(
@@ -648,7 +679,7 @@ async function persistPlannedOrders(
         row.uomBase,
         dueDate,
         releaseDate,
-        row.suggestedAction.supplierId,
+        supplierId,
         notes,
       ],
     );
@@ -980,7 +1011,7 @@ async function markPlannedOrdersReleased(
     `update public.mrp_planned_orders
         set release_status = 'released',
             released_order_id = $2::uuid,
-            converted_at = now()
+            updated_at = now()
       where org_id = app.current_org_id()
         and id = any($1::uuid[])
         and release_status in ('suggested', 'firm')`,

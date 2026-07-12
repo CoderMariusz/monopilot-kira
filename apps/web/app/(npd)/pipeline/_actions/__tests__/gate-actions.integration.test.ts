@@ -191,20 +191,25 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
     await owner.end();
   });
 
-  it('allows G0→recipe advancement when required current-gate checklist items are unchecked', async () => {
+  it('blocks G0→recipe advancement when required current-gate checklist items are unchecked', async () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
     const advanced = await withActionActor(seed.userAId, seed.orgAId, () =>
       advanceProjectGate({ projectId: uncheckedG0ProjectId, targetStage: 'recipe' }),
     );
 
-    expect(advanced).toMatchObject({ ok: true, data: { currentStage: 'recipe', currentGate: 'G2' } });
+    expect(advanced).toMatchObject({
+      ok: false,
+      error: 'SOFT_GATE_BLOCKED',
+      status: 409,
+      missing: expect.arrayContaining([expect.stringMatching(/^Checklist:/)]),
+    });
 
     const gate = await owner.query<{ current_gate: string; current_stage: string }>(
       `select current_gate, current_stage from public.npd_projects where id = $1::uuid`,
       [uncheckedG0ProjectId],
     );
-    expect(gate.rows[0]).toMatchObject({ current_gate: 'G2', current_stage: 'recipe' });
+    expect(gate.rows[0]).toMatchObject({ current_gate: 'G0', current_stage: 'brief' });
   });
 
   it('allows G0→recipe advancement when all required current-gate checklist items are checked', async () => {

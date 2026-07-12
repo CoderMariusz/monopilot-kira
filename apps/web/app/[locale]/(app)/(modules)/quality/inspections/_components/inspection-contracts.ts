@@ -60,6 +60,7 @@ export type InspectionParameter = {
 
 export type InspectionDetail = InspectionListRow & {
   parameters: InspectionParameter[];
+  parameterResolution?: 'stored' | 'resolved' | 'missing_template';
   resultNotes?: string | null;
   decidedBy?: InspectionPerson;
   decidedAt?: string | null;

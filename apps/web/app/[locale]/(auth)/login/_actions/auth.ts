@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { createServerSupabaseClient as createSupabaseServerClient } from '../../../../../lib/auth/supabase-server';
+import { syncUserOnboardingClaimFromOrg } from '../../../../../lib/auth/sync-user-onboarding-claim';
 
 export type AuthActionState = {
   error?: string | null;
@@ -45,6 +46,12 @@ export async function signInWithPassword(
   const { data: assurance, error: assuranceError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (assuranceError) {
     return { error: 'Unable to verify MFA requirements.', success: false };
+  }
+
+  const { data: sessionUser } = await supabase.auth.getUser();
+  if (sessionUser.user?.id) {
+    await syncUserOnboardingClaimFromOrg(sessionUser.user.id);
+    await supabase.auth.refreshSession();
   }
 
   if (assurance?.nextLevel === 'aal2' && assurance.currentLevel !== 'aal2') {
@@ -102,6 +109,12 @@ export async function verifyMfaCode(
 
   if (error) {
     return { error: 'Invalid or expired code', success: false };
+  }
+
+  const { data: sessionUser } = await supabase.auth.getUser();
+  if (sessionUser.user?.id) {
+    await syncUserOnboardingClaimFromOrg(sessionUser.user.id);
+    await supabase.auth.refreshSession();
   }
 
   redirect(`/${locale}/`);

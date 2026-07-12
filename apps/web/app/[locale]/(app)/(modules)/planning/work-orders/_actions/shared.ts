@@ -31,6 +31,7 @@ export type PlanningWorkOrderError =
   | 'document_mask_missing'
   | 'not_released_to_factory'
   | 'chain_delete_blocked'
+  | 'line_site_mismatch'
   | 'persistence_failed';
 
 export type EnteredUom = 'base' | 'each' | 'box';

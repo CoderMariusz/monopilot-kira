@@ -96,6 +96,9 @@ export async function runTechnicalApprovalPreflight(input: {
   if (!isEnabled(policy)) blockers.push({ code: 'approval_policy_disabled', policyCode });
   if (!activeGate) blockers.push({ code: 'gate_rule_missing', policyCode });
   if (toNumber(policy.min_approvers) < 1) blockers.push({ code: 'min_approvers_invalid', policyCode });
+  if (Boolean(policy.settings_json?.require_dual_sign_off) && toNumber(policy.min_approvers) < 2) {
+    blockers.push({ code: 'min_approvers_invalid', policyCode });
+  }
   if (arrayLength(policy.approver_role_codes) < 1) blockers.push({ code: 'approver_role_missing', policyCode });
 
   return blockers.length > 0 ? { ok: false, blockers } : { ok: true, blockers: [] };

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 
 import { hasPermission, type ProductionContext } from '../../../../../lib/production/shared';
 import { holdsGuard } from '../../../../../lib/production/holds-guard';
+import { applyLpQaLifecycleTransition } from '../../../../../lib/warehouse/lp-qa-transition-core';
 import { requireScannerSession } from '../../../../../lib/scanner/guard';
 import { stringField } from '../../../../../lib/scanner/route-utils';
 import { cleanupTxnOrgContext, registerTxnOrgContext } from '../../../../../lib/scanner/txn-org-context';
@@ -17,8 +18,6 @@ import {
 
 type Decision = 'pass' | 'fail' | 'hold';
 type QaStatus = 'released' | 'rejected' | 'on_hold';
-
-const TERMINAL_LP_STATUSES = ['consumed', 'merged', 'shipped', 'returned'] as const;
 
 function decisionField(body: Record<string, unknown>): Decision | null {
   const value = stringField(body, 'decision');
@@ -108,7 +107,7 @@ async function createHoldForLp(params: {
 
 async function applyLpDecision(params: {
   client: ProductionContext['client'];
-  lpId: string;
+  lpBefore: { id: string; lp_number: string; status: string; qa_status: string };
   userId: string;
   orgId: string;
   decision: Decision;
@@ -116,26 +115,26 @@ async function applyLpDecision(params: {
 }): Promise<QaStatus | 'quality_hold_active' | null> {
   const qaStatus: QaStatus = params.decision === 'pass' ? 'released' : params.decision === 'fail' ? 'rejected' : 'on_hold';
   if (qaStatus === 'released') {
-    const hold = await holdsGuard({ client: params.client }, { lpId: params.lpId });
+    const hold = await holdsGuard({ client: params.client }, { lpId: params.lpBefore.id });
     if (hold) return 'quality_hold_active';
   }
 
-  const updated = await params.client.query<{ id: string }>(
-    `update public.license_plates
-        set qa_status = $2,
-            updated_by = $3::uuid
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-        and app.user_can_see_site(site_id)
-        and status <> all($4::text[])
-      returning id::text`,
-    [params.lpId, qaStatus, params.userId, [...TERMINAL_LP_STATUSES]],
+  const row = await applyLpQaLifecycleTransition(
+    { client: params.client, userId: params.userId, orgId: params.orgId },
+    {
+      lpId: params.lpBefore.id,
+      lpBefore: params.lpBefore,
+      decision: qaStatus,
+      note: params.note,
+      mode: 'scanner',
+      emitOutbox: qaStatus === 'released' || qaStatus === 'rejected',
+    },
   );
-  if (!updated.rows[0]) return null;
+  if (!row) return null;
   if (params.decision === 'hold') {
     await createHoldForLp({
       client: params.client,
-      lpId: params.lpId,
+      lpId: params.lpBefore.id,
       userId: params.userId,
       orgId: params.orgId,
       note: params.note,
@@ -209,8 +208,18 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        const lp = await scopedClient.query<{ id: string; product_id: string | null }>(
-          `select id::text, product_id::text
+        const lp = await scopedClient.query<{
+          id: string;
+          product_id: string | null;
+          lp_number: string;
+          status: string;
+          qa_status: string;
+        }>(
+          `select id::text,
+                  product_id::text,
+                  lp_number,
+                  status,
+                  qa_status
              from public.license_plates
             where org_id = app.current_org_id()
               and id = $1::uuid
@@ -261,7 +270,12 @@ export async function POST(request: NextRequest) {
 
         const qaStatus = await applyLpDecision({
           client: scopedClient,
-          lpId,
+          lpBefore: {
+            id: currentLp.id,
+            lp_number: currentLp.lp_number,
+            status: currentLp.status,
+            qa_status: currentLp.qa_status,
+          },
           userId: session.user_id,
           orgId: session.org_id,
           decision,
