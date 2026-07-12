@@ -4,10 +4,11 @@ const ORG_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const ACTOR_USER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const TARGET_USER_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
-const { _withOrgContextRunner, _revalidateLocalized, _getUserById } = vi.hoisted(() => ({
+const { _withOrgContextRunner, _revalidateLocalized, _getUserById, _liftAuthBan } = vi.hoisted(() => ({
   _withOrgContextRunner: vi.fn(),
   _revalidateLocalized: vi.fn(),
   _getUserById: vi.fn(),
+  _liftAuthBan: vi.fn(),
 }));
 
 vi.mock('../../lib/auth/with-org-context', () => ({
@@ -18,14 +19,15 @@ vi.mock('../../lib/i18n/revalidate-localized', () => ({
   revalidateLocalized: _revalidateLocalized,
 }));
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
+vi.mock('./supabase-admin', () => ({
+  createSupabaseAuthAdmin: vi.fn(async () => ({
     auth: {
       admin: {
         getUserById: _getUserById,
       },
     },
   })),
+  liftAuthBan: (...args: unknown[]) => _liftAuthBan(...args),
 }));
 
 type QueryCall = { sql: string; params: unknown[] };
@@ -112,6 +114,7 @@ beforeEach(() => {
     action({ userId: ACTOR_USER_ID, orgId: ORG_ID, sessionToken: 'session-token', client: currentClient }),
   );
   _getUserById.mockResolvedValue({ data: { user: { id: TARGET_USER_ID } }, error: null });
+  _liftAuthBan.mockResolvedValue({ ok: true });
 });
 
 type ReactivateModule = typeof import('./reactivate.ts');
@@ -141,6 +144,7 @@ describe('reactivateUser behavior', () => {
 
     expect(result).toEqual({ ok: true, data: { targetUserId: TARGET_USER_ID, reactivated: true } });
     expect(_getUserById).toHaveBeenCalledWith(TARGET_USER_ID);
+    expect(_liftAuthBan).toHaveBeenCalledWith(TARGET_USER_ID);
     expect(currentClient.auditRows[0]).toMatchObject({
       action: 'settings.user.reactivated',
       resource_id: TARGET_USER_ID,
@@ -195,6 +199,28 @@ describe('reactivateUser behavior', () => {
 
     expect(result).toEqual({ ok: false, error: 'not_disabled' });
     expect(_getUserById).not.toHaveBeenCalled();
+    expect(currentClient.auditRows).toHaveLength(0);
+  });
+
+  it('surfaces auth_unban_failed when the Supabase ban lift fails after reactivation', async () => {
+    _liftAuthBan.mockResolvedValueOnce({ ok: false, error: { message: 'boom' } });
+    const { reactivateUser } = await loadReactivate();
+
+    const result = await reactivateUser({ targetUserId: TARGET_USER_ID });
+
+    expect(result).toEqual({ ok: false, error: 'auth_unban_failed' });
+    expect(_liftAuthBan).toHaveBeenCalledWith(TARGET_USER_ID);
+    expect(_revalidateLocalized).not.toHaveBeenCalled();
+  });
+
+  it('repairs an already-active user who is still auth-banned (pre-B3a state)', async () => {
+    currentClient.targetUser = { id: TARGET_USER_ID, is_active: true, invite_token: null };
+    const { reactivateUser } = await loadReactivate();
+
+    const result = await reactivateUser({ targetUserId: TARGET_USER_ID });
+
+    expect(result).toEqual({ ok: true, data: { targetUserId: TARGET_USER_ID, reactivated: true } });
+    expect(_liftAuthBan).toHaveBeenCalledWith(TARGET_USER_ID);
     expect(currentClient.auditRows).toHaveLength(0);
   });
 });

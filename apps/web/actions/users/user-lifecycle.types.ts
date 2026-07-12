@@ -21,6 +21,7 @@ export type ReactivateUserResult =
         | 'not_found'
         | 'not_disabled'
         | 'auth_identity_missing'
+        | 'auth_unban_failed'
         | 'seat_limit_exceeded'
         | 'persistence_failed';
     };

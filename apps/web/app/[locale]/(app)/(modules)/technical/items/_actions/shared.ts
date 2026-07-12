@@ -38,6 +38,8 @@ export const APP_VERSION = 'technical-items-v1';
 // classified + accounted separately from 'rm'. See migration 247.
 export const ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'fg', 'co_product', 'byproduct', 'packaging'] as const;
 export const ITEM_STATUSES = ['draft', 'active', 'deprecated', 'blocked'] as const;
+/** Mirrors CreateItemInput — shared with the wizard client guard. */
+export const ITEM_CODE_PATTERN = /^[A-Za-z0-9._-]+$/;
 export const WEIGHT_MODES = ['fixed', 'catch'] as const;
 export const SHELF_LIFE_MODES = ['use_by', 'best_before'] as const;
 const GS1_GTIN_RE = /^(?:\d{8}|\d{12}|\d{13}|\d{14})$/;
@@ -205,7 +207,7 @@ export const CreateItemInput = z
       .trim()
       .min(1)
       .max(64)
-      .regex(/^[A-Za-z0-9._-]+$/, 'item_code must be alphanumeric with . _ - separators'),
+      .regex(ITEM_CODE_PATTERN, 'item_code must be alphanumeric with . _ - separators'),
     name: z.string().trim().min(1).max(256),
     itemType: z.enum(ITEM_TYPES),
     status: z.enum(ITEM_STATUSES).optional().default('active'),
@@ -321,13 +323,15 @@ export type DeactivateItemResult =
 //   draft      → active      (Activate)
 //   active     → deprecated  (Deprecate)
 //   deprecated → active      (Reactivate)
+//   blocked    → active      (Reactivate after deactivate — edit wizard + updateItem)
 export const TRANSITION_TARGETS = ['active', 'deprecated'] as const;
 export type TransitionTarget = (typeof TRANSITION_TARGETS)[number];
 
-const ALLOWED_STATUS_TRANSITIONS: ReadonlyArray<readonly [ItemStatus, TransitionTarget]> = [
+const ALLOWED_STATUS_TRANSITIONS: ReadonlyArray<readonly [ItemStatus, TransitionTarget | 'active']> = [
   ['draft', 'active'],
   ['active', 'deprecated'],
   ['deprecated', 'active'],
+  ['blocked', 'active'],
 ];
 
 export function isAllowedStatusTransition(from: string, to: string): boolean {

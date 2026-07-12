@@ -3,6 +3,7 @@
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 import type { ReactivateUserInput, ReactivateUserResult } from './user-lifecycle.types';
+import { createSupabaseAuthAdmin, liftAuthBan } from './supabase-admin';
 
 const FORBIDDEN = 'forbidden' as const;
 
@@ -46,26 +47,14 @@ async function requireAnyPermission(ctx: PermissionContext, permissions: [string
   throw FORBIDDEN;
 }
 
-async function createSupabaseAuthAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('reactivateUser requires Supabase service-role env (SUPABASE_SERVICE_ROLE_KEY)');
-  }
-  const { createClient } = await import('@supabase/supabase-js');
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
-
 export async function reactivateUser(input: ReactivateUserInput): Promise<ReactivateUserResult> {
   const targetUserId = normalizeId(input?.targetUserId);
   if (!targetUserId) {
     return { ok: false, error: 'invalid_input' };
   }
 
-  return withOrgContext(async ({ userId, orgId, client }) => {
-    try {
+  try {
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<ReactivateUserResult> => {
       // Same OR-union as deactivateUser (org.access.admin OR settings.users.deactivate).
       await requireAnyPermission({ client, userId, orgId }, ['org.access.admin', 'settings.users.deactivate']);
 
@@ -84,15 +73,11 @@ export async function reactivateUser(input: ReactivateUserInput): Promise<Reacti
       if (!target) {
         return { ok: false, error: 'not_found' };
       }
-      if (target.is_active) {
-        return { ok: false, error: 'not_disabled' };
-      }
       if (target.invite_token) {
         return { ok: false, error: 'not_disabled' };
       }
 
-      // Deactivate only flips public.users.is_active — it does not ban the Supabase
-      // auth identity. Guard reactivation when the auth user was hard-deleted.
+      // Deactivate bans via Supabase admin; reactivate must lift that ban symmetrically.
       try {
         const supabase = await createSupabaseAuthAdmin();
         const authLookup = await supabase.auth.admin.getUserById(targetUserId);
@@ -101,6 +86,11 @@ export async function reactivateUser(input: ReactivateUserInput): Promise<Reacti
         }
       } catch {
         return { ok: false, error: 'auth_identity_missing' };
+      }
+
+      if (target.is_active) {
+        // Repair path: user row already active (e.g. reactivated before B3a) but auth ban remains.
+        return { ok: true, data: { targetUserId, reactivated: true } };
       }
 
       // FOR UPDATE locks the org row so that concurrent reactivations in the same
@@ -172,14 +162,22 @@ export async function reactivateUser(input: ReactivateUserInput): Promise<Reacti
         ],
       );
 
-      revalidateLocalized('/settings/users');
-
       return { ok: true, data: { targetUserId, reactivated: true } };
-    } catch (error) {
-      if (error === FORBIDDEN) {
-        return { ok: false, error: 'forbidden' };
+    });
+
+    if (result.ok) {
+      const lifted = await liftAuthBan(targetUserId);
+      if (!lifted.ok) {
+        return { ok: false, error: 'auth_unban_failed' };
       }
-      return { ok: false, error: 'persistence_failed' };
+      revalidateLocalized('/settings/users');
     }
-  });
+
+    return result;
+  } catch (error) {
+    if (error === FORBIDDEN) {
+      return { ok: false, error: 'forbidden' };
+    }
+    return { ok: false, error: 'persistence_failed' };
+  }
 }

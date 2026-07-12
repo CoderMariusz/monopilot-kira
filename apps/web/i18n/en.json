@@ -5073,6 +5073,7 @@
         },
         "errors": {
           "codeRequired": "Item code is required (min 1 char).",
+          "codeInvalid": "Item code must be alphanumeric with . _ - separators.",
           "nameRequired": "Name is required (min 1 char).",
           "uomRequired": "Base UoM is required.",
           "netRequired": "Net content per each is required (> 0) for Each / Box output.",
@@ -5110,6 +5111,14 @@
           "active": "Active",
           "deprecated": "Deprecated",
           "blocked": "Blocked"
+        }
+      },
+      "edit": {
+        "title": "Edit item",
+        "saveChanges": "Save changes",
+        "saving": "Saving…",
+        "review": {
+          "ready": "Ready to save your changes. An audit record will be logged."
         }
       },
       "deactivate": {

@@ -345,9 +345,59 @@ describe('ItemWizard create mode (TEC-011)', () => {
     expect(alert).toHaveTextContent('RM-2002');
     expect(alert).toHaveTextContent('earlier attempt');
   });
+
+  it('blocks Next on the basic step when the item code has illegal characters', async () => {
+    const user = userEvent.setup();
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await user.type(inputByName('itemCode'), 'bad code!');
+    await user.type(inputByName('name'), 'Invalid code item');
+    await user.click(screen.getByRole('button', { name: L.next }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(L.errors.codeInvalid);
+    expect(screen.getByRole('tab', { name: new RegExp(L.steps.basic) })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('surfaces the server validation message when createItem rejects invalid_input', async () => {
+    const user = userEvent.setup();
+    createItem.mockResolvedValue({
+      ok: false,
+      error: 'invalid_input',
+      message: 'item_code must be alphanumeric with . _ - separators',
+    });
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user);
+    await user.click(screen.getByRole('button', { name: L.next }));
+    await user.click(screen.getByRole('button', { name: L.next }));
+    await user.click(screen.getByRole('button', { name: L.create }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(L.errors.codeInvalid);
+  });
 });
 
 describe('ItemWizard edit mode (TEC-013 reuse)', () => {
+  it('shows Edit item title and Save changes on the submit button', async () => {
+    const user = userEvent.setup();
+    renderWizard({
+      open: true,
+      onClose: vi.fn(),
+      mode: { kind: 'edit', itemId: 'abc-id' },
+      initialForm: { ...emptyWizardForm(), itemCode: 'RM-9', name: 'Existing' },
+      labels: {
+        ...L,
+        editTitle: 'Edit item',
+        saveChanges: 'Save changes',
+        saving: 'Saving…',
+      },
+    });
+
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Edit item');
+    await user.click(screen.getByRole('button', { name: L.next }));
+    await user.click(screen.getByRole('button', { name: L.next }));
+    await user.click(screen.getByRole('button', { name: L.next }));
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
+  });
+
   it('uses updateItem and renders the code as read-only', async () => {
     const user = userEvent.setup();
     updateItem.mockResolvedValue({ ok: true, data: { id: 'abc' } });
@@ -372,7 +422,7 @@ describe('ItemWizard edit mode (TEC-013 reuse)', () => {
     await user.click(screen.getByRole('button', { name: L.next })); // classification
     await user.click(screen.getByRole('button', { name: L.next })); // weight
     await user.click(screen.getByRole('button', { name: L.next })); // review
-    await user.click(screen.getByRole('button', { name: L.create }));
+    await user.click(screen.getByRole('button', { name: L.saveChanges }));
 
     expect(updateItem).toHaveBeenCalledTimes(1);
     expect(updateItem.mock.calls[0][0]).toMatchObject({
