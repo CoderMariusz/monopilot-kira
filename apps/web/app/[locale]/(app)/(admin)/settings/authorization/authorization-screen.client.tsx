@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import {
   NPD_POST_RELEASE_EDIT_POLICY,
@@ -54,6 +55,10 @@ export type UpdateAuthorizationPolicyResult =
   | { ok: true; data?: { policyCode?: string; version?: number } }
   | { ok: false; error?: string; blockers?: Blocker[] };
 
+export type InitializeAuthorizationPoliciesResult =
+  | { ok: true }
+  | { ok: false; error?: 'forbidden' | 'persistence_failed' };
+
 export type AuthorizationPageProps = {
   screenState?: 'ready' | 'loading' | 'missing_seed' | 'permission_denied' | 'error';
   canEditAuthorization?: boolean;
@@ -65,6 +70,7 @@ export type AuthorizationPageProps = {
   auditLogHref?: string;
   labels: AuthorizationScreenLabels;
   updateAuthorizationPolicy: (input: UpdateAuthorizationPolicyInput) => Promise<UpdateAuthorizationPolicyResult>;
+  initializeAuthorizationPolicies?: () => Promise<InitializeAuthorizationPoliciesResult>;
 };
 
 export type CopyKey =
@@ -110,6 +116,9 @@ export type CopyKey =
   | 'minimumAuthorizersHint'
   | 'missingSeedBody'
   | 'missingSeedTitle'
+  | 'initializePolicies'
+  | 'initializingPolicies'
+  | 'initializePoliciesFailed'
   | 'noRoleSelected'
   | 'npdDescription'
   | 'npdTitle'
@@ -284,7 +293,39 @@ function LoadingState({ copy }: { copy: Copy }) {
   );
 }
 
-function MissingSeedState({ auditLogHref, copy }: { auditLogHref: string; copy: Copy }) {
+function MissingSeedState({
+  auditLogHref,
+  copy,
+  canInitialize,
+  initializeAuthorizationPolicies,
+}: {
+  auditLogHref: string;
+  copy: Copy;
+  canInitialize: boolean;
+  initializeAuthorizationPolicies?: () => Promise<InitializeAuthorizationPoliciesResult>;
+}) {
+  const router = useRouter();
+  const [initializing, setInitializing] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
+
+  async function handleInitialize() {
+    if (!initializeAuthorizationPolicies || initializing) return;
+    setInitializing(true);
+    setInitError(null);
+    try {
+      const result = await initializeAuthorizationPolicies();
+      if (result.ok) {
+        router.refresh();
+        return;
+      }
+      setInitError(copy('initializePoliciesFailed'));
+    } catch {
+      setInitError(copy('initializePoliciesFailed'));
+    } finally {
+      setInitializing(false);
+    }
+  }
+
   return (
     <main className="space-y-5 p-6">
       <PageHead auditLogHref={auditLogHref} copy={copy} />
@@ -295,6 +336,20 @@ function MissingSeedState({ auditLogHref, copy }: { auditLogHref: string; copy: 
           <CodePill>{NPD_POST_RELEASE_EDIT_POLICY}</CodePill>
           <CodePill>{TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY}</CodePill>
         </div>
+        {canInitialize && initializeAuthorizationPolicies ? (
+          <div className="mt-4">
+            <Button
+              type="button"
+              className="btn--primary"
+              data-testid="authorization-initialize-policies"
+              disabled={initializing}
+              onClick={() => void handleInitialize()}
+            >
+              {initializing ? copy('initializingPolicies') : copy('initializePolicies')}
+            </Button>
+          </div>
+        ) : null}
+        {initError ? <p className="mt-2 text-sm font-medium">{initError}</p> : null}
       </div>
     </main>
   );
@@ -333,6 +388,7 @@ export default function AuthorizationPoliciesScreen(pageProps: AuthorizationPage
   const policies = pageProps.policies ?? defaultPolicies;
   const auditLogHref = pageProps.auditLogHref ?? '/en/settings/audit?action=authorization_policy_update';
   const updateAuthorizationPolicy = pageProps.updateAuthorizationPolicy;
+  const initializeAuthorizationPolicies = pageProps.initializeAuthorizationPolicies;
   const copy: Copy = (key) => pageProps.labels[key];
   const [auditReason, setAuditReason] = useState('');
   const [npdMinApprovers, setNpdMinApprovers] = useState(policies?.npd?.minApprovers ?? defaultPolicies.npd!.minApprovers);
@@ -417,7 +473,16 @@ export default function AuthorizationPoliciesScreen(pageProps: AuthorizationPage
 
   if (screenState === 'loading') return <LoadingState copy={copy} />;
   if (screenState === 'error') return <ErrorState auditLogHref={auditLogHref} copy={copy} />;
-  if (screenState === 'missing_seed' || !policies.npd || !policies.technical) return <MissingSeedState auditLogHref={auditLogHref} copy={copy} />;
+  if (screenState === 'missing_seed' || !policies.npd || !policies.technical) {
+    return (
+      <MissingSeedState
+        auditLogHref={auditLogHref}
+        copy={copy}
+        canInitialize={canEditAuthorization}
+        initializeAuthorizationPolicies={initializeAuthorizationPolicies}
+      />
+    );
+  }
 
   return (
     <main className="space-y-5 p-6">

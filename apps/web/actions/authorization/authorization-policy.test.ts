@@ -93,6 +93,7 @@ type ActionsModule = {
     patch: Partial<PolicyRow>;
     auditReason?: string;
   }) => Promise<unknown>;
+  initializeAuthorizationPolicies: () => Promise<unknown>;
 };
 
 let currentClient: FakeClient;
@@ -288,6 +289,25 @@ describe('authorization policy helpers and preflights (TASK-000216/T-126 RED)', 
     expect(currentClient.mutations).toEqual([]);
   });
 
+  it('initializeAuthorizationPolicies calls the org seed function when the editor has permission', async () => {
+    currentClient.actorPermissions.add(SETTINGS_AUTHORIZATION_EDIT);
+
+    const { initializeAuthorizationPolicies } = await loadActionsModule();
+    const result = await initializeAuthorizationPolicies();
+
+    expect(result).toEqual({ ok: true });
+    expect(callBlob('seed_authorization_policies_for_org')).toContain(ORG_ID);
+    expect(_revalidateLocalized).toHaveBeenCalledWith('/settings/authorization');
+  });
+
+  it('initializeAuthorizationPolicies is forbidden without settings.authorization.edit', async () => {
+    const { initializeAuthorizationPolicies } = await loadActionsModule();
+    const result = await initializeAuthorizationPolicies();
+
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+    expect(statementIndex('seed_authorization_policies_for_org')).toBe(-1);
+  });
+
 });
 
 async function loadPreflightModule(): Promise<PreflightModule> {
@@ -307,6 +327,9 @@ async function loadActionsModule(): Promise<ActionsModule> {
   const mod = (await import(policyActionsPath)) as Partial<ActionsModule>;
   if (typeof mod.updateAuthorizationPolicy !== 'function') {
     expect.fail('policy-actions.ts must export updateAuthorizationPolicy(input)');
+  }
+  if (typeof mod.initializeAuthorizationPolicies !== 'function') {
+    expect.fail('policy-actions.ts must export initializeAuthorizationPolicies()');
   }
   return mod as ActionsModule;
 }
@@ -361,6 +384,10 @@ function makeClient(): FakeClient {
           ?? policyCodeFromJsonParam(params);
         client.mutations.push({ kind: 'outbox', policyCode, orgId: ORG_ID });
         return { rows: [], rowCount: 1 };
+      }
+
+      if (normalized.includes('seed_authorization_policies_for_org')) {
+        return { rows: [], rowCount: 0 };
       }
 
       return { rows: [], rowCount: 0 };
