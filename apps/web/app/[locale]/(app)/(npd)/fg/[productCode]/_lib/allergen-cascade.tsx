@@ -37,7 +37,16 @@ import {
   acceptAllergenDeclaration,
   revokeAllergenDeclaration,
 } from '../allergens/_actions/accept-declaration';
+import { hasAnyPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { buildAllergenCascadeData } from '../../../../../../../lib/npd/build-allergen-cascade-data';
+
+const DECLARATION_WRITE_PERMISSIONS = [
+  'npd.allergen.write',
+  'npd.allergen.accept_declaration',
+  'technical.write',
+  'quality.write',
+] as const;
 
 export type { AllergenCascadeData, AllergenCascadeLabels, WidgetState };
 
@@ -127,6 +136,8 @@ export type AllergenLoad = {
   state: WidgetState;
   data: AllergenCascadeData | null;
   canWrite: boolean;
+  /** Declaration accept/revoke — broader permission OR-list than cascade override. */
+  canAcceptDeclaration: boolean;
   displayNames: Record<string, string>;
 };
 
@@ -136,12 +147,6 @@ type DeclarationStateRow = {
   accepted_at: string | null;
 };
 
-/**
- * UI-owned read of the FG-final declaration sign-off (criterion C5). The T2 cascade
- * reader does NOT return this column, so this small org-scoped SELECT mirrors
- * product.allergens_declaration_accepted (+ accepted_by display name / accepted_at)
- * for the accept control. RLS-enforced as app_user via app.current_org_id(). NO mocks.
- */
 async function readDeclarationState(
   productCode: string,
 ): Promise<{ accepted: boolean; acceptedBy: string | null; acceptedAt: string | null }> {
@@ -175,6 +180,38 @@ async function readDeclarationState(
   }
 }
 
+async function readCanAcceptDeclaration(): Promise<boolean> {
+  try {
+    return await withOrgContext(async ({ client, userId, orgId }) => {
+      return hasAnyPermission({ client, userId, orgId }, [...DECLARATION_WRITE_PERMISSIONS]);
+    });
+  } catch {
+    return false;
+  }
+}
+
+async function readProductExists(productCode: string): Promise<boolean> {
+  try {
+    return await withOrgContext(async ({ client }) => {
+      const queryClient = client as {
+        query<T>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }>;
+      };
+      const res = await queryClient.query<{ product_code: string }>(
+        `select product_code
+           from public.product
+          where product_code = $1
+            and org_id = app.current_org_id()
+            and deleted_at is null
+          limit 1`,
+        [productCode],
+      );
+      return res.rows.length > 0;
+    });
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Org-scoped allergen cascade read (REAL data). Reuses the T-040 readAllergenCascade
  * which runs inside withOrgContext (app_user + RLS app.current_org_id()). Maps the
@@ -185,40 +222,38 @@ export async function loadAllergenCascade(
   locale: string,
 ): Promise<AllergenLoad> {
   try {
-    const result = await readAllergenCascade(productCode, locale);
-    if (!result.ok) {
+    const [result, declaration, canAcceptDeclaration, productExists] = await Promise.all([
+      readAllergenCascade(productCode, locale),
+      readDeclarationState(productCode),
+      readCanAcceptDeclaration(),
+      readProductExists(productCode),
+    ]);
+
+    if (!productExists) {
+      return { state: 'empty', data: null, canWrite: false, canAcceptDeclaration: false, displayNames: {} };
+    }
+
+    if (!result.ok && result.code !== 'NOT_FOUND') {
       const state: WidgetState =
         result.code === 'FORBIDDEN'
           ? 'permission_denied'
-          : result.code === 'NOT_FOUND'
-            ? 'empty'
-            : 'error';
-      return { state, data: null, canWrite: false, displayNames: {} };
+          : 'error';
+      return { state, data: null, canWrite: false, canAcceptDeclaration: false, displayNames: {} };
     }
-    const declaration = await readDeclarationState(result.data.productCode);
-    const data: AllergenCascadeData = {
-      productCode: result.data.productCode,
-      derivedAllergens: result.data.derivedAllergens,
-      publishedAllergens: result.data.publishedAllergens,
-      mayContainAllergens: result.data.mayContainAllergens,
-      conditionalProcessAllergens: result.data.conditionalProcessAllergens,
-      declarationAccepted: declaration.accepted,
-      declarationAcceptedBy: declaration.acceptedBy,
-      declarationAcceptedAt: declaration.acceptedAt,
-    };
-    const isEmpty =
-      data.derivedAllergens.length === 0 &&
-      data.publishedAllergens.length === 0 &&
-      data.mayContainAllergens.length === 0;
+
+    const cascade = result.ok ? result.data : null;
+    const data = buildAllergenCascadeData(productCode, cascade, declaration);
+
     return {
-      state: isEmpty ? 'empty' : 'ready',
-      data: isEmpty ? null : data,
-      canWrite: result.data.canWrite,
-      displayNames: result.data.displayNames,
+      state: 'ready',
+      data,
+      canWrite: cascade?.canWrite ?? false,
+      canAcceptDeclaration,
+      displayNames: cascade?.displayNames ?? {},
     };
   } catch (error) {
     console.error('[allergen-cascade] org-scoped read failed:', error);
-    return { state: 'error', data: null, canWrite: false, displayNames: {} };
+    return { state: 'error', data: null, canWrite: false, canAcceptDeclaration: false, displayNames: {} };
   }
 }
 
@@ -239,6 +274,7 @@ export function AllergenCascadeSection({
       data={load.data}
       labels={labels}
       canWrite={load.canWrite}
+      canAcceptDeclaration={load.canAcceptDeclaration}
       state={load.state}
       refreshAction={refreshAllergenCascade}
       setAllergenOverrideAction={submitAllergenOverride}

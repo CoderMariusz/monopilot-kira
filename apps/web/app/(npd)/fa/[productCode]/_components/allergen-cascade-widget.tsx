@@ -207,6 +207,7 @@ export function AllergenCascadeWidget({
   data,
   labels,
   canWrite,
+  canAcceptDeclaration = false,
   state = 'ready',
   refreshAction,
   setAllergenOverrideAction,
@@ -217,6 +218,8 @@ export function AllergenCascadeWidget({
   data: AllergenCascadeData | null;
   labels: AllergenCascadeLabels;
   canWrite: boolean;
+  /** Broader permission OR-list for C5 declaration accept (independent of override write). */
+  canAcceptDeclaration?: boolean;
   state?: WidgetState;
   refreshAction?: RefreshAction;
   setAllergenOverrideAction?: SetAllergenOverrideAction;
@@ -247,8 +250,6 @@ export function AllergenCascadeWidget({
     };
   }, []);
 
-  const dataLoaded = state === 'ready';
-
   const derived = React.useMemo(() => new Set(data?.derivedAllergens ?? []), [data]);
   const published = React.useMemo(() => new Set(data?.publishedAllergens ?? []), [data]);
 
@@ -261,6 +262,11 @@ export function AllergenCascadeWidget({
     () => [...derived].filter((code) => !published.has(code)).sort(),
     [derived, published],
   );
+
+  const showCascadePanels =
+    (data?.derivedAllergens.length ?? 0) > 0 ||
+    addedDeltas.length > 0 ||
+    removedDeltas.length > 0;
 
   const displayName = React.useCallback(
     (code: string) => allergenDisplayNames?.[code] ?? code,
@@ -319,7 +325,7 @@ export function AllergenCascadeWidget({
             {labels.title}
           </h2>
         </div>
-        <StateNotice state={state} labels={labels} />
+        <StateNotice state={!data && state === 'ready' ? 'empty' : state} labels={labels} />
       </section>
     );
   }
@@ -352,6 +358,8 @@ export function AllergenCascadeWidget({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3" style={{ marginBottom: 12 }}>
+        {showCascadePanels ? (
+          <>
         {/* ① Derived (RM + process). */}
         <Card data-testid="allergen-section-derived">
           <CardHeader>
@@ -439,6 +447,8 @@ export function AllergenCascadeWidget({
             )}
           </CardContent>
         </Card>
+          </>
+        ) : null}
 
         {/* ③ FA Final — Contains + May contain + declaration sign-off (C5). */}
         <Card data-testid="allergen-section-final" className="border-2 border-blue-300">
@@ -513,7 +523,7 @@ export function AllergenCascadeWidget({
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                 {labels.declarationTitle}
               </p>
-              {canWrite ? (
+              {canAcceptDeclaration ? (
                 <label
                   className="mt-2 flex items-start gap-2 text-sm"
                   style={{ cursor: declPending ? 'progress' : 'pointer' }}

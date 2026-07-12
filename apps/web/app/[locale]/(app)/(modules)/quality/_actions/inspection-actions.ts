@@ -18,6 +18,7 @@ import {
 } from '../../../../../../lib/shared/pagination';
 import { transitionWoOutputQaForContext } from '../../../../../../lib/production/output/transition-output-qa';
 import { createHoldForContext } from './hold-actions';
+import { resolveInspectionParameters } from '../../../../../../lib/quality/resolve-inspection-parameters';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -49,8 +50,12 @@ type InspectionListRow = {
   createdAt: string;
 };
 
+type InspectionParameterResolutionStatus = 'stored' | 'resolved' | 'missing_template';
+
 type InspectionDetail = InspectionListRow & {
   parameters: InspectionParameter[];
+  /** How parameters were sourced — drives assign-template gate vs editable rows. */
+  parameterResolution: InspectionParameterResolutionStatus;
   resultNotes: string | null;
   decidedBy: { id: string; email: string | null; name: string | null } | null;
   decidedAt: string | null;
@@ -236,8 +241,10 @@ function mapListRow(row: {
   };
 }
 
-function mapDetailRow(row: Parameters<typeof mapListRow>[0] & {
+function mapDetailRow(
+  row: Parameters<typeof mapListRow>[0] & {
   parameters: unknown;
+  parameter_resolution: InspectionParameterResolutionStatus;
   result_notes: string | null;
   decided_by: string | null;
   decided_email: string | null;
@@ -249,10 +256,12 @@ function mapDetailRow(row: Parameters<typeof mapListRow>[0] & {
   created_name: string | null;
   updated_at: Date | string;
   hold_id: string | null;
-}): InspectionDetail {
+  },
+): InspectionDetail {
   return {
     ...mapListRow(row),
     parameters: parseParameters(row.parameters),
+    parameterResolution: row.parameter_resolution,
     resultNotes: row.result_notes,
     decidedBy: row.decided_by ? { id: row.decided_by, email: row.decided_email, name: row.decided_name } : null,
     decidedAt: toIso(row.decided_at),
@@ -488,7 +497,20 @@ async function fetchInspectionDetail(ctx: QualityContext, inspectionId: string):
     limit 1`,
     [inspectionId],
   );
-  return rows[0] ? mapDetailRow(rows[0]) : null;
+  const row = rows[0];
+  if (!row) return null;
+
+  const productId = row.product_id;
+  const resolution = await resolveInspectionParameters(ctx.client, {
+    productId,
+    storedParameters: row.parameters,
+  });
+
+  return mapDetailRow({
+    ...row,
+    parameters: resolution.parameters,
+    parameter_resolution: resolution.status,
+  });
 }
 
 export async function listInspections(input: {

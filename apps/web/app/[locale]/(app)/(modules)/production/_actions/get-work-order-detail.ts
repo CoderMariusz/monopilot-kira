@@ -28,6 +28,7 @@
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { findOpenLineChangeover } from '../../../../../../lib/production/start-wo';
+import { summarizeConsumptionProgress } from '../../../../../../lib/production/consumption-progress';
 import {
   hasPermission,
   type ProductionContext,
@@ -62,7 +63,10 @@ export type WoDetailHeader = {
   plannedQty: number;
   uom: string;
   outputKg: number;
-  consumptionPct: number;
+  /** Null when BOM mixes UoMs — overview shows per-UoM progress instead. */
+  consumptionPct: number | null;
+  consumptionMixedUnits: boolean;
+  consumptionByUom: Array<{ uom: string; progressPct: number; consumedQty: string; requiredQty: string }>;
   outputPct: number;
   allergenGate: boolean;
   scheduledStart: string | null;
@@ -304,7 +308,6 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         started_at: string | Date | null;
         completed_at: string | Date | null;
         output_kg: string | number | null;
-        consumption_pct: string | number | null;
         output_pct: string | number | null;
         weight_mode: string | null;
         bom_type: string | null;
@@ -344,11 +347,6 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
                 coalesce(e.completed_at, w.completed_at) as completed_at,
                 (select coalesce(sum(o.qty_kg), 0) from public.wo_outputs o
                   where o.wo_id = w.id and o.org_id = app.current_org_id()) as output_kg,
-                (select case when coalesce(sum(required_qty), 0) > 0
-                             then round(sum(consumed_qty) / sum(required_qty) * 100, 1)
-                             else 0 end
-                   from public.wo_materials m
-                  where m.wo_id = w.id and m.org_id = app.current_org_id()) as consumption_pct,
                 (select case when coalesce(w.planned_quantity, 0) > 0
                              then round(coalesce(sum(o.qty_kg), 0) / w.planned_quantity * 100, 1)
                              else 0 end
@@ -600,6 +598,8 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         };
       });
 
+      const consumptionSummary = summarizeConsumptionProgress(componentsRes.rows);
+
       const outputs: WoDetailOutput[] = outputsRes.rows.map((r) => ({
         id: r.id,
         outputType: r.output_type,
@@ -704,7 +704,9 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         plannedQty: Number(h.planned_quantity ?? 0),
         uom: h.uom ?? 'kg',
         outputKg: Number(h.output_kg ?? 0),
-        consumptionPct: Number(h.consumption_pct ?? 0),
+        consumptionPct: consumptionSummary.progressPct,
+        consumptionMixedUnits: consumptionSummary.mixedUnits,
+        consumptionByUom: consumptionSummary.byUom,
         outputPct: Number(h.output_pct ?? 0),
         allergenGate: Boolean(h.has_allergen),
         scheduledStart: toIso(h.scheduled_start_time),

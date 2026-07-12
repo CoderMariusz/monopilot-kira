@@ -210,12 +210,13 @@ describe('AllergenCascadeWidget — parity + states', () => {
 });
 
 describe('AllergenCascadeWidget — declaration accept control (criterion C5)', () => {
-  it('renders the unchecked accept control when canWrite + not yet accepted', () => {
+  it('renders the unchecked accept control when canAcceptDeclaration + not yet accepted', () => {
     render(
       <AllergenCascadeWidget
         data={{ ...DATA, declarationAccepted: false }}
         labels={LABELS}
-        canWrite
+        canWrite={false}
+        canAcceptDeclaration
         state="ready"
         acceptDeclarationAction={vi.fn()}
         revokeDeclarationAction={vi.fn()}
@@ -235,7 +236,8 @@ describe('AllergenCascadeWidget — declaration accept control (criterion C5)', 
       <AllergenCascadeWidget
         data={{ ...DATA, declarationAccepted: false }}
         labels={LABELS}
-        canWrite
+        canWrite={false}
+        canAcceptDeclaration
         state="ready"
         acceptDeclarationAction={acceptDeclarationAction}
         revokeDeclarationAction={revokeDeclarationAction}
@@ -259,7 +261,8 @@ describe('AllergenCascadeWidget — declaration accept control (criterion C5)', 
           declarationAcceptedAt: '2026-06-20T10:00:00.000Z',
         }}
         labels={LABELS}
-        canWrite
+        canWrite={false}
+        canAcceptDeclaration
         state="ready"
         acceptDeclarationAction={acceptDeclarationAction}
         revokeDeclarationAction={revokeDeclarationAction}
@@ -284,7 +287,8 @@ describe('AllergenCascadeWidget — declaration accept control (criterion C5)', 
       <AllergenCascadeWidget
         data={{ ...DATA, declarationAccepted: false }}
         labels={LABELS}
-        canWrite
+        canWrite={false}
+        canAcceptDeclaration
         state="ready"
         acceptDeclarationAction={acceptDeclarationAction}
         revokeDeclarationAction={vi.fn()}
@@ -311,7 +315,8 @@ describe('AllergenCascadeWidget — declaration accept control (criterion C5)', 
       <AllergenCascadeWidget
         data={{ ...DATA, declarationAccepted: false }}
         labels={LABELS}
-        canWrite
+        canWrite={false}
+        canAcceptDeclaration
         state="ready"
         acceptDeclarationAction={acceptDeclarationAction}
         revokeDeclarationAction={vi.fn()}
@@ -326,7 +331,7 @@ describe('AllergenCascadeWidget — declaration accept control (criterion C5)', 
     await waitFor(() => expect(checkbox.disabled).toBe(false));
   });
 
-  it('omits the accept checkbox when canWrite=false (RBAC — no render-then-disable)', () => {
+  it('omits the accept checkbox when canAcceptDeclaration=false (RBAC — no render-then-disable)', () => {
     render(
       <AllergenCascadeWidget
         data={{ ...DATA, declarationAccepted: true, declarationAcceptedBy: 'Jane Approver' }}
@@ -338,5 +343,28 @@ describe('AllergenCascadeWidget — declaration accept control (criterion C5)', 
     expect(screen.queryByTestId('allergen-declaration-accept')).not.toBeInTheDocument();
     // Read-only viewers still see the accepted status text.
     expect(screen.getByTestId('allergen-declaration')).toHaveAttribute('data-accepted', 'true');
+  });
+
+  it('renders declaration accept on an empty cascade (S20 remediation path)', () => {
+    render(
+      <AllergenCascadeWidget
+        data={{
+          productCode: 'FG-001',
+          derivedAllergens: [],
+          publishedAllergens: [],
+          mayContainAllergens: [],
+          conditionalProcessAllergens: [],
+          declarationAccepted: false,
+        }}
+        labels={LABELS}
+        canWrite={false}
+        canAcceptDeclaration
+        state="ready"
+        acceptDeclarationAction={vi.fn()}
+        revokeDeclarationAction={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('allergen-section-final')).toBeInTheDocument();
+    expect(screen.getByTestId('allergen-declaration-accept')).toBeInTheDocument();
   });
 });
