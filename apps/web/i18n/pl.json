@@ -12032,6 +12032,7 @@
       "invalid_input": "Nieprawidłowe dane. Sprawdź horyzont i spróbuj ponownie.",
       "forbidden": "Nie masz uprawnień do wykonania tej operacji.",
       "not_found": "Nie znaleziono tego przebiegu.",
+      "sod_violation": "Nie możesz zastosować harmonogramu, który sam utworzyłeś. Poproś innego zatwierdzającego harmonogramu.",
       "persistence_failed": "Coś poszło nie tak. Spróbuj ponownie."
     },
     "matrix": {

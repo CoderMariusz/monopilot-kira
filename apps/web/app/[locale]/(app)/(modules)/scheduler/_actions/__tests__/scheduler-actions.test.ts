@@ -14,6 +14,7 @@ const REQUESTER_USER_ID = '22222222-2222-4222-8222-222222222222';
 const APPROVER_USER_ID = '33333333-3333-4333-8333-333333333333';
 const RUN_ID = '44444444-4444-4444-8444-444444444444';
 const LINE_ID = '44444444-4444-4444-8444-444444444444';
+const SITE_ID = '88888888-8888-4888-8888-888888888888';
 const LINE_OVERRIDE_ID = '99999999-9999-4999-8999-999999999999';
 const WO_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const WO_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -34,6 +35,10 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: currentUserId, orgId: ORG_ID, client }),
   ),
+}));
+
+vi.mock('../../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: vi.fn(async () => SITE_ID),
 }));
 
 import { applySchedule, listChangeoverMatrix, runScheduler, upsertChangeoverMatrixEntry } from '../scheduler-actions';
@@ -523,6 +528,16 @@ describe('applySchedule', () => {
           call.params[0] === 'planning.schedule.published',
       ),
     ).toBe(true);
+  });
+
+  it('A3-S9: scopes the solver input to RELEASED work orders on the active site', async () => {
+    await runScheduler({ lineId: LINE_ID, horizonDays: 7 });
+
+    const woCall = calls.find((call) => normalize(call.sql).includes('from public.work_orders wo'));
+    expect(woCall).toBeDefined();
+    expect(woCall?.params?.[0]).toEqual(['RELEASED']);
+    expect(woCall?.params?.[3]).toBe(SITE_ID);
+    expect(normalize(woCall?.sql ?? '')).toContain('pl.site_id = $4::uuid');
   });
 });
 

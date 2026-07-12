@@ -6,6 +6,7 @@ import type { OrgActionContext } from './shared';
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const FG_ITEM_ID = '44444444-4444-4444-8444-444444444444';
+const SITE_ID = '88888888-8888-4888-8888-888888888888';
 const WIP_ITEM_A = '55555555-5555-4555-8555-555555555555';
 const WIP_ITEM_B = '66666666-6666-4666-8666-666666666666';
 const WIP_ITEM_C = '77777777-7777-4777-8777-777777777777';
@@ -26,7 +27,7 @@ function makeCtx(query: OrgActionContext['client']['query']): OrgActionContext {
 describe('loadStageProductionLineIds SQL', () => {
   it('joins all three process resolution paths with FG last-op ordering', async () => {
     const query = vi.fn(async () => ({ rows: [] }));
-    await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, [
+    await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, SITE_ID, [
       { itemId: WIP_ITEM_A, isFg: false },
       { itemId: FG_ITEM_ID, isFg: true },
     ]);
@@ -42,6 +43,7 @@ describe('loadStageProductionLineIds SQL', () => {
     expect(sql).toContain('wp.display_order desc, wp.created_at desc, wp.id desc');
     expect(sql).toContain('not s.is_fg');
     expect(sql).toContain('and s.is_fg');
+    expect(sql).toContain('pl_site.site_id = $4::uuid');
   });
 });
 
@@ -49,11 +51,11 @@ describe('loadStageProductionLineIds query behavior', () => {
   it('resolves WIP child via npd_wip_processes.wip_item_id (first op)', async () => {
     const query = vi.fn(async (sql: string, params: readonly unknown[]) => {
       expect(normalizeSql(sql)).toContain('wp.wip_item_id = s.item_id');
-      expect(params).toEqual([[WIP_ITEM_A], [false], FG_ITEM_ID]);
+      expect(params).toEqual([[WIP_ITEM_A], [false], FG_ITEM_ID, SITE_ID]);
       return { rows: [{ item_id: WIP_ITEM_A, production_line_id: LINE_WIP_ITEM }] };
     });
 
-    const lines = await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, [
+    const lines = await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, SITE_ID, [
       { itemId: WIP_ITEM_A, isFg: false },
     ]);
 
@@ -63,11 +65,11 @@ describe('loadStageProductionLineIds query behavior', () => {
   it('resolves WIP child via wip_definitions.item_id when wip_item_id path is empty', async () => {
     const query = vi.fn(async (sql: string, params: readonly unknown[]) => {
       expect(normalizeSql(sql)).toContain('wd.item_id = s.item_id');
-      expect(params).toEqual([[WIP_ITEM_B], [false], FG_ITEM_ID]);
+      expect(params).toEqual([[WIP_ITEM_B], [false], FG_ITEM_ID, SITE_ID]);
       return { rows: [{ item_id: WIP_ITEM_B, production_line_id: LINE_WIP_DEF }] };
     });
 
-    const lines = await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, [
+    const lines = await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, SITE_ID, [
       { itemId: WIP_ITEM_B, isFg: false },
     ]);
 
@@ -78,11 +80,11 @@ describe('loadStageProductionLineIds query behavior', () => {
     const query = vi.fn(async (sql: string, params: readonly unknown[]) => {
       expect(normalizeSql(sql)).toContain('pd.item_id = s.item_id');
       expect(normalizeSql(sql)).toContain('wp.display_order desc, wp.created_at desc, wp.id desc');
-      expect(params).toEqual([[FG_ITEM_ID], [true], FG_ITEM_ID]);
+      expect(params).toEqual([[FG_ITEM_ID], [true], FG_ITEM_ID, SITE_ID]);
       return { rows: [{ item_id: FG_ITEM_ID, production_line_id: LINE_FG_PROCESS }] };
     });
 
-    const lines = await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, [
+    const lines = await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, SITE_ID, [
       { itemId: FG_ITEM_ID, isFg: true },
     ]);
 
@@ -92,11 +94,11 @@ describe('loadStageProductionLineIds query behavior', () => {
   it('falls back to project default for FG when routing and process paths miss', async () => {
     const query = vi.fn(async (sql: string, params: readonly unknown[]) => {
       expect(normalizeSql(sql)).toContain('project_line.production_line_id');
-      expect(params).toEqual([[FG_ITEM_ID], [true], FG_ITEM_ID]);
+      expect(params).toEqual([[FG_ITEM_ID], [true], FG_ITEM_ID, SITE_ID]);
       return { rows: [{ item_id: FG_ITEM_ID, production_line_id: LINE_PROJECT }] };
     });
 
-    const lines = await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, [
+    const lines = await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, SITE_ID, [
       { itemId: FG_ITEM_ID, isFg: true },
     ]);
 
@@ -109,7 +111,7 @@ describe('loadStageProductionLineIds query behavior', () => {
       expect(normalized).toContain('wp.wip_item_id = s.item_id');
       expect(normalized).toContain('wd.item_id = s.item_id');
       expect(normalized).toContain('pd.item_id = s.item_id');
-      expect(params).toEqual([[WIP_ITEM_A, WIP_ITEM_C, FG_ITEM_ID], [false, false, true], FG_ITEM_ID]);
+      expect(params).toEqual([[WIP_ITEM_A, WIP_ITEM_C, FG_ITEM_ID], [false, false, true], FG_ITEM_ID, SITE_ID]);
       return {
         rows: [
           { item_id: WIP_ITEM_A, production_line_id: LINE_WIP_ITEM },
@@ -119,7 +121,7 @@ describe('loadStageProductionLineIds query behavior', () => {
       };
     });
 
-    const lines = await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, [
+    const lines = await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, SITE_ID, [
       { itemId: WIP_ITEM_A, isFg: false },
       { itemId: WIP_ITEM_C, isFg: false },
       { itemId: FG_ITEM_ID, isFg: true },
@@ -133,7 +135,7 @@ describe('loadStageProductionLineIds query behavior', () => {
   it('prefers routing line over process and project fallbacks', async () => {
     const query = vi.fn(async (sql: string, params: readonly unknown[]) => {
       expect(normalizeSql(sql)).toContain('routing_line.line_id');
-      expect(params).toEqual([[WIP_ITEM_A, FG_ITEM_ID], [false, true], FG_ITEM_ID]);
+      expect(params).toEqual([[WIP_ITEM_A, FG_ITEM_ID], [false, true], FG_ITEM_ID, SITE_ID]);
       return {
         rows: [
           { item_id: WIP_ITEM_A, production_line_id: LINE_ROUTING },
@@ -142,7 +144,7 @@ describe('loadStageProductionLineIds query behavior', () => {
       };
     });
 
-    const lines = await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, [
+    const lines = await loadStageProductionLineIds(makeCtx(query), FG_ITEM_ID, SITE_ID, [
       { itemId: WIP_ITEM_A, isFg: false },
       { itemId: FG_ITEM_ID, isFg: true },
     ]);

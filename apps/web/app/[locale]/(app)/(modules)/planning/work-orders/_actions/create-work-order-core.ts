@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
 import { fetchEligibleFactorySpecUnderBindLock } from '../../../../../../../lib/technical/factory-spec-bind-lock';
 import { assertFgReleasedToFactoryForWo } from '../../../../../../../lib/planning/factory-release-wo-gate';
+import { fetchActiveProductionLineSite, productionLineMatchesWoSite } from '../../../../../../../lib/planning/production-line-site';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
 import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQty, TypedError } from '../../../../../../../lib/uom/convert';
@@ -81,6 +82,15 @@ export async function createWorkOrderCore(
     if (!siteResolution.ok) return { ok: false, error: siteResolution.reason };
     siteId = siteResolution.siteId;
   }
+
+  if (input.productionLineId) {
+    const line = await fetchActiveProductionLineSite(ctx.client, input.productionLineId);
+    if (!line) return { ok: false, error: 'forbidden' };
+    if (!productionLineMatchesWoSite(line.site_id, siteId)) {
+      return { ok: false, error: 'line_site_mismatch' };
+    }
+  }
+
   const woId = randomUUID();
   let woNumber: string;
   try {
@@ -125,7 +135,7 @@ export async function createWorkOrderCore(
   };
   let plannedBaseQty = input.plannedQuantity;
   let conversion: UomConversionResult | undefined;
-  if (input.quantityEntered) {
+  if (input.quantityEntered !== undefined && input.quantityEntered !== '') {
     try {
       plannedBaseQty = toBaseQty(uomSnapshot, Number(input.quantityEntered), input.quantityEnteredUom ?? 'base').toFixed(3);
     } catch (error) {

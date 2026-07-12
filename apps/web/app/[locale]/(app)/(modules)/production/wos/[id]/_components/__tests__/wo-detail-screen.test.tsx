@@ -208,6 +208,21 @@ describe('WoDetailScreen (parity: wo-detail.jsx:4-530)', () => {
     expect(bars.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('A3-N1: renders fractional kg output in the header without integer rounding', () => {
+    renderScreen({
+      ...DATA,
+      header: {
+        ...DATA.header,
+        plannedQty: 300,
+        outputKg: 7.8,
+        outputPct: 2.6,
+      },
+    });
+    const head = screen.getByTestId('wo-detail-header');
+    expect(head).toHaveTextContent('7.8 / 300 kg');
+    expect(head).not.toHaveTextContent('8 / 300 kg');
+  });
+
   it('defaults to the Overview tab with summary facts', () => {
     renderScreen();
     expect(screen.getByTestId('wo-tab-overview')).toBeInTheDocument();
