@@ -21,6 +21,13 @@ describe('item wizard labels', () => {
     );
   });
 
+  it('formatItemActionError surfaces a server validation message for invalid_input', () => {
+    const msg = formatItemActionError(DEFAULT_WIZARD_LABELS, 'invalid_input', {
+      serverMessage: 'item_code must be alphanumeric with . _ - separators',
+    });
+    expect(msg).toBe(DEFAULT_WIZARD_LABELS.errors.codeInvalid);
+  });
+
   it('built labels work with the pure formatters', () => {
     const labels = buildWizardLabels(passthroughT);
     expect(formatItemActionError(labels, 'already_exists', { itemCode: 'FG-1' })).toContain('FG-1');

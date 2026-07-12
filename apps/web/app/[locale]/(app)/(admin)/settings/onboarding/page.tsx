@@ -1,6 +1,10 @@
 import { getTranslations } from 'next-intl/server';
 
 import { loadOnboardingContext } from '../../../../../../actions/onboarding/load';
+import {
+  deriveOnboardingDisplay,
+  ONBOARDING_TOTAL_STEPS,
+} from '../../../../../../lib/onboarding/derive-onboarding-display';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +12,7 @@ type PageProps = {
   params: Promise<{ locale: string }>;
 };
 
-const TOTAL_STEPS = 6; // org_profile → warehouse → location → product → workorder → completion
+const TOTAL_STEPS = ONBOARDING_TOTAL_STEPS;
 
 function formatDate(value: string | null): string {
   if (!value) return '—';
@@ -39,9 +43,13 @@ export default async function OnboardingSettingsPage({ params }: PageProps) {
   if (ctx.ok) {
     completedAt = ctx.organization.onboardingCompletedAt;
     startedAt = ctx.organization.onboardingStartedAt;
-    // Derive the count from the already-loaded context — no second round-trip.
-    completedCount = ctx.onboardingState.completedSteps.length;
-    statusLabel = completedAt
+    const display = deriveOnboardingDisplay({
+      onboardingCompletedAt: completedAt,
+      completedStepCount: ctx.onboardingState.completedSteps.length,
+      totalSteps: TOTAL_STEPS,
+    });
+    completedCount = display.completedCount;
+    statusLabel = display.isComplete
       ? safeT('statusComplete', 'Onboarding complete')
       : safeT('statusInProgress', 'Onboarding in progress');
   }

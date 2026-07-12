@@ -228,7 +228,13 @@ function WoActionModals({
       />
       <ResumeModal open={open === 'resume'} {...base} />
       <CancelModal open={open === 'cancel'} {...base} />
-      <CompleteModal open={open === 'complete'} {...base} yieldGateGreen={yieldGateGreen} />
+      <CompleteModal
+        open={open === 'complete'}
+        {...base}
+        yieldGateGreen={yieldGateGreen}
+        signerUserId={currentUserId}
+        locale={locale}
+      />
       <CloseModal open={open === 'close'} {...base} signerUserId={currentUserId} locale={locale} />
       <OutputModal
         open={open === 'output'}

@@ -53,4 +53,29 @@ describe('resolveInspectionParameters (S15)', () => {
     });
     expect(result).toEqual({ status: 'missing_template', parameters: [] });
   });
+
+  it('B2b: resolves incoming spec parameters for an RM product id', async () => {
+    const client = {
+      query: vi.fn(async () => ({
+        rows: [
+          {
+            spec_id: 'spec-rm-flour',
+            parameter_name: 'Ash content',
+            target_value: '0.65',
+            min_value: null,
+            max_value: null,
+            unit: '%',
+          },
+        ],
+      })),
+    };
+    const result = await resolveInspectionParameters(client, {
+      productId: '22222222-2222-4222-8222-222222222222',
+      storedParameters: [],
+    });
+    expect(result.status).toBe('resolved');
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("qs.applies_to in ('incoming', 'all')"), [
+      '22222222-2222-4222-8222-222222222222',
+    ]);
+  });
 });

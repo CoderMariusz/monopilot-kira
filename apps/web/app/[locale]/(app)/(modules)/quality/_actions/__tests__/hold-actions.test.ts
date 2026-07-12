@@ -42,6 +42,9 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   }),
 }));
 
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+
 vi.mock('../../../../../../../lib/site/site-context', () => ({
   getActiveSiteId: vi.fn(async () => null),
 }));
@@ -359,6 +362,8 @@ describe('quality hold server actions', () => {
     expect(lpUpdate?.[1]).toEqual([[LP_ID], USER_ID, ['consumed', 'merged', 'shipped', 'returned']]);
     const outbox = calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.outbox_events'));
     expect(outbox?.[1]?.[0]).toBe('quality.hold.created');
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith('/quality/holds');
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith(`/quality/holds/${HOLD_ID}`);
   });
 
   it('snapshots WO output qa_status on hold create and restores PASSED on release', async () => {

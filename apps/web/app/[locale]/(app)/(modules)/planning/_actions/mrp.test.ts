@@ -1168,6 +1168,17 @@ describe('listMrpRuns', () => {
     const sql = executed.find((s) => s.includes('from public.mrp_runs'))!;
     expect(sql).toContain('app.current_org_id()');
     expect(sql).toContain('order by created_at desc');
+    expect(sql).toContain('created_at');
+  });
+
+  it('B1c: maps created_at separately from horizon_start for the runs list', async () => {
+    const result = await listMrpRuns();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const row = result.data[0]!;
+    expect(row.createdAt).toBe('2026-06-11T10:00:00.000Z');
+    expect(row.horizonStart).toBe('2026-06-11');
+    expect(row.createdAt).not.toBe(row.horizonStart);
   });
 
   it('returns forbidden without the read permission', async () => {

@@ -120,7 +120,8 @@ export default async function PlanningMrpPage({ params }: MrpPageProps) {
       collapse: t('mrp.previousRuns.collapse'),
       columns: {
         run: t('mrp.previousRuns.columns.run'),
-        date: t('mrp.previousRuns.columns.date'),
+        runDate: t('mrp.previousRuns.columns.runDate'),
+        horizon: t('mrp.previousRuns.columns.horizon'),
         items: t('mrp.previousRuns.columns.items'),
         exceptions: t('mrp.previousRuns.columns.exceptions'),
         status: t('mrp.previousRuns.columns.status'),

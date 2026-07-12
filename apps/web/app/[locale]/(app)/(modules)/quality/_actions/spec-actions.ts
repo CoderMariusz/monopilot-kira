@@ -82,6 +82,7 @@ const parameterSchema = z.object({
 const createSchema = z.object({
   productId: uuidSchema,
   specCode: z.string().trim().min(1).max(80),
+  appliesTo: z.enum(['incoming', 'in_process', 'final', 'all']).optional().default('all'),
   parameters: z.array(parameterSchema).min(1).max(200),
 });
 
@@ -317,6 +318,7 @@ export async function getSpecDetail(specId: string): Promise<ActionResult<SpecDe
 export async function createSpec(input: {
   productId: string;
   specCode: string;
+  appliesTo?: 'incoming' | 'in_process' | 'final' | 'all';
   parameters: Array<{
     parameterName: string;
     parameterType: ParameterType;
@@ -356,9 +358,9 @@ export async function createSpec(input: {
            applies_to,
            created_by
          )
-         values (app.current_org_id(), $1::uuid, $2, $3::int, 'draft', 'all', $4::uuid)
+         values (app.current_org_id(), $1::uuid, $2, $3::int, 'draft', $4, $5::uuid)
          returning id::text, spec_code, version, status`,
-        [parsed.productId, parsed.specCode, version, ctx.userId],
+        [parsed.productId, parsed.specCode, version, parsed.appliesTo, ctx.userId],
       );
       const created = spec.rows[0];
       if (!created) throw new Error('spec insert did not return a row');

@@ -418,8 +418,11 @@
       "minimumApprovers": "Minimum approvers",
       "minimumAuthorizers": "Minimum authorizers",
       "minimumAuthorizersHint": "T-126 validates blockers and segregation of duties on save.",
-      "missingSeedBody": "Required org_authorization_policies rows are absent. Seed these policy codes before editing settings:",
+      "missingSeedBody": "Required org_authorization_policies rows are absent. Use Initialize default policies to create them, or ask an administrator to run the migration seed:",
       "missingSeedTitle": "Authorization policy seed missing",
+      "initializePolicies": "Initialize default policies",
+      "initializingPolicies": "Initializing…",
+      "initializePoliciesFailed": "Could not initialize authorization policies. Try again or contact support.",
       "noRoleSelected": "No role selected",
       "npdDescription": "Authorizes released product/BOM edit requests after NPD release.",
       "npdTitle": "NPD post-release edit authorization",
@@ -3009,6 +3012,7 @@
       "current": "Current",
       "blockingBadge": "{count} blocking",
       "notStarted": "Not started",
+      "completed": "Completed",
       "completedBy": "Completed by {by} · {at}",
       "required": "Required",
       "optional": "Optional",
@@ -5073,6 +5077,7 @@
         },
         "errors": {
           "codeRequired": "Item code is required (min 1 char).",
+          "codeInvalid": "Item code must be alphanumeric with . _ - separators.",
           "nameRequired": "Name is required (min 1 char).",
           "uomRequired": "Base UoM is required.",
           "netRequired": "Net content per each is required (> 0) for Each / Box output.",
@@ -5110,6 +5115,14 @@
           "active": "Active",
           "deprecated": "Deprecated",
           "blocked": "Blocked"
+        }
+      },
+      "edit": {
+        "title": "Edit item",
+        "saveChanges": "Save changes",
+        "saving": "Saving…",
+        "review": {
+          "ready": "Ready to save your changes. An audit record will be logged."
         }
       },
       "deactivate": {
@@ -7720,10 +7733,20 @@
         },
         "complete": {
           "title": "Complete work order",
-          "subtitle": "Complete execution. The output yield gate must be green.",
+          "subtitle": "Complete execution. The output yield gate must be green unless a supervisor override is recorded.",
           "override": "Override reason code",
-          "overrideHint": "Required only to override an unmet yield gate.",
-          "overridePlaceholder": "Select an override reason…"
+          "overrideHint": "Required when consumption is outside tolerance or the yield gate is not green.",
+          "overridePlaceholder": "Select an override reason…",
+          "gateStatusGreen": "Yield gate: green — consumption within tolerance.",
+          "gateStatusBlocked": "Yield gate: blocked — supervisor override required.",
+          "gateBlocked": "Output yield gate not met — register a primary output or supply an override.",
+          "consumptionOutOfTolerance": "Actual consumption is outside the configured tolerance band.",
+          "actualOutputKg": "Output (kg)",
+          "postedConsumptionKg": "Posted consumption (kg)",
+          "expectedInputKg": "Expected input (kg)",
+          "effectiveYieldPct": "Effective yield %",
+          "overridePin": "Supervisor e-sign PIN or account password",
+          "overrideEsignReason": "E-sign reason (CFR-21 Part 11)"
         },
         "close": {
           "title": "Close work order",
@@ -9285,7 +9308,8 @@
         "collapse": "Hide",
         "columns": {
           "run": "Run",
-          "date": "Date",
+          "runDate": "Run date",
+          "horizon": "Horizon start",
           "items": "Items",
           "exceptions": "Shortages",
           "status": "Status"

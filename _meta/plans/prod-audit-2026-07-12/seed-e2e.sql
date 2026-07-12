@@ -74,12 +74,46 @@ values ('a0000003-0000-4000-8000-0000000000c1', :'org', 'lp', 'a0000003-0000-400
   'high', 'open', :'admin', now(), now());
 
 -- ============ SC4 — S8 (started_at/completed_at set on start/complete) ============
-insert into public.work_orders (id, org_id, wo_number, product_id, active_bom_header_id, production_line_id, site_id,
+insert into public.work_orders (id, org_id, wo_number, product_id, active_bom_header_id, active_factory_spec_id, production_line_id, site_id,
   status, planned_quantity, uom, priority, source_of_demand, item_type_at_creation, disposition_policy,
   is_rework, over_production_flagged, released_to_warehouse, schema_version, created_at, updated_at)
-values ('a0000004-0000-4000-8000-000000000006', :'org', 'E2E-A-S8-TIMESTAMPS', '5aeb13b3-ffe6-4608-bdbe-bf8ce46ad0cd',
-  '7cfbd0f0-2ec1-4c69-a637-9363de5cdd17', '948c099f-8054-49ae-99a1-dd5bb9410cd4', '7b72b4af-48d5-4da2-a3fe-d191d9e6ec19',
-  'RELEASED', 50, 'kg', 'normal', 'manual', 'fg', 'to_stock', false, false, false, 1, now(), now());
+select
+  'a0000004-0000-4000-8000-000000000006',
+  :'org',
+  'E2E-A-S8-TIMESTAMPS',
+  '5aeb13b3-ffe6-4608-bdbe-bf8ce46ad0cd',
+  coalesce(
+    (select bh.id
+       from public.bom_headers bh
+      where bh.org_id = :'org'
+        and bh.item_id = '5aeb13b3-ffe6-4608-bdbe-bf8ce46ad0cd'::uuid
+        and bh.status = 'active'
+      order by bh.version desc
+      limit 1),
+    '7cfbd0f0-2ec1-4c69-a637-9363de5cdd17'::uuid
+  ),
+  (select fs.id
+     from public.factory_specs fs
+    where fs.org_id = :'org'
+      and fs.fg_item_id = '5aeb13b3-ffe6-4608-bdbe-bf8ce46ad0cd'::uuid
+      and fs.status in ('approved_for_factory', 'released_to_factory')
+    order by fs.version desc
+    limit 1),
+  '948c099f-8054-49ae-99a1-dd5bb9410cd4',
+  '7b72b4af-48d5-4da2-a3fe-d191d9e6ec19',
+  'RELEASED',
+  50,
+  'kg',
+  'normal',
+  'manual',
+  'fg',
+  'to_stock',
+  false,
+  false,
+  false,
+  1,
+  now(),
+  now();
 
 -- ============ SC5 — S13 (auto-PO/MRP picks active supplier, not blocked) ============
 insert into public.suppliers (id, org_id, code, name, contact_jsonb, currency, lead_time_days, status, created_at, updated_at)
@@ -118,6 +152,79 @@ values
  ('a0000003-0000-4000-8000-0000000000e1', :'org', 'a0000003-0000-4000-8000-000000000004', 'in_progress', now(), '7b72b4af-48d5-4da2-a3fe-d191d9e6ec19', 0, '{}'::jsonb, 1, now(), now(), :'admin'),
  ('a0000007-0000-4000-8000-0000000000e1', :'org', 'a0000007-0000-4000-8000-00000000000a', 'in_progress', now(), '7b72b4af-48d5-4da2-a3fe-d191d9e6ec19', 0, '{}'::jsonb, 1, now(), now(), :'admin');
 
+-- ============ SC8 — S19 submit-for-trial (locked formulation costs + nutrition cache) ============
+\set s19_project '21e26d40-8cf2-47d4-bfeb-9aad3fddc14c'
+\set s19_version 'a7b32f4e-9980-433b-bcbf-f3da2b864fb3'
+
+-- A DB trigger forbids mutating ingredient rows of a LOCKED version; temporarily
+-- unlock for the fixture fill, re-lock right after (fixture-only, same txn).
+update public.formulation_versions set state = 'draft' where id = :'s19_version'::uuid and state = 'locked';
+
+update public.formulation_ingredients fi
+   set cost_per_kg_eur = 2.5000
+  from public.formulation_versions fv
+  join public.formulations f on f.id = fv.formulation_id
+ where fi.version_id = fv.id
+   and fv.id = :'s19_version'::uuid
+   and f.project_id = :'s19_project'::uuid
+   and f.org_id = :'org'
+   and fi.cost_per_kg_eur is null;
+
+-- Rebalance pct to 100.000 when the locked version drifts outside the submit gate.
+with locked_lines as (
+  select fi.id,
+         fi.qty_kg,
+         sum(fi.qty_kg) over () as total_qty
+    from public.formulation_ingredients fi
+    join public.formulation_versions fv on fv.id = fi.version_id
+    join public.formulations f on f.id = fv.formulation_id
+   where fv.id = :'s19_version'::uuid
+     and f.project_id = :'s19_project'::uuid
+     and f.org_id = :'org'
+),
+pct_check as (
+  select coalesce(sum(round(ll.qty_kg::numeric / nullif(ll.total_qty, 0) * 100, 3)), 0) as total_pct
+    from locked_lines ll
+)
+update public.formulation_ingredients fi
+   set pct = round(ll.qty_kg::numeric / nullif(ll.total_qty, 0) * 100, 3)
+  from locked_lines ll
+ cross join pct_check pc
+ where fi.id = ll.id
+   and (pc.total_pct < 99.99 or pc.total_pct > 100.01);
+
+-- re-lock the version (fixture flip closed before the calc-cache guard below)
+update public.formulation_versions set state = 'locked' where id = :'s19_version'::uuid and state = 'draft';
+
+insert into public.formulation_calc_cache
+  (version_id, cost_json, nutrition_json, allergen_json, computed_at)
+select
+  :'s19_version'::uuid,
+  '{}'::jsonb,
+  jsonb_build_object(
+    'energy_kj', '1800',
+    'fat_g', '8',
+    'saturates_g', '4',
+    'carbs_g', '65',
+    'sugars_g', '20',
+    'protein_g', '6',
+    'salt_g', '0.5'
+  ),
+  '{}'::jsonb,
+  now()
+ where exists (
+   select 1
+     from public.formulation_versions fv
+     join public.formulations f on f.id = fv.formulation_id
+    where fv.id = :'s19_version'::uuid
+      and f.project_id = :'s19_project'::uuid
+      and f.org_id = :'org'
+      and fv.state = 'locked'
+ )
+on conflict (version_id) do update
+  set nutrition_json = excluded.nutrition_json,
+      computed_at = excluded.computed_at;
+
 commit;
 
 -- ---- verification snapshot ----
@@ -126,4 +233,10 @@ select 'WOs' k, string_agg(wo_number||'('||status||')', ', ' order by wo_number)
 union all select 'held LP', lp_number||' qa='||qa_status from public.license_plates where org_id=:'org' and lp_number='E2E-A-HOLD-LP'
 union all select 'S14 LP', lp_number||' '||status||'/'||qa_status from public.license_plates where org_id=:'org' and lp_number='E2E-A-S14-QA-LP'
 union all select 'suppliers', string_agg(code||'('||status||')',', ') from public.suppliers where org_id=:'org' and code like 'E2E-A-%'
-union all select 'S19 locked formulation', 'project E2E R07 Multistage / version a7b32f4e (state=locked) — pre-existing, reuse';
+union all select 'S19 locked formulation',
+  'null-costs='||coalesce((select count(*)::text from public.formulation_ingredients fi
+     where fi.version_id = 'a7b32f4e-9980-433b-bcbf-f3da2b864fb3'::uuid and fi.cost_per_kg_eur is null),'?')
+  ||' / nutrition='||case when exists (select 1 from public.formulation_calc_cache fcc
+     where fcc.version_id = 'a7b32f4e-9980-433b-bcbf-f3da2b864fb3'::uuid) then 'present' else 'missing' end
+  ||' / state='||coalesce((select fv.state from public.formulation_versions fv
+     where fv.id = 'a7b32f4e-9980-433b-bcbf-f3da2b864fb3'::uuid),'not-found');

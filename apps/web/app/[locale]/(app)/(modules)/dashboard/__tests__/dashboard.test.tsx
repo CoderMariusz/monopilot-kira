@@ -146,7 +146,7 @@ describe("Dashboard quick-actions bar", () => {
       "/en/planning/purchase-orders?new=1",
     );
     expect(screen.getByTestId("dashboard-quick-action-receive")).toHaveAttribute("href", "/en/warehouse");
-    expect(screen.getByTestId("dashboard-quick-action-runMrp")).toHaveAttribute("href", "/en/scheduler");
+    expect(screen.getByTestId("dashboard-quick-action-runMrp")).toHaveAttribute("href", "/en/planning/mrp");
   });
 });
 

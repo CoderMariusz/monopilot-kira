@@ -10,6 +10,7 @@ import {
   readAuthorizationPolicy,
   TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY,
 } from './preflight';
+import type { InitializeAuthorizationPoliciesResult } from './policy-types';
 
 export type UpdateAuthorizationPolicyInput = {
   policyCode: string;
@@ -139,6 +140,22 @@ export async function updateAuthorizationPolicy(
 
       revalidateLocalized(AUTHORIZATION_SETTINGS_PATH);
       return { ok: true, data: { policyCode: row.policy_code, version: nextVersion } };
+    } catch {
+      return { ok: false, error: 'persistence_failed' };
+    }
+  });
+}
+
+/** Idempotently seed the two required org_authorization_policies rows for the current org. */
+export async function initializeAuthorizationPolicies(): Promise<InitializeAuthorizationPoliciesResult> {
+  return withOrgContext<InitializeAuthorizationPoliciesResult>(async ({ userId, orgId, client }: OrgActionContext) => {
+    try {
+      const allowed = await hasAuthorizationEditPermission({ client, userId, orgId });
+      if (!allowed) return { ok: false, error: 'forbidden' };
+
+      await client.query(`select public.seed_authorization_policies_for_org($1::uuid)`, [orgId]);
+      revalidateLocalized(AUTHORIZATION_SETTINGS_PATH);
+      return { ok: true };
     } catch {
       return { ok: false, error: 'persistence_failed' };
     }

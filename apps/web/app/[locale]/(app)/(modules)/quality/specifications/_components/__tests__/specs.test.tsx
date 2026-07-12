@@ -29,7 +29,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import { SpecListClient } from '../spec-list.client';
-import { SpecCreateModal, minGtMax } from '../spec-create-modal.client';
+import { SpecCreateModal, itemTypesForSpecAppliesTo, minGtMax } from '../spec-create-modal.client';
 import { SpecDetailClient } from '../../[specId]/_components/spec-detail.client';
 import { SpecSignModal } from '../../[specId]/_components/spec-sign-modal.client';
 import {
@@ -59,7 +59,21 @@ const FG_ITEM: PickerOpt = {
   costPerKgEur: null,
   uomBase: 'kg',
 };
-const searchItemsStub = vi.fn(async () => [FG_ITEM]);
+const RM_ITEM: PickerOpt = {
+  id: 'rm-1',
+  itemCode: 'ING-FLOUR',
+  name: 'Wheat flour',
+  itemType: 'rm',
+  status: 'active',
+  costPerKgEur: null,
+  uomBase: 'kg',
+};
+const searchItemsStub = vi.fn(async (input?: { itemTypes?: string[] }) => {
+  const all = [FG_ITEM, RM_ITEM];
+  const types = input?.itemTypes;
+  if (!types?.length) return all;
+  return all.filter((item) => types.includes(item.itemType));
+});
 
 function makeListRow(over: Partial<SpecListRow>): SpecListRow {
   return {
@@ -207,7 +221,8 @@ describe('SpecCreateModal — QA-003a collapsed: parameters payload + min/max bl
       />,
     );
 
-    // pick a real product via the ItemPicker (fg/intermediate)
+    // pick a finished good via the ItemPicker (final release uses fg/intermediate)
+    fireEvent.click(screen.getByTestId('spec-applies-final'));
     fireEvent.click(screen.getByTestId('item-picker-trigger'));
     await waitFor(() => expect(screen.getByTestId('item-picker-option')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('item-picker-option'));
@@ -230,6 +245,7 @@ describe('SpecCreateModal — QA-003a collapsed: parameters payload + min/max bl
     expect(createSpecAction).toHaveBeenCalledWith({
       productId: 'prod-1',
       specCode: 'SPEC-FA5100-F',
+      appliesTo: 'final',
       parameters: [
         {
           parameterName: 'pH',
@@ -475,6 +491,48 @@ describe('SpecDetailClient — QA-003b status banner + actions + immutability', 
 
     await waitFor(() => expect(deleteSpecParameterAction).toHaveBeenCalledWith({ specId: 's-1', parameterId: 'p-0' }));
     await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+  });
+});
+
+describe('B2b — incoming spec product picker includes RM items', () => {
+  it('itemTypesForSpecAppliesTo returns RM types for incoming inspections', () => {
+    expect(itemTypesForSpecAppliesTo('incoming')).toEqual(['rm', 'ingredient', 'packaging']);
+    expect(itemTypesForSpecAppliesTo('final')).toEqual(['fg', 'intermediate']);
+  });
+
+  it('createSpec sends appliesTo=incoming for incoming specs', async () => {
+    const createSpecAction = vi.fn(async () => ({
+      ok: true as const,
+      data: { id: 'spec-rm-1', specCode: 'SPEC-FLOUR-I', version: 1, status: 'draft' as const },
+    }));
+    render(
+      <SpecCreateModal
+        open
+        onOpenChange={() => {}}
+        labels={CREATE_LABELS}
+        locale="en"
+        createSpecAction={createSpecAction}
+        searchItemsAction={searchItemsStub}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('spec-applies-incoming'));
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getByText('ING-FLOUR')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('ING-FLOUR'));
+    fireEvent.change(screen.getByTestId('spec-create-code'), { target: { value: 'SPEC-FLOUR-I' } });
+    fireEvent.change(screen.getByTestId('spec-param-name'), { target: { value: 'Moisture' } });
+    fireEvent.change(screen.getByTestId('spec-param-target'), { target: { value: '12.5' } });
+    fireEvent.click(screen.getByTestId('spec-create-submit'));
+
+    await waitFor(() => expect(createSpecAction).toHaveBeenCalled());
+    expect(createSpecAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appliesTo: 'incoming',
+        productId: 'rm-1',
+      }),
+    );
+    expect(searchItemsStub).toHaveBeenCalledWith(expect.objectContaining({ itemTypes: ['rm', 'ingredient', 'packaging'] }));
   });
 });
 

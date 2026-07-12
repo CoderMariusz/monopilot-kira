@@ -15,9 +15,9 @@
  *   - listSpecs rows do NOT carry appliesTo, parameterCount or criticalCount, and
  *     productCode/productName are nullable. The list therefore filters by STATUS
  *     only (the applies-to filter + parameter-count column are deviations).
- *   - createSpec input does NOT take appliesTo and uses OPTIONAL string params
- *     (targetValue?/minValue?/maxValue?/unit?) with no sortOrder (server derives it
- *     from array index). createSpec always inserts applies_to='all', status='draft'.
+ *   - createSpec input carries appliesTo (defaults to 'all' when omitted) with OPTIONAL
+ *     string params (targetValue?/minValue?/maxValue?/unit?) and no sortOrder (server
+ *     derives it from array index). createSpec inserts status='draft'.
  *   - getSpecDetail returns the list row + appliesTo + approvalSignatureHash +
  *     parameters[] (each with id; numeric values are DECIMAL STRINGS or null).
  *   - updateSpecParameter/deleteSpecParameter only mutate draft specifications.
@@ -84,6 +84,7 @@ export type CreateSpecParameter = {
 export type CreateSpecInput = {
   productId: string;
   specCode: string;
+  appliesTo?: 'incoming' | 'in_process' | 'final' | 'all';
   parameters: CreateSpecParameter[];
 };
 

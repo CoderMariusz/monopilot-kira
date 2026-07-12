@@ -34,6 +34,7 @@
  */
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { evaluateClosedProductionStrict } from '../../../../../../lib/production/evaluate-closed-production-strict';
 import {
   hasPermission,
   readWoExecutionStatus,
@@ -122,7 +123,10 @@ export type WoActionContextData = {
   lineId: string | null;
   /** The WO's assigned production line code (display only; null ⇒ none). */
   lineCode: string | null;
-  /** True when ≥1 active primary output has qty_kg > 0 (output yield gate green). */
+  /**
+   * True when the output yield gate is green: ≥1 active primary output with qty_kg > 0
+   * AND posted consumption is within closed_production_strict tolerance (mirrors completeWo).
+   */
   yieldGateGreen: boolean;
 };
 
@@ -296,6 +300,10 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
         ),
       ]);
 
+      const primaryGreen = yieldGateRes.rows[0]?.green === true;
+      const strictGate = await evaluateClosedProductionStrict(c, woId);
+      const consumptionWithinTolerance = strictGate?.within_tolerance !== false;
+
       return {
         ok: true,
         data: {
@@ -309,7 +317,7 @@ export async function getWoActionContext(woId: string): Promise<WoActionContextR
           lines: linesRes.rows.map((r) => ({ id: r.id, code: r.code })),
           lineId: woRow.line_id,
           lineCode: woRow.line_code,
-          yieldGateGreen: yieldGateRes.rows[0]?.green === true,
+          yieldGateGreen: primaryGreen && consumptionWithinTolerance,
         },
       };
     });

@@ -68,7 +68,14 @@ export type WoActionData = {
  */
 export type WoActionResult =
   | { ok: true; data?: WoActionData }
-  | { ok: false; errorCode: string; httpStatus: number; reason?: string; message?: string };
+  | {
+      ok: false;
+      errorCode: string;
+      httpStatus: number;
+      reason?: string;
+      message?: string;
+      details?: unknown;
+    };
 
 /** The runner signature every modal receives. */
 export type RunWoAction = (kind: WoActionKind, body: Record<string, unknown>) => Promise<WoActionResult>;
@@ -117,7 +124,23 @@ export type WoModalLabels = {
   };
   resume: { title: string; subtitle: string; duration: string; durationHint: string };
   cancelWo: { title: string; subtitle: string; reasonCode: string; notes: string };
-  complete: { title: string; subtitle: string; override: string; overrideHint: string; overridePlaceholder?: string };
+  complete: {
+    title: string;
+    subtitle: string;
+    override: string;
+    overrideHint: string;
+    overridePlaceholder?: string;
+    gateStatusGreen?: string;
+    gateStatusBlocked?: string;
+    gateBlocked?: string;
+    consumptionOutOfTolerance?: string;
+    actualOutputKg?: string;
+    postedConsumptionKg?: string;
+    expectedInputKg?: string;
+    effectiveYieldPct?: string;
+    overridePin?: string;
+    overrideEsignReason?: string;
+  };
   close: {
     title: string;
     subtitle: string;

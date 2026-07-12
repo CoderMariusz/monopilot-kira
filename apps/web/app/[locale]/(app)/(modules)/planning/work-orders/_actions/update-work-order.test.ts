@@ -15,6 +15,11 @@ const BOM_A_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const BOM_B_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const SPEC_B_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
+const CHILD_WO_ID = '99999999-9999-4999-8999-999999999999';
+const CHILD_PRODUCT_ID = '77777777-7777-4777-8777-777777777777';
+const BOM_LINE_ID = '88888888-8888-4888-8888-888888888889';
+const NEW_PARENT_MATERIAL_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab';
+
 let client: QueryClient;
 let allowPermission = true;
 let currentStatus = 'DRAFT';
@@ -24,6 +29,8 @@ let raceUpdate = false;
 let currentScheduledStartTime: string | null = null;
 let currentLineId: string | null = null;
 let lineSiteId: string | null = SITE_ID;
+let chainChildStatus = 'DRAFT';
+let chainEdgesPresent = false;
 
 vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
   revalidateLocalized: vi.fn(),
@@ -115,6 +122,36 @@ function makeClient(): QueryClient {
       if (normalized.includes('from public.factory_specs')) {
         return { rows: [{ id: SPEC_B_ID }], rowCount: 1 };
       }
+      if (normalized.includes('from public.wo_dependencies dep')) {
+        if (!chainEdgesPresent) return { rows: [], rowCount: 0 };
+        return {
+          rows: [{
+            child_wo_id: CHILD_WO_ID,
+            child_status: chainChildStatus,
+            child_product_id: CHILD_PRODUCT_ID,
+            link_product_id: CHILD_PRODUCT_ID,
+            link_bom_item_id: BOM_LINE_ID,
+          }],
+          rowCount: 1,
+        };
+      }
+      if (normalized.includes('from public.wo_materials') && normalized.includes('and wo_id = $1::uuid') && normalized.includes('bom_item_id')) {
+        return {
+          rows: [{
+            id: NEW_PARENT_MATERIAL_ID,
+            product_id: CHILD_PRODUCT_ID,
+            bom_item_id: BOM_LINE_ID,
+            required_qty: '10.710',
+          }],
+          rowCount: 1,
+        };
+      }
+      if (normalized.startsWith('update public.wo_dependencies') && normalized.includes('material_link')) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.startsWith('update public.work_orders') && params[0] === CHILD_WO_ID) {
+        return { rows: [{ id: CHILD_WO_ID }], rowCount: chainChildStatus === 'IN_PROGRESS' ? 0 : 1 };
+      }
       if (normalized.startsWith('update public.work_orders')) {
         if (raceUpdate) return { rows: [], rowCount: 0 };
         // Simulate the boolean-flag CASE logic from the real SQL:
@@ -172,6 +209,8 @@ describe('updateWorkOrder', () => {
     currentScheduledStartTime = null;
     currentLineId = null;
     lineSiteId = SITE_ID;
+    chainChildStatus = 'DRAFT';
+    chainEdgesPresent = false;
     client = makeClient();
   });
 
@@ -361,5 +400,35 @@ describe('updateWorkOrder', () => {
     expect(result.ok).toBe(true);
     expect(revalidateLocalized).toHaveBeenCalledWith('/planning/work-orders');
     expect(revalidateLocalized).toHaveBeenCalledWith(`/planning/work-orders/${WO_ID}`);
+  });
+
+  it('B1a: propagates chain child quantities when planned quantity changes', async () => {
+    chainEdgesPresent = true;
+
+    const result = await updateWorkOrder({ id: WO_ID, plannedQuantity: '127.500' });
+
+    expect(result.ok).toBe(true);
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql).replace(/\s+/g, ' ').trim().toLowerCase());
+    expect(calls.some((sql) => sql.includes('from public.wo_dependencies dep') && sql.includes('for update of child, dep'))).toBe(true);
+    const relink = vi.mocked(client.query).mock.calls.find(([sql]) => {
+      const n = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
+      return n.startsWith('update public.wo_dependencies') && n.includes('material_link');
+    });
+    expect(relink?.[1]).toEqual([WO_ID, CHILD_WO_ID, '10.710', NEW_PARENT_MATERIAL_ID]);
+  });
+
+  it('B1a: returns chain_child_not_editable without persisting parent writes when child progressed', async () => {
+    chainEdgesPresent = true;
+    chainChildStatus = 'IN_PROGRESS';
+
+    await expect(updateWorkOrder({ id: WO_ID, plannedQuantity: '127.500' })).resolves.toEqual({
+      ok: false,
+      error: 'chain_child_not_editable',
+    });
+
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql).replace(/\s+/g, ' ').trim().toLowerCase());
+    expect(calls.some((sql) => sql.startsWith('update public.work_orders'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('delete from public.wo_materials'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('insert into public.wo_materials'))).toBe(false);
   });
 });

@@ -102,7 +102,7 @@ const LABELS = {
     error: 'Failed to load previous runs.',
     expand: 'Details',
     collapse: 'Hide',
-    columns: { run: 'Run', date: 'Date', items: 'Items', exceptions: 'Shortages', status: 'Status' },
+    columns: { run: 'Run', runDate: 'Run date', horizon: 'Horizon start', items: 'Items', exceptions: 'Shortages', status: 'Status' },
     requirements: {
       item: 'Item',
       gross: 'Gross demand',
@@ -400,10 +400,11 @@ describeUi('/planning/mrp — MrpView', () => {
         ],
       }),
     );
-    renderView({ listRunsAction, getRunRequirementsAction });
+    renderView({ listRunsAction, getRunRequirementsAction, timeFormatter: (iso) => iso });
 
     await waitFor(() => expect(screen.getByTestId('mrp-runs-table')).toBeInTheDocument());
-    expect(screen.getByTestId('mrp-run-MRP-20260610-AAAA1111')).toHaveTextContent('2026-06-10');
+    expect(screen.getByTestId('mrp-run-date-MRP-20260610-AAAA1111')).toHaveTextContent('2026-06-10T09:00:00.000Z');
+    expect(screen.getByTestId('mrp-run-horizon-MRP-20260610-AAAA1111')).toHaveTextContent('2026-06-10');
 
     fireEvent.click(screen.getByTestId('mrp-run-toggle-MRP-20260610-AAAA1111'));
     await waitFor(() =>

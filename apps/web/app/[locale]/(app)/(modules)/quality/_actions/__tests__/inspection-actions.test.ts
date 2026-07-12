@@ -57,6 +57,7 @@ let listTotal = 1;
 let specResolveRows: Array<Record<string, string>> = [];
 
 vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 vi.mock('@monopilot/e-sign', () => ({ signEvent: vi.fn(async () => ({ subjectHash: 'hash' })) }));
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -615,6 +616,8 @@ describe('createInspection — site_id on INSERT', () => {
     expect(sql).toContain('$8::uuid');
     // The 8th bind (index 7) must be the resolved site id.
     expect(insertCall?.[1]?.[7]).toBe(SITE_ID);
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith('/quality/inspections');
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith(`/quality/inspections/${INSP_ID}`);
   });
 
   it('F10: refuses to create with no_active_site instead of writing a null-site inspection', async () => {

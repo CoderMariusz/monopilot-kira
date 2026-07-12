@@ -1,6 +1,9 @@
 import { getTranslations } from 'next-intl/server';
 
-import { updateAuthorizationPolicy as updateAuthorizationPolicyAction } from '../../../../../../actions/authorization/policy-actions';
+import {
+  initializeAuthorizationPolicies as initializeAuthorizationPoliciesAction,
+  updateAuthorizationPolicy as updateAuthorizationPolicyAction,
+} from '../../../../../../actions/authorization/policy-actions';
 import {
   NPD_POST_RELEASE_EDIT_POLICY,
   TECHNICAL_PRODUCT_SPEC_APPROVAL_GATE,
@@ -15,6 +18,7 @@ import AuthorizationPoliciesScreen, {
   type AuthorizationScreenLabels,
   type Blocker,
   type CopyKey,
+  type InitializeAuthorizationPoliciesResult,
   type NpdPolicy,
   type PolicyStatus,
   type RoleOption,
@@ -94,6 +98,9 @@ const AUTHORIZATION_LABEL_KEYS: CopyKey[] = [
   'minimumAuthorizersHint',
   'missingSeedBody',
   'missingSeedTitle',
+  'initializePolicies',
+  'initializingPolicies',
+  'initializePoliciesFailed',
   'noRoleSelected',
   'npdDescription',
   'npdTitle',
@@ -255,6 +262,11 @@ async function saveAuthorizationPolicy(input: Parameters<typeof updateAuthorizat
   return updateAuthorizationPolicyAction(input);
 }
 
+async function initializeAuthorizationPolicies(): Promise<InitializeAuthorizationPoliciesResult> {
+  'use server';
+  return initializeAuthorizationPoliciesAction();
+}
+
 export default async function AuthorizationPoliciesPage({ params }: PageProps) {
   const { locale } = await params;
   const labels = await buildLabels(locale);
@@ -276,6 +288,7 @@ export default async function AuthorizationPoliciesPage({ params }: PageProps) {
         roles={result.roles}
         screenState={result.state}
         updateAuthorizationPolicy={saveAuthorizationPolicy}
+        initializeAuthorizationPolicies={initializeAuthorizationPolicies}
       />
     </div>
   );

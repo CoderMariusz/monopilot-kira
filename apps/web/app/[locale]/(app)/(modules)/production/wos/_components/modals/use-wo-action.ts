@@ -105,6 +105,10 @@ export function useWoAction(locale: string, woId: string): { run: RunWoAction } 
         payload && typeof payload === 'object' && 'message' in payload
           ? (payload as { message: unknown }).message
           : null;
+      const details =
+        payload && typeof payload === 'object' && 'details' in payload
+          ? (payload as { details: unknown }).details
+          : null;
 
       return {
         ok: false,
@@ -112,6 +116,7 @@ export function useWoAction(locale: string, woId: string): { run: RunWoAction } 
         httpStatus: res.status,
         ...(typeof reason === 'string' ? { reason } : {}),
         ...(typeof message === 'string' ? { message } : {}),
+        ...(details !== null && details !== undefined ? { details } : {}),
       };
     },
     [locale, woId, router],

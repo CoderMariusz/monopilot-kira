@@ -20,3 +20,27 @@ export async function createSupabaseAuthAdmin() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
+
+/** Symmetric with deactivateUser's `ban_duration: '876000h'` — lifts the auth ban. */
+export async function liftAuthBan(
+  targetUserId: string,
+): Promise<{ ok: true } | { ok: false; error: unknown }> {
+  try {
+    const supabase = await createSupabaseAuthAdmin();
+    const { error } = await supabase.auth.admin.updateUserById(targetUserId, { ban_duration: 'none' });
+    if (error) {
+      console.error('[liftAuthBan] auth unban failed (public.users may already be active)', {
+        targetUserId,
+        message: error.message,
+      });
+      return { ok: false, error };
+    }
+    return { ok: true };
+  } catch (error) {
+    console.error('[liftAuthBan] auth unban failed (public.users may already be active)', {
+      targetUserId,
+      error,
+    });
+    return { ok: false, error };
+  }
+}

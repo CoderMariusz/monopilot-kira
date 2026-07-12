@@ -110,6 +110,8 @@ export type GateChecklistLabels = {
   current: string;
   blockingBadge: string; // ICU plural: "{count, plural, ...}"
   notStarted: string;
+  /** Shown when done=true but completer metadata is not yet loaded (optimistic toggle). */
+  completed: string;
   completedBy: string; // ICU: "Completed by {by} · {at}"
   required: string;
   optional: string;
@@ -331,9 +333,11 @@ function ChecklistItemRow({
               )
             : isAutoDerived
               ? labels.autoDerived
-              : item.done && item.by
-            ? labels.completedBy.replace('{by}', item.by).replace('{at}', item.at ?? '')
-            : labels.notStarted}
+              : item.done
+                ? item.by
+                  ? labels.completedBy.replace('{by}', item.by).replace('{at}', item.at ?? '')
+                  : labels.completed
+                : labels.notStarted}
         </div>
       </div>
       {/* Per-item "Attach" was removed (2026-06-09 modal-fix lane): no upload

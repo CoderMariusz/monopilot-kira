@@ -44,6 +44,7 @@ import {
 import { createItem } from '../_actions/create-item';
 import {
   CANONICAL_UOMS,
+  ITEM_CODE_PATTERN,
   ITEM_STATUSES,
   ITEM_TYPES,
   type ItemsActionError,
@@ -437,7 +438,14 @@ export function ItemWizard({
   }, [initialForm?.status, isEdit, statusOptions]);
 
   const basicValid =
-    form.itemCode.trim().length >= 1 && form.name.trim().length >= 1 && form.uomBase.trim().length >= 1;
+    form.itemCode.trim().length >= 1 &&
+    ITEM_CODE_PATTERN.test(form.itemCode.trim()) &&
+    form.name.trim().length >= 1 &&
+    form.uomBase.trim().length >= 1;
+  const itemCodeValid = form.itemCode.trim().length >= 1 && ITEM_CODE_PATTERN.test(form.itemCode.trim());
+  const reviewReady = isEdit ? basicValid : itemCodeValid && basicValid;
+  const dialogTitle = isEdit ? labels.editTitle : labels.title;
+  const submitLabel = pending ? (isEdit ? labels.saving : labels.creating) : isEdit ? labels.saveChanges : labels.create;
 
   // Pack-hierarchy client validation mirrors the DB CHECK (migration 267):
   //   each ⇒ net > 0 ; box ⇒ net > 0 ∧ each_per_box > 0.
@@ -486,6 +494,7 @@ export function ItemWizard({
     setError(null);
     if (step === 'basic' && !basicValid) {
       if (form.itemCode.trim().length < 1) setError(labels.errors.codeRequired);
+      else if (!ITEM_CODE_PATTERN.test(form.itemCode.trim())) setError(labels.errors.codeInvalid);
       else if (form.name.trim().length < 1) setError(labels.errors.nameRequired);
       else setError(labels.errors.uomRequired);
       return;
@@ -504,6 +513,14 @@ export function ItemWizard({
 
   function submit() {
     setError(null);
+    if (!basicValid) {
+      setStepIndex(STEP_KEYS.indexOf('basic'));
+      if (form.itemCode.trim().length < 1) setError(labels.errors.codeRequired);
+      else if (!ITEM_CODE_PATTERN.test(form.itemCode.trim())) setError(labels.errors.codeInvalid);
+      else if (form.name.trim().length < 1) setError(labels.errors.nameRequired);
+      else setError(labels.errors.uomRequired);
+      return;
+    }
     // Final client guard mirrors the DB CHECK before the round-trip.
     if (!packagingValid) {
       setStepIndex(STEP_KEYS.indexOf('weight'));
@@ -546,7 +563,7 @@ export function ItemWizard({
       if (isEdit) {
         const result = await updateItem({ id: (mode as { itemId: string }).itemId, ...common });
         if (!result.ok) {
-          setError(formatItemActionError(labels, result.error));
+          setError(formatItemActionError(labels, result.error, { serverMessage: result.message }));
           return;
         }
         // Only (re)attach when a supplier is chosen AND it differs from the one the
@@ -607,7 +624,12 @@ export function ItemWizard({
         onSaved?.();
         router.refresh();
       } else {
-        setError(formatItemActionError(labels, result.error, { itemCode: result.itemCode ?? form.itemCode }));
+        setError(
+          formatItemActionError(labels, result.error, {
+            itemCode: result.itemCode ?? form.itemCode,
+            serverMessage: result.message,
+          }),
+        );
       }
     });
   }
@@ -678,7 +700,7 @@ export function ItemWizard({
         </Button>
       ) : (
         <Button type="button" className="btn-primary" data-action="submit" onClick={submit} disabled={pending}>
-          {pending ? labels.creating : labels.create}
+          {submitLabel}
         </Button>
       )}
     </>
@@ -688,7 +710,7 @@ export function ItemWizard({
     <StepDialog
       open={open}
       onClose={onClose}
-      title={labels.title}
+      title={dialogTitle}
       subtitle={labels.subtitle}
       footer={footer}
       stepper={stepper}
@@ -1072,10 +1094,17 @@ export function ItemWizard({
               </div>
             ))}
           </dl>
-          <div className="alert alert-green" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 0 }}>
-            <span aria-hidden="true">✓</span>
-            <span>{labels.review.ready}</span>
-          </div>
+          {reviewReady ? (
+            <div className="alert alert-green" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 0 }}>
+              <span aria-hidden="true">✓</span>
+              <span>{isEdit ? labels.review.readyEdit : labels.review.ready}</span>
+            </div>
+          ) : !isEdit ? (
+            <div className="alert alert-amber" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 0 }}>
+              <span aria-hidden="true">!</span>
+              <span>{!itemCodeValid ? labels.errors.codeInvalid : labels.errors.codeRequired}</span>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

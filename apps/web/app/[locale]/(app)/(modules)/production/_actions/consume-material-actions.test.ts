@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { listConsumableLps, recordDesktopConsumption } from './consume-material-actions';
 import type { QueryClient } from '../../../../../../lib/production/shared';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -43,6 +44,10 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
     async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
       action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+vi.mock('../../../../../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: vi.fn(),
 }));
 
 vi.mock('../../../../../../lib/warehouse/lp-create', () => ({
@@ -611,5 +616,23 @@ describe('listConsumableLps', () => {
     state.materialExists = false;
     const result = await listConsumableLps({ woId: WO_ID, materialId: MATERIAL_ID });
     expect(result).toEqual({ ok: false, reason: 'invalid_material' });
+  });
+});
+
+describe('recordDesktopConsumption — B1e revalidation', () => {
+  it('revalidates production list and WO detail after a successful consume', async () => {
+    vi.mocked(revalidateLocalized).mockClear();
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result.ok).toBe(true);
+    expect(revalidateLocalized).toHaveBeenCalledWith('/production', 'page');
+    expect(revalidateLocalized).toHaveBeenCalledWith(`/production/wos/${WO_ID}`, 'page');
+  });
+
+  it('does not revalidate on idempotent replay', async () => {
+    vi.mocked(revalidateLocalized).mockClear();
+    state.replayExists = true;
+    const result = await recordDesktopConsumption(VALID_INPUT);
+    expect(result.ok).toBe(true);
+    expect(revalidateLocalized).not.toHaveBeenCalled();
   });
 });
