@@ -5582,6 +5582,7 @@
       "refresh": "Reîmprospătează",
       "refreshing": "Se reîmprospătează…",
       "override": "Suprascrie",
+      "overrideUnavailable": "Override indisponibil — nu aveți permisiunea de a suprascrie alergenii.",
       "sectionDerived": "Derivat (MP + procese)",
       "sectionDerivedSource": "Reuniunea auto-derivată a alergenilor confirmați din materii prime și procese.",
       "sectionDeltas": "Diferențe de suprascriere",

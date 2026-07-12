@@ -3126,6 +3126,7 @@
       "refresh": "Refresh",
       "refreshing": "Refreshing…",
       "override": "Override",
+      "overrideUnavailable": "Override unavailable — you don't have permission to override allergens.",
       "sectionDerived": "Derived (RM + process)",
       "sectionDerivedSource": "Auto-derived union of confirmed raw-material and process allergens.",
       "sectionDeltas": "Override deltas",

@@ -5651,6 +5651,7 @@
       "refresh": "Odśwież",
       "refreshing": "Odświeżanie…",
       "override": "Nadpisz",
+      "overrideUnavailable": "Override niedostępny — brak uprawnień do nadpisywania alergenów.",
       "sectionDerived": "Pochodne (surowce + procesy)",
       "sectionDerivedSource": "Automatycznie wyprowadzona suma potwierdzonych alergenów surowcowych i procesowych.",
       "sectionDeltas": "Różnice nadpisań",
