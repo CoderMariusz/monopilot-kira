@@ -63,6 +63,7 @@ export type ProductionError =
   | 'allergen_changeover_required'
   | 'wo_snapshot_missing'
   | 'factory_release_incomplete'
+  | 'upstream_wip_not_ready'
   | 'closed_production_strict_failed'
   | 'insufficient_input_for_output'
   | 'insufficient_lp_quantity'
@@ -88,6 +89,7 @@ export const ERROR_STATUS: Record<ProductionError, number> = {
   allergen_changeover_required: 409,
   wo_snapshot_missing: 409,
   factory_release_incomplete: 409,
+  upstream_wip_not_ready: 409,
   closed_production_strict_failed: 409,
   insufficient_input_for_output: 409,
   insufficient_lp_quantity: 409,

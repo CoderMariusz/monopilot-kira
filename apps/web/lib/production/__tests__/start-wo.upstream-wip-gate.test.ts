@@ -5,17 +5,14 @@ import { startWo } from '../start-wo';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
-const CHILD_WO_ID = '33333333-3333-4333-8333-333333333333';
-const PARENT_WO_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const FG_WO_ID = '33333333-3333-4333-8333-333333333333';
 const SITE_ID = '44444444-4444-4444-8444-444444444444';
 const BOM_HEADER_ID = '55555555-5555-4555-8555-555555555555';
 const FACTORY_SPEC_ID = '66666666-6666-4666-8666-666666666666';
-const SCHEDULE_OUTPUT_ID = '77777777-7777-4777-8777-777777777777';
-const PRODUCT_ID = '88888888-8888-4888-8888-888888888888';
 const TXN_ID = '99999999-9999-4999-8999-999999999999';
 
 let client: QueryClient;
-let queriedSql: string[];
+let upstreamBlockers: Array<{ child_wo_number: string; child_status: string }>;
 
 vi.mock('../../technical/bom/snapshot', () => ({
   createBomSnapshot: vi.fn(async () => ({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' })),
@@ -35,23 +32,20 @@ function normalize(sql: string): string {
 function makeClient(): QueryClient {
   return {
     query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
-      queriedSql.push(sql);
       const q = normalize(sql);
       if (q.includes('from public.user_roles')) {
         return { rows: [{ ok: true }], rowCount: 1 };
       }
       if (q.includes('from public.work_orders') && q.startsWith('select')) {
         return {
-          rows: [
-            {
-              id: CHILD_WO_ID,
-              site_id: SITE_ID,
-              active_bom_header_id: BOM_HEADER_ID,
-              active_factory_spec_id: FACTORY_SPEC_ID,
-              allergen_profile_snapshot: null,
-              production_line_id: null,
-            },
-          ],
+          rows: [{
+            id: FG_WO_ID,
+            site_id: SITE_ID,
+            active_bom_header_id: BOM_HEADER_ID,
+            active_factory_spec_id: FACTORY_SPEC_ID,
+            allergen_profile_snapshot: null,
+            production_line_id: null,
+          }],
           rowCount: 1,
         };
       }
@@ -66,28 +60,24 @@ function makeClient(): QueryClient {
           rowCount: 1,
         };
       }
+      if (q.includes('from public.wo_dependencies')) {
+        return {
+          rows: upstreamBlockers.map((b, i) => ({
+            child_wo_id: `child-${i}`,
+            child_wo_number: b.child_wo_number,
+            child_status: b.child_status,
+            required_qty: '100',
+            posted_output_kg: '0',
+            release_blocked: b.child_status.toUpperCase() === 'DRAFT',
+            start_complete_blocked: true,
+          })),
+          rowCount: upstreamBlockers.length,
+        };
+      }
       if (q.includes('from public.changeover_events')) {
         return { rows: [], rowCount: 0 };
       }
-      if (q.includes('from public.schedule_outputs')) {
-        return {
-          rows: [{
-            id: SCHEDULE_OUTPUT_ID,
-            product_id: PRODUCT_ID,
-            output_role: 'primary',
-            expected_qty: '100',
-            uom: 'kg',
-          }],
-          rowCount: 1,
-        };
-      }
-      if (q.startsWith('insert into public.wo_outputs')) {
-        return { rows: [{ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }], rowCount: 1 };
-      }
-      if (q.startsWith('insert into public.outbox_events')) {
-        return { rows: [], rowCount: 1 };
-      }
-      return { rows: [], rowCount: 0, params };
+      return { rows: [], rowCount: 0 };
     }),
   };
 }
@@ -96,18 +86,19 @@ function makeCtx(): ProductionContext {
   return { userId: USER_ID, orgId: ORG_ID, client };
 }
 
-describe('startWo overlap — no wo_dependencies parent-status gate', () => {
+describe('startWo upstream WIP gate (C3)', () => {
   beforeEach(() => {
-    queriedSql = [];
+    upstreamBlockers = [{ child_wo_number: 'WIP-CHILD', child_status: 'DRAFT' }];
     client = makeClient();
   });
 
-  it('starts a child WO without querying wo_dependencies or parent WO status', async () => {
-    const result = await startWo(makeCtx(), { woId: CHILD_WO_ID, transactionId: TXN_ID });
+  it('rejects start when an upstream WIP prerequisite is still DRAFT', async () => {
+    const result = await startWo(makeCtx(), { woId: FG_WO_ID, transactionId: TXN_ID });
 
-    expect(result.ok).toBe(true);
-    expect(queriedSql.some((sql) => normalize(sql).includes('wo_dependencies'))).toBe(false);
-    expect(queriedSql.some((sql) => normalize(sql).includes('parent_wo_id'))).toBe(false);
-    expect(queriedSql.some((sql) => normalize(sql).includes(String(PARENT_WO_ID)))).toBe(false);
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'upstream_wip_not_ready',
+      message: expect.stringContaining('WIP-CHILD'),
+    });
   });
 });
