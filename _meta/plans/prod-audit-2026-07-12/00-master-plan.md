@@ -61,6 +61,17 @@ Definitive closure per owner's rule = real-browser E2E on prod with before/after
 2. **A3 + A4** next (planning + MRP; some overlap with prior waves 13/14 — confirm the prod repro is a real regression vs undeployed fix).
 3. **A5 + A6** last (quality/config/access; several are seed-data or UI-surface, cheaper).
 
+## ADDENDUM 2026-07-12 — owner prod E2E results + new findings
+
+**A1/A2 verified on prod** (owner browser audit): C1✅ C2✅ S6✅(persist) C3✅ C4✅ S5✅. Regressions HOTFIXED (`4527131f`):
+- **C5 (P0) re-fixed** — guard only blocked on progression; a DRAFT child of a DRAFT parent deleted and ON-DELETE-CASCADE orphaned wo_dependencies. Added clause: block when target has ANY dependency edge to a non-cancelled counterpart. Proven: old_blocked=f → new_blocked=t.
+- **S19 (P0) re-fixed** — query used `fv.version_no`, prod column is `version_number` → 42703. The unit test asserted the BUGGY string (masking). This was the ONE SQL I skipped PREPARE-ing — now PREPAREd. LESSON: PREPARE EVERY new SQL, no exceptions.
+- Unverifiable this pass: S17 (no catch-weight products in Apex 22 — verify when seeded), S8 (couldn't reach new Start path via UI — blocked by A3 bugs).
+
+**New findings folded into remaining waves:**
+- **→ A3: N1 (P1) production-summary display rounding** — DB holds 7.800 kg, screen shows 8/300 kg (mass mis-rendered; pct correct). Fix the production-summary display formatter to show real precision (display-only rounding, never integer-round a kg mass). Pairs with S4 (stale views) already in A3.
+- **→ A4: N2 (P2) hold masked as insufficient stock** — consuming a held LP is correctly blocked, but the operator sees "insufficient free stock" instead of "active quality hold". Fix the consume-rejection message to distinguish quality_hold_active from genuine shortage (the resolver already knows — surface the real reason).
+
 ## Standing discipline (from memory)
 - Never `git add -A`. Worktrees NOT in /tmp. RSC: never export non-async from `'use server'`.
 - New SQL must PREPARE on real PG (non-reserved aliases). Migrations serialize before merge.
