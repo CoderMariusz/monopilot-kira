@@ -1,6 +1,12 @@
 'use server';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import { fallbackFgProductCode } from './_lib/gate-helpers';
+import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
+import {
+  boxesOutputUnitRequiresPackFactors,
+  type NpdBriefOutputUnit,
+} from './_lib/materialize-npd-bom';
 import {
   DEFAULT_TEMPLATE_ID,
   PROJECT_CODE_SEQUENCE,
@@ -15,11 +21,6 @@ import {
   parseTargetLaunch,
   trimOptionalString,
 } from './shared';
-import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
-import {
-  boxesOutputUnitRequiresPackFactors,
-  type NpdBriefOutputUnit,
-} from './_lib/materialize-npd-bom';
 
 export type CreateProjectInput = {
   name: string;
@@ -81,6 +82,7 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
       }
 
       const code = await allocateProjectCode(context);
+      let draftProductCode = input.startFrom === 'blank' ? fallbackFgProductCode(code) : null;
       const { rows } = await context.client.query<ProjectInsertRow>(
         `insert into public.npd_projects
            (org_id, code, name, type, prio, owner, target_launch, notes,
@@ -92,7 +94,7 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
            ($1::uuid, $2, $3, $4, $5, $6, $7::date, $8,
             $9, $10, $11::numeric,
             $12, $13, $14, $15::numeric, $16::integer, $17, $18::numeric, $19::numeric,
-            'G0', 'brief', $20, $21, $22::uuid, 'npd-project-actions-v1')
+            'G0', $20, $21, $22, $23::uuid, 'npd-project-actions-v1')
          returning id, code`,
         [
           context.orgId,
@@ -114,6 +116,7 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
           input.outputUnit ?? null,
           input.weeklyVolumePacks ?? null,
           input.runsPerWeek ?? null,
+          input.startFrom === 'blank' ? 'recipe' : 'brief',
           input.startFrom,
           input.cloneSource ?? null,
           context.userId,
@@ -122,8 +125,12 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
       const project = rows[0];
       if (!project) return { ok: false, error: 'PERSISTENCE_FAILED' };
 
+      if (draftProductCode) {
+        draftProductCode = await bootstrapDraftRecipeProduct(context, project.id, draftProductCode, input.name);
+      }
+
       const seeded = await seedChecklistItems(context, project.id, input.templateId);
-      const formulationDraft = await seedFormulationDraft(context, project.id);
+      const formulationDraft = await seedFormulationDraft(context, project.id, draftProductCode);
       if (!formulationDraft) return { ok: false, error: 'PERSISTENCE_FAILED' };
       await seedBriefTargetPriceOnDraft(
         context,
@@ -268,12 +275,107 @@ async function allocateProjectCode(ctx: OrgContextLike): Promise<string> {
   throw new Error('Unable to allocate an unused NPD project code');
 }
 
+async function isProductCodeLinkedToOtherProject(
+  ctx: OrgContextLike,
+  projectId: string,
+  productCode: string,
+): Promise<boolean> {
+  const onProject = await ctx.client.query<{ id: string }>(
+    `select id
+       from public.npd_projects
+      where org_id = app.current_org_id()
+        and id <> $1::uuid
+        and product_code = $2
+      limit 1`,
+    [projectId, productCode],
+  );
+  if (onProject.rows.length > 0) return true;
+
+  const onFormulation = await ctx.client.query<{ project_id: string }>(
+    `select project_id
+       from public.formulations
+      where org_id = app.current_org_id()
+        and project_id <> $1::uuid
+        and product_code = $2
+      limit 1`,
+    [projectId, productCode],
+  );
+  return onFormulation.rows.length > 0;
+}
+
+function nextFgProductCodeCandidate(baseCode: string, attempt: number): string {
+  const match = baseCode.match(/^(FG-)(\d+)$/i);
+  if (match?.[2]) {
+    const width = match[2].length;
+    const next = Number(match[2]) + attempt;
+    return `FG-${String(next).padStart(width, '0')}`;
+  }
+  return `${baseCode}-${attempt + 1}`;
+}
+
+async function resolveAvailableDraftProductCode(
+  ctx: OrgContextLike,
+  projectId: string,
+  requestedProductCode: string,
+): Promise<string> {
+  for (let attempt = 0; attempt < 999; attempt += 1) {
+    const candidate = attempt === 0 ? requestedProductCode : nextFgProductCodeCandidate(requestedProductCode, attempt);
+    if (!(await isProductCodeLinkedToOtherProject(ctx, projectId, candidate))) {
+      return candidate;
+    }
+  }
+  throw new Error('Unable to allocate an unused FG product code');
+}
+
+async function bootstrapDraftRecipeProduct(
+  ctx: OrgContextLike,
+  projectId: string,
+  productCode: string,
+  productName: string,
+): Promise<string> {
+  const resolvedProductCode = await resolveAvailableDraftProductCode(ctx, projectId, productCode);
+
+  const existing = await ctx.client.query<{ product_code: string }>(
+    `select product_code
+       from public.product
+      where org_id = app.current_org_id()
+        and product_code = $1
+        and deleted_at is null
+      limit 1`,
+    [resolvedProductCode],
+  );
+  if (existing.rows.length === 0) {
+    await ctx.client.query(
+      `insert into public.product
+         (org_id, product_code, product_name, created_by_user, app_version)
+       values
+         (app.current_org_id(), $1, $2, $3::uuid, 'npd-create-project-v1')`,
+      [resolvedProductCode, productName, ctx.userId],
+    );
+  }
+
+  await ctx.client.query(
+    `update public.npd_projects
+        set product_code = $2
+      where id = $1::uuid
+        and org_id = app.current_org_id()
+        and product_code is null`,
+    [projectId, resolvedProductCode],
+  );
+
+  return resolvedProductCode;
+}
+
 /**
  * Auto-create the first formulation draft (v1) promised by the create-project wizard.
  * Mirrors createFormulationDraft (formulation/_actions/create-draft.ts) inside the
  * same org-scoped transaction as the project insert.
  */
-async function seedFormulationDraft(ctx: OrgContextLike, projectId: string): Promise<string | null> {
+async function seedFormulationDraft(
+  ctx: OrgContextLike,
+  projectId: string,
+  productCode: string | null,
+): Promise<string | null> {
   const existing = await ctx.client.query<{ formulation_id: string; current_version_id: string | null }>(
     `select id as formulation_id, current_version_id from public.formulations
       where project_id = $1::uuid and org_id = app.current_org_id() limit 1`,
@@ -289,9 +391,9 @@ async function seedFormulationDraft(ctx: OrgContextLike, projectId: string): Pro
   } else {
     const inserted = await ctx.client.query<{ id: string }>(
       `insert into public.formulations (org_id, project_id, product_code, created_by_user)
-       values (app.current_org_id(), $1::uuid, null, $2::uuid)
+       values (app.current_org_id(), $1::uuid, $2, $3::uuid)
        returning id`,
-      [projectId, ctx.userId],
+      [projectId, productCode, ctx.userId],
     );
     formulationId = inserted.rows[0]?.id ?? '';
     if (!formulationId) return null;

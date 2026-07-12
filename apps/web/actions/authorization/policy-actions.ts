@@ -8,6 +8,7 @@ import {
   type AuthorizationPolicyRow,
   type QueryClient,
   readAuthorizationPolicy,
+  TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY,
 } from './preflight';
 
 export type UpdateAuthorizationPolicyInput = {
@@ -49,6 +50,10 @@ export async function updateAuthorizationPolicy(
 
       const current = await readAuthorizationPolicy(client, parsed.policyCode);
       if (!current) return { ok: false, error: 'policy_not_found' };
+
+      if (!isMergedPolicyValid(parsed.policyCode, current, parsed.patch)) {
+        return { ok: false, error: 'invalid_input' };
+      }
 
       const updated = await client.query<{ policy_code: string; version: number | string }>(
         `update public.org_authorization_policies
@@ -183,4 +188,21 @@ function nullableString(value: string | null | undefined): string | null {
 
 function toNumber(value: number | string): number {
   return typeof value === 'number' ? value : Number(value);
+}
+
+function isMergedPolicyValid(
+  policyCode: AuthorizationPolicyCode,
+  current: AuthorizationPolicyRow,
+  patch: Partial<AuthorizationPolicyRow>,
+): boolean {
+  if (policyCode !== TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY) return true;
+
+  const minApprovers = nullableInteger(patch.min_approvers) ?? toNumber(current.min_approvers ?? 1);
+  const settingsJson = {
+    ...(current.settings_json ?? {}),
+    ...(patch.settings_json ?? {}),
+  };
+  if (minApprovers < 1) return false;
+  if (Boolean(settingsJson.require_dual_sign_off) && minApprovers < 2) return false;
+  return true;
 }

@@ -410,7 +410,7 @@ export function CreateProjectWizard({
           },
         });
         if (result.ok) {
-          router.push(`/${locale}/pipeline/${result.data.id}`);
+          router.push(`/${locale}/pipeline/${result.data.id}/formulation`);
           return;
         }
         setServerError(result.error === 'FORBIDDEN' ? labels.errorForbidden : labels.errorGeneric);
@@ -451,7 +451,7 @@ export function CreateProjectWizard({
         templateId: 'APEX_DEFAULT',
       });
       if (result.ok) {
-        router.push(`/${locale}/pipeline/${result.data.id}`);
+        router.push(`/${locale}/pipeline/${result.data.id}/formulation`);
         return;
       }
       setServerError(result.error === 'FORBIDDEN' ? labels.errorForbidden : labels.errorGeneric);

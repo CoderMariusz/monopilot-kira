@@ -5,6 +5,7 @@ import { approveReleaseBundle, rejectReleaseBundle, type QueryClient } from '../
 
 vi.mock('@monopilot/e-sign', () => ({
   signEvent: vi.fn(async () => ({ signatureId: '99999999-9999-4999-8999-999999999999' })),
+  hashESignSubject: vi.fn(() => 'bundle-subject-hash'),
 }));
 
 const FACTORY_SPEC_ID = '11111111-1111-4111-8111-111111111111';
@@ -42,7 +43,16 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function createClient(options: { bomStatus: string; specBomVersion?: number; bomVersion?: number }) {
+const OTHER_USER_ID = '88888888-8888-4888-8888-888888888888';
+
+function createClient(options: {
+  bomStatus: string;
+  specBomVersion?: number;
+  bomVersion?: number;
+  minApprovers?: number;
+  requireDualSign?: boolean;
+  existingApprovers?: string[];
+}) {
   const spec: FactorySpecRow = {
     id: FACTORY_SPEC_ID,
     fg_item_id: FG_ITEM_ID,
@@ -58,6 +68,7 @@ function createClient(options: { bomStatus: string; specBomVersion?: number; bom
     npd_project_id: PROJECT_ID,
   };
   const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+  const approvals = new Set(options.existingApprovers ?? []);
 
   const client: QueryClient = {
     async query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]) {
@@ -65,6 +76,29 @@ function createClient(options: { bomStatus: string; specBomVersion?: number; bom
       const n = normalize(sql);
 
       if (n.includes('from public.user_roles')) return { rows: [{ ok: true }] as T[] };
+      if (n.includes('from public.org_authorization_policies')) {
+        return {
+          rows: [
+            {
+              policy_code: 'technical_product_spec_approval',
+              is_enabled: true,
+              min_approvers: options.minApprovers ?? 1,
+              settings_json: { require_dual_sign_off: options.requireDualSign ?? false },
+              approver_role_codes: ['technical_manager'],
+              approval_gate_rule_code: 'technical_product_spec_approval_gate_v1',
+            },
+          ] as T[],
+        };
+      }
+      if (n.includes('from public.rule_definitions')) {
+        return { rows: [{ rule_code: 'technical_product_spec_approval_gate_v1' }] as T[] };
+      }
+      if (n.includes('from public.e_sign_log') && n.includes('exists')) {
+        return { rows: [{ exists: approvals.has(String(params?.[0])) }] as T[] };
+      }
+      if (n.includes('from public.e_sign_log') && n.includes('count(distinct signer_user_id)')) {
+        return { rows: [{ n: approvals.size }] as T[] };
+      }
       if (n.includes('from public.factory_specs') && n.startsWith('select')) {
         if (n.includes('for update')) {
           return { rows: (spec.status === 'in_review' ? [{ ...spec }] : []) as T[] };
@@ -80,8 +114,6 @@ function createClient(options: { bomStatus: string; specBomVersion?: number; bom
       if (n.includes('from public.bom_lines') && n.includes('count(*)::int as blocked')) {
         return { rows: [{ blocked: 0 }] as T[] };
       }
-      // F2 — FG↔product consistency probe: the spec's FG item carries the BOM's
-      // product code in this fixture (fg_item_id ↔ 'FG-5101').
       if (n.includes('from public.items i') && n.includes('i.item_code = $2')) {
         return { rows: (params?.[0] === FG_ITEM_ID && params?.[1] === bom.product_id ? [{ ok: true }] : []) as T[] };
       }
@@ -108,7 +140,21 @@ function createClient(options: { bomStatus: string; specBomVersion?: number; bom
     },
   };
 
-  return { client, calls, spec, bom };
+  return {
+    client,
+    calls,
+    spec,
+    bom,
+    recordApproval: (userId: string) => approvals.add(userId),
+    approvalCount: () => approvals.size,
+  };
+}
+
+function wireSignMock(recordApproval: (userId: string) => void) {
+  vi.mocked(signEvent).mockImplementation(async (input) => {
+    recordApproval(input.signerUserId);
+    return { signatureId: '99999999-9999-4999-8999-999999999999' };
+  });
 }
 
 function ctx(client: QueryClient) {
@@ -118,10 +164,12 @@ function ctx(client: QueryClient) {
 describe('release bundle approval BOM status compatibility', () => {
   beforeEach(() => {
     vi.mocked(signEvent).mockClear();
+    vi.mocked(signEvent).mockResolvedValue({ signatureId: '99999999-9999-4999-8999-999999999999' });
   });
 
   it('approves a bundle with an active BOM without regressing the BOM status', async () => {
-    const { client, calls, bom } = createClient({ bomStatus: 'active' });
+    const { client, calls, bom, recordApproval } = createClient({ bomStatus: 'active' });
+    wireSignMock(recordApproval);
 
     const result = await approveReleaseBundle(ctx(client), approveInput);
 
@@ -149,7 +197,8 @@ describe('release bundle approval BOM status compatibility', () => {
   });
 
   it('approves a bundle with a technical_approved BOM without rewriting the BOM status', async () => {
-    const { client, calls, bom } = createClient({ bomStatus: 'technical_approved' });
+    const { client, calls, bom, recordApproval } = createClient({ bomStatus: 'technical_approved' });
+    wireSignMock(recordApproval);
 
     const result = await approveReleaseBundle(ctx(client), approveInput);
 
@@ -159,7 +208,8 @@ describe('release bundle approval BOM status compatibility', () => {
   });
 
   it('still moves a draft BOM to technical_approved during bundle approval', async () => {
-    const { client, calls, bom } = createClient({ bomStatus: 'draft' });
+    const { client, calls, bom, recordApproval } = createClient({ bomStatus: 'draft' });
+    wireSignMock(recordApproval);
 
     const result = await approveReleaseBundle(ctx(client), approveInput);
 
@@ -169,7 +219,8 @@ describe('release bundle approval BOM status compatibility', () => {
   });
 
   it('locks the BOM with FOR UPDATE before the RM-usability check (N-48)', async () => {
-    const { client, calls } = createClient({ bomStatus: 'draft' });
+    const { client, calls, recordApproval } = createClient({ bomStatus: 'draft' });
+    wireSignMock(recordApproval);
 
     const result = await approveReleaseBundle(ctx(client), approveInput);
 
@@ -194,7 +245,8 @@ describe('release bundle approval BOM status compatibility', () => {
   });
 
   it('does not supersede prior factory-usable specs when the target approval update fails', async () => {
-    const { client, calls, spec } = createClient({ bomStatus: 'active' });
+    const { client, calls, spec, recordApproval } = createClient({ bomStatus: 'active' });
+    wireSignMock(recordApproval);
     const originalQuery = client.query.bind(client);
     client.query = async (sql, params) => {
       const n = normalize(sql);
@@ -211,12 +263,13 @@ describe('release bundle approval BOM status compatibility', () => {
 
     expect(result).toMatchObject({ ok: false, error: 'invalid_state', message: 'factory_spec no longer in_review' });
     expect(spec.status).toBe('in_review');
-    expect(vi.mocked(signEvent)).not.toHaveBeenCalled();
+    expect(vi.mocked(signEvent)).toHaveBeenCalledTimes(1);
     expect(calls.some((call) => normalize(call.sql).includes("set status = 'superseded'"))).toBe(false);
   });
 
   it('supersedes prior factory-usable specs only after the target approval update succeeds', async () => {
-    const { client, calls } = createClient({ bomStatus: 'active' });
+    const { client, calls, recordApproval } = createClient({ bomStatus: 'active' });
+    wireSignMock(recordApproval);
 
     const result = await approveReleaseBundle(ctx(client), approveInput);
 
@@ -232,7 +285,8 @@ describe('release bundle approval BOM status compatibility', () => {
   });
 
   it('post-lock recheck failure leaves no signature and the bundle stays retryable', async () => {
-    const { client, spec } = createClient({ bomStatus: 'active' });
+    const { client, spec, recordApproval } = createClient({ bomStatus: 'active' });
+    wireSignMock(recordApproval);
     let lockAttempts = 0;
     const originalQuery = client.query.bind(client);
     client.query = async (sql, params) => {
@@ -254,27 +308,27 @@ describe('release bundle approval BOM status compatibility', () => {
     expect(vi.mocked(signEvent)).toHaveBeenCalledTimes(1);
   });
 
-  it('signs only after factory_spec approval and supersede mutations', async () => {
-    const { client, calls } = createClient({ bomStatus: 'active' });
+  it('records the signature before the factory-usable transition', async () => {
+    const { client, calls, recordApproval } = createClient({ bomStatus: 'active' });
+    wireSignMock(recordApproval);
 
     const result = await approveReleaseBundle(ctx(client), approveInput);
     expect(result.ok).toBe(true);
 
+    const signCallOrder = calls.findIndex((call) => call.sql.includes('count(distinct signer_user_id)'));
     const approveIdx = calls.findIndex(
       (call) =>
         normalize(call.sql).startsWith('update public.factory_specs') &&
         normalize(call.sql).includes("set status = 'approved_for_factory'"),
     );
-    const supersedeIdx = calls.findIndex((call) => normalize(call.sql).includes("set status = 'superseded'"));
-    const outboxIdx = calls.findIndex((call) => normalize(call.sql).startsWith('insert into public.outbox_events'));
-    expect(approveIdx).toBeGreaterThanOrEqual(0);
-    expect(supersedeIdx).toBeGreaterThan(approveIdx);
-    expect(outboxIdx).toBeGreaterThan(supersedeIdx);
-    expect(vi.mocked(signEvent).mock.invocationCallOrder[0]).toBeGreaterThan(0);
+    expect(vi.mocked(signEvent)).toHaveBeenCalledTimes(1);
+    expect(signCallOrder).toBeGreaterThanOrEqual(0);
+    expect(approveIdx).toBeGreaterThan(signCallOrder);
   });
 
   it('closeNpdReleaseLoop only updates pending release rows', async () => {
-    const { client, calls } = createClient({ bomStatus: 'active' });
+    const { client, calls, recordApproval } = createClient({ bomStatus: 'active' });
+    wireSignMock(recordApproval);
     const originalQuery = client.query.bind(client);
     client.query = async (sql, params) => {
       const n = normalize(sql);
@@ -289,6 +343,71 @@ describe('release bundle approval BOM status compatibility', () => {
     const result = await approveReleaseBundle(ctx(client), approveInput);
     expect(result.ok).toBe(true);
     expect(calls.some((call) => normalize(call.sql).startsWith('update public.factory_release_status'))).toBe(true);
+  });
+});
+
+describe('release bundle dual-sign accumulation (S22)', () => {
+  beforeEach(() => {
+    vi.mocked(signEvent).mockClear();
+  });
+
+  it('requires two distinct approvers before the final approved transition', async () => {
+    const first = createClient({ bomStatus: 'active', minApprovers: 2, requireDualSign: true });
+    wireSignMock(first.recordApproval);
+
+    const pending = await approveReleaseBundle(ctx(first.client), approveInput);
+    expect(pending).toMatchObject({
+      ok: true,
+      data: {
+        approvalStatus: 'pending',
+        approvalsCollected: 1,
+        approvalsRequired: 2,
+        factorySpecStatus: 'in_review',
+      },
+    });
+    expect(first.spec.status).toBe('in_review');
+    expect(first.calls.some((call) => normalize(call.sql).includes("set status = 'approved_for_factory'"))).toBe(false);
+
+    const second = createClient({
+      bomStatus: 'active',
+      minApprovers: 2,
+      requireDualSign: true,
+      existingApprovers: [USER_ID],
+    });
+    wireSignMock(second.recordApproval);
+
+    const complete = await approveReleaseBundle(
+      { userId: OTHER_USER_ID, orgId: ORG_ID, client: second.client },
+      approveInput,
+    );
+    expect(complete).toMatchObject({
+      ok: true,
+      data: {
+        approvalStatus: 'complete',
+        approvalsCollected: 2,
+        approvalsRequired: 2,
+        factorySpecStatus: 'approved_for_factory',
+      },
+    });
+  });
+
+  it('rejects a same-user second approval when dual-sign requires distinct approvers', async () => {
+    const fixture = createClient({
+      bomStatus: 'active',
+      minApprovers: 2,
+      requireDualSign: true,
+      existingApprovers: [USER_ID],
+    });
+    wireSignMock(fixture.recordApproval);
+
+    const result = await approveReleaseBundle(ctx(fixture.client), approveInput);
+
+    expect(result).toMatchObject({ ok: false, error: 'invalid_state' });
+    if (!result.ok) {
+      expect(result.message).toContain('already signed');
+    }
+    expect(vi.mocked(signEvent)).not.toHaveBeenCalled();
+    expect(fixture.spec.status).toBe('in_review');
   });
 });
 

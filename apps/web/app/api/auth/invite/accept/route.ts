@@ -1,6 +1,7 @@
 export const runtime = 'nodejs';
 
 import { getOwnerConnection } from '@monopilot/db/clients';
+import { syncUserOnboardingClaimFromOrg } from '../../../../../lib/auth/sync-user-onboarding-claim';
 
 type InviteRow = {
   id: string;
@@ -99,5 +100,20 @@ export async function POST(request: Request): Promise<Response> {
     ],
   );
 
-  return json(200, { ok: 'true', email: row.email });
+  let onboardingClaimSynced = true;
+  try {
+    onboardingClaimSynced = await syncUserOnboardingClaimFromOrg(row.id);
+  } catch (error) {
+    onboardingClaimSynced = false;
+    console.error(
+      '[invite/accept] onboarding claim sync failed; user can recover on next login',
+      error,
+    );
+  }
+
+  return json(200, {
+    ok: 'true',
+    email: row.email,
+    onboardingClaimSynced: onboardingClaimSynced ? 'true' : 'false',
+  });
 }
