@@ -36,7 +36,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@monopilot/ui/Tabs';
 
 import { WoStatusBadge } from './wo-status-badge';
 import { EditWoModal, type EditWoLabels, type EditWoResult } from './edit-wo-modal';
-import type { DeleteDraftWorkOrderResult, GetPlanningWorkOrderResult } from '../_actions/shared';
+import type { DeleteDraftWorkOrderResult, GetPlanningWorkOrderResult, CancelWorkOrderChainResult } from '../_actions/shared';
 import type { FgProductOption, ProductionResources, SearchFgProductsInput } from '../_actions/wo-form-data';
 
 type Wo = Extract<GetPlanningWorkOrderResult, { ok: true }>['workOrder'];
@@ -83,6 +83,13 @@ export type WoDetailLabels = {
     confirm: string;
     error: string;
   };
+  cancelChain?: {
+    button: string;
+    pending: string;
+    confirm: string;
+    error: string;
+    blocked: string;
+  };
 };
 
 function fmtTs(iso: string | null, locale: string): string {
@@ -120,6 +127,7 @@ export function WoDetailView({
   searchFgProductsAction,
   updateWorkOrderAction,
   deleteDraftWorkOrderAction,
+  cancelWorkOrderChainAction,
 }: {
   workOrder: Wo;
   labels: WoDetailLabels;
@@ -137,6 +145,7 @@ export function WoDetailView({
     notes?: string;
   }) => Promise<EditWoResult>;
   deleteDraftWorkOrderAction?: (params: { id: string }) => Promise<DeleteDraftWorkOrderResult>;
+  cancelWorkOrderChainAction?: (params: { id: string }) => Promise<CancelWorkOrderChainResult>;
 }) {
   const router = useRouter();
   const wo = workOrder;
@@ -155,10 +164,19 @@ export function WoDetailView({
   // Keep the wiring checks INLINE on the render guard below so TS narrows the
   // optional seams; `canEdit` only carries the status + label presence.
   const isDraft = wo.status.toUpperCase() === 'DRAFT';
+  const isReleased = wo.status.toUpperCase() === 'RELEASED';
+  const hasChain = wo.dependencies.length > 0;
+  const canCancelChain =
+    hasChain
+    && (isDraft || isReleased)
+    && !!labels.cancelChain
+    && !!cancelWorkOrderChainAction;
   const canEdit = isDraft && !!labels.edit;
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
+  const [cancellingChain, setCancellingChain] = React.useState(false);
+  const [cancelChainError, setCancelChainError] = React.useState<string | null>(null);
 
   async function onDeleteDraft() {
     if (!deleteDraftWorkOrderAction || deleting) return;
@@ -181,6 +199,33 @@ export function WoDetailView({
     }
   }
 
+  async function onCancelChain() {
+    if (!cancelWorkOrderChainAction || cancellingChain) return;
+    const confirmText = (labels.cancelChain?.confirm ?? '').replace('{wo}', wo.woNumber);
+    if (!window.confirm(confirmText)) return;
+    setCancellingChain(true);
+    setCancelChainError(null);
+    try {
+      const result = await cancelWorkOrderChainAction({ id: wo.id });
+      if (!result.ok) {
+        const map = labels.cancelChain as Record<string, string> | undefined;
+        setCancelChainError(
+          result.error === 'chain_cancel_blocked'
+            ? map?.blocked ?? labels.cancelChain?.error ?? result.error
+            : map?.error ?? labels.cancelChain?.error ?? result.error,
+        );
+        setCancellingChain(false);
+        return;
+      }
+      router.push(`/${locale}/planning/work-orders`);
+      router.refresh();
+    } catch {
+      setCancelChainError(labels.cancelChain?.error ?? 'persistence_failed');
+    } finally {
+      setCancellingChain(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4" data-testid="wo-detail-view" data-prototype-label="plan_wo_detail">
       {/* Header */}
@@ -192,6 +237,18 @@ export function WoDetailView({
           {canEdit && updateWorkOrderAction && searchFgProductsAction && resources && labels.edit ? (
             <Button type="button" className="btn--secondary btn-sm" data-testid="wo-edit-order" onClick={() => setEditOpen(true)}>
               {labels.edit.editButton}
+            </Button>
+          ) : null}
+          {canCancelChain ? (
+            <Button
+              type="button"
+              className="btn--ghost btn-sm text-amber-800 hover:bg-amber-50"
+              data-testid="wo-cancel-chain"
+              disabled={cancellingChain}
+              aria-busy={cancellingChain}
+              onClick={onCancelChain}
+            >
+              {cancellingChain ? labels.cancelChain!.pending : labels.cancelChain!.button}
             </Button>
           ) : null}
           {isDraft && labels.deleteDraft && deleteDraftWorkOrderAction ? (
@@ -208,6 +265,12 @@ export function WoDetailView({
           ) : null}
         </div>
       </div>
+
+      {cancelChainError ? (
+        <div role="alert" data-testid="wo-cancel-chain-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {cancelChainError}
+        </div>
+      ) : null}
 
       {deleteError ? (
         <div role="alert" data-testid="wo-delete-draft-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

@@ -636,23 +636,29 @@ export function AllergenCascadeWidget({
                   data-testid={`allergen-eu14-cell-${code}`}
                   data-present={present ? 'true' : 'false'}
                   className={[
-                    'flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-xs',
+                    // min-w-0 + overflow-hidden: grid cells must not bleed into neighbours
+                    // (adjacent li boxes were intercepting real pointer clicks on Override).
+                    'isolate flex min-w-0 flex-col gap-1 overflow-hidden rounded-md border px-2 py-1.5 text-xs',
                     present
                       ? 'border-red-300 bg-red-50 text-red-900'
                       : 'border-slate-200 bg-slate-50 text-slate-500',
                   ].join(' ')}
                 >
-                  <span className="flex items-center gap-1">
-                    <span aria-hidden="true">{present ? '●' : '○'}</span>
-                    <span>{displayName(code)}</span>
-                  </span>
-                  <span className="font-medium">{stateText}</span>
+                  <div className="flex min-w-0 items-start justify-between gap-1">
+                    <span className="flex min-w-0 items-center gap-1 truncate">
+                      <span aria-hidden="true" className="shrink-0">
+                        {present ? '●' : '○'}
+                      </span>
+                      <span className="truncate">{displayName(code)}</span>
+                    </span>
+                    <span className="shrink-0 font-medium">{stateText}</span>
+                  </div>
                   {canWrite && setAllergenOverrideAction ? (
                     <button
                       type="button"
                       data-testid={`allergen-override-trigger-${code}`}
                       aria-label={`${labels.override} ${displayName(code)}`}
-                      className="text-blue-700 underline-offset-2 hover:underline"
+                      className="relative z-10 shrink-0 self-end rounded px-1 py-0.5 text-blue-700 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600"
                       onClick={() =>
                         handleOpenOverride({
                           allergenCode: code,
@@ -666,7 +672,7 @@ export function AllergenCascadeWidget({
                   ) : canWrite ? (
                     <span
                       data-testid={`allergen-override-unavailable-${code}`}
-                      className="text-xs text-slate-400"
+                      className="self-end text-xs text-slate-400"
                       title={labels.overrideUnavailable ?? labels.forbidden}
                     >
                       {labels.overrideUnavailable ?? labels.forbidden}
@@ -678,7 +684,7 @@ export function AllergenCascadeWidget({
                       data-testid={`allergen-override-disabled-${code}`}
                       aria-label={`${labels.override} ${displayName(code)} — ${labels.forbidden}`}
                       title={labels.forbidden}
-                      className="cursor-not-allowed text-xs text-slate-400"
+                      className="relative z-10 shrink-0 cursor-not-allowed self-end text-xs text-slate-400"
                     >
                       {labels.override}
                     </button>

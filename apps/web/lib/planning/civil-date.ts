@@ -16,6 +16,11 @@ export function civilDateToUtcIso(date: string): string {
   return new Date(`${date}T00:00:00.000Z`).toISOString();
 }
 
+/** Today's calendar date in UTC (YYYY-MM-DD) for date-input defaults. */
+export function todayCivilDateUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 /** ISO timestamptz → YYYY-MM-DD in UTC (for `<input type="date">` value). */
 export function utcIsoToCivilDate(iso: string | null | undefined): string {
   if (!iso) return '';

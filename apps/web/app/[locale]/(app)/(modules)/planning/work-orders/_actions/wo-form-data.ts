@@ -27,6 +27,8 @@
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
+import { PRODUCTION_LINES_SITE_FILTER_SQL } from '../../../../../../../lib/site/production-lines-site-filter';
 import { FG_FACTORY_RELEASE_WO_GATE_SQL } from '../../../../../../../lib/planning/factory-release-wo-gate';
 import type { QueryClient } from './shared';
 
@@ -122,12 +124,15 @@ export async function searchFgProducts(input: SearchFgProductsInput = {}): Promi
 export async function listProductionResources(): Promise<ProductionResources> {
   return withOrgContext<ProductionResources>(async (ctx) => {
     const client = ctx.client as unknown as QueryClient;
+    const activeSiteId = (await getActiveSiteId({ client })) ?? null;
     const { rows } = await client.query<{ id: string; code: string; name: string }>(
       `select id, code, name
-         from public.production_lines
-        where org_id = app.current_org_id()
-          and status = 'active'
-        order by code`,
+         from public.production_lines pl
+        where pl.org_id = app.current_org_id()
+          and pl.status = 'active'
+          ${PRODUCTION_LINES_SITE_FILTER_SQL}
+        order by pl.code`,
+      [activeSiteId],
     );
     return {
       lines: rows.map((r) => ({ id: r.id, code: r.code, name: r.name })),

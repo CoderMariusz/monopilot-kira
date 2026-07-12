@@ -12,6 +12,7 @@
 import { z } from 'zod';
 
 import { createWorkOrderChainForContext } from '../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain';
+import { releaseWorkOrderChainForContext } from '../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/releaseWorkOrder';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import { materializeNpdBom } from '../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom';
@@ -43,10 +44,11 @@ type CreatePilotWoError =
 type PilotWorkOrderLink = {
   id: string;
   woNumber: string;
+  status: string;
 };
 
 type CreatePilotWoResult =
-  | { ok: true; data: PilotWorkOrderLink; created: boolean }
+  | { ok: true; data: PilotWorkOrderLink; created: boolean; released: boolean }
   | { ok: false; error: CreatePilotWoError; message?: string; planningError?: string };
 
 const WRITE_PERMISSION = 'npd.pilot.write';
@@ -127,8 +129,8 @@ async function loadProductPrivateJson(ctx: OrgCtx, productCode: string): Promise
 }
 
 async function loadWorkOrderById(ctx: OrgCtx, woId: string): Promise<PilotWorkOrderLink | null> {
-  const { rows } = await ctx.client.query<{ id: string; wo_number: string }>(
-    `select id::text as id, wo_number
+  const { rows } = await ctx.client.query<{ id: string; wo_number: string; status: string }>(
+    `select id::text as id, wo_number, status
        from public.work_orders
       where org_id = app.current_org_id()
         and id = $1::uuid
@@ -136,12 +138,12 @@ async function loadWorkOrderById(ctx: OrgCtx, woId: string): Promise<PilotWorkOr
     [woId],
   );
   const row = rows[0];
-  return row ? { id: row.id, woNumber: row.wo_number } : null;
+  return row ? { id: row.id, woNumber: row.wo_number, status: row.status } : null;
 }
 
 async function loadWorkOrderByNumber(ctx: OrgCtx, woNumber: string): Promise<PilotWorkOrderLink | null> {
-  const { rows } = await ctx.client.query<{ id: string; wo_number: string }>(
-    `select id::text as id, wo_number
+  const { rows } = await ctx.client.query<{ id: string; wo_number: string; status: string }>(
+    `select id::text as id, wo_number, status
        from public.work_orders
       where org_id = app.current_org_id()
         and wo_number = $1
@@ -149,7 +151,7 @@ async function loadWorkOrderByNumber(ctx: OrgCtx, woNumber: string): Promise<Pil
     [woNumber],
   );
   const row = rows[0];
-  return row ? { id: row.id, woNumber: row.wo_number } : null;
+  return row ? { id: row.id, woNumber: row.wo_number, status: row.status } : null;
 }
 
 async function linkPilotWoToProduct(ctx: OrgCtx, productCode: string, woId: string): Promise<void> {
@@ -348,7 +350,7 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
       const existing = await resolveExistingPilotWo(ctx, productCode, product?.private_jsonb ?? null);
       if (existing) {
         await linkPilotWoToProduct(ctx, productCode, existing.id);
-        return { ok: true as const, data: existing, created: false };
+        return { ok: true as const, data: existing, created: false, released: existing.status === 'RELEASED' };
       }
 
       const [lockedRecipe, activeBom, pilotRun, projectProductionLineId] = await Promise.all([
@@ -440,18 +442,29 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
         };
       }
 
-      const link = { id: createResult.fgWorkOrder.id, woNumber: createResult.fgWorkOrder.woNumber };
+      const link = { id: createResult.fgWorkOrder.id, woNumber: createResult.fgWorkOrder.woNumber, status: createResult.fgWorkOrder.status };
       await linkPilotWoToProduct(ctx, productCode, link.id);
 
       if (pilotRun?.id) {
         await persistPilotRunLineIds(ctx, pilotRun.id, productionLine.id, legacyLineCode);
       }
 
+      const releaseResult = await releaseWorkOrderChainForContext(ctx, link.id);
+      const released = releaseResult.ok;
+      const data: PilotWorkOrderLink = released
+        ? {
+            id: releaseResult.workOrder.id,
+            woNumber: releaseResult.workOrder.woNumber,
+            status: releaseResult.workOrder.status,
+          }
+        : link;
+
       revalidateLocalized(`/pipeline/${projectId}/pilot`);
       revalidateLocalized('/planning/work-orders');
       revalidateLocalized(`/production/wos/${link.id}`);
+      revalidateLocalized('/scheduler');
 
-      return { ok: true as const, data: link, created: true };
+      return { ok: true as const, data, created: true, released };
     });
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('wo_create_failed:')) {

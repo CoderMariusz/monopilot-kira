@@ -12,7 +12,7 @@ import {
   mapProjectRow,
 } from './shared';
 import { peekSuggestedFgCandidateCode } from './_lib/gate-helpers';
-import { applyGateChecklistAutoSatisfy } from '../_lib/gate-checklist-auto-satisfy';
+import { applyGateChecklistAutoSatisfy, buildGateChecklistAutoSignals } from '../_lib/gate-checklist-auto-satisfy';
 
 const GATE_ADVANCE_PERMISSION = 'npd.gate.advance';
 
@@ -115,6 +115,7 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
         ProjectRow & {
           recipe_ingredient_count: number;
           has_locked_formulation: boolean;
+          linked_bom_count: number;
         }
       >(
         `select p.id,
@@ -149,7 +150,11 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
                    where f.org_id = app.current_org_id()
                      and f.project_id = p.id
                      and fv.state = 'locked'
-                ) as has_locked_formulation
+                ) as has_locked_formulation,
+                (select count(bh.id)::int
+                   from public.bom_headers bh
+                  where bh.org_id = app.current_org_id()
+                    and bh.npd_project_id = p.id) as linked_bom_count
            from public.npd_projects p
            left join public.gate_checklist_items gci
              on gci.project_id = p.id
@@ -180,10 +185,13 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
       const project = projectRows.rows[0];
       if (!project) return { ok: false, error: 'NOT_FOUND' };
       const recipeIngredientCount = Number(project.recipe_ingredient_count ?? 0);
-      const hasLockedFormulation = project.has_locked_formulation === true;
-      const hasFgCandidate =
-        project.product_code !== null &&
-        project.product_code.trim() !== '';
+      const autoSignals = buildGateChecklistAutoSignals({
+        product_code: project.product_code,
+        recipe_ingredient_count: recipeIngredientCount,
+        has_locked_formulation: project.has_locked_formulation === true,
+        linked_bom_count: Number(project.linked_bom_count ?? 0),
+      });
+      const hasFgCandidate = autoSignals.hasFgCandidate;
       const suggestedFgCandidateCode = await peekSuggestedFgCandidateCode(context.client, context.orgId, project.code);
 
       const [checklistRows, approvalsRows] = await Promise.all([
@@ -252,11 +260,6 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
       ]);
 
       const checklistByGate = groupChecklist(checklistRows.rows);
-      const autoSignals = {
-        hasLockedFormulation,
-        hasFgCandidate,
-        ingredientCount: recipeIngredientCount,
-      };
       for (const gate of checklistGates) {
         checklistByGate[gate] = applyGateChecklistAutoSatisfy(checklistByGate[gate], autoSignals);
       }

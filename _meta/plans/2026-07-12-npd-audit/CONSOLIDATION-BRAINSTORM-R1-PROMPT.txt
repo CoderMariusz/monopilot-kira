@@ -1,0 +1,25 @@
+Design the execution plan to CONSOLIDATE the two NPD systems in monopilot-kira into one. This is round 1 of a 3-round brainstorm (Codex → Fable → Codex). Output a concrete, buildable plan — not prose.
+
+Current state (read the code to confirm):
+- KEEP: /pipeline/[projectId] (apps/web/app/[locale]/(app)/(npd)/pipeline/**) — stages: brief, formulation(Recipe), approval, packaging, costing, handoff, trial, gate, pilot, sensory, nutrition. Gate/checklist via advance-project-gate.ts + gate-checklist-auto-satisfy.ts.
+- REMOVE (views, not tables/actions yet): /fg + /npd (apps/web/app/[locale]/(app)/(npd)/fg/** and /npd/**) — the department-workspace FG system: Core/Commercial/Production department tabs, D365 build/export, compliance docs, allergen cascade, risks, validations V01–V08, department-close, ProdDetail, create-WIP-from-process.
+- FormulationWipPanel (formulation/_components/formulation-wip-panel.tsx) exists but is unmounted; wave D3 mounts it in Recipe.
+
+Owner's target mapping (validate + refine, propose better if warranted):
+- process assignment + roles + create-WIP + ProdDetail/initial-BOM → Recipe/G3
+- V01–V08 validations → a shared pipeline validation panel + gate blockers
+- compliance documents → Approval stage
+- allergen cascade + sign-off → Recipe + Approval
+- department-close → stage checklists (not a second workflow)
+- D365 build/export → Handoff/Launch (export-only)
+- build/document/audit history → keep, no history rewrite
+
+Deliver:
+1. A route/component MOVE MAP: for each /fg + /npd surface (list every page + key component), where it lands in /pipeline (which stage/tab), or "delete", or "keep as read-only". Cite files.
+2. DATA/BACKEND plan: which server actions + tables are reused as-is, which move, what (if any) migration is needed. Flag every FK/reference that ties /fg to data (product, prod_detail, npd_wip_processes, compliance docs, npd_projects) and how in-flight FGs (FG-016, NPD-013/014/015) are handled. Prefer NO destructive migration; keep history.
+3. LINK/REDIRECT strategy: every internal link to /fg or /npd (grep them) — repoint to the pipeline equivalent; /fg + /npd become temporary redirects/read-only before any code deletion.
+4. SAFE ORDERING: phased steps (move UI + repoint links → redirect/read-only /fg → delete dead code last), each independently shippable + E2E-checkable, so the app is never broken mid-migration.
+5. The END-TO-END NPD FLOW that must pass afterward (create project → Recipe/process/WIP/BOM → validations → approval+compliance+allergen → gate → pilot WO → schedulable in Planning → handoff/D365 export), with the acceptance check per step.
+6. Top RISKS + mitigations.
+
+Read the real code (routes, components, actions, links). Be specific with file paths. Do NOT edit code. Output the plan as structured markdown.

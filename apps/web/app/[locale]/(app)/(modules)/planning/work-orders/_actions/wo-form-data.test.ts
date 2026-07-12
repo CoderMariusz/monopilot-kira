@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { searchFgProducts } from './wo-form-data';
+import { searchFgProducts, listProductionResources } from './wo-form-data';
 import type { QueryClient } from './shared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -8,10 +8,17 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 
 let client: QueryClient;
 
+const { withOrgContextMock, getActiveSiteIdMock } = vi.hoisted(() => ({
+  withOrgContextMock: vi.fn(),
+  getActiveSiteIdMock: vi.fn(),
+}));
+
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
-  withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, client }),
-  ),
+  withOrgContext: withOrgContextMock,
+}));
+
+vi.mock('../../../../../../../lib/site/site-context', () => ({
+  getActiveSiteId: getActiveSiteIdMock,
 }));
 
 function makeClient(): QueryClient {
@@ -38,6 +45,10 @@ function makeClient(): QueryClient {
 describe('searchFgProducts (M-7: co_product is plannable)', () => {
   beforeEach(() => {
     client = makeClient();
+    withOrgContextMock.mockImplementation(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+    getActiveSiteIdMock.mockResolvedValue(null);
   });
 
   it('queries plannable outputs — both fg AND co_product item types', async () => {
@@ -56,5 +67,34 @@ describe('searchFgProducts (M-7: co_product is plannable)', () => {
     expect(sql).toContain('factory_release_status');
     expect(sql).toContain('released_to_factory');
     expect(sql).toContain('npd_project_id');
+  });
+});
+
+describe('listProductionResources (Extra-2 site filter)', () => {
+  const SITE_Y = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+  beforeEach(() => {
+    client = makeClient();
+    withOrgContextMock.mockImplementation(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+    getActiveSiteIdMock.mockResolvedValue(SITE_Y);
+  });
+
+  it('scopes production lines to the active site (plus null-site lines)', async () => {
+    vi.mocked(client.query).mockImplementation(async (sql: string, params: readonly unknown[] = []) => {
+      if (/from public\.production_lines/.test(sql)) {
+        expect(params[0]).toBe(SITE_Y);
+        expect(sql).toContain('($1::uuid is null or pl.site_id = $1::uuid or pl.site_id is null)');
+        return {
+          rows: [{ id: 'line-y', code: 'LY', name: 'Line Y' }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await listProductionResources();
+    expect(result.lines).toEqual([{ id: 'line-y', code: 'LY', name: 'Line Y' }]);
   });
 });

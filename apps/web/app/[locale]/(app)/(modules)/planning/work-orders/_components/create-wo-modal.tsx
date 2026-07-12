@@ -43,7 +43,7 @@ import {
   type OutputUom,
   type UomSnapshot,
 } from '../../../../../../../lib/uom/convert';
-import { civilDateToUtcIso } from '../../../../../../../lib/planning/civil-date';
+import { civilDateToUtcIso, todayCivilDateUtc } from '../../../../../../../lib/planning/civil-date';
 import type { CreateWorkOrderResult } from '../_actions/shared';
 import type { FgProductOption, ProductionResources, SearchFgProductsInput } from '../_actions/wo-form-data';
 
@@ -200,7 +200,8 @@ export function CreateWoModal({
   const [formError, setFormError] = React.useState<string | null>(null);
   const [warning, setWarning] = React.useState<string | null>(null);
 
-  // Reset all field + status state whenever the modal is (re)opened/closed.
+  // Reset field + status state when the modal closes; seed scheduled start to today
+  // when it opens so the visible default date is always forwarded on submit (Extra-1).
   React.useEffect(() => {
     if (!open) {
       setProduct(null);
@@ -212,7 +213,9 @@ export function CreateWoModal({
       setPending(false);
       setFormError(null);
       setWarning(null);
+      return;
     }
+    setScheduledStart(todayCivilDateUtc());
   }, [open]);
 
   // The ItemPickerOption contract has no pack fields, so we stash the raw Fg rows

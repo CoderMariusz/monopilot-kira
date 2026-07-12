@@ -31,6 +31,7 @@ export type PlanningWorkOrderError =
   | 'document_mask_missing'
   | 'not_released_to_factory'
   | 'chain_delete_blocked'
+  | 'chain_cancel_blocked'
   | 'line_site_mismatch'
   | 'chain_child_not_editable'
   | 'persistence_failed';
@@ -242,6 +243,10 @@ export type ReleaseWorkOrderResult =
 export type DeleteDraftWorkOrderResult =
   | { ok: true; id: string }
   | { ok: false; error: PlanningWorkOrderError };
+
+export type CancelWorkOrderChainResult =
+  | { ok: true; rootId: string; cancelledIds: string[] }
+  | { ok: false; error: PlanningWorkOrderError | 'chain_cancel_blocked' };
 
 export const CreateWorkOrderInput = z.object({
   productId: z.string().uuid(),

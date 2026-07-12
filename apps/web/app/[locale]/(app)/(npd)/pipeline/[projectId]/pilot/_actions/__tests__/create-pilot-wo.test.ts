@@ -12,9 +12,10 @@ type Handler = (sql: string, params: readonly unknown[]) => { rows: unknown[] } 
 
 const handlerHolder: { handler: Handler } = { handler: () => ({ rows: [] }) };
 
-const { createWorkOrderChainMock, materializeNpdBomMock } = vi.hoisted(() => ({
+const { createWorkOrderChainMock, materializeNpdBomMock, releaseWorkOrderChainMock } = vi.hoisted(() => ({
   createWorkOrderChainMock: vi.fn(),
   materializeNpdBomMock: vi.fn(),
+  releaseWorkOrderChainMock: vi.fn(),
 }));
 
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
@@ -32,6 +33,10 @@ vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
 
 vi.mock('../../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain', () => ({
   createWorkOrderChainForContext: createWorkOrderChainMock,
+}));
+
+vi.mock('../../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/releaseWorkOrder', () => ({
+  releaseWorkOrderChainForContext: releaseWorkOrderChainMock,
 }));
 
 vi.mock('../../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom', () => ({
@@ -52,11 +57,35 @@ const PRODUCT_CODE = 'FG0042';
 afterEach(() => {
   handlerHolder.handler = () => ({ rows: [] });
   createWorkOrderChainMock.mockReset();
+  releaseWorkOrderChainMock.mockReset();
   materializeNpdBomMock.mockReset();
   vi.clearAllMocks();
 });
 
 beforeEach(() => {
+  releaseWorkOrderChainMock.mockResolvedValue({
+    ok: true,
+    workOrder: {
+      id: WO_ID,
+      woNumber: `WO-pilot-${PRODUCT_CODE}`,
+      productId: ITEM_ID,
+      itemCode: PRODUCT_CODE,
+      itemTypeAtCreation: 'fg',
+      plannedQuantity: '250.1250',
+      producedQuantity: null,
+      uom: 'kg',
+      status: 'RELEASED',
+      scheduledStartTime: '2026-07-10T00:00:00.000Z',
+      scheduledEndTime: null,
+      productionLineId: LINE_ID,
+      priority: 'normal',
+      sourceOfDemand: 'manual',
+      sourceReference: PRODUCT_CODE,
+      notes: null,
+      createdAt: '2026-07-03T00:00:00.000Z',
+      updatedAt: '2026-07-03T00:00:00.000Z',
+    },
+  });
   materializeNpdBomMock.mockResolvedValue({
     projectId: PROJECT,
     productCode: PRODUCT_CODE,
@@ -109,7 +138,7 @@ function seedHappyPath(rest?: Handler): Handler {
       return { rows: [] };
     }
     if (/from public.work_orders/.test(sql) && /id = \$1/.test(sql)) {
-      return { rows: [{ id: WO_ID, wo_number: 'WO-202607-0007' }] };
+      return { rows: [{ id: WO_ID, wo_number: 'WO-202607-0007', status: 'DRAFT' }] };
     }
     if (/from public.work_orders/.test(sql) && /wo_number/.test(sql)) {
       return { rows: [] };
@@ -164,10 +193,15 @@ describe('createPilotWorkOrder', () => {
     const result = await createPilotWorkOrder({ projectId: PROJECT });
     expect(result).toEqual({
       ok: true,
-      data: { id: WO_ID, woNumber: `WO-pilot-${PRODUCT_CODE}` },
+      data: { id: WO_ID, woNumber: `WO-pilot-${PRODUCT_CODE}`, status: 'RELEASED' },
       created: true,
+      released: true,
     });
     expect(createWorkOrderChainMock).toHaveBeenCalledTimes(1);
+    expect(releaseWorkOrderChainMock).toHaveBeenCalledWith(
+      expect.objectContaining({ orgId: '07300000-0000-4000-8000-00000000000a' }),
+      WO_ID,
+    );
     expect(createWorkOrderChainMock).toHaveBeenCalledWith(
       expect.objectContaining({ orgId: '07300000-0000-4000-8000-00000000000a' }),
       expect.objectContaining({
@@ -282,7 +316,7 @@ describe('createPilotWorkOrder', () => {
   });
 
   it('returns the existing pilot WO on a second call (idempotent)', async () => {
-    const linked = { id: WO_ID, wo_number: `WO-pilot-${PRODUCT_CODE}` };
+    const linked = { id: WO_ID, wo_number: `WO-pilot-${PRODUCT_CODE}`, status: 'RELEASED' };
     handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
       if (/from public.npd_projects/.test(sql)) {
         return { rows: [{ id: PROJECT, product_code: PRODUCT_CODE }] };
@@ -304,13 +338,15 @@ describe('createPilotWorkOrder', () => {
 
     expect(first).toEqual({
       ok: true,
-      data: { id: WO_ID, woNumber: `WO-pilot-${PRODUCT_CODE}` },
+      data: { id: WO_ID, woNumber: `WO-pilot-${PRODUCT_CODE}`, status: 'RELEASED' },
       created: false,
+      released: true,
     });
     expect(second).toEqual({
       ok: true,
-      data: { id: WO_ID, woNumber: `WO-pilot-${PRODUCT_CODE}` },
+      data: { id: WO_ID, woNumber: `WO-pilot-${PRODUCT_CODE}`, status: 'RELEASED' },
       created: false,
+      released: true,
     });
     expect(createWorkOrderChainMock).not.toHaveBeenCalled();
   });

@@ -22,7 +22,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getPlanningWorkOrder } from '../_actions/getPlanningWorkOrder';
 import { updateWorkOrder } from '../_actions/update-work-order';
-import { deleteDraftWorkOrder } from '../_actions/releaseWorkOrder';
+import { cancelWorkOrderChain, deleteDraftWorkOrder } from '../_actions/releaseWorkOrder';
 import { searchFgProducts, listProductionResources } from '../_actions/wo-form-data';
 import { WoDetailView, type WoDetailLabels } from '../_components/wo-detail-view';
 
@@ -112,6 +112,17 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoDetailLa
       pending: t.has('detail.deleteDraft.pending') ? t('detail.deleteDraft.pending') : 'Deleting...',
       confirm: t.has('detail.deleteDraft.confirm') ? String(t.raw('detail.deleteDraft.confirm')) : 'Delete draft work order {wo}? This cannot be undone.',
       error: t.has('detail.deleteDraft.error') ? t('detail.deleteDraft.error') : 'Could not delete this draft work order.',
+    },
+    cancelChain: {
+      button: t.has('detail.cancelChain.button') ? t('detail.cancelChain.button') : 'Cancel chain',
+      pending: t.has('detail.cancelChain.pending') ? t('detail.cancelChain.pending') : 'Cancelling…',
+      confirm: t.has('detail.cancelChain.confirm')
+        ? String(t.raw('detail.cancelChain.confirm'))
+        : 'Cancel work order chain rooted at {wo}? All linked draft/released orders will be cancelled.',
+      error: t.has('detail.cancelChain.error') ? t('detail.cancelChain.error') : 'Could not cancel this work order chain.',
+      blocked: t.has('detail.cancelChain.blocked')
+        ? t('detail.cancelChain.blocked')
+        : 'This chain cannot be cancelled while execution or output activity exists.',
     },
     status: {
       draft: t('woStatus.draft'),
@@ -223,6 +234,7 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
       searchFgProductsAction={searchFgProducts}
       updateWorkOrderAction={updateWorkOrderAction}
       deleteDraftWorkOrderAction={deleteDraftWorkOrderAction}
+      cancelWorkOrderChainAction={cancelWorkOrderChain}
     />
   );
 }

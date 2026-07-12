@@ -29,6 +29,8 @@ import {
 import { closeOutLegacyStagesForLaunch } from './close-out-legacy-stages';
 import { type OrgContextLike, type ProjectGate } from './shared';
 import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
+import { isGateChecklistItemResolved } from '../_lib/gate-checklist-auto-satisfy';
+import { loadGateChecklistAutoSignals } from '../_lib/gate-checklist-signals';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // advanceProjectGate — STAGE-NATIVE advance (2026-06-06 pivot).
@@ -129,18 +131,23 @@ async function incompleteRequiredChecklistItems(
   gateCode: ProjectGate,
 ): Promise<string[]> {
   if (gateCode === 'Launched') return [];
-  const { rows } = await ctx.client.query<{ item_text: string }>(
-    `select gci.item_text
-       from public.gate_checklist_items gci
-      where gci.org_id = app.current_org_id()
-        and gci.project_id = $1::uuid
-        and gci.gate_code = $2::text
-        and gci.required = true
-        and gci.completed_at is null
-      order by gci.item_text asc`,
-    [projectId, gateCode],
-  );
-  return rows.map((row) => `Checklist: ${row.item_text.trim()}`);
+  const [signals, checklist] = await Promise.all([
+    loadGateChecklistAutoSignals(ctx.client, projectId),
+    ctx.client.query<{ item_text: string; completed_at: string | null }>(
+      `select gci.item_text,
+              gci.completed_at::text as completed_at
+         from public.gate_checklist_items gci
+        where gci.org_id = app.current_org_id()
+          and gci.project_id = $1::uuid
+          and gci.gate_code = $2::text
+          and gci.required = true
+        order by gci.item_text asc`,
+      [projectId, gateCode],
+    ),
+  ]);
+  return checklist.rows
+    .filter((row) => !isGateChecklistItemResolved(row.item_text, row.completed_at, signals))
+    .map((row) => `Checklist: ${row.item_text.trim()}`);
 }
 
 async function requiredFieldsMissing(

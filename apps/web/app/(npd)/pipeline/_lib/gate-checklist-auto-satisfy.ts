@@ -6,12 +6,17 @@
  * pattern in get-project.ts (no completed_at write).
  */
 
-export type GateChecklistAutoKind = 'formulation_locked' | 'fg_candidate' | 'ingredients_present';
+export type GateChecklistAutoKind =
+  | 'formulation_locked'
+  | 'fg_candidate'
+  | 'ingredients_present'
+  | 'linked_bom_ready';
 
 export type GateChecklistAutoSignals = {
   hasLockedFormulation: boolean;
   hasFgCandidate: boolean;
   ingredientCount: number;
+  linkedBomCount: number;
 };
 
 /** Stable English seed texts from Reference.GateChecklistTemplates (mig 426). */
@@ -27,8 +32,11 @@ const FG_CANDIDATE_TEXTS = new Set([
 const INGREDIENTS_PRESENT_TEXTS = new Set([
   'key ingredients identified',
   'detailed ingredient specification',
-  'initial shared bom ready and linked to npd project',
   'recipe has at least one ingredient',
+]);
+
+const LINKED_BOM_READY_TEXTS = new Set([
+  'initial shared bom ready and linked to npd project',
 ]);
 
 function normalizeItemText(itemText: string): string {
@@ -36,8 +44,14 @@ function normalizeItemText(itemText: string): string {
 }
 
 /**
- * Resolve a checklist row to an auto-satisfy kind. Prefers exact seed text;
- * falls back to conservative substring rules for org-customized copy.
+ * Resolve a checklist row to an auto-satisfy kind by EXACT seeded text only.
+ *
+ * This runs on the gate-authorization path (advance-project-gate.ts), so a match
+ * lets a required item pass without an override note. Substring/fuzzy matching is
+ * deliberately excluded: a genuinely manual row like "Formulation locked and QA
+ * approval recorded" contains "formulation"+"locked" and would be silently
+ * auto-satisfied, bypassing the real QA gate. Org-customized copy that isn't an
+ * exact seed text stays manual (completed_at required) — the safe default.
  */
 export function matchGateChecklistAutoKind(itemText: string): GateChecklistAutoKind | null {
   const normalized = normalizeItemText(itemText);
@@ -45,24 +59,24 @@ export function matchGateChecklistAutoKind(itemText: string): GateChecklistAutoK
 
   if (FORMULATION_LOCKED_TEXTS.has(normalized)) return 'formulation_locked';
   if (FG_CANDIDATE_TEXTS.has(normalized)) return 'fg_candidate';
+  if (LINKED_BOM_READY_TEXTS.has(normalized)) return 'linked_bom_ready';
   if (INGREDIENTS_PRESENT_TEXTS.has(normalized)) return 'ingredients_present';
 
-  if (normalized.includes('formulation') && normalized.includes('locked')) {
-    return 'formulation_locked';
-  }
-  if (normalized.includes('fg candidate') && normalized.includes('created')) {
-    return 'fg_candidate';
-  }
-  if (
-    normalized.includes('ingredient') &&
-    (normalized.includes('identified') ||
-      normalized.includes('specification') ||
-      normalized.includes('shared bom'))
-  ) {
-    return 'ingredients_present';
-  }
-
   return null;
+}
+
+export function buildGateChecklistAutoSignals(row: {
+  product_code: string | null;
+  recipe_ingredient_count: number;
+  has_locked_formulation: boolean;
+  linked_bom_count: number;
+}): GateChecklistAutoSignals {
+  return {
+    hasLockedFormulation: row.has_locked_formulation === true,
+    hasFgCandidate: row.product_code !== null && row.product_code.trim() !== '',
+    ingredientCount: Number(row.recipe_ingredient_count ?? 0),
+    linkedBomCount: Number(row.linked_bom_count ?? 0),
+  };
 }
 
 export function isGateChecklistAutoSatisfied(
@@ -76,9 +90,23 @@ export function isGateChecklistAutoSatisfied(
       return signals.hasFgCandidate;
     case 'ingredients_present':
       return signals.ingredientCount >= 1;
+    case 'linked_bom_ready':
+      return signals.linkedBomCount > 0;
     default:
       return false;
   }
+}
+
+/** Single source of truth: manual completion OR live auto-satisfy predicate. */
+export function isGateChecklistItemResolved(
+  itemText: string,
+  completedAt: string | null,
+  signals: GateChecklistAutoSignals,
+): boolean {
+  if (completedAt !== null) return true;
+  const kind = matchGateChecklistAutoKind(itemText);
+  if (!kind) return false;
+  return isGateChecklistAutoSatisfied(kind, signals);
 }
 
 export type GateChecklistAutoItem = {

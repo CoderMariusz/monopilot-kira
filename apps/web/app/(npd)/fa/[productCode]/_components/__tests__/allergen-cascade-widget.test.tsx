@@ -21,6 +21,7 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -253,6 +254,32 @@ describe('AllergenCascadeWidget — override action (B2d / C1d)', () => {
     );
     expect(screen.queryByTestId('allergen-override-trigger-gluten')).not.toBeInTheDocument();
     expect(screen.getByTestId('allergen-override-unavailable-gluten')).toHaveTextContent('Override unavailable');
+  });
+
+  it('opens the override modal on a real pointer click without an adjacent cell intercepting (D3 / Extra-4)', async () => {
+    const user = userEvent.setup();
+    render(
+      <AllergenCascadeWidget
+        data={DATA}
+        labels={LABELS}
+        canWrite
+        state="ready"
+        refreshAction={vi.fn()}
+        setAllergenOverrideAction={vi.fn().mockResolvedValue({ ok: true })}
+      />,
+    );
+
+    const trigger = screen.getByTestId('allergen-override-trigger-gluten');
+    if (typeof document.elementFromPoint === 'function') {
+      const rect = trigger.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const hitTarget = document.elementFromPoint(centerX, centerY);
+      expect(hitTarget === trigger || (hitTarget != null && trigger.contains(hitTarget))).toBe(true);
+    }
+
+    await user.click(trigger);
+    expect(screen.getByTestId('override-audit-alert')).toBeInTheDocument();
   });
 });
 

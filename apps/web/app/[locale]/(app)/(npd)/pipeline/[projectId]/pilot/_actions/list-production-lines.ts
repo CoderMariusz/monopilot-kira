@@ -2,6 +2,7 @@
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { getActiveSiteId } from '../../../../../../../../lib/site/site-context';
+import { PRODUCTION_LINES_SITE_FILTER_SQL } from '../../../../../../../../lib/site/production-lines-site-filter';
 import { hasPilotPermission } from './get-pilot-run';
 
 type QueryClient = {
@@ -54,7 +55,7 @@ export async function listProductionLines(): Promise<ProductionLineOption[]> {
           and s.org_id = pl.org_id
         where pl.org_id = app.current_org_id()
           and coalesce(pl.status, 'active') <> 'archived'
-          and ($1::uuid is null or pl.site_id = $1::uuid or pl.site_id is null)
+          ${PRODUCTION_LINES_SITE_FILTER_SQL}
         order by s.site_code nulls last, pl.code`,
       [activeSiteId],
     );

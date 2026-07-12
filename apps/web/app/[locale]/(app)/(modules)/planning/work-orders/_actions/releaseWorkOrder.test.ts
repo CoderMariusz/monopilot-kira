@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { deleteDraftWorkOrder, releaseWorkOrder } from './releaseWorkOrder';
+import { cancelWorkOrderChain, deleteDraftWorkOrder, releaseWorkOrder } from './releaseWorkOrder';
 import type { QueryClient } from './shared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -21,6 +21,8 @@ let eachPerBox: string | null = null;
 let deletedCount = 1;
 let chainDeleteBlocked = false;
 let upstreamBlockers: Array<{ child_wo_number: string; child_status: string }> = [];
+const WIP_ID = '55555555-5555-4555-8555-555555555555';
+let chainMembers: Array<{ id: string; depth: number; status: string; wo_number: string }> = [];
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -40,7 +42,12 @@ function makeClient(): QueryClient {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
       }
       if (normalized.includes('with recursive chain')) {
-        return { rows: [{ blocked: chainDeleteBlocked }], rowCount: 1 };
+        if (normalized.includes('select ch.wo_id::text as id')) {
+          return { rows: chainMembers, rowCount: chainMembers.length };
+        }
+        if (normalized.includes('as blocked')) {
+          return { rows: [{ blocked: chainDeleteBlocked }], rowCount: 1 };
+        }
       }
       if (normalized.startsWith('select id, wo_number, status')) {
         const id = String(params[0]);
@@ -86,6 +93,10 @@ function makeClient(): QueryClient {
           ],
           rowCount: 1,
         };
+      }
+      if (normalized.startsWith('update public.work_orders') && normalized.includes("status = 'cancelled'")) {
+        const id = String(params[0]);
+        return { rows: [{ id, status: 'CANCELLED' }], rowCount: 1 };
       }
       if (normalized.startsWith('update public.work_orders') && normalized.includes('returning active_bom_header_id')) {
         return {
@@ -172,6 +183,7 @@ describe('releaseWorkOrder', () => {
     deletedCount = 1;
     chainDeleteBlocked = false;
     upstreamBlockers = [];
+    chainMembers = [];
     client = makeClient();
   });
 
@@ -322,7 +334,7 @@ describe('releaseWorkOrder', () => {
     expect(deleteIndex).toBeGreaterThan(-1);
     expect(historyIndex).toBeLessThan(deleteIndex);
     expect(auditIndex).toBeLessThan(deleteIndex);
-    expect(calls[deleteIndex]).toContain("and status = 'draft'");
+    expect(calls[deleteIndex]).toContain("and status in ('draft', 'cancelled')");
   });
 
   it('rejects released or started WO deletion with invalid_state and does not delete', async () => {
@@ -355,5 +367,37 @@ describe('releaseWorkOrder', () => {
 
     expect(result).toEqual({ ok: false, error: 'not_found' });
     expect(sqlCalls().some((sql) => sql.startsWith('delete from public.work_orders'))).toBe(false);
+  });
+});
+
+describe('cancelWorkOrderChain (Extra-3)', () => {
+  beforeEach(() => {
+    allowPermission = true;
+    currentStatus = 'DRAFT';
+    chainDeleteBlocked = false;
+    chainMembers = [
+      { id: WIP_ID, depth: 1, status: 'DRAFT', wo_number: 'WO-001-W1' },
+      { id: WO_ID, depth: 0, status: 'DRAFT', wo_number: 'WO-001' },
+    ];
+    client = makeClient();
+  });
+
+  it('cancels FG root and WIP children in one transaction', async () => {
+    const result = await cancelWorkOrderChain({ id: WO_ID });
+
+    expect(result).toEqual({ ok: true, rootId: WO_ID, cancelledIds: [WIP_ID, WO_ID] });
+    const updates = sqlCalls().filter((sql) => sql.startsWith('update public.work_orders') && sql.includes("status = 'cancelled'"));
+    expect(updates.length).toBe(2);
+    expect(sqlCalls().filter((sql) => sql.includes('cancel_chain')).length).toBe(2);
+  });
+
+  it('allows deleting the FG after the full chain is cancelled', async () => {
+    await cancelWorkOrderChain({ id: WO_ID });
+    currentStatus = 'CANCELLED';
+    chainDeleteBlocked = false;
+    chainMembers = [];
+
+    const deleted = await deleteDraftWorkOrder({ id: WO_ID });
+    expect(deleted).toEqual({ ok: true, id: WO_ID });
   });
 });

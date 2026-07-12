@@ -32,6 +32,7 @@ import { WoListView, type WoListLabels } from '../_components/wo-list-view';
 import { normalizePage, toPaginatedResult } from '../../../../../../../lib/shared/pagination';
 import { WoDetailView, type WoDetailLabels } from '../_components/wo-detail-view';
 import type { ListPlanningWorkOrdersResult, GetPlanningWorkOrderResult, CreateWorkOrderResult, ReleaseWorkOrderResult, DeleteDraftWorkOrderResult } from '../_actions/shared';
+import { civilDateToUtcIso } from '../../../../../../../lib/planning/civil-date';
 
 const refresh = vi.fn();
 const push = vi.fn();
@@ -348,6 +349,35 @@ describe('WoListView — create modal (parity: wo-list.jsx:94 + modals wo_create
       ),
     );
     await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it('forwards default scheduledStartTime when the modal opens (Extra-1)', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const { createWorkOrderAction } = renderList();
+    createWorkOrderAction.mockResolvedValue({
+      ok: true,
+      workOrder: {} as any,
+      materials: [],
+      primarySchedule: {} as any,
+    });
+
+    fireEvent.click(screen.getByTestId('wo-list-create'));
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
+    await waitFor(() => expect(screen.getByTestId('create-wo-selected-product')).toHaveTextContent('FG-001'));
+
+    expect(screen.getByTestId('create-wo-scheduled-start')).toHaveValue(today);
+    fireEvent.change(screen.getByTestId('create-wo-quantity'), { target: { value: '100' } });
+    fireEvent.click(screen.getByTestId('create-wo-submit'));
+
+    await waitFor(() =>
+      expect(createWorkOrderAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scheduledStartTime: civilDateToUtcIso(today),
+        }),
+      ),
+    );
   });
 
   it('blocks submit and shows an error when no product is selected', async () => {

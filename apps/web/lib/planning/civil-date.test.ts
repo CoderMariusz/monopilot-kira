@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { civilDateToUtcIso, utcIsoToCivilDate } from './civil-date';
+import { civilDateToUtcIso, todayCivilDateUtc, utcIsoToCivilDate } from './civil-date';
 
 describe('civil-date', () => {
   afterEach(() => {
@@ -31,5 +31,12 @@ describe('civil-date', () => {
 
   it('utcIsoToCivilDate returns empty for null', () => {
     expect(utcIsoToCivilDate(null)).toBe('');
+  });
+
+  it('Extra-1: todayCivilDateUtc matches UTC calendar date used by create-WO modal default', () => {
+    expect(todayCivilDateUtc()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(civilDateToUtcIso(todayCivilDateUtc())).toBe(
+      `${todayCivilDateUtc()}T00:00:00.000Z`,
+    );
   });
 });
