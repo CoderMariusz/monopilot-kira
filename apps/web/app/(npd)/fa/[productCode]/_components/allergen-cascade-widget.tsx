@@ -30,6 +30,8 @@
 
 import React from 'react';
 
+import { useRouter } from 'next/navigation';
+
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
@@ -230,6 +232,7 @@ export function AllergenCascadeWidget({
   /** Clears product.allergens_declaration_accepted. */
   revokeDeclarationAction?: DeclarationAction;
 }) {
+  const router = useRouter();
   const [refreshing, setRefreshing] = React.useState(false);
   const [override, setOverride] = React.useState<OverrideIntent | null>(null);
   const refreshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -279,11 +282,33 @@ export function AllergenCascadeWidget({
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
     refreshTimer.current = setTimeout(() => {
       void Promise.resolve(refreshAction?.(data.productCode))
-        .then(() => undefined)
+        .then(() => {
+          router.refresh();
+        })
         .finally(() => setRefreshing(false));
     }, REFRESH_DEBOUNCE_MS);
     setRefreshing(true);
-  }, [data, refreshAction]);
+  }, [data, refreshAction, router]);
+
+  const handleOpenOverride = React.useCallback(
+    (intent: OverrideIntent) => {
+      if (!setAllergenOverrideAction) return;
+      setOverride(intent);
+    },
+    [setAllergenOverrideAction],
+  );
+
+  const handleSubmitOverride = React.useCallback<SetAllergenOverrideAction>(
+    async (productCode, allergenCode, action, reason) => {
+      if (!setAllergenOverrideAction) return { ok: false };
+      const result = await setAllergenOverrideAction(productCode, allergenCode, action, reason);
+      if (result.ok) {
+        router.refresh();
+      }
+      return result;
+    },
+    [setAllergenOverrideAction, router],
+  );
 
   // Accept (checked) / revoke (unchecked) the FG-final declaration. Disabled while
   // pending; failures surface inline (role="alert") and roll the checkbox back —
@@ -343,7 +368,7 @@ export function AllergenCascadeWidget({
           </h2>
           <div className="muted" style={{ fontSize: 11 }}>{labels.subtitle}</div>
         </div>
-        {canWrite ? (
+        {canWrite && refreshAction ? (
           <Button
             type="button"
             className="btn-secondary btn-sm"
@@ -620,14 +645,14 @@ export function AllergenCascadeWidget({
                     <span>{displayName(code)}</span>
                   </span>
                   <span className="font-medium">{stateText}</span>
-                  {canWrite ? (
+                  {canWrite && setAllergenOverrideAction ? (
                     <button
                       type="button"
                       data-testid={`allergen-override-trigger-${code}`}
                       aria-label={`${labels.override} ${displayName(code)}`}
                       className="text-blue-700 underline-offset-2 hover:underline"
                       onClick={() =>
-                        setOverride({
+                        handleOpenOverride({
                           allergenCode: code,
                           allergenLabel: displayName(code),
                           currentlyPresent: present,
@@ -653,7 +678,7 @@ export function AllergenCascadeWidget({
           currentlyPresent={override.currentlyPresent}
           labels={labels}
           onClose={() => setOverride(null)}
-          setAllergenOverrideAction={setAllergenOverrideAction}
+          setAllergenOverrideAction={handleSubmitOverride}
         />
       ) : null}
     </section>

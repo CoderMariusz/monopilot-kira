@@ -7720,10 +7720,20 @@
         },
         "complete": {
           "title": "Complete work order",
-          "subtitle": "Complete execution. The output yield gate must be green.",
+          "subtitle": "Complete execution. The output yield gate must be green unless a supervisor override is recorded.",
           "override": "Override reason code",
-          "overrideHint": "Required only to override an unmet yield gate.",
-          "overridePlaceholder": "Select an override reason…"
+          "overrideHint": "Required when consumption is outside tolerance or the yield gate is not green.",
+          "overridePlaceholder": "Select an override reason…",
+          "gateStatusGreen": "Yield gate: green — consumption within tolerance.",
+          "gateStatusBlocked": "Yield gate: blocked — supervisor override required.",
+          "gateBlocked": "Output yield gate not met — register a primary output or supply an override.",
+          "consumptionOutOfTolerance": "Actual consumption is outside the configured tolerance band.",
+          "actualOutputKg": "Output (kg)",
+          "postedConsumptionKg": "Posted consumption (kg)",
+          "expectedInputKg": "Expected input (kg)",
+          "effectiveYieldPct": "Effective yield %",
+          "overridePin": "Supervisor e-sign PIN or account password",
+          "overrideEsignReason": "E-sign reason (CFR-21 Part 11)"
         },
         "close": {
           "title": "Close work order",

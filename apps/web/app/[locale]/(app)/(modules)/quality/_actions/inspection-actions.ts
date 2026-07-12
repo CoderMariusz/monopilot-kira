@@ -2,6 +2,14 @@
 
 import type pg from 'pg';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+
+function revalidateInspectionRoutes(inspectionId?: string): void {
+  revalidateLocalized('/quality');
+  revalidateLocalized('/quality/inspections');
+  if (inspectionId) {
+    revalidateLocalized(`/quality/inspections/${inspectionId}`);
+  }
+}
 import { signEvent } from '@monopilot/e-sign';
 import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
 import { z } from 'zod';
@@ -862,7 +870,7 @@ export async function createInspection(input: {
       );
       const row = inserted.rows[0];
       if (!row) throw new Error('quality inspection insert did not return a row');
-      revalidateLocalized('/quality');
+      revalidateInspectionRoutes(row.id);
       return {
         ok: true,
         data: {
@@ -902,7 +910,7 @@ export async function recordInspectionResult(input: {
       );
       const row = updated.rows[0];
       if (!row) throw new Error('quality inspection not found or not editable');
-      revalidateLocalized('/quality');
+      revalidateInspectionRoutes(parsed.inspectionId);
       return {
         ok: true,
         data: {
@@ -997,7 +1005,7 @@ export async function submitInspectionDecision(input: {
         note: parsed.note ?? null,
       });
 
-      revalidateLocalized('/quality');
+      revalidateInspectionRoutes(parsed.inspectionId);
       return {
         ok: true,
         data: {

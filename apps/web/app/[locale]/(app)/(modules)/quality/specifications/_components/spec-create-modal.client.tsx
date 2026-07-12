@@ -21,8 +21,8 @@
  * productId + specCode + parameters[] only). min ≤ max is enforced client-side
  * here and re-enforced by the DB CHECK constraint server-side.
  *
- * Product is chosen via the established ItemPicker (searchItems, itemTypes
- * ['fg','intermediate']) bound to a real items FK — never free text. The createSpec
+ * Product is chosen via the established ItemPicker (searchItems). Incoming specs
+ * target RM/ingredient/packaging items; in-process/final specs target FG/intermediate.
  * Server Action is imported by the page and passed in (never authored here).
  */
 
@@ -35,11 +35,18 @@ import { ItemPicker, type ItemSearchFn } from '../../../../(npd)/_components/ite
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import type { CreateSpecFn, CreateSpecParameter, SpecParameterType } from './spec-actions-contract';
 
-/** Applies-to pills (prototype parity). NOTE: the landed createSpec contract does
- *  NOT accept applies_to — it always inserts 'all'. The pills are kept for UX/parity
- *  but the selected value is NOT sent (documented deviation). */
+/** Applies-to pills (prototype parity). Sent to createSpec as applies_to. */
 export type SpecAppliesTo = 'incoming' | 'in_process' | 'final' | 'all';
 export const SPEC_APPLIES_TO: SpecAppliesTo[] = ['incoming', 'in_process', 'final', 'all'];
+
+export type SpecProductItemType = 'fg' | 'intermediate' | 'rm' | 'ingredient' | 'packaging';
+
+const FINISHED_PRODUCT_ITEM_TYPES: SpecProductItemType[] = ['fg', 'intermediate'];
+const INCOMING_PRODUCT_ITEM_TYPES: SpecProductItemType[] = ['rm', 'ingredient', 'packaging'];
+
+export function itemTypesForSpecAppliesTo(appliesTo: SpecAppliesTo): SpecProductItemType[] {
+  return appliesTo === 'incoming' ? INCOMING_PRODUCT_ITEM_TYPES : FINISHED_PRODUCT_ITEM_TYPES;
+}
 export const SPEC_PARAMETER_TYPES: SpecParameterType[] = [
   'visual',
   'measurement',
@@ -165,12 +172,13 @@ export function SpecCreateModal({
   labels: SpecCreateLabels;
   locale: string;
   createSpecAction: CreateSpecFn;
-  searchItemsAction: ItemSearchFn<'fg' | 'intermediate'>;
+  searchItemsAction: ItemSearchFn<SpecProductItemType>;
   onCreated?: (specId: string) => void;
 }) {
   const [product, setProduct] = useState<ItemPickerOption | null>(null);
   const [specCode, setSpecCode] = useState('');
   const [appliesTo, setAppliesTo] = useState<SpecAppliesTo>('incoming');
+  const pickerItemTypes = itemTypesForSpecAppliesTo(appliesTo);
   const [params, setParams] = useState<DraftParam[]>([blankParam()]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -228,11 +236,10 @@ export function SpecCreateModal({
     }));
 
     startTransition(async () => {
-      // NOTE: appliesTo is captured for parity UX but the landed createSpec contract
-      // does not accept it (it always inserts applies_to='all'); not sent.
       const result = await createSpecAction({
         productId: product.id,
         specCode: specCode.trim(),
+        appliesTo,
         parameters: payloadParams,
       });
       if (!result.ok) {
@@ -271,7 +278,7 @@ export function SpecCreateModal({
                   <span className="text-slate-400">{labels.productPlaceholder}</span>
                 )}
               </span>
-              <ItemPicker<'fg' | 'intermediate'>
+              <ItemPicker<SpecProductItemType>
                 labels={{
                   trigger: labels.pickProduct,
                   searchLabel: labels.picker.searchLabel,
@@ -281,7 +288,7 @@ export function SpecCreateModal({
                   cancel: labels.picker.cancel,
                   error: labels.picker.error,
                 }}
-                itemTypes={['fg', 'intermediate']}
+                itemTypes={pickerItemTypes}
                 searchItemsAction={searchItemsAction}
                 onSelect={(item) => setProduct(item)}
                 triggerClassName="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
@@ -316,7 +323,14 @@ export function SpecCreateModal({
                   type="button"
                   data-testid={`spec-applies-${a}`}
                   aria-pressed={appliesTo === a}
-                  onClick={() => setAppliesTo(a)}
+                  onClick={() => {
+                    setAppliesTo(a);
+                    setProduct((current) => {
+                      if (!current) return null;
+                      const allowed = new Set(itemTypesForSpecAppliesTo(a));
+                      return allowed.has(current.itemType as SpecProductItemType) ? current : null;
+                    });
+                  }}
                   className={[
                     'rounded-full border px-2.5 py-1 text-xs transition',
                     appliesTo === a

@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import {
   applyWoOutputHoldForContext,
   restoreWoOutputsAfterWoHoldReleaseForContext,
@@ -26,6 +27,14 @@ type ActionFailure =
   | { ok: false; reason: 'forbidden' | 'error'; message?: string }
   | { ok: false; reason: 'policy'; code: ESignPolicyErrorCode; message?: string };
 type ActionResult<T> = { ok: true; data: T } | ActionFailure;
+
+function revalidateHoldRoutes(holdId?: string): void {
+  revalidateLocalized('/quality');
+  revalidateLocalized('/quality/holds');
+  if (holdId) {
+    revalidateLocalized(`/quality/holds/${holdId}`);
+  }
+}
 
 type HoldStatusFilter = 'active' | 'released' | 'all';
 type ReferenceType = 'lp' | 'batch' | 'wo' | 'po' | 'grn';
@@ -361,6 +370,8 @@ async function createHoldCore(
       lpIds,
     },
   });
+
+  revalidateHoldRoutes(created.id);
 
   return {
     id: created.id,
@@ -887,6 +898,8 @@ export async function releaseHoldCore(
       releaseSource: options.releaseSource,
     },
   });
+
+  revalidateHoldRoutes(input.holdId);
 
   return {
     ok: true,
