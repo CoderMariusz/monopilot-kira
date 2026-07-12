@@ -209,10 +209,7 @@ export async function executeReceivePoLineCore(
     shelfLifeModeSnapshot: line.shelf_life_mode ?? null,
     grnId: grn.id,
   });
-  await insertLpAutoPutaway(client, ctx.userId, {
-    lpId: lp.id,
-    transactionId: randomUUID(),
-  });
+  // LP stays status='received' until QA releases it — no premature available transition.
 
   const grnItem = await insertGrnItem(client, ctx, {
     grnId: grn.id,
@@ -553,7 +550,7 @@ async function insertLicensePlate(
      )
      values (
        $1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::numeric, $7,
-       'available', 'pending', $8, $9::timestamptz, $10::timestamptz,
+       'received', 'pending', $8, $9::timestamptz, $10::timestamptz,
        $11, $12::uuid, 'grn',
        $13::uuid, $14::uuid, $14::uuid
      )

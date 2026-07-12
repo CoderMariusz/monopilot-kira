@@ -81,6 +81,12 @@ let undatedSoLinesMock = 0;
 /** When set, flour item carries pack hierarchy for box-UoM SO demand tests. */
 let flourPackHierarchy = false;
 let includeFinishedGood = false;
+/** Open-PO supplier rows returned by procurement supplier resolution (S13). */
+let openPoSupplierRows: Array<{ item_id: string; supplier_id: string }> = [];
+/** supplier_specs fallback rows for procurement supplier resolution (S13). */
+let supplierSpecLinkRows: Array<{ item_id: string; supplier_id: string }> = [];
+/** Draft-WO schedule output that must NOT count as MRP supply (S11). */
+let draftWoSupplyQty: string | null = null;
 let executed: string[] = [];
 /** Captured DDL-shaped INSERT params. */
 let runInserts: Array<readonly unknown[]> = [];
@@ -215,7 +221,7 @@ function makeClient(): QueryClient {
                 quantity: p[4],
                 uom: p[5],
                 due_date: p[6],
-                supplier_id: p[7],
+                supplier_id: p[8],
                 release_status: 'suggested',
               };
             }),
@@ -378,10 +384,14 @@ function makeClient(): QueryClient {
       // NOTE: schedule_outputs is matched BEFORE wo_materials — its SQL embeds a
       // `not exists (select 1 from public.wo_materials …)` anti-join (batch-D F2).
       if (normalized.includes('from public.schedule_outputs')) {
-        expect(params[0]).toEqual(['DRAFT', 'RELEASED', 'IN_PROGRESS']);
+        expect(params[0]).toEqual(['RELEASED', 'IN_PROGRESS']);
         // Simulated DB state: raw open to_stock schedule_outputs rows, each
         // tagged with its WO; open wo_materials (wo, product) demand pairs.
         const raw = [{ wo: WO_OTHER, product_id: DOUGH_ID, uom: 'kg', qty: '12.000' }];
+        const supplyStatuses = params[0] as string[];
+        if (draftWoSupplyQty && supplyStatuses.includes('DRAFT')) {
+          raw.push({ wo: 'draft-wo', product_id: FLOUR_ID, uom: 'kg', qty: draftWoSupplyQty });
+        }
         const openMaterialPairs = new Set([`${WO_OTHER}:${FLOUR_ID}`]);
         if (reworkSelfSupply) {
           raw.push({ wo: WO_REWORK, product_id: DOUGH_ID, uom: 'kg', qty: '50.000' });
@@ -430,9 +440,19 @@ function makeClient(): QueryClient {
         return { rows: soDemandRows, rowCount: soDemandRows.length };
       }
       if (normalized.includes('from public.purchase_order_lines')) {
+        if (normalized.includes('distinct on (l.item_id)')) {
+          return { rows: openPoSupplierRows, rowCount: openPoSupplierRows.length };
+        }
         expect(params[0]).toEqual(['sent', 'confirmed', 'partially_received']);
         // Remainder already netted in SQL (ordered − received via grn_items).
         return { rows: [{ product_id: FLOUR_ID, uom: 'kg', qty: '25.000', need_date: MOCK_NEED_DATE }], rowCount: 1 };
+      }
+      if (normalized.includes('from public.supplier_specs ss') && normalized.includes('distinct on (ss.item_id)')) {
+        return { rows: supplierSpecLinkRows, rowCount: supplierSpecLinkRows.length };
+      }
+      if (normalized.includes('from public.suppliers s') && normalized.includes("s.status <> 'blocked'")) {
+        const ids = (params[0] as string[]) ?? [];
+        return { rows: ids.map((id) => ({ id })), rowCount: ids.length };
       }
       throw new Error(`unexpected query: ${normalized}`);
     }),
@@ -451,6 +471,9 @@ beforeEach(() => {
   flourPackHierarchy = false;
   thresholdRows = [];
   includeFinishedGood = false;
+  openPoSupplierRows = [];
+  supplierSpecLinkRows = [];
+  draftWoSupplyQty = null;
   executed = [];
   runInserts = [];
   reqInserts = [];
@@ -658,6 +681,27 @@ describe('runMrp', () => {
     expect(so).toContain('m.required_qty > m.consumed_qty');
   });
 
+  it('does not count draft WIP schedule_outputs as open supply (S11)', async () => {
+    draftWoSupplyQty = '100.000';
+    const result = await runMrp();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flour = result.data.rows.find((r) => r.itemCode === 'RM-FLOUR')!;
+    expect(flour.openSupply).toBe('25.000');
+    expect(flour.net).toBe('-25.000');
+  });
+
+  it('resolves buy planned-order supplier from open PO history when threshold is unset (S13)', async () => {
+    openPoSupplierRows = [{ item_id: FLOUR_ID, supplier_id: SUPPLIER_ID }];
+    const result = await runMrp({ persist: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const flourPlanned = plannedInserts.find((p) => p[2] === FLOUR_ID);
+    expect(flourPlanned?.[8]).toBe(SUPPLIER_ID);
+  });
+
   it('returns forbidden when the planning read permission is missing', async () => {
     allowPermission = false;
     const result = await runMrp();
@@ -690,14 +734,15 @@ describe('runMrp', () => {
 
     const today = result.data.ranAt.slice(0, 10);
     const bucketStart = bucketStartForRunDate(today);
+    const dueDate = bucketStart < today ? today : bucketStart;
     const dough = result.data.rows.find((r) => r.itemCode === 'INT-DOUGH')!;
     expect(dough.severity).toBe('shortage');
     expect(dough.minQty).toBe('5.000');
-    const rawRelease = addDaysIso(bucketStart, -7);
+    const rawRelease = addDaysIso(dueDate, -7);
     expect(dough.suggestedAction).toMatchObject({
       type: 'make',
       qty: '20',
-      dueDate: bucketStart,
+      dueDate,
       supplierId: SUPPLIER_ID,
     });
     if (rawRelease < today) {

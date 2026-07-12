@@ -56,9 +56,28 @@ describe('receive-po-line-core', () => {
     expect(findCall(client, 'insert into public.license_plates')?.params).toEqual(
       expect.arrayContaining([ORG_A, SITE_ID, WAREHOUSE_ID, ITEM_ID, '10', 'kg', 'SUP-BATCH-1']),
     );
+    expect(findCall(client, 'insert into public.license_plates')?.sql).toContain("'received', 'pending'");
     expect(findCall(client, 'insert into public.grn_items')?.params).toEqual(
       expect.arrayContaining([ORG_A, 'grn-1', ITEM_ID, LINE_ID, '10.000000', '10', 'kg', 'SUP-BATCH-1']),
     );
+  });
+
+  it('creates received LPs as status received with qa pending (S14)', async () => {
+    const client = makeClient({ orderedQty: '10.000000', receivedQty: '0.000000', isReceived: true });
+
+    await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+      baseInput,
+      {
+        mode: 'desktop',
+        genesisReasonCode: 'desktop_receive_po',
+        genesisReasonText: 'Desktop PO receipt',
+        requireOverReceiveConfirm: true,
+      },
+    );
+
+    expect(findCall(client, 'insert into public.license_plates')?.sql).toContain("'received', 'pending'");
   });
 
   it('runs desktop grn_items backfills before completing a fully received GRN', async () => {

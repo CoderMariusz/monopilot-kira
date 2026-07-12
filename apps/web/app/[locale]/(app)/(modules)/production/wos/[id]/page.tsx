@@ -393,7 +393,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
           lp_not_released: rec('errors.lp_not_released', 'That license plate has not been released by QA.'),
           lp_expired: rec('errors.lp_expired', 'That license plate is expired and cannot be consumed.'),
           lp_locked: rec('errors.lp_locked', 'That license plate is locked by another user.'),
-          quality_hold_active: rec('errors.quality_hold_active', 'That license plate is on an active quality hold.'),
+          quality_hold_active: rec('errors.quality_hold_active', 'Material on quality hold — release the hold to consume.'),
           reason_required: rec('errors.reason_required', 'Enter a reason code when recording without an LP.'),
           overconsume_blocked: detailError(
             'overconsume_blocked',

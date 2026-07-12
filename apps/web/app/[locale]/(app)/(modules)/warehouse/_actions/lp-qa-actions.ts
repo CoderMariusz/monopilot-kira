@@ -2,6 +2,7 @@
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { holdsGuard } from '../../../../../../lib/production/holds-guard';
+import { applyLpQaLifecycleTransition } from '../../../../../../lib/warehouse/lp-qa-transition-core';
 import {
   asTrimmed,
   hasWarehousePermission,
@@ -68,88 +69,23 @@ export async function releaseLpQaForContext(
     if (hold) return { ok: false, reason: 'error', message: 'quality_hold_active' };
   }
 
-  // Lifecycle (audit F-A01, owner decision W9-K-I): QA release auto-promotes
-  // received→available so QC-released stock is usable (v_inventory_available
-  // requires status='available' AND qa_status='released') without a separate
-  // putaway. Rejection maps received→'blocked' (mig 191 status CHECK family)
-  // so a later putaway can never promote rejected stock. Any other status
-  // (available/reserved/quarantine/...) is left untouched — qa_status alone
-  // changes, exactly as before.
-  const updated = await ctx.client.query<{
-    id: string;
-    lp_number: string;
-    status: string;
-    qa_status: ReleaseLpQaDecision;
-  }>(
-    `update public.license_plates
-        set qa_status = $2,
-            status = case
-              when $2 = 'released' and status = 'received' then 'available'
-              when $2 = 'rejected' and status = 'received' then 'blocked'
-              else status
-            end,
-            updated_by = $3::uuid
-      where org_id = app.current_org_id()
-        and id = $1::uuid
-        and qa_status = 'pending'
-    returning id::text, lp_number, status, qa_status`,
-    [lpId, decision, ctx.userId],
-  );
-  const row = updated.rows[0];
-  if (!row) return { ok: false, reason: 'error', message: 'invalid_state' };
-
   const txId = uuidFromSeed(`warehouse.lp.qa.release:${ctx.orgId}:${lpId}:${lp.qa_status}:${decision}`);
-  await ctx.client.query(
-    `insert into public.lp_state_history
-       (org_id, lp_id, from_state, to_state, reason_code, reason_text, transaction_id, ext_jsonb, created_by)
-     values
-       (
-         app.current_org_id(),
-         $1::uuid,
-         $2,
-         $3,
-         'qa_status_changed',
-         $4,
-         $5::uuid,
-         $6::jsonb,
-         $7::uuid
-       )
-     on conflict (org_id, transaction_id) do nothing`,
-    [
+  const row = await applyLpQaLifecycleTransition(
+    { client: ctx.client, userId: ctx.userId, orgId: ctx.orgId },
+    {
       lpId,
-      lp.status,
-      row.status,
+      lpBefore: { id: lp.id, lp_number: lp.lp_number, status: lp.status, qa_status: lp.qa_status },
+      decision,
       note,
-      txId,
-      JSON.stringify({ qaStatusFrom: lp.qa_status, qaStatusTo: decision }),
-      ctx.userId,
-    ],
+      mode: 'pending_only',
+      transactionId: txId,
+    },
   );
-
-  await ctx.client.query(
-    `insert into public.outbox_events
-       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values
-       (app.current_org_id(), 'warehouse.lp.transitioned', 'license_plate', $1::uuid, $2::jsonb, 'warehouse-qa-release-v1')`,
-    [
-      lpId,
-      JSON.stringify({
-        org_id: ctx.orgId,
-        actor_user_id: ctx.userId,
-        lp_id: lpId,
-        lp_number: lp.lp_number,
-        status_from: lp.status,
-        status_to: row.status,
-        qa_status_from: lp.qa_status,
-        qa_status_to: decision,
-        note,
-      }),
-    ],
-  );
+  if (!row) return { ok: false, reason: 'error', message: 'invalid_state' };
 
   return {
     ok: true,
-    data: { lpId: row.id, lpNumber: row.lp_number, status: row.status, qaStatus: row.qa_status },
+    data: { lpId: row.id, lpNumber: row.lp_number, status: row.status, qaStatus: row.qa_status as ReleaseLpQaDecision },
   };
 }
 

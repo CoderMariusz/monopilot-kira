@@ -92,17 +92,13 @@ describe('scanner receive PO service', () => {
     expect(findCall(client, 'insert into public.license_plates')?.params).toEqual(
       expect.arrayContaining([ORG_A, WAREHOUSE_ID, ITEM_ID, '10.5', 'kg', 'B-1', '2026-07-01', LOCATION_ID]),
     );
-    expect(findCall(client, 'insert into public.license_plates')?.sql).toContain("'available', 'pending'");
+    expect(findCall(client, 'insert into public.license_plates')?.sql).toContain("'received', 'pending'");
     expect(findCall(client, 'insert into public.grn_items')?.params).toEqual(
       expect.arrayContaining([ORG_A, 'grn-1', ITEM_ID, LINE_ID, '10.000000', '10.5', 'kg', 'B-1', '2026-07-01']),
     );
-    const autoPutawayHistory = findCalls(client, 'insert into public.lp_state_history').find((call) =>
-      call.sql.includes("'received', 'available'"),
-    );
-    expect(autoPutawayHistory?.sql).toContain(
-      '(org_id, lp_id, from_state, to_state, reason_code, stock_move_id, transaction_id, created_by)',
-    );
-    expect(autoPutawayHistory?.params).toEqual(['lp-1', 'auto_putaway_po_receive', null, expect.any(String), USER_A]);
+    expect(
+      findCalls(client, 'insert into public.lp_state_history').some((call) => call.sql.includes("'received', 'available'")),
+    ).toBe(false);
     expect(findCall(client, 'update public.purchase_orders')?.params).toEqual([ORG_A, PO_ID, 'received', USER_A]);
     expect(auditExt(client)).toMatchObject({ poLineId: LINE_ID, lpId: 'lp-1', qty: '10.5', overReceived: true });
     // flag OFF (default): no QC inspection is opened and the response says so
