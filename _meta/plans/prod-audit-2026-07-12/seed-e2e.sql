@@ -110,6 +110,14 @@ values ('a0000007-0000-4000-8000-0000000000f7', :'org', 'a0000007-0000-4000-8000
   '0ff4bd63-7ca2-4a44-908c-de52e9fd32cc', 'primary', 7.800, 'kg', 'PENDING', 'E2E-A-N1-OUT',
   gen_random_uuid(), '{}'::jsonb, 1, now(), now(), now());
 
+-- ---- execution sessions so the production UI exposes Start/Complete/Pause/Consume ----
+-- (the wo-detail action bar is gated on a wo_executions session, not just work_orders.status)
+insert into public.wo_executions (id, org_id, wo_id, status, started_at, site_id, version, ext_jsonb, schema_version, created_at, updated_at, created_by)
+values
+ ('a0000001-0000-4000-8000-0000000000e1', :'org', 'a0000001-0000-4000-8000-000000000001', 'in_progress', now(), '7b72b4af-48d5-4da2-a3fe-d191d9e6ec19', 0, '{}'::jsonb, 1, now(), now(), :'admin'),
+ ('a0000003-0000-4000-8000-0000000000e1', :'org', 'a0000003-0000-4000-8000-000000000004', 'in_progress', now(), '7b72b4af-48d5-4da2-a3fe-d191d9e6ec19', 0, '{}'::jsonb, 1, now(), now(), :'admin'),
+ ('a0000007-0000-4000-8000-0000000000e1', :'org', 'a0000007-0000-4000-8000-00000000000a', 'in_progress', now(), '7b72b4af-48d5-4da2-a3fe-d191d9e6ec19', 0, '{}'::jsonb, 1, now(), now(), :'admin');
+
 commit;
 
 -- ---- verification snapshot ----
