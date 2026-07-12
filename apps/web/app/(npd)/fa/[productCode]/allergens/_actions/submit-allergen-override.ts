@@ -1,7 +1,7 @@
 'use server';
 
 import { setAllergenOverride } from '../../../actions/set-allergen-override';
-import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+import { revalidateAllergenCascadeRoutes } from './revalidate-allergen-cascade-routes';
 
 /**
  * T-040 — Override submit adapter for the AllergenOverrideModal.
@@ -23,7 +23,7 @@ export async function submitAllergenOverride(
   try {
     const result = await setAllergenOverride(productCode, allergenCode, action, reason);
     if (result.ok) {
-      revalidateLocalized(`/npd/fg/${productCode}/allergens`, 'page');
+      revalidateAllergenCascadeRoutes(productCode);
     }
     return { ok: result.ok };
   } catch {

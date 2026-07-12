@@ -59,7 +59,7 @@ const LABELS: WoModalLabels = {
   pause: { title: 'Pause work order', subtitle: 'Open downtime.', reason: 'Downtime reason', reasonPlaceholder: 'Select…', line: 'Line', linePlaceholder: 'Select a line…', noLines: 'No lines configured.', shift: 'Shift', shiftPlaceholder: 'Select a shift…', notes: 'Notes', noCategories: 'No categories' },
   resume: { title: 'Resume work order', subtitle: 'Resume.', duration: 'Actual downtime (minutes)', durationHint: 'Optional' },
   cancelWo: { title: 'Cancel work order', subtitle: 'Cancel.', reasonCode: 'Reason code', notes: 'Notes' },
-  complete: { title: 'Complete work order', subtitle: 'Complete.', override: 'Override reason code', overrideHint: 'Required to override.' },
+  complete: { title: 'Complete work order', subtitle: 'Complete.', override: 'Override reason code', overrideHint: 'Required to override.', overridePlaceholder: 'Select…', gateStatusGreen: 'Green', gateStatusBlocked: 'Blocked', gateBlocked: 'Gate blocked', consumptionOutOfTolerance: 'Out of tolerance', actualOutputKg: 'Output', postedConsumptionKg: 'Consumption', expectedInputKg: 'Expected', effectiveYieldPct: 'Yield %', overridePin: 'PIN', overrideEsignReason: 'Reason' },
   close: { title: 'Close work order', subtitle: 'Financial close.', password: 'Password', reason: 'Reason', legal: 'You electronically sign this close.' },
   output: { title: 'Register output', subtitle: 'Record output.', type: 'Output type', types: { primary: 'Primary', co_product: 'Co-product', by_product: 'By-product' }, product: 'Product ID', qty: 'Quantity (kg)', batch: 'Batch number', batchHint: 'Auto when blank.' },
   waste: { title: 'Log waste', subtitle: 'Record waste.', category: 'Waste category', categoryPlaceholder: 'Select…', qty: 'Quantity (kg)', shift: 'Shift', shiftPlaceholder: 'Select a shift…', reasonCode: 'Reason code', notes: 'Notes', noCategories: 'No categories' },
@@ -444,5 +444,89 @@ describe('WO action error surfacing (verbatim handler codes)', () => {
 
     const alert = await screen.findByTestId('wo-start-error');
     expect(alert).toHaveTextContent('The action could not be completed.');
+  });
+});
+
+describe('Complete modal — yield-gate override path (B2a)', () => {
+  function mockFetchStrictGateFail() {
+    return vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          ok: false,
+          error: 'closed_production_strict_failed',
+          message: 'actual consumption/yield is outside configured tolerance',
+          details: {
+            code: 'consumption_yield_out_of_tolerance',
+            strictGate: {
+              output_kg: '25.000',
+              posted_consumption_kg: '120.000',
+              expected_input_kg: '30.000',
+              effective_yield_pct: '83.33',
+              within_tolerance: false,
+            },
+          },
+        }),
+        { status: 409 },
+      ),
+    );
+  }
+
+  it('shows override form after closed_production_strict_failed and submits override payload', async () => {
+    const fetchMock = mockFetchStrictGateFail();
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<Harness status="in_progress" />);
+
+    await user.click(screen.getByTestId('wo-action-complete'));
+    expect(screen.getByTestId('wo-complete-gate-status')).toHaveAttribute('data-gate-green', 'true');
+    await user.click(screen.getByTestId('wo-complete-confirm'));
+
+    expect(await screen.findByTestId('wo-complete-gate-details')).toBeInTheDocument();
+    // the 409 must flip the pre-evaluated green banner to blocked (P1 stale-green defect)
+    expect(screen.getByTestId('wo-complete-gate-status')).toHaveAttribute('data-gate-green', 'false');
+    expect(screen.getByTestId('wo-complete-override')).toBeInTheDocument();
+    expect(screen.getByTestId('wo-complete-override-pin')).toBeInTheDocument();
+    expect(screen.getByTestId('wo-complete-override-esign-reason')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('wo-complete-override'));
+    await user.click(screen.getByRole('option', { name: 'Scrap Quality' }));
+    await user.type(screen.getByTestId('wo-complete-override-pin'), 'secret-pw');
+    await user.type(screen.getByTestId('wo-complete-override-esign-reason'), 'Supervisor approved variance');
+    await user.click(screen.getByTestId('wo-complete-confirm'));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const body = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(body).toMatchObject({
+      overrideReasonCode: 'scrap_quality',
+      overrideSignerUserId: '22222222-2222-2222-2222-222222222222',
+      overridePin: 'secret-pw',
+      overrideEsignReason: 'Supervisor approved variance',
+    });
+  });
+
+  it('renders blocked gate status when yieldGateGreen is false', async () => {
+    render(
+      <WoActionsProvider
+        locale="en"
+        woId="11111111-1111-1111-1111-111111111111"
+        status="in_progress"
+        workOrderStatus="RELEASED"
+        permissions={ALL_PERMS}
+        labels={LABELS}
+        currentUserId="22222222-2222-2222-2222-222222222222"
+        downtimeCategories={DOWNTIME_CATS}
+        wasteCategories={WASTE_CATS}
+        shifts={SHIFTS}
+        lines={LINES}
+        defaultLineId="LINE-1"
+        defaultProductId="33333333-3333-3333-3333-333333333333"
+        yieldGateGreen={false}
+      >
+        <WoActionTrigger kind="complete" label="Complete" />
+      </WoActionsProvider>,
+    );
+    await userEvent.setup().click(screen.getByTestId('wo-action-complete'));
+    expect(screen.getByTestId('wo-complete-gate-status')).toHaveAttribute('data-gate-green', 'false');
+    expect(screen.getByTestId('wo-complete-override')).toBeInTheDocument();
   });
 });

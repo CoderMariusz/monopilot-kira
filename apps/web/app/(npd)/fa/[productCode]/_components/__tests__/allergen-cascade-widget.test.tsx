@@ -209,6 +209,37 @@ describe('AllergenCascadeWidget — parity + states', () => {
   });
 });
 
+describe('AllergenCascadeWidget — override action (B2d)', () => {
+  it('opens the override modal and calls setAllergenOverride on save', async () => {
+    const setAllergenOverrideAction = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <AllergenCascadeWidget
+        data={DATA}
+        labels={LABELS}
+        canWrite
+        state="ready"
+        refreshAction={vi.fn()}
+        setAllergenOverrideAction={setAllergenOverrideAction}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('allergen-override-trigger-gluten'));
+    expect(screen.getByTestId('override-audit-alert')).toBeInTheDocument();
+
+    const textarea = screen.getByTestId('override-reason');
+    fireEvent.input(textarea, { target: { value: 'QA reviewed supplier dossier for gluten override' } });
+    fireEvent.click(screen.getByTestId('override-save'));
+
+    await waitFor(() => expect(setAllergenOverrideAction).toHaveBeenCalledTimes(1));
+    expect(setAllergenOverrideAction).toHaveBeenCalledWith(
+      'FG-001',
+      'gluten',
+      'remove',
+      'QA reviewed supplier dossier for gluten override',
+    );
+  });
+});
+
 describe('AllergenCascadeWidget — declaration accept control (criterion C5)', () => {
   it('renders the unchecked accept control when canAcceptDeclaration + not yet accepted', () => {
     render(

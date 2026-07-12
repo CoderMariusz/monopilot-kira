@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { AuthorizationError, ValidationError } from './errors';
 
-const WRITE_PERMISSIONS = ['technical.write', 'quality.write'] as const;
+const WRITE_PERMISSIONS = ['npd.allergen.write', 'technical.write', 'quality.write'] as const;
 
 type OverrideAction = 'add' | 'remove';
 

@@ -96,7 +96,7 @@ export function SpecListClient({
   createLabels: SpecCreateLabels;
   locale: string;
   createSpecAction: CreateSpecFn;
-  searchItemsAction: ItemSearchFn<'fg' | 'intermediate'>;
+  searchItemsAction: ItemSearchFn<'fg' | 'intermediate' | 'rm' | 'ingredient' | 'packaging'>;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<SpecStatus | 'all'>('all');
