@@ -28,6 +28,8 @@ import { getTranslations } from 'next-intl/server';
 
 import { listFaHistory, type FaHistoryEvent } from '@monopilot/queries';
 
+import { resolveProjectIdByProductCode } from '../../../../../../lib/npd/product-project-resolver';
+
 import { FaTabs, type FaTabsLabels, type FaTabPanels } from './_components/fa-tabs';
 import {
   FaHistoryTab,
@@ -316,15 +318,10 @@ async function readActiveDeptCodes(ctx: OrgContextLike): Promise<Set<DeptKey>> {
 }
 
 async function readProjectIdForProduct(ctx: OrgContextLike, productCode: string): Promise<string | null> {
-  const { rows } = await ctx.client.query<{ id: string }>(
-    `select id::text as id
-       from public.npd_projects
-      where org_id = app.current_org_id()
-        and product_code = $1::text
-      limit 1`,
-    [productCode],
-  );
-  return rows[0]?.id ?? null;
+  const result = await resolveProjectIdByProductCode(ctx, productCode);
+  if (result.kind === 'ok') return result.projectId;
+  if (result.kind === 'ambiguous') return result.projectIds[0] ?? null;
+  return null;
 }
 
 async function readDeptStageMap(ctx: OrgContextLike): Promise<Record<string, string>> {

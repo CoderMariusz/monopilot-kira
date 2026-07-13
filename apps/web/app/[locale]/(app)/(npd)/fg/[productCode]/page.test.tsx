@@ -149,9 +149,11 @@ describe('T-136 FA detail page — parity + real-data header', () => {
     // prod_detail rows (listProdDetail), (4) the FA benchmarks (listBenchmarks) —
     // both feeding the Core-section editor slots — (5) the read-only FA BOM
     // (getFaBom, Lane 12) feeding the BOM tab, and (6) a further org-scoped read
-    // in the ready-path fan-out. All go through RLS as app_user — the client
-    // never re-queries or trusts a client permission flag.
-    expect(withOrgContextMock).toHaveBeenCalledTimes(6);
+    // in the ready-path fan-out, plus (7)+(8) the round-4 additions (Recipe WIP
+    // panel prod_detail + gate-checklist auto-signals). All go through RLS as
+    // app_user — the client never re-queries or trusts a client permission flag.
+    // (Count was stale at 6 after the round-4 merge; corrected to 8 during C1.)
+    expect(withOrgContextMock).toHaveBeenCalledTimes(8);
 
     const header = screen
       .getByRole('heading', { name: 'Smoked Almond Yoghurt' })

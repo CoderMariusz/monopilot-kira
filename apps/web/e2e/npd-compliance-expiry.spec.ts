@@ -79,12 +79,16 @@ async function runAxe(
   expect(axe.violations, `axe violations on ${label}`).toEqual([]);
 }
 
-/** Resolve a real FA product code: env override, else the first FA link on /en/fg. */
+/**
+ * Resolve a real FA product code: env override, else the first FA link on the NPD
+ * dashboard. (C1 consolidation folded the /fg list into /pipeline; the /npd dashboard
+ * still lists FGs with code links, and the /fg/[code] detail this flow drives remains.)
+ */
 async function resolveFaCode(
   page: import('@playwright/test').Page,
 ): Promise<string> {
   if (testFaCode) return testFaCode;
-  await page.goto(`${baseURL}/en/fg`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${baseURL}/en/npd`, { waitUntil: 'domcontentloaded' });
   const firstLink = page.getByRole('link', { name: /^DEV|^FA|^NPD/i }).first();
   await expect(firstLink, 'at least one FA must exist to run compliance upload flow').toBeVisible({
     timeout: 15_000,
