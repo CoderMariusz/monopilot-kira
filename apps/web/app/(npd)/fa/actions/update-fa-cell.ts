@@ -26,6 +26,24 @@ const inputSchema = z.object({
   value: z.unknown(),
 });
 
+/**
+ * C5 — identity columns are immutable through the generic FA cell writer.
+ * `product_code` is set ONCE at creation (createFa → insertProduct); this action
+ * only ever UPDATEs an existing row matched BY product_code, so it is never the
+ * legitimate path to change it. A rename would otherwise fan down to
+ * items.item_code via the mig-359 product_instead_of_update trigger and silently
+ * re-key the product.
+ *
+ * Only `product_code` is denylisted here because it is the ONLY identity field
+ * this action can actually write: the `public.product` view (mig 359) projects no
+ * unit-of-measure or category/type column, so those live only on the base
+ * `items` table and are unreachable through updateFaCell (assertProductColumn
+ * would already reject them). If the view ever exposes UoM/category, add their
+ * real column_keys here. (Identity mutation via other paths — e.g. D365 pull
+ * writing items.item_code directly — is a separate concern, not this action.)
+ */
+const IDENTITY_COLUMN_KEYS: ReadonlySet<string> = new Set(['product_code']);
+
 type UpdateRow = {
   previous_value: string | null;
   new_value: string | null;
@@ -48,6 +66,15 @@ export async function updateFaCell(
     const permission = permissionForDept(column.dept_code);
     if (!(await hasPermission(context, permission))) {
       throw new AuthError('FORBIDDEN', `${permission} is required to update ${parsed.data.columnName}`);
+    }
+
+    // C5 — reject identity-field edits (product_code, UoM, category) before any
+    // write. Immutable for everyone via this path; no dept permission grants it.
+    if (IDENTITY_COLUMN_KEYS.has(column.column_key)) {
+      throw new ValidationError(
+        'IDENTITY_COLUMN_IMMUTABLE',
+        'Identity fields (product code, unit of measure, category) cannot be edited after creation',
+      );
     }
 
     // mig 374 — auto-derived columns are READ-TIME mirrors of another field and
