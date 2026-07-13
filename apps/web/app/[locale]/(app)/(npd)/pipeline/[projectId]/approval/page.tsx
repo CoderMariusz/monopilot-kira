@@ -42,13 +42,13 @@ import {
   type AllergenCascadeData,
   type AllergenLoad,
   type WidgetState as AllergenWidgetState,
-} from '../../../fg/[productCode]/_lib/allergen-cascade';
+} from '../../../../../../(npd)/fa/[productCode]/_lib/allergen-cascade';
 import {
   RiskRegisterScreen,
   type PageState as RiskPageState,
   type RiskRegisterLabels,
   type RiskRow,
-} from '../../../fg/[productCode]/risks/_components/risk-register-screen';
+} from '../../../../../../(npd)/fa/[productCode]/risks/_components/risk-register-screen';
 import {
   ApprovalScreen,
   type ApprovalChainStep,

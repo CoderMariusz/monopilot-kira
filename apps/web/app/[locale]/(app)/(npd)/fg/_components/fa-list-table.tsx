@@ -35,7 +35,7 @@ import { EmptyState } from '@monopilot/ui/EmptyState';
 import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
-import { FaCreateModal, type CreateFaAction, type FaCreateLabels } from './fa-create-modal';
+import { FaCreateModal, type CreateFaAction, type FaCreateLabels } from '../../../../../(npd)/fa/_components/fa-create-modal';
 
 const LOCALES = ['en', 'pl', 'ro', 'uk'];
 

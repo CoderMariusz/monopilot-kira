@@ -2,12 +2,12 @@
 
 import { hasPermission } from '../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
-import { isLegacyProcessColumn } from '../../../[locale]/(app)/(npd)/fg/[productCode]/_components/legacy-process-column';
+import { isLegacyProcessColumn } from '../[productCode]/_components/legacy-process-column';
 import type {
   FaProductionColumn,
   OperationOption,
   ProdDetailRow,
-} from '../../../[locale]/(app)/(npd)/fg/[productCode]/_components/fa-production-tab';
+} from '../[productCode]/_components/fa-production-tab';
 import type { ComponentProcess, ComponentProcessBundle } from '../actions/map-definition-process-chain';
 import { getComponentProcesses } from '../actions/get-component-processes';
 import { listManufacturingOperations } from '../../../../actions/reference/manufacturing-ops/list';

@@ -53,7 +53,7 @@ import { FaSectionWrapper, type FaSectionPart } from '../fa-section-wrapper';
 import { FaCoreTab, type FaCoreColumn } from '../fa-core-tab';
 import { FaPlanningTab, type FaPlanningColumn } from '../fa-planning-tab';
 import { FaCommercialTab, type FaCommercialColumn } from '../commercial-tab';
-import { FaProductionTab, type FaProductionColumn } from '../fa-production-tab';
+import { FaProductionTab, type FaProductionColumn } from '../../../../../../../(npd)/fa/[productCode]/_components/fa-production-tab';
 import { FaTechnicalTab, type FaTechnicalColumn } from '../fa-technical-tab';
 import { FaProcurementTab, type FaProcurementColumn } from '../fa-procurement-tab';
 

@@ -39,7 +39,7 @@ import {
   type GateStatus,
   type RecentProject,
 } from '../_components/dashboard-pipeline-preview';
-import { buildFaCreateModalProps } from '../fg/_components/fa-create-host';
+import { buildFaCreateModalProps } from '../../../../(npd)/fa/_components/fa-create-host';
 import { getDashboardSummary } from '../../../../(npd)/dashboard/_actions/get-dashboard-summary';
 import { getLaunchAlerts } from '../../../../(npd)/dashboard/_actions/get-launch-alerts';
 import { listProjects } from '../../../../(npd)/pipeline/_actions/list-projects';

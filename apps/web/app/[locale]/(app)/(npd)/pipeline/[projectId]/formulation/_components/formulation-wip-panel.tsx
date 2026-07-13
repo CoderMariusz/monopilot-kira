@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {
   FaProductionTab,
   type FaProductionTabLabels,
-} from '../../../../fg/[productCode]/_components/fa-production-tab';
+} from '../../../../../../../(npd)/fa/[productCode]/_components/fa-production-tab';
 import { loadFormulationWipPanel } from '../../../../../../../(npd)/fa/_actions/load-formulation-wip-panel';
 
 type FormulationWipPanelProps = {

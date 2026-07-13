@@ -148,8 +148,8 @@ vi.mock('../../../../../../(npd)/fa/[productCode]/risks/_actions/update-risk', (
   updateRisk: (...args: unknown[]) => updateRiskMock(...args),
 }));
 
-vi.mock('../../../fg/[productCode]/_lib/allergen-cascade', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../fg/[productCode]/_lib/allergen-cascade')>();
+vi.mock('../../../../../../(npd)/fa/[productCode]/_lib/allergen-cascade', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../../../../(npd)/fa/[productCode]/_lib/allergen-cascade')>();
   return {
     ...actual,
     loadAllergenCascade: (...args: unknown[]) => loadAllergenCascadeMock(...args),

@@ -9,7 +9,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { FaProductionTabLabels } from '../../../../../fg/[productCode]/_components/fa-production-tab';
+import type { FaProductionTabLabels } from '../../../../../../../../(npd)/fa/[productCode]/_components/fa-production-tab';
 import type { FormulationWipPanelData } from '../../../../../../../../(npd)/fa/_actions/load-formulation-wip-panel';
 
 const loadFormulationWipPanelMock = vi.fn<() => Promise<FormulationWipPanelData>>();

@@ -37,7 +37,7 @@ import {
   type OperationOption,
   type FormulationIngredient,
   type ProductionProcessLabels,
-} from '../fa-production-tab';
+} from '../../../../../../../(npd)/fa/[productCode]/_components/fa-production-tab';
 import type { FaProductionLineOption } from '../../../../../../../(npd)/fa/_components/w5-production-constants';
 
 function PROCESS_LABELS(): ProductionProcessLabels {

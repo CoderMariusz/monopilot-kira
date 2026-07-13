@@ -15,4 +15,4 @@ export {
   type ProdDetailRow,
   type ProductionProcessLabels,
   type ComponentProcess,
-} from '../../../[locale]/(app)/(npd)/fg/[productCode]/_components/fa-production-tab';
+} from '../[productCode]/_components/fa-production-tab';

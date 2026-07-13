@@ -68,41 +68,41 @@ import {
   SelectValue,
 } from '@monopilot/ui/Select';
 
-import { updateFaCell } from '../../../../../../(npd)/fa/actions/update-fa-cell';
+import { updateFaCell } from '../../actions/update-fa-cell';
 import {
   addProdDetailComponent,
   ensureProdDetailAnchor,
   removeProdDetailComponent,
-} from '../../../../../../(npd)/fa/actions/add-prod-detail-component';
-import { searchItems } from '../../../../../../(npd)/fa/actions/search-items';
-import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
-import { ItemPicker, type ItemPickerLabels, type ItemSearchFn } from '../../../_components/item-picker';
+} from '../../actions/add-prod-detail-component';
+import { searchItems } from '../../actions/search-items';
+import type { ItemPickerOption } from '../../actions/search-items-types';
+import { ItemPicker, type ItemPickerLabels, type ItemSearchFn } from '../../../../[locale]/(app)/(npd)/_components/item-picker';
 import type {
   ComponentProcess,
-} from '../../../../../../(npd)/fa/actions/get-component-processes';
+} from '../../actions/get-component-processes';
 import {
   resolveComponentProcessBundle,
   type ComponentProcessBundle,
-} from '../../../../../../(npd)/fa/actions/map-definition-process-chain';
-import { publishWipDefinitionFromComponent } from '../../../../(modules)/technical/wip-library/_actions/wip-definition-actions';
+} from '../../actions/map-definition-process-chain';
+import { publishWipDefinitionFromComponent } from '../../../../[locale]/(app)/(modules)/technical/wip-library/_actions/wip-definition-actions';
 import {
   addWipProcess,
   updateWipProcess,
   removeWipProcess,
   saveWipProcessRoles,
-} from '../../../../../../(npd)/fa/actions/wip-process-actions';
-import { assignIngredientProcess } from '../../../../../../(npd)/fa/actions/assign-ingredient-process';
-import { getProcessDefault } from '../../../../(admin)/settings/process-defaults/_actions/process-defaults-actions';
-import { wipProcessPrefillFromDefault } from '../../../../../../(npd)/fa/_lib/wip-process-prefill';
+} from '../../actions/wip-process-actions';
+import { assignIngredientProcess } from '../../actions/assign-ingredient-process';
+import { getProcessDefault } from '../../../../[locale]/(app)/(admin)/settings/process-defaults/_actions/process-defaults-actions';
+import { wipProcessPrefillFromDefault } from '../../_lib/wip-process-prefill';
 import { isLegacyProcessColumn } from './legacy-process-column';
-import { isW5HiddenProductionColumn } from '../../../../../../(npd)/fa/_components/w5-production-constants';
-import { ProductionLinePicker } from '../../../../../../(npd)/fa/_components/production-line-picker';
-import { ProcessYieldHint } from '../../../../../../(npd)/fa/_components/process-yield-hint';
-import type { FaProductionLineOption } from '../../../../../../(npd)/fa/_components/w5-production-constants';
-import type { SetProductionLineResult } from '../../../../../../(npd)/fa/_actions/set-production-line-types';
+import { isW5HiddenProductionColumn } from '../../_components/w5-production-constants';
+import { ProductionLinePicker } from '../../_components/production-line-picker';
+import { ProcessYieldHint } from '../../_components/process-yield-hint';
+import type { FaProductionLineOption } from '../../_components/w5-production-constants';
+import type { SetProductionLineResult } from '../../_actions/set-production-line-types';
 import { canEditProductionFromFormulationIngredientCount } from './production-unlock';
 
-export type { ComponentProcess } from '../../../../../../(npd)/fa/actions/get-component-processes';
+export type { ComponentProcess } from '../../actions/get-component-processes';
 
 // ---------------------------------------------------------------------------
 // S5b (owner D6/D9) — dynamic per-component PROCESS LIST. The fixed legacy

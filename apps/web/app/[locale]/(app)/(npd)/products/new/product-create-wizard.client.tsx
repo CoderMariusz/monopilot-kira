@@ -22,7 +22,7 @@ import {
   FaCreateModal,
   type CreateFaAction,
   type FaCreateLabels,
-} from '../../fg/_components/fa-create-modal';
+} from '../../../../../(npd)/fa/_components/fa-create-modal';
 
 /** Allow only same-origin absolute paths (open-redirect / locale-break guard). */
 function safeReturnTo(raw: string | undefined): string | null {

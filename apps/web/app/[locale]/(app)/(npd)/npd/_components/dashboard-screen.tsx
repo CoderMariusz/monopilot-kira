@@ -38,7 +38,7 @@ import {
   FaCreateModal,
   type CreateFaAction,
   type FaCreateLabels,
-} from '../../fg/_components/fa-create-modal';
+} from '../../../../../(npd)/fa/_components/fa-create-modal';
 
 const LOCALES = ['en', 'pl', 'ro', 'uk'];
 

@@ -68,7 +68,7 @@ vi.mock('../_components/stale-wip-definition-banner', () => ({
   StaleWipDefinitionBanner: () => null,
 }));
 
-vi.mock('../../../fg/[productCode]/_actions/get-fa-bom', () => ({
+vi.mock('../../../../../../(npd)/fa/[productCode]/_actions/get-fa-bom', () => ({
   getFaBom: (...args: unknown[]) => getFaBomMock(...args),
 }));
 

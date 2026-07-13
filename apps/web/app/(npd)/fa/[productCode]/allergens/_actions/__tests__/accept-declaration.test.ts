@@ -10,13 +10,13 @@ const ORG_ID = '22222222-2222-4222-8222-222222222222';
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const PRODUCT_CODE = 'FG-ALLERGEN-01';
 
-vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
+vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: (
     action: (ctx: { userId: string; orgId: string; client: { query: typeof queryMock } }) => unknown,
   ) => action({ userId: USER_ID, orgId: ORG_ID, client: { query: queryMock } }),
 }));
 
-vi.mock('../../../../../../../../../lib/i18n/revalidate-localized', () => ({
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
   revalidateLocalized: vi.fn(),
 }));
 

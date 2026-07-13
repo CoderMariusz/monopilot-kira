@@ -69,10 +69,10 @@ import { buildStaleWipBannerLabels } from '../_lib/build-stale-wip-banner-labels
 import { StaleWipDefinitionBanner } from '../_components/stale-wip-definition-banner';
 import { acceptWipDefinitionUpdateForProject } from '../_actions/accept-wip-definition-update-wrapper';
 import { FormulationWipPanel } from './_components/formulation-wip-panel';
-import type { FaProductionTabLabels } from '../../../fg/[productCode]/_components/fa-production-tab';
-import { FaBomTab, type FaBomTabLabels, type FaBomTabState } from '../../../fg/[productCode]/_components/fa-bom-tab';
-import { getFaBom } from '../../../fg/[productCode]/_actions/get-fa-bom';
-import type { FaBomResult } from '../../../fg/[productCode]/_actions/fa-bom-types';
+import type { FaProductionTabLabels } from '../../../../../../(npd)/fa/[productCode]/_components/fa-production-tab';
+import { FaBomTab, type FaBomTabLabels, type FaBomTabState } from '../../../../../../(npd)/fa/[productCode]/_components/fa-bom-tab';
+import { getFaBom } from '../../../../../../(npd)/fa/[productCode]/_actions/get-fa-bom';
+import type { FaBomResult } from '../../../../../../(npd)/fa/[productCode]/_actions/fa-bom-types';
 import { AuthError } from '../../../../../../(npd)/fa/actions/errors';
 
 export const dynamic = 'force-dynamic';

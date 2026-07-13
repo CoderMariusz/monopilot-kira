@@ -26,7 +26,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { FaCreateModal, type FaCreateLabels } from '../fa-create-modal';
+import { FaCreateModal, type FaCreateLabels } from '../../../../../../(npd)/fa/_components/fa-create-modal';
 
 afterEach(() => cleanup());
 

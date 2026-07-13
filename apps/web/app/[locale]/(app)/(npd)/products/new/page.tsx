@@ -21,7 +21,7 @@ import { ProductCreateWizard } from './product-create-wizard.client';
 import {
   type CreateFaAction,
   type FaCreateLabels,
-} from '../../fg/_components/fa-create-modal';
+} from '../../../../../(npd)/fa/_components/fa-create-modal';
 import { createFa } from '../../../../../(npd)/fa/actions/create-fa';
 import { DuplicateError } from '../../../../../(npd)/fa/actions/errors';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';

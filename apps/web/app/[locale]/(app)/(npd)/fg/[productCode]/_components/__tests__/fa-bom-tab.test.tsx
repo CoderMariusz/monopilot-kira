@@ -24,8 +24,8 @@ import { cleanup, render, screen, within, waitFor } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FaBomTab, type FaBomTabLabels } from '../fa-bom-tab';
-import type { FaBomLine, FaBomVersion } from '../../_actions/fa-bom-types';
+import { FaBomTab, type FaBomTabLabels } from '../../../../../../../(npd)/fa/[productCode]/_components/fa-bom-tab';
+import type { FaBomLine, FaBomVersion } from '../../../../../../../(npd)/fa/[productCode]/_actions/fa-bom-types';
 
 afterEach(() => cleanup());
 

@@ -18,7 +18,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import AllergensPage from './page';
-import type { AllergenCascadeData } from '../_lib/allergen-cascade';
+import type { AllergenCascadeData } from '../../../../../../(npd)/fa/[productCode]/_lib/allergen-cascade';
 
 afterEach(() => cleanup());
 

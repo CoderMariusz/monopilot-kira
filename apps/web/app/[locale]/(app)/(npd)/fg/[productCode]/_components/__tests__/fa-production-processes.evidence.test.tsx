@@ -35,7 +35,7 @@ import {
   type ProdDetailRow,
   type ComponentProcess,
   type OperationOption,
-} from '../fa-production-tab';
+} from '../../../../../../../(npd)/fa/[productCode]/_components/fa-production-tab';
 
 const ARTIFACT_DIR = path.resolve(__dirname, '../../../../../../../../e2e/artifacts/S5b-production-processes');
 

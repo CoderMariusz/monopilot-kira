@@ -23,7 +23,7 @@
 import React from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-import { FaCreateModal, type CreateFaAction, type FaCreateLabels } from './fa-create-modal';
+import { FaCreateModal, type CreateFaAction, type FaCreateLabels } from '../../../../../(npd)/fa/_components/fa-create-modal';
 
 const LOCALES = ['en', 'pl', 'ro', 'uk'];
 

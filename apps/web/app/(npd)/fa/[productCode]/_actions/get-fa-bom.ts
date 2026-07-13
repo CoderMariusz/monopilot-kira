@@ -26,9 +26,9 @@
  * client-trusted), no mocks, no migrations.
  */
 
-import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { AuthError, ValidationError } from '../../../../../../(npd)/fa/actions/errors';
-import { hasPermission } from '../../../../../../../lib/auth/has-permission';
+import { withOrgContext } from '../../../../../lib/auth/with-org-context';
+import { AuthError, ValidationError } from '../../actions/errors';
+import { hasPermission } from '../../../../../lib/auth/has-permission';
 
 type QueryResult<T = Record<string, unknown>> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {

@@ -18,7 +18,7 @@ import {
   type PageState,
   type RiskRegisterLabels,
   type RiskRow,
-} from './_components/risk-register-screen';
+} from '../../../../../../(npd)/fa/[productCode]/risks/_components/risk-register-screen';
 import { createRisk } from '../../../../../../(npd)/fa/[productCode]/risks/_actions/create-risk';
 import { listRisks } from '../../../../../../(npd)/fa/[productCode]/risks/_actions/list-risks';
 import { updateRisk } from '../../../../../../(npd)/fa/[productCode]/risks/_actions/update-risk';

@@ -27,8 +27,8 @@
 import { getTranslations } from 'next-intl/server';
 
 import { type CreateFaAction, type FaCreateLabels } from './fa-create-modal';
-import { createFa } from '../../../../../(npd)/fa/actions/create-fa';
-import { DuplicateError } from '../../../../../(npd)/fa/actions/errors';
+import { createFa } from '../actions/create-fa';
+import { DuplicateError } from '../actions/errors';
 
 // FG terminology (Create FG) + the prototype copy translated 1:1.
 const DEFAULT_LABELS: FaCreateLabels = {

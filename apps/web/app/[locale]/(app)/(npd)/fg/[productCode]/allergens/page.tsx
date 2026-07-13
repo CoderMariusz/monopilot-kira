@@ -32,7 +32,7 @@ import {
   type AllergenCascadeData,
   type AllergenLoad,
   type WidgetState,
-} from '../_lib/allergen-cascade';
+} from '../../../../../../(npd)/fa/[productCode]/_lib/allergen-cascade';
 
 export const dynamic = 'force-dynamic';
 

@@ -34,7 +34,7 @@ vi.mock('next/navigation', () => ({
 
 import { FaCreateModalHost } from '../fa-create-modal-host';
 import { FaListTable, type FaListLabels, type FaListRow } from '../fa-list-table';
-import type { FaCreateLabels } from '../fa-create-modal';
+import type { FaCreateLabels } from '../../../../../../(npd)/fa/_components/fa-create-modal';
 
 afterEach(() => {
   cleanup();

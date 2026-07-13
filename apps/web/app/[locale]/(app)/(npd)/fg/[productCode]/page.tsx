@@ -59,10 +59,10 @@ import {
   type FaProductionTabLabels,
   type ProdDetailRow,
   type OperationOption,
-} from './_components/fa-production-tab';
+} from '../../../../../(npd)/fa/[productCode]/_components/fa-production-tab';
 // Plain module — NEVER import a callable from the 'use client' production tab
 // into this Server Component (client reference → runtime throw in prod build).
-import { isLegacyProcessColumn } from './_components/legacy-process-column';
+import { isLegacyProcessColumn } from '../../../../../(npd)/fa/[productCode]/_components/legacy-process-column';
 import {
   getComponentProcesses,
   type ComponentProcess,
@@ -79,17 +79,17 @@ import {
   type FaProcurementColumn,
   type FaProcurementTabLabels,
 } from './_components/fa-procurement-tab';
-import { FaBomTab, type FaBomTabLabels } from './_components/fa-bom-tab';
+import { FaBomTab, type FaBomTabLabels } from '../../../../../(npd)/fa/[productCode]/_components/fa-bom-tab';
 import { FaSectionWrapper, type FaSectionPart } from './_components/fa-section-wrapper';
-import { getFaBom } from './_actions/get-fa-bom';
-import type { FaBomResult } from './_actions/fa-bom-types';
+import { getFaBom } from '../../../../../(npd)/fa/[productCode]/_actions/get-fa-bom';
+import type { FaBomResult } from '../../../../../(npd)/fa/[productCode]/_actions/fa-bom-types';
 import { bom_export_csv } from '../../../../../(npd)/fa/actions/bom-export-csv';
 import {
   AllergenCascadeSection,
   buildAllergenLabels,
   loadAllergenCascade,
   type AllergenLoad,
-} from './_lib/allergen-cascade';
+} from '../../../../../(npd)/fa/[productCode]/_lib/allergen-cascade';
 import { FaHeaderActions, type FaHeaderActionsLabels } from './_components/fa-header-actions';
 import {
   DeptStatusStrip,

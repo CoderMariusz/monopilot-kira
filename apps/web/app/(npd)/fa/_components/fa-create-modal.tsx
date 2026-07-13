@@ -33,7 +33,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { V01_PRODUCT_CODE_PATTERN } from '@monopilot/validation';
 
-import { matchesCodeMask } from '../../../../../../lib/documents/code-mask';
+import { matchesCodeMask } from '../../../../lib/documents/code-mask';
 
 import { Button } from '@monopilot/ui/Button';
 import Modal from '@monopilot/ui/Modal';

@@ -73,7 +73,7 @@ import {
   type ComponentProcess,
   type OperationOption,
   type ProductionProcessLabels,
-} from '../fa-production-tab';
+} from '../../../../../../../(npd)/fa/[productCode]/_components/fa-production-tab';
 
 const LABELS: FaProductionTabLabels = {
   title: 'Production detail',

@@ -29,17 +29,17 @@ import {
   type AllergenCascadeData,
   type AllergenCascadeLabels,
   type WidgetState,
-} from '../../../../../../(npd)/fa/[productCode]/_components/allergen-cascade-widget';
-import { readAllergenCascade } from '../../../../../../(npd)/fa/[productCode]/allergens/_actions/read-allergen-cascade';
-import { refreshAllergenCascade } from '../../../../../../(npd)/fa/[productCode]/allergens/_actions/refresh-allergen-cascade';
-import { submitAllergenOverride } from '../../../../../../(npd)/fa/[productCode]/allergens/_actions/submit-allergen-override';
+} from '../_components/allergen-cascade-widget';
+import { readAllergenCascade } from '../allergens/_actions/read-allergen-cascade';
+import { refreshAllergenCascade } from '../allergens/_actions/refresh-allergen-cascade';
+import { submitAllergenOverride } from '../allergens/_actions/submit-allergen-override';
 import {
   acceptAllergenDeclaration,
   revokeAllergenDeclaration,
 } from '../allergens/_actions/accept-declaration';
-import { hasAnyPermission } from '../../../../../../../lib/auth/has-permission';
-import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { buildAllergenCascadeData } from '../../../../../../../lib/npd/build-allergen-cascade-data';
+import { hasAnyPermission } from '../../../../../lib/auth/has-permission';
+import { withOrgContext } from '../../../../../lib/auth/with-org-context';
+import { buildAllergenCascadeData } from '../../../../../lib/npd/build-allergen-cascade-data';
 
 const DECLARATION_WRITE_PERMISSIONS = [
   'npd.allergen.write',

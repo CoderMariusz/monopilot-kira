@@ -3,9 +3,9 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
-import { hasAnyPermission } from '../../../../../../../../lib/auth/has-permission';
-import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
-import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
+import { hasAnyPermission } from '../../../../../../lib/auth/has-permission';
+import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 
 // Accept/revoke permission OR-list (NN-TEC-5). Arbitration 2026-07-07: the npd_manager
 // ROLE bypass was removed (no r.code/r.slug = 'npd_manager' shortcut), but the legacy
