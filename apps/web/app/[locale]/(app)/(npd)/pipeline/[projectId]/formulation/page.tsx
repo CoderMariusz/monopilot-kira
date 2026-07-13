@@ -70,6 +70,10 @@ import { StaleWipDefinitionBanner } from '../_components/stale-wip-definition-ba
 import { acceptWipDefinitionUpdateForProject } from '../_actions/accept-wip-definition-update-wrapper';
 import { FormulationWipPanel } from './_components/formulation-wip-panel';
 import type { FaProductionTabLabels } from '../../../fg/[productCode]/_components/fa-production-tab';
+import { FaBomTab, type FaBomTabLabels, type FaBomTabState } from '../../../fg/[productCode]/_components/fa-bom-tab';
+import { getFaBom } from '../../../fg/[productCode]/_actions/get-fa-bom';
+import type { FaBomResult } from '../../../fg/[productCode]/_actions/fa-bom-types';
+import { AuthError } from '../../../../../../(npd)/fa/actions/errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -876,6 +880,86 @@ async function buildWipPanelLabels(locale: string): Promise<FaProductionTabLabel
   }
 }
 
+async function buildBomLabels(locale: string): Promise<FaBomTabLabels> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.faBomTab' });
+    const p = (key: string, fallback: string) => {
+      try {
+        const value = t(key);
+        return value === key ? fallback : value;
+      } catch {
+        return fallback;
+      }
+    };
+    return {
+      title: p('title', 'BOM (computed view)'),
+      readOnlyNote: p(
+        'readOnlyNote',
+        'Read-only view of the shared BOM. Bills of materials are edited in Technical.',
+      ),
+      exportCsv: p('exportCsv', 'Export BOM CSV'),
+      exporting: p('exporting', 'Exporting…'),
+      exportError: p('exportError', 'Could not export the BOM CSV.'),
+      versionLine: p('versionLine', 'v{version} · {status} · {count} lines'),
+      statusLabels: {
+        draft: p('status.draft', 'Draft'),
+        in_review: p('status.in_review', 'In review'),
+        technical_approved: p('status.technical_approved', 'Technical approved'),
+        active: p('status.active', 'Active'),
+      },
+      colType: p('colType', 'Type'),
+      colCode: p('colCode', 'Code'),
+      colName: p('colName', 'Name'),
+      colQty: p('colQty', 'Qty'),
+      colStage: p('colStage', 'Stage'),
+      colSource: p('colSource', 'Source'),
+      colD365: p('colD365', 'D365 status'),
+      d365Found: p('d365Found', 'Found'),
+      d365NoCost: p('d365NoCost', 'No cost'),
+      d365Missing: p('d365Missing', 'Missing'),
+      d365Empty: p('d365Empty', 'Not in D365'),
+      loading: p('loading', 'Loading BOM…'),
+      error: p('error', 'Unable to load the BOM.'),
+      forbidden: p('forbidden', 'You do not have permission to view this BOM.'),
+      empty: p('empty', 'No BOM yet'),
+      emptyBody: p('emptyBody', 'This Finished Good has no bill of materials.'),
+      technicalLink: p('technicalLink', 'Open in Technical'),
+    };
+  } catch {
+    return {
+      title: 'BOM (computed view)',
+      readOnlyNote: 'Read-only view of the shared BOM. Bills of materials are edited in Technical.',
+      exportCsv: 'Export BOM CSV',
+      exporting: 'Exporting…',
+      exportError: 'Could not export the BOM CSV.',
+      versionLine: 'v{version} · {status} · {count} lines',
+      statusLabels: {
+        draft: 'Draft',
+        in_review: 'In review',
+        technical_approved: 'Technical approved',
+        active: 'Active',
+      },
+      colType: 'Type',
+      colCode: 'Code',
+      colName: 'Name',
+      colQty: 'Qty',
+      colStage: 'Stage',
+      colSource: 'Source',
+      colD365: 'D365 status',
+      d365Found: 'Found',
+      d365NoCost: 'No cost',
+      d365Missing: 'Missing',
+      d365Empty: 'Not in D365',
+      loading: 'Loading BOM…',
+      error: 'Unable to load the BOM.',
+      forbidden: 'You do not have permission to view this BOM.',
+      empty: 'No BOM yet',
+      emptyBody: 'This Finished Good has no bill of materials.',
+      technicalLink: 'Open in Technical',
+    };
+  }
+}
+
 export default async function FormulationPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as FormulationPageProps;
   const { locale, projectId } = props.params
@@ -913,6 +997,19 @@ export default async function FormulationPage(propsInput: unknown = {}) {
         allergenReference: [],
       }
     : await readPageData(projectId, requestedVersionId);
+
+  const bomLabels = await buildBomLabels(locale);
+  const productCode = loaded.state === 'ready' ? (loaded.data?.productCode ?? null) : null;
+  let bomState: FaBomTabState = 'empty';
+  let bomLoad: FaBomResult = { state: 'empty' };
+  if (!injected && productCode) {
+    try {
+      bomLoad = await getFaBom(productCode);
+      bomState = bomLoad.state === 'ready' ? 'ready' : 'empty';
+    } catch (e) {
+      bomState = e instanceof AuthError ? 'permission_denied' : 'error';
+    }
+  }
 
   return (
     <>
@@ -968,6 +1065,14 @@ export default async function FormulationPage(propsInput: unknown = {}) {
         noFgTitle={wipNoFgLabels.title}
         noFgBody={wipNoFgLabels.body}
         noFgGateLink={wipNoFgLabels.gateLink}
+      />
+      <FaBomTab
+        productCode={productCode ?? ''}
+        version={bomLoad.state === 'ready' ? bomLoad.version : null}
+        lines={bomLoad.state === 'ready' ? bomLoad.lines : []}
+        labels={bomLabels}
+        state={bomState}
+        technicalBomHref={`/${locale}/technical/bom`}
       />
     </>
   );
