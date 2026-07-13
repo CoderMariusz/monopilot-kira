@@ -98,7 +98,7 @@ describe('ProductCreateWizard — onboarding returnTo flow', () => {
 
     await fillAndCreate(user);
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fg/FA5609'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/pipeline'));
   });
 
   it('ignores a backslash open-redirect (/\\evil.example.com) and falls back to /{locale}/fg', async () => {
@@ -111,7 +111,7 @@ describe('ProductCreateWizard — onboarding returnTo flow', () => {
 
     await fillAndCreate(user);
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fg/FA5609'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/pipeline'));
   });
 
   it('ignores a tab/control-char open-redirect (/%09//evil) and falls back to /{locale}/fg', async () => {
@@ -125,18 +125,18 @@ describe('ProductCreateWizard — onboarding returnTo flow', () => {
 
     await fillAndCreate(user);
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fg/FA5609'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/pipeline'));
   });
 
-  it('lands on the new FG detail route when no returnTo is provided', async () => {
-    // Wave F5: /fa route renamed to /fg; ProductCreateWizard navigates to /en/fg/<code>.
+  it('lands on the pipeline list when no returnTo is provided', async () => {
+    // C7b: /fg detail removed; ProductCreateWizard now lands on /${locale}/pipeline after create.
     const user = userEvent.setup();
     const action = vi.fn(async () => ({ productCode: 'FA5609' }));
     render(<ProductCreateWizard labels={LABELS} createFaAction={action} locale="en" />);
 
     await fillAndCreate(user);
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fg/FA5609'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/pipeline'));
   });
 
   it('accepts a non-FA product code (prefix is no longer hardcoded to FA)', async () => {

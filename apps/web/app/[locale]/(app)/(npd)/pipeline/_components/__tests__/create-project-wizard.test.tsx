@@ -232,7 +232,7 @@ describe('CreateProjectWizard — parity, navigation, validation', () => {
       sourceProjectId: 'src-2',
       overrides: expect.objectContaining({ name: 'Sliced Ham v2', prio: 'normal' }),
     });
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/pipeline/pid-clone'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/pipeline/pid-clone/formulation'));
   });
 
   it('renders the output unit field on the Basics step (first brief-capture path)', () => {
@@ -306,7 +306,7 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
       prio: 'normal',
       templateId: 'APEX_DEFAULT',
     });
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/pipeline/pid-42'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/pipeline/pid-42/formulation'));
   });
 
   it('sends null for empty optional fields and parses no price to null', async () => {
