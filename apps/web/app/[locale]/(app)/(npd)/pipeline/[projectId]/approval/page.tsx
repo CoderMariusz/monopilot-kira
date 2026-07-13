@@ -25,6 +25,31 @@
 import { getTranslations } from 'next-intl/server';
 
 import {
+  ComplianceDocsScreen,
+  type ComplianceDocRow,
+  type ComplianceDocsLabels,
+  type DocType,
+  type PageState as CompliancePageState,
+} from '../../../../../../(npd)/fa/[productCode]/docs/_components/compliance-docs-screen';
+import { getSignedUrl } from '../../../../../../(npd)/fa/[productCode]/docs/_actions/get-signed-url';
+import { listDocs } from '../../../../../../(npd)/fa/[productCode]/docs/_actions/list-docs';
+import { listRisks } from '../../../../../../(npd)/fa/[productCode]/risks/_actions/list-risks';
+import { createApprovalMountActions } from './_actions/approval-mount-actions';
+import {
+  AllergenCascadeSection,
+  buildAllergenLabels,
+  loadAllergenCascade,
+  type AllergenCascadeData,
+  type AllergenLoad,
+  type WidgetState as AllergenWidgetState,
+} from '../../../fg/[productCode]/_lib/allergen-cascade';
+import {
+  RiskRegisterScreen,
+  type PageState as RiskPageState,
+  type RiskRegisterLabels,
+  type RiskRow,
+} from '../../../fg/[productCode]/risks/_components/risk-register-screen';
+import {
   ApprovalScreen,
   type ApprovalChainStep,
   type ApprovalCriterionKey,
@@ -46,6 +71,7 @@ import {
   hasPermission,
   type OrgContextLike,
 } from '../../../../../../(npd)/pipeline/_actions/shared';
+import { hasPermission as hasAuthPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
@@ -56,10 +82,28 @@ type ApprovalPageProps = {
   data?: ApprovalScreenData | null;
   canApprove?: boolean;
   state?: PageState;
+  productCode?: string | null;
+  complianceRows?: ComplianceDocRow[];
+  complianceState?: CompliancePageState;
+  complianceCanWrite?: boolean;
+  riskRows?: RiskRow[];
+  riskState?: RiskPageState;
+  riskCanWrite?: boolean;
+  allergenData?: AllergenCascadeData | null;
+  allergenState?: AllergenWidgetState;
+  allergenCanWrite?: boolean;
+  allergenCanAcceptDeclaration?: boolean;
 };
 
-type LoaderResult = { state: PageState; data: ApprovalScreenData | null; canApprove: boolean };
+type LoaderResult = {
+  state: PageState;
+  data: ApprovalScreenData | null;
+  canApprove: boolean;
+  productCode?: string | null;
+};
 type LoaderStage = LoaderResult & { productCode: string | null };
+
+const RISK_WRITE_PERMISSION = 'npd.risk.write';
 
 const DEFAULT_LABELS: ApprovalLabels = {
   title: 'Approval gates',
@@ -181,10 +225,10 @@ const EMPTY_CRITERIA: Record<ApprovalCriterionKey, ApprovalCriterionStatus> = {
 /**
  * Per-criterion remediation hrefs (criteria-card §"how to satisfy").
  * - C1/C2/C3 live on this project's stage screens (pipeline-relative).
- * - C5/C6/C7 live on the FA aggregate screens keyed by product_code.
+ * - C5/C6/C7 live on in-page Approval sections keyed by product_code (C4 wave).
  * - C4 (sensory) is a Technical-owned read-model — no in-app remediation link.
  */
-function buildCriterionLinks(
+export function buildCriterionLinks(
   locale: string,
   projectId: string,
   productCode: string | null,
@@ -196,13 +240,242 @@ function buildCriterionLinks(
     C3: stage('costing'),
   };
   if (productCode) {
-    const fa = (segment: string) =>
-      `/${locale}/fg/${encodeURIComponent(productCode)}/${segment}`;
-    links.C5 = fa('allergens');
-    links.C6 = fa('risks');
-    links.C7 = fa('docs');
+    const approvalBase = stage('approval');
+    links.C5 = `${approvalBase}#approval-allergens`;
+    links.C6 = `${approvalBase}#approval-risks`;
+    links.C7 = `${approvalBase}#approval-compliance`;
   }
   return links;
+}
+
+const COMPLIANCE_DEFAULT_LABELS: ComplianceDocsLabels = {
+  title: 'Compliance documents',
+  subtitle: 'Read-only attachments tied to this Finished Good.',
+  upload: '+ Upload document',
+  colType: 'Type',
+  colTitle: 'Title',
+  colVersion: 'Version',
+  colUploaded: 'Uploaded',
+  colExpires: 'Expires',
+  colStatus: 'Status',
+  colActions: 'Actions',
+  download: 'Download',
+  delete: 'Delete',
+  noExpiry: 'No expiry',
+  statusValid: 'Valid',
+  statusExpiring: 'Expiring',
+  statusExpired: 'Expired',
+  loading: 'Loading compliance documents…',
+  empty: 'No compliance documents yet',
+  emptyBody:
+    'Upload the compliance artefacts tied to this FA (specs, certificates, CoA). PDF, XLSX, DOCX up to 20 MB.',
+  error: 'Unable to load compliance documents. Try again after the backend is available.',
+  forbidden: 'You do not have permission to view compliance documents for this FA.',
+  fileTypesNote:
+    'File types: PDF, XLSX, DOCX. Max 20 MB per upload. Documents nearing expiry are flagged automatically.',
+  approvalC7Note:
+    'Approval criterion C7 requires at least one valid, in-date compliance document; any expired or invalid document blocks gate submission.',
+  backToApproval: 'Back to Approval',
+  docTypeCoA: 'CoA',
+  docTypeSDS: 'SDS',
+  docTypeSpec: 'Spec',
+  docTypeCert: 'Certificate',
+  docTypeOther: 'Other',
+  modalTitle: 'Upload compliance document',
+  modalSubtitle: 'FG {code}',
+  fieldDocType: 'Document type',
+  fieldTitle: 'Title',
+  fieldTitleHint: 'A short human-readable name (3–300 characters).',
+  fieldFile: 'File',
+  fieldFileHint: 'PDF, XLSX, DOCX · max 20 MB',
+  fieldExpires: 'Expiry date',
+  fieldExpiresHint: 'Optional. Documents are flagged 30 days before this date.',
+  cancel: 'Cancel',
+  uploadAction: 'Upload',
+  errorTitleRequired: 'Title must be at least 3 characters.',
+  errorTitleTooLong: 'Title must be at most 300 characters.',
+  errorFileRequired: 'A file is required.',
+  errorFileTooLarge: 'File exceeds the 20 MB limit.',
+  errorFileType: 'Unsupported file type. Use PDF, XLSX or DOCX.',
+  errorUpload: 'Upload failed. Please try again.',
+};
+
+const COMPLIANCE_LABEL_KEYS = Object.keys(COMPLIANCE_DEFAULT_LABELS) as Array<keyof ComplianceDocsLabels>;
+
+function translateComplianceLabel(
+  t: (key: string) => string,
+  key: keyof ComplianceDocsLabels,
+): string {
+  try {
+    const value = t(key);
+    return value === key ? COMPLIANCE_DEFAULT_LABELS[key] : value;
+  } catch {
+    return COMPLIANCE_DEFAULT_LABELS[key];
+  }
+}
+
+async function buildComplianceLabels(locale: string): Promise<ComplianceDocsLabels> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.compliance' });
+    return COMPLIANCE_LABEL_KEYS.reduce((labels, key) => {
+      labels[key] = translateComplianceLabel(t, key);
+      return labels;
+    }, {} as ComplianceDocsLabels);
+  } catch {
+    return { ...COMPLIANCE_DEFAULT_LABELS };
+  }
+}
+
+type ComplianceLoaderResult = {
+  state: CompliancePageState;
+  rows: ComplianceDocRow[];
+  canWrite: boolean;
+};
+
+async function readComplianceSection(productCode: string): Promise<ComplianceLoaderResult> {
+  try {
+    const result = await listDocs({ productCode });
+    if (!result.ok) {
+      const state: CompliancePageState = result.code === 'FORBIDDEN' ? 'permission_denied' : 'error';
+      return { state, rows: [], canWrite: false };
+    }
+    const rows: ComplianceDocRow[] = result.docs.map((doc) => ({
+      id: doc.id,
+      productCode: doc.productCode,
+      docType: doc.docType as DocType,
+      title: doc.title,
+      versionNumber: doc.versionNumber,
+      uploadedAt: doc.uploadedAt,
+      expiresAt: doc.expiresAt,
+    }));
+    return { state: rows.length === 0 ? 'empty' : 'ready', rows, canWrite: true };
+  } catch (error) {
+    console.error('[approval-compliance] org-scoped read failed:', error);
+    return { state: 'error', rows: [], canWrite: false };
+  }
+}
+
+const RISK_DEFAULT_LABELS: RiskRegisterLabels = {
+  title: 'Risk register',
+  subtitle: 'Score = Likelihood × Impact (1=Low, 2=Med, 3=High).',
+  addRisk: '+ Add risk',
+  filterState: 'State',
+  filterBucket: 'Severity',
+  clearFilters: 'Clear filters',
+  stateAll: 'All states',
+  bucketAll: 'All severities',
+  colScore: 'Score',
+  colDescription: 'Description',
+  colLikelihood: 'Likelihood',
+  colImpact: 'Impact',
+  colStatus: 'Status',
+  colOwner: 'Owner',
+  colMitigation: 'Mitigation',
+  colActions: 'Actions',
+  edit: 'Edit',
+  bucketHigh: 'High',
+  bucketMed: 'Med',
+  bucketLow: 'Low',
+  stateOpen: 'Open',
+  stateMitigated: 'Mitigated',
+  stateClosed: 'Closed',
+  builtBlocked: 'Built blocked',
+  builtBlockedBody: 'An open High-severity risk blocks this FA from being built. Mitigate or close it first.',
+  loading: 'Loading risks…',
+  empty: 'No risks logged yet',
+  emptyBody:
+    'Track risks to launch: likelihood × impact. Add a risk to capture mitigation owner and status.',
+  error: 'Unable to load risks. Try again after the backend is available.',
+  forbidden: 'You do not have permission to view risks for this FA.',
+  modalTitleAdd: 'Add risk',
+  modalTitleEdit: 'Edit risk',
+  fieldDescription: 'Description',
+  fieldDescriptionHint: 'Max 300 chars. Describe the risk and business impact.',
+  fieldLikelihood: 'Likelihood',
+  fieldImpact: 'Impact',
+  fieldMitigation: 'Mitigation plan',
+  fieldMitigationHint: 'Max 500 chars.',
+  fieldOwner: 'Owner',
+  fieldStatus: 'Status',
+  fieldReason: 'Reason',
+  fieldReasonHint: 'Required for lifecycle changes — min 10 chars.',
+  scoreLabel: 'Risk score',
+  likelihoodLow: 'Low (1)',
+  likelihoodMed: 'Med (2)',
+  likelihoodHigh: 'High (3)',
+  impactLow: 'Low (1)',
+  impactMed: 'Med (2)',
+  impactHigh: 'High (3)',
+  cancel: 'Cancel',
+  save: 'Save',
+  create: 'Add risk',
+  mitigate: 'Mitigate',
+  close: 'Close',
+  reopen: 'Reopen',
+  errorRequired: 'Description is required.',
+  errorTooLong: 'Too long.',
+  errorReasonShort: 'Reason must be at least 10 characters.',
+};
+
+const RISK_LABEL_KEYS = Object.keys(RISK_DEFAULT_LABELS) as Array<keyof RiskRegisterLabels>;
+
+function translateRiskLabel(t: (key: string) => string, key: keyof RiskRegisterLabels): string {
+  try {
+    const value = t(key);
+    return value === key ? RISK_DEFAULT_LABELS[key] : value;
+  } catch {
+    return RISK_DEFAULT_LABELS[key];
+  }
+}
+
+async function buildRiskLabels(locale: string): Promise<RiskRegisterLabels> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.risks' });
+    return RISK_LABEL_KEYS.reduce((labels, key) => {
+      labels[key] = translateRiskLabel(t, key);
+      return labels;
+    }, {} as RiskRegisterLabels);
+  } catch {
+    return { ...RISK_DEFAULT_LABELS };
+  }
+}
+
+type RiskLoaderResult = { state: RiskPageState; rows: RiskRow[] };
+
+async function resolveRiskCanWrite(): Promise<boolean> {
+  try {
+    return await withOrgContext(async (rawCtx) =>
+      hasAuthPermission(rawCtx as OrgContextLike, RISK_WRITE_PERMISSION),
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function readRiskSection(productCode: string): Promise<RiskLoaderResult> {
+  try {
+    const result = await listRisks({ productCode });
+    if (!result.ok) {
+      return { state: 'error', rows: [] };
+    }
+    const rows: RiskRow[] = result.risks.map((risk) => ({
+      id: risk.id,
+      productCode: risk.product_code,
+      title: risk.title,
+      description: risk.description,
+      likelihood: risk.likelihood,
+      impact: risk.impact,
+      score: risk.score,
+      bucket: risk.bucket,
+      state: risk.state,
+      mitigation: risk.mitigation,
+      owner: risk.owner_user_id,
+    }));
+    return { state: rows.length === 0 ? 'empty' : 'ready', rows };
+  } catch (error) {
+    console.error('[approval-risks] org-scoped read failed:', error);
+    return { state: 'error', rows: [] };
+  }
 }
 
 async function readPageData(projectId: string, locale: string): Promise<LoaderResult> {
@@ -291,7 +564,12 @@ async function readPageData(projectId: string, locale: string): Promise<LoaderRe
     });
 
     if (stage.state !== 'ready' || !stage.data || !stage.productCode) {
-      return { state: stage.state, data: stage.data, canApprove: stage.canApprove };
+      return {
+        state: stage.state,
+        data: stage.data,
+        canApprove: stage.canApprove,
+        productCode: stage.productCode,
+      };
     }
 
     // The C1-C7 evaluation runs through its own MERGED Server Action (T-078 owns
@@ -307,16 +585,17 @@ async function readPageData(projectId: string, locale: string): Promise<LoaderRe
           criterionLinks: buildCriterionLinks(locale, projectId, stage.productCode),
         },
         canApprove: stage.canApprove,
+        productCode: stage.productCode,
       };
     }
     if (evaluation.error === 'not_found') {
-      return { state: 'empty', data: null, canApprove: stage.canApprove };
+      return { state: 'empty', data: null, canApprove: stage.canApprove, productCode: null };
     }
     // Persistence/validation failure on the evaluator → surface the error state.
-    return { state: 'error', data: null, canApprove: stage.canApprove };
+    return { state: 'error', data: null, canApprove: stage.canApprove, productCode: null };
   } catch (error) {
     console.error('[approval] org-scoped read failed:', error);
-    return { state: 'error', data: null, canApprove: false };
+    return { state: 'error', data: null, canApprove: false, productCode: null };
   }
 }
 
@@ -341,16 +620,133 @@ export default async function ApprovalPage(propsInput: unknown = {}) {
         state: props.state ?? (props.data ? 'ready' : 'empty'),
         data: props.data ?? null,
         canApprove: props.canApprove ?? false,
+        productCode: props.productCode ?? null,
       }
     : await readPageData(projectId, locale);
 
+  const productCode = props.productCode ?? loaded.productCode ?? null;
+
+  const showMountSections = loaded.state === 'ready' && Boolean(productCode);
+
+  const [complianceLabels, riskLabels, allergenLabels, complianceLoaded, riskLoaded, allergenLoaded, riskCanWrite] =
+    showMountSections && productCode
+      ? await loadApprovalMountSections({
+          locale,
+          productCode,
+          props,
+          injected,
+        })
+      : [null, null, null, null, null, null, false] as const;
+
+  const mountActions =
+    showMountSections && productCode
+      ? createApprovalMountActions(locale, projectId)
+      : null;
+
   return (
-    <ApprovalScreen
-      state={loaded.state}
-      data={loaded.data}
-      labels={labels}
-      canApprove={props.canApprove ?? loaded.canApprove}
-      onApprove={approveAction}
-    />
+    <>
+      <ApprovalScreen
+        state={loaded.state}
+        data={loaded.data}
+        labels={labels}
+        canApprove={props.canApprove ?? loaded.canApprove}
+        onApprove={approveAction}
+      />
+      {showMountSections && productCode && mountActions && complianceLabels && riskLabels && allergenLabels && complianceLoaded && riskLoaded && allergenLoaded ? (
+        <div className="mx-auto w-full max-w-4xl space-y-8 px-6 pb-8">
+          <section id="approval-compliance" aria-labelledby="approval-compliance-heading" className="space-y-4">
+            <h2 id="approval-compliance-heading" className="page-title" style={{ fontSize: 18 }}>
+              {complianceLabels.title}
+            </h2>
+            <ComplianceDocsScreen
+              embedded
+              productCode={productCode}
+              rows={complianceLoaded.rows}
+              labels={complianceLabels}
+              canWrite={props.complianceCanWrite ?? complianceLoaded.canWrite}
+              state={props.complianceState ?? complianceLoaded.state}
+              projectId={projectId}
+              locale={locale}
+              uploadDocAction={mountActions.uploadDocForApproval}
+              getSignedUrlAction={getSignedUrl}
+              softDeleteDocAction={mountActions.softDeleteDocForApproval}
+            />
+          </section>
+
+          <section id="approval-risks" aria-labelledby="approval-risks-heading" className="space-y-4">
+            <h2 id="approval-risks-heading" className="page-title" style={{ fontSize: 18 }}>
+              {riskLabels.title}
+            </h2>
+            <RiskRegisterScreen
+              embedded
+              productCode={productCode}
+              rows={riskLoaded.rows}
+              labels={riskLabels}
+              canWrite={props.riskCanWrite ?? riskCanWrite}
+              state={props.riskState ?? riskLoaded.state}
+              createRiskAction={mountActions.createRiskForApproval}
+              updateRiskAction={mountActions.updateRiskForApproval}
+            />
+          </section>
+
+          <section id="approval-allergens" aria-labelledby="approval-allergens-heading" className="space-y-4">
+            <h2 id="approval-allergens-heading" className="page-title" style={{ fontSize: 18 }}>
+              {allergenLabels.title}
+            </h2>
+            <AllergenCascadeSection labels={allergenLabels} load={allergenLoaded} />
+          </section>
+        </div>
+      ) : null}
+    </>
   );
+}
+
+async function loadApprovalMountSections({
+  locale,
+  productCode,
+  props,
+  injected,
+}: {
+  locale: string;
+  productCode: string;
+  props: ApprovalPageProps;
+  injected: boolean;
+}) {
+  const complianceInjected = Array.isArray(props.complianceRows);
+  const riskInjected = Array.isArray(props.riskRows);
+  const allergenInjected = props.allergenData !== undefined || props.allergenState !== undefined;
+
+  const [complianceLabels, riskLabels, allergenLabels, complianceLoaded, riskLoaded, allergenLoaded, riskCanWrite] =
+    await Promise.all([
+      buildComplianceLabels(locale),
+      buildRiskLabels(locale),
+      buildAllergenLabels(locale),
+      complianceInjected
+        ? Promise.resolve({
+            state: props.complianceState ?? ((props.complianceRows?.length ?? 0) === 0 ? 'empty' : 'ready'),
+            rows: props.complianceRows ?? [],
+            canWrite: props.complianceCanWrite ?? true,
+          } satisfies ComplianceLoaderResult)
+        : readComplianceSection(productCode),
+      riskInjected
+        ? Promise.resolve({
+            state: props.riskState ?? ((props.riskRows?.length ?? 0) === 0 ? 'empty' : 'ready'),
+            rows: props.riskRows ?? [],
+          } satisfies RiskLoaderResult)
+        : readRiskSection(productCode),
+      allergenInjected
+        ? Promise.resolve({
+            state: props.allergenState ?? (props.allergenData ? 'ready' : 'empty'),
+            data: props.allergenData ?? null,
+            canWrite: props.allergenCanWrite ?? false,
+            canAcceptDeclaration: props.allergenCanAcceptDeclaration ?? false,
+            displayNames: {},
+          } satisfies AllergenLoad)
+        : loadAllergenCascade(productCode, locale),
+      injected && props.riskCanWrite !== undefined
+        ? Promise.resolve(props.riskCanWrite)
+        : resolveRiskCanWrite(),
+    ]);
+
+  return [complianceLabels, riskLabels, allergenLabels, complianceLoaded, riskLoaded, allergenLoaded, riskCanWrite] as const;
 }

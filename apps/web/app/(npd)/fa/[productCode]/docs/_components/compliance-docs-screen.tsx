@@ -203,6 +203,7 @@ export function ComplianceDocsScreen({
   state = 'ready',
   projectId = null,
   locale = 'en',
+  embedded = false,
   uploadDocAction,
   getSignedUrlAction,
   softDeleteDocAction,
@@ -216,6 +217,8 @@ export function ComplianceDocsScreen({
   projectId?: string | null;
   /** Active locale, for the locale-prefixed approval href. */
   locale?: string;
+  /** When true, omit page-level landmark/chrome (mounted inside another page). */
+  embedded?: boolean;
   uploadDocAction?: UploadDocAction;
   getSignedUrlAction?: GetSignedUrlAction;
   softDeleteDocAction?: SoftDeleteDocAction;
@@ -245,6 +248,7 @@ export function ComplianceDocsScreen({
   }, [rows]);
 
   const dataLoaded = state === 'ready' || state === 'empty';
+  const Root = embedded ? 'section' : 'main';
 
   async function handleDownload(docId: string) {
     if (!getSignedUrlAction) return;
@@ -277,21 +281,23 @@ export function ComplianceDocsScreen({
   }
 
   return (
-    <main
+    <Root
       data-testid="compliance-docs-screen"
-      aria-labelledby="compliance-docs-title"
+      {...(embedded ? {} : { 'aria-labelledby': 'compliance-docs-title' })}
       className="card"
     >
       <div className="card-head">
-        <div>
-          <nav aria-label="breadcrumb" className="muted" style={{ fontSize: 11 }}>
-            NPD / <span className="mono">{productCode}</span> / {labels.title}
-          </nav>
-          <h1 id="compliance-docs-title" className="card-title" style={{ marginTop: 2 }}>
-            {labels.title}
-          </h1>
-          <div className="muted" style={{ fontSize: 11 }}>{labels.subtitle}</div>
-        </div>
+        {embedded ? null : (
+          <div>
+            <nav aria-label="breadcrumb" className="muted" style={{ fontSize: 11 }}>
+              NPD / <span className="mono">{productCode}</span> / {labels.title}
+            </nav>
+            <h1 id="compliance-docs-title" className="card-title" style={{ marginTop: 2 }}>
+              {labels.title}
+            </h1>
+            <div className="muted" style={{ fontSize: 11 }}>{labels.subtitle}</div>
+          </div>
+        )}
         {canWrite ? (
           <Button
             type="button"
@@ -321,7 +327,7 @@ export function ComplianceDocsScreen({
           style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}
         >
           <span>{labels.approvalC7Note}</span>
-          {projectId ? (
+          {projectId && !embedded ? (
             <Link
               href={`/${locale}/pipeline/${projectId}/approval`}
               prefetch={false}
@@ -449,7 +455,7 @@ export function ComplianceDocsScreen({
           uploadDocAction={uploadDocAction}
         />
       ) : null}
-    </main>
+    </Root>
   );
 }
 

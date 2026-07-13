@@ -158,6 +158,7 @@ export function RiskRegisterScreen({
   labels,
   canWrite,
   state = 'ready',
+  embedded = false,
   createRiskAction,
   updateRiskAction,
 }: {
@@ -166,6 +167,8 @@ export function RiskRegisterScreen({
   labels: RiskRegisterLabels;
   canWrite: boolean;
   state?: PageState;
+  /** When true, omit page-level landmark/chrome (mounted inside another page). */
+  embedded?: boolean;
   createRiskAction?: CreateRiskAction;
   updateRiskAction?: UpdateRiskAction;
 }) {
@@ -205,23 +208,26 @@ export function RiskRegisterScreen({
   ];
 
   const showTable = dataLoaded;
+  const Root = embedded ? 'section' : 'main';
 
   return (
-    <main
+    <Root
       data-testid="risk-register-screen"
-      aria-labelledby="risk-register-title"
+      {...(embedded ? {} : { 'aria-labelledby': 'risk-register-title' })}
       className="card"
     >
       <div className="card-head">
-        <div>
-          <nav aria-label="breadcrumb" className="muted" style={{ fontSize: 11 }}>
-            NPD / <span className="mono">{productCode}</span> / {labels.title}
-          </nav>
-          <h1 id="risk-register-title" className="card-title" style={{ marginTop: 2 }}>
-            {labels.title}
-          </h1>
-          <div className="muted" style={{ fontSize: 11 }}>{labels.subtitle}</div>
-        </div>
+        {embedded ? null : (
+          <div>
+            <nav aria-label="breadcrumb" className="muted" style={{ fontSize: 11 }}>
+              NPD / <span className="mono">{productCode}</span> / {labels.title}
+            </nav>
+            <h1 id="risk-register-title" className="card-title" style={{ marginTop: 2 }}>
+              {labels.title}
+            </h1>
+            <div className="muted" style={{ fontSize: 11 }}>{labels.subtitle}</div>
+          </div>
+        )}
         {canWrite ? (
           <Button
             type="button"
@@ -374,7 +380,7 @@ export function RiskRegisterScreen({
           updateRiskAction={updateRiskAction}
         />
       ) : null}
-    </main>
+    </Root>
   );
 }
 
