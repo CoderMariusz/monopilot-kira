@@ -915,7 +915,7 @@ async function fanOutDefinitionNotifications(ctx: OrgContextLike, definitionId: 
             'wip.definition.updated',
             $2,
             $3,
-            '/npd/pipeline/' || p.id::text,
+            '/pipeline/' || p.id::text,
             jsonb_build_object('wipDefinitionId', $1::uuid, 'version', $4::int, 'projectId', p.id)
        from public.formulation_ingredients fi
        join public.formulation_versions fv on fv.id = fi.version_id

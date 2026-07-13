@@ -1,15 +1,12 @@
 "use client";
 
 import type { JSX } from "react";
-import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 
 import {
-  NPD_NAV_APEX_GROUP,
   NPD_NAV_TOP_TABS,
-  isNpdApexActive,
   isNpdNavItemActive,
 } from "../../lib/navigation/npd-nav";
 
@@ -51,10 +48,16 @@ export function NpdSubNav({ locale, pathnameOverride }: NpdSubNavProps): JSX.Ele
   const activePathname = pathnameOverride ?? pathname ?? localizedHref(activeLocale, "/pipeline");
   const routePath = stripLocalePrefix(activePathname, activeLocale);
 
-  const apexActive = isNpdApexActive(routePath);
-  // Apex defaults open, and stays open whenever one of its children is active.
-  const [apexOpen, setApexOpen] = useState(true);
-  const apexExpanded = apexOpen || apexActive;
+  // C7b — mark only the single MOST-SPECIFIC matching tab active. Several tabs
+  // prefix-match the same path (e.g. /pipeline/workload matches both Projects
+  // '/pipeline' and Workload '/pipeline/workload'); pick the longest match so
+  // exactly one tab lights up.
+  const activeRoute = NPD_NAV_TOP_TABS.filter((tab) =>
+    isNpdNavItemActive(tab.route, routePath),
+  ).reduce<string | null>(
+    (best, tab) => (best && best.length >= tab.route.length ? best : tab.route),
+    null,
+  );
 
   return (
     <nav
@@ -64,7 +67,7 @@ export function NpdSubNav({ locale, pathnameOverride }: NpdSubNavProps): JSX.Ele
       className="flex flex-wrap items-end gap-0 border-b border-shell-border bg-white px-5 text-shell-fg"
     >
       {NPD_NAV_TOP_TABS.map((tab) => {
-        const active = isNpdNavItemActive(tab.route, routePath);
+        const active = tab.route === activeRoute;
         return (
           <Link
             key={tab.key}
@@ -78,39 +81,6 @@ export function NpdSubNav({ locale, pathnameOverride }: NpdSubNavProps): JSX.Ele
           </Link>
         );
       })}
-
-      {/* Apex collapsible group — chevron ▲ open / ▼ closed (chrome.jsx:104-117). */}
-      <button
-        type="button"
-        onClick={() => setApexOpen((open) => !open)}
-        aria-expanded={apexExpanded}
-        aria-current={apexActive ? "page" : undefined}
-        data-testid="npd-subnav-apex-toggle"
-        className={cx(TAB_BASE, "gap-1.5", apexActive ? TAB_ACTIVE : TAB_INACTIVE)}
-      >
-        {t(NPD_NAV_APEX_GROUP.i18nKey)}
-        <span aria-hidden="true" className="text-[9px] opacity-60">
-          {apexExpanded ? "▲" : "▼"}
-        </span>
-      </button>
-
-      {apexExpanded
-        ? NPD_NAV_APEX_GROUP.items.map((item) => {
-            const active = isNpdNavItemActive(item.route, routePath);
-            return (
-              <Link
-                key={item.key}
-                href={localizedHref(activeLocale, item.route)}
-                prefetch={false}
-                aria-current={active ? "page" : undefined}
-                data-testid={`npd-subnav-item-${item.key}`}
-                className={cx(TAB_BASE, "pl-5 opacity-90", active ? TAB_ACTIVE : TAB_INACTIVE)}
-              >
-                {t(item.i18nKey)}
-              </Link>
-            );
-          })
-        : null}
     </nav>
   );
 }

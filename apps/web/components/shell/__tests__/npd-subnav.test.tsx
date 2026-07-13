@@ -2,19 +2,15 @@
  * @vitest-environment jsdom
  * 01-npd top sub-nav tab bar contract.
  * Parity SSOT: prototypes/design/Monopilot Design System/npd/chrome.jsx:76-121
- * (Projects / Formulations / Allergen cascade + collapsible Apex group with
- * FG Dashboard / Finished Goods / Briefs; FG-canonical labels; no Modal gallery).
+ * (Projects / Formulations / Allergen cascade + Costing roll-up / Owner workload).
  */
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import enMessages from '../../../i18n/en.json';
-import {
-  NPD_NAV_APEX_GROUP,
-  NPD_NAV_TOP_TABS,
-} from '../../../lib/navigation/npd-nav';
+import { NPD_NAV_TOP_TABS } from '../../../lib/navigation/npd-nav';
 
 let currentPathname = '/en/pipeline';
 
@@ -47,31 +43,22 @@ beforeEach(() => {
 });
 
 describe('NpdSubNav', () => {
-  it('renders the flat tabs + Apex group children as locale-prefixed anchors (Apex open by default)', () => {
+  it('renders the flat tabs as locale-prefixed anchors', () => {
     render(<NpdSubNav locale="en" pathnameOverride="/en/pipeline" />);
 
     const root = screen.getByTestId('npd-subnav');
     expect(screen.getByRole('navigation', { name: 'NPD' })).toBe(root);
 
-    // Flat tabs in order.
     expect(within(root).getByTestId('npd-subnav-item-projects')).toHaveAttribute('href', '/en/pipeline');
     expect(within(root).getByTestId('npd-subnav-item-formulations')).toHaveAttribute('href', '/en/formulations');
     expect(within(root).getByTestId('npd-subnav-item-allergenCascade')).toHaveAttribute('href', '/en/allergen-cascade');
+    expect(within(root).getByTestId('npd-subnav-item-costingRollup')).toHaveAttribute('href', '/en/costing/rollup');
+    expect(within(root).getByTestId('npd-subnav-item-workload')).toHaveAttribute('href', '/en/pipeline/workload');
 
-    // Apex toggle present, expanded by default, with chevron up.
-    const toggle = within(root).getByTestId('npd-subnav-apex-toggle');
-    expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(toggle).toHaveTextContent('▲');
-
-    // Apex children visible by default.
-    expect(within(root).getByTestId('npd-subnav-item-fgDashboard')).toHaveAttribute('href', '/en/npd');
-    // Wave F5: /fa route renamed to /fg (canonical FG list route).
-    expect(within(root).getByTestId('npd-subnav-item-finishedGoods')).toHaveAttribute('href', '/en/fg');
-    // 'briefs' nav item was removed when the standalone /briefs flow was folded into the project.
-
-    // FG-canonical labels (no "FA Dashboard"/"Factory Articles").
-    expect(within(root).getByTestId('npd-subnav-item-fgDashboard')).toHaveTextContent('FG Dashboard');
-    expect(within(root).getByTestId('npd-subnav-item-finishedGoods')).toHaveTextContent('Finished Goods');
+    // C7b: legacy Apex group (FG Dashboard / Finished Goods) removed — routes redirect to pipeline.
+    expect(within(root).queryByTestId('npd-subnav-apex-toggle')).toBeNull();
+    expect(within(root).queryByTestId('npd-subnav-item-fgDashboard')).toBeNull();
+    expect(within(root).queryByTestId('npd-subnav-item-finishedGoods')).toBeNull();
 
     // No "Modal gallery" tab (explicitly out of scope).
     expect(within(root).queryByText(/modal gallery/i)).toBeNull();
@@ -86,32 +73,12 @@ describe('NpdSubNav', () => {
     expect(active[0]).toHaveAttribute('data-testid', 'npd-subnav-item-projects');
   });
 
-  it('lights the active Apex child (and the parent toggle) on a child route', () => {
-    // Wave F5: /fa route renamed to /fg; the active-state check uses /fg/FG-001.
-    currentPathname = '/en/fg/FG-001';
-    render(<NpdSubNav locale="en" pathnameOverride="/en/fg/FG-001" />);
+  it('marks the workload tab active on a nested pipeline/workload route', () => {
+    currentPathname = '/en/pipeline/workload';
+    render(<NpdSubNav locale="en" pathnameOverride="/en/pipeline/workload" />);
 
     const root = screen.getByTestId('npd-subnav');
-    expect(within(root).getByTestId('npd-subnav-item-finishedGoods')).toHaveAttribute('aria-current', 'page');
-    expect(within(root).getByTestId('npd-subnav-apex-toggle')).toHaveAttribute('aria-current', 'page');
-  });
-
-  it('collapses and expands the Apex group on toggle click', () => {
-    render(<NpdSubNav locale="en" pathnameOverride="/en/pipeline" />);
-
-    const root = screen.getByTestId('npd-subnav');
-    const toggle = within(root).getByTestId('npd-subnav-apex-toggle');
-
-    // Collapse.
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    expect(toggle).toHaveTextContent('▼');
-    expect(within(root).queryByTestId('npd-subnav-item-fgDashboard')).toBeNull();
-
-    // Expand again.
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(within(root).getByTestId('npd-subnav-item-fgDashboard')).toBeInTheDocument();
+    expect(within(root).getByTestId('npd-subnav-item-workload')).toHaveAttribute('aria-current', 'page');
   });
 
   it('exposes the expected tab/route map', () => {
@@ -121,10 +88,6 @@ describe('NpdSubNav', () => {
       ['allergenCascade', '/allergen-cascade'],
       ['costingRollup', '/costing/rollup'],
       ['workload', '/pipeline/workload'],
-    ]);
-    expect(NPD_NAV_APEX_GROUP.items.map((t) => [t.key, t.route])).toEqual([
-      ['fgDashboard', '/npd'],
-      ['finishedGoods', '/fg'],
     ]);
   });
 });

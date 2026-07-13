@@ -72,7 +72,7 @@ export function ProductCreateWizard({
   fgCodeMask,
 }: ProductCreateWizardProps) {
   const router = useRouter();
-  const fallbackBase = `/${locale}/fg`;
+  const fallbackBase = `/${locale}/pipeline`;
   const returnPath = React.useMemo(() => safeReturnTo(returnTo), [returnTo]);
 
   const onClose = React.useCallback(() => {
@@ -82,8 +82,8 @@ export function ProductCreateWizard({
   const onCreated = React.useCallback(
     (productCode: string) => {
       // After creating the first product, return the user to the flow that sent
-      // them here (onboarding). When there is no returnTo, land on the new FG.
-      router.push(returnPath ?? `${fallbackBase}/${encodeURIComponent(productCode)}`);
+      // them here (onboarding). When there is no returnTo, land on the pipeline list.
+      router.push(returnPath ?? fallbackBase);
     },
     [router, returnPath, fallbackBase],
   );

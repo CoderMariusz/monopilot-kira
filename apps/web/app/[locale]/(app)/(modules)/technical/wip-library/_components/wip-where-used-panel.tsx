@@ -37,7 +37,7 @@ export function WipWhereUsedPanel({
               <tr key={row.projectId} data-testid="wip-where-used-row">
                 <td>
                   <Link
-                    href={`/${locale}/npd/pipeline/${row.projectId}`}
+                    href={`/${locale}/pipeline/${row.projectId}`}
                     className="font-medium text-blue-700 hover:underline"
                   >
                     {row.projectName}

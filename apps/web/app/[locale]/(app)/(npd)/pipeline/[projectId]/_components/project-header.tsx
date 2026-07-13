@@ -350,7 +350,7 @@ export function ProjectHeader({
               Hidden entirely on other gates (the FG candidate only exists at G2/G3). */}
           {project.productCode ? (
             <Link
-              href={`/${locale}/fg/${project.productCode}`}
+              href={`/${locale}/pipeline/${project.id}`}
               prefetch={false}
               className="btn btn-secondary"
               data-testid="project-header-open-fg"
