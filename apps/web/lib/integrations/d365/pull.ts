@@ -288,50 +288,79 @@ async function reconcileItem(
     local.item_type !== record.item_type;
 
   if (localNewer && contentDiffers) {
-    // V-TEC-73: log drift + skip overwrite (local edits win).
-    await client.query(
-      `insert into public.audit_log
-         (org_id, actor_user_id, actor_type, action, resource_type, resource_id,
-          before_state, after_state, retention_class)
-       values
-         ($1::uuid, $2, $3, 'd365_drift', 'item', $4::uuid,
-          $5::jsonb, $6::jsonb, 'standard')`,
-      [
-        orgId,
-        actorUserId,
-        actorUserId ? 'user' : 'system',
-        local.id,
-        JSON.stringify({ item_code: local.item_code, name: local.name, item_type: local.item_type }),
-        JSON.stringify({
-          d365_item_id: record.d365_item_id,
-          item_code: record.item_code,
-          name: record.name,
-          item_type: record.item_type,
-          reason: 'V-TEC-73: local newer than incoming D365 — skipped overwrite',
-        }),
-      ],
-    );
-    await client.query(
-      `update public.items
-          set d365_sync_status = 'drift'
-        where id = $1::uuid`,
-      [local.id],
+    await recordItemDrift(
+      client,
+      orgId,
+      actorUserId,
+      local,
+      record,
+      'V-TEC-73: local newer than incoming D365 — skipped overwrite',
     );
     return 'drift';
   }
 
-  // Accept D365 content (no drift): update mirror + stamp last sync.
+  // Identity guard: never silently re-key an existing local row from D365.
+  if (local.item_code !== record.item_code) {
+    await recordItemDrift(
+      client,
+      orgId,
+      actorUserId,
+      local,
+      record,
+      'D365 item_code differs from local identity — requires manual drift resolution',
+    );
+    return 'drift';
+  }
+
+  // Accept D365 content (no drift): sync mirror fields except item_code (local-owned).
   await client.query(
     `update public.items
-        set item_code = $2,
-            name = $3,
-            item_type = $4,
+        set name = $2,
+            item_type = $3,
             d365_last_sync_at = pg_catalog.now(),
             d365_sync_status = 'synced'
       where id = $1::uuid`,
-    [local.id, record.item_code, record.name, record.item_type],
+    [local.id, record.name, record.item_type],
   );
   return 'updated';
+}
+
+async function recordItemDrift(
+  client: QueryClient,
+  orgId: string,
+  actorUserId: string | null,
+  local: { id: string; item_code: string; name: string; item_type: string },
+  record: D365IncomingItem,
+  reason: string,
+): Promise<void> {
+  await client.query(
+    `insert into public.audit_log
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id,
+        before_state, after_state, retention_class)
+     values
+       ($1::uuid, $2, $3, 'd365_drift', 'item', $4::uuid,
+        $5::jsonb, $6::jsonb, 'standard')`,
+    [
+      orgId,
+      actorUserId,
+      actorUserId ? 'user' : 'system',
+      local.id,
+      JSON.stringify({ item_code: local.item_code, name: local.name, item_type: local.item_type }),
+      JSON.stringify({
+        d365_item_id: record.d365_item_id,
+        item_code: record.item_code,
+        name: record.name,
+        item_type: record.item_type,
+        reason,
+      }),
+    ],
+  );
+  await client.query(
+    `update public.items
+        set d365_sync_status = 'drift'
+      where id = $1::uuid`,
+    [local.id],
+  );
 }
 
 /** Write a poison pull record into the DLQ (V-TEC-71: error_message NOT NULL). */

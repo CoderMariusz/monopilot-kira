@@ -31,11 +31,11 @@ import { hasD365SyncPermission } from '../../../../../../../../../lib/integratio
 export type DriftDirection = 'mp_wins' | 'd365_wins';
 
 export type DriftResolveResult =
-  | { ok: true }
+  | { ok: true; warning?: string }
   | { ok: false; error: 'forbidden' | 'not_found' | 'invalid' | 'unavailable' };
 
 export type BulkResolveResult =
-  | { ok: true; resolved: number }
+  | { ok: true; resolved: number; blocked: number; warnings: number }
   | { ok: false; error: 'forbidden' | 'invalid' | 'unavailable' };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -53,6 +53,11 @@ type DriftRow = {
   after_state: Record<string, unknown> | null;
 };
 
+const IDENTITY_RENAME_BLOCKED =
+  'Cannot rename a referenced FG; identity is local-owned';
+
+type ResolveOneOutcome = { status: 'ok' | 'not_found'; warning?: string };
+
 async function resolveOne(
   client: QueryClient,
   userId: string,
@@ -62,7 +67,7 @@ async function resolveOne(
   resolution: 'accept' | 'reject',
   direction: DriftDirection,
   reason: string,
-): Promise<'ok' | 'not_found'> {
+): Promise<ResolveOneOutcome> {
   // Drift PK is (id, occurred_at) on the partitioned audit_log — both are needed.
   const found = await client.query<DriftRow>(
     `select id, occurred_at, resource_id, before_state, after_state
@@ -75,21 +80,58 @@ async function resolveOne(
     [driftId, occurredAt],
   );
   const drift = found.rows[0];
-  if (!drift) return 'not_found';
+  if (!drift) return { status: 'not_found' };
+
+  let warning: string | undefined;
 
   if (resolution === 'accept' && direction === 'd365_wins') {
     // Authorized, audited overwrite of the Monopilot item with the D365 value.
     const after = drift.after_state ?? {};
-    await client.query(
-      `update public.items
-          set item_code = coalesce($2, item_code),
-              name = coalesce($3, name),
-              item_type = coalesce($4, item_type),
-              d365_sync_status = 'synced',
-              d365_last_sync_at = pg_catalog.now()
+    const proposedCode = typeof after.item_code === 'string' ? after.item_code : null;
+
+    const current = await client.query<{ item_code: string }>(
+      `select item_code
+         from public.items
         where org_id = app.current_org_id() and id = $1::uuid`,
-      [drift.resource_id, after.item_code ?? null, after.name ?? null, after.item_type ?? null],
+      [drift.resource_id],
     );
+    const currentCode = current.rows[0]?.item_code ?? null;
+
+    const wantsRename = proposedCode !== null && proposedCode !== currentCode;
+    let allowRename = true;
+    if (wantsRename) {
+      const mutable = await client.query<{ mutable: boolean }>(
+        `select public.items_is_item_code_mutable($1::uuid) as mutable`,
+        [drift.resource_id],
+      );
+      allowRename = mutable.rows[0]?.mutable === true;
+      if (!allowRename) {
+        warning = IDENTITY_RENAME_BLOCKED;
+      }
+    }
+
+    if (allowRename) {
+      await client.query(
+        `update public.items
+            set item_code = coalesce($2, item_code),
+                name = coalesce($3, name),
+                item_type = coalesce($4, item_type),
+                d365_sync_status = 'synced',
+                d365_last_sync_at = pg_catalog.now()
+          where org_id = app.current_org_id() and id = $1::uuid`,
+        [drift.resource_id, after.item_code ?? null, after.name ?? null, after.item_type ?? null],
+      );
+    } else {
+      // Identity blocked: sync only safe mirror fields (never item_code or item_type).
+      await client.query(
+        `update public.items
+            set name = coalesce($2, name),
+                d365_sync_status = 'synced',
+                d365_last_sync_at = pg_catalog.now()
+          where org_id = app.current_org_id() and id = $1::uuid`,
+        [drift.resource_id, after.name ?? null],
+      );
+    }
   } else {
     // mp_wins (accept, keep local) or reject (no change): clear the drift flag.
     await client.query(
@@ -98,6 +140,16 @@ async function resolveOne(
         where org_id = app.current_org_id() and id = $1::uuid`,
       [drift.resource_id],
     );
+  }
+
+  const afterState: Record<string, unknown> = {
+    resolution,
+    direction: resolution === 'accept' ? direction : null,
+    reason,
+  };
+  if (warning) {
+    afterState.warning = warning;
+    afterState.partial = { item_code_preserved: true, item_type_preserved: true };
   }
 
   // Append-only resolution audit row — original drift row stays immutable.
@@ -113,11 +165,11 @@ async function resolveOne(
       userId,
       drift.resource_id,
       JSON.stringify({ drift_id: drift.id, before_state: drift.before_state, after_state: drift.after_state }),
-      JSON.stringify({ resolution, direction: resolution === 'accept' ? direction : null, reason }),
+      JSON.stringify(afterState),
     ],
   );
 
-  return 'ok';
+  return warning ? { status: 'ok', warning } : { status: 'ok' };
 }
 
 /** Resolve a single drift event (per-row modal). */
@@ -143,7 +195,8 @@ export async function resolveDriftAction(input: {
         queryClient, userId, orgId, input.driftId, input.occurredAt,
         input.resolution, input.direction, input.reason.trim(),
       );
-      return outcome === 'ok' ? { ok: true } : { ok: false, error: 'not_found' };
+      if (outcome.status === 'not_found') return { ok: false, error: 'not_found' };
+      return outcome.warning ? { ok: true, warning: outcome.warning } : { ok: true };
     });
   } catch {
     return { ok: false, error: 'unavailable' };
@@ -172,14 +225,22 @@ export async function bulkResolveDriftAction(input: {
       if (!allowed) return { ok: false, error: 'forbidden' };
 
       let resolved = 0;
+      let blocked = 0;
+      let warnings = 0;
       for (const drift of input.drifts) {
         const outcome = await resolveOne(
           queryClient, userId, orgId, drift.driftId, drift.occurredAt,
           input.resolution, input.direction, input.reason.trim(),
         );
-        if (outcome === 'ok') resolved += 1;
+        if (outcome.status === 'ok') {
+          resolved += 1;
+          if (outcome.warning) {
+            warnings += 1;
+            blocked += 1;
+          }
+        }
       }
-      return { ok: true, resolved };
+      return { ok: true, resolved, blocked, warnings };
     });
   } catch {
     return { ok: false, error: 'unavailable' };

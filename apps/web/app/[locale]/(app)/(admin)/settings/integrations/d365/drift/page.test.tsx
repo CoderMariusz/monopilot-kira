@@ -83,7 +83,7 @@ describe('T-059 Drift Resolution — behaviour', () => {
     await renderPage({
       state: 'ready', canTrigger: true,
       events: [ev({ id: 'aaaaaaaa-0000-4000-8000-000000000001' })],
-      actions: { resolve, bulkResolve: vi.fn(async () => ({ ok: true as const, resolved: 0 })) },
+      actions: { resolve, bulkResolve: vi.fn(async () => ({ ok: true as const, resolved: 0, blocked: 0, warnings: 0 })) },
     });
     const user = userEvent.setup();
     await user.click(within(screen.getByTestId('d365-drift-row')).getByRole('button', { name: /^resolve/i }));
@@ -106,7 +106,7 @@ describe('T-059 Drift Resolution — behaviour', () => {
   });
 
   it('bulk-accepts a selection of 3 rows via the resolve modal', async () => {
-    const bulkResolve = vi.fn(async () => ({ ok: true as const, resolved: 3 }));
+    const bulkResolve = vi.fn(async () => ({ ok: true as const, resolved: 3, blocked: 0, warnings: 0 }));
     const events = [1, 2, 3].map((n) => ev({ id: `aaaaaaaa-0000-4000-8000-00000000000${n}` }));
     await renderPage({
       state: 'ready', canTrigger: true, events,

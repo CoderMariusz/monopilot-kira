@@ -42,8 +42,10 @@ export type DriftEvent = {
   d365_value: string;
 };
 
-export type DriftActionResult = { ok: true } | { ok: false; error: string };
-export type BulkActionResult = { ok: true; resolved: number } | { ok: false; error: string };
+export type DriftActionResult = { ok: true; warning?: string } | { ok: false; error: string };
+export type BulkActionResult =
+  | { ok: true; resolved: number; blocked?: number; warnings?: number }
+  | { ok: false; error: string };
 
 export type DriftLabels = {
   title: string;
@@ -210,8 +212,12 @@ export default function D365DriftScreen({ events, canTrigger, labels, state, act
         direction,
         reason: reason.trim(),
       });
-      if (result.ok) resolvedIds = [target.event.id];
-      else failed = true;
+      if (result.ok) {
+        resolvedIds = [target.event.id];
+        if (result.warning) setActionError(result.warning);
+      } else {
+        failed = true;
+      }
     } else {
       const drifts = rows
         .filter((row) => selectedIds.has(row.id))
@@ -222,8 +228,17 @@ export default function D365DriftScreen({ events, canTrigger, labels, state, act
         direction: target.resolution === 'accept' ? direction : 'mp_wins',
         reason: reason.trim(),
       });
-      if (result.ok) resolvedIds = drifts.map((d) => d.driftId);
-      else failed = true;
+      if (result.ok) {
+        resolvedIds = drifts.map((d) => d.driftId);
+        if (result.warnings && result.warnings > 0) {
+          const blocked = result.blocked ?? result.warnings;
+          setActionError(
+            `${result.warnings} drift(s) resolved with identity rename blocked (${blocked} item_code preserved).`,
+          );
+        }
+      } else {
+        failed = true;
+      }
     }
 
     setPending(false);
