@@ -132,7 +132,7 @@ function safeRevalidatePath(path: string): void {
   }
 }
 
-async function loadFgCodeMask(ctx: OrgContextLike): Promise<string | null> {
+export async function loadFgCodeMask(ctx: OrgContextLike): Promise<string | null> {
   const { rows } = await ctx.client.query<{ code_mask: string | null }>(
     `select code_mask
        from public.org_document_settings

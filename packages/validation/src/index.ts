@@ -31,3 +31,9 @@ export {
   type V06SuffixMatchInput,
   type V06SuffixMatchResult,
 } from './v06-suffix-match.js';
+export {
+  evaluateNpdValidation,
+  type EvaluateNpdInput,
+  type NpdValidationRule,
+  type NpdValidationStatus,
+} from './evaluate-npd.js';

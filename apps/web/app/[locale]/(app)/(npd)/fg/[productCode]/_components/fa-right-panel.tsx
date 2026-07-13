@@ -26,6 +26,7 @@
  */
 import { getTranslations } from 'next-intl/server';
 
+import { evaluateNpdValidation } from '@monopilot/validation';
 import { Button } from '@monopilot/ui/Button';
 
 import {
@@ -33,6 +34,8 @@ import {
   type ValidationRule,
   type ValidationStatus,
 } from '../../../../../../../components/npd/validation-status-panel';
+import { loadFgCodeMask } from '../../../../../../(npd)/fa/actions/create-fa';
+import { codeMaskToRegExp } from '../../../../../../../lib/documents/code-mask';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
@@ -93,59 +96,6 @@ export type FaRightPanelProps = {
 // Real-data read (org-scoped, RLS app.current_org_id())
 // ---------------------------------------------------------------------------
 
-/**
- * V01-V08 validation computation (SERVER-SIDE, from the real product row).
- *
- * Prototype baseline: fa-screens.jsx:423-432. Adapted to the real public.product
- * columns (migration 075). Each result is pass / fail / warn / info:
- *   V01 product_code matches ^FA[A-Z0-9]+$
- *   V02 product_name non-empty
- *   V03 pack_size ∈ Reference.PackSizes (real org-scoped list)
- *   V04 D365 material codes — derived from ingredient_codes presence (no live
- *       D365 cost lookup in this slice): present → warn, missing → fail
- *   V05 dept-required complete → status Complete/Built → pass, else info
- *   V06 PR/WIP suffix match — pr_code_final present + at least one process → pass,
- *       else info
- *   V07 allergen declaration complete → closed_technical='Yes' → pass, else warn
- *   V08 brief mapping present → article_number OR template present → pass, else info
- */
-function computeValidation(
-  row: Record<string, unknown>,
-  packSizes: string[],
-  titles: Record<string, string>,
-): ValidationRule[] {
-  const str = (v: unknown) => (v == null ? '' : String(v).trim());
-  const productCode = str(row.product_code);
-  const productName = str(row.product_name);
-  const packSize = str(row.pack_size);
-  const ingredientCodes = str(row.ingredient_codes);
-  const statusOverall = str(row.status_overall);
-  const prCodeFinal = str(row.pr_code_final);
-  const anyProcess = ['process_1', 'process_2', 'process_3', 'process_4'].some(
-    (k) => str(row[k]) !== '',
-  );
-  const closedTechnical = str(row.closed_technical).toLowerCase();
-  const articleNumber = str(row.article_number);
-  const template = str(row.template);
-
-  const results: Record<string, ValidationStatus> = {
-    V01: /^FA[A-Z0-9]+$/.test(productCode) ? 'pass' : 'fail',
-    V02: productName !== '' ? 'pass' : 'fail',
-    V03: packSize !== '' && packSizes.includes(packSize) ? 'pass' : packSize === '' ? 'fail' : 'warn',
-    V04: ingredientCodes !== '' ? 'warn' : 'fail',
-    V05: statusOverall === 'Complete' || statusOverall === 'Built' ? 'pass' : 'info',
-    V06: prCodeFinal !== '' && anyProcess ? 'pass' : 'info',
-    V07: closedTechnical === 'yes' ? 'pass' : 'warn',
-    V08: articleNumber !== '' || template !== '' ? 'pass' : 'info',
-  };
-
-  return (['V01', 'V02', 'V03', 'V04', 'V05', 'V06', 'V07', 'V08'] as const).map((id) => ({
-    id,
-    title: titles[id] ?? id,
-    status: results[id],
-  }));
-}
-
 async function readPackSizes(ctx: OrgContextLike): Promise<string[]> {
   try {
     const { rows } = await ctx.client.query<{ value: string | null }>(
@@ -190,6 +140,15 @@ async function readSummary(
   if (!json || Object.keys(json).length === 0) return null;
 
   const packSizes = await readPackSizes(ctx);
+  const fgMask = await loadFgCodeMask(ctx);
+  const codeMaskRegExp = fgMask ? codeMaskToRegExp(fgMask) : null;
+  const validation = await evaluateNpdValidation(ctx.client, {
+    orgId: ctx.orgId,
+    productRow: json,
+    packSizes,
+    codeMaskRegExp,
+    titles: validationTitles,
+  });
   const processYields = await loadProductProcessYields(ctx, productCode);
   const totalYieldPct = compoundedYieldPctForProduct(processYields);
   const daysRaw = json.days_to_launch;
@@ -202,7 +161,7 @@ async function readSummary(
     launchDate: json.launch_date == null ? null : String(json.launch_date),
     lastUpdated: json.created_at == null ? null : String(json.created_at),
     totalYieldPct,
-    validation: computeValidation(json, packSizes, validationTitles),
+    validation: validation as ValidationRule[],
   };
 }
 
