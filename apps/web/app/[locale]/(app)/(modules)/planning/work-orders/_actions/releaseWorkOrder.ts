@@ -307,7 +307,7 @@ export async function cancelWorkOrderChainForContext(
          from (${CHAIN_MEMBERS_SQL}) ch
          join public.work_orders wo
            on wo.org_id = app.current_org_id()
-          and wo.id = ch.wo_id::uuid
+          and wo.id = ch.id::uuid
         where exists (
           select 1
             from public.wo_executions ex
