@@ -3,17 +3,21 @@
  *
  * C4 — Approval stage mounts compliance, risk-register, and allergen sections
  * in-page (keyed by productCode) and repoints C5/C6/C7 criterion links to anchors.
+ * C9 — mounts V01–V08 validation section (re-homed from deleted fa-right-panel).
  */
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { codeMaskToLenientRegExp } from '../../../../../../../lib/documents/code-mask';
+
 const {
   listDocsMock,
   listRisksMock,
   loadAllergenCascadeMock,
   evaluateApprovalCriteriaMock,
+  evaluateNpdValidationMock,
   withOrgContextMock,
   revalidatePathMock,
   uploadDocMock,
@@ -25,6 +29,7 @@ const {
   listRisksMock: vi.fn(),
   loadAllergenCascadeMock: vi.fn(),
   evaluateApprovalCriteriaMock: vi.fn(),
+  evaluateNpdValidationMock: vi.fn(),
   withOrgContextMock: vi.fn(),
   revalidatePathMock: vi.fn(),
   uploadDocMock: vi.fn(),
@@ -102,6 +107,17 @@ vi.mock('next-intl/server', () => ({
       'npd.compliance': { title: 'Compliance documents', upload: '+ Upload document' },
       'npd.risks': { title: 'Risk register', addRisk: '+ Add risk' },
       'npd.allergenWidget': { title: 'Allergen cascade' },
+      'npd.faRightPanel': {
+        validationTitle: 'Validation status',
+        'validationRules.V01': 'FG Code format',
+        'validationRules.V02': 'Product Name required',
+        'validationRules.V03': 'Pack Size in reference',
+        'validationRules.V04': 'D365 material codes',
+        'validationRules.V05': 'Dept required fields',
+        'validationRules.V06': 'PR Code suffix',
+        'validationRules.V07': 'Allergen declaration',
+        'validationRules.V08': 'Brief mapping',
+      },
     };
     const messages = fallbacks[req?.namespace ?? ''] ?? {};
     return (key: string) => messages[key] ?? key;
@@ -122,6 +138,14 @@ vi.mock('../../../../../../../lib/auth/has-permission', () => ({
 
 vi.mock('../../../../../../(npd)/pipeline/[projectId]/approval/_actions/evaluate', () => ({
   evaluateApprovalCriteria: (...args: unknown[]) => evaluateApprovalCriteriaMock(...args),
+}));
+
+vi.mock('@monopilot/validation', () => ({
+  evaluateNpdValidation: (...args: unknown[]) => evaluateNpdValidationMock(...args),
+}));
+
+vi.mock('../../../../../../(npd)/fa/actions/create-fa', () => ({
+  loadFgCodeMask: vi.fn(async () => 'FGxxxx'),
 }));
 
 vi.mock('../../../../../../(npd)/fa/[productCode]/docs/_actions/list-docs', () => ({
@@ -166,6 +190,18 @@ import type { ApprovalScreenData } from './_components/approval-screen';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const PRODUCT_CODE = 'FG-NPD-001';
+const HYPHENATED_FG_CODE = 'FG-016';
+
+const SAMPLE_VALIDATION_RULES = [
+  { id: 'V01', title: 'FG Code format', status: 'pass' as const },
+  { id: 'V02', title: 'Product Name required', status: 'pass' as const },
+  { id: 'V03', title: 'Pack Size in reference', status: 'warn' as const },
+  { id: 'V04', title: 'D365 material codes', status: 'info' as const },
+  { id: 'V05', title: 'Dept required fields', status: 'info' as const },
+  { id: 'V06', title: 'PR Code suffix', status: 'info' as const },
+  { id: 'V07', title: 'Allergen declaration', status: 'warn' as const },
+  { id: 'V08', title: 'Brief mapping', status: 'info' as const },
+];
 
 const READY_DATA: ApprovalScreenData = {
   projectId: PROJECT_ID,
@@ -226,6 +262,9 @@ async function renderPage(
     injectMountData?: boolean;
     complianceCanWrite?: boolean;
     riskCanWrite?: boolean;
+    validationRules?: typeof SAMPLE_VALIDATION_RULES;
+    validationTitle?: string;
+    validationVisible?: boolean;
   } = {},
 ) {
   const mountInjection = args.injectMountData
@@ -236,6 +275,9 @@ async function renderPage(
         allergenState: 'empty' as const,
         complianceCanWrite: args.complianceCanWrite,
         riskCanWrite: args.riskCanWrite,
+        validationRules: args.validationRules ?? SAMPLE_VALIDATION_RULES,
+        validationTitle: args.validationTitle,
+        validationVisible: args.validationVisible,
       }
     : {};
 
@@ -267,6 +309,7 @@ beforeEach(() => {
   softDeleteDocMock.mockResolvedValue({ ok: true, docId: 'doc-1' });
   createRiskMock.mockResolvedValue({ ok: true, riskId: 'risk-1' });
   updateRiskMock.mockResolvedValue({ ok: true, riskId: 'risk-1' });
+  evaluateNpdValidationMock.mockResolvedValue(SAMPLE_VALIDATION_RULES);
 });
 
 afterEach(() => {
@@ -281,6 +324,7 @@ afterEach(() => {
   softDeleteDocMock.mockReset();
   createRiskMock.mockReset();
   updateRiskMock.mockReset();
+  evaluateNpdValidationMock.mockReset();
 });
 
 describe('Approval page — C4 in-page compliance / risks / allergens mounts', () => {
@@ -294,7 +338,7 @@ describe('Approval page — C4 in-page compliance / risks / allergens mounts', (
     expect(links.C7).not.toContain('/fg/');
   });
 
-  it('renders the three mount sections with stable ids and headings when productCode is present', async () => {
+  it('renders the mount sections with stable ids and headings when productCode is present', async () => {
     await renderPage({
       state: 'ready',
       data: READY_DATA,
@@ -302,10 +346,12 @@ describe('Approval page — C4 in-page compliance / risks / allergens mounts', (
       injectMountData: true,
     });
 
+    expect(document.getElementById('approval-validation')).toBeInTheDocument();
     expect(document.getElementById('approval-compliance')).toBeInTheDocument();
     expect(document.getElementById('approval-risks')).toBeInTheDocument();
     expect(document.getElementById('approval-allergens')).toBeInTheDocument();
 
+    expect(document.getElementById('approval-validation-heading')).toHaveTextContent('Validation status');
     expect(screen.getByRole('heading', { name: 'Compliance documents' })).toHaveAttribute(
       'id',
       'approval-compliance-heading',
@@ -319,6 +365,8 @@ describe('Approval page — C4 in-page compliance / risks / allergens mounts', (
       'approval-allergens-heading',
     );
 
+    expect(screen.getByTestId('fa-validation-status-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('fa-validation-V01')).toHaveAttribute('data-status', 'pass');
     expect(screen.getByTestId('compliance-docs-screen')).toBeInTheDocument();
     expect(screen.getByTestId('risk-register-screen')).toBeInTheDocument();
     expect(screen.getByTestId('allergen-cascade-stub')).toBeInTheDocument();
@@ -349,9 +397,90 @@ describe('Approval page — C4 in-page compliance / risks / allergens mounts', (
   it('does not render mount sections when productCode is absent (pre-G3 empty state)', async () => {
     await renderPage({ state: 'empty', data: null, productCode: null });
 
+    expect(document.getElementById('approval-validation')).not.toBeInTheDocument();
     expect(document.getElementById('approval-compliance')).not.toBeInTheDocument();
     expect(document.getElementById('approval-risks')).not.toBeInTheDocument();
     expect(document.getElementById('approval-allergens')).not.toBeInTheDocument();
+  });
+
+  it('lenient FG mask accepts hyphenated codes (see code-mask.test.ts for full matrix)', () => {
+    expect(codeMaskToLenientRegExp('FGxxxx').test(HYPHENATED_FG_CODE)).toBe(true);
+  });
+
+  it('production path: loads validation via product row + evaluateNpdValidation with lenient mask', async () => {
+    withOrgContextMock.mockImplementation(async (cb: (ctx: unknown) => Promise<unknown>) => {
+      const client = {
+        query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
+          if (sql.includes('from public.npd_projects')) {
+            return {
+              rows: [
+                {
+                  id: PROJECT_ID,
+                  code: 'DEV-001',
+                  name: 'Sliced Ham 200g',
+                  current_gate: 'G4',
+                  product_code: HYPHENATED_FG_CODE,
+                },
+              ],
+            };
+          }
+          if (sql.includes('from public.gate_approvals')) {
+            return { rows: [] };
+          }
+          if (sql.includes('from public.user_roles')) {
+            return { rows: [{ count: '1' }] };
+          }
+          if (sql.includes('from public.product')) {
+            expect(params?.[0]).toBe(HYPHENATED_FG_CODE);
+            return {
+              rows: [
+                {
+                  product_json: {
+                    product_code: HYPHENATED_FG_CODE,
+                    product_name: 'Sliced Ham',
+                    pack_size: '200g',
+                    ingredient_codes: '',
+                    status_overall: 'InProgress',
+                    pr_code_final: '',
+                    process_1: '',
+                    process_2: '',
+                    process_3: '',
+                    process_4: '',
+                    closed_technical: 'no',
+                    article_number: '',
+                    template: '',
+                  },
+                },
+              ],
+            };
+          }
+          if (sql.includes('"Reference"."PackSizes"')) {
+            return { rows: [{ value: '200g' }] };
+          }
+          if (sql.includes('from public.org_document_settings')) {
+            return { rows: [{ code_mask: 'FGxxxx' }] };
+          }
+          return { rows: [] };
+        }),
+      };
+      return cb({ userId: 'u1', orgId: 'o1', client });
+    });
+
+    evaluateNpdValidationMock.mockImplementation(async (_client, input) => {
+      const code = String(input.productRow.product_code ?? '');
+      const passesV01 = input.codeMaskRegExp?.test(code) ?? code !== '';
+      return SAMPLE_VALIDATION_RULES.map((rule) =>
+        rule.id === 'V01' ? { ...rule, status: passesV01 ? 'pass' : 'fail' } : rule,
+      );
+    });
+
+    await renderPage();
+
+    expect(evaluateNpdValidationMock).toHaveBeenCalled();
+    const call = evaluateNpdValidationMock.mock.calls[0];
+    expect(call?.[1]?.codeMaskRegExp?.test(HYPHENATED_FG_CODE)).toBe(true);
+    expect(document.getElementById('approval-validation')).toBeInTheDocument();
+    expect(screen.getByTestId('fa-validation-V01')).toHaveAttribute('data-status', 'pass');
   });
 
   it('production path: loads mount sections via listDocs, listRisks, and loadAllergenCascade', async () => {

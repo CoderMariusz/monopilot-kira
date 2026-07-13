@@ -74,6 +74,48 @@ export function matchesCodeMask(productCode: string, mask: string): boolean {
   return codeMaskToRegExp(mask).test(normalized);
 }
 
+/**
+ * A LENIENT variant of codeMaskToRegExp for VALIDATION DISPLAY only (V01).
+ *
+ * An org's real FG codes often mix separator/digit-count variants that all mean
+ * the same scheme — e.g. mask 'FGxxxx' should accept BOTH 'FG0016' (no separator,
+ * 4 digits) and 'FG-016' (hyphen, 3 digits). This compiler keeps the mask's
+ * literal PREFIX/literals but makes each digit/token run tolerant of an optional
+ * leading separator and a flexible digit count, and matches case-insensitively.
+ *
+ * Use ONLY for the tolerant "is this a plausible FG code for this org" check the
+ * validation panel shows. Do NOT use it for code GENERATION or createFa
+ * uniqueness/format enforcement — those keep the strict codeMaskToRegExp.
+ */
+export function codeMaskToLenientRegExp(mask: string): RegExp {
+  // Quantifiers are BOUNDED ({1,N}, not +) so adjacent variable tokens can never
+  // cause catastrophic backtracking / ReDoS — even for a pathological mask, the
+  // matcher is linear. Bounds are generous enough for any real entity code.
+  let pattern = '';
+  for (let i = 0; i < mask.length; ) {
+    if (mask.startsWith('[DATE]', i)) {
+      pattern += '[-_ ]?\\d{1,12}';
+      i += 6;
+    } else if (mask.startsWith('[YY]', i)) {
+      pattern += '[-_ ]?\\d{1,12}';
+      i += 4;
+    } else if (mask.startsWith('[SITE]', i)) {
+      pattern += '[-_ ]?[A-Z0-9]{1,24}';
+      i += 6;
+    } else if (/[xX]/.test(mask[i] ?? '')) {
+      let j = i;
+      while (j < mask.length && /[xX]/.test(mask[j] ?? '')) j += 1;
+      // optional leading separator + a bounded run of digits (count-tolerant).
+      pattern += '[-_ ]?\\d{1,12}';
+      i = j;
+    } else {
+      pattern += escapeRegExpLiteral(mask[i] ?? '');
+      i += 1;
+    }
+  }
+  return new RegExp(`^${pattern}$`, 'i');
+}
+
 async function updateAndReturnOldSequence(
   client: QueryClient,
   orgId: string,

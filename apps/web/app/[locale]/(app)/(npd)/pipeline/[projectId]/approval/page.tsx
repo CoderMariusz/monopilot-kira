@@ -22,8 +22,15 @@
  * the caller lacks npd.gate.approve.
  */
 
+import { evaluateNpdValidation } from '@monopilot/validation';
 import { getTranslations } from 'next-intl/server';
 
+import {
+  ValidationStatusPanel,
+  type ValidationRule,
+} from '../../../../../../../components/npd/validation-status-panel';
+import { loadFgCodeMask } from '../../../../../../(npd)/fa/actions/create-fa';
+import { codeMaskToLenientRegExp } from '../../../../../../../lib/documents/code-mask';
 import {
   ComplianceDocsScreen,
   type ComplianceDocRow,
@@ -93,6 +100,9 @@ type ApprovalPageProps = {
   allergenState?: AllergenWidgetState;
   allergenCanWrite?: boolean;
   allergenCanAcceptDeclaration?: boolean;
+  validationRules?: ValidationRule[];
+  validationTitle?: string;
+  validationVisible?: boolean;
 };
 
 type LoaderResult = {
@@ -452,6 +462,148 @@ async function resolveRiskCanWrite(): Promise<boolean> {
   }
 }
 
+const DEFAULT_VALIDATION_RULE_TITLES: Record<string, string> = {
+  V01: 'FG Code format',
+  V02: 'Product Name required',
+  V03: 'Pack Size in reference',
+  V04: 'D365 material codes',
+  V05: 'Dept required fields',
+  V06: 'PR Code suffix',
+  V07: 'Allergen declaration',
+  V08: 'Brief mapping',
+};
+
+const DEFAULT_VALIDATION_SECTION_TITLE = 'Validation status';
+
+type ValidationLabels = {
+  title: string;
+  rules: Record<string, string>;
+  errorNotice: string;
+};
+
+const DEFAULT_VALIDATION_ERROR_NOTICE = 'Validation could not be loaded right now. Try refreshing.';
+
+async function buildValidationLabels(locale: string): Promise<ValidationLabels> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.faRightPanel' });
+    const pick = (key: string, fallback: string) => {
+      try {
+        const value = t(key);
+        return value === key ? fallback : value;
+      } catch {
+        return fallback;
+      }
+    };
+    return {
+      title: pick('validationTitle', DEFAULT_VALIDATION_SECTION_TITLE),
+      rules: {
+        V01: pick('validationRules.V01', DEFAULT_VALIDATION_RULE_TITLES.V01),
+        V02: pick('validationRules.V02', DEFAULT_VALIDATION_RULE_TITLES.V02),
+        V03: pick('validationRules.V03', DEFAULT_VALIDATION_RULE_TITLES.V03),
+        V04: pick('validationRules.V04', DEFAULT_VALIDATION_RULE_TITLES.V04),
+        V05: pick('validationRules.V05', DEFAULT_VALIDATION_RULE_TITLES.V05),
+        V06: pick('validationRules.V06', DEFAULT_VALIDATION_RULE_TITLES.V06),
+        V07: pick('validationRules.V07', DEFAULT_VALIDATION_RULE_TITLES.V07),
+        V08: pick('validationRules.V08', DEFAULT_VALIDATION_RULE_TITLES.V08),
+      },
+      errorNotice: pick('validationErrorNotice', DEFAULT_VALIDATION_ERROR_NOTICE),
+    };
+  } catch {
+    return {
+      title: DEFAULT_VALIDATION_SECTION_TITLE,
+      rules: { ...DEFAULT_VALIDATION_RULE_TITLES },
+      errorNotice: DEFAULT_VALIDATION_ERROR_NOTICE,
+    };
+  }
+}
+
+type ValidationLoaderResult = {
+  visible: boolean;
+  title: string;
+  rules: ValidationRule[];
+  /** true when the loader THREW (vs. simply no product row) — render an explicit
+   *  "validation unavailable" notice instead of silently hiding the panel. */
+  error?: boolean;
+  /** localized notice text, carried on the result so the render (which has no
+   *  access to the labels) can show it in the error state. */
+  errorNotice?: string;
+};
+
+type ValidationOrgContext = OrgContextLike & {
+  client: {
+    query<T = Record<string, unknown>>(
+      sql: string,
+      params?: readonly unknown[],
+    ): Promise<{ rows: T[] }>;
+  };
+};
+
+function strField(v: unknown): string {
+  return v == null ? '' : String(v).trim();
+}
+
+async function readPackSizes(ctx: ValidationOrgContext): Promise<string[]> {
+  try {
+    const { rows } = await ctx.client.query<{ value: string | null }>(
+      `select value
+         from "Reference"."PackSizes"
+        where org_id = app.current_org_id()`,
+    );
+    return rows.map((r) => strField(r.value)).filter((v) => v !== '');
+  } catch {
+    return [];
+  }
+}
+
+async function readValidationSection(
+  productCode: string,
+  labels: ValidationLabels,
+): Promise<ValidationLoaderResult> {
+  const hidden: ValidationLoaderResult = { visible: false, title: labels.title, rules: [] };
+  try {
+    return await withOrgContext(async (rawCtx): Promise<ValidationLoaderResult> => {
+      const ctx = rawCtx as ValidationOrgContext;
+      const { rows } = await ctx.client.query<Record<string, unknown>>(
+        `select to_jsonb(p.*) as product_json
+           from public.product p
+          where p.product_code = $1
+            and p.deleted_at is null
+          limit 1`,
+        [productCode],
+      );
+      const raw = rows[0];
+      if (!raw) return hidden;
+
+      const productRow =
+        (raw.product_json as Record<string, unknown> | undefined) ?? raw;
+      if (!productRow || Object.keys(productRow).length === 0) return hidden;
+
+      const packSizes = await readPackSizes(ctx);
+      const fgMask = await loadFgCodeMask(ctx);
+      // Distinguish "no mask configured" (null → evaluator's lenient non-empty V01)
+      // from an EMPTY mask string ('' → compiles to /^$/ so no code passes, flagging
+      // the misconfiguration) — a `fgMask ? …` truthy check would collapse '' to null
+      // and wrongly pass every code through V01.
+      const codeMaskRegExp = fgMask == null ? null : codeMaskToLenientRegExp(fgMask);
+      const rules = (await evaluateNpdValidation(ctx.client, {
+        orgId: ctx.orgId,
+        productRow,
+        packSizes,
+        codeMaskRegExp,
+        titles: labels.rules,
+      })) as ValidationRule[];
+
+      return { visible: true, title: labels.title, rules };
+    });
+  } catch (error) {
+    // A THROWN loader error (DB/RLS/permission) surfaces an explicit error state
+    // rather than silently hiding validation — the approver must know it couldn't
+    // load, not mistake absence for "all good". (A missing product row stays hidden.)
+    console.error('[approval-validation] org-scoped read failed:', error);
+    return { visible: true, error: true, title: labels.title, rules: [], errorNotice: labels.errorNotice };
+  }
+}
+
 async function readRiskSection(productCode: string): Promise<RiskLoaderResult> {
   try {
     const result = await listRisks({ productCode });
@@ -628,7 +780,16 @@ export default async function ApprovalPage(propsInput: unknown = {}) {
 
   const showMountSections = loaded.state === 'ready' && Boolean(productCode);
 
-  const [complianceLabels, riskLabels, allergenLabels, complianceLoaded, riskLoaded, allergenLoaded, riskCanWrite] =
+  const [
+    complianceLabels,
+    riskLabels,
+    allergenLabels,
+    validationLoaded,
+    complianceLoaded,
+    riskLoaded,
+    allergenLoaded,
+    riskCanWrite,
+  ] =
     showMountSections && productCode
       ? await loadApprovalMountSections({
           locale,
@@ -636,7 +797,7 @@ export default async function ApprovalPage(propsInput: unknown = {}) {
           props,
           injected,
         })
-      : [null, null, null, null, null, null, false] as const;
+      : [null, null, null, null, null, null, null, false] as const;
 
   const mountActions =
     showMountSections && productCode
@@ -654,6 +815,21 @@ export default async function ApprovalPage(propsInput: unknown = {}) {
       />
       {showMountSections && productCode && mountActions && complianceLabels && riskLabels && allergenLabels && complianceLoaded && riskLoaded && allergenLoaded ? (
         <div className="mx-auto w-full max-w-4xl space-y-8 px-6 pb-8">
+          {validationLoaded?.visible ? (
+            <section id="approval-validation" aria-labelledby="approval-validation-heading" className="space-y-4">
+              <h2 id="approval-validation-heading" className="page-title" style={{ fontSize: 18 }}>
+                {validationLoaded.title}
+              </h2>
+              {validationLoaded.error ? (
+                <div role="status" data-testid="approval-validation-error" className="alert alert-amber">
+                  {validationLoaded.errorNotice}
+                </div>
+              ) : (
+                <ValidationStatusPanel title={validationLoaded.title} rules={validationLoaded.rules} />
+              )}
+            </section>
+          ) : null}
+
           <section id="approval-compliance" aria-labelledby="approval-compliance-heading" className="space-y-4">
             <h2 id="approval-compliance-heading" className="page-title" style={{ fontSize: 18 }}>
               {complianceLabels.title}
@@ -715,12 +891,16 @@ async function loadApprovalMountSections({
   const complianceInjected = Array.isArray(props.complianceRows);
   const riskInjected = Array.isArray(props.riskRows);
   const allergenInjected = props.allergenData !== undefined || props.allergenState !== undefined;
+  const validationInjected = Array.isArray(props.validationRules);
 
-  const [complianceLabels, riskLabels, allergenLabels, complianceLoaded, riskLoaded, allergenLoaded, riskCanWrite] =
+  const validationLabelsPromise = buildValidationLabels(locale);
+
+  const [complianceLabels, riskLabels, allergenLabels, validationLabels, complianceLoaded, riskLoaded, allergenLoaded, riskCanWrite] =
     await Promise.all([
       buildComplianceLabels(locale),
       buildRiskLabels(locale),
       buildAllergenLabels(locale),
+      validationLabelsPromise,
       complianceInjected
         ? Promise.resolve({
             state: props.complianceState ?? ((props.complianceRows?.length ?? 0) === 0 ? 'empty' : 'ready'),
@@ -748,5 +928,22 @@ async function loadApprovalMountSections({
         : resolveRiskCanWrite(),
     ]);
 
-  return [complianceLabels, riskLabels, allergenLabels, complianceLoaded, riskLoaded, allergenLoaded, riskCanWrite] as const;
+  const validationLoaded: ValidationLoaderResult = validationInjected
+    ? {
+        visible: props.validationVisible ?? (props.validationRules?.length ?? 0) > 0,
+        title: props.validationTitle ?? validationLabels.title,
+        rules: props.validationRules ?? [],
+      }
+    : await readValidationSection(productCode, validationLabels);
+
+  return [
+    complianceLabels,
+    riskLabels,
+    allergenLabels,
+    validationLoaded,
+    complianceLoaded,
+    riskLoaded,
+    allergenLoaded,
+    riskCanWrite,
+  ] as const;
 }

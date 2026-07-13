@@ -295,23 +295,28 @@ describe('C3 — Compute costing (empty state)', () => {
     );
   });
 
-  it('shows a warning after compute when margin is negative but still refreshes', async () => {
-    const compute = vi.fn().mockResolvedValue({ ok: true, marginNegative: true });
-    const onRefresh = vi.fn();
+  it('renders the margin-negative warning when the resolved engine margin step is negative', () => {
+    // The warning is derived from the resolved engine (engineResult / data.engineResult)
+    // margin step — NOT from the compute action's return value. Provide a negative
+    // per-pack margin and assert the amber warning renders (and no compute error).
+    const engineResult = {
+      status: 'ok' as const,
+      units: { avgBatchQty: '120', fgBaseUom: 'kg', packsPerBatch: '600' },
+      steps: [
+        { key: 'total' as const, valuePerPackEur: '2.0000' },
+        { key: 'margin' as const, valuePerPackEur: '-0.5000' },
+      ],
+    };
     render(
       <CostingScreen
-        state="empty"
-        data={null}
+        state="ready"
+        data={READY_DATA}
+        engineResult={engineResult}
         labels={LABELS}
         projectId={PROJECT_ID}
-        computeAction={compute}
-        onRefresh={onRefresh}
+        onRefresh={vi.fn()}
       />,
     );
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('costing-compute'));
-    });
-    await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('margin-negative-warning')).toBeInTheDocument();
     expect(screen.queryByTestId('costing-compute-error')).not.toBeInTheDocument();
   });
