@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { cancelWorkOrderChain, deleteDraftWorkOrder, releaseWorkOrder } from './releaseWorkOrder';
+import { cancelWorkOrderChain, deleteDraftWorkOrder, releaseWorkOrder, releaseWorkOrderChainForContext } from './releaseWorkOrder';
 import type { QueryClient } from './shared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -22,7 +22,11 @@ let deletedCount = 1;
 let chainDeleteBlocked = false;
 let upstreamBlockers: Array<{ child_wo_number: string; child_status: string }> = [];
 const WIP_ID = '55555555-5555-4555-8555-555555555555';
+let itemTypeAtCreation = 'fg';
+let itemTypeByWoId: Record<string, string> = {};
 let chainMembers: Array<{ id: string; depth: number; status: string; wo_number: string }> = [];
+let chainReleaseOrder: Array<{ id: string; depth: number; status: string; wo_number: string }> = [];
+const releaseOrder: string[] = [];
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -42,6 +46,9 @@ function makeClient(): QueryClient {
         return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
       }
       if (normalized.includes('with recursive chain')) {
+        if (normalized.includes('where ch.depth > 0')) {
+          return { rows: chainReleaseOrder, rowCount: chainReleaseOrder.length };
+        }
         if (normalized.includes('select ch.wo_id::text as id')) {
           return { rows: chainMembers, rowCount: chainMembers.length };
         }
@@ -70,6 +77,10 @@ function makeClient(): QueryClient {
         if (!currentStatus) return { rows: [], rowCount: 0 };
         return { rows: [{ status: currentStatus, product_id: PRODUCT_ID }], rowCount: 1 };
       }
+      if (normalized.startsWith('select wo.status') && normalized.includes('from public.work_orders wo')) {
+        if (!currentStatus) return { rows: [], rowCount: 0 };
+        return { rows: [{ status: currentStatus }], rowCount: 1 };
+      }
       if (normalized.includes('pg_advisory_xact_lock')) {
         return { rows: [{ pg_advisory_xact_lock: true }], rowCount: 1 };
       }
@@ -84,6 +95,7 @@ function makeClient(): QueryClient {
         return {
           rows: [
             {
+              item_type_at_creation: itemTypeByWoId[String(params[0])] ?? itemTypeAtCreation,
               active_bom_header_id: healedBomId,
               active_factory_spec_id: healedSpecId,
               output_uom: outputUom,
@@ -113,6 +125,7 @@ function makeClient(): QueryClient {
         };
       }
       if (normalized.startsWith('update public.work_orders')) {
+        releaseOrder.push(String(params[0]));
         return {
           rows: [
             {
@@ -184,6 +197,10 @@ describe('releaseWorkOrder', () => {
     chainDeleteBlocked = false;
     upstreamBlockers = [];
     chainMembers = [];
+    chainReleaseOrder = [];
+    releaseOrder.length = 0;
+    itemTypeAtCreation = 'fg';
+    itemTypeByWoId = {};
     client = makeClient();
   });
 
@@ -197,6 +214,29 @@ describe('releaseWorkOrder', () => {
       expect.stringContaining('uom_snapshot = coalesce'),
       [WO_ID, USER_ID],
     );
+  });
+
+  it('releases an intermediate WIP child without a factory spec when BOM is present', async () => {
+    itemTypeAtCreation = 'intermediate';
+    healedSpecId = null;
+
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('still requires a factory spec for FG work orders', async () => {
+    itemTypeAtCreation = 'fg';
+    healedSpecId = null;
+
+    const result = await releaseWorkOrder({ id: WO_ID });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'factory_release_incomplete',
+      missing: ['factory_spec'],
+      message: expect.stringContaining('factory spec'),
+    });
   });
 
   it('returns factory_release_incomplete with the missing list and does not release', async () => {
@@ -399,5 +439,55 @@ describe('cancelWorkOrderChain (Extra-3)', () => {
 
     const deleted = await deleteDraftWorkOrder({ id: WO_ID });
     expect(deleted).toEqual({ ok: true, id: WO_ID });
+  });
+});
+
+describe('releaseWorkOrderChainForContext', () => {
+  beforeEach(() => {
+    allowPermission = true;
+    currentStatus = 'DRAFT';
+    healedBomId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    healedSpecId = '99999999-9999-4999-8999-999999999999';
+    outputUom = 'base';
+    upstreamBlockers = [];
+    chainMembers = [
+      { id: WIP_ID, depth: 1, status: 'DRAFT', wo_number: 'WO-001-W1' },
+      { id: WO_ID, depth: 0, status: 'DRAFT', wo_number: 'WO-001' },
+    ];
+    chainReleaseOrder = [
+      { id: WIP_ID, depth: 1, status: 'DRAFT', wo_number: 'WO-001-W1' },
+    ];
+    releaseOrder.length = 0;
+    itemTypeByWoId = {
+      [WIP_ID]: 'intermediate',
+      [WO_ID]: 'fg',
+    };
+    client = makeClient();
+  });
+
+  it('releases the WIP child before the FG root and succeeds', async () => {
+    const ctx = { userId: USER_ID, orgId: ORG_ID, client };
+    const childResult = await releaseWorkOrderChainForContext(ctx, WO_ID);
+
+    expect(childResult.ok).toBe(true);
+    expect(releaseOrder).toEqual([WIP_ID, WO_ID]);
+  });
+
+  it('still requires a factory spec when releasing the FG root — releases NOTHING (no partial commit)', async () => {
+    healedSpecId = null;
+    itemTypeByWoId = {
+      [WIP_ID]: 'intermediate',
+      [WO_ID]: 'fg',
+    };
+    const ctx = { userId: USER_ID, orgId: ORG_ID, client };
+
+    const result = await releaseWorkOrderChainForContext(ctx, WO_ID);
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'factory_release_incomplete',
+      missing: ['factory_spec'],
+    });
+    expect(releaseOrder).toEqual([]);
   });
 });

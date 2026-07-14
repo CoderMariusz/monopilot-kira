@@ -30,6 +30,9 @@ let includeSchedulerConfig = true;
 let schedulerConfigRows: Array<Record<string, unknown>> = [];
 let assignmentRows: SchedulerAssignment[] = [];
 let staleWoIds = new Set<string>();
+let matrixVersionInsertConflict = false;
+let simulateNoActiveMatrixVersion = false;
+const ACTIVE_MATRIX_VERSION_ID = '77777777-7777-4777-8777-777777777777';
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -41,7 +44,7 @@ vi.mock('../../../../../../../lib/site/site-context', () => ({
   getActiveSiteId: vi.fn(async () => SITE_ID),
 }));
 
-import { applySchedule, listChangeoverMatrix, runScheduler, upsertChangeoverMatrixEntry } from '../scheduler-actions';
+import { applySchedule, getLatestSchedulerRun, listChangeoverMatrix, runScheduler, upsertChangeoverMatrixEntry } from '../scheduler-actions';
 import { DEFAULT_SEQUENCE_SOLVER_CONFIG, sequenceWorkOrders } from '../sequence-solver';
 
 function normalize(sql: string): string {
@@ -190,6 +193,9 @@ function makeClient(): QueryClient {
       }
 
       if (q.includes('from public.work_orders wo') && q.includes('item_allergen_profiles')) {
+        if (q.includes("wo.status = 'in_progress'")) {
+          return { rows: [], rowCount: 0 };
+        }
         return {
           rows: [
             wo({ id: WO_A, due: '2026-06-01T08:00:00.000Z', allergens: ['milk'] }),
@@ -278,6 +284,30 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('update public.changeover_matrix')) {
         return { rows: [matrixEntry({ id: String(params[0]), changeover_minutes: '15.00' })], rowCount: 1 };
+      }
+
+      if (q.includes('from public.changeover_matrix_versions') && q.startsWith('insert into')) {
+        if (matrixVersionInsertConflict) {
+          return { rows: [], rowCount: 0 };
+        }
+        return {
+          rows: [{ id: ACTIVE_MATRIX_VERSION_ID }],
+          rowCount: 1,
+        };
+      }
+
+      if (q.includes('from public.changeover_matrix_versions') && q.includes('is_active = true')) {
+        if (simulateNoActiveMatrixVersion) {
+          const priorInsert = calls.some(
+            (call) =>
+              normalize(call.sql).includes('insert into public.changeover_matrix_versions') &&
+              normalize(call.sql).includes('on conflict'),
+          );
+          if (!priorInsert || !matrixVersionInsertConflict) {
+            return { rows: [], rowCount: 0 };
+          }
+        }
+        return { rows: [{ id: ACTIVE_MATRIX_VERSION_ID }], rowCount: 1 };
       }
 
       if (q.includes('from public.changeover_matrix')) {
@@ -409,7 +439,7 @@ describe('runScheduler', () => {
     const expected = sequenceWorkOrders(workOrders, matrix, {
       ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
       pmWindows: [],
-    });
+    }).assignments;
 
     const result = await runScheduler({ lineId: LINE_ID, horizonDays: 7 });
 
@@ -533,11 +563,33 @@ describe('applySchedule', () => {
   it('A3-S9: scopes the solver input to RELEASED work orders on the active site', async () => {
     await runScheduler({ lineId: LINE_ID, horizonDays: 7 });
 
-    const woCall = calls.find((call) => normalize(call.sql).includes('from public.work_orders wo'));
-    expect(woCall).toBeDefined();
-    expect(woCall?.params?.[0]).toEqual(['RELEASED']);
-    expect(woCall?.params?.[3]).toBe(SITE_ID);
-    expect(normalize(woCall?.sql ?? '')).toContain('pl.site_id = $4::uuid');
+    const woCalls = calls.filter((call) => normalize(call.sql).includes('from public.work_orders wo'));
+    const schedulableCall = woCalls.find((call) => normalize(call.sql).includes("wo.status = any($1::varchar[])"));
+    expect(schedulableCall).toBeDefined();
+    expect(schedulableCall?.params?.[0]).toEqual(['RELEASED']);
+    expect(schedulableCall?.params?.[3]).toBe(SITE_ID);
+    expect(normalize(schedulableCall?.sql ?? '')).toContain('pl.site_id = $4::uuid');
+  });
+
+  it('returns the latest completed run with draft assignments', async () => {
+    assignmentRows = [
+      assignmentRow({
+        id: '11111111-1111-4111-8111-111111111111',
+        woId: WO_A,
+        sequence: 1,
+        start: '2026-06-01T08:00:00.000Z',
+        end: '2026-06-01T12:00:00.000Z',
+        changeover: 0,
+      }),
+    ];
+
+    const result = await getLatestSchedulerRun();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.run.run_id).toBe(RUN_ID);
+    expect(result.assignments).toHaveLength(1);
+    expect(result.assignments[0].wo_id).toBe(WO_A);
   });
 });
 
@@ -562,9 +614,47 @@ describe('scheduler RBAC gates', () => {
     );
 
     calls = [];
+    await getLatestSchedulerRun();
+    expect(calls.find((call) => normalize(call.sql).includes('from public.user_roles'))?.params[2]).toBe(
+      'scheduler.run.read',
+    );
+
+    calls = [];
     await listChangeoverMatrix();
     expect(calls.find((call) => normalize(call.sql).includes('from public.user_roles'))?.params[2]).toBe(
       'scheduler.matrix.read',
     );
+  });
+});
+
+describe('ensureActiveMatrixVersion race', () => {
+  beforeEach(() => {
+    matrixVersionInsertConflict = false;
+    simulateNoActiveMatrixVersion = false;
+    calls = [];
+    client = makeClient();
+  });
+
+  it('falls back to the winning active version when a concurrent insert conflicts', async () => {
+    simulateNoActiveMatrixVersion = true;
+    matrixVersionInsertConflict = true;
+
+    const result = await upsertChangeoverMatrixEntry({
+      allergen_from: 'milk',
+      allergen_to: 'soy',
+      changeover_minutes: '10',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    const versionBootstrap = calls.find(
+      (call) =>
+        normalize(call.sql).includes('insert into public.changeover_matrix_versions') &&
+        normalize(call.sql).includes('on conflict'),
+    );
+    expect(versionBootstrap).toBeDefined();
+    expect(
+      calls.filter((call) => normalize(call.sql).includes('from public.changeover_matrix_versions')).length,
+    ).toBeGreaterThanOrEqual(2);
   });
 });

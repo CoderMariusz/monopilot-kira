@@ -80,6 +80,21 @@ const ZERO_TRANSITION: ChangeoverTransition = {
   feasible: true,
 };
 
+/** True when the org has at least one active-matrix row loaded for the solve. */
+export function isChangeoverMatrixConfigured(matrix: ChangeoverMatrixEntry[]): boolean {
+  return matrix.length > 0;
+}
+
+/** Unmatched non-empty allergen pairs are infeasible only when a matrix is configured. */
+const UNCONFIGURED_PAIR_TRANSITION: ChangeoverTransition = {
+  minutes: 0,
+  step_minutes: 0,
+  requires_cleaning: false,
+  requires_atp: false,
+  risk_level: 'segregated',
+  feasible: false,
+};
+
 /**
  * Resolve a changeover transition between two allergen profiles using single-code
  * matrix rows (`allergen_from` ∈ from profile AND `allergen_to` ∈ to profile),
@@ -91,11 +106,17 @@ export function resolveChangeoverTransition(
   toAllergens: string[],
   lineId: string | null,
   matrix: ChangeoverMatrixEntry[],
+  options?: { matrixConfigured?: boolean },
 ): ChangeoverTransition {
+  const matrixConfigured = options?.matrixConfigured ?? isChangeoverMatrixConfigured(matrix);
   const from = normalizedAllergenIds(fromAllergens);
   const to = normalizedAllergenIds(toAllergens);
   if (from.length === 0 && to.length === 0) {
     return ZERO_TRANSITION;
+  }
+
+  if (from.length === 0 || to.length === 0) {
+    return matrixConfigured ? UNCONFIGURED_PAIR_TRANSITION : ZERO_TRANSITION;
   }
 
   let aggregated: Omit<ChangeoverTransition, 'step_minutes' | 'feasible'> = {
@@ -104,14 +125,16 @@ export function resolveChangeoverTransition(
     requires_atp: false,
     risk_level: 'low',
   };
-  let matched = false;
+  let matchedCrossPair = false;
 
-  for (const fromCode of from.length > 0 ? from : ['']) {
-    for (const toCode of to.length > 0 ? to : ['']) {
-      if (!fromCode || !toCode) continue;
+  for (const fromCode of from) {
+    for (const toCode of to) {
+      if (fromCode === toCode) continue;
+      matchedCrossPair = true;
       const entry = resolvePairEntry(fromCode, toCode, lineId, matrix);
-      if (!entry) continue;
-      matched = true;
+      if (!entry) {
+        return matrixConfigured ? UNCONFIGURED_PAIR_TRANSITION : ZERO_TRANSITION;
+      }
       aggregated = {
         minutes: Math.max(aggregated.minutes, minutes(entry.changeover_minutes)),
         requires_cleaning: aggregated.requires_cleaning || entry.requires_cleaning,
@@ -121,7 +144,7 @@ export function resolveChangeoverTransition(
     }
   }
 
-  if (!matched) {
+  if (!matchedCrossPair) {
     return ZERO_TRANSITION;
   }
 

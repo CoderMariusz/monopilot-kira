@@ -40,6 +40,12 @@ export type ChangeoverMatrixLabels = {
   diagonalHint: string;
   emptyTitle: string;
   emptyHint: string;
+  addPairTitle: string;
+  allergenFrom: string;
+  allergenTo: string;
+  feasible: string;
+  addPair: string;
+  adding: string;
   save: string;
   saving: string;
   cancel: string;
@@ -90,6 +96,11 @@ export function ChangeoverMatrixEditor({
   const [editing, setEditing] = React.useState<EditingCell | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [errorKey, setErrorKey] = React.useState<string | null>(null);
+  const [newFrom, setNewFrom] = React.useState('');
+  const [newTo, setNewTo] = React.useState('');
+  const [newCost, setNewCost] = React.useState('0');
+  const [newFeasible, setNewFeasible] = React.useState(true);
+  const [adding, setAdding] = React.useState(false);
 
   const errorLabel = (key: string) => labels.errors[key] ?? labels.errors.persistence_failed;
 
@@ -135,14 +146,100 @@ export function ChangeoverMatrixEditor({
     }
   };
 
+  const addFirstPair = async () => {
+    const from = newFrom.trim();
+    const to = newTo.trim();
+    const cost = Number(newCost);
+    if (!from || !to || from === to || !Number.isFinite(cost) || cost < 0) {
+      setErrorKey('invalid_input');
+      return;
+    }
+    setAdding(true);
+    setErrorKey(null);
+    const result = await upsertAction({
+      allergen_from: from,
+      allergen_to: to,
+      changeover_minutes: cost,
+      requires_cleaning: false,
+      risk_level: newFeasible ? 'low' : 'segregated',
+    });
+    setAdding(false);
+    if (result.ok) {
+      router.refresh();
+    } else {
+      setErrorKey(result.error);
+    }
+  };
+
   if (profileKeys.length === 0) {
     return (
       <div
         data-testid="matrix-empty"
-        className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center"
+        className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8"
       >
-        <p className="text-sm font-medium text-slate-700">{labels.emptyTitle}</p>
-        <p className="mt-1 text-xs text-slate-500">{labels.emptyHint}</p>
+        <div className="text-center">
+          <p className="text-sm font-medium text-slate-700">{labels.emptyTitle}</p>
+          <p className="mt-1 text-xs text-slate-500">{labels.emptyHint}</p>
+        </div>
+        <div className="mx-auto mt-6 max-w-md">
+          <h3 className="mb-3 text-sm font-semibold text-slate-900">{labels.addPairTitle}</h3>
+          <div className="flex flex-col gap-3 text-sm">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-slate-600">{labels.allergenFrom}</span>
+              <Input
+                value={newFrom}
+                data-testid="matrix-add-from"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewFrom(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-slate-600">{labels.allergenTo}</span>
+              <Input
+                value={newTo}
+                data-testid="matrix-add-to"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewTo(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-slate-600">{labels.cost}</span>
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={newCost}
+                data-testid="matrix-add-cost"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewCost(e.target.value)}
+              />
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={newFeasible}
+                data-testid="matrix-add-feasible"
+                onChange={(e) => setNewFeasible(e.target.checked)}
+              />
+              <span className="text-xs font-medium text-slate-600">{labels.feasible}</span>
+            </label>
+            {errorKey ? (
+              <p
+                role="alert"
+                data-testid="matrix-add-error"
+                className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
+              >
+                {errorLabel(errorKey)}
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              className="btn--primary"
+              data-testid="matrix-add-submit"
+              onClick={addFirstPair}
+              disabled={adding}
+            >
+              {adding ? labels.adding : labels.addPair}
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }

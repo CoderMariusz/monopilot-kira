@@ -4,6 +4,7 @@ import {
   DEFAULT_SEQUENCE_SOLVER_CONFIG,
   SequenceCapacityInfeasibleError,
   __resolvePlannedStartForTests,
+  buildPreoccupiedSeed,
   sequenceWorkOrders,
 } from '../sequence-solver';
 import { ATP_STEP_MINUTES, CLEANING_STEP_MINUTES } from '../changeover-matrix-lookup';
@@ -70,6 +71,12 @@ function matrix(
   };
 }
 
+function seq(
+  ...args: Parameters<typeof sequenceWorkOrders>
+): ReturnType<typeof sequenceWorkOrders>['assignments'] {
+  return sequenceWorkOrders(...args).assignments;
+}
+
 function naiveDueDateTotal(wos: WorkOrderForScheduling[], entries: ChangeoverMatrixEntry[]): number {
   const ordered = [...wos].sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
   let total = 0;
@@ -94,11 +101,11 @@ describe('sequenceWorkOrders', () => {
   });
 
   it('returns an empty sequence for empty input', () => {
-    expect(sequenceWorkOrders([], [])).toEqual([]);
+    expect(seq([], [])).toEqual([]);
   });
 
   it('returns a single WO with zero cumulative changeover cost', () => {
-    const result = sequenceWorkOrders(
+    const result = seq(
       [wo({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', due: '2026-06-03T08:00:00.000Z', allergens: ['milk'] })],
       [],
     );
@@ -124,8 +131,8 @@ describe('sequenceWorkOrders', () => {
       matrix('soy', 'milk', 0),
     ];
 
-    const first = sequenceWorkOrders([a, b, c], entries).map((assignment) => assignment.wo_id);
-    const second = sequenceWorkOrders([c, b, a], entries).map((assignment) => assignment.wo_id);
+    const first = seq([a, b, c], entries).map((assignment) => assignment.wo_id);
+    const second = seq([c, b, a], entries).map((assignment) => assignment.wo_id);
 
     expect(first).toEqual(second);
     expect(first).toEqual([a.id, c.id, b.id]);
@@ -135,9 +142,9 @@ describe('sequenceWorkOrders', () => {
     const anchor = wo({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', due: '2026-06-01T08:00:00.000Z', allergens: ['milk'] });
     const earlier = wo({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', due: '2026-06-02T08:00:00.000Z', allergens: ['soy'] });
     const later = wo({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', due: '2026-06-03T08:00:00.000Z', allergens: ['nuts'] });
-    const entries = [matrix('milk', 'soy', 10), matrix('milk', 'nuts', 10)];
+    const entries = [matrix('milk', 'soy', 10), matrix('milk', 'nuts', 10), matrix('soy', 'nuts', 10)];
 
-    const result = sequenceWorkOrders([later, earlier, anchor], entries);
+    const result = seq([later, earlier, anchor], entries);
 
     expect(result.map((assignment) => assignment.wo_id)).toEqual([anchor.id, earlier.id, later.id]);
   });
@@ -152,7 +159,7 @@ describe('sequenceWorkOrders', () => {
       matrix('milk', 'milk', 0, { requires_cleaning: false }),
     ];
 
-    const greedy = sequenceWorkOrders([a, b, c], entries);
+    const greedy = seq([a, b, c], entries);
     const greedyTotal = greedy.at(-1)?.cumulative_changeover_cost ?? 0;
     const naiveTotal = naiveDueDateTotal([a, b, c], entries);
 
@@ -189,7 +196,7 @@ describe('sequenceWorkOrders', () => {
       scheduledEnd: '2026-06-01T09:00:00.000Z',
     });
 
-    const result = sequenceWorkOrders([a, b, c], []);
+    const result = seq([a, b, c], []);
     const now = new Date('2026-06-24T12:00:00.000Z').getTime();
     for (const assignment of result) {
       const start = new Date(assignment.planned_start_at).getTime();
@@ -224,7 +231,7 @@ describe('sequenceWorkOrders', () => {
       routingDurationMs: 2 * 60 * 60 * 1000,
     });
 
-    const result = sequenceWorkOrders([openWo], []);
+    const result = seq([openWo], []);
     const start = new Date(result[0].planned_start_at).getTime();
     const end = new Date(result[0].planned_end_at ?? '').getTime();
 
@@ -241,9 +248,10 @@ describe('sequenceWorkOrders', () => {
       matrix('nuts', 'milk', 5, { risk_level: 'segregated' }),
     ];
 
-    const result = sequenceWorkOrders([segregated, same, anchor], entries);
+    const result = seq([segregated, same, anchor], entries);
 
-    expect(result.map((assignment) => assignment.wo_id)).toEqual([anchor.id, same.id, segregated.id]);
+    expect(result.map((assignment) => assignment.wo_id)).toEqual([anchor.id, same.id]);
+    expect(result).toHaveLength(2);
   });
 
   it('rejects segregated adjacency even when it would minimize changeover minutes', () => {
@@ -257,9 +265,10 @@ describe('sequenceWorkOrders', () => {
       matrix('milk', 'nuts', 100, { risk_level: 'low' }),
     ];
 
-    const result = sequenceWorkOrders([nuts, milkB, milkA], entries);
+    const result = seq([nuts, milkB, milkA], entries);
 
-    expect(result.map((assignment) => assignment.wo_id)).toEqual([milkA.id, milkB.id, nuts.id]);
+    expect(result.map((assignment) => assignment.wo_id)).toEqual([milkA.id, milkB.id]);
+    expect(result).toHaveLength(2);
   });
 
   it('schedules mandatory cleaning and ATP step time before the next WO', () => {
@@ -283,7 +292,7 @@ describe('sequenceWorkOrders', () => {
       matrix('milk', 'soy', 10, { requires_cleaning: true, requires_atp: true, risk_level: 'high' }),
     ];
 
-    const result = sequenceWorkOrders([first, second], entries);
+    const result = seq([first, second], entries);
     const gapMinutes =
       (new Date(result[1].planned_start_at).getTime() - new Date(result[0].planned_end_at ?? '').getTime()) /
       (60 * 1000);
@@ -296,9 +305,9 @@ describe('sequenceWorkOrders', () => {
     const anchor = wo({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', due: '2026-06-01T08:00:00.000Z', allergens: ['milk'] });
     const cheaperLater = wo({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', due: '2026-06-03T08:00:00.000Z', allergens: ['soy'] });
     const expensiveEarlier = wo({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', due: '2026-06-02T08:00:00.000Z', allergens: ['nuts'] });
-    const entries = [matrix('milk', 'soy', 0), matrix('milk', 'nuts', 60)];
+    const entries = [matrix('milk', 'soy', 0), matrix('milk', 'nuts', 60), matrix('nuts', 'soy', 0)];
 
-    const result = sequenceWorkOrders([cheaperLater, expensiveEarlier, anchor], entries, {
+    const result = seq([cheaperLater, expensiveEarlier, anchor], entries, {
       ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
       sequencingStrategy: 'greedy',
     });
@@ -324,7 +333,7 @@ describe('sequenceWorkOrders', () => {
       scheduledEnd: '2026-06-02T10:00:00.000Z',
     });
 
-    const result = sequenceWorkOrders([first, second], [], {
+    const result = seq([first, second], [], {
       ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
       capacityHoursPerDay: 4,
     });
@@ -350,8 +359,8 @@ describe('sequenceWorkOrders', () => {
       scheduledEnd: '2026-06-02T11:00:00.000Z',
     });
 
-    const withDefault = sequenceWorkOrders([first, second], [], DEFAULT_SEQUENCE_SOLVER_CONFIG);
-    const explicitNull = sequenceWorkOrders([first, second], [], {
+    const withDefault = seq([first, second], [], DEFAULT_SEQUENCE_SOLVER_CONFIG);
+    const explicitNull = seq([first, second], [], {
       ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
       capacityHoursPerDay: null,
     });
@@ -379,7 +388,7 @@ describe('sequenceWorkOrders', () => {
       scheduledEnd: '2026-06-02T09:00:00.000Z',
     });
 
-    const result = sequenceWorkOrders([first, second], [], {
+    const result = seq([first, second], [], {
       ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
       respectPmWindows: true,
       pmWindows: [
@@ -412,8 +421,8 @@ describe('sequenceWorkOrders', () => {
       scheduledEnd: '2026-06-02T11:00:00.000Z',
     });
 
-    const baseline = sequenceWorkOrders([first, second], [], DEFAULT_SEQUENCE_SOLVER_CONFIG);
-    const withNullCapacity = sequenceWorkOrders([first, second], [], {
+    const baseline = seq([first, second], [], DEFAULT_SEQUENCE_SOLVER_CONFIG);
+    const withNullCapacity = seq([first, second], [], {
       ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
       capacityHoursPerDay: null,
     });
@@ -459,7 +468,7 @@ describe('sequenceWorkOrders', () => {
       scheduledEnd: '2026-06-04T10:00:00.000Z',
     });
 
-    const result = sequenceWorkOrders(
+    const result = seq(
       [lineAFirst, lineASecond, lineBFirst, lineBSecond],
       [],
       {
@@ -507,11 +516,12 @@ describe('sequenceWorkOrders', () => {
       scheduledEnd: '2026-06-03T09:00:00.000Z',
     });
     const entries = [
+      matrix('milk', 'nuts', 30, { requires_cleaning: false }),
       matrix('milk', 'soy', 45, { requires_cleaning: true }),
       matrix('nuts', 'soy', 15, { requires_cleaning: false }),
     ];
 
-    const result = sequenceWorkOrders([lineAFirst, lineBFirst, lineBSecond], entries);
+    const result = seq([lineAFirst, lineBFirst, lineBSecond], entries);
     const lineBSecondAssignment = result.find((row) => row.wo_id === lineBSecond.id);
 
     expect(lineBSecondAssignment?.changeover_cost).toBe(15);
@@ -540,7 +550,7 @@ describe('sequenceWorkOrders', () => {
     });
     const entries = [matrix('milk', 'soy', 20, { requires_cleaning: false })];
 
-    const result = sequenceWorkOrders([lineAFirst, lineASecond], entries);
+    const result = seq([lineAFirst, lineASecond], entries);
     const gapMinutes =
       (new Date(result[1].planned_start_at).getTime() - new Date(result[0].planned_end_at ?? '').getTime()) /
       (60 * 1000);
@@ -560,7 +570,7 @@ describe('sequenceWorkOrders', () => {
       scheduledEnd: '2026-06-01T16:00:00.000Z',
     });
 
-    const result = sequenceWorkOrders([eightHourWo], [], {
+    const result = seq([eightHourWo], [], {
       ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
       capacityHoursPerDay: 6,
     });
@@ -633,5 +643,141 @@ describe('sequenceWorkOrders', () => {
         dayUsageMs,
       ),
     ).toThrow(SequenceCapacityInfeasibleError);
+  });
+
+  it('places the next released WO after pre-seeded active line occupancy', () => {
+    const nowMs = Date.parse('2026-06-24T08:00:00.000Z');
+    const occupyEnd = nowMs + 3 * 60 * 60 * 1000;
+    const activeWo = wo({
+      id: 'active-wo',
+      due: new Date(occupyEnd).toISOString(),
+      allergens: ['milk'],
+      scheduledStart: new Date(nowMs).toISOString(),
+      scheduledEnd: new Date(occupyEnd).toISOString(),
+    });
+    activeWo.status = 'IN_PROGRESS';
+
+    const releasedWo = wo({
+      id: 'released-wo',
+      due: new Date(nowMs + 24 * 60 * 60 * 1000).toISOString(),
+      allergens: ['milk'],
+      routingDurationMs: 60 * 60 * 1000,
+    });
+    releasedWo.status = 'RELEASED';
+
+    const preoccupied = buildPreoccupiedSeed([activeWo], DEFAULT_SEQUENCE_SOLVER_CONFIG);
+    const result = seq([releasedWo], [], {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      nowMs,
+      preoccupied,
+    });
+
+    expect(Date.parse(result[0].planned_start_at)).toBeGreaterThanOrEqual(occupyEnd);
+  });
+
+  it('schedules milk then nuts when no changeover matrix is configured (permissive)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const milk = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T09:00:00.000Z',
+    });
+    const nuts = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['nuts'],
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T09:00:00.000Z',
+    });
+
+    const result = seq([milk, nuts], []);
+
+    expect(result.map((assignment) => assignment.wo_id)).toEqual([milk.id, nuts.id]);
+    expect(result).toHaveLength(2);
+  });
+
+  it('defers a WO when a configured matrix lacks the milk→nuts pair', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const milk = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T09:00:00.000Z',
+    });
+    const nuts = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['nuts'],
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T09:00:00.000Z',
+    });
+    const entries = [matrix('milk', 'milk', 0)];
+
+    const result = seq([milk, nuts], entries);
+
+    expect(result.map((assignment) => assignment.wo_id)).toEqual([milk.id]);
+    expect(result).toHaveLength(1);
+  });
+
+  it('does not schedule milk then nuts adjacent under greedy when milk→nuts is missing from the matrix', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const milk = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T09:00:00.000Z',
+    });
+    const nuts = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['nuts'],
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T09:00:00.000Z',
+    });
+    const entries = [matrix('milk', 'milk', 0)];
+
+    const result = sequenceWorkOrders([milk, nuts], entries, {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      sequencingStrategy: 'greedy',
+    });
+
+    expect(result.assignments.map((assignment) => assignment.wo_id)).toEqual([milk.id]);
+    expect(result.omitted).toEqual([
+      { wo_id: nuts.id, reason: 'no_feasible_changeover' },
+    ]);
+  });
+
+  it('surfaces omitted work orders with no_feasible_changeover in the solver result', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
+    const milk = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T09:00:00.000Z',
+    });
+    const nuts = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['nuts'],
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T09:00:00.000Z',
+    });
+    const entries = [matrix('milk', 'milk', 0)];
+
+    const result = sequenceWorkOrders([milk, nuts], entries);
+
+    expect(result.assignments).toHaveLength(1);
+    expect(result.omitted).toEqual([
+      { wo_id: nuts.id, reason: 'no_feasible_changeover' },
+    ]);
   });
 });

@@ -251,7 +251,7 @@ export function WoDetailView({
               {cancellingChain ? labels.cancelChain!.pending : labels.cancelChain!.button}
             </Button>
           ) : null}
-          {isDraft && labels.deleteDraft && deleteDraftWorkOrderAction ? (
+          {isDraft && !hasChain && labels.deleteDraft && deleteDraftWorkOrderAction ? (
             <Button
               type="button"
               className="btn--ghost btn-sm text-red-700 hover:bg-red-50"

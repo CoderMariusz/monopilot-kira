@@ -44,6 +44,9 @@ export type SchedulerBoardLabels = {
     sequenceCol: string;
     woCol: string;
     plannedStart: string;
+    plannedEnd: string;
+    duration: string;
+    qty: string;
     profileCol: string;
     changeover: string; // badge label
     totalCost: string; // "Total changeover cost: {cost}"
@@ -51,6 +54,8 @@ export type SchedulerBoardLabels = {
     emptyHint: string;
     noAssignments: string;
     appliedBadge: string;
+    omittedTitle: string; // "{count} work orders could not be scheduled"
+    omittedReason: string; // reason label for no_feasible_changeover
   };
   apply: {
     button: string;
@@ -66,7 +71,7 @@ export type SchedulerBoardLabels = {
 type RunAction = (input: { lineId?: string; horizonDays?: number }) => Promise<SchedulerRunResult>;
 type ApplyAction = (runId: string) => Promise<ApplyScheduleResult>;
 
-const HORIZON_OPTIONS = [3, 7, 14, 30] as const;
+const HORIZON_OPTIONS = [1, 2, 3, 7, 14, 30] as const;
 
 export function SchedulerBoardView({
   labels,
@@ -74,24 +79,31 @@ export function SchedulerBoardView({
   runAction,
   applyAction,
   labelMaps,
+  initialProposal = null,
 }: {
   labels: SchedulerBoardLabels;
   locale: string;
   runAction: RunAction;
   applyAction: ApplyAction;
   labelMaps?: SchedulerLabelMaps;
+  initialProposal?: SchedulerProposal | null;
 }) {
   const router = useRouter();
 
   const [horizonDays, setHorizonDays] = React.useState<number>(7);
-  const [proposal, setProposal] = React.useState<SchedulerProposal | null>(null);
+  const [proposal, setProposal] = React.useState<SchedulerProposal | null>(initialProposal);
   const [running, setRunning] = React.useState(false);
   const [runError, setRunError] = React.useState<string | null>(null);
 
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [applying, setApplying] = React.useState(false);
   const [applyError, setApplyError] = React.useState<string | null>(null);
-  const [applied, setApplied] = React.useState(false);
+  const [applied, setApplied] = React.useState(initialProposal?.applied ?? false);
+
+  React.useEffect(() => {
+    setProposal(initialProposal);
+    setApplied(initialProposal?.applied ?? false);
+  }, [initialProposal]);
 
   const dateFmt = React.useMemo(
     () =>
@@ -234,6 +246,27 @@ export function SchedulerBoardView({
             </p>
           ) : null}
 
+          {(proposal.omittedWorkOrders?.length ?? 0) > 0 ? (
+            <div
+              data-testid="scheduler-omitted-notice"
+              className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            >
+              <p className="font-medium">
+                {labels.board.omittedTitle.replace(
+                  '{count}',
+                  String(proposal.omittedWorkOrders?.length ?? 0),
+                )}
+              </p>
+              <ul className="mt-2 list-inside list-disc text-amber-800">
+                {proposal.omittedWorkOrders?.map((omitted) => (
+                  <li key={omitted.woId} data-testid={`scheduler-omitted-${omitted.woLabel}`}>
+                    {omitted.woLabel} — {labels.board.omittedReason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           {proposal.lanes.length === 0 ? (
             <p
               className="rounded-xl border border-slate-200 bg-slate-50 px-6 py-8 text-center text-sm text-slate-500"
@@ -281,8 +314,23 @@ export function SchedulerBoardView({
                             {labels.board.changeover} +{a.changeoverFromPrev}
                           </span>
                         ) : null}
-                        <span className="ml-auto font-mono text-xs text-slate-500">
-                          {a.plannedStart ? dateFmt.format(new Date(a.plannedStart)) : '—'}
+                        <span className="ml-auto flex flex-wrap items-center justify-end gap-3 font-mono text-xs text-slate-500">
+                          {a.qty ? (
+                            <span data-testid={`scheduler-assignment-qty-${a.woLabel}`}>{a.qty}</span>
+                          ) : null}
+                          {a.durationMinutes !== null ? (
+                            <span data-testid={`scheduler-assignment-duration-${a.woLabel}`}>
+                              {labels.board.duration.replace('{minutes}', String(a.durationMinutes))}
+                            </span>
+                          ) : null}
+                          <span>
+                            {a.plannedStart ? dateFmt.format(new Date(a.plannedStart)) : '—'}
+                          </span>
+                          {a.plannedEnd ? (
+                            <span data-testid={`scheduler-assignment-end-${a.woLabel}`}>
+                              → {dateFmt.format(new Date(a.plannedEnd))}
+                            </span>
+                          ) : null}
                         </span>
                       </li>
                     );

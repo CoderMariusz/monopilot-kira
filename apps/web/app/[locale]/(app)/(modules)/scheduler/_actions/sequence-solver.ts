@@ -1,6 +1,7 @@
 import {
   allergenProfileKey,
   effectiveChangeoverMinutes,
+  isChangeoverMatrixConfigured,
   normalizedAllergenIds,
   resolveChangeoverTransition,
   transitionScore,
@@ -11,9 +12,12 @@ import {
 } from '../../planning/schedule/_lib/board';
 import type {
   ChangeoverMatrixEntry,
+  OmittedWorkOrder,
   PmWindow,
   SequencedAssignment,
+  SequencePreoccupiedSeed,
   SequenceSolverConfig,
+  SequenceSolverResult,
   WorkOrderForScheduling,
 } from './scheduler-types';
 
@@ -118,18 +122,24 @@ function changeoverBetween(
   toWo: WorkOrderForScheduling,
   matrix: ChangeoverMatrixEntry[],
   changeoverWeight: number,
+  matrixConfigured: boolean,
 ): { cost: number; transitionMinutes: number; feasible: boolean } {
   const transition = resolveChangeoverTransition(
     normalizedAllergenIds(fromWo.allergen_ids),
     normalizedAllergenIds(toWo.allergen_ids),
     toWo.production_line_id,
     matrix,
+    { matrixConfigured },
   );
   return {
     cost: transitionScore(transition, changeoverWeight),
     transitionMinutes: effectiveChangeoverMinutes(transition),
     feasible: transition.feasible,
   };
+}
+
+function enforceChangeoverFeasibility(matrixConfigured: boolean): boolean {
+  return matrixConfigured;
 }
 
 function dueDatePenalty(candidate: WorkOrderForScheduling, anchorDueMs: number, duedateWeight: number): number {
@@ -267,8 +277,10 @@ function pickNextIndex(
   unscheduled: WorkOrderForScheduling[],
   matrix: ChangeoverMatrixEntry[],
   config: SequenceSolverConfig,
+  matrixConfigured: boolean,
 ): number {
   const useChangeover = config.sequencingStrategy !== 'greedy';
+  const enforceFeasibility = enforceChangeoverFeasibility(matrixConfigured);
   let bestIndex = -1;
   let bestScore = Number.POSITIVE_INFINITY;
 
@@ -279,8 +291,9 @@ function pickNextIndex(
       candidate,
       matrix,
       config.changeoverWeight,
+      matrixConfigured,
     );
-    if (useChangeover && !feasible) continue;
+    if (useChangeover && enforceFeasibility && !feasible) continue;
 
     let score = useChangeover
       ? cost + dueDatePenalty(candidate, dueTime(tail), config.duedateWeight)
@@ -299,6 +312,7 @@ function pickNextIndex(
   }
 
   if (bestIndex === -1) {
+    if (enforceFeasibility) return -1;
     bestIndex = 0;
     for (let index = 1; index < unscheduled.length; index += 1) {
       if (compareByDueDateThenId(unscheduled[index], unscheduled[bestIndex]) < 0) {
@@ -310,62 +324,197 @@ function pickNextIndex(
   return bestIndex;
 }
 
-export function sequenceWorkOrders(
-  wos: WorkOrderForScheduling[],
+function startNextSequenceSegment(unscheduled: WorkOrderForScheduling[]): WorkOrderForScheduling {
+  unscheduled.sort(compareByDueDateThenId);
+  const [next] = unscheduled.splice(0, 1);
+  return next;
+}
+
+function placeSequencedWorkOrder(
+  workOrder: WorkOrderForScheduling,
+  sequenceIndex: number,
   matrix: ChangeoverMatrixEntry[],
-  config: SequenceSolverConfig = cloneDefaultSolverConfig(),
-): SequencedAssignment[] {
-  if (wos.length === 0) return [];
-
-  const unscheduled = [...wos].sort(compareByDueDateThenId);
-  const sequence: WorkOrderForScheduling[] = [];
-
-  const first = unscheduled.shift();
-  if (!first) return [];
-  sequence.push(first);
-
-  while (unscheduled.length > 0) {
-    const tail = sequence[sequence.length - 1];
-    const bestIndex = pickNextIndex(tail, unscheduled, matrix, config);
-    const [next] = unscheduled.splice(bestIndex, 1);
-    sequence.push(next);
+  config: SequenceSolverConfig,
+  matrixConfigured: boolean,
+  plannedEndByLine: Map<string, number>,
+  dayUsageMs: Map<string, number>,
+  lastWoByLine: Map<string, WorkOrderForScheduling>,
+  now: number,
+  cumulative: number,
+): { assignment: SequencedAssignment; cumulative: number } | null {
+  const lineKey = workOrder.production_line_id ?? '__unassigned__';
+  const previous = lastWoByLine.get(lineKey) ?? null;
+  const profile = normalizedAllergenIds(workOrder.allergen_ids);
+  const toKey = allergenProfileKey(profile);
+  const changeover = previous
+    ? changeoverBetween(previous, workOrder, matrix, config.changeoverWeight, matrixConfigured)
+    : { transitionMinutes: 0, feasible: true, cost: 0 };
+  if (enforceChangeoverFeasibility(matrixConfigured) && previous && !changeover.feasible) {
+    return null;
   }
+  const changeoverCost = changeover.transitionMinutes;
+  const earliestStart = Math.max(now, (plannedEndByLine.get(lineKey) ?? now) + changeoverCost * 60 * 1000);
+  const runDuration = durationMs(workOrder);
+  const plannedStart = resolvePlannedStart(lineKey, earliestStart, runDuration, config, dayUsageMs);
+  const plannedEnd = plannedStart + runDuration;
+  plannedEndByLine.set(lineKey, plannedEnd);
+  lastWoByLine.set(lineKey, workOrder);
+  const nextCumulative = cumulative + changeoverCost;
 
-  let cumulative = 0;
-  const now = Date.now();
-  const plannedEndByLine = new Map<string, number>();
-  const dayUsageMs = new Map<string, number>();
-  const lastWoByLine = new Map<string, WorkOrderForScheduling>();
-
-  return sequence.map((workOrder, index) => {
-    const lineKey = workOrder.production_line_id ?? '__unassigned__';
-    const previous = lastWoByLine.get(lineKey) ?? null;
-    const profile = normalizedAllergenIds(workOrder.allergen_ids);
-    const toKey = allergenProfileKey(profile);
-    const { transitionMinutes } = previous
-      ? changeoverBetween(previous, workOrder, matrix, config.changeoverWeight)
-      : { transitionMinutes: 0 };
-    const changeoverCost = transitionMinutes;
-    const earliestStart = Math.max(now, (plannedEndByLine.get(lineKey) ?? now) + changeoverCost * 60 * 1000);
-    const runDuration = durationMs(workOrder);
-    const plannedStart = resolvePlannedStart(lineKey, earliestStart, runDuration, config, dayUsageMs);
-    const plannedEnd = plannedStart + runDuration;
-    plannedEndByLine.set(lineKey, plannedEnd);
-    lastWoByLine.set(lineKey, workOrder);
-    cumulative += changeoverCost;
-
-    return {
+  return {
+    assignment: {
       wo_id: workOrder.id,
-      sequence_index: index + 1,
+      sequence_index: sequenceIndex,
       line_id: workOrder.production_line_id,
       planned_start_at: new Date(plannedStart).toISOString(),
       planned_end_at: new Date(plannedEnd).toISOString(),
       changeover_cost: changeoverCost,
-      cumulative_changeover_cost: cumulative,
+      cumulative_changeover_cost: nextCumulative,
       allergen_profile_key: toKey,
       work_order: workOrder,
-    };
-  });
+    },
+    cumulative: nextCumulative,
+  };
+}
+
+export function sequenceWorkOrders(
+  wos: WorkOrderForScheduling[],
+  matrix: ChangeoverMatrixEntry[],
+  config: SequenceSolverConfig = cloneDefaultSolverConfig(),
+): SequenceSolverResult {
+  if (wos.length === 0) return { assignments: [], omitted: [] };
+
+  const matrixConfigured = isChangeoverMatrixConfigured(matrix);
+  const unscheduled = [...wos].sort(compareByDueDateThenId);
+  const sequence: WorkOrderForScheduling[] = [];
+
+  const first = unscheduled.shift();
+  if (!first) return { assignments: [], omitted: [] };
+  sequence.push(first);
+
+  while (unscheduled.length > 0) {
+    const tail = sequence[sequence.length - 1];
+    const bestIndex = pickNextIndex(tail, unscheduled, matrix, config, matrixConfigured);
+    if (bestIndex === -1) {
+      sequence.push(startNextSequenceSegment(unscheduled));
+      continue;
+    }
+    const [next] = unscheduled.splice(bestIndex, 1);
+    sequence.push(next);
+  }
+
+  const now = config.nowMs ?? Date.now();
+  const plannedEndByLine = new Map<string, number>(
+    Object.entries(config.preoccupied?.plannedEndByLine ?? {}),
+  );
+  const dayUsageMs = new Map<string, number>(
+    Object.entries(config.preoccupied?.dayUsageMs ?? {}),
+  );
+  const lastWoByLine = new Map<string, WorkOrderForScheduling>(
+    Object.entries(config.preoccupied?.lastWoByLine ?? {}),
+  );
+
+  const assignments: SequencedAssignment[] = [];
+  const deferred: WorkOrderForScheduling[] = [];
+  let cumulative = 0;
+  let sequenceIndex = 0;
+
+  for (const workOrder of sequence) {
+    const placed = placeSequencedWorkOrder(
+      workOrder,
+      sequenceIndex + 1,
+      matrix,
+      config,
+      matrixConfigured,
+      plannedEndByLine,
+      dayUsageMs,
+      lastWoByLine,
+      now,
+      cumulative,
+    );
+    if (!placed) {
+      deferred.push(workOrder);
+      continue;
+    }
+    assignments.push(placed.assignment);
+    cumulative = placed.cumulative;
+    sequenceIndex += 1;
+  }
+
+  for (const workOrder of deferred) {
+    const placed = placeSequencedWorkOrder(
+      workOrder,
+      sequenceIndex + 1,
+      matrix,
+      config,
+      matrixConfigured,
+      plannedEndByLine,
+      dayUsageMs,
+      lastWoByLine,
+      now,
+      cumulative,
+    );
+    if (!placed) continue;
+    assignments.push(placed.assignment);
+    cumulative = placed.cumulative;
+    sequenceIndex += 1;
+  }
+
+  const assignedIds = new Set(assignments.map((assignment) => assignment.wo_id));
+  const omitted: OmittedWorkOrder[] = wos
+    .filter((workOrder) => !assignedIds.has(workOrder.id))
+    .map((workOrder) => ({
+      wo_id: workOrder.id,
+      reason: 'no_feasible_changeover' as const,
+    }));
+
+  return { assignments, omitted };
+}
+
+/** Build occupancy seed maps from WOs already consuming line capacity. */
+export function buildPreoccupiedSeed(
+  occupying: WorkOrderForScheduling[],
+  config: SequenceSolverConfig,
+): SequencePreoccupiedSeed {
+  const plannedEndByLine: Record<string, number> = {};
+  const dayUsageMs: Record<string, number> = {};
+  const lastWoByLine: Record<string, WorkOrderForScheduling> = {};
+  const lineEndMs = new Map<string, { end: number; wo: WorkOrderForScheduling }>();
+
+  for (const wo of occupying) {
+    const lineKey = wo.production_line_id ?? '__unassigned__';
+    const runDuration = durationMs(wo);
+    const scheduledStart = timestampMs(wo.scheduled_start_time) ?? timestampMs(wo.planned_start_date);
+    const scheduledEnd = timestampMs(wo.scheduled_end_time) ?? timestampMs(wo.planned_end_date);
+    let startMs = scheduledStart;
+    let endMs = scheduledEnd;
+    if (startMs === null && endMs !== null) {
+      startMs = endMs - runDuration;
+    } else if (startMs !== null && endMs === null) {
+      endMs = startMs + runDuration;
+    } else if (startMs === null && endMs === null) {
+      continue;
+    }
+    if (startMs === null || endMs === null || endMs <= startMs) continue;
+
+    plannedEndByLine[lineKey] = Math.max(plannedEndByLine[lineKey] ?? 0, endMs);
+    const current = lineEndMs.get(lineKey);
+    if (!current || endMs >= current.end) {
+      lineEndMs.set(lineKey, { end: endMs, wo });
+      lastWoByLine[lineKey] = wo;
+    }
+
+    const capacityHours = capacityHoursForLine(lineKey, config);
+    if (capacityHours !== null && capacityHours > 0) {
+      const tempMap = new Map<string, number>(Object.entries(dayUsageMs));
+      reserveCapacity(lineKey, startMs, runDuration, tempMap);
+      for (const [key, val] of tempMap) {
+        dayUsageMs[key] = val;
+      }
+    }
+  }
+
+  return { plannedEndByLine, dayUsageMs, lastWoByLine };
 }
 
 /** @internal Test helper — exposes per-line/day reserved hours after a sequencing run. */

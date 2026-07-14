@@ -86,7 +86,11 @@ const listLabels: WoListLabels = {
   releaseError: enWo.errors,
   create: {
     ...enWo.create,
-    errors: { ...enWo.create.errors, ...enWo.errors },
+    errors: {
+      ...enWo.create.errors,
+      ...enWo.errors,
+      line_site_mismatch: 'The selected line belongs to a different site than this work order.',
+    },
   },
 };
 
@@ -387,6 +391,24 @@ describe('WoListView — create modal (parity: wo-list.jsx:94 + modals wo_create
     fireEvent.click(screen.getByTestId('create-wo-submit'));
     await waitFor(() => expect(screen.getByTestId('create-wo-error')).toHaveTextContent(enWo.create.errors.productRequired));
     expect(createWorkOrderAction).not.toHaveBeenCalled();
+  });
+
+  it('surfaces the specific line_site_mismatch message from createWorkOrder', async () => {
+    const { createWorkOrderAction } = renderList();
+    createWorkOrderAction.mockResolvedValue({ ok: false, error: 'line_site_mismatch' });
+
+    fireEvent.click(screen.getByTestId('wo-list-create'));
+    fireEvent.click(screen.getByTestId('item-picker-trigger'));
+    await waitFor(() => expect(screen.getAllByTestId('item-picker-option').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByTestId('item-picker-option')[0]);
+    fireEvent.change(screen.getByTestId('create-wo-quantity'), { target: { value: '100' } });
+    fireEvent.click(screen.getByTestId('create-wo-submit'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('create-wo-error')).toHaveTextContent(
+        'The selected line belongs to a different site than this work order.',
+      ),
+    );
   });
 });
 

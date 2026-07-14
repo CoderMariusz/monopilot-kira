@@ -104,9 +104,28 @@ describe('ChangeoverMatrixEditor — grid', () => {
     expect(screen.getByTestId('matrix-cell-GLUTEN_FREE-CONTAINS_GLUTEN')).toHaveTextContent('45');
   });
 
-  it('renders the empty state when there are no profiles', () => {
+  it('renders the empty-state add-pair form when there are no profiles', () => {
     renderEditor({ profileKeys: [], entries: [] });
     expect(screen.getByTestId('matrix-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('matrix-add-from')).toBeInTheDocument();
+    expect(screen.getByTestId('matrix-add-submit')).toBeInTheDocument();
+  });
+
+  it('submits the first changeover pair from the empty state', async () => {
+    const { upsertAction } = renderEditor({ profileKeys: [], entries: [] });
+
+    fireEvent.change(screen.getByTestId('matrix-add-from'), { target: { value: 'GLUTEN_FREE' } });
+    fireEvent.change(screen.getByTestId('matrix-add-to'), { target: { value: 'CONTAINS_GLUTEN' } });
+    fireEvent.change(screen.getByTestId('matrix-add-cost'), { target: { value: '30' } });
+    fireEvent.click(screen.getByTestId('matrix-add-submit'));
+
+    await waitFor(() => expect(upsertAction).toHaveBeenCalledWith({
+      allergen_from: 'GLUTEN_FREE',
+      allergen_to: 'CONTAINS_GLUTEN',
+      changeover_minutes: 30,
+      requires_cleaning: false,
+      risk_level: 'low',
+    }));
   });
 });
 
