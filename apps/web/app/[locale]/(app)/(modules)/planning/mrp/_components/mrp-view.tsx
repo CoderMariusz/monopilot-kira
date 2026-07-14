@@ -22,6 +22,8 @@
  */
 import React, { useEffect, useState, useTransition } from 'react';
 
+import { Select } from '@monopilot/ui/Select';
+
 import type {
   MrpCancelResult,
   MrpConvertResult,
@@ -51,6 +53,8 @@ export type MrpLabels = {
   persistToggle: string;
   persistNote: string;
   persistedAs: string;
+  horizonWeeks?: string;
+  horizonWeeksOptions?: Array<{ value: number; label: string }>;
   minQty: string;
   dueBy: string;
   kpis: {
@@ -519,6 +523,7 @@ export function MrpView({
 }) {
   const [result, setResult] = useState<MrpRunResult | null>(null);
   const [persist, setPersist] = useState(false);
+  const [horizonWeeks, setHorizonWeeks] = useState(12);
   const [runsRefreshKey, setRunsRefreshKey] = useState(0);
   const [selectedPlannedIds, setSelectedPlannedIds] = useState<Set<string>>(new Set());
   const [convertFeedback, setConvertFeedback] = useState<string | null>(null);
@@ -527,7 +532,7 @@ export function MrpView({
 
   const onRun = () => {
     startTransition(async () => {
-      const next = await runAction({ persist });
+      const next = await runAction({ persist, horizonWeeks });
       setResult(next);
       setSelectedPlannedIds(new Set());
       setConvertFeedback(null);
@@ -628,6 +633,21 @@ export function MrpView({
               ) : null}
             </span>
           ) : null}
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <span>{labels.horizonWeeks}</span>
+            <div className="w-36" data-testid="mrp-horizon-weeks">
+              <Select
+                value={String(horizonWeeks)}
+                onValueChange={(value) => setHorizonWeeks(Number(value))}
+                aria-label={labels.horizonWeeks}
+                disabled={pending}
+                options={(labels.horizonWeeksOptions ?? []).map((opt) => ({
+                  value: String(opt.value),
+                  label: opt.label,
+                }))}
+              />
+            </div>
+          </label>
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input
               type="checkbox"

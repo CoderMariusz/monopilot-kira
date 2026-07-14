@@ -43,6 +43,13 @@ export default async function PlanningMrpPage({ params }: MrpPageProps) {
     persistToggle: t('mrp.persistToggle'),
     persistNote: t('mrp.persistNote'),
     persistedAs: t('mrp.persistedAs'),
+    horizonWeeks: t('mrp.horizonWeeks'),
+    horizonWeeksOptions: [
+      { value: 4, label: t('mrp.horizonWeeksOption4') },
+      { value: 8, label: t('mrp.horizonWeeksOption8') },
+      { value: 12, label: t('mrp.horizonWeeksOption12') },
+      { value: 26, label: t('mrp.horizonWeeksOption26') },
+    ],
     minQty: t('mrp.minQty'),
     dueBy: t('mrp.dueBy'),
     kpis: {

@@ -1,5 +1,6 @@
 'use server';
 
+import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import {
   DEFAULT_MOVEMENT_PAGE_SIZE,
@@ -207,7 +208,7 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
   if (!lpId || !toLocationId || !clientOpId) return { ok: false, reason: 'error', message: 'invalid_input' };
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<StockMoveListItem>> => {
+    return await withSiteContext(async ({ userId, orgId, client, siteId }): Promise<WarehouseResult<StockMoveListItem>> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_STOCK_MOVE_PERMISSION))) return { ok: false, reason: 'forbidden' };
 
@@ -218,6 +219,7 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
         location_id: string | null;
         quantity: string;
         uom: string;
+        site_id: string | null;
         locked_by: string | null;
         lock_is_active_for_other_user: boolean;
       }>(
@@ -227,6 +229,7 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
                 lp.location_id::text,
                 lp.quantity::text,
                 lp.uom,
+                lp.site_id::text,
                 lp.locked_by::text,
                 (
                   lp.locked_by is not null
@@ -236,8 +239,9 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
            from public.license_plates lp
           where lp.org_id = app.current_org_id()
             and lp.id = $1::uuid
+            and ($3::uuid is null or lp.site_id = $3::uuid)
           for update`,
-        [lpId, userId],
+        [lpId, userId, siteId],
       );
       const lp = lpRes.rows[0];
       if (!lp) return { ok: false, reason: 'not_found' };
@@ -247,6 +251,7 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
       if (lp.lock_is_active_for_other_user) {
         return { ok: false, reason: 'error', message: 'locked' };
       }
+      if (!lp.site_id) return { ok: false, reason: 'error', message: 'source_site_required' };
 
       const locRes = await ctx.client.query<{ id: string; warehouse_id: string; site_id: string | null }>(
         `select loc.id::text,
@@ -257,13 +262,20 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
              on w.org_id = app.current_org_id()
             and w.id = loc.warehouse_id
           where loc.org_id = app.current_org_id()
+            and ($2::uuid is null or w.site_id is null or w.site_id = $2::uuid)
             and loc.id = $1::uuid
           limit 1`,
-        [toLocationId],
+        [toLocationId, siteId],
       );
       const destination = locRes.rows[0];
       if (!destination) return { ok: false, reason: 'not_found' };
       if (!destination.site_id) return { ok: false, reason: 'error', message: 'destination_site_required' };
+      if (lp.site_id !== destination.site_id) {
+        return { ok: false, reason: 'error', message: 'cross_site_move' };
+      }
+      if (siteId && destination.site_id !== siteId) {
+        return { ok: false, reason: 'error', message: 'cross_site_destination' };
+      }
 
       const transactionId = uuidFromSeed(`warehouse.stock.move:${orgId}:${lpId}:${clientOpId}`);
       const moveNumber = moveNumberFromTransactionId(transactionId);

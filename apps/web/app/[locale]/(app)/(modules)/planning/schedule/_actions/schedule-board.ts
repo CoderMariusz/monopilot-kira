@@ -23,6 +23,7 @@
 import { z } from 'zod';
 
 import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
+import { PRODUCTION_LINES_SITE_FILTER_SQL } from '../../../../../../../lib/site/production-lines-site-filter';
 import {
   DEFAULT_UNSCHEDULED_PAGE_SIZE,
   emptyPaginatedResult,
@@ -178,11 +179,13 @@ export async function getScheduleBoard(input?: {
       const siteTimezone = siteTimezoneResult.rows[0]?.timezone ?? 'UTC';
 
       const linesResult = await ctx.client.query<ScheduleBoardLine>(
-        `select id, code, name
-           from public.production_lines
-          where org_id = app.current_org_id()
-            and status = 'active'
-          order by code`,
+        `select pl.id, pl.code, pl.name
+           from public.production_lines pl
+          where pl.org_id = app.current_org_id()
+            and pl.status = 'active'
+            ${PRODUCTION_LINES_SITE_FILTER_SQL}
+          order by pl.code`,
+        [s],
       );
 
       const scheduledResult = await ctx.client.query<WoRow>(

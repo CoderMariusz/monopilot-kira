@@ -352,6 +352,19 @@ const client = {
   }),
 };
 
+vi.mock('../../../../../../../lib/auth/with-site-context', () => ({
+  withSiteContext: vi.fn(
+    async (
+      arg1: unknown,
+      arg2?: (ctx: { userId: string; orgId: string; client: typeof client }) => Promise<unknown>,
+    ) => {
+      const action = typeof arg1 === 'function' ? arg1 : arg2;
+      if (!action) throw new TypeError('withSiteContext mock: missing action');
+      return action({ userId: USER_ID, orgId: ORG_ID, client });
+    },
+  ),
+}));
+
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(
     async (action: (ctx: { userId: string; orgId: string; client: typeof client }) => Promise<unknown>) =>
@@ -390,7 +403,7 @@ describe('listCompletedWoCosts', () => {
     expect(costed?.labor?.cost).toBe('20.0000');
     expect(costed?.downtimeCost).toBe('10.0000');
     expect(costed?.totalCost).toBe('22.4000');
-    expect(calls.some((call) => call.sql.includes('where wo.org_id = app.current_org_id()'))).toBe(true);
+    expect(calls.some((call) => call.sql.includes('app.current_site_id()'))).toBe(true);
   });
 
   it('paginates completed WO costs so rows beyond the first page are reachable', async () => {
@@ -491,6 +504,16 @@ describe('listCompletedWoCosts', () => {
     const materialsQuery = calls.find((call) => call.sql.includes('from public.wo_material_consumption'));
     expect(materialsQuery?.sql).toContain('nullif(c.ext_jsonb->>\'wac_avg_cost\'');
     expect(materialsQuery?.sql).toContain('coalesce(c.consumed_at::date, $2::date)');
+  });
+});
+
+describe('computeWoActualCost site scope', () => {
+  it('scopes the initial WO lookup by active site', async () => {
+    const result = await computeWoActualCost(COSTED_WO_ID);
+    expect(result.ok).toBe(true);
+    const woLookup = calls.find((call) => call.sql.includes('coalesce(sum(o.qty_kg), 0)::text as output_kg'));
+    expect(woLookup?.sql).toContain('production_lines pl');
+    expect(woLookup?.sql).toContain('coalesce(wo.site_id, pl.site_id) = app.current_site_id()');
   });
 });
 

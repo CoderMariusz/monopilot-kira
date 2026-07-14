@@ -6,6 +6,7 @@ import {
   snapshotDecimalString,
   snapshotFromItemRow,
   toBaseQty,
+  toBaseQtyFromDecimal,
   TypedError,
   type UomSnapshot,
 } from './convert';
@@ -45,6 +46,18 @@ describe('uom conversion', () => {
   it('roundtrips through base quantity', () => {
     const base = toBaseQty(meat, 17, 'box');
     expect(fromBaseQty(meat, base, 'box')).toBe(17);
+  });
+
+  it('converts decimal each quantities without JS float drift at the half-up boundary', () => {
+    const snap = snapshotFromItemRow({
+      output_uom: 'each',
+      uom_base: 'kg',
+      net_qty_per_each: '100.0615',
+      each_per_box: null,
+      boxes_per_pallet: null,
+      weight_mode: 'fixed',
+    });
+    expect(toBaseQtyFromDecimal(snap, '3', 'each')).toBe('300.185');
   });
 
   it('maps item rows into a frozen snapshot shape', () => {

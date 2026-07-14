@@ -24,7 +24,7 @@ import {
   reportingBundle,
   shipmentsSummary,
 } from '../report-read-actions';
-import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { withSiteContext } from '../../../../../../../lib/auth/with-site-context';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -35,10 +35,13 @@ type QueryClient = {
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
+const SITE_ID = '55555555-5555-4555-8555-555555555555';
 const WH_ID = '33333333-3333-4333-8333-333333333333';
 
 let client: QueryClient;
 let grantedPermissions: Set<string>;
+let boundSiteId: string | null;
+let actionReceivedSiteId: string | null | undefined;
 
 let woAggRow: Record<string, unknown>;
 let woRows: Array<Record<string, unknown>>;
@@ -58,6 +61,20 @@ let toRow: Record<string, unknown>;
 let spendBySupplierRows: Array<Record<string, unknown>>;
 
 let capturedParams: Record<string, unknown[]>;
+
+vi.mock('../../../../../../../lib/auth/with-site-context', () => ({
+  withSiteContext: vi.fn(
+    async (
+      arg1: unknown,
+      arg2?: (ctx: { userId: string; orgId: string; siteId: string | null; client: QueryClient }) => Promise<unknown>,
+    ) => {
+      const action = typeof arg1 === 'function' ? arg1 : arg2;
+      if (!action) throw new TypeError('withSiteContext mock: missing action');
+      actionReceivedSiteId = boundSiteId;
+      return action({ userId: USER_ID, orgId: ORG_ID, siteId: boundSiteId, client });
+    },
+  ),
+}));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(
@@ -123,6 +140,8 @@ function makeClient(): QueryClient {
 
 beforeEach(() => {
   grantedPermissions = new Set(['rpt.dashboard.view', 'rpt.export.csv']);
+  boundSiteId = SITE_ID;
+  actionReceivedSiteId = undefined;
   capturedParams = {};
 
   woAggRow = { wos_completed: '3', avg_yield: '0.9125' };
@@ -339,6 +358,28 @@ describe('productionSummary', () => {
     const res = await productionSummary({ days: 7 });
     expect(res).toEqual({ ok: false, reason: 'forbidden' });
   });
+
+  it('scopes production reads to the active site when a site is bound', async () => {
+    boundSiteId = SITE_ID;
+    await productionSummary({ days: 7 });
+    expect(actionReceivedSiteId).toBe(SITE_ID);
+    const aggSql = (client.query as ReturnType<typeof vi.fn>).mock.calls
+      .map(([sql]) => normalize(String(sql)))
+      .find((sql) => sql.includes('avg(wo.yield_percent)'));
+    expect(aggSql).toContain('app.current_site_id()');
+    expect(aggSql).toContain('coalesce(wo.site_id, pl.site_id) = app.current_site_id()');
+  });
+
+  it('does not add an active-site predicate when all-sites mode is bound', async () => {
+    boundSiteId = null;
+    await productionSummary({ days: 7 });
+    expect(actionReceivedSiteId).toBeNull();
+    const aggSql = (client.query as ReturnType<typeof vi.fn>).mock.calls
+      .map(([sql]) => normalize(String(sql)))
+      .find((sql) => sql.includes('avg(wo.yield_percent)'));
+    expect(aggSql).toContain('app.current_site_id() is null');
+    expect(client.query).toHaveBeenCalled();
+  });
 });
 
 describe('inventorySnapshot', () => {
@@ -389,6 +430,16 @@ describe('inventorySnapshot', () => {
   it('is forbidden without rpt.dashboard.view', async () => {
     grantedPermissions = new Set();
     expect(await inventorySnapshot()).toEqual({ ok: false, reason: 'forbidden' });
+  });
+
+  it('scopes inventory and qty_by_uom subquery to the active site', async () => {
+    boundSiteId = SITE_ID;
+    await inventorySnapshot();
+    const inventorySql = (client.query as ReturnType<typeof vi.fn>).mock.calls
+      .map(([sql]) => normalize(String(sql)))
+      .find((sql) => sql.includes('from public.license_plates lp') && sql.includes('qty_by_uom'));
+    expect(inventorySql).toContain('app.current_site_id()');
+    expect(inventorySql).toContain('lp_uom.site_id = app.current_site_id()');
   });
 });
 
@@ -554,6 +605,18 @@ describe('procurementSummary', () => {
     grantedPermissions = new Set();
     expect(await procurementSummary()).toEqual({ ok: false, reason: 'forbidden' });
   });
+
+  it('counts inbound and outbound transfer orders for the active site via warehouse sites', async () => {
+    boundSiteId = SITE_ID;
+    await procurementSummary({ days: 30 });
+    const toSql = (client.query as ReturnType<typeof vi.fn>).mock.calls
+      .map(([sql]) => normalize(String(sql)))
+      .find((sql) => sql.includes('from public.transfer_orders'));
+    expect(toSql).toContain('from_warehouse_id');
+    expect(toSql).toContain('to_warehouse_id');
+    expect(toSql).toContain('wf.site_id = app.current_site_id()');
+    expect(toSql).toContain('wt.site_id = app.current_site_id()');
+  });
 });
 
 describe('getReportingExportAccess', () => {
@@ -625,14 +688,14 @@ describe('exportProductionSummaryCsv', () => {
 });
 
 describe('reportingBundle (single-connection page load)', () => {
-  it('returns every summary from ONE withOrgContext (single pooled connection)', async () => {
-    vi.mocked(withOrgContext).mockClear();
+  it('returns every summary from ONE withSiteContext (single pooled connection)', async () => {
+    vi.mocked(withSiteContext).mockClear();
 
     const res = await reportingBundle({ days: 7 });
 
-    // The whole page load opens exactly ONE org context = 1 app-pool connection,
+    // The whole page load opens exactly ONE site context = 1 app-pool connection,
     // instead of the previous 7-way Promise.all fan-out.
-    expect(withOrgContext).toHaveBeenCalledTimes(1);
+    expect(withSiteContext).toHaveBeenCalledTimes(1);
 
     // Each slot carries the same ReportingResult the individual action returns.
     expect(res.production.ok).toBe(true);

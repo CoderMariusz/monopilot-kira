@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resolveWriteSiteId } from './site-context';
+import {
+  ALL_SITES_COOKIE_VALUE,
+  asSiteId,
+  getActiveSiteId,
+  resolveWriteSiteId,
+} from './site-context';
 
-// getActiveSiteId reads next/headers cookies(). In a unit test there is no request
-// scope, so cookies() throws and the resolver falls through to the DB lookups —
-// exactly the "All sites" path this test exercises. Mock it to keep it deterministic.
+const cookiesMock = vi.fn();
+
 vi.mock('next/headers', () => ({
-  cookies: vi.fn(async () => {
-    throw new Error('no request scope');
-  }),
+  cookies: () => cookiesMock(),
 }));
 
 const SITE_A = '11111111-1111-4111-8111-111111111111';
@@ -32,9 +34,37 @@ function makeClient(defaultRows: Row[], activeRows: Row[]) {
   };
 }
 
+describe('asSiteId', () => {
+  it('rejects the all-sites cookie sentinel', () => {
+    expect(asSiteId(ALL_SITES_COOKIE_VALUE)).toBeNull();
+  });
+});
+
+describe('getActiveSiteId (all-sites sentinel vs absent cookie)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns null for the explicit all-sites cookie without hitting org default', async () => {
+    cookiesMock.mockResolvedValue({
+      get: () => ({ value: ALL_SITES_COOKIE_VALUE }),
+    });
+    const client = makeClient([{ id: SITE_A }], []);
+    await expect(getActiveSiteId({ client })).resolves.toBeNull();
+    expect(client.query).not.toHaveBeenCalled();
+  });
+
+  it('falls through to org default when the cookie is absent', async () => {
+    cookiesMock.mockResolvedValue({ get: () => undefined });
+    const client = makeClient([{ id: SITE_A }], []);
+    await expect(getActiveSiteId({ client })).resolves.toBe(SITE_A);
+  });
+});
+
 describe('resolveWriteSiteId (F10 fail-closed site resolution)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    cookiesMock.mockRejectedValue(new Error('no request scope'));
   });
 
   it('uses the org default site when one is set', async () => {

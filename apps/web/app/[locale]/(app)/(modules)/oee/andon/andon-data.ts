@@ -1,4 +1,4 @@
-import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
 import { LineStatus, type LineLiveStatus } from './andon-types';
 
 export const CURRENT_ORG_ID = 'current';
@@ -45,6 +45,7 @@ const LINE_LIVE_STATUS_SELECT = `
         from public.oee_snapshots s
        where s.org_id = app.current_org_id()
          and s.line_id = pl.id::text
+         and (app.current_site_id() is null or s.site_id = app.current_site_id())
        order by s.snapshot_minute desc, s.id desc
        limit 1
     ) latest on true
@@ -87,6 +88,7 @@ const LINE_LIVE_STATUS_SELECT = `
         ) waste on true
        where w.org_id = app.current_org_id()
          and w.production_line_id = pl.id
+         and (app.current_site_id() is null or coalesce(w.site_id, pl.site_id) = app.current_site_id())
          and w.status in ('RELEASED', 'IN_PROGRESS', 'ON_HOLD')
        order by case coalesce(
                     e.status,
@@ -116,6 +118,7 @@ const LINE_LIVE_STATUS_SELECT = `
         ) as activity_values(v)
     ) activity on true
    where pl.org_id = app.current_org_id()
+     and (app.current_site_id() is null or pl.site_id is null or pl.site_id = app.current_site_id())
      and pl.org_id = $1::uuid`;
 
 function assertOrgScope(requestedOrgId: string, currentOrgId: string): void {
@@ -201,14 +204,14 @@ async function readLineLiveStatus(
 }
 
 export async function getLineLiveStatus(lineId: string, orgId: string): Promise<LineLiveStatus> {
-  return withOrgContext(async ({ orgId: currentOrgId, client }) => {
+  return withSiteContext({ mode: 'read' }, async ({ orgId: currentOrgId, client }) => {
     assertOrgScope(orgId, currentOrgId);
     return readLineLiveStatus(client as QueryClient, lineId, currentOrgId);
   });
 }
 
 export async function getAllLinesLiveStatus(orgId: string): Promise<LineLiveStatus[]> {
-  return withOrgContext(async ({ orgId: currentOrgId, client }) => {
+  return withSiteContext({ mode: 'read' }, async ({ orgId: currentOrgId, client }) => {
     assertOrgScope(orgId, currentOrgId);
     return readAllLinesLiveStatus(client as QueryClient, currentOrgId);
   });

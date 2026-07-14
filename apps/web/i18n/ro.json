@@ -8229,6 +8229,11 @@
       "persistToggle": "Save this run",
       "persistNote": "This run will be saved to MRP history (run header + requirements ledger). No orders are created.",
       "persistedAs": "saved as",
+      "horizonWeeks": "Orizont de planificare",
+      "horizonWeeksOption4": "4 săptămâni",
+      "horizonWeeksOption8": "8 săptămâni",
+      "horizonWeeksOption12": "12 săptămâni",
+      "horizonWeeksOption26": "26 săptămâni",
       "minQty": "Min",
       "dueBy": "Due",
       "previousRuns": {

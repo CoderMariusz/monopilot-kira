@@ -18,6 +18,19 @@ let client: QueryClient;
 let allowPermission = true;
 let locationRows: Array<Record<string, unknown>> = [];
 
+vi.mock('../../../../../../../lib/auth/with-site-context', () => ({
+  withSiteContext: vi.fn(
+    async (
+      arg1: unknown,
+      arg2?: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>,
+    ) => {
+      const action = typeof arg1 === 'function' ? arg1 : arg2;
+      if (!action) throw new TypeError('withSiteContext mock: missing action');
+      return action({ userId: USER_ID, orgId: ORG_ID, client });
+    },
+  ),
+}));
+
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
@@ -63,7 +76,7 @@ describe('listLocations', () => {
     const locationSql = (client.query as ReturnType<typeof vi.fn>).mock.calls
       .map(([sql]) => String(sql))
       .find((sql) => normalize(sql).includes('from public.locations'));
-    expect(normalize(locationSql ?? '')).toContain('left join public.warehouses w on w.org_id = app.current_org_id() and w.id = l.warehouse_id');
+    expect(normalize(locationSql ?? '')).toContain('app.current_site_id()');
     expect(normalize(locationSql ?? '')).toContain('left join public.sites si on si.org_id = app.current_org_id() and si.id = w.site_id');
     expect(normalize(locationSql ?? '')).not.toContain('current_setting');
   });

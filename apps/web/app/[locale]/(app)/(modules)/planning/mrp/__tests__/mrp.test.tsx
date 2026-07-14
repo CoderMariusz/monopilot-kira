@@ -263,7 +263,7 @@ describeUi('/planning/mrp — MrpView', () => {
 
     expect(runAction).toHaveBeenCalledTimes(1);
     // Toggle off by default → read-only run.
-    expect(runAction).toHaveBeenCalledWith({ persist: false });
+    expect(runAction).toHaveBeenCalledWith({ persist: false, horizonWeeks: 12 });
 
     // KPI tiles.
     expect(screen.getByTestId('mrp-kpi-itemsShort')).toHaveTextContent('2');
@@ -324,7 +324,7 @@ describeUi('/planning/mrp — MrpView', () => {
     fireEvent.click(screen.getByTestId('mrp-run-button'));
     await waitFor(() => expect(screen.getByTestId('mrp-results-table')).toBeInTheDocument());
 
-    expect(runAction).toHaveBeenCalledWith({ persist: true });
+    expect(runAction).toHaveBeenCalledWith({ persist: true, horizonWeeks: 12 });
     expect(screen.getByTestId('mrp-persisted-as')).toHaveTextContent('saved as MRP-20260611-AB12CD34');
     // A persisted run reloads the previous-runs list (mount + refresh).
     await waitFor(() => expect(listRunsAction).toHaveBeenCalledTimes(2));

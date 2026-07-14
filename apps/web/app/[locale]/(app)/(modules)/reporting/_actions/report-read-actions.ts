@@ -20,7 +20,7 @@
  *   procurementSummary — purchase_orders, grns, transfer_orders
  */
 
-import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
 import {
   RPT_DASHBOARD_VIEW_PERMISSION,
   RPT_EXPORT_CSV_PERMISSION,
@@ -173,7 +173,7 @@ export async function getReportingExportAccess(): Promise<
   ReportingResult<{ canExportCsv: boolean }>
 > {
   try {
-    return await withOrgContext(({ userId, orgId, client }) =>
+    return await withSiteContext({ mode: 'read' },({ userId, orgId, client }) =>
       getReportingExportAccessCore({ userId, orgId, client: client as QueryClient }),
     );
   } catch (error) {
@@ -186,7 +186,7 @@ export async function reportingProductionLines(): Promise<
   ReportingResult<ReportingLineOption[]>
 > {
   try {
-    return await withOrgContext(
+    return await withSiteContext({ mode: 'read' },
       async ({ userId, orgId, client }): Promise<ReportingResult<ReportingLineOption[]>> => {
         const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
         if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
@@ -198,6 +198,7 @@ export async function reportingProductionLines(): Promise<
              from public.production_lines
             where org_id = app.current_org_id()
               and status = 'active'
+              and (app.current_site_id() is null or site_id is null or site_id = app.current_site_id())
             order by lower(name), lower(code)`,
         );
 
@@ -228,7 +229,10 @@ export async function productionSummaryCore(
           `select count(*)::text as wos_completed,
                   avg(wo.yield_percent)::text as avg_yield
              from public.work_orders wo
+             left join public.production_lines pl
+               on pl.org_id = wo.org_id and pl.id = wo.production_line_id
             where wo.org_id = app.current_org_id()
+              and (app.current_site_id() is null or coalesce(wo.site_id, pl.site_id) = app.current_site_id())
               and wo.status in ('COMPLETED', 'CLOSED')
               and wo.completed_at is not null
               and wo.completed_at >= $1::timestamptz
@@ -244,7 +248,10 @@ export async function productionSummaryCore(
              join public.work_orders wo
                on wo.org_id = app.current_org_id()
               and wo.id = o.wo_id
+             left join public.production_lines pl
+               on pl.org_id = wo.org_id and pl.id = wo.production_line_id
             where o.org_id = app.current_org_id()
+              and (app.current_site_id() is null or coalesce(wo.site_id, pl.site_id) = app.current_site_id())
               and o.registered_at >= $1::timestamptz
               and o.registered_at <= $2::timestamptz
               and ($3::text is null or wo.production_line_id::text = $3::text)
@@ -258,7 +265,10 @@ export async function productionSummaryCore(
              join public.work_orders wo
                on wo.org_id = app.current_org_id()
               and wo.id = w.wo_id
+             left join public.production_lines pl
+               on pl.org_id = wo.org_id and pl.id = wo.production_line_id
             where w.org_id = app.current_org_id()
+              and (app.current_site_id() is null or coalesce(wo.site_id, pl.site_id) = app.current_site_id())
               and w.recorded_at >= $1::timestamptz
               and w.recorded_at <= $2::timestamptz
               and ($3::text is null or wo.production_line_id::text = $3::text)
@@ -275,6 +285,7 @@ export async function productionSummaryCore(
                on wo.org_id = app.current_org_id()
               and wo.id = d.wo_id
             where d.org_id = app.current_org_id()
+              and (app.current_site_id() is null or d.site_id is null or d.site_id = app.current_site_id())
               and d.started_at >= $1::timestamptz
               and d.started_at <= $2::timestamptz
               and ($3::text is null or d.line_id = $3::text)
@@ -304,7 +315,10 @@ export async function productionSummaryCore(
              left join public.items i
                on i.org_id = app.current_org_id()
               and i.id = wo.product_id
+             left join public.production_lines pl
+               on pl.org_id = wo.org_id and pl.id = wo.production_line_id
             where wo.org_id = app.current_org_id()
+              and (app.current_site_id() is null or coalesce(wo.site_id, pl.site_id) = app.current_site_id())
               and wo.status in ('COMPLETED', 'CLOSED')
               and wo.completed_at is not null
               and wo.completed_at >= $1::timestamptz
@@ -351,7 +365,7 @@ export async function productionSummary(
   input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<ProductionSummary>> {
   try {
-    return await withOrgContext(({ userId, orgId, client }) =>
+    return await withSiteContext({ mode: 'read' },({ userId, orgId, client }) =>
       productionSummaryCore({ userId, orgId, client: client as QueryClient }, input),
     );
   } catch (error) {
@@ -367,7 +381,7 @@ export async function exportProductionSummaryCsv(
   const to = parseExportDate(input.to);
 
   try {
-    const access = await withOrgContext(
+    const access = await withSiteContext({ mode: 'read' },
       async ({ userId, orgId, client }): Promise<ReportingResult<{ canExport: boolean }>> => {
         const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
         if (!(await hasReportingPermission(ctx, RPT_DASHBOARD_VIEW_PERMISSION))) {
@@ -465,6 +479,7 @@ export async function inventorySnapshotCore(
                           from public.license_plates lp_uom
                          where lp_uom.org_id = app.current_org_id()
                            and lp_uom.warehouse_id = lp.warehouse_id
+                           and (app.current_site_id() is null or lp_uom.site_id = app.current_site_id())
                            and lp_uom.status in ('received', 'available', 'reserved', 'allocated', 'blocked', 'quarantine')
                          group by lp_uom.uom
                       ) lp2
@@ -483,6 +498,7 @@ export async function inventorySnapshotCore(
                on w.org_id = app.current_org_id()
               and w.id = lp.warehouse_id
             where lp.org_id = app.current_org_id()
+              and (app.current_site_id() is null or lp.site_id = app.current_site_id())
               and lp.status in ('received', 'available', 'reserved', 'allocated', 'blocked', 'quarantine')
             group by lp.warehouse_id, w.code, w.name
             order by w.code nulls last`,
@@ -524,7 +540,7 @@ export async function inventorySnapshot(
   input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<InventorySnapshot>> {
   try {
-    return await withOrgContext(({ userId, orgId, client }) =>
+    return await withSiteContext({ mode: 'read' },({ userId, orgId, client }) =>
       inventorySnapshotCore({ userId, orgId, client: client as QueryClient }, input),
     );
   } catch (error) {
@@ -601,6 +617,7 @@ export async function receiptsSummaryCore(
                          ) by_uom) as received_qty_by_uom
              ) gi on true
             where g.org_id = app.current_org_id()
+              and (app.current_site_id() is null or g.site_id is null or g.site_id = app.current_site_id())
               and g.receipt_date >= $1::timestamptz
               and g.receipt_date <= $2::timestamptz
               and ($3::text is null or g.grn_number ilike '%' || $3::text || '%')
@@ -658,7 +675,7 @@ export async function receiptsSummary(
   input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<ReceiptsSummary>> {
   try {
-    return await withOrgContext(({ userId, orgId, client }) =>
+    return await withSiteContext({ mode: 'read' },({ userId, orgId, client }) =>
       receiptsSummaryCore({ userId, orgId, client: client as QueryClient }, input),
     );
   } catch (error) {
@@ -714,6 +731,7 @@ export async function shipmentsSummaryCore(
              left join public.sales_orders so on so.id = sh.sales_order_id and so.org_id = app.current_org_id()
              left join public.customers c on c.id = coalesce(sh.customer_id, so.customer_id) and c.org_id = app.current_org_id()
             where sh.org_id = app.current_org_id()
+              and (app.current_site_id() is null or sh.site_id is null or sh.site_id = app.current_site_id())
               and sh.deleted_at is null
               and sh.created_at >= $1::timestamptz
               and sh.created_at <= $2::timestamptz
@@ -727,6 +745,7 @@ export async function shipmentsSummaryCore(
           `select sh.status, count(*)::int as count
              from public.shipments sh
             where sh.org_id = app.current_org_id()
+              and (app.current_site_id() is null or sh.site_id is null or sh.site_id = app.current_site_id())
               and sh.deleted_at is null
               and sh.created_at >= $1::timestamptz
               and sh.created_at <= $2::timestamptz
@@ -775,7 +794,7 @@ export async function shipmentsSummary(
   input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<ShipmentsSummary>> {
   try {
-    return await withOrgContext(({ userId, orgId, client }) =>
+    return await withSiteContext({ mode: 'read' },({ userId, orgId, client }) =>
       shipmentsSummaryCore({ userId, orgId, client: client as QueryClient }, input),
     );
   } catch (error) {
@@ -801,6 +820,7 @@ export async function qualitySummaryCore(
           `select h.hold_status, count(*)::text as count
              from public.quality_holds h
             where h.org_id = app.current_org_id()
+              and (app.current_site_id() is null or h.site_id is null or h.site_id = app.current_site_id())
               and h.hold_status in ('open', 'investigating', 'quarantined', 'escalated')
             group by h.hold_status
             order by h.hold_status`,
@@ -810,6 +830,7 @@ export async function qualitySummaryCore(
           `select qi.status, count(*)::text as count
              from public.quality_inspections qi
             where qi.org_id = app.current_org_id()
+              and (app.current_site_id() is null or qi.site_id is null or qi.site_id = app.current_site_id())
               and qi.created_at >= $1::timestamptz
               and qi.created_at <= $2::timestamptz
             group by qi.status
@@ -827,7 +848,8 @@ export async function qualitySummaryCore(
                       and n.closed_at <= $2::timestamptz
                   )::text as closed_in_window
              from public.ncr_reports n
-            where n.org_id = app.current_org_id()`,
+            where n.org_id = app.current_org_id()
+              and (app.current_site_id() is null or n.site_id is null or n.site_id = app.current_site_id())`,
           [window.fromIso, window.toIso],
         );
 
@@ -868,7 +890,7 @@ export async function qualitySummary(
   input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<QualitySummary>> {
   try {
-    return await withOrgContext(({ userId, orgId, client }) =>
+    return await withSiteContext({ mode: 'read' },({ userId, orgId, client }) =>
       qualitySummaryCore({ userId, orgId, client: client as QueryClient }, input),
     );
   } catch (error) {
@@ -892,6 +914,7 @@ export async function procurementSummaryCore(
           `select po.status, count(*)::text as count
              from public.purchase_orders po
             where po.org_id = app.current_org_id()
+              and (app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id())
               and po.created_at >= $1::timestamptz
               and po.created_at <= $2::timestamptz
               and ($3::text is null or po.po_number ilike '%' || $3::text || '%')
@@ -914,6 +937,7 @@ export async function procurementSummaryCore(
                on g.org_id = app.current_org_id()
               and g.po_id = po.id
             where po.org_id = app.current_org_id()
+              and (app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id())
               and po.created_at >= $1::timestamptz
               and po.created_at <= $2::timestamptz
               and ($3::text is null or po.po_number ilike '%' || $3::text || '%')
@@ -934,7 +958,18 @@ export async function procurementSummaryCore(
         const tos = await ctx.client.query<{ open_count: string }>(
           `select count(*)::text as open_count
              from public.transfer_orders t
+             left join public.warehouses wf
+               on wf.org_id = app.current_org_id()
+              and wf.id = t.from_warehouse_id
+             left join public.warehouses wt
+               on wt.org_id = app.current_org_id()
+              and wt.id = t.to_warehouse_id
             where t.org_id = app.current_org_id()
+              and (
+                app.current_site_id() is null
+                or wf.site_id = app.current_site_id()
+                or wt.site_id = app.current_site_id()
+              )
               and t.status in ('draft', 'in_transit')`,
         );
 
@@ -961,7 +996,7 @@ export async function procurementSummary(
   input: ReportingLoaderInput = {},
 ): Promise<ReportingResult<ProcurementSummary>> {
   try {
-    return await withOrgContext(({ userId, orgId, client }) =>
+    return await withSiteContext({ mode: 'read' },({ userId, orgId, client }) =>
       procurementSummaryCore({ userId, orgId, client: client as QueryClient }, input),
     );
   } catch (error) {
@@ -998,6 +1033,7 @@ export async function getSpendBySupplierCore(
          on s.org_id = app.current_org_id()
         and s.id = po.supplier_id
       where po.org_id = app.current_org_id()
+        and (app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id())
         and po.status = any($1::text[])
         and po.created_at >= $2::timestamptz
         and po.created_at <= $3::timestamptz
@@ -1019,7 +1055,7 @@ export async function getSpendBySupplierCore(
 
 export async function getSpendBySupplier(): Promise<SpendBySupplierRow[]> {
   try {
-    const result = await withOrgContext(({ userId, orgId, client }) =>
+    const result = await withSiteContext({ mode: 'read' },({ userId, orgId, client }) =>
       getSpendBySupplierCore({ userId, orgId, client: client as QueryClient }),
     );
     return result.ok ? result.data : [];
@@ -1063,7 +1099,7 @@ export async function reportingBundle(input: ReportingLoaderInput = {}): Promise
   const withOrder: ReportingLoaderInput = { ...dateWindow, orderQuery: input.orderQuery };
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }) => {
+    return await withSiteContext({ mode: 'read' },async ({ userId, orgId, client }) => {
       const ctx: ReportingContext = { userId, orgId, client: client as QueryClient };
 
       // SEQUENTIAL on the shared single PoolClient — see jsdoc above.

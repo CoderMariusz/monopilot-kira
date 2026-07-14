@@ -215,6 +215,7 @@ describe('/planning/reorder-thresholds — ThresholdsView', () => {
   });
 
   it('deletes a threshold and reloads the list', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const deleteAction = vi.fn(async () => ({ ok: true as const, data: { id: 'th-1' } }));
     const listAction = vi.fn(okList([ROW]));
     renderView({ deleteAction, listAction });
@@ -223,5 +224,6 @@ describe('/planning/reorder-thresholds — ThresholdsView', () => {
     fireEvent.click(screen.getByTestId('threshold-delete-RM-FLOUR'));
     await waitFor(() => expect(deleteAction).toHaveBeenCalledWith('th-1'));
     await waitFor(() => expect(listAction).toHaveBeenCalledTimes(2));
+    confirmSpy.mockRestore();
   });
 });

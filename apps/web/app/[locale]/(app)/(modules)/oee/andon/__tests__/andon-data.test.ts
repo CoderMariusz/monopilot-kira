@@ -1,17 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const SITE_ID = '22222222-2222-4222-8222-222222222222';
 
 let queryRows: Array<Record<string, unknown>>;
+let boundSiteId: string | null = SITE_ID;
+let actionReceivedSiteId: string | null | undefined;
 
 const client = {
   query: vi.fn(async () => ({ rows: queryRows, rowCount: queryRows.length })),
 };
 
-vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
-  withOrgContext: vi.fn(
-    async (action: (ctx: { orgId: string; client: typeof client }) => Promise<unknown>) =>
-      action({ orgId: ORG_ID, client }),
+vi.mock('../../../../../../../lib/auth/with-site-context', () => ({
+  withSiteContext: vi.fn(
+    async (
+      arg1: unknown,
+      arg2?: (ctx: { orgId: string; siteId: string | null; client: typeof client }) => Promise<unknown>,
+    ) => {
+      const action = typeof arg1 === 'function' ? arg1 : arg2;
+      if (!action) throw new TypeError('withSiteContext mock: missing action');
+      actionReceivedSiteId = boundSiteId;
+      return action({ orgId: ORG_ID, siteId: boundSiteId, client });
+    },
   ),
 }));
 
@@ -19,6 +29,8 @@ import { getAllLinesLiveStatus } from '../andon-data';
 
 beforeEach(() => {
   queryRows = [];
+  boundSiteId = SITE_ID;
+  actionReceivedSiteId = undefined;
   client.query.mockClear();
 });
 
@@ -51,5 +63,24 @@ describe('andon-data', () => {
     ]);
     expect(lines[0]).not.toHaveProperty('goodCount');
     expect(lines[0]).not.toHaveProperty('scrapCount');
+  });
+
+  it('scopes line reads to the active site when a site is bound', async () => {
+    boundSiteId = SITE_ID;
+    await getAllLinesLiveStatus('current');
+    expect(actionReceivedSiteId).toBe(SITE_ID);
+    const sql = String(client.query.mock.calls[0]?.[0] ?? '').replace(/\s+/g, ' ').toLowerCase();
+    expect(sql).toContain('app.current_site_id()');
+    expect(sql).toContain('coalesce(w.site_id, pl.site_id) = app.current_site_id()');
+    expect(sql).toContain('pl.site_id = app.current_site_id()');
+  });
+
+  it('allows all visible sites when all-sites mode is bound', async () => {
+    boundSiteId = null;
+    await getAllLinesLiveStatus('current');
+    expect(actionReceivedSiteId).toBeNull();
+    const sql = String(client.query.mock.calls[0]?.[0] ?? '').replace(/\s+/g, ' ').toLowerCase();
+    expect(sql).toContain('app.current_site_id() is null');
+    expect(client.query).toHaveBeenCalled();
   });
 });

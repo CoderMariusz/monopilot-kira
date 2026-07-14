@@ -17,7 +17,7 @@ export type MrpRunResult =
   | { ok: true; data: MrpRunData }
   | { ok: false; error: 'forbidden' | 'persistence_failed' };
 
-export type MrpRunInput = { persist?: boolean };
+export type MrpRunInput = { persist?: boolean; horizonWeeks?: number };
 
 export type MrpRunSummary = {
   id: string;
@@ -80,4 +80,4 @@ export type MrpRunsListResult =
 
 export type MrpRunRequirementsResult =
   | { ok: true; data: MrpRunRequirement[] }
-  | { ok: false; error: 'forbidden' | 'invalid_input' | 'persistence_failed' };
+  | { ok: false; error: 'forbidden' | 'invalid_input' | 'not_found' | 'persistence_failed' };
