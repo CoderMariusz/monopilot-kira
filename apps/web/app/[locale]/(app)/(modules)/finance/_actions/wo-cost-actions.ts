@@ -23,7 +23,7 @@
  * READ ONLY: no postings, no new tables, no valuation snapshots, no D365.
  */
 
-import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { WAC_VALUATION_CURRENCY_CODE } from '../../../../../../lib/finance/upsert-wac';
 import {
@@ -48,10 +48,14 @@ const COMPLETED_WO_FROM = `
              from public.work_orders wo
              left join public.wo_executions x
                on x.org_id = app.current_org_id()
-              and x.wo_id = wo.id`;
+              and x.wo_id = wo.id
+             left join public.production_lines pl
+               on pl.org_id = wo.org_id
+              and pl.id = wo.production_line_id`;
 
 const COMPLETED_WO_WHERE = `
             where wo.org_id = app.current_org_id()
+              and (app.current_site_id() is null or coalesce(wo.site_id, pl.site_id) = app.current_site_id())
               and (
                 wo.status in ('COMPLETED', 'CLOSED')
                 or x.status in ('completed', 'closed')
@@ -265,6 +269,9 @@ async function computeWoActualCostInContext(
        left join public.items i
          on i.org_id = app.current_org_id()
         and i.id = wo.product_id
+       left join public.production_lines pl
+         on pl.org_id = wo.org_id
+        and pl.id = wo.production_line_id
        left join public.wo_outputs o
          on o.org_id = app.current_org_id()
         and o.wo_id = wo.id
@@ -276,6 +283,7 @@ async function computeWoActualCostInContext(
        ) w on w.wo_id = wo.id
       where wo.org_id = app.current_org_id()
         and wo.id = $1::uuid
+        and (app.current_site_id() is null or coalesce(wo.site_id, pl.site_id) = app.current_site_id())
         and (
           wo.status in ('COMPLETED', 'CLOSED')
           or x.status in ('completed', 'closed')
@@ -558,7 +566,7 @@ async function computeWoActualCostInContext(
 
 export async function computeWoActualCost(woId: string): Promise<FinanceActionResult<WoActualCost>> {
   try {
-    return await withOrgContext(
+    return await withSiteContext({ mode: 'read' },
       async ({ userId, orgId, client }): Promise<FinanceActionResult<WoActualCost>> =>
         computeWoActualCostInContext({ userId, orgId, client: client as QueryClient }, woId),
     );
@@ -580,7 +588,7 @@ export async function listCompletedWoCosts(
     maxLimit: DEFAULT_FINANCE_WO_COST_PAGE_SIZE,
   });
   try {
-    return await withOrgContext(
+    return await withSiteContext({ mode: 'read' },
       async ({ userId, orgId, client }): Promise<FinanceActionResult<CompletedWoCostsSummary>> => {
         const ctx: FinanceContext = { userId, orgId, client: client as QueryClient };
         if (!(await hasPermission(ctx, FINANCE_COSTS_READ_PERMISSION))) {
@@ -628,7 +636,7 @@ export async function summarizeCompletedWoWasteCost(
 ): Promise<FinanceActionResult<CompletedWoWasteCostSummary>> {
   const days = asDays(input.days, 30);
   try {
-    return await withOrgContext(
+    return await withSiteContext({ mode: 'read' },
       async ({ userId, orgId, client }): Promise<FinanceActionResult<CompletedWoWasteCostSummary>> => {
         const ctx: FinanceContext = { userId, orgId, client: client as QueryClient };
         if (!(await hasPermission(ctx, FINANCE_COSTS_READ_PERMISSION))) {

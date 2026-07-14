@@ -1,3 +1,5 @@
+import { microToFixed, mulMicro, toMicro } from '../shared/decimal';
+
 export type OutputUom = 'base' | 'each' | 'box';
 
 export type UomSnapshot = {
@@ -38,6 +40,19 @@ export function toBaseQty(snap: UomSnapshot, qty: number, uom: OutputUom): numbe
   if (uom === 'base') return qty;
   if (uom === 'each') return qty * requireFactor(snap.netQtyPerEach);
   return qty * requireFactor(snap.eachPerBox) * requireFactor(snap.netQtyPerEach);
+}
+
+/** Decimal-string UoM conversion — no JS float arithmetic (NUMERIC-exact). */
+export function toBaseQtyFromDecimal(snap: UomSnapshot, qty: string, uom: OutputUom): string {
+  const qtyMicro = toMicro(qty);
+  if (uom === 'base') return microToFixed(qtyMicro, 3);
+  if (uom === 'each') {
+    return microToFixed(mulMicro(qtyMicro, toMicro(requireFactorDecimal(snap.netQtyPerEach))), 3);
+  }
+  return microToFixed(
+    mulMicro(qtyMicro, mulMicro(toMicro(requireFactorDecimal(snap.eachPerBox)), toMicro(requireFactorDecimal(snap.netQtyPerEach)))),
+    3,
+  );
 }
 
 export function fromBaseQty(snap: UomSnapshot, baseQty: number, uom: OutputUom): number {
@@ -127,4 +142,11 @@ function requireFactor(value: number | null): number {
     throw new TypedError('uom_conversion_unavailable');
   }
   return value;
+}
+
+function requireFactorDecimal(value: number | null): string {
+  if (value === null || !Number.isFinite(value) || value <= 0) {
+    throw new TypedError('uom_conversion_unavailable');
+  }
+  return String(value);
 }

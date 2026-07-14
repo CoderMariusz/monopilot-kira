@@ -70,7 +70,7 @@ function makeClient(): QueryClient {
           rowCount: currentStatus ? 1 : 0,
         };
       }
-      if (normalized.includes('from public.production_lines') && normalized.includes('order by code')) {
+      if (normalized.includes('from public.production_lines') && normalized.includes('order by pl.code')) {
         // getScheduleBoard lines read
         return { rows: [{ id: LINE_ID, code: 'LINE-01', name: 'Line One' }], rowCount: 1 };
       }
@@ -356,7 +356,7 @@ describe('getScheduleBoard', () => {
         if (normalized.includes('from public.user_roles')) {
           return { rows: [{ ok: true }], rowCount: 1 };
         }
-        if (normalized.includes('from public.production_lines') && normalized.includes('order by code')) {
+        if (normalized.includes('from public.production_lines') && normalized.includes('order by pl.code')) {
           return { rows: [{ id: LINE_ID, code: 'LINE-01', name: 'Line One' }], rowCount: 1 };
         }
         if (normalized.includes('from public.work_orders')) {

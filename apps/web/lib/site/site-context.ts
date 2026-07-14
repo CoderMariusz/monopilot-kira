@@ -31,6 +31,9 @@ import { cookies } from 'next/headers';
 
 export const SITE_COOKIE_NAME = 'mp_site_id';
 
+/** Cookie sentinel for an explicit "All sites" choice (not a uuid — never bound to SQL). */
+export const ALL_SITES_COOKIE_VALUE = 'all';
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Narrow an untrusted value to a uuid site id, else null ("All sites"). */
@@ -71,7 +74,9 @@ export async function getActiveSiteId(
   // 2. Cookie (request-scoped; absent in tests / static render).
   try {
     const store = await cookies();
-    const fromCookie = asSiteId(store.get(SITE_COOKIE_NAME)?.value);
+    const raw = store.get(SITE_COOKIE_NAME)?.value;
+    if (raw === ALL_SITES_COOKIE_VALUE) return null;
+    const fromCookie = asSiteId(raw);
     if (fromCookie) return fromCookie;
   } catch {
     // No request scope → fall through to the org-default lookup (if a client

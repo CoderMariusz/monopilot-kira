@@ -14,6 +14,7 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const LP_ID = '33333333-3333-4333-8333-333333333333';
 const LOC_ID = '44444444-4444-4444-8444-444444444444';
+const SITE_ID = '99999999-9999-4999-8999-999999999999';
 
 let client: QueryClient;
 let grantedPermissions: Set<string>;
@@ -55,6 +56,13 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
+vi.mock('../../../../../../lib/auth/with-site-context', () => ({
+  withSiteContext: vi.fn(
+    async (action: (ctx: { userId: string; orgId: string; siteId: string | null; client: QueryClient }) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, siteId: SITE_ID, client }),
+  ),
+}));
+
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
@@ -81,6 +89,7 @@ function makeClient(): QueryClient {
                   location_id: '55555555-5555-4555-8555-555555555555',
                   quantity: '10.000000',
                   uom: 'kg',
+                  site_id: SITE_ID,
                   reserved_qty: '10.000000',
                   reserved_for_wo_id: '66666666-6666-4666-8666-666666666666',
                   locked_by: lockActive ? '77777777-7777-4777-8777-777777777777' : null,

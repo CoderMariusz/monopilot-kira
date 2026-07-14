@@ -235,6 +235,10 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
           'create.errors.not_released_to_factory',
           'This product has not been released to factory yet. Complete NPD Handoff → Release to factory before creating a planning work order.',
         ),
+        line_site_mismatch: opt(
+          'errors.line_site_mismatch',
+          'The selected line belongs to a different site than this work order.',
+        ),
       },
       noBomWarning: t('create.noBomWarning'),
       chainCreatedWarning: opt('create.chainCreatedWarning', '{count} work orders created — root {root}.'),

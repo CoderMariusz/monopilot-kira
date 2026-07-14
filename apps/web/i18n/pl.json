@@ -8307,6 +8307,11 @@
       "persistToggle": "Zapisz to uruchomienie",
       "persistNote": "To uruchomienie zostanie zapisane w historii MRP (nagłówek + rejestr zapotrzebowań). Żadne zamówienia nie są tworzone.",
       "persistedAs": "zapisano jako",
+      "horizonWeeks": "Horyzont planowania",
+      "horizonWeeksOption4": "4 tygodnie",
+      "horizonWeeksOption8": "8 tygodni",
+      "horizonWeeksOption12": "12 tygodni",
+      "horizonWeeksOption26": "26 tygodni",
       "minQty": "Min",
       "dueBy": "Termin",
       "previousRuns": {

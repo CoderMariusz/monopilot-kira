@@ -9298,6 +9298,11 @@
       "persistToggle": "Save this run",
       "persistNote": "This run will be saved to MRP history (run header + requirements ledger). No orders are created.",
       "persistedAs": "saved as",
+      "horizonWeeks": "Planning horizon",
+      "horizonWeeksOption4": "4 weeks",
+      "horizonWeeksOption8": "8 weeks",
+      "horizonWeeksOption12": "12 weeks",
+      "horizonWeeksOption26": "26 weeks",
       "minQty": "Min",
       "dueBy": "Due",
       "previousRuns": {

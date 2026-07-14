@@ -33,6 +33,19 @@ const client = {
   }),
 };
 
+vi.mock('../../../../../../../../lib/auth/with-site-context', () => ({
+  withSiteContext: vi.fn(
+    async (
+      arg1: unknown,
+      arg2?: (ctx: { userId: string; orgId: string; client: typeof client }) => Promise<unknown>,
+    ) => {
+      const action = typeof arg1 === 'function' ? arg1 : arg2;
+      if (!action) throw new TypeError('withSiteContext mock: missing action');
+      return action({ userId: USER_ID, orgId: ORG_ID, client });
+    },
+  ),
+}));
+
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(
     async (action: (ctx: { userId: string; orgId: string; client: typeof client }) => Promise<unknown>) =>

@@ -1,5 +1,5 @@
 import { microToFixed, toMicro } from '../../../../../../../lib/shared/decimal';
-import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { withSiteContext } from '../../../../../../../lib/auth/with-site-context';
 import { hasAnyPermission } from '../../../../../../../lib/auth/has-permission';
 import {
   FINANCE_VALUATION_VIEW_PERMISSIONS,
@@ -71,6 +71,7 @@ with lp_valuation as (
     left join public.currencies c
       on c.id = wac.currency_id
    where lp.org_id = app.current_org_id()
+     and (app.current_site_id() is null or lp.site_id = app.current_site_id())
      and lp.status not in ('consumed', 'shipped', 'destroyed', 'merged', 'returned')
 )`;
 
@@ -167,7 +168,7 @@ export async function getInventoryValuation(): Promise<InventoryValuationResult>
   'use server';
 
   try {
-    return await withOrgContext(
+    return await withSiteContext({ mode: 'read' },
       async ({ userId, orgId, client }): Promise<InventoryValuationResult> =>
         getInventoryValuationInContext({ userId, orgId, client: client as QueryClient }),
     );

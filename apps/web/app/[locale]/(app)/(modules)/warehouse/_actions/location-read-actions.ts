@@ -14,7 +14,7 @@
  * server-side inside withOrgContext, never client-trusted.
  */
 
-import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
 import {
   WAREHOUSE_READ_PERMISSION,
   asLimit,
@@ -48,7 +48,7 @@ export async function listLocations(
   const limit = asLimit(input.limit, 200, 500);
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<LocationOption[]>> => {
+    return await withSiteContext({ mode: 'read' }, async ({ userId, orgId, client }): Promise<WarehouseResult<LocationOption[]>> => {
       const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasWarehousePermission(ctx, WAREHOUSE_READ_PERMISSION))) return { ok: false, reason: 'forbidden' };
 
@@ -74,6 +74,7 @@ export async function listLocations(
            left join public.warehouses w on w.org_id = app.current_org_id() and w.id = l.warehouse_id
            left join public.sites si on si.org_id = app.current_org_id() and si.id = w.site_id
           where l.org_id = app.current_org_id()
+            and (app.current_site_id() is null or w.site_id is null or w.site_id = app.current_site_id())
             and ($1::uuid is null or l.warehouse_id = $1::uuid)
             and ($2::text is null or l.code ilike '%' || $2 || '%' or l.name ilike '%' || $2 || '%')
           order by w.code nulls last, l.code

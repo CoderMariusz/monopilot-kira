@@ -146,7 +146,8 @@ export function ThresholdsView({
     load();
   }, [load]);
 
-  const onDelete = async (id: string) => {
+  const onDelete = async (id: string, itemLabel: string) => {
+    if (!window.confirm(`${labels.remove} ${itemLabel}?`)) return;
     setDeletingId(id);
     try {
       const result = await deleteAction(id);
@@ -158,7 +159,13 @@ export function ThresholdsView({
 
   const formatDate = (iso: string): string => {
     if (dateFormatter) return dateFormatter(iso);
-    return iso.slice(0, 10);
+    const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.slice(0, 10));
+    if (dateOnly) {
+      const [, year, month, day] = dateOnly;
+      return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString();
+    }
+    const parsed = new Date(iso);
+    return Number.isNaN(parsed.getTime()) ? iso.slice(0, 10) : parsed.toLocaleDateString();
   };
 
   return (
@@ -275,7 +282,7 @@ export function ThresholdsView({
                           className="btn btn--ghost btn-sm"
                           disabled={deletingId === row.id}
                           data-testid={`threshold-delete-${row.itemCode ?? row.itemId}`}
-                          onClick={() => onDelete(row.id)}
+                          onClick={() => onDelete(row.id, row.itemCode ?? row.itemId)}
                         >
                           {deletingId === row.id ? labels.removing : labels.remove}
                         </button>

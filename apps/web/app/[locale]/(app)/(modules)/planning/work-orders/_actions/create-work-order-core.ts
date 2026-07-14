@@ -6,7 +6,7 @@ import { assertFgReleasedToFactoryForWo } from '../../../../../../../lib/plannin
 import { fetchActiveProductionLineSite, productionLineMatchesWoSite } from '../../../../../../../lib/planning/production-line-site';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../../lib/production/wo-material-scalar';
 import { resolveWriteSiteId } from '../../../../../../../lib/site/site-context';
-import { snapshotFromItemRow, toBaseQty, TypedError } from '../../../../../../../lib/uom/convert';
+import { snapshotFromItemRow, toBaseQtyFromDecimal, TypedError } from '../../../../../../../lib/uom/convert';
 import {
   APP_VERSION,
   CreateWorkOrderInput,
@@ -137,7 +137,11 @@ export async function createWorkOrderCore(
   let conversion: UomConversionResult | undefined;
   if (input.quantityEntered !== undefined && input.quantityEntered !== '') {
     try {
-      plannedBaseQty = toBaseQty(uomSnapshot, Number(input.quantityEntered), input.quantityEnteredUom ?? 'base').toFixed(3);
+      plannedBaseQty = toBaseQtyFromDecimal(
+        uomSnapshot,
+        String(input.quantityEntered),
+        (input.quantityEnteredUom ?? 'base') as 'base' | 'each' | 'box',
+      );
     } catch (error) {
       if (error instanceof TypedError && error.code === 'uom_conversion_unavailable') {
         return { ok: false, error: 'uom_conversion_unavailable' };
@@ -294,12 +298,12 @@ export async function createWorkOrderCore(
 
   const insertedSchedule = await ctx.client.query<ScheduleOutputRow>(
     `insert into public.schedule_outputs
-       (org_id, planned_wo_id, product_id, output_role, expected_qty, uom, allocation_pct, disposition, notes)
+       (org_id, site_id, planned_wo_id, product_id, output_role, expected_qty, uom, allocation_pct, disposition, notes)
      values
-       (app.current_org_id(), $1::uuid, $2::uuid, 'primary', $3::numeric, $5, 100.00, 'to_stock', $4)
+       (app.current_org_id(), $6::uuid, $1::uuid, $2::uuid, 'primary', $3::numeric, $5, 100.00, 'to_stock', $4)
      returning id, planned_wo_id, product_id, output_role, expected_qty::text as expected_qty,
                uom, allocation_pct::text as allocation_pct, disposition, downstream_wo_id, notes`,
-    [woId, input.productId, plannedBaseQty, input.notes ?? null, uomSnapshot.uomBase],
+    [woId, input.productId, plannedBaseQty, input.notes ?? null, uomSnapshot.uomBase, siteId],
   );
   const primarySchedule = insertedSchedule.rows[0];
   if (!primarySchedule) throw new Error('schedule_output_insert_returned_no_row');

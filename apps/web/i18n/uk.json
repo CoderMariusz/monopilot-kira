@@ -8229,6 +8229,11 @@
       "persistToggle": "Save this run",
       "persistNote": "This run will be saved to MRP history (run header + requirements ledger). No orders are created.",
       "persistedAs": "saved as",
+      "horizonWeeks": "Горизонт планування",
+      "horizonWeeksOption4": "4 тижні",
+      "horizonWeeksOption8": "8 тижнів",
+      "horizonWeeksOption12": "12 тижнів",
+      "horizonWeeksOption26": "26 тижнів",
       "minQty": "Min",
       "dueBy": "Due",
       "previousRuns": {

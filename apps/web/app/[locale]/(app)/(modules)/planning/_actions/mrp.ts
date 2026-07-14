@@ -57,7 +57,7 @@ import { resolveWriteSiteId } from '../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQty } from '../../../../../../lib/uom/convert';
 import { createPurchaseOrderCore } from '../purchase-orders/_actions/create-purchase-order-core';
 import { APP_VERSION, isPgError } from '../work-orders/_actions/shared';
-import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
 import { hasPlanningWritePermission, writeProcurementAudit, type OrgActionContext } from './procurement-shared';
 import {
   computeMrpPhased,
@@ -122,6 +122,12 @@ const OPEN_SO_DEMAND_STATUSES = [
 const MRP_BUCKET_DAYS = 7;
 /** Planning horizon for SO need-by dates — mirrors forecasts.ts DEFAULT_HORIZON_WEEKS. */
 const MRP_PLANNING_HORIZON_WEEKS = MRP_DEFAULT_HORIZON_WEEKS;
+
+function resolveHorizonWeeks(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return MRP_PLANNING_HORIZON_WEEKS;
+  return Math.min(52, Math.max(1, Math.trunc(n)));
+}
 /** Item types planned by MRP. FG shortages can create planned WOs when an active BOM exists. */
 const MRP_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'packaging', 'fg'];
 const MRP_COMPLETED_EVENT = 'planning.mrp.completed';
@@ -147,14 +153,14 @@ function currentIsoWeek(now: Date = new Date()): string {
 }
 
 /** Last ISO week label covered by the planning horizon (inclusive). */
-function horizonEndIsoWeek(todayIso: string): string {
-  const end = addDaysIso(todayIso, MRP_PLANNING_HORIZON_WEEKS * 7);
+function horizonEndIsoWeek(todayIso: string, horizonWeeks: number): string {
+  const end = addDaysIso(todayIso, horizonWeeks * 7);
   return currentIsoWeek(new Date(`${end}T00:00:00Z`));
 }
 
-/** Planning horizon end date (today + MRP_PLANNING_HORIZON_WEEKS). */
-function planningHorizonEnd(todayIso: string): string {
-  return addDaysIso(todayIso, MRP_PLANNING_HORIZON_WEEKS * 7);
+/** Planning horizon end date (today + horizonWeeks). */
+function planningHorizonEnd(todayIso: string, horizonWeeks: number): string {
+  return addDaysIso(todayIso, horizonWeeks * 7);
 }
 
 async function hasPlanningReadPermission(
@@ -193,8 +199,9 @@ async function hasMrpConvertPermission(client: QueryClient, userId: string, orgI
 
 export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
   const persist = input?.persist === true;
+  const horizonWeeks = resolveHorizonWeeks(input?.horizonWeeks);
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<MrpRunResult> => {
+    return await withSiteContext({ mode: 'read' }, async ({ userId, orgId, client, siteId }): Promise<MrpRunResult> => {
       const c = client as QueryClient;
 
       if (!(await hasPlanningReadPermission(c, userId, orgId))) {
@@ -209,7 +216,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
       // Single run timestamp — the netting bucket date AND the forecast horizon floor.
       const startedAt = new Date();
       const today = startedAt.toISOString().slice(0, 10);
-      const horizonEnd = planningHorizonEnd(today);
+      const horizonEnd = planningHorizonEnd(today, horizonWeeks);
 
       // 1) Item master — the MRP-planned item universe (pack hierarchy for UoM conversion).
       const items = await c.query<MrpItemRow>(
@@ -229,6 +236,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
                 sum(reserved_qty)::text as reserved
            from public.v_inventory_available
           where org_id = app.current_org_id()
+            and (app.current_site_id() is null or site_id = app.current_site_id())
           group by product_id, uom`,
       );
 
@@ -242,7 +250,11 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
              on w.id = m.wo_id
             and w.org_id = app.current_org_id()
             and w.status = any($1::text[])
+           left join public.production_lines pl
+             on pl.org_id = w.org_id
+            and pl.id = w.production_line_id
           where m.org_id = app.current_org_id()
+            and (app.current_site_id() is null or coalesce(w.site_id, pl.site_id) = app.current_site_id())
             and coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date <= $3::date
           group by m.product_id, m.uom,
                    coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date`,
@@ -255,10 +267,11 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
                 sum(f.qty)::text as qty
            from public.demand_forecasts f
           where f.org_id = app.current_org_id()
+            and (app.current_site_id() is null or f.site_id is null or f.site_id = app.current_site_id())
             and f.iso_week >= $1
             and f.iso_week <= $2
           group by f.item_id, f.uom, f.iso_week`,
-        [currentIsoWeek(startedAt), horizonEndIsoWeek(today)],
+        [currentIsoWeek(startedAt), horizonEndIsoWeek(today, horizonWeeks)],
       );
 
       // 3c) Independent (sales-order) demand — open SO lines bucketed by need-by date.
@@ -279,6 +292,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
             and so.org_id = app.current_org_id()
             and so.deleted_at is null
             and so.status = any($1::text[])
+            and (app.current_site_id() is null or so.site_id is null or so.site_id = app.current_site_id())
            join public.items i
              on i.id = sol.product_id
             and i.org_id = app.current_org_id()
@@ -327,6 +341,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
             and so.org_id = app.current_org_id()
             and so.deleted_at is null
             and so.status = any($1::text[])
+            and (app.current_site_id() is null or so.site_id is null or so.site_id = app.current_site_id())
           where sol.org_id = app.current_org_id()
             and sol.deleted_at is null
             and so.promised_ship_date is null
@@ -346,6 +361,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
              on po.id = l.po_id
             and po.org_id = app.current_org_id()
             and po.status = any($1::text[])
+            and (app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id())
            left join (
              select gi.po_line_id, sum(gi.received_qty) as received_qty
                from public.grn_items gi
@@ -374,7 +390,11 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
              on w.id = so.planned_wo_id
             and w.org_id = app.current_org_id()
             and w.status = any($1::text[])
+           left join public.production_lines pl
+             on pl.org_id = w.org_id
+            and pl.id = w.production_line_id
           where so.org_id = app.current_org_id()
+            and (app.current_site_id() is null or coalesce(w.site_id, pl.site_id) = app.current_site_id())
             and so.disposition = 'to_stock'
             and coalesce(w.scheduled_start_time, w.planned_start_date, $2::timestamptz)::date <= $3::date
             and not exists (
@@ -403,7 +423,8 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
            left join public.suppliers s
              on s.org_id = app.current_org_id()
             and s.id = rt.preferred_supplier_id
-          where rt.org_id = app.current_org_id()`,
+          where rt.org_id = app.current_org_id()
+            and (app.current_site_id() is null or rt.site_id is null or rt.site_id = app.current_site_id())`,
       );
 
       const { rows, kpis, bucketDates, bucketRows } = computeMrpPhased({
@@ -416,13 +437,13 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
         productionSupply: productionSupply.rows,
         thresholds: thresholds.rows,
         today,
-        horizonWeeks: MRP_PLANNING_HORIZON_WEEKS,
+        horizonWeeks,
       });
 
       let runId: string | null = null;
       let runNumber: string | null = null;
       if (persist) {
-        const persisted = await persistMrpRun(c, userId, {
+        const persisted = await persistMrpRun(c, userId, siteId, horizonWeeks, {
           today,
           startedAt,
           rows,
@@ -487,6 +508,8 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
 async function persistMrpRun(
   c: QueryClient,
   userId: string,
+  siteId: string | null,
+  horizonWeeks: number,
   input: {
     today: string;
     startedAt: Date;
@@ -509,11 +532,11 @@ async function persistMrpRun(
 
   const header = await c.query<{ id: string; run_number: string }>(
     `insert into public.mrp_runs
-       (org_id, run_number, status, demand_source, horizon_start, horizon_end,
+       (org_id, site_id, run_number, status, demand_source, horizon_start, horizon_end,
         bucket_days, params_jsonb, requirement_count, planned_order_count,
         exception_count, started_at, completed_at, created_by)
      values
-       (app.current_org_id(), $1, 'completed', $9, $2::date, $10::date,
+       (app.current_org_id(), $12::uuid, $1, 'completed', $9, $2::date, $10::date,
         $11::integer, $3::jsonb, $4::integer, $8::integer,
         $5::integer, $6::timestamptz, now(), $7::uuid)
      returning id, run_number`,
@@ -523,7 +546,7 @@ async function persistMrpRun(
       JSON.stringify({
         slice: 'c3b-phased',
         item_types: MRP_ITEM_TYPES,
-        horizon_weeks: MRP_PLANNING_HORIZON_WEEKS,
+        horizon_weeks: horizonWeeks,
         suggested_actions: suggestionCount,
         items_below_min: kpis.itemsBelowMin,
         coverage_pct: kpis.coveragePct,
@@ -536,6 +559,7 @@ async function persistMrpRun(
       demandSource,
       horizonEnd,
       MRP_BUCKET_DAYS,
+      siteId,
     ],
   );
   const run = header.rows[0];
@@ -550,11 +574,11 @@ async function persistMrpRun(
     const reqKey = `${row.itemId}:${row.bucketDate}`;
     const requirement = await c.query<{ id: string }>(
       `insert into public.mrp_requirements
-         (org_id, run_id, item_id, bom_level, bucket_date, gross_requirement,
+         (org_id, site_id, run_id, item_id, bom_level, bucket_date, gross_requirement,
           scheduled_receipts, projected_on_hand, net_requirement, uom,
           source_type, exception_type)
        values
-         (app.current_org_id(), $1::uuid, $2::uuid, 0, $3::date, $4::numeric,
+         (app.current_org_id(), $11::uuid, $1::uuid, $2::uuid, 0, $3::date, $4::numeric,
           $5::numeric, $6::numeric, $7::numeric, $8,
           $10, $9)
        on conflict on constraint mrp_requirements_run_item_bucket_unique
@@ -577,12 +601,13 @@ async function persistMrpRun(
         row.uomBase,
         isShort ? 'shortage' : null,
         sourceType,
+        siteId,
       ],
     );
     if (requirement.rows[0]) requirementIds.set(reqKey, requirement.rows[0].id);
   }
 
-  await persistPlannedOrders(c, run.id, bucketRows, requirementIds, today);
+  await persistPlannedOrders(c, run.id, siteId, bucketRows, requirementIds, today);
   await emitMrpCompletedEvent(c, userId, run.id, {
     requirements: bucketRows.length,
     planned_orders: suggestionCount,
@@ -616,6 +641,7 @@ function toBaseQtyString(row: MrpRow): string {
 async function persistPlannedOrders(
   c: QueryClient,
   runId: string,
+  siteId: string | null,
   bucketRows: MrpBucketRow[],
   requirementIds: Map<string, string>,
   today: string,
@@ -665,10 +691,10 @@ async function persistPlannedOrders(
       : `MRP ${row.suggestedAction.type} suggestion for ${row.itemCode} (${row.bucketDate})`;
     await c.query(
       `insert into public.mrp_planned_orders
-         (org_id, run_id, requirement_id, item_id, order_type, quantity, uom,
+         (org_id, site_id, run_id, requirement_id, item_id, order_type, quantity, uom,
           due_date, release_date, supplier_id, release_status, notes)
        values
-         (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5::numeric, $6,
+         (app.current_org_id(), $11::uuid, $1::uuid, $2::uuid, $3::uuid, $4, $5::numeric, $6,
           $7::date, $8::date, $9::uuid, 'suggested', $10)`,
       [
         runId,
@@ -681,6 +707,7 @@ async function persistPlannedOrders(
         releaseDate,
         supplierId,
         notes,
+        siteId,
       ],
     );
   }
@@ -730,6 +757,7 @@ async function listPlannedOrdersForRun(c: QueryClient, runId: string): Promise<M
         and i.id = po.item_id
       where po.org_id = app.current_org_id()
         and po.run_id = $1::uuid
+        and (app.current_site_id() is null or po.site_id = app.current_site_id())
       order by po.due_date asc, i.item_code asc`,
     [runId],
   );
@@ -752,7 +780,7 @@ async function listPlannedOrdersForRun(c: QueryClient, runId: string): Promise<M
 /** Recent persisted MRP runs (newest first) — read-gated like runMrp. */
 export async function listMrpRuns(): Promise<MrpRunsListResult> {
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<MrpRunsListResult> => {
+    return await withSiteContext({ mode: 'read' }, async ({ userId, orgId, client }): Promise<MrpRunsListResult> => {
       const c = client as QueryClient;
       if (!(await hasPlanningReadPermission(c, userId, orgId))) {
         return { ok: false, error: 'forbidden' };
@@ -770,6 +798,7 @@ export async function listMrpRuns(): Promise<MrpRunsListResult> {
                 requirement_count, exception_count, created_at
            from public.mrp_runs
           where org_id = app.current_org_id()
+            and (app.current_site_id() is null or site_id = app.current_site_id())
           order by created_at desc
           limit 20`,
       );
@@ -800,11 +829,21 @@ export async function getMrpRunRequirements(runId: string): Promise<MrpRunRequir
     return { ok: false, error: 'invalid_input' };
   }
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<MrpRunRequirementsResult> => {
+    return await withSiteContext({ mode: 'read' }, async ({ userId, orgId, client }): Promise<MrpRunRequirementsResult> => {
       const c = client as QueryClient;
       if (!(await hasPlanningReadPermission(c, userId, orgId))) {
         return { ok: false, error: 'forbidden' };
       }
+      const runCheck = await c.query<{ id: string }>(
+        `select id
+           from public.mrp_runs
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and (app.current_site_id() is null or site_id = app.current_site_id())
+          limit 1`,
+        [runId],
+      );
+      if (!runCheck.rows[0]) return { ok: false, error: 'not_found' };
       const { rows } = await c.query<{
         item_id: string;
         item_code: string | null;
@@ -830,6 +869,7 @@ export async function getMrpRunRequirements(runId: string): Promise<MrpRunRequir
             and i.id = r.item_id
           where r.org_id = app.current_org_id()
             and r.run_id = $1::uuid
+            and (app.current_site_id() is null or r.site_id = app.current_site_id())
           order by (r.exception_type is null) asc, r.net_requirement desc, i.item_code asc`,
         [runId],
       );
@@ -929,6 +969,7 @@ async function fetchPlannedOrdersForConversion(
         and i.id = po.item_id
       where po.org_id = app.current_org_id()
         and po.id = any($1::uuid[])
+        and (app.current_site_id() is null or po.site_id = app.current_site_id())
       order by po.due_date asc, i.item_code asc
       for update of po`,
     [ids],
@@ -1014,7 +1055,8 @@ async function markPlannedOrdersReleased(
             updated_at = now()
       where org_id = app.current_org_id()
         and id = any($1::uuid[])
-        and release_status in ('suggested', 'firm')`,
+        and release_status in ('suggested', 'firm')
+        and (app.current_site_id() is null or site_id = app.current_site_id())`,
     [ids, releasedOrderId],
   );
 }
@@ -1049,6 +1091,7 @@ async function fetchPlannedOrderForCancel(
         and work_orders.id = po.released_order_id
       where po.org_id = app.current_org_id()
         and po.id = $1::uuid
+        and (app.current_site_id() is null or po.site_id = app.current_site_id())
       limit 1
       for update of po`,
     [plannedOrderId],
@@ -1069,7 +1112,7 @@ export async function cancelPlannedOrder(plannedOrderId: string): Promise<MrpCan
   }
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<MrpCancelResult> => {
+    return await withSiteContext(async ({ userId, orgId, client }): Promise<MrpCancelResult> => {
       const c = client as QueryClient;
       const ctx: OrgActionContext = { userId, orgId, client: c };
       if (!(await hasMrpConvertPermission(c, userId, orgId)) || !(await hasPlanningWritePermission(ctx))) {
@@ -1087,6 +1130,7 @@ export async function cancelPlannedOrder(plannedOrderId: string): Promise<MrpCan
             set release_status = 'cancelled'
           where po.org_id = app.current_org_id()
             and po.id = $1::uuid
+            and (app.current_site_id() is null or po.site_id = app.current_site_id())
             and po.release_status = any($2::text[])
             and not exists (
               select 1
@@ -1155,7 +1199,7 @@ export async function convertPlannedToPo(plannedOrderIds: string[]): Promise<Mrp
   if (!ids) return { ok: false, error: 'invalid_input' };
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<MrpConvertResult> => {
+    return await withSiteContext(async ({ userId, orgId, client }): Promise<MrpConvertResult> => {
       const c = client as QueryClient;
       if (!(await hasMrpConvertPermission(c, userId, orgId)) || !(await hasPlanningWritePermission({ userId, orgId, client: c }))) {
         return { ok: false, error: 'forbidden' };
@@ -1240,7 +1284,7 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
   if (!ids) return { ok: false, error: 'invalid_input' };
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<MrpConvertResult> => {
+    return await withSiteContext(async ({ userId, orgId, client }): Promise<MrpConvertResult> => {
       const c = client as QueryClient;
       if (!(await hasMrpConvertPermission(c, userId, orgId)) || !(await hasPlanningWritePermission({ userId, orgId, client: c }))) {
         return { ok: false, error: 'forbidden' };

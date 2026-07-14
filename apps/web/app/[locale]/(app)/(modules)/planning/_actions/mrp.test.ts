@@ -11,7 +11,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
 import { cancelPlannedOrder, convertPlannedToPo, convertPlannedToWo, getMrpRunRequirements, listMrpRuns, runMrp } from './mrp';
 import { addDaysIso, buildMrpBucketDates } from './mrp-buckets';
 
@@ -28,6 +28,7 @@ const FG_PLANNED_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const PO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const WO_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const SITE_ID = '12121212-1212-4121-8121-121212121212';
+const OTHER_SITE_ID = 'abababab-abab-4aba-8aba-abababababab';
 const MOCK_NEED_DATE = '2026-06-11';
 const MOCK_ISO_WEEK = '2026-W24';
 
@@ -55,6 +56,7 @@ type QueryClient = {
 };
 
 let client: QueryClient;
+let boundSiteId: string | null = SITE_ID;
 let allowPermission = true;
 let allowWritePermission = true;
 let failInventoryRead = false;
@@ -127,6 +129,19 @@ function itemLabelForId(itemId: string): { code: string; name: string } {
   return { code: 'UNKNOWN', name: 'Unknown item' };
 }
 
+vi.mock('../../../../../../lib/auth/with-site-context', () => ({
+  withSiteContext: vi.fn(
+    async (
+      arg1: unknown,
+      arg2?: (ctx: { userId: string; orgId: string; siteId: string | null; client: QueryClient }) => Promise<unknown>,
+    ) => {
+      const action = typeof arg1 === 'function' ? arg1 : arg2;
+      if (!action) throw new TypeError('withSiteContext mock: missing action');
+      return action({ userId: USER_ID, orgId: ORG_ID, siteId: boundSiteId, client });
+    },
+  ),
+}));
+
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(
     async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -137,6 +152,17 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
 vi.mock('../purchase-orders/_actions/create-purchase-order-core', () => ({
   createPurchaseOrderCore: (ctx: unknown, input: unknown) => createPurchaseOrderCoreMock(ctx, input),
 }));
+
+function plannedOrdersVisibleForSql<T extends { site_id?: string | null }>(
+  sql: string,
+  rows: T[],
+): T[] {
+  const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized.includes('app.current_site_id() is null or') || boundSiteId === null) {
+    return rows;
+  }
+  return rows.filter((row) => row.site_id === boundSiteId);
+}
 
 function makeClient(): QueryClient {
   return {
@@ -204,11 +230,13 @@ function makeClient(): QueryClient {
       }
       if (normalized.includes('from public.mrp_planned_orders')) {
         if (normalized.includes('for update of po') && !Array.isArray(params[0])) {
-          return { rows: cancelLookupRows as never[], rowCount: cancelLookupRows.length };
+          const rows = plannedOrdersVisibleForSql(sql, cancelLookupRows);
+          return { rows: rows as never[], rowCount: rows.length };
         }
         if (!Array.isArray(params[0])) {
-          return {
-            rows: plannedInserts.map((p, index) => {
+          const rows = plannedOrdersVisibleForSql(
+            sql,
+            plannedInserts.map((p, index) => {
               const itemId = String(p[2]);
               const label = itemLabelForId(itemId);
               return {
@@ -225,10 +253,11 @@ function makeClient(): QueryClient {
                 release_status: 'suggested',
               };
             }),
-            rowCount: plannedInserts.length,
-          };
+          );
+          return { rows, rowCount: rows.length };
         }
-        return { rows: conversionRows as never[], rowCount: conversionRows.length };
+        const rows = plannedOrdersVisibleForSql(sql, conversionRows);
+        return { rows: rows as never[], rowCount: rows.length };
       }
       if (normalized.includes('from public.suppliers') && normalized.includes('select currency')) {
         return { rows: [{ currency: supplierCurrency }], rowCount: 1 };
@@ -461,6 +490,7 @@ function makeClient(): QueryClient {
 
 beforeEach(() => {
   client = makeClient();
+  boundSiteId = SITE_ID;
   allowPermission = true;
   allowWritePermission = true;
   failInventoryRead = false;
@@ -502,6 +532,7 @@ describe('cancelPlannedOrder', () => {
     cancelLookupRows = [
       {
         id: PO_PLANNED_ID,
+        site_id: SITE_ID,
         item_id: FLOUR_ID,
         item_code: 'RM-FLOUR',
         order_type: 'po',
@@ -524,6 +555,7 @@ describe('cancelPlannedOrder', () => {
     expect(cancelUpdates[0][1]).toEqual(['pending', 'suggested', 'firm', 'released']);
     const cancelSql = executed.find((sql) => sql.startsWith('update public.mrp_planned_orders') && sql.includes("set release_status = 'cancelled'"))!;
     expect(cancelSql).toContain('app.current_org_id()');
+    expect(cancelSql).toContain('app.current_site_id() is null or po.site_id = app.current_site_id()');
     expect(cancelSql).toContain('not exists');
     expect(auditInserts).toHaveLength(1);
     expect(auditInserts[0][2]).toBe('planning.mrp_planned_order.cancelled');
@@ -538,10 +570,36 @@ describe('cancelPlannedOrder', () => {
     });
   });
 
+  it('returns not_found for a planned order on another site', async () => {
+    boundSiteId = SITE_ID;
+    cancelLookupRows = [
+      {
+        id: PO_PLANNED_ID,
+        site_id: OTHER_SITE_ID,
+        item_id: FLOUR_ID,
+        item_code: 'RM-FLOUR',
+        order_type: 'po',
+        quantity: '25.000000',
+        uom: 'kg',
+        due_date: '2026-06-18',
+        release_status: 'suggested',
+        released_order_id: null,
+        linked_po_status: null,
+        linked_to_status: null,
+        linked_wo_status: null,
+      },
+    ];
+
+    expect(await cancelPlannedOrder(PO_PLANNED_ID)).toEqual({ ok: false, error: 'not_found' });
+    expect(cancelUpdates).toHaveLength(0);
+    expect(createPurchaseOrderCoreMock).not.toHaveBeenCalled();
+  });
+
   it('refuses to cancel a released planned PO after receipt has started', async () => {
     cancelLookupRows = [
       {
         id: PO_PLANNED_ID,
+        site_id: SITE_ID,
         item_id: FLOUR_ID,
         item_code: 'RM-FLOUR',
         order_type: 'po',
@@ -565,6 +623,7 @@ describe('cancelPlannedOrder', () => {
     cancelLookupRows = [
       {
         id: WO_PLANNED_ID,
+        site_id: SITE_ID,
         item_id: DOUGH_ID,
         item_code: 'INT-DOUGH',
         order_type: 'wo',
@@ -675,6 +734,8 @@ describe('runMrp', () => {
 
     // The schedule_outputs read carries the org-scoped anti-join on (wo, product).
     const so = executed.find((sql) => sql.includes('from public.schedule_outputs'))!;
+    expect(so).toContain('coalesce(w.site_id, pl.site_id) = app.current_site_id()');
+    expect(so).not.toContain('so.site_id is null');
     expect(so).toContain('not exists');
     expect(so).toContain('m.wo_id = so.planned_wo_id');
     expect(so).toContain('m.product_id = so.product_id');
@@ -1009,6 +1070,13 @@ describe('runMrp', () => {
     for (const req of reqInserts) expect(req[9]).toBe('dependent');
   });
 
+  it('persists the selected horizon_weeks in params_jsonb', async () => {
+    const result = await runMrp({ persist: true, horizonWeeks: 4 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(JSON.parse(String(runInserts[0][2])).horizon_weeks).toBe(4);
+  });
+
   it('routes a finished-good shortage to a make planned order and WO conversion, never PO', async () => {
     includeFinishedGood = true;
     forecastRows = [{ product_id: FG_ID, uom: 'kg', qty: '9.000', iso_week: MOCK_ISO_WEEK }];
@@ -1076,7 +1144,7 @@ describe('runMrp', () => {
     const runSql = executed.find((sql) => sql.includes('insert into public.mrp_runs'))!;
     expect(runSql).toContain('app.current_org_id()');
     for (const col of [
-      'run_number', 'status', 'demand_source', 'horizon_start', 'horizon_end',
+      'site_id', 'run_number', 'status', 'demand_source', 'horizon_start', 'horizon_end',
       'bucket_days', 'params_jsonb', 'requirement_count', 'planned_order_count',
       'exception_count', 'started_at', 'completed_at', 'created_by',
     ]) {
@@ -1093,6 +1161,7 @@ describe('runMrp', () => {
     expect(startedAt).toBe(result.data.ranAt);
     expect(createdBy).toBe(USER_ID);
     expect(plannedCount).toBe(2);
+    expect(runInserts[0][11]).toBe(SITE_ID);
 
     // mrp_requirements: one DDL-shaped row per active bucket, idempotent upsert.
     expect(reqInserts).toHaveLength(2);
@@ -1167,6 +1236,8 @@ describe('listMrpRuns', () => {
     });
     const sql = executed.find((s) => s.includes('from public.mrp_runs'))!;
     expect(sql).toContain('app.current_org_id()');
+    expect(sql).toContain('app.current_site_id() is null or site_id = app.current_site_id()');
+    expect(sql).not.toContain('site_id is null or site_id = app.current_site_id()');
     expect(sql).toContain('order by created_at desc');
     expect(sql).toContain('created_at');
   });
@@ -1192,6 +1263,7 @@ describe('convertPlannedToPo', () => {
     conversionRows = [
       {
         id: PO_PLANNED_ID,
+        site_id: SITE_ID,
         item_id: FLOUR_ID,
         item_code: 'RM-FLOUR',
         item_name: 'Wheat flour',
@@ -1231,6 +1303,7 @@ describe('convertPlannedToPo', () => {
     conversionRows = [
       {
         id: PO_PLANNED_ID,
+        site_id: SITE_ID,
         item_id: FLOUR_ID,
         item_code: 'RM-FLOUR',
         item_name: 'Wheat flour',
@@ -1257,10 +1330,11 @@ describe('convertPlannedToPo', () => {
     });
   });
 
-  it('flatten: convertPlannedToPo opens exactly one withOrgContext and does not nest another', async () => {
+  it('flatten: convertPlannedToPo opens exactly one withSiteContext and does not nest another', async () => {
     conversionRows = [
       {
         id: PO_PLANNED_ID,
+        site_id: SITE_ID,
         item_id: FLOUR_ID,
         item_code: 'RM-FLOUR',
         item_name: 'Wheat flour',
@@ -1272,23 +1346,26 @@ describe('convertPlannedToPo', () => {
         release_status: 'suggested',
       },
     ];
-    vi.mocked(withOrgContext).mockClear();
+    vi.mocked(withSiteContext).mockClear();
 
     await convertPlannedToPo([PO_PLANNED_ID]);
 
-    expect(vi.mocked(withOrgContext)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(withSiteContext)).toHaveBeenCalledTimes(1);
     expect(createPurchaseOrderCoreMock).toHaveBeenCalledTimes(1);
     expect(createPurchaseOrderCoreMock.mock.calls[0]?.[0]).toEqual({
       userId: USER_ID,
       orgId: ORG_ID,
       client,
     });
+    const conversionSelect = executed.find((sql) => sql.includes('from public.mrp_planned_orders') && sql.includes('for update of po'))!;
+    expect(conversionSelect).toContain('app.current_site_id() is null or po.site_id = app.current_site_id()');
   });
 
   it('skips buy planned orders without a supplier', async () => {
     conversionRows = [
       {
         id: PO_PLANNED_ID,
+        site_id: SITE_ID,
         item_id: FLOUR_ID,
         item_code: 'RM-FLOUR',
         item_name: 'Wheat flour',
@@ -1307,9 +1384,41 @@ describe('convertPlannedToPo', () => {
     expect(createPurchaseOrderCoreMock).not.toHaveBeenCalled();
   });
 
+  it('returns not_found for a buy planned order on another site', async () => {
+    boundSiteId = SITE_ID;
+    conversionRows = [
+      {
+        id: PO_PLANNED_ID,
+        site_id: OTHER_SITE_ID,
+        item_id: FLOUR_ID,
+        item_code: 'RM-FLOUR',
+        item_name: 'Wheat flour',
+        order_type: 'po',
+        quantity: '25.000000',
+        uom: 'kg',
+        due_date: '2026-06-18',
+        supplier_id: SUPPLIER_ID,
+        release_status: 'suggested',
+      },
+    ];
+
+    const result = await convertPlannedToPo([PO_PLANNED_ID]);
+
+    expect(result).toEqual({
+      ok: true,
+      created: 0,
+      poIds: [],
+      skipped: [{ id: PO_PLANNED_ID, reason: 'not found' }],
+      priceWarnings: [],
+    });
+    expect(createPurchaseOrderCoreMock).not.toHaveBeenCalled();
+    expect(releasedUpdates).toHaveLength(0);
+  });
+
   describe('price resolution', () => {
     const baseConversionRow = {
       id: PO_PLANNED_ID,
+      site_id: SITE_ID,
       item_id: FLOUR_ID,
       item_code: 'RM-FLOUR',
       item_name: 'Wheat flour',
@@ -1441,8 +1550,10 @@ describe('convertPlannedToWo', () => {
     expect(releasedUpdates).toEqual([[[WO_PLANNED_ID], woId]]);
     const conversionSelect = executed.find((sql) => sql.includes('from public.mrp_planned_orders') && sql.includes('for update of po'))!;
     expect(conversionSelect).toContain('po.site_id');
+    expect(conversionSelect).toContain('app.current_site_id() is null or po.site_id = app.current_site_id()');
     const releaseUpdate = executed.find((sql) => sql.startsWith('update public.mrp_planned_orders'))!;
     expect(releaseUpdate).toContain("release_status in ('suggested', 'firm')");
+    expect(releaseUpdate).toContain('app.current_site_id() is null or site_id = app.current_site_id()');
     expect(executed.find((sql) => sql.startsWith('insert into public.work_orders'))).toContain('site_id');
     expect(executed.find((sql) => sql.startsWith('insert into public.schedule_outputs'))).toContain('site_id');
   });
@@ -1468,6 +1579,36 @@ describe('convertPlannedToWo', () => {
     const result = await convertPlannedToWo([WO_PLANNED_ID]);
 
     expect(result).toEqual({ ok: true, created: 0, woIds: [], skipped: [{ id: WO_PLANNED_ID, reason: 'no active BOM' }] });
+    expect(workOrderInserts).toHaveLength(0);
+    expect(releasedUpdates).toHaveLength(0);
+  });
+
+  it('returns not_found for a make planned order on another site', async () => {
+    boundSiteId = SITE_ID;
+    conversionRows = [
+      {
+        id: WO_PLANNED_ID,
+        site_id: OTHER_SITE_ID,
+        item_id: DOUGH_ID,
+        item_code: 'INT-DOUGH',
+        item_name: 'Bread dough',
+        order_type: 'wo',
+        quantity: '8.000000',
+        uom: 'kg',
+        due_date: '2026-06-18',
+        supplier_id: null,
+        release_status: 'suggested',
+      },
+    ];
+
+    const result = await convertPlannedToWo([WO_PLANNED_ID]);
+
+    expect(result).toEqual({
+      ok: true,
+      created: 0,
+      woIds: [],
+      skipped: [{ id: WO_PLANNED_ID, reason: 'not found' }],
+    });
     expect(workOrderInserts).toHaveLength(0);
     expect(releasedUpdates).toHaveLength(0);
   });
