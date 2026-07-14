@@ -130,6 +130,7 @@ export function SoDetailView({
   deallocateSalesOrderAction,
   transitionSalesOrderStatusAction,
   createShipmentSlot,
+  createPickListSlot,
 }: {
   so: SoDetail;
   labels: SoDetailLabels;
@@ -138,13 +139,8 @@ export function SoDetailView({
   allocateSalesOrderAction: (id: string) => Promise<SoActionResult>;
   deallocateSalesOrderAction: (id: string) => Promise<SoActionResult>;
   transitionSalesOrderStatusAction: (id: string, status: string) => Promise<SoActionResult>;
-  /**
-   * Additive [Create shipment] control (the Shipments lane). Rendered ALONGSIDE the
-   * existing allocate/confirm/cancel buttons — never replaces them. Server-wired +
-   * RBAC-gated by the page; the view just slots it into the action group. Optional so
-   * existing callers/tests that don't pass it are unaffected.
-   */
   createShipmentSlot?: React.ReactNode;
+  createPickListSlot?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, setPending] = React.useState<ActionKind | null>(null);
@@ -360,6 +356,11 @@ export function SoDetailView({
                   </button>
                 );
               })}
+              {createPickListSlot ? (
+                <div data-testid="so-detail-create-pick-list" className="mt-1 border-t border-slate-200 pt-2">
+                  {createPickListSlot}
+                </div>
+              ) : null}
               {createShipmentSlot ? (
                 <div data-testid="so-detail-create-shipment" className="mt-1 border-t border-slate-200 pt-2">
                   {createShipmentSlot}

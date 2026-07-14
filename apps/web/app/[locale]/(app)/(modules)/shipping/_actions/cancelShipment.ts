@@ -526,7 +526,8 @@ async function loadSalesOrderProgressSnapshot(
     manifested_count: number | string | bigint | null;
     shipped_count: number | string | bigint | null;
     delivered_count: number | string | bigint | null;
-    allocation_count: number | string | bigint | null;
+    allocated_count: number | string | bigint | null;
+    picked_count: number | string | bigint | null;
   }>(
     `with remaining_shipments as (
        select status
@@ -538,7 +539,8 @@ async function loadSalesOrderProgressSnapshot(
           and status <> 'cancelled'
      ),
      remaining_allocations as (
-       select count(*)::int as allocation_count
+       select count(*) filter (where ia.status = 'allocated')::int as allocated_count,
+              count(*) filter (where ia.status = 'picked')::int as picked_count
          from public.inventory_allocations ia
          join public.sales_order_lines sol on sol.id = ia.sales_order_line_id
           and sol.org_id = app.current_org_id()
@@ -554,10 +556,11 @@ async function loadSalesOrderProgressSnapshot(
             count(*) filter (where rs.status = 'manifested')::int as manifested_count,
             count(*) filter (where rs.status = 'shipped')::int as shipped_count,
             count(*) filter (where rs.status = 'delivered')::int as delivered_count,
-            ra.allocation_count
+            ra.allocated_count,
+            ra.picked_count
        from remaining_allocations ra
        left join remaining_shipments rs on true
-      group by ra.allocation_count`,
+      group by ra.allocated_count, ra.picked_count`,
     [soId, excludeShipmentId ?? null],
   );
 
@@ -570,9 +573,13 @@ async function loadSalesOrderProgressSnapshot(
       manifestedCount: 0,
       shippedCount: 0,
       deliveredCount: 0,
-      liveAllocationCount: 0,
+      liveAllocatedCount: 0,
+      livePickedCount: 0,
     };
   }
+
+  const liveAllocatedCount = Number(snapshot.allocated_count ?? 0);
+  const livePickedCount = Number(snapshot.picked_count ?? 0);
 
   return {
     shipmentCount: Number(snapshot.shipment_count ?? 0),
@@ -581,7 +588,8 @@ async function loadSalesOrderProgressSnapshot(
     manifestedCount: Number(snapshot.manifested_count ?? 0),
     shippedCount: Number(snapshot.shipped_count ?? 0),
     deliveredCount: Number(snapshot.delivered_count ?? 0),
-    liveAllocationCount: Number(snapshot.allocation_count ?? 0),
+    liveAllocatedCount,
+    livePickedCount,
   };
 }
 

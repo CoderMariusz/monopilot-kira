@@ -33,6 +33,7 @@ import {
 } from '../_actions/so-actions';
 import { getSoCapabilities } from '../_actions/so-form-data';
 import { createShipment } from '../_actions/pack-actions';
+import { createPickList, getPickListForSalesOrder } from '../_actions/pick-actions';
 import { getCreateShipmentCapability } from '../shipments/_actions/shipments-data';
 import { DocumentAuditTimelineSection } from '../../_components/audit-timeline/document-audit-timeline-section';
 import { SoDetailView, type SoDetailLabels, type SoActionResult } from '../_components/so-detail-view';
@@ -41,6 +42,11 @@ import {
   type CreateShipmentLabels,
   type CreateShipmentResult,
 } from '../shipments/_components/create-shipment-button';
+import {
+  CreatePickListButton,
+  type CreatePickListLabels,
+  type CreatePickListResult,
+} from '../_components/create-pick-list-button';
 
 /** Thin client-facing adapters so the client view's narrow `{ ok; error: string }`
  *  seam type lines up with the server result unions (which carry richer error
@@ -70,6 +76,10 @@ async function createShipmentAction(soId: string): Promise<CreateShipmentResult>
   'use server';
   return createShipment(soId);
 }
+async function createPickListAction(soId: string): Promise<CreatePickListResult> {
+  'use server';
+  return createPickList(soId);
+}
 
 function buildCreateShipmentLabels(
   t: Awaited<ReturnType<typeof getTranslations>>,
@@ -78,12 +88,33 @@ function buildCreateShipmentLabels(
     label: t('createShipment.label'),
     pending: t('createShipment.pending'),
     noPermission: t('createShipment.noPermission'),
-    notAllocated: t('createShipment.notAllocated'),
+    notPicked: t('createShipment.notPicked'),
     notShippable: t('createShipment.notShippable'),
     errors: {
       forbidden: t('createShipment.errors.forbidden'),
       invalid_state: t('createShipment.errors.invalid_state'),
+      open_shipment_exists: t('createShipment.errors.open_shipment_exists'),
       persistence_failed: t('createShipment.errors.persistence_failed'),
+    },
+  };
+}
+
+function buildCreatePickListLabels(
+  tPick: Awaited<ReturnType<typeof getTranslations>>,
+): CreatePickListLabels {
+  return {
+    label: tPick('createPickList.label'),
+    pending: tPick('createPickList.pending'),
+    noPermission: tPick('createPickList.noPermission'),
+    notAllocated: tPick('createPickList.notAllocated'),
+    notPickable: tPick('createPickList.notPickable'),
+    goToPick: tPick('createPickList.goToPick'),
+    errors: {
+      forbidden: tPick('createPickList.errors.forbidden'),
+      invalid_state: tPick('createPickList.errors.invalid_state'),
+      open_pick_list_exists: tPick('createPickList.errors.open_pick_list_exists'),
+      no_allocations: tPick('createPickList.errors.no_allocations'),
+      persistence_failed: tPick('createPickList.errors.persistence_failed'),
     },
   };
 }
@@ -172,10 +203,12 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): SoDetailLa
 async function DetailContent({ locale, soId }: { locale: string; soId: string }) {
   const t = await getTranslations('Shipping.salesOrders');
   const tShip = await getTranslations('Shipping.shipments');
-  const [result, caps, shipCaps] = await Promise.all([
+  const tPick = await getTranslations('Shipping.pick');
+  const [result, caps, shipCaps, pickListResult] = await Promise.all([
     getSalesOrder(soId),
     getSoCapabilities(),
     getCreateShipmentCapability(),
+    getPickListForSalesOrder(soId),
   ]);
 
   if (!result.ok) {
@@ -198,17 +231,32 @@ async function DetailContent({ locale, soId }: { locale: string; soId: string })
     );
   }
 
+  const hasOpenPickList =
+    pickListResult.ok &&
+    pickListResult.data != null &&
+    ['pending', 'assigned', 'in_progress'].includes(pickListResult.data.status);
+
   return (
     <div className="flex flex-col gap-4">
     <SoDetailView
       locale={locale}
       caps={caps}
+      createPickListSlot={
+        <CreatePickListButton
+          locale={locale}
+          soId={so.id}
+          soStatus={so.status}
+          hasOpenPickList={hasOpenPickList}
+          canPick={pickListResult.ok ? pickListResult.canPick : false}
+          labels={buildCreatePickListLabels(tPick)}
+          createPickListAction={createPickListAction}
+        />
+      }
       createShipmentSlot={
         <CreateShipmentButton
           locale={locale}
           soId={so.id}
           soStatus={so.status}
-          allocationStatus={so.allocation_status}
           canCreate={shipCaps.canCreate}
           labels={buildCreateShipmentLabels(tShip)}
           createShipmentAction={createShipmentAction}

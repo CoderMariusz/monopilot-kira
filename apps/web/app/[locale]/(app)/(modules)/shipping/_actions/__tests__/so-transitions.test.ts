@@ -109,7 +109,8 @@ describe('deriveSalesOrderStatusFromProgress', () => {
         manifestedCount: 0,
         shippedCount: 1,
         deliveredCount: 0,
-        liveAllocationCount: 0,
+        liveAllocatedCount: 0,
+        livePickedCount: 0,
       }),
     ).toBe('shipped');
   });
@@ -122,8 +123,54 @@ describe('deriveSalesOrderStatusFromProgress', () => {
       manifestedCount: 0,
       shippedCount: 1,
       deliveredCount: 0,
-      liveAllocationCount: 0,
+      liveAllocatedCount: 0,
+      livePickedCount: 0,
     });
     expect(status).not.toBe('confirmed');
+  });
+
+  it('derives picked when all live allocations are picked and no shipments exist', () => {
+    expect(
+      deriveSalesOrderStatusFromProgress({
+        shipmentCount: 0,
+        packingCount: 0,
+        packedCount: 0,
+        manifestedCount: 0,
+        shippedCount: 0,
+        deliveredCount: 0,
+        liveAllocatedCount: 0,
+        livePickedCount: 2,
+      }),
+    ).toBe('picked');
+  });
+
+  it('derives partially_picked when some allocations are picked and some remain allocated', () => {
+    expect(
+      deriveSalesOrderStatusFromProgress({
+        shipmentCount: 0,
+        packingCount: 0,
+        packedCount: 0,
+        manifestedCount: 0,
+        shippedCount: 0,
+        deliveredCount: 0,
+        liveAllocatedCount: 1,
+        livePickedCount: 1,
+      }),
+    ).toBe('partially_picked');
+  });
+
+  it('derives allocated when live allocations are still allocated only', () => {
+    expect(
+      deriveSalesOrderStatusFromProgress({
+        shipmentCount: 0,
+        packingCount: 0,
+        packedCount: 0,
+        manifestedCount: 0,
+        shippedCount: 0,
+        deliveredCount: 0,
+        liveAllocatedCount: 2,
+        livePickedCount: 0,
+      }),
+    ).toBe('allocated');
   });
 });
