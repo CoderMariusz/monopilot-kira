@@ -325,7 +325,9 @@ export function ComponentAddModal({
   const qtyInvalid = !Number.isFinite(qtyNum) || qtyNum <= 0;
   const operationMissing = operationName.trim().length === 0;
   const blocked = usability.kind === 'blocked';
-  const canSubmit = !!picked && !qtyInvalid && !operationMissing && !blocked && !pending;
+  const checking = usability.kind === 'checking';
+  // ponytail: gate Add on in-flight usability — submit during 'checking' races a second long validate
+  const canSubmit = !!picked && !qtyInvalid && !operationMissing && !blocked && !checking && !pending;
 
   async function onPick(material: ItemListItem) {
     setPicked(material);
@@ -456,7 +458,13 @@ export function ComponentAddModal({
           <Button type="button" className="btn-secondary" onClick={onClose}>
             {t('cancel')}
           </Button>
-          <Button type="button" className="btn-primary" disabled={!canSubmit} onClick={onSubmit}>
+          <Button
+            type="button"
+            className="btn-primary"
+            disabled={!canSubmit}
+            title={checking ? t('checkingUsability') : undefined}
+            onClick={onSubmit}
+          >
             {t('addAction')}
           </Button>
         </>

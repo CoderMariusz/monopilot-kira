@@ -60,9 +60,10 @@ import type { WarehouseResult } from '../../../_actions/shared';
 import type { createStockMove } from '../../../_actions/stock-move-actions';
 import type { listLocations } from '../../../_actions/location-read-actions';
 import type { blockLp, listOpenWorkOrdersForLpReserve, reserveLp, unblockLp, UnblockLpResult } from '../_actions/lp-detail-actions';
-import type { destroyLp, splitLp } from '../_actions/lp-split-merge-destroy-actions';
+import type { destroyLp, listSiblingLpsForMerge, mergeLps, splitLp } from '../_actions/lp-split-merge-destroy-actions';
 import { LpBlockModal, type LpBlockModalLabels } from './lp-block-modal.client';
 import { LpDestroyModal, type LpDestroyModalLabels } from './lp-destroy-modal.client';
+import { LpMergeModal, type LpMergeModalLabels } from './lp-merge-modal.client';
 import { LpMoveModal, type LpMoveLabels } from './lp-move-modal.client';
 import { LpSplitModal, type LpSplitModalLabels } from './lp-split-modal.client';
 import {
@@ -139,9 +140,12 @@ function qaVariant(qa: string): BadgeVariant {
   const up = qa.toUpperCase();
   if (up === 'PASSED' || up === 'RELEASED') return 'success';
   if (up === 'FAILED' || up === 'QUARANTINED') return 'danger';
-  if (up === 'HOLD' || up === 'PENDING') return 'warning';
+  if (up === 'HOLD' || up === 'ON_HOLD' || up === 'PENDING') return 'warning';
   return 'muted';
 }
+
+const HOLD_QA_STATUSES = new Set(['on_hold', 'hold']);
+const RESERVE_ALLOWED_STATUSES = new Set(['available', 'reserved']);
 
 /** Last-resort display for an unmapped qa_status value: "on_hold" → "On hold".
  *  Never leak a raw snake_case DB token into the UI. */
@@ -224,13 +228,20 @@ export type LpDetailLabels = {
     };
     /** WH-R3 — Split modal copy. */
     split: LpSplitModalLabels;
+    /** P1-19 — Merge modal copy. */
+    merge: LpMergeModalLabels;
     /** WH-R3 — Destroy / scrap modal copy. */
     destroy: LpDestroyModalLabels;
     /** WH-R3 — tooltips shown on a gated (ineligible) action button. */
     ineligible: {
       split: string;
       destroy: string;
-      mergeDeferred: string;
+      merge: string;
+      reserve: string;
+      /** Past expiry_date — mirrors reserveLp / mergeLps invalid_state. */
+      expired: string;
+      /** qa on_hold OR active v_active_holds row. */
+      onHold: string;
     };
   };
   move: LpMoveLabels;
@@ -323,6 +334,8 @@ export function LpDetailClient({
   listLocationsAction,
   createStockMoveAction,
   splitLpAction,
+  mergeLpAction,
+  listSiblingLpsForMergeAction,
   destroyLpAction,
   updateLpMetadataAction,
   printLabelAction,
@@ -340,6 +353,9 @@ export function LpDetailClient({
   createStockMoveAction: typeof createStockMove;
   /** WH-R3 — split this LP into a child (idempotent; requires clientOpId). */
   splitLpAction: typeof splitLp;
+  /** P1-19 — merge sibling LPs into this primary. */
+  mergeLpAction: typeof mergeLps;
+  listSiblingLpsForMergeAction: typeof listSiblingLpsForMerge;
   /** WH-R3 — destroy / scrap this LP (idempotent; requires clientOpId). */
   destroyLpAction: typeof destroyLp;
   /**
@@ -374,6 +390,7 @@ export function LpDetailClient({
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [metadataModalOpen, setMetadataModalOpen] = useState(false);
   const [splitModalOpen, setSplitModalOpen] = useState(false);
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [destroyModalOpen, setDestroyModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   // E1 — label print state for the labels tab.
@@ -384,7 +401,14 @@ export function LpDetailClient({
 
   const lpHref = (id: string) => `/${locale}/warehouse/license-plates/${id}`;
   const hasReservation = Boolean(detail.reservedForWoId) && Number(detail.reservedQty) > 0;
-  const canReleaseQa = detail.qaStatus.toLowerCase() === 'pending';
+  const qaStatusLower = detail.qaStatus.toLowerCase();
+  // Mirror reserveLp / mergeLps: hold can exist via v_active_holds without qa_status=on_hold.
+  const hasActiveHold = detail.hasActiveHold;
+  const onHold = HOLD_QA_STATUSES.has(qaStatusLower) || hasActiveHold;
+  const isExpired = Boolean(
+    detail.expiryDate && detail.expiryDate.slice(0, 10) < new Date().toISOString().slice(0, 10),
+  );
+  const canReleaseQa = qaStatusLower === 'pending';
   // AUDIT #5: "move" is live unless the LP is in a terminal lifecycle state.
   const canMove = !IMMOVABLE_STATUSES.has(detail.status.toLowerCase());
   const isBlocked = detail.status.toLowerCase() === 'blocked';
@@ -394,6 +418,31 @@ export function LpDetailClient({
   // available qty (split qty must be strictly < available, so 0 available = no split).
   const canSplit =
     SPLIT_ALLOWED_STATUSES.has(detail.status.toLowerCase()) && Number(detail.availableQty) > 0;
+  // P1-19: merge mirrors SPLIT_MERGE_STATES + unreserved + !hold + !expired (server re-enforces).
+  const canMerge =
+    SPLIT_ALLOWED_STATUSES.has(detail.status.toLowerCase()) &&
+    !onHold &&
+    !hasActiveHold &&
+    !isExpired &&
+    Number(detail.reservedQty) === 0;
+  // P2 #20: reserve mirrors server (released, not held, not expired, available/reserved, qty > 0).
+  const canReserve =
+    qaStatusLower === 'released' &&
+    !onHold &&
+    !hasActiveHold &&
+    !isExpired &&
+    RESERVE_ALLOWED_STATUSES.has(detail.status.toLowerCase()) &&
+    Number(detail.availableQty) > 0;
+  const reserveIneligibleTitle = isExpired
+    ? labels.actions.ineligible.expired
+    : onHold
+      ? labels.actions.ineligible.onHold
+      : labels.actions.ineligible.reserve;
+  const mergeIneligibleTitle = isExpired
+    ? labels.actions.ineligible.expired
+    : onHold
+      ? labels.actions.ineligible.onHold
+      : labels.actions.ineligible.merge;
   // WH-R3: destroy is blocked for terminal LPs and for LPs holding reserved stock
   // (clear the reservation first). The action re-enforces both.
   const canDestroy =
@@ -520,9 +569,13 @@ export function LpDetailClient({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Badge variant={STATUS_VARIANT[detail.status] ?? 'muted'} data-testid="lp-detail-status">
-            {labels.statusLabel[detail.status] ?? detail.status}
-          </Badge>
+          {/* P2 #20: when QA is on_hold, skip the lifecycle "Available" badge — dual
+              Available + on_hold reads as contradictory. Hold QA badge alone is enough. */}
+          {onHold ? null : (
+            <Badge variant={STATUS_VARIANT[detail.status] ?? 'muted'} data-testid="lp-detail-status">
+              {labels.statusLabel[detail.status] ?? detail.status}
+            </Badge>
+          )}
           <Badge variant={qaVariant(detail.qaStatus)} data-testid="lp-detail-qa">
             {labels.qaStatusLabel[detail.qaStatus.toLowerCase()] ?? humanizeQaStatus(detail.qaStatus)}
           </Badge>
@@ -599,8 +652,7 @@ export function LpDetailClient({
             )}
           </IdentityRow>
 
-          {/* Action group. QA release, Reserve, Move, and Block are live; split /
-              merge / destroy remain deferred. */}
+          {/* Action group. Split / Merge / Reserve / Move / Block / Destroy are live. */}
           <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3" data-testid="lp-detail-actions">
             {LP_DETAIL_ACTIONS.map((key) =>
               key === 'qa' ? (
@@ -624,9 +676,16 @@ export function LpDetailClient({
                 <button
                   key={key}
                   type="button"
+                  disabled={!canReserve}
+                  title={canReserve ? undefined : reserveIneligibleTitle}
                   data-testid={`lp-action-${key}`}
                   onClick={() => setReserveModalOpen(true)}
-                  className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                  className={[
+                    'rounded-md border px-2.5 py-1 text-xs',
+                    canReserve
+                      ? 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                      : 'cursor-not-allowed border-slate-200 text-slate-400',
+                  ].join(' ')}
                 >
                   {labels.actions.labelByKey[key]}
                 </button>
@@ -705,19 +764,24 @@ export function LpDetailClient({
                 >
                   {labels.actions.labelByKey[key]}
                 </button>
-              ) : (
-                // Deferred (merge) — no sibling-LP candidate source in this loader.
+              ) : key === 'merge' ? (
                 <button
                   key={key}
                   type="button"
-                  disabled
-                  title={labels.actions.ineligible.mergeDeferred}
+                  disabled={!canMerge}
+                  title={canMerge ? undefined : mergeIneligibleTitle}
                   data-testid={`lp-action-${key}`}
-                  className="cursor-not-allowed rounded-md border border-slate-200 px-2.5 py-1 text-xs text-slate-400"
+                  onClick={() => setMergeModalOpen(true)}
+                  className={[
+                    'rounded-md border px-2.5 py-1 text-xs',
+                    canMerge
+                      ? 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                      : 'cursor-not-allowed border-slate-200 text-slate-400',
+                  ].join(' ')}
                 >
                   {labels.actions.labelByKey[key]}
                 </button>
-              ),
+              ) : null,
             )}
             {/* C-R3 — Edit metadata (expiry / batch). Sits next to Move/QA; hidden
                 for terminal LPs (consumed/shipped/merged/destroyed). */}
@@ -1215,6 +1279,20 @@ export function LpDetailClient({
           uom={detail.uom}
           labels={labels.actions.split}
           splitAction={splitLpAction}
+          onSuccess={() => router.refresh()}
+        />
+      ) : null}
+
+      {/* P1-19 — Merge modal. Loads sibling candidates via listSiblingLpsForMerge. */}
+      {canMerge ? (
+        <LpMergeModal
+          open={mergeModalOpen}
+          onOpenChange={setMergeModalOpen}
+          primaryLpId={detail.id}
+          primaryLpNumber={detail.lpNumber}
+          labels={labels.actions.merge}
+          listSiblingsAction={listSiblingLpsForMergeAction}
+          mergeAction={mergeLpAction}
           onSuccess={() => router.refresh()}
         />
       ) : null}

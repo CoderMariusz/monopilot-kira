@@ -112,6 +112,7 @@ function buildLabels(locale: string): LpDetailLabels {
           otherWo: t('detail.actions.reserveModal.errors.otherWo'),
           woNotOpen: t('detail.actions.reserveModal.errors.woNotOpen'),
           qtyExceedsAvailable: t('detail.actions.reserveModal.errors.qtyExceedsAvailable'),
+          productNotInWoBom: t('detail.actions.reserveModal.errors.productNotInWoBom'),
           generic: t('detail.actions.reserveModal.errors.generic'),
         },
       },
@@ -197,6 +198,32 @@ function buildLabels(locale: string): LpDetailLabels {
           generic: t('detail.actions.splitModal.errors.generic'),
         },
       },
+      merge: {
+        title: t('detail.actions.mergeModal.title'),
+        intro: t('detail.actions.mergeModal.intro'),
+        candidates: t('detail.actions.mergeModal.candidates'),
+        loading: t('detail.actions.mergeModal.loading'),
+        empty: t('detail.actions.mergeModal.empty'),
+        reason: t('detail.actions.mergeModal.reason'),
+        reasonPlaceholder: t('detail.actions.mergeModal.reasonPlaceholder'),
+        cancel: t('detail.actions.mergeModal.cancel'),
+        confirm: t('detail.actions.mergeModal.confirm'),
+        submitting: t('detail.actions.mergeModal.submitting'),
+        validation: {
+          selectionRequired: t('detail.actions.mergeModal.validation.selectionRequired'),
+          reasonRequired: t('detail.actions.mergeModal.validation.reasonRequired'),
+        },
+        errors: {
+          forbidden: t('detail.actions.mergeModal.errors.forbidden'),
+          notFound: t('detail.actions.mergeModal.errors.notFound'),
+          invalidInput: t('detail.actions.mergeModal.errors.invalidInput'),
+          mismatch: t('detail.actions.mergeModal.errors.mismatch'),
+          invalidState: t('detail.actions.mergeModal.errors.invalidState'),
+          reserved: t('detail.actions.mergeModal.errors.reserved'),
+          onHold: t('detail.actions.mergeModal.errors.onHold'),
+          generic: t('detail.actions.mergeModal.errors.generic'),
+        },
+      },
       destroy: {
         title: t('detail.actions.destroyModal.title'),
         intro: t('detail.actions.destroyModal.intro'),
@@ -219,7 +246,10 @@ function buildLabels(locale: string): LpDetailLabels {
       ineligible: {
         split: t('detail.actions.ineligible.split'),
         destroy: t('detail.actions.ineligible.destroy'),
-        mergeDeferred: t('detail.actions.ineligible.mergeDeferred'),
+        merge: t('detail.actions.ineligible.merge'),
+        reserve: t('detail.actions.ineligible.reserve'),
+        expired: t('detail.actions.ineligible.expired'),
+        onHold: t('detail.actions.ineligible.onHold'),
       },
     },
     move: {
@@ -374,7 +404,7 @@ function makeDetail(over: Partial<LicensePlateDetail> = {}): LicensePlateDetail 
     availableQty: '120',
     uom: 'kg',
     status: 'available',
-    qaStatus: 'PASSED',
+    qaStatus: 'released',
     batchNumber: 'B-2026-01',
     expiryDate: '2026-08-01',
     locationCode: 'COLD-B1',
@@ -393,6 +423,7 @@ function makeDetail(over: Partial<LicensePlateDetail> = {}): LicensePlateDetail 
     woId: null,
     reservedForWoId: null,
     reservedForWoNumber: null,
+    hasActiveHold: false,
     parentLp: null,
     childLps: [],
     stateHistory: [],
@@ -403,6 +434,8 @@ function makeDetail(over: Partial<LicensePlateDetail> = {}): LicensePlateDetail 
 
 const updateLpMetadataStub: any = async () => ({ ok: true });
 const splitLpActionStub: any = async () => ({ ok: true });
+const mergeLpActionStub: any = async () => ({ ok: true });
+const listSiblingLpsForMergeActionStub: any = async () => ({ ok: true, siblings: [] });
 const destroyLpActionStub: any = async () => ({ ok: true });
 const printLabelActionStub: any = async () => ({ status: 'sent', result_url: 'data:text/plain;charset=utf-8,label' });
 const blockLpActionStub: any = async () => ({
@@ -459,6 +492,8 @@ function renderDetail(
       listLocationsAction: listLocationsActionStub,
       createStockMoveAction: createStockMoveActionStub,
       splitLpAction: splitLpActionStub,
+      mergeLpAction: mergeLpActionStub,
+      listSiblingLpsForMergeAction: listSiblingLpsForMergeActionStub,
       destroyLpAction: destroyLpActionStub,
       updateLpMetadataAction: updateLpMetadataStub,
       printLabelAction: printLabelActionStub,
@@ -487,23 +522,60 @@ describe('LpDetailClient (WH-003 parity)', () => {
     expect(screen.getByTestId('lp-raw-json')).toBeInTheDocument();
   });
 
-  it('keeps only deferred actions disabled and makes reserve / move / block / split / destroy live', () => {
+  it('makes reserve / move / block / split / merge / destroy live (no deferred actions)', () => {
     renderDetail();
-    // Merge is the only remaining deferred action (no candidate-LP source).
-    expect(LP_DEFERRED_ACTIONS).toEqual(['merge']);
-    for (const key of LP_DEFERRED_ACTIONS) {
-      const btn = screen.getByTestId(`lp-action-${key}`);
-      expect(btn).toBeDisabled();
-      expect(btn).toHaveAttribute('title', EN.actions.ineligible.mergeDeferred);
-    }
+    expect(LP_DEFERRED_ACTIONS).toEqual([]);
     expect(screen.getByTestId('lp-action-qa')).toBeDisabled();
     expect(screen.getByTestId('lp-action-qa')).toHaveAttribute('title', EN.actions.qaRelease.unavailable);
     expect(screen.getByTestId('lp-action-reserve')).toBeEnabled();
     expect(screen.getByTestId('lp-action-move')).toBeEnabled();
     expect(screen.getByTestId('lp-action-block')).toBeEnabled();
-    // WH-R3: split + destroy are LIVE for an available LP with positive available qty.
     expect(screen.getByTestId('lp-action-split')).toBeEnabled();
+    expect(screen.getByTestId('lp-action-merge')).toBeEnabled();
     expect(screen.getByTestId('lp-action-destroy')).toBeEnabled();
+  });
+
+  it('P2 #20: gates reserve when not released / on-hold / no available qty; suppresses Available badge when on_hold', () => {
+    const { unmount } = renderDetail({ status: 'available', qaStatus: 'pending', availableQty: '120' });
+    const reserveBtn = screen.getByTestId('lp-action-reserve');
+    expect(reserveBtn).toBeDisabled();
+    expect(reserveBtn).toHaveAttribute('title', EN.actions.ineligible.reserve);
+    unmount();
+
+    const held = renderDetail({ status: 'available', qaStatus: 'on_hold', availableQty: '120' });
+    expect(screen.getByTestId('lp-action-reserve')).toBeDisabled();
+    expect(screen.getByTestId('lp-action-reserve')).toHaveAttribute('title', EN.actions.ineligible.onHold);
+    expect(screen.queryByTestId('lp-detail-status')).not.toBeInTheDocument();
+    expect(screen.getByTestId('lp-detail-qa')).toHaveTextContent(EN.qaStatusLabel.on_hold);
+    held.unmount();
+
+    renderDetail({ status: 'available', qaStatus: 'released', availableQty: '0' });
+    expect(screen.getByTestId('lp-action-reserve')).toBeDisabled();
+  });
+
+  it('gates reserve + merge on active hold (without qa on_hold) and past expiry', () => {
+    const held = renderDetail({
+      status: 'available',
+      qaStatus: 'released',
+      availableQty: '120',
+      hasActiveHold: true,
+    });
+    expect(screen.getByTestId('lp-action-reserve')).toBeDisabled();
+    expect(screen.getByTestId('lp-action-reserve')).toHaveAttribute('title', EN.actions.ineligible.onHold);
+    expect(screen.getByTestId('lp-action-merge')).toBeDisabled();
+    expect(screen.getByTestId('lp-action-merge')).toHaveAttribute('title', EN.actions.ineligible.onHold);
+    held.unmount();
+
+    renderDetail({
+      status: 'available',
+      qaStatus: 'released',
+      availableQty: '120',
+      expiryDate: '2020-01-01',
+    });
+    expect(screen.getByTestId('lp-action-reserve')).toBeDisabled();
+    expect(screen.getByTestId('lp-action-reserve')).toHaveAttribute('title', EN.actions.ineligible.expired);
+    expect(screen.getByTestId('lp-action-merge')).toBeDisabled();
+    expect(screen.getByTestId('lp-action-merge')).toHaveAttribute('title', EN.actions.ineligible.expired);
   });
 
   it('WH-R3: gates split + destroy on backend eligibility with a tooltip when ineligible', () => {
@@ -643,13 +715,13 @@ describe('LpDetailClient (WH-003 parity)', () => {
       splitTooltip: screen.getByTestId('lp-action-split').getAttribute('title') === EN.actions.ineligible.split,
       destroyDisabled: (screen.getByTestId('lp-action-destroy') as HTMLButtonElement).disabled,
       destroyTooltip: screen.getByTestId('lp-action-destroy').getAttribute('title') === EN.actions.ineligible.destroy,
-      mergeDeferred:
-        screen.getByTestId('lp-action-merge').getAttribute('title') === EN.actions.ineligible.mergeDeferred,
+      mergeDisabled: (screen.getByTestId('lp-action-merge') as HTMLButtonElement).disabled,
+      mergeTooltip: screen.getByTestId('lp-action-merge').getAttribute('title') === EN.actions.ineligible.merge,
     };
     gated.unmount();
 
     const report = {
-      task: 'WH-R3 — wire LP split / destroy; merge deferred (no candidate source in loader)',
+      task: 'WH-R3 / P1-19 — wire LP split / merge / destroy',
       prototypeAnchor:
         'prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx:310-317 (action group)',
       tool: 'RTL role/accessible-name assertions + HTML snapshots',
@@ -998,8 +1070,8 @@ describe('LP detail RSC crash regression (digest 1984471676)', () => {
     expect(Array.isArray(LP_DEFERRED_ACTIONS_SERVER_SAFE)).toBe(true);
     const collected: string[] = [];
     for (const k of LP_DEFERRED_ACTIONS_SERVER_SAFE) collected.push(k);
-    // WH-R3: split + destroy are now live; only merge remains deferred.
-    expect(collected).toEqual(['merge']);
+    // P1-19: merge is live — deferred list is empty but still a real iterable for RSC.
+    expect(collected).toEqual([]);
   });
 
   it('client module re-exports the same arrays (single source of truth)', () => {

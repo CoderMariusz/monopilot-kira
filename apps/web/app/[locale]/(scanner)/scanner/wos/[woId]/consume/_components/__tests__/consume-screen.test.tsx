@@ -121,7 +121,17 @@ describe("ConsumeScreen", () => {
     // URL/method-aware: GET detail vs GET lps (no candidates) vs POST consume.
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {
       if (init?.method === "POST") {
-        return Promise.resolve({ status: 200, ok: true, json: async () => ({ ok: true }) });
+        return Promise.resolve({
+          status: 200,
+          ok: true,
+          json: async () => ({
+            ok: true,
+            fefoAutoResolved: true,
+            resolvedLpId: "lp-auto",
+            resolvedLpNumber: "LP-AUTO-001",
+            remainingLpQty: "70.000",
+          }),
+        });
       }
       if (url.includes("/lps")) return Promise.resolve(lpsOk([]));
       return Promise.resolve(detailOk());
@@ -180,7 +190,37 @@ describe("ConsumeScreen", () => {
       expect(screen.getAllByText(labels.consume.doneTitle).length).toBeGreaterThan(0),
     );
     expect(screen.getByText(labels.consume.bomUpdated)).toBeInTheDocument();
+    expect(
+      screen.getByText(labels.consume.doneLpAutoSelected.replace("{lp}", "LP-AUTO-001")),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        labels.consume.doneLpRemaining
+          .replace("{qty}", "70.000")
+          .replace("{uom}", "kg")
+          .replace("{lp}", "LP-AUTO-001"),
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: labels.consume.consumeNext })).toBeInTheDocument();
+  });
+
+  it("announces an unknown or unavailable LP scan", async () => {
+    seedSession();
+    vi.stubGlobal("fetch", vi.fn((url: string) =>
+      Promise.resolve(url.includes("/lps") ? lpsOk() : detailOk()),
+    ));
+
+    renderConsume();
+    await waitFor(() => expect(screen.getByText("Pork shoulder")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Pork shoulder").closest("button")!);
+    await waitFor(() => expect(screen.getByText("LP-0001")).toBeInTheDocument());
+
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "LP-HELD-OR-UNKNOWN" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("alert")).toHaveTextContent(labels.consume.lpScanError);
   });
 
   it("renders FEFO LP candidates in route order (top = suggested) and sends the chosen lpId in the POST", async () => {

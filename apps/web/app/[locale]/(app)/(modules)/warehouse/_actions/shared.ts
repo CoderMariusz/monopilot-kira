@@ -130,6 +130,8 @@ export type LicensePlateDetail = LicensePlateListItem & {
   woId: string | null;
   reservedForWoId: string | null;
   reservedForWoNumber: string | null;
+  /** ACTIVE row in public.v_active_holds (reference_type=lp) — may be true when qa_status ≠ on_hold. */
+  hasActiveHold: boolean;
   parentLp: { id: string; lpNumber: string } | null;
   childLps: Array<{ id: string; lpNumber: string; status: string; quantity: string; uom: string }>;
   stateHistory: Array<{

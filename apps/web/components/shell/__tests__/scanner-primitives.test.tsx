@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-import { Topbar } from "../scanner-primitives";
+import { ScanInputArea, Topbar } from "../scanner-primitives";
 
 const labels = {
   back: "Back",
@@ -95,5 +95,20 @@ describe("Topbar — sync badge reflects connectivity", () => {
     setOnline(true);
     render(<Topbar title="Scanner" syncState="queued" labels={labels} />);
     expect(screen.getByText("QUEUED")).toBeInTheDocument();
+  });
+});
+
+describe("ScanInputArea — error state", () => {
+  it("marks the input invalid and announces the error text", () => {
+    render(
+      <ScanInputArea
+        state="err"
+        errorText="License plate not found or unavailable."
+        labels={{ camera: "Camera", manual: "Manual" }}
+      />,
+    );
+
+    expect(screen.getByRole("textbox")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("alert")).toHaveTextContent("License plate not found or unavailable.");
   });
 });

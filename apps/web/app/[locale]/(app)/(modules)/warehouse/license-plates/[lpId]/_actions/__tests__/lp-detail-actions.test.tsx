@@ -11,7 +11,7 @@ vi.mock('../../../../../quality/_actions/hold-actions', () => ({
   ) => releaseHoldFromWarehouseLpUnblock(input),
 }));
 
-import { blockLp, reserveLp, unblockLp } from '../lp-detail-actions';
+import { blockLp, listOpenWorkOrdersForLpReserve, reserveLp, unblockLp } from '../lp-detail-actions';
 import type { QueryClient } from '../../../../_actions/shared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -19,6 +19,7 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const LP_ID = '33333333-3333-4333-8333-333333333333';
 const WO_ID = '44444444-4444-4444-8444-444444444444';
 const SITE_ID = '55555555-5555-4555-8555-555555555555';
+const PRODUCT_ID = '66666666-6666-4666-8666-666666666666';
 
 let client: QueryClient;
 let grantedPermissions: Set<string>;
@@ -27,6 +28,8 @@ let lpQaStatus: string;
 let lpReservedQty: string;
 let lpExpiryDate: string | null;
 let reserveTooLarge: boolean;
+let lpProductId: string;
+let bomCompatible: boolean;
 let activeHold: boolean;
 let activeHoldsViewMissing: boolean;
 
@@ -62,6 +65,7 @@ function makeClient(): QueryClient {
               quantity: '10.000000',
               reserved_qty: lpReservedQty,
               reserved_for_wo_id: null,
+              product_id: lpProductId,
               uom: 'kg',
               expiry_date: lpExpiryDate,
               site_id: SITE_ID,
@@ -100,6 +104,29 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('select id::text, wo_number, status from public.work_orders')) {
         return { rows: [{ id: WO_ID, wo_number: 'WO-001', status: 'RELEASED' }], rowCount: 1 };
+      }
+
+      if (q.startsWith('select exists (') && q.includes('from public.wo_materials wm')) {
+        return { rows: [{ ok: bomCompatible }], rowCount: 1 };
+      }
+
+      if (q.includes('from public.license_plates lp') && q.includes('join public.work_orders wo') && q.includes('from public.wo_materials wm')) {
+        return bomCompatible
+          ? {
+              rows: [
+                {
+                  id: WO_ID,
+                  wo_number: 'WO-001',
+                  status: 'RELEASED',
+                  item_code: 'FG-001',
+                  item_name: 'Finished good',
+                  planned_quantity: '100',
+                  uom: 'kg',
+                },
+              ],
+              rowCount: 1,
+            }
+          : { rows: [], rowCount: 0 };
       }
 
       if (q.startsWith('select ($1::numeric <=')) {
@@ -147,6 +174,8 @@ describe('LP detail reserve/block server actions', () => {
     lpReservedQty = '0.000000';
     lpExpiryDate = null;
     reserveTooLarge = false;
+    lpProductId = PRODUCT_ID;
+    bomCompatible = true;
     activeHold = false;
     activeHoldsViewMissing = false;
     client = makeClient();
@@ -303,6 +332,32 @@ describe('LP detail reserve/block server actions', () => {
     // The active-hold lookup ran and the reservation still went through.
     expect(calls.some((sql) => sql.includes('from public.v_active_holds'))).toBe(true);
     expect(calls.some((sql) => sql.startsWith('update public.license_plates lp') && sql.includes('reserved_qty = reserved_qty +'))).toBe(true);
+  });
+
+  it('reserveLp rejects when LP product is not on the WO BOM (nor WO output)', async () => {
+    bomCompatible = false;
+
+    const result = await reserveLp(LP_ID, WO_ID, '5');
+
+    expect(result).toEqual({ ok: false, reason: 'error', message: 'product_not_in_wo_bom' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(String(sql)));
+    expect(calls.some((sql) => sql.startsWith('select exists (') && sql.includes('from public.wo_materials wm'))).toBe(true);
+    expect(calls.some((sql) => sql.startsWith('update public.license_plates lp') && sql.includes('reserved_qty = reserved_qty +'))).toBe(false);
+  });
+
+  it('listOpenWorkOrdersForLpReserve only returns WOs whose BOM (or output) includes the LP product', async () => {
+    const compatible = await listOpenWorkOrdersForLpReserve(LP_ID);
+    expect(compatible.ok).toBe(true);
+    if (!compatible.ok) throw new Error(compatible.reason);
+    expect(compatible.data).toHaveLength(1);
+    expect(compatible.data[0]?.id).toBe(WO_ID);
+
+    bomCompatible = false;
+    client = makeClient();
+    const incompatible = await listOpenWorkOrdersForLpReserve(LP_ID);
+    expect(incompatible.ok).toBe(true);
+    if (!incompatible.ok) throw new Error(incompatible.reason);
+    expect(incompatible.data).toEqual([]);
   });
 
   it('reserveLp FAILS-OPEN when v_active_holds is absent (42P01: 09-quality not shipped)', async () => {

@@ -26,14 +26,7 @@ export type LpDetailAction = (typeof LP_DETAIL_ACTIONS)[number];
 
 /**
  * Prototype actions still rendered disabled because no UI candidate source exists.
- *
- * WH-R3: `split` + `destroy` are now LIVE (backend hardened idempotent; modals in
- * lp-split-modal / lp-destroy-modal). `merge` stays deferred — the LP detail
- * loader does not surface a sibling/mergeable-LP candidate list, and the backend
- * `mergeLps(primary, secondaries[])` needs that set; wiring a fabricated candidate
- * list is explicitly out of scope. Merge follows once a candidate read exists.
+ * WH-R3 / P1-19: split, destroy, and merge are all live — nothing deferred.
  */
-export const LP_DEFERRED_ACTIONS = [
-  'merge',
-] as const;
+export const LP_DEFERRED_ACTIONS = [] as const;
 export type LpDeferredAction = (typeof LP_DEFERRED_ACTIONS)[number];

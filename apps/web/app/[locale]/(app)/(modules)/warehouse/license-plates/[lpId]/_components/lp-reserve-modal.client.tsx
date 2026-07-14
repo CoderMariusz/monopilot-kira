@@ -44,6 +44,7 @@ export type LpReserveModalLabels = {
     otherWo: string;
     woNotOpen: string;
     qtyExceedsAvailable: string;
+    productNotInWoBom: string;
     generic: string;
   };
 };
@@ -71,6 +72,8 @@ function reserveError(result: Extract<WarehouseResult<ReserveLpResult>, { ok: fa
       return labels.errors.woNotOpen;
     case 'qty_exceeds_available':
       return labels.errors.qtyExceedsAvailable;
+    case 'product_not_in_wo_bom':
+      return labels.errors.productNotInWoBom;
     default:
       return labels.errors.generic;
   }
@@ -125,7 +128,7 @@ export function LpReserveModal({
     let cancelled = false;
     const timeout = window.setTimeout(async () => {
       setLoading(true);
-      const result = await listWorkOrdersAction(search);
+      const result = await listWorkOrdersAction(lpId, search);
       if (cancelled) return;
       setLoading(false);
       if (result.ok) {
@@ -142,7 +145,7 @@ export function LpReserveModal({
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [labels.errors.forbidden, labels.errors.generic, listWorkOrdersAction, open, search]);
+  }, [labels.errors.forbidden, labels.errors.generic, listWorkOrdersAction, lpId, open, search]);
 
   function close() {
     if (isPending) return;

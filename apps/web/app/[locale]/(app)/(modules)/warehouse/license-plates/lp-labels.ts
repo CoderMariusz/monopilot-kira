@@ -14,7 +14,7 @@ import stagedBundle from '../../../../../../../../_meta/i18n-staging/warehouse-l
 
 type MsgTree = { [k: string]: string | MsgTree };
 
-const BUNDLE = stagedBundle as unknown as { en: MsgTree; pl: MsgTree };
+const BUNDLE = stagedBundle as unknown as { en: MsgTree; pl: MsgTree; ro?: MsgTree; uk?: MsgTree };
 
 function lookup(tree: MsgTree | undefined, dotted: string): string | undefined {
   if (!tree) return undefined;
@@ -36,11 +36,12 @@ function interpolate(template: string, values?: Record<string, string | number>)
 /**
  * Returns a translator for the staged warehouse-lp bundle.
  *
- * Resolution order per key: requested locale (pl) → EN fallback → humanized last
+ * Resolution order per key: requested locale → EN fallback → humanized last
  * key segment (review rule: NEVER leak the raw dotted key to the UI).
  */
 export function getLpTranslator(locale: string) {
-  const primary = locale === 'pl' ? BUNDLE.pl : BUNDLE.en;
+  const primary =
+    locale === 'pl' ? BUNDLE.pl : locale === 'ro' ? BUNDLE.ro : locale === 'uk' ? BUNDLE.uk : BUNDLE.en;
   const fallback = BUNDLE.en;
 
   const t = (key: string, values?: Record<string, string | number>): string => {

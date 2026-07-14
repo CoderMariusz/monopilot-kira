@@ -27,6 +27,17 @@ const DESTROY_BLOCKED_STATES = new Set(['consumed', 'shipped', 'merged', 'destro
 
 type LpMutationResult = { ok: true } | { ok: false; error: string };
 
+export type MergeSiblingLp = {
+  id: string;
+  lpNumber: string;
+  quantity: string;
+  uom: string;
+};
+
+export type ListSiblingLpsForMergeResult =
+  | { ok: true; siblings: MergeSiblingLp[] }
+  | { ok: false; error: string };
+
 type LockedLp = {
   id: string;
   lp_number: string;
@@ -428,6 +439,79 @@ export async function splitLp(lpIdInput: string, splitQtyInput: number, reasonIn
     });
   } catch (error) {
     return mapFailure(error);
+  }
+}
+
+/**
+ * Candidate source for LP merge — siblings that match the same product/UOM/lot/
+ * location predicate `mergeLps` re-enforces. org-scoped; requires warehouse.lp.merge.
+ */
+export async function listSiblingLpsForMerge(primaryLpIdInput: string): Promise<ListSiblingLpsForMergeResult> {
+  const primaryLpId = asTrimmed(primaryLpIdInput);
+  if (!primaryLpId) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<ListSiblingLpsForMergeResult> => {
+      const ctx: WarehouseContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasWarehousePermission(ctx, WAREHOUSE_LP_MERGE_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await ctx.client.query<{
+        primary_id: string;
+        id: string | null;
+        lp_number: string | null;
+        quantity: string | null;
+        uom: string | null;
+      }>(
+        `select primary_lp.id::text as primary_id,
+                sibling.id::text,
+                sibling.lp_number,
+                sibling.quantity::text,
+                sibling.uom
+           from public.license_plates primary_lp
+           left join public.license_plates sibling
+             on sibling.org_id = app.current_org_id()
+            and sibling.id <> primary_lp.id
+            and sibling.product_id = primary_lp.product_id
+            and sibling.uom = primary_lp.uom
+            and sibling.batch_number is not distinct from primary_lp.batch_number
+            and sibling.expiry_date is not distinct from primary_lp.expiry_date
+            and sibling.warehouse_id = primary_lp.warehouse_id
+            and sibling.site_id is not distinct from primary_lp.site_id
+            and sibling.location_id is not distinct from primary_lp.location_id
+            and sibling.status = any($2::text[])
+            and sibling.reserved_qty = 0
+            and not exists (
+              select 1
+                from public.v_active_holds h
+               where h.org_id = app.current_org_id()
+                 and h.reference_type = 'lp'
+                 and h.reference_id = sibling.id
+            )
+          where primary_lp.org_id = app.current_org_id()
+            and primary_lp.id = $1::uuid
+          order by sibling.lp_number nulls last`,
+        [primaryLpId, [...SPLIT_MERGE_STATES]],
+      );
+
+      if (rows.length === 0) return { ok: false, error: 'not_found' };
+
+      return {
+        ok: true,
+        siblings: rows
+          .filter((row): row is typeof row & { id: string; lp_number: string; quantity: string; uom: string } =>
+            Boolean(row.id && row.lp_number && row.quantity != null && row.uom),
+          )
+          .map((row) => ({
+            id: row.id,
+            lpNumber: row.lp_number,
+            quantity: row.quantity,
+            uom: row.uom,
+          })),
+      };
+    });
+  } catch (error) {
+    console.error('[warehouse] listSiblingLpsForMerge failed', error);
+    return { ok: false, error: 'error' };
   }
 }
 
