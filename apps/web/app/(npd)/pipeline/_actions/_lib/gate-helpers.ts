@@ -394,14 +394,32 @@ export async function getLaunchComplianceBlockers(
     }];
   }
 
-  const pending = launchBlockingCriteria(evaluation.data);
-  if (pending.length === 0) return [];
+  const blockingKeys = new Set<keyof ApprovalCriteriaResult>(launchBlockingCriteria(evaluation.data));
 
-  const detail = pending.map((key) => LAUNCH_CRITERION_LABELS[key]).join(', ');
+  // Launch is a regulatory dispatch gate: it requires at least one VALID (non-deleted,
+  // non-expired) compliance document REGARDLESS of the Approval-stage C7 config. An org
+  // that marks C7 not-required in npd_approval_criterion_config (so C7 -> 'not_required'
+  // for the Approval screen) must still not be able to launch a product with no docs.
+  const docs = await ctx.client.query<{ valid_docs: number }>(
+    `select count(*)::int as valid_docs
+       from public.compliance_docs
+      where product_code = $1
+        and org_id = app.current_org_id()
+        and deleted_at is null
+        and coalesce(expiry_state, 'Valid') = 'Valid'
+        and (expires_at is null or expires_at >= current_date)`,
+    [productCode],
+  );
+  if ((docs.rows[0]?.valid_docs ?? 0) <= 0) blockingKeys.add('C7');
+
+  if (blockingKeys.size === 0) return [];
+
+  const keys = [...blockingKeys];
+  const detail = keys.map((key) => LAUNCH_CRITERION_LABELS[key]).join(', ');
   return [{
     code: 'LAUNCH_COMPLIANCE_BLOCKED',
     message: `Launch blocked — complete approval criteria: ${detail}.`,
-    pendingCriteria: pending.join(','),
+    pendingCriteria: keys.join(','),
     gateCode: 'G4',
   }];
 }

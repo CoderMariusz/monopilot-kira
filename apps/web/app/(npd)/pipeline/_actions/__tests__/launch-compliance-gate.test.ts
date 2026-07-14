@@ -14,6 +14,14 @@ const CTX = {
   client: { query: vi.fn(async () => ({ rows: [] })) },
 };
 
+// ctx whose compliance-docs presence query returns `validDocs` valid documents.
+function ctxWithDocs(validDocs: number) {
+  return {
+    ...CTX,
+    client: { query: vi.fn(async () => ({ rows: [{ valid_docs: validDocs }] })) },
+  };
+}
+
 const PROJECT = {
   id: '11111111-1111-4111-8111-111111111111',
   code: 'NPD-001',
@@ -91,7 +99,25 @@ describe('getLaunchComplianceBlockers', () => {
       },
     });
 
-    await expect(getLaunchComplianceBlockers(CTX as never, PROJECT)).resolves.toEqual([]);
+    await expect(getLaunchComplianceBlockers(ctxWithDocs(1) as never, PROJECT)).resolves.toEqual([]);
+  });
+
+  it('blocks launch when compliance docs are absent even though C7 config is not_required', async () => {
+    // Regression: org marks C7 required=false so the evaluator returns not_required,
+    // but a launch (dispatch gate) must still require valid compliance docs.
+    const { getLaunchComplianceBlockers } = await loadHelpers();
+    evaluateApprovalCriteriaWithClientMock.mockResolvedValue({
+      ok: true,
+      data: { C1: 'pass', C2: 'pass', C3: 'pass', C4: 'not_required', C5: 'pass', C6: 'pass', C7: 'not_required' },
+    });
+    const blockers = await getLaunchComplianceBlockers(ctxWithDocs(0) as never, PROJECT);
+    expect(blockers).toEqual([
+      expect.objectContaining({
+        code: 'LAUNCH_COMPLIANCE_BLOCKED',
+        pendingCriteria: 'C7',
+        message: expect.stringContaining('Compliance documents'),
+      }),
+    ]);
   });
 
   it('blocks when the project has no mapped FG product code', async () => {
