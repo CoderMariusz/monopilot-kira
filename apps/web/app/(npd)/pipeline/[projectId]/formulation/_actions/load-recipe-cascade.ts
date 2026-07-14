@@ -14,6 +14,7 @@ type QueryClient = {
 
 type IngredientLineRow = {
   ingredient_line_id: string;
+  item_id: string | null;
   item_code: string | null;
   item_name: string | null;
 };
@@ -23,6 +24,7 @@ type RecipeVersionRow = {
 };
 
 type RecipeComponentRow = {
+  item_id: string | null;
   item_code: string | null;
   item_name: string | null;
   pct: string | null;
@@ -31,8 +33,18 @@ type RecipeComponentRow = {
   nutrition_per_100g: Record<string, unknown> | null;
 };
 
+type BomComponentRow = {
+  item_id: string | null;
+  item_code: string | null;
+  item_name: string | null;
+  qty_kg: string | null;
+  unit_cost: string | null;
+  nutrition_per_100g: Record<string, unknown> | null;
+};
+
 const MAX_DEPTH = 3;
 const PG_UNDEFINED_TABLE = '42P01';
+const BOM_CASCADE_LOAD_FAILED = 'BOM_CASCADE_LOAD_FAILED';
 
 export async function loadRecipeCascade(
   projectId: string,
@@ -44,6 +56,7 @@ export async function loadRecipeCascade(
     return await withOrgContext(async ({ client }) => {
       const ingredients = await client.query<IngredientLineRow>(
         `select fi.id::text as ingredient_line_id,
+                fi.item_id::text as item_id,
                 i.item_code,
                 i.name as item_name
            from public.formulations f
@@ -65,9 +78,10 @@ export async function loadRecipeCascade(
       for (const ingredient of ingredients.rows) {
         const itemCode = ingredient.item_code ?? '';
         const itemName = ingredient.item_name ?? itemCode;
-        const subRecipe = itemCode
-          ? await loadSubRecipe(client, itemCode, 1, new Set([itemCode]))
-          : undefined;
+        const subRecipe =
+          itemCode || ingredient.item_id
+            ? await loadSubRecipe(client, itemCode, 1, new Set(itemCode ? [itemCode] : []), ingredient.item_id)
+            : undefined;
         nodes.push({
           ingredientLineId: ingredient.ingredient_line_id,
           itemCode,
@@ -78,7 +92,9 @@ export async function loadRecipeCascade(
       }
       return nodes;
     });
-  } catch {
+  } catch (err) {
+    // BOM fallback failures must not collapse into a silent empty cascade.
+    if ((err as { code?: string })?.code === BOM_CASCADE_LOAD_FAILED) throw err;
     return [];
   }
 }
@@ -88,14 +104,31 @@ async function loadSubRecipe(
   itemCode: string,
   depth: number,
   visited: Set<string>,
+  itemId?: string | null,
 ): Promise<RecipeCascadeSubRecipe | undefined> {
-  const version = await findActiveRecipeVersion(client, itemCode);
-  if (!version) return undefined;
+  const version = itemCode ? await findActiveRecipeVersion(client, itemCode) : null;
+  if (version) {
+    if (depth >= MAX_DEPTH) {
+      return { lines: [], totalCost: 0, maxDepthReached: true };
+    }
+    return loadFormulationSubRecipe(client, version.version_id, depth, visited);
+  }
+
+  // WIP/intermediate fallback: ACTIVE bom_headers/bom_lines by item_id.
+  if (!itemId) return undefined;
   if (depth >= MAX_DEPTH) {
     return { lines: [], totalCost: 0, maxDepthReached: true };
   }
+  return loadBomSubRecipe(client, itemId, depth, visited);
+}
 
-  const components = await loadRecipeComponents(client, version.version_id);
+async function loadFormulationSubRecipe(
+  client: QueryClient,
+  versionId: string,
+  depth: number,
+  visited: Set<string>,
+): Promise<RecipeCascadeSubRecipe> {
+  const components = await loadRecipeComponents(client, versionId);
   const lines: RecipeCascadeSubLine[] = [];
   let totalCost = 0;
 
@@ -115,25 +148,77 @@ async function loadSubRecipe(
       ...(nutritionPer100g ? { nutritionPer100g } : {}),
     };
 
-    if (componentCode) {
-      if (visited.has(componentCode)) {
-        line.hasSubRecipe = true;
-        line.subRecipe = { lines: [], totalCost: 0, cycle: true };
-      } else {
-        const nextVisited = new Set(visited);
-        nextVisited.add(componentCode);
-        const child = await loadSubRecipe(client, componentCode, depth + 1, nextVisited);
-        if (child) {
-          line.hasSubRecipe = true;
-          line.subRecipe = child;
-        }
-      }
-    }
-
+    await attachNestedSubRecipe(client, line, componentCode, component.item_id, depth, visited);
     lines.push(line);
   }
 
   return { lines, totalCost };
+}
+
+async function loadBomSubRecipe(
+  client: QueryClient,
+  itemId: string,
+  depth: number,
+  visited: Set<string>,
+): Promise<RecipeCascadeSubRecipe | undefined> {
+  const components = await loadBomComponents(client, itemId);
+  if (components.rows.length === 0) return undefined;
+
+  const qtyValues = components.rows.map((row) => toNumber(row.qty_kg));
+  const qtySum = qtyValues.reduce((sum, qty) => sum + qty, 0);
+
+  const lines: RecipeCascadeSubLine[] = [];
+  let totalCost = 0;
+
+  for (let i = 0; i < components.rows.length; i++) {
+    const component = components.rows[i]!;
+    const componentCode = component.item_code ?? '';
+    const qtyKg = qtyValues[i] ?? 0;
+    const unitCost = toNumber(component.unit_cost);
+    totalCost += unitCost * qtyKg;
+
+    const nutritionPer100g = normalizeNutrition(component.nutrition_per_100g);
+    const line: RecipeCascadeSubLine = {
+      itemCode: componentCode,
+      itemName: component.item_name ?? componentCode,
+      pct: qtySum > 0 ? (qtyKg / qtySum) * 100 : 0,
+      unitCost,
+      ...(nutritionPer100g ? { nutritionPer100g } : {}),
+    };
+
+    await attachNestedSubRecipe(client, line, componentCode, component.item_id, depth, visited);
+    lines.push(line);
+  }
+
+  return { lines, totalCost };
+}
+
+async function attachNestedSubRecipe(
+  client: QueryClient,
+  line: RecipeCascadeSubLine,
+  componentCode: string,
+  componentItemId: string | null | undefined,
+  depth: number,
+  visited: Set<string>,
+): Promise<void> {
+  if (!componentCode && !componentItemId) return;
+
+  const visitKey = componentCode || `id:${componentItemId}`;
+  if (visited.has(visitKey) || (componentCode && visited.has(componentCode))) {
+    line.hasSubRecipe = true;
+    line.subRecipe = { lines: [], totalCost: 0, cycle: true };
+    return;
+  }
+
+  const nextVisited = new Set(visited);
+  nextVisited.add(visitKey);
+  if (componentCode) nextVisited.add(componentCode);
+
+  const child = await loadSubRecipe(client, componentCode, depth + 1, nextVisited, componentItemId);
+  if (child) {
+    line.hasSubRecipe = true;
+    line.subRecipe = child;
+  }
 }
 
 async function findActiveRecipeVersion(client: QueryClient, itemCode: string): Promise<RecipeVersionRow | null> {
@@ -156,7 +241,8 @@ async function findActiveRecipeVersion(client: QueryClient, itemCode: string): P
 async function loadRecipeComponents(client: QueryClient, versionId: string): Promise<{ rows: RecipeComponentRow[] }> {
   try {
     return await client.query<RecipeComponentRow>(
-      `select coalesce(i.item_code, fi.rm_code) as item_code,
+      `select i.id::text as item_id,
+              coalesce(i.item_code, fi.rm_code) as item_code,
               coalesce(i.name, fi.rm_code) as item_name,
               fi.pct::text,
               fi.qty_kg::text,
@@ -179,7 +265,8 @@ async function loadRecipeComponents(client: QueryClient, versionId: string): Pro
   } catch (err) {
     if ((err as { code?: string })?.code !== PG_UNDEFINED_TABLE) throw err;
     return await client.query<RecipeComponentRow>(
-      `select coalesce(i.item_code, fi.rm_code) as item_code,
+      `select i.id::text as item_id,
+              coalesce(i.item_code, fi.rm_code) as item_code,
               coalesce(i.name, fi.rm_code) as item_name,
               fi.pct::text,
               fi.qty_kg::text,
@@ -196,6 +283,73 @@ async function loadRecipeComponents(client: QueryClient, versionId: string): Pro
         order by fi.sequence`,
       [versionId],
     );
+  }
+}
+
+/** Exact pattern of technical/bom loadWipSubBom — ACTIVE header by item_id — plus cost/name for cascade. */
+async function loadBomComponents(client: QueryClient, wipItemId: string): Promise<{ rows: BomComponentRow[] }> {
+  try {
+    try {
+      return await client.query<BomComponentRow>(
+        `select bl.item_id::text as item_id,
+                bl.component_code as item_code,
+                coalesce(i.name, bl.component_code) as item_name,
+                bl.quantity::text as qty_kg,
+                vec.amount::text as unit_cost,
+                rm.nutrition_per_100g
+           from public.bom_lines bl
+           join public.bom_headers h
+             on h.id = bl.bom_header_id and h.org_id = bl.org_id
+           left join public.items i
+             on i.id = bl.item_id and i.org_id = bl.org_id
+           left join public.v_item_effective_cost vec
+             on vec.item_id = bl.item_id
+            and vec.org_id = app.current_org_id()
+           left join "Reference"."RawMaterials" rm
+             on rm.org_id = app.current_org_id()
+            and rm.rm_code = bl.component_code
+          where bl.org_id = app.current_org_id()
+            and h.org_id = app.current_org_id()
+            and h.item_id = $1::uuid
+            and h.status = 'active'
+          order by bl.line_no asc`,
+        [wipItemId],
+      );
+    } catch (err) {
+      if ((err as { code?: string })?.code !== PG_UNDEFINED_TABLE) throw err;
+      // ponytail: RawMaterials may be absent in some test/envs; cost/name still resolve.
+      return await client.query<BomComponentRow>(
+        `select bl.item_id::text as item_id,
+                bl.component_code as item_code,
+                coalesce(i.name, bl.component_code) as item_name,
+                bl.quantity::text as qty_kg,
+                vec.amount::text as unit_cost,
+                null::jsonb as nutrition_per_100g
+           from public.bom_lines bl
+           join public.bom_headers h
+             on h.id = bl.bom_header_id and h.org_id = bl.org_id
+           left join public.items i
+             on i.id = bl.item_id and i.org_id = bl.org_id
+           left join public.v_item_effective_cost vec
+             on vec.item_id = bl.item_id
+            and vec.org_id = app.current_org_id()
+          where bl.org_id = app.current_org_id()
+            and h.org_id = app.current_org_id()
+            and h.item_id = $1::uuid
+            and h.status = 'active'
+          order by bl.line_no asc`,
+        [wipItemId],
+      );
+    }
+  } catch (err) {
+    console.error('[npd/formulation] loadRecipeCascade BOM fallback failed', {
+      itemId: wipItemId,
+      err: err instanceof Error ? err.message : String(err),
+    });
+    throw Object.assign(new Error(BOM_CASCADE_LOAD_FAILED), {
+      code: BOM_CASCADE_LOAD_FAILED,
+      cause: err,
+    });
   }
 }
 

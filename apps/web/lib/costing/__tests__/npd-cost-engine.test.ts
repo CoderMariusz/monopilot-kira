@@ -159,6 +159,8 @@ describe('computeNpdCostEngine', () => {
             quantityUom: 'pack',
             rawMaterialCostPerOutputUnit: '0.50',
             yieldPct: '80',
+            wipDefinitionId: 'def-1',
+            wipItemId: 'item-1',
             processes: [
               {
                 throughputPerHour: '100',
@@ -172,6 +174,44 @@ describe('computeNpdCostEngine', () => {
     );
 
     expect(result.rawCostEur).toBe('0.8510');
+    // unitCost = (0.50 + 10/100) / 0.80 = 0.7500; contribution = 0.7500 × 1
+    expect(result.wipComponentCosts).toEqual([
+      {
+        wipDefinitionId: 'def-1',
+        wipItemId: 'item-1',
+        unitCostEur: '0.7500',
+        contributionEur: '0.7500',
+      },
+    ]);
+  });
+
+  it('FG roll-up picks up a non-zero WIP unit cost (G4 — not dropped)', () => {
+    // Material £2/unit + labour rate 20 × hc 1 × duration 1h.
+    // Waterfall duration labour is / packsPerBatch (1000) → unit ≈ 2.002; ×0.5 qty.
+    const result = computeNpdCostEngine(
+      breadInput({
+        wipComponents: [
+          {
+            quantity: '0.5',
+            quantityUom: 'kg',
+            rawMaterialCostPerOutputUnit: '2',
+            yieldPct: '100',
+            wipItemId: 'wip-flour-mix',
+            processes: [
+              {
+                durationHours: '1',
+                additionalCost: '0',
+                roles: [{ ratePerHour: '20', headcount: '1' }],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(result.wipComponentCosts).toHaveLength(1);
+    expect(Number(result.wipComponentCosts[0]!.unitCostEur)).toBeGreaterThan(0);
+    expect(Number(result.rawCostEur)).toBeGreaterThan(0.101);
   });
 
   it('prices raw materials per pack from per-pack qtyKg while keeping the per-kg column derivable', () => {

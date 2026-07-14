@@ -2064,6 +2064,13 @@ export function FormulationEditor({
                               <TableCell />
                             </TableRow>
                           </>
+                        ) : expanded && !cascadeLoading && cascadeRows !== null ? (
+                          <TableRow data-testid="recipe-cascade-empty">
+                            <TableCell colSpan={6} className="text-xs muted">
+                              {/* TODO(i18n): npd.formulationEditor.cascadeEmpty */}
+                              No sub-recipe
+                            </TableCell>
+                          </TableRow>
                         ) : null}
                       </React.Fragment>
                     );

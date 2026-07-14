@@ -49,6 +49,13 @@ vi.mock('@monopilot/domain', () => ({
     nutrition: {},
     allergens: mockConfig.ingredientAllergens,
   }),
+  resolveComponentNutrition: async (
+    codes: string[],
+    loaders: { loadRawMaterials: (codes: string[]) => Promise<Record<string, unknown>> },
+  ) => {
+    await loaders.loadRawMaterials(codes);
+    return {};
+  },
 }));
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({

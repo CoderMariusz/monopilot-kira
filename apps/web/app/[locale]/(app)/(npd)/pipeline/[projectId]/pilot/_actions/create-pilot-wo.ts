@@ -52,6 +52,8 @@ type CreatePilotWoResult =
   | { ok: false; error: CreatePilotWoError; message?: string; planningError?: string };
 
 const WRITE_PERMISSION = 'npd.pilot.write';
+const WIP_ITEM_REQUIRED_MESSAGE =
+  'The intermediate/WIP item for this process is not active yet — open the WIP/BOM and activate it.';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }>;
@@ -372,7 +374,11 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
           return { ok: false as const, error: 'packs_per_box_required' as const };
         }
         if (materialized.code === 'WIP_ITEM_REQUIRED') {
-          return { ok: false as const, error: 'wip_item_required' as const };
+          return {
+            ok: false as const,
+            error: 'wip_item_required' as const,
+            message: WIP_ITEM_REQUIRED_MESSAGE,
+          };
         }
         if (!materialized.bomHeaderId) {
           return { ok: false as const, error: 'recipe_not_ready' as const };

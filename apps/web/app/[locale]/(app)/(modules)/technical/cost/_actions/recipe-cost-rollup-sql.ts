@@ -1,6 +1,11 @@
 /**
  * Shared SQL fragments for BOM material cost roll-ups (recipe + portfolio).
  * Suppresses invalid cross-currency sums — no FX table exists (Wave 10 / option a).
+ *
+ * Intermediate/WIP components resolve via v_item_effective_cost (cost_history →
+ * supplier → list → wip_computed from ACTIVE BOM + npd_wip_processes labour per
+ * mig 491). Portfolio list stays FG-only by product decision — roll-up correctness
+ * for WIPs is in the recipe BOM total, not the portfolio catalogue.
  */
 
 export const MIXED_CURRENCY_ROLLUP_MARKER = 'mixed_currency';

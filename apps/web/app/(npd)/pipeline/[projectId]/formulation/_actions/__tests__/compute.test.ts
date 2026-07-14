@@ -133,6 +133,22 @@ describe('compareVersions Server Action', () => {
 // (3) Reference.RawMaterials nutrition, (4) cache upsert.
 // ───────────────────────────────────────────────────────────────────────────
 describe('recomputeAndCache Server Action', () => {
+  it('cascades WIP nutrition and allergens into a parent formulation', async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ batch_size_kg: '1', pack_weight_g: '1000', target_price_eur: null, target_yield_pct: '100' }] })
+      .mockResolvedValueOnce({ rows: [{ rm_code: 'WIP-WHEAT', qty_kg: '0.5', pct: '50', cost_per_kg_eur: '1', allergens_inherited: [] }] })
+      .mockResolvedValueOnce({ rows: [] }) // WIP has no RawMaterials row
+      .mockResolvedValueOnce({ rows: [{ item_code: 'WIP-WHEAT', id: 'wip-item-id' }] })
+      .mockResolvedValueOnce({ rows: [{ component_code: 'RM-WHEAT-FLOUR', quantity: '100' }] })
+      .mockResolvedValueOnce({ rows: [{ rm_code: 'RM-WHEAT-FLOUR', nutrition_per_100g: { energy_kj: '1523', protein_g: '10.3' }, allergens_inherited: ['gluten'] }] })
+      .mockResolvedValueOnce({ rows: [] }); // cache upsert
+
+    const result = await recomputeAndCache({ projectId: 'proj-1', versionId: 'ver-1' });
+
+    expect(result.nutrition).toEqual({ energy_kj: '761.50', protein_g: '5.15' });
+    expect(result.allergens).toEqual(['gluten']);
+  });
+
   it('computes from version ingredients and upserts formulation_calc_cache', async () => {
     // Costing v2: a 1 kg pack with 0.5 kg of each RM. rawCostPerPack =
     // 0.5×2 + 0.5×4 = 3.00; rawCost/kg = 3.00 / 1 kg = 3.0000.

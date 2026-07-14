@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { computeNutrition } from '../compute-nutrition.js';
+import { computeNutrition, resolveComponentNutrition } from '../compute-nutrition.js';
 
 describe('computeNutrition', () => {
   it('computes weighted per-100g nutrition and per-portion values for the seven EU FIC nutrients', () => {
@@ -56,5 +56,52 @@ describe('computeNutrition', () => {
     const energy = result.find((row) => row.nutrientCode === 'energy_kj');
     expect(Number(energy?.per100g)).toBeCloseTo(599.4, 2);
     expect(energy?.perPortion).toBe('239.76');
+  });
+
+  it('rolls a 100% wheat-flour WIP into an FG at 50%', async () => {
+    const loadActiveBom = vi.fn(async () => [
+      { componentCode: 'RM-WHEAT-FLOUR', quantity: '100' },
+    ]);
+    const sources = await resolveComponentNutrition(['WIP-WHEAT'], {
+      loadRawMaterials: async (codes) => Object.fromEntries(
+        codes.includes('RM-WHEAT-FLOUR')
+          ? [[
+              'RM-WHEAT-FLOUR',
+              {
+                nutritionPer100g: { energy_kj: '1523', protein_g: '10.3' },
+                allergensInherited: ['gluten'],
+              },
+            ]]
+          : [],
+      ),
+      loadIntermediates: async (codes) => Object.fromEntries(
+        codes.includes('WIP-WHEAT') ? [['WIP-WHEAT', 'wip-item-id']] : [],
+      ),
+      loadActiveBom,
+    });
+
+    expect(sources['WIP-WHEAT']).toEqual({
+      nutritionPer100g: { energy_kj: '1523.00', protein_g: '10.30' },
+      allergensInherited: ['gluten'],
+    });
+    expect(computeNutrition(
+      [{ rmCode: 'WIP-WHEAT', pct: '50' }],
+      { 'WIP-WHEAT': sources['WIP-WHEAT']?.nutritionPer100g },
+    ).filter((row) => row.nutrientCode === 'energy_kj' || row.nutrientCode === 'protein_g')).toEqual([
+      { nutrientCode: 'energy_kj', per100g: '761.50', perPortion: '761.50' },
+      { nutrientCode: 'protein_g', per100g: '5.15', perPortion: '5.15' },
+    ]);
+    expect(loadActiveBom).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects cyclic WIP BOMs', async () => {
+    await expect(resolveComponentNutrition(['WIP-A'], {
+      loadRawMaterials: async () => ({}),
+      loadIntermediates: async (codes) => Object.fromEntries(codes.map((code) => [code, `${code}-id`])),
+      loadActiveBom: async (itemId) => [{
+        componentCode: itemId === 'WIP-A-id' ? 'WIP-B' : 'WIP-A',
+        quantity: '100',
+      }],
+    })).rejects.toThrow('Cyclic WIP BOM: WIP-A -> WIP-B -> WIP-A');
   });
 });

@@ -442,6 +442,8 @@ export function PilotScreen({
         return labels.createPilotWoErrorNoActiveSite ?? labels.createPilotWoError;
       case 'document_mask_missing':
         return labels.createPilotWoErrorDocumentMaskMissing ?? labels.createPilotWoError;
+      case 'wip_item_required':
+        return message ?? labels.createPilotWoError;
       case 'wo_create_failed':
         return message
           ? `${labels.createPilotWoErrorPlanning}: ${message}`

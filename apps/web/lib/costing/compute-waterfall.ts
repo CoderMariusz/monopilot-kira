@@ -83,6 +83,18 @@ export interface NpdWipComponentInput {
   rawMaterialCostPerOutputUnit: string;
   yieldPct: string;
   processes: NpdCostProcessInput[];
+  /** Optional identity so callers can persist the computed WIP unit cost. */
+  wipDefinitionId?: string;
+  wipItemId?: string;
+}
+
+export interface NpdWipComponentCost {
+  wipDefinitionId?: string;
+  wipItemId?: string;
+  /** Unit cost of ONE WIP output unit (materials + process labour / yield). */
+  unitCostEur: string;
+  /** Contribution of this WIP line to the FG pack (`unitCost × quantity`). */
+  contributionEur: string;
 }
 
 export interface NpdCostEngineInput {
@@ -128,6 +140,8 @@ export interface WaterfallResult {
     logisticsEur: string;
     marginPct: string;
   };
+  /** Per-WIP unit costs computed during the FG waterfall (not discarded). */
+  wipComponentCosts: NpdWipComponentCost[];
 }
 
 export interface WaterfallThresholds {
@@ -218,11 +232,19 @@ export function computeNpdCostEngine(input: NpdCostEngineInput): WaterfallResult
   };
 
   let raw = sumIngredientRawCostPerPack(input.ingredients);
+  const wipComponentCosts: NpdWipComponentCost[] = [];
   for (const wip of input.wipComponents ?? []) {
     const componentUnitCost = computeWipComponentCostDecimal(wip, packWeightKg, avgBatchQty);
     // quantity is already per pack in the WIP's base unit — rescaling by
     // unitToPackFactor here would multiply by pack weight a second time (review H1).
-    raw = raw.add(componentUnitCost.mul(Dec.from(wip.quantity)));
+    const contribution = componentUnitCost.mul(Dec.from(wip.quantity));
+    raw = raw.add(contribution);
+    wipComponentCosts.push({
+      wipDefinitionId: wip.wipDefinitionId,
+      wipItemId: wip.wipItemId,
+      unitCostEur: componentUnitCost.toFixed(4),
+      contributionEur: contribution.toFixed(4),
+    });
   }
 
   const yieldPct = yieldPctText ?? '100';
@@ -256,6 +278,7 @@ export function computeNpdCostEngine(input: NpdCostEngineInput): WaterfallResult
     units,
     missing,
     legacyDurationBasis: processResult.legacyDurationBasis,
+    wipComponentCosts,
   });
 }
 
@@ -275,6 +298,7 @@ function buildResult(input: {
   units: NpdCostUnits;
   missing: CostingErrorCode[];
   legacyDurationBasis: boolean;
+  wipComponentCosts?: NpdWipComponentCost[];
 }): WaterfallResult {
   // V07: gate on FULL precision, report display-rounded. Rounding before the
   // gate made 14.99999 read as 15.0000 (skips warn) and -0.00001 as 0.0000
@@ -326,6 +350,7 @@ function buildResult(input: {
       logisticsEur: input.logistics.toFixed(4),
       marginPct,
     },
+    wipComponentCosts: input.wipComponentCosts ?? [],
   };
 }
 

@@ -34,6 +34,7 @@
  */
 
 import { Dec } from './decimal.js';
+import { computeNutritionPer100g } from '../nutrition/compute-nutrition.js';
 
 // ─── Validation gate constants (PRD §17.11.1) ────────────────────────────────
 // String constants so the gate bounds flow through the exact-money `Dec` path
@@ -47,7 +48,6 @@ export const TOTAL_PCT_MAX = '100.01';
 const PCT_DP = 3; // totalPct e.g. "100.000"
 const COST_DP = 4; // per-kg costs e.g. "1.7868"
 const MARGIN_DP = 2; // marginPct e.g. "33.00"
-const NUTRITION_DP = 2; // per-100g nutrient e.g. "15.00"
 
 // ─── Default process constants ───────────────────────────────────────────────
 const DEFAULT_PROCESSING_OVERHEAD_PCT = '8'; // 8 % of yielded cost
@@ -231,7 +231,10 @@ export function recomputeCalc(input: RecomputeInput): RecomputeResult {
     : revenuePerKgDec.sub(costPerKgDec).div(revenuePerKgDec).mul(HUNDRED);
 
   // ── nutrition per-100g weighted sum ────────────────────────────────────────
-  const nutrition = computeNutrition(ingredients);
+  const nutrition = computeNutritionPer100g(
+    ingredients.map((ingredient) => ({ rmCode: ingredient.rmCode, pct: ingredient.pct ?? null })),
+    Object.fromEntries(ingredients.map((ingredient) => [ingredient.rmCode, ingredient.nutritionPer100g])),
+  );
 
   // ── allergen union (EU14 inherited + process-added) ────────────────────────
   const allergens = unionAllergens(ingredients, input.processAddedAllergens ?? []);
@@ -272,29 +275,6 @@ function withinTolerance(value: Dec, target: Dec, tolerancePct: Dec): boolean {
   const diff = value.sub(target);
   const absDiff = diff.cmp(Dec.zero()) < 0 ? Dec.zero().sub(diff) : diff;
   return absDiff.cmp(allowance) <= 0;
-}
-
-/**
- * Weighted-sum per-100g nutrition: for each nutrient, Σ(pct/100 × per100g).
- * Returns an empty object when no ingredient carries nutrition data. Nutrient
- * keys are emitted in a deterministic (sorted) order for byte-stable output.
- */
-function computeNutrition(ingredients: RecomputeIngredient[]): Record<string, string> {
-  const acc = new Map<string, Dec>();
-  for (const ing of ingredients) {
-    if (!ing.nutritionPer100g) continue;
-    const fraction = Dec.from(ing.pct).div(HUNDRED);
-    for (const [nutrient, value] of Object.entries(ing.nutritionPer100g)) {
-      const contribution = fraction.mul(Dec.from(value));
-      const current = acc.get(nutrient) ?? Dec.zero();
-      acc.set(nutrient, current.add(contribution));
-    }
-  }
-  const out: Record<string, string> = {};
-  for (const key of [...acc.keys()].sort()) {
-    out[key] = (acc.get(key) as Dec).toFixed(NUTRITION_DP);
-  }
-  return out;
 }
 
 /**

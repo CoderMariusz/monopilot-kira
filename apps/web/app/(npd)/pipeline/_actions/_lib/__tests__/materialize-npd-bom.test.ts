@@ -780,7 +780,7 @@ describe('materializeNpdBom', () => {
     expect(pmLineInsert?.params[6]).toBe('4.000000');
   });
 
-  it('with zero process assignments materializes WIP child BOM from wip_definition_ingredients only (invariance)', async () => {
+  it('self-heals a linked inactive WIP item and materializes its child BOM', async () => {
     const client = createClient((sql) => {
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
@@ -811,6 +811,28 @@ describe('materializeNpdBom', () => {
       }
       if (sql.includes('sum(fi.qty_kg)')) return [];
       if (sql.startsWith('select wd.id::text as id')) {
+        if (sql.includes('wd.id = $1::uuid')) {
+          return [{
+            id: WIP_DEF,
+            item_id: WIP_ITEM,
+            item_code: null,
+            name: 'Dough',
+            base_uom: 'kg',
+            yield_pct: '100',
+            version: 1,
+          }];
+        }
+        return [{
+          id: WIP_DEF,
+          item_id: WIP_ITEM,
+          item_code: 'WIP-DOUGH',
+          name: 'Dough',
+          base_uom: 'kg',
+          yield_pct: '100',
+          version: 1,
+        }];
+      }
+      if (sql.startsWith('with candidate as')) {
         return [{
           id: WIP_DEF,
           item_id: WIP_ITEM,
@@ -846,8 +868,12 @@ describe('materializeNpdBom', () => {
       throw new Error(`Unhandled SQL: ${sql}`);
     });
 
-    await materializeNpdBom(ctx(client), { projectId: PROJECT });
+    const result = await materializeNpdBom(ctx(client), { projectId: PROJECT });
 
+    expect(result.code).toBeUndefined();
+    const repair = client.calls.find((call) => normalize(call.sql).startsWith('with candidate as'));
+    expect(repair?.sql).toContain("item.item_type = 'intermediate'");
+    expect(repair?.sql).toContain("set status = 'active'");
     expect(client.calls.some((call) => normalize(call.sql).includes('wp.wip_definition_id = $2::uuid'))).toBe(false);
     expect(client.calls.some((call) => normalize(call.sql).includes('from public.wip_definition_ingredients'))).toBe(true);
     const fgLineInserts = client.calls.filter(
@@ -862,6 +888,50 @@ describe('materializeNpdBom', () => {
     const wipChildLine = wipChildLines[0];
     expect(wipChildLine?.params[3]).toBe('RM-FLOUR');
     expect(wipChildLine?.params[4]).toBe('0.500000');
+  });
+
+  it('returns the exact WIP definition when no active intermediate item can be resolved', async () => {
+    const client = createClient((sql) => {
+      if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
+      if (sql.startsWith('select id from public.items where org_id')) return [];
+      if (sql.startsWith('select f.id as formulation_id')) {
+        return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '100' }];
+      }
+      if (isIngredientQuery(sql)) {
+        return [{
+          rm_code: 'WIP-INACTIVE',
+          item_id: null,
+          qty_kg: '1.000000',
+          sequence: 1,
+          wip_definition_id: WIP_DEF,
+          npd_wip_process_id: null,
+        }];
+      }
+      if (sql.startsWith('select wd.id::text as id')) {
+        expect(sql).toContain("i.item_type = 'intermediate'");
+        expect(sql).toContain("i.status = 'active'");
+        return [{
+          id: WIP_DEF,
+          item_id: WIP_ITEM,
+          item_code: null,
+          name: 'Inactive WIP',
+          base_uom: 'kg',
+          yield_pct: '100',
+          version: 1,
+        }];
+      }
+      if (sql.startsWith('with candidate as')) return [];
+      if (sql.includes('sum(fi.qty_kg)')) return [];
+      if (sql.startsWith('select h.id, h.version')) return [];
+      throw new Error(`Unhandled SQL: ${sql}`);
+    });
+
+    const result = await materializeNpdBom(ctx(client), { projectId: PROJECT });
+
+    expect(result).toMatchObject({
+      code: 'WIP_ITEM_REQUIRED',
+      wipDefinitionIds: [WIP_DEF],
+    });
   });
 
   it('materializes WIP child BOM lines from process-assigned formulation ingredients', async () => {

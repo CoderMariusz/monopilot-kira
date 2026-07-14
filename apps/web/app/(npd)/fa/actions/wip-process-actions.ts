@@ -319,11 +319,13 @@ async function ensureWipItem(ctx: OrgContextLike, processName: string, processId
   if (process.wip_definition_id) {
     if (process.definition_item_id) {
       const existingDefinitionItem = await ctx.client.query<{ id: string }>(
-        `select id
-           from public.items
+        `update public.items
+            set status = 'active',
+                updated_at = now()
           where org_id = app.current_org_id()
             and id = $1::uuid
-          limit 1`,
+            and item_type = 'intermediate'
+        returning id`,
         [process.definition_item_id],
       );
       const definitionItemId = existingDefinitionItem.rows[0]?.id;
@@ -373,11 +375,13 @@ async function ensureWipItem(ctx: OrgContextLike, processName: string, processId
   const existingItemId = process.wip_item_id;
   if (existingItemId) {
     const existingItem = await ctx.client.query<{ id: string }>(
-      `select id
-         from public.items
+      `update public.items
+          set status = 'active',
+              updated_at = now()
         where org_id = app.current_org_id()
           and id = $1::uuid
-        limit 1`,
+          and item_type = 'intermediate'
+      returning id`,
       [existingItemId],
     );
     if (existingItem.rows[0]?.id) {

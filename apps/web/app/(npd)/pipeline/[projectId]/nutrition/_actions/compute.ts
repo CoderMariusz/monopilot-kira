@@ -1,6 +1,10 @@
 'use server';
 
-import { computeNutrition as computeNutritionRows, nutriScore } from '@monopilot/domain';
+import {
+  computeNutrition as computeNutritionRows,
+  nutriScore,
+  resolveComponentNutrition,
+} from '@monopilot/domain';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
@@ -45,6 +49,16 @@ interface RawMaterialRow {
   allergens_inherited: string[] | null;
 }
 
+interface IntermediateRow {
+  item_code: string;
+  id: string;
+}
+
+interface BomLineRow {
+  component_code: string;
+  quantity: string;
+}
+
 export async function computeNutrition(raw: unknown): Promise<ComputeNutritionResult> {
   const parsed = Input.safeParse(raw);
   if (!parsed.success) {
@@ -83,23 +97,52 @@ export async function computeNutrition(raw: unknown): Promise<ComputeNutritionRe
       const rmCodes = [...new Set(ingredientsRes.rows.map((row) => row.rm_code))];
       const nutritionByRm: Record<string, Record<string, string>> = {};
       const allergenCodes = new Set<string>();
-      if (rmCodes.length > 0) {
-        const rawMaterials = await client.query<RawMaterialRow>(
-          `select rm_code, nutrition_per_100g, allergens_inherited
-             from "Reference"."RawMaterials"
-            where org_id = app.current_org_id()
-              and rm_code = any($1::text[])`,
-          [rmCodes],
-        );
-
-        for (const row of rawMaterials.rows) {
-          if (row.nutrition_per_100g) {
-            nutritionByRm[row.rm_code] = stringifyNutrition(row.nutrition_per_100g);
-          }
-          for (const allergen of row.allergens_inherited ?? []) {
-            const code = allergen.trim();
-            if (code.length > 0) allergenCodes.add(code);
-          }
+      const sources = await resolveComponentNutrition(rmCodes, {
+        loadRawMaterials: async (codes) => {
+          const { rows } = await client.query<RawMaterialRow>(
+            `select rm_code, nutrition_per_100g, allergens_inherited
+               from "Reference"."RawMaterials"
+              where org_id = app.current_org_id()
+                and rm_code = any($1::text[])`,
+            [codes],
+          );
+          return Object.fromEntries(rows.map((row) => [row.rm_code, {
+            nutritionPer100g: stringifyNutrition(row.nutrition_per_100g ?? {}),
+            allergensInherited: row.allergens_inherited ?? [],
+          }]));
+        },
+        loadIntermediates: async (codes) => {
+          const { rows } = await client.query<IntermediateRow>(
+            `select item_code, id::text as id
+               from public.items
+              where org_id = app.current_org_id()
+                and item_type = 'intermediate'
+                and item_code = any($1::text[])`,
+            [codes],
+          );
+          return Object.fromEntries(rows.map((row) => [row.item_code, row.id]));
+        },
+        loadActiveBom: async (itemId) => {
+          const { rows } = await client.query<BomLineRow>(
+            `select bl.component_code, bl.quantity::text as quantity
+               from public.bom_lines bl
+               join public.bom_headers h
+                 on h.id = bl.bom_header_id and h.org_id = bl.org_id
+              where bl.org_id = app.current_org_id()
+                and h.org_id = app.current_org_id()
+                and h.item_id = $1::uuid
+                and h.status = 'active'
+              order by bl.line_no asc`,
+            [itemId],
+          );
+          return rows.map((row) => ({ componentCode: row.component_code, quantity: row.quantity }));
+        },
+      });
+      for (const [code, source] of Object.entries(sources)) {
+        nutritionByRm[code] = stringifyNutrition(source.nutritionPer100g);
+        for (const allergen of source.allergensInherited) {
+          const normalized = allergen.trim();
+          if (normalized) allergenCodes.add(normalized);
         }
       }
 

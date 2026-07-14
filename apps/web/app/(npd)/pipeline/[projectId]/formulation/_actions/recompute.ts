@@ -27,7 +27,14 @@
  */
 
 import { z } from 'zod';
-import { Dec, recomputeCalc, type RecomputeIngredient, type RecomputeResult } from '@monopilot/domain';
+import {
+  Dec,
+  recomputeCalc,
+  resolveComponentNutrition,
+  type RecomputeIngredient,
+  type RecomputeResult,
+  type ResolvedComponentNutrition,
+} from '@monopilot/domain';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 
@@ -66,6 +73,13 @@ interface IngredientRow {
 interface RawMaterialNutritionRow {
   rm_code: string;
   nutrition_per_100g: Record<string, unknown> | null;
+  allergens_inherited: string[] | null;
+}
+
+interface IntermediateRow { item_code: string; id: string }
+interface BomLineRow { component_code: string; quantity: string }
+interface NutritionQueryClient {
+  query<T>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
 }
 
 /** Postgres SQLSTATE for "undefined_table" (relation does not exist). */
@@ -79,54 +93,70 @@ const PG_UNDEFINED_TABLE = '42P01';
  * when the canonical table has not yet been provisioned.
  */
 type RmNutritionLoadResult = {
-  nutritionByRm: Map<string, Record<string, string>>;
+  sources: Record<string, ResolvedComponentNutrition>;
   /** False only when Reference.RawMaterials is missing (42P01) — not when the query returns zero rows. */
   sourceAvailable: boolean;
 };
 
 async function loadRmNutrition(
-  client: { query: (sql: string, params?: unknown[]) => Promise<{ rows: RawMaterialNutritionRow[] }> },
+  client: NutritionQueryClient,
   rmCodes: string[],
 ): Promise<RmNutritionLoadResult> {
-  const nutritionByRm = new Map<string, Record<string, string>>();
-  if (rmCodes.length === 0) {
-    return { nutritionByRm, sourceAvailable: true };
-  }
-  const uniqueCodes = [...new Set(rmCodes)];
-
-  let rows: RawMaterialNutritionRow[];
-  try {
-    const res = await client.query(
-      `select rm_code, nutrition_per_100g
-         from "Reference"."RawMaterials"
-        where rm_code = any($1::text[])`,
-      [uniqueCodes],
-    );
-    rows = res.rows;
-  } catch (err) {
-    // Canonical RM-nutrition source not yet provisioned → degrade gracefully to
-    // empty nutrition rather than failing the whole recompute. Never silent.
-    if ((err as { code?: string })?.code === PG_UNDEFINED_TABLE) {
-      console.warn(
-        '[recomputeAndCache] Reference.RawMaterials missing (migration 103 not applied) — nutrition_json will be empty',
+  let sourceAvailable = true;
+  const sources = await resolveComponentNutrition(rmCodes, {
+    loadRawMaterials: async (codes) => {
+      let rows: RawMaterialNutritionRow[];
+      try {
+        ({ rows } = await client.query<RawMaterialNutritionRow>(
+          `select rm_code, nutrition_per_100g, allergens_inherited
+             from "Reference"."RawMaterials"
+            where org_id = app.current_org_id()
+              and rm_code = any($1::text[])`,
+          [codes],
+        ));
+      } catch (err) {
+        if ((err as { code?: string })?.code !== PG_UNDEFINED_TABLE) throw err;
+        console.warn('[recomputeAndCache] Reference.RawMaterials missing (migration 103 not applied) — nutrition_json will be empty');
+        sourceAvailable = false;
+        return {};
+      }
+      return Object.fromEntries(rows.map((row) => [row.rm_code, {
+        nutritionPer100g: Object.fromEntries(
+          Object.entries(row.nutrition_per_100g ?? {})
+            .filter(([, value]) => value !== null && value !== undefined)
+            .map(([nutrient, value]) => [nutrient, String(value)]),
+        ),
+        allergensInherited: row.allergens_inherited ?? [],
+      }]));
+    },
+    loadIntermediates: async (codes) => {
+      const { rows } = await client.query<IntermediateRow>(
+        `select item_code, id::text as id
+           from public.items
+          where org_id = app.current_org_id()
+            and item_type = 'intermediate'
+            and item_code = any($1::text[])`,
+        [codes],
       );
-      return { nutritionByRm, sourceAvailable: false };
-    }
-    throw err;
-  }
-
-  for (const row of rows) {
-    const src = row.nutrition_per_100g;
-    if (!src || typeof src !== 'object') continue;
-    const perNutrient: Record<string, string> = {};
-    for (const [nutrient, value] of Object.entries(src)) {
-      if (value === null || value === undefined) continue;
-      // Coerce to string at the boundary; the pure function keeps it exact.
-      perNutrient[nutrient] = String(value);
-    }
-    nutritionByRm.set(row.rm_code, perNutrient);
-  }
-  return { nutritionByRm, sourceAvailable: true };
+      return Object.fromEntries(rows.map((row) => [row.item_code, row.id]));
+    },
+    loadActiveBom: async (itemId) => {
+      const { rows } = await client.query<BomLineRow>(
+        `select bl.component_code, bl.quantity::text as quantity
+           from public.bom_lines bl
+           join public.bom_headers h
+             on h.id = bl.bom_header_id and h.org_id = bl.org_id
+          where bl.org_id = app.current_org_id()
+            and h.org_id = app.current_org_id()
+            and h.item_id = $1::uuid
+            and h.status = 'active'
+          order by bl.line_no asc`,
+        [itemId],
+      );
+      return rows.map((row) => ({ componentCode: row.component_code, quantity: row.quantity }));
+    },
+  });
+  return { sources, sourceAvailable };
 }
 
 export async function recomputeAndCache(rawInput: RecomputeInput): Promise<RecomputeResult> {
@@ -186,19 +216,20 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
     );
 
     // ── per-RM nutrition (canonical Reference.RawMaterials.nutrition_per_100g) ─
-    const { nutritionByRm, sourceAvailable: nutritionSourceAvailable } = await loadRmNutrition(
+    const { sources, sourceAvailable: nutritionSourceAvailable } = await loadRmNutrition(
       client,
       ingRes.rows.map((r) => r.rm_code),
     );
 
     const ingredients: RecomputeIngredient[] = ingRes.rows.map((r) => {
-      const nutritionPer100g = nutritionByRm.get(r.rm_code);
+      const source = sources[r.rm_code];
+      const nutritionPer100g = source?.nutritionPer100g;
       return {
         rmCode: r.rm_code,
         qtyKg: r.qty_kg,
         pct: r.pct,
         costPerKgEur: r.cost_per_kg_eur,
-        allergensInherited: r.allergens_inherited ?? [],
+        allergensInherited: [...new Set([...(r.allergens_inherited ?? []), ...(source?.allergensInherited ?? [])])],
         ...(nutritionPer100g ? { nutritionPer100g } : {}),
       };
     });

@@ -129,6 +129,41 @@ async function seed(pool: pg.Pool) {
 }
 
 describe('computeNutrition action unit coverage', () => {
+  it('computes a WIP declaration from its active BOM', async () => {
+    const fakeClient = {
+      query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+        const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
+        if (normalized.includes('from public.user_roles ur')) return { rows: [{ ok: true }], rowCount: 1 };
+        if (normalized.includes('from public.formulation_versions')) {
+          return { rows: [{ product_code: productA }], rowCount: 1 };
+        }
+        if (normalized.includes('from public.formulation_ingredients')) {
+          return { rows: [{ rm_code: 'WIP-WHEAT', pct: '100' }], rowCount: 1 };
+        }
+        if (normalized.includes('from "reference"."rawmaterials"')) {
+          return (params[0] as string[]).includes('RM-WHEAT-FLOUR')
+            ? { rows: [{ rm_code: 'RM-WHEAT-FLOUR', nutrition_per_100g: { energy_kj: '1523', protein_g: '10.3' }, allergens_inherited: ['gluten'] }], rowCount: 1 }
+            : { rows: [], rowCount: 0 };
+        }
+        if (normalized.includes('from public.items')) {
+          return { rows: [{ item_code: 'WIP-WHEAT', id: 'wip-item-id' }], rowCount: 1 };
+        }
+        if (normalized.includes('from public.bom_lines')) {
+          return { rows: [{ component_code: 'RM-WHEAT-FLOUR', quantity: '100' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+    ctxHolder.client = fakeClient as unknown as pg.PoolClient;
+
+    const { computeNutrition } = await import('../compute');
+    const result = await computeNutrition({ projectId: projectA, formulationVersionId: versionA });
+
+    expect(result.ok && result.data.nutrients.find((row) => row.nutrientCode === 'energy_kj')?.per100g).toBe('1523.00');
+    const allergenInsert = fakeClient.query.mock.calls.find(([sql]) => String(sql).includes('insert into public.nutrition_allergens'));
+    expect(JSON.parse(String(allergenInsert?.[1]?.[4]))).toEqual([{ allergen_code: 'gluten' }]);
+  });
+
   it('writes contains allergen declarations from Reference.RawMaterials allergens_inherited', async () => {
     const calls: Array<{ sql: string; params: readonly unknown[] }> = [];
     const fakeClient = {

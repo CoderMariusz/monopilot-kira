@@ -282,6 +282,32 @@ describe('createPilotWorkOrder', () => {
     expect(createWorkOrderChainMock).not.toHaveBeenCalled();
   });
 
+  it('surfaces an actionable WIP item error before creating the WO chain', async () => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], seedHappyPath());
+    materializeNpdBomMock.mockResolvedValue({
+      code: 'WIP_ITEM_REQUIRED',
+      wipDefinitionIds: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+      projectId: PROJECT,
+      productCode: PRODUCT_CODE,
+      productionCode: PRODUCT_CODE,
+      itemId: null,
+      bomHeaderId: null,
+      factorySpecId: null,
+      yieldPromptRequired: false,
+      createdBom: false,
+      createdFactorySpec: false,
+    });
+
+    const result = await createPilotWorkOrder({ projectId: PROJECT });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'wip_item_required',
+      message: 'The intermediate/WIP item for this process is not active yet — open the WIP/BOM and activate it.',
+    });
+    expect(createWorkOrderChainMock).not.toHaveBeenCalled();
+  });
+
   it('returns recipe_not_ready without materializing when no locked recipe and no active BOM exist', async () => {
     handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
       if (/from public.npd_projects/.test(sql)) {

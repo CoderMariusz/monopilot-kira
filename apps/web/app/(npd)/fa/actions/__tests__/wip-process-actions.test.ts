@@ -105,7 +105,7 @@ describe('wip-process-actions WIP item linkage', () => {
           }],
         };
       }
-      if (/from\s+public\.items/i.test(text) && /id\s*=\s*\$1::uuid/i.test(text)) {
+      if (/update\s+public\.items/i.test(text) && /id\s*=\s*\$1::uuid/i.test(text)) {
         return { rows: [{ id: existingItemId }] };
       }
       return { rows: [] };
@@ -122,6 +122,42 @@ describe('wip-process-actions WIP item linkage', () => {
     expect(result).toEqual({ ok: true, id: processId });
     expect(nextEntityCodeMock).not.toHaveBeenCalled();
     expect(queryMock.mock.calls.some((call) => /insert\s+into\s+public\.items/i.test(String(call[0])))).toBe(false);
+  });
+
+  it('ensureWipItem reactivates a linked definition item as an intermediate', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from\s+public\.user_roles/i.test(text)) return { rows: [{ ok: true }] };
+      if (/insert\s+into\s+public\.npd_wip_processes/i.test(text)) {
+        return { rows: [{ id: processId }], rowCount: 1 };
+      }
+      if (/select\s+p\.wip_item_id/i.test(text)) {
+        return {
+          rows: [{
+            wip_item_id: existingItemId,
+            wip_definition_id: '77777777-7777-4777-8777-777777777777',
+            definition_item_id: existingItemId,
+            definition_base_uom: 'kg',
+            definition_name: 'Cold Smoke',
+          }],
+        };
+      }
+      if (/update\s+public\.items/i.test(text)) return { rows: [{ id: existingItemId }], rowCount: 1 };
+      if (/update\s+public\.npd_wip_processes/i.test(text)) return { rows: [], rowCount: 1 };
+      return { rows: [] };
+    });
+
+    const result = await addWipProcess({
+      prodDetailId,
+      processName: 'Cold Smoke',
+      createsWipItem: true,
+    });
+
+    expect(result).toEqual({ ok: true, id: processId });
+    const itemUpdate = queryMock.mock.calls.find((call) => /update\s+public\.items/i.test(String(call[0])));
+    expect(String(itemUpdate?.[0])).toMatch(/item_type\s*=\s*'intermediate'/i);
+    expect(String(itemUpdate?.[0])).toMatch(/status\s*=\s*'active'/i);
+    expect(itemUpdate?.[1]).toEqual([existingItemId]);
   });
 
   it('throws when the process linkage update affects zero rows', async () => {

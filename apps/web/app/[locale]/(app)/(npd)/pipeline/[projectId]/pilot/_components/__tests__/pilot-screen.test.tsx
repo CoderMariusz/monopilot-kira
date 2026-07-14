@@ -365,6 +365,18 @@ describe('PilotScreen — optimistic toggle', () => {
   });
 });
 
+describe('PilotScreen — pilot WO errors', () => {
+  it('shows the actionable WIP item error returned by the action', async () => {
+    const message = 'The intermediate/WIP item for this process is not active yet — open the WIP/BOM and activate it.';
+    const onCreatePilotWo = vi.fn().mockResolvedValue({ ok: false, error: 'wip_item_required', message });
+    renderReady({ onCreatePilotWo });
+
+    fireEvent.click(screen.getByTestId('create-pilot-wo-button'));
+
+    await waitFor(() => expect(screen.getByTestId('create-pilot-wo-error')).toHaveTextContent(message));
+  });
+});
+
 describe('PilotScreen — run-plan edit affordance', () => {
   it('shows "+ Plan pilot run" in the writable empty state and opens the modal', () => {
     const onUpsertRun = vi.fn().mockResolvedValue({ ok: true });

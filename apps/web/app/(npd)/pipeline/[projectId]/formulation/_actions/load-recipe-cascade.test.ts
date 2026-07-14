@@ -13,12 +13,17 @@ const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const VERSION_ID = '22222222-2222-4222-8222-222222222222';
 const USER_ID = '33333333-3333-4333-8333-333333333333';
 const ORG_ID = '44444444-4444-4444-8444-444444444444';
+const WIP_ITEM_ID = '55555555-5555-4555-8555-555555555555';
+const NESTED_WIP_ITEM_ID = '66666666-6666-4666-8666-666666666666';
 
 let client: QueryClient;
 let rootCode = 'WIP-A';
+let rootItemId: string | null = null;
 let versionsByCode: Record<string, string>;
 let componentsByVersion: Record<string, Array<Record<string, unknown>>>;
+let bomLinesByItemId: Record<string, Array<Record<string, unknown>>>;
 let queries: string[];
+let bomShouldFail = false;
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(
@@ -41,6 +46,7 @@ function makeClient(): QueryClient {
           rows: [
             {
               ingredient_line_id: 'line-root',
+              item_id: rootItemId,
               item_code: rootCode,
               item_name: rootCode,
             },
@@ -56,6 +62,13 @@ function makeClient(): QueryClient {
         const versionId = String(params?.[0] ?? '');
         return { rows: componentsByVersion[versionId] ?? [] };
       }
+      if (q.includes('from public.bom_lines bl') && q.includes("h.status = 'active'")) {
+        if (bomShouldFail) {
+          throw Object.assign(new Error('bom boom'), { code: 'XX000' });
+        }
+        const itemId = String(params?.[0] ?? '');
+        return { rows: bomLinesByItemId[itemId] ?? [] };
+      }
       throw new Error(`unexpected query: ${q}`);
     }),
   };
@@ -64,8 +77,11 @@ function makeClient(): QueryClient {
 beforeEach(() => {
   queries = [];
   rootCode = 'WIP-A';
+  rootItemId = null;
   versionsByCode = {};
   componentsByVersion = {};
+  bomLinesByItemId = {};
+  bomShouldFail = false;
   client = makeClient();
 });
 
@@ -117,6 +133,57 @@ describe('loadRecipeCascade', () => {
     expect(result[0]?.subRecipe?.totalCost).toBe(2.46);
     expect(queries.some((q) => q.includes('public.v_item_effective_cost'))).toBe(true);
   });
+
+  it('falls back to ACTIVE BOM when an intermediate has no formulations row', async () => {
+    rootCode = 'WIP-20260714-0011';
+    rootItemId = WIP_ITEM_ID;
+    // no versionsByCode entry → formulations miss
+    bomLinesByItemId = {
+      [WIP_ITEM_ID]: [
+        bomLine('rm-1', 'RM-MILK', 'Milk powder', '60', '1.5', { protein_g: 20 }),
+        bomLine(NESTED_WIP_ITEM_ID, 'WIP-NEST', 'Nested blend', '40', '2.0'),
+      ],
+      [NESTED_WIP_ITEM_ID]: [bomLine('rm-2', 'RM-SUGAR', 'Sugar', '100', '0.5')],
+    };
+
+    const result = await loadRecipeCascade(PROJECT_ID, VERSION_ID);
+
+    expect(result[0]).toMatchObject({
+      itemCode: 'WIP-20260714-0011',
+      hasSubRecipe: true,
+    });
+    expect(result[0]?.subRecipe?.lines).toEqual([
+      expect.objectContaining({
+        itemCode: 'RM-MILK',
+        itemName: 'Milk powder',
+        pct: 60,
+        unitCost: 1.5,
+        nutritionPer100g: { protein_g: 20 },
+      }),
+      expect.objectContaining({
+        itemCode: 'WIP-NEST',
+        itemName: 'Nested blend',
+        pct: 40,
+        unitCost: 2.0,
+        hasSubRecipe: true,
+      }),
+    ]);
+    expect(result[0]?.subRecipe?.lines[1]?.subRecipe?.lines).toEqual([
+      expect.objectContaining({ itemCode: 'RM-SUGAR', pct: 100, unitCost: 0.5 }),
+    ]);
+    expect(result[0]?.subRecipe?.totalCost).toBe(60 * 1.5 + 40 * 2.0);
+    expect(queries.some((q) => q.includes('from public.bom_lines bl'))).toBe(true);
+  });
+
+  it('surfaces BOM lookup failures instead of returning []', async () => {
+    rootCode = 'WIP-FAIL';
+    rootItemId = WIP_ITEM_ID;
+    bomShouldFail = true;
+
+    await expect(loadRecipeCascade(PROJECT_ID, VERSION_ID)).rejects.toMatchObject({
+      code: 'BOM_CASCADE_LOAD_FAILED',
+    });
+  });
 });
 
 function line(
@@ -126,11 +193,31 @@ function line(
   qtyKg: string,
   unitCost: string,
   nutritionPer100g: Record<string, unknown> | null = null,
+  itemId: string | null = null,
 ): Record<string, unknown> {
   return {
+    item_id: itemId,
     item_code: itemCode,
     item_name: itemName,
     pct,
+    qty_kg: qtyKg,
+    unit_cost: unitCost,
+    nutrition_per_100g: nutritionPer100g,
+  };
+}
+
+function bomLine(
+  itemId: string,
+  itemCode: string,
+  itemName: string,
+  qtyKg: string,
+  unitCost: string,
+  nutritionPer100g: Record<string, unknown> | null = null,
+): Record<string, unknown> {
+  return {
+    item_id: itemId,
+    item_code: itemCode,
+    item_name: itemName,
     qty_kg: qtyKg,
     unit_cost: unitCost,
     nutrition_per_100g: nutritionPer100g,

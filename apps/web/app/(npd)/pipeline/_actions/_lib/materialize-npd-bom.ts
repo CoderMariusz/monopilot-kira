@@ -184,6 +184,8 @@ type DbErrorLike = {
 
 export type MaterializeNpdBomResult = {
   code?: 'PRODUCTION_CODE_CONFLICT' | 'PACKS_PER_BOX_REQUIRED' | 'WIP_ITEM_REQUIRED' | 'AMBIGUOUS_WIP_CONSUMPTION';
+  /** Populated when code is WIP_ITEM_REQUIRED — definitions lacking an active intermediate item. */
+  wipDefinitionIds?: string[];
   /** Populated when code is AMBIGUOUS_WIP_CONSUMPTION — the shared WIP definition. */
   ambiguousWipDefinitionId?: string;
   /** Populated when code is AMBIGUOUS_WIP_CONSUMPTION — processes with assigned ingredients. */
@@ -240,9 +242,13 @@ export async function materializeNpdBom(
     processDerivedStages.filter((stage) => !ingredientDeclaredWipDefinitionIds.has(stage.wip_definition_id)),
   );
   const wipComponents = [...ingredientDeclaredWipComponents, ...processDerivedWipComponents];
-  if (wipComponents.some((component) => !component.itemId)) {
+  const unresolvedWipDefinitionIds = [
+    ...new Set(wipComponents.filter((component) => !component.itemId).map((component) => component.wipDefinitionId)),
+  ];
+  if (unresolvedWipDefinitionIds.length > 0) {
     return {
       code: 'WIP_ITEM_REQUIRED',
+      wipDefinitionIds: unresolvedWipDefinitionIds,
       ...emptyResult(project.id, project.product_code, productionCode),
     };
   }
@@ -1042,7 +1048,7 @@ async function resolveProcessDerivedWipComponents(
 ): Promise<Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number; wipDefinitionId: string }>> {
   const components: Array<{ itemId: string; itemCode: string; qtyKg: string; sequence: number; wipDefinitionId: string }> = [];
   for (const stage of stages) {
-    const definition = await loadWipDefinition(ctx, stage.wip_definition_id);
+    const definition = await loadUsableWipDefinition(ctx, stage.wip_definition_id);
     if (!definition?.item_id || !definition.item_code) {
       components.push({
         itemId: '',
@@ -1072,7 +1078,7 @@ async function resolveWipComponents(
   for (const row of wipIngredients) {
     const definitionId = row.wip_definition_id;
     if (!definitionId) continue;
-    const definition = await loadWipDefinition(ctx, definitionId);
+    const definition = await loadUsableWipDefinition(ctx, definitionId);
     if (!definition?.item_id || !definition.item_code) {
       components.push({ itemId: '', itemCode: '', qtyKg: row.qty_kg ?? '0', sequence: row.sequence, wipDefinitionId: definitionId });
       continue;
@@ -1167,10 +1173,71 @@ async function loadWipDefinition(ctx: OrgContextLike, definitionId: string): Pro
        left join public.items i
          on i.org_id = wd.org_id
         and i.id = wd.item_id
+        and i.item_type = 'intermediate'
+        and i.status = 'active'
       where wd.org_id = app.current_org_id()
         and wd.id = $1::uuid
         and wd.status = 'active'
       limit 1`,
+    [definitionId],
+  );
+  return rows[0] ?? null;
+}
+
+async function loadUsableWipDefinition(
+  ctx: OrgContextLike,
+  definitionId: string,
+): Promise<WipDefinitionRow | null> {
+  const definition = await loadWipDefinition(ctx, definitionId);
+  if (definition?.item_id && definition.item_code) return definition;
+
+  const { rows } = await ctx.client.query<WipDefinitionRow>(
+    `with candidate as (
+       select wd.id as definition_id,
+              i.id as item_id
+         from public.wip_definitions wd
+         join lateral (
+           select item.id
+             from public.items item
+            where item.org_id = wd.org_id
+              and item.id = wd.item_id
+              and item.item_type = 'intermediate'
+           union all
+           select item.id
+             from public.npd_wip_processes process
+             join public.items item
+              on item.org_id = process.org_id
+              and item.id = process.wip_item_id
+              and item.item_type = 'intermediate'
+            where process.org_id = wd.org_id
+              and process.wip_definition_id = wd.id
+           limit 1
+         ) i on true
+        where wd.org_id = app.current_org_id()
+          and wd.id = $1::uuid
+          and wd.status = 'active'
+     ), activated as (
+       update public.items item
+          set status = 'active',
+              updated_at = now()
+         from candidate
+        where item.org_id = app.current_org_id()
+          and item.id = candidate.item_id
+      returning item.id, item.item_code
+     )
+     update public.wip_definitions wd
+        set item_id = activated.id,
+            updated_at = now()
+       from candidate, activated
+      where wd.org_id = app.current_org_id()
+        and wd.id = candidate.definition_id
+    returning wd.id::text as id,
+              wd.item_id::text as item_id,
+              activated.item_code,
+              wd.name,
+              wd.base_uom,
+              wd.yield_pct::text as yield_pct,
+              wd.version`,
     [definitionId],
   );
   return rows[0] ?? null;
@@ -1189,6 +1256,8 @@ async function loadWipDefinitionByItem(ctx: OrgContextLike, itemId: string): Pro
        join public.items i
          on i.org_id = wd.org_id
         and i.id = wd.item_id
+        and i.item_type = 'intermediate'
+        and i.status = 'active'
       where wd.org_id = app.current_org_id()
         and wd.item_id = $1::uuid
         and wd.status = 'active'
