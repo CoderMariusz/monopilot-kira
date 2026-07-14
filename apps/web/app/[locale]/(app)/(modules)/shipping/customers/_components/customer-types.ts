@@ -46,6 +46,31 @@ export type CustomerAddress = {
 
 export type CustomerDetail = Customer & {
   addresses: CustomerAddress[];
+  contacts: CustomerContact[];
+  allergenRestrictions: CustomerAllergenRestriction[];
+};
+
+export type CustomerContact = {
+  id: string;
+  customerId: string;
+  name: string;
+  title: string | null;
+  email: string | null;
+  phone: string | null;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CustomerAllergenRestriction = {
+  id: string;
+  customerId: string;
+  allergenId: string;
+  allergenName: string;
+  restrictionType: 'refuses' | 'requires_decl';
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type CustomerResult<T> =

@@ -30,6 +30,8 @@ import {
   allocateSalesOrder,
   deallocateSalesOrder,
   transitionSalesOrderStatus,
+  updateSalesOrder,
+  deleteSalesOrder,
 } from '../_actions/so-actions';
 import { getSoCapabilities } from '../_actions/so-form-data';
 import { createShipment } from '../_actions/pack-actions';
@@ -67,6 +69,23 @@ async function transitionAction(id: string, status: string): Promise<SoActionRes
     id,
     status as Parameters<typeof transitionSalesOrderStatus>[1],
   );
+  return result.ok ? { ok: true, data: result.data } : { ok: false, error: result.error };
+}
+async function updateSoAction(
+  id: string,
+  input: {
+    requiredDate?: string | null;
+    notes?: string | null;
+    lines?: Array<{ id: string; qty?: string; notes?: string | null; unit_price_gbp?: string }>;
+  },
+): Promise<SoActionResult> {
+  'use server';
+  const result = await updateSalesOrder(id, input);
+  return result.ok ? { ok: true, data: result.data } : { ok: false, error: result.error };
+}
+async function deleteSoAction(id: string): Promise<SoActionResult> {
+  'use server';
+  const result = await deleteSalesOrder(id);
   return result.ok ? { ok: true, data: result.data } : { ok: false, error: result.error };
 }
 /** Server-wired createShipment seam for the additive [Create shipment] button. RBAC is
@@ -172,9 +191,33 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): SoDetailLa
       item: t('detail.lines.item'),
       qty: t('detail.lines.qty'),
       uom: t('detail.lines.uom'),
+      unitPrice: t('detail.lines.unitPrice'),
+      lineTotal: t('detail.lines.lineTotal'),
       allocated: t('detail.lines.allocated'),
       allocationStatus: t('detail.lines.allocationStatus'),
       empty: t('detail.lines.empty'),
+    },
+    edit: {
+      title: t('detail.edit.title'),
+      requestedLabel: t('detail.edit.requestedLabel'),
+      notesLabel: t('detail.edit.notesLabel'),
+      lineItem: t('detail.edit.lineItem'),
+      lineQty: t('detail.edit.lineQty'),
+      lineUom: t('detail.edit.lineUom'),
+      lineUnitPrice: t('detail.edit.lineUnitPrice'),
+      lineTotal: t('detail.edit.lineTotal'),
+      lineNotes: t('detail.edit.lineNotes'),
+      submit: t('detail.edit.submit'),
+      submitting: t('detail.edit.submitting'),
+      cancel: t('detail.edit.cancel'),
+      errors: {
+        linesInvalid: t('detail.edit.errors.linesInvalid'),
+        priceInvalid: t('detail.edit.errors.priceInvalid'),
+        invalid_input: t('errors.invalid_input'),
+        forbidden: t('errors.forbidden'),
+        not_draft: t('errors.not_draft'),
+        persistence_failed: t('errors.persistence_failed'),
+      },
     },
     actions: {
       title: t('detail.actions.title'),
@@ -182,6 +225,9 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): SoDetailLa
       deallocate: t('detail.actions.deallocate'),
       confirm: t('detail.actions.confirm'),
       cancel: t('detail.actions.cancel'),
+      edit: t('detail.actions.edit'),
+      delete: t('detail.actions.delete'),
+      deletePrompt: t('detail.actions.deletePrompt'),
       pending: t('detail.actions.pending'),
       confirmPrompt: t('detail.actions.confirmPrompt'),
       noPermission: t('detail.actions.noPermission'),
@@ -196,6 +242,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): SoDetailLa
       persistence_failed: t('errors.persistence_failed'),
       so_cancel_blocked_shipped: t('errors.so_cancel_blocked_shipped'),
       deallocate_not_allowed: t('errors.deallocate_not_allowed'),
+      not_draft: t('errors.not_draft'),
     },
   };
 }
@@ -281,12 +328,17 @@ async function DetailContent({ locale, soId }: { locale: string; soId: string })
           uom: l.uom,
           allocatedQty: l.allocated_qty,
           allocationStatus: l.allocation_status,
+          unitPriceGbp: l.unit_price_gbp,
+          lineTotalGbp: l.line_total_gbp,
+          notes: l.notes,
         })),
       }}
       labels={buildLabels(t)}
       allocateSalesOrderAction={allocateAction}
       deallocateSalesOrderAction={deallocateAction}
       transitionSalesOrderStatusAction={transitionAction}
+      updateSalesOrderAction={updateSoAction}
+      deleteSalesOrderAction={deleteSoAction}
     />
     <DocumentAuditTimelineSection entityType="sales_order" entityId={so.id} locale={locale} />
     </div>

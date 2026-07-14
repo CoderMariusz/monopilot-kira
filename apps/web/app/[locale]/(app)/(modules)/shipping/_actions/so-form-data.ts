@@ -27,6 +27,13 @@ import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { searchItems } from '../../../../../(npd)/fa/actions/search-items';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items-types';
 import { listOrgUnits, type OrgUnitOption, type QueryClient as OrgQueryClient } from '../../planning/_actions/procurement-shared';
+import {
+  fetchActiveCustomerItemPrices,
+  fetchActiveCustomerItemPricesAnyCurrency,
+  resolveSalesLinePriceDetailed,
+  SO_LINE_PRICE_CURRENCY,
+  type SalesLinePriceResolution,
+} from './sales-line-price';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -102,7 +109,55 @@ export type SoCapabilities = {
   canConfirm: boolean;
   /** ship.so.cancel — gates [Cancel]. */
   canCancel: boolean;
+  /** ship.so.create — gates draft [Edit]/[Delete]. */
+  canEdit: boolean;
 };
+
+export type SoLinePriceQuote = SalesLinePriceResolution & { item_id: string };
+
+/** Resolve default GBP unit prices (and foreign-currency hints) for SO line items. */
+export async function resolveSoLinePrices(input: {
+  customer_id: string;
+  lines: Array<{ item_id: string }>;
+}): Promise<SoLinePriceQuote[]> {
+  if (!input.customer_id || input.lines.length === 0) return [];
+
+  try {
+    return await withOrgContext<SoLinePriceQuote[]>(async (ctx) => {
+      const client = ctx.client as unknown as QueryClient;
+      const itemIds = Array.from(new Set(input.lines.map((line) => line.item_id)));
+      const { rows: itemRows } = await client.query<{ id: string; list_price_gbp: string | null }>(
+        `select id::text, list_price_gbp::text as list_price_gbp
+           from public.items
+          where org_id = app.current_org_id()
+            and id = any($1::uuid[])`,
+        [itemIds],
+      );
+      const itemsById = new Map(itemRows.map((row) => [row.id, row]));
+
+      const { rows: orderDateRows } = await client.query<{ order_date: string }>(
+        `select current_date::text as order_date`,
+      );
+      const orderDate = orderDateRows[0]?.order_date ?? new Date().toISOString().slice(0, 10);
+
+      const [gbpPrices, anyPrices] = await Promise.all([
+        fetchActiveCustomerItemPrices(client, input.customer_id, itemIds, orderDate, SO_LINE_PRICE_CURRENCY),
+        fetchActiveCustomerItemPricesAnyCurrency(client, input.customer_id, itemIds, orderDate),
+      ]);
+
+      return input.lines.map((line) => {
+        const item = itemsById.get(line.item_id) ?? { id: line.item_id, list_price_gbp: null };
+        const resolution = resolveSalesLinePriceDetailed(item, {
+          customerPriceGbp: gbpPrices.get(line.item_id) ?? null,
+          customerPriceAny: anyPrices.get(line.item_id) ?? null,
+        });
+        return { item_id: line.item_id, ...resolution };
+      });
+    });
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Server-side RBAC capability probe for the SO detail action buttons, so a control
@@ -145,9 +200,10 @@ export async function getSoCapabilities(): Promise<SoCapabilities> {
         canAllocate: granted.has(PERMS.canAllocate),
         canConfirm: granted.has(PERMS.canConfirm),
         canCancel: granted.has(PERMS.canCancel),
+        canEdit: granted.has(PERMS.canAllocate),
       };
     });
   } catch {
-    return { canAllocate: false, canConfirm: false, canCancel: false };
+    return { canAllocate: false, canConfirm: false, canCancel: false, canEdit: false };
   }
 }

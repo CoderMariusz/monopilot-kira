@@ -46,8 +46,33 @@ export type CustomerAddress = {
   updatedAt: string;
 };
 
+export type CustomerContact = {
+  id: string;
+  customerId: string;
+  name: string;
+  title: string | null;
+  email: string | null;
+  phone: string | null;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CustomerAllergenRestriction = {
+  id: string;
+  customerId: string;
+  allergenId: string;
+  allergenName: string;
+  restrictionType: 'refuses' | 'requires_decl';
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CustomerDetail = Customer & {
   addresses: CustomerAddress[];
+  contacts: CustomerContact[];
+  allergenRestrictions: CustomerAllergenRestriction[];
 };
 
 export type CustomerResult<T> =
@@ -176,6 +201,29 @@ type CustomerAddressRow = {
   updated_at: string | Date;
 };
 
+type CustomerContactRow = {
+  id: string;
+  customer_id: string;
+  name: string;
+  title: string | null;
+  email: string | null;
+  phone: string | null;
+  is_primary: boolean;
+  created_at: string | Date;
+  updated_at: string | Date;
+};
+
+type CustomerAllergenRestrictionRow = {
+  id: string;
+  customer_id: string;
+  allergen_id: string;
+  allergen_name: string | null;
+  restriction_type: string;
+  notes: string | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+};
+
 function toIso(value: string | Date): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
@@ -216,6 +264,33 @@ export function mapCustomerAddress(row: CustomerAddressRow): CustomerAddress {
   };
 }
 
+export function mapCustomerContact(row: CustomerContactRow): CustomerContact {
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    name: row.name,
+    title: row.title,
+    email: row.email,
+    phone: row.phone,
+    isPrimary: row.is_primary,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+export function mapCustomerAllergenRestriction(row: CustomerAllergenRestrictionRow): CustomerAllergenRestriction {
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    allergenId: row.allergen_id,
+    allergenName: row.allergen_name ?? row.allergen_id,
+    restrictionType: row.restriction_type as CustomerAllergenRestriction['restrictionType'],
+    notes: row.notes,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
 export function isPgError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
 }
@@ -237,3 +312,20 @@ export const ADDRESS_SELECT =
   `id::text, customer_id::text, address_type, is_default,
    address_line1, address_line2, city, state, postal_code, country_iso2, notes,
    created_at, updated_at`;
+
+export const CONTACT_SELECT =
+  `id::text, customer_id::text, name, title, email, phone, is_primary, created_at, updated_at`;
+
+export const ALLERGEN_RESTRICTION_SELECT =
+  `car.id::text,
+   car.customer_id::text,
+   car.allergen_id::text,
+   coalesce(
+     nullif(trim(rt.row_data->>'display_name'), ''),
+     ra.display_name,
+     car.allergen_id::text
+   ) as allergen_name,
+   car.restriction_type,
+   car.notes,
+   car.created_at,
+   car.updated_at`;

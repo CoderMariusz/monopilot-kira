@@ -11188,9 +11188,12 @@
         "addLine": "+ Add line",
         "removeLine": "Remove line",
         "lineItem": "Item",
-        "lineQty": "Qty",
-        "lineUom": "UoM",
-        "uomPlaceholder": "Unit",
+        "lineQty": "Кількість",
+        "lineUom": "Одиниця",
+        "lineUnitPrice": "Ціна за одиницю (GBP)",
+        "lineTotal": "Сума рядка",
+        "foreignPriceHint": "Ціна клієнта {currency}{price}/{uom} — встановіть ціну GBP",
+        "uomPlaceholder": "Одиниця",
         "qtyPlaceholder": "0",
         "submit": "Create sales order",
         "submitting": "Creating…",
@@ -11229,19 +11232,42 @@
           "title": "Order lines",
           "seq": "Line",
           "item": "Item",
-          "qty": "Ordered",
-          "uom": "UoM",
-          "allocated": "Allocated",
+          "qty": "Замовлено",
+          "uom": "Одиниця",
+          "unitPrice": "Ціна за од.",
+          "lineTotal": "Сума рядка",
+          "allocated": "Зарезервовано",
           "allocationStatus": "Allocation",
           "empty": "This sales order has no lines."
         },
+        "edit": {
+          "title": "Редагувати замовлення на продаж",
+          "requestedLabel": "Бажана дата відвантаження",
+          "notesLabel": "Примітки",
+          "lineItem": "Позиція",
+          "lineQty": "Кількість",
+          "lineUom": "Одиниця",
+          "lineUnitPrice": "Ціна за одиницю (GBP)",
+          "lineTotal": "Сума рядка",
+          "lineNotes": "Примітки до рядка",
+          "submit": "Зберегти зміни",
+          "submitting": "Збереження…",
+          "cancel": "Скасувати",
+          "errors": {
+            "linesInvalid": "Введіть додатну кількість для кожного рядка.",
+            "priceInvalid": "Ціна за одиницю має бути більше нуля для кожного рядка."
+          }
+        },
         "actions": {
-          "title": "Actions",
-          "allocate": "Allocate",
-          "deallocate": "Deallocate",
-          "confirm": "Confirm",
-          "cancel": "Cancel",
-          "pending": "Working…",
+          "title": "Дії",
+          "allocate": "Резервувати",
+          "deallocate": "Зняти резерв",
+          "confirm": "Підтвердити",
+          "cancel": "Скасувати",
+          "edit": "Редагувати",
+          "delete": "Видалити",
+          "deletePrompt": "Видалити чернетку замовлення {so}? Цю дію не можна скасувати.",
+          "pending": "Обробка…",
           "confirmPrompt": "Move sales order {so} to {status}?",
           "noPermission": "You do not have permission to perform this action.",
           "notAvailable": "This action is not available in the current status."
@@ -11255,7 +11281,8 @@
         "persistence_failed": "Something went wrong saving. Please retry.",
         "already_exists": "A customer with that code already exists.",
         "so_cancel_blocked_shipped": "Cannot cancel this order while a shipment is already shipped or delivered.",
-        "deallocate_not_allowed": "Deallocate is only allowed before packing has started."
+        "deallocate_not_allowed": "Deallocate is only allowed before packing has started.",
+        "not_draft": "Редагувати або видаляти можна лише чернетки замовлень."
       }
     },
     "pick": {
@@ -11696,7 +11723,10 @@
         "backToList": "Back to customers",
         "tabs": {
           "profile": "Profile",
-          "addresses": "Addresses"
+          "addresses": "Addresses",
+          "contacts": "Контакти",
+          "allergens": "Обмеження алергенів",
+          "orders": "Історія замовлень"
         },
         "actions": {
           "edit": "Edit",
@@ -11786,6 +11816,60 @@
               "postalRequired": "Enter a postal code.",
               "countryInvalid": "Enter a valid 2-letter country code (e.g. GB)."
             }
+          }
+        },
+        "contacts": {
+          "title": "Контакти ({n})",
+          "empty": "Для цього клієнта немає контактів.",
+          "primary": "Основний",
+          "notPrimary": "—",
+          "columns": {
+            "name": "Ім'я",
+            "title": "Посада",
+            "email": "Email",
+            "phone": "Телефон",
+            "primary": "Основний"
+          }
+        },
+        "allergens": {
+          "title": "Обмеження алергенів ({n})",
+          "empty": "Для цього клієнта немає обмежень алергенів.",
+          "restrictionType": {
+            "refuses": "Відмовляється",
+            "requires_decl": "Потрібна декларація"
+          },
+          "columns": {
+            "allergen": "Алерген",
+            "restriction": "Обмеження",
+            "notes": "Примітки"
+          }
+        },
+        "orders": {
+          "title": "Історія замовлень ({n})",
+          "empty": "Для цього клієнта ще немає замовлень на продаж.",
+          "view": "Переглянути",
+          "status": {
+            "draft": "Чернетка",
+            "confirmed": "Підтверджено",
+            "allocated": "Зарезервовано",
+            "partially_picked": "Частково зібрано",
+            "picked": "Зібрано",
+            "partially_packed": "Частково упаковано",
+            "packed": "Упаковано",
+            "manifested": "Замanifestовано",
+            "shipped": "Відправлено",
+            "partially_delivered": "Частково доставлено",
+            "delivered": "Доставлено",
+            "cancelled": "Скасовано"
+          },
+          "columns": {
+            "so": "Номер ЗП",
+            "status": "Статус",
+            "lines": "Рядки",
+            "total": "Разом",
+            "expected": "Очікувана відправка",
+            "created": "Створено",
+            "actions": "Дії"
           }
         }
       }

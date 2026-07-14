@@ -29,7 +29,7 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listSalesOrders, createSalesOrder } from './_actions/so-actions';
-import { listSoCustomers, listSoUnits, searchSoItems } from './_actions/so-form-data';
+import { listSoCustomers, listSoUnits, resolveSoLinePrices, searchSoItems } from './_actions/so-form-data';
 import { buildUomDropdown, type UomDropdown } from '../planning/_actions/uom-dropdown';
 import { createCustomer } from './customers/_actions/customer-actions';
 import { SoListView, type SoListFilters, type SoListLabels } from './_components/so-list-view';
@@ -163,6 +163,9 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       lineItem: t('create.lineItem'),
       lineQty: t('create.lineQty'),
       lineUom: t('create.lineUom'),
+      lineUnitPrice: t('create.lineUnitPrice'),
+      lineTotal: t('create.lineTotal'),
+      foreignPriceHint: t('create.foreignPriceHint'),
       uomPlaceholder: uom.placeholder,
       uomOptions: uom.options,
       uomUnits: uom.units,
@@ -255,6 +258,7 @@ async function ListContent({
       searchSoItemsAction={searchSoItems}
       createCustomerAction={createCustomer}
       createSalesOrderAction={createSalesOrder}
+      resolveSoLinePricesAction={resolveSoLinePrices}
     />
   );
 }

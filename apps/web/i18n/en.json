@@ -11292,6 +11292,9 @@
         "lineItem": "Item",
         "lineQty": "Qty",
         "lineUom": "UoM",
+        "lineUnitPrice": "Unit price (GBP)",
+        "lineTotal": "Line total",
+        "foreignPriceHint": "Customer price {currency}{price}/{uom} — set GBP unit price",
         "uomPlaceholder": "Unit",
         "qtyPlaceholder": "0",
         "submit": "Create sales order",
@@ -11333,9 +11336,29 @@
           "item": "Item",
           "qty": "Ordered",
           "uom": "UoM",
+          "unitPrice": "Unit price",
+          "lineTotal": "Line total",
           "allocated": "Allocated",
           "allocationStatus": "Allocation",
           "empty": "This sales order has no lines."
+        },
+        "edit": {
+          "title": "Edit sales order",
+          "requestedLabel": "Requested ship date",
+          "notesLabel": "Notes",
+          "lineItem": "Item",
+          "lineQty": "Qty",
+          "lineUom": "UoM",
+          "lineUnitPrice": "Unit price (GBP)",
+          "lineTotal": "Line total",
+          "lineNotes": "Line notes",
+          "submit": "Save changes",
+          "submitting": "Saving…",
+          "cancel": "Cancel",
+          "errors": {
+            "linesInvalid": "Enter a positive quantity on every line.",
+            "priceInvalid": "Unit price must be greater than zero on every line."
+          }
         },
         "actions": {
           "title": "Actions",
@@ -11343,6 +11366,9 @@
           "deallocate": "Deallocate",
           "confirm": "Confirm",
           "cancel": "Cancel",
+          "edit": "Edit",
+          "delete": "Delete",
+          "deletePrompt": "Delete draft sales order {so}? This cannot be undone.",
           "pending": "Working…",
           "confirmPrompt": "Move sales order {so} to {status}?",
           "noPermission": "You do not have permission to perform this action.",
@@ -11357,7 +11383,8 @@
         "persistence_failed": "Something went wrong saving. Please retry.",
         "already_exists": "A customer with that code already exists.",
         "so_cancel_blocked_shipped": "Cannot cancel this order while a shipment is already shipped or delivered.",
-        "deallocate_not_allowed": "Deallocate is only allowed before packing has started."
+        "deallocate_not_allowed": "Deallocate is only allowed before packing has started.",
+        "not_draft": "Only draft sales orders can be edited or deleted."
       }
     },
     "pick": {
@@ -11803,7 +11830,10 @@
         "backToList": "Back to customers",
         "tabs": {
           "profile": "Profile",
-          "addresses": "Addresses"
+          "addresses": "Addresses",
+          "contacts": "Contacts",
+          "allergens": "Allergen restrictions",
+          "orders": "Order history"
         },
         "actions": {
           "edit": "Edit",
@@ -11893,6 +11923,60 @@
               "postalRequired": "Enter a postal code.",
               "countryInvalid": "Enter a valid 2-letter country code (e.g. GB)."
             }
+          }
+        },
+        "contacts": {
+          "title": "Contacts ({n})",
+          "empty": "No contacts recorded for this customer.",
+          "primary": "Primary",
+          "notPrimary": "—",
+          "columns": {
+            "name": "Name",
+            "title": "Title",
+            "email": "Email",
+            "phone": "Phone",
+            "primary": "Primary"
+          }
+        },
+        "allergens": {
+          "title": "Allergen restrictions ({n})",
+          "empty": "No allergen restrictions recorded for this customer.",
+          "restrictionType": {
+            "refuses": "Refuses",
+            "requires_decl": "Requires declaration"
+          },
+          "columns": {
+            "allergen": "Allergen",
+            "restriction": "Restriction",
+            "notes": "Notes"
+          }
+        },
+        "orders": {
+          "title": "Order history ({n})",
+          "empty": "No sales orders for this customer yet.",
+          "view": "View",
+          "status": {
+            "draft": "Draft",
+            "confirmed": "Confirmed",
+            "allocated": "Allocated",
+            "partially_picked": "Partially picked",
+            "picked": "Picked",
+            "partially_packed": "Partially packed",
+            "packed": "Packed",
+            "manifested": "Manifested",
+            "shipped": "Shipped",
+            "partially_delivered": "Partially delivered",
+            "delivered": "Delivered",
+            "cancelled": "Cancelled"
+          },
+          "columns": {
+            "so": "SO number",
+            "status": "Status",
+            "lines": "Lines",
+            "total": "Total",
+            "expected": "Expected ship",
+            "created": "Created",
+            "actions": "Actions"
           }
         }
       }

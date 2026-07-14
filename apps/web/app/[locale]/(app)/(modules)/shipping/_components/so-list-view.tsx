@@ -139,8 +139,12 @@ export type SoListViewProps = {
     customer_id: string;
     requested_date?: string;
     notes?: string;
-    lines: Array<{ item_id: string; qty: string; uom: string }>;
+    lines: Array<{ item_id: string; qty: string; uom: string; unit_price_gbp?: string }>;
   }) => Promise<CreateSoResult>;
+  resolveSoLinePricesAction: (input: {
+    customer_id: string;
+    lines: Array<{ item_id: string }>;
+  }) => Promise<Array<{ item_id: string; unitPriceGbp: string; foreignCustomerPrice?: { unit_price: string; currency: string } }>>;
 };
 
 function fmtDate(iso: string | null, locale: string): string {
@@ -185,6 +189,7 @@ export function SoListView({
   searchSoItemsAction,
   createCustomerAction = async () => ({ ok: false, error: 'forbidden' }),
   createSalesOrderAction,
+  resolveSoLinePricesAction,
 }: SoListViewProps) {
   const router = useRouter();
   const basePath = `/${locale}/shipping`;
@@ -407,6 +412,7 @@ export function SoListView({
         searchSoItemsAction={searchSoItemsAction}
         createCustomerAction={createCustomerAction}
         createSalesOrderAction={createSalesOrderAction}
+        resolveSoLinePricesAction={resolveSoLinePricesAction}
         onCreated={() => router.refresh()}
       />
     </div>

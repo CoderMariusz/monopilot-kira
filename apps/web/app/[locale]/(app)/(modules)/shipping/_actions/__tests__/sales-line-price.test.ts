@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  computeSoLineTotalGbp,
   fetchActiveCustomerItemPrices,
   normalizePriceString,
+  normalizeSoUnitPriceGbp,
   resolveSalesLinePrice,
+  resolveSalesLinePriceDetailed,
   SO_LINE_PRICE_CURRENCY,
 } from '../sales-line-price';
 
@@ -52,6 +55,20 @@ describe('normalizePriceString', () => {
   });
 });
 
+describe('normalizeSoUnitPriceGbp', () => {
+  it('rounds resolved list prices to the persisted 4dp scale', () => {
+    expect(normalizeSoUnitPriceGbp('12.3456789')).toBe('12.3457');
+    expect(normalizeSoUnitPriceGbp('1.005')).toBe('1.0050');
+  });
+});
+
+describe('computeSoLineTotalGbp', () => {
+  it('matches Postgres line_total_gbp for fractional unit prices without JS float math', () => {
+    expect(computeSoLineTotalGbp('1', '1.0050')).toBe('1.0050');
+    expect(computeSoLineTotalGbp('10', '7.2500')).toBe('72.5000');
+  });
+});
+
 describe('resolveSalesLinePrice', () => {
   it('uses active GBP customer price over list price', () => {
     expect(
@@ -66,7 +83,15 @@ describe('resolveSalesLinePrice', () => {
     expect(resolveSalesLinePrice(ITEM, { customerPrice: null })).toBe('10.0000');
   });
 
-  it('ignores non-GBP customer price and falls back to list price', () => {
+  it('surfaces non-GBP customer price as a hint while defaulting to list price', () => {
+    expect(
+      resolveSalesLinePriceDetailed(ITEM, {
+        customerPriceAny: { unit_price: '5.0000', currency: 'EUR' },
+      }),
+    ).toEqual({
+      unitPriceGbp: '10.0000',
+      foreignCustomerPrice: { unit_price: '5.0000', currency: 'EUR' },
+    });
     expect(
       resolveSalesLinePrice(ITEM, {
         customerPrice: { unit_price: '5.0000', currency: 'EUR' },
@@ -84,6 +109,10 @@ describe('resolveSalesLinePrice', () => {
 
   it('preserves contract decimal precision from list_price_gbp text', () => {
     expect(resolveSalesLinePrice({ id: 'item-1', list_price_gbp: '99.9999' })).toBe('99.9999');
+  });
+
+  it('normalizes >4dp list prices to the persisted scale', () => {
+    expect(resolveSalesLinePrice({ id: 'item-1', list_price_gbp: '12.3456789' })).toBe('12.3457');
   });
 });
 

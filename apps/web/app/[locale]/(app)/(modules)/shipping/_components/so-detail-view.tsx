@@ -39,6 +39,8 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 
 import { SoStatusBadge, AllocationBadge } from './so-status-badge';
+import { EditSoModal, type EditSoResult } from './edit-so-modal';
+import { formatSoGbpDisplay, sumSoLineTotalsGbp } from '../_actions/sales-line-price';
 
 export type SoDetailLine = {
   id: string;
@@ -49,6 +51,9 @@ export type SoDetailLine = {
   uom: string;
   allocatedQty: string;
   allocationStatus: string;
+  unitPriceGbp: string;
+  lineTotalGbp: string;
+  notes: string | null;
 };
 
 export type SoDetail = {
@@ -83,9 +88,26 @@ export type SoDetailLabels = {
     item: string;
     qty: string;
     uom: string;
+    unitPrice: string;
+    lineTotal: string;
     allocated: string;
     allocationStatus: string;
     empty: string;
+  };
+  edit: {
+    title: string;
+    requestedLabel: string;
+    notesLabel: string;
+    lineItem: string;
+    lineQty: string;
+    lineUom: string;
+    lineUnitPrice: string;
+    lineTotal: string;
+    lineNotes: string;
+    submit: string;
+    submitting: string;
+    cancel: string;
+    errors: Record<string, string>;
   };
   actions: {
     title: string;
@@ -93,6 +115,9 @@ export type SoDetailLabels = {
     deallocate: string;
     confirm: string;
     cancel: string;
+    edit: string;
+    delete: string;
+    deletePrompt: string;
     pending: string;
     confirmPrompt: string;
     /** Tooltip shown when a control is disabled because the user lacks the permission. */
@@ -110,6 +135,7 @@ export type SoCaps = {
   canAllocate: boolean;
   canConfirm: boolean;
   canCancel: boolean;
+  canEdit: boolean;
 };
 
 function fmtDate(iso: string | null, locale: string): string {
@@ -119,7 +145,11 @@ function fmtDate(iso: string | null, locale: string): string {
   );
 }
 
-type ActionKind = 'allocate' | 'deallocate' | 'confirm' | 'cancel';
+type ActionKind = 'allocate' | 'deallocate' | 'confirm' | 'cancel' | 'delete';
+
+function formatGbp(value: string): string {
+  return formatSoGbpDisplay(value);
+}
 
 export function SoDetailView({
   so,
@@ -129,6 +159,8 @@ export function SoDetailView({
   allocateSalesOrderAction,
   deallocateSalesOrderAction,
   transitionSalesOrderStatusAction,
+  updateSalesOrderAction,
+  deleteSalesOrderAction,
   createShipmentSlot,
   createPickListSlot,
 }: {
@@ -139,12 +171,22 @@ export function SoDetailView({
   allocateSalesOrderAction: (id: string) => Promise<SoActionResult>;
   deallocateSalesOrderAction: (id: string) => Promise<SoActionResult>;
   transitionSalesOrderStatusAction: (id: string, status: string) => Promise<SoActionResult>;
+  updateSalesOrderAction: (
+    soId: string,
+    input: {
+      requiredDate?: string | null;
+      notes?: string | null;
+      lines?: Array<{ id: string; qty?: string; notes?: string | null; unit_price_gbp?: string }>;
+    },
+  ) => Promise<EditSoResult>;
+  deleteSalesOrderAction: (id: string) => Promise<SoActionResult>;
   createShipmentSlot?: React.ReactNode;
   createPickListSlot?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, setPending] = React.useState<ActionKind | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
 
   const status = so.status.toLowerCase();
   const alloc = so.allocationStatus.toLowerCase();
@@ -158,6 +200,9 @@ export function SoDetailView({
   const deallocateLegal = (status === 'allocated' || status === 'confirmed') && alloc !== 'unallocated';
   const confirmLegal = status === 'draft';
   const cancelLegal = !['shipped', 'partially_delivered', 'delivered', 'cancelled'].includes(status);
+  const editLegal = status === 'draft';
+  const deleteLegal = status === 'draft';
+  const orderTotal = sumSoLineTotalsGbp(so.lines.map((line) => line.lineTotalGbp || '0'));
 
   async function run(kind: ActionKind, fn: () => Promise<SoActionResult>, prompt?: string) {
     if (pending) return;
@@ -199,6 +244,25 @@ export function SoDetailView({
       labels.actions.confirmPrompt.replace('{so}', so.soNumber).replace('{status}', statusLabel('cancelled')),
     );
   }
+  function onDelete() {
+    if (pending) return;
+    if (!window.confirm(labels.actions.deletePrompt.replace('{so}', so.soNumber))) return;
+    setPending('delete');
+    setError(null);
+    void deleteSalesOrderAction(so.id)
+      .then((result) => {
+        if (!result.ok) {
+          setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
+          setPending(null);
+          return;
+        }
+        router.push(`/${locale}/shipping`);
+      })
+      .catch(() => {
+        setError(labels.errors.persistence_failed);
+        setPending(null);
+      });
+  }
 
   // Each button: disabled when (a) status disallows it, (b) the user lacks the
   // permission, or (c) another action is pending. Tooltip explains which.
@@ -208,13 +272,14 @@ export function SoDetailView({
     onClick: () => void;
     legal: boolean;
     permitted: boolean;
-    variant: 'primary' | 'danger';
+    variant: 'primary' | 'danger' | 'secondary';
   };
   const buttons: Btn[] = [
     { kind: 'confirm', label: labels.actions.confirm, onClick: onConfirm, legal: confirmLegal, permitted: caps.canConfirm, variant: 'primary' },
     { kind: 'allocate', label: labels.actions.allocate, onClick: onAllocate, legal: allocateLegal, permitted: caps.canAllocate, variant: 'primary' },
     { kind: 'deallocate', label: labels.actions.deallocate, onClick: onDeallocate, legal: deallocateLegal, permitted: caps.canAllocate, variant: 'primary' },
     { kind: 'cancel', label: labels.actions.cancel, onClick: onCancel, legal: cancelLegal, permitted: caps.canCancel, variant: 'danger' },
+    { kind: 'delete', label: labels.actions.delete, onClick: onDelete, legal: deleteLegal, permitted: caps.canEdit, variant: 'danger' },
   ];
 
   return (
@@ -254,6 +319,8 @@ export function SoDetailView({
                     <th className="px-3 py-2">{labels.lines.item}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.qty}</th>
                     <th className="px-3 py-2">{labels.lines.uom}</th>
+                    <th className="px-3 py-2 text-right">{labels.lines.unitPrice}</th>
+                    <th className="px-3 py-2 text-right">{labels.lines.lineTotal}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.allocated}</th>
                     <th className="px-3 py-2">{labels.lines.allocationStatus}</th>
                   </tr>
@@ -268,6 +335,12 @@ export function SoDetailView({
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums">{l.qty}</td>
                       <td className="px-3 py-2 font-mono text-xs">{l.uom}</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums" data-testid={`so-line-unit-price-${l.id}`}>
+                        {formatGbp(l.unitPriceGbp)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums" data-testid={`so-line-total-${l.id}`}>
+                        {formatGbp(l.lineTotalGbp)}
+                      </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums">{l.allocatedQty}</td>
                       <td className="px-3 py-2" data-testid={`so-line-alloc-${l.id}`}>
                         <AllocationBadge status={l.allocationStatus} label={allocLabel(l.allocationStatus)} />
@@ -322,11 +395,31 @@ export function SoDetailView({
                   {so.lines.length}
                 </dd>
               </div>
+              <div className="flex justify-between gap-2">
+                <dt className="font-semibold text-slate-700">{labels.summary.total}</dt>
+                <dd className="font-mono font-semibold text-slate-900" data-testid="so-detail-total">
+                  {formatGbp(orderTotal)}
+                </dd>
+              </div>
             </dl>
           </div>
 
           <div className="rounded-xl border border-slate-200 p-4" data-testid="so-detail-actions">
             <div className="mb-3 text-sm font-semibold text-slate-700">{labels.actions.title}</div>
+            {editLegal ? (
+              <div className="mb-2">
+                <button
+                  type="button"
+                  className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  data-testid="so-action-edit"
+                  disabled={!caps.canEdit || pending !== null}
+                  title={!caps.canEdit ? labels.actions.noPermission : undefined}
+                  onClick={() => setEditOpen(true)}
+                >
+                  {labels.actions.edit}
+                </button>
+              </div>
+            ) : null}
             <div className="flex flex-col gap-2">
               {buttons.map((b) => {
                 const disabled = !b.legal || !b.permitted || pending !== null;
@@ -343,7 +436,9 @@ export function SoDetailView({
                       'rounded-md px-3 py-1.5 text-sm font-medium',
                       b.variant === 'danger'
                         ? 'border border-red-200 text-red-700 hover:bg-red-50'
-                        : 'bg-slate-900 text-white hover:bg-slate-800',
+                        : b.variant === 'secondary'
+                          ? 'border border-slate-200 text-slate-700 hover:bg-slate-50'
+                          : 'bg-slate-900 text-white hover:bg-slate-800',
                       disabled ? 'cursor-not-allowed opacity-60' : '',
                     ].join(' ')}
                     data-testid={`so-action-${b.kind}`}
@@ -370,6 +465,15 @@ export function SoDetailView({
           </div>
         </div>
       </div>
+
+      <EditSoModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        so={so}
+        labels={labels.edit}
+        updateSalesOrderAction={updateSalesOrderAction}
+        onUpdated={() => router.refresh()}
+      />
     </div>
   );
 }
