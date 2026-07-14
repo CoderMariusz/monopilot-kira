@@ -6,13 +6,15 @@ import {
   hasPermission,
   type OrgActionContext,
 } from '../../planning/work-orders/_actions/shared';
-import { sequenceWorkOrders, DEFAULT_SEQUENCE_SOLVER_CONFIG } from './sequence-solver';
+import { sequenceWorkOrders, DEFAULT_SEQUENCE_SOLVER_CONFIG, buildPreoccupiedSeed } from './sequence-solver';
 import { loadPmWindows, pmBlockHoursFromConfigParams } from './pm-windows';
 import type {
   ApplyScheduleResult,
   ChangeoverMatrixEntry,
   JsonValue,
+  GetLatestSchedulerRunResult,
   ListChangeoverMatrixResult,
+  OmittedWorkOrder,
   SchedulerAssignment,
   SchedulerConfigRow,
   SchedulerRunResult,
@@ -23,12 +25,15 @@ import type {
 } from './scheduler-types';
 
 const SCHEDULER_RUN_DISPATCH_PERMISSION = 'scheduler.run.dispatch';
+const SCHEDULER_RUN_READ_PERMISSION = 'scheduler.run.read';
 const SCHEDULER_ASSIGNMENT_APPROVE_PERMISSION = 'scheduler.assignment.approve';
 const SCHEDULER_MATRIX_READ_PERMISSION = 'scheduler.matrix.read';
 const SCHEDULER_MATRIX_EDIT_PERMISSION = 'scheduler.matrix.edit';
 const OPTIMIZER_VERSION = 'e8-greedy-v1';
 /** Only released WOs are schedulable — drafts are not releasable onto the board. */
 const SCHEDULABLE_WO_STATUSES = ['RELEASED'] as const;
+/** WOs already occupying a line before the solver places released WOs. */
+const OCCUPYING_WO_STATUSES = ['IN_PROGRESS', 'RELEASED'] as const;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SCHEDULER_RUN_COMPLETED_EVENT = 'scheduler.run.completed';
 const PLANNING_SCHEDULE_PUBLISHED_EVENT = 'planning.schedule.published';
@@ -240,6 +245,36 @@ async function loadActiveVersionId(ctx: OrgActionContext): Promise<string | null
   return rows[0]?.id ?? null;
 }
 
+async function ensureActiveMatrixVersion(ctx: OrgActionContext): Promise<string> {
+  const existing = await loadActiveVersionId(ctx);
+  if (existing) return existing;
+
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `insert into public.changeover_matrix_versions
+       (org_id, version_number, label, is_active, status, created_by)
+     values
+       (app.current_org_id(),
+        coalesce(
+          (select max(cmv.version_number) + 1
+             from public.changeover_matrix_versions cmv
+            where cmv.org_id = app.current_org_id()),
+          1
+        ),
+        'Default',
+        true,
+        'active',
+        $1::uuid)
+     on conflict (org_id) where is_active = true do nothing
+     returning id::text`,
+    [ctx.userId],
+  );
+  if (rows[0]?.id) return rows[0].id;
+
+  const fallback = await loadActiveVersionId(ctx);
+  if (!fallback) throw new Error('changeover_matrix_versions bootstrap failed');
+  return fallback;
+}
+
 async function loadChangeoverMatrixForRun(
   ctx: OrgActionContext,
   lineId: string | null,
@@ -262,15 +297,7 @@ async function loadChangeoverMatrixForRun(
   return rows;
 }
 
-async function loadOpenWorkOrders(
-  ctx: OrgActionContext,
-  lineId: string | null,
-  horizonDays: number,
-  siteId: string | null,
-): Promise<WorkOrderForScheduling[]> {
-  const horizonEnd = new Date(Date.now() + horizonDays * DAY_MS).toISOString();
-  const { rows } = await ctx.client.query<WorkOrderForScheduling>(
-    `select
+const WORK_ORDERS_FOR_SCHEDULING_SELECT = `select
        wo.id::text,
        wo.org_id::text,
        wo.site_id::text,
@@ -344,9 +371,38 @@ async function loadOpenWorkOrders(
           and pd.org_id = p.org_id
         where p.org_id = wo.org_id
           and pd.item_id = wo.product_id
-     ) process_dur on true
+     ) process_dur on true`;
+
+async function loadWorkOrdersForScheduling(
+  ctx: OrgActionContext,
+  mode: 'schedulable' | 'occupying',
+  lineId: string | null,
+  horizonDays: number,
+  siteId: string | null,
+): Promise<WorkOrderForScheduling[]> {
+  const horizonEnd = new Date(Date.now() + horizonDays * DAY_MS).toISOString();
+  const statuses = mode === 'schedulable' ? SCHEDULABLE_WO_STATUSES : OCCUPYING_WO_STATUSES;
+  const lineRequired = mode === 'occupying' ? 'and wo.production_line_id is not null' : '';
+  const occupancyFilter =
+    mode === 'occupying'
+      ? `and (
+        wo.status = 'IN_PROGRESS'
+        or (
+          wo.scheduled_start_time is not null
+          and wo.scheduled_end_time is not null
+        )
+      )`
+      : '';
+  const orderBy =
+    mode === 'occupying'
+      ? 'order by coalesce(wo.scheduled_end_time, wo.planned_end_date) asc, wo.id asc'
+      : 'order by due_date asc, wo.id asc';
+
+  const { rows } = await ctx.client.query<WorkOrderForScheduling>(
+    `${WORK_ORDERS_FOR_SCHEDULING_SELECT}
     where wo.org_id = app.current_org_id()
       and wo.status = any($1::varchar[])
+      ${lineRequired}
       and coalesce(wo.planned_start_date, wo.scheduled_start_time, wo.created_at) < $2::timestamptz
       and ($3::uuid is null or wo.production_line_id = $3::uuid)
       and (
@@ -360,10 +416,29 @@ async function loadOpenWorkOrders(
         or pl.site_id is null
         or pl.site_id = $4::uuid
       )
-    order by due_date asc, wo.id asc`,
-    [[...SCHEDULABLE_WO_STATUSES], horizonEnd, lineId, siteId],
+      ${occupancyFilter}
+    ${orderBy}`,
+    [[...statuses], horizonEnd, lineId, siteId],
   );
   return rows;
+}
+
+async function loadOpenWorkOrders(
+  ctx: OrgActionContext,
+  lineId: string | null,
+  horizonDays: number,
+  siteId: string | null,
+): Promise<WorkOrderForScheduling[]> {
+  return loadWorkOrdersForScheduling(ctx, 'schedulable', lineId, horizonDays, siteId);
+}
+
+async function loadLineOccupancy(
+  ctx: OrgActionContext,
+  lineId: string | null,
+  horizonDays: number,
+  siteId: string | null,
+): Promise<WorkOrderForScheduling[]> {
+  return loadWorkOrdersForScheduling(ctx, 'occupying', lineId, horizonDays, siteId);
 }
 
 async function insertSchedulerRun(
@@ -375,6 +450,7 @@ async function insertSchedulerRun(
     assignmentCount: number;
     totalChangeoverCost: number;
     solveDurationMs: number;
+    omitted: OmittedWorkOrder[];
   },
 ): Promise<SchedulerRunRow> {
   const { rows } = await ctx.client.query<SchedulerRunRow>(
@@ -398,6 +474,8 @@ async function insertSchedulerRun(
       JSON.stringify({
         assignment_count: params.assignmentCount,
         total_changeover_cost: params.totalChangeoverCost,
+        omitted_work_orders: params.omitted,
+        omitted_count: params.omitted.length,
       }),
       params.solveDurationMs,
     ],
@@ -409,7 +487,17 @@ async function insertSchedulerAssignments(
   ctx: OrgActionContext,
   runId: string,
   lineId: string | null,
-  assignments: ReturnType<typeof sequenceWorkOrders>,
+  assignments: Array<{
+    wo_id: string;
+    sequence_index: number;
+    line_id: string | null;
+    planned_start_at: string;
+    planned_end_at: string | null;
+    changeover_cost: number;
+    cumulative_changeover_cost: number;
+    allergen_profile_key: string;
+    work_order: WorkOrderForScheduling;
+  }>,
 ): Promise<SchedulerAssignment[]> {
   if (assignments.length === 0) return [];
 
@@ -564,7 +652,7 @@ async function approveSchedulerAssignment(
 async function emitSchedulerRunCompletedEvent(
   ctx: OrgActionContext,
   runId: string,
-  counts: { work_orders: number; assignments: number; total_changeover_cost: number },
+  counts: { work_orders: number; assignments: number; total_changeover_cost: number; omitted_count?: number },
 ): Promise<void> {
   await ctx.client.query(
     `insert into public.outbox_events
@@ -643,7 +731,7 @@ async function upsertMatrixByPair(
   ctx: OrgActionContext,
   entry: Partial<ChangeoverMatrixEntry>,
 ): Promise<ChangeoverMatrixEntry | null> {
-  const versionId = entry.version_id ?? (await loadActiveVersionId(ctx));
+  const versionId = entry.version_id ?? (await ensureActiveMatrixVersion(ctx));
   const allergenFrom = entry.allergen_from?.trim();
   const allergenTo = entry.allergen_to?.trim();
   const changeoverMinutes = Number(entry.changeover_minutes);
@@ -706,6 +794,46 @@ async function upsertMatrixByPair(
   return insert.rows[0] ?? null;
 }
 
+export async function getLatestSchedulerRun(runId?: string): Promise<GetLatestSchedulerRunResult> {
+  const requestedRunId = runId?.trim() || null;
+  if (requestedRunId !== null && !isUuid(requestedRunId)) {
+    return { ok: false, error: 'not_found' };
+  }
+
+  try {
+    return await withOrgContext(async (ctx: OrgActionContext): Promise<GetLatestSchedulerRunResult> => {
+      if (!(await hasPermission(ctx, SCHEDULER_RUN_READ_PERMISSION))) {
+        return { ok: false, error: 'forbidden' };
+      }
+
+      const { rows } = await ctx.client.query<SchedulerRunRow>(
+        requestedRunId
+          ? `select ${RUN_SELECT}
+               from public.scheduler_runs
+              where org_id = app.current_org_id()
+                and run_id = $1::uuid
+                and status = 'completed'
+              limit 1`
+          : `select ${RUN_SELECT}
+               from public.scheduler_runs
+              where org_id = app.current_org_id()
+                and status = 'completed'
+              order by completed_at desc nulls last, created_at desc
+              limit 1`,
+        requestedRunId ? [requestedRunId] : [],
+      );
+      const run = rows[0];
+      if (!run) return { ok: false, error: 'not_found' };
+
+      const assignments = await loadAssignments(ctx, run.run_id);
+      return { ok: true, run, assignments };
+    });
+  } catch (error) {
+    console.error('[scheduler/getLatestSchedulerRun] persistence_failed', error);
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
 export async function runScheduler(input?: { lineId?: string; horizonDays?: number }): Promise<SchedulerRunResult> {
   const lineId = input?.lineId?.trim() || null;
   if (lineId !== null && !isUuid(lineId)) return { ok: false, error: 'invalid_input' };
@@ -729,10 +857,12 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
 
       const siteId = await getActiveSiteId({ client: ctx.client });
 
-      const started = Date.now();
-      const [workOrders, matrix] = await Promise.all([
+      const runNowMs = Date.now();
+      const started = runNowMs;
+      const [workOrders, matrix, occupying] = await Promise.all([
         loadOpenWorkOrders(ctx, lineId, horizonDays, siteId),
         loadChangeoverMatrixForRun(ctx, lineId),
+        loadLineOccupancy(ctx, lineId, horizonDays, siteId),
       ]);
       const baseSolverConfig = solverConfigFromRow(schedulerConfig);
       const solverConfig: SequenceSolverConfig =
@@ -752,21 +882,29 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
           schedulerConfigs.filter((row): row is SchedulerConfigRow => row !== null),
         );
       }
+      const schedulableIds = new Set(workOrders.map((wo) => wo.id));
+      solverConfig.nowMs = runNowMs;
+      solverConfig.preoccupied = buildPreoccupiedSeed(
+        occupying.filter((wo) => !schedulableIds.has(wo.id)),
+        solverConfig,
+      );
       const sequenced = sequenceWorkOrders(workOrders, matrix, solverConfig);
       const solveDurationMs = Date.now() - started;
       const run = await insertSchedulerRun(ctx, {
         lineId,
         horizonDays,
         workOrderCount: workOrders.length,
-        assignmentCount: sequenced.length,
-        totalChangeoverCost: totalChangeover(sequenced),
+        assignmentCount: sequenced.assignments.length,
+        totalChangeoverCost: totalChangeover(sequenced.assignments),
         solveDurationMs,
+        omitted: sequenced.omitted,
       });
-      const assignments = await insertSchedulerAssignments(ctx, run.run_id, lineId, sequenced);
+      const assignments = await insertSchedulerAssignments(ctx, run.run_id, lineId, sequenced.assignments);
       await emitSchedulerRunCompletedEvent(ctx, run.run_id, {
         work_orders: workOrders.length,
         assignments: assignments.length,
-        total_changeover_cost: totalChangeover(sequenced),
+        total_changeover_cost: totalChangeover(sequenced.assignments),
+        omitted_count: sequenced.omitted.length,
       });
       return { ok: true, run, assignments };
     });

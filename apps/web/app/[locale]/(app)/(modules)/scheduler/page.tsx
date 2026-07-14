@@ -22,16 +22,27 @@ import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
-import { runScheduler, applySchedule } from './_actions/scheduler-actions';
-import { loadSchedulerAccess } from './_lib/scheduler-labels';
+import { runScheduler, applySchedule, getLatestSchedulerRun } from './_actions/scheduler-actions';
+import { hydrateSchedulerLabelsForWoIds, loadSchedulerAccess } from './_lib/scheduler-labels';
 import { SchedulerBoardView, type SchedulerBoardLabels } from './_components/scheduler-board-view';
+import { toProposal } from './_components/scheduler-view-model';
 
 // Org-scoped DB read per request — never statically prerendered.
 export const dynamic = 'force-dynamic';
 
 type SchedulerPageProps = {
   params: Promise<{ locale: string }>;
+  searchParams?: Promise<{ runId?: string | string[] }>;
 };
+
+function normalizeRunIdSearchParam(runId?: string | string[]): string | undefined {
+  if (runId === undefined) return undefined;
+  if (Array.isArray(runId)) {
+    if (runId.length !== 1) return undefined;
+    return runId[0];
+  }
+  return runId;
+}
 
 function BoardSkeleton() {
   return (
@@ -42,7 +53,13 @@ function BoardSkeleton() {
   );
 }
 
-async function BoardContent({ locale }: { locale: string }) {
+async function BoardContent({
+  locale,
+  runId,
+}: {
+  locale: string;
+  runId?: string;
+}) {
   const t = await getTranslations('Scheduler');
   const access = await loadSchedulerAccess();
 
@@ -83,6 +100,9 @@ async function BoardContent({ locale }: { locale: string }) {
       sequenceCol: t('board.sequenceCol'),
       woCol: t('board.woCol'),
       plannedStart: t('board.plannedStart'),
+      plannedEnd: t('board.plannedEnd'),
+      duration: t('board.duration'),
+      qty: t('board.qty'),
       profileCol: t('board.profileCol'),
       changeover: t('board.changeover'),
       totalCost: t('board.totalCost'),
@@ -90,6 +110,8 @@ async function BoardContent({ locale }: { locale: string }) {
       emptyHint: t('board.emptyHint'),
       noAssignments: t('board.noAssignments'),
       appliedBadge: t('board.appliedBadge'),
+      omittedTitle: t('board.omittedTitle'),
+      omittedReason: t('board.omittedReason'),
     },
     apply: {
       button: t('apply.button'),
@@ -108,6 +130,24 @@ async function BoardContent({ locale }: { locale: string }) {
     },
   };
 
+  const latestRun = await getLatestSchedulerRun(runId);
+  let labelMaps = access.labelMaps;
+  if (latestRun.ok) {
+    const hydrated = await hydrateSchedulerLabelsForWoIds(
+      latestRun.assignments.map((assignment) => assignment.wo_id),
+    );
+    labelMaps = {
+      ...labelMaps,
+      woNumberById: { ...labelMaps.woNumberById, ...hydrated.woNumberById },
+      qtyByWoId: { ...labelMaps.qtyByWoId, ...hydrated.qtyByWoId },
+      uomByWoId: { ...labelMaps.uomByWoId, ...hydrated.uomByWoId },
+    };
+  }
+  const initialProposal =
+    latestRun.ok
+      ? toProposal({ ok: true, run: latestRun.run, assignments: latestRun.assignments }, labelMaps)
+      : null;
+
   return (
     <SchedulerBoardView
       labels={labels}
@@ -115,12 +155,14 @@ async function BoardContent({ locale }: { locale: string }) {
       runAction={runScheduler}
       applyAction={applySchedule}
       labelMaps={access.labelMaps}
+      initialProposal={initialProposal}
     />
   );
 }
 
-export default async function SchedulerPage({ params }: SchedulerPageProps) {
+export default async function SchedulerPage({ params, searchParams }: SchedulerPageProps) {
   const { locale } = await params;
+  const sp = searchParams ? await searchParams : {};
   const t = await getTranslations('Scheduler');
 
   return (
@@ -144,7 +186,7 @@ export default async function SchedulerPage({ params }: SchedulerPageProps) {
         }
       />
       <Suspense fallback={<BoardSkeleton />}>
-        <BoardContent locale={locale} />
+        <BoardContent locale={locale} runId={normalizeRunIdSearchParam(sp.runId)} />
       </Suspense>
     </main>
   );

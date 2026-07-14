@@ -22,6 +22,7 @@ import {
 } from './shared';
 
 type ReleasePreflightRow = {
+  item_type_at_creation: string;
   active_bom_header_id: string | null;
   active_factory_spec_id: string | null;
   output_uom: string | null;
@@ -40,6 +41,7 @@ type ChainMemberRow = {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** Undirected membership CTE — collects every WO in the dependency component (cancel / guards). */
 const CHAIN_MEMBERS_SQL = `with recursive chain(wo_id, depth) as (
        select $1::uuid, 0
        union
@@ -65,7 +67,31 @@ const CHAIN_MEMBERS_SQL = `with recursive chain(wo_id, depth) as (
       group by ch.wo_id, wo.status, wo.wo_number
       order by max(ch.depth) desc, wo.wo_number`;
 
+/** Directed parent→child depth from the FG root (release order: deepest descendant first, root last). */
+const CHAIN_RELEASE_ORDER_SQL = `with recursive chain(wo_id, depth) as (
+       select $1::uuid, 0
+       union all
+       select d.child_wo_id,
+              c.depth + 1
+         from chain c
+         join public.wo_dependencies d
+           on d.org_id = app.current_org_id()
+          and d.parent_wo_id = c.wo_id
+        where c.depth < 32
+     )
+     select ch.wo_id::text as id,
+            ch.depth,
+            wo.status,
+            wo.wo_number
+       from chain ch
+       join public.work_orders wo
+         on wo.org_id = app.current_org_id()
+        and wo.id = ch.wo_id
+      where ch.depth > 0
+      order by ch.depth desc, wo.wo_number`;
+
 const RELEASE_PREFLIGHT_SQL = `select
+    wo.item_type_at_creation,
     coalesce(wo.active_factory_spec_id, (
       select fs.id
         from public.factory_specs fs
@@ -114,7 +140,12 @@ function evaluateReleasePreflight(preflight: ReleasePreflightRow): ReleaseWorkOr
 
   const missing: Array<'active_bom' | 'factory_spec'> = [];
   if (!preflight.active_bom_header_id) missing.push('active_bom');
-  if (!preflight.active_factory_spec_id) missing.push('factory_spec');
+  if (
+    preflight.item_type_at_creation !== 'intermediate'
+    && !preflight.active_factory_spec_id
+  ) {
+    missing.push('factory_spec');
+  }
   if (missing.length > 0) {
     return {
       ok: false,
@@ -130,6 +161,14 @@ function evaluateReleasePreflight(preflight: ReleasePreflightRow): ReleaseWorkOr
 
 async function loadChainMembers(ctx: OrgActionContext, rootWoId: string): Promise<ChainMemberRow[]> {
   const { rows } = await ctx.client.query<ChainMemberRow>(CHAIN_MEMBERS_SQL, [rootWoId]);
+  return rows;
+}
+
+async function loadChainDescendantsForRelease(
+  ctx: OrgActionContext,
+  rootWoId: string,
+): Promise<ChainMemberRow[]> {
+  const { rows } = await ctx.client.query<ChainMemberRow>(CHAIN_RELEASE_ORDER_SQL, [rootWoId]);
   return rows;
 }
 
@@ -266,6 +305,50 @@ export async function releaseWorkOrderForContext(
   return { ok: true, workOrder: mapWoHeader(workOrder) };
 }
 
+/** Read-only release gates for one chain member — no writes. */
+async function preflightChainMemberRelease(
+  ctx: OrgActionContext,
+  woId: string,
+  chainDraftChildIds: ReadonlySet<string>,
+): Promise<ReleaseWorkOrderResult | null> {
+  const current = await ctx.client.query<{ status: string }>(
+    `select wo.status
+       from public.work_orders wo
+      where wo.org_id = app.current_org_id()
+        and wo.id = $1::uuid
+      limit 1`,
+    [woId],
+  );
+  const row = current.rows[0];
+  if (!row) return { ok: false, error: 'not_found' };
+  if (row.status === 'RELEASED') return null;
+  if (row.status !== 'DRAFT') return { ok: false, error: 'invalid_state' };
+
+  const preflightResult = await ctx.client.query<ReleasePreflightRow>(RELEASE_PREFLIGHT_SQL, [woId]);
+  const preflight = preflightResult.rows[0];
+  if (!preflight) return { ok: false, error: 'invalid_state' };
+
+  const gateFailure = evaluateReleasePreflight(preflight);
+  if (gateFailure) return gateFailure;
+
+  const upstreamGate = await assertUpstreamWipReady(ctx.client, woId, 'release');
+  if (upstreamGate) {
+    const blockers = upstreamGate.blockers.filter(
+      (blocker) => !(chainDraftChildIds.has(blocker.child_wo_id) && blocker.release_blocked),
+    );
+    if (blockers.length > 0) {
+      return {
+        ok: false,
+        error: 'upstream_wip_not_ready',
+        message: upstreamWipNotReadyMessage({ ...upstreamGate, blockers }),
+        details: { ...upstreamGate, blockers },
+      };
+    }
+  }
+
+  return null;
+}
+
 /**
  * Release every DRAFT member of a dependency chain, deepest upstream WIP first,
  * then the FG root — so upstream-wip gates pass in one transaction.
@@ -274,10 +357,25 @@ export async function releaseWorkOrderChainForContext(
   ctx: OrgActionContext,
   rootWoId: string,
 ): Promise<ReleaseWorkOrderResult> {
+  const descendants = await loadChainDescendantsForRelease(ctx, rootWoId);
   const members = await loadChainMembers(ctx, rootWoId);
   if (members.length === 0) return { ok: false, error: 'not_found' };
 
-  for (const member of members) {
+  const rootMember = members.find((member) => member.id === rootWoId)
+    ?? members.find((member) => member.depth === 0);
+  const draftDescendants = descendants.filter((member) => member.status === 'DRAFT');
+  const chainDraftChildIds = new Set(draftDescendants.map((member) => member.id));
+  const draftMembers = [
+    ...draftDescendants,
+    ...(rootMember?.status === 'DRAFT' ? [rootMember] : []),
+  ];
+
+  for (const member of draftMembers) {
+    const failure = await preflightChainMemberRelease(ctx, member.id, chainDraftChildIds);
+    if (failure) return failure;
+  }
+
+  for (const member of descendants) {
     if (member.status !== 'DRAFT') continue;
     const result = await releaseWorkOrderForContext(ctx, member.id);
     if (!result.ok) return result;

@@ -37,6 +37,15 @@ function matrix(
 }
 
 describe('resolveChangeoverTransition', () => {
+  it('marks partial allergen-profile coverage infeasible when any pair is missing', () => {
+    const entries = [matrix('milk', 'nuts', 20)];
+
+    const transition = resolveChangeoverTransition(['milk', 'soy'], ['nuts'], null, entries);
+
+    expect(transition.feasible).toBe(false);
+    expect(transition.risk_level).toBe('segregated');
+  });
+
   it('matches single-code matrix rows against multi-allergen profiles', () => {
     const entries = [
       matrix('milk', 'nuts', 20),
@@ -93,7 +102,7 @@ describe('resolveChangeoverTransition', () => {
     expect(effectiveChangeoverMinutes(transition)).toBe(15 + CLEANING_STEP_MINUTES + ATP_STEP_MINUTES);
   });
 
-  it('marks segregated transitions infeasible', () => {
+  it('marks segregated configured transitions infeasible', () => {
     const transition = resolveChangeoverTransition(
       ['milk'],
       ['nuts'],
@@ -103,6 +112,32 @@ describe('resolveChangeoverTransition', () => {
 
     expect(transition.feasible).toBe(false);
     expect(transitionScore(transition, 1)).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it('marks unmatched non-empty allergen pairs infeasible when a matrix is configured', () => {
+    const transition = resolveChangeoverTransition(['milk'], ['nuts'], null, [], {
+      matrixConfigured: true,
+    });
+
+    expect(transition.minutes).toBe(0);
+    expect(transition.feasible).toBe(false);
+    expect(transition.risk_level).toBe('segregated');
+  });
+
+  it('treats unmatched pairs as permissive when no matrix is configured', () => {
+    const transition = resolveChangeoverTransition(['milk'], ['nuts'], null, [], {
+      matrixConfigured: false,
+    });
+
+    expect(transition.minutes).toBe(0);
+    expect(transition.feasible).toBe(true);
+  });
+
+  it('keeps both-empty allergen profiles as a free transition', () => {
+    const transition = resolveChangeoverTransition([], [], null, []);
+
+    expect(transition.minutes).toBe(0);
+    expect(transition.feasible).toBe(true);
   });
 });
 

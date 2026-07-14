@@ -84,6 +84,18 @@ const labels: WoDetailLabels = {
   notLive: { reservations: 'Not live', sequencing: 'Not live', d365: 'Not live' },
   minutes: 'min',
   edit: { editButton: 'Edit', modal: editModalLabels },
+  deleteDraft: {
+    button: 'Delete draft',
+    pending: 'Deleting...',
+    confirm: 'Delete draft work order {wo}?',
+    error: 'Could not delete this draft work order.',
+  },
+  cancelChain: {
+    button: 'Cancel chain',
+    pending: 'Cancelling...',
+    confirm: 'Cancel the whole chain for {wo}?',
+    error: 'Could not cancel this chain.',
+  },
 };
 
 function makeWo(over: Partial<Wo> = {}): Wo {
@@ -127,9 +139,14 @@ const fgRow: FgProductOption = {
   weightMode: 'fixed',
 };
 
-function renderDetail(over: { wo?: Wo; update?: ReturnType<typeof vi.fn> } = {}) {
+function renderDetail(over: {
+  wo?: Wo;
+  update?: ReturnType<typeof vi.fn>;
+  deleteDraft?: ReturnType<typeof vi.fn>;
+} = {}) {
   const update = over.update ?? vi.fn().mockResolvedValue({ ok: true, workOrder: {} });
   const search = vi.fn().mockResolvedValue([fgRow]);
+  const deleteDraft = over.deleteDraft ?? vi.fn().mockResolvedValue({ ok: true, id: 'wo-1' });
   const utils = render(
     <WoDetailView
       workOrder={over.wo ?? makeWo()}
@@ -138,9 +155,10 @@ function renderDetail(over: { wo?: Wo; update?: ReturnType<typeof vi.fn> } = {})
       resources={resources}
       searchFgProductsAction={search}
       updateWorkOrderAction={update}
+      deleteDraftWorkOrderAction={deleteDraft}
     />,
   );
-  return { ...utils, update, search };
+  return { ...utils, update, search, deleteDraft };
 }
 
 afterEach(() => {
@@ -156,6 +174,25 @@ describe('WO DRAFT edit affordance (Wave R1)', () => {
   it('shows the Edit button on a DRAFT WO', () => {
     renderDetail();
     expect(screen.getByTestId('wo-edit-order')).toBeInTheDocument();
+  });
+
+  it('hides Delete on a chained draft and keeps it on a standalone draft', () => {
+    renderDetail({
+      wo: makeWo({
+        dependencies: [{
+          id: 'dep-1',
+          parentWoId: 'wo-parent',
+          childWoId: 'wo-1',
+          materialLink: null,
+          requiredQty: '100',
+          createdAt: '2026-06-01T00:00:00.000Z',
+        }],
+      }),
+    });
+    expect(screen.queryByTestId('wo-delete-draft')).not.toBeInTheDocument();
+
+    renderDetail();
+    expect(screen.getByTestId('wo-delete-draft')).toBeInTheDocument();
   });
 
   it('opens the modal PREFILLED with the honest re-snapshot note', async () => {

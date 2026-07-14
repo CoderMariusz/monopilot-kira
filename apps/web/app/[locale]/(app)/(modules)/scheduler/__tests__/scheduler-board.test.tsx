@@ -25,7 +25,8 @@ import roMessages from '../../../../../../i18n/ro.json';
 import ukMessages from '../../../../../../i18n/uk.json';
 
 import { SchedulerBoardView, type SchedulerBoardLabels } from '../_components/scheduler-board-view';
-import type { SchedulerLabelMaps } from '../_components/scheduler-view-model';
+import type { SchedulerLabelMaps, SchedulerProposal } from '../_components/scheduler-view-model';
+import { toProposal } from '../_components/scheduler-view-model';
 import type {
   SchedulerRunResult,
   ApplyScheduleResult,
@@ -42,7 +43,12 @@ const en = (enMessages as Record<string, any>).Scheduler;
 
 const labels: SchedulerBoardLabels = {
   run: en.run,
-  board: en.board,
+  board: {
+    ...en.board,
+    plannedEnd: en.board.plannedEnd ?? 'Planned end',
+    duration: en.board.duration ?? '{minutes} min',
+    qty: en.board.qty ?? 'Qty',
+  },
   apply: en.apply,
   errors: en.errors,
 };
@@ -141,6 +147,7 @@ function okRun(): Extract<SchedulerRunResult, { ok: true }> {
 function renderBoard(opts: {
   runAction?: (input: any) => Promise<SchedulerRunResult>;
   applyAction?: (runId: string) => Promise<ApplyScheduleResult>;
+  initialProposal?: SchedulerProposal | null;
 } = {}) {
   const runAction = opts.runAction ?? vi.fn(async () => okRun());
   const applyAction =
@@ -153,6 +160,7 @@ function renderBoard(opts: {
       runAction={runAction}
       applyAction={applyAction}
       labelMaps={labelMaps}
+      initialProposal={opts.initialProposal ?? null}
     />,
   );
   return { runAction, applyAction };
@@ -167,6 +175,44 @@ describe('SchedulerBoardView — run + proposed sequence', () => {
     renderBoard();
     expect(screen.getByTestId('scheduler-empty')).toBeInTheDocument();
     expect(screen.queryByTestId('scheduler-proposal')).not.toBeInTheDocument();
+  });
+
+  it('hydrates from an initial persisted proposal', () => {
+    const initialProposal = {
+      runId: RUN_ID,
+      applied: false,
+      totalChangeoverCost: 45,
+      lanes: [{
+        lineId: LINE_1,
+        lineCode: 'LINE-01',
+        lineName: 'Line One',
+        assignments: [{
+          woId: WO_A,
+          woLabel: 'WO-A',
+          lineId: LINE_1,
+          sequence: 1,
+          plannedStart: '2026-06-24T06:00:00.000Z',
+          plannedEnd: '2026-06-24T10:00:00.000Z',
+          qty: '100 kg',
+          durationMinutes: 240,
+          profileKey: 'GLUTEN_FREE',
+          changeoverFromPrev: 0,
+        }],
+      }],
+    };
+    renderBoard({ initialProposal });
+    expect(screen.getByTestId('scheduler-proposal')).toBeInTheDocument();
+    expect(screen.queryByTestId('scheduler-empty')).not.toBeInTheDocument();
+    expect(screen.getByTestId('scheduler-assignment-end-WO-A')).toBeInTheDocument();
+    expect(screen.getByTestId('scheduler-assignment-duration-WO-A')).toHaveTextContent('240 min');
+  });
+
+  it('offers a 1-day planning horizon option', () => {
+    renderBoard();
+    const options = Array.from(screen.getByTestId('scheduler-horizon').querySelectorAll('option')).map(
+      (option) => Number(option.getAttribute('value')),
+    );
+    expect(options).toContain(1);
   });
 
   it('runs the scheduler and renders the proposed sequence per line lane', async () => {
@@ -270,6 +316,30 @@ describe('SchedulerBoardView — apply behind a confirm', () => {
     fireEvent.click(await screen.findByTestId('scheduler-apply-confirm'));
 
     expect(await screen.findByTestId('scheduler-apply-error')).toHaveTextContent(en.errors.sod_violation);
+  });
+});
+
+describe('toProposal duration precision', () => {
+  it('preserves sub-minute duration without rounding to whole minutes', () => {
+    const start = '2026-06-01T00:00:00.000Z';
+    const end = '2026-06-01T00:01:30.500Z';
+    const proposal = toProposal(
+      {
+        ok: true,
+        run: runRow(),
+        assignments: [
+          assignment({
+            wo_id: WO_A,
+            line_id: LINE_1,
+            planned_start_at: start,
+            planned_end_at: end,
+          }),
+        ],
+      },
+      labelMaps,
+    );
+
+    expect(proposal.lanes[0]?.assignments[0]?.durationMinutes).toBeCloseTo(90.5 / 60, 5);
   });
 });
 

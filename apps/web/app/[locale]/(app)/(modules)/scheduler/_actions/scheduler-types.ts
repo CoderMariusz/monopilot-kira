@@ -168,6 +168,17 @@ export interface SequenceSolverConfig {
   /** When true, `pmWindows` block scheduling overlaps; no effect when the window list is empty. */
   respectPmWindows: boolean;
   pmWindows?: PmWindow[];
+  /** Injectable clock for deterministic sequencing (defaults to Date.now()). */
+  nowMs?: number;
+  /** Pre-seeded line occupancy from active/in-progress or already-scheduled WOs. */
+  preoccupied?: SequencePreoccupiedSeed;
+}
+
+/** Occupancy windows already consuming line capacity before the solver places released WOs. */
+export interface SequencePreoccupiedSeed {
+  plannedEndByLine: Record<string, number>;
+  dayUsageMs: Record<string, number>;
+  lastWoByLine: Record<string, WorkOrderForScheduling>;
 }
 
 export interface SequencedAssignment {
@@ -182,9 +193,25 @@ export interface SequencedAssignment {
   work_order: WorkOrderForScheduling;
 }
 
+export type OmittedWorkOrderReason = 'no_feasible_changeover';
+
+export interface OmittedWorkOrder {
+  wo_id: string;
+  reason: OmittedWorkOrderReason;
+}
+
+export interface SequenceSolverResult {
+  assignments: SequencedAssignment[];
+  omitted: OmittedWorkOrder[];
+}
+
 export type SchedulerRunResult =
   | { ok: true; run: SchedulerRunRow; assignments: SchedulerAssignment[] }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'persistence_failed' };
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
+
+export type GetLatestSchedulerRunResult =
+  | { ok: true; run: SchedulerRunRow; assignments: SchedulerAssignment[] }
+  | { ok: false; error: 'forbidden' | 'not_found' | 'persistence_failed' };
 
 export type ApplyScheduleResult =
   | {
