@@ -161,7 +161,7 @@ export async function createPickList(soId: string): Promise<CreatePickListResult
       `select ia.sales_order_line_id::text,
               ia.license_plate_id::text,
               sol.product_id::text,
-              lp.lot_number,
+              lp.batch_number as lot_number,
               lp.location_id::text as location_id,
               ia.quantity_allocated::text,
               sol.line_number
