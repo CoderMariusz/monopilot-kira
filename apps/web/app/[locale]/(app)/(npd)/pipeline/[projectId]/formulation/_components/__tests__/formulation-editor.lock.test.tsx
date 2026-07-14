@@ -231,8 +231,8 @@ describe('C1 — Lock recipe wiring', () => {
     expect(screen.queryByTestId('lock-confirm-modal')).not.toBeInTheDocument();
   });
 
-  it('maps the action error code to a localized inline alert and does NOT refresh (VERSION_NOT_SUBMITTED)', async () => {
-    const lock = vi.fn().mockResolvedValue({ ok: false, error: 'VERSION_NOT_SUBMITTED' });
+  it('maps the action error code to a localized inline alert and does NOT refresh (VERSION_NOT_DRAFT)', async () => {
+    const lock = vi.fn().mockResolvedValue({ ok: false, error: 'VERSION_NOT_DRAFT' });
     const onRefresh = vi.fn();
     renderEditor({ lockVersionAction: lock, onRefresh });
     await act(async () => {

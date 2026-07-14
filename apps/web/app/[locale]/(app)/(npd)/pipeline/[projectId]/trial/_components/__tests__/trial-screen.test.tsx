@@ -49,6 +49,10 @@ const LABELS: TrialLabels = {
   resultFail: 'Fail',
   resultPending: 'In progress',
   editTrial: 'Edit',
+  deleteTrial: 'Delete',
+  confirmDelete: 'Delete this trial?',
+  deleteError: 'Could not delete the trial. Try again.',
+  deleteHasProgressed: 'This trial already has a result and cannot be deleted.',
   modalTitle: 'Log new trial',
   editModalTitle: 'Edit trial',
   fieldTrialNo: 'Trial #',
@@ -140,6 +144,7 @@ const DATA: TrialScreenData = {
   canBookLineTime: true,
   lines: [{ id: 'line-1', code: 'LINE-01', name: 'Line One' }],
   capacityBookings: {},
+  defaultProductionLineId: null,
 };
 
 function renderReady(extra?: Partial<React.ComponentProps<typeof TrialScreen>>) {
@@ -269,23 +274,65 @@ describe('TrialScreen — modal + optimistic', () => {
     expect(container.querySelector('select')).toBeNull();
   });
 
-  it('optimistically inserts a row on a successful log', async () => {
-    const onLogTrial = vi.fn().mockResolvedValue({ ok: true });
-    renderReady({ onLogTrial });
+  it('shows an optimistic row while create is in flight, then clears it (no duplicate after server data arrives)', async () => {
+    let resolveLog!: (v: { ok: boolean }) => void;
+    const onLogTrial = vi.fn().mockImplementation(
+      () =>
+        new Promise<{ ok: boolean }>((resolve) => {
+          resolveLog = resolve;
+        }),
+    );
+    const { rerender } = renderReady({ onLogTrial });
     fireEvent.click(screen.getByTestId('log-new-trial-button'));
     fireEvent.change(screen.getByLabelText(LABELS.fieldTrialNo), {
       target: { value: 'T-099' },
     });
     fireEvent.submit(screen.getByTestId('log-trial-form'));
-    await waitFor(() => expect(onLogTrial).toHaveBeenCalledTimes(1));
+
+    // While the action is pending the optimistic placeholder is visible.
     await waitFor(() =>
       expect(
         within(screen.getByTestId('trial-table')).getAllByTestId('trial-row'),
       ).toHaveLength(4),
     );
-    expect(onLogTrial).toHaveBeenCalledWith(
-      expect.objectContaining({ projectId: 'project-1', trialNo: 'T-099' }),
+
+    resolveLog({ ok: true });
+    await waitFor(() => expect(onLogTrial).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    // Placeholder dropped — back to the 3 server rows until RSC re-supplies data.
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId('trial-table')).getAllByTestId('trial-row'),
+      ).toHaveLength(3),
     );
+
+    // Simulate the refreshed RSC payload that includes the new trial.
+    const nextBatches = [
+      {
+        id: 't-new',
+        trialNo: 'T-099',
+        trialDate: null,
+        batchSizeKg: null,
+        yieldPct: null,
+        technologistUserId: null,
+        technologistName: null,
+        result: 'pending' as const,
+        notes: null,
+      },
+      ...DATA.batches,
+    ];
+    rerender(
+      <TrialScreen
+        state="ready"
+        data={{ ...DATA, batches: nextBatches }}
+        labels={LABELS}
+        onLogTrial={onLogTrial}
+      />,
+    );
+    const rows = within(screen.getByTestId('trial-table')).getAllByTestId('trial-row');
+    expect(rows).toHaveLength(4);
+    const trialNos = rows.map((r) => within(r).getAllByRole('cell')[0]?.textContent);
+    expect(trialNos.filter((n) => n === 'T-099')).toHaveLength(1);
   });
 
   it('surfaces the friendly duplicate_trial_no error and rolls back optimistic row', async () => {
@@ -493,5 +540,29 @@ describe('TrialScreen — book line time', () => {
   it('hides book affordance when the caller lacks planning write (RBAC)', () => {
     renderReady({ data: { ...DATA, canBookLineTime: false } });
     expect(screen.queryByTestId('book-line-time-button-t1')).toBeNull();
+  });
+});
+
+describe('TrialScreen — delete pending trial', () => {
+  it('deletes a pending trial after confirm and refreshes', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const onDeleteTrial = vi.fn().mockResolvedValue({ ok: true });
+    renderReady({ onDeleteTrial });
+    expect(screen.getByTestId('delete-trial-button-t3')).toBeInTheDocument();
+    expect(screen.queryByTestId('delete-trial-button-t1')).toBeNull(); // pass — no delete
+    fireEvent.click(screen.getByTestId('delete-trial-button-t3'));
+    await waitFor(() => expect(onDeleteTrial).toHaveBeenCalledTimes(1));
+    expect(onDeleteTrial).toHaveBeenCalledWith({ id: 't3', projectId: 'project-1' });
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    confirmSpy.mockRestore();
+  });
+
+  it('does not call delete when confirm is cancelled', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const onDeleteTrial = vi.fn().mockResolvedValue({ ok: true });
+    renderReady({ onDeleteTrial });
+    fireEvent.click(screen.getByTestId('delete-trial-button-t3'));
+    expect(onDeleteTrial).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 });

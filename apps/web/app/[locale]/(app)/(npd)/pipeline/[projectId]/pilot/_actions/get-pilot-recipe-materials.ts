@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { hasPilotPermission } from './get-pilot-run';
-import { pilotMaterialStatus, type PilotMaterialStatus } from './_helpers';
+import { pilotMaterialStatus, scalePilotRequiredKg, type PilotMaterialStatus } from './_helpers';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }>;
@@ -29,6 +29,8 @@ export type PilotRecipeMaterial = {
 const READ_PERMISSION = 'npd.pilot.read';
 
 type IdRow = { id: string };
+type VersionRow = IdRow & { batch_size_kg: string | null };
+type BatchRow = { batch_size_kg: string | null };
 type WarehouseRow = { warehouse_id: string | null };
 type IngredientRow = {
   rm_code: string;
@@ -64,8 +66,8 @@ export async function getPilotRecipeMaterials(raw: unknown): Promise<PilotRecipe
     const formulationId = formulationRes.rows[0]?.id;
     if (!formulationId) return [];
 
-    const versionRes = await ctx.client.query<IdRow>(
-      `select id::text
+    const versionRes = await ctx.client.query<VersionRow>(
+      `select id::text, batch_size_kg::text as batch_size_kg
          from public.formulation_versions
         where formulation_id = $1::uuid
           and state <> 'draft'
@@ -73,8 +75,19 @@ export async function getPilotRecipeMaterials(raw: unknown): Promise<PilotRecipe
         limit 1`,
       [formulationId],
     );
-    const versionId = versionRes.rows[0]?.id;
-    if (!versionId) return [];
+    const version = versionRes.rows[0];
+    if (!version) return [];
+
+    const pilotRes = await ctx.client.query<BatchRow>(
+      `select batch_size_kg::text as batch_size_kg
+         from public.pilot_runs
+        where project_id = $1::uuid
+          and org_id = app.current_org_id()
+        order by planned_date desc nulls last, created_at desc
+        limit 1`,
+      [projectId],
+    );
+    const pilotBatchKg = pilotRes.rows[0]?.batch_size_kg ?? null;
 
     let warehouseId: string | null = null;
     if (lineCode) {
@@ -100,7 +113,7 @@ export async function getPilotRecipeMaterials(raw: unknown): Promise<PilotRecipe
           and i.org_id = app.current_org_id()
         where fi.version_id = $1::uuid
         order by fi.sequence asc, fi.rm_code asc`,
-      [versionId],
+      [version.id],
     );
 
     const materials: PilotRecipeMaterial[] = [];
@@ -132,13 +145,19 @@ export async function getPilotRecipeMaterials(raw: unknown): Promise<PilotRecipe
         reservedKg = reservedRes.rows[0]?.qty ?? '0';
       }
 
+      const requiredKg = scalePilotRequiredKg(
+        ingredient.qty_kg,
+        pilotBatchKg,
+        version.batch_size_kg,
+      );
+
       materials.push({
         ingredientCode: ingredient.rm_code,
         ingredientName: ingredient.ingredient_name ?? ingredient.rm_code,
-        requiredKg: ingredient.qty_kg,
+        requiredKg,
         availableKg,
         reservedKg,
-        status: pilotMaterialStatus(Number(ingredient.qty_kg), Number(reservedKg)),
+        status: pilotMaterialStatus(requiredKg, availableKg),
       });
     }
 

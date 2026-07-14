@@ -6437,7 +6437,11 @@
       "createPilotWoErrorDocumentMaskMissing": "The organization has no WO numbering mask configured (Settings > Documents).",
       "createPilotWoErrorFgItemMissing": "The FG item record is missing from the item master. Re-create or map the FG candidate.",
       "fieldLineRequired": "Production line is required.",
-      "batchUnitLabel": "kg"
+      "batchUnitLabel": "kg",
+      "deletePlan": "Șterge planul",
+      "confirmDeletePlan": "Ștergeți acest plan pilot?",
+      "deletePlanError": "Nu s-a putut șterge planul pilot. Încercați din nou.",
+      "deletePlanHasProgressed": "Acest plan pilot a progresat și nu poate fi șters."
     },
     "trial": {
       "title": "Probe de laborator și bucătărie",
@@ -6495,7 +6499,11 @@
       "bookLineTimeErrorForbidden": "You do not have permission to book line time.",
       "bookLineTimeErrorInvalidLine": "The selected line is not available.",
       "bookLineTimeErrorTrialNotFound": "This trial could not be found.",
-      "bookLineTimeErrorPersistence": "Could not save the booking. Try again."
+      "bookLineTimeErrorPersistence": "Could not save the booking. Try again.",
+      "deleteTrial": "Șterge",
+      "confirmDelete": "Ștergeți această încercare?",
+      "deleteError": "Nu s-a putut șterge încercarea. Încercați din nou.",
+      "deleteHasProgressed": "Această încercare are deja un rezultat și nu poate fi ștearsă."
     },
     "packaging": {
       "title": "Ambalaj",

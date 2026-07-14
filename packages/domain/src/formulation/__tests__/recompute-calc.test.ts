@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   TOTAL_PCT_MAX,
   TOTAL_PCT_MIN,
+  isTotalPctValid,
   recomputeCalc,
   type RecomputeInput,
   type RecomputeIngredient,
@@ -62,13 +63,13 @@ describe('recomputeCalc — qty balance (Costing v2 submit gate)', () => {
     expect(out.totalQtyKg).toBe('0.200');
   });
 
-  it('marks qtyBalanceValid when Σ qtyKg ≈ packWeightKg within ±1 %', () => {
+  it('marks qtyBalanceValid when Σ qtyKg matches packWeightKg', () => {
     const out = recomputeCalc(baseInput(seedTenIngredients()));
     expect(out.qtyBalanceValid).toBe(true);
     expect(out.qtyBalanceUnset).toBe(false);
   });
 
-  it('rejects when Σ qtyKg drifts beyond ±1 % of the pack weight', () => {
+  it('rejects when Σ qtyKg drifts beyond ±0.01 % of the pack weight', () => {
     const ings = seedTenIngredients();
     // bump the first row so the total is 0.260 kg vs a 0.200 kg pack (30 % over).
     ings[0] = { ...ings[0], qtyKg: '0.140' };
@@ -77,20 +78,22 @@ describe('recomputeCalc — qty balance (Costing v2 submit gate)', () => {
     expect(out.qtyBalanceValid).toBe(false);
   });
 
-  it('accepts the +1 % boundary (0.202 for a 0.200 pack)', () => {
+  it('accepts the +0.01 % boundary', () => {
     const out = recomputeCalc({
       ...baseInput([
-        { rmCode: 'A', qtyKg: '0.202', costPerKgEur: '1', allergensInherited: [] },
+        { rmCode: 'A', qtyKg: '1.0001', costPerKgEur: '1', allergensInherited: [] },
       ]),
+      packWeightKg: '1',
     });
     expect(out.qtyBalanceValid).toBe(true);
   });
 
-  it('rejects just past the +1 % boundary (0.203 for a 0.200 pack)', () => {
+  it('rejects just past the +0.01 % boundary', () => {
     const out = recomputeCalc({
       ...baseInput([
-        { rmCode: 'A', qtyKg: '0.203', costPerKgEur: '1', allergensInherited: [] },
+        { rmCode: 'A', qtyKg: '1.0002', costPerKgEur: '1', allergensInherited: [] },
       ]),
+      packWeightKg: '1',
     });
     expect(out.qtyBalanceValid).toBe(false);
   });
@@ -230,6 +233,15 @@ describe('recomputeCalc — cost roll-up (money exact, no float)', () => {
 });
 
 describe('recomputeCalc — legacy totalPct (composition / informational)', () => {
+  it.each([
+    ['99.99', true],
+    ['100.00', true],
+    ['100.01', true],
+    ['100.02', false],
+  ])('validates actual total %s against the contract band', (total, valid) => {
+    expect(isTotalPctValid(total)).toBe(valid);
+  });
+
   it('still sums ingredient pcts exactly when supplied', () => {
     const out = recomputeCalc(baseInput(seedTenIngredients()));
     expect(out.totalPct).toBe('100.000');

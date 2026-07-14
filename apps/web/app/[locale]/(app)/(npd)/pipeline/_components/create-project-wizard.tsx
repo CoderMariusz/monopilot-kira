@@ -53,6 +53,10 @@ const WIZARD_FIELD_FALLBACKS = {
     'Output unit "boxes" requires pack weight (g) and packs per case greater than 0.',
 } as const;
 
+/** Field errors — not on WizardLabels (avoids forcing page i18n churn for this fix). */
+const WEEKLY_VOLUME_ERROR = 'Weekly volume must be greater than 0.';
+const RUNS_PER_WEEK_ERROR = 'Runs per week must be at least 1.';
+
 const OUTPUT_UNIT_VALUES = ['kg', 'pieces', 'boxes'] as const;
 type OutputUnitValue = (typeof OUTPUT_UNIT_VALUES)[number];
 
@@ -100,8 +104,9 @@ export type WizardCloneAction = (input: {
   /** Packs per case — optional non-negative integer; omitted when empty. */
   packsPerCase?: number | null;
   outputUnit?: OutputUnitValue | null;
-  weeklyVolumePacks?: number | null;
-  runsPerWeek?: number | null;
+  /** Required Basics fields — weekly volume > 0, runs/week ≥ 1. */
+  weeklyVolumePacks: number;
+  runsPerWeek: number;
   salesChannel: string | null;
   targetRetailPriceEur: number | null;
     targetAudience: string | null;
@@ -123,10 +128,9 @@ export type WizardCreateAction = (input: {
   /** Packs per case — optional non-negative integer; omitted when empty. */
   packsPerCase?: number | null;
   outputUnit?: OutputUnitValue | null;
-  /** Weekly volume in packs — optional non-negative decimal. */
-  weeklyVolumePacks?: number | null;
-  /** Production runs per week — optional non-negative decimal. */
-  runsPerWeek?: number | null;
+  /** Required Basics fields — weekly volume > 0, runs/week ≥ 1. */
+  weeklyVolumePacks: number;
+  runsPerWeek: number;
   salesChannel: string | null;
   targetRetailPriceEur: number | null;
   targetAudience: string | null;
@@ -278,6 +282,22 @@ function parseEur(value: string): number | null {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
+/** Required weekly packs — finite and > 0. Empty/neg/NaN → null. */
+export function parseWeeklyVolumePacks(value: string): number | null {
+  const trimmed = value.trim().replace(',', '.');
+  if (trimmed.length === 0) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/** Required runs/week — finite and ≥ 1. Empty/0/neg/NaN → null. */
+export function parseRunsPerWeek(value: string): number | null {
+  const trimmed = value.trim().replace(',', '.');
+  if (trimmed.length === 0) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : null;
+}
+
 /**
  * Parse the optional "Packs per case" input to a non-negative integer.
  * Empty (or invalid) → `undefined` so the field is OMITTED from the payload
@@ -310,6 +330,52 @@ function boxesOutputUnitInvalid(form: FormState): boolean {
   return packWeight === '' || packsPerCase === '' || Number(packsPerCase) <= 0;
 }
 
+/** localStorage key — scopeId is org/user (or test id); foreign scopes never restore. */
+export function wizardDraftStorageKey(scopeId: string): string {
+  return `npd.create-project.draft:${scopeId}`;
+}
+
+type WizardDraftV1 = { v: 1; scopeId: string; step: number; form: FormState };
+
+/** Pure save/restore/clear — unit-tested; component wires localStorage. */
+export function readWizardDraft(
+  scopeId: string,
+  storage: Pick<Storage, 'getItem'> = typeof window !== 'undefined' ? window.localStorage : { getItem: () => null },
+): { step: number; form: FormState } | null {
+  try {
+    const raw = storage.getItem(wizardDraftStorageKey(scopeId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as WizardDraftV1;
+    if (parsed?.v !== 1 || parsed.scopeId !== scopeId || typeof parsed.step !== 'number' || !parsed.form) {
+      return null;
+    }
+    return { step: parsed.step, form: parsed.form };
+  } catch {
+    return null;
+  }
+}
+
+export function writeWizardDraft(
+  scopeId: string,
+  step: number,
+  form: FormState,
+  storage: Pick<Storage, 'setItem'> = typeof window !== 'undefined'
+    ? window.localStorage
+    : { setItem: () => undefined },
+): void {
+  const payload: WizardDraftV1 = { v: 1, scopeId, step, form };
+  storage.setItem(wizardDraftStorageKey(scopeId), JSON.stringify(payload));
+}
+
+export function clearWizardDraft(
+  scopeId: string,
+  storage: Pick<Storage, 'removeItem'> = typeof window !== 'undefined'
+    ? window.localStorage
+    : { removeItem: () => undefined },
+): void {
+  storage.removeItem(wizardDraftStorageKey(scopeId));
+}
+
 export function CreateProjectWizard({
   locale,
   labels,
@@ -317,6 +383,8 @@ export function CreateProjectWizard({
   cloneAction,
   cloneSources = [],
   categoryOptions = [],
+  // ponytail: page can pass `${orgId}:${userId}` later; default still scopes foreign drafts via key
+  draftScopeId = 'default',
 }: {
   locale: string;
   labels: WizardLabels;
@@ -328,6 +396,8 @@ export function CreateProjectWizard({
   cloneSources?: WizardCloneSource[];
   /** Active org product categories (label stored in npd_projects.type). */
   categoryOptions?: CategoryOption[];
+  /** Stable id for draft localStorage key (org/user) — rejects foreign drafts. */
+  draftScopeId?: string;
 }) {
   const router = useRouter();
   const defaultCategory = categoryOptions[0]?.value ?? '';
@@ -335,6 +405,23 @@ export function CreateProjectWizard({
   const [form, setForm] = React.useState<FormState>(() => INITIAL_FORM(defaultCategory));
   const [submitting, setSubmitting] = React.useState(false);
   const [serverError, setServerError] = React.useState<string | null>(null);
+  const [draftReady, setDraftReady] = React.useState(false);
+
+  // Restore draft once after mount (avoids SSR/localStorage mismatch).
+  React.useEffect(() => {
+    const draft = readWizardDraft(draftScopeId);
+    if (draft) {
+      setStep(Math.min(4, Math.max(1, draft.step)));
+      setForm({ ...INITIAL_FORM(defaultCategory), ...draft.form });
+    }
+    setDraftReady(true);
+  }, [draftScopeId, defaultCategory]);
+
+  // Autosave after hydrate — leaving the route keeps inputs.
+  React.useEffect(() => {
+    if (!draftReady) return;
+    writeWizardDraft(draftScopeId, step, form);
+  }, [draftReady, draftScopeId, step, form]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -345,6 +432,12 @@ export function CreateProjectWizard({
   const stepLabels = [labels.stepBasics, labels.stepBrief, labels.stepStarting, labels.stepReview];
 
   const nameEmpty = form.name.trim().length === 0;
+  const weeklyVolumeParsed = parseWeeklyVolumePacks(form.weeklyVolumePacks);
+  const runsPerWeekParsed = parseRunsPerWeek(form.runsPerWeek);
+  const weeklyVolumeInvalid =
+    form.weeklyVolumePacks.trim().length > 0 && weeklyVolumeParsed === null;
+  const runsPerWeekInvalid = form.runsPerWeek.trim().length > 0 && runsPerWeekParsed === null;
+  const basicsIncomplete = nameEmpty || weeklyVolumeParsed === null || runsPerWeekParsed === null;
   const canCreate = Boolean(createAction);
   // Clone is offered only when the clone action is injected AND there is ≥1 source.
   const cloneEnabled = Boolean(cloneAction) && cloneSources.length > 0;
@@ -365,11 +458,21 @@ export function CreateProjectWizard({
   );
 
   const cancel = React.useCallback(() => {
+    clearWizardDraft(draftScopeId);
     router.push(`/${locale}/pipeline`);
-  }, [router, locale]);
+  }, [router, locale, draftScopeId]);
 
   const onCreate = React.useCallback(async () => {
     setServerError(null);
+
+    const weeklyVolumePacks = parseWeeklyVolumePacks(form.weeklyVolumePacks);
+    const runsPerWeek = parseRunsPerWeek(form.runsPerWeek);
+    if (weeklyVolumePacks === null || runsPerWeek === null) {
+      setServerError(
+        weeklyVolumePacks === null ? WEEKLY_VOLUME_ERROR : RUNS_PER_WEEK_ERROR,
+      );
+      return;
+    }
 
     if (boxesOutputUnitInvalid(form)) {
       setServerError(
@@ -395,12 +498,12 @@ export function CreateProjectWizard({
             type: form.type,
             targetLaunch: nullable(form.targetLaunch),
             packFormat: nullable(form.packFormat),
-        packWeightG: parseEur(form.packWeightG),
-        ...packsPerCaseField(form.packsPerCase),
-        ...outputUnitField(form.outputUnit),
-        weeklyVolumePacks: parseEur(form.weeklyVolumePacks),
-        runsPerWeek: parseEur(form.runsPerWeek),
-        salesChannel: form.salesChannel,
+            packWeightG: parseEur(form.packWeightG),
+            ...packsPerCaseField(form.packsPerCase),
+            ...outputUnitField(form.outputUnit),
+            weeklyVolumePacks,
+            runsPerWeek,
+            salesChannel: form.salesChannel,
             targetRetailPriceEur: parseEur(form.targetRetailPriceEur),
             targetAudience: nullable(form.targetAudience),
             marketingClaims: nullable(form.marketingClaims),
@@ -410,6 +513,7 @@ export function CreateProjectWizard({
           },
         });
         if (result.ok) {
+          clearWizardDraft(draftScopeId);
           router.push(`/${locale}/pipeline/${result.data.id}/formulation`);
           return;
         }
@@ -437,8 +541,8 @@ export function CreateProjectWizard({
         packWeightG: parseEur(form.packWeightG),
         ...packsPerCaseField(form.packsPerCase),
         ...outputUnitField(form.outputUnit),
-        weeklyVolumePacks: parseEur(form.weeklyVolumePacks),
-        runsPerWeek: parseEur(form.runsPerWeek),
+        weeklyVolumePacks,
+        runsPerWeek,
         salesChannel: form.salesChannel,
         targetRetailPriceEur: parseEur(form.targetRetailPriceEur),
         targetAudience: nullable(form.targetAudience),
@@ -451,6 +555,7 @@ export function CreateProjectWizard({
         templateId: 'APEX_DEFAULT',
       });
       if (result.ok) {
+        clearWizardDraft(draftScopeId);
         router.push(`/${locale}/pipeline/${result.data.id}/formulation`);
         return;
       }
@@ -460,7 +565,7 @@ export function CreateProjectWizard({
       setServerError(labels.errorGeneric);
       setSubmitting(false);
     }
-  }, [createAction, cloneAction, form, labels, locale, router]);
+  }, [createAction, cloneAction, draftScopeId, form, labels, locale, router]);
 
   // Clone is REAL now (cloneProject) — enabled whenever the action is injected and
   // there is ≥1 source project to clone from (else honestly disabled with a "nothing
@@ -668,15 +773,21 @@ export function CreateProjectWizard({
               <input
                 id="wiz-weekly-volume"
                 type="number"
-                min="0"
+                min="0.000001"
                 step="any"
                 inputMode="decimal"
                 required
+                aria-invalid={weeklyVolumeInvalid}
                 placeholder={labels.fieldWeeklyVolumePacksPlaceholder}
                 value={form.weeklyVolumePacks}
                 onChange={(e) => update('weeklyVolumePacks', e.target.value)}
                 data-testid="wiz-weekly-volume"
               />
+              {weeklyVolumeInvalid && (
+                <p className="text-xs" role="alert" data-testid="wiz-weekly-volume-error" style={{ color: 'var(--danger, #b91c1c)' }}>
+                  {WEEKLY_VOLUME_ERROR}
+                </p>
+              )}
             </div>
             <div className="ff">
               <label htmlFor="wiz-runs-per-week">
@@ -686,15 +797,21 @@ export function CreateProjectWizard({
               <input
                 id="wiz-runs-per-week"
                 type="number"
-                min="0"
+                min="1"
                 step="any"
                 inputMode="decimal"
                 required
+                aria-invalid={runsPerWeekInvalid}
                 placeholder={labels.fieldRunsPerWeekPlaceholder || WIZARD_FIELD_FALLBACKS.fieldRunsPerWeekPlaceholder}
                 value={form.runsPerWeek}
                 onChange={(e) => update('runsPerWeek', e.target.value)}
                 data-testid="wiz-runs-per-week"
               />
+              {runsPerWeekInvalid && (
+                <p className="text-xs" role="alert" data-testid="wiz-runs-per-week-error" style={{ color: 'var(--danger, #b91c1c)' }}>
+                  {RUNS_PER_WEEK_ERROR}
+                </p>
+              )}
               <p className="muted text-xs" data-testid="wiz-runs-per-week-help">
                 {wizardLabel(labels, 'fieldRunsPerWeekHelp')}
               </p>
@@ -926,7 +1043,7 @@ export function CreateProjectWizard({
               type="button"
               className="btn btn-primary"
               onClick={next}
-              disabled={step === 1 && nameEmpty}
+              disabled={step === 1 && basicsIncomplete}
               data-testid="wizard-continue"
             >
               {labels.continue} →

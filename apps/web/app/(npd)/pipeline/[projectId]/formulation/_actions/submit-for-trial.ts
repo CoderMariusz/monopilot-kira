@@ -3,7 +3,7 @@
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { createLogger } from '@monopilot/observability';
-import { NUTRIENT_CODES } from '@monopilot/domain';
+import { isTotalPctValid, NUTRIENT_CODES } from '@monopilot/domain';
 import type { SubmitForTrialResult } from './submit-for-trial-types';
 
 const logger = createLogger({ name: 'npd-formulation-lifecycle' });
@@ -13,7 +13,7 @@ type GateRow = {
   version_id: string;
   state: string;
   product_code: string | null;
-  total_pct: string | null;
+  actual_total_pct: string | null;
   missing_cost_count: string | number;
   missing_nutrition_target_count: string | number;
 };
@@ -28,44 +28,20 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
       if (!(await hasPermission(ctx, 'npd.recipe.submit_for_trial'))) return { ok: false, error: 'forbidden' };
 
       const loaded = await ctx.client.query<GateRow>(
-        `with requested as (
-           select
-             f.id as formulation_id,
-             fv.id as version_id,
-             fv.state,
-             f.product_code
-           from public.formulations f
-           join public.formulation_versions fv on fv.formulation_id = f.id
-          where f.project_id = $1::uuid
-            and f.org_id = app.current_org_id()
-            and fv.id = $2::uuid
-         ),
-         resolved as (
-           select r.formulation_id, r.version_id, r.state, r.product_code, 0 as rank
-             from requested r
-            where r.state = 'locked'
-           union all
-           select fb.formulation_id, fb.version_id, fb.state, fb.product_code, 1 as rank
-             from requested r
-             cross join lateral (
-               select f.id as formulation_id, fv.id as version_id, fv.state, f.product_code
-                 from public.formulations f
-                 join public.formulation_versions fv on fv.formulation_id = f.id
-                where f.id = r.formulation_id
-                  and fv.state = 'locked'
-                order by fv.version_number desc
-                limit 1
-             ) fb
-            where r.state <> 'locked'
-              and not exists (select 1 from requested r2 where r2.state = 'locked')
-         )
-         select
-           rv.formulation_id,
-           rv.version_id,
-           rv.state,
-           rv.product_code,
-           coalesce(sum(fi.pct), 0)::text as total_pct,
-           count(*) filter (where fi.cost_per_kg_eur is null) as missing_cost_count,
+        `select
+           f.id as formulation_id,
+           fv.id as version_id,
+           fv.state,
+           f.product_code,
+           case
+             when fv.batch_size_kg is null or fv.batch_size_kg = 0 then null
+             else (
+               coalesce((select sum(fi.qty_kg) from public.formulation_ingredients fi where fi.version_id = fv.id), 0)
+               / fv.batch_size_kg * 100
+             )::text
+           end as actual_total_pct,
+           (select count(*) from public.formulation_ingredients fi
+             where fi.version_id = fv.id and fi.cost_per_kg_eur is null) as missing_cost_count,
            case
              when fcc.version_id is null then cardinality($3::text[])
              else (
@@ -74,33 +50,23 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
                 where not (coalesce(fcc.nutrition_json, '{}'::jsonb) ? required.nutrient_code)
              )
            end as missing_nutrition_target_count
-         from resolved rv
-         left join public.formulation_ingredients fi on fi.version_id = rv.version_id
-         left join public.formulation_calc_cache fcc on fcc.version_id = rv.version_id
-        group by rv.formulation_id, rv.version_id, rv.state, rv.product_code, rv.rank, fcc.version_id, fcc.nutrition_json
-        order by rv.rank asc
-        limit 1`,
+         from public.formulations f
+         join public.formulation_versions fv on fv.formulation_id = f.id
+         left join public.formulation_calc_cache fcc on fcc.version_id = fv.id
+        where f.project_id = $1::uuid
+          and f.org_id = app.current_org_id()
+          and fv.id = $2::uuid
+        for update of f, fv`,
         [projectId, versionId, NUTRIENT_CODES],
       );
 
       const row = loaded.rows[0];
-      if (!row?.version_id) {
-        const requested = await ctx.client.query<{ state: string }>(
-          `select fv.state
-             from public.formulations f
-             join public.formulation_versions fv on fv.formulation_id = f.id
-            where f.project_id = $1::uuid
-              and f.org_id = app.current_org_id()
-              and fv.id = $2::uuid
-            limit 1`,
-          [projectId, versionId],
-        );
-        if (!requested.rows[0]) return { ok: false, error: 'not_found' };
-        return { ok: false, error: 'VERSION_NOT_LOCKED' };
-      }
+      if (!row) return { ok: false, error: 'not_found' };
       if (row.state !== 'locked') return { ok: false, error: 'VERSION_NOT_LOCKED' };
       const resolvedVersionId = row.version_id;
-      if (!isTotalPctInRange(row.total_pct)) return { ok: false, error: 'TOTAL_PCT_OUT_OF_RANGE' };
+      if (!isTotalPctValid(row.actual_total_pct)) {
+        return { ok: false, error: 'TOTAL_PCT_OUT_OF_RANGE' };
+      }
       if (Number(row.missing_cost_count) > 0) return { ok: false, error: 'MISSING_COST' };
       if (Number(row.missing_nutrition_target_count) > 0) {
         return { ok: false, error: 'MISSING_NUTRITION_TARGET' };
@@ -173,12 +139,6 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
     );
     return { ok: false, error: 'persistence_failed' };
   }
-}
-
-function isTotalPctInRange(value: string | null): boolean {
-  if (value === null) return false;
-  const numeric = Number(value);
-  return numeric >= 99.99 && numeric <= 100.01;
 }
 
 function parseUuid(value: unknown): string | null {

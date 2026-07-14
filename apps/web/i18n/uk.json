@@ -6437,7 +6437,11 @@
       "createPilotWoErrorDocumentMaskMissing": "The organization has no WO numbering mask configured (Settings > Documents).",
       "createPilotWoErrorFgItemMissing": "The FG item record is missing from the item master. Re-create or map the FG candidate.",
       "fieldLineRequired": "Production line is required.",
-      "batchUnitLabel": "kg"
+      "batchUnitLabel": "kg",
+      "deletePlan": "Видалити план",
+      "confirmDeletePlan": "Видалити цей пілотний план?",
+      "deletePlanError": "Не вдалося видалити пілотний план. Спробуйте ще раз.",
+      "deletePlanHasProgressed": "Цей пілотний план уже прогресував і не може бути видалений."
     },
     "trial": {
       "title": "Лабораторні та кухонні випробування",
@@ -6495,7 +6499,11 @@
       "bookLineTimeErrorForbidden": "You do not have permission to book line time.",
       "bookLineTimeErrorInvalidLine": "The selected line is not available.",
       "bookLineTimeErrorTrialNotFound": "This trial could not be found.",
-      "bookLineTimeErrorPersistence": "Could not save the booking. Try again."
+      "bookLineTimeErrorPersistence": "Could not save the booking. Try again.",
+      "deleteTrial": "Видалити",
+      "confirmDelete": "Видалити цю пробу?",
+      "deleteError": "Не вдалося видалити пробу. Спробуйте ще раз.",
+      "deleteHasProgressed": "Ця проба вже має результат і не може бути видалена."
     },
     "packaging": {
       "title": "Пакування",

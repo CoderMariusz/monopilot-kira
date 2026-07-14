@@ -22,7 +22,16 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CreateProjectWizard, type WizardLabels } from '../create-project-wizard';
+import {
+  CreateProjectWizard,
+  clearWizardDraft,
+  parseRunsPerWeek,
+  parseWeeklyVolumePacks,
+  readWizardDraft,
+  wizardDraftStorageKey,
+  writeWizardDraft,
+  type WizardLabels,
+} from '../create-project-wizard';
 
 const pushMock = vi.fn();
 
@@ -33,6 +42,23 @@ vi.mock('next/navigation', () => ({
 }));
 
 beforeEach(() => {
+  const store = new Map<string, string>();
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    writable: true,
+    value: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        store.set(k, String(v));
+      },
+      removeItem: (k: string) => {
+        store.delete(k);
+      },
+      clear: () => {
+        store.clear();
+      },
+    },
+  });
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     configurable: true,
@@ -52,6 +78,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   pushMock.mockReset();
+  window.localStorage.clear();
 });
 
 const LABELS: WizardLabels = {
@@ -136,10 +163,62 @@ function renderWizard(overrides: Partial<React.ComponentProps<typeof CreateProje
     locale: 'en',
     labels: LABELS,
     createAction: defaultAction as React.ComponentProps<typeof CreateProjectWizard>['createAction'],
+    draftScopeId: 'test-scope',
     ...overrides,
   };
   return render(<CreateProjectWizard {...props} />);
 }
+
+/** Fill Basics required fields so Continue unlocks. */
+function fillRequiredBasics(name = 'Sliced Ham 200g') {
+  fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: name } });
+  fireEvent.change(screen.getByTestId('wiz-weekly-volume'), { target: { value: '5000' } });
+  fireEvent.change(screen.getByTestId('wiz-runs-per-week'), { target: { value: '3' } });
+}
+
+describe('parseWeeklyVolumePacks / parseRunsPerWeek', () => {
+  it('rejects -1 weekly volume and 0 runs/week; accepts valid values', () => {
+    expect(parseWeeklyVolumePacks('-1')).toBeNull();
+    expect(parseWeeklyVolumePacks('0')).toBeNull();
+    expect(parseWeeklyVolumePacks('')).toBeNull();
+    expect(parseWeeklyVolumePacks('5000')).toBe(5000);
+
+    expect(parseRunsPerWeek('0')).toBeNull();
+    expect(parseRunsPerWeek('-1')).toBeNull();
+    expect(parseRunsPerWeek('')).toBeNull();
+    expect(parseRunsPerWeek('3')).toBe(3);
+  });
+});
+
+describe('wizard draft save / restore / clear', () => {
+  it('writes, restores same scope, rejects foreign scope, and clears', () => {
+    const form = {
+      name: 'Draft Ham',
+      type: 'Meat',
+      targetLaunch: '',
+      packFormat: '',
+      packWeightG: '',
+      packsPerCase: '',
+      outputUnit: '',
+      weeklyVolumePacks: '1000',
+      runsPerWeek: '2',
+      salesChannel: 'Retail',
+      targetRetailPriceEur: '',
+      targetAudience: '',
+      marketingClaims: '',
+      constraints: '',
+      notes: '',
+      startFrom: 'blank' as const,
+      cloneSourceId: '',
+    };
+    writeWizardDraft('org-a:user-1', 2, form, window.localStorage);
+    expect(readWizardDraft('org-a:user-1', window.localStorage)).toEqual({ step: 2, form });
+    expect(readWizardDraft('org-b:user-1', window.localStorage)).toBeNull();
+    expect(window.localStorage.getItem(wizardDraftStorageKey('org-a:user-1'))).toBeTruthy();
+    clearWizardDraft('org-a:user-1', window.localStorage);
+    expect(readWizardDraft('org-a:user-1', window.localStorage)).toBeNull();
+  });
+});
 
 describe('CreateProjectWizard — parity, navigation, validation', () => {
   it('renders the breadcrumb, title and the 4-step bar (proto 119/123/125)', () => {
@@ -151,17 +230,25 @@ describe('CreateProjectWizard — parity, navigation, validation', () => {
     expect(screen.getByText(LABELS.stepReview)).toBeInTheDocument();
   });
 
-  it('disables Continue until the name is non-empty (proto line 258)', () => {
+  it('disables Continue until name, weekly volume (>0), and runs/week (≥1) are set', () => {
     renderWizard();
     const cont = screen.getByTestId('wizard-continue');
     expect(cont).toBeDisabled();
     fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Sliced Ham 200g' } });
+    expect(cont).toBeDisabled();
+    fireEvent.change(screen.getByTestId('wiz-weekly-volume'), { target: { value: '-1' } });
+    fireEvent.change(screen.getByTestId('wiz-runs-per-week'), { target: { value: '0' } });
+    expect(cont).toBeDisabled();
+    expect(screen.getByTestId('wiz-weekly-volume-error')).toBeInTheDocument();
+    expect(screen.getByTestId('wiz-runs-per-week-error')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('wiz-weekly-volume'), { target: { value: '5000' } });
+    fireEvent.change(screen.getByTestId('wiz-runs-per-week'), { target: { value: '3' } });
     expect(cont).not.toBeDisabled();
   });
 
   it('navigates Basics → Brief → Starting point; Clone (no source) + Template are disabled, Blank stays selected', () => {
     renderWizard();
-    fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Sliced Ham 200g' } });
+    fillRequiredBasics();
     fireEvent.click(screen.getByTestId('wizard-continue')); // → Brief
     expect(screen.getByText(LABELS.briefTitle)).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('wizard-continue')); // → Starting point
@@ -200,7 +287,7 @@ describe('CreateProjectWizard — parity, navigation, validation', () => {
       ],
     });
 
-    fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Sliced Ham v2' } });
+    fillRequiredBasics('Sliced Ham v2');
     fireEvent.click(screen.getByTestId('wizard-continue')); // → Brief
     fireEvent.click(screen.getByTestId('wizard-continue')); // → Starting point
 
@@ -243,7 +330,7 @@ describe('CreateProjectWizard — parity, navigation, validation', () => {
 
   it('Back returns to the previous step', () => {
     renderWizard();
-    fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'X' } });
+    fillRequiredBasics('X');
     fireEvent.click(screen.getByTestId('wizard-continue')); // → Brief
     fireEvent.click(screen.getByTestId('wizard-back')); // ← Basics
     expect(screen.getByText(LABELS.basicsTitle)).toBeInTheDocument();
@@ -307,12 +394,13 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
       templateId: 'APEX_DEFAULT',
     });
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/pipeline/pid-42/formulation'));
+    expect(window.localStorage.getItem(wizardDraftStorageKey('test-scope'))).toBeNull();
   });
 
-  it('sends null for empty optional fields and parses no price to null', async () => {
+  it('sends null for empty optional fields; required weekly volume / runs are sent as numbers', async () => {
     const createAction = vi.fn(async () => ({ ok: true as const, data: { id: 'p', code: 'NPD-001' } }));
     renderWizard({ createAction });
-    fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Bare' } });
+    fillRequiredBasics('Bare');
     fireEvent.click(screen.getByTestId('wizard-continue')); // step2
     fireEvent.click(screen.getByTestId('wizard-continue')); // step3
     fireEvent.click(screen.getByTestId('wizard-continue')); // step4
@@ -324,8 +412,8 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
       name: 'Bare',
       targetLaunch: null,
       packFormat: null,
-      weeklyVolumePacks: null,
-      runsPerWeek: null,
+      weeklyVolumePacks: 5000,
+      runsPerWeek: 3,
       targetRetailPriceEur: null,
       targetAudience: null,
       marketingClaims: null,
@@ -348,7 +436,7 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
       cloneSources: [{ id: 'src-1', code: 'NPD-001', name: 'Sliced Ham Standard' }],
     });
 
-    fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Cloned v2' } });
+    fillRequiredBasics('Cloned v2');
     // Capture packs per case on the Basics step.
     fireEvent.change(screen.getByLabelText('lbl.fieldPacksPerCase'), { target: { value: '24' } });
     fireEvent.click(screen.getByTestId('wizard-continue')); // → Brief
@@ -372,7 +460,7 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
   it('blocks create when boxes output unit lacks pack factors', async () => {
     const createAction = vi.fn(async () => ({ ok: true as const, data: { id: 'p', code: 'NPD-001' } }));
     renderWizard({ createAction });
-    fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Boxy' } });
+    fillRequiredBasics('Boxy');
     fireEvent.click(document.getElementById('wiz-output-unit-trigger')!);
     await waitFor(() => expect(screen.getByRole('option', { name: 'lbl.fieldOutputUnitBoxes' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('option', { name: 'lbl.fieldOutputUnitBoxes' }));
@@ -390,7 +478,7 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
 describe('CreateProjectWizard — RBAC (permission denied state)', () => {
   it('disables Create and shows the forbidden alert when no action is injected', async () => {
     renderWizard({ createAction: undefined });
-    fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Z' } });
+    fillRequiredBasics('Z');
     fireEvent.click(screen.getByTestId('wizard-continue'));
     fireEvent.click(screen.getByTestId('wizard-continue'));
     fireEvent.click(screen.getByTestId('wizard-continue'));

@@ -29,7 +29,7 @@ describe('submitForTrial lock gate (S19)', () => {
           version_id: lockedVersionId,
           state: 'locked',
           product_code: 'FG-1',
-          total_pct: '100.000',
+          actual_total_pct: '100.000',
           missing_cost_count: 0,
           missing_nutrition_target_count: 0,
         }],
@@ -52,9 +52,15 @@ describe('submitForTrial lock gate (S19)', () => {
 
   it('returns VERSION_NOT_LOCKED for draft versions', async () => {
     const { submitForTrial } = await import('../submit-for-trial');
-    queryMock
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ state: 'draft' }] });
+    queryMock.mockResolvedValueOnce({ rows: [{
+      formulation_id: '66666666-6666-4666-8666-666666666666',
+      version_id: versionId,
+      state: 'draft',
+      product_code: 'FG-1',
+      actual_total_pct: '100.000',
+      missing_cost_count: 0,
+      missing_nutrition_target_count: 0,
+    }] });
 
     await expect(submitForTrial({ projectId, versionId })).resolves.toEqual({
       ok: false,
@@ -62,42 +68,17 @@ describe('submitForTrial lock gate (S19)', () => {
     });
   });
 
-  it('resolves the current locked version for the same formulation when the client passes a stale draft version id', async () => {
+  it('does not substitute another locked version when the requested version is a stale draft', async () => {
     const { submitForTrial } = await import('../submit-for-trial');
-    queryMock
-      .mockResolvedValueOnce({
-        rows: [{
-          formulation_id: '66666666-6666-4666-8666-666666666666',
-          version_id: lockedVersionId,
-          state: 'locked',
-          product_code: 'FG-1',
-          total_pct: '100.000',
-          missing_cost_count: 0,
-          missing_nutrition_target_count: 0,
-        }],
-      })
-      .mockResolvedValueOnce({ rows: [{ id: 'existing-trial' }] })
-      .mockResolvedValueOnce({ rows: [{ id: lockedVersionId }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
-
-    await expect(submitForTrial({ projectId, versionId })).resolves.toEqual({
-      ok: true,
-      data: { versionId: lockedVersionId, trialCreated: false },
-    });
-
-    const gateSql = String(queryMock.mock.calls[0]?.[0]);
-    expect(gateSql).toContain('cross join lateral');
-    expect(gateSql).toContain('where f.id = r.formulation_id');
-    expect(gateSql).not.toMatch(/where f\.project_id = \$1::uuid\s+and f\.org_id = app\.current_org_id\(\)\s+and fv\.state = 'locked'/);
-  });
-
-  it('scopes stale-version fallback to the requested formulation, not the whole project', async () => {
-    const { submitForTrial } = await import('../submit-for-trial');
-
-    queryMock
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ state: 'draft' }] });
+    queryMock.mockResolvedValueOnce({ rows: [{
+      formulation_id: '66666666-6666-4666-8666-666666666666',
+      version_id: versionId,
+      state: 'draft',
+      product_code: 'FG-1',
+      actual_total_pct: '100.000',
+      missing_cost_count: 0,
+      missing_nutrition_target_count: 0,
+    }] });
 
     await expect(submitForTrial({ projectId, versionId })).resolves.toEqual({
       ok: false,
@@ -105,13 +86,21 @@ describe('submitForTrial lock gate (S19)', () => {
     });
 
     const gateSql = String(queryMock.mock.calls[0]?.[0]);
-    expect(gateSql).toContain('from requested r');
-    expect(gateSql).toContain('cross join lateral');
-    expect(gateSql).toContain('order by fv.version_number desc');
-    expect(gateSql).toContain('group by rv.formulation_id, rv.version_id, rv.state, rv.product_code, rv.rank');
-    expect(gateSql).not.toMatch(
-      /union all\s+select f\.id, fv\.id[\s\S]*where f\.project_id = \$1::uuid[\s\S]*and fv\.state = 'locked'/i,
-    );
+    expect(gateSql).not.toContain('cross join lateral');
+    expect(gateSql).toContain('and fv.id = $2::uuid');
+  });
+
+  it('returns not_found when the requested version does not exist', async () => {
+    const { submitForTrial } = await import('../submit-for-trial');
+    queryMock.mockResolvedValueOnce({ rows: [] });
+
+    await expect(submitForTrial({ projectId, versionId })).resolves.toEqual({
+      ok: false,
+      error: 'not_found',
+    });
+
+    const gateSql = String(queryMock.mock.calls[0]?.[0]);
+    expect(gateSql).toContain('and fv.id = $2::uuid');
   });
 
   it('derives missing nutrition targets from the flat cached nutrient JSON', async () => {
@@ -122,7 +111,7 @@ describe('submitForTrial lock gate (S19)', () => {
         version_id: lockedVersionId,
         state: 'locked',
         product_code: 'FG-1',
-        total_pct: '100.000',
+        actual_total_pct: '100.000',
         missing_cost_count: 0,
         missing_nutrition_target_count: 1,
       }],

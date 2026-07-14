@@ -36,10 +36,12 @@ import {
   type UpsertRunCall,
   type CreatePilotWoCall,
   type CreatePilotWoOutcome,
+  type DeleteRunCall,
 } from './_components/pilot-screen';
 import { getPilotRun, hasPilotPermission } from './_actions/get-pilot-run';
 import { togglePilotChecklistItem } from './_actions/toggle-pilot-checklist-item';
 import { upsertPilotRun } from './_actions/upsert-pilot-run';
+import { deletePilotRun } from './_actions/delete-pilot-run';
 import { createPilotWorkOrder, getPilotWorkOrderLink } from './_actions/create-pilot-wo';
 import { listProductionLines } from './_actions/list-production-lines';
 import { getPilotRecipeMaterials } from './_actions/get-pilot-recipe-materials';
@@ -110,6 +112,10 @@ const DEFAULT_LABELS: PilotLabels = {
   notSet: '—',
   planPilotRun: '+ Plan pilot run',
   editPlan: 'Edit plan',
+  deletePlan: 'Delete plan',
+  confirmDeletePlan: 'Delete this pilot plan?',
+  deletePlanError: 'Could not delete the pilot plan. Try again.',
+  deletePlanHasProgressed: 'This pilot plan has progressed and cannot be deleted.',
   fieldPlannedDate: 'Planned date',
   fieldLine: 'Production line',
   fieldLineRequired: 'Production line is required.',
@@ -368,6 +374,15 @@ export default async function PilotPage(propsInput: unknown = {}) {
     return result.ok ? { ok: true } : { ok: false, error: result.error };
   }
 
+  async function deleteRunAction(call: DeleteRunCall): Promise<PilotActionOutcome> {
+    'use server';
+    const result = await deletePilotRun({
+      projectId: call.projectId,
+      pilotRunId: call.pilotRunId,
+    });
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
+  }
+
   // Re-derive recipe ingredients + availability when the line changes (client →
   // server → client) so Available/Reserved track the chosen line's warehouse
   // without a full RSC reload. The loader owns its own RBAC (npd.pilot.read).
@@ -436,6 +451,7 @@ export default async function PilotPage(propsInput: unknown = {}) {
         projectId={projectId}
         onToggleChecklistItem={toggleChecklistAction}
         onUpsertRun={upsertRunAction}
+        onDeleteRun={deleteRunAction}
         onLoadRecipeMaterials={loadRecipeMaterialsAction}
         onCreatePilotWo={createPilotWoAction}
         locale={locale}

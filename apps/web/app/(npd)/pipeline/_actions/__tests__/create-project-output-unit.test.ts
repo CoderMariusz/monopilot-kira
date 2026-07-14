@@ -40,8 +40,8 @@ function baseInput() {
     packWeightG: 200,
     packsPerCase: 12,
     outputUnit: 'pieces' as const,
-    weeklyVolumePacks: null,
-    runsPerWeek: null,
+    weeklyVolumePacks: 5000,
+    runsPerWeek: 3,
     salesChannel: 'Retail',
     targetRetailPriceEur: null,
     targetAudience: null,
@@ -80,6 +80,8 @@ describe('createProject output_unit', () => {
       calls.push({ sql, params });
       if (sql.includes('insert into public.org_sequences')) return { rows: [{ next_value: '1' }] };
       if (sql.includes('from public.npd_projects') && sql.includes('and code =')) return { rows: [] };
+      if (sql.includes('from public.npd_projects') && sql.includes('draft_product_code')) return { rows: [] };
+      if (sql.includes('from public.npd_projects') && sql.includes('id <>')) return { rows: [] };
       if (sql.includes('insert into public.npd_projects')) {
         return { rows: [{ id: '00000000-0000-4000-8000-0000000000c1', code: 'NPD-001' }] };
       }
@@ -90,7 +92,12 @@ describe('createProject output_unit', () => {
       if (sql.includes('insert into public.formulation_versions')) return { rows: [{ id: 'ver-1' }] };
       if (sql.includes('update public.formulations')) return { rows: [] };
       if (sql.includes('insert into public.outbox_events')) return { rows: [] };
-      throw new Error(`Unhandled SQL in test mock: ${sql.slice(0, 120)}`);
+      if (sql.includes('update public.npd_projects')) return { rows: [] };
+      if (sql.includes('insert into public.products') || sql.includes('from public.products')) return { rows: [] };
+      if (sql.includes('insert into public.product') || sql.includes('from public.product')) {
+        return sql.includes('insert') ? { rows: [{ product_code: 'FG-001' }] } : { rows: [] };
+      }
+      return { rows: [] };
     };
 
     const result = await createProject(baseInput());

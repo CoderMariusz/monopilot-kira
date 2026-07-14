@@ -80,6 +80,10 @@ export type TrialLabels = {
   resultPending: string;
   // Row actions
   editTrial: string;
+  deleteTrial: string;
+  confirmDelete: string;
+  deleteError: string;
+  deleteHasProgressed: string;
   // Modal
   modalTitle: string;
   editModalTitle: string;
@@ -141,6 +145,8 @@ export type LogTrialCall = {
 
 /** Edit payload — same shape as LogTrialCall plus the batch `id` to update. */
 export type UpdateTrialCall = LogTrialCall & { id: string };
+
+export type DeleteTrialCall = { id: string; projectId: string };
 
 export type BookLineTimeCall = UpsertCapacityBlockCall;
 
@@ -259,6 +265,7 @@ export function TrialScreen({
   labels,
   onLogTrial,
   onUpdateTrial,
+  onDeleteTrial,
   onBookLineTime,
 }: {
   state?: PageState;
@@ -266,6 +273,7 @@ export function TrialScreen({
   labels: TrialLabels;
   onLogTrial?: (call: LogTrialCall) => Promise<TrialActionOutcome>;
   onUpdateTrial?: (call: UpdateTrialCall) => Promise<TrialActionOutcome>;
+  onDeleteTrial?: (call: DeleteTrialCall) => Promise<TrialActionOutcome>;
   onBookLineTime?: (call: BookLineTimeCall) => Promise<CapacityBlockActionOutcome>;
 }) {
   const router = useRouter();
@@ -274,9 +282,10 @@ export function TrialScreen({
   const [editingRow, setEditingRow] = React.useState<TrialBatchView | null>(null);
   const [bookingTrialId, setBookingTrialId] = React.useState<string | null>(null);
 
-  // The Log-new-trial button + modal are an OPTIMISTIC affordance: on a
-  // successful action the list is revalidated server-side (RSC re-render).
+  // Optimistic placeholder rows while a create is in flight. Cleared on settle
+  // so a successful revalidate/router.refresh() cannot stack a duplicate.
   const [optimistic, setOptimistic] = React.useState<TrialBatchView[]>([]);
+  const [pendingDeletes, setPendingDeletes] = React.useState<Set<string>>(() => new Set());
 
   if (state !== 'ready' || !data) {
     return (
@@ -295,7 +304,8 @@ export function TrialScreen({
     );
   }
 
-  const rows = [...optimistic, ...data.batches];
+  // ponytail: drop optimistic once server answers — refetch owns the truth row
+  const rows = [...optimistic, ...data.batches.filter((b) => !pendingDeletes.has(b.id))];
 
   async function handleSubmit(values: TrialFormValues): Promise<TrialActionOutcome> {
     if (!onLogTrial) return { ok: false, error: 'persistence_failed' };
@@ -327,10 +337,9 @@ export function TrialScreen({
       ...prev,
     ]);
     const result = await onLogTrial(call);
-    if (!result.ok) {
-      // Roll back the optimistic row on failure.
-      setOptimistic((prev) => prev.filter((r) => r.id !== tempId));
-    }
+    // Always drop the placeholder — success relies on revalidate + router.refresh().
+    setOptimistic((prev) => prev.filter((r) => r.id !== tempId));
+    if (result.ok) router.refresh();
     return result;
   }
 
@@ -354,6 +363,27 @@ export function TrialScreen({
       router.refresh();
     }
     return result;
+  }
+
+  async function handleDelete(row: TrialBatchView): Promise<void> {
+    if (!onDeleteTrial) return;
+    if (typeof window !== 'undefined' && !window.confirm(labels.confirmDelete)) return;
+    setPendingDeletes((prev) => new Set(prev).add(row.id));
+    const result = await onDeleteTrial({ id: row.id, projectId: data!.projectId });
+    if (result.ok) {
+      router.refresh();
+      return;
+    }
+    setPendingDeletes((prev) => {
+      const next = new Set(prev);
+      next.delete(row.id);
+      return next;
+    });
+    if (typeof window !== 'undefined') {
+      window.alert(
+        result.error === 'has_progressed' ? labels.deleteHasProgressed : labels.deleteError,
+      );
+    }
   }
 
   async function handleBookLineTime(call: BookLineTimeCall): Promise<CapacityBlockActionOutcome> {
@@ -456,6 +486,20 @@ export function TrialScreen({
                             onClick={() => setEditingRow(t)}
                           >
                             {labels.editTrial}
+                          </Button>
+                        ) : null}
+                        {data.canWrite &&
+                        onDeleteTrial &&
+                        !t.id.startsWith('optimistic-') &&
+                        t.result === 'pending' ? (
+                          <Button
+                            type="button"
+                            variant="default"
+                            className="btn-ghost btn-sm"
+                            data-testid={`delete-trial-button-${t.id}`}
+                            onClick={() => void handleDelete(t)}
+                          >
+                            {labels.deleteTrial}
                           </Button>
                         ) : null}
                         {data.canBookLineTime && !t.id.startsWith('optimistic-') ? (

@@ -24,6 +24,7 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -156,6 +157,10 @@ export type PilotLabels = {
   // Edit affordances (additive over the static prototype).
   planPilotRun: string;
   editPlan: string;
+  deletePlan: string;
+  confirmDeletePlan: string;
+  deletePlanError: string;
+  deletePlanHasProgressed: string;
   // Modal fields.
   fieldPlannedDate: string;
   fieldLine: string;
@@ -227,6 +232,8 @@ export type UpsertRunCall = {
   supervisorUserId: string | null;
   status: PilotRunStatus;
 };
+
+export type DeleteRunCall = { pilotRunId: string; projectId: string };
 
 /**
  * Re-derive the recipe ingredients (+ availability for the chosen line's
@@ -340,6 +347,7 @@ export function PilotScreen({
   projectId: projectIdProp,
   onToggleChecklistItem,
   onUpsertRun,
+  onDeleteRun,
   onCreatePilotWo,
   onLoadRecipeMaterials,
   locale = 'en',
@@ -364,6 +372,7 @@ export function PilotScreen({
   projectId?: string;
   onToggleChecklistItem?: (call: ToggleChecklistCall) => Promise<ToggleChecklistOutcome>;
   onUpsertRun?: (call: UpsertRunCall) => Promise<PilotActionOutcome>;
+  onDeleteRun?: (call: DeleteRunCall) => Promise<PilotActionOutcome>;
   onCreatePilotWo?: (call: CreatePilotWoCall) => Promise<CreatePilotWoOutcome>;
   /** Locale prefix for production WO deep links (e.g. "en"). */
   locale?: string;
@@ -374,6 +383,7 @@ export function PilotScreen({
    */
   onLoadRecipeMaterials?: (call: LoadRecipeMaterialsCall) => Promise<PilotRecipeMaterialView[]>;
 }) {
+  const router = useRouter();
   // Optimistic checklist state keyed by item id (server is the source of truth).
   const [optimistic, setOptimistic] = React.useState<Record<string, boolean>>({});
   // Run-plan modal (planning a new run OR editing the existing one).
@@ -410,6 +420,8 @@ export function PilotScreen({
   // action still renders correctly).
   const canEdit = data?.canWrite ?? canWrite;
   const canEditRun = canEdit && Boolean(onUpsertRun);
+  const canDeleteRun =
+    canEdit && Boolean(onDeleteRun) && data?.run.status === 'planned';
   const canCreatePilotWo = canEdit && Boolean(onCreatePilotWo);
 
   function pilotWoErrorMessage(error: string, message?: string): string {
@@ -485,6 +497,26 @@ export function PilotScreen({
       supervisorUserId: values.supervisorUserId || null,
       status: values.status,
     });
+  }
+
+  async function handleDeleteRun() {
+    if (!onDeleteRun || !data) return;
+    if (typeof window !== 'undefined' && !window.confirm(labels.confirmDeletePlan)) return;
+    const result = await onDeleteRun({
+      pilotRunId: data.run.id,
+      projectId: data.run.projectId,
+    });
+    if (result.ok) {
+      router.refresh();
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      window.alert(
+        result.error === 'has_progressed'
+          ? labels.deletePlanHasProgressed
+          : labels.deletePlanError,
+      );
+    }
   }
 
   if (state !== 'ready' || !data) {
@@ -687,15 +719,29 @@ export function PilotScreen({
       <Card data-testid="pilot-plan-card">
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <CardTitle>{labels.planTitle}</CardTitle>
-          {canEditRun ? (
-            <Button
-              type="button"
-              className="btn-sm btn-ghost"
-              data-testid="edit-pilot-plan-button"
-              onClick={() => setRunModalOpen(true)}
-            >
-              {labels.editPlan}
-            </Button>
+          {canEditRun || canDeleteRun ? (
+            <div className="flex items-center gap-2">
+              {canEditRun ? (
+                <Button
+                  type="button"
+                  className="btn-sm btn-ghost"
+                  data-testid="edit-pilot-plan-button"
+                  onClick={() => setRunModalOpen(true)}
+                >
+                  {labels.editPlan}
+                </Button>
+              ) : null}
+              {canDeleteRun ? (
+                <Button
+                  type="button"
+                  className="btn-sm btn-ghost"
+                  data-testid="delete-pilot-plan-button"
+                  onClick={() => void handleDeleteRun()}
+                >
+                  {labels.deletePlan}
+                </Button>
+              ) : null}
+            </div>
           ) : null}
         </CardHeader>
         <CardContent>

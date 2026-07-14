@@ -3,6 +3,7 @@
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { createLogger } from '@monopilot/observability';
+import { isTotalPctValid, NUTRIENT_CODES } from '@monopilot/domain';
 
 const logger = createLogger({ name: 'npd-formulation-lifecycle' });
 
@@ -11,13 +12,25 @@ type VersionRow = {
   version_id: string;
   state: string;
   product_code: string | null;
+  actual_total_pct: string | null;
+  missing_cost_count: string | number;
+  missing_nutrition_target_count: string | number;
 };
 
 type LockVersionResult =
   | { ok: true; data: { versionId: string; formulationId: string; recipeComponents: string | null } }
   | {
       ok: false;
-      error: 'invalid_input' | 'forbidden' | 'not_found' | 'VERSION_LOCKED' | 'VERSION_NOT_SUBMITTED' | 'persistence_failed';
+      error:
+        | 'invalid_input'
+        | 'forbidden'
+        | 'not_found'
+        | 'VERSION_LOCKED'
+        | 'VERSION_NOT_DRAFT'
+        | 'TOTAL_PCT_OUT_OF_RANGE'
+        | 'MISSING_COST'
+        | 'MISSING_NUTRITION_TARGET'
+        | 'persistence_failed';
     };
 
 export async function lockVersion(input: { projectId?: unknown; versionId?: unknown }): Promise<LockVersionResult> {
@@ -34,28 +47,51 @@ export async function lockVersion(input: { projectId?: unknown; versionId?: unkn
            f.id as formulation_id,
            fv.id as version_id,
            fv.state,
-           f.product_code
+           f.product_code,
+           case
+             when fv.batch_size_kg is null or fv.batch_size_kg = 0 then null
+             else (
+               coalesce((select sum(fi.qty_kg) from public.formulation_ingredients fi where fi.version_id = fv.id), 0)
+               / fv.batch_size_kg * 100
+             )::text
+           end as actual_total_pct,
+           (select count(*) from public.formulation_ingredients fi
+             where fi.version_id = fv.id and fi.cost_per_kg_eur is null) as missing_cost_count,
+           case
+             when fcc.version_id is null then cardinality($3::text[])
+             else (
+               select count(*)
+                 from unnest($3::text[]) as required(nutrient_code)
+                where not (coalesce(fcc.nutrition_json, '{}'::jsonb) ? required.nutrient_code)
+             )
+           end as missing_nutrition_target_count
          from public.formulations f
          join public.formulation_versions fv on fv.formulation_id = f.id
+         left join public.formulation_calc_cache fcc on fcc.version_id = fv.id
         where f.project_id = $1::uuid
           and f.org_id = app.current_org_id()
           and fv.id = $2::uuid
         for update of f, fv`,
-        [projectId, versionId],
+        [projectId, versionId, NUTRIENT_CODES],
       );
 
       const row = loaded.rows[0];
       if (!row) return { ok: false, error: 'not_found' };
       if (row.state === 'locked') return { ok: false, error: 'VERSION_LOCKED' };
-      if (row.state !== 'submitted_for_trial' && row.state !== 'draft') {
-        return { ok: false, error: 'VERSION_NOT_SUBMITTED' };
+      if (row.state !== 'draft') {
+        return { ok: false, error: 'VERSION_NOT_DRAFT' };
+      }
+      if (!isTotalPctValid(row.actual_total_pct)) return { ok: false, error: 'TOTAL_PCT_OUT_OF_RANGE' };
+      if (Number(row.missing_cost_count) > 0) return { ok: false, error: 'MISSING_COST' };
+      if (Number(row.missing_nutrition_target_count) > 0) {
+        return { ok: false, error: 'MISSING_NUTRITION_TARGET' };
       }
 
       await ctx.client.query(
         `update public.formulation_versions
             set state = 'locked'
           where id = $1::uuid
-            and state in ('submitted_for_trial', 'draft')`,
+            and state = 'draft'`,
         [versionId],
       );
       await ctx.client.query(

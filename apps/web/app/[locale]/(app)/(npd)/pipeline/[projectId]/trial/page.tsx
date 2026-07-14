@@ -26,9 +26,10 @@
 
 import { getTranslations } from 'next-intl/server';
 
-import { TrialScreen, type TrialScreenData, type TrialLabels, type PageState, type LogTrialCall, type UpdateTrialCall, type TrialActionOutcome, type BookLineTimeCall } from './_components/trial-screen';
+import { TrialScreen, type TrialScreenData, type TrialLabels, type PageState, type LogTrialCall, type UpdateTrialCall, type DeleteTrialCall, type TrialActionOutcome, type BookLineTimeCall } from './_components/trial-screen';
 import { logTrialBatch } from './_actions/log-trial-batch';
 import { updateTrialBatch } from './_actions/update-trial-batch';
+import { deleteTrialBatch } from './_actions/delete-trial-batch';
 import { listProductionLines } from './_actions/list-production-lines';
 import { upsertCapacityBlock } from '../../../../(modules)/planning/schedule/_actions/capacity-block-actions';
 import { PLANNING_WO_WRITE_PERMISSION } from '../../../../(modules)/planning/work-orders/_actions/shared';
@@ -76,6 +77,10 @@ const DEFAULT_LABELS: TrialLabels = {
   resultFail: 'Fail',
   resultPending: 'In progress',
   editTrial: 'Edit',
+  deleteTrial: 'Delete',
+  confirmDelete: 'Delete this trial?',
+  deleteError: 'Could not delete the trial. Try again.',
+  deleteHasProgressed: 'This trial already has a result and cannot be deleted.',
   modalTitle: 'Log new trial',
   editModalTitle: 'Edit trial',
   fieldTrialNo: 'Trial #',
@@ -343,6 +348,13 @@ async function updateTrialAction(call: UpdateTrialCall): Promise<TrialActionOutc
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
+/** Server Action adapter for deleting a pending trial (deleteTrialBatch owns it). */
+async function deleteTrialAction(call: DeleteTrialCall): Promise<TrialActionOutcome> {
+  'use server';
+  const result = await deleteTrialBatch(call);
+  return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
 /** Server Action adapter for booking trial line time on the schedule board. */
 async function bookLineTimeAction(call: BookLineTimeCall) {
   'use server';
@@ -397,6 +409,7 @@ export default async function TrialPage(propsInput: unknown = {}) {
           labels={labels}
           onLogTrial={logTrialAction}
           onUpdateTrial={updateTrialAction}
+          onDeleteTrial={deleteTrialAction}
           onBookLineTime={bookLineTimeAction}
         />
         {stageDeptSectionsEl}
@@ -412,6 +425,7 @@ export default async function TrialPage(propsInput: unknown = {}) {
         labels={labels}
         onLogTrial={logTrialAction}
         onUpdateTrial={updateTrialAction}
+        onDeleteTrial={deleteTrialAction}
         onBookLineTime={bookLineTimeAction}
       />
       {stageDeptSectionsEl}

@@ -39,7 +39,15 @@ import {
   type ProductionLineOption,
 } from '../pilot-screen';
 
-afterEach(() => cleanup());
+const refresh = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh }),
+}));
+
+afterEach(() => {
+  cleanup();
+  refresh.mockClear();
+});
 
 const LABELS: PilotLabels = {
   title: 'Pilot production',
@@ -74,12 +82,18 @@ const LABELS: PilotLabels = {
   notSet: '—',
   planPilotRun: '+ Plan pilot run',
   editPlan: 'Edit plan',
+  deletePlan: 'Delete plan',
+  confirmDeletePlan: 'Delete this pilot plan?',
+  deletePlanError: 'Could not delete the pilot plan. Try again.',
+  deletePlanHasProgressed: 'This pilot plan has progressed and cannot be deleted.',
   fieldPlannedDate: 'Planned date',
   fieldLine: 'Line',
+  fieldLineRequired: 'Production line is required.',
   linePlaceholder: 'Select a line…',
   noLines: 'No production lines configured.',
   selectLineHint: 'Select a line to see ingredient availability.',
   fieldBatchSize: 'Batch size (kg)',
+  batchUnitLabel: 'kg',
   fieldExpectedYield: 'Expected yield (%)',
   fieldDuration: 'Duration (hours)',
   fieldSupervisor: 'Supervisor',
@@ -91,6 +105,16 @@ const LABELS: PilotLabels = {
   saving: 'Saving…',
   cancel: 'Cancel',
   saveError: 'Could not save. Check the values and try again.',
+  pilotWoTitle: 'Pilot work order',
+  createPilotWo: 'Create pilot WO',
+  creatingPilotWo: 'Creating pilot WO…',
+  pilotWoLinked: 'Pilot work order:',
+  pilotWoLinkLabel: '{woNumber}',
+  createPilotWoError: 'Could not create the pilot work order. Try again.',
+  createPilotWoErrorNoFg: 'Link a finished-good product to this project before creating a pilot work order.',
+  createPilotWoErrorRecipe: 'Lock the recipe version (or activate a production BOM) before creating a pilot work order.',
+  createPilotWoErrorForbidden: 'You do not have permission to create a pilot work order.',
+  createPilotWoErrorPlanning: 'Planning rejected the work order',
 };
 
 const LINES: ProductionLineOption[] = [
@@ -425,5 +449,31 @@ describe('PilotScreen — run-plan edit affordance', () => {
   it('hides the edit-plan button when the caller cannot write', () => {
     render(<PilotScreen state="ready" data={{ ...DATA, canWrite: false }} labels={LABELS} />);
     expect(screen.queryByTestId('edit-pilot-plan-button')).toBeNull();
+  });
+
+  it('deletes a planned pilot plan after confirm and refreshes', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const onDeleteRun = vi.fn().mockResolvedValue({ ok: true });
+    renderReady({ onUpsertRun: vi.fn(), onDeleteRun });
+    fireEvent.click(screen.getByTestId('delete-pilot-plan-button'));
+    await waitFor(() => expect(onDeleteRun).toHaveBeenCalledTimes(1));
+    expect(onDeleteRun).toHaveBeenCalledWith({
+      pilotRunId: 'run-1',
+      projectId: 'project-1',
+    });
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    confirmSpy.mockRestore();
+  });
+
+  it('hides delete when the pilot plan has progressed past planned', () => {
+    renderReady({
+      onUpsertRun: vi.fn(),
+      onDeleteRun: vi.fn(),
+      data: {
+        ...DATA,
+        run: { ...DATA.run, status: 'in_progress' },
+      },
+    });
+    expect(screen.queryByTestId('delete-pilot-plan-button')).toBeNull();
   });
 });

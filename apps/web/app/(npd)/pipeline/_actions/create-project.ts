@@ -36,8 +36,10 @@ export type CreateProjectInput = {
   packWeightG?: number | null;
   packsPerCase?: number | null;
   outputUnit?: NpdBriefOutputUnit | null;
-  weeklyVolumePacks?: number | null;
-  runsPerWeek?: number | null;
+  /** Required — labeled * on Basics; must be > 0. */
+  weeklyVolumePacks: number;
+  /** Required — labeled * on Basics; must be ≥ 1. */
+  runsPerWeek: number;
   salesChannel?: string | null;
   targetRetailPriceEur?: number | null;
   targetAudience?: string | null;
@@ -114,8 +116,8 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
           input.packWeightG ?? null,
           input.packsPerCase ?? null,
           input.outputUnit ?? null,
-          input.weeklyVolumePacks ?? null,
-          input.runsPerWeek ?? null,
+          input.weeklyVolumePacks,
+          input.runsPerWeek,
           input.startFrom === 'blank' ? 'recipe' : 'brief',
           input.startFrom,
           input.cloneSource ?? null,
@@ -189,8 +191,9 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   const packWeightG = parseOptionalNonNegNumber(input.packWeightG);
   const packsPerCase = parseOptionalNonNegInteger(input.packsPerCase);
   const outputUnit = parseOptionalOutputUnit(input.outputUnit);
-  const weeklyVolumePacks = parseOptionalNonNegNumber(input.weeklyVolumePacks);
-  const runsPerWeek = parseOptionalNonNegNumber(input.runsPerWeek);
+  // Basics labels mark these required (*): weekly volume > 0, runs/week ≥ 1.
+  const weeklyVolumePacks = parseRequiredPositiveNumber(input.weeklyVolumePacks);
+  const runsPerWeek = parseRequiredRunsPerWeek(input.runsPerWeek);
   const startFrom = parseStartFrom(input.startFrom);
   const cloneSource = trimOptionalString(input.cloneSource, 120);
 
@@ -229,6 +232,22 @@ function parseOptionalOutputUnit(value: unknown): NpdBriefOutputUnit | null | un
   if (value === undefined || value === null || value === '') return null;
   if (value === 'kg' || value === 'pieces' || value === 'boxes') return value;
   return undefined;
+}
+
+/** Required weekly volume (packs): finite and > 0. Empty/neg/NaN → undefined. */
+function parseRequiredPositiveNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return n;
+}
+
+/** Required runs/week: finite and ≥ 1. Empty/0/neg/NaN → undefined. */
+function parseRequiredRunsPerWeek(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : NaN;
+  if (!Number.isFinite(n) || n < 1) return undefined;
+  return n;
 }
 
 function parseOptionalNonNegInteger(value: unknown): number | null | undefined {

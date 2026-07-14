@@ -296,6 +296,8 @@ describe('FormulationEditor — CRUD + debounce + validation', () => {
 
     act(() => vi.advanceTimersByTime(1000));
     expect(saveDraft).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: LABELS.saveError })).toHaveAttribute('data-status', 'error');
+    expect(screen.getByTestId('save-status')).not.toHaveTextContent(LABELS.saved);
     vi.useRealTimers();
   });
 });

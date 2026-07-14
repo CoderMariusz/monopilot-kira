@@ -154,7 +154,7 @@ async function seedDraftVersion(pool: pg.Pool, suffix = randomUUID().slice(0, 8)
   await pool.query(
     `
       insert into public.formulation_calc_cache (version_id, cost_json, nutrition_json, allergen_json)
-      values ($1, '{}'::jsonb, '{"missingTargets": []}'::jsonb, '{}'::jsonb)
+      values ($1, '{}'::jsonb, '{"energy_kj":"0","fat_g":"0","saturates_g":"0","carbs_g":"0","sugars_g":"0","protein_g":"0","salt_g":"0"}'::jsonb, '{}'::jsonb)
       on conflict (version_id) do update
         set nutrition_json = excluded.nutrition_json
     `,
@@ -185,7 +185,7 @@ runIntegrationTest('formulation lifecycle Server Actions against real Postgres',
     await ownerPool?.end();
   });
 
-  it('persists draft -> submitted_for_trial -> locked, audit, outbox, and rejects illegal mutations', async () => {
+  it('persists valid draft -> locked -> submitted_for_trial, audit, outbox, and rejects illegal mutations', async () => {
     const seeded = await seedDraftVersion(ownerPool);
 
     await expect(
@@ -199,17 +199,6 @@ runIntegrationTest('formulation lifecycle Server Actions against real Postgres',
       }),
     ).resolves.toEqual({ ok: true, data: { versionId: seeded.versionId, ingredientCount: 2 } });
 
-    await expect(submitForTrial({ projectId: seeded.projectId, versionId: seeded.versionId })).resolves.toEqual({
-      ok: true,
-      data: { versionId: seeded.versionId, trialCreated: true },
-    });
-
-    let state = await ownerPool.query<{ state: string }>(
-      `select state from public.formulation_versions where id = $1`,
-      [seeded.versionId],
-    );
-    expect(state.rows[0]?.state).toBe('submitted_for_trial');
-
     await expect(lockVersion({ projectId: seeded.projectId, versionId: seeded.versionId })).resolves.toMatchObject({
       ok: true,
       data: { versionId: seeded.versionId, formulationId: seeded.formulationId },
@@ -220,6 +209,17 @@ runIntegrationTest('formulation lifecycle Server Actions against real Postgres',
       [seeded.versionId],
     );
     expect(state.rows[0]?.state).toBe('locked');
+
+    await expect(submitForTrial({ projectId: seeded.projectId, versionId: seeded.versionId })).resolves.toEqual({
+      ok: true,
+      data: { versionId: seeded.versionId, trialCreated: true },
+    });
+
+    state = await ownerPool.query<{ state: string }>(
+      `select state from public.formulation_versions where id = $1`,
+      [seeded.versionId],
+    );
+    expect(state.rows[0]?.state).toBe('submitted_for_trial');
 
     const trial = await ownerPool.query<{ trial_no: string; result: string }>(
       `select trial_no, result from public.trial_batches where project_id = $1`,
@@ -263,7 +263,7 @@ runIntegrationTest('formulation lifecycle Server Actions against real Postgres',
         versionId: seeded.versionId,
         ingredients: [{ rmCode: 'RM-T064-C', qtyKg: '1.000', pct: '100.000', costPerKgEur: '1.0000', sequence: 1 }],
       }),
-    ).resolves.toEqual({ ok: false, error: 'VERSION_LOCKED' });
+    ).resolves.toEqual({ ok: false, error: 'VERSION_NOT_DRAFT' });
 
     await expect(
       ownerPool.query(
@@ -279,6 +279,13 @@ runIntegrationTest('formulation lifecycle Server Actions against real Postgres',
 
   it('locks a draft version directly and rejects locking an already locked version', async () => {
     const draft = await seedDraftVersion(ownerPool);
+
+    await ownerPool.query(
+      `insert into public.formulation_ingredients
+         (version_id, rm_code, qty_kg, pct, cost_per_kg_eur, sequence)
+       values ($1, 'RM-T064-VALID', 10.000, 100.000, 1.0000, 1)`,
+      [draft.versionId],
+    );
 
     await expect(lockVersion({ projectId: draft.projectId, versionId: draft.versionId })).resolves.toMatchObject({
       ok: true,
@@ -297,7 +304,7 @@ runIntegrationTest('formulation lifecycle Server Actions against real Postgres',
     });
   });
 
-  it('rejects submit when ingredient percentages do not total 100', async () => {
+  it('rejects lock when actual ingredient mass is outside the tolerance band', async () => {
     const draft = await seedDraftVersion(ownerPool);
 
     await ownerPool.query(
@@ -309,7 +316,7 @@ runIntegrationTest('formulation lifecycle Server Actions against real Postgres',
       [draft.versionId],
     );
 
-    await expect(submitForTrial({ projectId: draft.projectId, versionId: draft.versionId })).resolves.toEqual({
+    await expect(lockVersion({ projectId: draft.projectId, versionId: draft.versionId })).resolves.toEqual({
       ok: false,
       error: 'TOTAL_PCT_OUT_OF_RANGE',
     });

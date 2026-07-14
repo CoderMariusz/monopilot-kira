@@ -58,8 +58,8 @@ const DEFAULT_PACKAGING_COST_PER_KG = '0';
 // unset, per-kg figures (rawCost, costPerKg, revenue, margin) are 0 (we never
 // fabricate a 200 g pack).
 const DEFAULT_PACK_WEIGHT_KG = '0';
-// Quantity-balance gate tolerance: Σ qtyKg must be within ±1 % of pack weight.
-const QTY_BALANCE_TOLERANCE_PCT = '1';
+// Quantity-balance gate tolerance: Σ qtyKg must be within ±0.01 % of pack weight.
+const QTY_BALANCE_TOLERANCE_PCT = '0.01';
 
 /**
  * A NUMERIC value as read from Postgres — a string, or null when unset.
@@ -130,7 +130,7 @@ export interface RecomputeResult {
   /** Costing v2 — sum of ingredient qtyKg (the pack weight built so far), 3 dp string. */
   totalQtyKg: string;
   /**
-   * Costing v2 — true iff Σ qtyKg is within ±1 % of packWeightKg (the submit gate
+   * Costing v2 — true iff Σ qtyKg is within ±0.01 % of packWeightKg (the submit gate
    * replacing the old "must equal 100 %" rule). When packWeightKg is unset (0),
    * this is `true` (no hard block — see qtyBalanceUnset).
    */
@@ -180,7 +180,7 @@ export function recomputeCalc(input: RecomputeInput): RecomputeResult {
     totalPctDec = totalPctDec.add(Dec.from(ing.pct));
   }
   const totalPct = totalPctDec.toFixed(PCT_DP);
-  const totalPctValid = withinGate(totalPctDec);
+  const totalPctValid = isTotalPctValid(totalPct);
 
   // ── rawCostPerPack = Σ (qtyKg × costPerKg) + Σ qtyKg ───────────────────────
   let rawCostPerPackDec = Dec.zero();
@@ -196,7 +196,7 @@ export function recomputeCalc(input: RecomputeInput): RecomputeResult {
     rawCostPerPackDec = rawCostPerPackDec.add(qty.mul(Dec.from(ing.costPerKgEur)));
   }
 
-  // ── qty-balance gate: Σ qtyKg ≈ packWeightKg within ±1 % ────────────────────
+  // ── qty-balance gate: Σ qtyKg ≈ packWeightKg within ±0.01 % ─────────────────
   const qtyBalanceUnset = packWeightDec.isZero();
   const qtyBalanceValid = qtyBalanceUnset
     ? true // pack weight unset → don't hard-block (gate is informational)
@@ -256,7 +256,9 @@ export function recomputeCalc(input: RecomputeInput): RecomputeResult {
   };
 }
 
-function withinGate(totalPct: Dec): boolean {
+export function isTotalPctValid(value: Numericish): boolean {
+  if (value === null || value === undefined || value === '') return false;
+  const totalPct = Dec.from(value);
   return totalPct.cmp(Dec.from(TOTAL_PCT_MIN)) >= 0 && totalPct.cmp(Dec.from(TOTAL_PCT_MAX)) <= 0;
 }
 

@@ -6506,7 +6506,11 @@
       "createPilotWoErrorDocumentMaskMissing": "Organizacja nie ma skonfigurowanej maski numeracji WO (Ustawienia > Dokumenty).",
       "createPilotWoErrorFgItemMissing": "Brak rekordu FG w kartotece pozycji. Utwórz lub zmapuj kandydata FG ponownie.",
       "fieldLineRequired": "Linia produkcyjna jest wymagana.",
-      "batchUnitLabel": "kg"
+      "batchUnitLabel": "kg",
+      "deletePlan": "Usuń plan",
+      "confirmDeletePlan": "Usunąć ten plan pilotażowy?",
+      "deletePlanError": "Nie udało się usunąć planu pilotażowego. Spróbuj ponownie.",
+      "deletePlanHasProgressed": "Ten plan pilotażowy został już uruchomiony i nie może zostać usunięty."
     },
     "trial": {
       "title": "Próby laboratoryjne i kuchenne",
@@ -6564,7 +6568,11 @@
       "bookLineTimeErrorForbidden": "Brak uprawnień do rezerwacji czasu na linii.",
       "bookLineTimeErrorInvalidLine": "Wybrana linia jest niedostępna.",
       "bookLineTimeErrorTrialNotFound": "Nie znaleziono tej próby.",
-      "bookLineTimeErrorPersistence": "Nie udało się zapisać rezerwacji. Spróbuj ponownie."
+      "bookLineTimeErrorPersistence": "Nie udało się zapisać rezerwacji. Spróbuj ponownie.",
+      "deleteTrial": "Usuń",
+      "confirmDelete": "Usunąć tę próbę?",
+      "deleteError": "Nie udało się usunąć próby. Spróbuj ponownie.",
+      "deleteHasProgressed": "Ta próba ma już wynik i nie może zostać usunięta."
     },
     "packaging": {
       "title": "Opakowania",

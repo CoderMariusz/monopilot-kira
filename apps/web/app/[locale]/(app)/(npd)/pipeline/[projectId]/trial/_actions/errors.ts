@@ -23,6 +23,13 @@ export type UpdateTrialBatchError =
   | 'duplicate_trial_no'
   | 'persistence_failed';
 
+export type DeleteTrialBatchError =
+  | 'invalid_input'
+  | 'forbidden'
+  | 'not_found'
+  | 'has_progressed'
+  | 'persistence_failed';
+
 export type ListTrialBatchesError =
   | 'forbidden'
   | 'not_found'

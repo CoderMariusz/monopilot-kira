@@ -354,7 +354,7 @@ export type CompareVersionsAction = (input: {
 
 /**
  * Lock-version Server Action (legacy actions tree, `_actions/lock-version.ts`).
- * Freezes the current version (draft | submitted_for_trial → locked). RBAC is
+ * Freezes the current valid draft (draft → locked). RBAC is
  * enforced server-side (`npd.formulation.lock`); the editor only mirrors the
  * `forbidden` code read-only and surfaces every other error code inline.
  */
@@ -370,7 +370,10 @@ export type LockVersionAction = (input: {
         | 'forbidden'
         | 'not_found'
         | 'VERSION_LOCKED'
-        | 'VERSION_NOT_SUBMITTED'
+        | 'VERSION_NOT_DRAFT'
+        | 'TOTAL_PCT_OUT_OF_RANGE'
+        | 'MISSING_COST'
+        | 'MISSING_NUTRITION_TARGET'
         | 'persistence_failed';
     }
 >;
@@ -1057,7 +1060,10 @@ export function FormulationEditor({
         })
         .filter(([, rowErr]) => Object.keys(rowErr).length > 0),
     );
-    if (Object.keys(blocking).length > 0) return; // qtyKg still gates draft saves.
+    if (Object.keys(blocking).length > 0) {
+      setSaveStatus('error');
+      return; // qtyKg still gates draft saves.
+    }
 
     setSaveStatus('saving');
     setSaveErrorDetail('');
@@ -1126,6 +1132,8 @@ export function FormulationEditor({
 
   const handleChange = React.useCallback(
     (index: number, field: IngredientField, value: string) => {
+      setSaveStatus('idle');
+      setSaveErrorDetail('');
       setRows((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
       scheduleSave();
     },
@@ -1140,6 +1148,7 @@ export function FormulationEditor({
       if (!row) return;
       const validation = validate(rowsRef.current);
       setErrors(validation);
+      if (validation[row.id]?.qtyKg) setSaveStatus('error');
     },
     [validate],
   );
@@ -1296,6 +1305,8 @@ export function FormulationEditor({
           return labels.submitErrorMissingNutritionTarget;
         case 'VERSION_NOT_DRAFT':
           return labels.submitErrorNotDraft;
+        case 'VERSION_NOT_SUBMITTED':
+          return labels.lockErrorNotSubmitted;
         case 'VERSION_NOT_LOCKED':
           return labels.submitErrorNotLocked;
         case 'VERSION_LOCKED':
@@ -1398,8 +1409,14 @@ export function FormulationEditor({
           return labels.lockErrorForbidden;
         case 'VERSION_LOCKED':
           return labels.lockErrorLocked;
-        case 'VERSION_NOT_SUBMITTED':
+        case 'VERSION_NOT_DRAFT':
           return labels.lockErrorNotSubmitted;
+        case 'TOTAL_PCT_OUT_OF_RANGE':
+          return labels.submitErrorTotalPct;
+        case 'MISSING_COST':
+          return labels.submitErrorMissingCost;
+        case 'MISSING_NUTRITION_TARGET':
+          return labels.submitErrorMissingNutritionTarget;
         case 'not_found':
           return labels.lockErrorNotFound;
         default:
@@ -1411,7 +1428,7 @@ export function FormulationEditor({
 
   /**
    * Lock recipe (C1). Server action enforces RBAC (`npd.formulation.lock`) + the
-   * state transition (draft | submitted_for_trial → locked); we only mirror the
+   * state transition (valid draft → locked); we only mirror the
    * result. On success we refresh so the version's new `locked` state re-renders
    * the editor read-only from Supabase.
    */
@@ -1540,14 +1557,15 @@ export function FormulationEditor({
   // the panels, so the table total and the CostPanel never disagree (single source).
   const totalQtyKg = calc.totalQtyKg;
   const cost = calc.rawCostPerPack;
-  // Balance gate: Σ qtyKg ≈ pack weight ±1 %. When pack weight is unset we don't
-  // hard-block (qtyBalanceValid is true), but we surface a hint instead.
+  // Balance gate: Σ qtyKg ≈ pack weight ±0.01 %. An unset pack weight cannot
+  // establish a valid recipe for locking/submission, so keep both actions gated.
   const balanced = calc.qtyBalanceValid;
   const packWeightUnset = calc.qtyBalanceUnset;
+  const massBalanceValid = !packWeightUnset && balanced;
   const canSubmitForTrial =
     locked &&
     submitAllowed &&
-    balanced &&
+    massBalanceValid &&
     Boolean(submitForTrialAction) &&
     submitStatus !== 'submitting' &&
     submitStatus !== 'submitted';
@@ -1762,7 +1780,7 @@ export function FormulationEditor({
           <Button
             type="button"
             className="btn-ghost"
-            disabled={!editable || !lockVersionAction || lockStatus === 'locking'}
+            disabled={!editable || !massBalanceValid || !lockVersionAction || lockStatus === 'locking'}
             data-status={lockStatus}
             onClick={() => {
               setLockError('');

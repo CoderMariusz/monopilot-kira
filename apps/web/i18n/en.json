@@ -4024,7 +4024,11 @@
       "createPilotWoErrorDocumentMaskMissing": "The organization has no WO numbering mask configured (Settings > Documents).",
       "createPilotWoErrorFgItemMissing": "The FG item record is missing from the item master. Re-create or map the FG candidate.",
       "fieldLineRequired": "Production line is required.",
-      "batchUnitLabel": "kg"
+      "batchUnitLabel": "kg",
+      "deletePlan": "Delete plan",
+      "confirmDeletePlan": "Delete this pilot plan?",
+      "deletePlanError": "Could not delete the pilot plan. Try again.",
+      "deletePlanHasProgressed": "This pilot plan has progressed and cannot be deleted."
     },
     "trial": {
       "title": "Lab & kitchen trials",
@@ -4082,7 +4086,11 @@
       "bookLineTimeErrorForbidden": "You do not have permission to book line time.",
       "bookLineTimeErrorInvalidLine": "The selected line is not available.",
       "bookLineTimeErrorTrialNotFound": "This trial could not be found.",
-      "bookLineTimeErrorPersistence": "Could not save the booking. Try again."
+      "bookLineTimeErrorPersistence": "Could not save the booking. Try again.",
+      "deleteTrial": "Delete",
+      "confirmDelete": "Delete this trial?",
+      "deleteError": "Could not delete the trial. Try again.",
+      "deleteHasProgressed": "This trial already has a result and cannot be deleted."
     },
     "packaging": {
       "title": "Packaging",
