@@ -45,7 +45,6 @@ type SecurityScreenData = {
   passwordPolicy: {
     minimumLength: number;
     complexity: 'strong' | 'medium' | 'basic';
-    expires: 'never' | '90' | '180';
     blockReuseCount: number;
   };
   sessionPolicy: {
@@ -88,7 +87,6 @@ const data: SecurityScreenData = {
   passwordPolicy: {
     minimumLength: 12,
     complexity: 'strong',
-    expires: 'never',
     blockReuseCount: 5,
   },
   sessionPolicy: {
@@ -276,10 +274,9 @@ describe('SET-012 security screen prototype parity', () => {
       'Enforce 2FA for Admins',
       'Enforce 2FA for all users',
       'Allowed methods',
-      'Minimum length',
+      'Minimum length (enforced)',
       'Complexity',
-      'Password expires',
-      'Block reuse of last N passwords',
+      'Block reuse of last N passwords (enforced)',
       'Idle timeout',
       'Maximum session length',
       'Provider',
@@ -300,10 +297,14 @@ describe('SET-012 security screen prototype parity', () => {
     expect(webAuthn).toHaveAttribute('title', 'Coming Phase 3');
 
     const passwordPolicy = screen.getByRole('region', { name: /password policy/i });
-    expect(within(passwordPolicy).getByRole('spinbutton', { name: /minimum length/i })).toHaveValue(12);
-    expect(within(passwordPolicy).getByRole('combobox', { name: /complexity/i })).toHaveValue('strong');
-    expect(within(passwordPolicy).getByRole('combobox', { name: /password expires/i })).toHaveValue('never');
-    expect(within(passwordPolicy).getByRole('spinbutton', { name: /block reuse of last n passwords/i })).toHaveValue(5);
+    expect(within(passwordPolicy).getByTestId('security-minimum-length')).toHaveTextContent('12');
+    expect(within(passwordPolicy).getByTestId('security-complexity')).toHaveTextContent(
+      /strong \(upper, lower, number, symbol\)/i,
+    );
+    expect(within(passwordPolicy).getByTestId('security-block-reuse')).toHaveTextContent('5');
+    expect(within(passwordPolicy).queryByRole('spinbutton')).not.toBeInTheDocument();
+    expect(within(passwordPolicy).queryByRole('combobox', { name: /password expires/i })).not.toBeInTheDocument();
+    expect(within(passwordPolicy).queryByRole('combobox', { name: /complexity/i })).not.toBeInTheDocument();
 
     const sessions = screen.getByRole('region', { name: /^session$/i });
     expect(within(sessions).getByRole('combobox', { name: /idle timeout/i })).toHaveValue('60');
@@ -349,19 +350,18 @@ describe('SET-012 security screen prototype parity', () => {
     expect(methodCheckboxes).toHaveLength(3);
 
     const selectControls = screen.getAllByRole('combobox');
-    expect(selectControls).toHaveLength(4);
+    expect(selectControls).toHaveLength(2);
     expect(selectControls.every((control) => control.matches('button[data-slot="select-trigger"]'))).toBe(true);
-    expect(container.querySelectorAll('[data-slot="select"]').length).toBe(4);
+    expect(container.querySelectorAll('[data-slot="select"]').length).toBe(2);
     expect(container.querySelectorAll('select').length).toBe(0);
 
-    // Number fields are native inputs (the `.sg-field` CSS caps width); no shadcn Input slot.
-    expect(container.querySelectorAll('input[type="number"]').length).toBe(2);
+    expect(container.querySelectorAll('input[type="number"]').length).toBe(0);
     expect(container.querySelectorAll('button[data-slot="button"]').length).toBeGreaterThanOrEqual(1);
 
     // Rows render via the shared design-system primitives.
     expect(container.querySelectorAll('.sg-section').length).toBeGreaterThanOrEqual(7);
     expect(container.querySelectorAll('.sg-section-foot').length).toBeGreaterThanOrEqual(1);
-    expect(container.querySelectorAll('.sg-row').length).toBe(12);
+    expect(container.querySelectorAll('.sg-row').length).toBe(11);
 
     await user.tab();
     expect(toggleInputs[0]).toHaveFocus();
@@ -380,10 +380,6 @@ describe('SET-012 security screen prototype parity', () => {
           "Hardware key (WebAuthn)",
           "Enforce SSO",
           "SCIM provisioning",
-          "Minimum length",
-          "Block reuse of last N passwords",
-          "Complexity",
-          "Password expires",
           "Idle timeout",
           "Maximum session length",
         ],
@@ -391,10 +387,9 @@ describe('SET-012 security screen prototype parity', () => {
           "Enforce 2FA for Admins",
           "Enforce 2FA for all users",
           "Allowed methods",
-          "Minimum length",
+          "Minimum length (enforced)",
           "Complexity",
-          "Password expires",
-          "Block reuse of last N passwords",
+          "Block reuse of last N passwords (enforced)",
           "Idle timeout",
           "Maximum session length",
           "Provider",
@@ -491,12 +486,6 @@ describe('SET-012 security screen — wired controls persist through one Save', 
     await act(async () => {
       await user.click(screen.getByRole('checkbox', { name: /^sms$/i }));
     });
-    // Change the minimum password length (controlled number input).
-    const minLength = screen.getByRole('spinbutton', { name: /minimum length/i });
-    await act(async () => {
-      await user.clear(minLength);
-      await user.type(minLength, '16');
-    });
 
     await act(async () => {
       await user.click(screen.getByRole('button', { name: /save security settings/i }));
@@ -507,40 +496,36 @@ describe('SET-012 security screen — wired controls persist through one Save', 
     expect(payload.twoFactor.enforceAdmins).toBe(false);
     expect(payload.twoFactor.enforceAllUsers).toBe(true);
     expect(payload.twoFactor.allowedMethods).toEqual(['totp']);
-    expect(payload.passwordPolicy.minimumLength).toBe(16);
+    expect(payload.passwordPolicy.minimumLength).toBe(12);
+    expect(payload.passwordPolicy.blockReuseCount).toBe(5);
   });
 
-  it('changing complexity flows into the saved payload', async () => {
-    const user = userEvent.setup();
-    const saveSecuritySettings = vi.fn(async (next: SecurityScreenData) => ({
-      ok: true as const,
-      data: next,
-    })) as TestSaveSecuritySettings;
-    await renderSecurity({ saveSecuritySettings });
+  it('shows enforced password policy fields as read-only display values', async () => {
+    await renderSecurity();
 
-    await act(async () => {
-      await user.click(screen.getByRole('combobox', { name: /complexity/i }));
-    });
-    await act(async () => {
-      await user.click(screen.getByRole('option', { name: /medium/i }));
-    });
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /save security settings/i }));
-    });
-
-    const payload = saveSecuritySettings.mock.calls[0][0] as SecurityScreenData;
-    expect(payload.passwordPolicy.complexity).toBe('medium');
+    const passwordPolicy = screen.getByRole('region', { name: /password policy/i });
+    expect(within(passwordPolicy).getByTestId('security-minimum-length')).toHaveTextContent('12');
+    expect(within(passwordPolicy).getByTestId('security-complexity')).toHaveTextContent(
+      /strong \(upper, lower, number, symbol\)/i,
+    );
+    expect(within(passwordPolicy).getByTestId('security-block-reuse')).toHaveTextContent('5');
+    expect(within(passwordPolicy).queryByRole('spinbutton')).not.toBeInTheDocument();
+    expect(within(passwordPolicy).queryByRole('combobox', { name: /complexity/i })).not.toBeInTheDocument();
+    expect(within(passwordPolicy).queryByText(/password expires/i)).not.toBeInTheDocument();
   });
 
   it('disables controls that have no backing policy field (Not available yet)', async () => {
     await renderSecurity();
 
-    // Password expiry, both session selects, and SCIM are disabled (no column yet).
-    expect(screen.getByRole('combobox', { name: /password expires/i })).toBeDisabled();
+    const passwordPolicy = screen.getByRole('region', { name: /password policy/i });
+    expect(within(passwordPolicy).getByTestId('security-minimum-length')).toBeInTheDocument();
+    expect(within(passwordPolicy).getByTestId('security-block-reuse')).toBeInTheDocument();
+    expect(within(passwordPolicy).queryByRole('spinbutton')).not.toBeInTheDocument();
+    expect(within(passwordPolicy).queryByText(/password expires/i)).not.toBeInTheDocument();
+
     expect(screen.getByRole('combobox', { name: /idle timeout/i })).toBeDisabled();
     expect(screen.getByRole('combobox', { name: /maximum session length/i })).toBeDisabled();
     expect(screen.getByRole('checkbox', { name: /scim provisioning/i })).toBeDisabled();
-    expect(screen.getByRole('spinbutton', { name: /block reuse of last n passwords/i })).toBeDisabled();
   });
 });
 

@@ -1,5 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 
+import { PASSWORD_HISTORY_LIMIT, PASSWORD_MIN_LENGTH } from '../../../../../../lib/auth/nist-password-policy';
+
 import { upsertSecurityPolicy } from '../../../../../../actions/security/upsert-policy';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import SecurityScreen, {
@@ -37,14 +39,8 @@ type IdpPolicyRow = {
   session_max_h: number | string | null;
 };
 
-type PasswordPolicyRow = {
-  password_min_length: number | string | null;
-  password_complexity: string | null;
-  password_expiry_days: number | string | null;
-  password_history_count: number | string | null;
-};
-
 type ScimRow = { active_count: string | number };
+
 type AuditRow = {
   id: string;
   occurred_at: string | Date;
@@ -77,12 +73,6 @@ function mapComplexity(value: string | null | undefined): SecurityScreenData['pa
   return 'medium';
 }
 
-function mapPasswordExpiry(value: number | string | null | undefined): SecurityScreenData['passwordPolicy']['expires'] {
-  const days = Number(value ?? 0);
-  if (days >= 180) return '180';
-  if (days >= 90) return '90';
-  return 'never';
-}
 
 function mapIdleTimeout(value: number | string | null | undefined): SecurityScreenData['sessionPolicy']['idleTimeout'] {
   const normalized = String(value ?? '60');
@@ -116,10 +106,9 @@ function defaultData(labels: SecurityScreenLabels): SecurityScreenData {
     },
     scim: { enabled: false },
     passwordPolicy: {
-      minimumLength: 12,
+      minimumLength: PASSWORD_MIN_LENGTH,
       complexity: 'strong',
-      expires: 'never',
-      blockReuseCount: 5,
+      blockReuseCount: PASSWORD_HISTORY_LIMIT,
     },
     sessionPolicy: {
       idleTimeout: '60',
@@ -218,29 +207,11 @@ async function readSecurityScreenData(labels: SecurityScreenLabels): Promise<Sec
       const providerType = idp?.provider_type ?? 'password';
       const connected = providerType === 'saml' || providerType === 'oidc';
 
-      // Real password policy from org_security_policies (min length, complexity,
-      // history/reuse count) joined with tenant_idp_config (expiry days). Resilient:
-      // if older schemas lack these columns the query degrades to NIST-safe defaults.
-      let passwordPolicyRow: PasswordPolicyRow | undefined;
-      try {
-        const passwordPolicyResult = await queryClient.query<PasswordPolicyRow>(
-          `select sp.password_min_length,
-                  sp.password_complexity,
-                  coalesce(idp.password_expiry_days, 0) as password_expiry_days,
-                  sp.password_history_count
-             from public.org_security_policies sp
-             left join public.organizations o on o.id = sp.org_id
-             left join public.tenant_idp_config idp on idp.tenant_id = o.tenant_id
-            where sp.org_id = app.current_org_id()
-            limit 1`,
-        );
-        passwordPolicyRow = passwordPolicyResult.rows[0];
-      } catch (error) {
-        console.error('[settings/security] password_policy_optional_load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
-      }
-
-      const minimumLength = Number(passwordPolicyRow?.password_min_length ?? fallbackData.passwordPolicy.minimumLength);
-      const blockReuseCount = Number(passwordPolicyRow?.password_history_count ?? fallbackData.passwordPolicy.blockReuseCount);
+      // org_security_policies (migration 017) only stores dual_control_required.
+      // Min length + reuse count are enforced by @monopilot/auth constants; expiry
+      // is not exposed by app.get_my_tenant_idp_config (migration 027).
+      const minimumLength = fallbackData.passwordPolicy.minimumLength;
+      const blockReuseCount = fallbackData.passwordPolicy.blockReuseCount;
 
       return {
         state: 'ready' as const,
@@ -261,8 +232,7 @@ async function readSecurityScreenData(labels: SecurityScreenLabels): Promise<Sec
           scim: { enabled: Number(scimResult.rows[0]?.active_count ?? 0) > 0 },
           passwordPolicy: {
             minimumLength: Number.isFinite(minimumLength) ? minimumLength : fallbackData.passwordPolicy.minimumLength,
-            complexity: mapComplexity(passwordPolicyRow?.password_complexity ?? idp?.password_complexity),
-            expires: mapPasswordExpiry(passwordPolicyRow?.password_expiry_days),
+            complexity: mapComplexity(idp?.password_complexity),
             blockReuseCount: Number.isFinite(blockReuseCount) ? blockReuseCount : fallbackData.passwordPolicy.blockReuseCount,
           },
           sessionPolicy: {
@@ -369,8 +339,6 @@ const saveSecuritySettings: SaveSecuritySettings = async (data) => {
         ? 'required_admins'
         : 'optional',
     mfa_allowed_methods: data.twoFactor.allowedMethods,
-    password_min_length: data.passwordPolicy.minimumLength,
-    password_complexity: data.passwordPolicy.complexity === 'strong' ? 'strong' : 'standard',
   });
 
   if (!policyResult.ok) {

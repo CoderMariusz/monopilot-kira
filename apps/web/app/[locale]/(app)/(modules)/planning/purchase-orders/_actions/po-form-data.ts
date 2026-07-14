@@ -27,13 +27,7 @@ import { searchItems } from '../../../../../../(npd)/fa/actions/search-items';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items-types';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { listOrgUnits, type OrgUnitOption, type QueryClient } from '../../_actions/procurement-shared';
-
-export type PoSupplierOption = {
-  id: string;
-  code: string;
-  name: string;
-  currency: string;
-};
+import type { ItemSupplierPrice, PoSupplierOption } from './po-form-data-types';
 
 type SupplierPriceRow = {
   unit_price: string | null;
@@ -47,12 +41,6 @@ type SupplierRow = {
 
 type ItemListPriceRow = {
   unit_price: string | null;
-};
-
-export type ItemSupplierPrice = {
-  unitPrice: string | null;
-  currency: string | null;
-  source: 'spec' | 'list_price' | 'none';
 };
 
 /** Active suppliers for the create-PO supplier select (org-scoped, code-sorted). */
@@ -79,27 +67,11 @@ const PO_PURCHASABLE_ITEM_TYPES = [
  *  When the caller passes no `itemTypes`, default to ALL purchasable physical
  *  goods (purchasing buys everything, packaging included); explicit filters from
  *  the caller are preserved as-is. */
-export async function searchPoItems(input: SearchItemsInput & { supplierId?: string } = {}): Promise<ItemPickerOption[]> {
+export async function searchPoItems(input: SearchItemsInput = {}): Promise<ItemPickerOption[]> {
   try {
     const itemTypes =
       input.itemTypes && input.itemTypes.length > 0 ? input.itemTypes : [...PO_PURCHASABLE_ITEM_TYPES];
-    if (!input.supplierId) {
-      return await searchItems({ ...input, itemTypes });
-    }
-
-    const supplierCode = await withOrgContext<string | undefined>(async (ctx) => {
-      const { rows } = await ctx.client.query<{ code: string | null }>(
-        `select code
-           from public.suppliers
-          where org_id = app.current_org_id()
-            and id = $1::uuid
-          limit 1`,
-        [input.supplierId],
-      );
-      return rows[0]?.code ?? undefined;
-    });
-
-    return await searchItems({ ...input, itemTypes, supplierCode });
+    return await searchItems({ ...input, itemTypes });
   } catch {
     return [];
   }

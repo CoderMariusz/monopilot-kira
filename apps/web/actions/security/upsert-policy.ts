@@ -1,7 +1,10 @@
 'use server';
 
+import { PASSWORD_MIN_LENGTH } from '../../lib/auth/nist-password-policy';
+
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import type { UpsertSecurityPolicyInput, UpsertSecurityPolicyResult } from './upsert-policy-types';
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -13,34 +16,7 @@ type OrgActionContext = {
   client: QueryClient;
 };
 
-export type UpsertSecurityPolicyInput = {
-  dual_control_required?: boolean;
-  mfa_requirement?: 'off' | 'optional' | 'required_admins' | 'required_all';
-  mfa_allowed_methods?: string[];
-  password_min_length?: number;
-  password_complexity?: 'standard' | 'strong';
-};
-
-export type UpsertSecurityPolicyResult =
-  | { ok: true; data: { orgId: string; mfaRequirement: string; passwordMinLength: number } }
-  | {
-      ok: false;
-      error:
-        | 'invalid_input'
-        | 'forbidden'
-        | 'webauthn_not_allowed'
-        | 'password_min_length_floor'
-        | 'unsupported_mfa_method'
-        | 'persistence_failed';
-    };
-
 type ParsedSecurityPolicyInput = Required<UpsertSecurityPolicyInput>;
-
-type SecurityPolicyRow = {
-  org_id: string;
-  mfa_requirement?: string | null;
-  password_min_length?: number | string | null;
-};
 
 const FORBIDDEN = 'forbidden' as const;
 const PASSWORD_MIN_LENGTH_FLOOR = 8;
@@ -51,109 +27,6 @@ type ParsePolicyResult = {
   input?: ParsedSecurityPolicyInput;
   error?: Exclude<UpsertSecurityPolicyResult, { ok: true }>['error'];
 };
-
-export async function upsertPolicy(rawInput: UpsertSecurityPolicyInput): Promise<UpsertSecurityPolicyResult> {
-  const parsed = parseInput(rawInput);
-  if (parsed.error || !parsed.input) return { ok: false, error: parsed.error ?? 'invalid_input' };
-  const input = parsed.input;
-
-  return withOrgContext(async ({ userId, orgId, client }: OrgActionContext) => {
-    try {
-      await requireSecurityAdmin({ client, userId, orgId });
-
-      if (input.mfa_requirement === 'required_admins') {
-        await forceAdminMfa({ client, orgId, actorUserId: userId });
-      } else if (input.mfa_requirement === 'required_all') {
-        await forceAllUsersMfa({ client, orgId, actorUserId: userId });
-      }
-
-      const upsert = await client.query<SecurityPolicyRow>(
-        `insert into public.org_security_policies
-           (org_id, dual_control_required, mfa_requirement, mfa_allowed_methods,
-            password_min_length, password_complexity, updated_by, updated_at)
-         values ($1::uuid, $2, $3, $4::text[], $5, $6, $7::uuid, now())
-         on conflict (org_id) do update set
-           dual_control_required = excluded.dual_control_required,
-           mfa_requirement = excluded.mfa_requirement,
-           mfa_allowed_methods = excluded.mfa_allowed_methods,
-           password_min_length = excluded.password_min_length,
-           password_complexity = excluded.password_complexity,
-           updated_by = excluded.updated_by,
-           updated_at = now()
-         returning org_id, mfa_requirement, password_min_length`,
-        [
-          orgId,
-          input.dual_control_required,
-          input.mfa_requirement,
-          input.mfa_allowed_methods,
-          input.password_min_length,
-          input.password_complexity,
-          userId,
-        ],
-      );
-
-      await client.query(
-        `insert into public.outbox_events
-           (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-         values ($1::uuid, $2, $3, null, $4::jsonb, $5)`,
-        [
-          orgId,
-          'org.security_policy.updated',
-          'org_security_policy',
-          JSON.stringify({
-            org_id: orgId,
-            mfa_requirement: input.mfa_requirement,
-            mfa_allowed_methods: input.mfa_allowed_methods,
-            password_min_length: input.password_min_length,
-            password_complexity: input.password_complexity,
-            actor_user_id: userId,
-          }),
-          'settings-security-policy-v1',
-        ],
-      );
-
-      const row = upsert.rows[0];
-      await client.query(
-        `insert into public.audit_log
-           (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
-         values ($1::uuid, $2::uuid, 'user', $3, 'org_security_policies', $4, null, $5::jsonb, 'security')`,
-        [
-          orgId,
-          userId,
-          'org.security_policy.updated',
-          orgId,
-          JSON.stringify({
-            org_id: orgId,
-            mfa_requirement: input.mfa_requirement,
-            mfa_allowed_methods: input.mfa_allowed_methods,
-            password_min_length: input.password_min_length,
-            password_complexity: input.password_complexity,
-            dual_control_required: input.dual_control_required,
-          }),
-        ],
-      );
-
-      revalidateLocalized('/settings/security');
-      return {
-        ok: true,
-        data: {
-          orgId: row?.org_id ?? orgId,
-          mfaRequirement: row?.mfa_requirement ?? input.mfa_requirement,
-          passwordMinLength: Number(row?.password_min_length ?? input.password_min_length),
-        },
-      };
-    } catch (error) {
-      if (error === FORBIDDEN) return { ok: false, error: 'forbidden' };
-      return { ok: false, error: 'persistence_failed' };
-    }
-  });
-}
-
-export async function upsertSecurityPolicy(
-  rawInput: UpsertSecurityPolicyInput,
-): Promise<UpsertSecurityPolicyResult> {
-  return upsertPolicy(rawInput);
-}
 
 function parseInput(input: UpsertSecurityPolicyInput | null | undefined): ParsePolicyResult {
   if (!input || typeof input !== 'object') return { error: 'invalid_input' };
@@ -168,7 +41,7 @@ function parseInput(input: UpsertSecurityPolicyInput | null | undefined): ParseP
   }
 
   const passwordMinLength = Number(input.password_min_length ?? PASSWORD_MIN_LENGTH_FLOOR);
-  if (!Number.isInteger(passwordMinLength) || passwordMinLength < 8) {
+  if (!Number.isInteger(passwordMinLength) || passwordMinLength < PASSWORD_MIN_LENGTH_FLOOR) {
     return { error: 'password_min_length_floor' };
   }
 
@@ -191,6 +64,96 @@ function parseInput(input: UpsertSecurityPolicyInput | null | undefined): ParseP
       password_complexity: passwordComplexity,
     },
   };
+}
+
+export async function upsertPolicy(rawInput: UpsertSecurityPolicyInput): Promise<UpsertSecurityPolicyResult> {
+  const parsed = parseInput(rawInput);
+  if (parsed.error || !parsed.input) return { ok: false, error: parsed.error ?? 'invalid_input' };
+  const input = parsed.input;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext) => {
+      await requireSecurityAdmin({ client, userId, orgId });
+
+      const upsert = await client.query<{ org_id: string }>(
+        `insert into public.org_security_policies
+           (org_id, dual_control_required)
+         values ($1::uuid, $2)
+         on conflict (org_id) do update set
+           dual_control_required = excluded.dual_control_required,
+           updated_at = now()
+         returning org_id::text as org_id`,
+        [orgId, input.dual_control_required],
+      );
+
+      if (!upsert.rows[0]?.org_id) {
+        throw new Error('PERSISTENCE_FAILED');
+      }
+
+      if (input.mfa_requirement === 'required_admins') {
+        await forceAdminMfa({ client, orgId, actorUserId: userId });
+      } else if (input.mfa_requirement === 'required_all') {
+        await forceAllUsersMfa({ client, orgId, actorUserId: userId });
+      }
+
+      await client.query(
+        `insert into public.outbox_events
+           (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+         values ($1::uuid, $2, $3, null, $4::jsonb, $5)`,
+        [
+          orgId,
+          'org.security_policy.updated',
+          'org_security_policy',
+          JSON.stringify({
+            org_id: orgId,
+            mfa_requirement: input.mfa_requirement,
+            mfa_allowed_methods: input.mfa_allowed_methods,
+            dual_control_required: input.dual_control_required,
+            actor_user_id: userId,
+          }),
+          'settings-security-policy-v1',
+        ],
+      );
+
+      await client.query(
+        `insert into public.audit_log
+           (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
+         values ($1::uuid, $2::uuid, 'user', $3, 'org_security_policies', $4, null, $5::jsonb, 'security')`,
+        [
+          orgId,
+          userId,
+          'org.security_policy.updated',
+          orgId,
+          JSON.stringify({
+            org_id: orgId,
+            mfa_requirement: input.mfa_requirement,
+            mfa_allowed_methods: input.mfa_allowed_methods,
+            dual_control_required: input.dual_control_required,
+          }),
+        ],
+      );
+
+      revalidateLocalized('/settings/security');
+      return {
+        ok: true,
+        data: {
+          orgId: upsert.rows[0].org_id,
+          mfaRequirement: input.mfa_requirement,
+          passwordMinLength: PASSWORD_MIN_LENGTH,
+        },
+      };
+    });
+  } catch (error) {
+    if (error === FORBIDDEN) return { ok: false, error: 'forbidden' };
+    console.error('[security/upsert-policy] persistence_failed', error instanceof Error ? error : String(error));
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function upsertSecurityPolicy(
+  rawInput: UpsertSecurityPolicyInput,
+): Promise<UpsertSecurityPolicyResult> {
+  return upsertPolicy(rawInput);
 }
 
 async function requireSecurityAdmin({ client, userId, orgId }: OrgActionContext): Promise<void> {

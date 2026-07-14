@@ -47,6 +47,7 @@ const searchInputSchema = z.object({
   itemTypes: z.array(z.enum(SEARCHABLE_ITEM_TYPES)).optional(),
   limit: z.number().int().min(1).max(50).optional().default(20),
   supplierCode: z.string().trim().min(1).max(80).optional(),
+  supplierId: z.string().trim().uuid().optional(),
 });
 
 type ItemRow = {
@@ -72,13 +73,43 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
   if (!parsed.success) {
     throw new ValidationError('INVALID_INPUT', 'Invalid item search input');
   }
-  const { query, itemTypes, limit, supplierCode } = parsed.data;
+  const { query, itemTypes, limit, supplierCode, supplierId } = parsed.data;
   const types = itemTypes && itemTypes.length > 0 ? itemTypes : [...DEFAULT_COMPONENT_ITEM_TYPES];
   const term = query.trim();
 
   return withOrgContext<ItemPickerOption[]>(async (ctx) => {
     const context = ctx as OrgContextLike;
     const like = term.length > 0 ? `%${term.replace(/[%_]/g, (m) => `\\${m}`)}%` : null;
+
+    let resolvedSupplierCode = supplierCode ?? null;
+    if (supplierId && !resolvedSupplierCode) {
+      const supplierResult = await context.client.query<{ code: string }>(
+        `select code
+           from public.suppliers
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1`,
+        [supplierId],
+      );
+      resolvedSupplierCode = supplierResult.rows[0]?.code ?? null;
+    }
+
+    const supplierScoped = Boolean(supplierId || resolvedSupplierCode);
+
+    const supplierFilterSql = supplierScoped
+      ? `and exists (
+            select 1
+              from public.supplier_specs ss
+             where ss.org_id = i.org_id
+               and ss.item_id = i.id
+               and ss.lifecycle_status = 'active'
+               and ss.review_status = 'approved'
+               and (
+                 ($4::uuid is not null and ss.supplier_id = $4::uuid)
+                 or ($5::text is not null and ss.supplier_code = $5)
+               )
+          )`
+      : '';
 
     const { rows } = await context.client.query<ItemRow>(
       `select i.id,
@@ -99,6 +130,14 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
               and ss.item_id = i.id
               and ss.lifecycle_status = 'active'
               and ss.review_status = 'approved'
+              ${
+                supplierScoped
+                  ? `and (
+                ($4::uuid is not null and ss.supplier_id = $4::uuid)
+                or ($5::text is not null and ss.supplier_code = $5)
+              )`
+                  : ''
+              }
             order by ss.effective_from desc nulls last, ss.updated_at desc nulls last
             limit 1
          ) sp on true
@@ -110,25 +149,13 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
             or i.item_code ilike $2 escape '\\'
             or i.name ilike $2 escape '\\'
           )
-          ${
-            supplierCode
-              ? `and exists (
-            select 1
-              from public.supplier_specs ss
-             where ss.org_id = i.org_id
-               and ss.item_id = i.id
-               and ss.supplier_code = $4
-               and ss.lifecycle_status = 'active'
-               and ss.review_status = 'approved'
-          )`
-              : ''
-          }
+          ${supplierFilterSql}
         order by
           case when $2::text is not null and i.item_code ilike $2 escape '\\' then 0 else 1 end,
           i.updated_at desc,
           i.item_code asc
         limit $3`,
-      supplierCode ? [types, like, limit, supplierCode] : [types, like, limit],
+      supplierScoped ? [types, like, limit, supplierId ?? null, resolvedSupplierCode] : [types, like, limit],
     );
 
     return rows.map((r) => ({

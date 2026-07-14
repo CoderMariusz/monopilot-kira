@@ -69,8 +69,7 @@ describe('searchPoItems default fan-out', () => {
     await expect(searchPoItems({ query: 'x' })).resolves.toEqual([]);
   });
 
-  it('resolves supplier code and passes supplierCode through when supplierId is given', async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ code: 'SUP-001' }] });
+  it('passes supplierId through to searchItems when supplierId is given', async () => {
     searchItemsMock.mockResolvedValueOnce([
       {
         id: 'item-1',
@@ -84,12 +83,11 @@ describe('searchPoItems default fan-out', () => {
       },
     ]);
 
-    const result = await searchPoItems({ query: 'salt', supplierId: 'supplier-1' });
-    const passed = searchItemsMock.mock.calls.at(-1)?.[0] as { supplierCode?: string };
+    const result = await searchPoItems({ query: 'salt', supplierId: '11111111-1111-4111-8111-111111111111' });
+    const passed = searchItemsMock.mock.calls.at(-1)?.[0] as { supplierId?: string };
 
-    expect(queryMock.mock.calls.at(-1)?.[0]).toContain('from public.suppliers');
-    expect(queryMock.mock.calls.at(-1)?.[1]).toEqual(['supplier-1']);
-    expect(passed.supplierCode).toBe('SUP-001');
+    expect(queryMock).not.toHaveBeenCalled();
+    expect(passed.supplierId).toBe('11111111-1111-4111-8111-111111111111');
     expect(result[0]?.listPriceGbp).toBe('1.4500');
   });
 });

@@ -42,18 +42,10 @@ import { Select } from '@monopilot/ui/Select';
 
 import { ItemPicker } from '../../../../(npd)/_components/item-picker';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items-types';
-import type { PoSupplierOption } from '../_actions/po-form-data';
+import type { PoSupplierOption } from '../_actions/po-form-data-types';
 import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
 import { SiteSwitcher, type SiteSwitcherOption } from '../../../../../../../components/shell/site-switcher';
 import { listPoWarehouses } from '../_actions/actions';
-
-/**
- * BUG2 — the PO line picker must show ONLY the items the selected supplier
- * supplies. `searchPoItems` filters when given a `supplierId`, but the prop type
- * (SearchItemsInput) predates that field — widen it locally at the call boundary
- * so the modal can thread the supplier through without re-authoring the action.
- */
-type PoItemSearchInput = SearchItemsInput & { supplierId?: string };
 
 /**
  * BUG1 — effective supplier-spec price by date (fallback items.list_price_gbp).
@@ -273,7 +265,7 @@ export function CreatePoModal({
   // the picker's debounced effect re-runs whenever the supplier changes (re-filter).
   const searchSupplierItems = React.useCallback(
     (input: SearchItemsInput) =>
-      searchPoItemsAction({ ...input, ...(supplierId ? { supplierId } : {}) } as PoItemSearchInput),
+      searchPoItemsAction({ ...input, ...(supplierId ? { supplierId } : {}) }),
     [searchPoItemsAction, supplierId],
   );
 

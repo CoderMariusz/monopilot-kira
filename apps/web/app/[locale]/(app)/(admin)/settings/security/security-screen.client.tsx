@@ -14,8 +14,6 @@ import {
   Toggle,
 } from '../_components';
 
-// data-prototype-source: prototypes/design/Monopilot Design System/settings/access-screens.jsx:160-245
-
 export type AuditLogRow = {
   id: string;
   occurredAt: string;
@@ -42,7 +40,6 @@ export type SecurityScreenData = {
   passwordPolicy: {
     minimumLength: number;
     complexity: 'strong' | 'medium' | 'basic';
-    expires: 'never' | '90' | '180';
     blockReuseCount: number;
   };
   sessionPolicy: {
@@ -335,78 +332,28 @@ export default function SecurityScreen({
       </RegionSection>
 
       <RegionSection region="password-policy" title={labels.passwordPolicyTitle}>
-        <SRow label={labels.minimumLength} htmlFor="security-minimum-length">
-          <input
-            id="security-minimum-length"
-            aria-label={labels.minimumLength}
-            name={labels.minimumLength}
-            type="number"
-            min={8}
-            value={screenData.passwordPolicy.minimumLength}
-            disabled={isPending}
-            style={{ width: 80 }}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              setScreenData((prev) => ({
-                ...prev,
-                passwordPolicy: {
-                  ...prev.passwordPolicy,
-                  minimumLength: Number.isFinite(next) ? next : prev.passwordPolicy.minimumLength,
-                },
-              }));
-            }}
-          />
+        <SRow label={`${labels.minimumLength} (enforced)`}>
+          <span className="font-mono text-sm tabular-nums" data-testid="security-minimum-length">
+            {screenData.passwordPolicy.minimumLength}
+          </span>
         </SRow>
-        <SelectField
-          id="security-complexity"
-          label={labels.complexity}
-          value={screenData.passwordPolicy.complexity}
-          disabled={isPending}
-          onChange={(value) =>
-            setScreenData((prev) => ({
-              ...prev,
-              passwordPolicy: {
-                ...prev.passwordPolicy,
-                complexity: value as SecurityScreenData['passwordPolicy']['complexity'],
-              },
-            }))
-          }
-          options={[
-            { value: 'strong', label: labels.complexityStrong },
-            { value: 'medium', label: labels.complexityMedium },
-            { value: 'basic', label: labels.complexityBasic },
-          ]}
-        />
-        {/* Password expiry has no backing column in `upsertSecurityPolicy`; kept
-            for visual parity but disabled with a 'Not available yet' tooltip so we
-            never fake-save it. */}
-        <div title={labels.notAvailableYet}>
-          <SelectField
-            id="security-password-expires"
-            label={labels.passwordExpires}
-            hint={labels.passwordExpiresHint}
-            value={screenData.passwordPolicy.expires}
-            disabled
-            options={[
-              { value: 'never', label: labels.expiresNever },
-              { value: '90', label: labels.expires90 },
-              { value: '180', label: labels.expires180 },
-            ]}
-          />
-        </div>
-        {/* Block-reuse count has no backing column either — disabled, not fake-saved. */}
-        <SRow label={labels.blockReuse} htmlFor="security-block-reuse">
-          <input
+        <SRow label={labels.complexity}>
+          <span className="text-sm" data-testid="security-complexity">
+            {screenData.passwordPolicy.complexity === 'strong'
+              ? labels.complexityStrong
+              : screenData.passwordPolicy.complexity === 'basic'
+                ? labels.complexityBasic
+                : labels.complexityMedium}
+          </span>
+        </SRow>
+        <SRow label={`${labels.blockReuse} (enforced)`} htmlFor="security-block-reuse">
+          <span
             id="security-block-reuse"
-            aria-label={labels.blockReuse}
-            name={labels.blockReuse}
-            type="number"
-            value={screenData.passwordPolicy.blockReuseCount}
-            disabled
-            title={labels.notAvailableYet}
-            style={{ width: 80 }}
-            readOnly
-          />
+            className="font-mono text-sm tabular-nums"
+            data-testid="security-block-reuse"
+          >
+            {screenData.passwordPolicy.blockReuseCount}
+          </span>
         </SRow>
       </RegionSection>
 

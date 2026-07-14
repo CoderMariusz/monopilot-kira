@@ -47,7 +47,7 @@ import {
   type ReceiveLineSeed,
   type ReceiveLocationOption,
 } from './receive-po-line-modal';
-import type { PoSupplierOption } from '../_actions/po-form-data';
+import type { PoSupplierOption } from '../_actions/po-form-data-types';
 import type { DesktopReceiveInput, DesktopReceiveResult } from '../_actions/receive-po-line.types';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items-types';
 
