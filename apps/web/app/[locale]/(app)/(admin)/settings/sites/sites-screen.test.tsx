@@ -182,6 +182,15 @@ describe('SitesScreen', () => {
     expect(screen.getAllByTestId('sites-list-item')).toHaveLength(sites.length);
   });
 
+  it('keeps overlapping pin labels from intercepting the interactive pin dots', () => {
+    renderScreen();
+
+    for (const pin of screen.getAllByTestId('sites-map-pin')) {
+      expect(pin).toHaveStyle({ pointerEvents: 'none' });
+      expect(pin.querySelector('.dot')).toHaveStyle({ pointerEvents: 'auto' });
+    }
+  });
+
   it('composes the shared .sg-* section structure', () => {
     const { container } = renderScreen();
     // left list card + right line-table card + Site settings Section = 3.
@@ -221,6 +230,23 @@ describe('SitesScreen', () => {
     expect(within(settings).getByText('Mon–Fri 06:00–22:00 · Sat 08:00–16:00')).toBeInTheDocument();
     expect(within(settings).getByText('✓ Valid')).toBeInTheDocument();
     expect(within(settings).getByText('Expires 2026-09-14')).toBeInTheDocument();
+  });
+
+  it('renders an inactive line as Inactive rather than Maintenance', () => {
+    renderScreen({
+      initialLines: [
+        {
+          ...krakowLines[0],
+          id: 'aaaaaaa3-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          name: 'Idle line',
+          status: 'inactive',
+        },
+      ],
+    });
+
+    const row = within(screen.getByTestId('sites-lines-table')).getByText('Idle line').closest('tr')!;
+    expect(within(row).getByText(/Inactive/)).toBeInTheDocument();
+    expect(within(row).queryByText(/Maintenance/)).not.toBeInTheDocument();
   });
 
   it('selecting another site swaps the detail pane and lazily loads its lines', async () => {
@@ -397,5 +423,46 @@ describe('SitesScreen — create/edit flows', () => {
   it('hides the site settings edit affordance when canEdit is false', () => {
     renderScreen({ canEdit: false });
     expect(screen.queryByTestId('sites-edit-settings')).not.toBeInTheDocument();
+  });
+
+  it('renames the selected site and updates its visible name', async () => {
+    const user = userEvent.setup();
+    const renameSiteAction = vi.fn(async () => ({
+      ok: true as const,
+      data: { id: sites[0].id, name: 'Kraków Central' },
+    }));
+    renderScreen({ canEdit: true, renameSiteAction });
+
+    await user.click(screen.getByRole('button', { name: 'Rename site' }));
+    const form = await screen.findByTestId('sites-rename-site-form');
+    const name = within(form).getByLabelText(/^Name/i);
+    await user.clear(name);
+    await user.type(name, 'Kraków Central');
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(renameSiteAction).toHaveBeenCalledWith({ id: sites[0].id, name: 'Kraków Central' }));
+    expect(screen.getAllByText('Kraków Central').length).toBeGreaterThan(0);
+  });
+
+  it('shows a friendly message when site deletion is blocked by dependents', async () => {
+    const user = userEvent.setup();
+    const deleteSiteAction = vi.fn(async () => ({
+      ok: false as const,
+      error: 'has_dependents' as const,
+      message: 'This site still has dependent records and cannot be deleted.',
+    }));
+    renderScreen({ canEdit: true, deleteSiteAction });
+
+    await user.click(screen.getByRole('button', { name: 'Delete site' }));
+    const dialog = await screen.findByTestId('sites-delete-site-dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete site' }));
+
+    await waitFor(() => expect(deleteSiteAction).toHaveBeenCalledWith({ id: sites[0].id }));
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(
+      'This site still has dependent records and cannot be deleted.',
+    );
+    expect(screen.getAllByText('Kraków HQ').length).toBeGreaterThan(0);
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByTestId('sites-delete-site-dialog')).not.toBeInTheDocument());
   });
 });

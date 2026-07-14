@@ -34,6 +34,11 @@ import {
   type ReportingSearchParams,
   type ReportingWindow,
 } from '../reporting/_lib/period';
+import {
+  oeeLinesEmpty,
+  oeeLinesHeading,
+  periodRangeLabel,
+} from './_lib/period-range-label';
 import { Sparkline, type SparklinePoint } from '../production/_components/sparkline';
 import { getOeeScreen } from './_actions/oee-data';
 import {
@@ -241,7 +246,8 @@ async function OeeContent({ window }: { window: ReportingWindow }) {
   }
 
   const pct = (v: string | null) => (v == null ? '—' : `${v}%`);
-  const sub = `${t('kpi.window')} · ${t('kpi.snapshots')}: ${kpis.snapshotCount}`;
+  const rangeLabel = periodRangeLabel(window);
+  const sub = `${rangeLabel} · ${t('kpi.snapshots')}: ${kpis.snapshotCount}`;
   const oeeTrend = trendPoints(trend.map((row) => ({ snapshotMinute: row.snapshotMinute, value: row.oee })));
   const availabilityTrend = trendPoints(
     trend.map((row) => ({ snapshotMinute: row.snapshotMinute, value: row.availability })),
@@ -261,8 +267,8 @@ async function OeeContent({ window }: { window: ReportingWindow }) {
   });
 
   const linesLabels: OeeLinesTableLabels = {
-    title: t('lines.title'),
-    empty: t('lines.empty'),
+    title: oeeLinesHeading(window),
+    empty: oeeLinesEmpty(window),
     unassigned: t('unassigned'),
     col: {
       line: t('lines.col.line'),

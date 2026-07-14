@@ -179,8 +179,14 @@ export async function createPurchaseOrderCore(
   );
   const supplier = supplierRows[0];
   if (!supplier) return { ok: false, error: 'not_found' };
-  if (supplier.status === 'blocked') {
-    return { ok: false, error: 'supplier_blocked', code: 'supplier_blocked', message: 'Supplier is blocked' };
+  // ponytail: suppliers.status is active|inactive|blocked — only active is usable for a new PO
+  if (supplier.status !== 'active') {
+    return {
+      ok: false,
+      error: 'supplier_blocked',
+      code: 'supplier_blocked',
+      message: supplier.status === 'blocked' ? 'Supplier is blocked' : 'Supplier is inactive',
+    };
   }
 
   async function insertHeader(poNumber: string) {

@@ -66,9 +66,21 @@ export type SiteMutationError =
   | 'duplicate_code'
   | 'persistence_failed';
 
+export type SiteLifecycleError = SiteMutationError | 'has_dependents';
+
 export type CreateSiteResult =
   | { ok: true; data: { id: string; code: string; name: string } }
   | { ok: false; error: SiteMutationError };
+
+export type RenameSiteInput = { id: string; name: string };
+export type RenameSiteResult =
+  | { ok: true; data: { id: string; name: string } }
+  | { ok: false; error: SiteMutationError };
+
+export type DeleteSiteInput = { id: string };
+export type DeleteSiteResult =
+  | { ok: true; data: { id: string } }
+  | { ok: false; error: SiteLifecycleError; message?: string };
 
 export type LineMutationResult =
   | { ok: true; data: { id: string; code: string; name: string; status: string } }
@@ -92,7 +104,7 @@ export type CreateLineInput = {
   defaultOutputLocationId?: string | null;
   code: string;
   name: string;
-  status?: 'draft' | 'active';
+  status?: 'draft' | 'active' | 'inactive';
 };
 
 /** Input for {@link updateLine}. */
@@ -176,8 +188,8 @@ const SiteSettingsInput = z
   })
   .strict();
 
-const LINE_STATUSES = ['active', 'maintenance', 'inactive'] as const;
-const CREATE_LINE_STATUSES = ['draft', 'active'] as const;
+const LINE_STATUSES = ['draft', 'active', 'inactive'] as const;
+const CREATE_LINE_STATUSES = LINE_STATUSES;
 
 const CodeInput = z.string().trim().min(1).max(64);
 const NameInput = z.string().trim().min(1).max(200);
@@ -192,6 +204,9 @@ const CreateSiteSchema = z
     is_default: z.boolean().optional(),
   })
   .strict();
+
+const RenameSiteSchema = z.object({ id: UuidInput, name: NameInput }).strict();
+const DeleteSiteSchema = z.object({ id: UuidInput }).strict();
 
 const CreateLineSchema = z
   .object({
@@ -222,9 +237,14 @@ const UpdateLineSchema = z
  * the site-scoped production line unique indexes from migration 268).
  */
 const PG_UNIQUE_VIOLATION = '23505';
+const PG_FOREIGN_KEY_VIOLATION = '23503';
 
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: string }).code === PG_UNIQUE_VIOLATION;
+}
+
+function isForeignKeyViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: string }).code === PG_FOREIGN_KEY_VIOLATION;
 }
 
 function revalidateSitesRoute() {
@@ -585,6 +605,90 @@ export async function createSite(input: unknown): Promise<CreateSiteResult> {
   }
 }
 
+export async function renameSite(input: unknown): Promise<RenameSiteResult> {
+  const parsed = RenameSiteSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext<RenameSiteResult>(async (ctx): Promise<RenameSiteResult> => {
+      const context = ctx as OrgContextLike;
+      if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await context.client.query<{ id: string; name: string }>(
+        `update public.sites
+            set name = $2,
+                updated_by = $3::uuid,
+                updated_at = now()
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+        returning id::text, name`,
+        [parsed.data.id, parsed.data.name, context.userId],
+      );
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'not_found' };
+      revalidateSitesRoute();
+      return { ok: true, data: row };
+    });
+  } catch (error) {
+    console.error('[settings/sites] rename_site_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function deleteSite(input: unknown): Promise<DeleteSiteResult> {
+  const parsed = DeleteSiteSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext<DeleteSiteResult>(async (ctx): Promise<DeleteSiteResult> => {
+      const context = ctx as OrgContextLike;
+      if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
+
+      // ponytail: preflight the two editable child types; the 23503 fallback covers
+      // every other restrictive FK. Extend this list only for a new cascading business FK.
+      const { rows: dependencyRows } = await context.client.query<{ has_dependents: boolean }>(
+        `select exists (
+           select 1 from public.production_lines pl
+            where pl.org_id = app.current_org_id() and pl.site_id = $1::uuid
+           union all
+           select 1 from public.warehouses w
+            where w.org_id = app.current_org_id() and w.site_id = $1::uuid
+         ) as has_dependents`,
+        [parsed.data.id],
+      );
+      if (dependencyRows[0]?.has_dependents) {
+        return {
+          ok: false,
+          error: 'has_dependents',
+          message: 'This site still has dependent records and cannot be deleted.',
+        };
+      }
+
+      const { rows } = await context.client.query<{ id: string }>(
+        `delete from public.sites
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+        returning id::text`,
+        [parsed.data.id],
+      );
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'not_found' };
+      revalidateSitesRoute();
+      return { ok: true, data: row };
+    });
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      return {
+        ok: false,
+        error: 'has_dependents',
+        message: 'This site still has dependent records and cannot be deleted.',
+      };
+    }
+    console.error('[settings/sites] delete_site_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
 /** Create a production line through the canonical settings/infra upsertLine action. */
 export async function createLine(input: unknown): Promise<LineMutationResult> {
   const parsed = CreateLineSchema.safeParse(input);
@@ -649,7 +753,7 @@ export async function updateLine(input: unknown): Promise<LineMutationResult> {
     defaultOutputLocationId: existing.default_output_location_id,
     code: data.code,
     name: data.name,
-    status: data.status === 'active' ? 'active' : 'draft',
+    status: data.status ?? 'draft',
   });
 
   if (result.ok) {

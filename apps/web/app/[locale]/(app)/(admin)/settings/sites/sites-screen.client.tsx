@@ -5,20 +5,28 @@ import { useRouter } from 'next/navigation';
 
 import { PageHead, Section, SRow, Toggle } from '../_components';
 import {
+  deleteSite,
   getLineFormOptions,
+  renameSite,
   type CreateLineInput,
   type CreateSiteInput,
   type CreateSiteResult,
+  type DeleteSiteInput,
+  type DeleteSiteResult,
   type LineFormOptions,
   type LineMutationResult,
   type LineRow,
+  type RenameSiteInput,
+  type RenameSiteResult,
   type SiteRow,
   type UpdateLineInput,
 } from './_actions/sites';
 import { AddLineModal } from './_components/AddLineModal';
 import { AddSiteModal } from './_components/AddSiteModal';
+import { DeleteSiteModal } from './_components/DeleteSiteModal';
 import { EditLineModal } from './_components/EditLineModal';
 import { EditSiteSettingsModal, type UpdateSiteSettingsAction } from './_components/EditSiteSettingsModal';
+import { RenameSiteModal } from './_components/RenameSiteModal';
 
 /**
  * Sites & production lines settings screen.
@@ -110,6 +118,10 @@ export type SitesModalLabels = {
   errorDuplicate: string;
   errorForbidden: string;
   errorGeneric: string;
+  renameSiteTitle?: string;
+  deleteSiteTitle?: string;
+  deleteSite?: string;
+  deleteSiteConfirm?: string;
 };
 
 export const DEFAULT_SITES_MODAL_LABELS: SitesModalLabels = {
@@ -139,11 +151,16 @@ export const DEFAULT_SITES_MODAL_LABELS: SitesModalLabels = {
   errorDuplicate: 'That code is already in use at this site. Choose a different one.',
   errorForbidden: 'You do not have permission to update site settings.',
   errorGeneric: 'Something went wrong. Please try again.',
+  renameSiteTitle: 'Rename site',
+  deleteSiteTitle: 'Delete site',
+  deleteSite: 'Delete site',
 };
 
 export type CreateSiteAction = (input: CreateSiteInput) => Promise<CreateSiteResult>;
 export type CreateLineAction = (input: CreateLineInput) => Promise<LineMutationResult>;
 export type UpdateLineAction = (input: UpdateLineInput) => Promise<LineMutationResult>;
+export type RenameSiteAction = (input: RenameSiteInput) => Promise<RenameSiteResult>;
+export type DeleteSiteAction = (input: DeleteSiteInput) => Promise<DeleteSiteResult>;
 
 export type SitesScreenProps = {
   sites: SiteRow[];
@@ -159,6 +176,8 @@ export type SitesScreenProps = {
   createLineAction?: CreateLineAction;
   updateLineAction?: UpdateLineAction;
   updateSiteSettingsAction?: UpdateSiteSettingsAction;
+  renameSiteAction?: RenameSiteAction;
+  deleteSiteAction?: DeleteSiteAction;
 };
 
 const PROTOTYPE_SOURCE = 'prototypes/design/Monopilot Design System/settings/org-screens.jsx:103-189';
@@ -184,7 +203,17 @@ type ActiveModal =
   | { kind: 'addLine'; siteId: string }
   | { kind: 'editLine'; siteId: string; line: LineRow }
   | { kind: 'editSiteSettings'; site: SiteRow }
+  | { kind: 'renameSite'; site: SiteRow }
+  | { kind: 'deleteSite'; site: SiteRow }
   | null;
+
+function lineStatusBadge(status: string, labels: SitesScreenLabels, modalLabels: SitesModalLabels) {
+  if (status === 'active') return { className: 'badge badge-green', glyph: '●', label: labels.statusActive };
+  if (status === 'maintenance') return { className: 'badge badge-amber', glyph: '⚒', label: labels.statusMaintenance };
+  if (status === 'inactive') return { className: 'badge badge-gray', glyph: '○', label: modalLabels.statusInactive };
+  const label = status ? status.charAt(0).toUpperCase() + status.slice(1).replaceAll('_', ' ') : 'Unknown';
+  return { className: 'badge badge-gray', glyph: '○', label };
+}
 
 export default function SitesScreen({
   sites,
@@ -198,6 +227,8 @@ export default function SitesScreen({
   createLineAction,
   updateLineAction,
   updateSiteSettingsAction,
+  renameSiteAction = renameSite,
+  deleteSiteAction = deleteSite,
 }: SitesScreenProps) {
   const router = useRouter();
   const [activeModal, setActiveModal] = React.useState<ActiveModal>(null);
@@ -358,6 +389,8 @@ export default function SitesScreen({
                       background: 'transparent',
                       border: 'none',
                       padding: 0,
+                      // ponytail: only the dot accepts pointers; overlapping decorative labels click through.
+                      pointerEvents: 'none',
                     }}
                     onClick={() => handleSelect(site.id)}
                   >
@@ -365,6 +398,7 @@ export default function SitesScreen({
                       className="dot"
                       style={{
                         background: selectedSiteId === site.id ? 'var(--blue)' : 'var(--gray-400, #94a3b8)',
+                        pointerEvents: 'auto',
                       }}
                     />
                     <div className="pin-label">{site.name}</div>
@@ -428,6 +462,24 @@ export default function SitesScreen({
                     ) : null}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
+                    {canEdit ? (
+                      <>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          type="button"
+                          onClick={() => setActiveModal({ kind: 'renameSite', site: selectedSite })}
+                        >
+                          {modalLabels.renameSiteTitle ?? 'Rename site'}
+                        </button>
+                        <button
+                          className="btn btn-danger btn-sm"
+                          type="button"
+                          onClick={() => setActiveModal({ kind: 'deleteSite', site: selectedSite })}
+                        >
+                          {modalLabels.deleteSite ?? 'Delete site'}
+                        </button>
+                      </>
+                    ) : null}
                     <button
                       className="btn btn-secondary btn-sm"
                       type="button"
@@ -456,8 +508,9 @@ export default function SitesScreen({
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedLines.map((line) => (
-                          <tr key={line.id}>
+                        {selectedLines.map((line) => {
+                          const status = lineStatusBadge(line.status, labels, modalLabels);
+                          return <tr key={line.id}>
                             <td style={{ fontWeight: 500 }}>
                               <span className="mono muted" style={{ fontSize: 11, marginRight: 6 }}>
                                 {line.code}
@@ -466,13 +519,7 @@ export default function SitesScreen({
                             </td>
                             <td className="muted">{line.type}</td>
                             <td className="mono num">{line.workers}</td>
-                            <td>
-                              {line.status === 'active' ? (
-                                <span className="badge badge-green">● {labels.statusActive}</span>
-                              ) : (
-                                <span className="badge badge-amber">⚒ {labels.statusMaintenance}</span>
-                              )}
-                            </td>
+                            <td><span className={status.className}>{status.glyph} {status.label}</span></td>
                             <td style={{ width: 60 }}>
                               <button
                                 className="btn btn-ghost btn-sm"
@@ -487,8 +534,8 @@ export default function SitesScreen({
                                 {labels.edit}
                               </button>
                             </td>
-                          </tr>
-                        ))}
+                          </tr>;
+                        })}
                       </tbody>
                     </table>
                   )}
@@ -596,6 +643,38 @@ export default function SitesScreen({
                 return site.id === updated.id ? { ...site, ...updated } : site;
               }),
             );
+            router.refresh();
+          }}
+        />
+      ) : null}
+
+      {activeModal?.kind === 'renameSite' ? (
+        <RenameSiteModal
+          site={activeModal.site}
+          labels={modalLabels}
+          action={renameSiteAction}
+          onClose={() => setActiveModal(null)}
+          onSuccess={(name) => {
+            setSiteRows((current) => current.map((site) => site.id === activeModal.site.id ? { ...site, name } : site));
+            setActiveModal(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
+
+      {activeModal?.kind === 'deleteSite' ? (
+        <DeleteSiteModal
+          site={activeModal.site}
+          labels={modalLabels}
+          action={deleteSiteAction}
+          onClose={() => setActiveModal(null)}
+          onSuccess={() => {
+            setSiteRows((current) => {
+              const remaining = current.filter((site) => site.id !== activeModal.site.id);
+              setSelectedSiteId((selected) => selected === activeModal.site.id ? (remaining[0]?.id ?? null) : selected);
+              return remaining;
+            });
+            setActiveModal(null);
             router.refresh();
           }}
         />

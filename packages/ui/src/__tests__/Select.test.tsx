@@ -231,11 +231,58 @@ describe('Select — options-prop fallback API', () => {
     // Closed by default — no inline options.
     expect(screen.queryByRole('listbox')).toBeNull();
 
-    await user.click(screen.getByRole('combobox'));
+    await user.click(screen.getByRole('combobox', { name: 'Fallback' }));
     expect(screen.getByRole('listbox')).toBeInTheDocument();
 
     await user.click(screen.getByRole('option', { name: 'Logistics' }));
     expect(onValueChange).toHaveBeenCalledWith('logistics');
     expect(screen.queryByRole('listbox')).toBeNull();
+  });
+});
+
+describe('Select — a11y props on focusable control', () => {
+  // Audit #9: aria-* / id / required used to land on the wrapper <div>, so
+  // screen readers announced nothing for the combobox. They must live on the
+  // focusable trigger button.
+  it('puts aria-label and aria-invalid on the combobox trigger (options fallback)', () => {
+    render(<Select aria-label="Foo" aria-invalid options={OPTIONS} />);
+
+    const trigger = screen.getByRole('combobox', { name: 'Foo' });
+    expect(trigger).toHaveAttribute('aria-invalid', 'true');
+    trigger.focus();
+    expect(trigger).toHaveFocus();
+
+    // Wrapper must NOT steal the accessible name / invalid state.
+    const wrapper = trigger.closest('[data-slot="select"]');
+    expect(wrapper).not.toHaveAttribute('aria-label');
+    expect(wrapper).not.toHaveAttribute('aria-invalid');
+  });
+
+  it('forwards root aria-label onto SelectTrigger when composed', () => {
+    render(
+      <Select aria-label="Site" aria-invalid="true" options={OPTIONS}>
+        <SelectTrigger>
+          <SelectValue placeholder="Pick…" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="a">A</SelectItem>
+        </SelectContent>
+      </Select>,
+    );
+
+    const trigger = screen.getByRole('combobox', { name: 'Site' });
+    expect(trigger).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('puts provided id on the trigger so label htmlFor associates', () => {
+    render(
+      <>
+        <label htmlFor="unit-from">From unit</label>
+        <Select id="unit-from" options={OPTIONS} />
+      </>,
+    );
+
+    const trigger = screen.getByRole('combobox', { name: 'From unit' });
+    expect(trigger).toHaveAttribute('id', 'unit-from');
   });
 });

@@ -17,6 +17,13 @@ import {
   type OeeLinesTableLabels,
   type OeeSnapshotsTableLabels,
 } from '../_components/oee-tables';
+import {
+  analyticsTopDowntimeHeading,
+  oeeLinesEmpty,
+  oeeLinesHeading,
+  periodRangeLabel,
+} from '../_lib/period-range-label';
+import type { ReportingWindow } from '../../reporting/_lib/period';
 
 const LINES_LABELS: OeeLinesTableLabels = {
   title: 'OEE by line — last 7 days',
@@ -102,6 +109,29 @@ const SNAP_ROWS: OeeSnapshotRow[] = [
   },
 ];
 
+function windowFor(
+  period: ReportingWindow['period'],
+  from = new Date('2026-07-01T00:00:00.000Z'),
+  to = new Date('2026-07-07T23:59:59.999Z'),
+): ReportingWindow {
+  return { period, from, to };
+}
+
+describe('periodRangeLabel (finding #22)', () => {
+  it('derives heading text from the selected reporting period', () => {
+    expect(periodRangeLabel(windowFor('7d'))).toBe('last 7 days');
+    expect(periodRangeLabel(windowFor('30d'))).toBe('last 30 days');
+    expect(periodRangeLabel(windowFor('today'))).toBe('today');
+    expect(oeeLinesHeading(windowFor('today'))).toBe('OEE by line — today');
+    expect(oeeLinesHeading(windowFor('30d'))).toBe('OEE by line — last 30 days');
+    expect(oeeLinesEmpty(windowFor('7d'))).toBe('No snapshots in the last 7 days.');
+    expect(analyticsTopDowntimeHeading(windowFor('today'))).toBe('Top downtime drivers — today');
+    expect(analyticsTopDowntimeHeading(windowFor('custom'))).toBe(
+      'Top downtime drivers — 2026-07-01 – 2026-07-07',
+    );
+  });
+});
+
 describe('OeeLinesTable (parity: oee/dashboard.jsx:120-188)', () => {
   it('renders per-line A/P/Q/OEE with honest "—" for NULL components', () => {
     render(<OeeLinesTable rows={LINE_ROWS} labels={LINES_LABELS} />);
@@ -118,6 +148,17 @@ describe('OeeLinesTable (parity: oee/dashboard.jsx:120-188)', () => {
   it('shows the empty copy when there are no line rows', () => {
     render(<OeeLinesTable rows={[]} labels={LINES_LABELS} />);
     expect(screen.getByTestId('oee-lines-empty')).toHaveTextContent('No snapshots in the last 7 days.');
+  });
+
+  it('renders a range-derived heading when labels come from periodRangeLabel', () => {
+    const labels: OeeLinesTableLabels = {
+      ...LINES_LABELS,
+      title: oeeLinesHeading(windowFor('today')),
+      empty: oeeLinesEmpty(windowFor('today')),
+    };
+    render(<OeeLinesTable rows={[]} labels={labels} />);
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('OEE by line — today');
+    expect(screen.getByTestId('oee-lines-empty')).toHaveTextContent('No snapshots for today.');
   });
 });
 

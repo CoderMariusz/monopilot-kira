@@ -28,10 +28,19 @@ export interface SelectProps {
   id?: string;
   name?: string;
   className?: string;
+  required?: boolean;
   'aria-label'?: string;
   'aria-labelledby'?: string;
+  'aria-describedby'?: string;
+  'aria-invalid'?: boolean | 'true' | 'false' | 'grammar' | 'spelling';
   children?: React.ReactNode;
 }
+
+/** A11y props that must land on the focusable combobox trigger, not the wrapper. */
+type SelectA11yProps = Pick<
+  SelectProps,
+  'aria-label' | 'aria-labelledby' | 'aria-describedby' | 'aria-invalid' | 'required'
+>;
 
 interface SelectContextValue {
   value: string;
@@ -52,6 +61,8 @@ interface SelectContextValue {
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   /** ref to the portaled listbox content (for click-outside detection) */
   contentRef: React.RefObject<HTMLDivElement | null>;
+  /** Root-level a11y props forwarded onto the trigger (ponytail: one place, not wrapper). */
+  a11y: SelectA11yProps;
 }
 
 const SelectCtx = React.createContext<SelectContextValue | null>(null);
@@ -71,7 +82,11 @@ export function Select({
   name,
   className,
   children,
-  ...aria
+  required,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
 }: SelectProps) {
   const [internal, setInternal] = React.useState<string>(defaultValue ?? '');
   const [open, setOpenState] = React.useState(false);
@@ -87,8 +102,16 @@ export function Select({
   );
 
   const baseId = useSelectId(id);
-  const triggerId = `${baseId}-trigger`;
+  // Provided `id` becomes the trigger id so <label htmlFor> hits the focusable control.
+  const triggerId = id ?? `${baseId}-trigger`;
   const contentId = `${baseId}-content`;
+  const a11y: SelectA11yProps = {
+    required,
+    'aria-label': ariaLabel,
+    'aria-labelledby': ariaLabelledBy,
+    'aria-describedby': ariaDescribedBy,
+    'aria-invalid': ariaInvalid,
+  };
 
   const setValue = React.useCallback(
     (v: string) => {
@@ -211,6 +234,7 @@ export function Select({
     moveFocus,
     triggerRef,
     contentRef,
+    a11y,
   };
 
   return (
@@ -221,9 +245,7 @@ export function Select({
         data-state={open ? 'open' : 'closed'}
         data-disabled={disabled || undefined}
         className={['select', className].filter(Boolean).join(' ')}
-        id={id}
         data-name={name}
-        {...aria}
       >
         {children ?? <SelectNativeFallback options={options} disabled={disabled} />}
       </div>
@@ -259,11 +281,31 @@ export interface SelectTriggerProps {
   children?: React.ReactNode;
   /** Optional explicit id (e.g. for an external `<label htmlFor>`); falls back to the auto trigger id. */
   id?: string;
+  required?: boolean;
   'aria-label'?: string;
+  'aria-labelledby'?: string;
+  'aria-describedby'?: string;
+  'aria-invalid'?: boolean | 'true' | 'false' | 'grammar' | 'spelling';
 }
 
-export function SelectTrigger({ className, children, id, ...aria }: SelectTriggerProps) {
+export function SelectTrigger({
+  className,
+  children,
+  id,
+  required,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
+}: SelectTriggerProps) {
   const ctx = React.useContext(SelectCtx);
+  // Root Select a11y first; explicit Trigger props win when provided.
+  const rootA11y = ctx?.a11y;
+  const resolvedRequired = required ?? rootA11y?.required;
+  const resolvedLabel = ariaLabel ?? rootA11y?.['aria-label'];
+  const resolvedLabelledBy = ariaLabelledBy ?? rootA11y?.['aria-labelledby'];
+  const resolvedDescribedBy = ariaDescribedBy ?? rootA11y?.['aria-describedby'];
+  const resolvedInvalid = ariaInvalid ?? rootA11y?.['aria-invalid'];
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (!ctx || ctx.disabled) return;
@@ -300,6 +342,11 @@ export function SelectTrigger({ className, children, id, ...aria }: SelectTrigge
       aria-haspopup="listbox"
       aria-controls={ctx?.open ? ctx?.contentId : undefined}
       aria-disabled={ctx?.disabled || undefined}
+      aria-label={resolvedLabel}
+      aria-labelledby={resolvedLabelledBy}
+      aria-describedby={resolvedDescribedBy}
+      aria-invalid={resolvedInvalid}
+      aria-required={resolvedRequired || undefined}
       data-slot="select-trigger"
       data-state={ctx?.open ? 'open' : 'closed'}
       data-value={ctx?.value || undefined}
@@ -308,7 +355,6 @@ export function SelectTrigger({ className, children, id, ...aria }: SelectTrigge
       disabled={ctx?.disabled}
       onClick={() => ctx?.setOpen(!ctx.open)}
       onKeyDown={handleKeyDown}
-      {...aria}
     >
       {children}
       <span aria-hidden="true" data-slot="select-arrow" className="select__arrow">

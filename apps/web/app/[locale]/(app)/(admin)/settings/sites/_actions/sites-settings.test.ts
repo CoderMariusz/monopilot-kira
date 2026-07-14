@@ -8,8 +8,13 @@ vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
   revalidateLocalized: vi.fn(),
 }));
 
+vi.mock('../../../../../../../actions/infra/line', () => ({
+  upsertLine: vi.fn(),
+}));
+
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { updateSiteSettings } from './sites';
+import { upsertLine } from '../../../../../../../actions/infra/line';
+import { deleteSite, renameSite, updateLine, updateSiteSettings } from './sites';
 
 const ORG_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const USER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -90,5 +95,69 @@ describe('settings/sites updateSiteSettings', () => {
     mockOrgContext(() => ({ rows: [], rowCount: 0 }), false);
     const result = await updateSiteSettings(ORG_ID, SITE_ID, { operating_hours: 'Mon-Fri 08:00-18:00' });
     expect(result).toEqual({ ok: false, error: 'forbidden' });
+  });
+});
+
+describe('settings/sites lifecycle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('passes inactive through to the line writer unchanged', async () => {
+    mockOrgContext((sql) => {
+      if (/from public\.production_lines pl/i.test(sql)) {
+        return { rows: [{ warehouse_id: null, default_output_location_id: null }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    vi.mocked(upsertLine).mockResolvedValue({ ok: true, data: { id: SITE_ID, status: 'inactive' } });
+
+    await updateLine({
+      id: SITE_ID,
+      site_id: SITE_ID,
+      code: 'L1',
+      name: 'Line 1',
+      status: 'inactive',
+    });
+
+    expect(upsertLine).toHaveBeenCalledWith(expect.objectContaining({ status: 'inactive' }));
+  });
+
+  it('renames a site with an org-scoped update', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    mockOrgContext((sql, params) => {
+      calls.push({ sql, params });
+      if (/update public\.sites/i.test(sql)) {
+        return { rows: [{ id: SITE_ID, name: 'Kraków Central' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await renameSite({ id: SITE_ID, name: 'Kraków Central' });
+
+    expect(result).toEqual({ ok: true, data: { id: SITE_ID, name: 'Kraków Central' } });
+    const update = calls.find((call) => /update public\.sites/i.test(call.sql));
+    expect(update?.sql).toContain('org_id = app.current_org_id()');
+  });
+
+  it('blocks site deletion before writing when dependent rows exist', async () => {
+    const calls: string[] = [];
+    mockOrgContext((sql) => {
+      calls.push(sql);
+      if (/select exists/i.test(sql)) return { rows: [{ has_dependents: true }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await deleteSite({ id: SITE_ID });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'has_dependents',
+      message: 'This site still has dependent records and cannot be deleted.',
+    });
+    const dependencyQuery = calls.find((sql) => /select exists/i.test(sql));
+    expect(dependencyQuery).toContain('public.production_lines');
+    expect(dependencyQuery).toContain('public.warehouses');
+    expect(calls.some((sql) => /delete from public\.sites/i.test(sql))).toBe(false);
   });
 });

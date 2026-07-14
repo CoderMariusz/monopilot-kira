@@ -126,4 +126,26 @@ describe('createPurchaseOrderCore', () => {
       message: 'Supplier is blocked',
     });
   });
+
+  it('rejects inactive suppliers under the row lock', async () => {
+    supplierStatus = 'inactive';
+
+    const result = await createPurchaseOrderCore(
+      { userId: USER_ID, orgId: ORG_ID, client },
+      {
+        poNumber: 'PO-INACTIVE',
+        supplierId: SUPPLIER_ID,
+        status: 'draft',
+        currency: 'GBP',
+        lines: [{ itemId: ITEM_ID, qty: '10', uom: 'kg', unitPrice: '0', lineNo: 1 }],
+      },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'supplier_blocked',
+      code: 'supplier_blocked',
+      message: 'Supplier is inactive',
+    });
+  });
 });

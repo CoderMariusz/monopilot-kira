@@ -54,7 +54,7 @@ export function AddLineModal({
         defaultOutputLocationId: line.defaultOutputLocationId ?? null,
         code: line.code.trim(),
         name: line.name.trim(),
-        status: line.status === 'inactive' ? 'draft' : line.status,
+        status: line.status,
       });
       if (result.ok) {
         onSuccess();

@@ -34,6 +34,11 @@ import {
 } from '../../reporting/_lib/period';
 import { ParetoBars, type ParetoBar } from '../_components/pareto-bars';
 import { Sparkline, type SparklinePoint } from '../_components/sparkline';
+import {
+  analyticsTopDowntimeHeading,
+  analyticsTrendHeading,
+  analyticsYieldHeading,
+} from '../../oee/_lib/period-range-label';
 import { getAnalyticsScreen, type TopDowntimeRow } from './_actions/analytics-data';
 
 export const dynamic = 'force-dynamic';
@@ -134,7 +139,7 @@ async function AnalyticsContent({ window }: { window: ReportingWindow }) {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-semibold text-slate-900">{t('trendTitle')}</h2>
+          <h2 className="mb-3 text-sm font-semibold text-slate-900">{analyticsTrendHeading(window)}</h2>
           {trendPoints.length === 0 ? (
             <p data-testid="production-analytics-trend-empty" className="py-8 text-sm text-slate-500">{t('trendEmpty')}</p>
           ) : (
@@ -142,7 +147,7 @@ async function AnalyticsContent({ window }: { window: ReportingWindow }) {
           )}
         </Card>
         <Card className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-semibold text-slate-900">{t('yieldTitle')}</h2>
+          <h2 className="mb-3 text-sm font-semibold text-slate-900">{analyticsYieldHeading(window)}</h2>
           {yieldBars.length === 0 ? (
             <p data-testid="production-analytics-yield-empty" className="py-8 text-sm text-slate-500">{t('yieldEmpty')}</p>
           ) : (
@@ -152,7 +157,7 @@ async function AnalyticsContent({ window }: { window: ReportingWindow }) {
       </div>
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-slate-900">{t('topDowntimeTitle')}</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-900">{analyticsTopDowntimeHeading(window)}</h2>
         {data.topDowntime.length === 0 ? (
           <div
             data-testid="production-analytics-downtime-empty"
