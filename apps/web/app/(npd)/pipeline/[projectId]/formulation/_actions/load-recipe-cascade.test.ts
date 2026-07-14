@@ -22,6 +22,7 @@ let rootItemId: string | null = null;
 let versionsByCode: Record<string, string>;
 let componentsByVersion: Record<string, Array<Record<string, unknown>>>;
 let bomLinesByItemId: Record<string, Array<Record<string, unknown>>>;
+let wipDefLinesByItemId: Record<string, Array<Record<string, unknown>>>;
 let queries: string[];
 let bomShouldFail = false;
 
@@ -69,6 +70,14 @@ function makeClient(): QueryClient {
         const itemId = String(params?.[0] ?? '');
         return { rows: bomLinesByItemId[itemId] ?? [] };
       }
+      if (
+        q.includes('from public.wip_definitions wd') &&
+        q.includes('join public.wip_definition_ingredients wdi') &&
+        q.includes("wd.status = 'active'")
+      ) {
+        const itemId = String(params?.[0] ?? '');
+        return { rows: wipDefLinesByItemId[itemId] ?? [] };
+      }
       throw new Error(`unexpected query: ${q}`);
     }),
   };
@@ -81,6 +90,7 @@ beforeEach(() => {
   versionsByCode = {};
   componentsByVersion = {};
   bomLinesByItemId = {};
+  wipDefLinesByItemId = {};
   bomShouldFail = false;
   client = makeClient();
 });
@@ -183,6 +193,34 @@ describe('loadRecipeCascade', () => {
     await expect(loadRecipeCascade(PROJECT_ID, VERSION_ID)).rejects.toMatchObject({
       code: 'BOM_CASCADE_LOAD_FAILED',
     });
+  });
+
+  it('falls back to active wip_definition_ingredients when intermediate has no BOM', async () => {
+    rootCode = 'WIP-20260714-0011';
+    rootItemId = WIP_ITEM_ID;
+    // no formulations, no bom_lines → NPD WIP recipe lives on the active definition
+    wipDefLinesByItemId = {
+      [WIP_ITEM_ID]: [
+        bomLine('flour-id', 'ING-FLOUR', 'Flour', '0.70', '1.0'),
+        bomLine('sugar-id', 'ING-SUGAR', 'Sugar', '0.10', '2.0'),
+        bomLine('butter-id', 'RM-BUTTER', 'Butter', '0.20', '3.0'),
+      ],
+    };
+
+    const result = await loadRecipeCascade(PROJECT_ID, VERSION_ID);
+
+    expect(result[0]).toMatchObject({
+      itemCode: 'WIP-20260714-0011',
+      hasSubRecipe: true,
+    });
+    expect(result[0]?.subRecipe?.lines).toEqual([
+      expect.objectContaining({ itemCode: 'ING-FLOUR', itemName: 'Flour', pct: 70, unitCost: 1.0 }),
+      expect.objectContaining({ itemCode: 'ING-SUGAR', itemName: 'Sugar', pct: 10, unitCost: 2.0 }),
+      expect.objectContaining({ itemCode: 'RM-BUTTER', itemName: 'Butter', pct: 20, unitCost: 3.0 }),
+    ]);
+    expect(result[0]?.subRecipe?.totalCost).toBe(0.7 * 1.0 + 0.1 * 2.0 + 0.2 * 3.0);
+    expect(queries.some((q) => q.includes('from public.bom_lines bl'))).toBe(true);
+    expect(queries.some((q) => q.includes('join public.wip_definition_ingredients wdi'))).toBe(true);
   });
 });
 

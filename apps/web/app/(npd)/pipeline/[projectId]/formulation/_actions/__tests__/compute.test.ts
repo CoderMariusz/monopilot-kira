@@ -149,6 +149,45 @@ describe('recomputeAndCache Server Action', () => {
     expect(result.allergens).toEqual(['gluten']);
   });
 
+  it('cascades WIP nutrition from its active definition when no active BOM has lines', async () => {
+    queryMock.mockImplementation(async (sql: string, params: readonly unknown[] = []) => {
+      const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
+      if (normalized.includes('from formulation_versions')) {
+        return { rows: [{ batch_size_kg: '1', pack_weight_g: '1000', target_price_eur: null, target_yield_pct: '100' }] };
+      }
+      if (normalized.includes('from formulation_ingredients')) {
+        return { rows: [{ rm_code: 'WIP-DEFINITION-ONLY', qty_kg: '1', pct: '100', cost_per_kg_eur: '1', allergens_inherited: [] }] };
+      }
+      if (normalized.includes('from "reference"."rawmaterials"')) {
+        const codes = params[0] as string[];
+        return {
+          rows: [
+            { rm_code: 'ING-FLOUR', nutrition_per_100g: { energy_kj: '100' }, allergens_inherited: ['gluten'] },
+            { rm_code: 'ING-SUGAR', nutrition_per_100g: { energy_kj: '200' }, allergens_inherited: [] },
+            { rm_code: 'RM-BUTTER', nutrition_per_100g: { energy_kj: '500' }, allergens_inherited: ['milk'] },
+          ].filter((row) => codes.includes(row.rm_code)),
+        };
+      }
+      if (normalized.includes('from public.items') && !normalized.includes('wip_definition_ingredients')) {
+        return { rows: [{ item_code: 'WIP-DEFINITION-ONLY', id: 'wip-item-id' }] };
+      }
+      if (normalized.includes('wip_definition_ingredients')) {
+        return {
+          rows: [
+            { component_code: 'ING-FLOUR', quantity: '0.70' },
+            { component_code: 'ING-SUGAR', quantity: '0.10' },
+            { component_code: 'RM-BUTTER', quantity: '0.20' },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const result = await recomputeAndCache({ projectId: 'proj-1', versionId: 'ver-1' });
+
+    expect(result.nutrition.energy_kj).toBe('190.00');
+  });
+
   it('computes from version ingredients and upserts formulation_calc_cache', async () => {
     // Costing v2: a 1 kg pack with 0.5 kg of each RM. rawCostPerPack =
     // 0.5×2 + 0.5×4 = 3.00; rawCost/kg = 3.00 / 1 kg = 3.0000.

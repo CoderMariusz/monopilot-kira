@@ -114,12 +114,14 @@ async function loadSubRecipe(
     return loadFormulationSubRecipe(client, version.version_id, depth, visited);
   }
 
-  // WIP/intermediate fallback: ACTIVE bom_headers/bom_lines by item_id.
+  // WIP/intermediate: prefer ACTIVE bom-with-lines; else active wip_definition_ingredients.
   if (!itemId) return undefined;
   if (depth >= MAX_DEPTH) {
     return { lines: [], totalCost: 0, maxDepthReached: true };
   }
-  return loadBomSubRecipe(client, itemId, depth, visited);
+  const bom = await loadBomSubRecipe(client, itemId, depth, visited);
+  if (bom) return bom;
+  return loadWipDefinitionSubRecipe(client, itemId, depth, visited);
 }
 
 async function loadFormulationSubRecipe(
@@ -163,15 +165,35 @@ async function loadBomSubRecipe(
 ): Promise<RecipeCascadeSubRecipe | undefined> {
   const components = await loadBomComponents(client, itemId);
   if (components.rows.length === 0) return undefined;
+  return buildQtyBasedSubRecipe(client, components.rows, depth, visited);
+}
 
-  const qtyValues = components.rows.map((row) => toNumber(row.qty_kg));
+/** ACTIVE wip_definitions recipe via wip_definition_ingredients (pre-materialisation source). */
+async function loadWipDefinitionSubRecipe(
+  client: QueryClient,
+  itemId: string,
+  depth: number,
+  visited: Set<string>,
+): Promise<RecipeCascadeSubRecipe | undefined> {
+  const components = await loadWipDefinitionComponents(client, itemId);
+  if (components.rows.length === 0) return undefined;
+  return buildQtyBasedSubRecipe(client, components.rows, depth, visited);
+}
+
+async function buildQtyBasedSubRecipe(
+  client: QueryClient,
+  rows: BomComponentRow[],
+  depth: number,
+  visited: Set<string>,
+): Promise<RecipeCascadeSubRecipe> {
+  const qtyValues = rows.map((row) => toNumber(row.qty_kg));
   const qtySum = qtyValues.reduce((sum, qty) => sum + qty, 0);
 
   const lines: RecipeCascadeSubLine[] = [];
   let totalCost = 0;
 
-  for (let i = 0; i < components.rows.length; i++) {
-    const component = components.rows[i]!;
+  for (let i = 0; i < rows.length; i++) {
+    const component = rows[i]!;
     const componentCode = component.item_code ?? '';
     const qtyKg = qtyValues[i] ?? 0;
     const unitCost = toNumber(component.unit_cost);
@@ -282,6 +304,70 @@ async function loadRecipeComponents(client: QueryClient, versionId: string): Pro
         where fi.version_id = $1::uuid
         order by fi.sequence`,
       [versionId],
+    );
+  }
+}
+
+/**
+ * Active wip_definition ingredients by item_id — canonical NPD WIP recipe before BOM
+ * materialisation. qty_per_unit maps to qty_kg for pct/cost roll-up.
+ */
+async function loadWipDefinitionComponents(
+  client: QueryClient,
+  wipItemId: string,
+): Promise<{ rows: BomComponentRow[] }> {
+  try {
+    return await client.query<BomComponentRow>(
+      `select wdi.item_id::text as item_id,
+              i.item_code,
+              coalesce(i.name, i.item_code) as item_name,
+              wdi.qty_per_unit::text as qty_kg,
+              vec.amount::text as unit_cost,
+              rm.nutrition_per_100g
+         from public.wip_definitions wd
+         join public.wip_definition_ingredients wdi
+           on wdi.wip_definition_id = wd.id
+          and wdi.org_id = wd.org_id
+         join public.items i
+           on i.id = wdi.item_id
+          and i.org_id = app.current_org_id()
+         left join public.v_item_effective_cost vec
+           on vec.item_id = wdi.item_id
+          and vec.org_id = app.current_org_id()
+         left join "Reference"."RawMaterials" rm
+           on rm.org_id = app.current_org_id()
+          and rm.rm_code = i.item_code
+        where wd.org_id = app.current_org_id()
+          and wd.item_id = $1::uuid
+          and wd.status = 'active'
+        order by wdi.sequence, i.item_code`,
+      [wipItemId],
+    );
+  } catch (err) {
+    if ((err as { code?: string })?.code !== PG_UNDEFINED_TABLE) throw err;
+    // ponytail: RawMaterials may be absent in some test/envs; cost/name still resolve.
+    return await client.query<BomComponentRow>(
+      `select wdi.item_id::text as item_id,
+              i.item_code,
+              coalesce(i.name, i.item_code) as item_name,
+              wdi.qty_per_unit::text as qty_kg,
+              vec.amount::text as unit_cost,
+              null::jsonb as nutrition_per_100g
+         from public.wip_definitions wd
+         join public.wip_definition_ingredients wdi
+           on wdi.wip_definition_id = wd.id
+          and wdi.org_id = wd.org_id
+         join public.items i
+           on i.id = wdi.item_id
+          and i.org_id = app.current_org_id()
+         left join public.v_item_effective_cost vec
+           on vec.item_id = wdi.item_id
+          and vec.org_id = app.current_org_id()
+        where wd.org_id = app.current_org_id()
+          and wd.item_id = $1::uuid
+          and wd.status = 'active'
+        order by wdi.sequence, i.item_code`,
+      [wipItemId],
     );
   }
 }

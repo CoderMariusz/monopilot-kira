@@ -164,6 +164,51 @@ describe('computeNutrition action unit coverage', () => {
     expect(JSON.parse(String(allergenInsert?.[1]?.[4]))).toEqual([{ allergen_code: 'gluten' }]);
   });
 
+  it('computes a WIP declaration from its active definition when no active BOM has lines', async () => {
+    const fakeClient = {
+      query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+        const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
+        if (normalized.includes('from public.user_roles ur')) return { rows: [{ ok: true }], rowCount: 1 };
+        if (normalized.includes('from public.formulation_versions')) {
+          return { rows: [{ product_code: productA }], rowCount: 1 };
+        }
+        if (normalized.includes('from public.formulation_ingredients')) {
+          return { rows: [{ rm_code: 'WIP-DEFINITION-ONLY', pct: '100' }], rowCount: 1 };
+        }
+        if (normalized.includes('from "reference"."rawmaterials"')) {
+          const codes = params[0] as string[];
+          return {
+            rows: [
+              { rm_code: 'ING-FLOUR', nutrition_per_100g: { energy_kj: '100' }, allergens_inherited: ['gluten'] },
+              { rm_code: 'ING-SUGAR', nutrition_per_100g: { energy_kj: '200' }, allergens_inherited: [] },
+              { rm_code: 'RM-BUTTER', nutrition_per_100g: { energy_kj: '500' }, allergens_inherited: ['milk'] },
+            ].filter((row) => codes.includes(row.rm_code)),
+          };
+        }
+        if (normalized.includes('from public.items') && !normalized.includes('wip_definition_ingredients')) {
+          return { rows: [{ item_code: 'WIP-DEFINITION-ONLY', id: 'wip-item-id' }], rowCount: 1 };
+        }
+        if (normalized.includes('wip_definition_ingredients')) {
+          return {
+            rows: [
+              { component_code: 'ING-FLOUR', quantity: '0.70' },
+              { component_code: 'ING-SUGAR', quantity: '0.10' },
+              { component_code: 'RM-BUTTER', quantity: '0.20' },
+            ],
+            rowCount: 3,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+    ctxHolder.client = fakeClient as unknown as pg.PoolClient;
+
+    const { computeNutrition } = await import('../compute');
+    const result = await computeNutrition({ projectId: projectA, formulationVersionId: versionA });
+
+    expect(result.ok && result.data.nutrients.find((row) => row.nutrientCode === 'energy_kj')?.per100g).toBe('190.00');
+  });
+
   it('writes contains allergen declarations from Reference.RawMaterials allergens_inherited', async () => {
     const calls: Array<{ sql: string; params: readonly unknown[] }> = [];
     const fakeClient = {

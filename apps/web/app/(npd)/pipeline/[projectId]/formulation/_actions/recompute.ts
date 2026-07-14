@@ -142,15 +142,40 @@ async function loadRmNutrition(
     },
     loadActiveBom: async (itemId) => {
       const { rows } = await client.query<BomLineRow>(
-        `select bl.component_code, bl.quantity::text as quantity
-           from public.bom_lines bl
-           join public.bom_headers h
-             on h.id = bl.bom_header_id and h.org_id = bl.org_id
-          where bl.org_id = app.current_org_id()
-            and h.org_id = app.current_org_id()
-            and h.item_id = $1::uuid
-            and h.status = 'active'
-          order by bl.line_no asc`,
+        `with active_bom as (
+           select bl.component_code, bl.quantity::text as quantity, bl.line_no as sequence
+             from public.bom_lines bl
+             join public.bom_headers h
+               on h.id = bl.bom_header_id and h.org_id = bl.org_id
+            where bl.org_id = app.current_org_id()
+              and h.org_id = app.current_org_id()
+              and h.item_id = $1::uuid
+              and h.status = 'active'
+         ),
+         active_definition as (
+           select id
+             from public.wip_definitions
+            where org_id = app.current_org_id()
+              and item_id = $1::uuid
+              and status = 'active'
+            limit 1
+         ),
+         selected_components as (
+           select component_code, quantity, sequence from active_bom
+           union all
+           select i.item_code, wdi.qty_per_unit::text, wdi.sequence
+             from active_definition wd
+             join public.wip_definition_ingredients wdi
+               on wdi.wip_definition_id = wd.id
+              and wdi.org_id = app.current_org_id()
+             join public.items i
+               on i.id = wdi.item_id
+              and i.org_id = app.current_org_id()
+            where not exists (select 1 from active_bom)
+         )
+         select component_code, quantity
+           from selected_components
+          order by sequence asc`,
         [itemId],
       );
       return rows.map((row) => ({ componentCode: row.component_code, quantity: row.quantity }));
