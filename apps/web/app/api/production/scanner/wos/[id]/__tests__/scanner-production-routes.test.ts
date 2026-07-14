@@ -152,6 +152,31 @@ function txnStubs(sql: string): { rows: unknown[] } | null {
   return null;
 }
 
+function autoFefoLpStubs(sql: string): { rows: unknown[] } | null {
+  if (sql.includes('from public.v_inventory_available cand')) {
+    return { rows: [{
+      lp_id: '90000000-0000-0000-0000-000000000001',
+      product_id: primaryItemId,
+      status: 'available',
+      site_id: null,
+      location_id: null,
+    }] };
+  }
+  if (sql.includes('from public.license_plates lp')) return { rows: [consumableLp()] };
+  if (sql.includes('from public.v_active_holds')) return { rows: [] };
+  if (sql.includes('update public.license_plates')) {
+    return { rows: [{
+      id: '90000000-0000-0000-0000-000000000001',
+      lp_number: 'LP-AUTO-001',
+      product_id: primaryItemId,
+      quantity: '70.000',
+      site_id: null,
+      location_id: null,
+    }] };
+  }
+  return null;
+}
+
 describe('production scanner WO routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -273,7 +298,7 @@ describe('production scanner WO routes', () => {
     expect(params[1]).toBe(context.params.id);
     expect(params[2]).toBe('80000000-0000-0000-0000-000000000001');
     expect(params[3]).toBe('90000000-0000-0000-0000-000000000001');
-    expect(params[4]).toBe('2.500');
+    expect(params[4]).toBe('2.5');
     expect(params[5]).toBe('kg');
     expect(params[6]).toBe(session.user_id);
     expect(params[7]).toBe(true);
@@ -338,7 +363,7 @@ describe('production scanner WO routes', () => {
       wo_id: context.params.id,
       lp_id: '90000000-0000-0000-0000-000000000001',
       item_id: '80000000-0000-0000-0000-000000000001',
-      qty: '2.500',
+      qty: '2.5',
       uom: 'kg',
       org_id: session.org_id,
       actor: session.user_id,
@@ -454,6 +479,10 @@ describe('production scanner WO routes', () => {
               qty: '1.000',
               consumedQty: '11.000',
               uom: 'kg',
+              fefoAutoResolved: true,
+              resolvedLpId: '90000000-0000-0000-0000-000000000001',
+              resolvedLpNumber: 'LP-AUTO-001',
+              remainingLpQty: '70.000',
               approverUserId: null,
               overPct: 10,
               warned: true,
@@ -485,6 +514,10 @@ describe('production scanner WO routes', () => {
       materialId: '70000000-0000-0000-0000-000000000001',
       consumedQty: '11.000',
       uom: 'kg',
+      fefoAutoResolved: true,
+      resolvedLpId: '90000000-0000-0000-0000-000000000001',
+      resolvedLpNumber: 'LP-AUTO-001',
+      remainingLpQty: '70.000',
       approverUserId: null,
       warning: { overconsumed: true, overPct: 10, warnPct: 5 },
     });
@@ -755,6 +788,7 @@ describe('production scanner WO routes', () => {
     fakeClient.query.mockImplementation(async (sql: string) => {
       if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
       if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('for update of wm')) return { rows: [materialGate()] };
       if (sql.includes('from public.license_plates lp')) return { rows: [consumableLp({ qa_status: 'pending' })] };
       return { rows: [] };
     });
@@ -779,6 +813,7 @@ describe('production scanner WO routes', () => {
     fakeClient.query.mockImplementation(async (sql: string) => {
       if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
       if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('for update of wm')) return { rows: [materialGate()] };
       if (sql.includes('from public.license_plates lp')) return { rows: [consumableLp({ expired: true })] };
       return { rows: [] };
     });
@@ -803,6 +838,7 @@ describe('production scanner WO routes', () => {
     fakeClient.query.mockImplementation(async (sql: string) => {
       if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
       if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
+      if (sql.includes('for update of wm')) return { rows: [materialGate()] };
       if (sql.includes('from public.license_plates lp')) {
         return { rows: [consumableLp({ locked_by: '99999999-0000-0000-0000-000000000001', lock_is_active_for_other_user: true })] };
       }
@@ -845,12 +881,14 @@ describe('production scanner WO routes', () => {
     expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('update public.wo_materials'))).toBe(false);
   });
 
-  it('consume records no-LP reasonCode in scanner audit ext when manual consumption succeeds', async () => {
+  it('consume returns the auto-selected FEFO LP and records the manual reason', async () => {
     const { POST } = await import('../consume/route');
     fakeClient.query.mockImplementation(async (sql: string) => {
       if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
       if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
       if (sql.includes('for update of wm')) return { rows: [materialGate()] };
+      const lp = autoFefoLpStubs(sql);
+      if (lp) return lp;
       if (sql.includes('update public.wo_materials')) {
         return {
           rows: [{
@@ -877,6 +915,13 @@ describe('production scanner WO routes', () => {
     );
 
     expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      fefoAutoResolved: true,
+      resolvedLpId: '90000000-0000-0000-0000-000000000001',
+      resolvedLpNumber: 'LP-AUTO-001',
+      remainingLpQty: '70.000',
+    });
     const auditCall = fakeClient.query.mock.calls.find((call) => String(call[0]).includes('insert into public.scanner_audit_log'));
     const extParam = (auditCall?.[1] as unknown[] | undefined)?.find(
       (p) => typeof p === 'string' && p.includes('reasonCode'),
@@ -891,6 +936,8 @@ describe('production scanner WO routes', () => {
       if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
       if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
       if (sql.includes('for update of wm')) return { rows: [materialGate()] };
+      const lp = autoFefoLpStubs(sql);
+      if (lp) return lp;
       if (sql.includes('update public.wo_materials')) {
         return {
           rows: [{
@@ -922,8 +969,8 @@ describe('production scanner WO routes', () => {
     const params = ledgerCall?.[1] as unknown[];
     expect(params[1]).toBe(context.params.id);
     expect(params[2]).toBe('80000000-0000-0000-0000-000000000001');
-    expect(params[3]).toBeNull();
-    expect(params[4]).toBe('1.000');
+    expect(params[3]).toBe('90000000-0000-0000-0000-000000000001');
+    expect(params[4]).toBe('1');
     expect(JSON.parse(params[8] as string)).toMatchObject({
       source: 'scanner',
       clientOpId: 'op-ledger-manual',
@@ -937,7 +984,7 @@ describe('production scanner WO routes', () => {
       if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
       if (sql.includes('from public.scanner_audit_log')) return { rows: [] };
       if (sql.includes('for update of wm')) {
-        expect(params).toEqual([session.org_id, context.params.id, '70000000-0000-0000-0000-000000000001', '1.000']);
+        expect(params).toEqual([session.org_id, context.params.id, '70000000-0000-0000-0000-000000000001', '1']);
         return { rows: [materialGate({ required_qty: '10.000', consumed_qty: '10.000', over_limit: true, over_pct: '10.0000000000000000' })] };
       }
       return { rows: [] };
@@ -975,6 +1022,8 @@ describe('production scanner WO routes', () => {
       if (sql.includes('for update of wm')) {
         return { rows: [materialGate({ required_qty: '10.000', consumed_qty: '10.000', threshold_pct: '10', over_limit: false, over_pct: '10.0000000000000000' })] };
       }
+      const lp = autoFefoLpStubs(sql);
+      if (lp) return lp;
       if (sql.includes('update public.wo_materials')) {
         return {
           rows: [{
@@ -1024,6 +1073,8 @@ describe('production scanner WO routes', () => {
           })],
         };
       }
+      const lp = autoFefoLpStubs(sql);
+      if (lp) return lp;
       if (sql.includes('update public.wo_materials')) {
         return {
           rows: [{
@@ -1079,6 +1130,8 @@ describe('production scanner WO routes', () => {
       if (sql.includes('for update of wm')) {
         return { rows: [materialGate({ required_qty: '10.000', consumed_qty: '10.000', over_limit: true, over_pct: '10.0000000000000000' })] };
       }
+      const lp = autoFefoLpStubs(sql);
+      if (lp) return lp;
       if (sql.includes('update public.wo_materials')) {
         return {
           rows: [{

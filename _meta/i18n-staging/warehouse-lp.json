@@ -1,5 +1,5 @@
 {
-  "_note": "Staged warehouse LP i18n bundle (WH-002 LP list + WH-003 LP detail). Resolved server-side by warehouse/license-plates/_actions-free label loaders via t.has-style guards with EN fallback until merged into apps/web/i18n/{en,pl,ro,uk}.json. en + pl are real values; ro/uk mirror EN per the two-locale policy when merged.",
+  "_note": "Staged warehouse LP i18n bundle (WH-002 LP list + WH-003 LP detail). Resolved server-side by warehouse/license-plates label loaders via t.has-style guards with EN fallback until merged into apps/web/i18n/{en,pl,ro,uk}.json. en + pl are real values; ro/uk mirror EN.",
   "en": {
     "nav": {
       "label": "Warehouse areas",
@@ -200,7 +200,8 @@
             "otherWo": "This license plate is already reserved for another work order.",
             "woNotOpen": "That work order is not open.",
             "qtyExceedsAvailable": "The quantity exceeds the LP available quantity.",
-            "generic": "We could not reserve this license plate. Try again."
+            "generic": "We could not reserve this license plate. Try again.",
+            "productNotInWoBom": "This license plate product is not on the work order BOM (or its output)."
           }
         },
         "blockModal": {
@@ -293,10 +294,39 @@
         "ineligible": {
           "split": "This license plate cannot be split in its current state (no available quantity, or it is held, reserved or terminal).",
           "destroy": "This license plate cannot be destroyed — it is already terminal, or has reserved stock to clear first.",
-          "mergeDeferred": "Merge is not available from this screen yet — open the mergeable LPs from the inventory list."
+          "merge": "This license plate cannot be merged in its current state (held, reserved, or not in a mergeable status).",
+          "reserve": "Only QA-released license plates with available quantity can be reserved.",
+          "expired": "This license plate is past its expiry date and cannot be reserved or merged.",
+          "onHold": "This license plate is on an active quality hold and cannot be reserved or merged."
+        },
+        "mergeModal": {
+          "title": "Merge into {lp}",
+          "intro": "Select one or more compatible sibling license plates to merge into this LP. Quantities are combined; secondary LPs become terminal.",
+          "candidates": "Compatible siblings",
+          "loading": "Loading candidates…",
+          "empty": "No compatible sibling license plates are available to merge.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why are these LPs being merged?",
+          "cancel": "Cancel",
+          "confirm": "Merge LPs",
+          "submitting": "Merging…",
+          "validation": {
+            "selectionRequired": "Select at least one sibling license plate.",
+            "reasonRequired": "Enter a reason before merging."
+          },
+          "errors": {
+            "forbidden": "You do not have permission to merge license plates.",
+            "notFound": "One or more license plates were not found.",
+            "invalidInput": "Select sibling LPs and enter a reason before merging.",
+            "mismatch": "Sibling LPs must match product, UOM, batch, expiry, warehouse, site, and location.",
+            "invalidState": "Only available (received / available / returned) license plates can be merged.",
+            "reserved": "Reserved license plates cannot be merged — clear reservations first.",
+            "onHold": "One or more license plates are under an active quality hold and cannot be merged.",
+            "generic": "We could not merge these license plates. Try again."
+          }
         }
       },
-      "ruleNote": "Available actions are determined by the LP state machine. Split and Destroy are live; Merge is wired in a later lane.",
+      "ruleNote": "Available actions are determined by the LP state machine. Split, Merge, and Destroy are live.",
       "tabs": {
         "overview": "Overview",
         "history": "State history",
@@ -620,7 +650,8 @@
             "otherWo": "Ten LP jest już zarezerwowany dla innego zlecenia.",
             "woNotOpen": "To zlecenie nie jest otwarte.",
             "qtyExceedsAvailable": "Ilość przekracza dostępną ilość LP.",
-            "generic": "Nie udało się zarezerwować tego LP. Spróbuj ponownie."
+            "generic": "Nie udało się zarezerwować tego LP. Spróbuj ponownie.",
+            "productNotInWoBom": "Produkt tego LP nie należy do BOM zlecenia (ani do jego wyrobu gotowego)."
           }
         },
         "blockModal": {
@@ -713,10 +744,39 @@
         "ineligible": {
           "split": "Tego LP nie można podzielić w obecnym stanie (brak dostępnej ilości albo jest na holdzie, zarezerwowany lub terminalny).",
           "destroy": "Tego LP nie można zniszczyć — jest już terminalny lub ma zarezerwowany stan do usunięcia.",
-          "mergeDeferred": "Scalanie nie jest jeszcze dostępne z tego ekranu — otwórz LP do scalenia z listy stanów magazynowych."
+          "merge": "Tego LP nie można scalić w obecnym stanie (hold, rezerwacja lub status nie pozwala na scalenie).",
+          "reserve": "Rezerwować można tylko LP zwolnione przez QA z dostępną ilością.",
+          "expired": "Ten LP ma przekroczoną datę ważności i nie można go zarezerwować ani scalić.",
+          "onHold": "Ten LP jest na aktywnym holdzie jakościowym i nie można go zarezerwować ani scalić."
+        },
+        "mergeModal": {
+          "title": "Scal do {lp}",
+          "intro": "Wybierz jeden lub więcej zgodnych LP-ów do scalenia z tym nośnikiem. Ilości zostaną połączone; LP-y źródłowe staną się terminalne.",
+          "candidates": "Zgodne LP-y",
+          "loading": "Ładowanie kandydatów…",
+          "empty": "Brak zgodnych LP-ów do scalenia.",
+          "reason": "Powód",
+          "reasonPlaceholder": "Dlaczego te LP-y są scalane?",
+          "cancel": "Anuluj",
+          "confirm": "Scal LP",
+          "submitting": "Scalanie…",
+          "validation": {
+            "selectionRequired": "Wybierz co najmniej jeden LP do scalenia.",
+            "reasonRequired": "Podaj powód przed scaleniem."
+          },
+          "errors": {
+            "forbidden": "Nie masz uprawnień do scalania LP.",
+            "notFound": "Nie znaleziono jednego lub więcej LP.",
+            "invalidInput": "Wybierz LP-y i podaj powód przed scaleniem.",
+            "mismatch": "LP-y muszą mieć ten sam produkt, JM, partię, datę ważności, magazyn, zakład i lokalizację.",
+            "invalidState": "Scalane mogą być tylko LP w stanie received / available / returned.",
+            "reserved": "Zarezerwowanych LP nie można scalać — najpierw usuń rezerwacje.",
+            "onHold": "Jeden lub więcej LP jest na aktywnym holdzie jakościowym i nie można ich scalać.",
+            "generic": "Nie udało się scalić tych LP. Spróbuj ponownie."
+          }
         }
       },
-      "ruleNote": "Dostępne akcje wynikają z maszyny stanów LP. Podział i Zniszczenie są aktywne; Scalanie zostanie podłączone w późniejszym etapie.",
+      "ruleNote": "Dostępne akcje wynikają z maszyny stanów LP. Podział, Scalanie i Zniszczenie są aktywne.",
       "tabs": {
         "overview": "Przegląd",
         "history": "Historia stanów",
@@ -836,6 +896,906 @@
           "invalid_input": "Sprawdź datę ważności i partię, a następnie spróbuj ponownie.",
           "persistence_failed": "Nie udało się zapisać zmian. Spróbuj ponownie.",
           "generic": "Nie udało się zapisać zmian. Spróbuj ponownie."
+        }
+      }
+    }
+  },
+  "ro": {
+    "nav": {
+      "label": "Warehouse areas",
+      "comingSoon": "Coming soon",
+      "licensePlates": {
+        "title": "License plates",
+        "desc": "Inventory by LP — receipt to consumption."
+      },
+      "grns": {
+        "title": "Goods receipts",
+        "desc": "GRNs against purchase orders."
+      },
+      "inventory": {
+        "title": "Inventory",
+        "desc": "Stock on hand by item, location, batch."
+      },
+      "movements": {
+        "title": "Movements",
+        "desc": "Stock moves and transfers."
+      },
+      "reservations": {
+        "title": "Reservations",
+        "desc": "LPs allocated to work orders."
+      },
+      "locations": {
+        "title": "Locations",
+        "desc": "Warehouse zones and bins."
+      },
+      "expiry": {
+        "title": "Expiry",
+        "desc": "FEFO red / amber expiry dashboard."
+      },
+      "printHistory": {
+        "title": "Print history",
+        "desc": "Label print jobs — status, copies, and reprint."
+      },
+      "inbound": {
+        "title": "Inbound schedule",
+        "desc": "Open POs / TOs and what arrives today."
+      },
+      "scanner": {
+        "title": "Scanner",
+        "desc": "Open the mobile scanner — receive, consume, output."
+      },
+      "yard": {
+        "title": "Yard",
+        "desc": "Dock appointments, gate in/out, and the weighbridge."
+      },
+      "counts": {
+        "title": "Stock counts",
+        "desc": "Cycle counts, variance review, and apply."
+      },
+      "adjustments": {
+        "title": "Stock adjustments",
+        "desc": "Direct on-hand corrections — found stock, damage, write-offs."
+      }
+    },
+    "list": {
+      "title": "License plates",
+      "subtitle": "Inventory by license plate — receipt to consumption.",
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "licensePlates": "License plates"
+      },
+      "countLine": "{total} LPs · {reserved} reserved · {hold} on QC hold · {blocked} blocked",
+      "searchPlaceholder": "Search LP#, item, batch…",
+      "searchLabel": "Search license plates",
+      "rowsLabel": "{count} rows",
+      "tabs": {
+        "all": "All",
+        "available": "Available",
+        "reserved": "Reserved",
+        "blocked": "Blocked",
+        "qc_hold": "QC Hold"
+      },
+      "columns": {
+        "lp": "LP",
+        "item": "Item",
+        "qty": "Qty",
+        "batch": "Batch",
+        "expiry": "Expiry",
+        "status": "Status",
+        "qa": "QA",
+        "location": "Location"
+      },
+      "expiry": {
+        "expired": "{days}d ago",
+        "soon": "in {days}d"
+      },
+      "emptyAll": "No license plates yet — receive goods or register an LP from the Scanner to create your first LP.",
+      "emptyFiltered": "No license plates match this filter. Try clearing the search or pick a different tab.",
+      "pagination": {
+        "showing": "Showing {shown} of {total}",
+        "previous": "Previous",
+        "next": "Next"
+      },
+      "denied": "You do not have permission to view warehouse inventory. Ask an administrator for the warehouse.inventory.read permission.",
+      "error": "We could not load license plates right now. Refresh to try again.",
+      "deferredMultiSelect": "Bulk select / actions are deferred to a later lane."
+    },
+    "status": {
+      "received": "Received",
+      "available": "Available",
+      "reserved": "Reserved",
+      "blocked": "Blocked",
+      "consumed": "Consumed",
+      "shipped": "Shipped",
+      "merged": "Merged",
+      "destroyed": "Destroyed"
+    },
+    "qaStatus": {
+      "pending": "Pending QA",
+      "released": "Released",
+      "on_hold": "On hold",
+      "rejected": "Rejected",
+      "quarantined": "Quarantined",
+      "passed": "Passed",
+      "failed": "Failed",
+      "hold": "On hold"
+    },
+    "detail": {
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "licensePlates": "License plates"
+      },
+      "notFound": "License plate not found.",
+      "denied": "You do not have permission to view this license plate.",
+      "error": "We could not load this license plate right now. Refresh to try again.",
+      "back": "Back to license plates",
+      "expiryBanner": "This LP expires in {days} days on {date}. Review before picking — FEFO priority.",
+      "header": {
+        "qtyLine": "{qty} {uom} · Batch {batch} · Expiry {expiry}"
+      },
+      "identity": {
+        "title": "Identity",
+        "product": "Product",
+        "itemType": "Item type",
+        "quantity": "Quantity",
+        "reserved": "Reserved",
+        "available": "Available",
+        "batch": "Batch",
+        "supplierBatch": "Supplier batch",
+        "expiry": "Expiry date",
+        "bestBefore": "Best before",
+        "catchWeight": "Catch weight",
+        "location": "Location",
+        "warehouse": "Warehouse",
+        "source": "Source",
+        "parentLp": "Parent LP",
+        "none": "—"
+      },
+      "actions": {
+        "comingSoon": "Coming soon",
+        "split": "Split",
+        "merge": "Merge",
+        "qa": "Change QA status",
+        "reserve": "Reserve",
+        "move": "Move",
+        "putaway": "Putaway",
+        "block": "Block",
+        "unblock": "Unblock",
+        "destroy": "Destroy / scrap",
+        "qaRelease": {
+          "title": "Release LP QC",
+          "decision": "Decision",
+          "released": "Released",
+          "rejected": "Rejected",
+          "note": "Note",
+          "notePlaceholder": "Optional QC note…",
+          "cancel": "Cancel",
+          "confirm": "Confirm",
+          "unavailable": "Only pending QC license plates can be released here.",
+          "denied": "You do not have permission to release receiving QC.",
+          "invalidState": "This license plate is no longer pending QC.",
+          "error": "We could not update QC status. Try again."
+        },
+        "reserveModal": {
+          "title": "Reserve {lp}",
+          "intro": "Reserve available quantity on this LP for an open work order.",
+          "search": "Search work orders",
+          "searchPlaceholder": "Search WO number or item…",
+          "wo": "Work order",
+          "woPlaceholder": "Select an open work order",
+          "qty": "Quantity",
+          "qtyHint": "Available: {qty} {uom}",
+          "loading": "Loading work orders…",
+          "empty": "No open work orders match this search.",
+          "cancel": "Cancel",
+          "confirm": "Reserve",
+          "submitting": "Reserving…",
+          "errors": {
+            "forbidden": "You do not have permission to reserve license plates.",
+            "invalidInput": "Select a work order and enter a positive quantity.",
+            "notFound": "The license plate or work order was not found.",
+            "locked": "This license plate is locked by another user.",
+            "invalidState": "This license plate cannot be reserved in its current state.",
+            "notReleased": "Only QA-released license plates can be reserved.",
+            "otherWo": "This license plate is already reserved for another work order.",
+            "woNotOpen": "That work order is not open.",
+            "qtyExceedsAvailable": "The quantity exceeds the LP available quantity.",
+            "generic": "We could not reserve this license plate. Try again.",
+            "productNotInWoBom": "This license plate product is not on the work order BOM (or its output)."
+          }
+        },
+        "blockModal": {
+          "title": "Block {lp}",
+          "intro": "Create a quality hold and block this license plate from picking.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why is this LP being blocked?",
+          "cancel": "Cancel",
+          "confirm": "Block LP",
+          "submitting": "Blocking…",
+          "errors": {
+            "forbidden": "You do not have permission to block license plates.",
+            "alreadyBlocked": "This license plate is already blocked or on hold.",
+            "terminal": "Terminal license plates cannot be blocked.",
+            "locked": "This license plate is locked by another user.",
+            "invalidInput": "Enter a reason before blocking the license plate.",
+            "notFound": "The license plate was not found.",
+            "generic": "We could not block this license plate. Try again."
+          }
+        },
+        "unblockModal": {
+          "title": "Unblock {lp}",
+          "intro": "Release the active quality hold and return this license plate to available for picking.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why is this LP being unblocked?",
+          "esign": {
+            "title": "Electronic signature",
+            "meaning": "Unblocking releases the quality hold on this license plate. Enter your account password to sign this release (21 CFR Part 11).",
+            "password": "Account password",
+            "passwordHelp": "Your password confirms your identity and is recorded as an electronic signature. It is never stored in the audit trail.",
+            "passwordPlaceholder": "Enter your account password"
+          },
+          "cancel": "Cancel",
+          "confirm": "Unblock LP",
+          "submitting": "Unblocking…",
+          "success": "License plate unblocked — it is available again.",
+          "errors": {
+            "forbidden": "You do not have permission to unblock license plates.",
+            "invalidState": "This license plate cannot be unblocked in its current state.",
+            "noOpenHold": "There is no active hold to release on this license plate.",
+            "invalidInput": "Enter a reason before unblocking the license plate.",
+            "notFound": "The license plate was not found.",
+            "generic": "We could not unblock this license plate. Try again."
+          }
+        },
+        "splitModal": {
+          "title": "Split {lp}",
+          "intro": "Split a quantity off this LP into a new child license plate. The remainder stays on this LP.",
+          "qty": "Split quantity",
+          "qtyHint": "Available to split: {qty} {uom} (must be less than the full available quantity).",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why is this LP being split?",
+          "cancel": "Cancel",
+          "confirm": "Split LP",
+          "submitting": "Splitting…",
+          "validation": {
+            "positive": "Enter a quantity greater than zero.",
+            "lessThanAvailable": "The split quantity must be less than the available quantity.",
+            "reasonRequired": "Enter a reason before splitting."
+          },
+          "errors": {
+            "forbidden": "You do not have permission to split license plates.",
+            "notFound": "The license plate was not found.",
+            "invalidInput": "Enter a positive quantity and a reason before splitting.",
+            "invalidState": "This license plate cannot be split in its current state.",
+            "onHold": "This license plate is under an active quality hold and cannot be split.",
+            "qtyTooLarge": "The split quantity must be less than the available quantity.",
+            "generic": "We could not split this license plate. Try again."
+          }
+        },
+        "destroyModal": {
+          "title": "Destroy / scrap {lp}",
+          "intro": "Permanently scrap this license plate. The remaining quantity is written off and the LP becomes terminal.",
+          "warning": "This cannot be undone. The LP is marked destroyed and its stock is written off.",
+          "acknowledge": "I understand this license plate will be permanently scrapped.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why is this LP being destroyed?",
+          "cancel": "Cancel",
+          "confirm": "Destroy LP",
+          "submitting": "Destroying…",
+          "errors": {
+            "forbidden": "You do not have permission to destroy license plates.",
+            "notFound": "The license plate was not found.",
+            "invalidInput": "Enter a reason before destroying the license plate.",
+            "terminal": "This license plate is already consumed, shipped, merged or destroyed and cannot be destroyed.",
+            "reserved": "This license plate has reserved stock — clear the reservation before destroying it.",
+            "generic": "We could not destroy this license plate. Try again."
+          }
+        },
+        "ineligible": {
+          "split": "This license plate cannot be split in its current state (no available quantity, or it is held, reserved or terminal).",
+          "destroy": "This license plate cannot be destroyed — it is already terminal, or has reserved stock to clear first.",
+          "merge": "This license plate cannot be merged in its current state (held, reserved, or not in a mergeable status).",
+          "reserve": "Only QA-released license plates with available quantity can be reserved.",
+          "expired": "This license plate is past its expiry date and cannot be reserved or merged.",
+          "onHold": "This license plate is on an active quality hold and cannot be reserved or merged."
+        },
+        "mergeModal": {
+          "title": "Merge into {lp}",
+          "intro": "Select one or more compatible sibling license plates to merge into this LP. Quantities are combined; secondary LPs become terminal.",
+          "candidates": "Compatible siblings",
+          "loading": "Loading candidates…",
+          "empty": "No compatible sibling license plates are available to merge.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why are these LPs being merged?",
+          "cancel": "Cancel",
+          "confirm": "Merge LPs",
+          "submitting": "Merging…",
+          "validation": {
+            "selectionRequired": "Select at least one sibling license plate.",
+            "reasonRequired": "Enter a reason before merging."
+          },
+          "errors": {
+            "forbidden": "You do not have permission to merge license plates.",
+            "notFound": "One or more license plates were not found.",
+            "invalidInput": "Select sibling LPs and enter a reason before merging.",
+            "mismatch": "Sibling LPs must match product, UOM, batch, expiry, warehouse, site, and location.",
+            "invalidState": "Only available (received / available / returned) license plates can be merged.",
+            "reserved": "Reserved license plates cannot be merged — clear reservations first.",
+            "onHold": "One or more license plates are under an active quality hold and cannot be merged.",
+            "generic": "We could not merge these license plates. Try again."
+          }
+        }
+      },
+      "ruleNote": "Available actions are determined by the LP state machine. Split, Merge, and Destroy are live.",
+      "tabs": {
+        "overview": "Overview",
+        "history": "State history",
+        "reservations": "Reservations",
+        "movements": "Movements",
+        "genealogy": "Genealogy",
+        "labels": "Labels",
+        "raw": "Raw"
+      },
+      "overview": {
+        "title": "Identity snapshot"
+      },
+      "history": {
+        "empty": "No state transitions recorded for this LP.",
+        "transition": "{from} → {to}",
+        "by": "by {user}",
+        "reason": "Reason: {reason}",
+        "from": "From",
+        "to": "To",
+        "at": "At",
+        "reasonCol": "Reason"
+      },
+      "reservations": {
+        "empty": "No reservations for this LP.",
+        "wo": "Work order",
+        "reservedQty": "Reserved",
+        "available": "Available",
+        "note": "Reservations are created for material LPs allocated to work orders."
+      },
+      "movements": {
+        "empty": "No stock movements recorded for this LP.",
+        "timestamp": "Timestamp",
+        "type": "Type",
+        "from": "From",
+        "to": "To",
+        "qty": "Qty",
+        "reason": "Reason",
+        "reference": "Reference"
+      },
+      "genealogy": {
+        "parentTitle": "Parent LP (upstream)",
+        "childrenTitle": "Child LPs (downstream)",
+        "noParent": "No parent LP — this is a root receipt.",
+        "noChildren": "No child LPs — this LP has not been split or consumed into other LPs.",
+        "status": "Status",
+        "qty": "Qty"
+      },
+      "labels": {
+        "deferred": "Print a barcode / GS1 label for this license plate. Printer routing and job log live in Print history.",
+        "printAction": "Print label",
+        "printing": "Printing…",
+        "queued": "Print job queued for the printer.",
+        "sent": "Label sent — download the rendered output below.",
+        "download": "Download label",
+        "error": "Label could not be printed. Try again or contact an administrator.",
+        "forbidden": "Insufficient permissions: settings.org.update is required to print labels.",
+        "historyLink": "View print history"
+      },
+      "raw": {
+        "title": "Raw extension data (ext_jsonb)",
+        "empty": "No custom fields configured for this LP."
+      },
+      "move": {
+        "title": "Move {lpNumber}",
+        "subtitle": "Transfer this license plate to another location. The move is recorded in the Movements tab.",
+        "destination": "Destination location",
+        "destinationHelp": "Pick the target location for this LP.",
+        "destinationPlaceholder": "Select a location…",
+        "reason": "Reason (optional)",
+        "reasonHelp": "Why is this LP being moved? Recorded with the stock move.",
+        "reasonPlaceholder": "e.g. consolidate to picking face",
+        "currentLocation": "Current location",
+        "loadingLocations": "Loading locations…",
+        "noLocations": "No locations are configured for this org.",
+        "locationsError": "Could not load locations — try again.",
+        "cancel": "Cancel",
+        "submit": "Move LP",
+        "submitting": "Moving…",
+        "validation": {
+          "destinationRequired": "Pick a destination location."
+        },
+        "error": "Move failed: {message}",
+        "errorForbidden": "You do not have permission to move license plates.",
+        "errorLocked": "This LP is locked by another user — try again shortly.",
+        "errorInvalidState": "This LP cannot be moved in its current state.",
+        "errorNotFound": "LP or destination location no longer exists.",
+        "success": "LP moved."
+      },
+      "metadata": {
+        "action": "Edit metadata…",
+        "title": "Edit license-plate metadata",
+        "intro": "Correct the expiry date and/or batch number for this pallet. The change is recorded with a reason; quantity and location are not affected.",
+        "expiry": "Expiry date",
+        "expiryHelp": "Leave unchanged to keep the current expiry.",
+        "batch": "Batch / lot number",
+        "batchHelp": "The manufacturer or receiving batch reference.",
+        "reasonCode": "Reason",
+        "reasonPlaceholder": "Select a reason",
+        "reasonOptions": {
+          "entry_error": "Entry error",
+          "wrong_quantity": "Wrong quantity",
+          "wrong_batch": "Wrong batch / lot",
+          "wrong_product": "Wrong product",
+          "other": "Other"
+        },
+        "note": "Note",
+        "noteOptional": "optional",
+        "notePlaceholder": "Add context for the correction",
+        "noChange": "Change the expiry or batch to enable saving.",
+        "cancel": "Cancel",
+        "submit": "Save changes",
+        "submitting": "Saving…",
+        "errors": {
+          "forbidden": "You do not have permission to edit this license plate.",
+          "not_found": "This license plate no longer exists — refresh and retry.",
+          "lp_not_editable": "This pallet can no longer be edited — it has been consumed, shipped, merged or destroyed.",
+          "invalid_input": "Check the expiry date and batch and try again.",
+          "persistence_failed": "We could not save the changes. Try again.",
+          "generic": "We could not save the changes. Try again."
+        }
+      }
+    }
+  },
+  "uk": {
+    "nav": {
+      "label": "Warehouse areas",
+      "comingSoon": "Coming soon",
+      "licensePlates": {
+        "title": "License plates",
+        "desc": "Inventory by LP — receipt to consumption."
+      },
+      "grns": {
+        "title": "Goods receipts",
+        "desc": "GRNs against purchase orders."
+      },
+      "inventory": {
+        "title": "Inventory",
+        "desc": "Stock on hand by item, location, batch."
+      },
+      "movements": {
+        "title": "Movements",
+        "desc": "Stock moves and transfers."
+      },
+      "reservations": {
+        "title": "Reservations",
+        "desc": "LPs allocated to work orders."
+      },
+      "locations": {
+        "title": "Locations",
+        "desc": "Warehouse zones and bins."
+      },
+      "expiry": {
+        "title": "Expiry",
+        "desc": "FEFO red / amber expiry dashboard."
+      },
+      "printHistory": {
+        "title": "Print history",
+        "desc": "Label print jobs — status, copies, and reprint."
+      },
+      "inbound": {
+        "title": "Inbound schedule",
+        "desc": "Open POs / TOs and what arrives today."
+      },
+      "scanner": {
+        "title": "Scanner",
+        "desc": "Open the mobile scanner — receive, consume, output."
+      },
+      "yard": {
+        "title": "Yard",
+        "desc": "Dock appointments, gate in/out, and the weighbridge."
+      },
+      "counts": {
+        "title": "Stock counts",
+        "desc": "Cycle counts, variance review, and apply."
+      },
+      "adjustments": {
+        "title": "Stock adjustments",
+        "desc": "Direct on-hand corrections — found stock, damage, write-offs."
+      }
+    },
+    "list": {
+      "title": "License plates",
+      "subtitle": "Inventory by license plate — receipt to consumption.",
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "licensePlates": "License plates"
+      },
+      "countLine": "{total} LPs · {reserved} reserved · {hold} on QC hold · {blocked} blocked",
+      "searchPlaceholder": "Search LP#, item, batch…",
+      "searchLabel": "Search license plates",
+      "rowsLabel": "{count} rows",
+      "tabs": {
+        "all": "All",
+        "available": "Available",
+        "reserved": "Reserved",
+        "blocked": "Blocked",
+        "qc_hold": "QC Hold"
+      },
+      "columns": {
+        "lp": "LP",
+        "item": "Item",
+        "qty": "Qty",
+        "batch": "Batch",
+        "expiry": "Expiry",
+        "status": "Status",
+        "qa": "QA",
+        "location": "Location"
+      },
+      "expiry": {
+        "expired": "{days}d ago",
+        "soon": "in {days}d"
+      },
+      "emptyAll": "No license plates yet — receive goods or register an LP from the Scanner to create your first LP.",
+      "emptyFiltered": "No license plates match this filter. Try clearing the search or pick a different tab.",
+      "pagination": {
+        "showing": "Showing {shown} of {total}",
+        "previous": "Previous",
+        "next": "Next"
+      },
+      "denied": "You do not have permission to view warehouse inventory. Ask an administrator for the warehouse.inventory.read permission.",
+      "error": "We could not load license plates right now. Refresh to try again.",
+      "deferredMultiSelect": "Bulk select / actions are deferred to a later lane."
+    },
+    "status": {
+      "received": "Received",
+      "available": "Available",
+      "reserved": "Reserved",
+      "blocked": "Blocked",
+      "consumed": "Consumed",
+      "shipped": "Shipped",
+      "merged": "Merged",
+      "destroyed": "Destroyed"
+    },
+    "qaStatus": {
+      "pending": "Pending QA",
+      "released": "Released",
+      "on_hold": "On hold",
+      "rejected": "Rejected",
+      "quarantined": "Quarantined",
+      "passed": "Passed",
+      "failed": "Failed",
+      "hold": "On hold"
+    },
+    "detail": {
+      "breadcrumb": {
+        "warehouse": "Warehouse",
+        "licensePlates": "License plates"
+      },
+      "notFound": "License plate not found.",
+      "denied": "You do not have permission to view this license plate.",
+      "error": "We could not load this license plate right now. Refresh to try again.",
+      "back": "Back to license plates",
+      "expiryBanner": "This LP expires in {days} days on {date}. Review before picking — FEFO priority.",
+      "header": {
+        "qtyLine": "{qty} {uom} · Batch {batch} · Expiry {expiry}"
+      },
+      "identity": {
+        "title": "Identity",
+        "product": "Product",
+        "itemType": "Item type",
+        "quantity": "Quantity",
+        "reserved": "Reserved",
+        "available": "Available",
+        "batch": "Batch",
+        "supplierBatch": "Supplier batch",
+        "expiry": "Expiry date",
+        "bestBefore": "Best before",
+        "catchWeight": "Catch weight",
+        "location": "Location",
+        "warehouse": "Warehouse",
+        "source": "Source",
+        "parentLp": "Parent LP",
+        "none": "—"
+      },
+      "actions": {
+        "comingSoon": "Coming soon",
+        "split": "Split",
+        "merge": "Merge",
+        "qa": "Change QA status",
+        "reserve": "Reserve",
+        "move": "Move",
+        "putaway": "Putaway",
+        "block": "Block",
+        "unblock": "Unblock",
+        "destroy": "Destroy / scrap",
+        "qaRelease": {
+          "title": "Release LP QC",
+          "decision": "Decision",
+          "released": "Released",
+          "rejected": "Rejected",
+          "note": "Note",
+          "notePlaceholder": "Optional QC note…",
+          "cancel": "Cancel",
+          "confirm": "Confirm",
+          "unavailable": "Only pending QC license plates can be released here.",
+          "denied": "You do not have permission to release receiving QC.",
+          "invalidState": "This license plate is no longer pending QC.",
+          "error": "We could not update QC status. Try again."
+        },
+        "reserveModal": {
+          "title": "Reserve {lp}",
+          "intro": "Reserve available quantity on this LP for an open work order.",
+          "search": "Search work orders",
+          "searchPlaceholder": "Search WO number or item…",
+          "wo": "Work order",
+          "woPlaceholder": "Select an open work order",
+          "qty": "Quantity",
+          "qtyHint": "Available: {qty} {uom}",
+          "loading": "Loading work orders…",
+          "empty": "No open work orders match this search.",
+          "cancel": "Cancel",
+          "confirm": "Reserve",
+          "submitting": "Reserving…",
+          "errors": {
+            "forbidden": "You do not have permission to reserve license plates.",
+            "invalidInput": "Select a work order and enter a positive quantity.",
+            "notFound": "The license plate or work order was not found.",
+            "locked": "This license plate is locked by another user.",
+            "invalidState": "This license plate cannot be reserved in its current state.",
+            "notReleased": "Only QA-released license plates can be reserved.",
+            "otherWo": "This license plate is already reserved for another work order.",
+            "woNotOpen": "That work order is not open.",
+            "qtyExceedsAvailable": "The quantity exceeds the LP available quantity.",
+            "generic": "We could not reserve this license plate. Try again.",
+            "productNotInWoBom": "This license plate product is not on the work order BOM (or its output)."
+          }
+        },
+        "blockModal": {
+          "title": "Block {lp}",
+          "intro": "Create a quality hold and block this license plate from picking.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why is this LP being blocked?",
+          "cancel": "Cancel",
+          "confirm": "Block LP",
+          "submitting": "Blocking…",
+          "errors": {
+            "forbidden": "You do not have permission to block license plates.",
+            "alreadyBlocked": "This license plate is already blocked or on hold.",
+            "terminal": "Terminal license plates cannot be blocked.",
+            "locked": "This license plate is locked by another user.",
+            "invalidInput": "Enter a reason before blocking the license plate.",
+            "notFound": "The license plate was not found.",
+            "generic": "We could not block this license plate. Try again."
+          }
+        },
+        "unblockModal": {
+          "title": "Unblock {lp}",
+          "intro": "Release the active quality hold and return this license plate to available for picking.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why is this LP being unblocked?",
+          "esign": {
+            "title": "Electronic signature",
+            "meaning": "Unblocking releases the quality hold on this license plate. Enter your account password to sign this release (21 CFR Part 11).",
+            "password": "Account password",
+            "passwordHelp": "Your password confirms your identity and is recorded as an electronic signature. It is never stored in the audit trail.",
+            "passwordPlaceholder": "Enter your account password"
+          },
+          "cancel": "Cancel",
+          "confirm": "Unblock LP",
+          "submitting": "Unblocking…",
+          "success": "License plate unblocked — it is available again.",
+          "errors": {
+            "forbidden": "You do not have permission to unblock license plates.",
+            "invalidState": "This license plate cannot be unblocked in its current state.",
+            "noOpenHold": "There is no active hold to release on this license plate.",
+            "invalidInput": "Enter a reason before unblocking the license plate.",
+            "notFound": "The license plate was not found.",
+            "generic": "We could not unblock this license plate. Try again."
+          }
+        },
+        "splitModal": {
+          "title": "Split {lp}",
+          "intro": "Split a quantity off this LP into a new child license plate. The remainder stays on this LP.",
+          "qty": "Split quantity",
+          "qtyHint": "Available to split: {qty} {uom} (must be less than the full available quantity).",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why is this LP being split?",
+          "cancel": "Cancel",
+          "confirm": "Split LP",
+          "submitting": "Splitting…",
+          "validation": {
+            "positive": "Enter a quantity greater than zero.",
+            "lessThanAvailable": "The split quantity must be less than the available quantity.",
+            "reasonRequired": "Enter a reason before splitting."
+          },
+          "errors": {
+            "forbidden": "You do not have permission to split license plates.",
+            "notFound": "The license plate was not found.",
+            "invalidInput": "Enter a positive quantity and a reason before splitting.",
+            "invalidState": "This license plate cannot be split in its current state.",
+            "onHold": "This license plate is under an active quality hold and cannot be split.",
+            "qtyTooLarge": "The split quantity must be less than the available quantity.",
+            "generic": "We could not split this license plate. Try again."
+          }
+        },
+        "destroyModal": {
+          "title": "Destroy / scrap {lp}",
+          "intro": "Permanently scrap this license plate. The remaining quantity is written off and the LP becomes terminal.",
+          "warning": "This cannot be undone. The LP is marked destroyed and its stock is written off.",
+          "acknowledge": "I understand this license plate will be permanently scrapped.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why is this LP being destroyed?",
+          "cancel": "Cancel",
+          "confirm": "Destroy LP",
+          "submitting": "Destroying…",
+          "errors": {
+            "forbidden": "You do not have permission to destroy license plates.",
+            "notFound": "The license plate was not found.",
+            "invalidInput": "Enter a reason before destroying the license plate.",
+            "terminal": "This license plate is already consumed, shipped, merged or destroyed and cannot be destroyed.",
+            "reserved": "This license plate has reserved stock — clear the reservation before destroying it.",
+            "generic": "We could not destroy this license plate. Try again."
+          }
+        },
+        "ineligible": {
+          "split": "This license plate cannot be split in its current state (no available quantity, or it is held, reserved or terminal).",
+          "destroy": "This license plate cannot be destroyed — it is already terminal, or has reserved stock to clear first.",
+          "merge": "This license plate cannot be merged in its current state (held, reserved, or not in a mergeable status).",
+          "reserve": "Only QA-released license plates with available quantity can be reserved.",
+          "expired": "This license plate is past its expiry date and cannot be reserved or merged.",
+          "onHold": "This license plate is on an active quality hold and cannot be reserved or merged."
+        },
+        "mergeModal": {
+          "title": "Merge into {lp}",
+          "intro": "Select one or more compatible sibling license plates to merge into this LP. Quantities are combined; secondary LPs become terminal.",
+          "candidates": "Compatible siblings",
+          "loading": "Loading candidates…",
+          "empty": "No compatible sibling license plates are available to merge.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why are these LPs being merged?",
+          "cancel": "Cancel",
+          "confirm": "Merge LPs",
+          "submitting": "Merging…",
+          "validation": {
+            "selectionRequired": "Select at least one sibling license plate.",
+            "reasonRequired": "Enter a reason before merging."
+          },
+          "errors": {
+            "forbidden": "You do not have permission to merge license plates.",
+            "notFound": "One or more license plates were not found.",
+            "invalidInput": "Select sibling LPs and enter a reason before merging.",
+            "mismatch": "Sibling LPs must match product, UOM, batch, expiry, warehouse, site, and location.",
+            "invalidState": "Only available (received / available / returned) license plates can be merged.",
+            "reserved": "Reserved license plates cannot be merged — clear reservations first.",
+            "onHold": "One or more license plates are under an active quality hold and cannot be merged.",
+            "generic": "We could not merge these license plates. Try again."
+          }
+        }
+      },
+      "ruleNote": "Available actions are determined by the LP state machine. Split, Merge, and Destroy are live.",
+      "tabs": {
+        "overview": "Overview",
+        "history": "State history",
+        "reservations": "Reservations",
+        "movements": "Movements",
+        "genealogy": "Genealogy",
+        "labels": "Labels",
+        "raw": "Raw"
+      },
+      "overview": {
+        "title": "Identity snapshot"
+      },
+      "history": {
+        "empty": "No state transitions recorded for this LP.",
+        "transition": "{from} → {to}",
+        "by": "by {user}",
+        "reason": "Reason: {reason}",
+        "from": "From",
+        "to": "To",
+        "at": "At",
+        "reasonCol": "Reason"
+      },
+      "reservations": {
+        "empty": "No reservations for this LP.",
+        "wo": "Work order",
+        "reservedQty": "Reserved",
+        "available": "Available",
+        "note": "Reservations are created for material LPs allocated to work orders."
+      },
+      "movements": {
+        "empty": "No stock movements recorded for this LP.",
+        "timestamp": "Timestamp",
+        "type": "Type",
+        "from": "From",
+        "to": "To",
+        "qty": "Qty",
+        "reason": "Reason",
+        "reference": "Reference"
+      },
+      "genealogy": {
+        "parentTitle": "Parent LP (upstream)",
+        "childrenTitle": "Child LPs (downstream)",
+        "noParent": "No parent LP — this is a root receipt.",
+        "noChildren": "No child LPs — this LP has not been split or consumed into other LPs.",
+        "status": "Status",
+        "qty": "Qty"
+      },
+      "labels": {
+        "deferred": "Print a barcode / GS1 label for this license plate. Printer routing and job log live in Print history.",
+        "printAction": "Print label",
+        "printing": "Printing…",
+        "queued": "Print job queued for the printer.",
+        "sent": "Label sent — download the rendered output below.",
+        "download": "Download label",
+        "error": "Label could not be printed. Try again or contact an administrator.",
+        "forbidden": "Insufficient permissions: settings.org.update is required to print labels.",
+        "historyLink": "View print history"
+      },
+      "raw": {
+        "title": "Raw extension data (ext_jsonb)",
+        "empty": "No custom fields configured for this LP."
+      },
+      "move": {
+        "title": "Move {lpNumber}",
+        "subtitle": "Transfer this license plate to another location. The move is recorded in the Movements tab.",
+        "destination": "Destination location",
+        "destinationHelp": "Pick the target location for this LP.",
+        "destinationPlaceholder": "Select a location…",
+        "reason": "Reason (optional)",
+        "reasonHelp": "Why is this LP being moved? Recorded with the stock move.",
+        "reasonPlaceholder": "e.g. consolidate to picking face",
+        "currentLocation": "Current location",
+        "loadingLocations": "Loading locations…",
+        "noLocations": "No locations are configured for this org.",
+        "locationsError": "Could not load locations — try again.",
+        "cancel": "Cancel",
+        "submit": "Move LP",
+        "submitting": "Moving…",
+        "validation": {
+          "destinationRequired": "Pick a destination location."
+        },
+        "error": "Move failed: {message}",
+        "errorForbidden": "You do not have permission to move license plates.",
+        "errorLocked": "This LP is locked by another user — try again shortly.",
+        "errorInvalidState": "This LP cannot be moved in its current state.",
+        "errorNotFound": "LP or destination location no longer exists.",
+        "success": "LP moved."
+      },
+      "metadata": {
+        "action": "Edit metadata…",
+        "title": "Edit license-plate metadata",
+        "intro": "Correct the expiry date and/or batch number for this pallet. The change is recorded with a reason; quantity and location are not affected.",
+        "expiry": "Expiry date",
+        "expiryHelp": "Leave unchanged to keep the current expiry.",
+        "batch": "Batch / lot number",
+        "batchHelp": "The manufacturer or receiving batch reference.",
+        "reasonCode": "Reason",
+        "reasonPlaceholder": "Select a reason",
+        "reasonOptions": {
+          "entry_error": "Entry error",
+          "wrong_quantity": "Wrong quantity",
+          "wrong_batch": "Wrong batch / lot",
+          "wrong_product": "Wrong product",
+          "other": "Other"
+        },
+        "note": "Note",
+        "noteOptional": "optional",
+        "notePlaceholder": "Add context for the correction",
+        "noChange": "Change the expiry or batch to enable saving.",
+        "cancel": "Cancel",
+        "submit": "Save changes",
+        "submitting": "Saving…",
+        "errors": {
+          "forbidden": "You do not have permission to edit this license plate.",
+          "not_found": "This license plate no longer exists — refresh and retry.",
+          "lp_not_editable": "This pallet can no longer be edited — it has been consumed, shipped, merged or destroyed.",
+          "invalid_input": "Check the expiry date and batch and try again.",
+          "persistence_failed": "We could not save the changes. Try again.",
+          "generic": "We could not save the changes. Try again."
         }
       }
     }

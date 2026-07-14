@@ -31,7 +31,7 @@ import { releaseLpQa } from '../../_actions/lp-qa-actions';
 import { listLocations } from '../../_actions/location-read-actions';
 import { createStockMove } from '../../_actions/stock-move-actions';
 import { blockLp, listOpenWorkOrdersForLpReserve, reserveLp, unblockLp } from './_actions/lp-detail-actions';
-import { destroyLp, splitLp } from './_actions/lp-split-merge-destroy-actions';
+import { destroyLp, listSiblingLpsForMerge, mergeLps, splitLp } from './_actions/lp-split-merge-destroy-actions';
 import { updateLpMetadataAction } from './lp-metadata-adapter';
 // E1 — label printing wired through the printers settings actions (mig 304).
 import { printLabel } from '../../../../(admin)/settings/infra/printers/_actions/printers';
@@ -147,6 +147,7 @@ function buildLabels(locale: string): LpDetailLabels {
           otherWo: t('detail.actions.reserveModal.errors.otherWo'),
           woNotOpen: t('detail.actions.reserveModal.errors.woNotOpen'),
           qtyExceedsAvailable: t('detail.actions.reserveModal.errors.qtyExceedsAvailable'),
+          productNotInWoBom: t('detail.actions.reserveModal.errors.productNotInWoBom'),
           generic: t('detail.actions.reserveModal.errors.generic'),
         },
       },
@@ -232,6 +233,32 @@ function buildLabels(locale: string): LpDetailLabels {
           generic: t('detail.actions.splitModal.errors.generic'),
         },
       },
+      merge: {
+        title: t('detail.actions.mergeModal.title'),
+        intro: t('detail.actions.mergeModal.intro'),
+        candidates: t('detail.actions.mergeModal.candidates'),
+        loading: t('detail.actions.mergeModal.loading'),
+        empty: t('detail.actions.mergeModal.empty'),
+        reason: t('detail.actions.mergeModal.reason'),
+        reasonPlaceholder: t('detail.actions.mergeModal.reasonPlaceholder'),
+        cancel: t('detail.actions.mergeModal.cancel'),
+        confirm: t('detail.actions.mergeModal.confirm'),
+        submitting: t('detail.actions.mergeModal.submitting'),
+        validation: {
+          selectionRequired: t('detail.actions.mergeModal.validation.selectionRequired'),
+          reasonRequired: t('detail.actions.mergeModal.validation.reasonRequired'),
+        },
+        errors: {
+          forbidden: t('detail.actions.mergeModal.errors.forbidden'),
+          notFound: t('detail.actions.mergeModal.errors.notFound'),
+          invalidInput: t('detail.actions.mergeModal.errors.invalidInput'),
+          mismatch: t('detail.actions.mergeModal.errors.mismatch'),
+          invalidState: t('detail.actions.mergeModal.errors.invalidState'),
+          reserved: t('detail.actions.mergeModal.errors.reserved'),
+          onHold: t('detail.actions.mergeModal.errors.onHold'),
+          generic: t('detail.actions.mergeModal.errors.generic'),
+        },
+      },
       destroy: {
         title: t('detail.actions.destroyModal.title'),
         intro: t('detail.actions.destroyModal.intro'),
@@ -254,7 +281,10 @@ function buildLabels(locale: string): LpDetailLabels {
       ineligible: {
         split: t('detail.actions.ineligible.split'),
         destroy: t('detail.actions.ineligible.destroy'),
-        mergeDeferred: t('detail.actions.ineligible.mergeDeferred'),
+        merge: t('detail.actions.ineligible.merge'),
+        reserve: t('detail.actions.ineligible.reserve'),
+        expired: t('detail.actions.ineligible.expired'),
+        onHold: t('detail.actions.ineligible.onHold'),
       },
     },
     move: {
@@ -489,6 +519,8 @@ async function DetailContent({ locale, lpId }: { locale: string; lpId: string })
         listLocationsAction={listLocations}
         createStockMoveAction={createStockMove}
         splitLpAction={splitLp}
+        mergeLpAction={mergeLps}
+        listSiblingLpsForMergeAction={listSiblingLpsForMerge}
         destroyLpAction={destroyLp}
         updateLpMetadataAction={updateLpMetadataAction}
         printLabelAction={printLpLabel}

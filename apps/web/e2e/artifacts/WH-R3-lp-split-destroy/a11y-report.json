@@ -1,5 +1,5 @@
 {
-  "task": "WH-R3 — wire LP split / destroy; merge deferred (no candidate source in loader)",
+  "task": "WH-R3 / P1-19 — wire LP split / merge / destroy",
   "prototypeAnchor": "prototypes/design/Monopilot Design System/warehouse/lp-screens.jsx:310-317 (action group)",
   "tool": "RTL role/accessible-name assertions + HTML snapshots",
   "blocker": "jest-axe/vitest-axe not wired into apps/web vitest; out of STRICT SCOPE. Same documented substitute as the C-R3 / R2 evidence.",
@@ -23,7 +23,8 @@
       "splitTooltip": true,
       "destroyDisabled": true,
       "destroyTooltip": true,
-      "mergeDeferred": true
+      "mergeDisabled": true,
+      "mergeTooltip": true
     }
   },
   "violations": []

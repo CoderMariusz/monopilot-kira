@@ -391,6 +391,7 @@ export type ScanInputAreaProps = {
   onSubmit?: (value: string) => void;
   autoFocus?: boolean;
   state?: "idle" | "err" | "ok";
+  errorText?: string;
   extra?: ReactNode;
   labels: { camera: string; manual: string };
   /**
@@ -410,6 +411,7 @@ export function ScanInputArea({
   onSubmit,
   autoFocus = true,
   state = "idle",
+  errorText,
   extra,
   labels,
   onOpenCamera,
@@ -437,6 +439,7 @@ export function ScanInputArea({
       )}
       <input
         ref={ref}
+        aria-invalid={state === "err"}
         style={{
           width: "100%",
           height: 56,
@@ -459,6 +462,11 @@ export function ScanInputArea({
         autoComplete="off"
         spellCheck={false}
       />
+      {state === "err" && errorText && (
+        <div role="alert" style={{ marginTop: 6, fontSize: 12, color: T.red }}>
+          {errorText}
+        </div>
+      )}
       {hint && (
         <div style={{ marginTop: 6, fontSize: 11, color: T.hint }}>{hint}</div>
       )}

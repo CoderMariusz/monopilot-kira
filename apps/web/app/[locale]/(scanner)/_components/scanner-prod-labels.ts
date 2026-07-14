@@ -8,8 +8,8 @@
 // The exact same key tree is staged in _meta/i18n-staging/scanner-prod.json
 // (en + pl) for promotion into messages/** later.
 //
-// Only en + pl carry real copy per the project i18n policy; ro/uk mirror en
-// at promotion time via the staging script.
+// Unstaged ro/uk copy mirrors en; scanner fixes added here are translated in
+// all four supported locales.
 //
 // Parity: prototypes/scanner/flow-consume.jsx (WoListScreen 8-53,
 // WoDetailScreen / WoExecuteScreen 122-212, ConsumeScanScreen 215-422,
@@ -17,7 +17,7 @@
 // WasteScreen 226-315).
 // ============================================================
 
-export type ScannerProdLocale = "pl" | "en";
+export type ScannerProdLocale = "pl" | "en" | "ro" | "uk";
 
 interface ScannerProdLabelsShape {
   list: {
@@ -80,9 +80,11 @@ interface ScannerProdLabelsShape {
     lpExpiry: string;
     lpManual: string;
     lpManualDesc: string;
+    lpScanError: string;
     reasonLabel: string;
     reasonPlaceholder: string;
     doneLpRemaining: string;
+    doneLpAutoSelected: string;
     needed: string;
     qtyLabel: string;
     qtyHint: string;
@@ -298,9 +300,11 @@ const en: ScannerProdLabelsShape = {
     lpExpiry: "exp.",
     lpManual: "Manual / no LP",
     lpManualDesc: "Consume without selecting a license plate.",
+    lpScanError: "License plate not found or unavailable.",
     reasonLabel: "Manual reason code",
     reasonPlaceholder: "Required for manual / no-LP consumption",
     doneLpRemaining: "{qty} {uom} remaining on {lp}",
+    doneLpAutoSelected: "Consumed from LP {lp} (auto-selected, FEFO)",
     needed: "still needed",
     qtyLabel: "Quantity to consume",
     qtyHint: "In the material unit",
@@ -511,9 +515,11 @@ const pl: ScannerProdLabelsShape = {
     lpExpiry: "ważn.",
     lpManual: "Ręcznie / bez LP",
     lpManualDesc: "Konsumpcja bez wskazania nośnika.",
+    lpScanError: "Nie znaleziono nośnika LP lub jest on niedostępny.",
     reasonLabel: "Kod powodu ręcznego",
     reasonPlaceholder: "Wymagany przy konsumpcji ręcznej / bez LP",
     doneLpRemaining: "{qty} {uom} pozostało na {lp}",
+    doneLpAutoSelected: "Skonsumowano z LP {lp} (wybrano automatycznie, FEFO)",
     needed: "jeszcze potrzeba",
     qtyLabel: "Ilość do konsumpcji",
     qtyHint: "W jednostce materiału",
@@ -663,12 +669,29 @@ const pl: ScannerProdLabelsShape = {
   loading: "Ładowanie…",
 };
 
-const DICT: Record<ScannerProdLocale, ScannerProdLabelsShape> = { en, pl };
+const ro: ScannerProdLabelsShape = {
+  ...en,
+  consume: {
+    ...en.consume,
+    lpScanError: "Codul LP nu a fost găsit sau nu este disponibil.",
+    doneLpAutoSelected: "Consum din LP {lp} (selectat automat, FEFO)",
+  },
+};
+const uk: ScannerProdLabelsShape = {
+  ...en,
+  consume: {
+    ...en.consume,
+    lpScanError: "LP не знайдено або він недоступний.",
+    doneLpAutoSelected: "Списано з LP {lp} (автовибір, FEFO)",
+  },
+};
+
+const DICT = { en, pl, ro, uk } satisfies Record<string, ScannerProdLabelsShape>;
 
 export type ScannerProdLabels = ScannerProdLabelsShape;
 
 export function getScannerProdLabels(locale: string): ScannerProdLabels {
-  return locale === "en" ? DICT.en : DICT.pl;
+  return DICT[locale as keyof typeof DICT] ?? DICT.en;
 }
 
 // Static waste categories — P1 fallback. The scanner runs on a Bearer session

@@ -65,9 +65,15 @@ function mapFailure(error: unknown): WarehouseResult<never> {
   return { ok: false, reason: 'error' };
 }
 
-export async function listOpenWorkOrdersForLpReserve(search?: string, limitInput?: number): Promise<WarehouseResult<ReserveWorkOrderOption[]>> {
+export async function listOpenWorkOrdersForLpReserve(
+  lpIdInput: string,
+  search?: string,
+  limitInput?: number,
+): Promise<WarehouseResult<ReserveWorkOrderOption[]>> {
+  const lpId = asTrimmed(lpIdInput);
   const q = asTrimmed(search);
   const limit = asLimit(limitInput, 25, 50);
+  if (!lpId) return { ok: false, reason: 'error', message: 'invalid_input' };
 
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<WarehouseResult<ReserveWorkOrderOption[]>> => {
@@ -90,21 +96,40 @@ export async function listOpenWorkOrdersForLpReserve(search?: string, limitInput
                 i.name as item_name,
                 wo.planned_quantity::text,
                 wo.uom
-           from public.work_orders wo
+           from public.license_plates lp
+           join public.work_orders wo
+             on wo.org_id = app.current_org_id()
+            and wo.status = any($2::text[])
+            and (
+              wo.product_id = lp.product_id
+              or exists (
+                select 1
+                  from public.wo_materials wm
+                  left join public.bom_lines bl
+                    on bl.org_id = wm.org_id
+                   and bl.id = wm.bom_item_id
+                 where wm.org_id = app.current_org_id()
+                   and wm.wo_id = wo.id
+                   and (
+                     wm.product_id = lp.product_id
+                     or bl.substitute_item_id = lp.product_id
+                   )
+              )
+            )
            left join public.items i
              on i.org_id = app.current_org_id()
             and i.id = wo.product_id
-          where wo.org_id = app.current_org_id()
-            and wo.status = any($1::text[])
+          where lp.org_id = app.current_org_id()
+            and lp.id = $1::uuid
             and (
-              $2::text is null
-              or wo.wo_number ilike '%' || $2 || '%'
-              or coalesce(i.item_code, '') ilike '%' || $2 || '%'
-              or coalesce(i.name, '') ilike '%' || $2 || '%'
+              $3::text is null
+              or wo.wo_number ilike '%' || $3 || '%'
+              or coalesce(i.item_code, '') ilike '%' || $3 || '%'
+              or coalesce(i.name, '') ilike '%' || $3 || '%'
             )
           order by wo.scheduled_start_time nulls last, wo.created_at desc
-          limit $3::integer`,
-        [[...OPEN_WO_STATUSES], q, limit],
+          limit $4::integer`,
+        [lpId, [...OPEN_WO_STATUSES], q, limit],
       );
 
       return {
@@ -389,6 +414,7 @@ export async function reserveLp(lpIdInput: string, woIdInput: string, qtyInput: 
         quantity: string;
         reserved_qty: string;
         reserved_for_wo_id: string | null;
+        product_id: string;
         uom: string;
         expiry_date: string | null;
         site_id: string | null;
@@ -403,6 +429,7 @@ export async function reserveLp(lpIdInput: string, woIdInput: string, qtyInput: 
                 lp.quantity::text,
                 lp.reserved_qty::text,
                 lp.reserved_for_wo_id::text,
+                lp.product_id::text,
                 lp.uom,
                 to_char(lp.expiry_date, 'YYYY-MM-DD') as expiry_date,
                 lp.site_id::text,
@@ -478,6 +505,37 @@ export async function reserveLp(lpIdInput: string, woIdInput: string, qtyInput: 
       if (!workOrder) return { ok: false, reason: 'not_found' };
       if (!(OPEN_WO_STATUSES as readonly string[]).includes(workOrder.status)) {
         return { ok: false, reason: 'error', message: 'wo_not_open' };
+      }
+
+      // BOM membership: LP product must be a WO material, a BOM substitute, or the
+      // WO's own output product (FG LP reserved against the WO that produces it).
+      const bomCompat = await ctx.client.query<{ ok: boolean }>(
+        `select exists (
+           select 1
+             from public.work_orders wo
+            where wo.org_id = app.current_org_id()
+              and wo.id = $1::uuid
+              and (
+                wo.product_id = $2::uuid
+                or exists (
+                  select 1
+                    from public.wo_materials wm
+                    left join public.bom_lines bl
+                      on bl.org_id = wm.org_id
+                     and bl.id = wm.bom_item_id
+                   where wm.org_id = app.current_org_id()
+                     and wm.wo_id = wo.id
+                     and (
+                       wm.product_id = $2::uuid
+                       or bl.substitute_item_id = $2::uuid
+                     )
+                )
+              )
+         ) as ok`,
+        [woId, lp.product_id],
+      );
+      if (bomCompat.rows[0]?.ok !== true) {
+        return { ok: false, reason: 'error', message: 'product_not_in_wo_bom' };
       }
 
       const availability = await ctx.client.query<{ fits: boolean }>(

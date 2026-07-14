@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { destroyLp, mergeLps, splitLp } from '../lp-split-merge-destroy-actions';
+import { destroyLp, listSiblingLpsForMerge, mergeLps, splitLp } from '../lp-split-merge-destroy-actions';
 import type { QueryClient } from '../../../../_actions/shared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -31,6 +31,13 @@ let secondaryProductId: string;
 let secondarySiteId: string | null;
 let secondaryWarehouseId: string;
 let secondaryLocationId: string | null;
+let siblingListRows: Array<{
+  primary_id: string;
+  id: string | null;
+  lp_number: string | null;
+  quantity: string | null;
+  uom: string | null;
+}>;
 
 vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -95,9 +102,13 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.includes('from public.license_plates primary_lp') && q.includes('left join public.license_plates sibling')) {
+        return { rows: siblingListRows, rowCount: siblingListRows.length };
+      }
+
       if (q.includes('from public.v_active_holds')) {
         const ids = (params?.[0] as string[] | undefined) ?? [];
-        const rows = ids.filter((id) => heldLpIds.has(id)).map((id) => ({ id }));
+        const rows = (Array.isArray(ids) ? ids : []).filter((id) => heldLpIds.has(id)).map((id) => ({ id }));
         return { rows, rowCount: rows.length };
       }
 
@@ -162,6 +173,15 @@ describe('LP split/merge/destroy server actions', () => {
     secondarySiteId = SITE_ID;
     secondaryWarehouseId = WAREHOUSE_ID;
     secondaryLocationId = LOCATION_ID;
+    siblingListRows = [
+      {
+        primary_id: PRIMARY_LP_ID,
+        id: SECONDARY_LP_ID,
+        lp_number: 'LP-002',
+        quantity: '4.000000',
+        uom: 'kg',
+      },
+    ];
     client = makeClient();
   });
 
@@ -200,6 +220,34 @@ describe('LP split/merge/destroy server actions', () => {
     expect(calls.some((sql) => sql.startsWith('with deterministic_child as') && sql.includes('insert into public.license_plates'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('update public.license_plates'))).toBe(false);
     expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
+  });
+
+  it('listSiblingLpsForMerge returns only compatible siblings for the primary', async () => {
+    const result = await listSiblingLpsForMerge(PRIMARY_LP_ID);
+
+    expect(result).toEqual({
+      ok: true,
+      siblings: [{ id: SECONDARY_LP_ID, lpNumber: 'LP-002', quantity: '4.000000', uom: 'kg' }],
+    });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql, params]) => ({ sql: normalize(String(sql)), params }));
+    expect(calls.find((call) => call.sql.includes('from public.user_roles'))?.params?.[2]).toBe('warehouse.lp.merge');
+    expect(calls.some((call) => call.sql.includes('left join public.license_plates sibling'))).toBe(true);
+  });
+
+  it('listSiblingLpsForMerge returns empty siblings when primary exists but no candidates match', async () => {
+    siblingListRows = [{ primary_id: PRIMARY_LP_ID, id: null, lp_number: null, quantity: null, uom: null }];
+
+    const result = await listSiblingLpsForMerge(PRIMARY_LP_ID);
+
+    expect(result).toEqual({ ok: true, siblings: [] });
+  });
+
+  it('listSiblingLpsForMerge returns not_found when the primary LP is missing', async () => {
+    siblingListRows = [];
+
+    const result = await listSiblingLpsForMerge(PRIMARY_LP_ID);
+
+    expect(result).toEqual({ ok: false, error: 'not_found' });
   });
 
   it('mergeLps merges matching LPs and keeps the most restrictive QA status', async () => {

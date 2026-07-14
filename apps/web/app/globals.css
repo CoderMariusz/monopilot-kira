@@ -230,7 +230,7 @@
 
   @media (max-width: 640px) {
     [data-testid="scanner-frame"].scanner-shell {
-      --shell-scanner-w: 100vw;
+      --shell-scanner-w: 100dvw;
       --shell-scanner-h: 100dvh;
       border-radius: 0;
       box-shadow: none;

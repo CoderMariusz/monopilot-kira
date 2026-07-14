@@ -61,6 +61,7 @@ type MaterialGateRow = {
 
 type ConsumedLpMoveRow = {
   id: string;
+  lp_number: string;
   product_id: string;
   quantity: string;
   site_id: string | null;
@@ -178,6 +179,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
             ...(typeof storedExt.materialId === 'string' ? { materialId: storedExt.materialId } : {}),
             ...(typeof storedExt.consumedQty === 'string' ? { consumedQty: storedExt.consumedQty } : {}),
             ...(typeof storedExt.uom === 'string' ? { uom: storedExt.uom } : {}),
+            ...(typeof storedExt.fefoAutoResolved === 'boolean' ? { fefoAutoResolved: storedExt.fefoAutoResolved } : {}),
+            ...(typeof storedExt.resolvedLpId === 'string' ? { resolvedLpId: storedExt.resolvedLpId } : {}),
+            ...(typeof storedExt.resolvedLpNumber === 'string' ? { resolvedLpNumber: storedExt.resolvedLpNumber } : {}),
+            ...(typeof storedExt.remainingLpQty === 'string' ? { remainingLpQty: storedExt.remainingLpQty } : {}),
             approverUserId: typeof storedExt.approverUserId === 'string' ? storedExt.approverUserId : null,
             ...(storedExt.warned === true
               ? {
@@ -418,7 +423,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             and uom = $7
             and quantity - $3::numeric >= reserved_qty
             and app.user_can_see_site(site_id)
-          returning id, product_id::text as product_id, quantity::text as quantity, site_id::text as site_id, location_id::text as location_id`,
+          returning id, lp_number, product_id::text as product_id, quantity::text as quantity, site_id::text as site_id, location_id::text as location_id`,
         [
           session.org_id,
           resolvedLpId,
@@ -633,6 +638,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
             // idempotent replay can reconstruct the original payload.
             consumedQty: material.consumed_qty,
             uom: material.uom,
+            fefoAutoResolved: lpResolution.fefoAutoResolved,
+            resolvedLpId,
+            resolvedLpNumber: consumedLpMove.lp_number,
+            remainingLpQty: consumedLpMove.quantity,
             approverUserId,
             overPct: gate.over_limit || warnBand ? numericJson(gate.over_pct) : null,
             ...(warnBand ? { warned: true, warnPct: numericJson(gate.warn_pct) } : {}),
@@ -645,6 +654,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
         materialId: material.id,
         consumedQty: material.consumed_qty,
         uom: material.uom,
+        fefoAutoResolved: lpResolution.fefoAutoResolved,
+        resolvedLpId,
+        resolvedLpNumber: consumedLpMove.lp_number,
+        remainingLpQty: consumedLpMove.quantity,
         replay: false,
         ...(warnBand
           ? {

@@ -167,6 +167,7 @@ export async function getLpDetail(lpId: string): Promise<WarehouseResult<License
           reserved_for_wo_number: string | null;
           parent_lp_id: string | null;
           parent_lp_number: string | null;
+          has_active_hold: boolean;
         }
       >(
         `select lp.id::text,
@@ -198,7 +199,14 @@ export async function getLpDetail(lpId: string): Promise<WarehouseResult<License
                 rwo.wo_number as reserved_for_wo_number,
                 parent.id::text as parent_lp_id,
                 parent.lp_number as parent_lp_number,
-                lp.created_at
+                lp.created_at,
+                exists (
+                  select 1
+                    from public.v_active_holds h
+                   where h.org_id = app.current_org_id()
+                     and h.reference_type = 'lp'
+                     and h.reference_id = lp.id
+                ) as has_active_hold
            from public.license_plates lp
            left join public.items i on i.org_id = app.current_org_id() and i.id = lp.product_id
            left join public.locations l on l.org_id = app.current_org_id() and l.id = lp.location_id
@@ -289,6 +297,7 @@ export async function getLpDetail(lpId: string): Promise<WarehouseResult<License
           woId: row.wo_id,
           reservedForWoId: row.reserved_for_wo_id,
           reservedForWoNumber: row.reserved_for_wo_number,
+          hasActiveHold: Boolean(row.has_active_hold),
           parentLp: row.parent_lp_id ? { id: row.parent_lp_id, lpNumber: row.parent_lp_number ?? row.parent_lp_id } : null,
           childLps: children.rows.map((child) => ({
             id: child.id,

@@ -116,6 +116,27 @@ describe('ComponentAddModal (TEC-022 parity + behavior)', () => {
     expect(mocks.createBomDraft).not.toHaveBeenCalled();
   });
 
+  it('disables Add while usability is still checking (P2 #18)', async () => {
+    const user = userEvent.setup();
+    let resolveCheck: (value: unknown) => void = () => {};
+    mocks.validateBomComponent.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCheck = resolve;
+        }),
+    );
+    render(<ComponentAddModal open onClose={() => {}} context={DRAFT_CTX} />);
+    await user.click(await screen.findByRole('option', { name: /RM-1001/ }));
+    expect(await screen.findByText(/Checking component usability/)).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Mixing' }));
+    const addBtn = screen.getByRole('button', { name: 'Add component' });
+    expect(addBtn).toBeDisabled();
+    expect(addBtn).toHaveAttribute('title', expect.stringMatching(/Checking component usability/));
+    resolveCheck({ ok: true, verdict: usableVerdict(true) });
+    await waitFor(() => expect(addBtn).toBeEnabled());
+  });
+
   it('saves a usable component, closes + refreshes (AC4)', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

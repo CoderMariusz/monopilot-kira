@@ -61,6 +61,13 @@ type OverconsumeWarning = {
   overPct: number;
   warnPct: number;
 };
+type ConsumeSuccess = MutationResult & {
+  warning?: OverconsumeWarning;
+  fefoAutoResolved?: boolean;
+  resolvedLpId?: string;
+  resolvedLpNumber?: string;
+  remainingLpQty?: string;
+};
 
 export function ConsumeScreen({
   locale,
@@ -95,6 +102,10 @@ export function ConsumeScreen({
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [approval, setApproval] = useState<OverconsumeApproval | null>(null);
   const [doneWarning, setDoneWarning] = useState<OverconsumeWarning | null>(null);
+  const [autoResolvedLp, setAutoResolvedLp] = useState<{
+    lpNumber: string;
+    remainingQty: string;
+  } | null>(null);
   const [approverEmail, setApproverEmail] = useState("");
   const [approverPin, setApproverPin] = useState("");
   // clientOpId is created fresh per ATTEMPT and held until success so a retry
@@ -169,6 +180,7 @@ export function ConsumeScreen({
     setSubmitErr(null);
     setApproval(null);
     setDoneWarning(null);
+    setAutoResolvedLp(null);
     setApproverEmail("");
     setApproverPin("");
     setClientOpId(null);
@@ -249,7 +261,7 @@ export function ConsumeScreen({
         setSubmitErr(mapConsumeConflict(data?.error, L));
         return;
       }
-      const data = (await res.json()) as MutationResult & { warning?: OverconsumeWarning };
+      const data = (await res.json()) as ConsumeSuccess;
       if (!res.ok || !data.ok) {
         setSubmitErr(L.errGeneric);
         return;
@@ -257,6 +269,11 @@ export function ConsumeScreen({
       // success — release the attempt's clientOpId. A warn-tier success carries
       // a warning payload (over warn threshold, ≤ approval threshold) → amber.
       setDoneWarning(data.warning?.overconsumed ? data.warning : null);
+      setAutoResolvedLp(
+        data.fefoAutoResolved && data.resolvedLpNumber && data.remainingLpQty
+          ? { lpNumber: data.resolvedLpNumber, remainingQty: data.remainingLpQty }
+          : null,
+      );
       setClientOpId(null);
       setApproval(null);
       setApproverEmail("");
@@ -278,6 +295,7 @@ export function ConsumeScreen({
     setSubmitErr(null);
     setApproval(null);
     setDoneWarning(null);
+    setAutoResolvedLp(null);
     setApproverEmail("");
     setApproverPin("");
     setClientOpId(null);
@@ -327,6 +345,19 @@ export function ConsumeScreen({
                     .replace("{uom}", selectedLp.uom)
                     .replace("{lp}", selectedLp.lpNumber)}
                 </div>
+              )}
+              {!selectedLp && autoResolvedLp && selected && (
+                <>
+                  <div style={{ fontSize: 12, color: T.hint, marginTop: 6 }}>
+                    {L.doneLpAutoSelected.replace("{lp}", autoResolvedLp.lpNumber)}
+                  </div>
+                  <div style={{ fontSize: 12, color: T.hint, marginTop: 6 }}>
+                    {L.doneLpRemaining
+                      .replace("{qty}", autoResolvedLp.remainingQty)
+                      .replace("{uom}", selected.uom)
+                      .replace("{lp}", autoResolvedLp.lpNumber)}
+                  </div>
+                </>
               )}
             </div>
             {doneWarning && (
@@ -415,6 +446,7 @@ export function ConsumeScreen({
                     }}
                     onSubmit={scanLpCode}
                     state={lpScanState}
+                    errorText={L.lpScanError}
                     labels={shellLabels.scanTools}
                     onOpenCamera={() => setLpCameraOpen(true)}
                   />

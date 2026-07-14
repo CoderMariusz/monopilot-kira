@@ -235,6 +235,7 @@ describe('TO DRAFT edit affordances (Wave R1)', () => {
       expectedDate: '2026-07-02',
       notes: 'move it',
     });
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it('submits an explicitly empty notes string when the operator clears notes', async () => {
