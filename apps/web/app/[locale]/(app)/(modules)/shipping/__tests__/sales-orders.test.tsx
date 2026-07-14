@@ -32,6 +32,7 @@ import { SoDetailView, type SoDetailLabels, type SoDetail, type SoCaps } from '.
 import type { CreateSoResult } from '../_components/create-so-modal';
 import type { SoActionResult } from '../_components/so-detail-view';
 import type { SoCustomerOption } from '../_actions/so-form-data';
+import { computeSoLineTotalGbp, formatSoGbpDisplay } from '../_actions/sales-line-price';
 import type { ItemPickerOption } from '../../../../../(npd)/fa/actions/search-items-types';
 
 const refresh = vi.fn();
@@ -82,6 +83,9 @@ const createLabels: SoListLabels['create'] = {
   lineItem: 'Item',
   lineQty: 'Qty',
   lineUom: 'UoM',
+  lineUnitPrice: 'Unit price (GBP)',
+  lineTotal: 'Line total',
+  foreignPriceHint: 'Customer price {currency}{price}/{uom} — set GBP unit price',
   uomPlaceholder: 'Unit',
   uomOptions: { kg: 'kg', g: 'g', l: 'l', ml: 'ml', pcs: 'pcs', pack: 'pack', box: 'box', pallet: 'pallet' },
   qtyPlaceholder: '0',
@@ -128,6 +132,21 @@ const listLabels: SoListLabels = {
   view: 'View',
   empty: { title: 'No sales orders yet', body: 'Create your first sales order.', clear: 'Clear filters' },
   create: createLabels,
+  pagination: {
+    showing: 'Showing {from}–{to} of {total}',
+    previous: 'Previous',
+    next: 'Next',
+  },
+};
+
+const defaultListFilters = { status: '', search: '', customerCode: '' };
+const defaultListPagination = {
+  items: [] as SoRow[],
+  total: 2,
+  page: 1,
+  limit: 50,
+  offset: 0,
+  hasMore: false,
 };
 
 const detailLabels: SoDetailLabels = {
@@ -149,6 +168,8 @@ const detailLabels: SoDetailLabels = {
     item: 'Item',
     qty: 'Ordered',
     uom: 'UoM',
+    unitPrice: 'Unit price',
+    lineTotal: 'Line total',
     allocated: 'Allocated',
     allocationStatus: 'Allocation',
     empty: 'This sales order has no lines.',
@@ -159,10 +180,35 @@ const detailLabels: SoDetailLabels = {
     deallocate: 'Deallocate',
     confirm: 'Confirm',
     cancel: 'Cancel',
+    edit: 'Edit',
+    delete: 'Delete',
+    deletePrompt: 'Delete draft sales order {so}?',
     pending: 'Working…',
     confirmPrompt: 'Move sales order {so} to {status}?',
     noPermission: 'You do not have permission to perform this action.',
     notAvailable: 'This action is not available in the current status.',
+  },
+  edit: {
+    title: 'Edit sales order',
+    requestedLabel: 'Requested ship date',
+    notesLabel: 'Notes',
+    lineItem: 'Item',
+    lineQty: 'Qty',
+    lineUom: 'UoM',
+    lineUnitPrice: 'Unit price (GBP)',
+    lineTotal: 'Line total',
+    lineNotes: 'Line notes',
+    submit: 'Save changes',
+    submitting: 'Saving…',
+    cancel: 'Cancel',
+    errors: {
+      linesInvalid: 'Enter a positive quantity on every line.',
+      priceInvalid: 'Unit price must be greater than zero on every line.',
+      invalid_input: 'invalid',
+      forbidden: "You don't have permission to do that.",
+      not_draft: 'Only draft sales orders can be edited or deleted.',
+      persistence_failed: 'save failed',
+    },
   },
   notesTitle: 'Notes',
   errors: {
@@ -213,15 +259,20 @@ const searchSoItemsAction = vi.fn(async (): Promise<ItemPickerOption[]> => [
   { id: 'item-uuid-1111', itemCode: 'FG-100', name: 'Sausage roll', itemType: 'fg', status: 'active', costPerKgEur: null, uomBase: 'kg' },
 ]);
 
+const resolveSoLinePricesAction = vi.fn(async () => [{ item_id: 'item-uuid-1111', unitPriceGbp: '3.5000' }]);
+
 function renderList(overrides: Partial<React.ComponentProps<typeof SoListView>> = {}) {
   const createSalesOrderAction = vi.fn(async (): Promise<CreateSoResult> => ({ ok: true, data: {} }));
   render(
     <SoListView
       locale="en"
       salesOrders={rows}
+      pagination={{ ...defaultListPagination, items: overrides.salesOrders ?? rows }}
+      filters={defaultListFilters}
       customers={customers}
       labels={listLabels}
       searchSoItemsAction={searchSoItemsAction}
+      resolveSoLinePricesAction={resolveSoLinePricesAction}
       createSalesOrderAction={createSalesOrderAction}
       {...overrides}
     />,
@@ -265,9 +316,13 @@ describe('SoListView — list states + parity', () => {
     expect(screen.getByTestId(`so-view-${SO_ID}`)).toHaveAttribute('href', `/en/shipping/${SO_ID}`);
   });
 
-  it('filters by status tab', () => {
-    renderList();
-    fireEvent.click(screen.getByTestId('so-list-tab-confirmed'));
+  it('reflects server-side status tab filter in the active tab and row set', () => {
+    renderList({
+      filters: { status: 'confirmed', search: '', customerCode: '' },
+      salesOrders: [rows[1]!],
+      pagination: { ...defaultListPagination, total: 1, items: [rows[1]!] },
+    });
+    expect(screen.getByTestId('so-list-tab-confirmed')).toHaveAttribute('aria-selected', 'true');
     const table = screen.getByTestId('so-list-table');
     expect(within(table).queryByText('SO-202606-00001')).not.toBeInTheDocument();
     expect(within(table).getByText('SO-202606-00002')).toBeInTheDocument();
@@ -286,7 +341,7 @@ describe('SoListView — list states + parity', () => {
 });
 
 describe('CreateSoModal — exposes all createSalesOrder fields + validation + RBAC', () => {
-  it('opening the modal exposes customer, requested date, notes, and the line editor (item/qty/uom)', () => {
+  it('opening the modal exposes customer, requested date, notes, and the line editor (item/qty/uom/price/total)', () => {
     renderList();
     fireEvent.click(screen.getByTestId('so-list-create'));
     const form = screen.getByTestId('create-so-form');
@@ -298,6 +353,8 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
     expect(screen.getByTestId('create-so-lines')).toBeInTheDocument();
     expect(screen.getByTestId('create-so-line-qty')).toBeInTheDocument();
     expect(screen.getByTestId('create-so-line-uom')).toBeInTheDocument();
+    expect(screen.getByTestId('create-so-line-price')).toBeInTheDocument();
+    expect(screen.getByTestId('create-so-line-total')).toBeInTheDocument();
   });
 
   it('blocks submit without a customer', async () => {
@@ -313,10 +370,13 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
       <SoListView
         locale="en"
         salesOrders={rows}
+        pagination={{ ...defaultListPagination, items: rows }}
+        filters={defaultListFilters}
         customers={customers}
         labels={listLabels}
         autoOpenCreate
         searchSoItemsAction={searchSoItemsAction}
+        resolveSoLinePricesAction={resolveSoLinePricesAction}
         createSalesOrderAction={createSalesOrderAction}
       />,
     );
@@ -330,14 +390,33 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
     fireEvent.change(screen.getByPlaceholderText('Search by code or name…'), { target: { value: 'FG' } });
     fireEvent.click(await screen.findByText(/Sausage roll/));
     fireEvent.change(screen.getByTestId('create-so-line-qty'), { target: { value: '5' } });
+    await waitFor(() => {
+      expect(screen.getByTestId('create-so-line-price')).toHaveValue('3.5000');
+    });
     fireEvent.click(screen.getByTestId('create-so-submit'));
     expect(await screen.findByTestId('create-so-error')).toHaveTextContent("You don't have permission to do that.");
     expect(createSalesOrderAction).toHaveBeenCalledTimes(1);
     const payload = createSalesOrderAction.mock.calls[0][0];
     expect(payload).toMatchObject({
       customer_id: customers[0].id,
-      lines: [{ item_id: 'item-uuid-1111', qty: '5', uom: 'kg' }],
+      lines: [{ item_id: 'item-uuid-1111', qty: '5', uom: 'kg', unit_price_gbp: '3.5000' }],
     });
+  });
+
+  it('preview line total matches the exact decimal persisted by Postgres for fractional prices', async () => {
+    renderList({ autoOpenCreate: true });
+    const form = screen.getByTestId('create-so-form');
+    fireEvent.click(within(form).getAllByRole('combobox')[0]);
+    fireEvent.click(screen.getByRole('option', { name: /CUST-01/ }));
+    fireEvent.click(screen.getByRole('button', { name: '+ Add finished good' }));
+    fireEvent.change(screen.getByPlaceholderText('Search by code or name…'), { target: { value: 'FG' } });
+    fireEvent.click(await screen.findByText(/Sausage roll/));
+    fireEvent.change(screen.getByTestId('create-so-line-qty'), { target: { value: '1' } });
+    fireEvent.change(screen.getByTestId('create-so-line-price'), { target: { value: '1.0050' } });
+
+    const persistedTotal = computeSoLineTotalGbp('1', '1.0050');
+    expect(persistedTotal).toBe('1.0050');
+    expect(screen.getByTestId('create-so-line-total')).toHaveTextContent(formatSoGbpDisplay(persistedTotal));
   });
 });
 
@@ -363,13 +442,16 @@ function makeSo(overrides: Partial<SoDetail> = {}): SoDetail {
         uom: 'kg',
         allocatedQty: '0',
         allocationStatus: 'unallocated',
+        unitPriceGbp: '3.50',
+        lineTotalGbp: '35.00',
+        notes: null,
       },
     ],
     ...overrides,
   };
 }
 
-const allCaps: SoCaps = { canAllocate: true, canConfirm: true, canCancel: true };
+const allCaps: SoCaps = { canAllocate: true, canConfirm: true, canCancel: true, canEdit: true };
 
 function renderDetail(
   so: SoDetail,
@@ -378,11 +460,15 @@ function renderDetail(
     allocate: (id: string) => Promise<SoActionResult>;
     deallocate: (id: string) => Promise<SoActionResult>;
     transition: (id: string, status: string) => Promise<SoActionResult>;
+    update: (soId: string, input: Record<string, unknown>) => Promise<SoActionResult>;
+    remove: (id: string) => Promise<SoActionResult>;
   }> = {},
 ) {
   const allocate = vi.fn(seams.allocate ?? (async (): Promise<SoActionResult> => ({ ok: true, data: {} })));
   const deallocate = vi.fn(seams.deallocate ?? (async (): Promise<SoActionResult> => ({ ok: true, data: {} })));
   const transition = vi.fn(seams.transition ?? (async (): Promise<SoActionResult> => ({ ok: true, data: {} })));
+  const update = vi.fn(seams.update ?? (async (): Promise<SoActionResult> => ({ ok: true, data: {} })));
+  const remove = vi.fn(seams.remove ?? (async (): Promise<SoActionResult> => ({ ok: true, data: {} })));
   render(
     <SoDetailView
       so={so}
@@ -392,9 +478,11 @@ function renderDetail(
       allocateSalesOrderAction={allocate}
       deallocateSalesOrderAction={deallocate}
       transitionSalesOrderStatusAction={transition}
+      updateSalesOrderAction={update}
+      deleteSalesOrderAction={remove}
     />,
   );
-  return { allocate, deallocate, transition };
+  return { allocate, deallocate, transition, update, remove };
 }
 
 describe('SoDetailView — header, lines, allocation badges + gated actions', () => {
@@ -411,6 +499,8 @@ describe('SoDetailView — header, lines, allocation badges + gated actions', ()
     const lines = screen.getByTestId('so-lines-table');
     expect(within(lines).getByText('FG-100')).toBeInTheDocument();
     expect(within(lines).getByText('Sausage roll')).toBeInTheDocument();
+    expect(screen.getByTestId(`so-line-unit-price-${LINE_ID}`)).toHaveTextContent('£3.50');
+    expect(screen.getByTestId(`so-line-total-${LINE_ID}`)).toHaveTextContent('£35.00');
     // no raw UUID leak
     expect(document.body.textContent).not.toContain(SO_ID);
     expect(document.body.textContent).not.toContain(LINE_ID);

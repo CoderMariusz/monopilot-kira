@@ -105,6 +105,41 @@ function makeClient(): QueryClient {
       if (q.includes('from public.customer_addresses') && q.includes('customer_id = $1::uuid')) {
         return { rows: [addressRow()], rowCount: 1 };
       }
+      if (q.includes('from public.customer_contacts')) {
+        return {
+          rows: [
+            {
+              id: 'contact-1',
+              customer_id: CUSTOMER_ID,
+              name: 'Jane Buyer',
+              title: 'Purchasing',
+              email: 'buyer@acme.test',
+              phone: '+44 20 0000 0000',
+              is_primary: true,
+              created_at: '2026-06-25T10:00:00.000Z',
+              updated_at: '2026-06-25T10:00:00.000Z',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (q.includes('from public.customer_allergen_restrictions')) {
+        return {
+          rows: [
+            {
+              id: 'allergen-1',
+              customer_id: CUSTOMER_ID,
+              allergen_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              allergen_name: 'Milk',
+              restriction_type: 'refuses',
+              notes: 'No dairy',
+              created_at: '2026-06-25T10:00:00.000Z',
+              updated_at: '2026-06-25T10:00:00.000Z',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
       if (q.startsWith('insert into public.audit_events')) {
         return { rows: [], rowCount: 1 };
       }
@@ -165,8 +200,14 @@ describe('getCustomer', () => {
     if (result.ok) {
       expect(result.data.addresses).toHaveLength(1);
       expect(result.data.addresses[0]?.addressLine1).toBe('1 High St');
+      expect(result.data.contacts).toHaveLength(1);
+      expect(result.data.contacts[0]?.name).toBe('Jane Buyer');
+      expect(result.data.allergenRestrictions).toHaveLength(1);
+      expect(result.data.allergenRestrictions[0]?.allergenName).toBe('Milk');
     }
     expect(queryLog.some((e) => normalize(e.sql).includes('from public.customer_addresses'))).toBe(true);
+    expect(queryLog.some((e) => normalize(e.sql).includes('from public.customer_contacts'))).toBe(true);
+    expect(queryLog.some((e) => normalize(e.sql).includes('from public.customer_allergen_restrictions'))).toBe(true);
   });
 });
 

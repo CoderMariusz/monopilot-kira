@@ -10,6 +10,7 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getCustomer, updateCustomer, setCustomerActive } from '../_actions/customer-actions';
+import { listSalesOrders } from '../../_actions/so-actions';
 import {
   createCustomerAddress,
   updateCustomerAddress,
@@ -57,10 +58,25 @@ async function DetailContent({ locale, customerId }: { locale: string; customerI
     );
   }
 
+  const ordersResult = await listSalesOrders({ customerCode: result.data.code, limit: 50 });
+  const orderHistory =
+    ordersResult.ok && ordersResult.data
+      ? ordersResult.data.items.map((order) => ({
+          id: order.id,
+          soNumber: order.so_number,
+          status: order.status,
+          lineCount: order.line_count,
+          total: order.total,
+          expectedShipDate: order.expected_ship_date,
+          createdAt: order.created_at,
+        }))
+      : [];
+
   return (
     <CustomerDetailView
       locale={locale}
       customer={result.data}
+      orderHistory={orderHistory}
       labels={buildCustomerDetailLabels((key) => t(key))}
       updateCustomerAction={updateCustomer}
       setCustomerActiveAction={setCustomerActive}

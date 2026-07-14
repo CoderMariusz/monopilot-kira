@@ -22,6 +22,8 @@ import type {
   CustomerAddress,
   CustomerAddressInput,
   CustomerAddressUpdateInput,
+  CustomerAllergenRestriction,
+  CustomerContact,
   CustomerDetail,
   UpdateCustomerInput,
   UpdateCustomerResult,
@@ -29,7 +31,17 @@ import type {
 import type { EditCustomerLabels } from './edit-customer-modal';
 import type { CustomerAddressModalLabels } from './customer-address-modal';
 
-type TabKey = 'profile' | 'addresses';
+type TabKey = 'profile' | 'addresses' | 'contacts' | 'allergens' | 'orders';
+
+export type CustomerOrderHistoryRow = {
+  id: string;
+  soNumber: string;
+  status: string;
+  lineCount: number;
+  total: string;
+  expectedShipDate: string | null;
+  createdAt: string;
+};
 
 export type CustomerDetailLabels = {
   status: { active: string; inactive: string };
@@ -66,6 +78,26 @@ export type CustomerDetailLabels = {
     pending: string;
     errors: Record<string, string>;
   };
+  contacts: {
+    title: string;
+    empty: string;
+    columns: Record<string, string>;
+    primary: string;
+    notPrimary: string;
+  };
+  allergens: {
+    title: string;
+    empty: string;
+    columns: Record<string, string>;
+    restrictionType: Record<string, string>;
+  };
+  orders: {
+    title: string;
+    empty: string;
+    view: string;
+    columns: Record<string, string>;
+    status: Record<string, string>;
+  };
   edit: EditCustomerLabels;
   addressModal: CustomerAddressModalLabels;
 };
@@ -73,6 +105,7 @@ export type CustomerDetailLabels = {
 export type CustomerDetailViewProps = {
   locale: string;
   customer: CustomerDetail;
+  orderHistory: CustomerOrderHistoryRow[];
   labels: CustomerDetailLabels;
   updateCustomerAction: (input: UpdateCustomerInput) => Promise<UpdateCustomerResult>;
   setCustomerActiveAction: (input: { customerId: string; isActive: boolean }) => Promise<UpdateCustomerResult>;
@@ -90,9 +123,16 @@ function formatDate(iso: string): string {
   }
 }
 
+function formatMoney(value: string, locale: string): string {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '—';
+  return new Intl.NumberFormat(locale, { style: 'currency', currency: 'GBP' }).format(amount);
+}
+
 export function CustomerDetailView({
   locale,
   customer,
+  orderHistory,
   labels,
   updateCustomerAction,
   setCustomerActiveAction,
@@ -196,7 +236,7 @@ export function CustomerDetailView({
       ) : null}
 
       <div role="tablist" className="flex flex-wrap gap-2" data-testid="customer-detail-tabs">
-        {(['profile', 'addresses'] as const).map((key) => (
+        {(['profile', 'addresses', 'contacts', 'allergens', 'orders'] as const).map((key) => (
           <button
             key={key}
             type="button"
@@ -212,6 +252,15 @@ export function CustomerDetailView({
             {labels.tabs[key]}
             {key === 'addresses' ? (
               <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">{customer.addresses.length}</span>
+            ) : null}
+            {key === 'contacts' ? (
+              <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">{customer.contacts.length}</span>
+            ) : null}
+            {key === 'allergens' ? (
+              <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">{customer.allergenRestrictions.length}</span>
+            ) : null}
+            {key === 'orders' ? (
+              <span className="ml-1.5 rounded bg-slate-200/60 px-1.5 text-xs tabular-nums text-slate-700">{orderHistory.length}</span>
             ) : null}
           </button>
         ))}
@@ -328,6 +377,124 @@ export function CustomerDetailView({
             </div>
           )}
           <div className="border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">{labels.addresses.hint}</div>
+        </div>
+      ) : null}
+
+      {tab === 'contacts' ? (
+        <div className="rounded-xl border border-slate-200" data-testid="customer-detail-contacts">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h3 className="text-sm font-semibold text-slate-800">{labels.contacts.title.replace('{n}', String(customer.contacts.length))}</h3>
+          </div>
+          {customer.contacts.length === 0 ? (
+            <div className="p-6">
+              <EmptyState icon="◎" title={labels.contacts.empty} body="" action={<span />} />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm" data-testid="customer-contact-table">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-3 py-2">{labels.contacts.columns.name}</th>
+                    <th className="px-3 py-2">{labels.contacts.columns.title}</th>
+                    <th className="px-3 py-2">{labels.contacts.columns.email}</th>
+                    <th className="px-3 py-2">{labels.contacts.columns.phone}</th>
+                    <th className="px-3 py-2">{labels.contacts.columns.primary}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customer.contacts.map((contact: CustomerContact) => (
+                    <tr key={contact.id} data-testid={`customer-contact-row-${contact.id}`} className="border-b border-slate-100 last:border-0">
+                      <td className="px-3 py-2 font-medium text-slate-800">{contact.name}</td>
+                      <td className="px-3 py-2">{contact.title ?? '—'}</td>
+                      <td className="px-3 py-2">{contact.email ?? '—'}</td>
+                      <td className="px-3 py-2">{contact.phone ?? '—'}</td>
+                      <td className="px-3 py-2">{contact.isPrimary ? labels.contacts.primary : labels.contacts.notPrimary}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {tab === 'allergens' ? (
+        <div className="rounded-xl border border-slate-200" data-testid="customer-detail-allergens">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h3 className="text-sm font-semibold text-slate-800">{labels.allergens.title.replace('{n}', String(customer.allergenRestrictions.length))}</h3>
+          </div>
+          {customer.allergenRestrictions.length === 0 ? (
+            <div className="p-6">
+              <EmptyState icon="◎" title={labels.allergens.empty} body="" action={<span />} />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm" data-testid="customer-allergen-table">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-3 py-2">{labels.allergens.columns.allergen}</th>
+                    <th className="px-3 py-2">{labels.allergens.columns.restriction}</th>
+                    <th className="px-3 py-2">{labels.allergens.columns.notes}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customer.allergenRestrictions.map((restriction: CustomerAllergenRestriction) => (
+                    <tr key={restriction.id} data-testid={`customer-allergen-row-${restriction.id}`} className="border-b border-slate-100 last:border-0">
+                      <td className="px-3 py-2 font-medium text-slate-800">{restriction.allergenName}</td>
+                      <td className="px-3 py-2">{labels.allergens.restrictionType[restriction.restrictionType] ?? restriction.restrictionType}</td>
+                      <td className="px-3 py-2">{restriction.notes ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {tab === 'orders' ? (
+        <div className="rounded-xl border border-slate-200" data-testid="customer-detail-orders">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h3 className="text-sm font-semibold text-slate-800">{labels.orders.title.replace('{n}', String(orderHistory.length))}</h3>
+          </div>
+          {orderHistory.length === 0 ? (
+            <div className="p-6">
+              <EmptyState icon="◎" title={labels.orders.empty} body="" action={<span />} />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm" data-testid="customer-order-table">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-3 py-2">{labels.orders.columns.so}</th>
+                    <th className="px-3 py-2">{labels.orders.columns.status}</th>
+                    <th className="px-3 py-2 text-right">{labels.orders.columns.lines}</th>
+                    <th className="px-3 py-2 text-right">{labels.orders.columns.total}</th>
+                    <th className="px-3 py-2">{labels.orders.columns.expected}</th>
+                    <th className="px-3 py-2">{labels.orders.columns.created}</th>
+                    <th className="px-3 py-2">{labels.orders.columns.actions}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orderHistory.map((order) => (
+                    <tr key={order.id} data-testid={`customer-order-row-${order.id}`} className="border-b border-slate-100 last:border-0">
+                      <td className="px-3 py-2 font-mono text-xs">{order.soNumber}</td>
+                      <td className="px-3 py-2">{labels.orders.status[order.status] ?? order.status}</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums">{order.lineCount}</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums">{formatMoney(order.total, locale)}</td>
+                      <td className="px-3 py-2">{order.expectedShipDate ? formatDate(order.expectedShipDate) : '—'}</td>
+                      <td className="px-3 py-2">{formatDate(order.createdAt)}</td>
+                      <td className="px-3 py-2">
+                        <Link href={`/${locale}/shipping/${order.id}`} className="text-blue-700 hover:underline">
+                          {labels.orders.view}
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ) : null}
 

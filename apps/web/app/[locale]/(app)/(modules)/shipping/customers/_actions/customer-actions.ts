@@ -23,11 +23,15 @@ import {
   CustomerUpdateInput,
   SHIP_CUSTOMER_WRITE,
   ADDRESS_SELECT,
+  ALLERGEN_RESTRICTION_SELECT,
+  CONTACT_SELECT,
   type Customer,
   type CustomerDetail,
   type CustomerResult,
   mapCustomer,
   mapCustomerAddress,
+  mapCustomerAllergenRestriction,
+  mapCustomerContact,
   pgErrorToResult,
 } from './customer-action-schemas';
 
@@ -167,10 +171,48 @@ export async function getCustomer(customerId: unknown): Promise<CustomerResult<C
         [id],
       );
 
+      const { rows: contactRows } = await (client as QueryClient).query<Parameters<typeof mapCustomerContact>[0]>(
+        `select ${CONTACT_SELECT}
+           from public.customer_contacts
+          where org_id = app.current_org_id()
+            and customer_id = $1::uuid
+            and deleted_at is null
+          order by is_primary desc, name asc, created_at asc`,
+        [id],
+      );
+
+      const { rows: allergenRows } = await (client as QueryClient).query<
+        Parameters<typeof mapCustomerAllergenRestriction>[0]
+      >(
+        `select ${ALLERGEN_RESTRICTION_SELECT}
+           from public.customer_allergen_restrictions car
+           left join public.reference_tables rt
+             on rt.org_id = car.org_id
+            and rt.table_code = 'reference.allergens_reference'
+            and rt.is_active
+            and (
+              rt.row_data->>'id' = car.allergen_id::text
+              or rt.row_key = car.allergen_id::text
+            )
+           left join "Reference"."Allergens" ra
+             on ra.org_id = app.current_org_id()
+            and ra.allergen_code = coalesce(nullif(trim(rt.row_data->>'allergen_code'), ''), rt.row_key)
+          where car.org_id = app.current_org_id()
+            and car.customer_id = $1::uuid
+            and car.deleted_at is null
+          order by allergen_name asc, car.created_at asc`,
+        [id],
+      );
+
       return {
         ok: true,
         id: customer.id,
-        data: { ...customer, addresses: rows.map(mapCustomerAddress) },
+        data: {
+          ...customer,
+          addresses: rows.map(mapCustomerAddress),
+          contacts: contactRows.map(mapCustomerContact),
+          allergenRestrictions: allergenRows.map(mapCustomerAllergenRestriction),
+        },
       };
     });
   } catch (err) {

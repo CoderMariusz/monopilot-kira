@@ -5,7 +5,11 @@ import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { listOrgUnits } from '../../planning/_actions/procurement-shared';
 import {
   fetchActiveCustomerItemPrices,
+  fetchActiveCustomerItemPricesAnyCurrency,
+  normalizePriceString,
+  normalizeSoUnitPriceGbp,
   resolveSalesLinePrice,
+  resolveSalesLinePriceDetailed,
   SO_LINE_PRICE_CURRENCY,
 } from './sales-line-price';
 import { cancelOpenShipmentForSoInContext } from './so-shipment-release';
@@ -42,6 +46,8 @@ import type {
   SalesOrder,
   SalesOrderLine,
   SalesOrderListRow,
+  UpdateSalesOrderResult,
+  DeleteSalesOrderResult,
 } from './so-actions-types';
 
 type QueryClient = {
@@ -74,8 +80,21 @@ type CreateSalesOrderInput = {
   customer_id: string;
   requested_date?: string;
   notes?: string;
-  lines: { item_id: string; qty: string; uom: string }[];
+  lines: { item_id: string; qty: string; uom: string; unit_price_gbp?: string }[];
 };
+
+type UpdateSalesOrderInput = {
+  requiredDate?: string | null;
+  notes?: string | null;
+  lines?: Array<{
+    id: string;
+    qty?: string;
+    notes?: string | null;
+    unit_price_gbp?: string;
+  }>;
+};
+
+const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
 
 const SHIP_SO_READ = 'ship.dashboard.view';
 const SHIP_SO_CREATE = 'ship.so.create';
@@ -245,6 +264,9 @@ function mapLineRow(row: {
   order_uom: string | null;
   quantity_allocated: string;
   allocated_qty_display: string;
+  unit_price_gbp: string;
+  line_total_gbp: string;
+  notes: string | null;
 }): SalesOrderLine {
   const inventoryUom = row.inventory_uom ?? '';
   const orderUom = row.order_uom ?? inventoryUom;
@@ -260,6 +282,9 @@ function mapLineRow(row: {
     inventory_uom: inventoryUom,
     allocated_qty: row.allocated_qty_display,
     allocation_status: lineAllocationStatus(row.inventory_qty, row.quantity_allocated),
+    unit_price_gbp: row.unit_price_gbp,
+    line_total_gbp: row.line_total_gbp,
+    notes: row.notes,
   };
 }
 
@@ -309,6 +334,9 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
     order_uom: string | null;
     quantity_allocated: string;
     allocated_qty_display: string;
+    unit_price_gbp: string;
+    line_total_gbp: string;
+    notes: string | null;
   }>(
     `select sol.id::text,
             sol.line_number,
@@ -320,7 +348,10 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
             coalesce(sol.ext_data->>'order_qty', sol.quantity_ordered::text) as order_qty,
             coalesce(sol.ext_data->>'order_uom', i.uom_base) as order_uom,
             sol.quantity_allocated::text as quantity_allocated,
-            ${SALES_ORDER_LINE_ALLOCATED_TO_ORDER_SQL} as allocated_qty_display
+            ${SALES_ORDER_LINE_ALLOCATED_TO_ORDER_SQL} as allocated_qty_display,
+            sol.unit_price_gbp::text as unit_price_gbp,
+            coalesce(sol.line_total_gbp, sol.quantity_ordered * sol.unit_price_gbp)::text as line_total_gbp,
+            sol.notes
        from public.sales_order_lines sol
        left join public.items i on i.id = sol.product_id and i.org_id = app.current_org_id()
       where sol.org_id = app.current_org_id()
@@ -567,6 +598,12 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       orderDate,
       SO_LINE_PRICE_CURRENCY,
     );
+    const customerPricesAnyByItemId = await fetchActiveCustomerItemPricesAnyCurrency(
+      ctx.client,
+      input.customer_id,
+      itemIds,
+      orderDate,
+    );
 
     const orgUnits = await listOrgUnits(ctx.client);
     const validUomCodes = new Set(orgUnits.map((unit) => unit.code));
@@ -607,14 +644,32 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
         }
         throw err;
       }
+
+      const submittedPrice = line.unit_price_gbp?.trim();
+      let unitPriceGbp: string;
+      if (submittedPrice != null && submittedPrice.length > 0) {
+        if (!PRICE_PATTERN.test(submittedPrice) || Number(submittedPrice) <= 0) {
+          return { ok: false, error: 'invalid_input', message: 'Unit price must be greater than zero' };
+        }
+        unitPriceGbp = normalizeSoUnitPriceGbp(submittedPrice) ?? submittedPrice;
+      } else {
+        unitPriceGbp = resolveSalesLinePriceDetailed(item, {
+          customerPriceGbp: customerPricesByItemId.get(line.item_id) ?? null,
+          customerPriceAny: customerPricesAnyByItemId.get(line.item_id) ?? null,
+        }).unitPriceGbp;
+        const normalized = normalizeSoUnitPriceGbp(unitPriceGbp);
+        if (normalized == null || Number(normalized) <= 0) {
+          return { ok: false, error: 'invalid_input', message: 'Unit price must be greater than zero' };
+        }
+        unitPriceGbp = normalized;
+      }
+
       resolvedLines.push({
         item_id: line.item_id,
         order_qty: line.qty,
         inventory_qty: inventoryQty,
         uom: line.uom,
-        unitPriceGbp: resolveSalesLinePrice(item, {
-          customerPrice: customerPricesByItemId.get(line.item_id) ?? null,
-        }),
+        unitPriceGbp,
       });
     }
 
@@ -660,6 +715,289 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     const created = await fetchSalesOrder(ctx, soId);
     revalidateLocalized('/shipping');
     return { ok: true, data: created };
+  });
+}
+
+export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInput): Promise<UpdateSalesOrderResult> {
+  const id = soId.trim();
+  if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
+    return { ok: false, error: 'invalid_input', message: 'Invalid sales order id' };
+  }
+
+  return withOrgContext(async ({ userId, orgId, client }): Promise<UpdateSalesOrderResult> => {
+    const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
+    const forbidden = await requirePermission(ctx, SHIP_SO_CREATE);
+    if (forbidden) return forbidden;
+
+    const { rows: headerRows } = await ctx.client.query<{ status: string }>(
+      `select status
+         from public.sales_orders
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and deleted_at is null
+        limit 1
+        for update`,
+      [id],
+    );
+    const currentStatus = headerRows[0]?.status;
+    if (!currentStatus) return { ok: true, data: null };
+    if (currentStatus !== 'draft') return { ok: false, error: 'not_draft' };
+
+    type ResolvedLineUpdate = {
+      id: string;
+      inventoryQty: string;
+      orderQty: string;
+      orderUom: string;
+      unitPriceGbp: string;
+      notes?: string | null;
+    };
+
+    let resolvedLineUpdates: ResolvedLineUpdate[] | null = null;
+
+    if (input.lines && input.lines.length > 0) {
+      const { rows: existingLines } = await ctx.client.query<{
+        id: string;
+        product_id: string;
+        order_qty: string;
+        order_uom: string;
+      }>(
+        `select sol.id::text,
+                sol.product_id::text,
+                coalesce(sol.ext_data->>'order_qty', sol.quantity_ordered::text) as order_qty,
+                coalesce(sol.ext_data->>'order_uom', i.uom_base) as order_uom
+           from public.sales_order_lines sol
+           left join public.items i on i.id = sol.product_id and i.org_id = app.current_org_id()
+          where sol.org_id = app.current_org_id()
+            and sol.sales_order_id = $1::uuid
+            and sol.deleted_at is null`,
+        [id],
+      );
+      const linesById = new Map(existingLines.map((line) => [line.id, line]));
+      resolvedLineUpdates = [];
+
+      for (const patch of input.lines) {
+        const existing = linesById.get(patch.id);
+        if (!existing) {
+          return { ok: false, error: 'invalid_input', message: 'Unknown sales order line' };
+        }
+
+        const orderQty = patch.qty?.trim() ?? existing.order_qty;
+        const orderUom = existing.order_uom;
+        if (!/^\d+(?:\.\d{1,3})?$/.test(orderQty) || Number(orderQty) <= 0) {
+          return { ok: false, error: 'invalid_input', message: 'Line quantity must be greater than zero' };
+        }
+
+        let inventoryQty: string;
+        try {
+          inventoryQty = await resolveOrderQtyToInventoryQty(ctx.client, {
+            itemId: existing.product_id,
+            orderQty,
+            orderUom,
+          });
+        } catch (err) {
+          if (err instanceof OrderLineUomError) {
+            return { ok: false, error: 'unresolved_uom', message: err.message, uom: err.uom };
+          }
+          throw err;
+        }
+
+        const { rows: priceRows } = await ctx.client.query<{ unit_price_gbp: string }>(
+          `select unit_price_gbp::text
+             from public.sales_order_lines
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+            limit 1`,
+          [patch.id],
+        );
+        const currentPrice = priceRows[0]?.unit_price_gbp ?? '0';
+        const submittedPrice = patch.unit_price_gbp?.trim();
+        let unitPriceGbp: string;
+        if (submittedPrice && submittedPrice.length > 0) {
+          if (!PRICE_PATTERN.test(submittedPrice) || Number(submittedPrice) <= 0) {
+            return { ok: false, error: 'invalid_input', message: 'Unit price must be greater than zero' };
+          }
+          unitPriceGbp = normalizeSoUnitPriceGbp(submittedPrice) ?? submittedPrice;
+        } else {
+          const normalized = normalizeSoUnitPriceGbp(currentPrice);
+          if (normalized == null || Number(normalized) <= 0) {
+            return { ok: false, error: 'invalid_input', message: 'Unit price must be greater than zero' };
+          }
+          unitPriceGbp = normalized;
+        }
+
+        resolvedLineUpdates.push({
+          id: patch.id,
+          inventoryQty,
+          orderQty,
+          orderUom,
+          unitPriceGbp,
+          ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+        });
+      }
+    }
+
+    if (input.requiredDate !== undefined || input.notes !== undefined) {
+      const setParts: string[] = [];
+      const params: unknown[] = [id];
+      let paramIndex = 2;
+
+      setParts.push(`updated_by = $${paramIndex}::uuid`);
+      params.push(userId);
+      paramIndex += 1;
+
+      if (input.requiredDate !== undefined) {
+        setParts.push(`promised_ship_date = $${paramIndex}::date`);
+        params.push(input.requiredDate);
+        paramIndex += 1;
+      }
+      if (input.notes !== undefined) {
+        setParts.push(
+          `ext_data = case
+             when $${paramIndex}::text is null then coalesce(ext_data, '{}'::jsonb) - 'notes'
+             else jsonb_set(coalesce(ext_data, '{}'::jsonb), '{notes}', to_jsonb($${paramIndex}::text), true)
+           end`,
+        );
+        params.push(input.notes);
+        paramIndex += 1;
+      }
+
+      await ctx.client.query(
+        `update public.sales_orders
+            set ${setParts.join(', ')}
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and status = 'draft'
+            and deleted_at is null`,
+        params,
+      );
+    }
+
+    if (resolvedLineUpdates) {
+      for (const line of resolvedLineUpdates) {
+        if (line.notes !== undefined) {
+          await ctx.client.query(
+            `update public.sales_order_lines
+                set quantity_ordered = $2::numeric,
+                    unit_price_gbp = $3::numeric,
+                    line_total_gbp = ($4::numeric * $3::numeric),
+                    notes = $5::text,
+                    ext_data = jsonb_set(
+                      jsonb_set(coalesce(ext_data, '{}'::jsonb), '{order_qty}', to_jsonb($4::text), true),
+                      '{order_uom}',
+                      to_jsonb($6::text),
+                      true
+                    ),
+                    updated_by = $7::uuid
+              where org_id = app.current_org_id()
+                and id = $1::uuid
+                and sales_order_id = $8::uuid
+                and deleted_at is null`,
+            [
+              line.id,
+              line.inventoryQty,
+              line.unitPriceGbp,
+              line.orderQty,
+              line.notes,
+              line.orderUom,
+              userId,
+              id,
+            ],
+          );
+        } else {
+          await ctx.client.query(
+            `update public.sales_order_lines
+                set quantity_ordered = $2::numeric,
+                    unit_price_gbp = $3::numeric,
+                    line_total_gbp = ($4::numeric * $3::numeric),
+                    ext_data = jsonb_set(
+                      jsonb_set(coalesce(ext_data, '{}'::jsonb), '{order_qty}', to_jsonb($4::text), true),
+                      '{order_uom}',
+                      to_jsonb($5::text),
+                      true
+                    ),
+                    updated_by = $6::uuid
+              where org_id = app.current_org_id()
+                and id = $1::uuid
+                and sales_order_id = $7::uuid
+                and deleted_at is null`,
+            [line.id, line.inventoryQty, line.unitPriceGbp, line.orderQty, line.orderUom, userId, id],
+          );
+        }
+      }
+
+      await ctx.client.query(
+        `update public.sales_orders so
+            set total_amount_gbp = (
+                  select coalesce(sum(coalesce(sol.line_total_gbp, sol.quantity_ordered * sol.unit_price_gbp)), 0)
+                    from public.sales_order_lines sol
+                   where sol.org_id = app.current_org_id()
+                     and sol.sales_order_id = so.id
+                     and sol.deleted_at is null
+                ),
+                updated_by = $2::uuid
+          where so.org_id = app.current_org_id()
+            and so.id = $1::uuid`,
+        [id, userId],
+      );
+    }
+
+    const updated = await fetchSalesOrder(ctx, id);
+    revalidateLocalized('/shipping');
+    revalidateLocalized(`/shipping/${id}`);
+    return { ok: true, data: updated };
+  });
+}
+
+export async function deleteSalesOrder(soId: string): Promise<DeleteSalesOrderResult> {
+  const id = soId.trim();
+  if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
+    return { ok: false, error: 'not_found' };
+  }
+
+  return withOrgContext(async ({ userId, orgId, client }): Promise<DeleteSalesOrderResult> => {
+    const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
+    const forbidden = await requirePermission(ctx, SHIP_SO_CREATE);
+    if (forbidden) return forbidden;
+
+    const { rows } = await ctx.client.query<{ status: string }>(
+      `select status
+         from public.sales_orders
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and deleted_at is null
+        limit 1
+        for update`,
+      [id],
+    );
+    const currentStatus = rows[0]?.status;
+    if (!currentStatus) return { ok: false, error: 'not_found' };
+    if (currentStatus !== 'draft') return { ok: false, error: 'not_draft' };
+
+    await releaseRemainingLiveAllocationsInContext(ctx, id);
+
+    await ctx.client.query(
+      `update public.sales_order_lines
+          set deleted_at = pg_catalog.now(),
+              updated_by = $2::uuid
+        where org_id = app.current_org_id()
+          and sales_order_id = $1::uuid
+          and deleted_at is null`,
+      [id, userId],
+    );
+    await ctx.client.query(
+      `update public.sales_orders
+          set deleted_at = pg_catalog.now(),
+              updated_by = $2::uuid
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and status = 'draft'
+          and deleted_at is null`,
+      [id, userId],
+    );
+
+    revalidateLocalized('/shipping');
+    revalidateLocalized(`/shipping/${id}`);
+    return { ok: true, data: null };
   });
 }
 

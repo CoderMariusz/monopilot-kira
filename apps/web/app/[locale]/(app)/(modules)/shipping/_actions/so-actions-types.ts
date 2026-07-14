@@ -41,6 +41,9 @@ export type SalesOrderLine = {
   /** Allocated quantity in entered UoM when convertible, else canonical. */
   allocated_qty: string;
   allocation_status: AllocationStatus;
+  unit_price_gbp: string;
+  line_total_gbp: string;
+  notes: string | null;
 };
 
 export type SalesOrder = {
@@ -100,3 +103,11 @@ export type AllocateSalesOrderResult =
 export type ListSalesOrdersResult = ActionResult<PaginatedResult<SalesOrderListRow>>;
 export type GetSalesOrderResult = ActionResult<SalesOrder | null>;
 export type CreateSalesOrderResult = ActionResult<SalesOrder | null, ActionFailure | UnresolvedUomFailure>;
+export type UpdateSalesOrderResult = ActionResult<
+  SalesOrder | null,
+  ActionFailure | UnresolvedUomFailure | { ok: false; error: 'not_draft' }
+>;
+export type DeleteSalesOrderResult = ActionResult<
+  null,
+  ForbiddenFailure | { ok: false; error: 'not_draft' | 'not_found' }
+>;

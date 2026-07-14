@@ -11268,6 +11268,9 @@
         "lineItem": "Pozycja",
         "lineQty": "Ilość",
         "lineUom": "JM",
+        "lineUnitPrice": "Cena jednostkowa (GBP)",
+        "lineTotal": "Suma pozycji",
+        "foreignPriceHint": "Cena klienta {currency}{price}/{uom} — ustaw cenę jednostkową w GBP",
         "uomPlaceholder": "Jednostka",
         "qtyPlaceholder": "0",
         "submit": "Utwórz zamówienie sprzedaży",
@@ -11309,9 +11312,29 @@
           "item": "Pozycja",
           "qty": "Zamówiono",
           "uom": "JM",
+          "unitPrice": "Cena jedn.",
+          "lineTotal": "Suma pozycji",
           "allocated": "Zarezerwowano",
           "allocationStatus": "Rezerwacja",
           "empty": "To zamówienie sprzedaży nie ma pozycji."
+        },
+        "edit": {
+          "title": "Edytuj zamówienie sprzedaży",
+          "requestedLabel": "Żądana data wysyłki",
+          "notesLabel": "Uwagi",
+          "lineItem": "Pozycja",
+          "lineQty": "Ilość",
+          "lineUom": "JM",
+          "lineUnitPrice": "Cena jednostkowa (GBP)",
+          "lineTotal": "Suma pozycji",
+          "lineNotes": "Uwagi do pozycji",
+          "submit": "Zapisz zmiany",
+          "submitting": "Zapisywanie…",
+          "cancel": "Anuluj",
+          "errors": {
+            "linesInvalid": "Wprowadź dodatnią ilość na każdej pozycji.",
+            "priceInvalid": "Cena jednostkowa musi być większa od zera na każdej pozycji."
+          }
         },
         "actions": {
           "title": "Akcje",
@@ -11319,6 +11342,9 @@
           "deallocate": "Zwolnij rezerwację",
           "confirm": "Potwierdź",
           "cancel": "Anuluj",
+          "edit": "Edytuj",
+          "delete": "Usuń",
+          "deletePrompt": "Usunąć wersję roboczą zamówienia {so}? Tej operacji nie można cofnąć.",
           "pending": "Przetwarzanie…",
           "confirmPrompt": "Zmienić status zamówienia {so} na {status}?",
           "noPermission": "Nie masz uprawnień do wykonania tej akcji.",
@@ -11333,7 +11359,8 @@
         "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
         "already_exists": "Klient z tym kodem już istnieje.",
         "so_cancel_blocked_shipped": "Nie można anulować zamówienia, gdy wysyłka została już wysłana lub dostarczona.",
-        "deallocate_not_allowed": "Cofnięcie alokacji jest możliwe tylko przed rozpoczęciem pakowania."
+        "deallocate_not_allowed": "Cofnięcie alokacji jest możliwe tylko przed rozpoczęciem pakowania.",
+        "not_draft": "Tylko wersje robocze zamówień można edytować lub usuwać."
       }
     },
     "pick": {
@@ -11774,7 +11801,10 @@
         "backToList": "Wróć do listy klientów",
         "tabs": {
           "profile": "Profil",
-          "addresses": "Adresy"
+          "addresses": "Adresy",
+          "contacts": "Kontakty",
+          "allergens": "Ograniczenia alergenów",
+          "orders": "Historia zamówień"
         },
         "actions": {
           "edit": "Edytuj",
@@ -11864,6 +11894,60 @@
               "postalRequired": "Podaj kod pocztowy.",
               "countryInvalid": "Podaj prawidłowy 2-literowy kod kraju (np. PL)."
             }
+          }
+        },
+        "contacts": {
+          "title": "Kontakty ({n})",
+          "empty": "Brak kontaktów dla tego klienta.",
+          "primary": "Główny",
+          "notPrimary": "—",
+          "columns": {
+            "name": "Imię i nazwisko",
+            "title": "Stanowisko",
+            "email": "E-mail",
+            "phone": "Telefon",
+            "primary": "Główny"
+          }
+        },
+        "allergens": {
+          "title": "Ograniczenia alergenów ({n})",
+          "empty": "Brak ograniczeń alergenów dla tego klienta.",
+          "restrictionType": {
+            "refuses": "Odmawia",
+            "requires_decl": "Wymaga deklaracji"
+          },
+          "columns": {
+            "allergen": "Alergen",
+            "restriction": "Ograniczenie",
+            "notes": "Uwagi"
+          }
+        },
+        "orders": {
+          "title": "Historia zamówień ({n})",
+          "empty": "Brak zamówień sprzedaży dla tego klienta.",
+          "view": "Pokaż",
+          "status": {
+            "draft": "Wersja robocza",
+            "confirmed": "Potwierdzone",
+            "allocated": "Zarezerwowane",
+            "partially_picked": "Częściowo skompletowane",
+            "picked": "Skompletowane",
+            "partially_packed": "Częściowo spakowane",
+            "packed": "Spakowane",
+            "manifested": "Zmanifestowane",
+            "shipped": "Wysłane",
+            "partially_delivered": "Częściowo dostarczone",
+            "delivered": "Dostarczone",
+            "cancelled": "Anulowane"
+          },
+          "columns": {
+            "so": "Numer ZS",
+            "status": "Status",
+            "lines": "Pozycje",
+            "total": "Razem",
+            "expected": "Planowana wysyłka",
+            "created": "Utworzono",
+            "actions": "Akcje"
           }
         }
       }

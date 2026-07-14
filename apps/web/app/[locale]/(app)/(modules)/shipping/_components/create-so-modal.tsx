@@ -40,6 +40,7 @@ import { Select } from '@monopilot/ui/Select';
 import { ItemPicker } from '../../../(npd)/_components/item-picker';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items-types';
 import type { SoCustomerOption } from '../_actions/so-form-data';
+import { computeSoLineTotalGbp, formatSoGbpDisplay } from '../_actions/sales-line-price';
 import { UomSelect, type UomOptionLabels } from '../../../../../../components/forms/uom-select';
 
 export type CreateSoLabels = {
@@ -60,6 +61,9 @@ export type CreateSoLabels = {
   lineItem: string;
   lineQty: string;
   lineUom: string;
+  lineUnitPrice: string;
+  lineTotal: string;
+  foreignPriceHint: string;
   uomPlaceholder: string;
   /** Display labels for the UoM dropdown options, keyed by unit code. */
   uomOptions: UomOptionLabels;
@@ -93,6 +97,8 @@ type CreateSoLine = {
   item: ItemPickerOption | null;
   qty: string;
   uom: string;
+  unitPriceGbp: string;
+  foreignPriceHint: string | null;
 };
 
 export type CreateSoResult =
@@ -115,16 +121,21 @@ export type CreateSoModalProps = {
     customer_id: string;
     requested_date?: string;
     notes?: string;
-    lines: Array<{ item_id: string; qty: string; uom: string }>;
+    lines: Array<{ item_id: string; qty: string; uom: string; unit_price_gbp?: string }>;
   }) => Promise<CreateSoResult>;
+  resolveSoLinePricesAction: (input: {
+    customer_id: string;
+    lines: Array<{ item_id: string }>;
+  }) => Promise<Array<{ item_id: string; unitPriceGbp: string; foreignCustomerPrice?: { unit_price: string; currency: string } }>>;
   /** Called after a successful create so the list can refresh. */
   onCreated: () => void;
 };
 
 const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
+const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
 
 function makeLine(): CreateSoLine {
-  return { key: Math.random().toString(36).slice(2), item: null, qty: '', uom: '' };
+  return { key: Math.random().toString(36).slice(2), item: null, qty: '', uom: '', unitPriceGbp: '', foreignPriceHint: null };
 }
 
 export function CreateSoModal({
@@ -135,6 +146,7 @@ export function CreateSoModal({
   searchSoItemsAction,
   createCustomerAction,
   createSalesOrderAction,
+  resolveSoLinePricesAction,
   onCreated,
 }: CreateSoModalProps) {
   const [customerOptions, setCustomerOptions] = React.useState(customers);
@@ -200,6 +212,44 @@ export function CreateSoModal({
   function updateLine(key: string, patch: Partial<CreateSoLine>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
+
+  async function refreshLinePrices(nextCustomerId: string, nextLines: CreateSoLine[]) {
+    const pricedLines = nextLines.filter((line) => line.item);
+    if (!nextCustomerId || pricedLines.length === 0) return;
+    const quotes = await resolveSoLinePricesAction({
+      customer_id: nextCustomerId,
+      lines: pricedLines.map((line) => ({ item_id: line.item!.id })),
+    });
+    const quoteByItem = new Map(quotes.map((quote) => [quote.item_id, quote]));
+    setLines((prev) =>
+      prev.map((line) => {
+        if (!line.item) return line;
+        const quote = quoteByItem.get(line.item.id);
+        if (!quote) return line;
+        const foreignPrice = quote.foreignCustomerPrice;
+        return {
+          ...line,
+          unitPriceGbp: quote.unitPriceGbp,
+          foreignPriceHint:
+            foreignPrice != null
+              ? labels.foreignPriceHint
+                  .replace('{price}', foreignPrice.unit_price)
+                  .replace('{currency}', foreignPrice.currency)
+                  .replace('{uom}', line.uom || line.item?.uomBase || '')
+              : null,
+        };
+      }),
+    );
+  }
+
+  React.useEffect(() => {
+    if (!open || !customerId) return;
+    void refreshLinePrices(
+      customerId,
+      lines.filter((line) => line.item),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- price refresh is keyed to customer + item picks
+  }, [customerId, open]);
   function addLine() {
     setLines((prev) => [...prev, makeLine()]);
   }
@@ -216,9 +266,15 @@ export function CreateSoModal({
       return;
     }
     const validLines = lines.filter(
-      (l) => l.item && QTY_PATTERN.test(l.qty.trim()) && Number(l.qty) > 0 && l.uom.trim().length > 0,
+      (l) =>
+        l.item &&
+        QTY_PATTERN.test(l.qty.trim()) &&
+        Number(l.qty) > 0 &&
+        l.uom.trim().length > 0 &&
+        PRICE_PATTERN.test(l.unitPriceGbp.trim()) &&
+        Number(l.unitPriceGbp) > 0,
     );
-    if (validLines.length === 0) {
+    if (validLines.length === 0 || validLines.length !== lines.length) {
       setFormError(labels.errors.linesRequired);
       return;
     }
@@ -233,6 +289,7 @@ export function CreateSoModal({
           item_id: l.item!.id,
           qty: l.qty.trim(),
           uom: l.uom.trim(),
+          unit_price_gbp: l.unitPriceGbp.trim(),
         })),
       });
 
@@ -342,6 +399,8 @@ export function CreateSoModal({
                     <th className="px-3 py-2">{labels.lineItem}</th>
                     <th className="px-3 py-2 text-right">{labels.lineQty}</th>
                     <th className="px-3 py-2">{labels.lineUom}</th>
+                    <th className="px-3 py-2 text-right">{labels.lineUnitPrice}</th>
+                    <th className="px-3 py-2 text-right">{labels.lineTotal}</th>
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
@@ -366,7 +425,10 @@ export function CreateSoModal({
                         ) : (
                           <ItemPicker
                             searchItemsAction={searchSoItemsAction}
-                            onSelect={(item) => updateLine(line.key, { item, uom: line.uom || item.uomBase })}
+                            onSelect={(item) => {
+                              updateLine(line.key, { item, uom: line.uom || item.uomBase });
+                              void refreshLinePrices(customerId, [{ ...line, item, uom: line.uom || item.uomBase }]);
+                            }}
                             triggerClassName="btn btn--secondary btn-sm"
                             labels={labels.picker}
                           />
@@ -395,6 +457,26 @@ export function CreateSoModal({
                           aria-label={labels.lineUom}
                           className="w-24"
                         />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={line.unitPriceGbp}
+                          data-testid="create-so-line-price"
+                          onChange={(e) => updateLine(line.key, { unitPriceGbp: e.target.value })}
+                          className="w-28 text-right"
+                        />
+                        {line.foreignPriceHint ? (
+                          <div className="mt-1 text-xs text-amber-700" data-testid="create-so-line-foreign-price">
+                            {line.foreignPriceHint}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums" data-testid="create-so-line-total">
+                        {QTY_PATTERN.test(line.qty) && PRICE_PATTERN.test(line.unitPriceGbp)
+                          ? formatSoGbpDisplay(computeSoLineTotalGbp(line.qty.trim(), line.unitPriceGbp.trim()))
+                          : '—'}
                       </td>
                       <td className="px-3 py-2 text-right">
                         {lines.length > 1 ? (

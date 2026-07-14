@@ -4,9 +4,11 @@ import {
   allocateSalesOrder,
   createSalesOrder,
   deallocateSalesOrder,
+  deleteSalesOrder,
   getSalesOrder,
   listSalesOrders,
   transitionSalesOrderStatus,
+  updateSalesOrder,
 } from '../so-actions';
 
 type QueryClient = {
@@ -21,6 +23,7 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const SO_ID = '33333333-3333-4333-8333-333333333333';
 const CUSTOMER_ID = '44444444-4444-4444-8444-444444444444';
 const LINE_ID = '55555555-5555-4555-8555-555555555555';
+const UNKNOWN_LINE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const ITEM_ID = '66666666-6666-4666-8666-666666666666';
 const ITEM_ID_2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const LP_1 = '77777777-7777-4777-8777-777777777777';
@@ -44,6 +47,9 @@ let lineProductId = ITEM_ID;
 let lineQuantityOrdered = '10';
 let lineOrderQty: string | null = null;
 let lineOrderUom: string | null = null;
+let lineUnitPriceGbp = '7.2500';
+let lineNotes: string | null = 'line note';
+let lineUpdateCallCount = 0;
 let candidateRows: Array<{
   lp_id: string;
   available_qty: string;
@@ -151,6 +157,9 @@ function makeClient(): QueryClient {
       }
       if (q.includes('from public.customer_item_prices')) {
         const targetCurrency = params[3];
+        if (targetCurrency === undefined) {
+          return { rows: customerPriceRows, rowCount: customerPriceRows.length };
+        }
         const filtered = customerPriceRows.filter((row) => row.currency === targetCurrency);
         return { rows: filtered, rowCount: filtered.length };
       }
@@ -235,8 +244,11 @@ function makeClient(): QueryClient {
               customer_id: CUSTOMER_ID,
               customer_name: 'Acme Foods',
               customer_code: 'ACME',
-              promised_ship_date: insertedSo?.promised_ship_date ?? '2026-06-20',
-              notes: insertedSo?.notes ?? 'deliver am',
+              promised_ship_date:
+                insertedSo && 'promised_ship_date' in insertedSo
+                  ? (insertedSo.promised_ship_date as string | null)
+                  : '2026-06-20',
+              notes: insertedSo && 'notes' in insertedSo ? (insertedSo.notes as string | null) : 'deliver am',
               created_at: '2026-06-11T10:00:00.000Z',
               updated_at: '2026-06-11T10:00:00.000Z',
             },
@@ -282,6 +294,9 @@ function makeClient(): QueryClient {
               order_uom: orderUom,
               quantity_allocated: allocatedCanonical,
               allocated_qty_display: allocatedDisplay,
+              unit_price_gbp: lineUnitPriceGbp,
+              line_total_gbp: `${Number(orderQty) * Number(lineUnitPriceGbp)}`,
+              notes: lineNotes,
             },
           ],
           rowCount: 1,
@@ -289,6 +304,57 @@ function makeClient(): QueryClient {
       }
       if (q.startsWith('select status from public.sales_orders')) {
         return { rows: [{ status }], rowCount: 1 };
+      }
+      if (
+        q.startsWith('update public.sales_orders') &&
+        !q.includes('total_amount_gbp') &&
+        !q.includes('set deleted_at') &&
+        !q.includes('set status')
+      ) {
+        insertedSo = { ...(insertedSo ?? {}) };
+        let idx = 2;
+        if (q.includes('promised_ship_date =')) {
+          insertedSo.promised_ship_date = params[idx++];
+        }
+        if (q.includes("ext_data = case")) {
+          insertedSo.notes = params[idx++];
+        }
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('update public.sales_orders') && q.includes('total_amount_gbp')) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('update public.sales_orders') && q.includes('set deleted_at')) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('select sol.id::text') && q.includes("coalesce(sol.ext_data->>'order_qty', sol.quantity_ordered::text) as order_qty")) {
+        return {
+          rows: [
+            {
+              id: LINE_ID,
+              product_id: ITEM_ID,
+              order_qty: lineOrderQty ?? lineQuantityOrdered,
+              order_uom: lineOrderUom ?? 'kg',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (q.startsWith('select unit_price_gbp::text')) {
+        return { rows: [{ unit_price_gbp: lineUnitPriceGbp }], rowCount: 1 };
+      }
+      if (q.startsWith('update public.sales_order_lines') && q.includes('line_total_gbp')) {
+        lineUpdateCallCount += 1;
+        lineOrderQty = params[3] as string;
+        lineQuantityOrdered = params[1] as string;
+        lineUnitPriceGbp = params[2] as string;
+        if (q.includes('notes = $5::text')) {
+          lineNotes = params[4] as string | null;
+        }
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('update public.sales_order_lines') && q.includes('set deleted_at')) {
+        return { rows: [], rowCount: 1 };
       }
       if (q.startsWith('update public.sales_orders')) {
         status = params[1] as string;
@@ -360,6 +426,9 @@ beforeEach(() => {
   lineQuantityOrdered = '10';
   lineOrderQty = null;
   lineOrderUom = null;
+  lineUnitPriceGbp = '7.2500';
+  lineNotes = 'line note';
+  lineUpdateCallCount = 0;
   candidateRows = [];
   nearExpiryWarnDays = '7';
   customerActive = true;
@@ -601,7 +670,7 @@ describe('createSalesOrder', () => {
     });
   });
 
-  it('preserves high-precision list_price_gbp through to SQL params', async () => {
+  it('persists high-precision list_price_gbp normalized to the stored 4dp scale', async () => {
     listPriceGbp = '12.3456789';
 
     await createSalesOrder({
@@ -610,9 +679,9 @@ describe('createSalesOrder', () => {
       lines: [{ item_id: ITEM_ID, qty: '1', uom: 'kg' }],
     });
 
-    expect(insertedLines[0]?.unit_price_gbp).toBe('12.3456789');
+    expect(insertedLines[0]?.unit_price_gbp).toBe('12.3457');
     const lineInsert = queryLog.find((entry) => normalize(entry.sql).startsWith('insert into public.sales_order_lines'));
-    expect(lineInsert?.params?.[5]).toBe('12.3456789');
+    expect(lineInsert?.params?.[5]).toBe('12.3457');
   });
 
   it('uses active GBP customer_item_prices over list price', async () => {
@@ -648,18 +717,21 @@ describe('createSalesOrder', () => {
     });
   });
 
-  it('uses zero unit_price_gbp when item list_price_gbp is null', async () => {
+  it('rejects SO creation when item list_price_gbp is null (unit price must be > 0)', async () => {
     listPriceGbp = null;
 
-    await createSalesOrder({
+    const result = await createSalesOrder({
       customer_id: CUSTOMER_ID,
       requested_date: '2026-06-20',
       lines: [{ item_id: ITEM_ID, qty: '3', uom: 'kg' }],
     });
 
-    expect(insertedLines[0]).toMatchObject({
-      unit_price_gbp: '0',
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'Unit price must be greater than zero',
     });
+    expect(insertedLines).toEqual([]);
   });
 
   it('rejects SO creation for an inactive customer', async () => {
@@ -1056,5 +1128,117 @@ describe('deallocateSalesOrder', () => {
       { sales_order_line_id: LINE_ID, lp_id: LP_2, qty: '4', status: 'released' },
     ]);
     expect(queryLog.some((entry) => normalize(entry.sql).startsWith('update public.inventory_allocations'))).toBe(true);
+  });
+});
+
+describe('updateSalesOrder', () => {
+  it('rejects a non-draft sales order', async () => {
+    status = 'confirmed';
+    const result = await updateSalesOrder(SO_ID, { notes: 'updated' });
+    expect(result).toEqual({ ok: false, error: 'not_draft' });
+  });
+
+  it('updates draft header fields and recomputes line totals while keeping unit price > 0', async () => {
+    status = 'draft';
+    lineOrderQty = '10';
+    const result = await updateSalesOrder(SO_ID, {
+      requiredDate: '2026-08-01',
+      notes: 'rush order',
+      lines: [{ id: LINE_ID, qty: '5', notes: 'half case', unit_price_gbp: '8.0000' }],
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data?.notes).toBe('rush order');
+      expect(result.data?.lines[0]?.qty).toBe('5');
+      expect(result.data?.lines[0]?.unit_price_gbp).toBe('8.0000');
+      expect(result.data?.lines[0]?.line_total_gbp).toBe('40');
+    }
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('line_total_gbp = ($4::numeric * $3::numeric)'))).toBe(true);
+    const headerUpdate = queryLog.find(
+      (entry) =>
+        normalize(entry.sql).startsWith('update public.sales_orders') &&
+        normalize(entry.sql).includes('promised_ship_date ='),
+    );
+    expect(headerUpdate).toBeDefined();
+    expect(insertedSo).toMatchObject({ promised_ship_date: '2026-08-01', notes: 'rush order' });
+  });
+
+  it('leaves the sales order unchanged when a later line patch is invalid', async () => {
+    status = 'draft';
+    lineOrderQty = '10';
+    lineQuantityOrdered = '10';
+    lineUnitPriceGbp = '7.2500';
+    lineUpdateCallCount = 0;
+
+    const result = await updateSalesOrder(SO_ID, {
+      notes: 'should not persist',
+      lines: [
+        { id: LINE_ID, qty: '5', unit_price_gbp: '8.0000' },
+        { id: UNKNOWN_LINE_ID, qty: '1', unit_price_gbp: '1.0000' },
+      ],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input', message: 'Unknown sales order line' });
+    expect(lineUpdateCallCount).toBe(0);
+    expect(lineOrderQty).toBe('10');
+    expect(lineQuantityOrdered).toBe('10');
+    expect(lineUnitPriceGbp).toBe('7.2500');
+    expect(insertedSo?.notes).not.toBe('should not persist');
+  });
+
+  it('persists explicit null clears for promised date, header notes, and line notes', async () => {
+    status = 'draft';
+    insertedSo = { promised_ship_date: '2026-08-01', notes: 'rush order' };
+    lineNotes = 'half case';
+
+    const result = await updateSalesOrder(SO_ID, {
+      requiredDate: null,
+      notes: null,
+      lines: [{ id: LINE_ID, qty: '5', notes: null, unit_price_gbp: '8.0000' }],
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data?.expected_ship_date).toBeNull();
+      expect(result.data?.notes).toBeNull();
+      expect(result.data?.lines[0]?.notes).toBeNull();
+    }
+    expect(insertedSo).toMatchObject({ promised_ship_date: null, notes: null });
+    expect(lineNotes).toBeNull();
+  });
+});
+
+describe('deleteSalesOrder', () => {
+  it('rejects deleting a non-draft sales order', async () => {
+    status = 'confirmed';
+    const result = await deleteSalesOrder(SO_ID);
+    expect(result).toEqual({ ok: false, error: 'not_draft' });
+  });
+
+  it('soft-deletes a draft sales order and its lines', async () => {
+    status = 'draft';
+    const result = await deleteSalesOrder(SO_ID);
+    expect(result).toEqual({ ok: true, data: null });
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('update public.sales_order_lines') && normalize(entry.sql).includes('deleted_at'))).toBe(true);
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('update public.sales_orders') && normalize(entry.sql).includes('deleted_at'))).toBe(true);
+  });
+
+  it('releases live allocations before soft-deleting a draft sales order', async () => {
+    status = 'draft';
+    allocationRows = [{ sales_order_line_id: LINE_ID, lp_id: LP_1, qty: '6', status: 'allocated' }];
+    lpReserved = { [LP_1]: '6' };
+
+    const result = await deleteSalesOrder(SO_ID);
+
+    expect(result).toEqual({ ok: true, data: null });
+    expect(lpReserved).toEqual({ [LP_1]: '0' });
+    expect(allocationRows).toEqual([{ sales_order_line_id: LINE_ID, lp_id: LP_1, qty: '6', status: 'released' }]);
+    const lineDeleteIdx = queryLog.findIndex(
+      (entry) => normalize(entry.sql).includes('update public.sales_order_lines') && normalize(entry.sql).includes('deleted_at'),
+    );
+    const releaseIdx = queryLog.findIndex((entry) => normalize(entry.sql).includes('update public.inventory_allocations'));
+    expect(releaseIdx).toBeGreaterThanOrEqual(0);
+    expect(lineDeleteIdx).toBeGreaterThan(releaseIdx);
   });
 });
