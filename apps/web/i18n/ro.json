@@ -2419,6 +2419,7 @@
         },
         "errors": {
           "codeRequired": "Item code is required (min 1 char).",
+          "priceNonNegative": "Prețul trebuie să fie zero sau mai mare.",
           "nameRequired": "Name is required (min 1 char).",
           "uomRequired": "Base UoM is required.",
           "netRequired": "Net content per each is required (> 0) for Each / Box output.",
@@ -5529,7 +5530,7 @@
       "error": "Nu s-a putut avansa poarta. Încercați din nou.",
       "forbidden": "Nu aveți permisiunea de a avansa această poartă.",
       "recipeNeedsIngredient": "Rețeta are cel puțin un ingredient",
-      "requiredIncompleteWarning": "{count} elemente obligatorii din checklist nu sunt finalizate — poți continua totuşi.",
+      "requiredIncompleteWarning": "{count} elemente obligatorii din checklist trebuie finalizate înainte de a continua.",
       "esignRequiredError": "Înainte de handoff este necesară aprobarea cu semnătură electronică G4 — aprob-o în etapa Approval.",
       "blockersPresentError": "Această etapă are încă blocaje — rezolvă-le şi încearcă din nou.",
       "alreadyClosedError": "This project is already launched — there is no further stage to advance to.",

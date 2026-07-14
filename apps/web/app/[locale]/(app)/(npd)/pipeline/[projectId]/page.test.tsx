@@ -3,7 +3,7 @@
  *
  * NPD project-detail INDEX page (RSC) — redirects to the project's CURRENT stage
  * (recipe→/formulation, etc.), not always Brief. Falls back to /brief if the project
- * can't be loaded.
+ * Missing projects render not-found; unexpected loader failures fall back to Brief.
  */
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
@@ -11,7 +11,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 const redirect = vi.fn((url: string) => {
   throw new Error(`NEXT_REDIRECT:${url}`);
 });
-vi.mock('next/navigation', () => ({ redirect: (url: string) => redirect(url) }));
+const notFound = vi.fn(() => {
+  throw new Error('NEXT_NOT_FOUND');
+});
+vi.mock('next/navigation', () => ({
+  redirect: (url: string) => redirect(url),
+  notFound: () => notFound(),
+}));
 
 const getProject = vi.fn();
 vi.mock('../../../../../(npd)/pipeline/_actions/get-project', () => ({
@@ -26,6 +32,7 @@ function ok(currentStage: string) {
 
 beforeEach(() => {
   redirect.mockClear();
+  notFound.mockClear();
   getProject.mockReset();
 });
 
@@ -51,7 +58,16 @@ describe('NPD project-detail INDEX page', () => {
     ).rejects.toThrow('NEXT_REDIRECT:/pl/pipeline/abc/packaging');
   });
 
-  it('falls back to /brief when the project cannot be loaded', async () => {
+  it('renders not found when the project does not exist', async () => {
+    getProject.mockResolvedValue({ ok: false, error: 'NOT_FOUND' });
+    await expect(
+      ProjectDetailPage({ params: Promise.resolve({ locale: 'en', projectId: 'p1' }) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(notFound).toHaveBeenCalledOnce();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it('falls back to /brief when the project loader throws', async () => {
     getProject.mockRejectedValue(new Error('boom'));
     await expect(
       ProjectDetailPage({ params: Promise.resolve({ locale: 'en', projectId: 'p1' }) }),

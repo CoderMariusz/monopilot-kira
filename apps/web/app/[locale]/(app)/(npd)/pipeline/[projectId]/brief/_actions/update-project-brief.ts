@@ -222,6 +222,22 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
       const afterRow = updated.rows[0];
       if (!afterRow) return { ok: false, error: 'NOT_FOUND', status: 404 };
 
+      if (patch.productName !== undefined) {
+        await context.client.query(
+          `update public.items i
+              set name = $2,
+                  updated_at = now()
+             from public.npd_projects p
+            where p.id = $1::uuid
+              and p.org_id = app.current_org_id()
+              and p.product_code = i.item_code
+              and i.org_id = app.current_org_id()
+              and i.item_type = 'fg'
+              and i.name is distinct from $2`,
+          [parsed.data.projectId, patch.productName],
+        );
+      }
+
       if (patch.targetRetailPriceEur !== undefined) {
         await context.client.query(
           `update public.formulation_versions fv

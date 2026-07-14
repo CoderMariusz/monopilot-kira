@@ -2488,6 +2488,7 @@
         },
         "errors": {
           "codeRequired": "Kod pozycji jest wymagany (min. 1 znak).",
+          "priceNonNegative": "Cena musi wynosić zero lub więcej.",
           "nameRequired": "Nazwa jest wymagana (min. 1 znak).",
           "uomRequired": "Bazowa JM jest wymagana.",
           "netRequired": "Zawartość netto na sztukę jest wymagana (> 0) dla wyjścia Sztuka / Karton.",
@@ -5598,7 +5599,7 @@
       "error": "Nie można przejść do następnej bramki. Spróbuj ponownie.",
       "forbidden": "Nie masz uprawnień do przechodzenia tej bramki.",
       "recipeNeedsIngredient": "Receptura zawiera co najmniej jeden składnik",
-      "requiredIncompleteWarning": "{count} wymaganych pozycji checklisty nieukończonych — możesz mimo to kontynuować.",
+      "requiredIncompleteWarning": "{count} wymaganych pozycji checklisty musi zostać ukończonych przed przejściem dalej.",
       "esignRequiredError": "Przed handoffem wymagany jest e-podpis bramki G4 — zatwierdź ją na etapie Approval.",
       "blockersPresentError": "Ten etap ma jeszcze blokery — rozwiąż je i spróbuj ponownie.",
       "alreadyClosedError": "Ten projekt jest już wdrożony (launched) — nie ma kolejnego etapu do przejścia.",

@@ -91,7 +91,7 @@ const labels: AdvanceGateLabels = {
   optional: 'Optional',
   requiredComplete: '{done} of {total} required items complete',
   blockersTitle: '{count} blocker(s)',
-  requiredIncompleteWarning: '{count} required checklist items are not complete — you can still advance.',
+  requiredIncompleteWarning: '{count} required checklist items must be completed before advancing.',
   readyAlert: 'No blockers — ready to advance!',
   notesLabel: 'Gate advancement notes',
   notesPlaceholder: 'Summarise completion, conditions, or observations for the audit trail…',
@@ -189,6 +189,26 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
     expect(within(dialog).getByText('Advance to G3: Development')).toBeInTheDocument();
   });
 
+  it('fresh G0 with an incomplete recipe only offers G1 and blocks advancement with the reason', () => {
+    renderModal({
+      project: { ...project, currentGate: 'G0' },
+      gateInfo: {
+        current: 'G0',
+        currentLabel: 'Idea',
+        next: 'G1',
+        nextLabel: 'Feasibility',
+        requiresApproval: false,
+      },
+      items: [{ id: 'recipe-complete', text: 'Recipe is complete', required: true, done: false }],
+    });
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('G1')).toBeInTheDocument();
+    expect(within(dialog).queryByText('G3')).not.toBeInTheDocument();
+    expect(within(dialog).getAllByText('Recipe is complete')).not.toHaveLength(0);
+    expect(within(dialog).getByRole('button', { name: /Advance to G1/ })).toBeDisabled();
+  });
+
   it('notes are OPTIONAL for a plain advance: the label carries no required asterisk', () => {
     renderModal({ items: readyItems });
     const dialog = screen.getByRole('dialog');
@@ -201,26 +221,23 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
     expect(within(dialog).getByRole('button', { name: /Advance to G3/ })).toBeEnabled();
   });
 
-  it('advisory state: when required items are incomplete, the warning lists each item while notes and Advance stay enabled', () => {
+  it('blocked state: when required items are incomplete, the warning lists each item and Advance is disabled', () => {
     renderModal({ items: blockedItems });
 
     const dialog = screen.getByRole('dialog');
 
-    // 2026-06-06 pivot: the checklist is ADVISORY — incomplete required items no longer
-    // block the advance. The arrow is NOT blocked, notes stay enabled, Advance is enabled.
-    expect(within(dialog).getByTestId('advance-gate-arrow')).toHaveAttribute('data-blocked', 'false');
+    expect(within(dialog).getByTestId('advance-gate-arrow')).toHaveAttribute('data-blocked', 'true');
 
-    // incomplete required items are surfaced as an advisory note (role="note"), not a blocker.
+    // incomplete required items are surfaced with the blocking reasons.
     const advisory = within(dialog).getByTestId('advance-gate-required-warning');
     expect(advisory).toHaveAttribute('role', 'note');
     expect(within(advisory).getByText('Target margin confirmed')).toBeInTheDocument();
     expect(within(advisory).getByText('Resource plan approved')).toBeInTheDocument();
-    expect(within(advisory).getByText('2 required checklist items are not complete — you can still advance.')).toBeInTheDocument();
+    expect(within(advisory).getByText('2 required checklist items must be completed before advancing.')).toBeInTheDocument();
     expect(within(dialog).getAllByText('Required').length).toBeGreaterThan(0);
 
-    // notes enabled + Advance enabled despite incomplete checklist.
-    expect(within(dialog).getByLabelText(/Gate advancement notes/)).toBeEnabled();
-    expect(within(dialog).getByRole('button', { name: /Advance to G3/ })).toBeEnabled();
+    expect(within(dialog).getByLabelText(/Gate advancement notes/)).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: /Advance to G3/ })).toBeDisabled();
   });
 
   it('ready state: with all required items done, the green ready note shows and Advance is enabled (notes optional)', async () => {

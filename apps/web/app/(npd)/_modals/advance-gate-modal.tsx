@@ -13,8 +13,7 @@
  *     server-side (T-057 getProject) and passed in as `gateInfo` + `items` props. This island NEVER queries
  *     the DB (risk red-line); it is a pure controlled component.
  *   - incompleteRequired = items.filter(required && !done) → computed locally from the items prop (no override
- *     mutation; toggling lives in GateChecklistPanel/T-107). Checklist completeness is advisory, so submit stays
- *     available; hard guards are enforced by advanceProjectGate.
+ *     mutation; toggling lives in GateChecklistPanel/T-107). Required readiness blocks submit and lists why.
  *   - gate-transition card + dashed-when-blocked arrow → CSS card; arrow exposes data-blocked for parity evidence.
  *   - Progress div + per-item rows with Done/Required/Optional badges → role="progressbar" + @monopilot/ui Badge
  *     (every status pairs colour with a glyph + text — a11y: never colour-only).
@@ -101,7 +100,7 @@ export type AdvanceGateLabels = {
   optional: string;
   requiredComplete: string; // "{done} of {total} required items complete"
   blockersTitle: string; // "{count} blocker(s)"
-  requiredIncompleteWarning: string; // "{count} required checklist items are not complete — you can still advance."
+  requiredIncompleteWarning: string; // "{count} required checklist items must be completed before advancing."
   readyAlert: string;
   notesLabel: string;
   notesPlaceholder: string;
@@ -263,12 +262,6 @@ export function AdvanceGateModal({
     }
   }, [open, reset]);
 
-  // 2026-06-06 pivot: the gate checklist is ADVISORY in the simplified R&D pipeline
-  // — the items are shown as progress/info but DO NOT hard-block the stage advance
-  // (the user has no UI to tick them; brief/stage fields are the real completeness
-  // signal). The one hard regulatory gate is the approval→handoff e-signature, which
-  // is enforced server-side (advanceProjectGate → ESIGN_REQUIRED) and surfaced here as
-  // a serverError. So the modal always renders ready and never gates on the checklist.
   const effectiveState: AdvanceGateState = state;
 
   const incompleteRequired = React.useMemo(() => items.filter((i) => i.required && !i.done), [items]);
@@ -278,10 +271,10 @@ export function AdvanceGateModal({
     ? Math.round((items.filter((i) => i.done).length / items.length) * 100)
     : 0;
 
-  const isBlocked = false; // checklist is advisory; see note above
+  const isBlocked = incompleteRequired.length > 0;
   const overrideMode = softGateMissing.length > 0;
   const overrideNote = noteValue.trim();
-  const canAdvance = !overrideMode || overrideNote.length > 0; // notes optional until a soft-gate override is requested
+  const canAdvance = !isBlocked && (!overrideMode || overrideNote.length > 0);
   const submitting = formState.isSubmitting;
 
   const onSubmit = handleSubmit(async (values) => {
@@ -443,7 +436,7 @@ export function AdvanceGateModal({
               </p>
             </div>
 
-            {/* ——— Advisory pending items / ready ——— */}
+            {/* ——— Required readiness / ready ——— */}
             {incompleteRequired.length > 0 ? (
               <div role="note" data-testid="advance-gate-required-warning" className="alert alert-amber">
                 <p className="alert-title text-amber-800">

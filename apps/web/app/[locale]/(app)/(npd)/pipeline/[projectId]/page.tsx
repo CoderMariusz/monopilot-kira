@@ -7,12 +7,13 @@
  * stage the project is actually on — not always Brief. We read current_stage and
  * redirect to its route segment (recipe→/formulation, etc.). A brand-new project is
  * at 'brief'; a project advanced to recipe lands on /formulation, and so on. If the
- * project can't be loaded we fall back to /brief (its own page renders the state).
+ * A missing project renders the route's 404 boundary; other loader failures fall
+ * back to /brief so its own page can render the error state.
  *
  * The persistent header + 8-stage rail live in layout.tsx and wrap every stage route.
  */
 
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { getProject } from '../../../../../(npd)/pipeline/_actions/get-project';
 import { PROJECT_STAGES } from './_components/project-stages';
@@ -36,13 +37,14 @@ export default async function ProjectDetailPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as ProjectDetailPageProps;
   const { locale, projectId } = props.params ? await props.params : { locale: 'en', projectId: '' };
 
-  let segment = 'brief';
+  let result: Awaited<ReturnType<typeof getProject>> | undefined;
   try {
-    const result = await getProject({ projectId });
-    if (result.ok) segment = segmentForStage(result.data.project.currentStage);
+    result = await getProject({ projectId });
   } catch {
     // fall through to /brief — the stage page renders its own error/empty state.
   }
+  if (result && !result.ok && result.error === 'NOT_FOUND') notFound();
+  const segment = result?.ok ? segmentForStage(result.data.project.currentStage) : 'brief';
 
   // Preserve query params across the redirect — the Kanban "Advance →" deep-links to
   // /pipeline/[id]?modal=advanceGate (F-C08: the advance must route through the gate

@@ -38,6 +38,7 @@ import {
   GATE_APPROVE_PERMISSION,
   advanceTransitionForStage,
   getBlockers,
+  nextGate,
   nextStage,
   type GateProjectRow,
 } from '../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
@@ -183,7 +184,7 @@ const DEFAULT_ADVANCE_LABELS: AdvanceGateLabels = {
   optional: 'Optional',
   requiredComplete: '{done} of {total} required items complete',
   blockersTitle: '{count} required item(s) incomplete',
-  requiredIncompleteWarning: '{count} required checklist items are not complete — you can still advance.',
+  requiredIncompleteWarning: '{count} required checklist items must be completed before advancing.',
   readyAlert: 'All required items complete — ready to advance.',
   notesLabel: 'Advance notes',
   notesPlaceholder: 'Add a note for this gate transition…',
@@ -336,11 +337,8 @@ function buildAdvanceProps(
     required: i.required,
     done: i.done,
   }));
-  // The advance target is derived from the STAGE machine (advanceTransitionForStage),
-  // never from static per-gate metadata — from brief (G0) the real next step derives
-  // G2 (G1 is collapsed into brief), and within G3 a stage step keeps the gate at G3.
   const transition = advanceTransitionForStage(currentStage);
-  const targetGate = (transition?.targetGate ?? 'Launched') as TargetGate;
+  const targetGate = (nextGate(currentGate) ?? 'Launched') as TargetGate;
   const nextLabel =
     targetGate === 'Launched' ? 'Launched' : GATE_META[targetGate as GateKey].label;
   return {

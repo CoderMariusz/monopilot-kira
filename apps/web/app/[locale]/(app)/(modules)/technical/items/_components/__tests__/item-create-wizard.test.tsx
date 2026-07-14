@@ -373,6 +373,37 @@ describe('ItemWizard create mode (TEC-011)', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(L.errors.codeInvalid);
   });
+
+  it('blocks a negative list price before Review with an inline error', async () => {
+    const user = userEvent.setup();
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user);
+    await user.click(screen.getByRole('button', { name: L.next }));
+    await user.type(inputByName('listPriceGbp'), '-1');
+    await user.click(screen.getByRole('button', { name: L.next }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(L.errors.priceNonNegative);
+    expect(screen.getByRole('tab', { name: new RegExp(L.steps.weight) })).toHaveAttribute('aria-selected', 'true');
+    expect(createItem).not.toHaveBeenCalled();
+  });
+
+  it('shows friendly copy instead of raw Zod JSON on submit failure', async () => {
+    const user = userEvent.setup();
+    createItem.mockResolvedValue({
+      ok: false,
+      error: 'invalid_input',
+      message: '[{"code":"too_small","path":["listPriceGbp"]}]',
+    });
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user);
+    await user.click(screen.getByRole('button', { name: L.next }));
+    await user.click(screen.getByRole('button', { name: L.next }));
+    await user.click(screen.getByRole('button', { name: L.create }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(L.actionErrors.invalid_input);
+    expect(alert).not.toHaveTextContent('too_small');
+  });
 });
 
 describe('ItemWizard edit mode (TEC-013 reuse)', () => {

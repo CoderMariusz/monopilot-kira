@@ -3073,7 +3073,7 @@
       "error": "Could not advance the gate. Try again.",
       "forbidden": "You do not have permission to advance this gate.",
       "recipeNeedsIngredient": "Recipe has at least one ingredient",
-      "requiredIncompleteWarning": "{count} required checklist items are not complete — you can still advance.",
+      "requiredIncompleteWarning": "{count} required checklist items must be completed before advancing.",
       "esignRequiredError": "Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.",
       "blockersPresentError": "This stage still has blockers — resolve them and try again.",
       "alreadyClosedError": "This project is already launched — there is no further stage to advance to.",
@@ -5098,7 +5098,8 @@
           "nameRequired": "Name is required (min 1 char).",
           "uomRequired": "Base UoM is required.",
           "netRequired": "Net content per each is required (> 0) for Each / Box output.",
-          "eachPerBoxRequired": "Each per box is required (> 0) for Box output."
+          "eachPerBoxRequired": "Each per box is required (> 0) for Box output.",
+          "priceNonNegative": "Price must be zero or greater."
         },
         "intermediateHint": "= WIP (work in progress)",
         "uomLabels": {

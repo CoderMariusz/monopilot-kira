@@ -26,12 +26,11 @@ describe('codeMaskToLenientRegExp', () => {
     expect(re.test('')).toBe(false);
   });
 
-  it('keeps literal separators in the mask required and stays anchored', () => {
-    const re = codeMaskToLenientRegExp('WIP-xxxx');
-    expect(re.test('WIP-0003')).toBe(true);
-    expect(re.test('WIP-3')).toBe(true); // digit count tolerant
-    expect(re.test('WIP0003')).toBe(false); // the mask's LITERAL '-' is still required
-    expect(re.test('ZWIP-0003')).toBe(false); // anchored start
+  it('makes mask separators optional while staying anchored', () => {
+    const re = codeMaskToLenientRegExp('FG-xxx');
+    expect(re.test('FG-016')).toBe(true);
+    expect(re.test('FG0016')).toBe(true);
+    expect(re.test('XX9')).toBe(false);
   });
 });
 

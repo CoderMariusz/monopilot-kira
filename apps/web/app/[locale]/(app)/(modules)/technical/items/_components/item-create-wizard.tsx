@@ -460,6 +460,10 @@ export function ItemWizard({
       : form.outputUom === 'each'
         ? netValid
         : netValid && eachPerBoxValid;
+  const priceValid = [form.supplierUnitPrice, form.listPriceGbp].every((value) => {
+    const trimmed = value.trim();
+    return !trimmed || (Number.isFinite(Number(trimmed)) && Number(trimmed) >= 0);
+  });
 
   // Live conversion helper, e.g. "1 box = 10 × 0.100 kg = 1.000 kg".
   const conversionHint = (() => {
@@ -504,6 +508,10 @@ export function ItemWizard({
       else setError(labels.errors.eachPerBoxRequired);
       return;
     }
+    if (step === 'weight' && !priceValid) {
+      setError(labels.errors.priceNonNegative);
+      return;
+    }
     setStepIndex((i) => Math.min(i + 1, STEP_KEYS.length - 1));
   }
   function goBack() {
@@ -525,6 +533,11 @@ export function ItemWizard({
     if (!packagingValid) {
       setStepIndex(STEP_KEYS.indexOf('weight'));
       setError(!netValid ? labels.errors.netRequired : labels.errors.eachPerBoxRequired);
+      return;
+    }
+    if (!priceValid) {
+      setStepIndex(STEP_KEYS.indexOf('weight'));
+      setError(labels.errors.priceNonNegative);
       return;
     }
     const common = {
@@ -561,7 +574,11 @@ export function ItemWizard({
     const originalSupplierCode = trimOrUndefined(initialForm?.supplierCode ?? '');
     startTransition(async () => {
       if (isEdit) {
-        const result = await updateItem({ id: (mode as { itemId: string }).itemId, ...common });
+        const result = await updateItem({ id: (mode as { itemId: string }).itemId, ...common }).catch(() => null);
+        if (!result) {
+          setError(labels.actionErrors.persistence_failed);
+          return;
+        }
         if (!result.ok) {
           setError(formatItemActionError(labels, result.error, { serverMessage: result.message }));
           return;
@@ -582,7 +599,11 @@ export function ItemWizard({
             unitPrice: form.supplierUnitPrice || undefined,
             priceCurrency: 'GBP',
             approveNow: true,
-          });
+          }).catch(() => null);
+          if (!specResult) {
+            setError(labels.actionErrors.persistence_failed);
+            return;
+          }
           if (!specResult.ok) {
             setError(
               labels.actionErrors[specResult.error as ItemsActionError] ??
@@ -611,7 +632,11 @@ export function ItemWizard({
         ...(supplierCode
           ? { supplierCode, supplierUnitPrice: numOrUndefined(form.supplierUnitPrice) }
           : {}),
-      });
+      }).catch(() => null);
+      if (!result) {
+        setError(labels.actionErrors.persistence_failed);
+        return;
+      }
       if (result.ok) {
         if (result.warning?.code === 'supplier_spec_failed') {
           setWarning(labels.warnings.supplierSpecNotSaved);

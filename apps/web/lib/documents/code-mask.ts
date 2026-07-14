@@ -108,6 +108,11 @@ export function codeMaskToLenientRegExp(mask: string): RegExp {
       // optional leading separator + a bounded run of digits (count-tolerant).
       pattern += '[-_ ]?\\d{1,12}';
       i = j;
+    } else if (/[-_ ]/.test(mask[i] ?? '')) {
+      // Numeric/token runs already accept one optional separator. Avoid making
+      // the same literal separator mandatory (or allowing two separators).
+      if (!/[xX]/.test(mask[i + 1] ?? '') && !mask.startsWith('[', i + 1)) pattern += '[-_ ]?';
+      i += 1;
     } else {
       pattern += escapeRegExpLiteral(mask[i] ?? '');
       i += 1;

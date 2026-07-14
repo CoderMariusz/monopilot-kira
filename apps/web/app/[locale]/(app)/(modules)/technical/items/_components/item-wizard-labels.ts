@@ -88,6 +88,7 @@ export type ItemWizardLabels = {
     uomRequired: string;
     netRequired: string;
     eachPerBoxRequired: string;
+    priceNonNegative: string;
   };
   actionErrors: Record<ItemsActionError, string>;
   /** Generic already_exists when item code is unknown (fallback). */
@@ -116,7 +117,7 @@ export function formatItemActionError(
     if (message === 'invalid_transition') {
       return labels.actionErrors.invalid_input;
     }
-    return message;
+    return labels.actionErrors.invalid_input;
   }
   return labels.actionErrors[error];
 }
@@ -212,6 +213,7 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     uomRequired: 'Base UoM is required.',
     netRequired: 'Net content per each is required (> 0) for Each / Box output.',
     eachPerBoxRequired: 'Each per box is required (> 0) for Box output.',
+    priceNonNegative: 'Price must be zero or greater.',
   },
   actionErrors: {
     already_exists:
@@ -361,6 +363,7 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       uomRequired: t('create.errors.uomRequired'),
       netRequired: get('create.errors.netRequired', D.errors.netRequired),
       eachPerBoxRequired: get('create.errors.eachPerBoxRequired', D.errors.eachPerBoxRequired),
+      priceNonNegative: get('create.errors.priceNonNegative', D.errors.priceNonNegative),
     },
     actionErrors,
     actionErrorsGeneric,

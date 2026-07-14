@@ -137,6 +137,25 @@ describe('updateProjectBrief', () => {
     expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith(`/pipeline/${PROJECT}/brief`);
   });
 
+  it('renames the linked FG product with the project brief', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      return handler()(sql, params);
+    };
+
+    const result = await updateProjectBrief({
+      projectId: PROJECT,
+      patch: { productName: 'New product' },
+    });
+
+    expect(result).toEqual({ ok: true, data: { projectId: PROJECT } });
+    const productRename = calls.find((call) => /update public\.items/.test(call.sql));
+    expect(productRename?.sql).toContain('npd_projects');
+    expect(productRename?.sql).toContain('app.current_org_id()');
+    expect(productRename?.params).toEqual([PROJECT, 'New product']);
+  });
+
   it('re-syncs FG net_qty_per_each and output_uom when pack weight changes post-handoff', async () => {
     const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
     ctx.handler = (sql, params) => {
