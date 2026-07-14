@@ -38,7 +38,7 @@ import Input from '@monopilot/ui/Input';
 import Textarea from '@monopilot/ui/Textarea';
 import { Select } from '@monopilot/ui/Select';
 
-import type { PoSupplierOption } from '../_actions/po-form-data';
+import type { PoSupplierOption } from '../_actions/po-form-data-types';
 
 export type EditPoLabels = {
   title: string;

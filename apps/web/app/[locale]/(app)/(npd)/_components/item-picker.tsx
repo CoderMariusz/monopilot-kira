@@ -115,6 +115,7 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
   // clipped by a modal's overflow / out-stacked by a modal's z-index (the picker
   // lives inside PO/TO/WO create modals). Anchor it to the trigger's rect.
   const [panelRect, setPanelRect] = React.useState<{ top: number; left: number; width: number } | null>(null);
+  const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
 
   const updatePanelPosition = React.useCallback(() => {
     const el = containerRef.current;
@@ -164,6 +165,9 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
   // the portaled panel anchored to the trigger on open / scroll / resize.
   React.useEffect(() => {
     if (open) {
+      const trigger = containerRef.current;
+      const dialogContent = trigger?.closest('[data-focus-trap="radix-dialog"]');
+      setPortalContainer(dialogContent instanceof HTMLElement ? dialogContent : document.body);
       updatePanelPosition();
       inputRef.current?.focus();
       const reposition = () => updatePanelPosition();
@@ -178,6 +182,7 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
     setOptions([]);
     setError(false);
     setPanelRect(null);
+    setPortalContainer(null);
     return undefined;
   }, [open, updatePanelPosition]);
 
@@ -240,12 +245,18 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
         {labels.trigger}
       </Button>
 
-      {open && panelRect && typeof document !== 'undefined' ? (
+      {open && panelRect && portalContainer ? (
         createPortal(
         <div
           ref={panelRef}
           role="dialog"
           aria-label={labels.searchLabel}
+          onMouseDown={(e) => {
+            // Prevent the modal focus trap from stealing focus back to a textarea
+            // behind the portaled panel when the user clicks the search box.
+            e.preventDefault();
+            inputRef.current?.focus();
+          }}
           style={{
             position: 'fixed',
             top: panelRect.top,
@@ -353,7 +364,7 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
             </Button>
           </div>
         </div>,
-        document.body,
+        portalContainer,
         )
       ) : null}
     </div>

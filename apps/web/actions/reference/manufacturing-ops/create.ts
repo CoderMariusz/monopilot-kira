@@ -3,6 +3,7 @@
 import { revalidateLocalized } from '../../../lib/i18n/revalidate-localized';
 
 import { hasPermission } from '../../../lib/auth/has-permission';
+import type { CreateManufacturingOperationResult, ManufacturingOperation } from './create-types';
 import { writeManufacturingOperationsOutbox } from './_shared/outbox';
 
 type QueryClient = {
@@ -12,24 +13,38 @@ type OrgContext = { userId: string; orgId: string; client: QueryClient };
 type WithOrgContext = <T>(action: (ctx: OrgContext) => Promise<T>) => Promise<T>;
 type IndustryCode = 'bakery' | 'pharma' | 'fmcg' | 'generic' | 'custom';
 
-type ManufacturingOperation = {
-  id: string;
-  org_id: string;
-  operation_name: string;
-  process_suffix: string;
-  description: string | null;
-  operation_seq: number;
-  industry_code: IndustryCode;
-  is_active: boolean;
-  marker: 'ORG-CONFIG';
-  created_at?: string;
-};
-
 type Input = { operationName: string; processSuffix: string; description: string | null; operationSeq: number; industryCode: IndustryCode; isActive: boolean };
 
-export type CreateManufacturingOperationResult =
-  | { ok: true; data: ManufacturingOperation }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'duplicate_operation_name' | 'duplicate_process_suffix' | 'already_exists' | 'persistence_failed'; message?: string };
+function mapPersistenceError(error: unknown): CreateManufacturingOperationResult {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error('[manufacturing-ops/create] persistence_failed', { message });
+
+  if (message.includes('manufacturing_operations_industry_code_check')) {
+    return { ok: false, error: 'invalid_input' };
+  }
+  if (message.includes('manufacturing_operations_org_operation_name_unique')) {
+    return { ok: false, error: 'duplicate_operation_name' };
+  }
+  if (
+    message.includes('manufacturing_operations_org_process_suffix_unique') ||
+    message.includes('mfg_ops_org_industry_suffix_unique')
+  ) {
+    return { ok: false, error: 'duplicate_process_suffix' };
+  }
+  if (message.includes('no partition of relation') && message.includes('audit_log')) {
+    return { ok: false, error: 'persistence_failed' };
+  }
+
+  return { ok: false, error: 'persistence_failed' };
+}
+
+function safeRevalidateManufacturingOperationsRoute(): void {
+  try {
+    revalidateLocalized('/settings/reference/manufacturing-operations');
+  } catch {
+    /* no request store in action unit tests */
+  }
+}
 
 export async function createManufacturingOperation(rawInput: unknown): Promise<CreateManufacturingOperationResult> {
   const input = parseInput(rawInput);
@@ -72,26 +87,26 @@ export async function createManufacturingOperation(rawInput: unknown): Promise<C
         payload: { id: row.id, operationName: row.operation_name, processSuffix: row.process_suffix, industryCode: row.industry_code },
       });
 
-      revalidateLocalized('/settings/reference/manufacturing-operations');
+      safeRevalidateManufacturingOperationsRoute();
       return { ok: true, data: row };
     });
-  } catch {
-    return { ok: false, error: 'persistence_failed' };
+  } catch (error) {
+    return mapPersistenceError(error);
   }
 }
 
 async function findDuplicate(client: QueryClient, input: Input): Promise<'name' | 'suffix' | null> {
-  const { rows } = await client.query<{ operation_name: string; process_suffix: string; industry_code: string }>(
-    `select operation_name, process_suffix, industry_code
+  const { rows } = await client.query<{ operation_name: string; process_suffix: string }>(
+    `select operation_name, process_suffix
        from "Reference"."ManufacturingOperations" as manufacturing_operations
       where org_id = app.current_org_id()
         and marker in ('ORG-CONFIG', 'APEX-CONFIG')
         and (
           operation_name = $1
-          or (industry_code = $2 and process_suffix = $3)
+          or process_suffix = $2
         )
       limit 1`,
-    [input.operationName, input.industryCode, input.processSuffix],
+    [input.operationName, input.processSuffix],
   );
   const row = rows[0];
   if (!row) return null;

@@ -157,12 +157,11 @@ function makeClient(options: {
       }
 
       if (normalized.startsWith('select')) {
-        if (normalized.includes('operation_name = $1') && normalized.includes('process_suffix = $3')) {
+        if (normalized.includes('operation_name = $1') && normalized.includes('process_suffix = $2')) {
           const operationName = String(params[0] ?? '');
-          const industry = String(params[1] ?? '');
-          const suffix = String(params[2] ?? '');
+          const suffix = String(params[1] ?? '');
           const duplicate = Array.from(client.rows.values()).find(
-            (row) => row.operation_name === operationName || (row.industry_code === industry && row.process_suffix === suffix),
+            (row) => row.operation_name === operationName || row.process_suffix === suffix,
           );
           return { rows: (duplicate ? [duplicate] : []) as never[], rowCount: duplicate ? 1 : 0 };
         }
@@ -313,6 +312,53 @@ describe('Reference.ManufacturingOperations Server Actions (T-038)', () => {
     expect(
       currentClient.calls.filter((call) => normalizeSql(call.sql).startsWith('insert')).length,
       'duplicate name must fail before insert and avoid relying on a constraint exception',
+    ).toBe(0);
+  });
+
+  it('maps industry_code check violations to invalid_input instead of a generic persistence_failed', async () => {
+    const createManufacturingOperation = await loadAction<
+      (input: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; message?: string }>
+    >('manufacturing-ops/create.ts', 'createManufacturingOperation', () => import(`${__dirname}/manufacturing-ops/create.ts`) as Promise<Record<string, unknown>>);
+
+    const originalQuery = currentClient.query.bind(currentClient);
+    currentClient.query = async (sql, params = []) => {
+      const normalized = normalizeSql(sql);
+      if (normalized.startsWith('insert into "reference"."manufacturingoperations"')) {
+        throw new Error('new row for relation "ManufacturingOperations" violates check constraint "manufacturing_operations_industry_code_check"');
+      }
+      return originalQuery(sql, params);
+    };
+
+    const result = await createManufacturingOperation({
+      operationName: 'Blend',
+      processSuffix: 'BL',
+      description: 'Custom blending step',
+      operationSeq: 5,
+      industryCode: 'custom',
+      isActive: true,
+    });
+
+    expect(result).toMatchObject({ ok: false, error: 'invalid_input' });
+  });
+
+  it('returns duplicate_process_suffix when suffix is already used in another industry', async () => {
+    const createManufacturingOperation = await loadAction<
+      (input: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>
+    >('manufacturing-ops/create.ts', 'createManufacturingOperation', () => import(`${__dirname}/manufacturing-ops/create.ts`) as Promise<Record<string, unknown>>);
+
+    const result = await createManufacturingOperation({
+      operationName: 'New Pharma Step',
+      processSuffix: 'MX',
+      description: 'Suffix already used in bakery',
+      operationSeq: 9,
+      industryCode: 'pharma',
+      isActive: true,
+    });
+
+    expect(result).toMatchObject({ ok: false, error: 'duplicate_process_suffix' });
+    expect(
+      currentClient.calls.filter((call) => normalizeSql(call.sql).startsWith('insert')).length,
+      'global suffix duplicate must fail before insert',
     ).toBe(0);
   });
 

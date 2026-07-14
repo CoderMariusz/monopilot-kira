@@ -33,9 +33,6 @@ import type { GetItemSupplierPriceAction } from './create-po-modal';
 const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
 const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
 
-/** BUG2 — widen the picker input locally so the modal can thread the PO supplier. */
-type PoItemSearchInput = SearchItemsInput & { supplierId?: string };
-
 export type PoLineModalLabels = {
   addTitle: string;
   editTitle: string;
@@ -151,7 +148,7 @@ export function PoLineModal({
   // BUG2 — scope the picker to the parent PO's supplier (re-runs if supplier changes).
   const searchSupplierItems = React.useCallback(
     (input: SearchItemsInput) =>
-      searchPoItemsAction({ ...input, ...(supplierId ? { supplierId } : {}) } as PoItemSearchInput),
+      searchPoItemsAction({ ...input, ...(supplierId ? { supplierId } : {}) }),
     [searchPoItemsAction, supplierId],
   );
 

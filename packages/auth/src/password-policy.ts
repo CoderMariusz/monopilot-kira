@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import * as argon2 from 'argon2';
 import type pg from 'pg';
 
+import { PASSWORD_HISTORY_LIMIT, PASSWORD_MIN_LENGTH } from './password-policy-constants.js';
+
 /**
  * [UNIVERSAL] Password policy error reasons.
  * Used by validateNewPassword to report specific validation failures.
@@ -188,7 +190,7 @@ export async function validateNewPassword(
   const reasons: PasswordPolicyError[] = [];
 
   // Check 1: Minimum length (NIST SP 800-63B §5.1.1)
-  if (newPassword.length < 12) {
+  if (newPassword.length < PASSWORD_MIN_LENGTH) {
     reasons.push('too_short');
   }
 
@@ -203,7 +205,7 @@ export async function validateNewPassword(
     reasons.push('too_common');
   }
 
-  if (reasons.length > 0 && (newPassword.length < 12 || newPassword.trim().length === 0)) {
+  if (reasons.length > 0 && (newPassword.length < PASSWORD_MIN_LENGTH || newPassword.trim().length === 0)) {
     // Avoid noisy argon2/HIBP calls on clearly invalid local-only failures.
     return { ok: false, reasons };
   }

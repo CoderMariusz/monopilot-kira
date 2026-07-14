@@ -149,7 +149,7 @@ async function queryCustomerItemPrices(
             c.customer_code,
             c.name as customer_name,
             cip.item_id::text,
-            i.sku as item_code,
+            i.item_code as item_code,
             i.name as item_name,
             cip.unit_price::text,
             cip.currency,
@@ -165,7 +165,7 @@ async function queryCustomerItemPrices(
       where cip.org_id = app.current_org_id()
         and cip.deleted_at is null
         and ($1::uuid is null or cip.customer_id = $1::uuid)
-      order by c.customer_code asc, i.sku asc, cip.effective_from desc`,
+      order by c.customer_code asc, i.item_code asc, cip.effective_from desc`,
     [customerId],
   );
   return rows.map(toCustomerPriceRow);
@@ -186,13 +186,13 @@ async function queryFormOptions(context: OrgContextLike): Promise<CustomerPriceF
     ),
     context.client.query<OptionDbRow>(
       `select i.id::text,
-              i.sku as code,
+              i.item_code as code,
               i.name
          from public.items i
         where i.org_id = app.current_org_id()
-          and i.deleted_at is null
+          and i.status = 'active'
           and i.item_type = 'fg'
-        order by i.sku asc, i.name asc
+        order by i.item_code asc, i.name asc
         limit 500`,
     ),
   ]);
@@ -214,7 +214,7 @@ async function assertCustomerAndItemInOrg(
        join public.items i
          on i.org_id = app.current_org_id()
         and i.id = $2::uuid
-        and i.deleted_at is null
+        and i.status = 'active'
       where c.org_id = app.current_org_id()
         and c.id = $1::uuid
         and c.deleted_at is null

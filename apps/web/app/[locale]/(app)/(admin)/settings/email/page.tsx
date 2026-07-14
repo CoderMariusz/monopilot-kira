@@ -1,7 +1,5 @@
 import { getTranslations } from 'next-intl/server';
 import EmailTemplatesScreen, {
-  type EmailTemplateDraft,
-  type EmailTemplateSaveResult,
   type EmailTemplateVariableGroup,
   type EmailProviderSettings,
   type EmailTemplate,
@@ -11,10 +9,11 @@ import EmailTemplatesScreen, {
   type TestSendInput,
   type TestSendResult,
 } from './email-templates-screen.client';
-import { upsertEmailConfig } from '../../../../../../actions/email/upsert-config';
-import { testEmailProvider } from '../../../../../../actions/email/test-provider';
 import { loadEmailTemplatesData } from '../../../../../../actions/email/load-email-config';
-import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+import {
+  saveEmailTemplate,
+  testEmailTemplateSend,
+} from './_actions/email-template-actions';
 
 type EmailTemplatesPageProps = {
   params?: Promise<{ locale: string }>;
@@ -125,25 +124,15 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
   const reviewedTestSend: ((input: TestSendInput) => Promise<TestSendResult>) | undefined = hasInjectedData
     ? props.testSend
     : canEdit
-      ? testSendThroughProvider
+      ? testEmailTemplateSend
       : undefined;
   const hasReviewedTestSend = typeof reviewedTestSend === 'function';
 
   const reviewedSaveTemplate: SaveTemplate | undefined = hasInjectedData
     ? props.saveTemplate
     : canEdit
-      ? saveTemplateThroughEmailConfig
+      ? saveEmailTemplate
       : undefined;
-
-  const failClosedTestSend = hasReviewedTestSend && reviewedTestSend
-    ? async (input: TestSendInput): Promise<TestSendResult> => {
-        const result = await reviewedTestSend(input);
-        if (result.ok && result.message_id === 'not_configured') {
-          return { ok: false, error: labels.testSendError };
-        }
-        return result;
-      }
-    : undefined;
 
   // Permission-denied is an explicit loader state; otherwise honor the loaded state.
   const state: PageState = loadedState;
@@ -164,36 +153,7 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
       variablesHref={`/${locale}/settings/email/variables`}
       state={state}
       saveTemplate={reviewedSaveTemplate}
-      testSend={failClosedTestSend}
+      testSend={reviewedTestSend}
     />
   );
-}
-
-async function testSendThroughProvider(input: TestSendInput): Promise<TestSendResult> {
-  'use server';
-
-  const result = await testEmailProvider({ to: input.fromEmail });
-  if (result.status === 'ok') {
-    return { ok: true, message_id: result.message_id };
-  }
-  return { ok: false, error: result.code };
-}
-
-async function saveTemplateThroughEmailConfig(input: EmailTemplateDraft): Promise<EmailTemplateSaveResult> {
-  'use server';
-
-  const result = await upsertEmailConfig({
-    triggerCode: input.code,
-    recipientsTo: input.activeTo.join('; '),
-    subjectTemplate: input.subject,
-    bodyTemplate: input.body,
-    isActive: input.active,
-  });
-
-  if (result.status === 'ok') {
-    revalidateLocalized('/settings/email');
-    return { ok: true, templateCode: result.data.triggerCode, revalidatedPath: '/settings/email' };
-  }
-
-  return { ok: false, error: result.code };
 }

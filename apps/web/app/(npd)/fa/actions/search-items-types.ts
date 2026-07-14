@@ -16,4 +16,5 @@ export type SearchItemsInput = {
   itemTypes?: Array<'fg' | 'rm' | 'ingredient' | 'intermediate' | 'co_product' | 'byproduct' | 'packaging'>;
   limit?: number;
   supplierCode?: string;
+  supplierId?: string;
 };
