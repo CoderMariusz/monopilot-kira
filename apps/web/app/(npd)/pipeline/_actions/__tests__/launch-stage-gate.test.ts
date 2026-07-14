@@ -84,11 +84,21 @@ describe('evaluateStageGate handoff → launched compliance', () => {
       },
     });
 
+    // compliance docs present (valid_docs > 0) so the launch dispatch-gate docs check passes;
+    // other queries (checklist auto-signals) keep their original empty-row behaviour.
+    const dbWithDocs = {
+      ...db,
+      client: {
+        query: vi.fn(async (sql: string) =>
+          /compliance_docs/.test(sql) ? { rows: [{ valid_docs: 1 }] } : { rows: [] },
+        ),
+      },
+    };
     const evaluation = await evaluateStageGate(
       HANDOFF_PROJECT.id,
       'handoff',
       'launched',
-      db as never,
+      dbWithDocs as never,
       HANDOFF_PROJECT,
     );
 
