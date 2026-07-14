@@ -34,6 +34,7 @@
  */
 
 import type { ReactNode } from 'react';
+import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
 import { getProject } from '../../../../../(npd)/pipeline/_actions/get-project';
@@ -43,6 +44,7 @@ import { cloneProject as cloneProjectAction } from '../../../../../(npd)/pipelin
 import { createOrMapFgCandidateAtG3 as createOrMapFgCandidateAtG3Action } from '../../../../../(npd)/pipeline/_actions/create-or-map-fg-candidate-at-g3';
 import {
   advanceTransitionForStage,
+  nextGate,
   nextStage,
 } from '../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
@@ -195,7 +197,7 @@ const ADVANCE_DEFAULTS = {
   optional: 'Optional',
   requiredComplete: '{done} of {total} required items complete',
   blockersTitle: '{count} blocker(s) must be resolved first',
-  requiredIncompleteWarning: '{count} required checklist items are not complete — you can still advance.',
+  requiredIncompleteWarning: '{count} required checklist items must be completed before advancing.',
   readyAlert: 'All required items complete — ready to advance.',
   notesLabel: 'Advance notes',
   notesPlaceholder: 'Add a note for this gate transition…',
@@ -337,9 +339,16 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     result = { ok: false, error: 'PERSISTENCE_FAILED' };
   }
 
-  // When the header cannot load (forbidden/not-found/error) we still render the
-  // child (the page renders its own state panel) — but without the header/rail
-  // chrome, which would otherwise show empty/garbled data.
+  // A deleted / nonexistent project (deep-linked directly to any stage route) must
+  // 404 — not render an empty shell. This layout wraps every stage child, so the
+  // guard here covers direct deep-links that bypass the index redirect (#7).
+  if (!result.ok && result.error === 'NOT_FOUND') {
+    notFound();
+  }
+
+  // When the header cannot load for another reason (forbidden/persistence) we still
+  // render the child (the page renders its own state panel) — but without the
+  // header/rail chrome, which would otherwise show empty/garbled data.
   if (!result.ok) {
     return <div className="page-pad flex w-full flex-col">{children}</div>;
   }
@@ -416,17 +425,11 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     ? p('gate.g0MergeHint', GATE_MERGE_HINT_DEFAULT)
     : null;
 
-  // ── Honest advance transition, derived from the STAGE machine (never static
-  // gate metadata). From brief (G0) the next step is recipe → gate G2 — the UI
-  // must not claim G1, which is collapsed into the brief stage by design. ──
+  // The modal is a gate transition UI, so it always proposes the adjacent gate.
+  // The action adapter remains stage-native and independently enforces adjacency.
   const transition = advanceTransitionForStage(project.currentStage);
-  const targetGate = (transition?.targetGate ?? 'Launched') as TargetGate;
+  const targetGate = (nextGate(currentGate) ?? 'Launched') as TargetGate;
   const targetGateLabel = p(`gate.${targetGate}`, GATE_LABEL_DEFAULTS[targetGate]);
-  const targetStageLabel =
-    transition && transition.nextStage !== 'launched'
-      ? (stepLabels[transition.nextStage as ProjectStageKey] ?? transition.nextStage)
-      : null;
-  const nextLabel = targetStageLabel ? `${targetGateLabel} · ${targetStageLabel}` : targetGateLabel;
 
   const headerView: ProjectHeaderView = {
     id: project.id,
@@ -445,13 +448,13 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
   };
 
   // Advance-modal props (resolved from the real getProject checklist).
-  // Recipe stage exception: the only real completeness signal for leaving the recipe
-  // stage is "≥1 ingredient" (enforced as a hard blocker server-side). The seeded G2
+  // Recipe readiness: a fresh G0 project and the recipe stage both require ≥1 ingredient.
+  // The seeded G2
   // checklist (shelf-life / label / HACCP / business case) belongs to later stages, so
   // on the recipe stage we show ONLY the derived ingredient requirement instead.
   const currentChecklist = isGateKey(currentGate) ? (checklistByGate?.[currentGate] ?? []) : [];
   const advanceItems =
-    project.currentStage === 'recipe'
+    currentGate === 'G0' || project.currentStage === 'recipe'
       ? [
           {
             id: 'recipe-has-ingredient',
@@ -509,7 +512,7 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
       current: currentKey,
       currentLabel: gateLabel,
       next: targetGate,
-      nextLabel,
+      nextLabel: targetGateLabel,
       // The only enforced approval checkpoint is the approval→handoff G4 e-sign
       // (assertG4ESignForHandoff); claiming approval on other steps was dishonest.
       requiresApproval: transition?.requiresESign ?? false,
