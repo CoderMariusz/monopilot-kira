@@ -1,9 +1,35 @@
 import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { signEvent } from '@monopilot/e-sign';
-
 import { generateBol, recordPod, sealShipment, shipShipment } from './ship-actions';
+
+const SIGNATURE_ID = 'sig-record-pod-001';
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(',')}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, entryValue]) => entryValue !== undefined)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+  return `{${entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${canonicalJson(entryValue)}`).join(',')}}`;
+}
+
+function hashESignSubject(subject: unknown): string {
+  return createHash('sha256').update(canonicalJson(subject), 'utf8').digest('hex');
+}
+
+const signEventMock = vi.fn(async (input: { intent?: string; subject?: unknown }) => {
+  if (input.intent === 'ship.bol.sign' && input.subject) {
+    const persisted = JSON.parse(JSON.stringify(input.subject)) as Record<string, unknown>;
+    signedBolSubjectHashes.add(hashESignSubject(persisted));
+  }
+  return { signatureId: SIGNATURE_ID };
+});
+
+vi.mock('@monopilot/e-sign', () => ({
+  hashESignSubject: (subject: unknown) => hashESignSubject(subject),
+  signEvent: (...args: unknown[]) => signEventMock(...args),
+}));
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -23,11 +49,34 @@ const PRODUCT_ID_2 = '88888888-8888-4888-8888-888888888888';
 const LINE_1 = '77777777-7777-4777-8777-777777777777';
 const LINE_2 = '88888888-8888-4888-8888-888888888888';
 const FIXED_NOW = '2026-06-23T12:34:56.000Z';
-const SIGNATURE_ID = 'sig-record-pod-001';
+const BOL_REASON = 'BOL attestation';
+const BOL_PASSWORD = 'pin-test';
 
-vi.mock('@monopilot/e-sign', () => ({
-  signEvent: vi.fn(async () => ({ signatureId: SIGNATURE_ID })),
-}));
+function defaultBolPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    shipmentId: SHIPMENT_ID,
+    orgId: ORG_ID,
+    carrier: 'DHL',
+    serviceLevel: null,
+    trackingNumber: null,
+    generatedAt: FIXED_NOW,
+    licensePlates: [
+      { lpId: LP_1, lpNumber: 'LP-0001' },
+      { lpId: LP_2, lpNumber: 'LP-0002' },
+    ],
+    ...overrides,
+  };
+}
+
+function defaultGenerateBolInput(overrides: Record<string, unknown> = {}) {
+  return {
+    shipmentId: SHIPMENT_ID,
+    carrier: 'DHL',
+    reason: BOL_REASON,
+    signature: { password: BOL_PASSWORD },
+    ...overrides,
+  };
+}
 
 let client: QueryClient;
 let grantedPermissions = new Set<string>(['ship.pack.close', 'ship.ship.confirm', 'ship.bol.sign']);
@@ -59,6 +108,8 @@ let bolAuditEvent: Record<string, unknown> | null = null;
 let shipmentCarrier: string | null = null;
 let shipmentServiceLevel: string | null = null;
 let shipmentTrackingNumber: string | null = null;
+let bolPayload: Record<string, unknown> | null = null;
+let signedBolSubjectHashes = new Set<string>();
 let soLineAllocationDecrements: Array<{ line_id: string; qty: string }> = [];
 let outboxEvents: Array<{
   aggregateId: string;
@@ -168,10 +219,18 @@ function makeClient(): QueryClient {
               tracking_number: shipmentTrackingNumber,
               sales_order_id: SO_ID,
               box_count: boxCount,
+              bol_payload: bolPayload,
             },
           ],
           rowCount: 1,
         };
+      }
+
+      if (q.includes('from public.e_sign_log') && q.includes('subject_hash')) {
+        const intent = String(params?.[0] ?? '');
+        const subjectHash = String(params?.[1] ?? '');
+        const ok = intent === 'ship.bol.sign' && signedBolSubjectHashes.has(subjectHash);
+        return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
       }
 
       if (q.startsWith('insert into public.audit_events') && q.includes('shipping.bol.carrier_updated')) {
@@ -228,7 +287,7 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('update public.shipments') && q.includes("set status = 'shipped'")) {
-        if (!shipmentShipCasSucceeds) {
+        if (!shipmentTransitionSucceeds) {
           return { rows: [], rowCount: 0 };
         }
         shippedShipmentUpdate = {
@@ -336,6 +395,7 @@ function makeClient(): QueryClient {
           updated_by: params[6],
           locked_status: params[7],
         };
+        bolPayload = JSON.parse(String(params[4])) as Record<string, unknown>;
         shipmentCarrier = params[1] == null ? null : String(params[1]);
         shipmentServiceLevel = params[2] == null ? null : String(params[2]);
         shipmentTrackingNumber = params[3] == null ? null : String(params[3]);
@@ -394,8 +454,16 @@ beforeEach(() => {
   shipmentCarrier = null;
   shipmentServiceLevel = null;
   shipmentTrackingNumber = null;
-  vi.mocked(signEvent).mockReset();
-  vi.mocked(signEvent).mockResolvedValue({ signatureId: SIGNATURE_ID });
+  bolPayload = defaultBolPayload();
+  signedBolSubjectHashes = new Set([hashESignSubject(bolPayload)]);
+  signEventMock.mockReset();
+  signEventMock.mockImplementation(async (input: { intent?: string; subject?: unknown }) => {
+    if (input.intent === 'ship.bol.sign' && input.subject) {
+      const persisted = JSON.parse(JSON.stringify(input.subject)) as Record<string, unknown>;
+      signedBolSubjectHashes.add(hashESignSubject(persisted));
+    }
+    return { signatureId: SIGNATURE_ID };
+  });
   soLineAllocationDecrements = [];
   outboxEvents = [];
   queryLog = [];
@@ -433,19 +501,72 @@ describe('sealShipment RBAC', () => {
   });
 });
 
+describe('shipShipment BOL signature guard', () => {
+  it('rejects ship when no signed BOL exists for the current payload', async () => {
+    bolPayload = null;
+    signedBolSubjectHashes.clear();
+
+    const result = await shipShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: false, error: 'bol_not_signed' });
+    expect(shippedShipmentUpdate).toBeNull();
+  });
+
+  it('rejects ship after BOL regeneration until the new payload is re-signed', async () => {
+    const oldPayload = defaultBolPayload({ carrier: 'Old Carrier' });
+    bolPayload = oldPayload;
+    signedBolSubjectHashes = new Set([hashESignSubject(oldPayload)]);
+
+    const regenerated = defaultBolPayload({ carrier: 'New Carrier', generatedAt: '2026-06-23T13:00:00.000Z' });
+    bolPayload = regenerated;
+    signedBolSubjectHashes.clear();
+
+    const result = await shipShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: false, error: 'bol_not_signed' });
+  });
+
+  it('ships after generateBol signs the current payload', async () => {
+    bolPayload = null;
+    signedBolSubjectHashes.clear();
+
+    const generated = await generateBol(defaultGenerateBolInput({ carrier: 'Signed Carrier' }));
+    expect(generated).toEqual({ ok: true, bolRef: expect.any(String) });
+    expect(signEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'ship.bol.sign',
+        reason: BOL_REASON,
+        subject: expect.objectContaining({ carrier: 'Signed Carrier' }),
+      }),
+      expect.any(Object),
+    );
+
+    const result = await shipShipment(SHIPMENT_ID);
+    expect(result).toEqual({ ok: true });
+  });
+});
+
 describe('generateBol RBAC', () => {
   it('returns forbidden without ship.ship.confirm', async () => {
-    grantedPermissions = new Set(['ship.pack.close']);
+    grantedPermissions = new Set(['ship.pack.close', 'ship.bol.sign']);
 
-    const result = await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+    const result = await generateBol(defaultGenerateBolInput());
 
     expect(result).toEqual({ ok: false, error: 'forbidden' });
   });
 
-  it('generates BOL when ship.ship.confirm is granted', async () => {
+  it('returns forbidden without ship.bol.sign', async () => {
     grantedPermissions = new Set(['ship.ship.confirm']);
 
-    const result = await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+    const result = await generateBol(defaultGenerateBolInput());
+
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('generates BOL when ship.ship.confirm and ship.bol.sign are granted', async () => {
+    grantedPermissions = new Set(['ship.ship.confirm', 'ship.bol.sign']);
+
+    const result = await generateBol(defaultGenerateBolInput());
 
     expect(result.ok).toBe(true);
   });
@@ -606,12 +727,12 @@ describe('sealShipment', () => {
 
 describe('generateBol', () => {
   it('stores the BOL payload in bol_payload and SHA-256 hash in shipment ext_data', async () => {
-    const result = await generateBol({
-      shipmentId: SHIPMENT_ID,
-      carrier: 'DHL',
-      serviceLevel: 'next_day',
-      trackingNumber: 'TRACK-123',
-    });
+    const result = await generateBol(
+      defaultGenerateBolInput({
+        serviceLevel: 'next_day',
+        trackingNumber: 'TRACK-123',
+      }),
+    );
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -638,7 +759,19 @@ describe('generateBol', () => {
         { lpId: LP_2, lpNumber: 'LP-0002' },
       ],
     });
+    expect(signEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'ship.bol.sign',
+        reason: BOL_REASON,
+      }),
+      expect.any(Object),
+    );
     expect(bolUpdate?.bol_pdf_url).toBeUndefined();
+  });
+
+  it('returns invalid_input without e-sign credentials', async () => {
+    const result = await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+    expect(result).toEqual({ ok: false, error: 'invalid_input' });
   });
 
   it('requires ship.bol.sign and audits carrier changes on shipped shipments', async () => {
@@ -647,21 +780,17 @@ describe('generateBol', () => {
     shipmentTrackingNumber = 'OLD-1';
     grantedPermissions = new Set(['ship.ship.confirm']);
 
-    const forbidden = await generateBol({
-      shipmentId: SHIPMENT_ID,
-      carrier: 'New Carrier',
-      trackingNumber: 'NEW-1',
-    });
+    const forbidden = await generateBol(
+      defaultGenerateBolInput({ carrier: 'New Carrier', trackingNumber: 'NEW-1' }),
+    );
     expect(forbidden).toEqual({ ok: false, error: 'forbidden' });
     expect(bolUpdate).toBeNull();
     expect(bolAuditEvent).toBeNull();
 
     grantedPermissions = new Set(['ship.ship.confirm', 'ship.bol.sign']);
-    const result = await generateBol({
-      shipmentId: SHIPMENT_ID,
-      carrier: 'New Carrier',
-      trackingNumber: 'NEW-1',
-    });
+    const result = await generateBol(
+      defaultGenerateBolInput({ carrier: 'New Carrier', trackingNumber: 'NEW-1' }),
+    );
     expect(result.ok).toBe(true);
     expect(bolAuditEvent).toMatchObject({
       action: 'shipping.bol.carrier_updated',
@@ -681,7 +810,7 @@ describe('generateBol', () => {
   it('rejects BOL generation for cancelled shipments', async () => {
     shipmentStatus = 'cancelled';
 
-    const result = await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+    const result = await generateBol(defaultGenerateBolInput());
 
     expect(result).toEqual({ ok: false, error: 'invalid_state' });
     expect(bolUpdate).toBeNull();
@@ -691,14 +820,14 @@ describe('generateBol', () => {
     shipmentStatus = 'packed';
     boxCount = 0;
 
-    const result = await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+    const result = await generateBol(defaultGenerateBolInput());
 
     expect(result).toEqual({ ok: false, error: 'no_boxes' });
     expect(bolUpdate).toBeNull();
   });
 
   it('locks the shipment with FOR UPDATE before mutating BOL fields (N-68)', async () => {
-    await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+    await generateBol(defaultGenerateBolInput());
 
     const lockQuery = queryLog.find(
       ({ sql }) => normalize(sql).includes('from public.shipments') && normalize(sql).includes('for update of sh'),
@@ -720,7 +849,7 @@ describe('generateBol', () => {
       return originalQuery(sql, params);
     }) as typeof client.query;
 
-    const result = await generateBol({ shipmentId: SHIPMENT_ID, carrier: 'DHL' });
+    const result = await generateBol(defaultGenerateBolInput());
     expect(result).toEqual({ ok: false, error: 'not_found' });
     expect(bolAuditEvent).toBeNull();
   });
@@ -745,18 +874,18 @@ describe('recordPod', () => {
       ok: false,
       error: 'invalid_input',
     });
-    expect(signEvent).not.toHaveBeenCalled();
+    expect(signEventMock).not.toHaveBeenCalled();
     expect(podUpdate).toBeNull();
   });
 
   it('rejects delivery without a valid e-sign PIN', async () => {
     shipmentStatus = 'shipped';
-    vi.mocked(signEvent).mockRejectedValueOnce(new Error('bad pin'));
+    signEventMock.mockRejectedValueOnce(new Error('bad pin'));
 
     const result = await recordPod(validInput);
 
     expect(result).toEqual({ ok: false, error: 'esign_failed' });
-    expect(signEvent).toHaveBeenCalledWith(
+    expect(signEventMock).toHaveBeenCalledWith(
       expect.objectContaining({
         intent: 'record_pod',
         reason: validInput.reason,
@@ -779,7 +908,7 @@ describe('recordPod', () => {
     const result = await recordPod(validInput);
 
     expect(result).toEqual({ ok: true });
-    expect(signEvent).toHaveBeenCalledOnce();
+    expect(signEventMock).toHaveBeenCalledOnce();
     expect(podUpdate).toMatchObject({
       shipment_id: SHIPMENT_ID,
       bol_signed_pdf_url: 'https://storage.example/pod.pdf',

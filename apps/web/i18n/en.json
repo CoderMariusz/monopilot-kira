@@ -3037,7 +3037,15 @@
       "faDerivedLocked": "FG-derived",
       "revertGate": "Revert gate",
       "advanceTerminalHint": "Launched — fully advanced",
-      "autoDerived": "auto"
+      "autoDerived": "auto",
+      "launchComplianceBlocked": "Launch blocked — complete approval criteria: {criteria}.",
+      "launchCriterionC1": "Recipe locked",
+      "launchCriterionC2": "Nutrition score",
+      "launchCriterionC3": "Target margin",
+      "launchCriterionC4": "Sensory panel",
+      "launchCriterionC5": "Allergen audit",
+      "launchCriterionC6": "High risks",
+      "launchCriterionC7": "Compliance documents"
     },
     "advanceGateModal": {
       "title": "Advance gate",
@@ -11527,7 +11535,8 @@
         "errors": {
           "invalid_state": "This shipment cannot be shipped in its current status.",
           "not_found": "That shipment no longer exists.",
-          "lp_blocked_for_ship": "Cannot ship — a license plate is on a quality hold, not QA-released, or expired."
+          "lp_blocked_for_ship": "Cannot ship — a license plate is on a quality hold, not QA-released, or expired.",
+          "bol_not_signed": "A signed bill of lading is required before shipping. Generate and sign the BOL first."
         },
         "bolNotAvailable": "A bill of lading can only be generated once the shipment is packed, until it is delivered.",
         "podNotShipped": "Proof of delivery can only be recorded for a shipment that has been shipped."
@@ -11549,9 +11558,23 @@
         },
         "trackingLabel": "Tracking number",
         "trackingPlaceholder": "Carrier tracking reference",
+        "reasonLabel": "BOL attestation",
+        "reasonPlaceholder": "Confirm carrier details and shipment contents are accurate",
         "cancel": "Cancel",
-        "submit": "Generate BOL",
-        "submitting": "Generating…"
+        "submit": "Sign & generate BOL",
+        "submitting": "Signing…",
+        "formIncomplete": "Enter an attestation reason and your e-sign PIN.",
+        "esign": {
+          "title": "Electronic signature",
+          "meaning": "Enter your e-sign PIN or account password to sign this bill of lading. Your identity and the server time are recorded.",
+          "password": "E-sign PIN or account password",
+          "passwordPlaceholder": "E-sign PIN or account password",
+          "passwordHelp": "Enter your e-sign PIN, or your account password if you use password verification."
+        },
+        "errors": {
+          "invalid_input": "Enter an attestation reason and your e-sign PIN.",
+          "esign_failed": "Signature failed. Check your password and try again."
+        }
       },
       "pod": {
         "trigger": "Record POD",

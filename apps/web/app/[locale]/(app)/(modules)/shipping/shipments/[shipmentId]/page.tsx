@@ -30,6 +30,7 @@ import { cancelShipment } from '../../_actions/cancelShipment';
 import {
   getCreateShipmentCapability,
   getCancelShipmentCapability,
+  getGenerateBolCapability,
   getRecordPodCapability,
 } from '../_actions/shipments-data';
 import { ShipmentPackView, type ShipmentPackLabels, type PackLpResult } from '../_components/shipment-pack-view';
@@ -37,6 +38,7 @@ import type { CancelShipmentInput, CancelShipmentResult } from '../_components/c
 import type {
   ShipShipmentResult,
   SealShipmentResult,
+  GenerateBolActionInput,
   GenerateBolResult,
   RecordPodResult,
 } from '../_components/shipment-ship-types';
@@ -66,12 +68,7 @@ async function sealShipmentAction(shipmentId: string): Promise<SealShipmentResul
   return sealShipment(shipmentId);
 }
 
-async function generateBolAction(input: {
-  shipmentId: string;
-  carrier?: string;
-  serviceLevel?: string;
-  trackingNumber?: string;
-}): Promise<GenerateBolResult> {
+async function generateBolAction(input: GenerateBolActionInput): Promise<GenerateBolResult> {
   'use server';
   return generateBol(input);
 }
@@ -220,6 +217,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
           invalid_state: t('ship.errors.invalid_state'),
           not_found: t('ship.errors.not_found'),
           lp_blocked_for_ship: t('ship.errors.lp_blocked_for_ship'),
+          bol_not_signed: t('ship.errors.bol_not_signed'),
           persistence_failed: t('errors.persistence_failed'),
         },
       },
@@ -240,12 +238,24 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
         },
         trackingLabel: t('bol.trackingLabel'),
         trackingPlaceholder: t('bol.trackingPlaceholder'),
+        reasonLabel: t('bol.reasonLabel'),
+        reasonPlaceholder: t('bol.reasonPlaceholder'),
         cancel: t('bol.cancel'),
         submit: t('bol.submit'),
         submitting: t('bol.submitting'),
+        formIncomplete: t('bol.formIncomplete'),
         noPermission: t('ship.noPermission'),
+        esign: {
+          title: t('bol.esign.title'),
+          meaning: t('bol.esign.meaning'),
+          password: t('bol.esign.password'),
+          passwordPlaceholder: t('bol.esign.passwordPlaceholder'),
+          passwordHelp: t('bol.esign.passwordHelp'),
+        },
         errors: {
           forbidden: t('errors.forbidden'),
+          invalid_input: t('bol.errors.invalid_input'),
+          esign_failed: t('bol.errors.esign_failed'),
           not_found: t('ship.errors.not_found'),
           persistence_failed: t('errors.persistence_failed'),
         },
@@ -326,11 +336,12 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
 
 async function PackContent({ locale, shipmentId }: { locale: string; shipmentId: string }) {
   const t = await getTranslations('Shipping.shipments');
-  const [result, caps, cancelCaps, podCaps] = await Promise.all([
+  const [result, caps, cancelCaps, podCaps, bolCaps] = await Promise.all([
     getShipment(shipmentId),
     getCreateShipmentCapability(),
     getCancelShipmentCapability(),
     getRecordPodCapability(),
+    getGenerateBolCapability(),
   ]);
 
   if (!result.ok) {
@@ -352,16 +363,16 @@ async function PackContent({ locale, shipmentId }: { locale: string; shipmentId:
   }
 
   const data = result.data;
-  // canShip mirrors ship.pack.close (same permission shipShipment / generateBol require).
-  // canPod mirrors ship.bol.sign (recordPod's permission). Both are advisory only —
-  // each action re-checks server-side and a forbidden caller gets
-  // { ok:false, error:'forbidden' } inline.
+  // canShip mirrors ship.ship.confirm (shipShipment). canBol requires ship.ship.confirm
+  // AND ship.bol.sign (generateBol). canPod mirrors ship.bol.sign (recordPod). Advisory
+  // only — each action re-checks server-side.
   return (
     <ShipmentPackView
       locale={locale}
       caps={{
         canPack: caps.canCreate,
         canShip: caps.canCreate,
+        canBol: bolCaps.canBol,
         canPod: podCaps.canPod,
         canCancel: cancelCaps.canCancel,
       }}

@@ -5562,7 +5562,15 @@
       "faDerivedLocked": "Wyliczane z FA",
       "revertGate": "Cofnij etap",
       "advanceTerminalHint": "Uruchomiony — w pełni zaawansowany",
-      "autoDerived": "auto"
+      "autoDerived": "auto",
+      "launchComplianceBlocked": "Wdrożenie zablokowane — uzupełnij kryteria zatwierdzenia: {criteria}.",
+      "launchCriterionC1": "Receptura zablokowana",
+      "launchCriterionC2": "Wynik żywieniowy",
+      "launchCriterionC3": "Docelowa marża",
+      "launchCriterionC4": "Panel sensoryczny",
+      "launchCriterionC5": "Audyt alergenów",
+      "launchCriterionC6": "Wysokie ryzyka",
+      "launchCriterionC7": "Dokumenty zgodności"
     },
     "advanceGateModal": {
       "title": "Przejście do następnej bramki",
@@ -11498,7 +11506,8 @@
         "errors": {
           "invalid_state": "Tej wysyłki nie można wysłać w bieżącym statusie.",
           "not_found": "Ta wysyłka już nie istnieje.",
-          "lp_blocked_for_ship": "Nie można wysłać — nośnik (LP) jest na wstrzymaniu jakości, niezwolniony przez QA lub przeterminowany."
+          "lp_blocked_for_ship": "Nie można wysłać — nośnik (LP) jest na wstrzymaniu jakości, niezwolniony przez QA lub przeterminowany.",
+          "bol_not_signed": "Przed wysyłką wymagany jest podpisany list przewozowy (BOL). Wygeneruj i podpisz BOL."
         },
         "bolNotAvailable": "List przewozowy (BOL) można wygenerować dopiero po spakowaniu wysyłki, do momentu jej dostarczenia.",
         "podNotShipped": "Potwierdzenie dostawy (POD) można zarejestrować tylko dla wysłanej wysyłki."
@@ -11520,9 +11529,23 @@
         },
         "trackingLabel": "Numer śledzenia",
         "trackingPlaceholder": "Numer śledzenia przewoźnika",
+        "reasonLabel": "Poświadczenie BOL",
+        "reasonPlaceholder": "Potwierdź dane przewoźnika i zawartość wysyłki",
         "cancel": "Anuluj",
-        "submit": "Generuj BOL",
-        "submitting": "Generowanie…"
+        "submit": "Podpisz i generuj BOL",
+        "submitting": "Podpisywanie…",
+        "formIncomplete": "Wprowadź powód poświadczenia i PIN e-podpisu.",
+        "esign": {
+          "title": "Podpis elektroniczny",
+          "meaning": "Wprowadź PIN e-podpisu lub hasło konta, aby podpisać list przewozowy. Twoja tożsamość i czas serwera są rejestrowane.",
+          "password": "PIN e-podpisu lub hasło konta",
+          "passwordPlaceholder": "PIN e-podpisu lub hasło konta",
+          "passwordHelp": "Wprowadź PIN e-podpisu lub hasło konta, jeśli weryfikujesz hasłem."
+        },
+        "errors": {
+          "invalid_input": "Wprowadź powód poświadczenia i PIN e-podpisu.",
+          "esign_failed": "Podpis nie powiódł się. Sprawdź hasło i spróbuj ponownie."
+        }
       },
       "pod": {
         "trigger": "Zarejestruj POD",

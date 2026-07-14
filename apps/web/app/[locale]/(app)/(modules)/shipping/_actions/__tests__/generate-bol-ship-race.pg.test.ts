@@ -7,11 +7,15 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { setPin } from '../../../../../../../../../packages/auth/src/verify-pin.js';
 import { generateBol, shipShipment } from '../ship-actions';
 import { getAppConnection, getOwnerConnection } from '../../../../../../../../../packages/db/src/clients.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runPg = databaseUrl ? describe : describe.skip;
+
+const TEST_PIN = '1234';
+const BOL_REASON = 'BOL attestation for race test';
 
 const tenantId = randomUUID();
 const orgId = randomUUID();
@@ -30,6 +34,19 @@ const lpId = randomUUID();
 const BOL_RACE_SKIP_FN = 'test_w17_bol_skip_bol_row_update';
 const SHIPMENT_FOR_UPDATE_SQL = /from public\.shipments sh[\s\S]*for update of sh/i;
 const BOL_UPDATE_SQL = /update public\.shipments[\s\S]*bol_payload/i;
+
+function bolInput(overrides: {
+  carrier?: string;
+  serviceLevel?: string;
+  trackingNumber?: string;
+} = {}) {
+  return {
+    shipmentId,
+    reason: BOL_REASON,
+    signature: { password: TEST_PIN },
+    ...overrides,
+  };
+}
 
 type BolRaceHooks = {
   beforeShipmentForUpdate?: () => void | Promise<void>;
@@ -214,6 +231,7 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
         [roleId, permission],
       );
     }
+    await setPin(userId, TEST_PIN);
 
     await ownerPool.query(
       `insert into public.warehouses (id, org_id, code, name)
@@ -346,7 +364,7 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
     await setShipBolSignGranted(ownerPool, false);
     try {
       const result = await withActionActor(() =>
-        generateBol({ shipmentId, carrier: 'Sneaky Carrier', trackingNumber: 'NEW-1' }),
+        generateBol(bolInput({ carrier: 'Sneaky Carrier', trackingNumber: 'NEW-1' })),
       );
 
       expect(result).toEqual({ ok: false, error: 'forbidden' });
@@ -409,7 +427,7 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
 
     await barrier.wait('ship-holds-lock');
     const bolPromise = withActionActor(() =>
-      generateBol({ shipmentId, carrier: 'Race Carrier', trackingNumber: 'RACE-1' }),
+      generateBol(bolInput({ carrier: 'Race Carrier', trackingNumber: 'RACE-1' })),
     );
     barrier.signal('bol-blocking');
 
@@ -479,7 +497,7 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
       })();
 
       const bolPromise = withActionActor(() =>
-        generateBol({ shipmentId, carrier: 'BOL Carrier', trackingNumber: 'BOL-1' }),
+        generateBol(bolInput({ carrier: 'BOL Carrier', trackingNumber: 'BOL-1' })),
       );
 
       const bolResult = await bolPromise;
@@ -520,7 +538,7 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
     }
   });
 
-  it('throws not_found with no orphan audit when ship commits before the status-predicated BOL update', async () => {
+  it('rejects unsigned ship when generateBol update is skipped and ship runs without a signed BOL', async () => {
     await resetPackedShipment(ownerPool);
     await ownerPool.query(
       `insert into public.test_w17_bol_race_config (shipment_id, skip_bol_row_update)
@@ -549,7 +567,7 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
       })();
 
       const bolPromise = withActionActor(() =>
-        generateBol({ shipmentId, carrier: 'Flip Carrier', trackingNumber: 'FLIP-1' }),
+        generateBol(bolInput({ carrier: 'Flip Carrier', trackingNumber: 'FLIP-1' })),
       );
 
       [result, shipResult] = await Promise.all([bolPromise, shipPromise]);
@@ -557,8 +575,8 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
       restoreHooks();
     }
 
-    expect(shipResult!).toEqual({ ok: true });
-    expect(result!).toEqual({ ok: false, error: 'not_found' });
+    expect(shipResult!).toEqual({ ok: false, error: 'bol_not_signed' });
+    expect(result!.ok).toBe(true);
 
     const { rows } = await ownerPool.query<{
       status: string;
@@ -568,9 +586,13 @@ runPg('generateBol shipment lock race (real Postgres)', () => {
       `select status, carrier, bol_payload from public.shipments where id = $1::uuid`,
       [shipmentId],
     );
-    expect(rows[0]?.status).toBe('shipped');
-    expect(rows[0]?.carrier).toBeNull();
-    expect(rows[0]?.bol_payload).toBeNull();
+    expect(rows[0]?.status).toBe('packed');
+    expect(rows[0]?.carrier).toBe('Flip Carrier');
+    expect(rows[0]?.bol_payload).toMatchObject({
+      shipmentId,
+      carrier: 'Flip Carrier',
+      trackingNumber: 'FLIP-1',
+    });
 
     const { rows: audits } = await ownerPool.query(
       `select id from public.audit_events

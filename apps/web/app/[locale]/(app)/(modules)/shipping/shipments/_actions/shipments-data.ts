@@ -74,6 +74,9 @@ const SHIP_SO_CANCEL = 'ship.so.cancel';
  *  recordPod requires this permission; see ship-actions.ts SHIP_BOL_SIGN). */
 const SHIP_BOL_SIGN = 'ship.bol.sign';
 
+/** ship.ship.confirm — required alongside ship.bol.sign for generateBol. */
+const SHIP_SHIP_CONFIRM = 'ship.ship.confirm';
+
 export type CreateShipmentCapability = {
   /** Whether the caller holds ship.pack.close (create + pack permission). */
   canCreate: boolean;
@@ -89,6 +92,32 @@ export type RecordPodCapability = {
   canPod: boolean;
 };
 
+export type GenerateBolCapability = {
+  /** ship.ship.confirm AND ship.bol.sign — gates [Generate BOL]. */
+  canBol: boolean;
+};
+
+async function hasPermissionInContext(
+  ctx: { userId: string; orgId: string; client: unknown },
+  permission: string,
+): Promise<boolean> {
+  const { rows } = await (ctx.client as QueryClient).query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+        and (
+          rp.permission is not null
+          or coalesce(r.permissions, '[]'::jsonb) ? $3
+        )
+      limit 1`,
+    [ctx.userId, ctx.orgId, permission],
+  );
+  return rows.length > 0;
+}
+
 /**
  * Server-side RBAC probe for the [Create shipment] button. Mirrors the hasPermission()
  * shape inside pack-actions.ts: explicit userId/orgId params, a role that grants via
@@ -98,21 +127,7 @@ export type RecordPodCapability = {
 export async function getCreateShipmentCapability(): Promise<CreateShipmentCapability> {
   try {
     return await withOrgContext<CreateShipmentCapability>(async (ctx) => {
-      const { rows } = await (ctx.client as unknown as QueryClient).query<{ ok: boolean }>(
-        `select true as ok
-           from public.user_roles ur
-           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-           left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-          where ur.user_id = $1::uuid
-            and ur.org_id = $2::uuid
-            and (
-              rp.permission is not null
-              or coalesce(r.permissions, '[]'::jsonb) ? $3
-            )
-          limit 1`,
-        [ctx.userId, ctx.orgId, SHIP_PACK_CLOSE],
-      );
-      return { canCreate: rows.length > 0 };
+      return { canCreate: await hasPermissionInContext(ctx, SHIP_PACK_CLOSE) };
     });
   } catch {
     return { canCreate: false };
@@ -128,21 +143,7 @@ export async function getCreateShipmentCapability(): Promise<CreateShipmentCapab
 export async function getCancelShipmentCapability(): Promise<CancelShipmentCapability> {
   try {
     return await withOrgContext<CancelShipmentCapability>(async (ctx) => {
-      const { rows } = await (ctx.client as unknown as QueryClient).query<{ ok: boolean }>(
-        `select true as ok
-           from public.user_roles ur
-           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-           left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-          where ur.user_id = $1::uuid
-            and ur.org_id = $2::uuid
-            and (
-              rp.permission is not null
-              or coalesce(r.permissions, '[]'::jsonb) ? $3
-            )
-          limit 1`,
-        [ctx.userId, ctx.orgId, SHIP_SO_CANCEL],
-      );
-      return { canCancel: rows.length > 0 };
+      return { canCancel: await hasPermissionInContext(ctx, SHIP_SO_CANCEL) };
     });
   } catch {
     return { canCancel: false };
@@ -158,23 +159,27 @@ export async function getCancelShipmentCapability(): Promise<CancelShipmentCapab
 export async function getRecordPodCapability(): Promise<RecordPodCapability> {
   try {
     return await withOrgContext<RecordPodCapability>(async (ctx) => {
-      const { rows } = await (ctx.client as unknown as QueryClient).query<{ ok: boolean }>(
-        `select true as ok
-           from public.user_roles ur
-           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-           left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
-          where ur.user_id = $1::uuid
-            and ur.org_id = $2::uuid
-            and (
-              rp.permission is not null
-              or coalesce(r.permissions, '[]'::jsonb) ? $3
-            )
-          limit 1`,
-        [ctx.userId, ctx.orgId, SHIP_BOL_SIGN],
-      );
-      return { canPod: rows.length > 0 };
+      return { canPod: await hasPermissionInContext(ctx, SHIP_BOL_SIGN) };
     });
   } catch {
     return { canPod: false };
+  }
+}
+
+/**
+ * Server-side RBAC probe for [Generate BOL]. Requires ship.ship.confirm AND
+ * ship.bol.sign — mirrors generateBol's permission checks. Advisory only.
+ */
+export async function getGenerateBolCapability(): Promise<GenerateBolCapability> {
+  try {
+    return await withOrgContext<GenerateBolCapability>(async (ctx) => {
+      const [canConfirm, canSign] = await Promise.all([
+        hasPermissionInContext(ctx, SHIP_SHIP_CONFIRM),
+        hasPermissionInContext(ctx, SHIP_BOL_SIGN),
+      ]);
+      return { canBol: canConfirm && canSign };
+    });
+  } catch {
+    return { canBol: false };
   }
 }

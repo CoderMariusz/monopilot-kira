@@ -10,9 +10,9 @@
  * tracking number, then wires the reviewed generateBol Server Action (imported by
  * the page, passed as a seam here — never authored).
  *
- * RBAC: gated by ship.pack.close server-side inside generateBol; `canBol` is an
- * advisory server probe used ONLY to disable + tooltip the trigger, never trusted
- * for authorisation. A forbidden result is surfaced inline ({ ok:false,
+ * RBAC: gated by ship.ship.confirm + ship.bol.sign server-side inside generateBol;
+ * `canBol` is an advisory server probe used ONLY to disable + tooltip the trigger,
+ * never trusted for authorisation. A forbidden result is surfaced inline ({ ok:false,
  * error:'forbidden' }) — never crashes.
  *
  * NO raw UUIDs are rendered: the modal shows the (mono) shipment NUMBER only; the
@@ -26,7 +26,7 @@ import Modal from '@monopilot/ui/Modal';
 import Input from '@monopilot/ui/Input';
 import { Select } from '@monopilot/ui/Select';
 
-import type { GenerateBolResult } from './shipment-ship-types';
+import type { GenerateBolActionInput, GenerateBolResult } from './shipment-ship-types';
 
 export type GenerateBolLabels = {
   trigger: string;
@@ -41,11 +41,21 @@ export type GenerateBolLabels = {
   serviceLevelOptions: Record<string, string>;
   trackingLabel: string;
   trackingPlaceholder: string;
+  reasonLabel: string;
+  reasonPlaceholder: string;
   cancel: string;
   submit: string;
   submitting: string;
+  formIncomplete: string;
   /** Tooltip when the trigger is disabled because the user lacks ship.pack.close. */
   noPermission: string;
+  esign: {
+    title: string;
+    meaning: string;
+    password: string;
+    passwordPlaceholder: string;
+    passwordHelp: string;
+  };
   errors: Record<string, string>;
 };
 
@@ -75,28 +85,28 @@ export function GenerateBolModal({
   /** Tooltip shown when the trigger is disabled because of the shipment status. */
   statusTooltip?: string;
   labels: GenerateBolLabels;
-  generateBolAction: (input: {
-    shipmentId: string;
-    carrier?: string;
-    serviceLevel?: string;
-    trackingNumber?: string;
-  }) => Promise<GenerateBolResult>;
+  generateBolAction: (input: GenerateBolActionInput) => Promise<GenerateBolResult>;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [carrier, setCarrier] = React.useState('');
   const [serviceLevel, setServiceLevel] = React.useState('');
   const [tracking, setTracking] = React.useState('');
+  const [reason, setReason] = React.useState('');
+  const [password, setPassword] = React.useState('');
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const disabled = !canBol || !statusReady;
   const tooltip = !canBol ? labels.noPermission : !statusReady ? statusTooltip : undefined;
+  const valid = reason.trim().length > 0 && password.trim().length > 0;
 
   function reset() {
     setCarrier('');
     setServiceLevel('');
     setTracking('');
+    setReason('');
+    setPassword('');
     setError(null);
   }
 
@@ -107,7 +117,7 @@ export function GenerateBolModal({
   }
 
   async function onSubmit() {
-    if (pending) return;
+    if (pending || !valid) return;
     setPending(true);
     setError(null);
     try {
@@ -116,6 +126,8 @@ export function GenerateBolModal({
         carrier: carrier.trim() || undefined,
         serviceLevel: serviceLevel || undefined,
         trackingNumber: tracking.trim() || undefined,
+        reason: reason.trim(),
+        signature: { password },
       });
       if (!result.ok) {
         setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
@@ -194,6 +206,42 @@ export function GenerateBolModal({
               />
             </label>
 
+            <label className="flex flex-col gap-1">
+              <span className="font-medium text-slate-700">
+                {labels.reasonLabel} <span aria-hidden className="text-red-500">*</span>
+              </span>
+              <textarea
+                data-testid="shipment-bol-reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder={labels.reasonPlaceholder}
+                rows={2}
+                disabled={pending}
+                className="rounded-md border border-slate-300 px-2.5 py-1.5 focus:border-slate-400 focus:outline-none"
+              />
+            </label>
+
+            <div data-testid="shipment-bol-esign" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{labels.esign.title}</div>
+              <p className="mt-1 text-[11px] text-slate-500">{labels.esign.meaning}</p>
+              <label className="mt-2 flex flex-col gap-1">
+                <span className="text-xs font-medium text-slate-700">
+                  {labels.esign.password} <span aria-hidden className="text-red-500">*</span>
+                </span>
+                <input
+                  type="password"
+                  data-testid="shipment-bol-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={labels.esign.passwordPlaceholder}
+                  autoComplete="current-password"
+                  disabled={pending}
+                  className="rounded-md border border-slate-300 px-2.5 py-1.5 focus:border-slate-400 focus:outline-none"
+                />
+              </label>
+              <p className="mt-1 text-[10px] leading-snug text-slate-400">{labels.esign.passwordHelp}</p>
+            </div>
+
             {error ? (
               <p role="alert" data-testid="shipment-bol-error" className="text-sm text-red-600">
                 {error}
@@ -215,8 +263,9 @@ export function GenerateBolModal({
             type="button"
             data-testid="shipment-bol-submit"
             onClick={() => void onSubmit()}
-            disabled={pending}
+            disabled={pending || !valid}
             aria-busy={pending}
+            title={!valid ? labels.formIncomplete : undefined}
             className="btn btn--primary"
           >
             {pending ? labels.submitting : labels.submit}

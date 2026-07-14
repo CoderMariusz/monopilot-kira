@@ -2,7 +2,7 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 
-import { signEvent } from '@monopilot/e-sign';
+import { hashESignSubject, signEvent } from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
@@ -35,6 +35,18 @@ const SHIP_BOL_SIGN = 'ship.bol.sign';
 const LP_SHIPPED_EVENT_TYPE = 'warehouse.lp.shipped';
 const RECORD_POD_INTENT = 'record_pod';
 
+const generateBolInputSchema = z.object({
+  shipmentId: z.string().uuid(),
+  carrier: z.string().trim().optional(),
+  serviceLevel: z.string().trim().optional(),
+  trackingNumber: z.string().trim().optional(),
+  reason: z.string().trim().min(1).max(1000),
+  signature: z.object({
+    password: z.string().min(1),
+    nonce: z.string().trim().min(1).optional().nullable(),
+  }),
+});
+
 const recordPodInputSchema = z.object({
   shipmentId: z.string().uuid(),
   signedPdfUrl: z.string().trim().url(),
@@ -65,6 +77,57 @@ function errorCode(err: unknown): string {
 function parseRecordPodInput(input: RecordPodInput): z.infer<typeof recordPodInputSchema> | null {
   const parsed = recordPodInputSchema.safeParse(input);
   return parsed.success ? parsed.data : null;
+}
+
+function parseGenerateBolInput(input: GenerateBolInput): z.infer<typeof generateBolInputSchema> | null {
+  const parsed = generateBolInputSchema.safeParse(input);
+  return parsed.success ? parsed.data : null;
+}
+
+async function signBolPayload(
+  ctx: ShippingContext,
+  parsed: z.infer<typeof generateBolInputSchema>,
+  subject: Record<string, unknown>,
+): Promise<string> {
+  try {
+    const receipt = await signEvent(
+      {
+        signerUserId: ctx.userId,
+        pin: parsed.signature.password,
+        intent: SHIP_BOL_SIGN,
+        reason: parsed.reason,
+        nonce: parsed.signature.nonce ?? undefined,
+        subject,
+      },
+      { client: ctx.client as never },
+    );
+    return receipt.signatureId;
+  } catch {
+    throw new ActionError('esign_failed');
+  }
+}
+
+async function assertSignedBolForPayload(ctx: ShippingContext, bolPayload: unknown): Promise<void> {
+  if (bolPayload === null || bolPayload === undefined) {
+    throw new ActionError('bol_not_signed');
+  }
+  const subject =
+    typeof bolPayload === 'string'
+      ? (JSON.parse(bolPayload) as Record<string, unknown>)
+      : (bolPayload as Record<string, unknown>);
+  const subjectHash = hashESignSubject(subject);
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.e_sign_log
+      where org_id = app.current_org_id()
+        and intent = $1
+        and subject_hash = $2
+      limit 1`,
+    [SHIP_BOL_SIGN, subjectHash],
+  );
+  if (rows.length === 0) {
+    throw new ActionError('bol_not_signed');
+  }
 }
 
 async function signPodDelivery(
@@ -297,20 +360,23 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
         status: string;
         sales_order_id: string | null;
         box_count: number | string | bigint | null;
+        bol_payload: unknown;
       }>(
         `select sh.id::text,
                 sh.status,
                 sh.sales_order_id::text,
-                count(distinct sb.id)::int as box_count
+                sh.bol_payload,
+                (select count(distinct sb.id)::int
+                   from public.shipment_boxes sb
+                  where sb.shipment_id = sh.id
+                    and sb.org_id = app.current_org_id()
+                    and sb.deleted_at is null) as box_count
            from public.shipments sh
-           left join public.shipment_boxes sb on sb.shipment_id = sh.id
-            and sb.org_id = app.current_org_id()
-            and sb.deleted_at is null
           where sh.org_id = app.current_org_id()
             and sh.id = $1::uuid
             and sh.deleted_at is null
-          group by sh.id, sh.status, sh.sales_order_id
-          limit 1`,
+          limit 1
+          for update of sh`,
         [shipmentId],
       );
       const shipment = shipmentRows[0];
@@ -326,6 +392,8 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
       const lpRows = await fetchShipmentLps(ctx, shipmentId);
       const lpIds = lpRows.map((row) => row.lp_id);
       if (lpIds.length === 0) return { ok: false, error: 'invalid_state' };
+
+      await assertSignedBolForPayload(ctx, shipment.bol_payload);
 
       const shipTransition = await writeShipmentStatusInContext(ctx, shipmentId, 'shipped', {
         currentStatus: 'packed',
@@ -590,11 +658,17 @@ export async function shipShipment(shipmentId: string): Promise<ShipShipmentResu
 }
 
 export async function generateBol(input: GenerateBolInput): Promise<GenerateBolResult> {
+  const parsed = parseGenerateBolInput(input);
+  if (!parsed) return { ok: false, error: 'invalid_input' };
+
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<GenerateBolResult> => {
       const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
       const forbidden = await requirePermission(ctx, SHIP_SHIP_CONFIRM);
       if (forbidden) return forbidden;
+
+      const bolSignForbidden = await requirePermission(ctx, SHIP_BOL_SIGN);
+      if (bolSignForbidden) return bolSignForbidden;
 
       const { rows: shipmentRows } = await ctx.client.query<{
         id: string;
@@ -609,18 +683,18 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
                 sh.carrier,
                 sh.service_level,
                 sh.tracking_number,
-                count(distinct sb.id)::int as box_count
+                (select count(distinct sb.id)::int
+                   from public.shipment_boxes sb
+                  where sb.shipment_id = sh.id
+                    and sb.org_id = app.current_org_id()
+                    and sb.deleted_at is null) as box_count
            from public.shipments sh
-           left join public.shipment_boxes sb on sb.shipment_id = sh.id
-            and sb.org_id = app.current_org_id()
-            and sb.deleted_at is null
           where sh.org_id = app.current_org_id()
             and sh.id = $1::uuid
             and sh.deleted_at is null
-          group by sh.id, sh.status, sh.carrier, sh.service_level, sh.tracking_number
           limit 1
           for update of sh`,
-        [input.shipmentId],
+        [parsed.shipmentId],
       );
       const shipment = shipmentRows[0];
       if (!shipment || !['packed', 'shipped'].includes(shipment.status)) {
@@ -631,14 +705,11 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
       }
 
       const lockedStatus = shipment.status;
-      const nextCarrier = input.carrier ?? null;
-      const nextServiceLevel = input.serviceLevel ?? null;
-      const nextTrackingNumber = input.trackingNumber ?? null;
+      const nextCarrier = parsed.carrier ?? null;
+      const nextServiceLevel = parsed.serviceLevel ?? null;
+      const nextTrackingNumber = parsed.trackingNumber ?? null;
 
       if (lockedStatus === 'shipped') {
-        const bolSignForbidden = await requirePermission(ctx, SHIP_BOL_SIGN);
-        if (bolSignForbidden) return bolSignForbidden;
-
         const carrierFieldsChanged =
           nextCarrier !== shipment.carrier ||
           nextServiceLevel !== shipment.service_level ||
@@ -646,7 +717,7 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
 
         if (carrierFieldsChanged) {
           await writeBolCarrierAuditEvent(ctx, {
-            shipmentId: input.shipmentId,
+            shipmentId: parsed.shipmentId,
             beforeState: {
               carrier: shipment.carrier,
               service_level: shipment.service_level,
@@ -661,9 +732,9 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
         }
       }
 
-      const lpRows = await fetchShipmentLps(ctx, input.shipmentId);
+      const lpRows = await fetchShipmentLps(ctx, parsed.shipmentId);
       const bolPayload = {
-        shipmentId: input.shipmentId,
+        shipmentId: parsed.shipmentId,
         orgId,
         carrier: nextCarrier,
         serviceLevel: nextServiceLevel,
@@ -674,6 +745,7 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
           lpNumber: lp.lp_number,
         })),
       };
+      await signBolPayload(ctx, parsed, bolPayload);
       const serializedPayload = JSON.stringify(bolPayload);
       const bolHash = createHash('sha256').update(serializedPayload).digest('hex');
 
@@ -692,7 +764,7 @@ export async function generateBol(input: GenerateBolInput): Promise<GenerateBolR
             and deleted_at is null
           returning id::text`,
         [
-          input.shipmentId,
+          parsed.shipmentId,
           nextCarrier,
           nextServiceLevel,
           nextTrackingNumber,

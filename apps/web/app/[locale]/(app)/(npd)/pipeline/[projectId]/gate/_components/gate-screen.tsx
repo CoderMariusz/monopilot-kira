@@ -32,6 +32,7 @@ import {
   GateChecklistPanel,
   type GateChecklistLabels,
   type GateChecklistProject,
+  type GateHardBlocker,
   type GateView,
   type OpenModalFn,
   type OpenRevertModalFn,
@@ -80,6 +81,8 @@ export type GateScreenData = {
   approvals: ApprovalHistoryEntry[];
   /** True once the project has reached the launched terminal state. */
   isTerminal: boolean;
+  /** Hard blockers for handoff → launched (compliance criteria, etc.). */
+  launchHardBlockers: GateHardBlocker[];
 };
 
 export type GateScreenLabels = {
@@ -182,6 +185,7 @@ export function GateScreen({
           canRevert={canRevert && !!revertProjectGate}
           state={state}
           isTerminal={data.isTerminal}
+          launchHardBlockers={data.launchHardBlockers}
           toggleGateChecklistItem={toggleGateChecklistItem}
           openModal={openModal}
           openRevertModal={openRevertModal}

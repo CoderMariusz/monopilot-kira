@@ -7,10 +7,14 @@
  * parallel lane and is NEVER modified here.
  */
 
+import type { GenerateBolInput } from '../../_actions/ship-actions-types';
+
 export type ShipShipmentResult = { ok: true } | { ok: false; error: string };
 
 export type SealShipmentResult = { ok: true } | { ok: false; error: string };
 
 export type GenerateBolResult = { ok: true; bolRef: string } | { ok: false; error: string };
+
+export type GenerateBolActionInput = GenerateBolInput;
 
 export type RecordPodResult = { ok: true } | { ok: false; error: string };

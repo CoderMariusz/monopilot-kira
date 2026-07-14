@@ -37,7 +37,9 @@ import {
   GATE_ADVANCE_PERMISSION,
   GATE_APPROVE_PERMISSION,
   advanceTransitionForStage,
+  getBlockers,
   nextStage,
+  type GateProjectRow,
 } from '../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
   PROJECT_VIEW_PERMISSION,
@@ -159,6 +161,14 @@ const DEFAULT_CHECKLIST_LABELS: GateChecklistLabels = {
   faDerivedLocked: 'FA-derived',
   autoDerived: 'auto',
   revertGate: 'Revert gate',
+  launchComplianceBlocked: 'Launch blocked — complete approval criteria: {criteria}.',
+  launchCriterionC1: 'Recipe locked',
+  launchCriterionC2: 'Nutrition score',
+  launchCriterionC3: 'Target margin',
+  launchCriterionC4: 'Sensory panel',
+  launchCriterionC5: 'Allergen audit',
+  launchCriterionC6: 'High risks',
+  launchCriterionC7: 'Compliance documents',
 };
 
 const DEFAULT_ADVANCE_LABELS: AdvanceGateLabels = {
@@ -410,6 +420,27 @@ function buildGateScreenData(
     approvalProject: buildApprovalProject(projectId, code, name, currentGate, gates),
     approvals: approvalsTimeline.map(mapApprovalEntry),
     isTerminal,
+    launchHardBlockers: [],
+  };
+}
+
+function toGateProjectRow(
+  projectId: string,
+  code: string,
+  name: string,
+  currentGate: ProjectGate,
+  currentStage: string,
+  productCode: string | null,
+  type: string,
+): GateProjectRow {
+  return {
+    id: projectId,
+    code,
+    name,
+    type,
+    current_gate: currentGate,
+    current_stage: currentStage,
+    product_code: productCode,
   };
 }
 
@@ -453,6 +484,26 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       checklistByGate,
       approvalsTimeline,
     );
+    if (project.currentStage === 'handoff') {
+      data.launchHardBlockers = await withOrgContext(async (rawCtx) => {
+        const ctx = rawCtx as OrgContextLike;
+        const row = toGateProjectRow(
+          project.id,
+          project.code,
+          project.name,
+          project.currentGate,
+          project.currentStage,
+          project.productCode,
+          project.type,
+        );
+        const blockers = await getBlockers(ctx, row, 'launched');
+        return blockers.map((blocker) => ({
+          code: blocker.code,
+          message: blocker.message,
+          pendingCriteria: blocker.pendingCriteria,
+        }));
+      });
+    }
     const hasItems = data.gates.some((g) => g.items.length > 0);
     return {
       state: hasItems ? 'ready' : 'empty',
@@ -545,6 +596,7 @@ export default async function GatePage(propsInput: unknown = {}) {
       approvalProject: { id: projectId, code: '', name: '', gateCode: 'G3', requiredDone: 0, requiredTotal: 0, pct: 0 },
       approvals: [],
       isTerminal: false,
+      launchHardBlockers: [],
     };
     return (
       <GateScreen
