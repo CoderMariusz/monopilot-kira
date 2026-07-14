@@ -139,6 +139,15 @@ export type GateChecklistLabels = {
   autoDerived: string;
   /** "Revert gate" ghost button label (admin/owner rollback to the previous gate). */
   revertGate: string;
+  /** Launch compliance hard-block (handoff → launched). {criteria} = localized criterion names. */
+  launchComplianceBlocked: string;
+  launchCriterionC1: string;
+  launchCriterionC2: string;
+  launchCriterionC3: string;
+  launchCriterionC4: string;
+  launchCriterionC5: string;
+  launchCriterionC6: string;
+  launchCriterionC7: string;
 };
 
 function categoryLabel(category: string, labels: GateChecklistLabels): string {
@@ -452,6 +461,33 @@ function GateCollapsible({
   );
 }
 
+export type GateHardBlocker = {
+  code: string;
+  message: string;
+  pendingCriteria?: string;
+};
+
+const LAUNCH_CRITERION_LABEL_KEYS: Record<string, keyof GateChecklistLabels> = {
+  C1: 'launchCriterionC1',
+  C2: 'launchCriterionC2',
+  C3: 'launchCriterionC3',
+  C4: 'launchCriterionC4',
+  C5: 'launchCriterionC5',
+  C6: 'launchCriterionC6',
+  C7: 'launchCriterionC7',
+};
+
+function formatLaunchBlockerMessage(blocker: GateHardBlocker, labels: GateChecklistLabels): string {
+  if (blocker.code !== 'LAUNCH_COMPLIANCE_BLOCKED') return blocker.message;
+  const keys = blocker.pendingCriteria?.split(',').map((key) => key.trim()).filter(Boolean) ?? [];
+  const criteria = keys
+    .map((key) => labels[LAUNCH_CRITERION_LABEL_KEYS[key] ?? 'launchCriterionC1'] ?? key)
+    .join(', ');
+  // ponytail: when the server sends no pendingCriteria (evaluator not_found / missing FG edge),
+  // fall back to the localized compliance-docs label rather than the server's English blocker.message.
+  return labels.launchComplianceBlocked.replace('{criteria}', criteria || labels.launchCriterionC7);
+}
+
 export function GateChecklistPanel({
   project,
   gates,
@@ -460,6 +496,7 @@ export function GateChecklistPanel({
   canRevert = false,
   state = 'ready',
   isTerminal = false,
+  launchHardBlockers = [],
   toggleGateChecklistItem,
   openModal,
   openRevertModal,
@@ -472,6 +509,8 @@ export function GateChecklistPanel({
   canRevert?: boolean;
   state?: PanelState;
   isTerminal?: boolean;
+  /** Server-resolved hard blockers for handoff → launched (compliance, etc.). */
+  launchHardBlockers?: GateHardBlocker[];
   toggleGateChecklistItem?: ToggleGateChecklistItemAction;
   openModal?: OpenModalFn;
   openRevertModal?: OpenRevertModalFn;
@@ -498,6 +537,7 @@ export function GateChecklistPanel({
 
   const currentGate = resolvedGates.find((g) => g.isCurrent) ?? resolvedGates[resolvedGates.length - 1];
   const currentBlockers = currentGate?.blockers ?? [];
+  const launchBlocked = launchHardBlockers.length > 0;
 
   async function handleToggleItem(item: ChecklistItemView) {
     if (item.faDept) return;
@@ -696,14 +736,31 @@ export function GateChecklistPanel({
               // swallowed. (Decision: reuse the existing modal rather than thread a
               // second action + a new confirm dialog — the cheaper CORRECT option, and
               // it needs no new i18n keys, which are locked for this lane.)
-              <Button
-                type="button"
-                className="btn--primary"
-                data-testid="gate-mark-launched"
-                onClick={() => openModal?.('advanceGate', { project })}
-              >
-                {labels.markLaunched}
-              </Button>
+              <>
+                {launchBlocked ? (
+                  <div
+                    role="alert"
+                    data-testid="gate-launch-blockers"
+                    className="alert alert-red mb-3 w-full text-left text-sm"
+                  >
+                    <div className="font-medium">{labels.blockingBadge.replace('{count}', String(launchHardBlockers.length))}</div>
+                    <ul className="mt-1 list-disc pl-5">
+                      {launchHardBlockers.map((blocker) => (
+                        <li key={blocker.code}>{formatLaunchBlockerMessage(blocker, labels)}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                <Button
+                  type="button"
+                  className="btn--primary"
+                  data-testid="gate-mark-launched"
+                  disabled={launchBlocked}
+                  onClick={() => openModal?.('advanceGate', { project })}
+                >
+                  {labels.markLaunched}
+                </Button>
+              </>
             )}
             {isTerminal ? (
               <span

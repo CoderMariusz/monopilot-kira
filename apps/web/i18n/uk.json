@@ -5493,7 +5493,15 @@
       "faDerivedLocked": "FG-derived",
       "revertGate": "Revert gate",
       "advanceTerminalHint": "Launched — fully advanced",
-      "autoDerived": "auto"
+      "autoDerived": "auto",
+      "launchComplianceBlocked": "Запуск заблоковано — виконайте критерії затвердження: {criteria}.",
+      "launchCriterionC1": "Рецепт заблоковано",
+      "launchCriterionC2": "Харчова оцінка",
+      "launchCriterionC3": "Цільова маржа",
+      "launchCriterionC4": "Сенсорна панель",
+      "launchCriterionC5": "Аудит алергенів",
+      "launchCriterionC6": "Високі ризики",
+      "launchCriterionC7": "Документи відповідності"
     },
     "advanceGateModal": {
       "title": "Перехід до наступного етапу",
@@ -11418,33 +11426,48 @@
         "needsSeal": "Seal the shipment before shipping.",
         "alreadyShipped": "This shipment has already been shipped.",
         "errors": {
-          "invalid_state": "This shipment cannot be shipped in its current status.",
-          "not_found": "That shipment no longer exists.",
-          "lp_blocked_for_ship": "Cannot ship — a license plate is on a quality hold, not QA-released, or expired."
+          "invalid_state": "Цю відправку не можна відправити в поточному статусі.",
+          "not_found": "Ця відправка більше не існує.",
+          "lp_blocked_for_ship": "Неможливо відправити — палета (LP) на утриманні якості, не звільнена QA або прострочена.",
+          "bol_not_signed": "Перед відправкою потрібен підписаний коносамент. Спочатку згенеруйте та підпишіть BOL."
         },
-        "bolNotAvailable": "A bill of lading can only be generated once the shipment is packed, until it is delivered.",
-        "podNotShipped": "Proof of delivery can only be recorded for a shipment that has been shipped."
+        "bolNotAvailable": "Коносамент можна згенерувати лише після пакування відправки, до її доставки.",
+        "podNotShipped": "Підтвердження доставки можна зареєструвати лише для відправленої відправки."
       },
       "bol": {
-        "trigger": "Generate BOL",
-        "triggerRegenerate": "Regenerate BOL",
-        "title": "Generate BOL for {shipment}",
-        "description": "Record the carrier, service level and tracking number for the bill of lading.",
-        "carrierLabel": "Carrier",
-        "carrierPlaceholder": "e.g. DHL Freight",
-        "serviceLevelLabel": "Service level",
-        "serviceLevelPlaceholder": "Select a service level",
+        "trigger": "Згенерувати BOL",
+        "triggerRegenerate": "Перегенерувати BOL",
+        "title": "Згенерувати BOL для {shipment}",
+        "description": "Запишіть перевізника, рівень сервісу та номер відстеження коносамента.",
+        "carrierLabel": "Перевізник",
+        "carrierPlaceholder": "напр. DHL Freight",
+        "serviceLevelLabel": "Рівень сервісу",
+        "serviceLevelPlaceholder": "Оберіть рівень сервісу",
         "serviceLevelOptions": {
-          "standard": "Standard",
-          "express": "Express",
-          "economy": "Economy",
-          "freight": "Freight"
+          "standard": "Стандарт",
+          "express": "Експрес",
+          "economy": "Економ",
+          "freight": "Вантажний"
         },
-        "trackingLabel": "Tracking number",
-        "trackingPlaceholder": "Carrier tracking reference",
-        "cancel": "Cancel",
-        "submit": "Generate BOL",
-        "submitting": "Generating…"
+        "trackingLabel": "Номер відстеження",
+        "trackingPlaceholder": "Номер відстеження перевізника",
+        "reasonLabel": "Атестація BOL",
+        "reasonPlaceholder": "Підтвердьте дані перевізника та вміст відправки",
+        "cancel": "Скасувати",
+        "submit": "Підписати та згенерувати BOL",
+        "submitting": "Підписання…",
+        "formIncomplete": "Введіть причину атестації та PIN е-підпису.",
+        "esign": {
+          "title": "Електронний підпис",
+          "meaning": "Введіть PIN е-підпису або пароль облікового запису, щоб підписати коносамент. Вашу особу та час сервера буде зафіксовано.",
+          "password": "PIN е-підпису або пароль облікового запису",
+          "passwordPlaceholder": "PIN е-підпису або пароль облікового запису",
+          "passwordHelp": "Введіть PIN е-підпису або пароль облікового запису, якщо перевіряєте паролем."
+        },
+        "errors": {
+          "invalid_input": "Введіть причину атестації та PIN е-підпису.",
+          "esign_failed": "Підпис не вдався. Перевірте пароль і спробуйте ще раз."
+        }
       },
       "pod": {
         "trigger": "Record POD",

@@ -1,51 +1,11 @@
-'use server';
-
-import { z } from 'zod';
-
-import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import {
   APP_VERSION,
-  GATE_ADVANCE_PERMISSION,
   GateActionError,
   emitOutbox,
-  loadProjectForUpdate,
-  requireActionPermission,
-  serializeGateError,
-  updateProjectStage,
   type GateProjectRow,
 } from './_lib/gate-helpers';
 import { LEGACY_STAGES_CLOSED_EVENT, type OrgContextLike } from './shared';
 import { materializeNpdBom } from './_lib/materialize-npd-bom';
-import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
-
-const inputSchema = z.object({
-  projectId: z.string().uuid(),
-});
-
-export type LegacyCloseoutErrorCode =
-  | 'INVALID_INPUT'
-  | 'FORBIDDEN'
-  | 'NOT_FOUND'
-  | 'ADJACENCY_VIOLATION'
-  | 'TRIAL_SHELF_LIFE_MISSING'
-  | 'PILOT_WO_NOT_LINKED'
-  | 'HANDOFF_BOM_NOT_APPROVED'
-  | 'PACKAGING_MRP_INCOMPLETE'
-  | 'ALREADY_CLOSED'
-  | 'PERSISTENCE_FAILED';
-
-export type CloseOutLegacyStagesResult =
-  | {
-      ok: true;
-      data: {
-        projectId: string;
-        productCode: string;
-        closeoutId: string;
-        currentGate: 'Launched';
-        outboxEventType: typeof LEGACY_STAGES_CLOSED_EVENT;
-      };
-    }
-  | { ok: false; error: LegacyCloseoutErrorCode; status: number };
 
 type ExistingCloseoutRow = {
   id: string;
@@ -98,53 +58,6 @@ type CloseoutInsertRow = {
   id: string;
   fg_product_code: string;
 };
-
-export async function closeOutLegacyStages(rawInput: unknown): Promise<CloseOutLegacyStagesResult> {
-  const parsed = inputSchema.safeParse(rawInput);
-  if (!parsed.success) return { ok: false, error: 'INVALID_INPUT', status: 400 };
-
-  try {
-    return await withOrgContext<CloseOutLegacyStagesResult>(async (ctx) => {
-      const context = ctx as OrgContextLike;
-      await requireActionPermission(context, GATE_ADVANCE_PERMISSION);
-
-      const project = await loadProjectForUpdate(context, parsed.data.projectId);
-      if (project.current_stage === 'launched' || project.current_gate === 'Launched') {
-        const existing = await loadExistingCloseout(context, project.id);
-        if (existing) return alreadyClosed(existing);
-      }
-      // Closeout (→ launched) is only adjacent from the handoff stage. Both approval
-      // and handoff derive to gate G4, so we gate on the stage, not the gate.
-      if (project.current_stage !== 'handoff') {
-        return { ok: false, error: 'ADJACENCY_VIOLATION', status: 422 };
-      }
-
-      const closeout = await closeOutLegacyStagesForLaunch(context, project);
-      // Terminal: set stage='launched' → current_gate derives to 'Launched'.
-      await updateProjectStage(context, project.id, 'launched');
-
-      safeRevalidatePath(`/npd/pipeline/${project.id}`);
-      return {
-        ok: true,
-        data: {
-          projectId: project.id,
-          productCode: closeout.fg_product_code,
-          closeoutId: closeout.id,
-          currentGate: 'Launched',
-          outboxEventType: LEGACY_STAGES_CLOSED_EVENT,
-        },
-      };
-    });
-  } catch (error) {
-    const serialized = serializeCloseoutError(error);
-    if (serialized) return serialized;
-    console.error('[closeOutLegacyStages] persistence_failed', {
-      appVersion: APP_VERSION,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return { ok: false, error: 'PERSISTENCE_FAILED', status: 500 };
-  }
-}
 
 export async function closeOutLegacyStagesForLaunch(
   ctx: OrgContextLike,
@@ -435,30 +348,4 @@ function stringFromPrivateJson(source: Record<string, unknown> | null, key: stri
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function alreadyClosed(_existing: ExistingCloseoutRow): CloseOutLegacyStagesResult {
-  return {
-    ok: false,
-    error: 'ALREADY_CLOSED',
-    status: 409,
-  };
-}
-
-function serializeCloseoutError(error: unknown): CloseOutLegacyStagesResult | null {
-  const serialized = serializeGateError(error);
-  if (!serialized) return null;
-  return {
-    ok: false,
-    error: serialized.error as LegacyCloseoutErrorCode,
-    status: serialized.status,
-  };
-}
-
-function safeRevalidatePath(path: string): void {
-  try {
-    revalidateLocalized(path);
-  } catch {
-    // Vitest imports Server Actions outside a Next request/static generation store.
-  }
 }

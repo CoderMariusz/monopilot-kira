@@ -39,7 +39,7 @@ import {
   type CancelShipmentInput,
   type CancelShipmentResult,
 } from './cancel-shipment-modal';
-import type { ShipShipmentResult, GenerateBolResult, RecordPodResult } from './shipment-ship-types';
+import type { GenerateBolActionInput, ShipShipmentResult, GenerateBolResult, RecordPodResult } from './shipment-ship-types';
 
 export type ShipmentLifecycleStage = 'packing' | 'shipped' | 'delivered';
 
@@ -83,8 +83,10 @@ export type ShipmentShipLabels = {
 };
 
 export type ShipmentShipCaps = {
-  /** ship.pack.close — gates [Ship shipment] + [Generate BOL]. */
+  /** ship.ship.confirm — gates [Ship shipment]. */
   canShip: boolean;
+  /** ship.ship.confirm + ship.bol.sign — gates [Generate BOL]. */
+  canBol: boolean;
   /** ship.bol.sign — gates [Record POD]. */
   canPod: boolean;
   /** ship.so.cancel — gates [Cancel shipment]. */
@@ -107,12 +109,7 @@ export type ShipmentShipControlsProps = {
   labels: ShipmentShipLabels;
   caps: ShipmentShipCaps;
   shipShipmentAction: (shipmentId: string) => Promise<ShipShipmentResult>;
-  generateBolAction: (input: {
-    shipmentId: string;
-    carrier?: string;
-    serviceLevel?: string;
-    trackingNumber?: string;
-  }) => Promise<GenerateBolResult>;
+  generateBolAction: (input: GenerateBolActionInput) => Promise<GenerateBolResult>;
   recordPodAction: (input: {
     shipmentId: string;
     signedPdfUrl: string;
@@ -423,7 +420,7 @@ export function ShipmentShipControls({
             shipmentNumber={shipmentNumber}
             shipmentId={shipmentId}
             hasBol={Boolean(bolDocument || bolRef)}
-            canBol={caps.canShip}
+            canBol={caps.canBol}
             statusReady={bolStatusReady}
             statusTooltip={labels.ship.bolNotAvailable}
             labels={labels.bol}

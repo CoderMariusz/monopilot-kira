@@ -6,9 +6,12 @@ import {
   type ProjectGate,
   type QueryClient,
 } from '../shared';
+import type { ApprovalCriteriaResult, ApprovalCriterionStatus } from '@monopilot/domain';
+
 import { quoteIdentifier, syncProdDetailRows } from '../../../fa/actions/_lib/fa-cell-shared';
 import { nextEntityCode, renderCodeMask } from '../../../../../lib/documents/code-mask';
 import type { QueryClient as NumberingQueryClient } from '../../../../../lib/documents/numbering';
+import { evaluateApprovalCriteriaWithClient } from '../../[projectId]/approval/_actions/evaluate-core';
 
 export const GATE_ADVANCE_PERMISSION = 'npd.gate.advance';
 export const GATE_APPROVE_PERMISSION = 'npd.gate.approve';
@@ -164,12 +167,35 @@ export type GateProjectRow = {
 };
 
 export type GateBlocker = {
-  code: 'FG_CANDIDATE_REQUIRED' | 'FG_ALREADY_LINKED' | 'RECIPE_INGREDIENTS_REQUIRED';
+  code:
+    | 'FG_CANDIDATE_REQUIRED'
+    | 'FG_ALREADY_LINKED'
+    | 'RECIPE_INGREDIENTS_REQUIRED'
+    | 'LAUNCH_COMPLIANCE_BLOCKED';
   message: string;
+  /** Stable criterion keys (e.g. C7) for client i18n when code is LAUNCH_COMPLIANCE_BLOCKED. */
+  pendingCriteria?: string;
   gateCode?: ProjectGate;
   itemId?: string;
   itemText?: string;
 };
+
+const LAUNCH_CRITERION_LABELS: Record<keyof ApprovalCriteriaResult, string> = {
+  C1: 'Recipe locked',
+  C2: 'Nutrition score',
+  C3: 'Target margin',
+  C4: 'Sensory panel',
+  C5: 'Allergen audit',
+  C6: 'High risks',
+  C7: 'Compliance documents',
+};
+
+/** Launch blocks on any required criterion still pending; warns are non-blocking. */
+export function launchBlockingCriteria(criteria: ApprovalCriteriaResult): Array<keyof ApprovalCriteriaResult> {
+  return (Object.entries(criteria) as Array<[keyof ApprovalCriteriaResult, ApprovalCriterionStatus]>)
+    .filter(([, status]) => status === 'pending')
+    .map(([key]) => key);
+}
 
 export class GateActionError extends Error {
   code: string;
@@ -334,7 +360,50 @@ export async function getBlockers(
     }
   }
 
+  if (project.current_stage === 'handoff' && targetStage === 'launched') {
+    blockers.push(...await getLaunchComplianceBlockers(ctx, project));
+  }
+
   return blockers;
+}
+
+/**
+ * Regulatory launch guard (handoff → launched): reuses evaluateApprovalCriteria so
+ * C1/C5/C7 and every other required criterion must be satisfied (pass/warn/not_required).
+ * Pending criteria block launch; warns (expiring docs, low margin, etc.) do not.
+ */
+export async function getLaunchComplianceBlockers(
+  ctx: OrgContextLike,
+  project: GateProjectRow,
+): Promise<GateBlocker[]> {
+  const productCode = project.product_code?.trim();
+  if (!productCode) {
+    return [{
+      code: 'LAUNCH_COMPLIANCE_BLOCKED',
+      message: 'Map a finished-good product before launch.',
+      gateCode: 'G4',
+    }];
+  }
+
+  const evaluation = await evaluateApprovalCriteriaWithClient(ctx.client, productCode);
+  if (!evaluation.ok) {
+    return [{
+      code: 'LAUNCH_COMPLIANCE_BLOCKED',
+      message: 'Approval criteria could not be evaluated for this product.',
+      gateCode: 'G4',
+    }];
+  }
+
+  const pending = launchBlockingCriteria(evaluation.data);
+  if (pending.length === 0) return [];
+
+  const detail = pending.map((key) => LAUNCH_CRITERION_LABELS[key]).join(', ');
+  return [{
+    code: 'LAUNCH_COMPLIANCE_BLOCKED',
+    message: `Launch blocked — complete approval criteria: ${detail}.`,
+    pendingCriteria: pending.join(','),
+    gateCode: 'G4',
+  }];
 }
 
 export async function checkCostingNutritionReady(

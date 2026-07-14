@@ -364,7 +364,7 @@ type CancelResult = { ok: true } | { ok: false; error: string };
 
 function renderPack(
   detail: ShipmentDetail = makeDetail(),
-  caps: { canPack: boolean; canShip?: boolean; canPod?: boolean; canCancel?: boolean } = { canPack: true },
+  caps: { canPack: boolean; canShip?: boolean; canBol?: boolean; canPod?: boolean; canCancel?: boolean } = { canPack: true },
   packAction?: (input: { shipmentId: string; lpId: string; boxId?: string }) => Promise<{ ok: true; boxId: string } | { ok: false; error: string }>,
   shipActions: {
     seal?: (id: string) => Promise<SealResult>;
@@ -397,6 +397,7 @@ function renderPack(
       caps={{
         canPack: caps.canPack,
         canShip: caps.canShip ?? caps.canPack,
+        canBol: caps.canBol ?? caps.canShip ?? caps.canPack,
         canPod: caps.canPod ?? true,
         canCancel: caps.canCancel ?? caps.canPack,
       }}

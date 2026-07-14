@@ -44,8 +44,14 @@ import { Button } from '@monopilot/ui/Button';
 
 import { ShipmentStatusBadge } from './shipment-status-badge';
 import { ShipmentShipControls, type ShipmentShipLabels, type ShipmentShipCaps } from './shipment-ship-controls';
+import type {
+  GenerateBolActionInput,
+  GenerateBolResult,
+  RecordPodResult,
+  SealShipmentResult,
+  ShipShipmentResult,
+} from './shipment-ship-types';
 import type { CancelShipmentInput, CancelShipmentResult } from './cancel-shipment-modal';
-import type { ShipShipmentResult, SealShipmentResult, GenerateBolResult, RecordPodResult } from './shipment-ship-types';
 import type { ShipmentDetail } from '../_actions/shipments-data';
 
 export type ShipmentPackLabels = {
@@ -109,12 +115,7 @@ export type ShipmentPackViewProps = {
   sealShipmentAction: (shipmentId: string) => Promise<SealShipmentResult>;
   /** Reviewed ship-actions.ts seams (imported by the page, never authored here). */
   shipShipmentAction: (shipmentId: string) => Promise<ShipShipmentResult>;
-  generateBolAction: (input: {
-    shipmentId: string;
-    carrier?: string;
-    serviceLevel?: string;
-    trackingNumber?: string;
-  }) => Promise<GenerateBolResult>;
+  generateBolAction: (input: GenerateBolActionInput) => Promise<GenerateBolResult>;
   recordPodAction: (input: {
     shipmentId: string;
     signedPdfUrl: string;
@@ -462,7 +463,7 @@ export function ShipmentPackView({
             trackingNumber={shipment.trackingNumber ?? null}
             boxCount={boxes.length}
             labels={labels.ship}
-            caps={{ canShip: caps.canShip, canPod: caps.canPod, canCancel: caps.canCancel }}
+            caps={{ canShip: caps.canShip, canBol: caps.canBol, canPod: caps.canPod, canCancel: caps.canCancel }}
             shipShipmentAction={shipShipmentAction}
             generateBolAction={generateBolAction}
             recordPodAction={recordPodAction}

@@ -5493,7 +5493,15 @@
       "faDerivedLocked": "FG-derived",
       "revertGate": "Revert gate",
       "advanceTerminalHint": "Launched — fully advanced",
-      "autoDerived": "auto"
+      "autoDerived": "auto",
+      "launchComplianceBlocked": "Lansare blocată — completați criteriile de aprobare: {criteria}.",
+      "launchCriterionC1": "Rețetă blocată",
+      "launchCriterionC2": "Scor nutrițional",
+      "launchCriterionC3": "Marjă țintă",
+      "launchCriterionC4": "Panel senzorial",
+      "launchCriterionC5": "Audit alergeni",
+      "launchCriterionC6": "Riscuri ridicate",
+      "launchCriterionC7": "Documente de conformitate"
     },
     "advanceGateModal": {
       "title": "Avansare poartă",
@@ -11418,33 +11426,48 @@
         "needsSeal": "Seal the shipment before shipping.",
         "alreadyShipped": "This shipment has already been shipped.",
         "errors": {
-          "invalid_state": "This shipment cannot be shipped in its current status.",
-          "not_found": "That shipment no longer exists.",
-          "lp_blocked_for_ship": "Cannot ship — a license plate is on a quality hold, not QA-released, or expired."
+          "invalid_state": "Această expediere nu poate fi expediată în starea curentă.",
+          "not_found": "Această expediere nu mai există.",
+          "lp_blocked_for_ship": "Nu se poate expedia — un palet (LP) este în reținere calitate, neeliberat QA sau expirat.",
+          "bol_not_signed": "Este necesar un conosament semnat înainte de expediere. Generați și semnați BOL-ul."
         },
-        "bolNotAvailable": "A bill of lading can only be generated once the shipment is packed, until it is delivered.",
-        "podNotShipped": "Proof of delivery can only be recorded for a shipment that has been shipped."
+        "bolNotAvailable": "Conosamentul poate fi generat doar după ambalare, până la livrare.",
+        "podNotShipped": "Dovada livrării poate fi înregistrată doar pentru o expediere deja expediată."
       },
       "bol": {
-        "trigger": "Generate BOL",
-        "triggerRegenerate": "Regenerate BOL",
-        "title": "Generate BOL for {shipment}",
-        "description": "Record the carrier, service level and tracking number for the bill of lading.",
-        "carrierLabel": "Carrier",
-        "carrierPlaceholder": "e.g. DHL Freight",
-        "serviceLevelLabel": "Service level",
-        "serviceLevelPlaceholder": "Select a service level",
+        "trigger": "Generează BOL",
+        "triggerRegenerate": "Regenerează BOL",
+        "title": "Generează BOL pentru {shipment}",
+        "description": "Înregistrați transportatorul, nivelul de serviciu și numărul de urmărire al conosamentului.",
+        "carrierLabel": "Transportator",
+        "carrierPlaceholder": "ex. DHL Freight",
+        "serviceLevelLabel": "Nivel serviciu",
+        "serviceLevelPlaceholder": "Selectați nivelul de serviciu",
         "serviceLevelOptions": {
           "standard": "Standard",
           "express": "Express",
-          "economy": "Economy",
-          "freight": "Freight"
+          "economy": "Economic",
+          "freight": "Marfă"
         },
-        "trackingLabel": "Tracking number",
-        "trackingPlaceholder": "Carrier tracking reference",
-        "cancel": "Cancel",
-        "submit": "Generate BOL",
-        "submitting": "Generating…"
+        "trackingLabel": "Număr urmărire",
+        "trackingPlaceholder": "Referință urmărire transportator",
+        "reasonLabel": "Atestare BOL",
+        "reasonPlaceholder": "Confirmați datele transportatorului și conținutul expedierii",
+        "cancel": "Anulează",
+        "submit": "Semnează și generează BOL",
+        "submitting": "Se semnează…",
+        "formIncomplete": "Introduceți motivul atestării și PIN-ul e-semnăturii.",
+        "esign": {
+          "title": "Semnătură electronică",
+          "meaning": "Introduceți PIN-ul e-semnăturii sau parola contului pentru a semna conosamentul. Identitatea și ora serverului sunt înregistrate.",
+          "password": "PIN e-semnătură sau parolă cont",
+          "passwordPlaceholder": "PIN e-semnătură sau parolă cont",
+          "passwordHelp": "Introduceți PIN-ul e-semnăturii sau parola contului dacă verificați prin parolă."
+        },
+        "errors": {
+          "invalid_input": "Introduceți motivul atestării și PIN-ul e-semnăturii.",
+          "esign_failed": "Semnarea a eșuat. Verificați parola și încercați din nou."
+        }
       },
       "pod": {
         "trigger": "Record POD",
