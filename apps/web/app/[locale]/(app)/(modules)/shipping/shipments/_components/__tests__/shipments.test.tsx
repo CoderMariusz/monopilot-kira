@@ -29,6 +29,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ShipmentsListView, type ShipmentsListLabels } from '../shipments-list-view';
 import { ShipmentPackView, type ShipmentPackLabels } from '../shipment-pack-view';
 import { CreateShipmentButton, type CreateShipmentLabels } from '../create-shipment-button';
+import { CreatePickListButton, type CreatePickListLabels } from '../../../_components/create-pick-list-button';
 import type { ShipmentRow, ShipmentDetail } from '../../_actions/shipments-data';
 
 const push = vi.fn();
@@ -74,6 +75,11 @@ const listLabels: ShipmentsListLabels = {
   empty: { title: 'No shipments yet', body: 'Create a shipment from an allocated sales order.' },
   weightUnit: 'kg',
   noWeight: '—',
+  pagination: {
+    showing: 'Showing {from}–{to} of {total}',
+    previous: 'Previous',
+    next: 'Next',
+  },
 };
 
 const packLabels: ShipmentPackLabels = {
@@ -169,12 +175,24 @@ const packLabels: ShipmentPackLabels = {
       serviceLevelOptions: { standard: 'Standard', express: 'Express', economy: 'Economy', freight: 'Freight' },
       trackingLabel: 'Tracking number',
       trackingPlaceholder: 'Carrier tracking reference',
+      reasonLabel: 'Reason',
+      reasonPlaceholder: 'Why is this BOL being generated?',
       cancel: 'Cancel',
       submit: 'Generate BOL',
       submitting: 'Generating…',
+      formIncomplete: 'Complete all required fields and enter your e-sign PIN.',
       noPermission: 'You do not have permission to ship this shipment.',
+      esign: {
+        title: 'Electronic signature',
+        meaning: 'Enter your e-sign PIN to attest this BOL.',
+        password: 'E-sign PIN or account password',
+        passwordPlaceholder: 'E-sign PIN or account password',
+        passwordHelp: 'Your account password is accepted only while you have no e-sign PIN enrolled.',
+      },
       errors: {
         forbidden: "You don't have permission to do that.",
+        invalid_input: 'Enter a valid reason and e-sign PIN.',
+        esign_failed: 'Signature failed. Check your password and try again.',
         not_found: 'That shipment no longer exists.',
         persistence_failed: 'Something went wrong saving. Please retry.',
       },
@@ -258,11 +276,11 @@ const createLabels: CreateShipmentLabels = {
   label: 'Create shipment',
   pending: 'Creating…',
   noPermission: 'You do not have permission to create shipments.',
-  notAllocated: 'Allocate the sales order before creating a shipment.',
+  notPicked: 'Pick the sales order before creating a shipment.',
   notShippable: 'This sales order can no longer raise a shipment in its current status.',
   errors: {
     forbidden: "You don't have permission to do that.",
-    invalid_state: 'This sales order can no longer raise a shipment in its current status.',
+    invalid_state: 'Pick the sales order before creating a shipment.',
     persistence_failed: 'Something went wrong saving. Please retry.',
   },
 };
@@ -296,8 +314,42 @@ const rows: ShipmentRow[] = [
   },
 ];
 
+const createPickLabels: CreatePickListLabels = {
+  label: 'Create pick list',
+  pending: 'Creating…',
+  noPermission: 'You do not have permission to execute picks.',
+  notAllocated: 'Allocate the sales order before creating a pick list.',
+  notPickable: 'This sales order cannot spawn a pick list in its current status.',
+  goToPick: 'Continue picking',
+  errors: {
+    forbidden: "You don't have permission to do that.",
+    invalid_state: 'This sales order cannot spawn a pick list in its current status.',
+    open_pick_list_exists: 'An open pick list already exists for this sales order.',
+    no_allocations: 'No allocated inventory is available to pick.',
+    persistence_failed: 'Something went wrong saving. Please retry.',
+  },
+};
+
+const defaultListPagination = {
+  items: rows,
+  total: rows.length,
+  page: 1,
+  limit: 50,
+  offset: 0,
+  hasMore: false,
+};
+
 function renderList(overrides: Partial<React.ComponentProps<typeof ShipmentsListView>> = {}) {
-  render(<ShipmentsListView locale="en" shipments={rows} labels={listLabels} {...overrides} />);
+  render(
+    <ShipmentsListView
+      locale="en"
+      shipments={rows}
+      pagination={defaultListPagination}
+      statusFilter=""
+      labels={listLabels}
+      {...overrides}
+    />,
+  );
 }
 
 describe('ShipmentsListView — list states + parity + no-UUID', () => {
@@ -322,17 +374,18 @@ describe('ShipmentsListView — list states + parity + no-UUID', () => {
     expect(link).toHaveAttribute('href', `/en/shipping/shipments/${SHIPMENT_ID}`);
   });
 
-  it('filters by status (client filter over the org-scoped dataset)', () => {
+  it('navigates with a status query when the status filter changes', () => {
     renderList();
     fireEvent.click(screen.getByRole('combobox'));
     fireEvent.click(screen.getByRole('option', { name: 'Shipped' }));
-    const table = screen.getByTestId('shipments-list-table');
-    expect(within(table).queryByText('SH-202606-00001')).not.toBeInTheDocument();
-    expect(within(table).getByText('SH-202606-00002')).toBeInTheDocument();
+    expect(push).toHaveBeenCalledWith('/en/shipping/shipments?status=shipped');
   });
 
   it('renders the empty state when there are no shipments', () => {
-    renderList({ shipments: [] });
+    renderList({
+      shipments: [],
+      pagination: { items: [], total: 0, page: 1, limit: 50, offset: 0, hasMore: false },
+    });
     expect(screen.getByText('No shipments yet')).toBeInTheDocument();
     expect(screen.queryByTestId('shipments-list-table')).not.toBeInTheDocument();
   });
@@ -492,8 +545,7 @@ function renderCreate(
     <CreateShipmentButton
       locale="en"
       soId={SO_ID}
-      soStatus="allocated"
-      allocationStatus="allocated"
+      soStatus="picked"
       canCreate
       labels={createLabels}
       createShipmentAction={createShipmentAction}
@@ -520,26 +572,34 @@ describe('CreateShipmentButton — gated create on the SO detail', () => {
     expect(btn).toHaveAttribute('title', 'You do not have permission to create shipments.');
   });
 
-  it('is disabled with a "not allocated yet" tooltip when the SO has not been allocated (confirmed + unallocated)', () => {
-    renderCreate({ soStatus: 'confirmed', allocationStatus: 'unallocated' });
+  it('is disabled with a "not picked yet" tooltip when the SO is allocated but not picked', () => {
+    renderCreate({ soStatus: 'allocated' });
     const btn = screen.getByTestId('so-action-create-shipment');
     expect(btn).toBeDisabled();
-    expect(btn).toHaveAttribute('title', 'Allocate the sales order before creating a shipment.');
+    expect(btn).toHaveAttribute('title', 'Pick the sales order before creating a shipment.');
   });
 
-  it('is enabled for a partially_allocated SO with permission', () => {
-    renderCreate({ soStatus: 'partially_allocated', allocationStatus: 'partially_allocated' });
+  it('is disabled with a "not picked yet" tooltip when the SO is still confirmed', () => {
+    renderCreate({ soStatus: 'confirmed' });
+    const btn = screen.getByTestId('so-action-create-shipment');
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', 'Pick the sales order before creating a shipment.');
+  });
+
+  it('is enabled for a picked SO with permission', () => {
+    renderCreate({ soStatus: 'picked' });
     expect(screen.getByTestId('so-action-create-shipment')).not.toBeDisabled();
   });
 
-  // ── L2 state-machine leak: a delivered SO keeps allocation_status='allocated', so
-  // gating on allocation alone left [Create shipment] ENABLED. It must now be disabled
-  // (the server rejects createShipment with invalid_state for terminal SO statuses),
-  // and the tooltip must tell the TRUTH (terminal), not the misleading "not allocated".
-  it.each(['delivered', 'shipped', 'cancelled', 'picked', 'packed'])(
-    'is DISABLED with a terminal-status tooltip when the SO status is %s (allocation_status still allocated)',
+  it('is enabled for a partially_packed SO with permission', () => {
+    renderCreate({ soStatus: 'partially_packed' });
+    expect(screen.getByTestId('so-action-create-shipment')).not.toBeDisabled();
+  });
+
+  it.each(['delivered', 'shipped', 'cancelled', 'packed'])(
+    'is DISABLED with a terminal-status tooltip when the SO status is %s',
     (soStatus) => {
-      renderCreate({ soStatus, allocationStatus: 'allocated' });
+      renderCreate({ soStatus });
       const btn = screen.getByTestId('so-action-create-shipment');
       expect(btn).toBeDisabled();
       expect(btn).toHaveAttribute(
@@ -550,7 +610,7 @@ describe('CreateShipmentButton — gated create on the SO detail', () => {
   );
 
   it('does NOT call createShipment when the SO is delivered (button disabled — server reject unreachable)', () => {
-    const { createShipmentAction } = renderCreate({ soStatus: 'delivered', allocationStatus: 'allocated' });
+    const { createShipmentAction } = renderCreate({ soStatus: 'delivered' });
     fireEvent.click(screen.getByTestId('so-action-create-shipment'));
     expect(createShipmentAction).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
@@ -560,10 +620,55 @@ describe('CreateShipmentButton — gated create on the SO detail', () => {
     const { createShipmentAction } = renderCreate({}, async () => ({ ok: false, error: 'invalid_state' }));
     fireEvent.click(screen.getByTestId('so-action-create-shipment'));
     expect(await screen.findByTestId('create-shipment-error')).toHaveTextContent(
-      'This sales order can no longer raise a shipment in its current status.',
+      'Pick the sales order before creating a shipment.',
     );
     expect(createShipmentAction).toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
+  });
+});
+
+// ── Create-pick-list button (SO detail) ──
+function renderCreatePickList(
+  props: Partial<React.ComponentProps<typeof CreatePickListButton>> = {},
+  action?: (soId: string) => Promise<{ ok: true; pickListId: string } | { ok: false; error: string }>,
+) {
+  const createPickListAction = vi.fn(
+    action ?? (async () => ({ ok: true, pickListId: 'pick-list-uuid' }) as { ok: true; pickListId: string }),
+  );
+  render(
+    <CreatePickListButton
+      locale="en"
+      soId={SO_ID}
+      soStatus="allocated"
+      hasOpenPickList={false}
+      canPick
+      labels={createPickLabels}
+      createPickListAction={createPickListAction}
+      {...props}
+    />,
+  );
+  return { createPickListAction };
+}
+
+describe('CreatePickListButton — gated pick-list create on the SO detail', () => {
+  it('shows "Create pick list" for an allocated SO with permission', () => {
+    renderCreatePickList({ soStatus: 'allocated' });
+    expect(screen.getByTestId('so-action-create-pick-list')).toHaveTextContent('Create pick list');
+    expect(screen.getByTestId('so-action-create-pick-list')).not.toBeDisabled();
+  });
+
+  it('is disabled with a not-allocated tooltip when the SO is still confirmed', () => {
+    renderCreatePickList({ soStatus: 'confirmed' });
+    const btn = screen.getByTestId('so-action-create-pick-list');
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', 'Allocate the sales order before creating a pick list.');
+  });
+
+  it('calls createPickList(soId) and navigates to the pick screen on success', async () => {
+    const { createPickListAction } = renderCreatePickList();
+    fireEvent.click(screen.getByTestId('so-action-create-pick-list'));
+    await waitFor(() => expect(createPickListAction).toHaveBeenCalledWith(SO_ID));
+    await waitFor(() => expect(push).toHaveBeenCalledWith(`/en/shipping/${SO_ID}/pick`));
   });
 });
 
@@ -630,10 +735,18 @@ describe('GenerateBolModal — carrier/service/tracking → generateBol', () => 
     const form = await screen.findByTestId('shipment-generate-bol-form');
     fireEvent.change(within(form).getByTestId('shipment-bol-carrier'), { target: { value: 'DHL Freight' } });
     fireEvent.change(within(form).getByTestId('shipment-bol-tracking'), { target: { value: 'TRK-123' } });
+    fireEvent.change(within(form).getByTestId('shipment-bol-reason'), { target: { value: 'Customer pickup' } });
+    fireEvent.change(within(form).getByTestId('shipment-bol-password'), { target: { value: 'pw123' } });
     fireEvent.click(screen.getByTestId('shipment-bol-submit'));
     await waitFor(() =>
       expect(bol).toHaveBeenCalledWith(
-        expect.objectContaining({ shipmentId: SHIPMENT_ID, carrier: 'DHL Freight', trackingNumber: 'TRK-123' }),
+        expect.objectContaining({
+          shipmentId: SHIPMENT_ID,
+          carrier: 'DHL Freight',
+          trackingNumber: 'TRK-123',
+          reason: 'Customer pickup',
+          signature: { password: 'pw123' },
+        }),
       ),
     );
     // The returned bolRef is surfaced in the lifecycle rail (truncated, no raw UUID).
@@ -677,7 +790,9 @@ describe('GenerateBolModal — carrier/service/tracking → generateBol', () => 
       bol: async () => ({ ok: false, error: 'not_found' }),
     });
     fireEvent.click(screen.getByTestId('shipment-generate-bol-trigger'));
-    await screen.findByTestId('shipment-generate-bol-form');
+    const form = await screen.findByTestId('shipment-generate-bol-form');
+    fireEvent.change(within(form).getByTestId('shipment-bol-reason'), { target: { value: 'Customer pickup' } });
+    fireEvent.change(within(form).getByTestId('shipment-bol-password'), { target: { value: 'pw123' } });
     fireEvent.click(screen.getByTestId('shipment-bol-submit'));
     expect(await screen.findByTestId('shipment-bol-error')).toHaveTextContent('That shipment no longer exists.');
   });

@@ -9,7 +9,13 @@ import {
   type PaginatedResult,
 } from '../../../../../../lib/shared/pagination';
 import { packLpIntoBoxCore } from '../../../../../../lib/shipping/pack-lp-into-box';
-import { isSalesOrderStatus, isShipmentStatus, BLOCKING_SHIPMENT_STATUSES, type ShipmentStatus } from './so-transitions';
+import {
+  ALLOWED_CREATE_SHIPMENT_SO_STATUSES,
+  isSalesOrderStatus,
+  isShipmentStatus,
+  BLOCKING_SHIPMENT_STATUSES,
+  type ShipmentStatus,
+} from './so-transitions';
 import type {
   ShipmentBoxContentDetail,
   ShipmentBoxDetail,
@@ -36,14 +42,7 @@ type ListShipmentsResult =
 const SHIP_PACK_CLOSE = 'ship.pack.close';
 const SHIP_DASHBOARD_VIEW = 'ship.dashboard.view';
 
-const ALLOWED_CREATE_SO_STATUSES = new Set([
-  'allocated',
-  'partially_picked',
-  'picked',
-  'partially_packed',
-  'packed',
-  'manifested',
-]);
+const ALLOWED_CREATE_SO_STATUSES = ALLOWED_CREATE_SHIPMENT_SO_STATUSES;
 
 async function requirePermission(ctx: ShippingContext, permission: string): Promise<{ ok: false; error: string } | null> {
   if (!(await hasPermission(ctx, permission))) {

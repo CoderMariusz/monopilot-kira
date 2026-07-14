@@ -11336,6 +11336,64 @@
         "deallocate_not_allowed": "Cofnięcie alokacji jest możliwe tylko przed rozpoczęciem pakowania."
       }
     },
+    "pick": {
+      "pageTitle": "Kompletacja zamówienia",
+      "title": "Lista kompletacji",
+      "denied": "Nie masz uprawnień do wykonywania kompletacji.",
+      "notFound": "Dla tego zamówienia nie ma jeszcze listy kompletacji.",
+      "backToSo": "Wróć do zamówienia",
+      "breadcrumb": {
+        "shipping": "Wysyłka",
+        "salesOrders": "Zamówienia sprzedaży",
+        "current": "Zamówienie",
+        "pick": "Kompletacja"
+      },
+      "summary": {
+        "pickList": "Lista kompletacji",
+        "salesOrder": "Zamówienie sprzedaży",
+        "status": "Status"
+      },
+      "lines": {
+        "title": "Pozycje do skompletowania",
+        "seq": "#",
+        "item": "Produkt",
+        "licensePlate": "Paleta (LP)",
+        "qtyToPick": "Do pobrania",
+        "qtyPicked": "Pobrano",
+        "status": "Status",
+        "pick": "Pobierz",
+        "pending": "Pobieranie…",
+        "empty": "Brak pozycji na liście kompletacji."
+      },
+      "lineStatus": {
+        "pending": "Oczekuje",
+        "picked": "Pobrano",
+        "short": "Brak"
+      },
+      "createPickList": {
+        "label": "Utwórz listę kompletacji",
+        "pending": "Tworzenie…",
+        "noPermission": "Nie masz uprawnień do tworzenia list kompletacji.",
+        "notAllocated": "Zaalokuj zamówienie przed utworzeniem listy kompletacji.",
+        "notPickable": "To zamówienie nie może rozpocząć kompletacji w bieżącym statusie.",
+        "goToPick": "Kontynuuj kompletację",
+        "errors": {
+          "forbidden": "Nie masz uprawnień do tej operacji.",
+          "invalid_state": "To zamówienie nie może rozpocząć kompletacji w bieżącym statusie.",
+          "open_pick_list_exists": "Otwarta lista kompletacji już istnieje dla tego zamówienia.",
+          "no_allocations": "Brak zaalokowanych zapasów do kompletacji.",
+          "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+        }
+      },
+      "errors": {
+        "forbidden": "Nie masz uprawnień do tej operacji.",
+        "invalid_input": "Podaj prawidłową ilość do pobrania.",
+        "invalid_state": "Tej pozycji nie można już skompletować.",
+        "allocation_not_found": "Nie znaleziono zaalokowanej palety.",
+        "lp_blocked_for_pick": "Tej palety nie można pobrać (blokada, QA lub przeterminowanie).",
+        "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+      }
+    },
     "shipments": {
       "title": "Wysyłki",
       "subtitle": "Pakuj zaalokowane zamówienia sprzedaży do kartonów i śledź wysyłki wychodzące.",
@@ -11384,10 +11442,10 @@
         "label": "Utwórz wysyłkę",
         "pending": "Tworzenie…",
         "noPermission": "Nie masz uprawnień do tworzenia wysyłek.",
-        "notAllocated": "Zaalokuj zamówienie sprzedaży przed utworzeniem wysyłki.",
+        "notPicked": "Skompletuj zamówienie przed utworzeniem wysyłki.",
         "errors": {
           "forbidden": "Nie masz uprawnień do tej operacji.",
-          "invalid_state": "Dla tego zamówienia sprzedaży nie można już utworzyć wysyłki w jego bieżącym statusie.",
+          "invalid_state": "Skompletuj zamówienie przed utworzeniem wysyłki.",
           "open_shipment_exists": "Dla tego zamówienia sprzedaży istnieje już otwarta wysyłka w trakcie pakowania.",
           "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
         },

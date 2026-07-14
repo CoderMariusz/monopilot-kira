@@ -11258,6 +11258,64 @@
         "deallocate_not_allowed": "Deallocate is only allowed before packing has started."
       }
     },
+    "pick": {
+      "pageTitle": "Pick sales order",
+      "title": "Pick list",
+      "denied": "You do not have permission to execute picks.",
+      "notFound": "No pick list exists for this sales order yet.",
+      "backToSo": "Back to sales order",
+      "breadcrumb": {
+        "shipping": "Shipping",
+        "salesOrders": "Sales orders",
+        "current": "Sales order",
+        "pick": "Pick"
+      },
+      "summary": {
+        "pickList": "Pick list",
+        "salesOrder": "Sales order",
+        "status": "Status"
+      },
+      "lines": {
+        "title": "Lines to pick",
+        "seq": "#",
+        "item": "Item",
+        "licensePlate": "License plate",
+        "qtyToPick": "To pick",
+        "qtyPicked": "Picked",
+        "status": "Status",
+        "pick": "Pick",
+        "pending": "Picking…",
+        "empty": "No pick lines on this list."
+      },
+      "lineStatus": {
+        "pending": "Pending",
+        "picked": "Picked",
+        "short": "Short"
+      },
+      "createPickList": {
+        "label": "Create pick list",
+        "pending": "Creating…",
+        "noPermission": "You do not have permission to create pick lists.",
+        "notAllocated": "Allocate the sales order before creating a pick list.",
+        "notPickable": "This sales order cannot start picking in its current status.",
+        "goToPick": "Continue picking",
+        "errors": {
+          "forbidden": "You don't have permission to do that.",
+          "invalid_state": "This sales order cannot start picking in its current status.",
+          "open_pick_list_exists": "An open pick list already exists for this sales order.",
+          "no_allocations": "No allocated inventory is available to pick.",
+          "persistence_failed": "Something went wrong saving. Please retry."
+        }
+      },
+      "errors": {
+        "forbidden": "You don't have permission to do that.",
+        "invalid_input": "Enter a valid pick quantity.",
+        "invalid_state": "This pick line can no longer be picked.",
+        "allocation_not_found": "The allocated license plate was not found.",
+        "lp_blocked_for_pick": "This license plate cannot be picked (hold, QA, or expired).",
+        "persistence_failed": "Something went wrong saving. Please retry."
+      }
+    },
     "shipments": {
       "title": "Shipments",
       "subtitle": "Pack allocated sales orders into boxes and track outbound shipments.",
@@ -11306,10 +11364,10 @@
         "label": "Create shipment",
         "pending": "Creating…",
         "noPermission": "You do not have permission to create shipments.",
-        "notAllocated": "Allocate the sales order before creating a shipment.",
+        "notPicked": "Pick the sales order before creating a shipment.",
         "errors": {
           "forbidden": "You don’t have permission to do that.",
-          "invalid_state": "This sales order can no longer raise a shipment in its current status.",
+          "invalid_state": "Pick the sales order before creating a shipment.",
           "open_shipment_exists": "An open packing shipment already exists for this sales order.",
           "persistence_failed": "Something went wrong saving. Please retry."
         },

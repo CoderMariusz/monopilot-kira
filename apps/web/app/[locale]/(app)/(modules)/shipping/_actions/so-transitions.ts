@@ -102,8 +102,23 @@ export type SalesOrderProgressSnapshot = {
   manifestedCount: number;
   shippedCount: number;
   deliveredCount: number;
-  liveAllocationCount: number;
+  /** Live allocations still in status allocated (not yet picked). */
+  liveAllocatedCount: number;
+  /** Live allocations already picked (pre-pack). */
+  livePickedCount: number;
 };
+
+/** SO statuses that may raise a shipment (post-pick; partially_packed resumes packing). */
+export const ALLOWED_CREATE_SHIPMENT_SO_STATUSES = new Set<SalesOrderStatus>([
+  'picked',
+  'partially_packed',
+]);
+
+/** SO statuses that may spawn a single-order pick list. */
+export const ALLOWED_CREATE_PICK_LIST_SO_STATUSES = new Set<SalesOrderStatus>([
+  'allocated',
+  'partially_picked',
+]);
 
 /**
  * Derive the SO status from sibling shipment progress and live (non-ship-consumed) allocations.
@@ -117,8 +132,12 @@ export function deriveSalesOrderStatusFromProgress(snapshot: SalesOrderProgressS
     manifestedCount,
     shippedCount,
     deliveredCount,
-    liveAllocationCount,
+    liveAllocatedCount,
+    livePickedCount,
   } = snapshot;
+
+  const allocatedCount = liveAllocatedCount;
+  const pickedCount = livePickedCount;
 
   if (shipmentCount > 0 && deliveredCount === shipmentCount) return 'delivered';
   if (deliveredCount > 0) return 'partially_delivered';
@@ -126,6 +145,8 @@ export function deriveSalesOrderStatusFromProgress(snapshot: SalesOrderProgressS
   if (manifestedCount > 0) return 'manifested';
   if (packedCount > 0 && packingCount === 0) return 'packed';
   if (packedCount > 0 || packingCount > 0) return 'partially_packed';
-  if (liveAllocationCount > 0) return 'allocated';
+  if (pickedCount > 0 && allocatedCount === 0) return 'picked';
+  if (pickedCount > 0 && allocatedCount > 0) return 'partially_picked';
+  if (allocatedCount > 0 || pickedCount > 0) return 'allocated';
   return 'confirmed';
 }

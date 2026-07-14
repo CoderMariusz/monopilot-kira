@@ -280,7 +280,8 @@ beforeEach(() => {
 });
 
 describe('createShipment', () => {
-  it('inserts a shipments row for an allocated sales order', async () => {
+  it('inserts a shipments row for a picked sales order', async () => {
+    salesOrderStatus = 'picked';
     const result = await createShipment(SO_ID);
 
     expect(result).toEqual({ ok: true, shipmentId: SHIPMENT_ID });
@@ -297,6 +298,15 @@ describe('createShipment', () => {
     expect(queryLog.some((entry) => normalize(entry.sql).includes("'packing'"))).toBe(true);
   });
 
+  it('returns invalid_state for an allocated (not yet picked) sales order', async () => {
+    salesOrderStatus = 'allocated';
+
+    const result = await createShipment(SO_ID);
+
+    expect(result).toEqual({ ok: false, error: 'invalid_state' });
+    expect(insertedShipments).toEqual([]);
+  });
+
   it('returns invalid_state for an unallocated sales order', async () => {
     salesOrderStatus = 'confirmed';
 
@@ -306,8 +316,16 @@ describe('createShipment', () => {
     expect(insertedShipments).toEqual([]);
   });
 
+  it('accepts a picked sales order', async () => {
+    salesOrderStatus = 'picked';
+
+    const result = await createShipment(SO_ID);
+
+    expect(result).toEqual({ ok: true, shipmentId: SHIPMENT_ID });
+  });
+
   it('rejects a second shipment when the SO already has a packed shipment', async () => {
-    salesOrderStatus = 'packed';
+    salesOrderStatus = 'partially_packed';
     existingBlockingShipment = true;
 
     const result = await createShipment(SO_ID);
