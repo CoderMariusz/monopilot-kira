@@ -147,7 +147,6 @@ export function CategoryAccordion({
           </div>
         ) : (
           category.items.map((item) => {
-            const isD365 = item.id === 'd365';
             return (
               <div
                 key={item.id}
@@ -165,13 +164,20 @@ export function CategoryAccordion({
                     <Badge variant="muted">{labels.statusAvailable}</Badge>
                   )}
                 </div>
+                {/* ponytail: catalog CTAs are stubs — D365 config lives under Admin → D365 connection */}
                 {item.status === 'connected' ? (
-                  <Button type="button" disabled={!isD365} title={!isD365 ? 'Coming soon' : undefined} className="btn-secondary btn-sm">
+                  <Button type="button" disabled title="Coming soon" className="btn-secondary btn-sm">
                     {labels.configure}
+                    <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                      Coming soon
+                    </span>
                   </Button>
                 ) : (
-                  <Button type="button" disabled={!isD365} title={!isD365 ? 'Coming soon' : undefined} className="btn-primary btn-sm">
+                  <Button type="button" disabled title="Coming soon" className="btn-primary btn-sm">
                     {labels.connect}
+                    <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                      Coming soon
+                    </span>
                   </Button>
                 )}
               </div>

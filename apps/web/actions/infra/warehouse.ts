@@ -17,11 +17,20 @@ type OrgActionContext = {
 };
 
 type WarehouseRow = { id: string; code?: string; name?: string; site_id?: string | null; address_label?: string | null; is_active?: boolean | null; deactivated_at?: string | null };
-type CountRow = { active_count?: number | string | null; count?: number | string | null };
+type WarehouseDependencyRow = {
+  on_hand_stock: number | string | null;
+  open_work_orders: number | string | null;
+  reservations: number | string | null;
+  locations: number | string | null;
+  production_lines: number | string | null;
+};
 
-type ParsedDeactivateInput = {
-  warehouseId: string;
-  force: boolean;
+export type WarehouseDependents = {
+  onHandStock: number;
+  openWorkOrders: number;
+  reservations: number;
+  locations: number;
+  productionLines: number;
 };
 
 type ParsedCreateInput = {
@@ -32,12 +41,21 @@ type ParsedCreateInput = {
 };
 
 export type DeactivateWarehouseResult =
-  | { ok: true; data: { warehouseId: string; isActive: boolean }; warning?: { code: 'ACTIVE_WO_REFERENCES'; activeWorkOrders: number } }
+  | { ok: true; data: { warehouseId: string; isActive: boolean } }
   | {
       ok: false;
-      error: 'invalid_input' | 'forbidden' | 'not_found' | 'active_work_orders_reference_warehouse' | 'persistence_failed';
-      warning?: { code: 'ACTIVE_WO_REFERENCES'; activeWorkOrders: number };
+      error: 'invalid_input' | 'forbidden' | 'not_found' | 'has_dependents' | 'persistence_failed';
+      message?: string;
+      dependents?: WarehouseDependents;
     };
+
+export type RenameWarehouseResult =
+  | { ok: true; data: { id: string; name: string } }
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
+
+export type DeleteWarehouseResult =
+  | { ok: true; data: { warehouseId: string } }
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'has_dependents' | 'persistence_failed'; message?: string; dependents?: WarehouseDependents };
 
 export type CreateWarehouseResult =
   | { ok: true; data: { id: string; code: string; name: string; site_id: string; address: string | null; deactivated_at: null; active_wo_count: 0 } }
@@ -75,6 +93,9 @@ const createWarehouseInputSchema = z.object({
     .union([z.string().trim().min(1).max(256), z.literal(''), z.null(), z.undefined()])
     .transform((value) => (typeof value === 'string' && value.trim().length > 0 ? value.trim() : null)),
 });
+
+const warehouseIdSchema = z.object({ warehouseId: z.string().uuid() });
+const renameWarehouseSchema = warehouseIdSchema.extend({ name: z.string().trim().min(1).max(128) });
 
 export async function createWarehouse(rawInput: unknown): Promise<CreateWarehouseResult> {
   const input = parseCreateInput(rawInput);
@@ -127,10 +148,9 @@ export async function deactivateWarehouse(rawInput: unknown): Promise<Deactivate
       const warehouse = await getWarehouse(client, input.warehouseId);
       if (!warehouse) return { ok: false, error: 'not_found' };
 
-      const activeWorkOrders = await countActiveWorkOrders(client, input.warehouseId);
-      const warning = activeWorkOrders > 0 ? { code: 'ACTIVE_WO_REFERENCES' as const, activeWorkOrders } : undefined;
-      if (warning && !input.force) {
-        return { ok: false, error: 'active_work_orders_reference_warehouse', warning };
+      const dependents = await getWarehouseDependents(client, input.warehouseId);
+      if (hasActiveDependents(dependents)) {
+        return { ok: false, error: 'has_dependents', message: activeDependentsMessage(dependents), dependents };
       }
 
       const { rows } = await client.query<WarehouseRow>(
@@ -150,12 +170,68 @@ export async function deactivateWarehouse(rawInput: unknown): Promise<Deactivate
         eventType: 'settings.warehouse.deactivated',
         aggregateType: 'warehouse',
         aggregateId: row.id,
-        payload: { warehouse_id: row.id, force: input.force, active_work_orders: activeWorkOrders, actor_user_id: userId },
+        payload: { warehouse_id: row.id, actor_user_id: userId },
       });
 
-      return { ok: true, data: { warehouseId: row.id, isActive: false }, ...(warning ? { warning } : {}) };
+      return { ok: true, data: { warehouseId: row.id, isActive: false } };
     });
   } catch {
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function renameWarehouse(rawInput: unknown): Promise<RenameWarehouseResult> {
+  const parsed = renameWarehouseSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<RenameWarehouseResult> => {
+      if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
+      const { rows } = await client.query<{ id: string; name: string }>(
+        `update public.warehouses
+            set name = $2
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+        returning id::text, name`,
+        [parsed.data.warehouseId, parsed.data.name],
+      );
+      const row = rows[0];
+      return row ? { ok: true, data: row } : { ok: false, error: 'not_found' };
+    });
+  } catch (error) {
+    console.error('[settings/infra/warehouse:rename] persistence_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function deleteWarehouse(rawInput: unknown): Promise<DeleteWarehouseResult> {
+  const parsed = warehouseIdSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<DeleteWarehouseResult> => {
+      if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
+      if (!(await getWarehouse(client, parsed.data.warehouseId))) return { ok: false, error: 'not_found' };
+
+      const dependents = await getWarehouseDependents(client, parsed.data.warehouseId);
+      if (Object.values(dependents).some((count) => count > 0)) {
+        return { ok: false, error: 'has_dependents', message: 'This warehouse still has dependent records and cannot be deleted.', dependents };
+      }
+
+      const { rows } = await client.query<{ id: string }>(
+        `delete from public.warehouses
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+        returning id::text`,
+        [parsed.data.warehouseId],
+      );
+      return rows[0] ? { ok: true, data: { warehouseId: rows[0].id } } : { ok: false, error: 'not_found' };
+    });
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      return { ok: false, error: 'has_dependents', message: 'This warehouse still has dependent records and cannot be deleted.' };
+    }
+    console.error('[settings/infra/warehouse:delete] persistence_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { ok: false, error: 'persistence_failed' };
   }
 }
@@ -285,12 +361,9 @@ function parseCreateInput(raw: unknown): ParsedCreateInput | null {
   return parsed.success ? parsed.data : null;
 }
 
-function parseDeactivateInput(raw: unknown): ParsedDeactivateInput | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const input = raw as Record<string, unknown>;
-  const warehouseId = requiredUuid(input.warehouseId);
-  if (!warehouseId) return null;
-  return { warehouseId, force: input.force === true };
+function parseDeactivateInput(raw: unknown): { warehouseId: string } | null {
+  const parsed = warehouseIdSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
 }
 
 async function getWarehouse(client: QueryClient, warehouseId: string): Promise<WarehouseRow | null> {
@@ -305,18 +378,68 @@ async function getWarehouse(client: QueryClient, warehouseId: string): Promise<W
   return rows[0] ?? null;
 }
 
-async function countActiveWorkOrders(client: QueryClient, warehouseId: string): Promise<number> {
-  const { rows } = await client.query<CountRow>(
-    `select count(*)::integer as active_count
-       from public.work_orders
-      where org_id = app.current_org_id()
-        and warehouse_id = $1::uuid
-        and status in ('draft', 'released', 'in_progress', 'active')`,
+async function getWarehouseDependents(client: QueryClient, warehouseId: string): Promise<WarehouseDependents> {
+  const { rows } = await client.query<WarehouseDependencyRow>(
+    `select
+       (select count(*)::integer
+          from public.license_plates lp
+         where lp.org_id = app.current_org_id()
+           and lp.warehouse_id = $1::uuid
+           and lp.quantity > 0::numeric
+           and lp.status in ('received', 'available', 'reserved', 'allocated', 'blocked', 'returned', 'quarantine')) as on_hand_stock,
+       (select count(*)::integer
+          from public.work_orders wo
+          join public.production_lines pl
+            on pl.org_id = app.current_org_id()
+           and pl.id = wo.production_line_id
+         where wo.org_id = app.current_org_id()
+           and pl.warehouse_id = $1::uuid
+           and wo.status in ('DRAFT', 'RELEASED', 'IN_PROGRESS', 'ON_HOLD')) as open_work_orders,
+       (select count(*)::integer
+          from public.license_plates lp
+         where lp.org_id = app.current_org_id()
+           and lp.warehouse_id = $1::uuid
+           and lp.reserved_qty > 0::numeric) as reservations,
+       (select count(*)::integer
+          from public.locations l
+         where l.org_id = app.current_org_id()
+           and l.warehouse_id = $1::uuid) as locations,
+       (select count(*)::integer
+          from public.production_lines pl
+         where pl.org_id = app.current_org_id()
+           and pl.warehouse_id = $1::uuid) as production_lines`,
     [warehouseId],
   );
-  const value = rows[0]?.active_count ?? rows[0]?.count ?? 0;
-  const count = Number(value);
-  return Number.isFinite(count) && count > 0 ? count : 0;
+  const row = rows[0];
+  return {
+    onHandStock: count(row?.on_hand_stock),
+    openWorkOrders: count(row?.open_work_orders),
+    reservations: count(row?.reservations),
+    locations: count(row?.locations),
+    productionLines: count(row?.production_lines),
+  };
+}
+
+function count(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function hasActiveDependents(dependents: WarehouseDependents): boolean {
+  return dependents.onHandStock > 0 || dependents.openWorkOrders > 0 || dependents.reservations > 0;
+}
+
+function activeDependentsMessage(dependents: WarehouseDependents): string {
+  const reasons = [
+    dependents.onHandStock > 0 ? `${dependents.onHandStock} on-hand stock record(s)` : null,
+    dependents.openWorkOrders > 0 ? `${dependents.openWorkOrders} open work order(s)` : null,
+    dependents.reservations > 0 ? `${dependents.reservations} reservation(s)` : null,
+  ].filter(Boolean);
+  return `Warehouse cannot be deactivated while it has ${reasons.join(', ')}.`;
+}
+
+function isForeignKeyViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === '23503';
 }
 
 function requiredUuid(value: unknown): string | null {

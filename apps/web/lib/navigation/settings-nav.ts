@@ -125,7 +125,7 @@ export const SETTINGS_NAV_GROUPS = [
     item("email-config", "Email templates", "✉", false, "/settings/email"),
     item("email-vars", "Email variables", "§", false, "/settings/email/variables"),
     item("ship-override-reasons", "Shipping override reasons", "≡"),
-    item("gallery", "Modal gallery", "◇"),
+    // ponytail: gallery is NODE_ENV=development-only (notFound in prod) — don't ship a dead nav link
   ]),
   group("myAccount", "My account", false, [
     item("my-profile", "My profile", "◯", false, "/account/profile"),

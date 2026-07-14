@@ -104,6 +104,7 @@ export function buildMwoListLabels(t: MaintenanceTranslator): MwoDetailLabels {
     },
     pm: {
       title: t('pm.title'),
+      subtitle: t('pm.subtitle'),
       empty: t('pm.empty'),
       col: {
         equipment: t('pm.col.equipment'),

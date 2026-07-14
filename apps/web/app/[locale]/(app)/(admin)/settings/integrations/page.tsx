@@ -234,7 +234,6 @@ function GridCatalog({ categories, labels }: { categories: IntegrationCategory[]
           />
         ) : (
           all.map((item) => {
-            const isD365 = item.id === 'd365';
             return (
               <Card key={item.id} data-testid="settings-integration-grid-card" className="cursor-pointer p-3" style={{ margin: 0 }}>
                 <div className="mb-2 flex gap-3">
@@ -245,33 +244,30 @@ function GridCatalog({ categories, labels }: { categories: IntegrationCategory[]
                   </div>
                 </div>
                 <p className="mb-3 min-h-8 text-xs text-muted-foreground">{item.description}</p>
+                {/* ponytail: catalog CTAs are stubs — real D365 config is Admin → D365 connection */}
                 {item.status === 'connected' ? (
                   <Button
                     type="button"
-                    disabled={!isD365}
-                    title={!isD365 ? 'Coming soon' : undefined}
+                    disabled
+                    title="Coming soon"
                     className="btn-secondary btn-sm w-full"
                   >
                     {labels.connectedConfigure}
-                    {!isD365 && (
-                      <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                        Coming soon
-                      </span>
-                    )}
+                    <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                      Coming soon
+                    </span>
                   </Button>
                 ) : (
                   <Button
                     type="button"
-                    disabled={!isD365}
-                    title={!isD365 ? 'Coming soon' : undefined}
+                    disabled
+                    title="Coming soon"
                     className="btn-primary btn-sm w-full"
                   >
                     {labels.connect}
-                    {!isD365 && (
-                      <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                        Coming soon
-                      </span>
-                    )}
+                    <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                      Coming soon
+                    </span>
                   </Button>
                 )}
               </Card>

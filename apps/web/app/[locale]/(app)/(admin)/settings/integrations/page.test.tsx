@@ -276,8 +276,8 @@ describe('SET-110 integrations prototype parity', () => {
     ]);
     expect(within(sections[0]).getByText(/1 connected · 2 available/i)).toBeInTheDocument();
     expect(within(sections[0]).getByText('D365')).toBeInTheDocument();
-    expect(within(sections[0]).getByRole('button', { name: /^Configure$/i })).toHaveAttribute('data-slot', 'button');
-    expect(within(sections[0]).getByRole('button', { name: /^Connect$/i })).toHaveAttribute('data-slot', 'button');
+    expect(within(sections[0]).getByRole('button', { name: /Configure/i })).toBeDisabled();
+    expect(within(sections[0]).getByRole('button', { name: /Connect/i })).toBeDisabled();
 
     const activityRegion = screen.getByRole('region', { name: /recent sync activity/i });
     expect(within(activityRegion).getByRole('table')).toBeInTheDocument();
@@ -343,7 +343,7 @@ describe('SET-110 integrations prototype parity', () => {
 
     const d365Row = screen.getByText('D365').closest('.int-row');
     expect(d365Row).not.toBeNull();
-    expect(within(d365Row as HTMLElement).getByRole('button', { name: /^Configure$/i })).toHaveAttribute('data-slot', 'button');
+    expect(within(d365Row as HTMLElement).getByRole('button', { name: /Configure/i })).toBeDisabled();
     expect(root).toHaveAttribute('data-dialog-primitive', 'unavailable-in-ui-package');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(document.querySelector('[data-slot="dialog-content"]')).not.toBeInTheDocument();

@@ -25,14 +25,14 @@ vi.mock('next-intl/server', () => ({
   getTranslations: vi.fn(async () => (key: string, values?: Record<string, string | number>) => {
     const labels: Record<string, string> = {
       title: 'D365 field mapping',
-      subtitle: 'How D365 entity fields map to Monopilot tables.',
+      subtitle: 'Export-only field map (Monopilot → D365). Mapping is deployed via CI/CD.',
       exportCsv: 'Export mapping CSV',
       testConnection: 'Test connection',
       changeNotice:
         'Mapping is deployed via CI/CD. To change a mapping, raise a PR in the monopilot/integrations-d365 repo.',
       unmappedAlert: 'Item.allergens[] is unmapped in D365 field mapping.',
       all: 'All ({count})',
-      incoming: 'D365 → Monopilot ({count})',
+      incoming: 'Monopilot → D365 ({count})',
       outgoing: 'Monopilot → D365 ({count})',
       directionFilterLabel: 'Translated D365 mapping direction filter',
       fieldLevelMap: 'Translated field-level mapping section',
@@ -328,24 +328,24 @@ describe('T-062 d365_mapping_screen prototype parity and interactions', () => {
       'prototypes/design/Monopilot Design System/settings/admin-screens.jsx:109-146',
     );
     expect(screen.getByRole('heading', { name: /^D365 field mapping$/i })).toBeInTheDocument();
-    expect(screen.getByText(/How D365 entity fields map to Monopilot tables/i)).toBeInTheDocument();
+    expect(screen.getByText(/Export-only field map \(Monopilot → D365\)/i)).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent(/Item\.allergens\[\]|monopilot\/integrations-d365/i);
 
     const buttons = within(screenRoot()).getAllByRole('button');
-    expect(buttons.slice(0, 5).map((button) => button.textContent?.trim())).toEqual([
+    expect(buttons.slice(0, 4).map((button) => button.textContent?.trim())).toEqual([
       'Export mapping CSV',
       'Test connection',
       'All (4)',
-      'D365 → Monopilot (2)',
       'Monopilot → D365 (2)',
     ]);
-    buttons.slice(0, 5).forEach((button) => {
+    buttons.slice(0, 4).forEach((button) => {
       expect(button).toBeEnabled();
       expect(button).toHaveAttribute('data-slot', 'button');
     });
     expect(document.querySelector('[data-slot="table"]')).toBeInTheDocument();
     expect(document.querySelectorAll('[data-slot="badge"]').length).toBeGreaterThanOrEqual(mappingRows.length);
     expect(screen.queryByRole('button', { name: /edit|delete|save/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/D365 → Monopilot/i)).not.toBeInTheDocument();
 
     expect(structuralSnapshot()).toMatchInlineSnapshot(`
       {
@@ -353,7 +353,6 @@ describe('T-062 d365_mapping_screen prototype parity and interactions', () => {
           "Export mapping CSV",
           "Test connection",
           "All (4)",
-          "D365 → Monopilot (2)",
           "Monopilot → D365 (2)",
         ],
         "prototypeSource": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:109-146",
@@ -365,8 +364,8 @@ describe('T-062 d365_mapping_screen prototype parity and interactions', () => {
         ],
         "route": "/settings/integrations/d365/mapping",
         "rows": [
-          "InventTable.ItemIdD365 → Monopilotproducts.skutextnone",
-          "VendTable.CurrencyCodeD365 → Monopilotpartners.currencyenumupper",
+          "InventTable.ItemIdMonopilot → D365products.skutextnone",
+          "VendTable.CurrencyCodeMonopilot → D365partners.currencyenumupper",
           "SalesTable.SalesIdMonopilot → D365planning.d365_so_reftextprefix:SO-",
           "Item.allergens[]Monopilot → D365products.allergensjsonunmapped",
         ],

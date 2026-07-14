@@ -692,10 +692,25 @@ export async function listEquipmentForMwo(): Promise<ActionResult<EquipmentOptio
         name: string;
         equipment_type: string;
       }>(
-        `select id::text, equipment_code, name, equipment_type
-           from public.equipment
-          where org_id = app.current_org_id()
-            and active = true
+        `select id, equipment_code, name, equipment_type
+           from (
+             select e.id::text, e.equipment_code, e.name, e.equipment_type
+               from public.equipment e
+              where e.org_id = app.current_org_id()
+                and e.active = true
+             union all
+             -- ponytail: lines are the line-level asset fallback until machine/component CRUD exists.
+             select pl.id::text, pl.code, pl.name, 'production_line'::text
+               from public.production_lines pl
+              where pl.org_id = app.current_org_id()
+                and pl.status = 'active'
+                and not exists (
+                  select 1
+                    from public.equipment e
+                   where e.org_id = app.current_org_id()
+                     and (e.id = pl.id or e.equipment_code = pl.code)
+                )
+           ) available_equipment
           order by equipment_code
           limit 500`,
       );
@@ -736,7 +751,7 @@ export async function createMwo(input: {
       }
 
       // Validate the equipment link inside the org scope.
-      const equipment = await ctx.client.query<{ id: string; equipment_code: string; name: string }>(
+      let equipment = await ctx.client.query<{ id: string; equipment_code: string; name: string }>(
         `select id::text, equipment_code, name
            from public.equipment
           where org_id = app.current_org_id()
@@ -744,8 +759,44 @@ export async function createMwo(input: {
           limit 1`,
         [parsed.equipmentId],
       );
-      const equipmentRow = equipment.rows[0];
-      if (!equipmentRow) return { ok: false, reason: 'not_found', message: 'equipment not found' };
+      let equipmentRow = equipment.rows[0];
+      if (!equipmentRow) {
+        const line = await ctx.client.query<{ id: string; site_id: string | null; code: string; name: string }>(
+          `select pl.id::text, pl.site_id::text, pl.code, pl.name
+             from public.production_lines pl
+            where pl.org_id = app.current_org_id()
+              and pl.id = $1::uuid
+              and pl.status = 'active'
+            limit 1`,
+          [parsed.equipmentId],
+        );
+        const lineRow = line.rows[0];
+        if (!lineRow) return { ok: false, reason: 'not_found', message: 'equipment not found' };
+
+        await ctx.client.query(
+          `insert into public.equipment (
+             id, org_id, site_id, equipment_code, name, equipment_type,
+             parent_line_id, active, created_by, updated_by
+           ) values (
+             $1::uuid, app.current_org_id(), $2::uuid, $3, $4, 'production_line',
+             $1::uuid, true, $5::uuid, $5::uuid
+           )
+           on conflict do nothing`,
+          [lineRow.id, lineRow.site_id, lineRow.code, lineRow.name, ctx.userId],
+        );
+
+        equipment = await ctx.client.query<{ id: string; equipment_code: string; name: string }>(
+          `select id::text, equipment_code, name
+             from public.equipment
+            where org_id = app.current_org_id()
+              and (id = $1::uuid or equipment_code = $2)
+            order by (id = $1::uuid) desc
+            limit 1`,
+          [lineRow.id, lineRow.code],
+        );
+        equipmentRow = equipment.rows[0];
+        if (!equipmentRow) throw new Error('line equipment projection failed');
+      }
 
       const mwoNumber = await allocateMwoNumber(ctx);
 
@@ -769,7 +820,7 @@ export async function createMwo(input: {
           mwoNumber,
           source,
           parsed.priority,
-          parsed.equipmentId,
+          equipmentRow.id,
           parsed.downtimeEventId ?? null,
           parsed.title,
           parsed.dueDate ?? null,
@@ -786,7 +837,7 @@ export async function createMwo(input: {
         payload: {
           mwo_id: created.id,
           mwo_number: created.mwo_number,
-          equipment_id: parsed.equipmentId,
+          equipment_id: equipmentRow.id,
           equipment_code: equipmentRow.equipment_code,
           priority: parsed.priority,
           source,

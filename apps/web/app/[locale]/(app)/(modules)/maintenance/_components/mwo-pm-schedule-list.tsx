@@ -47,6 +47,14 @@ export function PmScheduleList({
 
   return (
     <Card data-testid="pm-schedule-card" className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      {/* ponytail: surface existing subtitle so list isn't mistaken for a full PM editor */}
+      <p
+        data-testid="pm-scope-notice"
+        role="note"
+        className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-600"
+      >
+        {labels.pm.subtitle}
+      </p>
       {error ? (
         <p role="alert" className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">
           {error}

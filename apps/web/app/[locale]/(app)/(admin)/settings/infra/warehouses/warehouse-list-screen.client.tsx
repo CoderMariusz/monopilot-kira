@@ -58,7 +58,7 @@ export type CreateWarehouseResult =
   | { ok: true; data: Warehouse }
   | { ok: false; error?: string };
 
-export type DeactivateWarehouseInput = { warehouseId: string; force?: boolean };
+export type DeactivateWarehouseInput = { warehouseId: string };
 
 export type DeactivateWarehouseResult =
   | { ok: true; data?: { warehouseId?: string; deactivated_at?: string; isActive?: boolean } }
@@ -66,13 +66,20 @@ export type DeactivateWarehouseResult =
       ok: false;
       code?: 'SOFT_WARNING_ACTIVE_WO' | string;
       error?: string;
+      message?: string;
+      dependents?: { onHandStock: number; openWorkOrders: number; reservations: number; locations: number; productionLines: number };
       warning?: { code?: 'SOFT_WARNING_ACTIVE_WO' | 'ACTIVE_WO_REFERENCES' | string; activeWoCount?: number; activeWorkOrders?: number };
     };
+
+export type RenameWarehouseInput = { warehouseId: string; name: string };
+export type RenameWarehouseResult = { ok: true; data: { id: string; name: string } } | { ok: false; error?: string };
+export type DeleteWarehouseInput = { warehouseId: string };
+export type DeleteWarehouseResult = { ok: true; data: { warehouseId: string } } | { ok: false; error?: string; message?: string };
 
 export type WarehousePageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 type StatusFilter = 'all' | 'active' | 'deactivated';
 type SortKey = 'name' | 'code' | 'status' | 'active_wo_count';
-type WarningState = { warehouseId: string; warehouseName: string; activeWoCount: number };
+type WarningState = { warehouseId: string; warehouseName: string; activeWoCount: number; message?: string };
 
 export type WarehouseLabels = {
   title: string;
@@ -153,6 +160,18 @@ export type WarehouseLabels = {
   storageRulesSaved: string;
   storageRulesSaveFailed: string;
   editStorageRules: string;
+  renameWarehouse: string;
+  renameWarehouseTitle: string;
+  renameWarehousePending: string;
+  renameWarehouseFailed: string;
+  deleteWarehouse: string;
+  deleteWarehouseTitle: string;
+  deleteWarehouseBody: string;
+  deleteWarehousePending: string;
+  deleteWarehouseBlocked: string;
+  confirmDelete: string;
+  deactivationBlockedTitle: string;
+  dependentsBlocked: string;
 };
 
 export default function WarehouseListScreen({
@@ -163,6 +182,8 @@ export default function WarehouseListScreen({
   canUpdateInfra,
   createWarehouse,
   deactivateWarehouse,
+  renameWarehouse,
+  deleteWarehouse,
   updateStorageRules,
   state,
 }: {
@@ -173,6 +194,8 @@ export default function WarehouseListScreen({
   canUpdateInfra: boolean;
   createWarehouse: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
+  renameWarehouse: (input: RenameWarehouseInput) => Promise<RenameWarehouseResult>;
+  deleteWarehouse: (input: DeleteWarehouseInput) => Promise<DeleteWarehouseResult>;
   updateStorageRules?: (input: UpdateStorageRulesInput) => Promise<UpdateStorageRulesResult>;
   state: WarehousePageState;
 }) {
@@ -189,6 +212,12 @@ export default function WarehouseListScreen({
   const [newWarehouse, setNewWarehouse] = React.useState({ code: '', name: '', site_id: '', address: '' });
   const [error, setError] = React.useState<string | null>(state === 'error' ? labels.error : null);
   const [warning, setWarning] = React.useState<WarningState | null>(null);
+  const [renameTarget, setRenameTarget] = React.useState<Warehouse | null>(null);
+  const [renameName, setRenameName] = React.useState('');
+  const [renamePending, setRenamePending] = React.useState(false);
+  const [deleteTarget, setDeleteTarget] = React.useState<Warehouse | null>(null);
+  const [deletePending, setDeletePending] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
   const [storageWarehouseId, setStorageWarehouseId] = React.useState<string>(() => initialWarehouses[0]?.id ?? '');
   const [binStrategy, setBinStrategy] = React.useState<BinAssignmentStrategy>(DEFAULT_STORAGE_RULES.binAssignmentStrategy);
   const [mixedLotBins, setMixedLotBins] = React.useState(DEFAULT_STORAGE_RULES.mixedLotBins);
@@ -374,14 +403,15 @@ export default function WarehouseListScreen({
     setError(null);
     try {
       for (const warehouseId of selected) {
-        const result = await deactivateWarehouse({ warehouseId, force: false });
+        const result = await deactivateWarehouse({ warehouseId });
         if (result.ok === false) {
-          if (isSoftWarning(result)) {
+          if (isDependencyBlock(result)) {
             const row = rows.find((item) => item.id === warehouseId);
             setWarning({
               warehouseId,
               warehouseName: row?.name ?? labels.columnName,
-              activeWoCount: result.warning?.activeWoCount ?? result.warning?.activeWorkOrders ?? 0,
+              activeWoCount: result.dependents?.openWorkOrders ?? result.warning?.activeWoCount ?? result.warning?.activeWorkOrders ?? 0,
+              message: result.message,
             });
             return;
           }
@@ -396,25 +426,42 @@ export default function WarehouseListScreen({
     }
   }
 
-  async function confirmDeactivation() {
-    if (!warning) return;
-    setPending(true);
-    setError(null);
+  async function submitRename(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!renameTarget || !renameName.trim() || renamePending) return;
+    setRenamePending(true);
     try {
-      const result = await deactivateWarehouse({ warehouseId: warning.warehouseId, force: true });
-      if (result.ok) {
-        markDeactivated(result.data?.warehouseId ?? warning.warehouseId, result.data?.deactivated_at);
-        setSelected((current) => {
-          const next = new Set(current);
-          next.delete(warning.warehouseId);
-          return next;
-        });
-        setWarning(null);
-      } else {
-        setError(labels.error);
+      const result = await renameWarehouse({ warehouseId: renameTarget.id, name: renameName.trim() });
+      if (!result.ok) {
+        setError(labels.renameWarehouseFailed);
+        return;
       }
+      setRows((current) => current.map((row) => row.id === result.data.id ? { ...row, name: result.data.name } : row));
+      setRenameTarget(null);
     } finally {
-      setPending(false);
+      setRenamePending(false);
+    }
+  }
+
+  async function submitDelete() {
+    if (!deleteTarget || deletePending) return;
+    setDeletePending(true);
+    setDeleteError(null);
+    try {
+      const result = await deleteWarehouse({ warehouseId: deleteTarget.id });
+      if (!result.ok) {
+        setDeleteError(result.error === 'has_dependents' ? result.message ?? labels.deleteWarehouseBlocked : labels.error);
+        return;
+      }
+      setRows((current) => current.filter((row) => row.id !== result.data.warehouseId));
+      setSelected((current) => {
+        const next = new Set(current);
+        next.delete(result.data.warehouseId);
+        return next;
+      });
+      setDeleteTarget(null);
+    } finally {
+      setDeletePending(false);
     }
   }
 
@@ -586,6 +633,7 @@ export default function WarehouseListScreen({
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
                         <Button
                           type="button"
                           variant="dry-run"
@@ -602,6 +650,13 @@ export default function WarehouseListScreen({
                         >
                           {labels.storageRules}
                         </Button>
+                        <Button type="button" variant="dry-run" disabled={!canUpdateInfra} aria-label={`${labels.renameWarehouse} — ${warehouse.name}`} onClick={() => { setRenameTarget(warehouse); setRenameName(warehouse.name); }}>
+                          {labels.renameWarehouse}
+                        </Button>
+                        <Button type="button" variant="dry-run" disabled={!canUpdateInfra} aria-label={`${labels.deleteWarehouse} — ${warehouse.name}`} onClick={() => { setDeleteTarget(warehouse); setDeleteError(null); }}>
+                          {labels.deleteWarehouse}
+                        </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -774,23 +829,54 @@ export default function WarehouseListScreen({
         </div>
       ) : null}
 
+      {renameTarget ? (
+        <div role="dialog" aria-modal="true" aria-labelledby="rename-warehouse-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
+            <h2 id="rename-warehouse-title" className="text-lg font-semibold text-slate-950">{labels.renameWarehouseTitle}</h2>
+            <form onSubmit={(event) => void submitRename(event)} className="mt-4 space-y-4">
+              <label className="grid gap-1 text-sm font-medium" htmlFor="rename-warehouse-name">
+                {labels.warehouseName}
+                <Input id="rename-warehouse-name" value={renameName} onChange={(event) => setRenameName(event.currentTarget.value)} disabled={renamePending} required />
+              </label>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="dry-run" onClick={() => setRenameTarget(null)} disabled={renamePending}>{labels.cancel}</Button>
+                <Button type="submit" disabled={renamePending || !renameName.trim()}>{renamePending ? labels.renameWarehousePending : labels.renameWarehouse}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteTarget ? (
+        <div role="dialog" aria-modal="true" aria-labelledby="delete-warehouse-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
+          <div className="w-full max-w-md rounded-xl border border-red-200 bg-white p-5 shadow-lg">
+            <h2 id="delete-warehouse-title" className="text-lg font-semibold text-slate-950">{labels.deleteWarehouseTitle}</h2>
+            <p className="mt-3 text-sm text-slate-700">{formatTemplate(labels.deleteWarehouseBody, { name: deleteTarget.name })}</p>
+            {deleteError ? <p role="alert" className="mt-3 text-sm text-red-700">{deleteError}</p> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="dry-run" onClick={() => setDeleteTarget(null)} disabled={deletePending}>{labels.cancel}</Button>
+              <Button type="button" onClick={() => void submitDelete()} disabled={deletePending}>{deletePending ? labels.deleteWarehousePending : labels.confirmDelete}</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {warning ? (
         <div role="dialog" aria-modal="true" aria-labelledby="warehouse-soft-warning-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
           <div className="w-full max-w-md rounded-xl border border-amber-200 bg-white p-5 shadow-lg">
             <div className="flex items-start justify-between gap-3">
-              <h2 id="warehouse-soft-warning-title" className="text-lg font-semibold text-slate-950">{labels.softWarningTitle}</h2>
+              <h2 id="warehouse-soft-warning-title" className="text-lg font-semibold text-slate-950">{labels.deactivationBlockedTitle}</h2>
               <Button type="button" variant="dry-run" aria-label={labels.cancel} onClick={() => setWarning(null)} disabled={pending}>×</Button>
             </div>
             <div className="mt-4 space-y-3">
               <Badge tone="warning">{labels.softWarningCode}</Badge>
-              <p>{labels.softWarningBody}</p>
+              <p>{warning.message ?? labels.dependentsBlocked}</p>
               <p className="text-sm text-slate-600">
                 {formatTemplate(labels.activeWoReference, { count: String(warning.activeWoCount), name: warning.warehouseName })}
               </p>
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <Button type="button" variant="dry-run" onClick={() => setWarning(null)} disabled={pending}>{labels.cancel}</Button>
-              <Button type="button" onClick={() => void confirmDeactivation()} disabled={pending}>{labels.confirmDeactivate}</Button>
             </div>
           </div>
         </div>
@@ -826,8 +912,9 @@ function formatTemplate(template: string, values: Record<string, string>) {
   return Object.entries(values).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, value), template);
 }
 
-function isSoftWarning(result: Extract<DeactivateWarehouseResult, { ok: false }>) {
+function isDependencyBlock(result: Extract<DeactivateWarehouseResult, { ok: false }>) {
   return (
+    result.error === 'has_dependents' ||
     result.code === 'SOFT_WARNING_ACTIVE_WO' ||
     result.warning?.code === 'SOFT_WARNING_ACTIVE_WO' ||
     result.warning?.code === 'ACTIVE_WO_REFERENCES' ||

@@ -96,6 +96,7 @@ const LABELS: MwoListLabels = {
   },
   pm: {
     title: 'PM schedules',
+    subtitle: 'List and generate-from-due only — schedule create/edit is not available yet.',
     empty: 'No PM schedules yet.',
     col: {
       equipment: 'Equipment',
@@ -114,6 +115,10 @@ const LABELS: MwoListLabels = {
     intervalUnit: { calendar_days: 'days', usage_hours: 'usage hours', usage_cycles: 'cycles' },
     activeYes: 'Active',
     activeNo: 'Inactive',
+    generateMwo: 'Generate MWO',
+    generating: 'Generating…',
+    generateFailed: 'Could not generate the MWO from this schedule.',
+    colActions: 'Actions',
   },
 };
 
@@ -356,6 +361,7 @@ describe('MwoListScreen — PM schedules view', () => {
 
     fireEvent.click(screen.getByTestId('mwo-view-pm'));
     expect(screen.getByTestId('pm-schedule-card')).toBeInTheDocument();
+    expect(screen.getByTestId('pm-scope-notice')).toHaveTextContent(/not available yet/i);
     expect(screen.getByText('EQ-01')).toBeInTheDocument();
     expect(screen.getByText('30 days')).toBeInTheDocument();
   });

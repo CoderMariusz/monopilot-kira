@@ -3,6 +3,8 @@ import { getTranslations } from 'next-intl/server';
 import {
   createWarehouse as t029CreateWarehouse,
   deactivateWarehouse as t029DeactivateWarehouse,
+  deleteWarehouse as t029DeleteWarehouse,
+  renameWarehouse as t029RenameWarehouse,
   updateWarehouseStorageRules as t029UpdateWarehouseStorageRules,
 } from '../../../../../../../actions/infra/warehouse';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
@@ -13,6 +15,10 @@ import WarehouseListScreen, {
   type CreateWarehouseResult,
   type DeactivateWarehouseInput,
   type DeactivateWarehouseResult,
+  type DeleteWarehouseInput,
+  type DeleteWarehouseResult,
+  type RenameWarehouseInput,
+  type RenameWarehouseResult,
   type UpdateStorageRulesInput,
   type UpdateStorageRulesResult,
   type Warehouse,
@@ -27,7 +33,7 @@ export const dynamic = 'force-dynamic';
 const READ_PERMISSION = 'settings.infra.read';
 const UPDATE_PERMISSION = 'settings.infra.update';
 
-const ACTIVE_WORK_ORDER_STATUSES = ['draft', 'released', 'in_progress', 'active'] as const;
+const ACTIVE_WORK_ORDER_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS', 'ON_HOLD'] as const;
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = { query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<T>> };
@@ -94,6 +100,8 @@ type PageProps = {
   canUpdateInfra?: boolean;
   createWarehouse?: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse?: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
+  renameWarehouse?: (input: RenameWarehouseInput) => Promise<RenameWarehouseResult>;
+  deleteWarehouse?: (input: DeleteWarehouseInput) => Promise<DeleteWarehouseResult>;
   updateStorageRules?: (input: UpdateStorageRulesInput) => Promise<UpdateStorageRulesResult>;
   state?: WarehousePageState;
 };
@@ -177,6 +185,18 @@ const DEFAULT_LABELS: WarehouseLabels = {
   storageRulesSaved: 'Storage rules saved.',
   storageRulesSaveFailed: 'Storage rules could not be saved. Try again or contact an administrator.',
   editStorageRules: 'Edit storage rules for {name}',
+  renameWarehouse: 'Rename warehouse',
+  renameWarehouseTitle: 'Rename warehouse',
+  renameWarehousePending: 'Renaming…',
+  renameWarehouseFailed: 'Warehouse could not be renamed.',
+  deleteWarehouse: 'Delete warehouse',
+  deleteWarehouseTitle: 'Delete warehouse',
+  deleteWarehouseBody: 'Delete {name}? This cannot be undone.',
+  deleteWarehousePending: 'Deleting…',
+  deleteWarehouseBlocked: 'This warehouse still has dependent records and cannot be deleted.',
+  confirmDelete: 'Delete',
+  deactivationBlockedTitle: 'Warehouse cannot be deactivated',
+  dependentsBlocked: 'Warehouse cannot be deactivated while it has active dependents.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof WarehouseLabels>;
@@ -208,17 +228,22 @@ async function canReadActiveWorkOrders(client: QueryClient): Promise<boolean> {
   const { rows } = await client.query<CapabilityRow>(
     `select (
        to_regclass('public.work_orders') is not null
+       and to_regclass('public.production_lines') is not null
        and exists (
          select 1 from information_schema.columns
           where table_schema = 'public' and table_name = 'work_orders' and column_name = 'org_id'
        )
        and exists (
          select 1 from information_schema.columns
-          where table_schema = 'public' and table_name = 'work_orders' and column_name = 'warehouse_id'
+         where table_schema = 'public' and table_name = 'work_orders' and column_name = 'production_line_id'
        )
        and exists (
          select 1 from information_schema.columns
           where table_schema = 'public' and table_name = 'work_orders' and column_name = 'status'
+       )
+       and exists (
+         select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'production_lines' and column_name = 'warehouse_id'
        )
      ) as ok`,
   );
@@ -287,7 +312,7 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
               nullif(coalesce(w.address->>'capacity_label', w.address->>'capacity'), '') as capacity_label,
               nullif(coalesce(w.address->>'usedPercent', w.address->>'used_percent'), '') as used_percent,
               w.address->>'deactivated_at' as deactivated_at,
-              coalesce(count(distinct wo.warehouse_id) filter (where wo.status::text = any($1::text[])), 0)::integer as active_wo_count,
+              coalesce(count(distinct wo.id) filter (where wo.status::text = any($1::text[])), 0)::integer as active_wo_count,
               ${storageColumns}
          from public.warehouses w
          left join public.sites s
@@ -296,9 +321,12 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
          left join public.locations l
            on l.org_id = app.current_org_id()
           and l.warehouse_id = w.id
+         left join public.production_lines pl
+           on pl.org_id = app.current_org_id()
+          and pl.warehouse_id = w.id
          left join public.work_orders wo
            on wo.org_id = app.current_org_id()
-          and wo.warehouse_id = w.id
+          and wo.production_line_id = pl.id
          ${storageJoin}
         where w.org_id = app.current_org_id()
         group by w.id, w.code, w.name, w.address, s.name${storageGroupBy}
@@ -370,6 +398,16 @@ async function runDeactivateWarehouse(input: DeactivateWarehouseInput): Promise<
   return t029DeactivateWarehouse(input) as Promise<DeactivateWarehouseResult>;
 }
 
+async function runRenameWarehouse(input: RenameWarehouseInput): Promise<RenameWarehouseResult> {
+  'use server';
+  return t029RenameWarehouse(input) as Promise<RenameWarehouseResult>;
+}
+
+async function runDeleteWarehouse(input: DeleteWarehouseInput): Promise<DeleteWarehouseResult> {
+  'use server';
+  return t029DeleteWarehouse(input) as Promise<DeleteWarehouseResult>;
+}
+
 async function runUpdateStorageRules(input: UpdateStorageRulesInput): Promise<UpdateStorageRulesResult> {
   'use server';
   return t029UpdateWarehouseStorageRules(input) as Promise<UpdateStorageRulesResult>;
@@ -398,6 +436,8 @@ export default async function WarehousesPage(propsInput: unknown = {}) {
       canUpdateInfra={props.canUpdateInfra ?? runtime.canUpdateInfra}
       createWarehouse={props.createWarehouse ?? runCreateWarehouse}
       deactivateWarehouse={props.deactivateWarehouse ?? runDeactivateWarehouse}
+      renameWarehouse={props.renameWarehouse ?? runRenameWarehouse}
+      deleteWarehouse={props.deleteWarehouse ?? runDeleteWarehouse}
       updateStorageRules={props.updateStorageRules ?? runUpdateStorageRules}
       state={props.state ?? runtime.state}
     />

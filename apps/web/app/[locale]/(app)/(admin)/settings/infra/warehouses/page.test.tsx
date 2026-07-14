@@ -15,13 +15,15 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 
-const { withOrgContextMock, createWarehouseActionMock, deactivateWarehouseActionMock, updateStorageRulesActionMock } = vi.hoisted(() => ({
+const { withOrgContextMock, createWarehouseActionMock, deactivateWarehouseActionMock, renameWarehouseActionMock, deleteWarehouseActionMock, updateStorageRulesActionMock } = vi.hoisted(() => ({
   withOrgContextMock: vi.fn(),
   createWarehouseActionMock: vi.fn(async () => ({ ok: false as const, error: 'invalid_input' })),
   deactivateWarehouseActionMock: vi.fn(async (input: DeactivateWarehouseInput) => ({
     ok: true as const,
     data: { warehouseId: input.warehouseId, deactivated_at: '2026-05-24T10:00:00.000Z' },
   })),
+  renameWarehouseActionMock: vi.fn(async (input: RenameWarehouseInput) => ({ ok: true as const, data: { id: input.warehouseId, name: input.name } })),
+  deleteWarehouseActionMock: vi.fn(async (input: DeleteWarehouseInput) => ({ ok: true as const, data: { warehouseId: input.warehouseId } })),
   updateStorageRulesActionMock: vi.fn(async (input: UpdateStorageRulesInput) => ({
     ok: true as const,
     data: {
@@ -41,6 +43,8 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 vi.mock('../../../../../../../actions/infra/warehouse', () => ({
   createWarehouse: createWarehouseActionMock,
   deactivateWarehouse: deactivateWarehouseActionMock,
+  renameWarehouse: renameWarehouseActionMock,
+  deleteWarehouse: deleteWarehouseActionMock,
   updateWarehouseStorageRules: updateStorageRulesActionMock,
 }));
 
@@ -83,6 +87,17 @@ const labels: Record<string, string> = {
   storageRulesSaved: 'Storage rules saved.',
   storageRulesSaveFailed: 'Storage rules could not be saved. Try again or contact an administrator.',
   editStorageRules: 'Edit storage rules for {name}',
+  renameWarehouse: 'Rename warehouse',
+  renameWarehouseTitle: 'Rename warehouse',
+  renameWarehousePending: 'Renaming…',
+  renameWarehouseFailed: 'Warehouse could not be renamed.',
+  deleteWarehouse: 'Delete warehouse',
+  deleteWarehouseTitle: 'Delete warehouse',
+  deleteWarehouseBody: 'Delete {name}? This cannot be undone.',
+  deleteWarehousePending: 'Deleting…',
+  deleteWarehouseBlocked: 'This warehouse still has dependent records and cannot be deleted.',
+  confirmDelete: 'Delete',
+  dependentsBlocked: 'Warehouse cannot be deactivated while it has active dependents.',
 };
 
 vi.mock('next-intl/server', () => ({
@@ -131,9 +146,17 @@ type DeactivateWarehouseResult =
   | { ok: true; data: { warehouseId: string; deactivated_at: string } }
   | {
       ok: false;
-      code: 'SOFT_WARNING_ACTIVE_WO';
-      warning: { code: 'SOFT_WARNING_ACTIVE_WO'; activeWoCount: number };
+      code?: 'SOFT_WARNING_ACTIVE_WO';
+      error?: string;
+      message?: string;
+      dependents?: { onHandStock: number; openWorkOrders: number; reservations: number; locations: number; productionLines: number };
+      warning?: { code: 'SOFT_WARNING_ACTIVE_WO'; activeWoCount: number };
     };
+
+type RenameWarehouseInput = { warehouseId: string; name: string };
+type RenameWarehouseResult = { ok: true; data: { id: string; name: string } } | { ok: false; error?: string };
+type DeleteWarehouseInput = { warehouseId: string };
+type DeleteWarehouseResult = { ok: true; data: { warehouseId: string } } | { ok: false; error?: string; message?: string };
 
 type WarehousePageProps = {
   params?: Promise<{ locale: string }>;
@@ -142,6 +165,8 @@ type WarehousePageProps = {
   canUpdateInfra?: boolean;
   createWarehouse?: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse?: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
+  renameWarehouse?: (input: RenameWarehouseInput) => Promise<RenameWarehouseResult>;
+  deleteWarehouse?: (input: DeleteWarehouseInput) => Promise<DeleteWarehouseResult>;
   updateStorageRules?: (input: UpdateStorageRulesInput) => Promise<UpdateStorageRulesResult>;
 };
 
@@ -245,6 +270,8 @@ async function renderWarehousesPage(overrides: Partial<WarehousePageProps> = {})
       ok: true as const,
       data: { warehouseId: input.warehouseId, deactivated_at: '2026-05-24T10:00:00.000Z' },
     })),
+    renameWarehouse: vi.fn(async (input: RenameWarehouseInput) => ({ ok: true as const, data: { id: input.warehouseId, name: input.name } })),
+    deleteWarehouse: vi.fn(async (input: DeleteWarehouseInput) => ({ ok: true as const, data: { warehouseId: input.warehouseId } })),
     updateStorageRules: vi.fn(async (input: UpdateStorageRulesInput) => ({
       ok: true as const,
       data: {
@@ -509,21 +536,22 @@ describe('SET-012 warehouse list behavior', () => {
     expect(screen.queryByRole('dialog', { name: /active work orders/i })).not.toBeInTheDocument();
     for (const selected of warehouses.slice(0, 3)) {
       expect(deactivateWarehouse).toHaveBeenCalledWith(
-        expect.objectContaining({ warehouseId: selected.id, force: false }),
+        { warehouseId: selected.id },
       );
       expect(rowFor(new RegExp(`${selected.name} ${selected.code} deactivated`, 'i'))).toBeInTheDocument();
     }
   });
 
-  it('surfaces SOFT_WARNING_ACTIVE_WO and re-issues the selected deactivate with force=true only after confirmation', async () => {
+  it('shows a friendly dependency block and never force-deactivates the warehouse', async () => {
     const user = userEvent.setup();
     const warningWarehouse = warehouses[3];
     const deactivateWarehouse = vi.fn(async (input: DeactivateWarehouseInput) => {
-      if (input.warehouseId === warningWarehouse.id && input.force !== true) {
+      if (input.warehouseId === warningWarehouse.id) {
         return {
           ok: false as const,
-          code: 'SOFT_WARNING_ACTIVE_WO' as const,
-          warning: { code: 'SOFT_WARNING_ACTIVE_WO' as const, activeWoCount: 2 },
+          error: 'has_dependents',
+          message: 'Warehouse cannot be deactivated while it has 2 open work order(s).',
+          dependents: { onHandStock: 0, openWorkOrders: 2, reservations: 0, locations: 0, productionLines: 1 },
         };
       }
       return {
@@ -538,21 +566,43 @@ describe('SET-012 warehouse list behavior', () => {
 
     await waitFor(() => expect(deactivateWarehouse).toHaveBeenCalledTimes(1));
     expect(deactivateWarehouse).toHaveBeenLastCalledWith(
-      expect.objectContaining({ warehouseId: warningWarehouse.id, force: false }),
+      { warehouseId: warningWarehouse.id },
     );
-    const dialog = screen.getByRole('dialog', { name: /active work orders reference this warehouse/i });
+    const dialog = screen.getByRole('dialog', { name: /warehouse cannot be deactivated/i });
     expect(dialog).toHaveAttribute('aria-modal', 'true');
-    expect(within(dialog).getByText(/SOFT_WARNING_ACTIVE_WO/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/cannot be deactivated while it has/i)).toBeInTheDocument();
     expect(within(dialog).getByText(/2 active work orders/i)).toBeInTheDocument();
     expect(deactivateWarehouse).not.toHaveBeenCalledWith(expect.objectContaining({ force: true }));
+    expect(within(dialog).queryByRole('button', { name: /confirm deactivation/i })).not.toBeInTheDocument();
+  });
 
-    await user.click(within(dialog).getByRole('button', { name: /confirm deactivation/i }));
+  it('renames and deletes a warehouse from row actions, surfacing dependent-delete failures', async () => {
+    const user = userEvent.setup();
+    const warehouse = warehouses[0];
+    const renameWarehouse = vi.fn(async (input: RenameWarehouseInput) => ({ ok: true as const, data: { id: input.warehouseId, name: input.name } }));
+    const deleteWarehouse = vi.fn()
+      .mockResolvedValueOnce({ ok: false as const, error: 'has_dependents', message: labels.deleteWarehouseBlocked })
+      .mockResolvedValueOnce({ ok: true as const, data: { warehouseId: warehouse.id } });
+    await renderWarehousesPage({ renameWarehouse, deleteWarehouse });
 
-    await waitFor(() => expect(deactivateWarehouse).toHaveBeenCalledTimes(2));
-    expect(deactivateWarehouse).toHaveBeenLastCalledWith(
-      expect.objectContaining({ warehouseId: warningWarehouse.id, force: true }),
-    );
-    expect(rowFor(new RegExp(`${warningWarehouse.name} ${warningWarehouse.code} deactivated`, 'i'))).toBeInTheDocument();
+    let row = rowFor(/apex chilled wh-01 active/i);
+    await user.click(within(row).getByRole('button', { name: /rename warehouse.*apex chilled/i }));
+    let dialog = screen.getByRole('dialog', { name: /^rename warehouse$/i });
+    const name = within(dialog).getByLabelText(/^name$/i);
+    await user.clear(name);
+    await user.type(name, 'Apex Chilled Renamed');
+    await user.click(within(dialog).getByRole('button', { name: /^rename warehouse$/i }));
+    await waitFor(() => expect(renameWarehouse).toHaveBeenCalledWith({ warehouseId: warehouse.id, name: 'Apex Chilled Renamed' }));
+    row = rowFor(/apex chilled renamed wh-01 active/i);
+
+    await user.click(within(row).getByRole('button', { name: /delete warehouse.*apex chilled renamed/i }));
+    dialog = screen.getByRole('dialog', { name: /^delete warehouse$/i });
+    await user.click(within(dialog).getByRole('button', { name: /^delete$/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/dependent records/i);
+
+    await user.click(within(dialog).getByRole('button', { name: /^delete$/i }));
+    await waitFor(() => expect(deleteWarehouse).toHaveBeenCalledTimes(2));
+    expect(within(warehouseTable()).queryByRole('row', { name: /apex chilled renamed/i })).not.toBeInTheDocument();
   });
 
   it('disables Bulk Deactivate with an aria-label explaining settings.infra.update is required when permission is missing', async () => {

@@ -31,10 +31,9 @@ function formatTemplate(template: string, count: number) {
   return template.replace(/\{count\}/g, String(count));
 }
 
-function displayDirection(direction: D365Direction) {
-  if (direction === 'incoming') return 'D365 → Monopilot';
-  if (direction === 'outgoing') return 'Monopilot → D365';
-  return 'Bidirectional';
+// ponytail: R15 export-only — UI never advertises D365→Monopilot import
+function displayDirection(_direction: D365Direction) {
+  return 'Monopilot → D365';
 }
 
 function filteredRows(rows: D365FieldMapping[], dir: D365Filter) {
@@ -126,11 +125,10 @@ function DirectionFilters({
   dir: D365Filter;
   locale: string;
 }) {
-  const incoming = rows.filter((row) => row.direction === 'incoming').length;
   const outgoing = rows.filter((row) => row.direction === 'outgoing').length;
+  // R15: no "incoming" filter — that label implied unsupported import
   const items: Array<{ key: D365Filter; text: string }> = [
     { key: 'all', text: formatTemplate(labels.all, rows.length) },
-    { key: 'incoming', text: formatTemplate(labels.incoming, incoming) },
     { key: 'outgoing', text: formatTemplate(labels.outgoing, outgoing) },
   ];
 

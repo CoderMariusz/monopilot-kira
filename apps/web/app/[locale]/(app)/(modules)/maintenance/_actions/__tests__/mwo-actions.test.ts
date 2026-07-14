@@ -10,7 +10,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createMwo, generateMwoFromPmSchedule, getMwoById, getMwoOverviewStats, listMwos, listPmSchedules, transitionMwo, verifyMwoLotoLockout, verifyMwoLotoRelease } from '../mwo-actions';
+import { createMwo, generateMwoFromPmSchedule, getMwoById, getMwoOverviewStats, listEquipmentForMwo, listMwos, listPmSchedules, transitionMwo, verifyMwoLotoLockout, verifyMwoLotoRelease } from '../mwo-actions';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -29,6 +29,7 @@ type QueryClient = {
 
 let grantedPermissions: Set<string>;
 let equipmentExists = true;
+let productionLineExists = false;
 let currentState = 'open';
 let mwoScheduleId: string | null = null;
 let mwoSource: 'manual_request' | 'pm_schedule' | 'calibration_alert' = 'manual_request';
@@ -198,6 +199,20 @@ function makeClient(): QueryClient {
           rows: equipmentExists ? [{ id: EQUIPMENT_ID, equipment_code: 'EQ-01', name: 'Mixer 1' }] : [],
           rowCount: equipmentExists ? 1 : 0,
         };
+      }
+
+      if (normalized.includes('from public.production_lines') && normalized.includes('id = $1::uuid')) {
+        return {
+          rows: productionLineExists
+            ? [{ id: EQUIPMENT_ID, site_id: SITE_ID, code: 'LINE-01', name: 'Packing line 1' }]
+            : [],
+          rowCount: productionLineExists ? 1 : 0,
+        };
+      }
+
+      if (normalized.startsWith('insert into public.equipment')) {
+        equipmentExists = true;
+        return { rows: [], rowCount: 1 };
       }
 
       // createMwo: advisory lock for number allocation.
@@ -408,6 +423,7 @@ beforeEach(() => {
     'mnt.loto.clear',
   ]);
   equipmentExists = true;
+  productionLineExists = false;
   currentState = 'open';
   mwoScheduleId = null;
   mwoSource = 'manual_request';
@@ -426,6 +442,35 @@ beforeEach(() => {
     signedAt: '2026-06-11T09:00:00.000Z',
     auditEventId: 1,
     nonce: 'nonce-loto',
+  });
+});
+
+describe('listEquipmentForMwo', () => {
+  it('returns active production lines from the current org when no equipment row represents them', async () => {
+    client = {
+      query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
+        const normalized = normalize(sql);
+        if (normalized.includes('from public.user_roles')) {
+          return { rows: grantedPermissions.has(String(params?.[2])) ? [{ ok: true }] : [], rowCount: 1 };
+        }
+        if (normalized.includes('from public.production_lines')) {
+          return {
+            rows: [{ id: EQUIPMENT_ID, equipment_code: 'LINE-01', name: 'Packing line 1', equipment_type: 'production_line' }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+
+    const result = await listEquipmentForMwo();
+
+    expect(result).toEqual({
+      ok: true,
+      data: [{ id: EQUIPMENT_ID, code: 'LINE-01', name: 'Packing line 1', equipmentType: 'production_line' }],
+    });
+    const loaderSql = calls().find((call) => call.sql.includes('from public.production_lines'))?.sql;
+    expect(loaderSql).toContain('pl.org_id = app.current_org_id()');
   });
 });
 
@@ -525,6 +570,19 @@ describe('createMwo', () => {
     const outbox = calls().find((c) => c.sql.startsWith('insert into public.outbox_events'));
     expect(outbox?.params?.[0]).toBe('maintenance.mwo.created');
     expect(String(outbox?.params?.[2])).toContain('"equipment_code":"EQ-01"');
+  });
+
+  it('materializes a selected production line as equipment before creating the MWO', async () => {
+    equipmentExists = false;
+    productionLineExists = true;
+
+    const result = await createMwo(input);
+
+    expect(result.ok).toBe(true);
+    const equipmentInsert = calls().find((c) => c.sql.startsWith('insert into public.equipment'));
+    const mwoInsert = calls().find((c) => c.sql.startsWith('insert into public.maintenance_work_orders'));
+    expect(equipmentInsert?.params).toEqual([EQUIPMENT_ID, SITE_ID, 'LINE-01', 'Packing line 1', USER_ID]);
+    expect(mwoInsert?.params?.[3]).toBe(EQUIPMENT_ID);
   });
 
   it('rejects unknown/foreign equipment with not_found and never inserts', async () => {

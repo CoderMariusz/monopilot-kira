@@ -25,6 +25,8 @@ type FakeClient = {
   lines: Map<string, InfraLine>;
   warehouses: Map<string, InfraWarehouse>;
   activeWorkOrders: Set<string>;
+  onHandStock: Set<string>;
+  reservations: Set<string>;
   outboxEntries: Array<{ event_type: string; aggregate_id: string; payload: unknown }>;
   query: <T = Record<string, unknown>>(sql: string, params?: readonly unknown[]) => Promise<{ rows: T[]; rowCount: number }>;
 };
@@ -60,7 +62,9 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
     ]),
     lines: new Map<string, InfraLine>([[LINE_ID, { id: LINE_ID, status: 'draft', machine_ids: [], default_output_location_id: null }]]),
     warehouses: new Map<string, InfraWarehouse>([[WAREHOUSE_ID, { id: WAREHOUSE_ID, is_active: true }]]),
-    activeWorkOrders: new Set<string>([WAREHOUSE_ID]),
+    activeWorkOrders: new Set<string>(),
+    onHandStock: new Set<string>(),
+    reservations: new Set<string>(),
     outboxEntries: [],
     async query(sql, params = []) {
       client.calls.push({ sql, params });
@@ -92,6 +96,18 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
         const row = id ? client.locations.get(id) : undefined;
         if (id) client.locations.delete(id);
         return { rows: row ? [row] as never[] : [], rowCount: row ? 1 : 0 };
+      }
+
+      if (normalized.includes('public.license_plates') && normalized.includes('public.production_lines')) {
+        const warehouseId = params.map(String).find((value) => client.warehouses.has(value));
+        return {
+          rows: [{
+            on_hand_stock: warehouseId && client.onHandStock.has(warehouseId) ? 1 : 0,
+            open_work_orders: warehouseId && client.activeWorkOrders.has(warehouseId) ? 2 : 0,
+            reservations: warehouseId && client.reservations.has(warehouseId) ? 1 : 0,
+          }] as never[],
+          rowCount: 1,
+        };
       }
 
       if (normalized.includes('count(*)') && normalized.includes('parent_id')) {
@@ -153,9 +169,18 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
 
       if (normalized.startsWith('update public.warehouses')) {
         const id = params.map(String).find((value) => client.warehouses.has(value)) ?? WAREHOUSE_ID;
-        const row = { id, is_active: false };
+        const current = client.warehouses.get(id) ?? { id, is_active: true };
+        const row = normalized.includes('set name =')
+          ? { ...current, name: String(params[1]) }
+          : { id, is_active: false };
         client.warehouses.set(id, row);
         return { rows: [row] as never[], rowCount: 1 };
+      }
+
+      if (normalized.startsWith('delete from public.warehouses')) {
+        const id = params.map(String).find((value) => client.warehouses.has(value));
+        if (id) client.warehouses.delete(id);
+        return { rows: id ? [{ id }] as never[] : [], rowCount: id ? 1 : 0 };
       }
 
       if (normalized.includes('from public.warehouses')) {
@@ -299,12 +324,12 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     expect(currentClient.calls.some((call) => call.sql.includes('app.current_org_id()'))).toBe(true);
   });
 
-  it('activates lines without machine preconditions (V-SET-62 deleted) and requires force to deactivate warehouses with active WOs', async () => {
+  it('activates lines without machine preconditions and only deactivates warehouses without active dependents', async () => {
     const upsertLine = await loadAction<
       (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; defaultOutputLocationId?: string | null }) => Promise<{ ok: boolean; error?: string; data?: { status: string } }>
     >('line.ts', 'upsertLine', () => import(`${__dirname}/line.ts`) as Promise<Record<string, unknown>>);
     const deactivateWarehouse = await loadAction<
-      (input: { warehouseId: string; force?: boolean }) => Promise<{ ok: boolean; error?: string; warning?: { code: string; activeWorkOrders?: number }; data?: { isActive: boolean } }>
+      (input: { warehouseId: string }) => Promise<{ ok: boolean; error?: string; dependents?: { onHandStock: number; openWorkOrders: number; reservations: number }; data?: { isActive: boolean } }>
     >('warehouse.ts', 'deactivateWarehouse', () => import(`${__dirname}/warehouse.ts`) as Promise<Record<string, unknown>>);
 
     // Wave 1 consolidation: an ACTIVE line no longer requires a machine.
@@ -320,15 +345,26 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const lineMachineJunction = ['line', 'machines'].join('_');
     expect(currentClient.calls.some((call) => call.sql.toLowerCase().includes(lineMachineJunction))).toBe(false);
 
+    currentClient.activeWorkOrders.clear();
     await expect(deactivateWarehouse({ warehouseId: WAREHOUSE_ID })).resolves.toMatchObject({
-      ok: false,
-      error: 'active_work_orders_reference_warehouse',
-      warning: { code: 'ACTIVE_WO_REFERENCES', activeWorkOrders: 2 },
+      ok: true,
+      data: { isActive: false },
     });
 
-    const forced = await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true });
-    expect(forced).toMatchObject({ ok: true, data: { isActive: false }, warning: { code: 'ACTIVE_WO_REFERENCES', activeWorkOrders: 2 } });
+    currentClient.warehouses.set(WAREHOUSE_ID, { id: WAREHOUSE_ID, is_active: true });
+    currentClient.onHandStock.add(WAREHOUSE_ID);
+    currentClient.activeWorkOrders.add(WAREHOUSE_ID);
+    currentClient.reservations.add(WAREHOUSE_ID);
+    await expect(deactivateWarehouse({ warehouseId: WAREHOUSE_ID })).resolves.toMatchObject({
+      ok: false,
+      error: 'has_dependents',
+      dependents: { onHandStock: 1, openWorkOrders: 2, reservations: 1 },
+    });
     expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.warehouse.deactivated')).toBe(true);
+    const preflight = currentClient.calls.find((call) => call.sql.includes('public.license_plates'))?.sql ?? '';
+    expect(preflight).toContain('wo.production_line_id');
+    expect(preflight).toContain('pl.warehouse_id');
+    expect(preflight).toContain('lp.reserved_qty');
   });
 
   it('creates warehouses with a required site_id and persists it into public.warehouses', async () => {
@@ -349,6 +385,28 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     expect(insertCall?.sql.toLowerCase()).toContain('site_id');
     expect(insertCall?.params).toEqual([SITE_ID, 'WH-SITE', 'Site warehouse', JSON.stringify({ line1: 'Dock 9' })]);
     expect(currentClient.warehouses.get(OTHER_WAREHOUSE_ID)?.site_id).toBe(SITE_ID);
+  });
+
+  it('renames an org-scoped warehouse and blocks deletion while it has dependents', async () => {
+    const renameWarehouse = await loadAction<
+      (input: { warehouseId: string; name: string }) => Promise<{ ok: boolean; error?: string; data?: { name: string } }>
+    >('warehouse.ts', 'renameWarehouse', () => import(`${__dirname}/warehouse.ts`) as Promise<Record<string, unknown>>);
+    const deleteWarehouse = await loadAction<
+      (input: { warehouseId: string }) => Promise<{ ok: boolean; error?: string; data?: { warehouseId: string } }>
+    >('warehouse.ts', 'deleteWarehouse', () => import(`${__dirname}/warehouse.ts`) as Promise<Record<string, unknown>>);
+
+    await expect(renameWarehouse({ warehouseId: WAREHOUSE_ID, name: 'Renamed warehouse' })).resolves.toMatchObject({
+      ok: true,
+      data: { name: 'Renamed warehouse' },
+    });
+    currentClient.onHandStock.add(WAREHOUSE_ID);
+    await expect(deleteWarehouse({ warehouseId: WAREHOUSE_ID })).resolves.toMatchObject({ ok: false, error: 'has_dependents' });
+
+    currentClient.onHandStock.clear();
+    await expect(deleteWarehouse({ warehouseId: WAREHOUSE_ID })).resolves.toMatchObject({
+      ok: true,
+      data: { warehouseId: WAREHOUSE_ID },
+    });
   });
 
   it('creates a DRAFT line with a default output location and never touches the line-machine junction', async () => {
@@ -404,7 +462,7 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const mutationResults = [
       { eventType: 'settings.location.upserted', result: await upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: AISLE_ID, code: 'RACK-03', name: 'Rack 03', level: 3, locationType: 'rack' }) },
       { eventType: 'settings.line.upserted', result: await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active' }) },
-      { eventType: 'settings.warehouse.deactivated', result: await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true }) },
+      { eventType: 'settings.warehouse.deactivated', result: await deactivateWarehouse({ warehouseId: WAREHOUSE_ID }) },
       { eventType: 'settings.location.deleted', result: await deleteLocation({ locationId: BIN_ID, warehouseId: WAREHOUSE_ID }) },
     ].map(({ eventType, result }) => ({ eventType, ok: result.ok, error: result.ok ? undefined : result.error }));
 
@@ -444,7 +502,7 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const results = [
       await upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: AISLE_ID, code: 'RACK-04', name: 'Rack 04', level: 3, locationType: 'rack' }),
       await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active' }),
-      await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true }),
+      await deactivateWarehouse({ warehouseId: WAREHOUSE_ID }),
       await deleteLocation({ locationId: BIN_ID, warehouseId: WAREHOUSE_ID }),
     ];
 

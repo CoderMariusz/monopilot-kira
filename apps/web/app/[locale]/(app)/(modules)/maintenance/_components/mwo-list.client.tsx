@@ -149,6 +149,8 @@ export type MwoListLabels = {
   };
   pm: {
     title: string;
+    /** Honest scope note — list + generate-from-due only; no schedule editor yet. */
+    subtitle: string;
     empty: string;
     col: {
       equipment: string;

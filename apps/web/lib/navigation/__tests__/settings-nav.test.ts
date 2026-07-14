@@ -119,7 +119,6 @@ const EXPECTED_SETTINGS_NAV = [
       { key: "email-config", label: "Email templates", icon: "✉" },
       { key: "email-vars", label: "Email variables", icon: "§" },
       { key: "ship-override-reasons", label: "Shipping override reasons", icon: "≡" },
-      { key: "gallery", label: "Modal gallery", icon: "◇" },
     ],
   },
   {
