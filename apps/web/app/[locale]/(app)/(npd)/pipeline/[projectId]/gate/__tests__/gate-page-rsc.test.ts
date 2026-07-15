@@ -13,6 +13,15 @@ const ACTION = join(
 );
 
 describe('NPD gate page — RSC boundary', () => {
+  it('approvalHistory subtitle passes ICU {count} from loaded approvals', () => {
+    const pageSource = readFileSync(PAGE, 'utf8');
+
+    expect(pageSource).toMatch(/t\('subtitle',\s*\{\s*count\s*\}\)/);
+    expect(pageSource).toContain('const approvalCount = loaded.data?.approvals.length ?? 0');
+    expect(pageSource).toContain('loadHistoryLabels(locale, approvalCount)');
+    expect(pageSource).not.toMatch(/loadHistoryLabels\(locale,\s*'npd\.approvalHistory'\)/);
+  });
+
   it('toggleGateChecklistItem uses a module server action (no inline adapter)', () => {
     const pageSource = readFileSync(PAGE, 'utf8');
     const actionSource = readFileSync(ACTION, 'utf8');

@@ -254,13 +254,42 @@ function labelLoader<T extends Record<string, string | undefined>>(defaults: T) 
 
 const loadChecklistLabels = labelLoader(DEFAULT_CHECKLIST_LABELS);
 const loadAdvanceLabels = labelLoader(DEFAULT_ADVANCE_LABELS);
-const loadHistoryLabels = labelLoader(DEFAULT_HISTORY_LABELS);
 
-async function buildLabels(locale: string): Promise<GateScreenLabels> {
+async function loadHistoryLabels(locale: string, count: number): Promise<ApprovalHistoryLabels> {
+  const keys = Object.keys(DEFAULT_HISTORY_LABELS) as Array<keyof ApprovalHistoryLabels>;
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.approvalHistory' });
+    return keys.reduce((acc, key) => {
+      try {
+        const value =
+          key === 'subtitle' ? t('subtitle', { count }) : t(key as string);
+        acc[key] =
+          value === key
+            ? key === 'subtitle'
+              ? DEFAULT_HISTORY_LABELS.subtitle.replace('{count}', String(count))
+              : DEFAULT_HISTORY_LABELS[key]
+            : value;
+      } catch {
+        acc[key] =
+          key === 'subtitle'
+            ? DEFAULT_HISTORY_LABELS.subtitle.replace('{count}', String(count))
+            : DEFAULT_HISTORY_LABELS[key];
+      }
+      return acc;
+    }, {} as ApprovalHistoryLabels);
+  } catch {
+    return {
+      ...DEFAULT_HISTORY_LABELS,
+      subtitle: DEFAULT_HISTORY_LABELS.subtitle.replace('{count}', String(count)),
+    };
+  }
+}
+
+async function buildLabels(locale: string, approvalCount: number): Promise<GateScreenLabels> {
   const [checklist, advance, approvalHistory] = await Promise.all([
     loadChecklistLabels(locale, 'npd.gateChecklist'),
     loadAdvanceLabels(locale, 'npd.advanceGateModal'),
-    loadHistoryLabels(locale, 'npd.approvalHistory'),
+    loadHistoryLabels(locale, approvalCount),
   ]);
   return { checklist, advance, approvalHistory };
 }
@@ -561,8 +590,6 @@ export default async function GatePage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as GatePageProps;
   const { locale, projectId } = props.params ? await props.params : { locale: 'en', projectId: '' };
 
-  const labels = await buildLabels(locale);
-
   const injected = props.data !== undefined || props.state !== undefined;
   const loaded: LoaderResult = injected
     ? {
@@ -573,6 +600,9 @@ export default async function GatePage(propsInput: unknown = {}) {
         canApprove: props.canApprove ?? false,
       }
     : await readPageData(projectId);
+
+  const approvalCount = loaded.data?.approvals.length ?? 0;
+  const labels = await buildLabels(locale, approvalCount);
 
   if (!loaded.data) {
     // Non-ready shells (loading/empty/error/permission_denied) still render the panel +

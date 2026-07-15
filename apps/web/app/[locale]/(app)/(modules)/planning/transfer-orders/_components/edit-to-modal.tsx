@@ -56,7 +56,19 @@ export type EditToLabels = {
   };
 };
 
-export type EditToResult = { ok: true; data: unknown } | { ok: false; error: string; message?: string };
+/** Header fields from a successful updateTransferOrder — merged into detail local state. */
+export type EditToSavedHeader = {
+  id: string;
+  fromWarehouseId: string | null;
+  toWarehouseId: string | null;
+  scheduledDate: string | null;
+  notes: string | null;
+  updatedAt?: string;
+};
+
+export type EditToResult =
+  | { ok: true; data: EditToSavedHeader }
+  | { ok: false; error: string; message?: string };
 
 export type EditToModalProps = {
   open: boolean;
@@ -67,7 +79,7 @@ export type EditToModalProps = {
     id: string;
     fromWarehouseId: string | null;
     toWarehouseId: string | null;
-    /** From the detail (column scheduled_date); sent to the action as expectedDate. */
+    /** Detail scheduledDate; submitted as expectedDate. */
     expectedDate: string | null;
     notes: string | null;
   };
@@ -78,7 +90,8 @@ export type EditToModalProps = {
     expectedDate?: string;
     notes?: string;
   }) => Promise<EditToResult>;
-  onSaved: () => void;
+  /** Apply returned header to detail local state, then refresh. */
+  onSaved: (updated: EditToSavedHeader) => void;
 };
 
 function toDateInput(value: string | null): string {
@@ -149,7 +162,7 @@ export function EditToModal({
         setPending(false);
         return;
       }
-      onSaved();
+      onSaved(result.data);
       onOpenChange(false);
     } catch {
       setFormError(labels.errors.persistence_failed);

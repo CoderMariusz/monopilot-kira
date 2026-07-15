@@ -12,6 +12,7 @@ import {
   updateTransferOrderLine,
 } from './actions';
 import type { QueryClient } from '../../_actions/procurement-shared';
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -49,6 +50,10 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: vi.fn(),
 }));
 
 function header(overrides: Partial<Record<string, unknown>> = {}) {
@@ -275,6 +280,7 @@ describe('planning transfer order actions', () => {
     receivedJunctionCount = 0;
     listTotal = 1;
     client = makeClient();
+    vi.mocked(revalidateLocalized).mockClear();
   });
 
   it('lists transfer orders under org scope with grouped status counts', async () => {
@@ -407,6 +413,9 @@ describe('planning transfer order actions', () => {
     if (!result.ok) throw new Error(result.error);
     expect(result.data.scheduledDate).toBe('2026-06-20');
     expect(client.query).toHaveBeenCalledWith(expect.stringContaining("and status = 'draft'"), expect.any(Array));
+    // Post-commit revalidate (list + detail) so the UI can refresh without a hard reload.
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith('/planning/transfer-orders');
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith(`/planning/transfer-orders/${TO_ID}`);
   });
 
   it('clears transfer order notes when an empty note is explicitly present', async () => {

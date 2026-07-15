@@ -494,7 +494,9 @@ export async function updateTransferOrder(rawInput: unknown): Promise<TransferOr
   const input = parsed.data;
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrder>> => {
+    // Revalidate after withOrgContext commits (same as create) so refresh cannot
+    // race an uncommitted UPDATE.
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<TransferOrderResult<TransferOrder>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
       if (!perm.ok) return perm;
@@ -558,9 +560,10 @@ export async function updateTransferOrder(rawInput: unknown): Promise<TransferOr
           notes: row.notes,
         },
       });
-      revalidateTransferOrderPaths(row.id);
       return { ok: true, data: mapTransferOrder(row) };
     });
+    if (result.ok) revalidateTransferOrderPaths(result.data.id);
+    return result;
   } catch (err) {
     const error = pgErrorToResult(err);
     if (error !== 'persistence_failed') return { ok: false, error };

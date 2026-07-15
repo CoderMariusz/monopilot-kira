@@ -29,7 +29,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@monopilot/ui/Button';
 
 import { ToStatusBadge } from './to-status-badge';
-import { EditToModal, type EditToLabels, type EditToResult } from './edit-to-modal';
+import { EditToModal, type EditToLabels, type EditToResult, type EditToSavedHeader } from './edit-to-modal';
 import { ToLineModal, type ToLineModalLabels, type ToLineMutationResult, type ToEditLineSeed } from './to-line-modal';
 import {
   ReverseReceiptModal,
@@ -194,8 +194,15 @@ export function ToDetailView({
   const [pendingTo, setPendingTo] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
+  // Seed from RSC props; merge successful header edits into local state so the
+  // route/summary paint immediately (router.refresh alone can keep a stale cache).
+  const [detail, setDetail] = React.useState(transferOrder);
+  React.useEffect(() => {
+    setDetail(transferOrder);
+  }, [transferOrder]);
+
   // Wave R1 — DRAFT edit affordances. Gated on status===draft AND the seams wired.
-  const isDraft = transferOrder.status.toLowerCase() === 'draft';
+  const isDraft = detail.status.toLowerCase() === 'draft';
   const canEdit = isDraft && !!updateTransferOrderAction;
   const [editOpen, setEditOpen] = React.useState(false);
   const [lineModalOpen, setLineModalOpen] = React.useState(false);
@@ -211,8 +218,8 @@ export function ToDetailView({
   function openReverse(line: TransferOrderLine) {
     if (!line.canReverse || !line.receivedDestLpId || line.receivedQty == null || line.receivedDestLpNumber == null) return;
     setReverseTarget({
-      toId: transferOrder.id,
-      toNumber: transferOrder.toNumber,
+      toId: detail.id,
+      toNumber: detail.toNumber,
       lineId: line.id,
       lineNo: line.lineNo,
       itemLabel: line.itemName ?? line.itemCode ?? `#${line.lineNo}`,
@@ -223,9 +230,27 @@ export function ToDetailView({
     });
   }
 
+  function applyHeaderEdit({
+    fromWarehouseId,
+    toWarehouseId,
+    scheduledDate,
+    notes,
+    updatedAt,
+  }: EditToSavedHeader) {
+    setDetail((current) => ({
+      ...current,
+      fromWarehouseId,
+      toWarehouseId,
+      scheduledDate,
+      notes,
+      updatedAt: updatedAt ?? current.updatedAt,
+    }));
+    router.refresh();
+  }
+
   async function onDeleteLine(line: TransferOrderLine) {
     if (!deleteTransferOrderLineAction || deletingId) return;
-    if (transferOrder.lines.length <= 1) {
+    if (detail.lines.length <= 1) {
       setError(labels.edit.lastLineRefused);
       return;
     }
@@ -233,7 +258,7 @@ export function ToDetailView({
     setDeletingId(line.id);
     setError(null);
     try {
-      const result = await deleteTransferOrderLineAction(transferOrder.id, line.id);
+      const result = await deleteTransferOrderLineAction(detail.id, line.id);
       if (!result.ok) {
         setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
         setDeletingId(null);
@@ -270,25 +295,25 @@ export function ToDetailView({
     return labels.status[status.toLowerCase()] ?? status;
   }
 
-  const actions = TRANSITIONS[transferOrder.status.toLowerCase()] ?? [];
+  const actions = TRANSITIONS[detail.status.toLowerCase()] ?? [];
 
   // R4-CL1 — a line is reverseable when it carries a received destination LP and
   // the action seam is wired. The actions column renders if draft-edit OR any line
   // is reverseable. The BUTTON is enabled only when canReverseReceipt is true.
   const hasReverseableLines =
-    reverseSeamWired && transferOrder.lines.some((l) => !!l.receivedDestLpId && l.receivedQty != null);
+    reverseSeamWired && detail.lines.some((l) => !!l.receivedDestLpId && l.receivedQty != null);
   const showActionsColumn = canEdit || hasReverseableLines;
 
   async function onTransition(target: string) {
     if (pendingTo) return;
     const confirmMsg = labels.transitions.confirm
-      .replace('{to}', transferOrder.toNumber)
+      .replace('{to}', detail.toNumber)
       .replace('{status}', statusLabel(target));
     if (!window.confirm(confirmMsg)) return;
     setPendingTo(target);
     setError(null);
     try {
-      const result = await transitionTransferOrderStatusAction(transferOrder.id, target);
+      const result = await transitionTransferOrderStatusAction(detail.id, target);
       if (!result.ok) {
         setError(labels.errors[result.error] ?? labels.errors.persistence_failed);
         setPendingTo(null);
@@ -308,16 +333,16 @@ export function ToDetailView({
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-lg font-semibold text-slate-900">{transferOrder.toNumber}</span>
-            <span className="text-sm text-slate-500">
-              {whLabel(transferOrder.fromWarehouseId)} → {whLabel(transferOrder.toWarehouseId)}
+            <span className="font-mono text-lg font-semibold text-slate-900">{detail.toNumber}</span>
+            <span className="text-sm text-slate-500" data-testid="to-detail-route">
+              {whLabel(detail.fromWarehouseId)} → {whLabel(detail.toWarehouseId)}
             </span>
-            <ToStatusBadge status={transferOrder.status} label={statusLabel(transferOrder.status)} />
+            <ToStatusBadge status={detail.status} label={statusLabel(detail.status)} />
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            {labels.summary.scheduled}: <span className="font-mono">{fmt(transferOrder.scheduledDate, locale, true)}</span>
+            {labels.summary.scheduled}: <span className="font-mono">{fmt(detail.scheduledDate, locale, true)}</span>
             {' · '}
-            {transferOrder.lines.length} {labels.lines.title.toLowerCase()}
+            {detail.lines.length} {labels.lines.title.toLowerCase()}
           </p>
         </div>
         <div className="flex flex-col items-end gap-1" data-testid="to-detail-actions">
@@ -365,7 +390,7 @@ export function ToDetailView({
         <div className="overflow-x-auto rounded-xl border border-slate-200">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
             <span>
-              {labels.lines.title} · {transferOrder.lines.length}
+              {labels.lines.title} · {detail.lines.length}
             </span>
             {canEdit ? (
               <button
@@ -378,7 +403,7 @@ export function ToDetailView({
               </button>
             ) : null}
           </div>
-          {transferOrder.lines.length === 0 ? (
+          {detail.lines.length === 0 ? (
             <p data-testid="to-detail-lines-empty" className="px-4 py-8 text-center text-sm text-slate-500">
               {labels.lines.empty}
             </p>
@@ -394,7 +419,7 @@ export function ToDetailView({
                 </tr>
               </thead>
               <tbody>
-                {transferOrder.lines.map((l) => {
+                {detail.lines.map((l) => {
                   const isReceivedLine = !!l.receivedDestLpId && l.receivedQty != null;
                   const showReverseButton = isReceivedLine && reverseSeamWired;
                   const reverseDisabled = showReverseButton && (!canReverseReceipt || !l.canReverse);
@@ -471,14 +496,14 @@ export function ToDetailView({
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-3" data-testid="to-detail-summary">
           <h3 className="mb-2 text-sm font-semibold text-slate-800">{labels.summary.title}</h3>
           <dl className="grid gap-2 text-sm">
-            <SummaryRow label={labels.summary.toNumber} value={transferOrder.toNumber} mono />
-            <SummaryRow label={labels.summary.from} value={whLabel(transferOrder.fromWarehouseId)} />
-            <SummaryRow label={labels.summary.to} value={whLabel(transferOrder.toWarehouseId)} />
-            <SummaryRow label={labels.summary.status} value={statusLabel(transferOrder.status)} />
-            <SummaryRow label={labels.summary.scheduled} value={fmt(transferOrder.scheduledDate, locale, true)} mono />
-            <SummaryRow label={labels.summary.created} value={fmt(transferOrder.createdAt, locale, false)} mono />
-            <SummaryRow label={labels.summary.updated} value={fmt(transferOrder.updatedAt, locale, false)} mono />
-            <SummaryRow label={labels.summary.notes} value={transferOrder.notes ?? labels.summary.none} />
+            <SummaryRow label={labels.summary.toNumber} value={detail.toNumber} mono />
+            <SummaryRow label={labels.summary.from} value={whLabel(detail.fromWarehouseId)} />
+            <SummaryRow label={labels.summary.to} value={whLabel(detail.toWarehouseId)} />
+            <SummaryRow label={labels.summary.status} value={statusLabel(detail.status)} />
+            <SummaryRow label={labels.summary.scheduled} value={fmt(detail.scheduledDate, locale, true)} mono />
+            <SummaryRow label={labels.summary.created} value={fmt(detail.createdAt, locale, false)} mono />
+            <SummaryRow label={labels.summary.updated} value={fmt(detail.updatedAt, locale, false)} mono />
+            <SummaryRow label={labels.summary.notes} value={detail.notes ?? labels.summary.none} />
           </dl>
         </div>
       </div>
@@ -490,14 +515,14 @@ export function ToDetailView({
           labels={labels.edit.modal}
           warehouses={warehouses}
           initial={{
-            id: transferOrder.id,
-            fromWarehouseId: transferOrder.fromWarehouseId,
-            toWarehouseId: transferOrder.toWarehouseId,
-            expectedDate: transferOrder.scheduledDate,
-            notes: transferOrder.notes,
+            id: detail.id,
+            fromWarehouseId: detail.fromWarehouseId,
+            toWarehouseId: detail.toWarehouseId,
+            expectedDate: detail.scheduledDate,
+            notes: detail.notes,
           }}
           updateTransferOrderAction={updateTransferOrderAction}
-          onSaved={() => router.refresh()}
+          onSaved={applyHeaderEdit}
         />
       ) : null}
 
@@ -506,7 +531,7 @@ export function ToDetailView({
           open={lineModalOpen}
           onOpenChange={setLineModalOpen}
           labels={labels.edit.lineModal}
-          toId={transferOrder.id}
+          toId={detail.id}
           editLine={editLine}
           searchTransferItemsAction={searchTransferItemsAction}
           addTransferOrderLineAction={addTransferOrderLineAction}

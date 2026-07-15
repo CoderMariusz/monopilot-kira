@@ -167,6 +167,19 @@ function makeTo(over: Partial<TransferOrderDetail> = {}): TransferOrderDetail {
   };
 }
 
+/** updateTransferOrder success payload (header fields the detail merges locally). */
+function savedHeader(seed: TransferOrderDetail, over: Partial<TransferOrderDetail> = {}) {
+  return {
+    id: seed.id,
+    fromWarehouseId: seed.fromWarehouseId,
+    toWarehouseId: seed.toWarehouseId,
+    scheduledDate: seed.scheduledDate,
+    notes: seed.notes,
+    updatedAt: seed.updatedAt,
+    ...over,
+  };
+}
+
 function renderDetail(over: {
   to?: TransferOrderDetail;
   update?: ReturnType<typeof vi.fn>;
@@ -174,8 +187,9 @@ function renderDetail(over: {
   updateLine?: ReturnType<typeof vi.fn>;
   deleteLine?: ReturnType<typeof vi.fn>;
 } = {}) {
+  const seed = over.to ?? makeTo();
   const transition = vi.fn().mockResolvedValue({ ok: true, data: {} });
-  const update = over.update ?? vi.fn().mockResolvedValue({ ok: true, data: {} });
+  const update = over.update ?? vi.fn().mockResolvedValue({ ok: true, data: savedHeader(seed) });
   const addLine = over.addLine ?? vi.fn().mockResolvedValue({ ok: true, data: {} });
   const updateLine = over.updateLine ?? vi.fn().mockResolvedValue({ ok: true, data: {} });
   const deleteLine = over.deleteLine ?? vi.fn().mockResolvedValue({ ok: true, data: {} });
@@ -185,7 +199,7 @@ function renderDetail(over: {
   const utils = render(
     <ToDetailView
       locale="en"
-      transferOrder={over.to ?? makeTo()}
+      transferOrder={seed}
       warehouses={warehouses}
       labels={labels}
       transitionTransferOrderStatusAction={transition}
@@ -236,6 +250,39 @@ describe('TO DRAFT edit affordances (Wave R1)', () => {
       notes: 'move it',
     });
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('paints the edited route on the detail immediately from the saved header (no hard reload)', async () => {
+    const seed = makeTo();
+    const update = vi.fn().mockResolvedValue({
+      ok: true,
+      data: savedHeader(seed, {
+        fromWarehouseId: 'wh-2',
+        toWarehouseId: 'wh-1',
+        scheduledDate: '2026-07-10',
+        notes: 'rerouted',
+        updatedAt: '2026-07-14T12:00:00.000Z',
+      }),
+    });
+    renderDetail({ to: seed, update });
+    expect(screen.getByTestId('to-detail-route')).toHaveTextContent('WH-A — Factory A → WH-B — Dist Central');
+
+    fireEvent.click(screen.getByTestId('to-edit-order'));
+    const form = await screen.findByTestId('edit-to-form');
+    const combos = within(form).getAllByRole('combobox');
+    fireEvent.click(combos[0]);
+    fireEvent.click(screen.getByRole('option', { name: 'WH-B — Dist Central' }));
+    fireEvent.click(combos[1]);
+    fireEvent.click(screen.getByRole('option', { name: 'WH-A — Factory A' }));
+    fireEvent.change(within(form).getByTestId('edit-to-expected'), { target: { value: '2026-07-10' } });
+    fireEvent.change(within(form).getByTestId('edit-to-notes'), { target: { value: 'rerouted' } });
+    fireEvent.click(screen.getByTestId('edit-to-submit'));
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    // Local state merge — not an RSC prop update / hard reload.
+    expect(screen.getByTestId('to-detail-route')).toHaveTextContent('WH-B — Dist Central → WH-A — Factory A');
+    expect(screen.getByTestId('to-detail-summary')).toHaveTextContent('rerouted');
   });
 
   it('submits an explicitly empty notes string when the operator clears notes', async () => {
