@@ -231,7 +231,7 @@ export default class MyNotificationsPage extends React.Component<MyNotifications
           </SRow>
           <SRow
             label="From / to"
-            hint="Custom quiet-hours times are not yet stored — only the on/off toggle above is saved."
+            hint="Non-critical notifications are paused during this window."
           >
             <div className="flex items-center gap-2">
               <label className="sr-only" htmlFor="quiet-hours-from">
@@ -240,11 +240,10 @@ export default class MyNotificationsPage extends React.Component<MyNotifications
               <input
                 aria-label="From"
                 id="quiet-hours-from"
+                onChange={(event) => this.setState({ quiet_hours_from: event.target.value, message: null, error: null })}
                 style={{ width: 90 }}
                 type="time"
-                disabled
                 value={this.state.quiet_hours_from}
-                readOnly
               />
               <span className="muted">→</span>
               <label className="sr-only" htmlFor="quiet-hours-to">
@@ -253,11 +252,10 @@ export default class MyNotificationsPage extends React.Component<MyNotifications
               <input
                 aria-label="To"
                 id="quiet-hours-to"
+                onChange={(event) => this.setState({ quiet_hours_to: event.target.value, message: null, error: null })}
                 style={{ width: 90 }}
                 type="time"
-                disabled
                 value={this.state.quiet_hours_to}
-                readOnly
               />
             </div>
           </SRow>

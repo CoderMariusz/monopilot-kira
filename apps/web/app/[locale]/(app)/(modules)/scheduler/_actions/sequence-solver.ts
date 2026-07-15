@@ -25,6 +25,17 @@ const DEFAULT_MIN_DURATION_MS = 60 * 60 * 1000;
 const DAY_MS = UTC_DAY_MS;
 const MAX_CAPACITY_PLACEMENT_ATTEMPTS = 400;
 
+export type LineShiftWindow = {
+  line_id: string;
+  start_at: string;
+  end_at: string;
+};
+
+type ShiftAwareSolverConfig = SequenceSolverConfig & {
+  shiftCalendarLineIds?: string[];
+  shiftWindows?: LineShiftWindow[];
+};
+
 export class SequenceCapacityInfeasibleError extends Error {
   readonly code = 'capacity_infeasible' as const;
 
@@ -178,6 +189,44 @@ function pmWindowBlocks(
   return null;
 }
 
+function availableShiftWindows(
+  lineKey: string,
+  config: ShiftAwareSolverConfig,
+): Array<{ start: number; end: number }> | null {
+  if (!config.shiftCalendarLineIds?.includes(lineKey)) return null;
+
+  const sorted = (config.shiftWindows ?? [])
+    .filter((window) => window.line_id === lineKey)
+    .map((window) => ({ start: timestampMs(window.start_at), end: timestampMs(window.end_at) }))
+    .filter((window): window is { start: number; end: number } =>
+      window.start !== null && window.end !== null && window.end > window.start,
+    )
+    .sort((a, b) => a.start - b.start);
+
+  const merged: Array<{ start: number; end: number }> = [];
+  for (const window of sorted) {
+    const previous = merged.at(-1);
+    if (previous && window.start <= previous.end) {
+      previous.end = Math.max(previous.end, window.end);
+    } else {
+      merged.push({ ...window });
+    }
+  }
+  return merged;
+}
+
+function nextShiftStart(
+  earliestMs: number,
+  runDurationMs: number,
+  windows: Array<{ start: number; end: number }>,
+): number | null {
+  for (const window of windows) {
+    const start = Math.max(earliestMs, window.start);
+    if (start + runDurationMs <= window.end) return start;
+  }
+  return null;
+}
+
 function bucketUsedMs(lineKey: string, dayStartMs: number, dayUsageMs: Map<string, number>): number {
   const bucketKey = dayBucketKey(lineKey, dayStartMs);
   return dayUsageMs.get(bucketKey) ?? 0;
@@ -237,16 +286,22 @@ function resolvePlannedStart(
   lineKey: string,
   earliestMs: number,
   runDurationMs: number,
-  config: SequenceSolverConfig,
+  config: ShiftAwareSolverConfig,
   dayUsageMs: Map<string, number>,
 ): number {
   const capacityHours = capacityHoursForLine(lineKey, config);
   const capacityMs =
     capacityHours !== null && capacityHours > 0 ? capacityHours * 60 * 60 * 1000 : null;
   const pmWindows = config.respectPmWindows ? (config.pmWindows ?? []) : [];
+  const shiftWindows = availableShiftWindows(lineKey, config);
   let start = earliestMs;
 
   for (let guard = 0; guard < MAX_CAPACITY_PLACEMENT_ATTEMPTS; guard += 1) {
+    if (shiftWindows !== null) {
+      const shiftedStart = nextShiftStart(start, runDurationMs, shiftWindows);
+      if (shiftedStart === null) break;
+      start = shiftedStart;
+    }
     const end = start + runDurationMs;
 
     const blocker = pmWindows.length > 0 ? pmWindowBlocks(lineKey, start, end, pmWindows) : null;
@@ -334,7 +389,7 @@ function placeSequencedWorkOrder(
   workOrder: WorkOrderForScheduling,
   sequenceIndex: number,
   matrix: ChangeoverMatrixEntry[],
-  config: SequenceSolverConfig,
+  config: ShiftAwareSolverConfig,
   matrixConfigured: boolean,
   plannedEndByLine: Map<string, number>,
   dayUsageMs: Map<string, number>,
@@ -380,7 +435,7 @@ function placeSequencedWorkOrder(
 export function sequenceWorkOrders(
   wos: WorkOrderForScheduling[],
   matrix: ChangeoverMatrixEntry[],
-  config: SequenceSolverConfig = cloneDefaultSolverConfig(),
+  config: ShiftAwareSolverConfig = cloneDefaultSolverConfig(),
 ): SequenceSolverResult {
   if (wos.length === 0) return { assignments: [], omitted: [] };
 
@@ -528,7 +583,7 @@ export function __resolvePlannedStartForTests(
   lineKey: string,
   earliestMs: number,
   runDurationMs: number,
-  config: SequenceSolverConfig,
+  config: ShiftAwareSolverConfig,
   dayUsageMs: Map<string, number>,
 ): number {
   return resolvePlannedStart(lineKey, earliestMs, runDurationMs, config, dayUsageMs);

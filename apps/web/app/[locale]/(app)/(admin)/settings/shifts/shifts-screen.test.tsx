@@ -249,6 +249,8 @@ describe('ShiftsScreen', () => {
     await user.click(screen.getByRole('button', { name: '+ New shift' }));
     const form = await screen.findByTestId('shifts-new-shift-form');
     await user.type(within(form).getByLabelText('Name'), 'Evening');
+    await user.click(within(form).getByRole('combobox', { name: 'Line' }));
+    await user.click(screen.getByRole('option', { name: 'L1 - Bottling line' }));
     await user.click(within(form).getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(createShiftAction).toHaveBeenCalledTimes(1));
@@ -257,6 +259,7 @@ describe('ShiftsScreen', () => {
       start_time: '06:00',
       end_time: '14:00',
       site_id: '11111111-1111-4111-8111-111111111111',
+      line_id: 'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     }));
     expect(refreshMock).toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByTestId('shifts-new-shift-form')).not.toBeInTheDocument());

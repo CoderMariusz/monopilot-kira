@@ -32,7 +32,6 @@ import { SoDetailView, type SoDetailLabels, type SoDetail, type SoCaps } from '.
 import type { CreateSoResult } from '../_components/create-so-modal';
 import type { SoActionResult } from '../_components/so-detail-view';
 import type { SoCustomerOption } from '../_actions/so-form-data';
-import { computeSoLineTotalGbp, formatSoGbpDisplay } from '../_actions/sales-line-price';
 import type { ItemPickerOption } from '../../../../../(npd)/fa/actions/search-items-types';
 
 const refresh = vi.fn();
@@ -83,7 +82,10 @@ const createLabels: SoListLabels['create'] = {
   lineItem: 'Item',
   lineQty: 'Qty',
   lineUom: 'UoM',
-  lineUnitPrice: 'Unit price (GBP)',
+  lineUnitPrice: 'Unit price',
+  lineDiscount: 'Discount %',
+  lineTax: 'Tax %',
+  lineCurrency: 'Currency',
   lineTotal: 'Line total',
   foreignPriceHint: 'Customer price {currency}{price}/{uom} — set GBP unit price',
   uomPlaceholder: 'Unit',
@@ -169,6 +171,9 @@ const detailLabels: SoDetailLabels = {
     qty: 'Ordered',
     uom: 'UoM',
     unitPrice: 'Unit price',
+    discount: 'Discount %',
+    tax: 'Tax %',
+    currency: 'Currency',
     lineTotal: 'Line total',
     allocated: 'Allocated',
     allocationStatus: 'Allocation',
@@ -195,7 +200,10 @@ const detailLabels: SoDetailLabels = {
     lineItem: 'Item',
     lineQty: 'Qty',
     lineUom: 'UoM',
-    lineUnitPrice: 'Unit price (GBP)',
+    lineUnitPrice: 'Unit price',
+    lineDiscount: 'Discount %',
+    lineTax: 'Tax %',
+    lineCurrency: 'Currency',
     lineTotal: 'Line total',
     lineNotes: 'Line notes',
     submit: 'Save changes',
@@ -204,6 +212,7 @@ const detailLabels: SoDetailLabels = {
     errors: {
       linesInvalid: 'Enter a positive quantity on every line.',
       priceInvalid: 'Unit price must be greater than zero on every line.',
+      termsInvalid: 'Invalid terms.',
       invalid_input: 'invalid',
       forbidden: "You don't have permission to do that.",
       not_draft: 'Only draft sales orders can be edited or deleted.',
@@ -341,7 +350,7 @@ describe('SoListView — list states + parity', () => {
 });
 
 describe('CreateSoModal — exposes all createSalesOrder fields + validation + RBAC', () => {
-  it('opening the modal exposes customer, requested date, notes, and the line editor (item/qty/uom/price/total)', () => {
+  it('opening the modal exposes price, discount, tax, currency, and total per line', () => {
     renderList();
     fireEvent.click(screen.getByTestId('so-list-create'));
     const form = screen.getByTestId('create-so-form');
@@ -354,6 +363,9 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
     expect(screen.getByTestId('create-so-line-qty')).toBeInTheDocument();
     expect(screen.getByTestId('create-so-line-uom')).toBeInTheDocument();
     expect(screen.getByTestId('create-so-line-price')).toBeInTheDocument();
+    expect(screen.getByTestId('create-so-line-discount')).toHaveValue('0');
+    expect(screen.getByTestId('create-so-line-tax')).toHaveValue('0');
+    expect(screen.getByTestId('create-so-line-currency')).toHaveValue('GBP');
     expect(screen.getByTestId('create-so-line-total')).toBeInTheDocument();
   });
 
@@ -376,7 +388,13 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
         labels={listLabels}
         autoOpenCreate
         searchSoItemsAction={searchSoItemsAction}
-        resolveSoLinePricesAction={resolveSoLinePricesAction}
+        resolveSoLinePricesAction={vi.fn(async () => [
+          {
+            item_id: 'item-uuid-1111',
+            unitPriceGbp: '3.5000',
+            foreignCustomerPrice: { unit_price: '2.404800', currency: 'EUR' },
+          },
+        ])}
         createSalesOrderAction={createSalesOrderAction}
       />,
     );
@@ -391,7 +409,8 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
     fireEvent.click(await screen.findByText(/Sausage roll/));
     fireEvent.change(screen.getByTestId('create-so-line-qty'), { target: { value: '5' } });
     await waitFor(() => {
-      expect(screen.getByTestId('create-so-line-price')).toHaveValue('3.5000');
+      expect(screen.getByTestId('create-so-line-price')).toHaveValue('2.4048');
+      expect(screen.getByTestId('create-so-line-currency')).toHaveValue('EUR');
     });
     fireEvent.click(screen.getByTestId('create-so-submit'));
     expect(await screen.findByTestId('create-so-error')).toHaveTextContent("You don't have permission to do that.");
@@ -399,11 +418,21 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
     const payload = createSalesOrderAction.mock.calls[0][0];
     expect(payload).toMatchObject({
       customer_id: customers[0].id,
-      lines: [{ item_id: 'item-uuid-1111', qty: '5', uom: 'kg', unit_price_gbp: '3.5000' }],
+      lines: [
+        {
+          item_id: 'item-uuid-1111',
+          qty: '5',
+          uom: 'kg',
+          unit_price_gbp: '2.4048',
+          discount_pct: '0',
+          tax_pct: '0',
+          currency: 'EUR',
+        },
+      ],
     });
   });
 
-  it('preview line total matches the exact decimal persisted by Postgres for fractional prices', async () => {
+  it('previews discount and tax in the selected line currency', async () => {
     renderList({ autoOpenCreate: true });
     const form = screen.getByTestId('create-so-form');
     fireEvent.click(within(form).getAllByRole('combobox')[0]);
@@ -411,12 +440,13 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
     fireEvent.click(screen.getByRole('button', { name: '+ Add finished good' }));
     fireEvent.change(screen.getByPlaceholderText('Search by code or name…'), { target: { value: 'FG' } });
     fireEvent.click(await screen.findByText(/Sausage roll/));
-    fireEvent.change(screen.getByTestId('create-so-line-qty'), { target: { value: '1' } });
-    fireEvent.change(screen.getByTestId('create-so-line-price'), { target: { value: '1.0050' } });
+    fireEvent.change(screen.getByTestId('create-so-line-qty'), { target: { value: '3.25' } });
+    fireEvent.change(screen.getByTestId('create-so-line-price'), { target: { value: '3.50' } });
+    fireEvent.change(screen.getByTestId('create-so-line-discount'), { target: { value: '10' } });
+    fireEvent.change(screen.getByTestId('create-so-line-tax'), { target: { value: '5' } });
+    fireEvent.change(screen.getByTestId('create-so-line-currency'), { target: { value: 'EUR' } });
 
-    const persistedTotal = computeSoLineTotalGbp('1', '1.0050');
-    expect(persistedTotal).toBe('1.0050');
-    expect(screen.getByTestId('create-so-line-total')).toHaveTextContent(formatSoGbpDisplay(persistedTotal));
+    expect(screen.getByTestId('create-so-line-total')).toHaveTextContent('€10.75');
   });
 });
 
@@ -443,7 +473,10 @@ function makeSo(overrides: Partial<SoDetail> = {}): SoDetail {
         allocatedQty: '0',
         allocationStatus: 'unallocated',
         unitPriceGbp: '3.50',
-        lineTotalGbp: '35.00',
+        lineTotalGbp: '33.0750',
+        discountPct: '10',
+        taxPct: '5',
+        currency: 'EUR',
         notes: null,
       },
     ],
@@ -499,8 +532,10 @@ describe('SoDetailView — header, lines, allocation badges + gated actions', ()
     const lines = screen.getByTestId('so-lines-table');
     expect(within(lines).getByText('FG-100')).toBeInTheDocument();
     expect(within(lines).getByText('Sausage roll')).toBeInTheDocument();
-    expect(screen.getByTestId(`so-line-unit-price-${LINE_ID}`)).toHaveTextContent('£3.50');
-    expect(screen.getByTestId(`so-line-total-${LINE_ID}`)).toHaveTextContent('£35.00');
+    expect(screen.getByTestId(`so-line-unit-price-${LINE_ID}`)).toHaveTextContent('€3.50');
+    expect(screen.getByText('10%')).toBeInTheDocument();
+    expect(screen.getByText('5%')).toBeInTheDocument();
+    expect(screen.getByTestId(`so-line-total-${LINE_ID}`)).toHaveTextContent('€33.08');
     // no raw UUID leak
     expect(document.body.textContent).not.toContain(SO_ID);
     expect(document.body.textContent).not.toContain(LINE_ID);

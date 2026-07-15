@@ -16,10 +16,8 @@
  *     emits a `settings.notification_digest_updated` outbox event in the same
  *     transaction.
  *
- * NOTE: `notification_preferences` is boolean-channel only — it has no columns
- * for quiet-hours times. `quiet_hours_from` / `quiet_hours_to` are echoed but
- * NOT persisted (only `quiet_hours_enabled` is stored as a real row). See the
- * deviation log in the task closeout.
+ * Quiet hours are stored once per user/org in `user_notification_settings`;
+ * they are global settings, not per-category notification preferences.
  */
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
@@ -58,6 +56,12 @@ type PreferenceRow = {
   channel_in_app: boolean | null;
 };
 
+type QuietHoursRow = {
+  quiet_hours_enabled: boolean;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+};
+
 const OUTBOX_APP_VERSION = 'account-notifications-screen';
 const OUTBOX_DIGEST_EVENT = 'settings.notification_digest_updated';
 
@@ -82,10 +86,9 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
 
 /**
  * Each toggle is stored as one `(category, event)` row. `inApp` keys use the
- * `channel_in_app` boolean; `email` keys use `channel_email`. Quiet-hours
- * times are not in the schema and are excluded from the registry.
+ * `channel_in_app` boolean; `email` keys use `channel_email`.
  */
-type ToggleSpec = { key: NotificationPreferenceKey | 'quiet_hours_enabled'; category: string; event: string; channel: 'in_app' | 'email' };
+type ToggleSpec = { key: NotificationPreferenceKey; category: string; event: string; channel: 'in_app' | 'email' };
 
 const TOGGLE_REGISTRY: ToggleSpec[] = [
   { key: 'notification_badges', category: 'in_app', event: 'notification_badges', channel: 'in_app' },
@@ -96,7 +99,6 @@ const TOGGLE_REGISTRY: ToggleSpec[] = [
   { key: 'daily_plant_summary', category: 'email', event: 'daily_plant_summary', channel: 'email' },
   { key: 'weekly_npd_digest', category: 'email', event: 'weekly_npd_digest', channel: 'email' },
   { key: 'product_updates_tips', category: 'email', event: 'product_updates_tips', channel: 'email' },
-  { key: 'quiet_hours_enabled', category: 'quiet_hours', event: 'enabled', channel: 'in_app' },
 ];
 
 function projectRowsToPreferences(rows: PreferenceRow[]): NotificationPreferences {
@@ -133,11 +135,25 @@ export async function readMyNotificationPreferences(): Promise<NotificationsData
           order by category, event`,
         [orgId, userId],
       );
+      const settings = await queryClient.query<QuietHoursRow>(
+        `select quiet_hours_enabled, quiet_hours_start, quiet_hours_end
+           from public.user_notification_settings
+          where org_id = $1::uuid
+            and user_id = $2::uuid`,
+        [orgId, userId],
+      );
+      const preferences = projectRowsToPreferences(result.rows);
+      const quietHours = settings.rows[0];
+      if (quietHours) {
+        preferences.quiet_hours_enabled = quietHours.quiet_hours_enabled;
+        if (quietHours.quiet_hours_start) preferences.quiet_hours_from = quietHours.quiet_hours_start.slice(0, 5);
+        if (quietHours.quiet_hours_end) preferences.quiet_hours_to = quietHours.quiet_hours_end.slice(0, 5);
+      }
 
       return {
         state: 'ready',
         userId,
-        preferences: projectRowsToPreferences(result.rows),
+        preferences,
       };
     });
   } catch (error) {
@@ -148,7 +164,7 @@ export async function readMyNotificationPreferences(): Promise<NotificationsData
 
 export type SaveNotificationPreferencesResult =
   | { ok: true; userPreferencesRowUpdated: true; rowsWritten: number; outboxEventType: string }
-  | { ok: false; error: 'persistence_failed' };
+  | { ok: false; error: 'invalid_input' | 'persistence_failed' };
 
 /**
  * Upsert every boolean toggle as a `notification_preferences` row for the
@@ -159,6 +175,11 @@ export async function saveNotificationPreferencesAction(
   payload: NotificationPreferences & { userId: string },
 ): Promise<SaveNotificationPreferencesResult> {
   'use server';
+
+  const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  if (!timePattern.test(payload.quiet_hours_from) || !timePattern.test(payload.quiet_hours_to)) {
+    return { ok: false, error: 'invalid_input' };
+  }
 
   try {
     const rowsWritten = await withOrgContext(async ({ userId, orgId, client }) => {
@@ -182,6 +203,19 @@ export async function saveNotificationPreferencesAction(
       }
 
       await queryClient.query(
+        `insert into public.user_notification_settings
+           (user_id, org_id, quiet_hours_enabled, quiet_hours_start, quiet_hours_end, updated_at)
+         values ($1::uuid, $2::uuid, $3, $4::time, $5::time, now())
+         on conflict (user_id, org_id)
+         do update set quiet_hours_enabled = excluded.quiet_hours_enabled,
+                       quiet_hours_start = excluded.quiet_hours_start,
+                       quiet_hours_end = excluded.quiet_hours_end,
+                       updated_at = now()`,
+        [userId, orgId, payload.quiet_hours_enabled, payload.quiet_hours_from, payload.quiet_hours_to],
+      );
+      written += 1;
+
+      await queryClient.query(
         `insert into public.outbox_events
            (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
          values ($1::uuid, $2, 'notification_preferences', $1::uuid, $3::jsonb, $4)`,
@@ -191,8 +225,6 @@ export async function saveNotificationPreferencesAction(
           JSON.stringify({
             actorUserId: userId,
             quietHoursEnabled: Boolean(payload.quiet_hours_enabled),
-            // Times are not persisted (schema has no columns) but recorded in
-            // the event payload so downstream consumers retain the intent.
             quietHoursFrom: payload.quiet_hours_from,
             quietHoursTo: payload.quiet_hours_to,
           }),

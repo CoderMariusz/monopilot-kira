@@ -43,6 +43,9 @@ export type SalesOrderLine = {
   allocation_status: AllocationStatus;
   unit_price_gbp: string;
   line_total_gbp: string;
+  discount_pct: string;
+  tax_pct: string;
+  currency: string;
   notes: string | null;
 };
 

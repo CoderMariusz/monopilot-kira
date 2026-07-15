@@ -6,7 +6,12 @@ import {
   hasPermission,
   type OrgActionContext,
 } from '../../planning/work-orders/_actions/shared';
-import { sequenceWorkOrders, DEFAULT_SEQUENCE_SOLVER_CONFIG, buildPreoccupiedSeed } from './sequence-solver';
+import {
+  sequenceWorkOrders,
+  DEFAULT_SEQUENCE_SOLVER_CONFIG,
+  buildPreoccupiedSeed,
+  type LineShiftWindow,
+} from './sequence-solver';
 import { loadPmWindows, pmBlockHoursFromConfigParams } from './pm-windows';
 import type {
   ApplyScheduleResult,
@@ -441,6 +446,64 @@ async function loadLineOccupancy(
   return loadWorkOrdersForScheduling(ctx, 'occupying', lineId, horizonDays, siteId);
 }
 
+async function loadLineShiftCalendar(
+  ctx: OrgActionContext,
+  lineId: string | null,
+  horizonDays: number,
+  nowMs: number,
+): Promise<{ lineIds: string[]; windows: LineShiftWindow[] }> {
+  const { rows } = await ctx.client.query<{
+    production_line_id: string;
+    start_at: string | Date | null;
+    end_at: string | Date | null;
+  }>(
+    `select sp.production_line_id::text,
+            case when d.shift_date is null then null
+              else ((d.shift_date + coalesce(sp.start_time, sc.start_time)) at time zone sc.timezone)
+            end as start_at,
+            case when d.shift_date is null then null
+              when coalesce(sp.end_time, sc.end_time) <= coalesce(sp.start_time, sc.start_time)
+                then ((d.shift_date + 1 + coalesce(sp.end_time, sc.end_time)) at time zone sc.timezone)
+              else ((d.shift_date + coalesce(sp.end_time, sc.end_time)) at time zone sc.timezone)
+            end as end_at
+       from public.shift_patterns sp
+       join public.shift_configs sc
+         on sc.org_id = sp.org_id
+        and sc.shift_id = sp.shift_id
+       left join lateral (
+         select day::date as shift_date
+           from generate_series(
+             (to_timestamp($2::double precision / 1000) at time zone sc.timezone)::date - 1,
+             (to_timestamp($2::double precision / 1000) at time zone sc.timezone)::date + $3::integer + 400,
+             interval '1 day'
+           ) day
+          where (array['mon','tue','wed','thu','fri','sat','sun'])[
+                  extract(isodow from day)::integer
+                ] = any(coalesce(sp.days_active, sc.active_days))
+       ) d on true
+      where sp.org_id = app.current_org_id()
+        and sp.production_line_id is not null
+        and sp.is_active = true
+        and sc.is_active = true
+        and ($1::uuid is null or sp.production_line_id = $1::uuid)
+      order by sp.production_line_id, start_at nulls last`,
+    [lineId, nowMs, horizonDays],
+  );
+
+  return {
+    lineIds: [...new Set(rows.map((row) => row.production_line_id))],
+    windows: rows.flatMap((row) =>
+      row.start_at && row.end_at
+        ? [{
+            line_id: row.production_line_id,
+            start_at: new Date(row.start_at).toISOString(),
+            end_at: new Date(row.end_at).toISOString(),
+          }]
+        : [],
+    ),
+  };
+}
+
 async function insertSchedulerRun(
   ctx: OrgActionContext,
   params: {
@@ -859,10 +922,11 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
 
       const runNowMs = Date.now();
       const started = runNowMs;
-      const [workOrders, matrix, occupying] = await Promise.all([
+      const [workOrders, matrix, occupying, shiftCalendar] = await Promise.all([
         loadOpenWorkOrders(ctx, lineId, horizonDays, siteId),
         loadChangeoverMatrixForRun(ctx, lineId),
         loadLineOccupancy(ctx, lineId, horizonDays, siteId),
+        loadLineShiftCalendar(ctx, lineId, horizonDays, runNowMs),
       ]);
       const baseSolverConfig = solverConfigFromRow(schedulerConfig);
       const solverConfig: SequenceSolverConfig =
@@ -888,7 +952,11 @@ export async function runScheduler(input?: { lineId?: string; horizonDays?: numb
         occupying.filter((wo) => !schedulableIds.has(wo.id)),
         solverConfig,
       );
-      const sequenced = sequenceWorkOrders(workOrders, matrix, solverConfig);
+      const sequenced = sequenceWorkOrders(workOrders, matrix, {
+        ...solverConfig,
+        shiftCalendarLineIds: shiftCalendar.lineIds,
+        shiftWindows: shiftCalendar.windows,
+      });
       const solveDurationMs = Date.now() - started;
       const run = await insertSchedulerRun(ctx, {
         lineId,

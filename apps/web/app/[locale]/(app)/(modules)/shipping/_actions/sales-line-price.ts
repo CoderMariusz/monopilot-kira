@@ -1,4 +1,5 @@
-import { microToFixed, mulMicro, toMicro } from '../../../../../../lib/shared/decimal';
+import { Dec } from '@monopilot/domain';
+import { microToFixed, toMicro } from '../../../../../../lib/shared/decimal';
 
 export type CustomerItemPrice = {
   unit_price: string;
@@ -47,9 +48,29 @@ export function normalizeSoUnitPriceGbp(value: unknown): string | null {
   return microToFixed(toMicro(normalized), SO_LINE_MONEY_SCALE);
 }
 
-/** `line_total_gbp = order_qty * unit_price_gbp` at numeric(14,4) — no JS float. */
-export function computeSoLineTotalGbp(qty: string, unitPriceGbp: string): string {
-  return microToFixed(mulMicro(toMicro(qty), toMicro(unitPriceGbp)), SO_LINE_MONEY_SCALE);
+/** `qty * unit_price * (1 - discount/100) * (1 + tax/100)`, rounded to numeric(14,4). */
+export function computeSoLineTotal(
+  qty: string,
+  unitPrice: string,
+  discountPct: string = '0',
+  taxPct: string = '0',
+): string {
+  const hundred = Dec.from('100');
+  return Dec.from(qty)
+    .mul(Dec.from(unitPrice))
+    .mul(Dec.from('1').sub(Dec.from(discountPct).div(hundred)))
+    .mul(Dec.from('1').add(Dec.from(taxPct).div(hundred)))
+    .toFixed(SO_LINE_MONEY_SCALE);
+}
+
+/** Compatibility name for legacy GBP callers. */
+export function computeSoLineTotalGbp(
+  qty: string,
+  unitPriceGbp: string,
+  discountPct: string = '0',
+  taxPct: string = '0',
+): string {
+  return computeSoLineTotal(qty, unitPriceGbp, discountPct, taxPct);
 }
 
 export function sumSoLineTotalsGbp(totals: readonly string[]): string {
@@ -58,9 +79,18 @@ export function sumSoLineTotalsGbp(totals: readonly string[]): string {
 }
 
 export function formatSoGbpDisplay(value: string): string {
+  return formatSoCurrencyDisplay(value, 'GBP');
+}
+
+export function formatSoCurrencyDisplay(value: string, currency: string = 'GBP'): string {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return '—';
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
+  const code = /^[A-Z]{3}$/.test(currency.trim().toUpperCase()) ? currency.trim().toUpperCase() : 'GBP';
+  try {
+    return new Intl.NumberFormat('en-GB', { style: 'currency', currency: code }).format(amount);
+  } catch {
+    return `${code} ${amount.toFixed(2)}`;
+  }
 }
 
 /**

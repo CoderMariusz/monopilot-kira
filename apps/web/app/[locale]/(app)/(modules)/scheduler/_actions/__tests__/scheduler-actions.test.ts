@@ -32,6 +32,7 @@ let assignmentRows: SchedulerAssignment[] = [];
 let staleWoIds = new Set<string>();
 let matrixVersionInsertConflict = false;
 let simulateNoActiveMatrixVersion = false;
+let shiftCalendarRows: Array<Record<string, unknown>> = [];
 const ACTIVE_MATRIX_VERSION_ID = '77777777-7777-4777-8777-777777777777';
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
@@ -192,6 +193,10 @@ function makeClient(): QueryClient {
         };
       }
 
+      if (q.includes('from public.shift_patterns sp')) {
+        return { rows: shiftCalendarRows, rowCount: shiftCalendarRows.length };
+      }
+
       if (q.includes('from public.work_orders wo') && q.includes('item_allergen_profiles')) {
         if (q.includes("wo.status = 'in_progress'")) {
           return { rows: [], rowCount: 0 };
@@ -327,6 +332,7 @@ beforeEach(() => {
   runAlreadyApplied = false;
   includeLineSpecificOverride = false;
   includeSchedulerConfig = true;
+  shiftCalendarRows = [];
   schedulerConfigRows = [
     {
       id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -423,6 +429,23 @@ describe('runScheduler', () => {
     expect(
       calls.some((call) => normalize(call.sql).includes('from public.maintenance_work_orders')),
     ).toBe(true);
+  });
+
+  it('loads assigned line shift windows and passes them into placement', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T00:44:00.000Z'));
+    includeSchedulerConfig = false;
+    shiftCalendarRows = [{
+      production_line_id: LINE_ID,
+      start_at: '2026-06-24T06:00:00.000Z',
+      end_at: '2026-06-24T14:00:00.000Z',
+    }];
+
+    const result = await runScheduler({ lineId: LINE_ID, horizonDays: 7 });
+
+    expect(result.ok).toBe(true);
+    expect(calls.some((call) => normalize(call.sql).includes('from public.shift_patterns sp'))).toBe(true);
+    expect(insertedAssignmentPayload[0]?.planned_start_at).toBe('2026-06-24T06:00:00.000Z');
   });
 
   it('keeps no-config runs byte-identical to the default solver and skips PM window loading', async () => {

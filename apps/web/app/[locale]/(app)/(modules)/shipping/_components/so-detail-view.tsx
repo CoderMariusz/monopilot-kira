@@ -40,7 +40,7 @@ import { useRouter } from 'next/navigation';
 
 import { SoStatusBadge, AllocationBadge } from './so-status-badge';
 import { EditSoModal, type EditSoResult } from './edit-so-modal';
-import { formatSoGbpDisplay, sumSoLineTotalsGbp } from '../_actions/sales-line-price';
+import { formatSoCurrencyDisplay, sumSoLineTotalsGbp } from '../_actions/sales-line-price';
 
 export type SoDetailLine = {
   id: string;
@@ -53,6 +53,9 @@ export type SoDetailLine = {
   allocationStatus: string;
   unitPriceGbp: string;
   lineTotalGbp: string;
+  discountPct: string;
+  taxPct: string;
+  currency: string;
   notes: string | null;
 };
 
@@ -89,6 +92,9 @@ export type SoDetailLabels = {
     qty: string;
     uom: string;
     unitPrice: string;
+    discount: string;
+    tax: string;
+    currency: string;
     lineTotal: string;
     allocated: string;
     allocationStatus: string;
@@ -102,6 +108,9 @@ export type SoDetailLabels = {
     lineQty: string;
     lineUom: string;
     lineUnitPrice: string;
+    lineDiscount: string;
+    lineTax: string;
+    lineCurrency: string;
     lineTotal: string;
     lineNotes: string;
     submit: string;
@@ -147,10 +156,6 @@ function fmtDate(iso: string | null, locale: string): string {
 
 type ActionKind = 'allocate' | 'deallocate' | 'confirm' | 'cancel' | 'delete';
 
-function formatGbp(value: string): string {
-  return formatSoGbpDisplay(value);
-}
-
 export function SoDetailView({
   so,
   labels,
@@ -176,7 +181,15 @@ export function SoDetailView({
     input: {
       requiredDate?: string | null;
       notes?: string | null;
-      lines?: Array<{ id: string; qty?: string; notes?: string | null; unit_price_gbp?: string }>;
+      lines?: Array<{
+        id: string;
+        qty?: string;
+        notes?: string | null;
+        unit_price_gbp?: string;
+        discount_pct?: string;
+        tax_pct?: string;
+        currency?: string;
+      }>;
     },
   ) => Promise<EditSoResult>;
   deleteSalesOrderAction: (id: string) => Promise<SoActionResult>;
@@ -202,7 +215,16 @@ export function SoDetailView({
   const cancelLegal = !['shipped', 'partially_delivered', 'delivered', 'cancelled'].includes(status);
   const editLegal = status === 'draft';
   const deleteLegal = status === 'draft';
-  const orderTotal = sumSoLineTotalsGbp(so.lines.map((line) => line.lineTotalGbp || '0'));
+  const totalsByCurrency = new Map<string, string[]>();
+  for (const line of so.lines) {
+    const currency = line.currency || 'GBP';
+    const totals = totalsByCurrency.get(currency) ?? [];
+    totals.push(line.lineTotalGbp || '0');
+    totalsByCurrency.set(currency, totals);
+  }
+  const orderTotal = [...totalsByCurrency]
+    .map(([currency, totals]) => formatSoCurrencyDisplay(sumSoLineTotalsGbp(totals), currency))
+    .join(' · ');
 
   async function run(kind: ActionKind, fn: () => Promise<SoActionResult>, prompt?: string) {
     if (pending) return;
@@ -320,6 +342,9 @@ export function SoDetailView({
                     <th className="px-3 py-2 text-right">{labels.lines.qty}</th>
                     <th className="px-3 py-2">{labels.lines.uom}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.unitPrice}</th>
+                    <th className="px-3 py-2 text-right">{labels.lines.discount}</th>
+                    <th className="px-3 py-2 text-right">{labels.lines.tax}</th>
+                    <th className="px-3 py-2">{labels.lines.currency}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.lineTotal}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.allocated}</th>
                     <th className="px-3 py-2">{labels.lines.allocationStatus}</th>
@@ -336,10 +361,13 @@ export function SoDetailView({
                       <td className="px-3 py-2 text-right font-mono tabular-nums">{l.qty}</td>
                       <td className="px-3 py-2 font-mono text-xs">{l.uom}</td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums" data-testid={`so-line-unit-price-${l.id}`}>
-                        {formatGbp(l.unitPriceGbp)}
+                        {formatSoCurrencyDisplay(l.unitPriceGbp, l.currency || 'GBP')}
                       </td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums">{l.discountPct ?? '0'}%</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums">{l.taxPct ?? '0'}%</td>
+                      <td className="px-3 py-2 font-mono text-xs">{l.currency || 'GBP'}</td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums" data-testid={`so-line-total-${l.id}`}>
-                        {formatGbp(l.lineTotalGbp)}
+                        {formatSoCurrencyDisplay(l.lineTotalGbp, l.currency || 'GBP')}
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums">{l.allocatedQty}</td>
                       <td className="px-3 py-2" data-testid={`so-line-alloc-${l.id}`}>
@@ -398,7 +426,7 @@ export function SoDetailView({
               <div className="flex justify-between gap-2">
                 <dt className="font-semibold text-slate-700">{labels.summary.total}</dt>
                 <dd className="font-mono font-semibold text-slate-900" data-testid="so-detail-total">
-                  {formatGbp(orderTotal)}
+                  {orderTotal || '—'}
                 </dd>
               </div>
             </dl>

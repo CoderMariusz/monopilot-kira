@@ -92,9 +92,9 @@ describe('sw.ts (Serwist entry — NOT emitted by the Turbopack production build
   });
 });
 
-// What production ACTUALLY serves at /sw.js: the static no-op worker in
-// public/. It exists so RegisterSW's probe stops 404ing on every page and
-// registration succeeds; it must do NOTHING beyond the lifecycle handshake.
+// What production ACTUALLY serves at /sw.js: the hand-written read-only worker
+// in public/ (Serwist never emits under Turbopack). Wave F / P1-18 MINIMAL —
+// app-shell + static cache-first; GET data network-first; NO offline write-queue.
 describe('public/sw.js (the worker production actually serves)', () => {
   const publicSwSource = readFileSync(resolve(__dirname, '../../public/sw.js'), 'utf8');
 
@@ -108,8 +108,20 @@ describe('public/sw.js (the worker production actually serves)', () => {
     expect(publicSwSource).toContain('self.clients.claim()');
   });
 
-  it('is a no-op: NO fetch handler and NO caching (stale precache must never shadow deploys)', () => {
-    expect(publicSwSource).not.toMatch(/addEventListener\(\s*['"]fetch['"]/);
-    expect(publicSwSource).not.toMatch(/caches\.(open|match|keys)/);
+  it('registers a fetch handler with cache-first for static assets', () => {
+    expect(publicSwSource).toMatch(/addEventListener\(\s*['"]fetch['"]/);
+    expect(publicSwSource).toContain('cacheFirst');
+    expect(publicSwSource).toMatch(/_next\/static/);
+  });
+
+  it('uses network-first for navigations / API GETs (last-known fallback)', () => {
+    expect(publicSwSource).toContain('networkFirst');
+  });
+
+  it('does NOT implement an offline write-queue (non-GET pass-through only)', () => {
+    expect(publicSwSource).toMatch(/method !== ['"]GET['"]/);
+    expect(publicSwSource).not.toMatch(/indexedDB/i);
+    expect(publicSwSource).not.toMatch(/BackgroundSync/);
+    expect(publicSwSource).not.toMatch(/addEventListener\(\s*['"]sync['"]/);
   });
 });

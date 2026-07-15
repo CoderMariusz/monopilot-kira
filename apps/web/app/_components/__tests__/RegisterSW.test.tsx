@@ -1,62 +1,83 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render } from '@testing-library/react';
 
-/**
- * RegisterSW component test suite
- * Tests service worker registration behavior in production vs development
- * These tests will fail until RegisterSW.tsx is implemented
- */
+import RegisterSW, { isScannerPath, looksLikeJavaScript } from '../RegisterSW';
+
+describe('RegisterSW helpers', () => {
+  it('isScannerPath matches locale-prefixed and bare scanner URLs', () => {
+    expect(isScannerPath('/pl/scanner')).toBe(true);
+    expect(isScannerPath('/pl/scanner/home')).toBe(true);
+    expect(isScannerPath('/scanner')).toBe(true);
+    expect(isScannerPath('/en/dashboard')).toBe(false);
+    expect(isScannerPath('/pl/shipping')).toBe(false);
+  });
+
+  it('looksLikeJavaScript accepts JS MIME types only', () => {
+    expect(looksLikeJavaScript('application/javascript')).toBe(true);
+    expect(looksLikeJavaScript('text/javascript; charset=utf-8')).toBe(true);
+    expect(looksLikeJavaScript('text/html')).toBe(false);
+    expect(looksLikeJavaScript(null)).toBe(false);
+  });
+});
+
 describe('RegisterSW component', () => {
   let registerSpy: ReturnType<typeof vi.fn>;
+  let fetchSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     registerSpy = vi.fn().mockResolvedValue({ installing: null });
+    fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/javascript' },
+    });
+    vi.stubGlobal('fetch', fetchSpy);
 
-    // Mock navigator.serviceWorker
-    if (!navigator.serviceWorker) {
-      Object.defineProperty(global.navigator, 'serviceWorker', {
-        value: {
-          register: registerSpy
-        },
-        configurable: true,
-        writable: true
-      });
-    } else {
-      vi.spyOn(navigator.serviceWorker, 'register').mockResolvedValue({ installing: null } as any);
-    }
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/pl/scanner/home' },
+      writable: true,
+      configurable: true,
+    });
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: { register: registerSpy },
+      configurable: true,
+      writable: true,
+    });
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 
-  it('should export RegisterSW component', async () => {
-    const RegisterSW = (await import('../RegisterSW.jsx')).default;
-    expect(RegisterSW).toBeDefined();
+  it('registers /sw.js on scanner routes outside development', async () => {
+    vi.stubEnv('NODE_ENV', 'test');
+    render(<RegisterSW />);
+    await vi.waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith('/sw.js', expect.objectContaining({ method: 'GET' }));
+      expect(registerSpy).toHaveBeenCalledWith('/sw.js');
+    });
   });
 
-  it('should register service worker with correct path in production', async () => {
-    vi.stubEnv('NODE_ENV', 'production');
-
-    const RegisterSW = (await import('../RegisterSW.jsx')).default;
-
-    // Import and call the component's registration logic
-    // The component should call navigator.serviceWorker.register('/sw.js')
-    expect(RegisterSW).toBeDefined();
-    // Runtime behavior tested via browser integration (T-042)
+  it('does NOT register off scanner routes', async () => {
+    vi.stubEnv('NODE_ENV', 'test');
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/pl/dashboard' },
+      writable: true,
+      configurable: true,
+    });
+    render(<RegisterSW />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(registerSpy).not.toHaveBeenCalled();
   });
 
-  it('should NOT register service worker in development mode', async () => {
+  it('does NOT register in development', async () => {
     vi.stubEnv('NODE_ENV', 'development');
-
-    const RegisterSW = (await import('../RegisterSW.jsx')).default;
-    expect(RegisterSW).toBeDefined();
-    // Dev safety: component must check NODE_ENV before registering
-  });
-
-  it('should handle missing navigator.serviceWorker gracefully', async () => {
-    // Test documents expected error handling
-    const RegisterSW = (await import('../RegisterSW.jsx')).default;
-    expect(RegisterSW).toBeDefined();
+    render(<RegisterSW />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(registerSpy).not.toHaveBeenCalled();
   });
 });

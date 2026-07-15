@@ -3,25 +3,15 @@
 import { useEffect } from 'react';
 
 /**
- * RegisterSW — mounts in root layout and (best-effort) registers the service
- * worker.
+ * RegisterSW — best-effort service worker registration for scanner routes.
  *
- * Registration is intentionally skipped in development to avoid stale precache
- * breaking Next.js HMR (T-041 risk red line).
+ * Skipped in development (stale precache breaks Next.js HMR; T-041 red line).
+ * Skipped off scanner paths — PWA offline cache is scanner-scoped by product
+ * decision (Wave F / P1-18 MINIMAL).
  *
- * In production the app is bundled with Turbopack, which `@serwist/next`
- * (a webpack plugin) does not support — so `/sw.js` is NOT emitted by the build.
- * Requesting a non-existent `/sw.js` returns the HTML 404 document
- * (`text/html`), and `navigator.serviceWorker.register('/sw.js')` then throws
- * `SecurityError: ... unsupported MIME type ('text/html')` on EVERY page load.
- *
- * To eliminate that console spam without coupling the UI to the bundler choice,
- * this component PROBES `/sw.js` first and only registers when the server
- * actually serves a JavaScript asset. When the worker isn't emitted (Turbopack
- * build) the probe fails the content-type check and registration is skipped
- * silently — no SecurityError, no error-level logging. Once a Turbopack-
- * compatible SW pipeline emits a real `/sw.js`, registration resumes
- * automatically with no further code change.
+ * `/sw.js` is the static asset in `public/sw.js` (hand-written read-only cache).
+ * Serwist's webpack plugin does not emit under Turbopack, so we probe MIME
+ * before register to avoid SecurityError spam if the asset is ever missing.
  */
 
 function looksLikeJavaScript(contentType: string | null): boolean {
@@ -34,9 +24,16 @@ function looksLikeJavaScript(contentType: string | null): boolean {
   );
 }
 
+/** Locale-prefixed or bare scanner paths, e.g. `/pl/scanner/...`, `/scanner`. */
+function isScannerPath(pathname: string): boolean {
+  return /(?:^|\/)scanner(?:\/|$)/.test(pathname);
+}
+
 export default function RegisterSW() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
+    // Skip only in local `next dev` — stale precache breaks HMR (T-041).
+    // Production AND test (vitest) may register when the asset is present.
+    if (process.env.NODE_ENV === 'development') {
       return;
     }
 
@@ -44,24 +41,23 @@ export default function RegisterSW() {
       return;
     }
 
+    if (!isScannerPath(window.location.pathname)) {
+      return;
+    }
+
     let cancelled = false;
 
-    // Probe the SW asset before registering. If the build did not emit /sw.js
-    // (e.g. Turbopack), the server returns the HTML 404 page; registering that
-    // would throw a SecurityError (unsupported MIME type) on every load.
     void fetch('/sw.js', { method: 'GET', cache: 'no-store' })
       .then((response) => {
         if (cancelled) return;
         const contentType = response.headers.get('content-type');
         if (!response.ok || !looksLikeJavaScript(contentType)) {
-          // No usable service worker asset — skip registration silently.
           return;
         }
         return navigator.serviceWorker.register('/sw.js').then(() => undefined);
       })
       .catch(() => {
-        // Fail silent: a missing/unsupported SW must never surface as a runtime
-        // error to the user or spam the console.
+        // Fail silent: missing/unsupported SW must never surface as a runtime error.
       });
 
     return () => {
@@ -71,3 +67,6 @@ export default function RegisterSW() {
 
   return null;
 }
+
+/** Test seam — exported for unit checks without mounting React. */
+export { isScannerPath, looksLikeJavaScript };

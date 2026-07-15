@@ -196,12 +196,9 @@ describe('SET-102 my_notifications_screen prototype parity', () => {
     expect(within(quietHours).getByRole('checkbox', { name: /^Enable quiet hours$/i })).not.toBeChecked();
     expect(within(quietHours).getByLabelText(/^From$/i)).toHaveValue('20:00');
     expect(within(quietHours).getByLabelText(/^To$/i)).toHaveValue('07:00');
-    // Quiet-hours times have no storage column, so the FROM/TO inputs are
-    // disabled (no silently-dropped input) and carry an explicit note. Only the
-    // on/off toggle above is persisted.
-    expect(within(quietHours).getByLabelText(/^From$/i)).toBeDisabled();
-    expect(within(quietHours).getByLabelText(/^To$/i)).toBeDisabled();
-    expect(within(quietHours).getByText(/custom quiet-hours times are not yet stored/i)).toBeInTheDocument();
+    expect(within(quietHours).getByLabelText(/^From$/i)).toBeEnabled();
+    expect(within(quietHours).getByLabelText(/^To$/i)).toBeEnabled();
+    expect(within(quietHours).getByText(/paused during this window/i)).toBeInTheDocument();
 
     // Every toggle is the design-system `.sg-toggle` slider (label > checkbox + .slider),
     // NOT the old `<button role="switch">` and NOT the shadcn Switch.
@@ -333,7 +330,7 @@ describe('SET-102 notification preference mutations', () => {
     expect(await screen.findByText(/browser push subscription saved/i)).toBeInTheDocument();
   });
 
-  it('persists the quiet-hours on/off toggle (the only stored field) and disables the unstored FROM/TO time inputs', async () => {
+  it('saves editable quiet-hours times with the on/off toggle', async () => {
     const user = userEvent.setup();
     const saveNotificationPreferences = vi.fn().mockResolvedValue({
       ok: true,
@@ -342,19 +339,17 @@ describe('SET-102 notification preference mutations', () => {
 
     await renderMyNotifications({ saveNotificationPreferences });
 
-    // `notification_preferences` has no quiet-hours time columns, so the FROM/TO
-    // inputs are rendered disabled (no silently-dropped input) with an explicit
-    // note. They keep showing the read defaults but cannot be edited.
     const fromInput = screen.getByLabelText(/^From$/i);
     const toInput = screen.getByLabelText(/^To$/i);
-    expect(fromInput).toBeDisabled();
-    expect(toInput).toBeDisabled();
+    expect(fromInput).toBeEnabled();
+    expect(toInput).toBeEnabled();
     expect(fromInput).toHaveValue('20:00');
     expect(toInput).toHaveValue('07:00');
-    expect(screen.getByText(/custom quiet-hours times are not yet stored/i)).toBeInTheDocument();
 
-    // The on/off toggle is the only quiet-hours field with real storage; saving
-    // persists it through the user_preferences action.
+    await user.clear(fromInput);
+    await user.type(fromInput, '22:15');
+    await user.clear(toInput);
+    await user.type(toInput, '06:45');
     await user.click(screen.getByRole('checkbox', { name: /^Enable quiet hours$/i }));
     await user.click(screen.getByRole('button', { name: /^Save changes$/i }));
 
@@ -362,6 +357,8 @@ describe('SET-102 notification preference mutations', () => {
       expect.objectContaining({
         userId: 'user-k-nowak',
         quiet_hours_enabled: true,
+        quiet_hours_from: '22:15',
+        quiet_hours_to: '06:45',
       }),
     );
     expect(await screen.findByText(/user_preferences updated/i)).toBeInTheDocument();

@@ -177,14 +177,20 @@ function makeClient(): QueryClient {
         const quantityOrdered = params[4] as string;
         const unitPriceGbp = params[5] as string;
         const orderQty = params[6] as string;
+        const discountPct = params[7] as string;
+        const taxPct = params[8] as string;
+        const currency = params[9] as string | null;
         insertedLines.push({
           sales_order_id: params[1],
           line_number: params[2],
           product_id: params[3],
           quantity_ordered: quantityOrdered,
           unit_price_gbp: unitPriceGbp,
-          line_total_gbp: `${Number(orderQty) * Number(unitPriceGbp)}`,
-          ext_data: { order_uom: params[7], order_qty: orderQty },
+          line_total_gbp: `${Number(orderQty) * Number(unitPriceGbp) * (1 - Number(discountPct) / 100) * (1 + Number(taxPct) / 100)}`,
+          ext_data: { order_uom: params[10], order_qty: orderQty },
+          ...(discountPct !== '0.0000' || taxPct !== '0.0000' || currency != null
+            ? { discount_pct: discountPct, tax_pct: taxPct, currency }
+            : {}),
         });
         return { rows: [], rowCount: 1 };
       }
@@ -296,6 +302,9 @@ function makeClient(): QueryClient {
               allocated_qty_display: allocatedDisplay,
               unit_price_gbp: lineUnitPriceGbp,
               line_total_gbp: `${Number(orderQty) * Number(lineUnitPriceGbp)}`,
+              discount_pct: '0.0000',
+              tax_pct: '0.0000',
+              currency: 'GBP',
               notes: lineNotes,
             },
           ],
@@ -340,16 +349,19 @@ function makeClient(): QueryClient {
           rowCount: 1,
         };
       }
-      if (q.startsWith('select unit_price_gbp::text')) {
-        return { rows: [{ unit_price_gbp: lineUnitPriceGbp }], rowCount: 1 };
+      if (q.startsWith('select sol.unit_price_gbp::text')) {
+        return {
+          rows: [{ unit_price_gbp: lineUnitPriceGbp, discount_pct: '0', tax_pct: '0', currency: 'GBP' }],
+          rowCount: 1,
+        };
       }
       if (q.startsWith('update public.sales_order_lines') && q.includes('line_total_gbp')) {
         lineUpdateCallCount += 1;
-        lineOrderQty = params[3] as string;
+        lineOrderQty = params[6] as string;
         lineQuantityOrdered = params[1] as string;
         lineUnitPriceGbp = params[2] as string;
-        if (q.includes('notes = $5::text')) {
-          lineNotes = params[4] as string | null;
+        if (q.includes('notes = $8::text')) {
+          lineNotes = params[7] as string | null;
         }
         return { rows: [], rowCount: 1 };
       }
@@ -668,6 +680,34 @@ describe('createSalesOrder', () => {
       line_total_gbp: '7.5',
       ext_data: { order_uom: 'case', order_qty: '3' },
     });
+  });
+
+  it('persists per-line discount, tax, currency, and the extended exact formula', async () => {
+    await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      lines: [
+        {
+          item_id: ITEM_ID,
+          qty: '3.25',
+          uom: 'kg',
+          unit_price_gbp: '3.50',
+          discount_pct: '10',
+          tax_pct: '5',
+          currency: 'EUR',
+        },
+      ],
+    });
+
+    expect(insertedLines[0]).toMatchObject({
+      discount_pct: '10.0000',
+      tax_pct: '5.0000',
+      currency: 'EUR',
+      line_total_gbp: '10.749375',
+    });
+    const insert = queryLog.find((entry) => normalize(entry.sql).startsWith('insert into public.sales_order_lines'));
+    expect(normalize(insert?.sql ?? '')).toContain(
+      '$7::numeric * $6::numeric * (1 - $8::numeric / 100) * (1 + $9::numeric / 100)',
+    );
   });
 
   it('persists high-precision list_price_gbp normalized to the stored 4dp scale', async () => {
@@ -1154,7 +1194,13 @@ describe('updateSalesOrder', () => {
       expect(result.data?.lines[0]?.unit_price_gbp).toBe('8.0000');
       expect(result.data?.lines[0]?.line_total_gbp).toBe('40');
     }
-    expect(queryLog.some((entry) => normalize(entry.sql).includes('line_total_gbp = ($4::numeric * $3::numeric)'))).toBe(true);
+    expect(
+      queryLog.some((entry) =>
+        normalize(entry.sql).includes(
+          'line_total_gbp = ($7::numeric * $3::numeric * (1 - $4::numeric / 100) * (1 + $5::numeric / 100))',
+        ),
+      ),
+    ).toBe(true);
     const headerUpdate = queryLog.find(
       (entry) =>
         normalize(entry.sql).startsWith('update public.sales_orders') &&

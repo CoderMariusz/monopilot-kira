@@ -139,7 +139,15 @@ export type SoListViewProps = {
     customer_id: string;
     requested_date?: string;
     notes?: string;
-    lines: Array<{ item_id: string; qty: string; uom: string; unit_price_gbp?: string }>;
+    lines: Array<{
+      item_id: string;
+      qty: string;
+      uom: string;
+      unit_price_gbp?: string;
+      discount_pct?: string;
+      tax_pct?: string;
+      currency?: string;
+    }>;
   }) => Promise<CreateSoResult>;
   resolveSoLinePricesAction: (input: {
     customer_id: string;
@@ -158,10 +166,8 @@ function fmtDate(iso: string | null, locale: string): string {
  * The sales-order money model is GBP-denominated at the schema level: the backing
  * columns are literally `sales_orders.total_amount_gbp`, `sales_order_lines.line_total_gbp`
  * and `sales_order_lines.unit_price_gbp` (211-shipping-schema-foundation.sql). There is
- * no per-org / per-SO currency column to switch on, so the displayed unit MUST match the
- * stored unit — GBP. This constant ties the formatter to that schema fact instead of
- * being a free-floating magic literal. (A multi-currency model would need a schema
- * `currency_code` column + a backfill migration — out of scope here.)
+ * Line currencies live below this grain, so the list keeps the legacy GBP aggregate;
+ * detail renders each line in its own currency instead of inventing an FX conversion.
  */
 const SO_CURRENCY = 'GBP';
 

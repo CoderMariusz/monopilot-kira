@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  computeSoLineTotal,
   computeSoLineTotalGbp,
   fetchActiveCustomerItemPrices,
   normalizePriceString,
@@ -66,6 +67,12 @@ describe('computeSoLineTotalGbp', () => {
   it('matches Postgres line_total_gbp for fractional unit prices without JS float math', () => {
     expect(computeSoLineTotalGbp('1', '1.0050')).toBe('1.0050');
     expect(computeSoLineTotalGbp('10', '7.2500')).toBe('72.5000');
+  });
+});
+
+describe('computeSoLineTotal', () => {
+  it('applies discount then tax with exact decimal arithmetic', () => {
+    expect(computeSoLineTotal('3.25', '3.50', '10', '5')).toBe('10.7494');
   });
 });
 

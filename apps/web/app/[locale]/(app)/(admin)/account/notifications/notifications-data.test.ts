@@ -36,7 +36,7 @@ describe('readMyNotificationPreferences — real per-user read', () => {
     queryMock.mockResolvedValue({ rows: [] });
     const data = await readMyNotificationPreferences();
 
-    expect(queryMock).toHaveBeenCalledTimes(1);
+    expect(queryMock).toHaveBeenCalledTimes(2);
     const [sql, params] = queryMock.mock.calls[0];
     expect(sql).toContain('from public.notification_preferences');
     expect(params).toEqual(['real-org-uuid', 'real-user-uuid']);
@@ -47,12 +47,14 @@ describe('readMyNotificationPreferences — real per-user read', () => {
   it('projects STORED rows over the prototype defaults (real data wins)', async () => {
     // sound_on_alert defaults false; a stored in_app row flips it true.
     // weekly_npd_digest defaults false; a stored email row flips it true.
-    queryMock.mockResolvedValue({
-      rows: [
-        { category: 'in_app', event: 'sound_on_alert', channel_email: false, channel_in_app: true },
-        { category: 'email', event: 'weekly_npd_digest', channel_email: true, channel_in_app: false },
-      ],
-    });
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [
+          { category: 'in_app', event: 'sound_on_alert', channel_email: false, channel_in_app: true },
+          { category: 'email', event: 'weekly_npd_digest', channel_email: true, channel_in_app: false },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
     const data = await readMyNotificationPreferences();
     expect(data.preferences.sound_on_alert).toBe(true);
     expect(data.preferences.weekly_npd_digest).toBe(true);
@@ -97,7 +99,7 @@ describe('saveNotificationPreferencesAction — real upsert + outbox', () => {
     const upserts = queryMock.mock.calls.filter(([sql]) =>
       String(sql).includes('insert into public.notification_preferences'),
     );
-    expect(upserts.length).toBe(9); // 8 toggles + quiet_hours_enabled
+    expect(upserts.length).toBe(8);
     // every upsert uses the context user id, never the spoofed client id
     for (const [, params] of upserts) {
       expect(params?.[0]).toBe('real-user-uuid');
@@ -110,6 +112,42 @@ describe('saveNotificationPreferencesAction — real upsert + outbox', () => {
     );
     expect(outbox).toBeTruthy();
     expect(String(outbox?.[0])).toContain('public.outbox_events');
+  });
+
+  it('round-trips quiet hours through the user-level settings row', async () => {
+    let quietHours: unknown[] | null = null;
+    queryMock.mockImplementation((sql: string, values?: unknown[]) => {
+      if (sql.includes('insert into public.user_notification_settings')) {
+        quietHours = values ?? null;
+      }
+      if (sql.includes('from public.user_notification_settings')) {
+        return Promise.resolve({
+          rows: quietHours
+            ? [{
+                quiet_hours_enabled: quietHours[2],
+                quiet_hours_start: quietHours[3],
+                quiet_hours_end: quietHours[4],
+              }]
+            : [],
+        });
+      }
+      return Promise.resolve({ rows: [], rowCount: 1 });
+    });
+
+    await saveNotificationPreferencesAction({
+      userId: 'spoofed-from-client',
+      ...DEFAULT_PREFERENCES,
+      quiet_hours_enabled: true,
+      quiet_hours_from: '22:15',
+      quiet_hours_to: '06:45',
+    });
+    const loaded = await readMyNotificationPreferences();
+
+    expect(loaded.preferences).toMatchObject({
+      quiet_hours_enabled: true,
+      quiet_hours_from: '22:15',
+      quiet_hours_to: '06:45',
+    });
   });
 
   it('returns persistence_failed (logged) when the upsert throws', async () => {

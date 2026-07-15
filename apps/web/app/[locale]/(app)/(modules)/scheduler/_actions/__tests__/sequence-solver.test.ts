@@ -370,6 +370,52 @@ describe('sequenceWorkOrders', () => {
     expect(withDefault[1].planned_start_at).toBe('2026-06-24T14:00:00.000Z');
   });
 
+  it('moves a WO at 00:44 into its line 06:00–14:00 shift window', () => {
+    const nowMs = Date.parse('2026-06-24T00:44:00.000Z');
+    const result = seq(
+      [wo({
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        due: '2026-06-24T12:00:00.000Z',
+        allergens: ['milk'],
+        routingDurationMs: 60 * 60 * 1000,
+      })],
+      [],
+      {
+        ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+        nowMs,
+        shiftCalendarLineIds: [LINE_ID],
+        shiftWindows: [{
+          line_id: LINE_ID,
+          start_at: '2026-06-24T06:00:00.000Z',
+          end_at: '2026-06-24T14:00:00.000Z',
+        }],
+      },
+    );
+
+    expect(result[0].planned_start_at).toBe('2026-06-24T06:00:00.000Z');
+  });
+
+  it('keeps always-available behavior when a line has no shift assignment', () => {
+    const nowMs = Date.parse('2026-06-24T00:44:00.000Z');
+    const result = seq(
+      [wo({
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        due: '2026-06-24T12:00:00.000Z',
+        allergens: ['milk'],
+        routingDurationMs: 60 * 60 * 1000,
+      })],
+      [],
+      {
+        ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+        nowMs,
+        shiftCalendarLineIds: [],
+        shiftWindows: [],
+      },
+    );
+
+    expect(result[0].planned_start_at).toBe('2026-06-24T00:44:00.000Z');
+  });
+
   it('avoids PM windows when respectPmWindows is enabled', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));

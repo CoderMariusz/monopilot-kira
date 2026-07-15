@@ -33,13 +33,15 @@ for (const envLocalPath of [
   }
 }
 
-// withSerwist wraps next config to compile sw.ts → /sw.js via webpack.
-// Disabled in development to prevent stale precache from breaking Next.js HMR
-// (T-041 risk red line).
+// PWA / service worker (Wave F P1-18 MINIMAL):
+// `@serwist/next` is a webpack plugin; production builds use Turbopack and never
+// emit its compiled worker. The live SW is the hand-written static asset at
+// `public/sw.js` (read-only cache; no offline write-queue). Keep Serwist disabled
+// so a webpack fallback build cannot overwrite that committed file.
 const withSerwist = withSerwistInit({
   swSrc: path.join(__dirname, 'app', 'sw.ts'),
   swDest: path.join(__dirname, 'public', 'sw.js'),
-  disable: process.env.NODE_ENV === 'development',
+  disable: true,
 });
 
 // withNextIntl wraps after app plugins so it can see the fully resolved config.
@@ -64,6 +66,25 @@ const nextConfig = {
       { source: '/:locale/fa/:path*', destination: '/:locale/fg/:path*', permanent: false },
       { source: '/fa', destination: '/fg', permanent: false },
       { source: '/fa/:path*', destination: '/fg/:path*', permanent: false },
+    ];
+  },
+  // Static `public/sw.js` is served with .js MIME by Next; force revalidate so
+  // scanners pick up SW strategy updates, and allow full-origin scope.
+  async headers() {
+    return [
+      {
+        source: '/sw.js',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=0, must-revalidate',
+          },
+          {
+            key: 'Service-Worker-Allowed',
+            value: '/',
+          },
+        ],
+      },
     ];
   },
 };

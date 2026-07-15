@@ -8,7 +8,7 @@ import Input from '@monopilot/ui/Input';
 import Textarea from '@monopilot/ui/Textarea';
 
 import type { SoDetail, SoDetailLabels } from './so-detail-view';
-import { computeSoLineTotalGbp, formatSoGbpDisplay } from '../_actions/sales-line-price';
+import { computeSoLineTotal, formatSoCurrencyDisplay } from '../_actions/sales-line-price';
 
 export type EditSoResult = { ok: true; data: unknown } | { ok: false; error: string; message?: string };
 
@@ -22,7 +22,15 @@ export type EditSoModalProps = {
     input: {
       requiredDate?: string | null;
       notes?: string | null;
-      lines?: Array<{ id: string; qty?: string; notes?: string | null; unit_price_gbp?: string }>;
+      lines?: Array<{
+        id: string;
+        qty?: string;
+        notes?: string | null;
+        unit_price_gbp?: string;
+        discount_pct?: string;
+        tax_pct?: string;
+        currency?: string;
+      }>;
     },
   ) => Promise<EditSoResult>;
   onUpdated: () => void;
@@ -30,6 +38,8 @@ export type EditSoModalProps = {
 
 const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
 const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
+const PCT_PATTERN = /^\d+(?:\.\d{1,4})?$/;
+const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
 
 type EditLine = {
   id: string;
@@ -37,6 +47,9 @@ type EditLine = {
   qty: string;
   uom: string;
   unitPriceGbp: string;
+  discountPct: string;
+  taxPct: string;
+  currency: string;
   notes: string;
 };
 
@@ -57,6 +70,9 @@ export function EditSoModal({
       qty: line.qty,
       uom: line.uom,
       unitPriceGbp: line.unitPriceGbp,
+      discountPct: line.discountPct,
+      taxPct: line.taxPct,
+      currency: line.currency,
       notes: line.notes ?? '',
     })),
   );
@@ -74,6 +90,9 @@ export function EditSoModal({
         qty: line.qty,
         uom: line.uom,
         unitPriceGbp: line.unitPriceGbp,
+        discountPct: line.discountPct,
+        taxPct: line.taxPct,
+        currency: line.currency,
         notes: line.notes ?? '',
       })),
     );
@@ -98,6 +117,16 @@ export function EditSoModal({
         setFormError(labels.errors.priceInvalid);
         return;
       }
+      if (
+        !PCT_PATTERN.test(line.discountPct.trim()) ||
+        Number(line.discountPct) > 100 ||
+        !PCT_PATTERN.test(line.taxPct.trim()) ||
+        Number(line.taxPct) > 100 ||
+        !CURRENCY_PATTERN.test(line.currency.trim())
+      ) {
+        setFormError(labels.errors.termsInvalid ?? labels.errors.linesInvalid);
+        return;
+      }
     }
 
     setPending(true);
@@ -110,6 +139,9 @@ export function EditSoModal({
           qty: line.qty.trim(),
           notes: line.notes.trim() || null,
           unit_price_gbp: line.unitPriceGbp.trim(),
+          discount_pct: line.discountPct.trim(),
+          tax_pct: line.taxPct.trim(),
+          currency: line.currency.trim().toUpperCase(),
         })),
       });
       if (!result.ok) {
@@ -150,6 +182,9 @@ export function EditSoModal({
                   <th className="px-3 py-2 text-right">{labels.lineQty}</th>
                   <th className="px-3 py-2">{labels.lineUom}</th>
                   <th className="px-3 py-2 text-right">{labels.lineUnitPrice}</th>
+                  <th className="px-3 py-2 text-right">{labels.lineDiscount}</th>
+                  <th className="px-3 py-2 text-right">{labels.lineTax}</th>
+                  <th className="px-3 py-2">{labels.lineCurrency}</th>
                   <th className="px-3 py-2 text-right">{labels.lineTotal}</th>
                   <th className="px-3 py-2">{labels.lineNotes}</th>
                 </tr>
@@ -157,8 +192,20 @@ export function EditSoModal({
               <tbody>
                 {lines.map((line) => {
                   const lineTotal =
-                    QTY_PATTERN.test(line.qty) && PRICE_PATTERN.test(line.unitPriceGbp)
-                      ? formatSoGbpDisplay(computeSoLineTotalGbp(line.qty.trim(), line.unitPriceGbp.trim()))
+                    QTY_PATTERN.test(line.qty) &&
+                    PRICE_PATTERN.test(line.unitPriceGbp) &&
+                    PCT_PATTERN.test(line.discountPct) &&
+                    PCT_PATTERN.test(line.taxPct) &&
+                    CURRENCY_PATTERN.test(line.currency)
+                      ? formatSoCurrencyDisplay(
+                          computeSoLineTotal(
+                            line.qty.trim(),
+                            line.unitPriceGbp.trim(),
+                            line.discountPct.trim(),
+                            line.taxPct.trim(),
+                          ),
+                          line.currency,
+                        )
                       : '—';
                   return (
                     <tr key={line.id} data-testid={`edit-so-line-${line.id}`} className="border-b border-slate-100 last:border-0 align-top">
@@ -182,6 +229,36 @@ export function EditSoModal({
                           data-testid={`edit-so-line-price-${line.id}`}
                           onChange={(e) => updateLine(line.id, { unitPriceGbp: e.target.value })}
                           className="w-28 text-right"
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={line.discountPct}
+                          data-testid={`edit-so-line-discount-${line.id}`}
+                          onChange={(e) => updateLine(line.id, { discountPct: e.target.value })}
+                          className="w-20 text-right"
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={line.taxPct}
+                          data-testid={`edit-so-line-tax-${line.id}`}
+                          onChange={(e) => updateLine(line.id, { taxPct: e.target.value })}
+                          className="w-20 text-right"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="text"
+                          maxLength={3}
+                          value={line.currency}
+                          data-testid={`edit-so-line-currency-${line.id}`}
+                          onChange={(e) => updateLine(line.id, { currency: e.target.value.toUpperCase() })}
+                          className="w-20 font-mono uppercase"
                         />
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums" data-testid={`edit-so-line-total-${line.id}`}>

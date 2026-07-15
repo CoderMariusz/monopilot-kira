@@ -1,5 +1,6 @@
 'use server';
 
+import { Dec } from '@monopilot/domain';
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { listOrgUnits } from '../../planning/_actions/procurement-shared';
@@ -80,7 +81,15 @@ type CreateSalesOrderInput = {
   customer_id: string;
   requested_date?: string;
   notes?: string;
-  lines: { item_id: string; qty: string; uom: string; unit_price_gbp?: string }[];
+  lines: Array<{
+    item_id: string;
+    qty: string;
+    uom: string;
+    unit_price_gbp?: string;
+    discount_pct?: string;
+    tax_pct?: string;
+    currency?: string;
+  }>;
 };
 
 type UpdateSalesOrderInput = {
@@ -91,10 +100,22 @@ type UpdateSalesOrderInput = {
     qty?: string;
     notes?: string | null;
     unit_price_gbp?: string;
+    discount_pct?: string;
+    tax_pct?: string;
+    currency?: string;
   }>;
 };
 
 const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
+const PCT_PATTERN = /^\d+(?:\.\d{1,4})?$/;
+const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
+
+function normalizePct(value: string | undefined): string | null {
+  const text = value?.trim() || '0';
+  if (!PCT_PATTERN.test(text)) return null;
+  const pct = Dec.from(text);
+  return pct.cmp(Dec.zero()) >= 0 && pct.cmp(Dec.from('100')) <= 0 ? pct.toFixed(4) : null;
+}
 
 const SHIP_SO_READ = 'ship.dashboard.view';
 const SHIP_SO_CREATE = 'ship.so.create';
@@ -266,6 +287,9 @@ function mapLineRow(row: {
   allocated_qty_display: string;
   unit_price_gbp: string;
   line_total_gbp: string;
+  discount_pct: string;
+  tax_pct: string;
+  currency: string;
   notes: string | null;
 }): SalesOrderLine {
   const inventoryUom = row.inventory_uom ?? '';
@@ -284,6 +308,9 @@ function mapLineRow(row: {
     allocation_status: lineAllocationStatus(row.inventory_qty, row.quantity_allocated),
     unit_price_gbp: row.unit_price_gbp,
     line_total_gbp: row.line_total_gbp,
+    discount_pct: row.discount_pct,
+    tax_pct: row.tax_pct,
+    currency: row.currency,
     notes: row.notes,
   };
 }
@@ -336,6 +363,9 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
     allocated_qty_display: string;
     unit_price_gbp: string;
     line_total_gbp: string;
+    discount_pct: string;
+    tax_pct: string;
+    currency: string;
     notes: string | null;
   }>(
     `select sol.id::text,
@@ -350,10 +380,19 @@ async function fetchSalesOrder(ctx: ShippingContext, id: string): Promise<SalesO
             sol.quantity_allocated::text as quantity_allocated,
             ${SALES_ORDER_LINE_ALLOCATED_TO_ORDER_SQL} as allocated_qty_display,
             sol.unit_price_gbp::text as unit_price_gbp,
-            coalesce(sol.line_total_gbp, sol.quantity_ordered * sol.unit_price_gbp)::text as line_total_gbp,
+            coalesce(sol.discount_pct, 0)::text as discount_pct,
+            coalesce(sol.tax_pct, 0)::text as tax_pct,
+            coalesce(nullif(upper(trim(sol.currency)), ''), o.currency, 'GBP') as currency,
+            coalesce(
+              sol.line_total_gbp,
+              sol.quantity_ordered * sol.unit_price_gbp
+                * (1 - coalesce(sol.discount_pct, 0) / 100)
+                * (1 + coalesce(sol.tax_pct, 0) / 100)
+            )::text as line_total_gbp,
             sol.notes
        from public.sales_order_lines sol
        left join public.items i on i.id = sol.product_id and i.org_id = app.current_org_id()
+       left join public.organizations o on o.id = sol.org_id
       where sol.org_id = app.current_org_id()
         and sol.sales_order_id = $1::uuid
         and sol.deleted_at is null
@@ -510,7 +549,12 @@ export async function listSalesOrders(params: {
                 coalesce(
                   so.total_amount_gbp,
                   (
-                    select sum(coalesce(sol.line_total_gbp, sol.quantity_ordered * sol.unit_price_gbp))
+                    select sum(coalesce(
+                      sol.line_total_gbp,
+                      sol.quantity_ordered * sol.unit_price_gbp
+                        * (1 - coalesce(sol.discount_pct, 0) / 100)
+                        * (1 + coalesce(sol.tax_pct, 0) / 100)
+                    ))
                       from public.sales_order_lines sol
                      where sol.org_id = app.current_org_id()
                        and sol.sales_order_id = so.id
@@ -627,6 +671,9 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       inventory_qty: string;
       uom: string;
       unitPriceGbp: string;
+      discountPct: string;
+      taxPct: string;
+      currency: string | null;
     }> = [];
     for (const line of input.lines) {
       const item = itemsById.get(line.item_id);
@@ -646,6 +693,15 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       }
 
       const submittedPrice = line.unit_price_gbp?.trim();
+      const discountPct = normalizePct(line.discount_pct);
+      const taxPct = normalizePct(line.tax_pct);
+      const currency = line.currency?.trim().toUpperCase() || null;
+      if (discountPct == null || taxPct == null) {
+        return { ok: false, error: 'invalid_input', message: 'Discount and tax must be between 0 and 100' };
+      }
+      if (currency != null && !CURRENCY_PATTERN.test(currency)) {
+        return { ok: false, error: 'invalid_input', message: 'Currency must be a 3-letter ISO code' };
+      }
       let unitPriceGbp: string;
       if (submittedPrice != null && submittedPrice.length > 0) {
         if (!PRICE_PATTERN.test(submittedPrice) || Number(submittedPrice) <= 0) {
@@ -670,6 +726,9 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
         inventory_qty: inventoryQty,
         uom: line.uom,
         unitPriceGbp,
+        discountPct,
+        taxPct,
+        currency,
       });
     }
 
@@ -694,10 +753,13 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       await ctx.client.query(
         `insert into public.sales_order_lines
           (org_id, sales_order_id, line_number, product_id, quantity_ordered, quantity_allocated,
-           unit_price_gbp, line_total_gbp, ext_data, created_by, updated_by)
+           unit_price_gbp, line_total_gbp, discount_pct, tax_pct, currency,
+           ext_data, created_by, updated_by)
          values ($1::uuid, $2::uuid, $3::integer, $4::uuid, $5::numeric, 0,
-                 $6::numeric, ($7::numeric * $6::numeric),
-                 jsonb_build_object('order_uom', $8::text, 'order_qty', $7::text), $9::uuid, $9::uuid)`,
+                 $6::numeric,
+                 ($7::numeric * $6::numeric * (1 - $8::numeric / 100) * (1 + $9::numeric / 100)),
+                 $8::numeric, $9::numeric, $10::text,
+                 jsonb_build_object('order_uom', $11::text, 'order_qty', $7::text), $12::uuid, $12::uuid)`,
         [
           orgId,
           soId,
@@ -706,6 +768,9 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
           line.inventory_qty,
           line.unitPriceGbp,
           line.order_qty,
+          line.discountPct,
+          line.taxPct,
+          line.currency,
           line.uom,
           userId,
         ],
@@ -749,6 +814,9 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
       orderQty: string;
       orderUom: string;
       unitPriceGbp: string;
+      discountPct: string;
+      taxPct: string;
+      currency: string;
       notes?: string | null;
     };
 
@@ -801,15 +869,25 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
           throw err;
         }
 
-        const { rows: priceRows } = await ctx.client.query<{ unit_price_gbp: string }>(
-          `select unit_price_gbp::text
-             from public.sales_order_lines
-            where org_id = app.current_org_id()
-              and id = $1::uuid
+        const { rows: priceRows } = await ctx.client.query<{
+          unit_price_gbp: string;
+          discount_pct: string;
+          tax_pct: string;
+          currency: string;
+        }>(
+          `select sol.unit_price_gbp::text,
+                  coalesce(sol.discount_pct, 0)::text as discount_pct,
+                  coalesce(sol.tax_pct, 0)::text as tax_pct,
+                  coalesce(nullif(upper(trim(sol.currency)), ''), o.currency, 'GBP') as currency
+             from public.sales_order_lines sol
+             left join public.organizations o on o.id = sol.org_id
+            where sol.org_id = app.current_org_id()
+              and sol.id = $1::uuid
             limit 1`,
           [patch.id],
         );
-        const currentPrice = priceRows[0]?.unit_price_gbp ?? '0';
+        const currentTerms = priceRows[0];
+        const currentPrice = currentTerms?.unit_price_gbp ?? '0';
         const submittedPrice = patch.unit_price_gbp?.trim();
         let unitPriceGbp: string;
         if (submittedPrice && submittedPrice.length > 0) {
@@ -825,12 +903,25 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
           unitPriceGbp = normalized;
         }
 
+        const discountPct = normalizePct(patch.discount_pct ?? currentTerms?.discount_pct);
+        const taxPct = normalizePct(patch.tax_pct ?? currentTerms?.tax_pct);
+        const currency = (patch.currency ?? currentTerms?.currency ?? 'GBP').trim().toUpperCase();
+        if (discountPct == null || taxPct == null) {
+          return { ok: false, error: 'invalid_input', message: 'Discount and tax must be between 0 and 100' };
+        }
+        if (!CURRENCY_PATTERN.test(currency)) {
+          return { ok: false, error: 'invalid_input', message: 'Currency must be a 3-letter ISO code' };
+        }
+
         resolvedLineUpdates.push({
           id: patch.id,
           inventoryQty,
           orderQty,
           orderUom,
           unitPriceGbp,
+          discountPct,
+          taxPct,
+          currency,
           ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
         });
       }
@@ -879,23 +970,29 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
             `update public.sales_order_lines
                 set quantity_ordered = $2::numeric,
                     unit_price_gbp = $3::numeric,
-                    line_total_gbp = ($4::numeric * $3::numeric),
-                    notes = $5::text,
+                    discount_pct = $4::numeric,
+                    tax_pct = $5::numeric,
+                    currency = $6::text,
+                    line_total_gbp = ($7::numeric * $3::numeric * (1 - $4::numeric / 100) * (1 + $5::numeric / 100)),
+                    notes = $8::text,
                     ext_data = jsonb_set(
-                      jsonb_set(coalesce(ext_data, '{}'::jsonb), '{order_qty}', to_jsonb($4::text), true),
+                      jsonb_set(coalesce(ext_data, '{}'::jsonb), '{order_qty}', to_jsonb($7::text), true),
                       '{order_uom}',
-                      to_jsonb($6::text),
+                      to_jsonb($9::text),
                       true
                     ),
-                    updated_by = $7::uuid
+                    updated_by = $10::uuid
               where org_id = app.current_org_id()
                 and id = $1::uuid
-                and sales_order_id = $8::uuid
+                and sales_order_id = $11::uuid
                 and deleted_at is null`,
             [
               line.id,
               line.inventoryQty,
               line.unitPriceGbp,
+              line.discountPct,
+              line.taxPct,
+              line.currency,
               line.orderQty,
               line.notes,
               line.orderUom,
@@ -908,19 +1005,33 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
             `update public.sales_order_lines
                 set quantity_ordered = $2::numeric,
                     unit_price_gbp = $3::numeric,
-                    line_total_gbp = ($4::numeric * $3::numeric),
+                    discount_pct = $4::numeric,
+                    tax_pct = $5::numeric,
+                    currency = $6::text,
+                    line_total_gbp = ($7::numeric * $3::numeric * (1 - $4::numeric / 100) * (1 + $5::numeric / 100)),
                     ext_data = jsonb_set(
-                      jsonb_set(coalesce(ext_data, '{}'::jsonb), '{order_qty}', to_jsonb($4::text), true),
+                      jsonb_set(coalesce(ext_data, '{}'::jsonb), '{order_qty}', to_jsonb($7::text), true),
                       '{order_uom}',
-                      to_jsonb($5::text),
+                      to_jsonb($8::text),
                       true
                     ),
-                    updated_by = $6::uuid
+                    updated_by = $9::uuid
               where org_id = app.current_org_id()
                 and id = $1::uuid
-                and sales_order_id = $7::uuid
+                and sales_order_id = $10::uuid
                 and deleted_at is null`,
-            [line.id, line.inventoryQty, line.unitPriceGbp, line.orderQty, line.orderUom, userId, id],
+            [
+              line.id,
+              line.inventoryQty,
+              line.unitPriceGbp,
+              line.discountPct,
+              line.taxPct,
+              line.currency,
+              line.orderQty,
+              line.orderUom,
+              userId,
+              id,
+            ],
           );
         }
       }
@@ -928,7 +1039,12 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
       await ctx.client.query(
         `update public.sales_orders so
             set total_amount_gbp = (
-                  select coalesce(sum(coalesce(sol.line_total_gbp, sol.quantity_ordered * sol.unit_price_gbp)), 0)
+                  select coalesce(sum(coalesce(
+                    sol.line_total_gbp,
+                    sol.quantity_ordered * sol.unit_price_gbp
+                      * (1 - coalesce(sol.discount_pct, 0) / 100)
+                      * (1 + coalesce(sol.tax_pct, 0) / 100)
+                  )), 0)
                     from public.sales_order_lines sol
                    where sol.org_id = app.current_org_id()
                      and sol.sales_order_id = so.id

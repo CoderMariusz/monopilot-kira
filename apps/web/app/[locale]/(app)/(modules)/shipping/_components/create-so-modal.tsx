@@ -40,7 +40,11 @@ import { Select } from '@monopilot/ui/Select';
 import { ItemPicker } from '../../../(npd)/_components/item-picker';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../(npd)/fa/actions/search-items-types';
 import type { SoCustomerOption } from '../_actions/so-form-data';
-import { computeSoLineTotalGbp, formatSoGbpDisplay } from '../_actions/sales-line-price';
+import {
+  computeSoLineTotal,
+  formatSoCurrencyDisplay,
+  normalizeSoUnitPriceGbp,
+} from '../_actions/sales-line-price';
 import { UomSelect, type UomOptionLabels } from '../../../../../../components/forms/uom-select';
 
 export type CreateSoLabels = {
@@ -62,6 +66,9 @@ export type CreateSoLabels = {
   lineQty: string;
   lineUom: string;
   lineUnitPrice: string;
+  lineDiscount: string;
+  lineTax: string;
+  lineCurrency: string;
   lineTotal: string;
   foreignPriceHint: string;
   uomPlaceholder: string;
@@ -98,6 +105,9 @@ type CreateSoLine = {
   qty: string;
   uom: string;
   unitPriceGbp: string;
+  discountPct: string;
+  taxPct: string;
+  currency: string;
   foreignPriceHint: string | null;
 };
 
@@ -121,7 +131,15 @@ export type CreateSoModalProps = {
     customer_id: string;
     requested_date?: string;
     notes?: string;
-    lines: Array<{ item_id: string; qty: string; uom: string; unit_price_gbp?: string }>;
+    lines: Array<{
+      item_id: string;
+      qty: string;
+      uom: string;
+      unit_price_gbp?: string;
+      discount_pct?: string;
+      tax_pct?: string;
+      currency?: string;
+    }>;
   }) => Promise<CreateSoResult>;
   resolveSoLinePricesAction: (input: {
     customer_id: string;
@@ -133,9 +151,21 @@ export type CreateSoModalProps = {
 
 const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
 const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
+const PCT_PATTERN = /^\d+(?:\.\d{1,4})?$/;
+const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
 
 function makeLine(): CreateSoLine {
-  return { key: Math.random().toString(36).slice(2), item: null, qty: '', uom: '', unitPriceGbp: '', foreignPriceHint: null };
+  return {
+    key: Math.random().toString(36).slice(2),
+    item: null,
+    qty: '',
+    uom: '',
+    unitPriceGbp: '',
+    discountPct: '0',
+    taxPct: '0',
+    currency: 'GBP',
+    foreignPriceHint: null,
+  };
 }
 
 export function CreateSoModal({
@@ -229,7 +259,9 @@ export function CreateSoModal({
         const foreignPrice = quote.foreignCustomerPrice;
         return {
           ...line,
-          unitPriceGbp: quote.unitPriceGbp,
+          unitPriceGbp:
+            normalizeSoUnitPriceGbp(foreignPrice?.unit_price ?? quote.unitPriceGbp) ?? quote.unitPriceGbp,
+          currency: foreignPrice?.currency ?? 'GBP',
           foreignPriceHint:
             foreignPrice != null
               ? labels.foreignPriceHint
@@ -272,7 +304,14 @@ export function CreateSoModal({
         Number(l.qty) > 0 &&
         l.uom.trim().length > 0 &&
         PRICE_PATTERN.test(l.unitPriceGbp.trim()) &&
-        Number(l.unitPriceGbp) > 0,
+        Number(l.unitPriceGbp) > 0 &&
+        PCT_PATTERN.test(l.discountPct.trim()) &&
+        Number(l.discountPct) >= 0 &&
+        Number(l.discountPct) <= 100 &&
+        PCT_PATTERN.test(l.taxPct.trim()) &&
+        Number(l.taxPct) >= 0 &&
+        Number(l.taxPct) <= 100 &&
+        CURRENCY_PATTERN.test(l.currency.trim()),
     );
     if (validLines.length === 0 || validLines.length !== lines.length) {
       setFormError(labels.errors.linesRequired);
@@ -290,6 +329,9 @@ export function CreateSoModal({
           qty: l.qty.trim(),
           uom: l.uom.trim(),
           unit_price_gbp: l.unitPriceGbp.trim(),
+          discount_pct: l.discountPct.trim(),
+          tax_pct: l.taxPct.trim(),
+          currency: l.currency.trim().toUpperCase(),
         })),
       });
 
@@ -400,6 +442,9 @@ export function CreateSoModal({
                     <th className="px-3 py-2 text-right">{labels.lineQty}</th>
                     <th className="px-3 py-2">{labels.lineUom}</th>
                     <th className="px-3 py-2 text-right">{labels.lineUnitPrice}</th>
+                    <th className="px-3 py-2 text-right">{labels.lineDiscount}</th>
+                    <th className="px-3 py-2 text-right">{labels.lineTax}</th>
+                    <th className="px-3 py-2">{labels.lineCurrency}</th>
                     <th className="px-3 py-2 text-right">{labels.lineTotal}</th>
                     <th className="px-3 py-2" />
                   </tr>
@@ -473,9 +518,51 @@ export function CreateSoModal({
                           </div>
                         ) : null}
                       </td>
+                      <td className="px-3 py-2 text-right">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={line.discountPct}
+                          data-testid="create-so-line-discount"
+                          onChange={(e) => updateLine(line.key, { discountPct: e.target.value })}
+                          className="w-20 text-right"
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={line.taxPct}
+                          data-testid="create-so-line-tax"
+                          onChange={(e) => updateLine(line.key, { taxPct: e.target.value })}
+                          className="w-20 text-right"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="text"
+                          value={line.currency}
+                          maxLength={3}
+                          data-testid="create-so-line-currency"
+                          onChange={(e) => updateLine(line.key, { currency: e.target.value.toUpperCase() })}
+                          className="w-20 font-mono uppercase"
+                        />
+                      </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums" data-testid="create-so-line-total">
-                        {QTY_PATTERN.test(line.qty) && PRICE_PATTERN.test(line.unitPriceGbp)
-                          ? formatSoGbpDisplay(computeSoLineTotalGbp(line.qty.trim(), line.unitPriceGbp.trim()))
+                        {QTY_PATTERN.test(line.qty) &&
+                        PRICE_PATTERN.test(line.unitPriceGbp) &&
+                        PCT_PATTERN.test(line.discountPct) &&
+                        PCT_PATTERN.test(line.taxPct) &&
+                        CURRENCY_PATTERN.test(line.currency)
+                          ? formatSoCurrencyDisplay(
+                              computeSoLineTotal(
+                                line.qty.trim(),
+                                line.unitPriceGbp.trim(),
+                                line.discountPct.trim(),
+                                line.taxPct.trim(),
+                              ),
+                              line.currency,
+                            )
                           : '—'}
                       </td>
                       <td className="px-3 py-2 text-right">

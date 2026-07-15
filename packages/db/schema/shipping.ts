@@ -332,6 +332,9 @@ export const salesOrderLines = pgTable(
       .default('0'),
     unitPriceGbp: numeric('unit_price_gbp', { precision: 14, scale: 4 }).notNull(),
     lineTotalGbp: numeric('line_total_gbp', { precision: 14, scale: 4 }),
+    discountPct: numeric('discount_pct', { precision: 7, scale: 4 }).default('0'),
+    taxPct: numeric('tax_pct', { precision: 7, scale: 4 }).default('0'),
+    currency: text('currency'),
     requestedLot: text('requested_lot'),
     notes: text('notes'),
     extData: jsonb('ext_data').notNull().default('{}'),
@@ -349,6 +352,14 @@ export const salesOrderLines = pgTable(
     productIdx: index('sales_order_lines_product_idx').on(t.orgId, t.productId),
     qtyCheck: check('sales_order_lines_qty_check', sql`${t.quantityOrdered} > 0`),
     priceCheck: check('sales_order_lines_price_check', sql`${t.unitPriceGbp} > 0`),
+    discountCheck: check(
+      'sales_order_lines_discount_pct_check',
+      sql`${t.discountPct} is null or ${t.discountPct} between 0 and 100`,
+    ),
+    taxCheck: check(
+      'sales_order_lines_tax_pct_check',
+      sql`${t.taxPct} is null or ${t.taxPct} between 0 and 100`,
+    ),
   }),
 );
 export type SalesOrderLine = InferSelectModel<typeof salesOrderLines>;

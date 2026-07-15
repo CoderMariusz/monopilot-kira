@@ -92,10 +92,7 @@ export type ShiftsSettingsData = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UuidInput = z.string().trim().regex(UUID_RE);
 const OptionalUuidInput = z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish());
-const OptionalLineIdInput = z.preprocess(
-  (value) => (value === '' ? null : value),
-  z.string().trim().min(1).max(128).nullish(),
-);
+const OptionalLineIdInput = OptionalUuidInput;
 const TimeInput = z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/);
 const DaysInput = z
   .array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']))
@@ -182,7 +179,7 @@ async function queryShiftPatterns(context: OrgContextLike, orgId: string): Promi
             coalesce(sp.days_active, sc.active_days) as days_of_week,
             sp.site_id::text as site_id,
             s.name as site_name,
-            sp.line_id,
+            coalesce(sp.production_line_id::text, sp.line_id) as line_id,
             concat_ws(' - ', pl.code, pl.name) as line_label,
             sp.org_id::text as org_id
        from public.shift_patterns sp
@@ -194,7 +191,10 @@ async function queryShiftPatterns(context: OrgContextLike, orgId: string): Promi
         and s.org_id = sp.org_id
        left join public.production_lines pl
          on pl.org_id = sp.org_id
-        and (pl.id::text = sp.line_id or pl.code = sp.line_id)
+        and (
+          pl.id = sp.production_line_id
+          or (sp.production_line_id is null and (pl.id::text = sp.line_id or pl.code = sp.line_id))
+        )
       where sp.org_id = $1::uuid
         and sp.is_active = true
         and sc.is_active = true
@@ -323,8 +323,8 @@ export async function createShiftPattern(rawInput: unknown): Promise<ShiftPatter
 
       const { rows } = await context.client.query<ShiftPatternDbRow>(
         `insert into public.shift_patterns
-           (org_id, site_id, line_id, shift_id, start_time, end_time, days_active, is_active, created_by, updated_by)
-         values ($1::uuid, $2::uuid, $3, $4, $5::time, $6::time, $7::text[], true, $8::uuid, $8::uuid)
+           (org_id, site_id, line_id, production_line_id, shift_id, start_time, end_time, days_active, is_active, created_by, updated_by)
+         values ($1::uuid, $2::uuid, $3::text, $3::uuid, $4, $5::time, $6::time, $7::text[], true, $8::uuid, $8::uuid)
          returning id,
                    $9::text as name,
                    start_time::text,
@@ -332,7 +332,7 @@ export async function createShiftPattern(rawInput: unknown): Promise<ShiftPatter
                    days_active as days_of_week,
                    site_id::text as site_id,
                    null::text as site_name,
-                   line_id,
+                   production_line_id::text as line_id,
                    null::text as line_label,
                    org_id::text as org_id`,
         [
@@ -404,7 +404,8 @@ export async function updateShiftPattern(rawInput: unknown): Promise<ShiftPatter
       const { rows } = await context.client.query<ShiftPatternDbRow>(
         `update public.shift_patterns
             set site_id = $3::uuid,
-                line_id = $4,
+                line_id = $4::text,
+                production_line_id = $4::uuid,
                 start_time = $5::time,
                 end_time = $6::time,
                 days_active = $7::text[],
@@ -419,7 +420,7 @@ export async function updateShiftPattern(rawInput: unknown): Promise<ShiftPatter
                     days_active as days_of_week,
                     site_id::text as site_id,
                     null::text as site_name,
-                    line_id,
+                    production_line_id::text as line_id,
                     null::text as line_label,
                     org_id::text as org_id`,
         [
