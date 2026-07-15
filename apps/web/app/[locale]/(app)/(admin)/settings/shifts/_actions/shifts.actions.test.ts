@@ -89,7 +89,10 @@ describe('updateShiftPattern', () => {
     if (result.ok) expect(result.data.id).toBe(VALID_ID);
     expect(calls.some((s) => /update public\.shift_configs/i.test(s))).toBe(true);
     expect(calls.some((s) => /update public\.shift_patterns/i.test(s))).toBe(true);
-    expect(calls.some((s) => /production_line_id\s*=\s*\$4::uuid/i.test(s))).toBe(true);
+    // production_line_id is resolved from the line input (uuid or code) via a
+    // production_lines lookup, not cast directly ($4::uuid crashed on legacy line codes).
+    expect(calls.some((s) => /production_line_id\s*=\s*\(select pl\.id[\s\S]*from public\.production_lines/i.test(s))).toBe(true);
+    expect(calls.some((s) => /line_id\s*=\s*\$4::text/i.test(s))).toBe(true);
   });
 });
 

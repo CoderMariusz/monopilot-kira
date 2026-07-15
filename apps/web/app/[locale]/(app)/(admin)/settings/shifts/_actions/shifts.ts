@@ -92,7 +92,12 @@ export type ShiftsSettingsData = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UuidInput = z.string().trim().regex(UUID_RE);
 const OptionalUuidInput = z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish());
-const OptionalLineIdInput = OptionalUuidInput;
+// ponytail: line identifier accepts a legacy code OR a uuid; production_line_id is resolved
+// from it via a production_lines lookup at write time (see insert/update), else stays null.
+const OptionalLineIdInput = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+  z.string().trim().min(1).max(128).nullish(),
+);
 const TimeInput = z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/);
 const DaysInput = z
   .array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']))
@@ -324,7 +329,13 @@ export async function createShiftPattern(rawInput: unknown): Promise<ShiftPatter
       const { rows } = await context.client.query<ShiftPatternDbRow>(
         `insert into public.shift_patterns
            (org_id, site_id, line_id, production_line_id, shift_id, start_time, end_time, days_active, is_active, created_by, updated_by)
-         values ($1::uuid, $2::uuid, $3::text, $3::uuid, $4, $5::time, $6::time, $7::text[], true, $8::uuid, $8::uuid)
+         values ($1::uuid, $2::uuid, $3::text,
+                 (select pl.id from public.production_lines pl
+                   where pl.org_id = $1::uuid
+                     and $3::text is not null
+                     and (pl.id::text = $3::text or pl.code = $3::text)
+                   limit 1),
+                 $4, $5::time, $6::time, $7::text[], true, $8::uuid, $8::uuid)
          returning id,
                    $9::text as name,
                    start_time::text,
@@ -405,7 +416,11 @@ export async function updateShiftPattern(rawInput: unknown): Promise<ShiftPatter
         `update public.shift_patterns
             set site_id = $3::uuid,
                 line_id = $4::text,
-                production_line_id = $4::uuid,
+                production_line_id = (select pl.id from public.production_lines pl
+                                       where pl.org_id = $2::uuid
+                                         and $4::text is not null
+                                         and (pl.id::text = $4::text or pl.code = $4::text)
+                                       limit 1),
                 start_time = $5::time,
                 end_time = $6::time,
                 days_active = $7::text[],
