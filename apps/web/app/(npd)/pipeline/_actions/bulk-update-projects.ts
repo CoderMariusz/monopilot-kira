@@ -30,11 +30,14 @@ const setPrioritySchema = z.object({
 // Stage-native bulk move (2026-06-06 pivot): the user picks the next operational
 // stage; each selected project advances exactly one step into it (adjacency enforced
 // per-project by advanceProjectGate — non-adjacent projects land in `failed`).
+// `brief` is the gate-only G0→G1 target (stage stays brief, gate rises to G1).
 const moveGateSchema = z.object({
   projectIds: projectIdsSchema,
   targetStage: z.enum([
+    'brief',
     'recipe',
     'packaging',
+    'costing_nutrition',
     'trial',
     'sensory',
     'pilot',

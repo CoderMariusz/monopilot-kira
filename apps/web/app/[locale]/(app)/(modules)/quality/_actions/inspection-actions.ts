@@ -19,11 +19,11 @@ import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { getActiveSiteId, resolveWriteSiteId } from '../../../../../../lib/site/site-context';
 import {
   DEFAULT_INSPECTION_PAGE_SIZE,
-  emptyPaginatedResult,
   normalizePage,
   toPaginatedResult,
   type PaginatedResult,
 } from '../../../../../../lib/shared/pagination';
+import { qualityListSiteClause, qualityListSiteParams } from './list-site-scope';
 import { transitionWoOutputQaForContext } from '../../../../../../lib/production/output/transition-output-qa';
 import { createHoldForContext } from './hold-actions';
 import { resolveInspectionParameters } from '../../../../../../lib/quality/resolve-inspection-parameters';
@@ -539,17 +539,14 @@ export async function listInspections(input: {
     });
     return await withOrgContext(async (ctx): Promise<ActionResult<PaginatedResult<InspectionListRow>>> => {
       const s = await getActiveSiteId({ client: ctx.client });
-      if (!s) {
-        return {
-          ok: true,
-          data: emptyPaginatedResult(page),
-          noActiveSite: true,
-        } as ActionResult<PaginatedResult<InspectionListRow>> & { noActiveSite: true };
-      }
 
       if (!(await hasPermission(ctx, 'quality.inspection.execute'))) return { ok: false, reason: 'forbidden' };
 
-      const baseParams = [parsed.status ?? null, parsed.search ?? null, s] as const;
+      const filterParams = [parsed.status ?? null, parsed.search ?? null] as const;
+      const siteClause = qualityListSiteClause('qi', s, filterParams.length + 1);
+      const baseParams = qualityListSiteParams(filterParams, s);
+      const limitParam = `$${baseParams.length + 1}`;
+      const offsetParam = `$${baseParams.length + 2}`;
 
       const [countResult, dataResult] = await Promise.all([
         ctx.client.query<{ total: number }>(
@@ -561,7 +558,7 @@ export async function listInspections(input: {
              left join public.work_orders wo on wo.id = woo.wo_id and wo.org_id = qi.org_id
              left join public.items i on i.id = coalesce(qi.product_id, lp.product_id, woo.product_id) and i.org_id = qi.org_id
             where qi.org_id = app.current_org_id()
-              and (qi.site_id = $3::uuid or qi.site_id is null)
+              ${siteClause}
               and ($1::text is null or qi.status = $1)
               and (
                 $2::text is null
@@ -602,7 +599,7 @@ export async function listInspections(input: {
          left join public.items i on i.id = coalesce(qi.product_id, lp.product_id, woo.product_id) and i.org_id = qi.org_id
          left join public.users assigned on assigned.id = qi.assigned_to and assigned.org_id = qi.org_id
         where qi.org_id = app.current_org_id()
-          and (qi.site_id = $3::uuid or qi.site_id is null)
+          ${siteClause}
           and ($1::text is null or qi.status = $1)
           and (
             $2::text is null
@@ -613,7 +610,7 @@ export async function listInspections(input: {
             or i.item_code ilike '%' || $2 || '%'
           )
         order by qi.created_at desc, qi.id desc
-        limit $4::int offset $5::int`,
+        limit ${limitParam}::int offset ${offsetParam}::int`,
         [...baseParams, page.limit, page.offset],
         ),
       ]);

@@ -211,6 +211,25 @@ function makeClient(): QueryClient {
         if (params[1] === 'page2only') return { rows: [{ total: 1 }], rowCount: 1 };
         return { rows: [{ total: listTotal }], rowCount: 1 };
       }
+      if (q.includes('from public.quality_inspections qi') && q.includes('limit $3::int offset $4::int')) {
+        const offset = Number(params[3] ?? 0);
+        const index = offset + 1;
+        if (params[1] === 'page2only') {
+          return {
+            rows: [{ ...DETAIL_ROW, inspection_number: 'INSP-PAGE2-MATCH' }],
+            rowCount: 1,
+          };
+        }
+        if (index > listTotal) return { rows: [], rowCount: 0 };
+        return {
+          rows: [
+            {
+              ...DETAIL_ROW,
+              inspection_number: `INSP-${String(index).padStart(8, '0')}`,
+            },
+          ],
+        };
+      }
       if (q.includes('from public.quality_inspections qi') && q.includes('limit $4::int offset $5::int')) {
         const offset = Number(params[4] ?? 0);
         const index = offset + 1;
@@ -328,17 +347,20 @@ describe('listInspections — active site scope', () => {
     expect(countQuery?.[1]).toEqual([null, 'page2only', SITE_ID]);
   });
 
-  it('returns noActiveSite without running the main DB query when no site is active', async () => {
+  it('listInspections omits site filter when all-sites is active', async () => {
     vi.mocked(getActiveSiteId).mockResolvedValueOnce(null);
 
     const res = await listInspections();
 
-    expect(res).toEqual({
-      ok: true,
-      data: { items: [], total: 0, page: 1, limit: 50, offset: 0, hasMore: false },
-      noActiveSite: true,
-    });
-    expect(client.query).not.toHaveBeenCalled();
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error('expected ok');
+    expect(res.data.items[0]).toEqual(expect.objectContaining({ inspectionNumber: 'INSP-00000001' }));
+    const listQuery = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('from public.quality_inspections qi') && normalize(String(sql)).includes('limit $3::int'),
+    );
+    expect(listQuery).toBeTruthy();
+    expect(normalize(String(listQuery?.[0]))).not.toContain('qi.site_id =');
+    expect(listQuery?.[1]).toEqual([null, null, 50, 0]);
   });
 });
 

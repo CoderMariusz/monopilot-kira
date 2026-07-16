@@ -140,24 +140,20 @@ describe('settings/sites lifecycle', () => {
     expect(update?.sql).toContain('org_id = app.current_org_id()');
   });
 
-  it('blocks site deletion before writing when dependent rows exist', async () => {
+  it('cascades line removal and deletes the site when only production lines block deletion', async () => {
     const calls: string[] = [];
     mockOrgContext((sql) => {
       calls.push(sql);
-      if (/select exists/i.test(sql)) return { rows: [{ has_dependents: true }], rowCount: 1 };
+      if (/count\(\*\).*active_count/i.test(sql)) return { rows: [{ active_count: 0 }], rowCount: 1 };
+      if (/select exists/i.test(sql) && /blocked/i.test(sql)) return { rows: [{ blocked: false }], rowCount: 1 };
+      if (/delete from public\.sites/i.test(sql)) return { rows: [{ id: SITE_ID }], rowCount: 1 };
       return { rows: [], rowCount: 0 };
     });
 
     const result = await deleteSite({ id: SITE_ID });
 
-    expect(result).toEqual({
-      ok: false,
-      error: 'has_dependents',
-      message: 'This site still has dependent records and cannot be deleted.',
-    });
-    const dependencyQuery = calls.find((sql) => /select exists/i.test(sql));
-    expect(dependencyQuery).toContain('public.production_lines');
-    expect(dependencyQuery).toContain('public.warehouses');
-    expect(calls.some((sql) => /delete from public\.sites/i.test(sql))).toBe(false);
+    expect(result).toEqual({ ok: true, data: { id: SITE_ID } });
+    expect(calls.some((sql) => /delete from public\.production_lines/i.test(sql))).toBe(true);
+    expect(calls.some((sql) => /delete from public\.sites/i.test(sql))).toBe(true);
   });
 });

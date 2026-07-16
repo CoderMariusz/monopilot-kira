@@ -1172,7 +1172,8 @@
         "saving": "Saving…",
         "errorRequired": "This field is required.",
         "errorDuplicate": "This code is already used in this site. Please choose another.",
-        "errorGeneric": "Something went wrong. Please try again."
+        "errorGeneric": "Something went wrong. Please try again.",
+        "errorWarehouseSiteMismatch": "Warehouse must belong to the same site as the line."
       }
     },
     "boms": {
@@ -7752,7 +7753,8 @@
           "invalid_state": "That action isn't allowed right now.",
           "persistence_failed": "Something went wrong saving. Please retry.",
           "no_active_site": "Select a site before creating a purchase order. This organisation has no active site yet — add one in Settings → Sites.",
-          "ambiguous_site": "Select a site in the top bar before creating a purchase order."
+          "ambiguous_site": "Select a site in the top bar before creating a purchase order.",
+          "warehouse_site_mismatch": "Destination warehouse must belong to the purchase order's site."
         },
         "picker": {
           "trigger": "+ Add item",
@@ -12509,7 +12511,13 @@
         "errorFailed": "Could not save the calibration record.",
         "errorForbidden": "You do not have permission to record calibrations.",
         "signaturePassword": "E-sign PIN or account password",
-        "errorEsign": "Signature failed — check your password or PIN and try again."
+        "errorEsign": "Signature failed — check your password or PIN and try again.",
+        "calibratorPassword": "Calibrator password",
+        "reviewerUserId": "Reviewer",
+        "reviewerUserIdPlaceholder": "Select an independent reviewer",
+        "reviewerPassword": "Reviewer password",
+        "dualSignWarning": "Calibration requires two distinct signers — a calibrator and an independent active reviewer.",
+        "errorSod": "The reviewer must be a different active user from the calibrator."
       },
       "types": {
         "scale": "Scale",

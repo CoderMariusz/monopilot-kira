@@ -27,6 +27,7 @@ import {
   type QueryClient,
   RoutingOperationInput,
   ROUTING_WRITE_PERMISSION,
+  validateOperationLineSiteScope,
   validateOperationSet,
   writeAudit,
 } from './shared';
@@ -88,6 +89,12 @@ export async function createRouting(rawInput: unknown): Promise<CreateRoutingRes
         };
       }
 
+      const siteCheck = await validateOperationLineSiteScope(
+        qc,
+        input.operations.map((op) => op.lineId),
+      );
+      if (!siteCheck.ok) return { ok: false, error: siteCheck.error, message: siteCheck.message };
+
       // Determine the next version when not supplied: max(version)+1 for the item.
       let version = input.version ?? null;
       if (version === null) {
@@ -102,14 +109,20 @@ export async function createRouting(rawInput: unknown): Promise<CreateRoutingRes
 
       // Insert the routing header (draft).
       const effFromExpr = input.effectiveFrom ? '$3::date' : 'current_date';
-      const headerParams: unknown[] = input.effectiveFrom
+      const baseParams: unknown[] = input.effectiveFrom
         ? [input.itemId, version, input.effectiveFrom, userId]
         : [input.itemId, version, userId];
+      const siteIdParamIndex = baseParams.length + 1;
+      const headerParams = siteCheck.canonicalSiteId
+        ? [...baseParams, siteCheck.canonicalSiteId]
+        : baseParams;
+      const siteIdExpr = siteCheck.canonicalSiteId ? `$${siteIdParamIndex}::uuid` : 'null';
+      const createdByParam = input.effectiveFrom ? '$4' : '$3';
       const { rows: hdr } = await qc.query<{ id: string; status: string }>(
         `insert into public.routings
-           (org_id, item_id, version, status, effective_from, created_by)
+           (org_id, item_id, version, status, effective_from, created_by, site_id)
          values
-           (app.current_org_id(), $1::uuid, $2::integer, 'draft', ${effFromExpr}, ${input.effectiveFrom ? '$4' : '$3'}::uuid)
+           (app.current_org_id(), $1::uuid, $2::integer, 'draft', ${effFromExpr}, ${createdByParam}::uuid, ${siteIdExpr})
          returning id, status`,
         headerParams,
       );

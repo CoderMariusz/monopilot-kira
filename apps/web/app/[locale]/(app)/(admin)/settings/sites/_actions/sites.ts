@@ -64,6 +64,7 @@ export type SiteMutationError =
   | 'forbidden'
   | 'not_found'
   | 'duplicate_code'
+  | 'warehouse_site_mismatch'
   | 'persistence_failed';
 
 export type SiteLifecycleError = SiteMutationError | 'has_dependents';
@@ -131,7 +132,7 @@ export type SitesSettingsData = {
 };
 
 export type LineFormSiteOption = { id: string; code: string; name: string; isDefault?: boolean };
-export type LineFormWarehouseOption = { id: string; name: string };
+export type LineFormWarehouseOption = { id: string; name: string; siteId: string | null };
 export type LineFormLocationOption = { id: string; code: string; name: string; warehouseId: string | null; path: string | null };
 
 export type LineFormOptions = {
@@ -238,6 +239,7 @@ const UpdateLineSchema = z
  */
 const PG_UNIQUE_VIOLATION = '23505';
 const PG_FOREIGN_KEY_VIOLATION = '23503';
+const ACTIVE_WORK_ORDER_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS', 'ON_HOLD'] as const;
 
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: string }).code === PG_UNIQUE_VIOLATION;
@@ -430,8 +432,8 @@ export async function getLineFormOptions(): Promise<LineFormOptions> {
             and is_active = true
           order by is_default desc, lower(name), lower(site_code)`,
       ),
-      context.client.query<{ id: string; name: string }>(
-        `select id::text, name
+      context.client.query<{ id: string; name: string; site_id: string | null }>(
+        `select id::text, name, site_id::text
            from public.warehouses
           where org_id = app.current_org_id()
           order by lower(name), id`,
@@ -446,7 +448,7 @@ export async function getLineFormOptions(): Promise<LineFormOptions> {
 
     return {
       sites: sitesResult.rows.map((row) => ({ id: row.id, code: row.site_code, name: row.name, isDefault: row.is_default })),
-      warehouses: warehousesResult.rows.map((row) => ({ id: row.id, name: row.name })),
+      warehouses: warehousesResult.rows.map((row) => ({ id: row.id, name: row.name, siteId: row.site_id })),
       locations: locationsResult.rows.map((row) => ({
         id: row.id,
         code: row.code,
@@ -644,35 +646,101 @@ export async function deleteSite(input: unknown): Promise<DeleteSiteResult> {
       const context = ctx as OrgContextLike;
       if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
 
-      // ponytail: preflight the two editable child types; the 23503 fallback covers
-      // every other restrictive FK. Extend this list only for a new cascading business FK.
-      const { rows: dependencyRows } = await context.client.query<{ has_dependents: boolean }>(
-        `select exists (
-           select 1 from public.production_lines pl
-            where pl.org_id = app.current_org_id() and pl.site_id = $1::uuid
-           union all
-           select 1 from public.warehouses w
-            where w.org_id = app.current_org_id() and w.site_id = $1::uuid
-         ) as has_dependents`,
-        [parsed.data.id],
+      const siteId = parsed.data.id;
+
+      // All dependency guards run before the first write — returning ok:false here is safe
+      // (withOrgContext commits only on a normal return after writes).
+      const { rows: activeWoRows } = await context.client.query<{ active_count: number | string | null }>(
+        `select count(*)::integer as active_count
+           from public.work_orders wo
+           join public.production_lines pl
+             on pl.id = wo.production_line_id
+            and pl.org_id = app.current_org_id()
+          where wo.org_id = app.current_org_id()
+            and pl.site_id = $1::uuid
+            and wo.status::text = any($2::text[])`,
+        [siteId, ACTIVE_WORK_ORDER_STATUSES],
       );
-      if (dependencyRows[0]?.has_dependents) {
+      if (numeric(activeWoRows[0]?.active_count ?? 0) > 0) {
         return {
           ok: false,
           error: 'has_dependents',
-          message: 'This site still has dependent records and cannot be deleted.',
+          message: 'This site has production lines with active work orders and cannot be deleted.',
         };
       }
+
+      const { rows: warehouseDependents } = await context.client.query<{ blocked: boolean }>(
+        `select exists (
+           select 1
+             from public.warehouses w
+            where w.org_id = app.current_org_id()
+              and w.site_id = $1::uuid
+              and (
+                exists (
+                  select 1 from public.license_plates lp
+                   where lp.org_id = app.current_org_id()
+                     and lp.warehouse_id = w.id
+                     and lp.quantity > 0::numeric
+                     and lp.status in ('received', 'available', 'reserved', 'allocated', 'blocked', 'returned', 'quarantine')
+                )
+                or exists (
+                  select 1 from public.license_plates lp
+                   where lp.org_id = app.current_org_id()
+                     and lp.warehouse_id = w.id
+                     and lp.reserved_qty > 0::numeric
+                )
+                or exists (
+                  select 1 from public.work_orders wo
+                   where wo.org_id = app.current_org_id()
+                     and wo.status::text = any($2::text[])
+                     and exists (
+                       select 1 from public.production_lines pl
+                        where pl.org_id = app.current_org_id()
+                          and pl.id = wo.production_line_id
+                          and pl.warehouse_id = w.id
+                     )
+                )
+                or exists (
+                  select 1 from public.locations l
+                   where l.org_id = app.current_org_id()
+                     and l.warehouse_id = w.id
+                )
+              )
+         ) as blocked`,
+        [siteId, ACTIVE_WORK_ORDER_STATUSES],
+      );
+      if (warehouseDependents[0]?.blocked) {
+        return {
+          ok: false,
+          error: 'has_dependents',
+          message: 'This site has warehouses with dependent records and cannot be deleted.',
+        };
+      }
+
+      // Cascade deletes — any failure after this point must throw so withOrgContext rolls back.
+      await context.client.query(
+        `delete from public.production_lines
+          where org_id = app.current_org_id()
+            and site_id = $1::uuid`,
+        [siteId],
+      );
+
+      await context.client.query(
+        `delete from public.warehouses
+          where org_id = app.current_org_id()
+            and site_id = $1::uuid`,
+        [siteId],
+      );
 
       const { rows } = await context.client.query<{ id: string }>(
         `delete from public.sites
           where org_id = app.current_org_id()
             and id = $1::uuid
         returning id::text`,
-        [parsed.data.id],
+        [siteId],
       );
       const row = rows[0];
-      if (!row) return { ok: false, error: 'not_found' };
+      if (!row) throw new Error('site_not_found_after_cascade');
       revalidateSitesRoute();
       return { ok: true, data: row };
     });
@@ -683,6 +751,9 @@ export async function deleteSite(input: unknown): Promise<DeleteSiteResult> {
         error: 'has_dependents',
         message: 'This site still has dependent records and cannot be deleted.',
       };
+    }
+    if (error instanceof Error && error.message === 'site_not_found_after_cascade') {
+      return { ok: false, error: 'not_found' };
     }
     console.error('[settings/sites] delete_site_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { ok: false, error: 'persistence_failed' };
@@ -712,6 +783,7 @@ export async function createLine(input: unknown): Promise<LineMutationResult> {
   }
 
   if (result.error === 'forbidden') return { ok: false, error: 'forbidden' };
+  if (result.error === 'warehouse_site_mismatch') return { ok: false, error: 'warehouse_site_mismatch' };
   if (result.error === 'invalid_input') return { ok: false, error: 'invalid_input' };
   return { ok: false, error: 'persistence_failed' };
 }

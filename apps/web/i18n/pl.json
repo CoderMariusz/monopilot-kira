@@ -1285,7 +1285,8 @@
         "errorRequired": "To pole jest wymagane.",
         "errorDuplicate": "Ten kod jest już używany w tym zakładzie. Wybierz inny.",
         "errorForbidden": "Nie masz uprawnień do aktualizacji ustawień zakładu.",
-        "errorGeneric": "Coś poszło nie tak. Spróbuj ponownie."
+        "errorGeneric": "Coś poszło nie tak. Spróbuj ponownie.",
+        "errorWarehouseSiteMismatch": "Warehouse must belong to the same site as the line."
       }
     },
     "boms": {
@@ -7833,7 +7834,8 @@
           "invalid_state": "Ta akcja jest teraz niedozwolona.",
           "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie.",
           "no_active_site": "Wybierz zakład przed utworzeniem zamówienia zakupu. Ta organizacja nie ma jeszcze aktywnego zakładu — dodaj go w Ustawienia → Zakłady.",
-          "ambiguous_site": "Wybierz zakład na górnym pasku przed utworzeniem zamówienia zakupu."
+          "ambiguous_site": "Wybierz zakład na górnym pasku przed utworzeniem zamówienia zakupu.",
+          "warehouse_site_mismatch": "Destination warehouse must belong to the purchase order's site."
         },
         "picker": {
           "trigger": "+ Dodaj pozycję",
@@ -12587,7 +12589,13 @@
         "errorFailed": "Nie udało się zapisać kalibracji.",
         "errorForbidden": "Brak uprawnień do zapisywania kalibracji.",
         "signaturePassword": "PIN e-podpisu lub hasło konta",
-        "errorEsign": "Podpis nie powiódł się — sprawdź hasło lub PIN i spróbuj ponownie."
+        "errorEsign": "Podpis nie powiódł się — sprawdź hasło lub PIN i spróbuj ponownie.",
+        "calibratorPassword": "Calibrator password",
+        "reviewerUserId": "Reviewer",
+        "reviewerUserIdPlaceholder": "Select an independent reviewer",
+        "reviewerPassword": "Reviewer password",
+        "dualSignWarning": "Calibration requires two distinct signers — a calibrator and an independent active reviewer.",
+        "errorSod": "The reviewer must be a different active user from the calibrator."
       },
       "types": {
         "scale": "Waga",

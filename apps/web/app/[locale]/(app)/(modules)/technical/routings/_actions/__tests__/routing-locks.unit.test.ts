@@ -33,7 +33,23 @@ function makeClient(status: string) {
     const n = normalize(sql);
     if (n.includes('from public.user_roles')) return { rows: [{ ok: true }], rowCount: 1 };
     if (n.includes('from public.routings routing') && n.includes('for update')) {
-      return { rows: [{ id: ROUTING_ID, status, item_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }], rowCount: 1 };
+      return {
+        rows: [{ id: ROUTING_ID, status, item_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', site_id: null }],
+        rowCount: 1,
+      };
+    }
+    if (n.includes('from public.routings r') && n.includes('site_id')) {
+      return { rows: [{ site_id: null }], rowCount: 1 };
+    }
+    if (n.includes('from public.routing_operations ro') && n.includes('line_id')) {
+      return { rows: [{ line_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }], rowCount: 1 };
+    }
+    if (n.includes('from public.production_lines')) {
+      const lineIds = params[0] as string[];
+      return {
+        rows: lineIds.map((id) => ({ id, site_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' })),
+        rowCount: lineIds.length,
+      };
     }
     if (n.includes('"reference"."manufacturingoperations"')) {
       return { rows: [{ operation_name: 'Mixing' }], rowCount: 1 };
@@ -41,6 +57,7 @@ function makeClient(status: string) {
     if (n.startsWith('delete from public.routing_operations')) return { rows: [], rowCount: 1 };
     if (n.startsWith('insert into public.routing_operations')) return { rows: [], rowCount: 1 };
     if (n.startsWith('insert into public.audit_log')) return { rows: [], rowCount: 1 };
+    if (n.includes('update public.routings') && n.includes('set site_id')) return { rows: [], rowCount: 1 };
     if (n.startsWith('update public.routings')) {
       return { rows: [{ id: ROUTING_ID, status: 'approved' }], rowCount: 1 };
     }

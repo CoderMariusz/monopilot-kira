@@ -19,6 +19,7 @@ import { safeRevalidatePath } from '../../items/_actions/revalidate';
 import {
   ApproveRoutingInput,
   type ApproveRoutingResult,
+  assertRoutingSiteScopeForApproval,
   hasPermission,
   isPgError,
   type OrgActionContext,
@@ -56,6 +57,19 @@ async function transition(
       if (!routing) return { ok: false, error: 'not_found' };
       if (routing.status !== from) {
         return { ok: false, error: 'invalid_state', message: `routing must be '${from}' to ${action} (is '${routing.status}')` };
+      }
+
+      const siteScope = await assertRoutingSiteScopeForApproval(qc, input.routingId);
+      if (!siteScope.ok) return { ok: false, error: siteScope.error, message: siteScope.message };
+      if (siteScope.canonicalSiteId) {
+        await qc.query(
+          `update public.routings
+              set site_id = $2::uuid
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+              and site_id is null`,
+          [input.routingId, siteScope.canonicalSiteId],
+        );
       }
 
       // On publish (approved → active), supersede the incumbent active routing
@@ -110,7 +124,17 @@ async function transition(
       return { ok: true, data: { id: row.id, status: to } };
     });
   } catch (err) {
-    if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
+    if (isPgError(err) && err.code === '23514') {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('routing_cross_site_lines') || message.includes('routing_operations_immutable')) {
+        return {
+          ok: false,
+          error: 'v_tec_64_cross_site_lines',
+          message: 'all routing operations must use production lines from a single site (V-TEC-64)',
+        };
+      }
+      return { ok: false, error: 'invalid_input' };
+    }
     console.error(`[technical/routings] ${action} persistence_failed`, {
       err: err instanceof Error ? err.message : String(err),
     });

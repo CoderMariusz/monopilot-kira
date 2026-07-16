@@ -61,7 +61,7 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
       [WRONG_WAREHOUSE_PARENT_ID, { id: WRONG_WAREHOUSE_PARENT_ID, warehouse_id: OTHER_WAREHOUSE_ID, parent_id: null, code: 'ZONE-B', level: 1, path: 'ZONE-B' }],
     ]),
     lines: new Map<string, InfraLine>([[LINE_ID, { id: LINE_ID, status: 'draft', machine_ids: [], default_output_location_id: null }]]),
-    warehouses: new Map<string, InfraWarehouse>([[WAREHOUSE_ID, { id: WAREHOUSE_ID, is_active: true }]]),
+    warehouses: new Map<string, InfraWarehouse>([[WAREHOUSE_ID, { id: WAREHOUSE_ID, is_active: true, site_id: SITE_ID }]]),
     activeWorkOrders: new Set<string>(),
     onHandStock: new Set<string>(),
     reservations: new Set<string>(),
@@ -133,6 +133,10 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
         const row = { id, warehouse_id: warehouseId, parent_id: parentId, code, level, path: parent ? `${parent.path}.${code}` : code };
         client.locations.set(id, row);
         return { rows: [row] as never[], rowCount: 1 };
+      }
+
+      if (normalized.includes('from public.production_lines') && normalized.includes('upper(code)')) {
+        return { rows: [] as never[], rowCount: 0 };
       }
 
       if (normalized.startsWith('insert into public.production_lines') || normalized.startsWith('update public.production_lines')) {

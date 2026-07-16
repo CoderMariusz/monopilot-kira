@@ -13,7 +13,9 @@ const ITEM_ID = '00000000-0000-4000-8000-0000000000c1';
 const SUPPLIER_ID = '00000000-0000-4000-8000-0000000000d1';
 const WAREHOUSE_ID = '00000000-0000-4000-8000-0000000000e1';
 const PO_DEST_WAREHOUSE_ID = '00000000-0000-4000-8000-0000000000e3';
+const WAREHOUSE_OTHER_SITE_ID = '00000000-0000-4000-8000-0000000000e4';
 const SITE_ID = '00000000-0000-4000-8000-0000000000e2';
+const OTHER_SITE_ID = '00000000-0000-4000-8000-0000000000e5';
 const LOCATION_ID = '00000000-0000-4000-8000-0000000000f1';
 const PO_DEST_LOCATION_ID = '00000000-0000-4000-8000-0000000000f3';
 
@@ -163,10 +165,43 @@ describe('receivePoLineDesktop', () => {
     );
   });
 
-  it('lets an explicit warehouseId override the PO destination warehouse', async () => {
+  it('rejects receive into a warehouse on a different site than the PO', async () => {
     currentClient = makeClient({
       orderedQty: '10.000000',
       receivedQty: '0.000000',
+      poSiteId: SITE_ID,
+      destinationWarehouseId: PO_DEST_WAREHOUSE_ID,
+    });
+
+    const result = await receivePoLineDesktop({ ...baseInput, warehouseId: WAREHOUSE_OTHER_SITE_ID });
+
+    expect(result).toEqual({ ok: false, error: 'error' });
+    expect(currentClient.calls.some((call) => call.sql.includes('insert into public.grns'))).toBe(false);
+    expect(currentClient.calls.some((call) => call.sql.includes('insert into public.license_plates'))).toBe(false);
+    expect(currentClient.calls.some((call) => call.sql.includes('insert into public.grn_items'))).toBe(false);
+  });
+
+  it('allows an explicit org-wide warehouse override on a site-scoped PO', async () => {
+    currentClient = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      poSiteId: SITE_ID,
+      destinationWarehouseId: PO_DEST_WAREHOUSE_ID,
+      warehouse: { id: WAREHOUSE_ID, site_id: null, default_location_id: LOCATION_ID },
+    });
+
+    const result = await receivePoLineDesktop({ ...baseInput, warehouseId: WAREHOUSE_ID });
+
+    expect(result).toMatchObject({ ok: true, grnId: 'grn-1', lpId: 'lp-1' });
+    expect(findCall('insert into public.license_plates')?.params[1]).toBeNull();
+    expect(findCall('insert into public.license_plates')?.params[2]).toBe(WAREHOUSE_ID);
+  });
+
+  it('allows an explicit warehouse override when the warehouse site matches the PO site', async () => {
+    currentClient = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      poSiteId: SITE_ID,
       destinationWarehouseId: PO_DEST_WAREHOUSE_ID,
     });
 
@@ -210,6 +245,7 @@ type MockCall = { sql: string; params?: readonly unknown[] };
 type MockOptions = {
   orderedQty?: string;
   receivedQty?: string;
+  poSiteId?: string;
   warehouse?: { id: string; site_id: string | null; default_location_id: string | null } | null;
   existingGrn?: { id: string; grn_number: string } | null;
   isReceived?: boolean;
@@ -235,8 +271,10 @@ class MockClient implements QueryClient {
             id: LINE_ID,
             org_id: ORG_ID,
             po_id: PO_ID,
+            po_site_id: this.options.poSiteId ?? SITE_ID,
             item_id: ITEM_ID,
             supplier_id: SUPPLIER_ID,
+            supplier_status: 'active',
             destination_warehouse_id: this.options.destinationWarehouseId ?? null,
             line_no: 1,
             ordered_qty: this.options.orderedQty ?? '10.000000',
@@ -255,8 +293,13 @@ class MockClient implements QueryClient {
           rows: [{ id: PO_DEST_WAREHOUSE_ID, site_id: SITE_ID, default_location_id: PO_DEST_LOCATION_ID }] as T[],
         };
       }
+      if (params?.[0] === WAREHOUSE_OTHER_SITE_ID) {
+        return {
+          rows: [{ id: WAREHOUSE_OTHER_SITE_ID, site_id: OTHER_SITE_ID, default_location_id: LOCATION_ID }] as T[],
+        };
+      }
       if (params?.[0] === WAREHOUSE_ID) {
-        return { rows: [defaultWarehouse()] as T[] };
+        return { rows: [this.options.warehouse ?? defaultWarehouse()] as T[] };
       }
       return { rows: (this.options.warehouse === null ? [] : [this.options.warehouse ?? defaultWarehouse()]) as T[] };
     }

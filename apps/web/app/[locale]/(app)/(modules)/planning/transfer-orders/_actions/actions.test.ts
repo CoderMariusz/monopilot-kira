@@ -159,12 +159,27 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('select count(*)::text as received_count')) {
         return { rows: [{ received_count: String(receivedJunctionCount) }], rowCount: 1 };
       }
+      if (normalized.startsWith('select distinct item_id')) {
+        return { rows: [{ item_id: ITEM_ID }], rowCount: 1 };
+      }
+      if (normalized.startsWith('select coalesce(sum(quantity), 0)::text as total')) {
+        return { rows: [{ total: '20.000000' }], rowCount: 1 };
+      }
       // Cancel path — un-received junction rows joined to their source LPs.
-      if (normalized.includes('lp.quantity::text as lp_quantity')) {
+      if (
+        normalized.includes('from public.transfer_order_line_lps tll') &&
+        normalized.includes('lp.status as lp_status')
+      ) {
         return {
-          rows: [{ id: JUNCTION_ID, source_lp_id: SOURCE_LP_ID, qty: '12.000000', lp_quantity: '8.000000', lp_status: 'available' }],
+          rows: [{ id: JUNCTION_ID, source_lp_id: SOURCE_LP_ID, qty: '12.000000', lp_status: 'available' }],
           rowCount: 1,
         };
+      }
+      if (
+        normalized.startsWith('select quantity::text as quantity, status') &&
+        normalized.includes('from public.license_plates')
+      ) {
+        return { rows: [{ quantity: '8.000000', status: 'available' }], rowCount: 1 };
       }
       // Receive path — pending junction rows carrying the source LP snapshot.
       if (normalized.includes('lp.product_id, lp.batch_number')) {
@@ -254,6 +269,17 @@ function makeClient(): QueryClient {
         return { rows: orderExists ? [header({ status: String(params[1]) })] : [], rowCount: orderExists ? 1 : 0 };
       }
       if (normalized.startsWith('insert into public.audit_events')) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (
+        normalized.startsWith('update public.license_plates') ||
+        normalized.startsWith('delete from public.transfer_order_line_lps') ||
+        normalized.startsWith('insert into public.stock_moves') ||
+        normalized.startsWith('insert into public.lp_state_history') ||
+        normalized.startsWith('insert into public.transfer_order_line_lps') ||
+        normalized.startsWith('insert into public.lp_genealogy') ||
+        normalized.startsWith('update public.transfer_order_line_lps')
+      ) {
         return { rows: [], rowCount: 1 };
       }
       return { rows: [], rowCount: 0 };

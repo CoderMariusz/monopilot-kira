@@ -20,6 +20,12 @@ import {
   type OrgActionContext,
   type QueryClient,
 } from '../../_actions/procurement-shared';
+import {
+  assertTransferOrderMatterConserved,
+  loadTransferOrderItemUoms,
+  snapshotTransferOrderMatterBalance,
+  TransferOrderConservationError,
+} from './to-conservation';
 
 const TRANSFER_RECEIVE_REVERSE_PERMISSION = 'warehouse.transfer.correct';
 const TRANSFER_RECEIVE_REVERSE_INTENT = 'warehouse.transfer_receive.reverse';
@@ -487,6 +493,9 @@ export async function reverseToReceiveLine(rawInput: unknown): Promise<ReverseTo
         return { ok: false, error: 'esign_failed' };
       }
 
+      const toItemUoms = await loadTransferOrderItemUoms(ctx, link.to_id);
+      const matterBaseline = await snapshotTransferOrderMatterBalance(ctx, link.to_id, toItemUoms);
+
       const destHistoryTxn = randomUUID();
       const sourceHistoryTxn = randomUUID();
       const destMoveTxn = randomUUID();
@@ -587,16 +596,18 @@ export async function reverseToReceiveLine(rawInput: unknown): Promise<ReverseTo
         },
       });
 
+      // C058: delete the ship/receive link — reversal already credited the source LP
+      // and voided the destination LP. Leaving dest_lp_id null would make cancel
+      // treat the row as unreceived in-transit stock and credit source again.
       await ctx.client.query(
-        `update public.transfer_order_line_lps
-            set dest_lp_id = null,
-                updated_by = $2::uuid
+        `delete from public.transfer_order_line_lps
           where org_id = app.current_org_id()
             and id = $1::uuid`,
-        [link.link_id, userId],
+        [link.link_id],
       );
 
       const nextStatus = await rerollTransferOrderStatus(ctx, link.to_id);
+      await assertTransferOrderMatterConserved(ctx, link.to_id, toItemUoms, matterBaseline, 'receive_reversal');
       await writeReversalAudit(ctx, {
         link,
         reasonCode: input.reasonCode,
@@ -627,6 +638,10 @@ export async function reverseToReceiveLine(rawInput: unknown): Promise<ReverseTo
 
     return result;
   } catch (error) {
+    if (error instanceof TransferOrderConservationError) {
+      console.error('[planning/transfer-orders] reverseToReceiveLine conservation failed', error);
+      return { ok: false, error: 'persistence_failed', message: error.message };
+    }
     const code = (error as { code?: string }).code;
     if (code === '23514' || code === '23503' || code === '22P02') return { ok: false, error: 'invalid_input' };
     console.error('[planning/transfer-orders] reverseToReceiveLine failed', error);

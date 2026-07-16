@@ -20,6 +20,7 @@ export type SiteOption = {
 export type WarehouseOption = {
   id: string;
   name: string;
+  siteId?: string | null;
 };
 
 export type LocationOption = {
@@ -106,6 +107,7 @@ export type LinesLabels = {
   createLineSuccess: string;
   updateLineSuccess: string;
   createLineFailed: string;
+  duplicateCodeError: string;
   insufficientPermission: string;
   selectLine: string;
   loading: string;
@@ -153,6 +155,7 @@ export const DEFAULT_LINES_LABELS: LinesLabels = {
   createLineSuccess: 'Production line created.',
   updateLineSuccess: 'Production line updated.',
   createLineFailed: 'Production line could not be created.',
+  duplicateCodeError: 'That line code is already in use at this site. Choose a different one.',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
   selectLine: 'Select {name}',
   loading: 'Loading production lines…',
@@ -255,10 +258,15 @@ export function LineCreateFields({
   editing?: boolean;
   onChange: (next: CreateLineInput) => void;
 }) {
-  const createWarehouseOptions = React.useMemo<SelectOption[]>(() => [
-    { value: 'none', label: labels.unavailable },
-    ...warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
-  ], [labels.unavailable, warehouses]);
+  const createWarehouseOptions = React.useMemo<SelectOption[]>(() => {
+    const siteWarehouses = value.siteId
+      ? warehouses.filter((warehouse) => warehouse.siteId === value.siteId)
+      : warehouses;
+    return [
+      { value: 'none', label: labels.unavailable },
+      ...siteWarehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
+    ];
+  }, [labels.unavailable, value.siteId, warehouses]);
 
   const outputLocationOptions = React.useMemo<SelectOption[]>(() => {
     const matchingLocations = value.warehouseId
@@ -308,7 +316,18 @@ export function LineCreateFields({
           <span id="new-line-site-label">{labels.fieldSite}</span>
           <Select
             value={value.siteId ?? ''}
-            onValueChange={(next) => onChange({ ...value, siteId: next || null })}
+            onValueChange={(next) => {
+              const nextSiteId = next || null;
+              const warehouseStillValid = value.warehouseId
+                ? warehouses.some((warehouse) => warehouse.id === value.warehouseId && warehouse.siteId === nextSiteId)
+                : false;
+              onChange({
+                ...value,
+                siteId: nextSiteId,
+                warehouseId: warehouseStillValid ? value.warehouseId ?? null : null,
+                defaultOutputLocationId: null,
+              });
+            }}
             options={sites.map((site) => ({ value: site.id, label: `${site.code} - ${site.name}` }))}
             disabled={pending}
           >
@@ -428,7 +447,7 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
     setNewLine((current) => ({
       ...current,
       siteId: current.siteId ?? defaultSiteId(sites),
-      warehouseId: current.warehouseId && warehouses.some((warehouse) => warehouse.id === current.warehouseId)
+      warehouseId: current.warehouseId && warehouses.some((warehouse) => warehouse.id === current.warehouseId && (!current.siteId || warehouse.siteId === current.siteId))
         ? current.warehouseId
         : defaultWarehouseId(warehouses, warehouseFilter),
       defaultOutputLocationId: current.defaultOutputLocationId && locations.some((location) => location.id === current.defaultOutputLocationId && location.warehouseId === current.warehouseId)
@@ -525,7 +544,7 @@ export default function LinesScreen({ labels: labelsProp, lines, sites = [], war
       }
       const result = await createLine(createInput);
       if (!result.ok) {
-        setCreateError(labels.createLineFailed);
+        setCreateError(result.error === 'duplicate_code' ? labels.duplicateCodeError : labels.createLineFailed);
         return;
       }
       const selectedWarehouse = newLine.warehouseId ? warehouses.find((warehouse) => warehouse.id === newLine.warehouseId) ?? null : null;

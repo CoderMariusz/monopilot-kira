@@ -8,11 +8,14 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const SUPPLIER_ID = '33333333-3333-4333-8333-333333333333';
 const SITE_ID = '88888888-8888-4888-8888-888888888888';
 const ITEM_ID = '55555555-5555-4555-8555-555555555555';
+const WAREHOUSE_ID = '77777777-7777-4777-8777-777777777777';
+const OTHER_SITE_ID = '99999999-9999-4999-8999-999999999999';
 
 let client: QueryClient;
 let allowPermission = true;
 let supplierStatus = 'active';
 let supplierQuerySql = '';
+let warehouseSiteId: string | null = SITE_ID;
 
 vi.mock('../../../../../../../lib/site/site-context', () => ({
   resolveWriteSiteId: vi.fn(async () => ({ ok: true as const, siteId: SITE_ID })),
@@ -35,6 +38,8 @@ function makeClient(): QueryClient {
     } else if (normalized.includes('from public.suppliers')) {
       supplierQuerySql = sql;
       rows = [{ status: supplierStatus }];
+    } else if (normalized.includes('from public.warehouses w')) {
+      rows = [{ id: WAREHOUSE_ID, site_id: warehouseSiteId }];
     } else if (normalized.includes('insert into public.purchase_orders')) {
       rows = [
         {
@@ -85,6 +90,7 @@ describe('createPurchaseOrderCore', () => {
     allowPermission = true;
     supplierStatus = 'active';
     supplierQuerySql = '';
+    warehouseSiteId = SITE_ID;
     client = makeClient();
   });
 
@@ -147,5 +153,32 @@ describe('createPurchaseOrderCore', () => {
       code: 'supplier_blocked',
       message: 'Supplier is inactive',
     });
+  });
+
+  it('rejects a destination warehouse from another site', async () => {
+    warehouseSiteId = OTHER_SITE_ID;
+
+    const result = await createPurchaseOrderCore(
+      { userId: USER_ID, orgId: ORG_ID, client },
+      {
+        poNumber: 'PO-CROSS-SITE-WH',
+        supplierId: SUPPLIER_ID,
+        destinationWarehouseId: WAREHOUSE_ID,
+        status: 'draft',
+        currency: 'GBP',
+        lines: [{ itemId: ITEM_ID, qty: '10', uom: 'kg', unitPrice: '0', lineNo: 1 }],
+      },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'warehouse_site_mismatch',
+      code: 'warehouse_site_mismatch',
+      message: 'Destination warehouse belongs to a different site than this purchase order.',
+    });
+    const insertCalls = vi.mocked(client.query).mock.calls.filter(([sql]) =>
+      String(sql).includes('insert into public.purchase_orders'),
+    );
+    expect(insertCalls).toHaveLength(0);
   });
 });

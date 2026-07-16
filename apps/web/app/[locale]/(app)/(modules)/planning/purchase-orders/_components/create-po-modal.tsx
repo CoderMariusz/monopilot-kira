@@ -121,6 +121,8 @@ export type CreatePoLabels = {
     no_active_site: string;
     /** F10 — >1 active site, none chosen/default; operator must pick one. */
     ambiguous_site: string;
+    /** C051 — destination warehouse belongs to a different site than the PO. */
+    warehouse_site_mismatch: string;
     persistence_failed: string;
   };
   picker: {
@@ -236,9 +238,13 @@ export function CreatePoModal({
 
   React.useEffect(() => {
     let cancelled = false;
-    if (!open) return;
+    if (!open || !activeSiteId) {
+      setWarehouses([]);
+      setDestinationWarehouseId('');
+      return;
+    }
     setWarehousesLoading(true);
-    void listPoWarehouses()
+    void listPoWarehouses(activeSiteId)
       .then((rows) => {
         if (!cancelled) setWarehouses(rows);
       })
@@ -251,7 +257,7 @@ export function CreatePoModal({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, activeSiteId]);
 
   const selectedSupplier = suppliers.find((s) => s.id === supplierId) ?? null;
   const currency = selectedSupplier?.currency ?? 'GBP';

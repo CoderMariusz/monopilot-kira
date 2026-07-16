@@ -13,7 +13,11 @@ import {
   withAppOrg,
 } from '../../../brief/actions/__tests__/brief-integration-helpers';
 
-const run = databaseUrl ? describe : describe.skip;
+if (!databaseUrl) {
+  throw new Error('gate-actions.integration.test.ts requires DATABASE_URL (no silent describe.skip)');
+}
+
+const run = describe;
 
 const seed = makeIdentitySeed();
 const viewerUserId = randomUUID();
@@ -191,11 +195,11 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
     await owner.end();
   });
 
-  it('blocks G0→recipe advancement when required current-gate checklist items are unchecked', async () => {
+  it('blocks G0→G1 gate-only advance when required G0 checklist items are unchecked', async () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
     const advanced = await withActionActor(seed.userAId, seed.orgAId, () =>
-      advanceProjectGate({ projectId: uncheckedG0ProjectId, targetStage: 'recipe' }),
+      advanceProjectGate({ projectId: uncheckedG0ProjectId, targetStage: 'brief' }),
     );
 
     expect(advanced).toMatchObject({
@@ -212,8 +216,24 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
     expect(gate.rows[0]).toMatchObject({ current_gate: 'G0', current_stage: 'brief' });
   });
 
-  it('allows G0→recipe advancement when all required current-gate checklist items are checked', async () => {
+  it('rejects G0→recipe skip with ADJACENCY_VIOLATION (must pass through G1 on brief)', async () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
+
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        advanceProjectGate({ projectId: checkedG0ProjectId, targetStage: 'recipe' }),
+      ),
+    ).resolves.toMatchObject({ ok: false, error: 'ADJACENCY_VIOLATION', status: 422 });
+  });
+
+  it('allows G0→G1 then G1→G2 when required G0 checklist items are checked', async () => {
+    const { advanceProjectGate } = await import('../advance-project-gate');
+
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        advanceProjectGate({ projectId: checkedG0ProjectId, targetStage: 'brief' }),
+      ),
+    ).resolves.toMatchObject({ ok: true, data: { currentStage: 'brief', currentGate: 'G1' } });
 
     await expect(
       withActionActor(seed.userAId, seed.orgAId, () =>
@@ -269,10 +289,15 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
     ).resolves.toEqual({ ok: false, error: 'NOT_FOUND', status: 404 });
   });
 
-  it('advances brief→recipe (G1→G2) and rejects recipe→packaging when recipe ingredients are missing', async () => {
+  it('advances G0→G1→G2 (brief gate-only then brief→recipe) and rejects recipe→packaging when recipe ingredients are missing', async () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
-    // Stage-native: brief → recipe (derived gate G1 → G2).
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        advanceProjectGate({ projectId, targetStage: 'brief' }),
+      ),
+    ).resolves.toMatchObject({ ok: true, data: { currentStage: 'brief', currentGate: 'G1' } });
+
     await expect(
       withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId, targetStage: 'recipe' })),
     ).resolves.toMatchObject({ ok: true, data: { currentStage: 'recipe', currentGate: 'G2' } });
@@ -333,7 +358,7 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
         where p.id = $1::uuid`,
       [projectId, productCode],
     );
-    // Two advances on projectId so far in this suite: brief→recipe, recipe→packaging.
+    // Three advances on projectId in this suite so far: G0→G1, G1→G2, recipe→packaging.
     expect(persisted.rows[0]).toMatchObject({
       current_gate: 'G3',
       product_code: productCode,
@@ -341,13 +366,33 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
       formulation_product_code: productCode,
       fg_created_events: '1',
       mapped_events: '1',
-      advanced_events: '2',
+      advanced_events: '3',
     });
 
-    // packaging → trial: still G3, NO new FG created (FG candidate is idempotent and
-    // only created entering `packaging`). Proves the FG stays a single candidate row.
+    // packaging → costing_nutrition → trial: still G3, NO new FG created (FG candidate
+    // is idempotent and only created entering `packaging`). Proves the FG stays a
+    // single candidate row.
     await expect(
-      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId, targetStage: 'trial', productCode })),
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        advanceProjectGate({ projectId, targetStage: 'costing_nutrition', productCode }),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { currentStage: 'costing_nutrition', currentGate: 'G3', productCode },
+    });
+
+    // costing_nutrition → trial soft-gates on costing_breakdowns + nutri_score_results
+    // readiness, which this FG-dedup-focused fixture intentionally does not seed. Advance
+    // with a documented override — the assertion here is FG idempotency, not gate readiness.
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        advanceProjectGate({
+          projectId,
+          targetStage: 'trial',
+          productCode,
+          override: { note: 'integration: costing/nutrition readiness not seeded in FG-dedup fixture' },
+        }),
+      ),
     ).resolves.toMatchObject({ ok: true, data: { currentStage: 'trial', currentGate: 'G3', productCode } });
     const dedup = await owner.query<{ product_count: string; fg_created_events: string }>(
       `select

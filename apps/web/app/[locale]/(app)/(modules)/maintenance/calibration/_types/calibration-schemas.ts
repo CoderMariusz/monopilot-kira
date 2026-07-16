@@ -54,6 +54,11 @@ export const recordCalibrationSchema = z.object({
     password: z.string().min(1),
     nonce: z.string().min(1).optional(),
   }),
+  reviewerSignature: z.object({
+    userId: uuidSchema,
+    password: z.string().min(1),
+    nonce: z.string().min(1).optional(),
+  }),
 });
 
 export type CalibrationPermissions = {

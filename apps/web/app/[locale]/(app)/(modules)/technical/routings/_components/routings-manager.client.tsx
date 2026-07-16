@@ -94,6 +94,8 @@ function errorLabel(error: RoutingActionError, labels: RoutingsLabels): string {
       return labels.errZeroRunTime;
     case 'v_tec_63_unknown_operation':
       return labels.errUnknownOperation;
+    case 'v_tec_64_cross_site_lines':
+      return labels.errCrossSiteLines;
     default:
       return labels.errGeneric;
   }

@@ -36,6 +36,12 @@ import {
   type QueryClient,
 } from '../../_actions/procurement-shared';
 import { createTransferOrderCore } from './create-transfer-order-core';
+import {
+  assertTransferOrderMatterConserved,
+  loadTransferOrderItemUoms,
+  snapshotTransferOrderMatterBalance,
+  TransferOrderConservationError,
+} from './to-conservation';
 
 type TransferOrderRow = {
   id: string;
@@ -817,7 +823,6 @@ type PlannedPick = {
   lpId: string;
   lpLocationId: string | null;
   takeMicro: bigint;
-  newQtyMicro: bigint;
   uom: string;
 };
 
@@ -855,8 +860,11 @@ async function shipTransferOrder(
   }
 
   // Phase 1 — plan all picks (locks the candidate LPs), no writes yet.
+  // C058: shadow LP quantity across ALL lines — duplicate-product lines must not
+  // each plan against the pre-ship DB quantity independently.
   const picks: PlannedPick[] = [];
   const skippedHeldLps: SkippedHeldLp[] = [];
+  const lpQtyShadow = new Map<string, bigint>();
   for (const line of lines.rows) {
     const lps = await ctx.client.query<SourceLpRow>(
       `select lp.id, lp.lp_number, lp.quantity::text as quantity, lp.reserved_qty::text as reserved_qty, lp.location_id
@@ -880,22 +888,25 @@ async function shipTransferOrder(
         await assertNoActiveHoldForLp(lp.id, ctx.client);
       } catch (error) {
         if (typeof error === 'object' && error !== null && (error as { code?: string }).code === 'QA_HOLD_ACTIVE') {
-          const availableHeld = toMicro6(lp.quantity) - toMicro6(lp.reserved_qty);
+          const shadowQty = lpQtyShadow.get(lp.id) ?? toMicro6(lp.quantity);
+          const availableHeld = shadowQty - toMicro6(lp.reserved_qty);
           skippedHeldLps.push({ lpId: lp.id, lpCode: lp.lp_number, qty: microToText6(availableHeld), uom: line.uom });
           continue;
         }
         throw error;
       }
-      const availableMicro = toMicro6(lp.quantity) - toMicro6(lp.reserved_qty);
+      const currentLpQty = lpQtyShadow.get(lp.id) ?? toMicro6(lp.quantity);
+      if (!lpQtyShadow.has(lp.id)) lpQtyShadow.set(lp.id, currentLpQty);
+      const availableMicro = currentLpQty - toMicro6(lp.reserved_qty);
       if (availableMicro <= 0n) continue;
       const take = availableMicro < remaining ? availableMicro : remaining;
+      lpQtyShadow.set(lp.id, currentLpQty - take);
       picks.push({
         lineId: line.id,
         lineNo: line.line_no,
         lpId: lp.id,
         lpLocationId: lp.location_id,
         takeMicro: take,
-        newQtyMicro: toMicro6(lp.quantity) - take,
         uom: line.uom,
       });
       remaining -= take;
@@ -910,9 +921,20 @@ async function shipTransferOrder(
     }
   }
 
+  const lineTotalMicro = lines.rows.reduce((acc, line) => acc + toMicro6(line.qty), 0n);
+  const pickTotalMicro = picks.reduce((acc, pick) => acc + pick.takeMicro, 0n);
+  if (lineTotalMicro !== pickTotalMicro) {
+    throw new TransferOrderConservationError(
+      `TO ship pick plan does not cover lines: planned ${microToText6(pickTotalMicro)}, required ${microToText6(lineTotalMicro)}`,
+    );
+  }
+
   // Phase 2 — apply the plan (all-or-nothing inside the withOrgContext txn).
-  for (const pick of picks) {
-    const fullyDepleted = pick.newQtyMicro === 0n;
+  const pickedLpIds = [...new Set(picks.map((pick) => pick.lpId))];
+  for (const lpId of pickedLpIds) {
+    const finalQtyMicro = lpQtyShadow.get(lpId);
+    if (finalQtyMicro === undefined) continue;
+    const fullyDepleted = finalQtyMicro === 0n;
     await ctx.client.query(
       `update public.license_plates
           set quantity = $2::numeric,
@@ -921,7 +943,7 @@ async function shipTransferOrder(
               updated_at = now()
         where org_id = app.current_org_id()
           and id = $1::uuid`,
-      [pick.lpId, microToText6(pick.newQtyMicro), fullyDepleted, ctx.userId],
+      [lpId, microToText6(finalQtyMicro), fullyDepleted, ctx.userId],
     );
     if (fullyDepleted) {
       await ctx.client.query(
@@ -930,9 +952,11 @@ async function shipTransferOrder(
          values (app.current_org_id(), $1::uuid, 'available', 'shipped', 'transfer_ship',
                  $2, $3::uuid, jsonb_build_object('to_id', $4::uuid), $5::uuid)
          on conflict (org_id, transaction_id) do nothing`,
-        [pick.lpId, `TO ship ${to.to_number}`, randomUUID(), to.id, ctx.userId],
+        [lpId, `TO ship ${to.to_number}`, randomUUID(), to.id, ctx.userId],
       );
     }
+  }
+  for (const pick of picks) {
     const moveTxn = randomUUID();
     await ctx.client.query(
       `insert into public.stock_moves
@@ -1108,9 +1132,16 @@ async function cancelInTransitTransferOrder(
   ctx: OrgActionContext,
   to: ToHeaderForUpdate,
 ): Promise<{ ok: true }> {
-  const pending = await ctx.client.query<{ id: string; source_lp_id: string; qty: string; lp_quantity: string; lp_status: string }>(
-    `select tll.id, tll.source_lp_id, tll.qty::text as qty,
-            lp.quantity::text as lp_quantity, lp.status as lp_status
+  const pending = await ctx.client.query<{
+    id: string;
+    source_lp_id: string;
+    qty: string;
+    uom: string;
+    lp_status: string;
+    lp_location_id: string | null;
+  }>(
+    `select tll.id, tll.source_lp_id, tll.qty::text as qty, tll.uom,
+            lp.status as lp_status, lp.location_id::text as lp_location_id
        from public.transfer_order_line_lps tll
        join public.license_plates lp
          on lp.org_id = app.current_org_id()
@@ -1119,13 +1150,47 @@ async function cancelInTransitTransferOrder(
         and tll.to_id = $1::uuid
         and tll.dest_lp_id is null
       order by tll.created_at asc, tll.id asc
-      for update`,
+      for update of tll, lp`,
     [to.id],
   );
 
+  // C058: aggregate restore per source LP — duplicate-product lines can share one
+  // source LP; restoring row-by-row using a stale join snapshot double-credits.
+  const restoreBySourceLp = new Map<
+    string,
+    { restoreMicro: bigint; uom: string; locationId: string | null; linkIds: string[]; wasShipped: boolean }
+  >();
   for (const row of pending.rows) {
-    const restored = microToText6(toMicro6(row.lp_quantity) + toMicro6(row.qty));
-    const unDeplete = row.lp_status === 'shipped';
+    const existing = restoreBySourceLp.get(row.source_lp_id);
+    const rowMicro = toMicro6(row.qty);
+    if (existing) {
+      existing.restoreMicro += rowMicro;
+      existing.linkIds.push(row.id);
+      existing.wasShipped = existing.wasShipped || row.lp_status === 'shipped';
+    } else {
+      restoreBySourceLp.set(row.source_lp_id, {
+        restoreMicro: rowMicro,
+        uom: row.uom,
+        locationId: row.lp_location_id,
+        linkIds: [row.id],
+        wasShipped: row.lp_status === 'shipped',
+      });
+    }
+  }
+
+  for (const [sourceLpId, { restoreMicro, uom, locationId, linkIds, wasShipped }] of restoreBySourceLp) {
+    const locked = await ctx.client.query<{ quantity: string; status: string }>(
+      `select quantity::text as quantity, status
+         from public.license_plates
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+        for update`,
+      [sourceLpId],
+    );
+    const lpRow = locked.rows[0];
+    if (!lpRow) continue;
+    const restored = microToText6(toMicro6(lpRow.quantity) + restoreMicro);
+    const unDeplete = wasShipped || lpRow.status === 'shipped';
     await ctx.client.query(
       `update public.license_plates
           set quantity = $2::numeric,
@@ -1134,7 +1199,7 @@ async function cancelInTransitTransferOrder(
               updated_at = now()
         where org_id = app.current_org_id()
           and id = $1::uuid`,
-      [row.source_lp_id, restored, unDeplete, ctx.userId],
+      [sourceLpId, restored, unDeplete, ctx.userId],
     );
     if (unDeplete) {
       await ctx.client.query(
@@ -1143,14 +1208,33 @@ async function cancelInTransitTransferOrder(
          values (app.current_org_id(), $1::uuid, 'shipped', 'available', 'transfer_cancel',
                  $2, $3::uuid, jsonb_build_object('to_id', $4::uuid), $5::uuid)
          on conflict (org_id, transaction_id) do nothing`,
-        [row.source_lp_id, `TO cancel ${to.to_number}`, randomUUID(), to.id, ctx.userId],
+        [sourceLpId, `TO cancel ${to.to_number}`, randomUUID(), to.id, ctx.userId],
       );
     }
+    const cancelMoveTxn = randomUUID();
+    await ctx.client.query(
+      `insert into public.stock_moves
+         (org_id, move_number, lp_id, move_type, from_location_id, to_location_id,
+          quantity, uom, reason_text, transaction_id, created_by, updated_by)
+       values (app.current_org_id(), $1, $2::uuid, 'transfer', null, $3::uuid,
+               $4::numeric, $5, $6, $7::uuid, $8::uuid, $8::uuid)
+       on conflict (org_id, transaction_id) do nothing`,
+      [
+        makeStockMoveNumber(cancelMoveTxn),
+        sourceLpId,
+        locationId,
+        microToText6(restoreMicro),
+        uom,
+        `TO cancel ${to.to_number}`,
+        cancelMoveTxn,
+        ctx.userId,
+      ],
+    );
     await ctx.client.query(
       `delete from public.transfer_order_line_lps
         where org_id = app.current_org_id()
-          and id = $1::uuid`,
-      [row.id],
+          and id = any($1::uuid[])`,
+      [linkIds],
     );
   }
   return { ok: true };
@@ -1186,14 +1270,18 @@ export async function transitionTransferOrderStatus(id: string, status: string):
       if (!allowed.includes(parsed.data)) return { ok: false, error: 'invalid_state' };
 
       // W9-K-II (F-C05): status flips carry REAL stock movements now.
+      const toItemUoms = await loadTransferOrderItemUoms(ctx, previous.id);
+      const matterBaseline = await snapshotTransferOrderMatterBalance(ctx, previous.id, toItemUoms);
       let stockEffect: Record<string, unknown> = {};
       if (previous.status === 'draft' && parsed.data === 'in_transit') {
         const shipped = await shipTransferOrder(ctx, previous);
         if (!shipped.ok) return shipped;
+        await assertTransferOrderMatterConserved(ctx, previous.id, toItemUoms, matterBaseline, 'ship');
         stockEffect = { picks: shipped.pickCount };
       } else if (previous.status === 'in_transit' && parsed.data === 'received') {
         const received = await receiveTransferOrder(ctx, previous);
         if (!received.ok) return received;
+        await assertTransferOrderMatterConserved(ctx, previous.id, toItemUoms, matterBaseline, 'receive');
         stockEffect = { destLps: received.lpCount };
       } else if (['in_transit', 'partially_received'].includes(previous.status) && parsed.data === 'cancelled') {
         // F3 / Wave R4: a TO with already-received destination LPs must NOT be cancelled
@@ -1218,10 +1306,12 @@ export async function transitionTransferOrderStatus(id: string, status: string):
           };
         }
         await cancelInTransitTransferOrder(ctx, previous);
+        await assertTransferOrderMatterConserved(ctx, previous.id, toItemUoms, matterBaseline, 'cancel');
         stockEffect = { restored: true };
       } else if (previous.status === 'partially_received' && parsed.data === 'received') {
         const received = await receiveTransferOrder(ctx, previous);
         if (!received.ok) return received;
+        await assertTransferOrderMatterConserved(ctx, previous.id, toItemUoms, matterBaseline, 'receive_remainder');
         stockEffect = { destLps: received.lpCount };
       }
 
@@ -1248,6 +1338,10 @@ export async function transitionTransferOrderStatus(id: string, status: string):
       return { ok: true, data: mapTransferOrder(row) };
     });
   } catch (err) {
+    if (err instanceof TransferOrderConservationError) {
+      console.error('[planning/transfer-orders] transitionTransferOrderStatus conservation failed', err);
+      return { ok: false, error: 'persistence_failed', message: err.message };
+    }
     console.error('[planning/transfer-orders] transitionTransferOrderStatus failed', err);
     return { ok: false, error: 'persistence_failed' };
   }

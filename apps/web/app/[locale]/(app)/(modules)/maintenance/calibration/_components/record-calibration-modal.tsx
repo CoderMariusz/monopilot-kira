@@ -21,7 +21,11 @@ export type RecordCalibrationLabels = {
   notes: string;
   certificateRef: string;
   certificatePlaceholder: string;
-  signaturePassword: string;
+  calibratorPassword: string;
+  reviewerUserId: string;
+  reviewerUserIdPlaceholder: string;
+  reviewerPassword: string;
+  dualSignWarning: string;
   submit: string;
   submitting: string;
   cancel: string;
@@ -29,6 +33,7 @@ export type RecordCalibrationLabels = {
   errorFailed: string;
   errorForbidden: string;
   errorEsign: string;
+  errorSod: string;
 };
 
 type RecordCalibrationAction = (input: {
@@ -39,7 +44,8 @@ type RecordCalibrationAction = (input: {
   notes?: string;
   certificateRef?: string;
   signature: { password: string };
-}) => Promise<{ ok: boolean; reason?: string }>;
+  reviewerSignature: { userId: string; password: string };
+}) => Promise<{ ok: boolean; reason?: string; message?: string }>;
 
 const RESULTS = ['PASS', 'FAIL', 'OUT_OF_SPEC'] as const;
 
@@ -64,7 +70,9 @@ export function RecordCalibrationModal({
   const [measuredValues, setMeasuredValues] = useState('');
   const [notes, setNotes] = useState('');
   const [certificateRef, setCertificateRef] = useState('');
-  const [signaturePassword, setSignaturePassword] = useState('');
+  const [calibratorPassword, setCalibratorPassword] = useState('');
+  const [reviewerUserId, setReviewerUserId] = useState('');
+  const [reviewerPassword, setReviewerPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
 
@@ -75,7 +83,13 @@ export function RecordCalibrationModal({
   };
 
   const submit = () => {
-    if (!instrumentId || !calibratedAt || !signaturePassword.trim()) {
+    if (
+      !instrumentId ||
+      !calibratedAt ||
+      !calibratorPassword.trim() ||
+      !reviewerUserId.trim() ||
+      !reviewerPassword.trim()
+    ) {
       setError(labels.errorRequired);
       return;
     }
@@ -101,17 +115,14 @@ export function RecordCalibrationModal({
         testPoints,
         notes: notes.trim() || undefined,
         certificateRef: certificateRef.trim() || undefined,
-        signature: { password: signaturePassword },
+        signature: { password: calibratorPassword },
+        reviewerSignature: { userId: reviewerUserId.trim(), password: reviewerPassword },
       });
       if (actionResult.ok) onRecorded();
-      else
-        setError(
-          actionResult.reason === 'forbidden'
-            ? labels.errorForbidden
-            : actionResult.reason === 'esign_failed'
-              ? labels.errorEsign
-              : labels.errorFailed,
-        );
+      else if (actionResult.reason === 'forbidden') setError(labels.errorForbidden);
+      else if (actionResult.reason === 'sod_violation') setError(labels.errorSod);
+      else if (actionResult.reason === 'esign_failed') setError(labels.errorEsign);
+      else setError(labels.errorFailed);
     });
   };
 
@@ -199,14 +210,45 @@ export function RecordCalibrationModal({
           />
         </label>
 
+        <div
+          data-testid="calibration-record-dual-sign"
+          className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900"
+        >
+          {labels.dualSignWarning}
+        </div>
+
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">{labels.signaturePassword}</span>
+          <span className="font-medium text-slate-700">{labels.calibratorPassword}</span>
           <input
             type="password"
-            value={signaturePassword}
-            onChange={(e) => setSignaturePassword(e.target.value)}
+            value={calibratorPassword}
+            onChange={(e) => setCalibratorPassword(e.target.value)}
             autoComplete="current-password"
-            data-testid="calibration-record-signature"
+            data-testid="calibration-record-calibrator-signature"
+            className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-slate-700">{labels.reviewerUserId}</span>
+          <input
+            type="text"
+            value={reviewerUserId}
+            onChange={(e) => setReviewerUserId(e.target.value)}
+            placeholder={labels.reviewerUserIdPlaceholder}
+            data-testid="calibration-record-reviewer-user"
+            className="rounded-md border border-slate-300 px-2.5 py-1.5 font-mono text-xs focus:border-slate-400 focus:outline-none"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-slate-700">{labels.reviewerPassword}</span>
+          <input
+            type="password"
+            value={reviewerPassword}
+            onChange={(e) => setReviewerPassword(e.target.value)}
+            autoComplete="new-password"
+            data-testid="calibration-record-reviewer-signature"
             className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
           />
         </label>

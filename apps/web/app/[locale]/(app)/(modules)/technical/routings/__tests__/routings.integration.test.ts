@@ -49,6 +49,9 @@ const seed = {
   itemAId: randomUUID(),
   itemBId: randomUUID(),
   lineAId: randomUUID(),
+  lineA2Id: randomUUID(),
+  siteA1Id: randomUUID(),
+  siteA2Id: randomUUID(),
   lineBId: randomUUID(),
 };
 
@@ -140,10 +143,37 @@ async function seedFixtures(): Promise<void> {
 
   // Production lines for the FK + V-TEC-61 binding.
   await owner.query(
-    `insert into public.production_lines (id, org_id, code, name, status)
-     values ($1, $2, $3, 'Line A', 'active'), ($4, $5, $6, 'Line B', 'active')
+    `insert into public.sites (id, org_id, site_code, name, timezone, created_by)
+     values ($1, $2, $3, 'Routing Site A1', 'UTC', $4), ($5, $2, $6, 'Routing Site A2', 'UTC', $4)
      on conflict (id) do nothing`,
-    [seed.lineAId, seed.orgAId, `LINE-${seed.lineAId.slice(0, 6)}`, seed.lineBId, seed.orgBId, `LINE-${seed.lineBId.slice(0, 6)}`],
+    [
+      seed.siteA1Id,
+      seed.orgAId,
+      `RT-S1-${seed.siteA1Id.slice(0, 6)}`,
+      seed.editorAUserId,
+      seed.siteA2Id,
+      `RT-S2-${seed.siteA2Id.slice(0, 6)}`,
+    ],
+  );
+  await owner.query(
+    `insert into public.production_lines (id, org_id, code, name, status, site_id)
+     values
+       ($1, $2, $3, 'Line A', 'active', $7),
+       ($8, $2, $9, 'Line A2', 'active', $10),
+       ($4, $5, $6, 'Line B', 'active', null)
+     on conflict (id) do nothing`,
+    [
+      seed.lineAId,
+      seed.orgAId,
+      `LINE-${seed.lineAId.slice(0, 6)}`,
+      seed.lineBId,
+      seed.orgBId,
+      `LINE-${seed.lineBId.slice(0, 6)}`,
+      seed.siteA1Id,
+      seed.lineA2Id,
+      `LINE-${seed.lineA2Id.slice(0, 6)}`,
+      seed.siteA2Id,
+    ],
   );
 
   // Manufacturing-operations reference rows (V-TEC-63 source of truth), org A only.
@@ -164,6 +194,7 @@ async function cleanup(): Promise<void> {
   await owner.query(`delete from public.routings where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from "Reference"."ManufacturingOperations" where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.production_lines where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
+  await owner.query(`delete from public.sites where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.items where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.user_roles where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(
@@ -328,6 +359,78 @@ run('03-technical routings CRUD (V-TEC-60..63, RLS + RBAC, real DB)', () => {
 
     await owner.query(`delete from public.routing_operations where org_id = $1`, [seed.orgAId]);
     await owner.query(`delete from public.routings where org_id = $1`, [seed.orgAId]);
+  });
+
+  it('AC5 V-TEC-64: rejects create when operations bind lines from different sites', async () => {
+    const result = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
+      createRouting({
+        itemId: seed.itemAId,
+        operations: [validOp(1, OP_MIX, { lineId: seed.lineAId }), validOp(2, OP_PACK, { lineId: seed.lineA2Id })],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('v_tec_64_cross_site_lines');
+
+    const persisted = await owner.query(`select 1 from public.routings where item_id = $1`, [seed.itemAId]);
+    expect(persisted.rowCount).toBe(0);
+  });
+
+  it('AC5 V-TEC-64: cross-site draft cannot be approved or published', async () => {
+    const created = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
+      createRouting({ itemId: seed.itemAId, operations: [validOp(1, OP_MIX)] }),
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    await owner.query(
+      `insert into public.routing_operations
+         (org_id, routing_id, op_no, op_code, op_name, line_id, setup_time_min,
+          run_time_per_unit_sec, manufacturing_operation_name, yield_pct, created_by)
+       values
+         ($1::uuid, $2::uuid, 2, 'OP2', 'Pack', $3::uuid, 5, 5::numeric, $4, 100::numeric, $5::uuid)`,
+      [seed.orgAId, created.data.id, seed.lineA2Id, OP_PACK, seed.editorAUserId],
+    );
+
+    const approved = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
+      approveRouting({ routingId: created.data.id }),
+    );
+    expect(approved.ok).toBe(false);
+    if (!approved.ok) expect(approved.error).toBe('v_tec_64_cross_site_lines');
+
+    // Publish path: approve a valid single-site routing, then taint it with a cross-site op.
+    const singleSite = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
+      createRouting({ itemId: seed.itemAId, operations: [validOp(1, OP_MIX)] }),
+    );
+    expect(singleSite.ok).toBe(true);
+    if (!singleSite.ok) return;
+
+    const approvedSingle = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
+      approveRouting({ routingId: singleSite.data.id }),
+    );
+    expect(approvedSingle.ok).toBe(true);
+
+    await expect(
+      owner.query(
+        `insert into public.routing_operations
+           (org_id, routing_id, op_no, op_code, op_name, line_id, setup_time_min,
+            run_time_per_unit_sec, manufacturing_operation_name, yield_pct, created_by)
+         values
+           ($1::uuid, $2::uuid, 2, 'OP2', 'Pack', $3::uuid, 5, 5::numeric, $4, 100::numeric, $5::uuid)`,
+        [seed.orgAId, singleSite.data.id, seed.lineA2Id, OP_PACK, seed.editorAUserId],
+      ),
+    ).rejects.toThrow(/routing_operations_immutable|V-TEC-64/i);
+
+    const published = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
+      publishRouting({ routingId: singleSite.data.id }),
+    );
+    expect(published.ok).toBe(true);
+
+    await owner.query(`delete from public.routing_operations where routing_id = any($1::uuid[])`, [
+      [created.data.id, singleSite.data.id],
+    ]);
+    await owner.query(`delete from public.routings where id = any($1::uuid[])`, [
+      [created.data.id, singleSite.data.id],
+    ]);
   });
 
   it('RBAC: a caller WITHOUT technical.bom.create is forbidden', async () => {

@@ -12,9 +12,10 @@
  *     footer Cancel / Close NCR (disabled until valid)    → modals.jsx:403-406
  *
  * Wires the reviewed closeNcr Server Action (imported, never authored). Per the
- * contract closeNcr({ncrId, resolution, signature?:{password}}) — CRITICAL NCRs
- * require the password (e-sign); non-critical NCRs close WITHOUT a password. The
- * server re-verifies the signature and SoD; failures are surfaced VERBATIM.
+ * contract closeNcr({ncrId, resolution, signature:{password}}) — every NCR close
+ * requires e-sign (21 CFR Part 11); the server re-verifies via signEvent and
+ * rejects when no receipt hash is produced. Critical NCRs additionally enforce
+ * dual-sign SoD server-side; failures are surfaced VERBATIM.
  *
  * DEVIATIONS (red-lines): the prototype's 6-digit numeric PINs + the dual second
  * signer PIN block (modals.jsx:444-462) collapse to a single account-password
@@ -94,9 +95,7 @@ export function NcrCloseModal({
 
   const isCritical = ncr.severity === 'critical';
   const trimmedResolution = resolution.trim();
-  // Critical → password required; others → close without a password.
-  const valid =
-    trimmedResolution.length >= RESOLUTION_MIN && (!isCritical || password.length > 0);
+  const valid = trimmedResolution.length >= RESOLUTION_MIN && password.length > 0;
 
   function reset() {
     setResolution('');
@@ -115,7 +114,7 @@ export function NcrCloseModal({
       setError(labels.validation.resolutionRequired);
       return;
     }
-    if (isCritical && password.length === 0) {
+    if (password.length === 0) {
       setError(labels.validation.passwordRequired);
       return;
     }
@@ -124,8 +123,7 @@ export function NcrCloseModal({
       const result = await closeNcrAction({
         ncrId: ncr.id,
         resolution: trimmedResolution,
-        // CRITICAL requires the e-sign password; others close without it.
-        ...(isCritical ? { signature: { password } } : {}),
+        signature: { password },
       });
       if (!result.ok) {
         setError(closeErrorMessage(labels, result));
@@ -188,28 +186,26 @@ export function NcrCloseModal({
             </div>
           )}
 
-          {/* E-sign block — ONLY for critical NCRs (parity modals.jsx:444-462). */}
-          {isCritical && (
-            <div data-testid="ncr-close-esign" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{labels.esign.title}</div>
-              <p className="mt-1 text-[11px] text-slate-500">{labels.esign.meaning}</p>
-              <label className="mt-2 flex flex-col gap-1">
-                <span className="text-xs font-medium text-slate-700">
-                  {labels.esign.password} <span aria-hidden className="text-red-500">*</span>
-                </span>
-                <input
-                  type="password"
-                  data-testid="ncr-close-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={labels.esign.passwordPlaceholder}
-                  autoComplete="current-password"
-                  className="rounded-md border border-slate-300 px-2.5 py-1.5 focus:border-slate-400 focus:outline-none"
-                />
-              </label>
-              <p className="mt-1 text-[10px] leading-snug text-slate-400">{labels.esign.passwordHelp}</p>
-            </div>
-          )}
+          {/* E-sign block — required for every NCR close (parity modals.jsx:444-462). */}
+          <div data-testid="ncr-close-esign" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{labels.esign.title}</div>
+            <p className="mt-1 text-[11px] text-slate-500">{labels.esign.meaning}</p>
+            <label className="mt-2 flex flex-col gap-1">
+              <span className="text-xs font-medium text-slate-700">
+                {labels.esign.password} <span aria-hidden className="text-red-500">*</span>
+              </span>
+              <input
+                type="password"
+                data-testid="ncr-close-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={labels.esign.passwordPlaceholder}
+                autoComplete="current-password"
+                className="rounded-md border border-slate-300 px-2.5 py-1.5 focus:border-slate-400 focus:outline-none"
+              />
+            </label>
+            <p className="mt-1 text-[10px] leading-snug text-slate-400">{labels.esign.passwordHelp}</p>
+          </div>
 
           {error && (
             <p role="alert" data-testid="ncr-close-error" className="text-sm text-red-600">

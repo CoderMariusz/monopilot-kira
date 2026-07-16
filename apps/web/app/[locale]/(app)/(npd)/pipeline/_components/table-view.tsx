@@ -132,11 +132,13 @@ export type BulkActions = {
 
 const GATE_ORDER: ProjectGate[] = ['G0', 'G1', 'G2', 'G3', 'G4', 'Launched'];
 
-// Stage-native bulk move (2026-06-06 pivot): the operational stages a project can be
-// advanced INTO (brief is the creation stage, never a move target).
+// Stage-native bulk move (2026-06-06 pivot): operational stages a project can be
+// advanced INTO. `brief` expresses gate-only G0→G1 (stage stays brief).
 export type BulkTargetStage =
+  | 'brief'
   | 'recipe'
   | 'packaging'
+  | 'costing_nutrition'
   | 'trial'
   | 'sensory'
   | 'pilot'
@@ -145,8 +147,10 @@ export type BulkTargetStage =
   | 'launched';
 
 const BULK_TARGET_STAGES: BulkTargetStage[] = [
+  'brief',
   'recipe',
   'packaging',
+  'costing_nutrition',
   'trial',
   'sensory',
   'pilot',

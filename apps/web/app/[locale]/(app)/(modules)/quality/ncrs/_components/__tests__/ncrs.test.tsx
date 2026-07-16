@@ -9,8 +9,8 @@
  * panels). The Server Actions are passed in as props, so we inject vi.fn() stubs
  * (mirroring the parallel-owned ncr-actions.ts contract) and assert exact payloads.
  * Covers: §3.3 attention/calm partition order, severity/type/status filters +
- * search, create payload, critical-close requires the e-sign password (non-critical
- * closes without), closed-NCR immutability (banner + read-only investigation + no
+ * search, create payload, every close requires the e-sign password (critical keeps
+ * dual-sign warning), closed-NCR immutability (banner + read-only investigation + no
  * actions), and that en + pl resolve every staged key (no leaked dotted key).
  */
 import '@testing-library/jest-dom/vitest';
@@ -246,8 +246,8 @@ describe('NcrListClient (QA-009 §3.3 attention partition)', () => {
   });
 });
 
-describe('NcrCloseModal (MODAL-NCR-CLOSE parity — conditional e-sign)', () => {
-  function renderClose(severity: 'critical' | 'major', closeNcrAction = vi.fn()) {
+describe('NcrCloseModal (MODAL-NCR-CLOSE parity — e-sign required)', () => {
+  function renderClose(severity: 'critical' | 'major' | 'minor', closeNcrAction = vi.fn()) {
     return render(
       <NcrCloseModal
         open
@@ -281,21 +281,40 @@ describe('NcrCloseModal (MODAL-NCR-CLOSE parity — conditional e-sign)', () => 
     });
   });
 
-  it('NON-CRITICAL (major): closes WITHOUT a password (no e-sign block)', async () => {
+  it('NON-CRITICAL (major): requires resolution + e-sign password before closing', async () => {
     const closeNcrAction = vi.fn().mockResolvedValue({ ok: true, data: { id: 'n-1', status: 'closed' } });
     renderClose('major', closeNcrAction);
-    expect(screen.queryByTestId('ncr-close-esign')).not.toBeInTheDocument();
+    expect(screen.getByTestId('ncr-close-esign')).toBeInTheDocument();
     expect(screen.queryByTestId('ncr-close-dualsign-warning')).not.toBeInTheDocument();
 
     const submit = screen.getByTestId('ncr-close-submit');
     expect(submit).toBeDisabled();
     fireEvent.change(screen.getByTestId('ncr-close-resolution'), { target: { value: 'Closed after minor rework.' } });
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByTestId('ncr-close-password'), { target: { value: 'pw' } });
     expect(submit).toBeEnabled();
     fireEvent.click(submit);
     await waitFor(() => expect(closeNcrAction).toHaveBeenCalledTimes(1));
     expect(closeNcrAction).toHaveBeenCalledWith({
       ncrId: 'n-1',
       resolution: 'Closed after minor rework.',
+      signature: { password: 'pw' },
+    });
+  });
+
+  it('MINOR: requires e-sign password before closing', async () => {
+    const closeNcrAction = vi.fn().mockResolvedValue({ ok: true, data: { id: 'n-1', status: 'closed' } });
+    renderClose('minor', closeNcrAction);
+    expect(screen.getByTestId('ncr-close-esign')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('ncr-close-resolution'), { target: { value: 'Minor deviation resolved.' } });
+    fireEvent.change(screen.getByTestId('ncr-close-password'), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByTestId('ncr-close-submit'));
+    await waitFor(() => expect(closeNcrAction).toHaveBeenCalledTimes(1));
+    expect(closeNcrAction).toHaveBeenCalledWith({
+      ncrId: 'n-1',
+      resolution: 'Minor deviation resolved.',
+      signature: { password: 'pw' },
     });
   });
 
@@ -438,10 +457,10 @@ describe('NcrDetailClient (QA-009a parity)', () => {
     expect(card).not.toHaveTextContent('ccp-uuid-9');
   });
 
-  it('CLOSED NCR is immutable: shows the signed banner, read-only investigation, and NO actions', () => {
-    render(
+  it('CLOSED NCR is immutable: shows the signed banner only when a receipt hash exists', () => {
+    const { rerender } = render(
       <NcrDetailClient
-        ncr={makeDetail({ status: 'closed', closedAt: '2026-04-25T09:00:00.000Z' })}
+        ncr={makeDetail({ status: 'closed', closedAt: '2026-04-25T09:00:00.000Z', closureSignatureHash: null })}
         labels={DETAIL_LABELS}
         locale="en"
         updateInvestigationAction={vi.fn() as never}
@@ -451,6 +470,22 @@ describe('NcrDetailClient (QA-009a parity)', () => {
     const banner = screen.getByTestId('ncr-detail-closed-banner');
     expect(banner).toHaveAttribute('data-state', 'closed');
     expect(banner).toHaveTextContent('immutable');
+    expect(banner).not.toHaveTextContent('SHA-256');
+
+    rerender(
+      <NcrDetailClient
+        ncr={makeDetail({
+          status: 'closed',
+          closedAt: '2026-04-25T09:00:00.000Z',
+          closureSignatureHash: 'a'.repeat(64),
+        })}
+        labels={DETAIL_LABELS}
+        locale="en"
+        updateInvestigationAction={vi.fn() as never}
+        closeNcrAction={vi.fn() as never}
+      />,
+    );
+    expect(screen.getByTestId('ncr-detail-closed-banner')).toHaveTextContent('SHA-256');
     // No close button, no save button, investigation is read-only/disabled.
     expect(screen.queryByTestId('ncr-detail-close-open')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ncr-investigation-save')).not.toBeInTheDocument();

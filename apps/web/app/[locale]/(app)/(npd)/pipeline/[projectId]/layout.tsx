@@ -42,11 +42,7 @@ import { advanceProjectGate as advanceProjectGateAction } from '../../../../../(
 import { deleteProject as deleteProjectAction } from '../../../../../(npd)/pipeline/_actions/delete-project';
 import { cloneProject as cloneProjectAction } from '../../../../../(npd)/pipeline/_actions/clone-project';
 import { createOrMapFgCandidateAtG3 as createOrMapFgCandidateAtG3Action } from '../../../../../(npd)/pipeline/_actions/create-or-map-fg-candidate-at-g3';
-import {
-  advanceTransitionForStage,
-  nextGate,
-  nextStage,
-} from '../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
+import { resolveAdvanceTransition } from '../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
   type ProjectGate,
   type ProjectPriority,
@@ -73,10 +69,8 @@ type GateKey = 'G0' | 'G1' | 'G2' | 'G3' | 'G4';
 
 // Static gate display metadata ONLY (label + badge tone). The advance TRANSITION
 // (next stage / target gate / e-sign requirement) is NOT static per gate — it is
-// derived from the stage machine via advanceTransitionForStage, so the modal can
-// never claim a target the engine will not land on (e.g. the old "G0 → G1" lie:
-// the first advance is brief→recipe which derives G2; G1 is collapsed into the
-// brief stage by the 2026-06-06 pivot and is never a forward target).
+// derived from stored gate+stage via resolveAdvanceTransition (C025), so the modal
+// never claims a target the engine will not land on.
 type GateMeta = {
   label: string;
   tone: ProjectHeaderBadgeTone;
@@ -173,12 +167,6 @@ const GATE_LABEL_DEFAULTS: Record<GateKey | 'Launched', string> = {
   Launched: 'Launched',
 };
 
-// Tooltip shown on the initial-gate (G0) badge so the absence of a standalone G1
-// step reads as intentional. G1 "Feasibility" is part of the Brief stage (the
-// 2026-06-06 pivot), so it is never skipped — just merged. Label/UI only.
-const GATE_MERGE_HINT_DEFAULT =
-  'G1 Feasibility is part of the Brief stage — it is covered here, not skipped. The next advance goes to G2.';
-
 const PRIO_LABEL_DEFAULTS: Record<ProjectPriority, string> = {
   high: 'High priority',
   normal: 'Normal priority',
@@ -244,23 +232,25 @@ async function pickerFor(locale: string, namespace: string) {
 }
 
 // ─── Server-Action adapter passed to the client (the action itself is NOT authored here). ───
-// The detail-page "Advance stage →" button drives a STAGE step. The modal still passes
-// a `targetGate` (its gate-transition UI), but the engine is stage-native now: the
-// adapter loads the project's real current_stage and advances exactly one operational
-// stage (STAGE_ORDER). `targetGate` is accepted for the existing prop shape but ignored.
+// Uses the same stored gate+stage selector as Kanban and the gate detail page (C025):
+// G0+brief gate-only → G1+brief, then G1→G2 stage step, then STAGE_ORDER thereafter.
 async function advanceAdapter(input: { projectId: string; targetGate: TargetGate; notes: string; override?: { note: string } }) {
   'use server';
   const current = await getProject({ projectId: input.projectId });
   if (!current.ok) {
     return { ok: false as const, error: current.error, status: 400 };
   }
-  const next = nextStage(current.data.project.currentStage);
-  if (!next) {
+  const project = current.data.project;
+  const transition = resolveAdvanceTransition({
+    current_gate: project.currentGate,
+    current_stage: project.currentStage,
+  });
+  if (!transition) {
     return { ok: false as const, error: 'ADJACENCY_VIOLATION', status: 422 };
   }
   const result = await advanceProjectGateAction({
     projectId: input.projectId,
-    targetStage: next,
+    targetStage: transition.nextStage,
     notes: input.notes || undefined,
     override: input.override,
   });
@@ -407,28 +397,15 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
       ? p('gate.Launched', GATE_LABEL_DEFAULTS.Launched)
       : (stepLabels[project.currentStage as ProjectStageKey] ?? project.currentStage);
 
-  // ── G0–G1 merge made EXPLICIT (owner: "Brief · G0 then jumps to G2, no G1"). ──
-  // G1 "Feasibility" is collapsed into the Brief stage by the 2026-06-06 pivot
-  // (see gate-helpers.ts advanceTransitionForStage) — it is never its own stepper
-  // step and never a forward advance target. Rather than silently hide it, the
-  // initial-gate badge spells out "G0–G1 Idea / Feasibility" and carries a tooltip
-  // explaining the merge, so the gap between G0 and G2 reads as intentional, not a
-  // skipped step. UI/label only — the gate state machine is untouched.
-  const isInitialGate = currentGate === 'G0';
-  const g1Label = p('gate.G1', GATE_LABEL_DEFAULTS.G1);
-  const gateSegment = isInitialGate
-    ? `G0–G1 ${gateLabel} / ${g1Label}`
-    : `${currentGate} ${gateLabel}`;
+  const gateSegment = `${currentGate} ${gateLabel}`;
   const headerBadgeLabel =
     currentGate === 'Launched' ? gateLabel : `${stageDisplay} · ${gateSegment}`;
-  const headerBadgeHint = isInitialGate
-    ? p('gate.g0MergeHint', GATE_MERGE_HINT_DEFAULT)
-    : null;
 
-  // The modal is a gate transition UI, so it always proposes the adjacent gate.
-  // The action adapter remains stage-native and independently enforces adjacency.
-  const transition = advanceTransitionForStage(project.currentStage);
-  const targetGate = (nextGate(currentGate) ?? 'Launched') as TargetGate;
+  const transition = resolveAdvanceTransition({
+    current_gate: project.currentGate,
+    current_stage: project.currentStage,
+  });
+  const targetGate = (transition?.targetGate ?? 'Launched') as TargetGate;
   const targetGateLabel = p(`gate.${targetGate}`, GATE_LABEL_DEFAULTS[targetGate]);
 
   const headerView: ProjectHeaderView = {
@@ -439,7 +416,7 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     owner: project.owner,
     targetLaunch: project.targetLaunch,
     gateLabel: headerBadgeLabel,
-    gateLabelHint: headerBadgeHint,
+    gateLabelHint: null,
     gateTone,
     prioLabel: p(`prio.${project.prio}`, PRIO_LABEL_DEFAULTS[project.prio]),
     prioTone: PRIO_TONE[project.prio],
@@ -448,13 +425,10 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
   };
 
   // Advance-modal props (resolved from the real getProject checklist).
-  // Recipe readiness: a fresh G0 project and the recipe stage both require ≥1 ingredient.
-  // The seeded G2
-  // checklist (shelf-life / label / HACCP / business case) belongs to later stages, so
-  // on the recipe stage we show ONLY the derived ingredient requirement instead.
+  // G0 uses the gate-only G0 checklist; recipe stage adds the derived ingredient requirement.
   const currentChecklist = isGateKey(currentGate) ? (checklistByGate?.[currentGate] ?? []) : [];
   const advanceItems =
-    currentGate === 'G0' || project.currentStage === 'recipe'
+    project.currentStage === 'recipe'
       ? [
           {
             id: 'recipe-has-ingredient',

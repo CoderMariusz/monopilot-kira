@@ -5,8 +5,14 @@ import {
 import type { SiteMutationError } from '../_actions/sites';
 import type { SitesModalLabels } from '../sites-screen.client';
 
+/** Null-safe site match for line ↔ warehouse (IS NOT DISTINCT FROM semantics). */
+export function warehouseMatchesLineSite(warehouseSiteId: string | null, lineSiteId: string | null): boolean {
+  return warehouseSiteId === lineSiteId;
+}
+
 export function mapError(error: SiteMutationError, labels: SitesModalLabels): string {
   if (error === 'duplicate_code') return labels.errorDuplicate;
+  if (error === 'warehouse_site_mismatch') return labels.errorWarehouseSiteMismatch;
   if (error === 'invalid_input') return labels.errorRequired;
   return labels.errorGeneric;
 }

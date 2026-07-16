@@ -31,7 +31,7 @@ import {
 } from '../../../../(npd)/pipeline/_actions/bulk-update-projects';
 import { getProject } from '../../../../(npd)/pipeline/_actions/get-project';
 import { listProjects, type ListProjectsInput } from '../../../../(npd)/pipeline/_actions/list-projects';
-import { GATE_ADVANCE_PERMISSION, nextStage } from '../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
+import { GATE_ADVANCE_PERMISSION, resolveAdvanceTransition } from '../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
   PROJECT_CREATE_PERMISSION,
   PROJECT_VIEW_PERMISSION,
@@ -383,16 +383,22 @@ async function readPageData({ filter, search }: ReadPageDataArgs): Promise<Loade
 class ForbiddenError extends Error {}
 
 /** Server Action adapter passed to the client (T-058 owns advanceProjectGate).
- * Kanban drag-to-advance is gate-keyed (columns = gates); the engine is stage-native,
- * so we resolve the project's real current_stage and advance exactly one stage. The
- * card's gate column moves only when the derived gate of the new stage changes. */
+ * Kanban drag-to-advance is gate-keyed (columns = gates); advance uses the same
+ * stored gate+stage selector as the gate detail page (C025): G0+brief gate-only
+ * → G1+brief, then G1→G2 stage step, then STAGE_ORDER thereafter. */
 async function advanceActionAdapter(input: AdvanceInput): Promise<AdvanceResult> {
   'use server';
   const current = await getProject({ projectId: input.projectId });
   if (!current.ok) return { ok: false, error: current.error, status: 400 };
-  const next = nextStage(current.data.project.currentStage);
-  if (!next) return { ok: false, error: 'ADJACENCY_VIOLATION', status: 422 };
-  const result = await advanceProjectGate({ projectId: input.projectId, targetStage: next });
+  const transition = resolveAdvanceTransition({
+    current_gate: current.data.project.currentGate,
+    current_stage: current.data.project.currentStage,
+  });
+  if (!transition) return { ok: false, error: 'ADJACENCY_VIOLATION', status: 422 };
+  const result = await advanceProjectGate({
+    projectId: input.projectId,
+    targetStage: transition.nextStage,
+  });
   if (result.ok) {
     return { ok: true, data: { currentGate: result.data.currentGate } };
   }

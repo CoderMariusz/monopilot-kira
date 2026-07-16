@@ -27,8 +27,8 @@
  *     referenceId?, productId?, affectedQtyKg?, linkedHoldId?}) -> CreatedNcr
  *   updateNcrInvestigation({ncrId, rootCause?, rootCauseCategory?, immediateAction?
  *     , ...}) -> UpdatedNcrInvestigation
- *   closeNcr({ncrId, resolution, signature?:{password}}) -> ClosedNcr
- *     (CRITICAL severity requires the signature; others close without it).
+ *   closeNcr({ncrId, resolution, signature:{password}}) -> ClosedNcr
+ *     (every close requires e-sign via signEvent; critical additionally enforces SoD policy).
  */
 
 export type NcrSeverity = 'critical' | 'major' | 'minor';
@@ -202,7 +202,7 @@ export type UpdateNcrInvestigationInput = {
 export type CloseNcrInput = {
   ncrId: string;
   resolution: string;
-  signature?: { password: string };
+  signature: { password: string };
 };
 
 export type CreatedNcr = { id: string; ncrNumber: string; status: 'open' };

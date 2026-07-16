@@ -36,10 +36,9 @@ import { toggleGateChecklistAdapter } from './_actions/toggle-gate-checklist';
 import {
   GATE_ADVANCE_PERMISSION,
   GATE_APPROVE_PERMISSION,
-  advanceTransitionForStage,
+  resolveAdvanceTransition,
+  resolveGateReadiness,
   getBlockers,
-  nextGate,
-  nextStage,
   type GateProjectRow,
 } from '../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
@@ -106,15 +105,10 @@ type GateMeta = {
   requiresApproval: boolean;
 };
 
-// HONEST gate sequence (2026-06-06 stage-pivot, intended G1 skip): the engine is
-// stage-native — from brief (gate G0) the first advance is brief→recipe, which
-// DERIVES gate G2. G1 (Feasibility) is collapsed into the brief stage and is never
-// a forward advance target (it can only reappear via an admin gate revert), so the
-// timeline keeps G1 only as the checklist grouping for its seeded items and G0's
-// forward claim is G2 — the UI must never promise a G0→G1 step that cannot happen.
+// Gate labels for the timeline (advance claims come from resolveGateReadiness).
 const GATE_META: Record<GateKey, GateMeta> = {
-  G0: { label: 'Idea', next: 'G2', nextLabel: 'Business Case', advanceTarget: 'G2', requiresApproval: false },
-  G1: { label: 'Feasibility (within Brief)', next: 'G2', nextLabel: 'Business Case', advanceTarget: 'G2', requiresApproval: false },
+  G0: { label: 'Idea', next: 'G1', nextLabel: 'Feasibility', advanceTarget: 'G1', requiresApproval: false },
+  G1: { label: 'Feasibility', next: 'G2', nextLabel: 'Business Case', advanceTarget: 'G2', requiresApproval: false },
   // G2 (Business Case) is a SELF-ADVANCE gate — only G3 (Development) and G4 (Testing)
   // carry the BRCGS/CFR-21 e-sign (approveProjectGate accepts gateCode ∈ {G3,G4} only,
   // and the stage machine sets requiresESign solely on approval→handoff). Marking G2 as
@@ -326,11 +320,18 @@ function mapChecklistItem(item: ChecklistItem) {
   };
 }
 
+function resolveAuthoritativeGateKey(currentGate: ProjectGate, currentStage: string): GateKey {
+  const readiness = resolveGateReadiness({ current_gate: currentGate, current_stage: currentStage });
+  const gate = readiness.currentGate;
+  return isChecklistGate(gate) ? gate : 'G4';
+}
+
 function buildGateViews(
   currentGate: ProjectGate,
+  currentStage: string,
   checklistByGate: Record<ChecklistGate, ChecklistItem[]>,
 ): GateView[] {
-  const currentKey: GateKey = isChecklistGate(currentGate) ? currentGate : 'G4';
+  const currentKey = resolveAuthoritativeGateKey(currentGate, currentStage);
   return GATE_ORDER.map((key): GateView => {
     const meta = GATE_META[key];
     const items = (checklistByGate[key] ?? []).map(mapChecklistItem);
@@ -357,7 +358,8 @@ function buildAdvanceProps(
   currentStage: string,
   gates: GateView[],
 ): { project: GateScreenData['advanceProject']; info: AdvanceGateInfo; items: AdvanceGateItem[] } {
-  const currentKey: GateKey = isChecklistGate(currentGate) ? currentGate : 'G4';
+  const readiness = resolveGateReadiness({ current_gate: currentGate, current_stage: currentStage });
+  const currentKey = resolveAuthoritativeGateKey(currentGate, currentStage);
   const meta = GATE_META[currentKey];
   const currentGateView = gates.find((g) => g.key === currentKey);
   const items: AdvanceGateItem[] = (currentGateView?.items ?? []).map((i) => ({
@@ -366,8 +368,8 @@ function buildAdvanceProps(
     required: i.required,
     done: i.done,
   }));
-  const transition = advanceTransitionForStage(currentStage);
-  const targetGate = (nextGate(currentGate) ?? 'Launched') as TargetGate;
+  const transition = readiness.advance;
+  const targetGate = (transition?.targetGate ?? 'Launched') as TargetGate;
   const nextLabel =
     targetGate === 'Launched' ? 'Launched' : GATE_META[targetGate as GateKey].label;
   return {
@@ -377,7 +379,6 @@ function buildAdvanceProps(
       currentLabel: meta.label,
       next: targetGate,
       nextLabel,
-      // Only the approval→handoff step is the enforced G4 e-sign checkpoint.
       requiresApproval: transition?.requiresESign ?? false,
     },
     items,
@@ -434,9 +435,9 @@ function buildGateScreenData(
   checklistByGate: Record<ChecklistGate, ChecklistItem[]>,
   approvalsTimeline: GateApprovalTimelineItem[],
 ): GateScreenData {
-  const gates = buildGateViews(currentGate, checklistByGate);
+  const gates = buildGateViews(currentGate, currentStage, checklistByGate);
   const advance = buildAdvanceProps(projectId, code, name, currentGate, currentStage, gates);
-  const currentKey: GateKey = isChecklistGate(currentGate) ? currentGate : 'G4';
+  const currentKey = resolveAuthoritativeGateKey(currentGate, currentStage);
   const isTerminal = currentGate === 'Launched';
   return {
     panelProject: { id: projectId, code, name, currentGate: currentKey },
@@ -549,17 +550,17 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
 
 async function advanceAdapter(input: { projectId: string; targetGate: TargetGate; notes: string; override?: { note: string } }) {
   'use server';
-  // Stage-native engine: advance exactly one operational stage from the project's
-  // real current_stage (the modal's `targetGate` is the old gate-transition UI shape
-  // and is intentionally ignored here).
   const current = await getProject({ projectId: input.projectId });
   if (!current.ok) return { ok: false as const, error: current.error, status: 400 };
-  const next = nextStage(current.data.project.currentStage);
-  if (!next) return { ok: false as const, error: 'ADJACENCY_VIOLATION', status: 422 };
+  const project = current.data.project;
+  const transition = resolveAdvanceTransition({
+    current_gate: project.currentGate,
+    current_stage: project.currentStage,
+  });
+  if (!transition) return { ok: false as const, error: 'ADJACENCY_VIOLATION', status: 422 };
   const result = await advanceProjectGateAction({
     projectId: input.projectId,
-    targetStage: next,
-    // Thread the modal notes through to the outbox event payload for the audit trail.
+    targetStage: transition.nextStage,
     notes: input.notes || undefined,
     override: input.override,
   });
@@ -614,10 +615,8 @@ export default async function GatePage(propsInput: unknown = {}) {
       advanceGateInfo: {
         current: 'G0',
         currentLabel: GATE_META.G0.label,
-        // Honest forward claim: brief (G0) advances to recipe, which derives G2 —
-        // G1 is collapsed into the brief stage and is never a forward target.
-        next: 'G2',
-        nextLabel: GATE_META.G0.nextLabel ?? 'Business Case',
+        next: 'G1',
+        nextLabel: GATE_META.G1.label,
         requiresApproval: false,
       },
       advanceItems: [],

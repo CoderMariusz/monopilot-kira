@@ -81,7 +81,7 @@ export type ESignPolicyErrorCode = 'second_signature_required' | 'signer_role_no
 export class ESignPolicyError extends Error {
   readonly code: ESignPolicyErrorCode;
 
-  constructor(code: ESignPolicyErrorCode, message = code) {
+  constructor(code: ESignPolicyErrorCode, message: string = code) {
     super(message);
     this.name = 'ESignPolicyError';
     this.code = code;

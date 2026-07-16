@@ -14,6 +14,7 @@ import {
   type ProcurementError,
   type QueryClient,
 } from '../../_actions/procurement-shared';
+import { ensureDestinationWarehouseForPoSite } from './po-destination-warehouse';
 
 type PurchaseOrderRow = {
   id: string;
@@ -82,7 +83,8 @@ export type PurchaseOrderError =
   | 'po_open_quantity'
   | 'no_active_site'
   | 'ambiguous_site'
-  | 'supplier_blocked';
+  | 'supplier_blocked'
+  | 'warehouse_site_mismatch';
 
 export type PurchaseOrderResult<T> =
   | { ok: true; data: T }
@@ -186,6 +188,21 @@ export async function createPurchaseOrderCore(
       error: 'supplier_blocked',
       code: 'supplier_blocked',
       message: supplier.status === 'blocked' ? 'Supplier is blocked' : 'Supplier is inactive',
+    };
+  }
+
+  const destinationWarehouseCheck = await ensureDestinationWarehouseForPoSite(
+    ctx.client,
+    input.destinationWarehouseId,
+    siteId,
+  );
+  if (destinationWarehouseCheck === 'not_found') return { ok: false, error: 'not_found' };
+  if (destinationWarehouseCheck === 'warehouse_site_mismatch') {
+    return {
+      ok: false,
+      error: 'warehouse_site_mismatch',
+      code: 'warehouse_site_mismatch',
+      message: 'Destination warehouse belongs to a different site than this purchase order.',
     };
   }
 

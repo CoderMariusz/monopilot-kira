@@ -5,7 +5,7 @@ import Modal from '@monopilot/ui/Modal';
 import { LineCreateFields, type CreateLineInput as InfraCreateLineInput } from '../../infra/lines/lines-screen.client';
 import type { LineFormOptions } from '../_actions/sites';
 import type { CreateLineAction, SitesModalLabels } from '../sites-screen.client';
-import { mapError, toLineLabels } from './modal-utils';
+import { mapError, toLineLabels, warehouseMatchesLineSite } from './modal-utils';
 
 export function AddLineModal({
   labels,
@@ -78,7 +78,7 @@ export function AddLineModal({
               labels={lineLabels}
               value={line}
               sites={options.sites}
-              warehouses={options.warehouses}
+              warehouses={options.warehouses.filter((warehouse) => warehouseMatchesLineSite(warehouse.siteId, siteId))}
               locations={options.locations}
               pending={pending}
               siteReadOnlyLabel={siteLabel}

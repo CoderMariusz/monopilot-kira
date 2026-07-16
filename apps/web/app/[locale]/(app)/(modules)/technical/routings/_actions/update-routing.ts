@@ -23,6 +23,7 @@ import {
   ROUTING_WRITE_PERMISSION,
   UpdateRoutingInput,
   type UpdateRoutingResult,
+  validateOperationLineSiteScope,
   validateOperationSet,
   writeAudit,
 } from './shared';
@@ -62,8 +63,8 @@ export async function updateRouting(rawInput: unknown): Promise<UpdateRoutingRes
       const ctx: OrgActionContext = { userId, orgId, client: qc };
       if (!(await hasPermission(ctx, ROUTING_WRITE_PERMISSION))) return { ok: false, error: 'forbidden' };
 
-      const { rows: cur } = await qc.query<{ id: string; status: string }>(
-        `select routing.id, routing.status
+      const { rows: cur } = await qc.query<{ id: string; status: string; site_id: string | null }>(
+        `select routing.id, routing.status, routing.site_id::text as site_id
            from public.routings routing
           where routing.org_id = app.current_org_id()
             and routing.id = $1::uuid
@@ -87,6 +88,13 @@ export async function updateRouting(rawInput: unknown): Promise<UpdateRoutingRes
           message: `manufacturing_operation_name '${unknown}' is not in the manufacturing-operations reference (V-TEC-63)`,
         };
       }
+
+      const siteCheck = await validateOperationLineSiteScope(
+        qc,
+        input.operations.map((op) => op.lineId),
+        routing.site_id,
+      );
+      if (!siteCheck.ok) return { ok: false, error: siteCheck.error, message: siteCheck.message };
 
       // Replace the operation set atomically: delete the draft's ops, re-insert.
       // (Deleting OPERATION rows of a draft is allowed — the no-delete red line is
@@ -117,6 +125,16 @@ export async function updateRouting(rawInput: unknown): Promise<UpdateRoutingRes
             op.yieldPct,
             userId,
           ],
+        );
+      }
+
+      if (siteCheck.canonicalSiteId && siteCheck.canonicalSiteId !== routing.site_id) {
+        await qc.query(
+          `update public.routings
+              set site_id = $2::uuid
+            where org_id = app.current_org_id()
+              and id = $1::uuid`,
+          [input.routingId, siteCheck.canonicalSiteId],
         );
       }
 

@@ -83,6 +83,7 @@ export type NcrDetailLabels = {
   backToNcrs: string;
   overdueBanner: string;
   closedBanner: string;
+  closedBannerSigned: string;
   closeNcr: string;
   downloadReport: string;
   header: { title: string; responseWindowCritical: string; responseWindowMajor: string };
@@ -233,7 +234,10 @@ export function NcrDetailClient({
           className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
         >
           <span aria-hidden>🔒</span>
-          <span>{labels.closedBanner.replace('{date}', ncr.closedAt ? ncr.closedAt.slice(0, 10) : '—')}</span>
+          <span>
+            {labels.closedBanner.replace('{date}', ncr.closedAt ? ncr.closedAt.slice(0, 10) : '—')}
+            {ncr.closureSignatureHash ? ` ${labels.closedBannerSigned}` : ''}
+          </span>
         </div>
       )}
 

@@ -332,6 +332,56 @@ describe('receive-po-line-core', () => {
     expect(grnItemInsert?.[10]).toBe(BIN_LOCATION_ID);
   });
 
+  it('rejects receive when resolved warehouse site does not match the PO site', async () => {
+    const client = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      poSiteId: SITE_ID,
+      warehouseSiteId: OTHER_SITE_ID,
+    });
+
+    const result = await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+      baseInput,
+      {
+        mode: 'desktop',
+        genesisReasonCode: 'desktop_receive_po',
+        genesisReasonText: 'Desktop PO receipt',
+        requireOverReceiveConfirm: true,
+      },
+    );
+
+    expect(result).toEqual({ ok: false, code: 'warehouse_site_mismatch', poId: PO_ID });
+    expect(client.calls.some((c) => c.sql.includes('insert into public.grns'))).toBe(false);
+    expect(client.calls.some((c) => c.sql.includes('insert into public.license_plates'))).toBe(false);
+    expect(client.calls.some((c) => c.sql.includes('insert into public.grn_items'))).toBe(false);
+  });
+
+  it('allows receive into an org-wide warehouse for a site-scoped PO', async () => {
+    const client = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      poSiteId: SITE_ID,
+      warehouseSiteId: null,
+    });
+
+    const result = await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+      baseInput,
+      {
+        mode: 'desktop',
+        genesisReasonCode: 'desktop_receive_po',
+        genesisReasonText: 'Desktop PO receipt',
+        requireOverReceiveConfirm: true,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, grnId: 'grn-1', lpId: 'lp-1' });
+    expect(findCall(client, 'insert into public.license_plates')?.params[1]).toBeNull();
+  });
+
   it('runs WAC preflight before any GRN/LP/grn_item writes for unresolvable UoM', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const client = makeClient({
@@ -378,7 +428,8 @@ function makeClient(options: {
   throwOnGrnItemsWriteAfterCompleted?: boolean;
   supplierStatus?: string;
   mode?: 'scanner' | 'desktop';
-  warehouseSiteId?: string;
+  poSiteId?: string;
+  warehouseSiteId?: string | null;
   locationVisible?: boolean;
   requestedLocationId?: string;
   uom?: string;
@@ -411,6 +462,7 @@ function makeClient(options: {
                   id: LINE_ID,
                   org_id: ORG_A,
                   po_id: PO_ID,
+                  po_site_id: options.poSiteId ?? SITE_ID,
                   item_id: ITEM_ID,
                   supplier_id: SUPPLIER_ID,
                   supplier_status: options.supplierStatus ?? 'active',
@@ -443,8 +495,10 @@ function makeClient(options: {
         };
       }
       if (normalized.includes('from public.warehouses w')) {
+        const siteId =
+          options.warehouseSiteId === undefined ? SITE_ID : options.warehouseSiteId;
         return {
-          rows: [{ id: WAREHOUSE_ID, site_id: options.warehouseSiteId ?? SITE_ID, default_location_id: LOCATION_ID }] as T[],
+          rows: [{ id: WAREHOUSE_ID, site_id: siteId, default_location_id: LOCATION_ID }] as T[],
         };
       }
       if (normalized.includes('from public.grns') && normalized.includes('status =')) {

@@ -83,6 +83,7 @@ async function buildModalLabels(locale: string): Promise<SitesModalLabels> {
     saving: t('modal.saving'),
     errorRequired: t('modal.errorRequired'),
     errorDuplicate: t('modal.errorDuplicate'),
+    errorWarehouseSiteMismatch: t('modal.errorWarehouseSiteMismatch'),
     errorForbidden: t('modal.errorForbidden'),
     errorGeneric: t('modal.errorGeneric'),
   };

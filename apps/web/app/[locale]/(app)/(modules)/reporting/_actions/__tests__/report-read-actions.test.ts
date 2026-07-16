@@ -574,6 +574,22 @@ describe('qualitySummary', () => {
     grantedPermissions = new Set();
     expect(await qualitySummary()).toEqual({ ok: false, reason: 'forbidden' });
   });
+
+  it('excludes unassigned quality rows from explicit-site scope (C116 reconciliation)', async () => {
+    boundSiteId = SITE_ID;
+    await qualitySummary({ days: 30 });
+    const sqlCalls = (client.query as ReturnType<typeof vi.fn>).mock.calls.map(([sql]) =>
+      normalize(String(sql)),
+    );
+    const holdsSql = sqlCalls.find((sql) => sql.includes('from public.quality_holds'));
+    const inspectionsSql = sqlCalls.find((sql) => sql.includes('from public.quality_inspections'));
+    const ncrsSql = sqlCalls.find((sql) => sql.includes('from public.ncr_reports'));
+    for (const sql of [holdsSql, inspectionsSql, ncrsSql]) {
+      expect(sql).toBeTruthy();
+      expect(sql).toContain('= app.current_site_id()');
+      expect(sql).not.toMatch(/\bsite_id is null\b/);
+    }
+  });
 });
 
 describe('procurementSummary', () => {

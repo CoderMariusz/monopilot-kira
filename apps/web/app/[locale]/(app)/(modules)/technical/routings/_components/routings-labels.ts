@@ -81,6 +81,7 @@ export type RoutingsLabels = {
   errNoResource: string;
   errZeroRunTime: string;
   errUnknownOperation: string;
+  errCrossSiteLines: string;
   errGeneric: string;
 };
 
@@ -153,5 +154,7 @@ export const ROUTINGS_DEFAULT_LABELS: RoutingsLabels = {
   errNoResource: 'Every operation must bind a production line (V-TEC-61).',
   errZeroRunTime: 'Production operations need a run time greater than 0 (V-TEC-62).',
   errUnknownOperation: 'An operation name is not in the manufacturing-operations reference (V-TEC-63).',
+  errCrossSiteLines:
+    'Every operation must use production lines from the same site as the routing (V-TEC-64).',
   errGeneric: 'Could not save the routing. Please try again.',
 };

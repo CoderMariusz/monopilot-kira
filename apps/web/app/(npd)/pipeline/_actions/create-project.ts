@@ -118,7 +118,7 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
           input.outputUnit ?? null,
           input.weeklyVolumePacks,
           input.runsPerWeek,
-          input.startFrom === 'blank' ? 'recipe' : 'brief',
+          'brief',
           input.startFrom,
           input.cloneSource ?? null,
           context.userId,

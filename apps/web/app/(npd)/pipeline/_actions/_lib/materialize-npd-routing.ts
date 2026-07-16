@@ -11,11 +11,15 @@
  * - V-TEC-63 is relaxed by mapping manufacturing_operation_name to NULL when the
  *   process name is not in Reference.ManufacturingOperations. This preserves the
  *   NPD process label as op_name without inventing reference data.
+ * - V-TEC-64 is enforced before any write: only draft routings may be edited in
+ *   place; an active/approved NPD routing with drift spawns a new draft version.
  */
+
+import { validateOperationLineSiteScope } from '../../../../[locale]/(app)/(modules)/technical/routings/_actions/shared';
 
 export type MaterializeNpdRoutingResult =
   | { ok: true; routingId: string }
-  | { ok: false; code: 'no_processes' | 'no_line' | 'routing_exists' };
+  | { ok: false; code: 'no_processes' | 'no_line' | 'routing_exists' | 'cross_site_lines' };
 
 export type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -29,7 +33,7 @@ type ProjectRow = {
   production_line_id: string | null;
 };
 
-type ExistingRoutingRow = { id: string };
+type ExistingRoutingRow = { id: string; status: string; site_id: string | null };
 type CreatedRoutingRow = { id: string };
 
 function processesCteSql(): string {
@@ -111,6 +115,36 @@ function insertRoutingOperationsSql(projectLineParamIndex: number): string {
       order by p.op_no`;
 }
 
+async function expectedLineIds(
+  sql: QueryClient,
+  projectId: string,
+  projectProductionLineId: string | null,
+): Promise<string[]> {
+  const result = await sql.query<{ line_id: string }>(
+    `with ${processesCteSql()},
+     expected as (
+       ${expectedOperationsSelectSql(2)}
+     )
+     select line_id::text as line_id from expected`,
+    [projectId, projectProductionLineId],
+  );
+  return result.rows.map((row) => row.line_id).filter(Boolean);
+}
+
+async function assertExpectedLineSiteScope(
+  sql: QueryClient,
+  projectId: string,
+  projectProductionLineId: string | null,
+  routingSiteId: string | null,
+): Promise<{ ok: false; code: 'cross_site_lines' } | { ok: true; canonicalSiteId: string | null }> {
+  const lineIds = await expectedLineIds(sql, projectId, projectProductionLineId);
+  const siteCheck = await validateOperationLineSiteScope(sql, lineIds, routingSiteId);
+  if (!siteCheck.ok) {
+    return { ok: false, code: 'cross_site_lines' };
+  }
+  return { ok: true, canonicalSiteId: siteCheck.canonicalSiteId };
+}
+
 async function routingOperationsDrifted(
   sql: QueryClient,
   routingId: string,
@@ -160,6 +194,64 @@ async function replaceRoutingOperations(
   await sql.query(insertRoutingOperationsSql(3), [projectId, routingId, projectProductionLineId]);
 }
 
+async function pinRoutingSiteId(
+  sql: QueryClient,
+  routingId: string,
+  canonicalSiteId: string | null,
+  currentSiteId: string | null,
+): Promise<void> {
+  if (!canonicalSiteId || canonicalSiteId === currentSiteId) return;
+  await sql.query(
+    `update public.routings
+        set site_id = $2::uuid
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and site_id is null`,
+    [routingId, canonicalSiteId],
+  );
+}
+
+async function createDraftRoutingVersion(
+  sql: QueryClient,
+  itemId: string,
+  siteId: string | null,
+): Promise<string> {
+  const version = await sql.query<{ next_version: number }>(
+    `select coalesce(max(version), 0) + 1 as next_version
+       from public.routings
+      where org_id = app.current_org_id()
+        and item_id = $1::uuid`,
+    [itemId],
+  );
+
+  const created = await sql.query<CreatedRoutingRow>(
+    `insert into public.routings
+       (org_id, item_id, version, status, origin_module, site_id)
+     values
+       (app.current_org_id(), $1::uuid, $2::integer, 'draft', 'npd', $3::uuid)
+     returning id::text as id`,
+    [itemId, Number(version.rows[0]?.next_version ?? 1), siteId],
+  );
+  const routingId = created.rows[0]?.id;
+  if (!routingId) throw new Error('npd_routing_insert_returned_no_row');
+  return routingId;
+}
+
+async function materializeIntoDraftRouting(
+  sql: QueryClient,
+  routingId: string,
+  projectId: string,
+  projectProductionLineId: string | null,
+  routingSiteId: string | null,
+): Promise<MaterializeNpdRoutingResult> {
+  const scope = await assertExpectedLineSiteScope(sql, projectId, projectProductionLineId, routingSiteId);
+  if (!scope.ok) return scope;
+
+  await replaceRoutingOperations(sql, routingId, projectId, projectProductionLineId);
+  await pinRoutingSiteId(sql, routingId, scope.canonicalSiteId, routingSiteId);
+  return { ok: true, routingId };
+}
+
 export async function materializeNpdRouting(
   sql: QueryClient,
   projectId: string,
@@ -202,28 +294,71 @@ export async function materializeNpdRouting(
     if (unresolvedLine.rows[0]?.has_unresolved) return { ok: false, code: 'no_line' };
   }
 
-  const existing = await sql.query<ExistingRoutingRow>(
-    `select id::text as id
+  const draftExisting = await sql.query<ExistingRoutingRow>(
+    `select id::text as id, status, site_id::text as site_id
        from public.routings
       where org_id = app.current_org_id()
         and item_id = $1::uuid
         and origin_module = 'npd'
-        and status in ('active', 'draft')
-      order by case status when 'active' then 0 else 1 end, version desc, created_at desc
+        and status = 'draft'
+      order by version desc, created_at desc
       limit 1`,
     [project.item_id],
   );
-  const existingRoutingId = existing.rows[0]?.id;
-  if (existingRoutingId) {
+  const draftRouting = draftExisting.rows[0];
+  if (draftRouting) {
     const drifted = await routingOperationsDrifted(
       sql,
-      existingRoutingId,
+      draftRouting.id,
       projectId,
       project.production_line_id,
     );
     if (!drifted) return { ok: false, code: 'routing_exists' };
-    await replaceRoutingOperations(sql, existingRoutingId, projectId, project.production_line_id);
-    return { ok: true, routingId: existingRoutingId };
+    return materializeIntoDraftRouting(
+      sql,
+      draftRouting.id,
+      projectId,
+      project.production_line_id,
+      draftRouting.site_id,
+    );
+  }
+
+  const lockedExisting = await sql.query<ExistingRoutingRow>(
+    `select id::text as id, status, site_id::text as site_id
+       from public.routings
+      where org_id = app.current_org_id()
+        and item_id = $1::uuid
+        and origin_module = 'npd'
+        and status in ('active', 'approved')
+      order by case status when 'active' then 0 else 1 end, version desc, created_at desc
+      limit 1`,
+    [project.item_id],
+  );
+  const lockedRouting = lockedExisting.rows[0];
+  if (lockedRouting) {
+    const drifted = await routingOperationsDrifted(
+      sql,
+      lockedRouting.id,
+      projectId,
+      project.production_line_id,
+    );
+    if (!drifted) return { ok: false, code: 'routing_exists' };
+
+    const scope = await assertExpectedLineSiteScope(
+      sql,
+      projectId,
+      project.production_line_id,
+      lockedRouting.site_id,
+    );
+    if (!scope.ok) return scope;
+
+    const routingId = await createDraftRoutingVersion(
+      sql,
+      project.item_id,
+      lockedRouting.site_id ?? scope.canonicalSiteId,
+    );
+    await sql.query(insertRoutingOperationsSql(3), [projectId, routingId, project.production_line_id]);
+    return { ok: true, routingId };
   }
 
   const processCount = await sql.query<{ count: string }>(
@@ -244,26 +379,10 @@ export async function materializeNpdRouting(
   );
   if (Number(processCount.rows[0]?.count ?? 0) === 0) return { ok: false, code: 'no_processes' };
 
-  const version = await sql.query<{ next_version: number }>(
-    `select coalesce(max(version), 0) + 1 as next_version
-       from public.routings
-      where org_id = app.current_org_id()
-        and item_id = $1::uuid`,
-    [project.item_id],
-  );
+  const scope = await assertExpectedLineSiteScope(sql, projectId, project.production_line_id, null);
+  if (!scope.ok) return scope;
 
-  const created = await sql.query<CreatedRoutingRow>(
-    `insert into public.routings
-       (org_id, item_id, version, status, origin_module)
-     values
-       (app.current_org_id(), $1::uuid, $2::integer, 'draft', 'npd')
-     returning id::text as id`,
-    [project.item_id, Number(version.rows[0]?.next_version ?? 1)],
-  );
-  const routingId = created.rows[0]?.id;
-  if (!routingId) throw new Error('npd_routing_insert_returned_no_row');
-
+  const routingId = await createDraftRoutingVersion(sql, project.item_id, scope.canonicalSiteId);
   await sql.query(insertRoutingOperationsSql(3), [projectId, routingId, project.production_line_id]);
-
   return { ok: true, routingId };
 }

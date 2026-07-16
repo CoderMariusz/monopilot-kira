@@ -5,6 +5,7 @@ import {
   createPurchaseOrder,
   getPurchaseOrder,
   listPurchaseOrders,
+  listPoWarehouses,
   reopenPurchaseOrder,
   transitionPurchaseOrderStatus,
 } from './actions';
@@ -16,6 +17,7 @@ const PO_ID = '33333333-3333-4333-8333-333333333333';
 const SUPPLIER_ID = '44444444-4444-4444-8444-444444444444';
 const ITEM_ID = '55555555-5555-4555-8555-555555555555';
 const DESTINATION_WAREHOUSE_ID = '77777777-7777-4777-8777-777777777777';
+const OTHER_SITE_ID = '99999999-9999-4999-8999-999999999999';
 const SITE_ID = '88888888-8888-4888-8888-888888888888';
 
 let client: QueryClient;
@@ -29,6 +31,8 @@ let activeReceivedCount = 0;
 let fullyReceived = false;
 let supplierStatus = 'active';
 let listTotal = 1;
+let warehouseSiteId: string | null = SITE_ID;
+let poDestinationWarehouseId: string | null = null;
 
 function permissionAllowed(permission: unknown): boolean {
   if (permission === 'npd.planning.write') return allowWritePermission;
@@ -99,6 +103,27 @@ function makeClient(): QueryClient {
       }
       if (normalized.startsWith('select status from public.suppliers')) {
         return { rows: [{ status: supplierStatus }], rowCount: 1 };
+      }
+      if (normalized.includes('from public.suppliers supplier_row')) {
+        return { rows: [{ status: supplierStatus }], rowCount: 1 };
+      }
+      if (normalized.includes('from public.warehouses w')) {
+        if (normalized.includes('w.site_id is null or w.site_id = $1::uuid')) {
+          return {
+            rows:
+              warehouseSiteId == null || warehouseSiteId === SITE_ID
+                ? [{ id: DESTINATION_WAREHOUSE_ID, code: 'WH-A', name: 'Main warehouse' }]
+                : [],
+            rowCount: 1,
+          };
+        }
+        return { rows: [{ id: DESTINATION_WAREHOUSE_ID, site_id: warehouseSiteId }], rowCount: 1 };
+      }
+      if (normalized.startsWith('select po.site_id::text as site_id, po.destination_warehouse_id::text as destination_warehouse_id')) {
+        return {
+          rows: [{ site_id: SITE_ID, destination_warehouse_id: poDestinationWarehouseId }],
+          rowCount: 1,
+        };
       }
       if (normalized.startsWith('update public.org_document_settings')) {
         return {
@@ -188,6 +213,8 @@ describe('planning purchase order actions', () => {
     activeReceivedCount = 0;
     fullyReceived = false;
     listTotal = 1;
+    warehouseSiteId = SITE_ID;
+    poDestinationWarehouseId = null;
     getActiveSiteIdMock.mockResolvedValue(SITE_ID);
     resolveWriteSiteIdMock.mockResolvedValue({ ok: true, siteId: SITE_ID });
     client = makeClient();
@@ -384,6 +411,52 @@ describe('planning purchase order actions', () => {
       USER_ID,
       SITE_ID,
     ]);
+  });
+
+  it('rejects create when destination warehouse belongs to another site', async () => {
+    warehouseSiteId = OTHER_SITE_ID;
+
+    const result = await createPurchaseOrder({
+      poNumber: 'PO-CROSS-SITE-WH',
+      supplierId: SUPPLIER_ID,
+      destinationWarehouseId: DESTINATION_WAREHOUSE_ID,
+      lines: [{ itemId: ITEM_ID, qty: '10.000', uom: 'kg', unitPrice: '6.2000', lineNo: 1 }],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'warehouse_site_mismatch',
+      code: 'warehouse_site_mismatch',
+      message: 'Destination warehouse belongs to a different site than this purchase order.',
+    });
+    const insertCalls = vi.mocked(client.query).mock.calls.filter(([sql]) =>
+      String(sql).includes('insert into public.purchase_orders'),
+    );
+    expect(insertCalls).toHaveLength(0);
+  });
+
+  it('listPoWarehouses returns only org-wide and active-site warehouses', async () => {
+    const rows = await listPoWarehouses(SITE_ID);
+
+    expect(rows).toEqual([{ id: DESTINATION_WAREHOUSE_ID, code: 'WH-A', name: 'Main warehouse' }]);
+    const listCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('w.site_id is null or w.site_id = $1::uuid'),
+    );
+    expect(listCall?.[1]).toEqual([SITE_ID]);
+  });
+
+  it('rejects transition when the PO destination warehouse is on another site', async () => {
+    currentStatus = 'draft';
+    poDestinationWarehouseId = DESTINATION_WAREHOUSE_ID;
+    warehouseSiteId = OTHER_SITE_ID;
+
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'sent');
+
+    expect(result).toEqual({ ok: false, error: 'warehouse_site_mismatch', code: 'warehouse_site_mismatch' });
+    const statusUpdate = vi.mocked(client.query).mock.calls.find(
+      ([sql]) => String(sql).startsWith('update public.purchase_orders') && String(sql).includes('set status = $2'),
+    );
+    expect(statusUpdate).toBeUndefined();
   });
 
   it('auto-generates a purchase order number when absent', async () => {

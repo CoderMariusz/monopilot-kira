@@ -9,11 +9,11 @@ import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import {
   DEFAULT_NCR_PAGE_SIZE,
-  emptyPaginatedResult,
   normalizePage,
   toPaginatedResult,
   type PaginatedResult,
 } from '../../../../../../lib/shared/pagination';
+import { qualityListSiteClause, qualityListSiteParams } from './list-site-scope';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -183,7 +183,7 @@ const investigationSchema = z.object({
 const closeSchema = z.object({
   ncrId: uuidSchema,
   resolution: z.string().trim().min(1).max(4000),
-  signature: z.object({ password: z.string().min(1) }).optional(),
+  signature: z.object({ password: z.string().min(1) }),
 });
 
 async function writeNcrOutbox(
@@ -267,23 +267,19 @@ export async function listNcrs(input: {
     });
     return await withOrgContext(async (ctx): Promise<ActionResult<PaginatedResult<NcrListRow>>> => {
       const s = await getActiveSiteId({ client: ctx.client });
-      if (!s) {
-        return {
-          ok: true,
-          data: emptyPaginatedResult(page),
-          noActiveSite: true,
-        } as ActionResult<PaginatedResult<NcrListRow>> & { noActiveSite: true };
-      }
 
       if (!(await hasPermission(ctx, 'quality.dashboard.view'))) return { ok: false, reason: 'forbidden' };
 
-      const baseParams = [
+      const filterParams = [
         parsed.status ?? null,
         parsed.severity ?? null,
         parsed.ncrType ?? null,
         parsed.search || null,
-        s,
       ] as const;
+      const siteClause = qualityListSiteClause('n', s, filterParams.length + 1);
+      const baseParams = qualityListSiteParams(filterParams, s);
+      const limitParam = `$${baseParams.length + 1}`;
+      const offsetParam = `$${baseParams.length + 2}`;
 
       const [countResult, dataResult] = await Promise.all([
         ctx.client.query<{ total: number }>(
@@ -292,7 +288,7 @@ export async function listNcrs(input: {
              left join public.items i on i.id = n.product_id and i.org_id = n.org_id
              left join public.quality_holds h on h.id = n.linked_hold_id and h.org_id = n.org_id
             where n.org_id = app.current_org_id()
-              and (n.site_id = $5::uuid or n.site_id is null)
+              ${siteClause}
               and ($1::text is null or n.status = $1)
               and ($2::text is null or n.severity = $2)
               and ($3::text is null or n.ncr_type = $3)
@@ -327,7 +323,7 @@ export async function listNcrs(input: {
          left join public.items i on i.id = n.product_id and i.org_id = n.org_id
          left join public.quality_holds h on h.id = n.linked_hold_id and h.org_id = n.org_id
         where n.org_id = app.current_org_id()
-          and (n.site_id = $5::uuid or n.site_id is null)
+          ${siteClause}
           and ($1::text is null or n.status = $1)
           and ($2::text is null or n.severity = $2)
           and ($3::text is null or n.ncr_type = $3)
@@ -340,7 +336,7 @@ export async function listNcrs(input: {
             or h.hold_number ilike '%' || $4 || '%'
           ))
         order by n.created_at desc, n.id desc
-        limit $6::int offset $7::int`,
+        limit ${limitParam}::int offset ${offsetParam}::int`,
         [...baseParams, page.limit, page.offset],
         ),
       ]);
@@ -685,7 +681,7 @@ export async function updateNcrInvestigation(input: {
 export async function closeNcr(input: {
   ncrId: string;
   resolution: string;
-  signature?: { password: string };
+  signature: { password: string };
 }): Promise<ActionResult<ClosedNcr>> {
   try {
     const parsed = closeSchema.parse(input);
@@ -718,24 +714,23 @@ export async function closeNcr(input: {
 
       if (ncr.severity === 'critical') {
         if (!canCloseCritical) return { ok: false, reason: 'forbidden' };
-        if (!parsed.signature) throw new Error('critical NCR close requires e-signature');
       } else if (!canCreateNcr) {
         return { ok: false, reason: 'forbidden' };
       }
 
-      const receipt =
-        ncr.severity === 'critical'
-          ? await signEvent(
-              {
-                signerUserId: ctx.userId,
-                pin: parsed.signature?.password ?? '',
-                intent: 'qa.ncr.close',
-                subject: { ncrId: parsed.ncrId, resolution: parsed.resolution },
-                reason: parsed.resolution,
-              },
-              { client: ctx.client as unknown as pg.PoolClient },
-            )
-          : null;
+      const receipt = await signEvent(
+        {
+          signerUserId: ctx.userId,
+          pin: parsed.signature.password,
+          intent: 'qa.ncr.close',
+          subject: { ncrId: parsed.ncrId, resolution: parsed.resolution, severity: ncr.severity },
+          reason: parsed.resolution,
+        },
+        { client: ctx.client as unknown as pg.PoolClient },
+      );
+      if (!receipt.subjectHash) {
+        throw new Error('NCR close e-signature did not produce a receipt hash');
+      }
 
       const updated = await ctx.client.query<{ closed_at: Date | string }>(
         `update public.ncr_reports
@@ -749,7 +744,7 @@ export async function closeNcr(input: {
             and status not in ('closed', 'cancelled')
             and closed_at is null
           returning closed_at`,
-        [parsed.ncrId, ctx.userId, receipt?.subjectHash ?? null, parsed.resolution],
+        [parsed.ncrId, ctx.userId, receipt.subjectHash, parsed.resolution],
       );
       const closedAt = updated.rows[0]?.closed_at;
       if (!closedAt) throw new Error('NCR close update did not return a row');
@@ -761,7 +756,7 @@ export async function closeNcr(input: {
           ncrId: parsed.ncrId,
           ncrNumber: ncr.ncr_number,
           severity: ncr.severity,
-          signatureHash: receipt?.subjectHash ?? null,
+          signatureHash: receipt.subjectHash,
         },
       });
 
@@ -772,7 +767,7 @@ export async function closeNcr(input: {
           ncrNumber: ncr.ncr_number,
           status: 'closed',
           closedAt: toIso(closedAt) ?? '',
-          signatureHash: receipt?.subjectHash ?? null,
+          signatureHash: receipt.subjectHash,
         },
       };
     });

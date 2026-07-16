@@ -31,6 +31,7 @@ import {
   CreatePurchaseOrderInput,
   createPurchaseOrderCore,
 } from './create-purchase-order-core';
+import { ensurePoHeaderDestinationWarehouseSite } from './po-destination-warehouse';
 
 type PurchaseOrderRow = {
   id: string;
@@ -92,7 +93,15 @@ type PurchaseOrder = {
 };
 
 type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
-type PurchaseOrderError = ProcurementError | 'last_line' | 'po_has_receipts' | 'po_open_quantity' | 'no_active_site' | 'ambiguous_site' | 'supplier_blocked';
+type PurchaseOrderError =
+  | ProcurementError
+  | 'last_line'
+  | 'po_has_receipts'
+  | 'po_open_quantity'
+  | 'no_active_site'
+  | 'ambiguous_site'
+  | 'supplier_blocked'
+  | 'warehouse_site_mismatch';
 type PurchaseOrderResult<T> = { ok: true; data: T } | { ok: false; error: PurchaseOrderError; code?: PurchaseOrderError; message?: string };
 type PurchaseOrderListResult =
   | {
@@ -214,14 +223,21 @@ function mapPurchaseOrder(row: PurchaseOrderRow): PurchaseOrder {
   };
 }
 
-export async function listPoWarehouses(): Promise<Array<{ id: string; code: string; name: string }>> {
+export async function listPoWarehouses(
+  siteId?: string | null,
+): Promise<Array<{ id: string; code: string; name: string }>> {
   try {
     return await withOrgContext(async ({ client }) => {
+      const activeSiteId = siteId ?? (await getActiveSiteId({ client }));
+      if (!activeSiteId) return [];
+
       const { rows } = await (client as QueryClient).query<{ id: string; code: string; name: string }>(
-        `select id, code, name
-           from public.warehouses
-          where org_id = app.current_org_id()
-          order by code`,
+        `select w.id, w.code, w.name
+           from public.warehouses w
+          where w.org_id = app.current_org_id()
+            and (w.site_id is null or w.site_id = $1::uuid)
+          order by w.code`,
+        [activeSiteId],
       );
       return rows.map((r) => ({ id: r.id, code: r.code, name: r.name }));
     });
@@ -861,6 +877,12 @@ export async function reopenPurchaseOrder(poId: string): Promise<PurchaseOrderRe
       const perm = await requireActionPermission(ctx, PLANNING_PO_MANAGE_PERMISSION);
       if (!perm.ok) return perm;
 
+      const destinationWarehouseCheck = await ensurePoHeaderDestinationWarehouseSite(ctx.client, parsed.data);
+      if (destinationWarehouseCheck === 'not_found') return { ok: false, error: 'not_found' };
+      if (destinationWarehouseCheck === 'warehouse_site_mismatch') {
+        return { ok: false, error: 'warehouse_site_mismatch', code: 'warehouse_site_mismatch' };
+      }
+
       const before = await fetchDraftPurchaseOrderForUpdate(ctx.client, parsed.data);
       if (!before) return { ok: false, error: 'not_found' };
       // Reopen un-sends a SENT po OR un-cancels a CANCELLED po, both back to
@@ -953,6 +975,11 @@ export async function transitionPurchaseOrderStatus(id: string, status: string):
       );
       const previous = before.rows[0];
       if (!previous) return { ok: false, error: 'not_found' };
+
+      const destinationWarehouseCheck = await ensurePoHeaderDestinationWarehouseSite(ctx.client, id);
+      if (destinationWarehouseCheck === 'warehouse_site_mismatch') {
+        return { ok: false, error: 'warehouse_site_mismatch', code: 'warehouse_site_mismatch' };
+      }
 
       if (parsed.data === 'received' || parsed.data === 'partially_received') {
         const receiptState = await getPurchaseOrderReceiptState(ctx.client, id);

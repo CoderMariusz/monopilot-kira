@@ -75,6 +75,7 @@ export type ReceivePoLineCoreFailure = {
     | 'over_receive_confirm_required'
     | 'invalid_location'
     | 'no_warehouse'
+    | 'warehouse_site_mismatch'
     | 'supplier_blocked';
   poId?: string;
   /** Populated for over_receive_cap to allow callers to log diagnostic context. */
@@ -98,6 +99,7 @@ type LineForReceive = {
   id: string;
   org_id: string;
   po_id: string;
+  po_site_id: string;
   item_id: string;
   supplier_id: string;
   supplier_status: string;
@@ -169,6 +171,10 @@ export async function executeReceivePoLineCore(
   );
   if (!warehouse) {
     return { ok: false, code: 'no_warehouse', poId: line.po_id };
+  }
+
+  if (!warehouseMatchesPoSite(warehouse.site_id, line.po_site_id)) {
+    return { ok: false, code: 'warehouse_site_mismatch', poId: line.po_id };
   }
 
   if (requestedLocation && requestedLocation.warehouse_id !== warehouse.id) {
@@ -295,6 +301,7 @@ async function loadLineForUpdate(
     `select pol.id,
             pol.org_id,
             pol.po_id,
+            po.site_id as po_site_id,
             pol.item_id,
             po.supplier_id,
             s.status as supplier_status,
@@ -839,4 +846,10 @@ export function makeLpNumber(): string {
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+/** Org-wide warehouses (site_id null) may receive any PO site. */
+function warehouseMatchesPoSite(warehouseSiteId: string | null, poSiteId: string): boolean {
+  if (warehouseSiteId == null) return true;
+  return warehouseSiteId === poSiteId;
 }

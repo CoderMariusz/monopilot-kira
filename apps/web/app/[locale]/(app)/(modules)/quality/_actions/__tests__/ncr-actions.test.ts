@@ -102,6 +102,15 @@ function makeClient(): QueryClient {
         return { rows: [{ total: listTotal }], rowCount: 1 };
       }
 
+      if (q.startsWith('select n.id::text') && q.includes('limit $5::int offset $6::int') && !q.includes('n.site_id =')) {
+        expectSqlArity(sql, params);
+        const limit = Number(params[4] ?? 50);
+        const offset = Number(params[5] ?? 0);
+        const allRows = Array.from({ length: listTotal }, (_, index) => makeListRow(index + 1));
+        const rows = allRows.slice(offset, offset + limit);
+        return { rows, rowCount: rows.length };
+      }
+
       if (q.startsWith('select n.id::text') && q.includes('n.site_id = $5::uuid')) {
         expectSqlArity(sql, params);
         const limit = Number(params[5] ?? 50);
@@ -274,17 +283,20 @@ describe('quality NCR server actions', () => {
     expect(listQuery?.[1]).toEqual([null, null, null, null, SITE_ID, 50, 50]);
   });
 
-  it('listNcrs returns noActiveSite without running the main DB query when no site is active', async () => {
+  it('listNcrs returns all org rows when all-sites is active (no site bind)', async () => {
     vi.mocked(getActiveSiteId).mockResolvedValueOnce(null);
 
     const result = await listNcrs();
 
-    expect(result).toEqual({
-      ok: true,
-      data: { items: [], total: 0, page: 1, limit: 50, offset: 0, hasMore: false },
-      noActiveSite: true,
-    });
-    expect(client.query).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.data.items[0]).toEqual(expect.objectContaining({ ncrNumber: 'NCR-00000001' }));
+    const listQuery = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).includes('from public.ncr_reports n') && normalize(String(sql)).includes('limit $5::int'),
+    );
+    expect(listQuery).toBeTruthy();
+    expect(normalize(String(listQuery?.[0]))).not.toContain('n.site_id =');
+    expect(listQuery?.[1]).toEqual([null, null, null, null, 50, 0]);
   });
 
   it('enforces forbidden gates', async () => {
@@ -396,12 +408,15 @@ describe('quality NCR server actions', () => {
     expect(insertCall?.[1]?.[10]).toBeNull();
   });
 
-  it('requires e-signature for critical close and uses create permission for non-critical close', async () => {
+  it('requires e-signature for every NCR close and stores a real receipt hash', async () => {
+    const { signEvent } = await import('@monopilot/e-sign');
+
     await expect(closeNcr({ ncrId: NCR_ID, resolution: 'Resolved' })).resolves.toEqual({
       ok: false,
       reason: 'error',
-      message: 'critical NCR close requires e-signature',
+      message: expect.stringContaining('signature'),
     });
+    expect(signEvent).not.toHaveBeenCalled();
 
     const critical = await closeNcr({ ncrId: NCR_ID, resolution: 'Resolved', signature: { password: 'pw' } });
     expect(critical).toEqual({
@@ -414,6 +429,14 @@ describe('quality NCR server actions', () => {
         signatureHash: 'b'.repeat(64),
       },
     });
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'qa.ncr.close',
+        pin: 'pw',
+        subject: expect.objectContaining({ ncrId: NCR_ID, severity: 'critical' }),
+      }),
+      expect.any(Object),
+    );
     const signedUpdate = vi.mocked(client.query).mock.calls.find(
       ([sql, params]) => normalize(String(sql)).includes("set status = 'closed'") && params?.[2] === 'b'.repeat(64),
     );
@@ -422,11 +445,58 @@ describe('quality NCR server actions', () => {
     vi.clearAllMocks();
     permissions = new Set(['quality.ncr.create']);
     currentSeverity = 'major';
-    const major = await closeNcr({ ncrId: NCR_ID, resolution: 'Resolved' });
+    await expect(closeNcr({ ncrId: NCR_ID, resolution: 'Resolved' })).resolves.toEqual({
+      ok: false,
+      reason: 'error',
+      message: expect.stringContaining('signature'),
+    });
+    expect(signEvent).not.toHaveBeenCalled();
+
+    const major = await closeNcr({ ncrId: NCR_ID, resolution: 'Resolved', signature: { password: 'pw' } });
     expect(major.ok).toBe(true);
-    const unsignedUpdate = vi.mocked(client.query).mock.calls.find(
-      ([sql, params]) => normalize(String(sql)).includes("set status = 'closed'") && params?.[2] === null,
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'qa.ncr.close',
+        subject: expect.objectContaining({ severity: 'major' }),
+      }),
+      expect.any(Object),
     );
-    expect(unsignedUpdate).toBeTruthy();
+    const majorUpdate = vi.mocked(client.query).mock.calls.find(
+      ([sql, params]) => normalize(String(sql)).includes("set status = 'closed'") && params?.[2] === 'b'.repeat(64),
+    );
+    expect(majorUpdate).toBeTruthy();
+
+    vi.clearAllMocks();
+    currentSeverity = 'minor';
+    const minor = await closeNcr({ ncrId: NCR_ID, resolution: 'Resolved', signature: { password: 'pw' } });
+    expect(minor.ok).toBe(true);
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'qa.ncr.close',
+        subject: expect.objectContaining({ severity: 'minor' }),
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('rejects close when signEvent returns no subjectHash', async () => {
+    const { signEvent } = await import('@monopilot/e-sign');
+    vi.mocked(signEvent).mockResolvedValueOnce({
+      signatureId: '88888888-8888-4888-8888-888888888888',
+      signerUserId: USER_ID,
+      intent: 'qa.ncr.close',
+      subjectHash: '',
+      signedAt: '2026-06-11T12:00:00.000Z',
+      auditEventId: 44,
+      nonce: 'nonce-ncr',
+    });
+
+    await expect(
+      closeNcr({ ncrId: NCR_ID, resolution: 'Resolved', signature: { password: 'pw' } }),
+    ).resolves.toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'NCR close e-signature did not produce a receipt hash',
+    });
   });
 });

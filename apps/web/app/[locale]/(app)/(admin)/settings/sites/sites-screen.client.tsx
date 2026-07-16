@@ -116,6 +116,7 @@ export type SitesModalLabels = {
   saving: string;
   errorRequired: string;
   errorDuplicate: string;
+  errorWarehouseSiteMismatch: string;
   errorForbidden: string;
   errorGeneric: string;
   renameSiteTitle?: string;
@@ -149,6 +150,7 @@ export const DEFAULT_SITES_MODAL_LABELS: SitesModalLabels = {
   saving: 'Saving…',
   errorRequired: 'This field is required.',
   errorDuplicate: 'That code is already in use at this site. Choose a different one.',
+  errorWarehouseSiteMismatch: 'The selected warehouse belongs to a different site than the production line.',
   errorForbidden: 'You do not have permission to update site settings.',
   errorGeneric: 'Something went wrong. Please try again.',
   renameSiteTitle: 'Rename site',

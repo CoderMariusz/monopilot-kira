@@ -10,18 +10,20 @@ import {
   GATE_ADVANCE_PERMISSION,
   GATE_ADVANCED_EVENT,
   STAGE_ORDER,
-  assertAdjacentStage,
+  assertHonestGateAdvance,
   assertG3ESignForApproval,
   assertG4ESignForHandoff,
   createFgCandidate,
   emitOutbox,
-  gateForStage,
   checkCostingNutritionReady,
   getBlockers,
   loadProjectForUpdate,
   requireActionPermission,
+  resolveAdvanceTransition,
+  resolveGateReadiness,
   seedHandoffChecklist,
   serializeGateError,
+  updateProjectGateOnly,
   updateProjectStage,
   type AnyStage,
   type GateBlocker,
@@ -240,13 +242,14 @@ export async function evaluateStageGate(
 ): Promise<StageGateEvaluation> {
   const softMissing: string[] = [];
   const projectRow = project ?? await loadProjectForUpdate(db, projectId);
+  const readiness = resolveGateReadiness(projectRow);
 
   const blockers = await getBlockers(db, projectRow, toStage);
   if (blockers.length > 0) {
     return { status: 'HARD_BLOCKED', hardReason: blockers[0]?.code ?? 'BLOCKERS_PRESENT', blockers };
   }
 
-  if (gateForStage(fromStage) === 'G3' && gateForStage(toStage) === 'G4') {
+  if (readiness.currentGate === 'G3' && resolveAdvanceTransition(projectRow)?.targetGate === 'G4') {
     await assertG3ESignForApproval(db, projectId);
   }
   if (fromStage === 'approval' && toStage === 'handoff') {
@@ -254,13 +257,13 @@ export async function evaluateStageGate(
   }
 
   if (fromStage === 'costing_nutrition' && toStage === 'trial') {
-    const readiness = await checkCostingNutritionReady(db, projectId);
-    if (!readiness.costReady) softMissing.push('Cost breakdown computed');
-    if (!readiness.nutritionReady) softMissing.push('Nutrition computed');
+    const readinessCheck = await checkCostingNutritionReady(db, projectId);
+    if (!readinessCheck.costReady) softMissing.push('Cost breakdown computed');
+    if (!readinessCheck.nutritionReady) softMissing.push('Nutrition computed');
   }
 
   softMissing.push(
-    ...(await incompleteRequiredChecklistItems(db, projectId, gateForStage(fromStage))),
+    ...(await incompleteRequiredChecklistItems(db, projectId, readiness.checklistGate)),
   );
   softMissing.push(...await requiredFieldsMissing(db, projectId, fromStage));
   return softMissing.length > 0
@@ -286,11 +289,14 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
         return { ok: false, error: 'ALREADY_CLOSED', status: 409 };
       }
 
-      // Adjacency: the requested stage must be exactly the successor of the current
-      // stage (one step at a time, no skipping). Throws ADJACENCY_VIOLATION otherwise.
+      // One guard for adjacency + gate/stage consistency + no multi-gate skips (C025).
       const targetStage = parsed.data.targetStage as AnyStage;
-      assertAdjacentStage(project.current_stage, targetStage);
-      const targetGate = gateForStage(targetStage);
+      assertHonestGateAdvance(project, targetStage);
+      const transition = resolveAdvanceTransition(project);
+      if (!transition) {
+        return { ok: false, error: 'ADJACENCY_VIOLATION', status: 422 };
+      }
+      const targetGate = transition.targetGate;
 
       const gateEvaluation = await evaluateStageGate(
         project.id,
@@ -342,7 +348,9 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
         productCode = closeout.fg_product_code;
       }
 
-      await updateProjectStage(context, project.id, targetStage);
+      await (transition.kind === 'gate'
+        ? updateProjectGateOnly(context, project.id, targetGate)
+        : updateProjectStage(context, project.id, targetStage));
       await emitOutbox(context, {
         eventType: GATE_ADVANCED_EVENT,
         aggregateType: 'npd_project',
@@ -355,7 +363,7 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
           previous_gate: project.current_gate,
           current_gate: targetGate,
           previous_stage: project.current_stage,
-          current_stage: targetStage,
+          current_stage: transition.kind === 'gate' ? project.current_stage : targetStage,
           product_code: productCode,
           // Notes from the advance modal are recorded in the event payload so
           // they travel with the audit trail — no schema change required.
@@ -372,7 +380,7 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
           previousGate: project.current_gate,
           currentGate: targetGate,
           previousStage: project.current_stage,
-          currentStage: targetStage,
+          currentStage: transition.kind === 'gate' ? (project.current_stage as AnyStage) : targetStage,
           productCode,
           outboxEventType: GATE_ADVANCED_EVENT,
         },

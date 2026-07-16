@@ -3,6 +3,7 @@
 import { z } from 'zod';
 
 import { writeSettingsInfraOutbox } from './_shared/outbox';
+import { findProductionLineByCodeAndSite } from './line-resolve';
 import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
@@ -19,7 +20,7 @@ type OrgActionContext = {
 
 type LineStatus = 'draft' | 'active' | 'inactive';
 type LineRow = { id: string; code: string; name: string; status: LineStatus; default_output_location_id: string | null };
-type WarehouseRow = { id: string };
+type WarehouseRow = { id: string; site_id: string | null };
 type LocationWarehouseRow = { warehouse_id: string | null };
 
 type ParsedLineInput = {
@@ -40,6 +41,8 @@ export type UpsertLineResult =
         | 'invalid_input'
         | 'forbidden'
         | 'invalid_warehouse_reference'
+        | 'warehouse_site_mismatch'
+        | 'duplicate_code'
         | 'invalid_location_reference'
         | 'persistence_failed';
     };
@@ -68,11 +71,21 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
       if (input.warehouseId) {
         const warehouse = await getWarehouse(client, input.warehouseId);
         if (!warehouse) return { ok: false, error: 'invalid_warehouse_reference' };
+        if (!lineWarehouseSitesMatch(input.siteId, warehouse.site_id)) {
+          return { ok: false, error: 'warehouse_site_mismatch' };
+        }
       }
       if (input.defaultOutputLocationId && input.warehouseId) {
         const location = await getLocationWarehouse(client, input.defaultOutputLocationId);
         if (!location || location.warehouse_id !== input.warehouseId) return { ok: false, error: 'invalid_location_reference' };
       }
+
+      const duplicate = await findProductionLineByCodeAndSite(client, {
+        code: input.code,
+        siteId: input.siteId,
+        excludeId: input.id,
+      });
+      if (duplicate) return { ok: false, error: 'duplicate_code' };
 
       const { rows } = await client.query<LineRow>(
         `insert into public.production_lines
@@ -109,9 +122,19 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
 
       return { ok: true, data: { id: row.id, status: row.status } };
     });
-  } catch {
+  } catch (error) {
+    if (isUniqueViolation(error)) return { ok: false, error: 'duplicate_code' };
     return { ok: false, error: 'persistence_failed' };
   }
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505';
+}
+
+/** Null-safe site equality: line.site_id must match warehouse.site_id (including both NULL). */
+function lineWarehouseSitesMatch(lineSiteId: string | null, warehouseSiteId: string | null): boolean {
+  return lineSiteId === warehouseSiteId;
 }
 
 function parseLineInput(raw: unknown): ParsedLineInput | null {
@@ -130,7 +153,7 @@ function parseLineInput(raw: unknown): ParsedLineInput | null {
 
 async function getWarehouse(client: QueryClient, warehouseId: string): Promise<WarehouseRow | null> {
   const { rows } = await client.query<WarehouseRow>(
-    `select id
+    `select id, site_id::text
        from public.warehouses
       where org_id = app.current_org_id()
         and id = $1::uuid

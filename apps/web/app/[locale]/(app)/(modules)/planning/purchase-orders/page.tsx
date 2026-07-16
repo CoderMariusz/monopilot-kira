@@ -216,6 +216,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         invalid_state: t('errors.invalid_state'),
         no_active_site: t('create.errors.no_active_site'),
         ambiguous_site: t('create.errors.ambiguous_site'),
+        warehouse_site_mismatch: t('create.errors.warehouse_site_mismatch'),
         persistence_failed: t('errors.persistence_failed'),
       },
       picker: {

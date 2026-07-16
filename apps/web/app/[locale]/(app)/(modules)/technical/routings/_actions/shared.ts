@@ -14,6 +14,8 @@
  *     reference (the canonical store is "Reference"."ManufacturingOperations",
  *     org-scoped, keyed by operation_name — checked in the service against the DB,
  *     never a hardcoded list).
+ *   - V-TEC-64: every operation's production line belongs to the same site as the
+ *     routing (and no two distinct line sites within one routing).
  *
  * NUMERIC-exact: run_time_per_unit_sec NUMERIC(10,2) and cost_per_hour
  * NUMERIC(10,4) are bound as ::numeric — the cost preview (T-023) sums in SQL.
@@ -61,6 +63,7 @@ export type RoutingActionError =
   | 'v_tec_61_no_resource'
   | 'v_tec_62_zero_run_time'
   | 'v_tec_63_unknown_operation'
+  | 'v_tec_64_cross_site_lines'
   | 'persistence_failed';
 
 // ── Operation input ───────────────────────────────────────────────────────────
@@ -220,6 +223,116 @@ export async function findUnknownOperationName(
     if (!known.has(name)) return name;
   }
   return null;
+}
+
+// V-TEC-64 — every bound production line must share one site scope with the
+// routing header. Wave0 rule: org-wide lines (site_id NULL) are allowed only
+// when ALL operations use org-wide lines; mixing site-assigned and org-wide
+// lines is rejected. When the routing header pins site_id, every line must
+// match exactly (no NULL-site lines).
+export async function validateOperationLineSiteScope(
+  client: QueryClient,
+  lineIds: readonly string[],
+  routingSiteId?: string | null,
+): Promise<
+  | { ok: true; canonicalSiteId: string | null }
+  | { ok: false; error: 'v_tec_64_cross_site_lines'; message: string }
+> {
+  const distinctLineIds = [...new Set(lineIds.filter(Boolean))];
+  if (distinctLineIds.length === 0) {
+    return {
+      ok: false,
+      error: 'v_tec_64_cross_site_lines',
+      message: 'routing operations must bind at least one production line (V-TEC-61)',
+    };
+  }
+
+  const { rows } = await client.query<{ id: string; site_id: string | null }>(
+    `select pl.id::text as id, pl.site_id::text as site_id
+       from public.production_lines pl
+      where pl.org_id = app.current_org_id()
+        and pl.id = any($1::uuid[])`,
+    [distinctLineIds],
+  );
+  if (rows.length !== distinctLineIds.length) {
+    return {
+      ok: false,
+      error: 'v_tec_64_cross_site_lines',
+      message: 'one or more production lines were not found in this org (V-TEC-64)',
+    };
+  }
+
+  const nullSiteLineCount = rows.filter((row) => row.site_id == null).length;
+  const nonNullSites = new Set(rows.map((row) => row.site_id).filter((siteId): siteId is string => siteId != null));
+
+  if (nonNullSites.size > 1) {
+    return {
+      ok: false,
+      error: 'v_tec_64_cross_site_lines',
+      message: 'all routing operations must use production lines from a single site (V-TEC-64)',
+    };
+  }
+
+  if (nullSiteLineCount > 0 && nonNullSites.size > 0) {
+    return {
+      ok: false,
+      error: 'v_tec_64_cross_site_lines',
+      message:
+        'routing operations cannot mix site-assigned and org-wide production lines (V-TEC-64)',
+    };
+  }
+
+  const canonicalSiteId = nonNullSites.size === 1 ? [...nonNullSites][0]! : null;
+
+  if (routingSiteId) {
+    for (const row of rows) {
+      if (row.site_id !== routingSiteId) {
+        return {
+          ok: false,
+          error: 'v_tec_64_cross_site_lines',
+          message: `production line ${row.id} must belong to site ${routingSiteId} (V-TEC-64)`,
+        };
+      }
+    }
+  }
+
+  return { ok: true, canonicalSiteId: routingSiteId ?? canonicalSiteId };
+}
+
+export async function assertRoutingSiteScopeForApproval(
+  client: QueryClient,
+  routingId: string,
+): Promise<
+  | { ok: true; canonicalSiteId: string | null }
+  | { ok: false; error: RoutingActionError; message: string }
+> {
+  const { rows: headerRows } = await client.query<{ site_id: string | null }>(
+    `select r.site_id::text as site_id
+       from public.routings r
+      where r.org_id = app.current_org_id()
+        and r.id = $1::uuid`,
+    [routingId],
+  );
+  const header = headerRows[0];
+  if (!header) return { ok: false, error: 'not_found', message: 'routing not found' };
+
+  const { rows: opRows } = await client.query<{ line_id: string }>(
+    `select ro.line_id::text as line_id
+       from public.routing_operations ro
+      where ro.org_id = app.current_org_id()
+        and ro.routing_id = $1::uuid
+        and ro.line_id is not null
+      order by ro.op_no`,
+    [routingId],
+  );
+
+  const siteCheck = await validateOperationLineSiteScope(
+    client,
+    opRows.map((row) => row.line_id),
+    header.site_id,
+  );
+  if (!siteCheck.ok) return siteCheck;
+  return { ok: true, canonicalSiteId: siteCheck.canonicalSiteId };
 }
 
 // audit_log only (no technical.routing.* outbox event in the enum SoT — same

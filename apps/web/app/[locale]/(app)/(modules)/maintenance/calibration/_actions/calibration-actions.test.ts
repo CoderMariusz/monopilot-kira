@@ -11,6 +11,7 @@ import {
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
+const REVIEWER_ID = '55555555-5555-4555-8555-555555555555';
 const INSTRUMENT_ID = '33333333-3333-4333-8333-333333333333';
 const RECORD_ID = '44444444-4444-4444-8444-444444444444';
 
@@ -27,7 +28,7 @@ let instrumentActive = true;
 let client: QueryClient;
 
 const revalidateMock = vi.fn();
-const signEventMock = vi.fn();
+const dualSignMock = vi.fn();
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(
@@ -54,7 +55,13 @@ vi.mock('@monopilot/e-sign', () => ({
       this.code = code;
     }
   },
-  signEvent: (...args: unknown[]) => signEventMock(...args),
+  ESignSoDError: class ESignSoDError extends Error {
+    constructor(message = 'Primary and secondary signers must be distinct') {
+      super(message);
+      this.name = 'ESignSoDError';
+    }
+  },
+  dualSign: (...args: unknown[]) => dualSignMock(...args),
 }));
 
 function normalize(sql: string): string {
@@ -66,10 +73,19 @@ function makeClient(): QueryClient {
     query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
       const normalized = normalize(sql);
 
-      if (normalized.includes('from public.user_roles')) {
+      if (normalized.includes('from public.user_roles') && normalized.includes('join public.roles')) {
         const permission = String(params?.[2] ?? '');
-        const ok = grantedPermissions.has(permission);
-        return { rows: ok ? [{ ok: true }] : [], rowCount: ok ? 1 : 0 };
+        const userId = String(params?.[0] ?? '');
+        const ok =
+          grantedPermissions.has(permission) &&
+          (userId === USER_ID || userId === REVIEWER_ID);
+        return { rows: ok ? [{ ok: true }] : [{ ok: false }], rowCount: 1 };
+      }
+
+      if (normalized.includes('from public.user_roles ur') && normalized.includes('join public.users u')) {
+        const reviewerId = String(params?.[0] ?? '');
+        const ok = reviewerId === REVIEWER_ID;
+        return { rows: [{ ok }], rowCount: 1 };
       }
 
       if (normalized.includes('insert into public.calibration_instruments')) {
@@ -126,6 +142,8 @@ function makeClient(): QueryClient {
   };
 }
 
+const SUBJECT_HASH = 'a'.repeat(64);
+
 beforeEach(() => {
   grantedPermissions = new Set([
     'mnt.asset.read',
@@ -137,19 +155,31 @@ beforeEach(() => {
   instrumentActive = true;
   client = makeClient();
   revalidateMock.mockClear();
-  signEventMock.mockReset();
-  signEventMock.mockResolvedValue({
-    signatureId: '88888888-8888-4888-8888-888888888888',
-    signerUserId: USER_ID,
-    intent: 'mnt.calib.record',
-    subjectHash: 'c'.repeat(64),
-    signedAt: '2026-06-11T12:00:00.000Z',
-    auditEventId: 9,
-    nonce: 'nonce-calib',
+  dualSignMock.mockReset();
+  dualSignMock.mockResolvedValue({
+    primary: {
+      signatureId: '88888888-8888-4888-8888-888888888888',
+      signerUserId: USER_ID,
+      intent: 'mnt.calib.record',
+      subjectHash: SUBJECT_HASH,
+      signedAt: '2026-06-11T12:00:00.000Z',
+      auditEventId: 9,
+      nonce: 'nonce-calib-primary',
+    },
+    secondary: {
+      signatureId: '77777777-7777-4777-8777-777777777777',
+      signerUserId: REVIEWER_ID,
+      intent: 'mnt.calib.record',
+      subjectHash: SUBJECT_HASH,
+      signedAt: '2026-06-11T12:00:01.000Z',
+      auditEventId: 10,
+      nonce: 'nonce-calib-secondary',
+    },
   });
 });
 
 const VALID_SIGNATURE = { password: '123456' };
+const VALID_REVIEWER_SIGNATURE = { userId: REVIEWER_ID, password: '654321' };
 
 describe('getCalibrationPermissions', () => {
   it('returns all false when no permissions are granted', async () => {
@@ -275,6 +305,7 @@ describe('recordCalibration', () => {
       calibratedAt: '2026-06-01',
       result: 'PASS',
       signature: VALID_SIGNATURE,
+      reviewerSignature: VALID_REVIEWER_SIGNATURE,
     });
     expect(result).toEqual({ ok: false, reason: 'forbidden' });
   });
@@ -284,9 +315,11 @@ describe('recordCalibration', () => {
       instrumentId: INSTRUMENT_ID,
       calibratedAt: '2026-06-01T10:00:00.000Z',
       result: 'PASS',
+      testPoints: [{ reference: '0 kg', measured: '0.01', tolerance_pct: 0.1 }],
       certificateRef: 'CERT-2026-001',
       notes: 'Within tolerance',
       signature: VALID_SIGNATURE,
+      reviewerSignature: VALID_REVIEWER_SIGNATURE,
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -294,14 +327,20 @@ describe('recordCalibration', () => {
       expect(result.data.nextDueDate).toBe('2026-11-28');
     }
 
-    expect(signEventMock).toHaveBeenCalledWith(
+    expect(dualSignMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        signerUserId: USER_ID,
-        pin: '123456',
+        primarySignerUserId: USER_ID,
+        primaryPin: '123456',
+        secondarySignerUserId: REVIEWER_ID,
+        secondaryPin: '654321',
         intent: 'mnt.calib.record',
         subject: expect.objectContaining({
           instrumentId: INSTRUMENT_ID,
           result: 'PASS',
+          standardApplied: 'NIST',
+          certificateRef: 'CERT-2026-001',
+          notes: 'Within tolerance',
+          testPoints: [{ reference: '0 kg', measured: '0.01', tolerance_pct: 0.1 }],
         }),
       }),
       expect.any(Object),
@@ -310,7 +349,12 @@ describe('recordCalibration', () => {
     const insertCall = client.query.mock.calls.find(([sql]) =>
       normalize(String(sql)).includes('insert into public.calibration_records'),
     );
-    expect(insertCall?.[1]?.[7]).toBe('c'.repeat(64));
+    expect(insertCall?.[1]?.[2]).toBe(USER_ID);
+    expect(insertCall?.[1]?.[6]).toBe('CERT-2026-001');
+    expect(insertCall?.[1]?.[7]).toBeNull();
+    expect(insertCall?.[1]?.[10]).toBe(REVIEWER_ID);
+    expect(insertCall?.[1]?.[11]).toBe('88888888-8888-4888-8888-888888888888');
+    expect(insertCall?.[1]?.[12]).toBe('77777777-7777-4777-8777-777777777777');
 
     const outboxCall = client.query.mock.calls.find(([sql]) =>
       normalize(String(sql)).includes('insert into public.outbox_events'),
@@ -319,12 +363,119 @@ describe('recordCalibration', () => {
     expect(revalidateMock).toHaveBeenCalledWith('/maintenance/calibration');
   });
 
+  it('rejects the same user as calibrator and reviewer (SoD)', async () => {
+    const result = await recordCalibration({
+      instrumentId: INSTRUMENT_ID,
+      calibratedAt: '2026-06-01',
+      result: 'PASS',
+      signature: VALID_SIGNATURE,
+      reviewerSignature: { userId: USER_ID, password: '654321' },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'sod_violation',
+      message: 'Primary and secondary signers must be distinct',
+    });
+    expect(dualSignMock).not.toHaveBeenCalled();
+    expect(
+      client.query.mock.calls.some(([sql]) =>
+        normalize(String(sql)).includes('insert into public.calibration_records'),
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects when dualSign raises ESignSoDError and rolls back via throw', async () => {
+    const { ESignSoDError } = await import('@monopilot/e-sign');
+    dualSignMock.mockRejectedValueOnce(new ESignSoDError());
+
+    const result = await recordCalibration({
+      instrumentId: INSTRUMENT_ID,
+      calibratedAt: '2026-06-01',
+      result: 'PASS',
+      signature: VALID_SIGNATURE,
+      reviewerSignature: VALID_REVIEWER_SIGNATURE,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'sod_violation',
+      message: 'Primary and secondary signers must be distinct',
+    });
+    expect(
+      client.query.mock.calls.some(([sql]) =>
+        normalize(String(sql)).includes('insert into public.calibration_records'),
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects mismatched dualSign receipt hashes', async () => {
+    dualSignMock.mockResolvedValueOnce({
+      primary: {
+        signatureId: '88888888-8888-4888-8888-888888888888',
+        signerUserId: USER_ID,
+        intent: 'mnt.calib.record',
+        subjectHash: SUBJECT_HASH,
+        signedAt: '2026-06-11T12:00:00.000Z',
+        auditEventId: 9,
+        nonce: 'nonce-calib-primary',
+      },
+      secondary: {
+        signatureId: '77777777-7777-4777-8777-777777777777',
+        signerUserId: REVIEWER_ID,
+        intent: 'mnt.calib.record',
+        subjectHash: 'b'.repeat(64),
+        signedAt: '2026-06-11T12:00:01.000Z',
+        auditEventId: 10,
+        nonce: 'nonce-calib-secondary',
+      },
+    });
+
+    const result = await recordCalibration({
+      instrumentId: INSTRUMENT_ID,
+      calibratedAt: '2026-06-01',
+      result: 'PASS',
+      signature: VALID_SIGNATURE,
+      reviewerSignature: VALID_REVIEWER_SIGNATURE,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'esign_failed',
+      message: 'Primary and secondary signature hashes must match the same calibration subject',
+    });
+    expect(
+      client.query.mock.calls.some(([sql]) =>
+        normalize(String(sql)).includes('insert into public.calibration_records'),
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects a reviewer outside the current organization', async () => {
+    const OUTSIDER_ID = '66666666-6666-4666-8666-666666666666';
+    const result = await recordCalibration({
+      instrumentId: INSTRUMENT_ID,
+      calibratedAt: '2026-06-01',
+      result: 'PASS',
+      signature: VALID_SIGNATURE,
+      reviewerSignature: { userId: OUTSIDER_ID, password: '654321' },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'validation_error',
+      message: 'Reviewer must be an active user in the current organization',
+    });
+    expect(dualSignMock).not.toHaveBeenCalled();
+  });
+
   it('on FAIL deactivates the instrument and emits failed outbox', async () => {
     const result = await recordCalibration({
       instrumentId: INSTRUMENT_ID,
       calibratedAt: '2026-06-01',
       result: 'FAIL',
       signature: VALID_SIGNATURE,
+      reviewerSignature: VALID_REVIEWER_SIGNATURE,
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -349,6 +500,7 @@ describe('recordCalibration', () => {
       calibratedAt: '2026-06-01',
       result: 'OUT_OF_SPEC',
       signature: VALID_SIGNATURE,
+      reviewerSignature: VALID_REVIEWER_SIGNATURE,
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -374,6 +526,7 @@ describe('recordCalibration', () => {
       calibratedAt: '2099-01-15',
       result: 'PASS',
       signature: VALID_SIGNATURE,
+      reviewerSignature: VALID_REVIEWER_SIGNATURE,
     });
     expect(result).toEqual({
       ok: false,
@@ -384,13 +537,14 @@ describe('recordCalibration', () => {
 
   it('returns esign_failed and records nothing when PIN verification fails', async () => {
     const { EPinFailedError } = await import('@monopilot/e-sign');
-    signEventMock.mockRejectedValueOnce(new EPinFailedError());
+    dualSignMock.mockRejectedValueOnce(new EPinFailedError());
 
     const result = await recordCalibration({
       instrumentId: INSTRUMENT_ID,
       calibratedAt: '2026-06-01',
       result: 'PASS',
       signature: { password: 'wrong' },
+      reviewerSignature: VALID_REVIEWER_SIGNATURE,
     });
 
     expect(result).toEqual({
@@ -412,6 +566,7 @@ describe('recordCalibration', () => {
       calibratedAt: '2026-06-01',
       result: 'FAIL',
       signature: VALID_SIGNATURE,
+      reviewerSignature: VALID_REVIEWER_SIGNATURE,
     });
     expect(result).toEqual({
       ok: false,
@@ -427,6 +582,7 @@ describe('recordCalibration', () => {
       calibratedAt: '2026-06-01',
       result: 'PASS',
       signature: VALID_SIGNATURE,
+      reviewerSignature: VALID_REVIEWER_SIGNATURE,
     });
     expect(result.ok).toBe(true);
 

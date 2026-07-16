@@ -11,6 +11,7 @@ import {
   GATE_APPROVED_EVENT,
   deterministicApprovalHash,
   assertAdjacentStage,
+  assertGateStageConsistent,
   emitOutbox,
   gateForStage,
   getBlockers,
@@ -73,6 +74,7 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
       await requireActionPermission(context, GATE_APPROVE_PERMISSION);
 
       const project = await loadProjectForUpdate(context, parsed.data.projectId);
+      assertGateStageConsistent(project);
       // The project's DERIVED gate (from current_stage) must match the gate being
       // approved. G3 → packaging/trial/sensory/pilot; G4 → approval/handoff.
       if (project.current_gate !== parsed.data.gateCode) {

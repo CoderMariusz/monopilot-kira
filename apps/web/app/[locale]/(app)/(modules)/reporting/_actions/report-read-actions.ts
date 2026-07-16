@@ -29,6 +29,7 @@ import {
   hasReportingPermission,
   num,
   pct,
+  reportingSiteScope,
   toIso,
   type GrnReceiptRow,
   type InventorySnapshot,
@@ -198,7 +199,7 @@ export async function reportingProductionLines(): Promise<
              from public.production_lines
             where org_id = app.current_org_id()
               and status = 'active'
-              and (app.current_site_id() is null or site_id is null or site_id = app.current_site_id())
+              and ${reportingSiteScope('site_id')}
             order by lower(name), lower(code)`,
         );
 
@@ -285,7 +286,7 @@ export async function productionSummaryCore(
                on wo.org_id = app.current_org_id()
               and wo.id = d.wo_id
             where d.org_id = app.current_org_id()
-              and (app.current_site_id() is null or d.site_id is null or d.site_id = app.current_site_id())
+              and ${reportingSiteScope('d.site_id')}
               and d.started_at >= $1::timestamptz
               and d.started_at <= $2::timestamptz
               and ($3::text is null or d.line_id = $3::text)
@@ -617,7 +618,7 @@ export async function receiptsSummaryCore(
                          ) by_uom) as received_qty_by_uom
              ) gi on true
             where g.org_id = app.current_org_id()
-              and (app.current_site_id() is null or g.site_id is null or g.site_id = app.current_site_id())
+              and ${reportingSiteScope('g.site_id')}
               and g.receipt_date >= $1::timestamptz
               and g.receipt_date <= $2::timestamptz
               and ($3::text is null or g.grn_number ilike '%' || $3::text || '%')
@@ -731,7 +732,7 @@ export async function shipmentsSummaryCore(
              left join public.sales_orders so on so.id = sh.sales_order_id and so.org_id = app.current_org_id()
              left join public.customers c on c.id = coalesce(sh.customer_id, so.customer_id) and c.org_id = app.current_org_id()
             where sh.org_id = app.current_org_id()
-              and (app.current_site_id() is null or sh.site_id is null or sh.site_id = app.current_site_id())
+              and ${reportingSiteScope('sh.site_id')}
               and sh.deleted_at is null
               and sh.created_at >= $1::timestamptz
               and sh.created_at <= $2::timestamptz
@@ -745,7 +746,7 @@ export async function shipmentsSummaryCore(
           `select sh.status, count(*)::int as count
              from public.shipments sh
             where sh.org_id = app.current_org_id()
-              and (app.current_site_id() is null or sh.site_id is null or sh.site_id = app.current_site_id())
+              and ${reportingSiteScope('sh.site_id')}
               and sh.deleted_at is null
               and sh.created_at >= $1::timestamptz
               and sh.created_at <= $2::timestamptz
@@ -820,7 +821,7 @@ export async function qualitySummaryCore(
           `select h.hold_status, count(*)::text as count
              from public.quality_holds h
             where h.org_id = app.current_org_id()
-              and (app.current_site_id() is null or h.site_id is null or h.site_id = app.current_site_id())
+              and ${reportingSiteScope('h.site_id')}
               and h.hold_status in ('open', 'investigating', 'quarantined', 'escalated')
             group by h.hold_status
             order by h.hold_status`,
@@ -830,7 +831,7 @@ export async function qualitySummaryCore(
           `select qi.status, count(*)::text as count
              from public.quality_inspections qi
             where qi.org_id = app.current_org_id()
-              and (app.current_site_id() is null or qi.site_id is null or qi.site_id = app.current_site_id())
+              and ${reportingSiteScope('qi.site_id')}
               and qi.created_at >= $1::timestamptz
               and qi.created_at <= $2::timestamptz
             group by qi.status
@@ -849,7 +850,7 @@ export async function qualitySummaryCore(
                   )::text as closed_in_window
              from public.ncr_reports n
             where n.org_id = app.current_org_id()
-              and (app.current_site_id() is null or n.site_id is null or n.site_id = app.current_site_id())`,
+              and ${reportingSiteScope('n.site_id')}`,
           [window.fromIso, window.toIso],
         );
 
@@ -914,7 +915,7 @@ export async function procurementSummaryCore(
           `select po.status, count(*)::text as count
              from public.purchase_orders po
             where po.org_id = app.current_org_id()
-              and (app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id())
+              and ${reportingSiteScope('po.site_id')}
               and po.created_at >= $1::timestamptz
               and po.created_at <= $2::timestamptz
               and ($3::text is null or po.po_number ilike '%' || $3::text || '%')
@@ -937,7 +938,7 @@ export async function procurementSummaryCore(
                on g.org_id = app.current_org_id()
               and g.po_id = po.id
             where po.org_id = app.current_org_id()
-              and (app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id())
+              and ${reportingSiteScope('po.site_id')}
               and po.created_at >= $1::timestamptz
               and po.created_at <= $2::timestamptz
               and ($3::text is null or po.po_number ilike '%' || $3::text || '%')
@@ -1033,7 +1034,7 @@ export async function getSpendBySupplierCore(
          on s.org_id = app.current_org_id()
         and s.id = po.supplier_id
       where po.org_id = app.current_org_id()
-        and (app.current_site_id() is null or po.site_id is null or po.site_id = app.current_site_id())
+        and ${reportingSiteScope('po.site_id')}
         and po.status = any($1::text[])
         and po.created_at >= $2::timestamptz
         and po.created_at <= $3::timestamptz

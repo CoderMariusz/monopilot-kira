@@ -69,7 +69,7 @@ beforeEach(() => {
 });
 
 describe('createProject blank recipe bootstrap (S23)', () => {
-  it('seeds recipe stage, FG product code, and formulation header for blank starts', async () => {
+  it('seeds brief stage (G0), FG product code, and formulation header for blank starts', async () => {
     const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
     ctx.handler = (sql, params) => {
       calls.push({ sql, params });
@@ -93,7 +93,7 @@ describe('createProject blank recipe bootstrap (S23)', () => {
 
     expect(result.ok).toBe(true);
     const projectInsert = calls.find((call) => call.sql.includes('insert into public.npd_projects'));
-    expect(projectInsert?.params).toContain('recipe');
+    expect(projectInsert?.params).toContain('brief');
     const productInsert = calls.find((call) => call.sql.includes('insert into public.product'));
     expect(productInsert?.params?.[0]).toBe('FG-012');
     const formulationInsert = calls.find((call) => call.sql.includes('insert into public.formulations'));

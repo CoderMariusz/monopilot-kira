@@ -171,6 +171,9 @@ export function buildNcrDetailLabels(t: QaNcrsTranslator): NcrDetailLabels {
     backToNcrs: t('detail.backToNcrs'),
     overdueBanner: t('detail.overdueBanner'),
     closedBanner: t('detail.closedBanner'),
+    closedBannerSigned: t.has('detail.closedBannerSigned')
+      ? t('detail.closedBannerSigned')
+      : 'SHA-256 signature stored.',
     closeNcr: t('detail.closeNcr'),
     downloadReport: t('detail.downloadReport'),
     header: {

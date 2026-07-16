@@ -32,6 +32,24 @@ describe('bulkMoveGate', () => {
     advanceProjectGateMock.mockReset();
   });
 
+  it('accepts brief as gate-only G0→G1 bulk target', async () => {
+    advanceProjectGateMock.mockResolvedValueOnce({
+      ok: true,
+      data: { previousGate: 'G0', currentGate: 'G1' },
+    });
+
+    const result = await bulkMoveGate({
+      projectIds: [PROJECT_A],
+      targetStage: 'brief',
+    });
+
+    expect(result).toMatchObject({ ok: true, data: { updated: 1 } });
+    expect(advanceProjectGateMock).toHaveBeenCalledWith({
+      projectId: PROJECT_A,
+      targetStage: 'brief',
+    });
+  });
+
   it('returns ok:false when a bulk move partially fails', async () => {
     advanceProjectGateMock
       .mockResolvedValueOnce({

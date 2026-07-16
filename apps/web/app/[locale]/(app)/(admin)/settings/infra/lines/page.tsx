@@ -61,6 +61,7 @@ const DEFAULT_LABELS: LinesLabels = {
   createLineSuccess: 'Production line created.',
   updateLineSuccess: 'Production line updated.',
   createLineFailed: 'Production line could not be created.',
+  duplicateCodeError: 'That line code is already in use at this site. Choose a different one.',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
   selectLine: 'Select {name}',
   loading: 'Loading production lines…',
@@ -105,6 +106,7 @@ type SiteOptionRow = {
 type WarehouseOptionRow = {
   id: string;
   name: string;
+  site_id: string | null;
 };
 
 type LocationOptionRow = {
@@ -247,7 +249,7 @@ async function loadLines(): Promise<LinesRuntime> {
             order by is_default desc, lower(name), lower(site_code)`,
         ),
         context.client.query<WarehouseOptionRow>(
-          `select id, name
+          `select id::text, name, site_id::text
              from public.warehouses
             where org_id = app.current_org_id()
             order by lower(name), id`,
@@ -259,7 +261,7 @@ async function loadLines(): Promise<LinesRuntime> {
         state: lines.length === 0 ? 'empty' : 'ready',
         lines,
         sites: sitesResult.rows.map((row) => ({ id: row.id, code: row.site_code, name: row.name, isDefault: row.is_default })),
-        warehouses: warehousesResult.rows.map((row) => ({ id: row.id, name: row.name })),
+        warehouses: warehousesResult.rows.map((row) => ({ id: row.id, name: row.name, siteId: row.site_id })),
         locations,
         canUpdateInfra,
       };

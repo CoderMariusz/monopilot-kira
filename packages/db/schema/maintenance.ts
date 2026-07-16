@@ -16,6 +16,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from './baseline.js';
+import { eSignLog } from './e-sign.js';
 
 // 13-Maintenance — CMMS schema foundation (migration 201).
 // PRD: docs/prd/13-MAINTENANCE-PRD.md §9.1-9.15. Tasks T-002 (settings/technicians/equipment),
@@ -523,7 +524,8 @@ export type NewCalibrationInstrument = InferInsertModel<typeof calibrationInstru
 // ---------------------------------------------------------------------------
 // 9.13 calibration_records — immutable cert + 7y retention (T-006). result=FAIL -> 09-QA hold.
 //   retention_until is GENERATED ALWAYS AS STORED (BRCGS) — never writable.
-//   certificate_sha256 = 21 CFR Part 11 e-sign chain (set by T-015); immutable once present.
+//   certificate_sha256 = SHA-256 of the uploaded certificate artifact (not e-sign receipts).
+//   primary_signature_id / reviewer_signature_id = CFR-21 Part 11 receipt FKs (T-015/C115).
 // ---------------------------------------------------------------------------
 export const calibrationRecords = pgTable(
   'calibration_records',
@@ -543,7 +545,13 @@ export const calibrationRecords = pgTable(
     testPoints: jsonb('test_points').notNull().default('[]'), // [{reference, measured, tolerance_pct}]
     result: text('result').notNull(), // PASS|FAIL|OUT_OF_SPEC
     certificateFileUrl: text('certificate_file_url'),
-    certificateSha256: text('certificate_sha256'), // 21 CFR Part 11; immutable once set (T-015)
+    certificateSha256: text('certificate_sha256'), // artifact digest; immutable once set
+    primarySignatureId: uuid('primary_signature_id').references(() => eSignLog.signatureId, {
+      onDelete: 'restrict',
+    }),
+    reviewerSignatureId: uuid('reviewer_signature_id').references(() => eSignLog.signatureId, {
+      onDelete: 'restrict',
+    }),
     nextDueDate: date('next_due_date').notNull(),
     // retention_until GENERATED ALWAYS AS (next_due_date + 7y) STORED — defined in SQL (Drizzle
     //   cannot emit GENERATED). Mapped read-only via .generatedAlwaysAs for type inference.

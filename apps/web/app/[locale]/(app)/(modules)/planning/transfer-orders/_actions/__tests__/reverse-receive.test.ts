@@ -96,11 +96,17 @@ function makeClient(): QueryClient {
       if (q.startsWith('select count(*) filter')) {
         return { rows: [{ received_count: '0' }], rowCount: 1 };
       }
+      if (q.startsWith('select distinct item_id')) {
+        return { rows: [{ item_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }], rowCount: 1 };
+      }
+      if (q.startsWith('select coalesce(sum(quantity)')) {
+        return { rows: [{ total: '12.000000' }], rowCount: 1 };
+      }
       if (
         q.startsWith('update public.license_plates') ||
         q.startsWith('insert into public.lp_state_history') ||
         q.startsWith('insert into public.stock_moves') ||
-        q.startsWith('update public.transfer_order_line_lps') ||
+        q.startsWith('delete from public.transfer_order_line_lps') ||
         q.startsWith('update public.transfer_orders') ||
         q.startsWith('insert into public.audit_events') ||
         q.startsWith('insert into public.outbox_events')
@@ -165,28 +171,27 @@ describe('reverseToReceiveLine source LP state guards', () => {
   });
 });
 
-describe('reverseToReceiveLine ship-link preservation', () => {
+describe('reverseToReceiveLine ship-link cleanup (C058)', () => {
   beforeEach(() => {
     sourceStatus = 'shipped';
     client = makeClient();
   });
 
-  it('nulls dest_lp_id on transfer_order_line_lps instead of deleting the ship link row', async () => {
+  it('deletes the transfer_order_line_lps row so cancel cannot double-credit source stock', async () => {
     const result = await reverseToReceiveLine(makeInput());
 
     expect(result.ok).toBe(true);
 
-    const linkUpdate = vi.mocked(client.query).mock.calls.find(([sql, params]) => {
+    const linkDelete = vi.mocked(client.query).mock.calls.find(([sql, params]) => {
       const q = normalize(String(sql));
-      return q.startsWith('update public.transfer_order_line_lps') && params?.[0] === LINK_ID;
+      return q.startsWith('delete from public.transfer_order_line_lps') && params?.[0] === LINK_ID;
     });
-    expect(linkUpdate?.[0]).toContain('dest_lp_id = null');
-    expect(linkUpdate?.[1]).toEqual([LINK_ID, USER_ID]);
+    expect(linkDelete).toBeDefined();
 
-    const linkDelete = vi.mocked(client.query).mock.calls.find(([sql]) =>
-      normalize(String(sql)).startsWith('delete from public.transfer_order_line_lps'),
+    const linkUpdate = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      normalize(String(sql)).startsWith('update public.transfer_order_line_lps'),
     );
-    expect(linkDelete).toBeUndefined();
+    expect(linkUpdate).toBeUndefined();
   });
 
   it('rerolls the TO status to in_transit when received_count is 0 and returns it in result.data.status', async () => {

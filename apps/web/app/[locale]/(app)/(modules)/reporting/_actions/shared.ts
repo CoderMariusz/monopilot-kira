@@ -80,6 +80,15 @@ export function avgDays(pairs: Array<{ fromMs: number; toMs: number }>): string 
   return (totalDays / valid.length).toFixed(1);
 }
 
+/**
+ * Site filter for reporting reads. All-sites includes every row; an explicit site
+ * matches only rows assigned to that site. Unassigned (site_id IS NULL) rows are
+ * counted once in all-sites, never duplicated across explicit-site views.
+ */
+export function reportingSiteScope(siteIdColumn: string): string {
+  return `(app.current_site_id() is null or ${siteIdColumn} = app.current_site_id())`;
+}
+
 // ── Payload types ─────────────────────────────────────────────────────────────
 
 export type ProductionSummary = {
