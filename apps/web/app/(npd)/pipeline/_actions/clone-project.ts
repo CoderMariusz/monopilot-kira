@@ -15,6 +15,7 @@ import {
   boxesOutputUnitRequiresPackFactors,
   type NpdBriefOutputUnit,
 } from './_lib/materialize-npd-bom';
+import { parseOptionalRetailPriceEur } from './_lib/retail-price-eur';
 
 /**
  * cloneProject — create a NEW NPD project seeded from an EXISTING one.
@@ -52,7 +53,7 @@ export type CloneProjectOverrides = {
   weeklyVolumePacks?: number | null;
   runsPerWeek?: number | null;
   salesChannel?: string | null;
-  targetRetailPriceEur?: number | null;
+  targetRetailPriceEur?: string | null;
   targetAudience?: string | null;
   marketingClaims?: string | null;
   constraints?: string | null;
@@ -151,10 +152,12 @@ export async function cloneProject(rawInput: unknown): Promise<CloneProjectResul
       const marketingClaims = pick(o, 'marketingClaims', source.marketing_claims);
       const constraints = pick(o, 'constraints', source.constraints);
       const notes = pick(o, 'notes', source.notes);
+      const sourceTargetRetailPriceEur = parseOptionalRetailPriceEur(source.target_retail_price_eur);
+      if (sourceTargetRetailPriceEur === undefined) return { ok: false, error: 'INVALID_INPUT' };
       const targetRetailPriceEur =
         o?.targetRetailPriceEur !== undefined && o.targetRetailPriceEur !== null
           ? o.targetRetailPriceEur
-          : toNumericOrNull(source.target_retail_price_eur);
+          : sourceTargetRetailPriceEur;
       const packWeightG =
         o?.packWeightG !== undefined && o.packWeightG !== null
           ? o.packWeightG
@@ -332,7 +335,7 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
   const constraints = trimOptionalString(raw.constraints, 2000);
   const notes = trimOptionalString(raw.notes, 2000);
   const targetLaunch = parseOptionalDate(raw.targetLaunch);
-  const targetRetailPriceEur = parseOptionalNonNeg(raw.targetRetailPriceEur);
+  const targetRetailPriceEur = parseOptionalRetailPriceEur(raw.targetRetailPriceEur);
   const packWeightG = parseOptionalNonNeg(raw.packWeightG);
   const packsPerCase = parseOptionalNonNegInteger(raw.packsPerCase);
   const outputUnit = parseOptionalOutputUnit(raw.outputUnit);
@@ -344,7 +347,9 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
     name === undefined || type === undefined || packFormat === undefined ||
     salesChannel === undefined || targetAudience === undefined ||
     marketingClaims === undefined || constraints === undefined || notes === undefined ||
-    targetLaunch === undefined || targetRetailPriceEur === undefined || packWeightG === undefined ||
+    targetLaunch === undefined ||
+    (raw.targetRetailPriceEur !== undefined && targetRetailPriceEur === undefined) ||
+    packWeightG === undefined ||
     packsPerCase === undefined || outputUnit === undefined || weeklyVolumePacks === undefined ||
     runsPerWeek === undefined ||
     prio === null

@@ -98,6 +98,7 @@ export type NutritionTabLabels = {
   colPresence: string;
   noComputed: string;
   computedNote: string; // "{when}" placeholder
+  computedNoteNoDate: string;
   presence: Record<string, string>;
 };
 
@@ -288,7 +289,7 @@ export function NutritionTab({
           ⓘ{' '}
           {panel.computedAt
             ? labels.computedNote.replace('{when}', panel.computedAt.slice(0, 10))
-            : labels.computedNote.replace('{when}', '—')}
+            : labels.computedNoteNoDate}
         </div>
       </div>
     );

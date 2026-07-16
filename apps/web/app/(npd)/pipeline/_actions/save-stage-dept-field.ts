@@ -18,6 +18,7 @@ import {
   type OrgContextLike,
   type UpdateFaCellResult,
 } from '../../fa/actions/_lib/fa-cell-shared';
+import { syncLinkedFgNameFromProject } from './_lib/project-fg-sync';
 
 type SaveStageDeptFieldInput = {
   projectId: string;
@@ -40,6 +41,39 @@ export async function saveStageDeptField(input: SaveStageDeptFieldInput) {
   }
 
   const productCode = (parsed.data.productCode ?? '').trim();
+  if (
+    productCode &&
+    parsed.data.fieldCode === 'product_name'
+  ) {
+    return withOrgContext<UpdateFaCellResult>(async (rawCtx) => {
+      const ctx = rawCtx as OrgContextLike;
+      const column = await loadDeptColumn(ctx, parsed.data.fieldCode);
+      const permission = permissionForDept(column.dept_code);
+      if (!(await hasPermission(ctx, permission))) {
+        throw new AuthError('FORBIDDEN', `${permission} is required to update ${parsed.data.fieldCode}`);
+      }
+      if (await isAutoColumn(ctx, column.column_key)) {
+        throw new ValidationError('READ_ONLY_COLUMN', 'Auto-derived columns cannot be edited');
+      }
+
+      const linkedToProject = await isProductLinkedToProject(ctx, parsed.data.projectId, productCode);
+      if (!linkedToProject) {
+        return updateFaCell(productCode, parsed.data.fieldCode, parsed.data.value);
+      }
+
+      const newValue = await validateValue(ctx, column, parsed.data.value);
+      await ctx.client.query(`select set_config('app.fa_actor_user_id', $1, true)`, [ctx.userId]);
+      const result = await updateProjectName(ctx, parsed.data.projectId, newValue);
+      await syncLinkedFgNameFromProject(
+        ctx,
+        parsed.data.projectId,
+        typeof newValue === 'string' ? newValue : null,
+      );
+      await writeProjectEditOutbox(ctx, parsed.data.projectId, column.column_key, result);
+      safeRevalidatePath(`/npd/pipeline/${parsed.data.projectId}`);
+      return result;
+    });
+  }
   if (!productCode) {
     return withOrgContext<UpdateFaCellResult>(async (rawCtx) => {
       const ctx = rawCtx as OrgContextLike;
@@ -70,7 +104,13 @@ async function updateProjectField(
   value: string | number | boolean | Date | null,
 ): Promise<UpdateFaCellResult> {
   if (columnName === 'product_name') {
-    return updateProjectName(ctx, projectId, value);
+    const result = await updateProjectName(ctx, projectId, value);
+    await syncLinkedFgNameFromProject(
+      ctx,
+      projectId,
+      typeof value === 'string' ? value : null,
+    );
+    return result;
   }
   if (await isProjectColumn(ctx, columnName)) {
     return updateProjectColumn(ctx, projectId, columnName, value);
@@ -89,6 +129,23 @@ async function isProjectColumn(ctx: OrgContextLike, columnName: string): Promise
     [columnName],
   );
   return rows[0]?.ok === true;
+}
+
+async function isProductLinkedToProject(
+  ctx: OrgContextLike,
+  projectId: string,
+  productCode: string,
+): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.npd_projects
+      where id = $1::uuid
+        and org_id = app.current_org_id()
+        and product_code = $2
+      limit 1`,
+    [projectId, productCode],
+  );
+  return rows.length > 0;
 }
 
 async function updateProjectName(

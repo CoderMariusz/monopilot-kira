@@ -100,12 +100,34 @@ const OptionalNumeric = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
   z.coerce.number().nonnegative().optional(),
 );
-// Positive numeric ('' / undefined ⇒ undefined). Used for net_qty_per_each — a
-// physical quantity in the base UoM that must be > 0 when supplied.
-const OptionalPositiveNumeric = z.preprocess(
+// Positive NUMERIC string ('' / undefined ⇒ undefined). Used for net_qty_per_each —
+// bound ::numeric so JSON/float never truncates declared pack weights.
+// DB scale: numeric(18,6) — max 6 decimal places (migration 502).
+const MAX_NET_QTY_DP = 6;
+
+function hasAtMostDecimalPlaces(value: string, maxDp: number): boolean {
+  const frac = value.split('.')[1] ?? '';
+  return frac.length <= maxDp;
+}
+
+export const NetQtyPerEachInput = z
+  .union([z.string(), z.number()])
+  .transform((v) => (typeof v === 'number' ? String(v) : v.trim()))
+  .refine((v) => /^\d+(\.\d+)?$/.test(v) && Number(v) > 0, {
+    message: 'net_qty_per_each must be a positive decimal',
+  })
+  .refine((v) => hasAtMostDecimalPlaces(v, MAX_NET_QTY_DP), {
+    message: `net_qty_per_each supports at most ${MAX_NET_QTY_DP} decimal places`,
+  });
+
+const OptionalNetQtyPerEach = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-  z.coerce.number().positive().optional(),
+  NetQtyPerEachInput.optional(),
 );
+
+function isPositiveDecimalString(value: string | undefined): boolean {
+  return value !== undefined && /^\d+(\.\d+)?$/.test(value) && Number(value) > 0;
+}
 // Positive integer for each_per_box / boxes_per_pallet ('' / undefined ⇒ undefined).
 const OptionalPositiveInt = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
@@ -115,12 +137,12 @@ const OptionalPositiveInt = z.preprocess(
 // ── Pack hierarchy (migration 267) — shared zod shape + cross-field rule ───────
 // Column contract (public.items, migration 267):
 //   output_uom        text 'base'|'each'|'box' default 'base'
-//   net_qty_per_each  numeric (in uom_base; required when output_uom != 'base')
+//   net_qty_per_each  numeric(18,6) in uom_base; required when output_uom != 'base'
 //   each_per_box      int     (required when output_uom = 'box')
 //   boxes_per_pallet  int     (optional)
 export const PackHierarchyShape = {
   outputUom: z.enum(OUTPUT_UOMS).optional().default('base'),
-  netQtyPerEach: OptionalPositiveNumeric,
+  netQtyPerEach: OptionalNetQtyPerEach,
   eachPerBox: OptionalPositiveInt,
   boxesPerPallet: OptionalPositiveInt,
 } as const;
@@ -133,12 +155,12 @@ export const PackHierarchyShape = {
  * Applied via `.superRefine` on both Create and Update inputs.
  */
 export function refinePackHierarchy(
-  value: { outputUom?: OutputUom; netQtyPerEach?: number; eachPerBox?: number },
+  value: { outputUom?: OutputUom; netQtyPerEach?: string; eachPerBox?: number },
   ctx: z.RefinementCtx,
 ): void {
   const output = value.outputUom ?? 'base';
   if (output === 'each' || output === 'box') {
-    if (value.netQtyPerEach === undefined || !(value.netQtyPerEach > 0)) {
+    if (!isPositiveDecimalString(value.netQtyPerEach)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['netQtyPerEach'],

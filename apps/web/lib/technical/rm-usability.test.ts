@@ -176,6 +176,26 @@ describe('BOM draft authoring — supplier-readiness demotes to WARNINGS in bom_
   });
 });
 
+describe('manufactured intermediate (WIP) — supplier sourcing exemption', () => {
+  it('skips supplier/spec gates at factory_spec_approval when sourcing is not required', () => {
+    const v = validateRmUsability(
+      baseRequest({ context: 'factory_spec_approval', supplier: null, supplierSourcingRequired: false }),
+    );
+    expect(v.usable).toBe(true);
+    expect(v.blockingReasons).toHaveLength(0);
+    expect(v.blockingReasons).not.toContain('SUPPLIER_NOT_APPROVED');
+    expect(v.blockingReasons).not.toContain('SUPPLIER_SPEC_NOT_ACTIVE');
+  });
+
+  it('still hard-blocks purchased intermediates without supplier specs at factory_spec_approval', () => {
+    const v = validateRmUsability(baseRequest({ context: 'factory_spec_approval', supplier: null }));
+    expect(v.usable).toBe(false);
+    expect(v.blockingReasons).toEqual(
+      expect.arrayContaining(['SUPPLIER_NOT_APPROVED', 'SUPPLIER_SPEC_NOT_ACTIVE']),
+    );
+  });
+});
+
 describe('T-074 validateRmUsability — green path + report shape', () => {
   it('AC4: all checks pass → usable=true and every row is pass with a source', () => {
     const v = validateRmUsability(baseRequest());

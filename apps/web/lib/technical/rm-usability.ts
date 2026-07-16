@@ -140,6 +140,11 @@ export interface RmUsabilityRequest {
   /** Allergen codes the TARGET FG forbids/constrains (free-from claims etc.). */
   targetFgForbiddenAllergens: string[];
   qcRelease: RmQcReleaseInput;
+  /**
+   * When false, supplier/spec/cost-review gates are skipped — internally manufactured
+   * intermediate (WIP) components are not purchased materials. Defaults to true.
+   */
+  supplierSourcingRequired?: boolean;
   /** Injected clock for deterministic in-date / evidence checks. */
   now?: Date;
 }
@@ -238,6 +243,7 @@ export function validateRmUsability(req: RmUsabilityRequest): RmUsabilityVerdict
   const warnings: RmUsabilityReasonCode[] = [];
 
   const itemId = req.item?.id ?? 'unknown';
+  const supplierSourcingRequired = req.supplierSourcingRequired !== false;
 
   // 1. Item active (AC1).
   if (!req.item || req.item.status !== 'active') {
@@ -252,48 +258,91 @@ export function validateRmUsability(req: RmUsabilityRequest): RmUsabilityVerdict
     checks.push(row('OK', 'Item is active', 'pass', 'public.items.status', { evidenceAt: req.item.updatedAt ?? null }));
   }
 
-  // 2. Supplier approved (AC2 family — never silently approve unknown supplier).
-  if (!req.supplier || req.supplier.supplierStatus !== 'approved') {
-    const sev = readinessSeverityForContext('SUPPLIER_NOT_APPROVED', req.context);
-    recordReason('SUPPLIER_NOT_APPROVED', sev, blockingReasons, warnings);
-    checks.push(
-      // Failure phrasing — the positively-named requirement read as "blocked
-      // (SUPPLIER_NOT_APPROVED): Supplier is approved" in the BOM dialog.
-      row('SUPPLIER_NOT_APPROVED', 'Supplier approval is missing', sev, 'public.supplier_specs.supplier_status', {
-        remediationHref: req.supplier ? `/technical/suppliers/${req.supplier.supplierCode}` : null,
-        evidenceAt: req.supplier?.updatedAt ?? null,
-      }),
-    );
-  } else {
-    checks.push(
-      row('OK', 'Supplier is approved', 'pass', 'public.supplier_specs.supplier_status', {
-        evidenceAt: req.supplier.updatedAt ?? null,
-      }),
-    );
-  }
-
-  // 3. Active + approved + in-date supplier_spec (AC2).
   const spec = req.supplier;
-  const specActive =
-    !!spec &&
-    spec.lifecycleStatus === 'active' &&
-    spec.reviewStatus === 'approved' &&
-    !isSpecExpired(spec, now);
-  if (!specActive) {
-    const sev = readinessSeverityForContext('SUPPLIER_SPEC_NOT_ACTIVE', req.context);
-    recordReason('SUPPLIER_SPEC_NOT_ACTIVE', sev, blockingReasons, warnings);
+
+  // 2–3, 5–6. Supplier/spec sourcing — purchased RM/ingredient/intermediate only.
+  if (!supplierSourcingRequired) {
     checks.push(
-      row('SUPPLIER_SPEC_NOT_ACTIVE', 'Supplier spec is active and in-date', sev, 'public.supplier_specs', {
-        remediationHref: spec ? `/technical/suppliers/${spec.supplierCode}/spec` : null,
-        evidenceAt: spec?.expiryDate ?? spec?.updatedAt ?? null,
+      row('OK', 'Supplier sourcing not required (manufactured WIP)', 'pass', 'public.items.item_type', {
+        evidenceAt: req.item?.updatedAt ?? null,
       }),
     );
+    checks.push(
+      row('OK', 'Supplier spec sourcing not required (manufactured WIP)', 'pass', 'public.items.item_type', {
+        evidenceAt: req.item?.updatedAt ?? null,
+      }),
+    );
+    checks.push(row('OK', 'Cost review complete', 'pass', 'public.supplier_specs.cost_review_blocked'));
+    checks.push(row('OK', 'Spec review complete', 'pass', 'public.supplier_specs.spec_review_blocked'));
   } else {
-    checks.push(
-      row('OK', 'Supplier spec is active and in-date', 'pass', 'public.supplier_specs', {
-        evidenceAt: spec.expiryDate ?? spec.updatedAt ?? null,
-      }),
-    );
+    // 2. Supplier approved (AC2 family — never silently approve unknown supplier).
+    if (!req.supplier || req.supplier.supplierStatus !== 'approved') {
+      const sev = readinessSeverityForContext('SUPPLIER_NOT_APPROVED', req.context);
+      recordReason('SUPPLIER_NOT_APPROVED', sev, blockingReasons, warnings);
+      checks.push(
+        row('SUPPLIER_NOT_APPROVED', 'Supplier approval is missing', sev, 'public.supplier_specs.supplier_status', {
+          remediationHref: req.supplier ? `/technical/suppliers/${req.supplier.supplierCode}` : null,
+          evidenceAt: req.supplier?.updatedAt ?? null,
+        }),
+      );
+    } else {
+      checks.push(
+        row('OK', 'Supplier is approved', 'pass', 'public.supplier_specs.supplier_status', {
+          evidenceAt: req.supplier.updatedAt ?? null,
+        }),
+      );
+    }
+
+    // 3. Active + approved + in-date supplier_spec (AC2).
+    const specActive =
+      !!spec &&
+      spec.lifecycleStatus === 'active' &&
+      spec.reviewStatus === 'approved' &&
+      !isSpecExpired(spec, now);
+    if (!specActive) {
+      const sev = readinessSeverityForContext('SUPPLIER_SPEC_NOT_ACTIVE', req.context);
+      recordReason('SUPPLIER_SPEC_NOT_ACTIVE', sev, blockingReasons, warnings);
+      checks.push(
+        row('SUPPLIER_SPEC_NOT_ACTIVE', 'Supplier spec is active and in-date', sev, 'public.supplier_specs', {
+          remediationHref: spec ? `/technical/suppliers/${spec.supplierCode}/spec` : null,
+          evidenceAt: spec?.expiryDate ?? spec?.updatedAt ?? null,
+        }),
+      );
+    } else {
+      checks.push(
+        row('OK', 'Supplier spec is active and in-date', 'pass', 'public.supplier_specs', {
+          evidenceAt: spec.expiryDate ?? spec.updatedAt ?? null,
+        }),
+      );
+    }
+
+    // 5. Cost review done (AC: cost/spec review done before usable).
+    if (spec?.costReviewBlocked) {
+      const sev = readinessSeverityForContext('COST_REVIEW_PENDING', req.context);
+      recordReason('COST_REVIEW_PENDING', sev, blockingReasons, warnings);
+      checks.push(
+        row('COST_REVIEW_PENDING', 'Cost review complete', sev, 'public.supplier_specs.cost_review_blocked', {
+          remediationHref: `/technical/items/${itemId}/cost`,
+          evidenceAt: spec.updatedAt ?? null,
+        }),
+      );
+    } else {
+      checks.push(row('OK', 'Cost review complete', 'pass', 'public.supplier_specs.cost_review_blocked'));
+    }
+
+    // 6. Spec review done.
+    if (spec?.specReviewBlocked) {
+      const sev = readinessSeverityForContext('SPEC_REVIEW_PENDING', req.context);
+      recordReason('SPEC_REVIEW_PENDING', sev, blockingReasons, warnings);
+      checks.push(
+        row('SPEC_REVIEW_PENDING', 'Spec review complete', sev, 'public.supplier_specs.spec_review_blocked', {
+          remediationHref: spec ? `/technical/suppliers/${spec.supplierCode}/spec` : null,
+          evidenceAt: spec.updatedAt ?? null,
+        }),
+      );
+    } else {
+      checks.push(row('OK', 'Spec review complete', 'pass', 'public.supplier_specs.spec_review_blocked'));
+    }
   }
 
   // 4. Allergen conflict (AC3) — RM `contains` ∩ target FG forbidden set.
@@ -321,34 +370,6 @@ export function validateRmUsability(req: RmUsabilityRequest): RmUsabilityVerdict
         evidenceAt: nowIso,
       }),
     );
-  }
-
-  // 5. Cost review done (AC: cost/spec review done before usable).
-  if (spec?.costReviewBlocked) {
-    const sev = readinessSeverityForContext('COST_REVIEW_PENDING', req.context);
-    recordReason('COST_REVIEW_PENDING', sev, blockingReasons, warnings);
-    checks.push(
-      row('COST_REVIEW_PENDING', 'Cost review complete', sev, 'public.supplier_specs.cost_review_blocked', {
-        remediationHref: `/technical/items/${itemId}/cost`,
-        evidenceAt: spec.updatedAt ?? null,
-      }),
-    );
-  } else {
-    checks.push(row('OK', 'Cost review complete', 'pass', 'public.supplier_specs.cost_review_blocked'));
-  }
-
-  // 6. Spec review done.
-  if (spec?.specReviewBlocked) {
-    const sev = readinessSeverityForContext('SPEC_REVIEW_PENDING', req.context);
-    recordReason('SPEC_REVIEW_PENDING', sev, blockingReasons, warnings);
-    checks.push(
-      row('SPEC_REVIEW_PENDING', 'Spec review complete', sev, 'public.supplier_specs.spec_review_blocked', {
-        remediationHref: spec ? `/technical/suppliers/${spec.supplierCode}/spec` : null,
-        evidenceAt: spec.updatedAt ?? null,
-      }),
-    );
-  } else {
-    checks.push(row('OK', 'Spec review complete', 'pass', 'public.supplier_specs.spec_review_blocked'));
   }
 
   // 7. QC/release present when required (AC6) — read-only Quality consume.

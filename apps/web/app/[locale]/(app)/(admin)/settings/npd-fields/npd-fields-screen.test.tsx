@@ -108,6 +108,11 @@ const labels: NpdFieldsScreenLabels = {
     auto_source_cycle: 'That source field already derives from this field, which would create a loop.',
     auto_source_required: 'Choose a source field when Auto-derived is on.',
   },
+  duplicateFieldErrors: {
+    duplicate_code: 'A field with this code already exists in the catalog.',
+    duplicate_label: 'A field with this label already exists in the catalog.',
+    semantic_duplicate_label: 'This label is already used by another field with a different data type.',
+  },
   deactivateErrors: {
     cannot_deactivate_core: 'Core department cannot be deactivated.',
     cannot_deactivate_last: 'At least one department must stay active.',

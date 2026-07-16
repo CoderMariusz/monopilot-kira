@@ -1204,6 +1204,9 @@
       "auto_source_not_found": "The selected source field was not found. Choose an active catalog field.",
       "auto_source_cycle": "That source field already derives from this field, which would create a loop.",
       "auto_source_required": "Choose a source field when Auto-derived is on.",
+      "duplicate_code": "A field with this code already exists in the catalog.",
+      "duplicate_label": "A field with this label already exists in the catalog.",
+      "semantic_duplicate_label": "This label is already used by another field with a different data type.",
       "deactivate_core_error": "Core department cannot be deactivated.",
       "deactivate_last_error": "At least one department must stay active.",
       "catalog_title": "Field catalog",
@@ -2267,6 +2270,7 @@
       "title": "Nutrition per 100g",
       "liveNote": "· live",
       "exportLabel": "Export label",
+      "exportLabelComingSoon": "Label export is not yet available",
       "targetsNote": "Targets: Protein ≥ {protein} · Salt ≤ {salt} · Fat ≤ {fat} per 100g",
       "withinTarget": "Within target",
       "overTarget": "Over target",
@@ -4421,7 +4425,8 @@
       "fieldOutputUnitKg": "kg",
       "fieldOutputUnitPieces": "pieces",
       "fieldOutputUnitBoxes": "boxes",
-      "errorBoxesOutputUnit": "Output unit \"boxes\" requires pack weight (g) and packs per case greater than 0."
+      "errorBoxesOutputUnit": "Output unit \"boxes\" requires pack weight (g) and packs per case greater than 0.",
+      "errorRetailPrice": "Target retail price must be a non-negative amount with at most two decimal places."
     },
     "faBomTab": {
       "title": "BOM (computed view)",
@@ -5033,7 +5038,8 @@
           "colAllergen": "Allergen",
           "colPresence": "Presence",
           "noComputed": "No computed nutrition yet for this finished good.",
-          "computedNote": "Recomputed from the BOM on {when}.",
+          "computedNote": "Recomputed from the materialized NPD nutrition model on {when}.",
+          "computedNoteNoDate": "Materialized from the NPD nutrition model.",
           "presence": {
             "contains": "Contains",
             "may_contain": "May contain",
@@ -7015,6 +7021,7 @@
       "loading": "Loading bundle…",
       "error": "Unable to load the release bundle. Please try again.",
       "approved": "Bundle approved — FactorySpec and BOM released to factory use.",
+      "approvalRecorded": "Signature recorded ({collected} of {required} approvers). Bundle is not released until all required approvers sign.",
       "rejected": "Bundle rejected — both artifacts returned to draft.",
       "actionError": "Could not complete the action. Please try again.",
       "blocker": {

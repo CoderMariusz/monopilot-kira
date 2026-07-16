@@ -64,6 +64,30 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
       );
       if (before.rows.length === 0) return { ok: false, error: 'not_found' };
       const beforeRow = before.rows[0];
+
+      const { rows: linkedProjectRows } = await (client as QueryClient).query<{ canonical_name: string }>(
+        `select np.name as canonical_name
+           from public.items i
+           join public.npd_projects np
+             on np.org_id = i.org_id
+            and (
+              np.id = i.npd_project_id
+              or (np.product_code is not null and np.product_code = i.item_code)
+            )
+          where i.org_id = app.current_org_id()
+            and i.id = $1::uuid
+            and i.item_type = 'fg'
+          limit 1`,
+        [input.id],
+      );
+      if (linkedProjectRows.length > 0 && input.name !== beforeRow.name) {
+        return {
+          ok: false,
+          error: 'invalid_input',
+          message: 'linked_fg_name_immutable',
+        };
+      }
+
       if (input.status !== beforeRow.status) {
         if (input.status === 'blocked' || !isAllowedStatusTransition(beforeRow.status, input.status)) {
           return { ok: false, error: 'invalid_input', message: 'invalid_transition' };

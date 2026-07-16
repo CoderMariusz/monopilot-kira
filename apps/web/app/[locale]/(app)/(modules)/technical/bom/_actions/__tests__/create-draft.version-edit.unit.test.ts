@@ -41,6 +41,9 @@ function makeClient(editCalls: { decision: string }[]): {
     if (n.includes('from public.bom_headers header') && n.includes('header.status')) {
       return { rows: [{ status: 'active' }], rowCount: 1 };
     }
+    if (n.includes('parent_item_code')) {
+      return { rows: [{ parent_item_code: 'FG-1' }], rowCount: 1 };
+    }
     if (n.includes('header.product_id')) {
       return { rows: [{ product_id: 'FG-1' }], rowCount: 1 };
     }
@@ -68,7 +71,7 @@ function makeClient(editCalls: { decision: string }[]): {
     }
     if (n.includes('from public.bom_headers') && n.includes('active')) return { rows: [], rowCount: 0 };
     if (n.includes('from public.items') && n.includes('item_code')) {
-      return { rows: [{ item_code: 'FG-1', name: 'FG', status: 'active', item_type: 'fg' }], rowCount: 1 };
+      return { rows: [{ id: 'fg-item-id', item_code: 'FG-1', name: 'FG', status: 'active', item_type: 'fg' }], rowCount: 1 };
     }
     if (n.startsWith('update public.bom_headers header')) return { rows: [], rowCount: 1 };
     if (n.startsWith('delete from public.bom_lines')) return { rows: [], rowCount: 1 };

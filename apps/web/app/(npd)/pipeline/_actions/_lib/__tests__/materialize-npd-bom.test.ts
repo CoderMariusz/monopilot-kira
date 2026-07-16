@@ -36,12 +36,89 @@ function isIngredientQuery(sql: string): boolean {
   return normalize(sql).startsWith('select fi.rm_code,');
 }
 
+/** C045 — RM-usability classifier item lookup (by item_code or id). */
+function isRmUsabilityItemLookup(sql: string): boolean {
+  const n = normalize(sql);
+  return (
+    n.startsWith('select id, item_type, status, updated_at from public.items') &&
+    (n.includes('and item_code = $1') || n.includes('and id = $1::uuid'))
+  );
+}
+
+const RM_USABILITY_ITEM_CODE_BY_ID: Record<string, string> = {
+  [ITEM]: 'FG-001',
+  [RM_FLOUR]: 'RM-FLOUR',
+  [RM_SALT]: 'RM-SALT',
+  [PM_ITEM]: 'BOX',
+  [PM_SUB]: 'PM-SUB',
+  [WIP_ITEM]: 'WIP-DOUGH',
+};
+
+function rmUsabilityItemTypeForCode(code: string): string {
+  if (code.startsWith('WIP-')) return 'intermediate';
+  if (code.startsWith('FG-')) return 'fg';
+  if (code === 'BOX' || code.startsWith('PM-')) return 'pm';
+  return 'rm';
+}
+
+function rmUsabilityIdForCode(code: string): string {
+  const byCode: Record<string, string> = {
+    'FG-001': ITEM,
+    'RM-FLOUR': RM_FLOUR,
+    'RM-SALT': RM_SALT,
+    'RM-001': RM_FLOUR,
+    'RM-002': ITEM,
+    'RM-PORK': RM_FLOUR,
+    BOX: PM_ITEM,
+    'WIP-DOUGH': WIP_ITEM,
+    'WIP-MIX': WIP_ITEM,
+    'WIP-INACTIVE': WIP_ITEM,
+  };
+  return byCode[code] ?? RM_FLOUR;
+}
+
+/** Sensible active item row for validateBomLineRmUsability / resolveSupplierSourcingRequired. */
+function resolveRmUsabilityItemRow(sql: string, params: readonly unknown[]): unknown[] {
+  const key = String(params[0] ?? '');
+  const byId = normalize(sql).includes('and id = $1::uuid');
+  const code = byId ? (RM_USABILITY_ITEM_CODE_BY_ID[key] ?? key) : key;
+  const id = byId ? key : rmUsabilityIdForCode(code);
+  return [{
+    id,
+    item_type: rmUsabilityItemTypeForCode(code),
+    status: 'active',
+    updated_at: new Date().toISOString(),
+  }];
+}
+
+function matchRmUsabilityItemLookup(sql: string, params: readonly unknown[]): unknown[] | null {
+  if (!isRmUsabilityItemLookup(sql)) return null;
+  return resolveRmUsabilityItemRow(sql, params);
+}
+
 /** Default rows for canonical BOM activation guards (cycle, RM usability, outbox, audit). */
 function bomActivationGuardDefaults(
   sql: string,
   params: readonly unknown[],
   getLastBomVersion: () => number,
 ): unknown[] | null {
+  const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+  if (rmUsabilityRow) return rmUsabilityRow;
+
+  // resolveSupplierSourcingRequired positive-source probes only (not loadWipDefinitionByItem).
+  if (sql.startsWith('select true as ok') && sql.includes('from public.wip_definitions') && sql.includes('item_id = $1::uuid')) {
+    return [];
+  }
+  if (sql.startsWith('select true as ok') && sql.includes('from public.bom_headers') && sql.includes('item_id = $1::uuid')) {
+    return [];
+  }
+  if (sql.startsWith('select true as ok') && sql.includes('from public.routings') && sql.includes('item_id = $1::uuid')) {
+    return [];
+  }
+  if (sql.includes("ext_jsonb->>'supply_mode'") || sql.includes("ext_jsonb->>'make_buy'")) {
+    return [{ explicit_make: false }];
+  }
+
   if (sql.includes("h.status = 'active' and h.item_id is not null")) return [];
   if (sql.startsWith('select distinct allergen_code') && sql.includes("presence = 'free_from'")) return [];
   if (sql.startsWith('select id, status, updated_at from public.items')) {
@@ -143,7 +220,10 @@ function ctx(client: QueryClient) {
 }
 
 function createBomMaterializationClient(targetYieldPct: string | null) {
-  return createClient((sql) => {
+  return createClient((sql, params) => {
+    const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+    if (rmUsabilityRow) return rmUsabilityRow;
+
     if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
     if (sql.startsWith('select id from public.items where org_id')) return [];
     if (sql.startsWith('select f.id as formulation_id')) {
@@ -214,7 +294,10 @@ describe('computeBomLineQty', () => {
 
 describe('materializeNpdBom', () => {
   it('creates the missing FG item, product, active NPD BOM lines, and approved factory spec', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select f.id as formulation_id')) {
         return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '98.500' }];
@@ -277,7 +360,9 @@ describe('materializeNpdBom', () => {
   });
 
   it('uses explicit output_unit on FG insert instead of legacy inference', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
       if (sql.startsWith('select id, code, name, type, current_gate')) {
         return [{ ...projectRow(), output_unit: 'pieces' }];
       }
@@ -319,7 +404,9 @@ describe('materializeNpdBom', () => {
   });
 
   it('keeps explicit pieces output_uom when packs_per_case is set (no box-upgrade flip)', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
       if (sql.startsWith('select id, code, name, type, current_gate')) {
         return [{ ...projectRow(), output_unit: 'pieces' }];
       }
@@ -390,7 +477,10 @@ describe('materializeNpdBom', () => {
   );
 
   it('is idempotent when the FG item, active NPD BOM, and approved factory spec already exist', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select f.id as formulation_id')) {
         return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '98.500' }];
@@ -433,7 +523,9 @@ describe('materializeNpdBom', () => {
   });
 
   it('returns PACKS_PER_BOX_REQUIRED WITHOUT writing the FG item or closeout stamp when packs-per-box is unset and no BOM exists', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
       if (sql.startsWith('select id, code, name, type, current_gate')) return [{ ...projectRow(), packs_per_case: 0 }];
       if (sql.startsWith('select id from public.items where org_id')) return []; // no production-code conflict
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -463,7 +555,9 @@ describe('materializeNpdBom', () => {
   });
 
   it('does NOT require packs-per-box on an idempotent re-run when an active BOM already exists', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
       if (sql.startsWith('select id, code, name, type, current_gate')) return [{ ...projectRow(), packs_per_case: 0 }];
       if (sql.startsWith('select f.id as formulation_id')) {
         return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '98.500' }];
@@ -498,7 +592,9 @@ describe('materializeNpdBom', () => {
   });
 
   it('applies compounded process yields to RM lines when no component linkage exists', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
       if (sql.startsWith('select id, code, name, type, current_gate')) return [{ ...projectRow(), pack_weight_g: '300.000', packs_per_case: 12 }];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -541,7 +637,9 @@ describe('materializeNpdBom', () => {
   });
 
   it('does NOT compound sibling components\' yields for an unlinked RM on a MULTI-component product (L8 HIGH-1)', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
       if (sql.startsWith('select id, code, name, type, current_gate')) return [{ ...projectRow(), pack_weight_g: '300.000', packs_per_case: 12 }];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -589,7 +687,9 @@ describe('materializeNpdBom', () => {
   });
 
   it('upgrades a pre-existing FG to output_uom=box ATOMICALLY with both pack factors (walk-2 H-1)', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
       if (sql.startsWith('select id, code, name, type, current_gate')) return [{ ...projectRow(), pack_weight_g: '300.000', packs_per_case: 12 }];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -645,7 +745,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('supersedes the OLD active header BEFORE activating the new one (walk-4 unique-index order)', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -689,7 +792,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('creates a new BOM version and supersedes stale active NPD BOMs', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -735,7 +841,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('copies packaging substitutes and upgrades pre-existing FG item UOMs', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -781,7 +890,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('self-heals a linked inactive WIP item and materializes its child BOM', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -891,7 +1003,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('returns the exact WIP definition when no active intermediate item can be resolved', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -935,7 +1050,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('materializes WIP child BOM lines from process-assigned formulation ingredients', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -1020,7 +1138,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('keeps an RM assigned to a non-WIP process on the FG BOM (F1 fail-safe)', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -1076,7 +1197,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('returns AMBIGUOUS_WIP_CONSUMPTION without writing when two assigned processes share a WIP definition (F2)', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -1154,7 +1278,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('proceeds when only one process has assigned ingredients for a shared WIP definition (F2)', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -1235,7 +1362,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('materializes a process-derived WIP stage on the FG BOM with summed assigned-ingredient qty (R4.3b)', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -1331,7 +1461,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('deduplicates when the same wip_definition_id is ingredient-declared and process-derived (ingredient qty wins)', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -1418,7 +1551,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('ignores a creates_wip_item process with no assigned ingredients (no empty stage)', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -1470,7 +1606,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('rejects FG BOM activation when lines would create a cycle (V-TEC-13)', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -1518,7 +1657,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('emits fg.bom.released when a new FG BOM is activated', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select f.id as formulation_id')) {
         return [{ formulation_id: 'form-1', version_id: 'ver-1', version_number: 3, target_yield_pct: '98.500' }];
@@ -1593,7 +1735,10 @@ describe('materializeNpdBom', () => {
     crossOrgPoisonInIngredients?: boolean;
     crossOrgPoisonInProcessAssignments?: boolean;
   }) {
-    return createClient((sql) => {
+    return createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -1659,7 +1804,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('P2-04: formulationHasProcessAssignments scopes formulation_ingredients through formulations.org_id', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {
@@ -1725,7 +1873,10 @@ describe('materializeNpdBom', () => {
   });
 
   it('P2-04: formulationHasProcessAssignments ignores cross-org process assignments on spoofed version_id', async () => {
-    const client = createClient((sql) => {
+    const client = createClient((sql, params) => {
+      const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
+      if (rmUsabilityRow) return rmUsabilityRow;
+
       if (sql.startsWith('select id, code, name, type, current_gate')) return [projectRow()];
       if (sql.startsWith('select id from public.items where org_id')) return [];
       if (sql.startsWith('select f.id as formulation_id')) {

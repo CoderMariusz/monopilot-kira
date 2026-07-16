@@ -34,6 +34,7 @@ import {
   type QueryClient,
   formatRmUsabilityFailures,
   validateBomLineRmUsability,
+  validateBomManufacturingOperationNames,
   writeAudit,
   writeOutbox,
 } from './shared';
@@ -70,8 +71,14 @@ async function ensureBomProductReference(
     [input.productId],
   );
   const item = itemRows[0];
-  if (!item || item.item_type !== 'fg' || item.status !== 'active') {
+  const bomParentTypes = new Set(['fg', 'intermediate']);
+  if (!item || !bomParentTypes.has(item.item_type) || item.status !== 'active') {
     return { ok: false, message: 'invalid reference' };
+  }
+
+  // Manufactured WIP/intermediate parents are items-only — no product/fg_npd_ext twin.
+  if (item.item_type === 'intermediate') {
+    return { ok: true };
   }
 
   // product is a VIEW post-merge-cut (no ON CONFLICT — 42P10). Ensure the row exists WITHOUT
@@ -158,6 +165,19 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
         };
       }
 
+      const operationValidation = await validateBomManufacturingOperationNames(
+        c,
+        input.lines.map((line) => line.manufacturingOperationName),
+      );
+      if (!operationValidation.ok) {
+        return {
+          ok: false,
+          error: 'validation_failed',
+          code: operationValidation.code,
+          message: operationValidation.message,
+        };
+      }
+
       // ── V-TEC-11 advisory: warn (non-blocking) if any line scrap_pct >= 50 ──────
       if (input.lines.some((l) => (l.scrapPct ?? 0) >= 50)) warnings.push('V-TEC-11');
 
@@ -166,20 +186,33 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
         return { ok: false, error: 'invalid_input', message: productReference.message };
       }
 
+      const { rows: parentItemRows } = await c.query<{ id: string; item_type: string }>(
+        `select id, item_type
+           from public.items
+          where org_id = app.current_org_id()
+            and item_code = $1
+          limit 1`,
+        [input.productId],
+      );
+      const parentItem = parentItemRows[0];
+      if (!parentItem) return { ok: false, error: 'invalid_input', message: 'invalid reference' };
+      const headerProductId = parentItem.item_type === 'intermediate' ? null : input.productId;
+
       let headerId: string;
       let version: number;
 
       if (input.sourceBomHeaderId) {
-        const { rows: sourceHeaderRows } = await c.query<{ product_id: string }>(
-          `select header.product_id
+        const { rows: sourceHeaderRows } = await c.query<{ parent_item_code: string }>(
+          `select i.item_code as parent_item_code
              from public.bom_headers header
+             join public.items i on i.id = header.item_id and i.org_id = header.org_id
             where header.org_id = app.current_org_id()
               and header.id = $1::uuid`,
           [input.sourceBomHeaderId],
         );
         const sourceHeader = sourceHeaderRows[0];
         if (!sourceHeader) return { ok: false, error: 'not_found' };
-        if (sourceHeader.product_id !== input.productId) {
+        if (sourceHeader.parent_item_code !== input.productId) {
           return {
             ok: false,
             error: 'invalid_input',
@@ -243,9 +276,18 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
           `insert into public.bom_headers
              (org_id, product_id, item_id, origin_module, status, version, yield_pct, effective_from, notes, created_by_user, app_version, bom_type)
            values
-             (app.current_org_id(), $1, (select id from public.items where org_id = app.current_org_id() and item_code = $1), 'technical', 'draft', $2, $3::numeric, coalesce($4::date, current_date), $5, $6::uuid, 'technical-bom-v1', $7)
+             (app.current_org_id(), $1, $2::uuid, 'technical', 'draft', $3, $4::numeric, coalesce($5::date, current_date), $6, $7::uuid, 'technical-bom-v1', $8)
            returning id`,
-          [input.productId, version, input.yieldPct, input.effectiveFrom ?? null, input.notes ?? null, userId, input.bom_type],
+          [
+            headerProductId,
+            parentItem.id,
+            version,
+            input.yieldPct,
+            input.effectiveFrom ?? null,
+            input.notes ?? null,
+            userId,
+            input.bom_type,
+          ],
         );
         headerId = headerRows[0]?.id ?? '';
         if (!headerId) return { ok: false, error: 'persistence_failed' };

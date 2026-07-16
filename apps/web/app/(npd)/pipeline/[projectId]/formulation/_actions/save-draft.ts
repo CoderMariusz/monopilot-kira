@@ -3,6 +3,7 @@
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { createLogger } from '@monopilot/observability';
+import { parseOptionalRetailPriceEur } from '../../../_actions/_lib/retail-price-eur';
 
 const logger = createLogger({ name: 'npd-formulation-lifecycle' });
 
@@ -62,7 +63,9 @@ export async function saveDraft(input: {
   const ingredients = parseIngredients(input?.ingredients);
   const batchSizeKg = normalizePositiveNumeric(input?.batchSizeKg);
   const targetYieldPct = normalizeNumericPct(input?.targetYieldPct);
-  const targetPriceEur = normalizeNumeric(input?.targetPriceEur);
+  const targetPriceEur = input?.targetPriceEur === undefined
+    ? null
+    : parseOptionalRetailPriceEur(input.targetPriceEur);
   const processingOverheadPct = normalizeNumericPct(input?.processingOverheadPct);
   if (
     !projectId ||

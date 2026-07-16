@@ -154,6 +154,7 @@ const LABELS: WizardLabels = {
   errorGeneric: 'lbl.errorGeneric',
   errorForbidden: 'lbl.errorForbidden',
   errorBoxesOutputUnit: 'lbl.errorBoxesOutputUnit',
+  errorRetailPrice: 'lbl.errorRetailPrice',
 };
 
 const defaultAction = vi.fn(async () => ({ ok: true as const, data: { id: 'pid-7', code: 'NPD-007' } }));
@@ -383,7 +384,7 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
       weeklyVolumePacks: 5000,
       runsPerWeek: 3,
       salesChannel: 'Retail',
-      targetRetailPriceEur: 19.9,
+      targetRetailPriceEur: '19.90',
       targetAudience: 'Premium retail',
       marketingClaims: 'High protein',
       constraints: 'Shelf life >= 28 days',

@@ -42,9 +42,11 @@ const FG_STATUS_TONE: Record<ItemStatus, string> = {
   blocked: 'badge-red',
 };
 
-function isEligibleFg(item: ItemListItem): boolean {
+function isEligibleBomParent(item: ItemListItem): boolean {
   return item.status === 'active';
 }
+
+const BOM_PARENT_TYPES = new Set<ItemListItem['itemType']>(['fg', 'intermediate']);
 
 export function NewBomModal({
   open,
@@ -134,14 +136,14 @@ export function NewBomModal({
         // state:'error' on a handled failure. A REJECTED promise (e.g. a Server
         // Action that throws at the RSC boundary) is caught below so the modal
         // can NEVER hang on the loading skeleton forever — the live failure mode.
-        const res = await listItems({ itemTypes: ['fg'], limit: ITEM_CHOOSER_MAX_LIMIT });
+        const res = await listItems({ itemTypes: ['fg', 'intermediate'], limit: ITEM_CHOOSER_MAX_LIMIT });
         if (cancelled) return;
         if (res.state === 'error') {
           setListState('error');
           return;
         }
         // Defensive: also filter client-side in case a caller widened the read.
-        setItems(res.items.filter((m) => m.itemType === 'fg'));
+        setItems(res.items.filter((m) => BOM_PARENT_TYPES.has(m.itemType)));
         setListState('ready');
       } catch (err) {
         if (cancelled) return;
@@ -161,7 +163,7 @@ export function NewBomModal({
     if (!open || !prefillCode || listState !== 'ready' || items === null) return;
     setSearch((prev) => (prev ? prev : prefillCode));
     const match = items.find((m) => m.itemCode === prefillCode);
-    if (match && isEligibleFg(match)) setPicked((prev) => prev ?? match);
+    if (match && isEligibleBomParent(match)) setPicked((prev) => prev ?? match);
   }, [open, prefillCode, listState, items]);
 
   const filtered = React.useMemo(() => {
@@ -174,7 +176,7 @@ export function NewBomModal({
   }, [items, search]);
 
   function onConfirm() {
-    if (!picked || !isEligibleFg(picked)) return;
+    if (!picked || !isEligibleBomParent(picked)) return;
     onClose();
     router.push(`${detailHrefBase}/${encodeURIComponent(picked.itemCode)}`);
   }
@@ -255,7 +257,7 @@ export function NewBomModal({
                 <div className="empty-state-body">
                   {tt(
                     'emptyBody',
-                    'A BOM is authored against an active finished good. Create or activate an FG item first, then return to add its components.',
+                    'A BOM is authored against an active finished good or manufactured WIP. Create or activate a parent item first, then return to add its components.',
                   )}
                 </div>
                 <div className="empty-state-action">
@@ -266,7 +268,7 @@ export function NewBomModal({
               </div>
             ) : (
               filtered.map((m) => {
-                const eligible = isEligibleFg(m);
+                const eligible = isEligibleBomParent(m);
                 return (
                   <button
                     key={m.id}
@@ -280,7 +282,7 @@ export function NewBomModal({
                     title={
                       eligible
                         ? undefined
-                        : tt('blockedHint', 'Only active finished goods can have a BOM authored against them.')
+                        : tt('blockedHint', 'Only active finished goods or manufactured WIPs can have a BOM authored against them.')
                     }
                     onClick={() => {
                       if (eligible) setPicked(m);
@@ -316,7 +318,7 @@ export function NewBomModal({
               type="button"
               className="btn-primary btn-sm"
               data-testid="new-bom-confirm"
-              disabled={!picked || !isEligibleFg(picked)}
+              disabled={!picked || !isEligibleBomParent(picked)}
               onClick={onConfirm}
             >
               {t('confirm')}

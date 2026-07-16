@@ -1467,6 +1467,9 @@
       "auto_source_not_found": "The selected source field was not found. Choose an active catalog field.",
       "auto_source_cycle": "That source field already derives from this field, which would create a loop.",
       "auto_source_required": "Choose a source field when Auto-derived is on.",
+      "duplicate_code": "A field with this code already exists in the catalog.",
+      "duplicate_label": "A field with this label already exists in the catalog.",
+      "semantic_duplicate_label": "This label is already used by another field with a different data type.",
       "deactivate_core_error": "Core department cannot be deactivated.",
       "deactivate_last_error": "At least one department must stay active.",
       "catalog_title": "Field catalog",
@@ -2358,7 +2361,8 @@
           "colAllergen": "Alergen",
           "colPresence": "Prezență",
           "noComputed": "Nicio nutriție calculată pentru acest produs finit.",
-          "computedNote": "Recalculat din BOM la {when}.",
+          "computedNote": "Recalculat din modelul nutrițional NPD materializat la {when}.",
+          "computedNoteNoDate": "Materializat din modelul nutrițional NPD.",
           "presence": {
             "contains": "Conține",
             "may_contain": "Poate conține",
@@ -4316,6 +4320,7 @@
       "loading": "Loading bundle…",
       "error": "Unable to load the release bundle. Please try again.",
       "approved": "Bundle approved — FactorySpec and BOM released to factory use.",
+      "approvalRecorded": "Signature recorded ({collected} of {required} approvers). Bundle is not released until all required approvers sign.",
       "rejected": "Bundle rejected — both artifacts returned to draft.",
       "actionError": "Could not complete the action. Please try again.",
       "blocker": {
@@ -4724,6 +4729,7 @@
       "title": "Valori nutriționale la 100 g",
       "liveNote": "· live",
       "exportLabel": "Exportă eticheta",
+      "exportLabelComingSoon": "Exportul etichetei nu este încă disponibil",
       "targetsNote": "Ținte: Proteine ≥ {protein} · Sare ≤ {salt} · Grăsimi ≤ {fat} la 100 g",
       "withinTarget": "În limită",
       "overTarget": "Peste țintă",
@@ -6826,7 +6832,8 @@
       "fieldOutputUnitKg": "kg",
       "fieldOutputUnitPieces": "bucăți",
       "fieldOutputUnitBoxes": "cutii",
-      "errorBoxesOutputUnit": "Unitatea de ieșire „cutii” necesită greutatea ambalajului (g) și numărul de ambalaje per cutie mai mare decât 0."
+      "errorBoxesOutputUnit": "Unitatea de ieșire „cutii” necesită greutatea ambalajului (g) și numărul de ambalaje per cutie mai mare decât 0.",
+      "errorRetailPrice": "Prețul de retail trebuie să fie nenegativ și să aibă cel mult două zecimale."
     },
     "faBomTab": {
       "title": "BOM (vizualizare calculată)",

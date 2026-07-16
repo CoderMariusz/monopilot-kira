@@ -100,7 +100,8 @@ export type BomValidationCode =
   | 'V-TEC-12' // non-byproduct allocation sum != 100
   | 'V-TEC-13' // BOM cycle / self-reference
   | 'V-TEC-14' // component item blocked / not usable
-  | 'V-TEC-15'; // generator FG must be Status_Overall = 'Complete'
+  | 'V-TEC-15' // generator FG must be Status_Overall = 'Complete'
+  | 'V-TEC-63'; // manufacturing_operation_name must exist in active Reference.ManufacturingOperations
 
 // ── Read shapes (detail mirrors snapshot_json contract: header/lines/co_products) ──
 export type BomHeaderView = {
@@ -211,6 +212,7 @@ export type BomLineUsabilityInput = {
 
 type ItemUsabilityRow = {
   id: string;
+  item_type: string;
   status: string;
   updated_at: string | Date | null;
 };
@@ -230,6 +232,62 @@ type SupplierSpecUsabilityRow = {
 type TargetFgForbiddenAllergenRow = {
   allergen_code: string;
 };
+
+/**
+ * Positive-source classifier: only internally manufactured intermediates skip supplier
+ * sourcing. Absence of a supplier_spec row is NOT evidence of internal manufacture.
+ */
+export async function resolveSupplierSourcingRequired(
+  c: QueryClient,
+  itemRow: Pick<ItemUsabilityRow, 'id' | 'item_type'> | null,
+): Promise<boolean> {
+  if (!itemRow || itemRow.item_type !== 'intermediate') return true;
+
+  const { rows: wipRows } = await c.query<{ ok: boolean }>(
+    `select true as ok
+       from public.wip_definitions
+      where org_id = app.current_org_id()
+        and item_id = $1::uuid
+        and status = 'active'
+      limit 1`,
+    [itemRow.id],
+  );
+  if (wipRows[0]) return false;
+
+  const { rows: bomRows } = await c.query<{ ok: boolean }>(
+    `select true as ok
+       from public.bom_headers
+      where org_id = app.current_org_id()
+        and item_id = $1::uuid
+        and status in ('technical_approved', 'active')
+      limit 1`,
+    [itemRow.id],
+  );
+  if (bomRows[0]) return false;
+
+  const { rows: routingRows } = await c.query<{ ok: boolean }>(
+    `select true as ok
+       from public.routings
+      where org_id = app.current_org_id()
+        and item_id = $1::uuid
+        and status in ('approved', 'active')
+      limit 1`,
+    [itemRow.id],
+  );
+  if (routingRows[0]) return false;
+
+  const { rows: makeBuyRows } = await c.query<{ explicit_make: boolean }>(
+    `select coalesce(ext_jsonb->>'supply_mode', ext_jsonb->>'make_buy') = 'make' as explicit_make
+       from public.items
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [itemRow.id],
+  );
+  if (makeBuyRows[0]?.explicit_make) return false;
+
+  return true;
+}
 
 export async function validateBomLineRmUsability(
   c: QueryClient,
@@ -254,8 +312,8 @@ export async function validateBomLineRmUsability(
   for (const line of lines) {
     const { rows: itemRows } = await c.query<ItemUsabilityRow>(
       line.itemId
-        ? `select id, status, updated_at from public.items where org_id = app.current_org_id() and id = $1::uuid`
-        : `select id, status, updated_at from public.items where org_id = app.current_org_id() and item_code = $1`,
+        ? `select id, item_type, status, updated_at from public.items where org_id = app.current_org_id() and id = $1::uuid`
+        : `select id, item_type, status, updated_at from public.items where org_id = app.current_org_id() and item_code = $1`,
       [line.itemId ?? line.componentCode],
     );
     const itemRow = itemRows[0] ?? null;
@@ -305,6 +363,7 @@ export async function validateBomLineRmUsability(
       rmAllergens,
       targetFgForbiddenAllergens,
       qcRelease: { required: false },
+      supplierSourcingRequired: await resolveSupplierSourcingRequired(c, itemRow),
     });
 
     if (!verdict.usable) {
@@ -321,6 +380,60 @@ export async function validateBomLineRmUsability(
 
 export function formatRmUsabilityFailures(failures: readonly BomRmUsabilityFailure[]): string {
   return failures.map((failure) => `${failure.componentCode}: ${failure.reasons.join(', ')}`).join('; ');
+}
+
+/** Result of V-TEC-63 — every non-empty manufacturing_operation_name must be active in Reference. */
+export type BomManufacturingOperationValidationResult =
+  | { ok: true }
+  | { ok: false; code: 'V-TEC-63'; message: string; unknownOperationName: string };
+
+/**
+ * V-TEC-63 — the manufacturing_operation_name of every BOM line must exist in the
+ * org's active manufacturing-operations reference ("Reference"."ManufacturingOperations").
+ * Null/empty names are allowed (optional field). Returns the first unknown name.
+ */
+export async function findUnknownBomManufacturingOperationName(
+  c: QueryClient,
+  names: readonly (string | null | undefined)[],
+): Promise<string | null> {
+  const distinct = [
+    ...new Set(
+      names
+        .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+        .map((name) => name.trim()),
+    ),
+  ];
+  if (distinct.length === 0) return null;
+
+  const { rows } = await c.query<{ operation_name: string }>(
+    `select operation_name
+       from "Reference"."ManufacturingOperations"
+      where org_id = app.current_org_id()
+        and is_active = true
+        and operation_name = any($1::text[])`,
+    [distinct],
+  );
+  const known = new Set(rows.map((row) => row.operation_name));
+  for (const name of distinct) {
+    if (!known.has(name)) return name;
+  }
+  return null;
+}
+
+export async function validateBomManufacturingOperationNames(
+  c: QueryClient,
+  names: readonly (string | null | undefined)[],
+): Promise<BomManufacturingOperationValidationResult> {
+  const unknown = await findUnknownBomManufacturingOperationName(c, names);
+  if (unknown) {
+    return {
+      ok: false,
+      code: 'V-TEC-63',
+      message: `manufacturing_operation_name '${unknown}' is not an active manufacturing operation (V-TEC-63)`,
+      unknownOperationName: unknown,
+    };
+  }
+  return { ok: true };
 }
 
 /** Result of canonical V-TEC-13 (cycle) + V-TEC-14 (RM usability) approval guards. */
@@ -420,7 +533,7 @@ export const UpdateBomLineInput = z.object({
   lineId: z.string().uuid(),
   qty: DecimalString,
   uom: z.string().trim().min(1).max(32).optional(),
-  notes: z.string().trim().max(256).nullish(),
+  manufacturingOperationName: z.string().trim().max(256).nullish(),
 });
 export type UpdateBomLineInputType = z.input<typeof UpdateBomLineInput>;
 

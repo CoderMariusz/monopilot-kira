@@ -7,15 +7,41 @@ import {
   hasPermission,
 } from './shared';
 import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
+import {
+  archiveLinkedFgForDeletedProject,
+  LinkedFgArchiveBlockedError,
+} from './_lib/project-fg-sync';
 
 const PROJECT_DELETED_EVENT = 'npd.project.deleted';
 
 export type DeleteProjectResult =
   | { ok: true }
-  | { ok: false; error: 'INVALID_INPUT' | 'FORBIDDEN' | 'NOT_FOUND' | 'HAS_DEPENDENTS' | 'PERSISTENCE_FAILED' };
+  | {
+      ok: false;
+      error:
+        | 'INVALID_INPUT'
+        | 'FORBIDDEN'
+        | 'NOT_FOUND'
+        | 'HAS_DEPENDENTS'
+        | 'LINKED_FG_BLOCKED'
+        | 'PERSISTENCE_FAILED';
+      blockReason?: string;
+    };
 
 /** Postgres SQLSTATE for foreign_key_violation. */
 const PG_FK_VIOLATION = '23503';
+
+/** Thrown inside withOrgContext after linked-FG archive writes so the txn rolls back. */
+class HasDependentsError extends Error {
+  constructor() {
+    super('HAS_DEPENDENTS');
+    this.name = 'HasDependentsError';
+  }
+}
+
+function throwIfArchivedLinkedFg(archivedLinkedFg: boolean): void {
+  if (archivedLinkedFg) throw new HasDependentsError();
+}
 
 /**
  * Delete an NPD project. Deleting the row cascades gate_checklist_items (ON DELETE
@@ -38,15 +64,23 @@ export async function deleteProject(rawInput: unknown): Promise<DeleteProjectRes
         return { ok: false, error: 'FORBIDDEN' };
       }
 
-      const { rows: existing } = await ctx.client.query<{ id: string; code: string }>(
-        `select id, code
+      const { rows: existing } = await ctx.client.query<{ id: string; code: string; product_code: string | null }>(
+        `select id, code, product_code
            from public.npd_projects
           where id = $1::uuid
-            and org_id = app.current_org_id()`,
+            and org_id = app.current_org_id()
+          for update`,
         [projectId],
       );
       const project = existing[0];
       if (!project) return { ok: false, error: 'NOT_FOUND' };
+
+      const linkedProductCode = project.product_code?.trim() || null;
+      let archivedLinkedFg = false;
+      if (linkedProductCode) {
+        await archiveLinkedFgForDeletedProject(ctx, project.id, linkedProductCode);
+        archivedLinkedFg = true;
+      }
 
       let deleted: { id: string; code: string } | undefined;
       try {
@@ -60,12 +94,16 @@ export async function deleteProject(rawInput: unknown): Promise<DeleteProjectRes
         deleted = rows[0];
       } catch (err) {
         if ((err as { code?: string })?.code === PG_FK_VIOLATION) {
+          throwIfArchivedLinkedFg(archivedLinkedFg);
           return { ok: false, error: 'HAS_DEPENDENTS' };
         }
         throw err;
       }
 
-      if (!deleted) return { ok: false, error: 'NOT_FOUND' };
+      if (!deleted) {
+        throwIfArchivedLinkedFg(archivedLinkedFg);
+        return { ok: false, error: 'NOT_FOUND' };
+      }
 
       // Atomic with the delete — a failed outbox insert must roll back the deletion.
       await ctx.client.query(
@@ -89,7 +127,13 @@ export async function deleteProject(rawInput: unknown): Promise<DeleteProjectRes
       }
       return { ok: true };
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof HasDependentsError) {
+      return { ok: false, error: 'HAS_DEPENDENTS' };
+    }
+    if (err instanceof LinkedFgArchiveBlockedError) {
+      return { ok: false, error: 'LINKED_FG_BLOCKED', blockReason: err.reason };
+    }
     return { ok: false, error: 'PERSISTENCE_FAILED' };
   }
 }

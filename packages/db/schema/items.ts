@@ -40,6 +40,11 @@ export const items = pgTable(
     shelfLifeMode: text('shelf_life_mode').default('use_by'),
     dateCodeFormat: text('date_code_format'),
     costPerKg: numeric('cost_per_kg', { precision: 18, scale: 6 }),
+    // Pack hierarchy (migration 267; net_qty scale expanded in 502).
+    outputUom: text('output_uom').notNull().default('base'),
+    netQtyPerEach: numeric('net_qty_per_each', { precision: 18, scale: 6 }),
+    eachPerBox: integer('each_per_box'),
+    boxesPerPallet: integer('boxes_per_pallet'),
     d365ItemId: text('d365_item_id'),
     d365LastSyncAt: timestamp('d365_last_sync_at', { withTimezone: true }),
     d365SyncStatus: text('d365_sync_status').default('unsynced'),
@@ -91,6 +96,27 @@ export const items = pgTable(
     shelfLifeDaysCheck: check(
       'items_shelf_life_days_check',
       sql`${table.shelfLifeDays} is null or ${table.shelfLifeDays} >= 0`,
+    ),
+    outputUomCheck: check(
+      'items_output_uom_check',
+      sql`${table.outputUom} in ('base', 'each', 'box')`,
+    ),
+    netQtyPerEachPositiveCheck: check(
+      'items_net_qty_per_each_positive_check',
+      sql`${table.netQtyPerEach} is null or ${table.netQtyPerEach} > 0`,
+    ),
+    eachPerBoxPositiveCheck: check(
+      'items_each_per_box_positive_check',
+      sql`${table.eachPerBox} is null or ${table.eachPerBox} > 0`,
+    ),
+    boxesPerPalletPositiveCheck: check(
+      'items_boxes_per_pallet_positive_check',
+      sql`${table.boxesPerPallet} is null or ${table.boxesPerPallet} > 0`,
+    ),
+    outputUomPackFactorsCheck: check(
+      'items_output_uom_pack_factors_check',
+      sql`(${table.outputUom} <> 'each' or ${table.netQtyPerEach} is not null)
+        and (${table.outputUom} <> 'box' or (${table.netQtyPerEach} is not null and ${table.eachPerBox} is not null))`,
     ),
     schemaVersionCheck: check('items_schema_version_check', sql`${table.schemaVersion} >= 1`),
     extJsonbObjectCheck: check('items_ext_jsonb_object_check', sql`jsonb_typeof(${table.extJsonb}) = 'object'`),

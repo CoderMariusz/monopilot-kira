@@ -6,12 +6,14 @@ const RM_ID = '33333333-3333-4333-8333-333333333333';
 const HEADER_ID = '44444444-4444-4444-8444-444444444444';
 const CO_PRODUCT_A_ID = '66666666-6666-4666-8666-666666666666';
 const CO_PRODUCT_B_ID = '77777777-7777-4777-8777-777777777777';
+const FG_ITEM_ID = '88888888-8888-4888-8888-888888888888';
+const WIP_PARENT_ID = '99999999-9999-4999-8999-999999999999';
 
 type QueryCall = { sql: string; params: readonly unknown[] };
 
 type FakeClient = {
   calls: QueryCall[];
-  fgItem: { item_code: string; name: string | null; status: string; item_type: string } | null;
+  fgItem: { id: string; item_code: string; name: string | null; status: string; item_type: string } | null;
   fgFreeFromAllergens: string[];
   rmAllergens: { allergen_code: string; intensity: string }[];
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -105,7 +107,7 @@ function makeClient(fgItem: FakeClient['fgItem']): FakeClient {
         return { rows: [] as never[], rowCount: 0 };
       }
       if (normalized.includes('from public.items') && normalized.includes('id = $1::uuid')) {
-        return { rows: [{ id: RM_ID, status: 'active', updated_at: '2026-06-09T00:00:00Z' }] as never[], rowCount: 1 };
+        return { rows: [{ id: RM_ID, item_type: 'rm', status: 'active', updated_at: '2026-06-09T00:00:00Z' }] as never[], rowCount: 1 };
       }
       if (normalized.includes('from public.supplier_specs')) {
         return {
@@ -133,6 +135,14 @@ function makeClient(fgItem: FakeClient['fgItem']): FakeClient {
       }
       if (normalized.includes('from public.item_allergen_profiles')) {
         return { rows: client.rmAllergens as never[], rowCount: client.rmAllergens.length };
+      }
+      if (normalized.includes('reference"."manufacturingoperations')) {
+        const names = (params[0] as string[] | undefined) ?? [];
+        const known = new Set(['Mixing', 'Packing']);
+        return {
+          rows: names.filter((name) => known.has(name)).map((operation_name) => ({ operation_name })) as never[],
+          rowCount: names.filter((name) => known.has(name)).length,
+        };
       }
       if (normalized.includes('from public.product')) {
         return { rows: [] as never[], rowCount: 0 };
@@ -166,7 +176,13 @@ let client: FakeClient;
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
-  client = makeClient({ item_code: 'FG-WIZ-001', name: 'Wizard FG', status: 'active', item_type: 'fg' });
+  client = makeClient({
+    id: FG_ITEM_ID,
+    item_code: 'FG-WIZ-001',
+    name: 'Wizard FG',
+    status: 'active',
+    item_type: 'fg',
+  });
   runWithOrgContext.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, client }),
   );
@@ -207,6 +223,31 @@ describe('createBomDraft product reference self-heal', () => {
     expect(client.calls.some((call) => normalizeSql(call.sql).startsWith('insert into public.bom_headers'))).toBe(false);
   });
 
+  it('creates a draft BOM for an active intermediate WIP without inserting a product row', async () => {
+    client.fgItem = {
+      id: WIP_PARENT_ID,
+      item_code: 'WIP-CT-0001',
+      name: 'Cream base',
+      status: 'active',
+      item_type: 'intermediate',
+    };
+    const { createBomDraft } = await import('../create-draft');
+
+    const result = await createBomDraft({
+      productId: 'WIP-CT-0001',
+      parentAllocationPct: 100,
+      lines: [{ itemId: RM_ID, componentCode: 'RM-001', quantity: 1, uom: 'kg' }],
+    });
+
+    expect(result).toMatchObject({ ok: true, data: { version: 1 } });
+    expect(client.calls.some((call) => normalizeSql(call.sql).startsWith('insert into public.product'))).toBe(false);
+    const headerInsert = client.calls.find((call) => normalizeSql(call.sql).startsWith('insert into public.bom_headers'));
+    expect(headerInsert).toBeDefined();
+    // product_id must be NULL for items-only WIP parents (FK targets public.product).
+    expect(headerInsert!.params[0]).toBeNull();
+    expect(headerInsert!.params[1]).toBe(WIP_PARENT_ID);
+  });
+
   it('rejects a milk-containing RM added to a milk-free FG with ALLERGEN_CONFLICT', async () => {
     client.fgFreeFromAllergens = ['MILK'];
     client.rmAllergens = [{ allergen_code: 'milk', intensity: 'contains' }];
@@ -227,6 +268,33 @@ describe('createBomDraft product reference self-heal', () => {
     expect(result.message).toBe('RM-MILK: ALLERGEN_CONFLICT');
     const targetFgQuery = client.calls.find((call) => normalizeSql(call.sql).includes('from public.nutrition_allergens'));
     expect(targetFgQuery?.params).toEqual(['FG-MILK-FREE']);
+  });
+
+  it('rejects an arbitrary manufacturing operation with V-TEC-63 and performs zero writes', async () => {
+    const { createBomDraft } = await import('../create-draft');
+
+    const result = await createBomDraft({
+      productId: 'FG-WIZ-001',
+      parentAllocationPct: 100,
+      lines: [
+        {
+          itemId: RM_ID,
+          componentCode: 'RM-001',
+          quantity: 1,
+          uom: 'kg',
+          manufacturingOperationName: 'Totally-Fake-Op',
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'validation_failed',
+      code: 'V-TEC-63',
+      message: expect.stringContaining('Totally-Fake-Op'),
+    });
+    expect(client.calls.some((call) => normalizeSql(call.sql).startsWith('insert into public.bom_headers'))).toBe(false);
+    expect(client.calls.some((call) => normalizeSql(call.sql).startsWith('insert into public.bom_lines'))).toBe(false);
   });
 });
 
@@ -283,6 +351,25 @@ describe('disassembly BOM draft actions', () => {
     }, client);
 
     expect(result).toMatchObject({ ok: false, error: expect.stringContaining('V-TEC-12') });
+    expect(client.calls.some((call) => normalizeSql(call.sql).startsWith('insert into public.bom_headers'))).toBe(false);
+  });
+
+  it('createDisassemblyBomDraft rejects an arbitrary manufacturing operation with V-TEC-63 and performs zero writes', async () => {
+    const { createDisassemblyBomDraft } = await import('../disassembly');
+
+    const result = await createDisassemblyBomDraft(
+      {
+        ...payload,
+        lines: [{ ...payload.lines[0], manufacturingOperationName: 'Totally-Fake-Op' }],
+      },
+      client,
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('V-TEC-63'),
+    });
+    expect(result.error).toContain('Totally-Fake-Op');
     expect(client.calls.some((call) => normalizeSql(call.sql).startsWith('insert into public.bom_headers'))).toBe(false);
   });
 

@@ -136,6 +136,12 @@ export type FormulationEditorData = {
      */
     nutritionPer100g?: Record<string, string>;
   }>;
+  /**
+   * Server-resolved recursive nutrition keyed by component code (RM + WIP).
+   * Drives the live Nutrition panel so WIP lines contribute like the
+   * materialized recompute path.
+   */
+  resolvedNutritionByCode?: Record<string, Record<string, string>>;
 };
 
 /**
@@ -956,11 +962,15 @@ export function FormulationEditor({
   const [unlocking, setUnlocking] = React.useState(false);
   const [unlockErrorCode, setUnlockErrorCode] = React.useState<string | null>(null);
 
-  // Per-RM nutrition is reference data (stable across pct edits); derive once.
+  // Per-component nutrition: prefer server-resolved recursive map (WIP-aware),
+  // then fall back to the direct RawMaterials join on each ingredient row.
   const nutritionByRm = React.useMemo(() => {
     const map = new Map<string, Record<string, string>>();
+    for (const [code, nutrition] of Object.entries(data?.resolvedNutritionByCode ?? {})) {
+      if (Object.keys(nutrition).length > 0) map.set(code, nutrition);
+    }
     for (const ing of data?.ingredients ?? []) {
-      if (ing.nutritionPer100g) map.set(ing.rmCode, ing.nutritionPer100g);
+      if (ing.nutritionPer100g && !map.has(ing.rmCode)) map.set(ing.rmCode, ing.nutritionPer100g);
     }
     return map;
   }, [data]);

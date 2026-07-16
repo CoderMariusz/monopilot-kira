@@ -29,6 +29,7 @@ const LABELS: NutritionPanelLabels = {
   title: 'Nutrition per 100g',
   liveNote: '· live',
   exportLabel: 'Export label',
+  exportLabelComingSoon: 'Label export is not yet available',
   targetsNote: 'Targets: Protein ≥ {protein} · Salt ≤ {salt} · Fat ≤ {fat} per 100g',
   withinTarget: 'Within target',
   overTarget: 'Over target',

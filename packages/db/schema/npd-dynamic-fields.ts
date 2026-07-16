@@ -1,5 +1,18 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  foreignKey,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 
 import { organizations } from './baseline.js';
@@ -53,6 +66,12 @@ export const npdFieldCatalog = pgTable(
     orgCodeUnique: unique('npd_field_catalog_org_id_code_key').on(table.orgId, table.code),
     idOrgUnique: unique('npd_field_catalog_id_org_id_key').on(table.id, table.orgId),
     orgActiveCodeIdx: index('npd_field_catalog_org_active_code_idx').on(table.orgId, table.active, table.code),
+    activeSemanticCodeUnique: uniqueIndex('npd_field_catalog_active_semantic_code_uidx')
+      .on(table.orgId, sql`lower(regexp_replace(trim(${table.code}), '[^a-z0-9]+', '', 'g'))`)
+      .where(sql`${table.active} = true`),
+    activeSemanticLabelUnique: uniqueIndex('npd_field_catalog_active_semantic_label_uidx')
+      .on(table.orgId, sql`lower(regexp_replace(trim(${table.label}), '[^a-z0-9]+', '', 'g'))`)
+      .where(sql`${table.active} = true`),
     dataTypeCheck: check(
       'npd_field_catalog_data_type_check',
       sql`${table.dataType} in ('text', 'number', 'integer', 'boolean', 'date', 'datetime', 'dropdown', 'formula', 'json')`,

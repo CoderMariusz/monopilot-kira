@@ -34,6 +34,8 @@ export const bomHeaders = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
     productId: text('product_id'),
+    /** Authoritative parent for technical BOMs (FG + manufactured WIP). Nullable for NPD-only headers. */
+    itemId: uuid('item_id').references(() => items.id, { onDelete: 'restrict' }),
     npdProjectId: uuid('npd_project_id').references(() => npdProjects.id, { onDelete: 'set null' }),
     faCode: text('fa_code'),
     originModule: text('origin_module').notNull().default('technical'),
@@ -71,6 +73,9 @@ export const bomHeaders = pgTable(
     orgProductVersionUnique: uniqueIndex('bom_headers_org_product_version_unique')
       .on(table.orgId, table.productId, table.version)
       .where(sql`${table.productId} is not null`),
+    orgItemVersionUnique: uniqueIndex('bom_headers_org_item_version_unique')
+      .on(table.orgId, table.itemId, table.version)
+      .where(sql`${table.itemId} is not null`),
     orgNpdProjectVersionUnique: uniqueIndex('bom_headers_org_npd_project_version_unique')
       .on(table.orgId, table.npdProjectId, table.version)
       .where(sql`${table.npdProjectId} is not null and ${table.productId} is null`),
@@ -80,9 +85,15 @@ export const bomHeaders = pgTable(
     orgProductIdx: index('bom_headers_org_product_idx')
       .on(table.orgId, table.productId, table.status, table.version.desc())
       .where(sql`${table.productId} is not null`),
+    orgItemIdx: index('bom_headers_org_item_idx')
+      .on(table.orgId, table.itemId, table.status, table.version.desc())
+      .where(sql`${table.itemId} is not null`),
     activeVersionIdx: uniqueIndex('bom_headers_active_version_idx')
       .on(table.orgId, table.productId)
       .where(sql`${table.status} = 'active' and ${table.productId} is not null`),
+    activeItemIdx: uniqueIndex('bom_headers_active_item_idx')
+      .on(table.orgId, table.itemId)
+      .where(sql`${table.status} = 'active' and ${table.itemId} is not null`),
     technicalApprovalQueueIdx: index('bom_headers_technical_approval_queue_idx')
       .on(table.orgId, table.status, table.technicalReviewRequestedAt, table.createdAt)
       .where(sql`${table.status} in ('in_review', 'technical_approved')`),
@@ -109,7 +120,7 @@ export const bomHeaders = pgTable(
     ),
     notOrphanedCheck: check(
       'bom_headers_not_orphaned_check',
-      sql`${table.productId} is not null or ${table.npdProjectId} is not null or ${table.faCode} is not null`,
+      sql`${table.itemId} is not null or ${table.npdProjectId} is not null or ${table.faCode} is not null`,
     ),
   }),
 );

@@ -6,6 +6,7 @@
  */
 
 import { Dec, type RecomputeIngredient } from '@monopilot/domain';
+import { computeWipCostParts, type WipProcessCostInput } from '../npd/wip-cost';
 
 export const COSTING_WATERFALL_STEP_NAMES = [
   'Raw materials',
@@ -91,9 +92,9 @@ export interface NpdWipComponentInput {
 export interface NpdWipComponentCost {
   wipDefinitionId?: string;
   wipItemId?: string;
-  /** Unit cost of ONE WIP output unit (materials + process labour / yield). */
+  /** Unit cost of ONE WIP output unit: (materials + process labour) / yield. */
   unitCostEur: string;
-  /** Contribution of this WIP line to the FG pack (`unitCost × quantity`). */
+  /** Material-only contribution of this WIP line to the FG pack. */
   contributionEur: string;
 }
 
@@ -232,24 +233,39 @@ export function computeNpdCostEngine(input: NpdCostEngineInput): WaterfallResult
   };
 
   let raw = sumIngredientRawCostPerPack(input.ingredients);
+  let yieldedMaterialPerPack = raw;
+  let yieldedWipLabourPerPack = Dec.zero();
   const wipComponentCosts: NpdWipComponentCost[] = [];
   for (const wip of input.wipComponents ?? []) {
-    const componentUnitCost = computeWipComponentCostDecimal(wip, packWeightKg, avgBatchQty);
+    const parts = computeWipCostParts({
+      rawMaterialCostPerOutputUnit: wip.rawMaterialCostPerOutputUnit,
+      processes: mapWipProcesses(wip.processes),
+      yieldPct: wip.yieldPct,
+    });
+    const materialUnitCost = Dec.from(parts.rawMaterialUnitCost);
+    const yieldedMaterialUnitCost = Dec.from(parts.yieldedRawMaterialUnitCost);
+    const yieldedProcessLaborUnitCost = Dec.from(parts.yieldedProcessLaborPerOutputUnit);
+    const qty = Dec.from(wip.quantity);
     // quantity is already per pack in the WIP's base unit — rescaling by
     // unitToPackFactor here would multiply by pack weight a second time (review H1).
-    const contribution = componentUnitCost.mul(Dec.from(wip.quantity));
+    // C034: raw = materials only; WIP labour is yield-adjusted but stays in its own stage.
+    const contribution = materialUnitCost.mul(qty);
     raw = raw.add(contribution);
+    yieldedMaterialPerPack = yieldedMaterialPerPack.add(yieldedMaterialUnitCost.mul(qty));
+    yieldedWipLabourPerPack = yieldedWipLabourPerPack.add(yieldedProcessLaborUnitCost.mul(qty));
     wipComponentCosts.push({
       wipDefinitionId: wip.wipDefinitionId,
       wipItemId: wip.wipItemId,
-      unitCostEur: componentUnitCost.toFixed(4),
+      unitCostEur: parts.unitCostEur,
       contributionEur: contribution.toFixed(4),
     });
   }
 
   const yieldPct = yieldPctText ?? '100';
-  const yielded = missing.includes('yield_required') ? raw : raw.div(Dec.from(yieldPct).div(HUNDRED));
+  const fgYieldFactor = missing.includes('yield_required') ? ONE : Dec.from(yieldPct).div(HUNDRED);
+  const yielded = yieldedMaterialPerPack.div(fgYieldFactor);
   const processResult = computeProcessLabour(input.processes, packWeightKg, packsPerBatch);
+  const labour = yieldedWipLabourPerPack.div(fgYieldFactor).add(processResult.perPack);
   const setup = missing.includes('brief_inputs_required')
     ? Dec.zero()
     : sumSetup(input.processes).mul(runsPerWeek).div(weeklyVolumePacks);
@@ -258,14 +274,14 @@ export function computeNpdCostEngine(input: NpdCostEngineInput): WaterfallResult
     : sumPackaging(input.packagingComponents).div(packsPerCase);
   const overhead = Dec.from(input.overheadPerKg).mul(packWeightKg);
   const logistics = packsPerCase.isZero() ? Dec.zero() : Dec.from(input.logisticsPerBox).div(packsPerCase);
-  const total = yielded.add(processResult.perPack).add(setup).add(packaging).add(overhead).add(logistics);
+  const total = yielded.add(labour).add(setup).add(packaging).add(overhead).add(logistics);
   const target = Dec.from(input.targetPriceEur);
   const marginPct = computeMarginPct(total, target);
 
   return buildResult({
     raw,
     yielded,
-    labour: processResult.perPack,
+    labour,
     setup,
     packaging,
     overhead,
@@ -378,17 +394,17 @@ function computeProcessLabour(
   return { perPack, legacyDurationBasis };
 }
 
-function computeWipComponentCostDecimal(
-  component: NpdWipComponentInput,
-  packWeightKg: Dec,
-  packsPerBatch: Dec,
-): Dec {
-  const processCosts = component.processes.reduce((sum, process) => {
-    const processLabour = computeProcessLabour([process], packWeightKg, packsPerBatch).perPack;
-    return sum.add(processLabour);
-  }, Dec.zero());
-  const yieldPct = normaliseNumeric(component.yieldPct) ?? '100';
-  return Dec.from(component.rawMaterialCostPerOutputUnit).add(processCosts).div(Dec.from(yieldPct).div(HUNDRED));
+function mapWipProcesses(processes: NpdCostProcessInput[]): WipProcessCostInput[] {
+  return processes.map((process) => ({
+    roles: process.roles.map((role) => ({
+      rolePerHour: normaliseNumeric(role.ratePerHour) ?? '0',
+      headcount: normaliseNumeric(role.headcount) ?? '0',
+    })),
+    durationHours: normaliseNumeric(process.durationHours) ?? '0',
+    additionalCost: normaliseNumeric(process.additionalCost) ?? '0',
+    throughputPerHour: normaliseNumeric(process.throughputPerHour),
+    throughputUom: process.throughputUom,
+  }));
 }
 
 function sumCrewRate(roles: NpdCostProcessInput['roles']): Dec {

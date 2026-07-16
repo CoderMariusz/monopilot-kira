@@ -30,13 +30,12 @@ import { z } from 'zod';
 import {
   Dec,
   recomputeCalc,
-  resolveComponentNutrition,
   type RecomputeIngredient,
   type RecomputeResult,
-  type ResolvedComponentNutrition,
 } from '@monopilot/domain';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { loadResolvedComponentNutrition } from '../../nutrition/_actions/resolve-component-nutrition';
 
 /** Pack weight grams (NUMERIC string) → kilograms (NUMERIC string), exact. Null/0 → null. */
 function packWeightKgFromGrams(grams: string | null): string | null {
@@ -68,120 +67,6 @@ interface IngredientRow {
   pct: string | null;
   cost_per_kg_eur: string | null;
   allergens_inherited: string[] | null;
-}
-
-interface RawMaterialNutritionRow {
-  rm_code: string;
-  nutrition_per_100g: Record<string, unknown> | null;
-  allergens_inherited: string[] | null;
-}
-
-interface IntermediateRow { item_code: string; id: string }
-interface BomLineRow { component_code: string; quantity: string }
-interface NutritionQueryClient {
-  query<T>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
-}
-
-/** Postgres SQLSTATE for "undefined_table" (relation does not exist). */
-const PG_UNDEFINED_TABLE = '42P01';
-
-/**
- * Load per-100g nutrition for the given rm_codes from the canonical
- * `Reference.RawMaterials` master, returning a map of rm_code → { nutrient:
- * numeric-string }. Values are coerced to strings so the weighted-sum stays
- * exact (never a binary float). Returns an empty map (graceful degradation)
- * when the canonical table has not yet been provisioned.
- */
-type RmNutritionLoadResult = {
-  sources: Record<string, ResolvedComponentNutrition>;
-  /** False only when Reference.RawMaterials is missing (42P01) — not when the query returns zero rows. */
-  sourceAvailable: boolean;
-};
-
-async function loadRmNutrition(
-  client: NutritionQueryClient,
-  rmCodes: string[],
-): Promise<RmNutritionLoadResult> {
-  let sourceAvailable = true;
-  const sources = await resolveComponentNutrition(rmCodes, {
-    loadRawMaterials: async (codes) => {
-      let rows: RawMaterialNutritionRow[];
-      try {
-        ({ rows } = await client.query<RawMaterialNutritionRow>(
-          `select rm_code, nutrition_per_100g, allergens_inherited
-             from "Reference"."RawMaterials"
-            where org_id = app.current_org_id()
-              and rm_code = any($1::text[])`,
-          [codes],
-        ));
-      } catch (err) {
-        if ((err as { code?: string })?.code !== PG_UNDEFINED_TABLE) throw err;
-        console.warn('[recomputeAndCache] Reference.RawMaterials missing (migration 103 not applied) — nutrition_json will be empty');
-        sourceAvailable = false;
-        return {};
-      }
-      return Object.fromEntries(rows.map((row) => [row.rm_code, {
-        nutritionPer100g: Object.fromEntries(
-          Object.entries(row.nutrition_per_100g ?? {})
-            .filter(([, value]) => value !== null && value !== undefined)
-            .map(([nutrient, value]) => [nutrient, String(value)]),
-        ),
-        allergensInherited: row.allergens_inherited ?? [],
-      }]));
-    },
-    loadIntermediates: async (codes) => {
-      const { rows } = await client.query<IntermediateRow>(
-        `select item_code, id::text as id
-           from public.items
-          where org_id = app.current_org_id()
-            and item_type = 'intermediate'
-            and item_code = any($1::text[])`,
-        [codes],
-      );
-      return Object.fromEntries(rows.map((row) => [row.item_code, row.id]));
-    },
-    loadActiveBom: async (itemId) => {
-      const { rows } = await client.query<BomLineRow>(
-        `with active_bom as (
-           select bl.component_code, bl.quantity::text as quantity, bl.line_no as sequence
-             from public.bom_lines bl
-             join public.bom_headers h
-               on h.id = bl.bom_header_id and h.org_id = bl.org_id
-            where bl.org_id = app.current_org_id()
-              and h.org_id = app.current_org_id()
-              and h.item_id = $1::uuid
-              and h.status = 'active'
-         ),
-         active_definition as (
-           select id
-             from public.wip_definitions
-            where org_id = app.current_org_id()
-              and item_id = $1::uuid
-              and status = 'active'
-            limit 1
-         ),
-         selected_components as (
-           select component_code, quantity, sequence from active_bom
-           union all
-           select i.item_code, wdi.qty_per_unit::text, wdi.sequence
-             from active_definition wd
-             join public.wip_definition_ingredients wdi
-               on wdi.wip_definition_id = wd.id
-              and wdi.org_id = app.current_org_id()
-             join public.items i
-               on i.id = wdi.item_id
-              and i.org_id = app.current_org_id()
-            where not exists (select 1 from active_bom)
-         )
-         select component_code, quantity
-           from selected_components
-          order by sequence asc`,
-        [itemId],
-      );
-      return rows.map((row) => ({ componentCode: row.component_code, quantity: row.quantity }));
-    },
-  });
-  return { sources, sourceAvailable };
 }
 
 export async function recomputeAndCache(rawInput: RecomputeInput): Promise<RecomputeResult> {
@@ -241,10 +126,13 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
     );
 
     // ── per-RM nutrition (canonical Reference.RawMaterials.nutrition_per_100g) ─
-    const { sources, sourceAvailable: nutritionSourceAvailable } = await loadRmNutrition(
+    const { sources, sourceAvailable: nutritionSourceAvailable } = await loadResolvedComponentNutrition(
       client,
       ingRes.rows.map((r) => r.rm_code),
     );
+    if (!nutritionSourceAvailable) {
+      console.warn('[recomputeAndCache] Reference.RawMaterials missing (migration 103 not applied) — nutrition_json will be empty');
+    }
 
     const ingredients: RecomputeIngredient[] = ingRes.rows.map((r) => {
       const source = sources[r.rm_code];

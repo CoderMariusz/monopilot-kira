@@ -55,6 +55,7 @@ import {
 } from '../_actions/shared';
 import { createItemSupplierSpec } from '../_actions/supplier-spec-actions';
 import { updateItem } from '../_actions/update-item';
+import { formatDecimalString, mulDecimalStrings } from '../../../../../../../lib/shared/decimal';
 import { DEFAULT_WIZARD_LABELS, formatItemActionError, type ItemWizardLabels } from './item-wizard-labels';
 export { DEFAULT_WIZARD_LABELS, type ItemWizardLabels } from './item-wizard-labels';
 
@@ -166,14 +167,18 @@ function numOrUndefined(value: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+/** Exact decimal string for NUMERIC columns — never coerced through JS float. */
+function decimalStringOrUndefined(value: string): string | undefined {
+  const t = value.trim();
+  return t.length ? t : undefined;
+}
+
 /**
- * Net/total quantities in the live conversion helper render at a fixed 3 decimals
- * so the line reads consistently, e.g. "1 box = 10 × 0.100 kg = 1.000 kg" (per the
- * locked product example). Multipliers (each-per-box) stay integers.
+ * Net/total quantities in the live conversion helper preserve up to 6 decimal
+ * places (items.net_qty_per_each numeric 18,6) — no JS float / toFixed drift.
  */
-function formatQty(n: number): string {
-  if (!Number.isFinite(n)) return '0.000';
-  return n.toFixed(3);
+function formatQty(value: string): string {
+  return formatDecimalString(value);
 }
 
 /**
@@ -465,16 +470,15 @@ export function ItemWizard({
     return !trimmed || (Number.isFinite(Number(trimmed)) && Number(trimmed) >= 0);
   });
 
-  // Live conversion helper, e.g. "1 box = 10 × 0.100 kg = 1.000 kg".
+  // Live conversion helper, e.g. "1 box = 10 × 0.333333 kg = 3.33333 kg".
   const conversionHint = (() => {
     if (form.outputUom === 'base' || !netValid) return null;
     const base = form.uomBase;
-    const net = netNum;
-    const eachLine = `1 ${labels.outputUomLabels.each} = ${formatQty(net)} ${base}`;
+    const eachLine = `1 ${labels.outputUomLabels.each} = ${formatQty(form.netQtyPerEach)} ${base}`;
     if (form.outputUom === 'each') return eachLine;
     if (!eachPerBoxValid) return eachLine;
     const perBox = eachPerBoxNum;
-    return `1 ${labels.outputUomLabels.box} = ${perBox} × ${formatQty(net)} ${base} = ${formatQty(perBox * net)} ${base}`;
+    return `1 ${labels.outputUomLabels.box} = ${perBox} × ${formatQty(form.netQtyPerEach)} ${base} = ${formatQty(mulDecimalStrings(form.netQtyPerEach, String(perBox)))} ${base}`;
   })();
 
   // Review-step summary of the pack hierarchy (output unit + conversion).
@@ -558,7 +562,7 @@ export function ItemWizard({
       // Pack hierarchy (migration 267). For 'base' output the conversion fields are
       // omitted (sent undefined) so the action stores NULL.
       outputUom: form.outputUom,
-      netQtyPerEach: form.outputUom === 'base' ? undefined : numOrUndefined(form.netQtyPerEach),
+      netQtyPerEach: form.outputUom === 'base' ? undefined : decimalStringOrUndefined(form.netQtyPerEach),
       eachPerBox: form.outputUom === 'box' ? numOrUndefined(form.eachPerBox) : undefined,
       boxesPerPallet: form.outputUom === 'base' ? undefined : numOrUndefined(form.boxesPerPallet),
       listPriceGbp: numOrUndefined(form.listPriceGbp),

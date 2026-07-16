@@ -150,7 +150,7 @@ describe('computeNpdCostEngine', () => {
     expect(result.units.packsPerBatch).toBe('500.0000');
   });
 
-  it('adds WIP component recursion into raw materials', () => {
+  it('keeps WIP material in raw and yield-adjusted WIP labor in the labor stage (C034)', () => {
     const result = computeNpdCostEngine(
       breadInput({
         wipComponents: [
@@ -173,16 +173,71 @@ describe('computeNpdCostEngine', () => {
       }),
     );
 
-    expect(result.rawCostEur).toBe('0.8510');
-    // unitCost = (0.50 + 10/100) / 0.80 = 0.7500; contribution = 0.7500 × 1
+    // material 0.50 pre-yield; unit = (0.50 + 0.10) / 0.80 = 0.7500
+    expect(result.rawCostEur).toBe('0.6010');
     expect(result.wipComponentCosts).toEqual([
       {
         wipDefinitionId: 'def-1',
         wipItemId: 'item-1',
         unitCostEur: '0.7500',
-        contributionEur: '0.7500',
+        contributionEur: '0.5000',
       },
     ]);
+    // WIP material/labour are each grossed up by 80% WIP yield and 90% FG yield.
+    // Raw remains material-only; WIP labour appears once in Process labour.
+    expect(result.steps[1]!.valueEur).toBe('0.8067');
+    expect(result.params.processLabourEur).toBe('0.2389');
+    expect(result.steps[2]!.valueEur).toBe('1.0456');
+  });
+
+  it('FG-019: raw materials exclude WIP labor; process labor counted once (run-06 C034)', () => {
+    const result = computeNpdCostEngine({
+      ingredients: [
+        { rmCode: 'FLOUR', qtyKg: '0.02', pct: '10', costPerKgEur: '0.5', allergensInherited: [] },
+      ],
+      wipComponents: [
+        {
+          quantity: '0.18',
+          quantityUom: 'kg',
+          rawMaterialCostPerOutputUnit: '1.2300',
+          yieldPct: '100',
+          wipItemId: 'wip-019',
+          processes: [
+            {
+              durationHours: '2',
+              additionalCost: '24',
+              roles: [{ ratePerHour: '12', headcount: '2' }],
+            },
+            {
+              durationHours: '5',
+              additionalCost: '24',
+              throughputPerHour: '200',
+              throughputUom: 'kg',
+              roles: [{ ratePerHour: '12', headcount: '2' }],
+            },
+          ],
+        },
+      ],
+      yieldPct: '100',
+      packWeightKg: '0.2',
+      packsPerCase: '4',
+      avgBatchQty: '1000',
+      fgBaseUom: 'kg',
+      weeklyVolumePacks: '1000',
+      runsPerWeek: '2',
+      targetPriceEur: '2',
+      packagingComponents: [],
+      processes: [],
+      overheadPerKg: '0',
+      logisticsPerBox: '0',
+    });
+
+    // (0.18×1.23 + 0.02×0.5) / pack = 0.2314 material-only raw
+    expect(result.rawCostEur).toBe('0.2314');
+    // WIP process £0.216/kg × 0.18 kg consumed per pack
+    expect(result.params.processLabourEur).toBe('0.0389');
+    expect(result.wipComponentCosts[0]!.unitCostEur).toBe('1.4460');
+    expect(result.wipComponentCosts[0]!.contributionEur).toBe('0.2214');
   });
 
   it('FG roll-up picks up a non-zero WIP unit cost (G4 — not dropped)', () => {
@@ -238,7 +293,7 @@ describe('computeNpdCostEngine', () => {
   });
 
   it('WIP contribution is per-pack in the WIP base unit and invariant to pack weight (review H1)', () => {
-    // 2 kg of WIP per pack, WIP raw €5/unit at 92.5% yield → (5 / 0.925) × 2 = €10.8108/pack,
+    // 2 kg of WIP per pack, WIP raw €5/unit (material-only raw) → 5 × 2 = €10.0000/pack,
     // regardless of the FG pack weight (no unitToPackFactor rescaling).
     const wip = {
       quantity: '2',
@@ -250,10 +305,114 @@ describe('computeNpdCostEngine', () => {
     const base = computeNpdCostEngine(breadInput({}));
     const withWip = computeNpdCostEngine(breadInput({ wipComponents: [wip] }));
     const contribution = Number(withWip.rawCostEur) - Number(base.rawCostEur);
-    expect(contribution).toBeCloseTo(10.8108, 3);
+    expect(contribution).toBeCloseTo(10, 3);
 
     const heavyBase = computeNpdCostEngine(breadInput({ packWeightKg: '2' }));
     const heavyWithWip = computeNpdCostEngine(breadInput({ packWeightKg: '2', wipComponents: [wip] }));
     expect(Number(heavyWithWip.rawCostEur) - Number(heavyBase.rawCostEur)).toBeCloseTo(contribution, 3);
+  });
+
+  it('C033: yield-adjusts material + WIP labour together (80% yield)', () => {
+    const result = computeNpdCostEngine(
+      breadInput({
+        ingredients: [],
+        yieldPct: '100',
+        wipComponents: [
+          {
+            quantity: '1',
+            rawMaterialCostPerOutputUnit: '0.50',
+            yieldPct: '80',
+            processes: [
+              {
+                throughputPerHour: '100',
+                throughputUom: 'pack',
+                roles: [{ ratePerHour: '10', headcount: '1' }],
+              },
+            ],
+          },
+        ],
+        processes: [],
+        packagingComponents: [],
+        overheadPerKg: '0',
+        logisticsPerBox: '0',
+      }),
+    );
+
+    expect(result.rawCostEur).toBe('0.5000');
+    expect(result.wipComponentCosts[0]!.unitCostEur).toBe('0.7500');
+    expect(result.steps[1]!.valueEur).toBe('0.6250');
+    expect(result.params.processLabourEur).toBe('0.1250');
+    expect(result.steps[2]!.valueEur).toBe('0.7500');
+  });
+
+  it('C033: 0.5h batch additional cost divides by throughput×0.5 (not clamped to 1h)', () => {
+    const result = computeNpdCostEngine({
+      ingredients: [],
+      wipComponents: [
+        {
+          quantity: '1',
+          rawMaterialCostPerOutputUnit: '0',
+          yieldPct: '100',
+          processes: [
+            {
+              throughputPerHour: '200',
+              throughputUom: 'kg',
+              durationHours: '0.5',
+              additionalCost: '24',
+              roles: [{ ratePerHour: '12', headcount: '2' }],
+            },
+          ],
+        },
+      ],
+      yieldPct: '100',
+      packWeightKg: '1',
+      packsPerCase: '1',
+      avgBatchQty: '100',
+      fgBaseUom: 'kg',
+      weeklyVolumePacks: '100',
+      runsPerWeek: '1',
+      targetPriceEur: '1',
+      packagingComponents: [],
+      processes: [],
+      overheadPerKg: '0',
+      logisticsPerBox: '0',
+    });
+
+    // crew 24/h ÷ 200 kg/h + 24/(200×0.5) = 0.12 + 0.24 = 0.36/kg.
+    expect(result.wipComponentCosts[0]!.unitCostEur).toBe('0.3600');
+    expect(result.steps[1]!.valueEur).toBe('0.0000');
+    expect(result.params.processLabourEur).toBe('0.3600');
+    expect(result.steps[2]!.valueEur).toBe('0.3600');
+  });
+
+  it('C033: preserves exact decimal beyond IEEE-754 binary fractions', () => {
+    const result = computeNpdCostEngine(
+      breadInput({
+        ingredients: [],
+        yieldPct: '100',
+        wipComponents: [
+          {
+            quantity: '1',
+            rawMaterialCostPerOutputUnit: '0.1',
+            yieldPct: '3',
+            processes: [
+              {
+                throughputPerHour: '3',
+                throughputUom: 'pack',
+                roles: [{ ratePerHour: '0.1', headcount: '1' }],
+              },
+            ],
+          },
+        ],
+        processes: [],
+        packagingComponents: [],
+        overheadPerKg: '0',
+        logisticsPerBox: '0',
+      }),
+    );
+
+    // (0.1 + 0.0333...) / 0.03 = 4.4444 (not prematurely rounded 4.4433)
+    expect(result.wipComponentCosts[0]!.unitCostEur).toBe('4.4444');
+    expect(result.steps[2]!.valueEur).toBe('4.4444');
   });
 });

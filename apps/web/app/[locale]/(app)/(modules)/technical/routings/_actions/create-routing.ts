@@ -39,7 +39,7 @@ const RoutingCrewMemberInput = z.object({
 
 const CreateRoutingActionInput = CreateRoutingInput.extend({
   operations: z.array(
-    RoutingOperationInput.omit({ costPerHour: true }).extend({
+    RoutingOperationInput.extend({
       crew: z.array(RoutingCrewMemberInput).optional().default([]),
       yieldPct: z
         .union([z.string(), z.number()])
@@ -134,10 +134,10 @@ export async function createRouting(rawInput: unknown): Promise<CreateRoutingRes
         await qc.query(
           `insert into public.routing_operations
              (org_id, routing_id, op_no, op_code, op_name, line_id,
-              setup_time_min, run_time_per_unit_sec, manufacturing_operation_name, crew, yield_pct, created_by)
+              setup_time_min, run_time_per_unit_sec, cost_per_hour, manufacturing_operation_name, crew, yield_pct, created_by)
            values
              (app.current_org_id(), $1::uuid, $2::integer, $3, $4, $5::uuid,
-              $6::integer, $7::numeric, $8, $9::jsonb, $10::numeric, $11::uuid)`,
+              $6::integer, $7::numeric, $8::numeric, $9, $10::jsonb, $11::numeric, $12::uuid)`,
           [
             routing.id,
             op.opNo,
@@ -146,6 +146,7 @@ export async function createRouting(rawInput: unknown): Promise<CreateRoutingRes
             op.lineId,
             op.setupTimeMin,
             op.runTimePerUnitSec ?? null,
+            op.costPerHour ?? null,
             op.manufacturingOperationName,
             JSON.stringify(op.crew.map((member) => ({ role_group: member.roleGroup, headcount: member.headcount }))),
             op.yieldPct,

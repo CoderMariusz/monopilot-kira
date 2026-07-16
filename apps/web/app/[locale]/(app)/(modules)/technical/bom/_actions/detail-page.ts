@@ -102,9 +102,10 @@ export type GetBomDetailPageResult =
  * `getBomDetailPage` returns `not_found` for BOTH a truly unknown item code AND a
  * known FG that simply has no `bom_headers` row yet (the "create the first BOM"
  * case). To tell them apart the route asks this loader whether the `:itemCode`
- * resolves to a real finished good in the org-scoped items master. When it does,
- * the route renders the authoring shell instead of a 404 so the New-BOM picker's
- * "route an active FG → /technical/bom/{code}" flow no longer dead-ends.
+ * resolves to a real finished good or manufactured WIP (intermediate) in the
+ * org-scoped items master. When it does, the route renders the authoring shell
+ * instead of a 404 so the New-BOM picker's "route an active parent →
+ * /technical/bom/{code}" flow no longer dead-ends.
  *
  * `:itemCode` = `public.items.item_code` (= `bom_headers.item_id` via FK). Cross-org
  * rows are invisible (RLS), so an unknown/cross-org code returns null → 404.
@@ -116,7 +117,7 @@ export type BomFgSummary = {
   productName: string | null;
   /** Items-master lifecycle status (`draft | active | deprecated | blocked`). */
   status: string;
-  /** Whether a BOM may be authored against it (only active FGs are eligible). */
+  /** Whether a BOM may be authored against it (only active FG/intermediate parents). */
   eligible: boolean;
 };
 
@@ -131,7 +132,7 @@ export async function getBomFgSummary(
            from public.items
           where org_id = app.current_org_id()
             and item_code = $1
-            and item_type = 'fg'
+            and item_type in ('fg', 'intermediate')
           limit 1`,
         [itemCode],
       );

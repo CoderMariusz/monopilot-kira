@@ -105,6 +105,7 @@ describe('cloneProject', () => {
     expect(insertParams[2]).toBe('Sliced Ham Standard (copy)'); // name suffixed
     expect(insertParams[3]).toBe('Meat · Cold cut'); // type carried
     expect(insertParams[4]).toBe('high'); // prio carried
+    expect(insertParams[10]).toBe('19.90'); // retail price remains an exact NUMERIC string
     expect(insertParams[15]).toBe(12); // packs_per_case carried
     expect(insertParams[19]).toBe('NPD-001'); // clone_source = source code
     expect(insertParams[20]).toBe(USER_ID); // created_by_user
@@ -150,8 +151,39 @@ describe('cloneProject', () => {
     const insertParams = queryMock.mock.calls[4]![1] as unknown[];
     expect(insertParams[2]).toBe('Brand New Name'); // override name (no "(copy)")
     expect(insertParams[4]).toBe('low'); // override prio
-    expect(insertParams[10]).toBe(25); // override target_retail_price_eur
+    expect(insertParams[10]).toBe('25.00'); // canonical target_retail_price_eur
     expect(insertParams[15]).toBe(24); // override packs_per_case
+  });
+
+  it('rejects targetRetailPriceEur with more than two decimal places before any query', async () => {
+    const { cloneProject } = await import('../clone-project');
+    const result = await cloneProject({
+      sourceProjectId: SOURCE_ID,
+      overrides: { prio: 'normal', targetRetailPriceEur: '19.999' },
+    });
+
+    expect(result).toEqual({ ok: false, error: 'INVALID_INPUT' });
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+
+  it('persists a large exact targetRetailPriceEur as a string', async () => {
+    const { cloneProject } = await import('../clone-project');
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ ok: true }] })
+      .mockResolvedValueOnce({ rows: [sourceRow()] })
+      .mockResolvedValueOnce({ rows: [{ next_value: '9' }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: NEW_ID, code: 'NPD-009' }] })
+      .mockResolvedValueOnce({ rows: [{ cloned_count: '0' }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const result = await cloneProject({
+      sourceProjectId: SOURCE_ID,
+      overrides: { prio: 'normal', targetRetailPriceEur: '9999999999.99' },
+    });
+
+    expect(result.ok).toBe(true);
+    expect((queryMock.mock.calls[4]![1] as unknown[])[10]).toBe('9999999999.99');
   });
 
   it('rejects an over-length override before any query (INVALID_INPUT)', async () => {

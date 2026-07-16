@@ -1467,6 +1467,9 @@
       "auto_source_not_found": "The selected source field was not found. Choose an active catalog field.",
       "auto_source_cycle": "That source field already derives from this field, which would create a loop.",
       "auto_source_required": "Choose a source field when Auto-derived is on.",
+      "duplicate_code": "A field with this code already exists in the catalog.",
+      "duplicate_label": "A field with this label already exists in the catalog.",
+      "semantic_duplicate_label": "This label is already used by another field with a different data type.",
       "deactivate_core_error": "Core department cannot be deactivated.",
       "deactivate_last_error": "At least one department must stay active.",
       "catalog_title": "Field catalog",
@@ -2358,7 +2361,8 @@
           "colAllergen": "Алерген",
           "colPresence": "Наявність",
           "noComputed": "Обчислена поживність для цього виробу відсутня.",
-          "computedNote": "Перераховано з BOM {when}.",
+          "computedNote": "Перераховано з матеріалізованої моделі харчової цінності NPD {when}.",
+          "computedNoteNoDate": "Матеріалізовано з моделі харчової цінності NPD.",
           "presence": {
             "contains": "Містить",
             "may_contain": "Може містити",
@@ -4316,6 +4320,7 @@
       "loading": "Loading bundle…",
       "error": "Unable to load the release bundle. Please try again.",
       "approved": "Bundle approved — FactorySpec and BOM released to factory use.",
+      "approvalRecorded": "Signature recorded ({collected} of {required} approvers). Bundle is not released until all required approvers sign.",
       "rejected": "Bundle rejected — both artifacts returned to draft.",
       "actionError": "Could not complete the action. Please try again.",
       "blocker": {
@@ -4724,6 +4729,7 @@
       "title": "Поживна цінність на 100 г",
       "liveNote": "· наживо",
       "exportLabel": "Експортувати етикетку",
+      "exportLabelComingSoon": "Експорт етикетки ще недоступний",
       "targetsNote": "Цілі: Білок ≥ {protein} · Сіль ≤ {salt} · Жири ≤ {fat} на 100 г",
       "withinTarget": "У межах норми",
       "overTarget": "Понад ціль",
@@ -6826,7 +6832,8 @@
       "fieldOutputUnitKg": "кг",
       "fieldOutputUnitPieces": "штуки",
       "fieldOutputUnitBoxes": "коробки",
-      "errorBoxesOutputUnit": "Одиниця виходу «коробки» вимагає маси упаковки (г) і кількості упаковок у коробці більше 0."
+      "errorBoxesOutputUnit": "Одиниця виходу «коробки» вимагає маси упаковки (г) і кількості упаковок у коробці більше 0.",
+      "errorRetailPrice": "Роздрібна ціна має бути невід'ємною та мати не більше двох знаків після коми."
     },
     "faBomTab": {
       "title": "BOM (обчислений вигляд)",

@@ -44,7 +44,8 @@ export const DEFAULT_NUTRITION_LABELS: NutritionTabLabels = {
   colAllergen: 'Allergen',
   colPresence: 'Presence',
   noComputed: 'No computed nutrition yet for this finished good.',
-  computedNote: 'Recomputed from the BOM on {when}.',
+  computedNote: 'Recomputed from the materialized NPD nutrition model on {when}.',
+  computedNoteNoDate: 'Materialized from the NPD nutrition model.',
   presence: {
     contains: 'Contains',
     may_contain: 'May contain',
@@ -107,6 +108,7 @@ export async function buildNutritionTabLabels(locale: string): Promise<Nutrition
     colPresence: tr('colPresence', fb.colPresence),
     noComputed: tr('noComputed', fb.noComputed),
     computedNote: tr('computedNote', fb.computedNote),
+    computedNoteNoDate: tr('computedNoteNoDate', fb.computedNoteNoDate),
     presence: {
       contains: tr('presence.contains', fb.presence.contains),
       may_contain: tr('presence.may_contain', fb.presence.may_contain),

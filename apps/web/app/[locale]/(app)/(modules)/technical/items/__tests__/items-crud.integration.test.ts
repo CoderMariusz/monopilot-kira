@@ -309,6 +309,56 @@ run('03-technical items CRUD (RLS + RBAC, real DB)', () => {
     });
   });
 
+  it('C047: preserves net_qty_per_each decimal precision through create → update → list (exact NUMERIC)', async () => {
+    const code = `FG-${randomUUID().slice(0, 8)}`;
+    const netQty = '0.333333';
+    const expectedStored = '0.333333';
+
+    const created = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      createItem({
+        itemCode: code,
+        name: 'FG net precision',
+        itemType: 'fg',
+        uomBase: 'kg',
+        outputUom: 'each',
+        netQtyPerEach: netQty,
+      }),
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const persisted = await owner.query<{ net_qty_per_each: string }>(
+      `select net_qty_per_each::text from public.items where org_id = $1 and id = $2`,
+      [seed.orgAId, created.data.id],
+    );
+    expect(persisted.rows[0]?.net_qty_per_each).toBe(expectedStored);
+
+    const listed = await withActionActor(seed.adminAUserId, seed.orgAId, () => listItems());
+    const item = listed.items.find((i) => i.itemCode === code);
+    expect(item?.netQtyPerEach).toBe(expectedStored);
+
+    const updatedQty = '0.123456';
+    const updated = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      updateItem({
+        id: created.data.id,
+        name: 'FG net precision',
+        itemType: 'fg',
+        status: 'active',
+        uomBase: 'kg',
+        weightMode: 'fixed',
+        outputUom: 'each',
+        netQtyPerEach: updatedQty,
+      }),
+    );
+    expect(updated.ok).toBe(true);
+
+    const after = await owner.query<{ net_qty_per_each: string }>(
+      `select net_qty_per_each::text from public.items where org_id = $1 and id = $2`,
+      [seed.orgAId, created.data.id],
+    );
+    expect(after.rows[0]?.net_qty_per_each).toBe(updatedQty);
+  });
+
   it('forbids create for a user WITHOUT technical.items.create', async () => {
     const code = `RM-${randomUUID().slice(0, 8)}`;
     const result = await withActionActor(seed.viewerAUserId, seed.orgAId, () =>

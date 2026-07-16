@@ -43,6 +43,8 @@ let client: QueryClient;
 let insertedRows: Array<Record<string, unknown>> | null;
 /** Captured formulation_versions UPDATE params. */
 let versionUpdateParams: readonly unknown[] | null;
+/** Captured npd_projects target retail price UPDATE params. */
+let projectUpdateParams: readonly unknown[] | null;
 /** Prior persisted rows returned by the carryover read. */
 let priorRows: Array<{ rm_code: string; allergens_inherited: string[] | null }>;
 /** F8: the org's canonical allergen reference (Reference."Allergens"). */
@@ -121,6 +123,7 @@ function makeClient(): QueryClient {
         return { rows: [] };
       }
       if (q.startsWith('update public.npd_projects np') && q.includes('target_retail_price_eur')) {
+        projectUpdateParams = params;
         return { rows: [] };
       }
       if (q.startsWith('insert into public.formulation_audit_log')) return { rows: [] };
@@ -157,6 +160,7 @@ beforeEach(() => {
   client = makeClient();
   insertedRows = null;
   versionUpdateParams = null;
+  projectUpdateParams = null;
   priorRows = [];
   canonicalCodes = ['celery', 'gluten', 'milk', 'mustard', 'sesame'];
 });
@@ -326,5 +330,30 @@ describe('saveDraft — formulation version batch size', () => {
 
     expect(result).toEqual({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 1 } });
     expect(versionUpdateParams).toEqual([VERSION_ID, '100', '1.20', '8', true, '0.250000']);
+  });
+
+  it('rejects targetPriceEur with more than two decimal places before any query', async () => {
+    const result = await saveDraft({
+      projectId: PROJECT_ID,
+      versionId: VERSION_ID,
+      targetPriceEur: '19.999',
+      ingredients: [],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input' });
+    expect(client.query).not.toHaveBeenCalled();
+  });
+
+  it('preserves a large exact targetPriceEur in both write paths', async () => {
+    const result = await saveDraft({
+      projectId: PROJECT_ID,
+      versionId: VERSION_ID,
+      targetPriceEur: '9999999999.99',
+      ingredients: [],
+    });
+
+    expect(result).toEqual({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 0 } });
+    expect(versionUpdateParams?.[2]).toBe('9999999999.99');
+    expect(projectUpdateParams).toEqual([VERSION_ID, '9999999999.99']);
   });
 });

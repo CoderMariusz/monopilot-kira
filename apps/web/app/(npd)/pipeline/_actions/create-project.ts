@@ -7,6 +7,7 @@ import {
   boxesOutputUnitRequiresPackFactors,
   type NpdBriefOutputUnit,
 } from './_lib/materialize-npd-bom';
+import { parseOptionalRetailPriceEur } from './_lib/retail-price-eur';
 import {
   DEFAULT_TEMPLATE_ID,
   PROJECT_CODE_SEQUENCE,
@@ -41,7 +42,7 @@ export type CreateProjectInput = {
   /** Required — labeled * on Basics; must be ≥ 1. */
   runsPerWeek: number;
   salesChannel?: string | null;
-  targetRetailPriceEur?: number | null;
+  targetRetailPriceEur?: string | null;
   targetAudience?: string | null;
   marketingClaims?: string | null;
   constraints?: string | null;
@@ -187,7 +188,7 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   const targetAudience = trimOptionalString(input.targetAudience, 400);
   const marketingClaims = trimOptionalString(input.marketingClaims, 600);
   const constraints = trimOptionalString(input.constraints, 2000);
-  const targetRetailPriceEur = parseOptionalNonNegNumber(input.targetRetailPriceEur);
+  const targetRetailPriceEur = parseOptionalRetailPriceEur(input.targetRetailPriceEur);
   const packWeightG = parseOptionalNonNegNumber(input.packWeightG);
   const packsPerCase = parseOptionalNonNegInteger(input.packsPerCase);
   const outputUnit = parseOptionalOutputUnit(input.outputUnit);
@@ -445,7 +446,7 @@ async function seedBriefTargetPriceOnDraft(
   ctx: OrgContextLike,
   projectId: string,
   versionId: string,
-  targetRetailPriceEur: number | null,
+  targetRetailPriceEur: string | null,
 ): Promise<void> {
   if (targetRetailPriceEur === null) return;
   await ctx.client.query(

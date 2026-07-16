@@ -3,8 +3,8 @@
  *
  * RTL — BOM component-line row actions (edit modal payload + delete confirm flow +
  * disabled-on-active). Verifies the edit modal sends qty as a DECIMAL STRING and
- * patches uom/notes, the delete confirm calls deleteBomLine, and that on a
- * non-editable version the buttons render disabled with an honest title.
+ * patches uom/manufacturingOperationName, the delete confirm calls deleteBomLine,
+ * and that on a non-editable version the buttons render disabled with an honest title.
  */
 
 import React from 'react';
@@ -13,16 +13,19 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { updateBomLine, deleteBomLine, refresh } = vi.hoisted(() => ({
+const { updateBomLine, deleteBomLine, refresh, listManufacturingOperations } = vi.hoisted(() => ({
   updateBomLine: vi.fn(),
   deleteBomLine: vi.fn(),
   refresh: vi.fn(),
+  listManufacturingOperations: vi.fn(),
 }));
 
 vi.mock('../../_actions/line-actions', () => ({ updateBomLine, deleteBomLine }));
+vi.mock('../../../../../../../../actions/reference/manufacturing-ops/list', () => ({
+  listManufacturingOperations,
+}));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh, push: vi.fn() }) }));
 vi.mock('next-intl', () => {
-  // Force the t.has-guard fallback path → readable English labels, no bundle.
   const t = (k: string) => k;
   t.has = () => false;
   t.raw = (k: string) => k;
@@ -34,6 +37,10 @@ import { BomLineRowActions, type BomLineRowActionTarget } from '../bom-line-row-
 afterEach(() => cleanup());
 beforeEach(() => {
   vi.clearAllMocks();
+  listManufacturingOperations.mockResolvedValue({
+    ok: true,
+    data: [{ name: 'Packing' }, { name: 'Mixing' }],
+  });
   updateBomLine.mockResolvedValue({ ok: true, data: { lineId: 'L1', bomHeaderId: 'H1' } });
   deleteBomLine.mockResolvedValue({ ok: true, data: { lineId: 'L1', bomHeaderId: 'H1' } });
 });
@@ -44,7 +51,7 @@ const TARGET: BomLineRowActionTarget = {
   componentCode: 'RM-002',
   quantity: '1.5',
   uom: 'kg',
-  notes: 'mix',
+  manufacturingOperationName: 'Packing',
 };
 
 describe('BomLineRowActions', () => {
@@ -62,23 +69,24 @@ describe('BomLineRowActions', () => {
 
     await waitFor(() => expect(updateBomLine).toHaveBeenCalledTimes(1));
     const payload = updateBomLine.mock.calls[0][0];
-    // qty crosses the wire as a DECIMAL STRING (no float coercion at the form seam).
-    expect(payload).toEqual({ bomHeaderId: 'H1', lineId: 'L1', qty: '3', uom: 'kg', notes: 'mix' });
+    expect(payload).toEqual({
+      bomHeaderId: 'H1',
+      lineId: 'L1',
+      qty: '3',
+      uom: 'kg',
+      manufacturingOperationName: 'Packing',
+    });
     expect(typeof payload.qty).toBe('string');
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
-  it('sends an empty notes string when the notes field is cleared', async () => {
+  it('loads manufacturing operations when the edit modal opens', async () => {
     const user = userEvent.setup();
     render(<BomLineRowActions target={TARGET} editable={true} canEdit={true} />);
 
     await user.click(screen.getByTestId('bom-line-edit'));
-    const notes = screen.getByLabelText('Notes');
-    await user.clear(notes);
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
-
-    await waitFor(() => expect(updateBomLine).toHaveBeenCalledTimes(1));
-    expect(updateBomLine.mock.calls[0][0]).toMatchObject({ notes: '' });
+    await waitFor(() => expect(listManufacturingOperations).toHaveBeenCalled());
+    expect(screen.getByText('Manufacturing operation')).toBeInTheDocument();
   });
 
   it('blocks save when qty is non-positive', async () => {

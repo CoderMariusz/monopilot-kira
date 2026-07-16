@@ -421,11 +421,8 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     />
   );
 
-  // Item-detail BOM tab "+ New BOM" CTA: only a finished good gets a BOM, and only
-  // when the caller may create. Routes to the BOM list with this FG preselected
-  // (`?new=<code>`) so the FG picker opens with it chosen — avoids the per-FG
-  // detail route 404 that occurs when no BOM header exists yet.
-  const isFinishedGood = item.itemType === 'fg';
+  // Item-detail BOM tab "+ New BOM" CTA: finished goods and manufactured WIPs get a BOM.
+  const isBomParentEligible = item.itemType === 'fg' || item.itemType === 'intermediate';
   // Absolute locale-less href (middleware redirects to the locale) — relative `../bom`
   // resolved differently depending on the rendering context and produced stray
   // /<locale>/bom prefetch 404s.
@@ -498,7 +495,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
             <BomTab
               data={bomData}
               labels={{ ...dataTabLabels.bom, createCta: bomCreateCta, openBom: openBomLabel }}
-              isFinishedGood={isFinishedGood}
+              isFinishedGood={isBomParentEligible}
               canCreateBom={canCreateBom}
               createBomHref={createBomHref}
               itemCode={item.itemCode}

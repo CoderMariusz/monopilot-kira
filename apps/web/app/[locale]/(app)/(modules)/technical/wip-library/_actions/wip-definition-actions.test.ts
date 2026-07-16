@@ -234,6 +234,22 @@ describe('wip definition actions', () => {
     const { getWipDefinition } = await import('./wip-definition-actions');
     queryMock.mockImplementation(async (sql: string) => {
       const text = String(sql);
+      if (/select id, item_id, version, status, name, description, base_uom, yield_pct, reusable, source_project_id/i.test(text)) {
+        return {
+          rows: [{
+            id: definitionId,
+            item_id: itemId,
+            version: 2,
+            status: 'active',
+            name: 'Sauce base',
+            description: null,
+            base_uom: 'kg',
+            yield_pct: '100.000',
+            reusable: true,
+            source_project_id: null,
+          }],
+        };
+      }
       if (/from public\.wip_definitions d/i.test(text) && /limit 1/i.test(text)) {
         return { rows: [{ id: definitionId, name: 'Sauce base', item_code: 'WIP-1' }] };
       }
@@ -250,6 +266,96 @@ describe('wip definition actions', () => {
 
     expect(result.ok).toBe(true);
     expect((result as { processes: Array<Record<string, unknown>> }).processes[0]?.yieldPct).toBe('95.000');
+  });
+
+  it('resolves archived definition ids to the current active successor with its ingredients', async () => {
+    const archivedId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const { getWipDefinition } = await import('./wip-definition-actions');
+
+    queryMock.mockImplementation(async (sql: string, params?: readonly unknown[]) => {
+      const text = String(sql);
+      if (/select id, item_id, version, status, name, description, base_uom, yield_pct, reusable, source_project_id/i.test(text) && params?.[0] === archivedId) {
+        return {
+          rows: [{
+            id: archivedId,
+            item_id: itemId,
+            version: 1,
+            status: 'archived',
+            name: 'WIP-019',
+            description: null,
+            base_uom: 'kg',
+            yield_pct: '100.000',
+            reusable: true,
+            source_project_id: null,
+          }],
+        };
+      }
+      if (/and lower\(wip\.name\) = lower/i.test(text) && /wip\.status = 'active'/i.test(text)) {
+        return {
+          rows: [{
+            id: successorDefinitionId,
+            item_id: itemId,
+            version: 3,
+            status: 'active',
+            name: 'WIP-019',
+            description: null,
+            base_uom: 'kg',
+            yield_pct: '100.000',
+            reusable: true,
+            source_project_id: null,
+          }],
+        };
+      }
+      if (/from public\.wip_definitions d/i.test(text) && params?.[0] === successorDefinitionId) {
+        return {
+          rows: [{
+            id: successorDefinitionId,
+            name: 'WIP-019',
+            version: 3,
+            status: 'active',
+            item_code: 'WIP-20260714-0011',
+          }],
+        };
+      }
+      if (/from public\.wip_definition_ingredients/i.test(text) && params?.[0] === successorDefinitionId) {
+        return {
+          rows: [{
+            id: 'ingredient-row-1',
+            itemId: ingredientItemId,
+            itemCode: 'RM-BUTTER',
+            name: 'Butter',
+            qtyPerUnit: '0.200000',
+            uom: 'kg',
+            sequence: 0,
+          }],
+        };
+      }
+      if (/from public\.wip_definition_processes/i.test(text)) return { rows: [] };
+      if (/from public\.wip_definition_roles/i.test(text)) return { rows: [] };
+      if (/from public\.formulation_ingredients/i.test(text)) return { rows: [] };
+      return { rows: [], rowCount: 1 };
+    });
+
+    const result = await getWipDefinition(archivedId);
+
+    expect(result).toMatchObject({
+      ok: true,
+      resolvedFromId: archivedId,
+    });
+    expect((result as { definition: { id: string; version: number } }).definition).toMatchObject({
+      id: successorDefinitionId,
+      version: 3,
+      status: 'active',
+    });
+    expect((result as { ingredients: Array<{ itemCode: string }> }).ingredients).toHaveLength(1);
+    expect((result as { ingredients: Array<{ itemCode: string }> }).ingredients[0]?.itemCode).toBe('RM-BUTTER');
+    expect(
+      queryMock.mock.calls.some(
+        (call) =>
+          /from public\.wip_definition_ingredients/i.test(String(call[0])) &&
+          call[1]?.[0] === successorDefinitionId,
+      ),
+    ).toBe(true);
   });
 
   it('blocks archive with a typed 409 while non-launched projects reference the definition', async () => {

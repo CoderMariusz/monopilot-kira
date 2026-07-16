@@ -17,8 +17,8 @@
  *   - V-TEC-64: every operation's production line belongs to the same site as the
  *     routing (and no two distinct line sites within one routing).
  *
- * NUMERIC-exact: run_time_per_unit_sec NUMERIC(10,2) and cost_per_hour
- * NUMERIC(10,4) are bound as ::numeric — the cost preview (T-023) sums in SQL.
+ * NUMERIC-exact: run_time_per_unit_sec and cost_per_hour are numeric(18,6) —
+ * bound as ::numeric; max 6 decimal places (migration 503).
  *
  * RBAC: there is NO dedicated `technical.routing.*` string in the PRD §3
  * `technical.*` family (Wave0 enum-lock — new strings are forbidden). Routings
@@ -68,10 +68,15 @@ export type RoutingActionError =
 
 // ── Operation input ───────────────────────────────────────────────────────────
 // NUMERIC values are accepted as string | number and ALWAYS bound ::numeric.
+const MAX_ROUTING_NUMERIC_DP = 6;
+
 const NumericString = z
   .union([z.string(), z.number()])
   .transform((v) => (typeof v === 'number' ? String(v) : v.trim()))
-  .refine((v) => /^\d+(\.\d+)?$/.test(v), { message: 'must be a non-negative decimal' });
+  .refine((v) => /^\d+(\.\d+)?$/.test(v), { message: 'must be a non-negative decimal' })
+  .refine((v) => (v.split('.')[1] ?? '').length <= MAX_ROUTING_NUMERIC_DP, {
+    message: `supports at most ${MAX_ROUTING_NUMERIC_DP} decimal places`,
+  });
 
 export const RoutingOperationInput = z.object({
   opNo: z.number().int().min(1),
@@ -79,7 +84,7 @@ export const RoutingOperationInput = z.object({
   opName: z.string().trim().min(1).max(256),
   lineId: z.string().uuid(),
   setupTimeMin: z.number().int().min(0).optional().default(0),
-  // run_time_per_unit_sec NUMERIC(10,2) — optional column, but V-TEC-62 requires
+  // run_time_per_unit_sec numeric(18,6) — optional column, but V-TEC-62 requires
   // it > 0 for production ops (enforced in the service, not just zod).
   runTimePerUnitSec: NumericString.optional().nullable(),
   costPerHour: NumericString.optional().nullable(),

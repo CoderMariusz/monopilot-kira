@@ -56,6 +56,27 @@ export function microToDecimal(micro: bigint): string {
 }
 
 /**
+ * Display a NUMERIC column value — up to `maxDp` decimal places, trailing zeros
+ * trimmed. Never round-trips through JS float.
+ */
+export function formatDecimalString(value: string, maxDp: number = MICRO_DP): string {
+  const trimmed = value.trim();
+  if (!trimmed.length) return '';
+  if (!DECIMAL_RE.test(trimmed)) return trimmed;
+  const neg = trimmed.startsWith('-');
+  const body = neg ? trimmed.slice(1) : trimmed;
+  const [intPart, fracRaw = ''] = body.split('.');
+  const frac = fracRaw.slice(0, maxDp).replace(/0+$/, '');
+  const out = frac ? `${intPart}.${frac}` : intPart;
+  return neg ? `-${out}` : out;
+}
+
+/** Multiply two decimal strings for display (result trimmed to MICRO_DP). */
+export function mulDecimalStrings(a: string, b: string): string {
+  return microToDecimal(mulMicro(toMicro(a), toMicro(b)));
+}
+
+/**
  * Multiply two micro-unit quantities (e.g. qty × pack factor), rounding the
  * result to the nearest micro (half away from zero).
  */

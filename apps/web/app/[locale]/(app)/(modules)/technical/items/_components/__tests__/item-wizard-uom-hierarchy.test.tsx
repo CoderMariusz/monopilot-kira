@@ -181,7 +181,7 @@ describe('Payload contract', () => {
       itemCode: 'FG-1',
       uomBase: 'kg',
       outputUom: 'box',
-      netQtyPerEach: 0.1,
+      netQtyPerEach: '0.1',
       eachPerBox: 10,
       boxesPerPallet: 48,
     });

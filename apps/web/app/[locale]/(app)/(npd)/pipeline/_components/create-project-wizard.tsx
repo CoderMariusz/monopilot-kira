@@ -40,6 +40,11 @@ import { useRouter } from 'next/navigation';
 
 import { Select } from '@monopilot/ui/Select';
 
+import {
+  formatRetailPriceEurDisplay,
+  parseRetailPriceEurInput,
+} from '../../../../../(npd)/pipeline/_actions/_lib/retail-price-eur';
+
 const WIZARD_FIELD_FALLBACKS = {
   fieldRunsPerWeek: 'Runs per week (estimate)',
   fieldRunsPerWeekPlaceholder: 'e.g. 3',
@@ -51,11 +56,13 @@ const WIZARD_FIELD_FALLBACKS = {
   fieldOutputUnitBoxes: 'boxes',
   errorBoxesOutputUnit:
     'Output unit "boxes" requires pack weight (g) and packs per case greater than 0.',
+  errorRetailPrice: 'Target retail price must be a non-negative amount with at most two decimal places.',
 } as const;
 
 /** Field errors — not on WizardLabels (avoids forcing page i18n churn for this fix). */
 const WEEKLY_VOLUME_ERROR = 'Weekly volume must be greater than 0.';
 const RUNS_PER_WEEK_ERROR = 'Runs per week must be at least 1.';
+const RETAIL_PRICE_ERROR = WIZARD_FIELD_FALLBACKS.errorRetailPrice;
 
 const OUTPUT_UNIT_VALUES = ['kg', 'pieces', 'boxes'] as const;
 type OutputUnitValue = (typeof OUTPUT_UNIT_VALUES)[number];
@@ -108,7 +115,7 @@ export type WizardCloneAction = (input: {
   weeklyVolumePacks: number;
   runsPerWeek: number;
   salesChannel: string | null;
-  targetRetailPriceEur: number | null;
+  targetRetailPriceEur: string | null;
     targetAudience: string | null;
     marketingClaims: string | null;
     constraints: string | null;
@@ -132,7 +139,7 @@ export type WizardCreateAction = (input: {
   weeklyVolumePacks: number;
   runsPerWeek: number;
   salesChannel: string | null;
-  targetRetailPriceEur: number | null;
+  targetRetailPriceEur: string | null;
   targetAudience: string | null;
   marketingClaims: string | null;
   constraints: string | null;
@@ -219,6 +226,7 @@ export type WizardLabels = {
   errorGeneric: string;
   errorForbidden: string;
   errorBoxesOutputUnit: string;
+  errorRetailPrice: string;
 };
 
 /** Category options are loaded server-side from Reference.ProductCategories. */
@@ -437,7 +445,11 @@ export function CreateProjectWizard({
   const weeklyVolumeInvalid =
     form.weeklyVolumePacks.trim().length > 0 && weeklyVolumeParsed === null;
   const runsPerWeekInvalid = form.runsPerWeek.trim().length > 0 && runsPerWeekParsed === null;
+  const retailPriceParsed = parseRetailPriceEurInput(form.targetRetailPriceEur);
+  const retailPriceInvalid =
+    form.targetRetailPriceEur.trim().length > 0 && retailPriceParsed === undefined;
   const basicsIncomplete = nameEmpty || weeklyVolumeParsed === null || runsPerWeekParsed === null;
+  const briefIncomplete = retailPriceInvalid;
   const canCreate = Boolean(createAction);
   // Clone is offered only when the clone action is injected AND there is ≥1 source.
   const cloneEnabled = Boolean(cloneAction) && cloneSources.length > 0;
@@ -467,9 +479,18 @@ export function CreateProjectWizard({
 
     const weeklyVolumePacks = parseWeeklyVolumePacks(form.weeklyVolumePacks);
     const runsPerWeek = parseRunsPerWeek(form.runsPerWeek);
+    const targetRetailPriceEur = parseRetailPriceEurInput(form.targetRetailPriceEur);
     if (weeklyVolumePacks === null || runsPerWeek === null) {
       setServerError(
         weeklyVolumePacks === null ? WEEKLY_VOLUME_ERROR : RUNS_PER_WEEK_ERROR,
+      );
+      return;
+    }
+    if (targetRetailPriceEur === undefined) {
+      setServerError(
+        labels.errorRetailPrice.includes('npd.projectWizard')
+          ? RETAIL_PRICE_ERROR
+          : labels.errorRetailPrice,
       );
       return;
     }
@@ -504,7 +525,7 @@ export function CreateProjectWizard({
             weeklyVolumePacks,
             runsPerWeek,
             salesChannel: form.salesChannel,
-            targetRetailPriceEur: parseEur(form.targetRetailPriceEur),
+            targetRetailPriceEur,
             targetAudience: nullable(form.targetAudience),
             marketingClaims: nullable(form.marketingClaims),
             constraints: nullable(form.constraints),
@@ -544,7 +565,7 @@ export function CreateProjectWizard({
         weeklyVolumePacks,
         runsPerWeek,
         salesChannel: form.salesChannel,
-        targetRetailPriceEur: parseEur(form.targetRetailPriceEur),
+        targetRetailPriceEur,
         targetAudience: nullable(form.targetAudience),
         marketingClaims: nullable(form.marketingClaims),
         constraints: nullable(form.constraints),
@@ -607,6 +628,9 @@ export function CreateProjectWizard({
       : form.startFrom === 'template'
         ? labels.reviewStartTemplate
         : labels.reviewStartBlank;
+
+  const reviewRetailPrice =
+    formatRetailPriceEurDisplay(retailPriceParsed) ?? labels.empty;
 
   // In clone mode the Create button additionally requires a chosen source project.
   const cloneSourceMissing = form.startFrom === 'clone' && form.cloneSourceId.trim().length === 0;
@@ -836,7 +860,15 @@ export function CreateProjectWizard({
                 placeholder="19.90"
                 value={form.targetRetailPriceEur}
                 onChange={(e) => update('targetRetailPriceEur', e.target.value)}
+                aria-invalid={retailPriceInvalid || undefined}
               />
+              {retailPriceInvalid ? (
+                <div className="muted" role="alert" style={{ fontSize: 12, color: 'var(--red)', marginTop: 4 }}>
+                  {labels.errorRetailPrice.includes('npd.projectWizard')
+                    ? RETAIL_PRICE_ERROR
+                    : labels.errorRetailPrice}
+                </div>
+              ) : null}
             </div>
             <div className="ff">
               <label htmlFor="wiz-audience">{labels.fieldAudience}</label>
@@ -994,7 +1026,11 @@ export function CreateProjectWizard({
               </tr>
               <tr>
                 <td className="muted">{labels.reviewPrice}</td>
-                <td>£{form.targetRetailPriceEur.trim() || labels.empty}</td>
+                <td>
+                  {retailPriceParsed === null
+                    ? labels.empty
+                    : `£${reviewRetailPrice}`}
+                </td>
               </tr>
               <tr>
                 <td className="muted">{labels.reviewChannelVolume}</td>
@@ -1043,7 +1079,7 @@ export function CreateProjectWizard({
               type="button"
               className="btn btn-primary"
               onClick={next}
-              disabled={step === 1 && basicsIncomplete}
+              disabled={(step === 1 && basicsIncomplete) || (step === 2 && briefIncomplete)}
               data-testid="wizard-continue"
             >
               {labels.continue} →

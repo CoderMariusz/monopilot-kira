@@ -66,6 +66,34 @@ function createClient(bomStatus: string): QueryClient {
 
       if (n.includes('from public.user_roles')) return { rows: [{ ok: true }] };
       if (n.includes('from public.bom_lines l')) return { rows: [] };
+      if (
+        n.includes('from public.bom_lines')
+        && n.includes('item_id, component_code')
+        && n.includes('order by line_no')
+      ) {
+        return {
+          rows: [
+            {
+              item_id: '55555555-5555-4555-8555-555555555555',
+              component_code: 'RM-ACTIVE-01',
+            },
+          ],
+        };
+      }
+      if (n.includes('from public.nutrition_allergens')) return { rows: [] };
+      if (n.includes('from public.items') && n.includes('item_type')) {
+        return {
+          rows: [{
+            id: '55555555-5555-4555-8555-555555555555',
+            item_type: 'rm',
+            status: 'active',
+            updated_at: '2026-04-30T11:22:00.000Z',
+          }],
+        };
+      }
+      if (n.includes('from public.supplier_specs')) return { rows: [] };
+      if (n.includes('from public.item_allergen_profiles')) return { rows: [] };
+      if (n.includes('from public.wip_definitions')) return { rows: [] };
       if (n.includes('from public.feature_flags_core')) return { rows: [{ is_enabled: false }] };
       if (n.includes('from public.audit_log')) return { rows: [] };
       if (n.includes('from public.audit_events')) return { rows: [] };

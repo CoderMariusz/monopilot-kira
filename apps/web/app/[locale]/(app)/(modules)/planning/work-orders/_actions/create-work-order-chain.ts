@@ -250,7 +250,7 @@ async function createWorkOrderChainInContext(
       quantityEntered: input.quantityEntered,
       quantityEnteredUom: input.quantityEnteredUom,
       scheduledStartTime: input.scheduledStartTime,
-      productionLineId: input.productionLineId,
+      productionLineId: stageLineIds.get(fgItem.id) ?? input.productionLineId,
       notes: input.notes,
     },
     options?.skipFactoryReleaseGate ? { skipFactoryReleaseGate: true } : undefined,

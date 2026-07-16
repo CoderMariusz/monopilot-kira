@@ -112,6 +112,8 @@ const DEFAULT_LABELS: WizardLabels = {
   errorForbidden: 'You do not have permission to create projects.',
   errorBoxesOutputUnit:
     'Output unit "boxes" requires pack weight (g) and packs per case greater than 0.',
+  errorRetailPrice:
+    'Target retail price must be a non-negative amount with at most two decimal places.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof WizardLabels>;

@@ -16,6 +16,8 @@ import {
   type NpdBriefOutputUnit,
   wantsBoxOutputUomUpgrade,
 } from '../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom';
+import { syncLinkedFgNameFromProject } from '../../../../../../../(npd)/pipeline/_actions/_lib/project-fg-sync';
+import { parseRetailPriceEurInput } from '../../../../../../../(npd)/pipeline/_actions/_lib/retail-price-eur';
 
 const WRITE_PERMISSION = 'npd.core.write';
 
@@ -42,6 +44,21 @@ const optionalDecimal = z
   .nullable()
   .optional();
 
+const optionalRetailPriceEur = z
+  .string()
+  .trim()
+  .nullable()
+  .optional()
+  .refine(
+    (value) => value === undefined || value === null || value === '' || parseRetailPriceEurInput(value) !== undefined,
+    { message: 'Retail price must have at most two decimal places.' },
+  )
+  .transform((value) => {
+    if (value === undefined) return undefined;
+    if (value === null || value === '') return null;
+    return parseRetailPriceEurInput(value) ?? null;
+  });
+
 const optionalOutputUnit = z
   .enum(['kg', 'pieces', 'boxes'])
   .nullable()
@@ -59,7 +76,7 @@ const patchSchema = z
     weeklyVolumePacks: optionalDecimal,
     runsPerWeek: optionalDecimal,
     marketingClaims: optionalText(600),
-    targetRetailPriceEur: optionalDecimal,
+    targetRetailPriceEur: optionalRetailPriceEur,
     salesChannel: optionalText(80),
     targetAudience: optionalText(400),
     constraints: optionalText(2000),
@@ -223,19 +240,7 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
       if (!afterRow) return { ok: false, error: 'NOT_FOUND', status: 404 };
 
       if (patch.productName !== undefined) {
-        await context.client.query(
-          `update public.items i
-              set name = $2,
-                  updated_at = now()
-             from public.npd_projects p
-            where p.id = $1::uuid
-              and p.org_id = app.current_org_id()
-              and p.product_code = i.item_code
-              and i.org_id = app.current_org_id()
-              and i.item_type = 'fg'
-              and i.name is distinct from $2`,
-          [parsed.data.projectId, patch.productName],
-        );
+        await syncLinkedFgNameFromProject(context, parsed.data.projectId, afterRow.name);
       }
 
       if (patch.targetRetailPriceEur !== undefined) {

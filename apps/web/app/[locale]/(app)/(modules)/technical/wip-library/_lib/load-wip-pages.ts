@@ -46,6 +46,8 @@ export type WipDetailPageResult = {
   canEdit: boolean;
   canDeactivate: boolean;
   state: 'ready' | 'error' | 'not_found';
+  /** When a stale/archived id was requested, the active definition id to redirect to. */
+  redirectToId?: string;
 };
 
 type OpRow = { id: string; operation_name: string };
@@ -154,6 +156,11 @@ export async function loadWipDetailPage(id: string): Promise<WipDetailPageResult
         };
       }
 
+      const resolvedFromId =
+        detailResult.ok && 'resolvedFromId' in detailResult && typeof detailResult.resolvedFromId === 'string'
+          ? detailResult.resolvedFromId
+          : undefined;
+
       return {
         ok: true,
         definition,
@@ -171,6 +178,7 @@ export async function loadWipDetailPage(id: string): Promise<WipDetailPageResult
         canEdit,
         canDeactivate,
         state: 'ready',
+        ...(resolvedFromId ? { redirectToId: definition.id } : {}),
       };
     });
   } catch (error) {

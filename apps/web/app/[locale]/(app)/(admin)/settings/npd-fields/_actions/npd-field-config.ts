@@ -1,6 +1,12 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import {
+  assertNpdFieldCatalogUnique,
+  isPgUniqueViolation,
+  mapNpdFieldCatalogPgDuplicate,
+  type NpdFieldCatalogDuplicateError,
+} from './npd-field-catalog-uniqueness';
 
 const EDIT_PERMISSION = 'npd.schema.edit';
 
@@ -86,7 +92,9 @@ type UpdateFieldPatch = {
   auto_source_field?: string | null;
 };
 
-type UpdateFieldResult = FieldCatalogRow | { ok: false; error: string };
+type UpdateFieldResult =
+  | FieldCatalogRow
+  | { ok: false; error: 'auto_source_required' | 'auto_source_self' | 'auto_source_not_found' | 'auto_source_cycle' | 'duplicate_code' | 'duplicate_label' | 'semantic_duplicate_label' };
 type DeleteDepartmentResult = { ok: true; id: string } | { ok: false; error: 'cannot_delete_core' };
 type DeleteFieldResult = { ok: true; id: string };
 
@@ -231,6 +239,19 @@ function parseUpdateAssignmentPatch(input: unknown): UpdateAssignmentPatch {
     visible: readOptionalBoolean(record, 'visible'),
     display_order: readOptionalInteger(record, 'display_order'),
   };
+}
+
+function isNpdFieldCatalogDuplicateError(message: string): message is NpdFieldCatalogDuplicateError {
+  return message === 'duplicate_code' || message === 'duplicate_label' || message === 'semantic_duplicate_label';
+}
+
+async function persistNpdFieldCatalogDuplicate(
+  client: QueryClient,
+  error: unknown,
+  params: { code: string; label: string; dataType: string },
+): Promise<NpdFieldCatalogDuplicateError | null> {
+  if (!isPgUniqueViolation(error)) return null;
+  return mapNpdFieldCatalogPgDuplicate(client, error, params);
 }
 
 function definedEntries<T extends Record<string, unknown>>(patch: T): Array<[keyof T & string, unknown]> {
@@ -427,22 +448,37 @@ export async function createField(input: unknown): Promise<FieldCatalogRow> {
   return withOrgContext<FieldCatalogRow>(async (ctx): Promise<FieldCatalogRow> => {
     const context = ctx as OrgContextLike;
     await requireNpdSchemaEdit(context);
-    const { rows } = await context.client.query<FieldCatalogRow>(
-      `insert into public.npd_field_catalog (org_id, code, label, data_type, validation_json, help_text, active)
-       values (app.current_org_id(), $1, $2, $3, $4::jsonb, $5, $6)
-       returning id::text, org_id::text, code, label, data_type, validation_json, help_text, active, is_auto, auto_source_field`,
-      [
-        parsed.code,
-        parsed.label,
-        parsed.data_type,
-        JSON.stringify(parsed.validation_json ?? {}),
-        parsed.help_text ?? null,
-        parsed.active ?? true,
-      ],
-    );
-    const row = rows[0];
-    if (!row) throw new Error('Failed to create NPD field.');
-    return row;
+    await assertNpdFieldCatalogUnique(context.client, {
+      code: parsed.code,
+      label: parsed.label,
+      dataType: parsed.data_type,
+    });
+    try {
+      const { rows } = await context.client.query<FieldCatalogRow>(
+        `insert into public.npd_field_catalog (org_id, code, label, data_type, validation_json, help_text, active)
+         values (app.current_org_id(), $1, $2, $3, $4::jsonb, $5, $6)
+         returning id::text, org_id::text, code, label, data_type, validation_json, help_text, active, is_auto, auto_source_field`,
+        [
+          parsed.code,
+          parsed.label,
+          parsed.data_type,
+          JSON.stringify(parsed.validation_json ?? {}),
+          parsed.help_text ?? null,
+          parsed.active ?? true,
+        ],
+      );
+      const row = rows[0];
+      if (!row) throw new Error('Failed to create NPD field.');
+      return row;
+    } catch (error) {
+      const duplicate = await persistNpdFieldCatalogDuplicate(context.client, error, {
+        code: parsed.code,
+        label: parsed.label,
+        dataType: parsed.data_type,
+      });
+      if (duplicate) throw new Error(duplicate);
+      throw error;
+    }
   });
 }
 
@@ -454,6 +490,21 @@ export async function updateField(id: string, patch: unknown): Promise<UpdateFie
     await requireNpdSchemaEdit(context);
     if (updates.length === 0) return selectFieldById(context, id);
     const current = await selectFieldById(context, id);
+    const resolvedLabel = parsed.label ?? current.label;
+    const resolvedDataType = parsed.data_type ?? current.data_type;
+    try {
+      await assertNpdFieldCatalogUnique(context.client, {
+        code: current.code,
+        label: resolvedLabel,
+        dataType: resolvedDataType,
+        excludeId: id,
+      });
+    } catch (error) {
+      if (error instanceof Error && isNpdFieldCatalogDuplicateError(error.message)) {
+        return { ok: false, error: error.message };
+      }
+      throw error;
+    }
     const resolvedIsAuto = parsed.is_auto ?? current.is_auto;
     let resolvedAutoSourceField = parsed.auto_source_field === undefined ? current.auto_source_field : parsed.auto_source_field;
 
@@ -502,17 +553,27 @@ export async function updateField(id: string, patch: unknown): Promise<UpdateFie
     const setClause = updates
       .map(([key], index) => `${key} = $${index + 2}::${casts[key]}`)
       .join(', ');
-    const { rows } = await context.client.query<FieldCatalogRow>(
-      `update public.npd_field_catalog
-          set ${setClause}
-        where id = $1::uuid
-          and org_id = app.current_org_id()
-        returning id::text, org_id::text, code, label, data_type, validation_json, help_text, active, is_auto, auto_source_field`,
-      [id, ...params],
-    );
-    const row = rows[0];
-    if (!row) throw new Error('NPD field not found.');
-    return row;
+    try {
+      const { rows } = await context.client.query<FieldCatalogRow>(
+        `update public.npd_field_catalog
+            set ${setClause}
+          where id = $1::uuid
+            and org_id = app.current_org_id()
+          returning id::text, org_id::text, code, label, data_type, validation_json, help_text, active, is_auto, auto_source_field`,
+        [id, ...params],
+      );
+      const row = rows[0];
+      if (!row) throw new Error('NPD field not found.');
+      return row;
+    } catch (error) {
+      const duplicate = await persistNpdFieldCatalogDuplicate(context.client, error, {
+        code: current.code,
+        label: resolvedLabel,
+        dataType: resolvedDataType,
+      });
+      if (duplicate) return { ok: false, error: duplicate };
+      throw error;
+    }
   });
 }
 

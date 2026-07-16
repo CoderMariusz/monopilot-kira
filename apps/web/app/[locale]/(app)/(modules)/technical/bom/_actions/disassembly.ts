@@ -11,6 +11,7 @@ import {
   isPgError,
   type OrgActionContext,
   type QueryClient,
+  validateBomManufacturingOperationNames,
   writeAudit,
   writeOutbox,
 } from './shared';
@@ -162,6 +163,13 @@ export async function createDisassemblyBomDraft(
       const c = supabaseClient ?? (client as QueryClient);
       const ctx: OrgActionContext = { userId, orgId, client: c };
       if (!(await hasPermission(ctx, BOM_CREATE_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+      const operationValidation = await validateBomManufacturingOperationNames(c, [
+        input.inputLine.manufacturingOperationName,
+      ]);
+      if (!operationValidation.ok) {
+        return { ok: false, error: operationValidation.message };
+      }
 
       const { rows: verRows } = await c.query<{ next_version: number }>(
         `select coalesce(max(version), 0) + 1 as next_version

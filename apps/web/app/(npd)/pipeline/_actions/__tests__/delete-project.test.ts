@@ -47,8 +47,11 @@ describe('deleteProject (N-42)', () => {
         return { rows: [{ ok: true }] };
       }
       if (q.startsWith('select id, code') && q.includes('from public.npd_projects')) {
-        return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-001' }] };
+        return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-001', product_code: null }] };
       }
+      if (q.includes('from public.product') && q.includes('built')) return { rows: [] };
+      if (q.includes('update public.product') && q.includes('deleted_at')) return { rows: [] };
+      if (q.includes('update public.items') && q.includes("status = 'blocked'")) return { rows: [] };
       if (q.startsWith('delete from public.npd_projects')) {
         return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-001' }] };
       }
@@ -75,7 +78,7 @@ describe('deleteProject (N-42)', () => {
       if (q.includes('as ok')) {
         return { rows: [{ ok: true }] };
       }
-      if (q.startsWith('select id, code')) return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-002' }] };
+      if (q.startsWith('select id, code')) return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-002', product_code: null }] };
       if (q.startsWith('delete from public.npd_projects')) {
         return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-002' }] };
       }
@@ -87,5 +90,69 @@ describe('deleteProject (N-42)', () => {
 
     const result = await deleteProject({ projectId: PROJECT_ID });
     expect(result).toEqual({ ok: false, error: 'PERSISTENCE_FAILED' });
+  });
+
+  it('locks the project row with FOR UPDATE before any writes', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const q = normalize(sql);
+      if (q.includes('as ok')) return { rows: [{ ok: true }] };
+      if (q.startsWith('select id, code')) {
+        return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-LOCK', product_code: null }] };
+      }
+      if (q.startsWith('delete from public.npd_projects')) {
+        return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-LOCK' }] };
+      }
+      if (q.startsWith('insert into public.outbox_events')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    await deleteProject({ projectId: PROJECT_ID });
+
+    const lockQuery = calls().find((c) => c.sql.includes('from public.npd_projects') && c.sql.includes('for update'));
+    expect(lockQuery).toBeDefined();
+    expect(calls().findIndex((c) => c.sql.includes('for update'))).toBeLessThan(
+      calls().findIndex((c) => c.sql.includes('delete from public.npd_projects')),
+    );
+  });
+
+  it('rolls back linked FG archive when delete returns no row after side-effect writes', async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      const q = normalize(sql);
+      if (q.includes('as ok')) return { rows: [{ ok: true }] };
+      if (q.startsWith('select id, code') && q.includes('from public.npd_projects')) {
+        return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-MISS', product_code: 'FG-LINKED-002' }] };
+      }
+      if (q.includes('from public.product') && q.includes('built')) return { rows: [] };
+      if (q.includes('update public.product') && q.includes('deleted_at')) return { rows: [] };
+      if (q.includes('update public.items') && q.includes("status = 'blocked'")) return { rows: [] };
+      if (q.startsWith('delete from public.npd_projects')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const result = await deleteProject({ projectId: PROJECT_ID });
+    expect(result).toEqual({ ok: false, error: 'HAS_DEPENDENTS' });
+    expect(calls().some((c) => c.sql.includes('insert into public.outbox_events'))).toBe(false);
+  });
+
+  it('rolls back linked FG archive when delete fails with FK after side-effect writes', async () => {
+    const fkError = Object.assign(new Error('foreign_key_violation'), { code: '23503' });
+    queryMock.mockImplementation(async (sql: string) => {
+      const q = normalize(sql);
+      if (q.includes('as ok')) return { rows: [{ ok: true }] };
+      if (q.startsWith('select id, code') && q.includes('from public.npd_projects')) {
+        return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-FK', product_code: 'FG-LINKED-001' }] };
+      }
+      if (q.includes('from public.product') && q.includes('built')) return { rows: [] };
+      if (q.includes('update public.product') && q.includes('deleted_at')) return { rows: [] };
+      if (q.includes('update public.items') && q.includes("status = 'blocked'")) return { rows: [] };
+      if (q.startsWith('delete from public.npd_projects')) throw fkError;
+      return { rows: [] };
+    });
+
+    const result = await deleteProject({ projectId: PROJECT_ID });
+    expect(result).toEqual({ ok: false, error: 'HAS_DEPENDENTS' });
+    expect(calls().some((c) => c.sql.includes('update public.product') && c.sql.includes('deleted_at'))).toBe(true);
+    expect(calls().some((c) => c.sql.includes("status = 'blocked'"))).toBe(true);
+    expect(calls().some((c) => c.sql.includes('insert into public.outbox_events'))).toBe(false);
   });
 });

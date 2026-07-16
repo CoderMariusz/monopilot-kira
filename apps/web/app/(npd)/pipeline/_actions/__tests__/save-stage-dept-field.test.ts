@@ -136,6 +136,7 @@ describe('saveStageDeptField pre-FG project writes', () => {
 
     expect(result).toEqual({ previousValue: 'Old Project', newValue: 'New Project', builtReset: false });
     expect(queryMock.mock.calls.some((call) => /set\s+name\s*=\s*\$2/i.test(String(call[0])))).toBe(true);
+    expect(queryMock.mock.calls.some((call) => /update public\.product p/i.test(String(call[0])))).toBe(true);
     expect(revalidateLocalizedMock).toHaveBeenCalledWith(`/npd/pipeline/${projectId}`);
   });
 

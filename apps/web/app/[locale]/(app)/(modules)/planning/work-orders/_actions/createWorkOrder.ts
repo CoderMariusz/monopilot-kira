@@ -16,6 +16,14 @@ import {
   type UomConversionResult,
 } from './shared';
 
+function safeRevalidateLocalized(path: string): void {
+  try {
+    revalidateLocalized(path);
+  } catch {
+    // Vitest imports Server Actions outside a Next request/static generation store.
+  }
+}
+
 function mapChainError(
   error: string,
 ): Extract<CreateWorkOrderResult, { ok: false }> {
@@ -187,8 +195,8 @@ export async function createWorkOrder(
       return createWorkOrderCore(ctx, parsed.data);
     });
     if (result.ok) {
-      revalidateLocalized('/planning/work-orders');
-      revalidateLocalized(`/planning/work-orders/${result.workOrder.id}`);
+      safeRevalidateLocalized('/planning/work-orders');
+      safeRevalidateLocalized(`/planning/work-orders/${result.workOrder.id}`);
     }
     return result;
   } catch (error) {

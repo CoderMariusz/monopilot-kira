@@ -19,6 +19,10 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   ),
 }));
 
+vi.mock('../../../../../../../lib/planning/factory-release-wo-gate', () => ({
+  assertFgReleasedToFactoryForWo: vi.fn(async () => 'ok'),
+}));
+
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }

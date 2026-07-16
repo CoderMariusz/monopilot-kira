@@ -12,6 +12,7 @@
  */
 
 import type { ItemDetail } from '../../_actions/get-item';
+import { formatDecimalString, mulDecimalStrings } from '../../../../../../../../lib/shared/decimal';
 
 export type ItemOverviewLabels = {
   identification: string;
@@ -104,9 +105,7 @@ function fmtDate(value: string, none: string): string {
 
 function fmtQty(value: string | null): string {
   if (value === null) return '';
-  const n = Number(value);
-  if (!Number.isFinite(n)) return value;
-  return Number.isInteger(n) ? String(n) : n.toFixed(3);
+  return formatDecimalString(value);
 }
 
 function fmtEffectiveCost(item: ItemDetail, none: string, sourceLabels: Record<string, string>): string {
@@ -152,8 +151,8 @@ export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: It
   if (outputUom === 'each' && hasNet) {
     packHierarchy = `${outputUomLabel} · 1 = ${fmtQty(item.netQtyPerEach)} ${item.uomBase}`;
   } else if (outputUom === 'box' && hasNet && item.eachPerBox && item.eachPerBox > 0) {
-    const total = (netNum as number) * item.eachPerBox;
-    packHierarchy = `${outputUomLabel} · 1 = ${item.eachPerBox} × ${fmtQty(item.netQtyPerEach)} ${item.uomBase} = ${fmtQty(String(total))} ${item.uomBase}`;
+    const total = mulDecimalStrings(item.netQtyPerEach!, String(item.eachPerBox));
+    packHierarchy = `${outputUomLabel} · 1 = ${item.eachPerBox} × ${fmtQty(item.netQtyPerEach)} ${item.uomBase} = ${fmtQty(total)} ${item.uomBase}`;
   }
 
   return (

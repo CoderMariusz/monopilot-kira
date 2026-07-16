@@ -862,18 +862,20 @@ async function persistWipUnitCosts(input: {
 
     const processes = processesByDefinition.get(row.wip_definition_id) ?? [];
     const unitCost = computeWipUnitCost({
-      materials: [{ qtyPerUnit: 1, unitCost: Number(row.raw_material_cost_per_output_unit) }],
+      materials: [{ qtyPerUnit: '1', unitCost: row.raw_material_cost_per_output_unit }],
       processes: processes.map((process) => ({
         roles: process.roles.map((role) => ({
-          rolePerHour: Number(role.ratePerHour ?? 0),
-          headcount: Number(role.headcount ?? 0),
+          rolePerHour: role.ratePerHour ?? '0',
+          headcount: role.headcount ?? '0',
         })),
-        durationHours: Number(process.durationHours ?? 0),
-        additionalCost: Number(process.additionalCost ?? 0),
+        durationHours: process.durationHours ?? '0',
+        additionalCost: process.additionalCost ?? '0',
+        throughputPerHour: process.throughputPerHour ?? undefined,
+        throughputUom: process.throughputUom ?? undefined,
       })),
-      yieldPct: Number(row.yield_pct),
+      yieldPct: row.yield_pct,
     });
-    const costPerKg = unitCost.toFixed(4);
+    const costPerKg = unitCost;
 
     const current = await input.client.query<{ cost_per_kg: string | null }>(
       `select ch.cost_per_kg::text as cost_per_kg

@@ -28,6 +28,7 @@ import {
 } from '../../../../../../(npd)/brief/actions/__tests__/brief-integration-helpers';
 import { approveRouting, publishRouting } from '../_actions/approve-routing';
 import { createRouting } from '../_actions/create-routing';
+import { routingCostPreview } from '../_actions/cost-preview';
 import { listRoutings } from '../_actions/list-routings';
 import { updateRouting } from '../_actions/update-routing';
 import { ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../tests/helpers/owner-org-context.js';
@@ -338,6 +339,75 @@ run('03-technical routings CRUD (V-TEC-60..63, RLS + RBAC, real DB)', () => {
     expect(activeCount).toBe(1);
 
     // cleanup this item's routings for later tests' isolation
+    await owner.query(`delete from public.routing_operations where org_id = $1`, [seed.orgAId]);
+    await owner.query(`delete from public.routings where org_id = $1`, [seed.orgAId]);
+  });
+
+  it('C042: preserves run_time_per_unit_sec and cost_per_hour through create → update → list (exact NUMERIC)', async () => {
+    const runTime = '3.333333';
+    const costRate = '27.654321';
+    const setupMin = 12;
+
+    const created = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
+      createRouting({
+        itemId: seed.itemAId,
+        operations: [
+          validOp(1, OP_MIX, { runTimePerUnitSec: runTime, costPerHour: costRate, setupTimeMin: setupMin }),
+        ],
+      }),
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const dbRows = await owner.query<{ run_time: string; cost_per_hour: string }>(
+      `select run_time_per_unit_sec::text as run_time, cost_per_hour::text as cost_per_hour
+         from public.routing_operations
+        where routing_id = $1`,
+      [created.data.id],
+    );
+    expect(dbRows.rows[0]?.run_time).toBe(runTime);
+    expect(dbRows.rows[0]?.cost_per_hour).toBe(costRate);
+
+    const listed = await withActionActor(seed.editorAUserId, seed.orgAId, () => listRoutings({ itemId: seed.itemAId }));
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    const op = listed.data.routings.find((r) => r.id === created.data.id)?.operations[0];
+    expect(op?.runTimePerUnitSec).toBe(runTime);
+    expect(op?.costPerHour).toBe(costRate);
+
+    const updatedRun = '5.555555';
+    const updatedRate = '19.876543';
+    const updated = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
+      updateRouting({
+        routingId: created.data.id,
+        operations: [
+          validOp(1, OP_MIX, {
+            runTimePerUnitSec: updatedRun,
+            costPerHour: updatedRate,
+            setupTimeMin: setupMin,
+          }),
+        ],
+      }),
+    );
+    expect(updated.ok).toBe(true);
+
+    const afterList = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
+      listRoutings({ itemId: seed.itemAId }),
+    );
+    expect(afterList.ok).toBe(true);
+    if (!afterList.ok) return;
+    const afterOp = afterList.data.routings.find((r) => r.id === created.data.id)?.operations[0];
+    expect(afterOp?.runTimePerUnitSec).toBe(updatedRun);
+    expect(afterOp?.costPerHour).toBe(updatedRate);
+
+    const preview = await withActionActor(seed.editorAUserId, seed.orgAId, () =>
+      routingCostPreview({ routingId: created.data.id, volume: '100' }),
+    );
+    expect(preview.ok).toBe(true);
+    if (preview.ok) {
+      expect(Number(preview.data.totalCost)).toBeGreaterThan(0);
+    }
+
     await owner.query(`delete from public.routing_operations where org_id = $1`, [seed.orgAId]);
     await owner.query(`delete from public.routings where org_id = $1`, [seed.orgAId]);
   });

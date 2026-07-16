@@ -88,6 +88,8 @@ export interface NutritionPanelLabels {
   title: string;
   liveNote: string;
   exportLabel: string;
+  /** Shown as button title when PDF/label export is not wired yet. */
+  exportLabelComingSoon: string;
   /** ICU-ish template: "Targets: Protein ≥ {protein} · Salt ≤ {salt} · Fat ≤ {fat} per 100g". */
   targetsNote: string;
   withinTarget: string;
@@ -116,7 +118,7 @@ export interface NutritionPanelProps {
   labels: NutritionPanelLabels;
   /** UI state gate (server-resolved for permission_denied). */
   state?: NutritionPanelState;
-  /** "Export label" stub handler — no-op for this slice (PDF export owned elsewhere). */
+  /** "Export label" stub handler — omitted until label PDF export is implemented. */
   onExportLabel?: () => void;
 }
 
@@ -304,6 +306,8 @@ export function NutritionPanel({
     );
   }, [nutrition]);
 
+  const exportEnabled = typeof onExportLabel === 'function';
+
   const targetsNote = labels.targetsNote
     .replace('{protein}', `${targets.protein_g?.target ?? '—'}g`)
     .replace('{salt}', `${targets.salt_g?.target ?? '—'}g`)
@@ -322,7 +326,10 @@ export function NutritionPanel({
           type="button"
           className="btn-ghost btn-sm text-xs"
           data-testid="nutrition-export-label"
-          onClick={onExportLabel}
+          disabled={!exportEnabled}
+          title={exportEnabled ? undefined : labels.exportLabelComingSoon}
+          aria-disabled={exportEnabled ? undefined : 'true'}
+          onClick={exportEnabled ? onExportLabel : undefined}
         >
           {labels.exportLabel}
         </Button>

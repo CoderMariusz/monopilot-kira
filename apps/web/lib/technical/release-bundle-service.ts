@@ -40,6 +40,7 @@ import {
   guardStatusTransition,
 } from './factory-spec-release-guards';
 import { hasPermission } from '../auth/has-permission';
+import { validateBomApprovalGuards } from '../../app/[locale]/(app)/(modules)/technical/bom/_actions/shared';
 
 // ── RBAC permission gating the bundle approval (PRD 03-TECHNICAL §3) ───────────
 // The bundle = factory_spec (internal product spec) + its BOM version. The
@@ -76,6 +77,17 @@ export type BundleActionError =
   | 'released_record_immutable'
   | 'esign_failed'
   | 'persistence_failed';
+
+/** Thrown after the first write when the txn must roll back; map to ActionResult outside `withOrgContext`. */
+export class BundleApprovalRollbackError extends Error {
+  readonly bundleError: BundleActionError;
+
+  constructor(bundleError: BundleActionError, message: string) {
+    super(message);
+    this.name = 'BundleApprovalRollbackError';
+    this.bundleError = bundleError;
+  }
+}
 
 export interface ApproveBundleData {
   factorySpecId: string;
@@ -297,6 +309,35 @@ async function bomRmUsabilityFails(client: QueryClient, bomHeaderId: string): Pr
   return (rows[0]?.blocked ?? 0) > 0;
 }
 
+/**
+ * V-TEC-14 at factory_spec_approval context — the same sourcing gate direct BOM
+ * approval uses (workflow.ts). Bundle approval must not report success when
+ * component supplier/spec readiness would block standalone BOM approve.
+ */
+async function bomSourcingGateMessage(
+  client: QueryClient,
+  bom: BomRow,
+  bomHeaderId: string,
+): Promise<string | null> {
+  if (!bom.product_id) return null;
+
+  const { rows: lines } = await client.query<{ item_id: string | null; component_code: string }>(
+    `select item_id, component_code
+       from public.bom_lines
+      where org_id = app.current_org_id()
+        and bom_header_id = $1::uuid`,
+    [bomHeaderId],
+  );
+
+  const guard = await validateBomApprovalGuards(
+    client,
+    bom.product_id,
+    lines.map((line) => ({ itemId: line.item_id, componentCode: line.component_code })),
+    { cycleBlockedMessage: 'BOM has a cycle; bundle cannot be approved' },
+  );
+  return guard.ok ? null : guard.message;
+}
+
 async function emitOutbox(
   client: QueryClient,
   params: {
@@ -508,6 +549,15 @@ export async function approveReleaseBundle(
       };
     }
 
+    const sourcingBlocked = await bomSourcingGateMessage(ctx.client, lockedBom, lockedBom.id);
+    if (sourcingBlocked) {
+      return {
+        ok: false,
+        error: 'release_blocked',
+        message: sourcingBlocked,
+      };
+    }
+
     const preflight = await runTechnicalApprovalPreflight({ client: ctx.client });
     if (!preflight.ok) {
       return {
@@ -596,7 +646,7 @@ export async function approveReleaseBundle(
       [spec.id, lockedBom.id, lockedBom.version, ctx.userId],
     );
     if (updatedSpec.rows.length === 0) {
-      throw new Error('factory_spec_no_longer_in_review');
+      throw new BundleApprovalRollbackError('invalid_state', 'factory_spec no longer in_review');
     }
 
     const approvedBomStatus: 'technical_approved' | 'active' =
@@ -613,7 +663,7 @@ export async function approveReleaseBundle(
         [lockedBom.id, ctx.userId],
       );
       if (updatedBom.rows.length === 0) {
-        throw new Error('bom_no_longer_approvable');
+        throw new BundleApprovalRollbackError('invalid_state', 'BOM no longer approvable');
       }
     }
 
@@ -685,8 +735,8 @@ export async function approveReleaseBundle(
       },
     };
   } catch (err) {
-    if (err instanceof Error && err.message === 'factory_spec_no_longer_in_review') {
-      return { ok: false, error: 'invalid_state', message: 'factory_spec no longer in_review' };
+    if (err instanceof BundleApprovalRollbackError) {
+      throw err;
     }
     if (isPgError(err) && err.code === '23514') {
       throw err;

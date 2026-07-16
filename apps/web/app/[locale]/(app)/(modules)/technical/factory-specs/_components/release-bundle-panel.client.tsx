@@ -233,9 +233,24 @@ function BundleModalBody({
         });
         if (result.ok) {
           router.refresh();
-          onDone(t('approved'));
+          if (result.data.approvalStatus === 'pending') {
+            onDone(
+              t.has('approvalRecorded')
+                ? t('approvalRecorded', {
+                    collected: result.data.approvalsCollected ?? 1,
+                    required: result.data.approvalsRequired ?? 2,
+                  })
+                : `Signature recorded (${result.data.approvalsCollected ?? 1} of ${result.data.approvalsRequired ?? 2} approvers). Bundle is not released until all required approvers sign.`,
+            );
+          } else {
+            onDone(t('approved'));
+          }
         } else {
-          setError(t('actionError'));
+          setError(
+            result.error === 'release_blocked' && result.message
+              ? result.message
+              : result.message ?? t('actionError'),
+          );
         }
       } else {
         const result = await rejectReleaseBundleAction({

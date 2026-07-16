@@ -23,6 +23,9 @@ import {
   guardStatusTransition,
 } from '../../../../../../../lib/technical/factory-spec-release-guards';
 import {
+  validateBomLineRmUsability,
+} from '../../bom/_actions/shared';
+import {
   canApproveFactorySpec,
   type OrgActionContext,
   type QueryClient,
@@ -210,9 +213,8 @@ export async function loadReleaseBundle(factorySpecId: string): Promise<LoadBund
         }
       }
 
-      // RM usability: every BOM line that references an item must point at an ACTIVE
-      // item (the part of T-074 enforceable against the migrated schema — matches the
-      // bundle SERVICE blocker). Each inactive item is one explicit blocker row.
+      // RM usability + factory_spec_approval sourcing gate (V-TEC-14) — mirrors
+      // approveBom / approveReleaseBundle so the panel cannot show a false-ready state.
       if (bom) {
         const rmResult = await db.query<{ item_code: string; status: string }>(
           `select i.item_code, i.status
@@ -230,6 +232,31 @@ export async function loadReleaseBundle(factorySpecId: string): Promise<LoadBund
             code: 'ITEM_NOT_ACTIVE',
             message: `Component ${line.item_code} is ${line.status} (RM usability failed).`,
           });
+        }
+
+        const lineRows = await db.query<{ item_id: string | null; component_code: string }>(
+          `select item_id, component_code
+             from public.bom_lines
+            where org_id = app.current_org_id()
+              and bom_header_id = $1::uuid
+            order by line_no asc`,
+          [bom.id],
+        );
+        const sourcingFailures = await validateBomLineRmUsability(
+          db,
+          lineRows.rows.map((line) => ({ itemId: line.item_id, componentCode: line.component_code })),
+          'factory_spec_approval',
+          spec.fg_item_code,
+        );
+        for (const failure of sourcingFailures) {
+          for (const reason of failure.reasons) {
+            blockers.push({
+              kind: 'supplier',
+              severity: 'block',
+              code: reason,
+              message: `${failure.componentCode}: ${reason}`,
+            });
+          }
         }
       }
 

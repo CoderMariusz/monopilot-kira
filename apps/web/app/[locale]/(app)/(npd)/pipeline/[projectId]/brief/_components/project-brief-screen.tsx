@@ -39,6 +39,7 @@ import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
 import type { ProjectBriefState, ProjectBriefView } from '../_actions/read-project-brief';
+import { formatRetailPriceEurDisplay } from '../../../../../../../(npd)/pipeline/_actions/_lib/retail-price-eur';
 
 /** Mirrors the reviewed updateProjectBrief zod patch field names exactly. */
 export type BriefPatch = {
@@ -356,7 +357,11 @@ function ReadBriefCard({ data, labels }: { data: ProjectBriefView; labels: Proje
           <ReadField label={labels.fieldProductName} value={data.productName} placeholder={ph} />
           <ReadField label={labels.fieldCategory} value={data.category} placeholder={ph} />
           <ReadField label={labels.fieldTargetLaunch} value={data.targetLaunchDate} placeholder={ph} />
-          <ReadField label={labels.fieldTargetPrice} value={data.targetRetailPriceEur} placeholder={ph} />
+          <ReadField
+            label={labels.fieldTargetPrice}
+            value={formatRetailPriceEurDisplay(data.targetRetailPriceEur) ?? data.targetRetailPriceEur}
+            placeholder={ph}
+          />
           <ReadField label={labels.fieldPackFormat} value={data.packFormat} placeholder={ph} />
           <ReadField label={labels.fieldPackWeight} value={data.packWeightG} placeholder={ph} />
           <ReadField

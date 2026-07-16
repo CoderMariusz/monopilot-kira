@@ -98,18 +98,39 @@ export async function listWipDefinitions(input?: ListWipDefinitionsInput): Promi
   });
 }
 
-export async function getWipDefinition(id: string): Promise<ActionResult<{ definition: unknown; ingredients: unknown[]; processes: unknown[]; whereUsed: unknown[] }>> {
+export async function getWipDefinition(
+  id: string,
+): Promise<
+  ActionResult<{
+    definition: unknown;
+    ingredients: unknown[];
+    processes: unknown[];
+    whereUsed: unknown[];
+    resolvedFromId?: string;
+  }>
+> {
   if (!id || typeof id !== 'string') return { ok: false, error: 'Invalid WIP definition id', code: 'VALIDATION_ERROR' };
 
-  return withOrgContext<ActionResult<{ definition: unknown; ingredients: unknown[]; processes: unknown[]; whereUsed: unknown[] }>>(async (ctx) => {
+  return withOrgContext<
+    ActionResult<{
+      definition: unknown;
+      ingredients: unknown[];
+      processes: unknown[];
+      whereUsed: unknown[];
+      resolvedFromId?: string;
+    }>
+  >(async (ctx) => {
     // Read is org-scoped and open (technical/items pattern) — writes stay gated.
+    const resolved = await resolveWipReadTarget(ctx, id);
+    if (!resolved) return { ok: false, error: 'WIP definition not found', code: 'NOT_FOUND', status: 404 };
+
     const definition = await ctx.client.query(
       `select d.*, i.item_code
          from public.wip_definitions d
          left join public.items i on i.id = d.item_id and i.org_id = d.org_id
         where d.id = $1::uuid and d.org_id = app.current_org_id()
         limit 1`,
-      [id],
+      [resolved.id],
     );
     if (!definition.rows[0]) return { ok: false, error: 'WIP definition not found', code: 'NOT_FOUND', status: 404 };
 
@@ -119,11 +140,18 @@ export async function getWipDefinition(id: string): Promise<ActionResult<{ defin
          join public.items i on i.id = wi.item_id and i.org_id = wi.org_id
         where wi.org_id = app.current_org_id() and wi.wip_definition_id = $1::uuid
         order by wi.sequence asc, i.name asc`,
-      [id],
+      [resolved.id],
     );
-    const processes = await loadDefinitionProcesses(ctx, id);
-    const whereUsed = await loadWhereUsed(ctx, id);
-    return { ok: true, definition: definition.rows[0], ingredients: ingredients.rows, processes, whereUsed };
+    const processes = await loadDefinitionProcesses(ctx, resolved.id);
+    const whereUsed = await loadWhereUsed(ctx, resolved.id);
+    return {
+      ok: true,
+      definition: definition.rows[0],
+      ingredients: ingredients.rows,
+      processes,
+      whereUsed,
+      ...(resolved.redirectedFromId ? { resolvedFromId: resolved.redirectedFromId } : {}),
+    };
   });
 }
 
@@ -568,18 +596,67 @@ async function lockWipDefinitionForUpdate(ctx: OrgContextLike, id: string): Prom
 async function findActiveWipDefinitionByName(
   ctx: OrgContextLike,
   name: string,
+  options?: { forUpdate?: boolean },
 ): Promise<ExistingDefinition | null> {
+  const lockClause = options?.forUpdate ? 'for update' : '';
   const { rows } = await ctx.client.query<ExistingDefinition>(
     `select id, item_id, version, status, name, description, base_uom, yield_pct, reusable, source_project_id
        from public.wip_definitions wip
       where wip.org_id = app.current_org_id()
         and lower(wip.name) = lower($1::text)
         and wip.status = 'active'
+      order by wip.version desc, wip.updated_at desc
       limit 1
-      for update`,
+      ${lockClause}`,
     [name],
   );
   return rows[0] ?? null;
+}
+
+async function findActiveWipDefinitionByItemId(
+  ctx: OrgContextLike,
+  itemId: string,
+): Promise<ExistingDefinition | null> {
+  const { rows } = await ctx.client.query<ExistingDefinition>(
+    `select id, item_id, version, status, name, description, base_uom, yield_pct, reusable, source_project_id
+       from public.wip_definitions wip
+      where wip.org_id = app.current_org_id()
+        and wip.item_id = $1::uuid
+        and wip.status = 'active'
+      order by wip.version desc, wip.updated_at desc
+      limit 1`,
+    [itemId],
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * Resolve the definition row a read should display. Archived/stale ids rebase onto
+ * the current active successor (same name, then same item) so edit links never open
+ * an empty superseded v1.
+ */
+async function resolveWipReadTarget(
+  ctx: OrgContextLike,
+  requestedId: string,
+): Promise<{ id: string; redirectedFromId?: string } | null> {
+  const existing = await loadExistingDefinition(ctx, requestedId);
+  if (!existing) return null;
+
+  if (existing.status === 'active' || existing.status === 'draft') {
+    return { id: existing.id };
+  }
+
+  if (existing.status !== 'archived') return { id: existing.id };
+
+  const activeSuccessor =
+    (await findActiveWipDefinitionByName(ctx, existing.name)) ??
+    (existing.item_id ? await findActiveWipDefinitionByItemId(ctx, existing.item_id) : null);
+
+  if (activeSuccessor && activeSuccessor.id !== requestedId) {
+    return { id: activeSuccessor.id, redirectedFromId: requestedId };
+  }
+
+  return { id: existing.id };
 }
 
 /**
@@ -595,7 +672,7 @@ async function resolveWipWriteTarget(
   if (!current) return null;
 
   if (current.status === 'archived') {
-    const activeSuccessor = await findActiveWipDefinitionByName(ctx, current.name);
+    const activeSuccessor = await findActiveWipDefinitionByName(ctx, current.name, { forUpdate: true });
     if (!activeSuccessor) return null;
     current = activeSuccessor;
   }

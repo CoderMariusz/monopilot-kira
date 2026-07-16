@@ -201,4 +201,29 @@ describe('updateProjectBrief', () => {
     });
     expect(result).toEqual({ ok: false, error: 'INVALID_INPUT', status: 400 });
   });
+
+  it('rejects targetRetailPriceEur with more than two decimal places', async () => {
+    const result = await updateProjectBrief({
+      projectId: PROJECT,
+      patch: { targetRetailPriceEur: '19.999' },
+    });
+    expect(result).toEqual({ ok: false, error: 'INVALID_INPUT', status: 400 });
+  });
+
+  it('persists a large canonical targetRetailPriceEur without precision loss', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      return handler()(sql, params);
+    };
+
+    const result = await updateProjectBrief({
+      projectId: PROJECT,
+      patch: { targetRetailPriceEur: '9999999999.99' },
+    });
+
+    expect(result).toEqual({ ok: true, data: { projectId: PROJECT } });
+    const update = calls.find((c) => /update public\.npd_projects/.test(c.sql));
+    expect(update?.params).toContain('9999999999.99');
+  });
 });

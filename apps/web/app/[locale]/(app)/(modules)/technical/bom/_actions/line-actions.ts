@@ -51,6 +51,7 @@ import {
   type QueryClient,
   UpdateBomLineInput,
   validateBomLineRmUsability,
+  validateBomManufacturingOperationNames,
   writeAudit,
 } from './shared';
 
@@ -125,6 +126,18 @@ export async function addBomLine(rawInput: unknown): Promise<BomLineActionResult
           error: 'validation_failed',
           code: 'V-TEC-14',
           message: formatRmUsabilityFailures(rmUsabilityFailures),
+        };
+      }
+
+      const operationValidation = await validateBomManufacturingOperationNames(c, [
+        input.manufacturingOperationName,
+      ]);
+      if (!operationValidation.ok) {
+        return {
+          ok: false,
+          error: 'validation_failed',
+          code: operationValidation.code,
+          message: operationValidation.message,
         };
       }
 
@@ -237,12 +250,26 @@ export async function updateBomLine(rawInput: unknown): Promise<BomLineActionRes
       const beforeRow = before[0];
       if (!beforeRow) return { ok: false, error: 'not_found' };
 
-      // qty stays a decimal string on the wire → persisted ::numeric. uom is
-      // patch-style; notes can be explicitly cleared with '' or null.
-      const notesProvided = input.notes !== undefined;
-      const nextNotes = !notesProvided || input.notes === '' ? null : input.notes;
+      const operationProvided = input.manufacturingOperationName !== undefined;
+      const nextOperation =
+        !operationProvided || input.manufacturingOperationName === ''
+          ? null
+          : input.manufacturingOperationName;
+
+      if (nextOperation) {
+        const operationValidation = await validateBomManufacturingOperationNames(c, [nextOperation]);
+        if (!operationValidation.ok) {
+          return {
+            ok: false,
+            error: 'validation_failed',
+            code: operationValidation.code,
+            message: operationValidation.message,
+          };
+        }
+      }
+
       const { rowCount } = await c.query(
-        notesProvided
+        operationProvided
           ? `update public.bom_lines
                set quantity = $3::numeric,
                    uom = coalesce($4, uom),
@@ -256,8 +283,8 @@ export async function updateBomLine(rawInput: unknown): Promise<BomLineActionRes
              where org_id = app.current_org_id()
                and bom_header_id = $1::uuid
                and id = $2::uuid`,
-        notesProvided
-          ? [input.bomHeaderId, input.lineId, input.qty, input.uom ?? null, nextNotes]
+        operationProvided
+          ? [input.bomHeaderId, input.lineId, input.qty, input.uom ?? null, nextOperation]
           : [input.bomHeaderId, input.lineId, input.qty, input.uom ?? null],
       );
       if (rowCount !== 1) return { ok: false, error: 'persistence_failed' };
@@ -267,8 +294,20 @@ export async function updateBomLine(rawInput: unknown): Promise<BomLineActionRes
         actorUserId: userId,
         action: AUDIT_BOM_LINE_UPDATED,
         resourceId: header.id,
-        beforeState: { lineId: input.lineId, quantity: beforeRow.quantity, uom: beforeRow.uom, notes: beforeRow.manufacturing_operation_name },
-        afterState: { lineId: input.lineId, quantity: input.qty, uom: input.uom ?? beforeRow.uom, notes: notesProvided ? nextNotes : beforeRow.manufacturing_operation_name },
+        beforeState: {
+          lineId: input.lineId,
+          quantity: beforeRow.quantity,
+          uom: beforeRow.uom,
+          manufacturingOperationName: beforeRow.manufacturing_operation_name,
+        },
+        afterState: {
+          lineId: input.lineId,
+          quantity: input.qty,
+          uom: input.uom ?? beforeRow.uom,
+          manufacturingOperationName: operationProvided
+            ? nextOperation
+            : beforeRow.manufacturing_operation_name,
+        },
       });
 
       revalidateForHeader(header.product_id);

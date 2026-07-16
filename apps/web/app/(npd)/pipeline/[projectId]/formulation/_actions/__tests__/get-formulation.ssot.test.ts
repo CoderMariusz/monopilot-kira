@@ -7,6 +7,7 @@
  *      column only for legacy free-text lines,
  *   3. degrade gracefully (nutrition null) when migration 107 has not been
  *      applied (42P01), exactly like recompute.ts.
+ *   4. F-C030: expose recursively resolved nutrition for WIP-aware live panels.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -78,7 +79,7 @@ const INGREDIENT_ROWS = [
 
 function makeClient(): QueryClient {
   return {
-    query: vi.fn(async (sql: string) => {
+    query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
       const q = normalize(sql);
       if (q.includes('from public.formulations f')) return { rows: [FORMULATION_ROW] };
       if (q.includes('from public.formulation_ingredients fi')) {
@@ -94,6 +95,11 @@ function makeClient(): QueryClient {
         // Legacy fallback query (no nutrition join, no nutrition column).
         return { rows: INGREDIENT_ROWS.map(({ nutrition_per_100g: _drop, ...rest }) => rest) };
       }
+      if (q.includes('from "reference"."rawmaterials"') && q.includes('rm_code = any')) {
+        return { rows: [{ rm_code: 'RM-1001', nutrition_per_100g: { energy_kj: '500' }, allergens_inherited: [] }] };
+      }
+      if (q.includes("item_type = 'intermediate'")) return { rows: [] };
+      if (q.includes('wip_definition_ingredients')) return { rows: [] };
       throw new Error(`unexpected query in get-formulation.ssot.test: ${q.slice(0, 120)}`);
     }),
   };
@@ -137,5 +143,14 @@ describe('getFormulation — F-B05 nutrition join + F-A06 live allergen resoluti
     expect(ingredientQueries).toHaveLength(2);
     expect(ingredientQueries[1]).toContain('item_allergen_profiles');
     expect(ingredientQueries[1]).not.toContain('"reference"."rawmaterials"');
+  });
+
+  it('returns resolvedNutritionByCode for live Recipe Nutrition (C030)', async () => {
+    const result = await getFormulation({ projectId: PROJECT_ID });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.resolvedNutritionByCode).toEqual({
+      'RM-1001': { energy_kj: '500' },
+    });
   });
 });

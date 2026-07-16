@@ -23,7 +23,7 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   NutritionPanel,
@@ -37,6 +37,7 @@ const LABELS: NutritionPanelLabels = {
   title: 'lbl.title',
   liveNote: 'lbl.live',
   exportLabel: 'lbl.export',
+  exportLabelComingSoon: 'lbl.exportComingSoon',
   targetsNote: 'Targets: Protein ≥ {protein} · Salt ≤ {salt} · Fat ≤ {fat} per 100g',
   withinTarget: 'Within target',
   overTarget: 'Over target',
@@ -88,6 +89,25 @@ describe('T-113 NutritionPanel — parity', () => {
     expect(screen.getByText('lbl.live')).toBeInTheDocument();
     const exportBtn = screen.getByRole('button', { name: 'lbl.export' });
     expect(exportBtn).toBeInTheDocument();
+    expect(exportBtn).toBeDisabled();
+    expect(exportBtn).toHaveAttribute('title', 'lbl.exportComingSoon');
+  });
+
+  it('calls onExportLabel when a handler is provided', () => {
+    const onExportLabel = vi.fn();
+    render(
+      <NutritionPanel
+        nutrition={rows()}
+        targets={TARGETS}
+        labels={LABELS}
+        state="ready"
+        onExportLabel={onExportLabel}
+      />,
+    );
+    const exportBtn = screen.getByRole('button', { name: 'lbl.export' });
+    expect(exportBtn).not.toBeDisabled();
+    exportBtn.click();
+    expect(onExportLabel).toHaveBeenCalledTimes(1);
   });
 
   it('renders 7 nutrient rows in prototype order with value + unit', () => {

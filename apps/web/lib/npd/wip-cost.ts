@@ -1,72 +1,169 @@
+/**
+ * WIP unit-cost helpers — canonical costing paths are NUMERIC-exact via `Dec`
+ * (string in, string out). `computeWipProcessCost` alone keeps the legacy
+ * process-editor number DTO at its outer boundary.
+ *
+ * Canonical formula (C033/C034): unit cost = (materials + process labour) / yield.
+ * Batch labour normalizes by throughput×duration (or inferred batch kg for duration-only).
+ */
+
+import { Dec, SCALE } from '@monopilot/domain';
+
+const HUNDRED = Dec.from('100');
+const ONE = Dec.from('1');
+const COST_DP = 4;
+
 export type WipProcessRoleCost = {
-  rolePerHour: number;
-  headcount: number;
+  rolePerHour: string;
+  headcount: string;
 };
 
 export type WipMaterialLineCost = {
-  qtyPerUnit: number;
-  unitCost: number;
+  qtyPerUnit: string;
+  unitCost: string;
 };
 
 export type WipProcessCostInput = {
   roles: WipProcessRoleCost[];
-  durationHours: number;
-  additionalCost: number;
+  durationHours: string;
+  additionalCost: string;
+  /** When set with duration, defines batch output qty (e.g. 200 kg/h × 5 h). */
+  throughputPerHour?: string;
+  throughputUom?: string | null;
 };
 
 /** ponytail: depth ceiling for WIP-in-WIP — deeper trees need an explicit design pass. */
 export const WIP_COST_DEPTH_CEILING = 8;
 
 export function computeWipProcessCost(
-  roles: WipProcessRoleCost[],
+  roles: Array<{ rolePerHour: number; headcount: number }>,
   durationHours: number,
   additionalCost: number,
 ): number {
-  const duration = toNonNegativeNumber(durationHours);
+  // Compatibility adapter for the legacy process-editor DTO, whose public
+  // contract is numeric. Costing/persistence use WipProcessCostInput strings.
   const safeRoles = Array.isArray(roles) ? roles : [];
-  const processCost = safeRoles.reduce((sum, role) => {
-    const rate = toNonNegativeNumber(role?.rolePerHour);
-    const headcount = toNonNegativeNumber(role?.headcount);
-    return sum + rate * headcount * duration;
-  }, 0);
-
-  return processCost + toNonNegativeNumber(additionalCost);
+  const exactRoles = safeRoles.map((role) => ({
+    rolePerHour: nonNegativeNumberText(role?.rolePerHour),
+    headcount: nonNegativeNumberText(role?.headcount),
+  }));
+  const cost = sumCrewRate(exactRoles)
+    .mul(nonNegativeDec(nonNegativeNumberText(durationHours)))
+    .add(nonNegativeDec(nonNegativeNumberText(additionalCost)));
+  return parseFloat(cost.toFixed(SCALE));
 }
 
-export function computeWipMaterialCost(lines: WipMaterialLineCost[]): number {
-  const safeLines = Array.isArray(lines) ? lines : [];
-  return safeLines.reduce((sum, line) => {
-    return sum + toNonNegativeNumber(line?.qtyPerUnit) * toNonNegativeNumber(line?.unitCost);
-  }, 0);
-}
-
-export function computeWipComponentCost(
-  processCosts: number[],
-  rmCost: number,
-  yieldPct = 100,
-): number {
-  const rawCost = toNonNegativeNumber(rmCost);
-  const safeProcessCosts = Array.isArray(processCosts) ? processCosts : [];
-  const processTotal = safeProcessCosts.reduce((sum, cost) => sum + toNonNegativeNumber(cost), 0);
-  const safeYield = toValidYieldPct(yieldPct);
-
-  return (rawCost + processTotal) / (safeYield / 100);
+export function computeWipMaterialCost(lines: WipMaterialLineCost[]): string {
+  return sumMaterialCost(lines).toFixed(COST_DP);
 }
 
 /**
- * WIP unit cost = materials (qty×unitCost) + process labour (rate×headcount×duration)
- * with yield applied. Pure; callers own cycle guards via visited-set + depth ceiling.
+ * Batch output (kg) inferred from throughput×duration on WIP process steps.
+ * Duration-only steps divide by this instead of treating batch cost as per-kg.
+ */
+export function inferWipBatchOutputKg(processes: WipProcessCostInput[]): string {
+  return inferWipBatchOutputKgDec(processes).toFixed(COST_DP);
+}
+
+function inferWipBatchOutputKgDec(processes: WipProcessCostInput[]): Dec {
+  const safeProcesses = Array.isArray(processes) ? processes : [];
+  let batchKg = Dec.zero();
+  for (const process of safeProcesses) {
+    const throughput = nonNegativeDec(process.throughputPerHour);
+    const duration = nonNegativeDec(process.durationHours);
+    if (throughput.isZero() || duration.isZero()) continue;
+    const uom = (process.throughputUom ?? 'kg').trim().toLowerCase();
+    if (uom === 'kg') {
+      const candidate = throughput.mul(duration);
+      if (candidate.cmp(batchKg) > 0) batchKg = candidate;
+    }
+  }
+  return batchKg.isZero() ? ONE : batchKg;
+}
+
+/**
+ * Process labour for ONE output unit of WIP (e.g. per kg), before yield.
+ * Throughput path: crewRate/throughput + additional/(throughput×duration).
+ * Duration path: (crewRate×duration + additional) / batchOutputKg.
+ */
+export function computeWipProcessLaborPerOutputUnit(
+  process: WipProcessCostInput,
+  batchOutputKg: string,
+): string {
+  return computeWipProcessLaborPerOutputUnitDec(
+    process,
+    nonNegativeDec(batchOutputKg),
+  ).toFixed(COST_DP);
+}
+
+function computeWipProcessLaborPerOutputUnitDec(
+  process: WipProcessCostInput,
+  batchOutputKg: Dec,
+): Dec {
+  const crewRate = sumCrewRate(process.roles);
+  const duration = nonNegativeDec(process.durationHours);
+  const additional = nonNegativeDec(process.additionalCost);
+  const throughput = nonNegativeDec(process.throughputPerHour);
+  const safeBatchKg = batchOutputKg.isZero() ? ONE : batchOutputKg;
+
+  if (!throughput.isZero()) {
+    const batchOutput = throughput.mul(duration.isZero() ? ONE : duration);
+    const additionalPerUnit = batchOutput.isZero() ? Dec.zero() : additional.div(batchOutput);
+    return crewRate.div(throughput).add(additionalPerUnit);
+  }
+
+  const batchCost = crewRate.mul(duration).add(additional);
+  return batchCost.div(safeBatchKg);
+}
+
+export function computeWipComponentCost(
+  processCosts: string[],
+  rmCost: string,
+  yieldPct = '100',
+): string {
+  const rawCost = nonNegativeDec(rmCost);
+  const safeProcessCosts = Array.isArray(processCosts) ? processCosts : [];
+  const processTotal = safeProcessCosts.reduce((sum, cost) => sum.add(nonNegativeDec(cost)), Dec.zero());
+  const safeYield = validYieldFactor(yieldPct);
+
+  return rawCost.add(processTotal).div(safeYield).toFixed(COST_DP);
+}
+
+/**
+ * WIP unit cost = (materials (qty×unitCost) + process labour) / yield.
  */
 export function computeWipUnitCost(input: {
   materials: WipMaterialLineCost[];
   processes: WipProcessCostInput[];
-  yieldPct?: number;
-}): number {
-  const materials = computeWipMaterialCost(input.materials);
-  const processCosts = (Array.isArray(input.processes) ? input.processes : []).map((process) =>
-    computeWipProcessCost(process.roles, process.durationHours, process.additionalCost),
-  );
-  return computeWipComponentCost(processCosts, materials, input.yieldPct);
+  yieldPct?: string;
+}): string {
+  return computeWipCostPartsDecimal(sumMaterialCost(input.materials), input.processes, input.yieldPct)
+    .unitCost
+    .toFixed(COST_DP);
+}
+
+export function computeWipCostParts(input: {
+  rawMaterialCostPerOutputUnit: string;
+  processes: WipProcessCostInput[];
+  yieldPct?: string;
+}): {
+  rawMaterialUnitCost: string;
+  processLaborPerOutputUnit: string;
+  yieldedRawMaterialUnitCost: string;
+  yieldedProcessLaborPerOutputUnit: string;
+  unitCostEur: string;
+} {
+  const rawMaterial = nonNegativeDec(input.rawMaterialCostPerOutputUnit);
+  const parts = computeWipCostPartsDecimal(rawMaterial, input.processes, input.yieldPct);
+  return {
+    rawMaterialUnitCost: rawMaterial.toFixed(SCALE),
+    processLaborPerOutputUnit: parts.processLabor.toFixed(SCALE),
+    yieldedRawMaterialUnitCost: parts.yieldedRawMaterial.toFixed(SCALE),
+    // Allocate the final fixed-point remainder to labour so the two presented
+    // stages always add back to the canonical (material + labour) / yield total.
+    yieldedProcessLaborPerOutputUnit: parts.unitCost.sub(parts.yieldedRawMaterial).toFixed(SCALE),
+    unitCostEur: parts.unitCost.toFixed(COST_DP),
+  };
 }
 
 /**
@@ -77,29 +174,29 @@ export function computeWipTreeUnitCost(input: {
   itemId: string;
   materials: Array<{
     childItemId: string | null;
-    qtyPerUnit: number;
+    qtyPerUnit: string;
     /** Pre-resolved leaf cost; null → ask resolveChild / treat as missing. */
-    unitCost: number | null;
+    unitCost: string | null;
     isIntermediate: boolean;
   }>;
   processes: WipProcessCostInput[];
-  yieldPct?: number;
+  yieldPct?: string;
   visited?: ReadonlySet<string>;
   depth?: number;
-  resolveChild?: (childItemId: string, visited: ReadonlySet<string>, depth: number) => number | null;
-}): { unitCost: number; missing: boolean } {
+  resolveChild?: (childItemId: string, visited: ReadonlySet<string>, depth: number) => string | null;
+}): { unitCost: string; missing: boolean } {
   const depth = input.depth ?? 0;
   const visited = new Set(input.visited ?? []);
   if (visited.has(input.itemId) || depth > WIP_COST_DEPTH_CEILING) {
     // ponytail: cycle / depth break → zero contribution, do not explode
-    return { unitCost: 0, missing: depth > WIP_COST_DEPTH_CEILING };
+    return { unitCost: Dec.zero().toFixed(COST_DP), missing: depth > WIP_COST_DEPTH_CEILING };
   }
   visited.add(input.itemId);
 
   let missing = false;
   const resolvedMaterials: WipMaterialLineCost[] = [];
   for (const line of input.materials) {
-    if (line.unitCost !== null && Number.isFinite(line.unitCost)) {
+    if (line.unitCost !== null && isDecimalString(line.unitCost)) {
       resolvedMaterials.push({ qtyPerUnit: line.qtyPerUnit, unitCost: line.unitCost });
       continue;
     }
@@ -129,12 +226,59 @@ export function computeWipTreeUnitCost(input: {
   };
 }
 
-function toNonNegativeNumber(value: unknown): number {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
+function sumCrewRate(roles: WipProcessRoleCost[]): Dec {
+  const safeRoles = Array.isArray(roles) ? roles : [];
+  return safeRoles.reduce((sum, role) => {
+    return sum.add(nonNegativeDec(role?.rolePerHour).mul(nonNegativeDec(role?.headcount)));
+  }, Dec.zero());
 }
 
-function toValidYieldPct(value: unknown): number {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) && numberValue > 0 && numberValue <= 100 ? numberValue : 100;
+function sumMaterialCost(lines: WipMaterialLineCost[]): Dec {
+  const safeLines = Array.isArray(lines) ? lines : [];
+  return safeLines.reduce((sum, line) => {
+    return sum.add(nonNegativeDec(line?.qtyPerUnit).mul(nonNegativeDec(line?.unitCost)));
+  }, Dec.zero());
+}
+
+function computeWipCostPartsDecimal(
+  rawMaterial: Dec,
+  processes: WipProcessCostInput[],
+  yieldPct: string | undefined,
+): { processLabor: Dec; yieldedRawMaterial: Dec; unitCost: Dec } {
+  const safeProcesses = Array.isArray(processes) ? processes : [];
+  const batchOutputKg = inferWipBatchOutputKgDec(safeProcesses);
+  const processLabor = safeProcesses.reduce((sum, process) => {
+    return sum.add(computeWipProcessLaborPerOutputUnitDec(process, batchOutputKg));
+  }, Dec.zero());
+  const yieldFactor = validYieldFactor(yieldPct);
+  return {
+    processLabor,
+    yieldedRawMaterial: rawMaterial.div(yieldFactor),
+    unitCost: rawMaterial.add(processLabor).div(yieldFactor),
+  };
+}
+
+function nonNegativeDec(value: unknown): Dec {
+  if (typeof value !== 'string' || !/^-?\d+(\.\d+)?$/.test(value.trim())) {
+    return Dec.zero();
+  }
+  const parsed = Dec.from(value);
+  return parsed.cmp(Dec.zero()) < 0 ? Dec.zero() : parsed;
+}
+
+function validYieldFactor(yieldPct: unknown): Dec {
+  if (typeof yieldPct !== 'string' || !/^\d+(\.\d+)?$/.test(yieldPct.trim())) {
+    return ONE;
+  }
+  const pct = Dec.from(yieldPct);
+  if (pct.isZero() || pct.cmp(HUNDRED) > 0) return ONE;
+  return pct.div(HUNDRED);
+}
+
+function isDecimalString(value: string): boolean {
+  return /^-?\d+(\.\d+)?$/.test(value.trim());
+}
+
+function nonNegativeNumberText(value: unknown): string {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? String(value) : '0';
 }

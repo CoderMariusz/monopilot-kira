@@ -184,7 +184,7 @@ export function BomComponentLines({
                         componentCode: l.componentCode,
                         quantity: l.quantity,
                         uom: l.uom,
-                        notes: l.manufacturingOperationName ?? null,
+                        manufacturingOperationName: l.manufacturingOperationName ?? null,
                       }}
                       editable={isEditable}
                       canEdit={canEditLines}

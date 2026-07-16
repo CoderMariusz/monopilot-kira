@@ -59,7 +59,14 @@ export const AUTO_SOURCE_ERROR_CODES = [
   'auto_source_required',
 ] as const;
 
+export const FIELD_DUPLICATE_ERROR_CODES = [
+  'duplicate_code',
+  'duplicate_label',
+  'semantic_duplicate_label',
+] as const;
+
 export type AutoSourceErrorCode = (typeof AUTO_SOURCE_ERROR_CODES)[number];
+export type FieldDuplicateErrorCode = (typeof FIELD_DUPLICATE_ERROR_CODES)[number];
 
 /**
  * Error codes the `setDepartmentActive` action surfaces when a deactivation is
@@ -163,6 +170,7 @@ export type NpdFieldsScreenLabels = {
   autoBadge: string;
   autoFrom: string;
   autoSourceErrors: Record<AutoSourceErrorCode, string>;
+  duplicateFieldErrors: Record<FieldDuplicateErrorCode, string>;
   deactivateErrors: Record<DeactivateErrorCode, string>;
   columns: {
     field: string;
@@ -261,6 +269,33 @@ function isAutoSourceError(
     'ok' in result &&
     (result as { ok: unknown }).ok === false
   );
+}
+
+function isFieldConfigError(
+  result: unknown,
+): result is { ok: false; error: AutoSourceErrorCode | FieldDuplicateErrorCode | string } {
+  return isAutoSourceError(result) && typeof (result as { error?: unknown }).error === 'string';
+}
+
+function fieldConfigErrorMessage(
+  error: string,
+  labels: NpdFieldsScreenLabels,
+): string {
+  if (AUTO_SOURCE_ERROR_CODES.includes(error as AutoSourceErrorCode)) {
+    return labels.autoSourceErrors[error as AutoSourceErrorCode];
+  }
+  if (FIELD_DUPLICATE_ERROR_CODES.includes(error as FieldDuplicateErrorCode)) {
+    return labels.duplicateFieldErrors[error as FieldDuplicateErrorCode];
+  }
+  return labels.error;
+}
+
+function catalogMutationErrorMessage(err: unknown, labels: NpdFieldsScreenLabels): string {
+  if (!(err instanceof Error)) return labels.error;
+  if (FIELD_DUPLICATE_ERROR_CODES.includes(err.message as FieldDuplicateErrorCode)) {
+    return labels.duplicateFieldErrors[err.message as FieldDuplicateErrorCode];
+  }
+  return labels.error;
 }
 
 function isDeactivateErrorCode(value: unknown): value is DeactivateErrorCode {
@@ -701,8 +736,8 @@ export default function NpdFieldsScreen({
       await mutate();
       setDialog(null);
       refreshAfterMutation();
-    } catch {
-      setDialogError(labels.error);
+    } catch (err) {
+      setDialogError(catalogMutationErrorMessage(err, labels));
     } finally {
       setDialogPending(false);
     }
@@ -807,10 +842,8 @@ export default function NpdFieldsScreen({
           // nulls it server-side, but we don't send a stale value).
           auto_source_field: patch.is_auto ? patch.auto_source_field : null,
         });
-        if (isAutoSourceError(result)) {
-          setDialogError(
-            labels.autoSourceErrors[result.error as AutoSourceErrorCode] ?? labels.error,
-          );
+        if (isFieldConfigError(result)) {
+          setDialogError(fieldConfigErrorMessage(result.error, labels));
           return;
         }
         // Success: reflect the saved auto config on the held catalog row so the

@@ -10,6 +10,7 @@ const harness = vi.hoisted(() => ({
   activeDepartmentCountRows: [] as Array<Record<string, unknown>>,
   projectRows: [] as Array<Record<string, unknown>>,
   fieldRows: [] as Array<Record<string, unknown>>,
+  catalogPeerRows: [] as Array<Record<string, unknown>>,
   sourceFieldRows: [] as Array<Record<string, unknown>>,
   fieldAssignmentRows: [] as Array<Record<string, unknown>>,
   assignmentRows: [] as Array<Record<string, unknown>>,
@@ -75,6 +76,18 @@ function makeClient() {
 
       if (normalized.startsWith('select id::text, org_id::text, code, label') && normalized.includes('from public.npd_field_catalog')) {
         return { rows: harness.fieldRows.slice(0, 1) as T[], rowCount: harness.fieldRows.length > 0 ? 1 : 0 };
+      }
+
+      if (
+        normalized.startsWith('select id::text, code, label, data_type') &&
+        normalized.includes('from public.npd_field_catalog')
+      ) {
+        const excludeId = params[0];
+        const rows =
+          excludeId == null
+            ? harness.catalogPeerRows
+            : harness.catalogPeerRows.filter((row) => row.id !== excludeId);
+        return { rows: rows as T[], rowCount: rows.length };
       }
 
       if (normalized.startsWith('select code, is_auto, auto_source_field') && normalized.includes('from public.npd_field_catalog')) {
@@ -144,6 +157,7 @@ describe('NPD field config actions', () => {
         auto_source_field: null,
       },
     ];
+    harness.catalogPeerRows = [...harness.fieldRows];
     harness.sourceFieldRows = [
       {
         code: 'source_ph',
@@ -194,6 +208,42 @@ describe('NPD field config actions', () => {
     const call = harness.calls.find((entry) => entry.sql.includes('from public.npd_departments'));
     expect(call?.sql).toContain('app.current_org_id()');
     expect(call?.sql).toContain('order by display_order');
+  });
+
+  it('createField rejects case-insensitive duplicate code without INSERT', async () => {
+    const { createField } = await import('./npd-field-config');
+    harness.catalogPeerRows = [
+      {
+        id: '66666666-6666-4666-8666-666666666666',
+        code: 'runs_per_week',
+        label: 'Runs per week (estimate)',
+        data_type: 'integer',
+      },
+    ];
+
+    await expect(
+      createField({ code: 'Runs_Per_Week', label: 'Runs duplicate', data_type: 'text' }),
+    ).rejects.toThrow('duplicate_code');
+
+    expect(harness.calls.some((entry) => entry.sql.includes('insert into public.npd_field_catalog'))).toBe(false);
+  });
+
+  it('createField rejects semantic duplicate label with conflicting data_type without INSERT', async () => {
+    const { createField } = await import('./npd-field-config');
+    harness.catalogPeerRows = [
+      {
+        id: '66666666-6666-4666-8666-666666666666',
+        code: 'shelf_life_days',
+        label: 'Shelf Life',
+        data_type: 'integer',
+      },
+    ];
+
+    await expect(
+      createField({ code: 'shelf_life_text', label: 'shelf life', data_type: 'text' }),
+    ).rejects.toThrow('semantic_duplicate_label');
+
+    expect(harness.calls.some((entry) => entry.sql.includes('insert into public.npd_field_catalog'))).toBe(false);
   });
 
   it('createField rejects invalid data_type with a clear error', async () => {

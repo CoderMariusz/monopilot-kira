@@ -141,6 +141,11 @@ async function buildLabels(locale: string): Promise<NpdFieldsScreenLabels> {
       auto_source_cycle: t('auto_source_cycle'),
       auto_source_required: t('auto_source_required'),
     },
+    duplicateFieldErrors: {
+      duplicate_code: t('duplicate_code'),
+      duplicate_label: t('duplicate_label'),
+      semantic_duplicate_label: t('semantic_duplicate_label'),
+    },
     deactivateErrors: {
       cannot_deactivate_core: t('deactivate_core_error'),
       cannot_deactivate_last: t('deactivate_last_error'),

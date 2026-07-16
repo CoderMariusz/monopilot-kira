@@ -24,8 +24,10 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@monopilot/ui/Button';
+import { Select } from '@monopilot/ui/Select';
 
 import { deleteBomLine, updateBomLine } from '../_actions/line-actions';
+import { listManufacturingOperations } from '../../../../../../../actions/reference/manufacturing-ops/list';
 
 export type BomLineRowActionTarget = {
   bomHeaderId: string;
@@ -33,7 +35,7 @@ export type BomLineRowActionTarget = {
   componentCode: string;
   quantity: string;
   uom: string;
-  notes: string | null;
+  manufacturingOperationName: string | null;
 };
 
 function interpolate(template: string, vars: Record<string, string | number>): string {
@@ -133,22 +135,36 @@ export function BomLineRowActions({
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [qty, setQty] = React.useState(target.quantity);
   const [uom, setUom] = React.useState(target.uom);
-  const [notes, setNotes] = React.useState(target.notes ?? '');
+  const [operationName, setOperationName] = React.useState(target.manufacturingOperationName ?? '');
+  const [operations, setOperations] = React.useState<Array<{ value: string; label: string }>>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    if (!editOpen) return;
+    let cancelled = false;
+    void listManufacturingOperations().then((result) => {
+      if (cancelled || !result.ok) return;
+      setOperations(result.data.map((op) => ({ value: op.operation_name, label: op.operation_name })));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [editOpen]);
 
   // Reset the edit form to the row's persisted values whenever it (re)opens.
   React.useEffect(() => {
     if (!editOpen) return;
     setQty(target.quantity);
     setUom(target.uom);
-    setNotes(target.notes ?? '');
+    setOperationName(target.manufacturingOperationName ?? '');
     setError(null);
-  }, [editOpen, target.quantity, target.uom, target.notes]);
+  }, [editOpen, target.quantity, target.uom, target.manufacturingOperationName]);
 
   const qtyNum = Number(qty);
   const qtyInvalid = qty.trim().length === 0 || !Number.isFinite(qtyNum) || qtyNum <= 0;
-  const canSave = !qtyInvalid && !pending;
+  const operationMissing = operationName.trim().length === 0;
+  const canSave = !qtyInvalid && !operationMissing && !pending;
 
   function mapError(err: string, fallbackKey: 'saveError' | 'deleteError'): string {
     if (err === 'forbidden') return tg('forbidden', 'You do not have permission to edit BOM components.');
@@ -168,7 +184,7 @@ export function BomLineRowActions({
         lineId: target.lineId,
         qty: qty.trim(),
         uom: uom.trim() || undefined,
-        notes: notes.trim(),
+        manufacturingOperationName: operationName.trim(),
       });
       if (res.ok) {
         setEditOpen(false);
@@ -230,7 +246,7 @@ export function BomLineRowActions({
           open={editOpen}
           onClose={() => setEditOpen(false)}
           title={tg('editTitle', 'Edit component line')}
-          subtitle={tg('editSubtitle', 'Update the quantity, unit of measure or notes for {component}.', {
+          subtitle={tg('editSubtitle', 'Update the quantity, unit of measure or manufacturing operation for {component}.', {
             component: target.componentCode,
           })}
           footer={
@@ -270,14 +286,22 @@ export function BomLineRowActions({
               />
             </div>
             <div className="ff" style={{ marginBottom: 0 }}>
-              <label>{tg('notes', 'Notes')}</label>
-              <input
-                className="form-input"
-                aria-label={tg('notes', 'Notes')}
-                placeholder={tg('notesPlaceholder', 'Optional line note')}
-                value={notes}
-                onChange={(event) => setNotes(event.currentTarget.value)}
+              <label>
+                {tg('manufacturingOperation', 'Manufacturing operation')}
+                <span className="req">*</span>
+              </label>
+              <Select
+                value={operationName}
+                onValueChange={setOperationName}
+                options={operations}
+                placeholder={tg('manufacturingOperationPlaceholder', 'Select operation')}
+                aria-label={tg('manufacturingOperation', 'Manufacturing operation')}
               />
+              {operationMissing ? (
+                <span className="ff-error" role="alert">
+                  {tg('manufacturingOperationRequired', 'Select a manufacturing operation.')}
+                </span>
+              ) : null}
             </div>
             {error ? (
               <div role="alert" className="alert alert-red">

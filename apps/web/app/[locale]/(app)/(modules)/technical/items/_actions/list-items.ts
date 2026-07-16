@@ -124,7 +124,7 @@ const ITEM_SELECT = `select i.id, i.item_code, i.name, i.item_type, i.status, i.
                   i.uom_base, i.uom_secondary,
                   i.gs1_gtin, i.weight_mode, i.nominal_weight, i.tare_weight, i.gross_weight_max,
                   i.variance_tolerance_pct, i.shelf_life_days, i.shelf_life_mode,
-                  i.output_uom, i.net_qty_per_each, i.each_per_box, i.boxes_per_pallet,
+                  i.output_uom, i.net_qty_per_each::text as net_qty_per_each, i.each_per_box, i.boxes_per_pallet,
                   i.cost_per_kg, i.list_price_gbp::text as list_price_gbp, i.updated_at, i.d365_sync_status,
                   (select count(*) from public.bom_headers bh
                      where bh.item_id = i.id and bh.org_id = app.current_org_id()) as bom_count,

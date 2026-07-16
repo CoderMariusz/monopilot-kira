@@ -1185,6 +1185,9 @@
       "auto_source_not_found": "Nie znaleziono wybranego pola źródłowego. Wybierz aktywne pole katalogu.",
       "auto_source_cycle": "To pole źródłowe już wylicza się z tego pola, co utworzyłoby pętlę.",
       "auto_source_required": "Wybierz pole źródłowe, gdy opcja Wyliczane automatycznie jest włączona.",
+      "duplicate_code": "Pole o tym kodzie już istnieje w katalogu.",
+      "duplicate_label": "Pole o tej etykiecie już istnieje w katalogu.",
+      "semantic_duplicate_label": "Ta etykieta jest już używana przez inne pole o innym typie danych.",
       "deactivate_core_error": "Działu podstawowego nie można dezaktywować.",
       "deactivate_last_error": "Co najmniej jeden dział musi pozostać aktywny.",
       "catalog_title": "Katalog pól",
@@ -2427,7 +2430,8 @@
           "colAllergen": "Alergen",
           "colPresence": "Obecność",
           "noComputed": "Brak obliczonych wartości dla tego wyrobu.",
-          "computedNote": "Przeliczono z BOM dnia {when}.",
+          "computedNote": "Przeliczone ze zmaterializowanego modelu wartości odżywczych NPD dnia {when}.",
+          "computedNoteNoDate": "Zmaterializowane z modelu wartości odżywczych NPD.",
           "presence": {
             "contains": "Zawiera",
             "may_contain": "Może zawierać",
@@ -4400,6 +4404,7 @@
       "loading": "Ładowanie pakietu…",
       "error": "Nie udało się wczytać pakietu zwolnienia. Spróbuj ponownie.",
       "approved": "Pakiet zatwierdzony — FactorySpec i BOM zwolnione do użycia w produkcji.",
+      "approvalRecorded": "Podpis zapisany ({collected} z {required} zatwierdzających). Pakiet nie zostanie zwolniony, dopóki nie podpiszą wszyscy wymagani zatwierdzający.",
       "rejected": "Pakiet odrzucony — oba artefakty wróciły do szkicu.",
       "actionError": "Nie udało się wykonać akcji. Spróbuj ponownie.",
       "blocker": {
@@ -4793,6 +4798,7 @@
       "title": "Wartości odżywcze na 100 g",
       "liveNote": "· na żywo",
       "exportLabel": "Eksportuj etykietę",
+      "exportLabelComingSoon": "Eksport etykiety nie jest jeszcze dostępny",
       "targetsNote": "Cele: Białko ≥ {protein} · Sól ≤ {salt} · Tłuszcz ≤ {fat} na 100 g",
       "withinTarget": "W normie",
       "overTarget": "Powyżej celu",
@@ -6904,7 +6910,8 @@
       "fieldOutputUnitKg": "kg",
       "fieldOutputUnitPieces": "sztuki",
       "fieldOutputUnitBoxes": "kartony",
-      "errorBoxesOutputUnit": "Jednostka wyjściowa „kartony” wymaga masy opakowania (g) i liczby opakowań w kartonie większej niż 0."
+      "errorBoxesOutputUnit": "Jednostka wyjściowa „kartony” wymaga masy opakowania (g) i liczby opakowań w kartonie większej niż 0.",
+      "errorRetailPrice": "Cena detaliczna musi być nieujemna i mieć co najwyżej dwa miejsca po przecinku."
     },
     "faBomTab": {
       "title": "BOM (widok obliczony)",

@@ -159,11 +159,11 @@ export async function createWorkOrderCore(
     `select id, version, line_basis
        from public.bom_headers
       where org_id = app.current_org_id()
-        and product_id = $1
         and status = 'active'
+        and (item_id = $1::uuid or product_id = $2)
       order by version desc
       limit 1`,
-    [input.itemCode],
+    [input.productId, input.itemCode],
   );
   const bom = activeBom.rows[0];
 

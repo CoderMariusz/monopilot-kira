@@ -24,6 +24,7 @@ import {
 import { createBomDraft } from '../_actions/create-draft';
 import { diffBomVersions } from '../_actions/diff-action';
 import { generateBomBatch } from '../_actions/generate-batch';
+import { addBomLine } from '../_actions/line-actions';
 import { getBomDetail, listBoms } from '../_actions/queries';
 import { approveBom, publishBom } from '../_actions/workflow';
 import { ownerQueryWithInferredOrgContext, ensureAppUser as ensureAppUserWithAdvisoryLock } from '../../../../../../../tests/helpers/owner-org-context.js';
@@ -172,6 +173,8 @@ async function cleanup(): Promise<void> {
   await owner.query(`delete from public.bom_co_products where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.bom_lines where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.bom_headers where org_id = any($1)`, [orgs]);
+  await owner.query(`delete from public.wip_definitions where org_id = any($1)`, [orgs]);
+  await owner.query(`delete from public.routings where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.item_allergen_profiles where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.supplier_specs where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.items where org_id = any($1)`, [orgs]);
@@ -522,5 +525,145 @@ run('03-technical BOM API (RLS + RBAC + state machine, real DB)', () => {
     const forbidden = await withActionActor(seed.viewerAUserId, seed.orgAId, () => generateBomBatch({ scope: 'all_complete', outputMode: 'per_fg' }));
     expect(forbidden.ok).toBe(false);
     if (!forbidden.ok) expect(forbidden.error).toBe('forbidden');
+  });
+
+  it('C044: intermediate WIP BOM persists product_id=NULL, supports line append, read, and version bump', async () => {
+    const wipId = randomUUID();
+    const wipCode = `WIP-${randomUUID().slice(0, 6)}`;
+    await owner.query(
+      `insert into public.items (id, org_id, item_code, item_type, name, status, uom_base, weight_mode, created_by)
+       values ($1, $2, $3, 'intermediate', 'Cream base', 'active', 'kg', 'fixed', $4)`,
+      [wipId, seed.orgAId, wipCode, seed.adminAUserId],
+    );
+    const rmId = randomUUID();
+    const rmCode = `RM-${randomUUID().slice(0, 6)}`;
+    await owner.query(
+      `insert into public.items (id, org_id, item_code, item_type, name, status, uom_base, weight_mode, created_by)
+       values ($1, $2, $3, 'rm', 'Sugar', 'active', 'kg', 'fixed', $4)`,
+      [rmId, seed.orgAId, rmCode, seed.adminAUserId],
+    );
+    await seedSupplierSpec(seed.orgAId, rmId, `SUP-${rmCode}`);
+
+    const created = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      createBomDraft({
+        productId: wipCode,
+        parentAllocationPct: 100,
+        lines: [{ itemId: rmId, componentCode: rmCode, componentType: 'RM', quantity: 1, uom: 'kg' }],
+      }),
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) throw new Error(created.message);
+
+    const header = await owner.query<{ product_id: string | null; item_id: string; version: number }>(
+      `select product_id, item_id, version from public.bom_headers where id = $1`,
+      [created.data.id],
+    );
+    expect(header.rows[0]).toMatchObject({ product_id: null, item_id: wipId, version: 1 });
+    const productTwin = await owner.query(`select 1 from public.product where org_id = $1 and product_code = $2`, [
+      seed.orgAId,
+      wipCode,
+    ]);
+    expect(productTwin.rowCount).toBe(0);
+
+    const appended = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      addBomLine({
+        bomHeaderId: created.data.id,
+        itemId: rmId,
+        componentCode: rmCode,
+        componentType: 'RM',
+        quantity: 0.5,
+        uom: 'kg',
+      }),
+    );
+    expect(appended.ok).toBe(true);
+
+    const detail = await withActionActor(seed.adminAUserId, seed.orgAId, () => getBomDetail(wipCode, 1));
+    expect(detail.ok).toBe(true);
+    if (!detail.ok) throw new Error('detail failed');
+    expect(detail.data.header.productId).toBeNull();
+    expect(detail.data.lines).toHaveLength(2);
+
+    const v2 = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      createBomDraft({
+        productId: wipCode,
+        parentAllocationPct: 100,
+        lines: [{ itemId: rmId, componentCode: rmCode, componentType: 'RM', quantity: 2, uom: 'kg' }],
+      }),
+    );
+    expect(v2.ok).toBe(true);
+    if (!v2.ok) throw new Error(v2.message);
+    expect(v2.data.version).toBe(2);
+
+    const listed = await withActionActor(seed.adminAUserId, seed.orgAId, () => listBoms(wipCode));
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) throw new Error('list failed');
+    expect(listed.data[0]!.version).toBe(2);
+  });
+
+  it('C045: purchased intermediate without supplier spec blocks approval; manufactured WIP component passes', async () => {
+    const { productCode, itemIds, itemCodes } = await seedProductWithItems(seed.orgAId, seed.adminAUserId, 'src', 1);
+    const rmId = itemIds[0]!;
+    const rmCode = itemCodes[0]!;
+
+    const purchasedWipId = randomUUID();
+    const purchasedWipCode = `WIP-PUR-${randomUUID().slice(0, 6)}`;
+    await owner.query(
+      `insert into public.items (id, org_id, item_code, item_type, name, status, uom_base, weight_mode, created_by)
+       values ($1, $2, $3, 'intermediate', 'Purchased blend', 'active', 'kg', 'fixed', $4)`,
+      [purchasedWipId, seed.orgAId, purchasedWipCode, seed.adminAUserId],
+    );
+
+    const created = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      createBomDraft({
+        productId: productCode,
+        parentAllocationPct: 100,
+        lines: [
+          { itemId: rmId, componentCode: rmCode, componentType: 'RM', quantity: 1, uom: 'kg' },
+          { itemId: purchasedWipId, componentCode: purchasedWipCode, componentType: 'WIP', quantity: 0.5, uom: 'kg' },
+        ],
+      }),
+    );
+    expect(created.ok).toBe(true);
+
+    const blocked = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      approveBom({ productId: productCode, version: 1 }),
+    );
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) {
+      expect(blocked.code).toBe('V-TEC-14');
+      expect(blocked.message).toContain(purchasedWipCode);
+      expect(blocked.message).toContain('SUPPLIER_SPEC_NOT_ACTIVE');
+    }
+
+    const manufacturedWipId = randomUUID();
+    const manufacturedWipCode = `WIP-MFG-${randomUUID().slice(0, 6)}`;
+    await owner.query(
+      `insert into public.items (id, org_id, item_code, item_type, name, status, uom_base, weight_mode, created_by)
+       values ($1, $2, $3, 'intermediate', 'Manufactured base', 'active', 'kg', 'fixed', $4)`,
+      [manufacturedWipId, seed.orgAId, manufacturedWipCode, seed.adminAUserId],
+    );
+    await owner.query(
+      `insert into public.wip_definitions (id, org_id, item_id, name, base_uom, yield_pct, version, status, reusable, created_by)
+       values ($1, $2, $3, 'Manufactured base', 'kg', 100, 1, 'active', false, $4)`,
+      [randomUUID(), seed.orgAId, manufacturedWipId, seed.adminAUserId],
+    );
+
+    const v2 = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      createBomDraft({
+        productId: productCode,
+        parentAllocationPct: 100,
+        lines: [
+          { itemId: rmId, componentCode: rmCode, componentType: 'RM', quantity: 1, uom: 'kg' },
+          { itemId: manufacturedWipId, componentCode: manufacturedWipCode, componentType: 'WIP', quantity: 0.5, uom: 'kg' },
+        ],
+      }),
+    );
+    expect(v2.ok).toBe(true);
+    if (!v2.ok) throw new Error(v2.message);
+
+    const approved = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      approveBom({ productId: productCode, version: 2 }),
+    );
+    expect(approved.ok).toBe(true);
   });
 });

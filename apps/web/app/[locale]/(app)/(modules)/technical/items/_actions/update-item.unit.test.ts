@@ -11,6 +11,7 @@ type FakeClient = {
   beforeStatus: string;
   itemTypeBlock?: boolean;
   beforeItemType?: string;
+  linkedFg?: boolean;
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
@@ -29,7 +30,7 @@ function normalizeSql(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function makeClient(overrides: Partial<FakeClient> & { itemTypeBlock?: boolean; beforeItemType?: string } = {}): FakeClient {
+function makeClient(overrides: Partial<FakeClient> & { itemTypeBlock?: boolean; beforeItemType?: string; linkedFg?: boolean } = {}): FakeClient {
   const client: FakeClient = {
     calls: [],
     beforeStatus: 'active',
@@ -64,6 +65,12 @@ function makeClient(overrides: Partial<FakeClient> & { itemTypeBlock?: boolean; 
             },
           ] as never[],
           rowCount: 1,
+        };
+      }
+      if (n.includes('from public.items i') && n.includes('join public.npd_projects np')) {
+        return {
+          rows: (overrides.linkedFg ? [{ canonical_name: 'Canonical FG name' }] : []) as never[],
+          rowCount: overrides.linkedFg ? 1 : 0,
         };
       }
       if (n.startsWith('update public.items')) {
@@ -168,6 +175,24 @@ describe('updateItem status transitions', () => {
       ok: false,
       error: 'item_type_immutable',
       message: 'item_type cannot change once the item is active or referenced by BOMs, factory specs, or work orders',
+    });
+    expect(client.calls.some((c) => normalizeSql(c.sql).startsWith('update public.items'))).toBe(false);
+  });
+
+  it('rejects renaming a linked NPD FG without issuing UPDATE', async () => {
+    install(makeClient({ beforeStatus: 'active', beforeItemType: 'fg', linkedFg: true }));
+    const { updateItem } = await import('./update-item');
+
+    const res = await updateItem({
+      ...updatePayload('active'),
+      itemType: 'fg',
+      name: 'Rogue rename',
+    });
+
+    expect(res).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'linked_fg_name_immutable',
     });
     expect(client.calls.some((c) => normalizeSql(c.sql).startsWith('update public.items'))).toBe(false);
   });

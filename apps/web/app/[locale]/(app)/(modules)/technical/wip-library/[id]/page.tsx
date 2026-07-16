@@ -3,6 +3,7 @@
  */
 
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { buildWipLibraryLabels } from '../_lib/build-wip-labels';
 import { loadWipDetailPage } from '../_lib/load-wip-pages';
@@ -18,6 +19,10 @@ export default async function WipDefinitionDetailPage({
   const { locale, id } = await params;
   const labels = await buildWipLibraryLabels();
   const result = await loadWipDetailPage(id);
+
+  if (result.redirectToId && result.redirectToId !== id) {
+    redirect(`/${locale}/technical/wip-library/${result.redirectToId}`);
+  }
 
   return (
     <main data-screen="technical-wip-definition" className="flex w-full flex-col gap-4 px-6 py-6">

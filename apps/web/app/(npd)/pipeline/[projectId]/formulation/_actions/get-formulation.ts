@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { loadResolvedComponentNutrition } from '../../nutrition/_actions/resolve-component-nutrition';
 
 type FormulationRow = {
   formulation_id: string;
@@ -77,6 +78,12 @@ export type GetFormulationResult =
           processingOverheadPct: string | null;
         } | null;
         ingredients: IngredientRow[];
+        /**
+         * F-C030: recursively resolved per-100g nutrition for every top-level
+         * component code (RM leaf + intermediate/WIP). Feeds the live Recipe
+         * Nutrition panel so it matches the materialized recompute path.
+         */
+        resolvedNutritionByCode: Record<string, Record<string, string>>;
         cachedCalc: {
           costJson: unknown;
           nutritionJson: unknown;
@@ -161,6 +168,12 @@ export async function getFormulation(input: {
 
       const ingredients = row.version_id ? await loadIngredients(client, row.version_id) : { rows: [] };
 
+      const rmCodes = [...new Set(ingredients.rows.map((ing) => ing.rm_code))];
+      const { nutritionByCode: resolvedNutritionByCode } =
+        rmCodes.length > 0
+          ? await loadResolvedComponentNutrition(client, rmCodes)
+          : { nutritionByCode: {} as Record<string, Record<string, string>> };
+
       return {
         ok: true,
         data: {
@@ -184,6 +197,7 @@ export async function getFormulation(input: {
                 }
               : null,
           ingredients: ingredients.rows,
+          resolvedNutritionByCode,
           cachedCalc: row.version_id
             ? {
                 costJson: row.cost_json ?? {},

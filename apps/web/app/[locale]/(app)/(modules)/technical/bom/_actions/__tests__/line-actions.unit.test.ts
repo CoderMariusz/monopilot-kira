@@ -101,14 +101,29 @@ function makeClient(overrides: Partial<FakeClient> = {}): FakeClient {
         return { rows: [] as never[], rowCount: 0 };
       }
       // addBomLine — V-TEC-14 RM usability reads (item active, no spec, no allergens).
-      if (n.startsWith('select id, status, updated_at from public.items')) {
+      if (n.startsWith('select id, item_type, status, updated_at from public.items')) {
         return {
-          rows: [{ id: '66666666-6666-4666-8666-666666666666', status: 'active', updated_at: '2026-01-01T00:00:00Z' }] as never[],
+          rows: [
+            {
+              id: '66666666-6666-4666-8666-666666666666',
+              item_type: 'rm',
+              status: 'active',
+              updated_at: '2026-01-01T00:00:00Z',
+            },
+          ] as never[],
           rowCount: 1,
         };
       }
-      if (n.includes('from public.supplier_specs') || n.includes('from public.item_allergen_profiles')) {
+      if (n.includes('from public.item_allergen_profiles')) {
         return { rows: [] as never[], rowCount: 0 };
+      }
+      if (n.includes('reference"."manufacturingoperations')) {
+        const names = (params[0] as string[] | undefined) ?? [];
+        const known = new Set(['Mixing', 'Packing']);
+        return {
+          rows: names.filter((name) => known.has(name)).map((operation_name) => ({ operation_name })) as never[],
+          rowCount: names.filter((name) => known.has(name)).length,
+        };
       }
       // F7 — savepoint fencing around the append attempt.
       if (n.startsWith('savepoint') || n.startsWith('release savepoint') || n.startsWith('rollback to savepoint')) {
@@ -203,6 +218,19 @@ describe('addBomLine (F-B01 — append in place, no version fork)', () => {
     expect(client.calls.length).toBe(0);
   });
 
+  it('rejects an arbitrary manufacturing operation with V-TEC-63 and performs zero writes', async () => {
+    const { addBomLine } = await import('../line-actions');
+    const res = await addBomLine({ ...NEW_LINE, manufacturingOperationName: 'Totally-Fake-Op' });
+    expect(res).toMatchObject({
+      ok: false,
+      error: 'validation_failed',
+      code: 'V-TEC-63',
+      message: expect.stringContaining('Totally-Fake-Op'),
+    });
+    expect(client.calls.some((c) => normalizeSql(c.sql).startsWith('insert into public.bom_lines'))).toBe(false);
+    expect(client.calls.some((c) => normalizeSql(c.sql).startsWith('insert into public.audit_log'))).toBe(false);
+  });
+
   // ── F7 (W9 cross-review MEDIUM) — append race: retry ONCE on 23505 ──────────
   it('F7: retries ONCE when the first append loses the line_no race (23505) and succeeds', async () => {
     install(makeClient({ failInsertsWith23505: 1 }));
@@ -235,16 +263,22 @@ describe('addBomLine (F-B01 — append in place, no version fork)', () => {
 });
 
 describe('updateBomLine', () => {
-  it('persists qty as a decimal string ::numeric and patches uom/notes on a draft header', async () => {
+  it('persists qty as a decimal string ::numeric and patches uom/operation on a draft header', async () => {
     const { updateBomLine } = await import('../line-actions');
-    const res = await updateBomLine({ bomHeaderId: HEADER_ID, lineId: LINE_ID, qty: '2.5', uom: 'g', notes: 'mix slowly' });
+    const res = await updateBomLine({
+      bomHeaderId: HEADER_ID,
+      lineId: LINE_ID,
+      qty: '2.5',
+      uom: 'g',
+      manufacturingOperationName: 'Packing',
+    });
     expect(res).toEqual({ ok: true, data: { lineId: LINE_ID, bomHeaderId: HEADER_ID } });
     const upd = client.calls.find((c) => normalizeSql(c.sql).startsWith('update public.bom_lines') && normalizeSql(c.sql).includes('set quantity'));
     expect(upd).toBeDefined();
-    expect(upd!.params).toEqual([HEADER_ID, LINE_ID, '2.5', 'g', 'mix slowly']);
+    expect(upd!.params).toEqual([HEADER_ID, LINE_ID, '2.5', 'g', 'Packing']);
   });
 
-  it('omits the notes column when notes is undefined', async () => {
+  it('omits the manufacturing operation column when manufacturingOperationName is undefined', async () => {
     const { updateBomLine } = await import('../line-actions');
     const res = await updateBomLine({ bomHeaderId: HEADER_ID, lineId: LINE_ID, qty: '2.5', uom: 'g' });
     expect(res).toEqual({ ok: true, data: { lineId: LINE_ID, bomHeaderId: HEADER_ID } });
@@ -254,9 +288,9 @@ describe('updateBomLine', () => {
     expect(upd!.params).toEqual([HEADER_ID, LINE_ID, '2.5', 'g']);
   });
 
-  it('clears notes to null when notes is an empty string', async () => {
+  it('clears manufacturingOperationName to null when an empty string is provided', async () => {
     const { updateBomLine } = await import('../line-actions');
-    const res = await updateBomLine({ bomHeaderId: HEADER_ID, lineId: LINE_ID, qty: '2.5', notes: '' });
+    const res = await updateBomLine({ bomHeaderId: HEADER_ID, lineId: LINE_ID, qty: '2.5', manufacturingOperationName: '' });
     expect(res).toEqual({ ok: true, data: { lineId: LINE_ID, bomHeaderId: HEADER_ID } });
     const upd = client.calls.find((c) => normalizeSql(c.sql).startsWith('update public.bom_lines') && normalizeSql(c.sql).includes('set quantity'));
     expect(upd).toBeDefined();
@@ -264,14 +298,14 @@ describe('updateBomLine', () => {
     expect(upd!.params[4]).toBeNull();
   });
 
-  it('sets notes to a non-empty string when provided', async () => {
+  it('sets manufacturingOperationName when provided', async () => {
     const { updateBomLine } = await import('../line-actions');
-    const res = await updateBomLine({ bomHeaderId: HEADER_ID, lineId: LINE_ID, qty: '2.5', notes: 'some text' });
+    const res = await updateBomLine({ bomHeaderId: HEADER_ID, lineId: LINE_ID, qty: '2.5', manufacturingOperationName: 'Mixing' });
     expect(res).toEqual({ ok: true, data: { lineId: LINE_ID, bomHeaderId: HEADER_ID } });
     const upd = client.calls.find((c) => normalizeSql(c.sql).startsWith('update public.bom_lines') && normalizeSql(c.sql).includes('set quantity'));
     expect(upd).toBeDefined();
     expect(normalizeSql(upd!.sql)).toContain('manufacturing_operation_name = $5');
-    expect(upd!.params[4]).toBe('some text');
+    expect(upd!.params[4]).toBe('Mixing');
   });
 
   it('refuses with bom_not_editable on an active version (clone-on-write red-line)', async () => {
@@ -301,6 +335,23 @@ describe('updateBomLine', () => {
     const res = await updateBomLine({ bomHeaderId: HEADER_ID, lineId: LINE_ID, qty: '0' });
     expect(res).toMatchObject({ ok: false, error: 'invalid_input' });
     expect(client.calls.length).toBe(0);
+  });
+
+  it('rejects an arbitrary manufacturing operation with V-TEC-63 and performs zero writes', async () => {
+    const { updateBomLine } = await import('../line-actions');
+    const res = await updateBomLine({
+      bomHeaderId: HEADER_ID,
+      lineId: LINE_ID,
+      qty: '2.5',
+      manufacturingOperationName: 'Totally-Fake-Op',
+    });
+    expect(res).toMatchObject({
+      ok: false,
+      error: 'validation_failed',
+      code: 'V-TEC-63',
+      message: expect.stringContaining('Totally-Fake-Op'),
+    });
+    expect(client.calls.some((c) => normalizeSql(c.sql).startsWith('update public.bom_lines'))).toBe(false);
   });
 });
 
