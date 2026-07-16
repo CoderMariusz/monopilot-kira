@@ -170,6 +170,62 @@ export const SetDefaultShippingAddressInput = z.object({
   addressId: z.string().uuid(),
 });
 
+export const CustomerContactInput = z.object({
+  customerId: z.string().uuid(),
+  name: z.string().trim().min(1).max(255),
+  title: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z.string().trim().max(120).optional(),
+  ),
+  email: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z.string().trim().email().max(255).optional(),
+  ),
+  phone: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z.string().trim().max(64).optional(),
+  ),
+  isPrimary: z.boolean().default(false),
+});
+
+export const CustomerContactUpdateInput = CustomerContactInput.extend({
+  contactId: z.string().uuid(),
+});
+
+export const CustomerContactIdInput = z.object({
+  customerId: z.string().uuid(),
+  contactId: z.string().uuid(),
+});
+
+export const SetPrimaryCustomerContactInput = z.object({
+  customerId: z.string().uuid(),
+  contactId: z.string().uuid(),
+});
+
+export const CustomerAllergenRestrictionInput = z.object({
+  customerId: z.string().uuid(),
+  allergenId: z.string().uuid(),
+  restrictionType: z.enum(['refuses', 'requires_decl']),
+  notes: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z.string().trim().max(2000).optional(),
+  ),
+});
+
+export const CustomerAllergenRestrictionUpdateInput = CustomerAllergenRestrictionInput.extend({
+  restrictionId: z.string().uuid(),
+});
+
+export const CustomerAllergenRestrictionIdInput = z.object({
+  customerId: z.string().uuid(),
+  restrictionId: z.string().uuid(),
+});
+
+export type AllergenReferenceOption = {
+  id: string;
+  name: string;
+};
+
 type CustomerRow = {
   id: string;
   customer_code: string | null;

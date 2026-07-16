@@ -192,7 +192,6 @@ describe('Plan-detail Actions column gate (canEdit && isDraft)', () => {
         upsertCcpAction={(vi.fn(async () => ({ ok: true as const, data: makeCcpRow() }))) as never}
         deactivateCcpAction={(vi.fn(async () => ({ ok: true as const, data: { id: 'x', isActive: false as const } }))) as never}
         activatePlanAction={(vi.fn(async () => ({ ok: true as const, data: { ...plan, status: 'active' as const } }))) as never}
-        t={tEn}
       />,
     );
   }

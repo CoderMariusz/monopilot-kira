@@ -21,7 +21,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { WoDetailView, type WoDetailLabels } from '../_components/wo-detail-view';
-import type { GetPlanningWorkOrderResult } from '../_actions/shared';
+import type { GetPlanningWorkOrderResult, ReleaseWorkOrderResult } from '../_actions/shared';
 import type { FgProductOption, ProductionResources } from '../_actions/wo-form-data';
 
 const refresh = vi.fn();
@@ -106,6 +106,19 @@ const labels: WoDetailLabels = {
     confirm: 'Cancel the whole chain for {wo}?',
     error: 'Could not cancel this chain.',
   },
+  release: {
+    button: 'Release',
+    pending: 'Releasing…',
+    confirm: 'Release work order {wo}? This commits it to production.',
+    error: {
+      forbidden: 'no permission',
+      not_found: 'gone',
+      invalid_state: 'invalid state',
+      invalid_input: 'invalid',
+      persistence_failed: 'release failed',
+      pack_hierarchy_incomplete: 'pack incomplete',
+    },
+  },
 };
 
 function makeWo(over: Partial<Wo> = {}): Wo {
@@ -161,10 +174,12 @@ function renderDetail(over: {
   wo?: Wo;
   update?: ReturnType<typeof vi.fn>;
   deleteDraft?: ReturnType<typeof vi.fn>;
+  release?: ReturnType<typeof vi.fn>;
 } = {}) {
   const update = over.update ?? vi.fn().mockResolvedValue({ ok: true, workOrder: {} });
   const search = vi.fn().mockResolvedValue([fgRow]);
   const deleteDraft = over.deleteDraft ?? vi.fn().mockResolvedValue({ ok: true, id: 'wo-1' });
+  const release = over.release ?? vi.fn().mockResolvedValue({ ok: true, workOrder: {} });
   const utils = render(
     <WoDetailView
       workOrder={over.wo ?? makeWo()}
@@ -174,9 +189,10 @@ function renderDetail(over: {
       searchFgProductsAction={search}
       updateWorkOrderAction={update}
       deleteDraftWorkOrderAction={deleteDraft}
+      releaseWorkOrderAction={release}
     />,
   );
-  return { ...utils, update, search, deleteDraft };
+  return { ...utils, update, search, deleteDraft, release };
 }
 
 afterEach(() => {
@@ -368,5 +384,29 @@ describe('WO detail summary — line resolves to a human label, never a raw UUID
     renderDetail({ wo: makeWo({ productionLineId: 'unknown-line-xyz' }) });
     const summary = screen.getByTestId('wo-detail-summary');
     expect(within(summary).getByText('unknown-line-xyz')).toBeInTheDocument();
+  });
+});
+
+describe('WoDetailView — draft Release action (C066)', () => {
+  it('shows Release only on DRAFT work orders', () => {
+    renderDetail({ wo: makeWo({ status: 'DRAFT' }) });
+    expect(screen.getByTestId('wo-detail-release')).toBeInTheDocument();
+    expect(screen.getByTestId('wo-detail-release')).toHaveTextContent('Release');
+  });
+
+  it('hides Release on non-draft work orders', () => {
+    renderDetail({ wo: makeWo({ status: 'RELEASED' }) });
+    expect(screen.queryByTestId('wo-detail-release')).toBeNull();
+  });
+
+  it('confirms then calls releaseWorkOrderAction and refreshes', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const release = vi.fn<[], Promise<ReleaseWorkOrderResult>>().mockResolvedValue({ ok: true, workOrder: {} as any });
+    renderDetail({ release });
+
+    fireEvent.click(screen.getByTestId('wo-detail-release'));
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => expect(release).toHaveBeenCalledWith({ id: 'wo-1' }));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 });

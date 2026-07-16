@@ -36,7 +36,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@monopilot/ui/Tabs';
 
 import { WoStatusBadge } from './wo-status-badge';
 import { EditWoModal, type EditWoLabels, type EditWoResult } from './edit-wo-modal';
-import type { DeleteDraftWorkOrderResult, GetPlanningWorkOrderResult, CancelWorkOrderChainResult } from '../_actions/shared';
+import type { DeleteDraftWorkOrderResult, GetPlanningWorkOrderResult, CancelWorkOrderChainResult, ReleaseWorkOrderResult } from '../_actions/shared';
 import type { FgProductOption, ProductionResources, SearchFgProductsInput } from '../_actions/wo-form-data';
 
 type Wo = Extract<GetPlanningWorkOrderResult, { ok: true }>['workOrder'];
@@ -98,6 +98,18 @@ export type WoDetailLabels = {
     error: string;
     blocked: string;
   };
+  release?: {
+    button: string;
+    pending: string;
+    confirm: string;
+    error: Record<string, string>;
+    factoryReleaseIncomplete?: {
+      title: string;
+      activeBom: string;
+      factorySpec: string;
+      technicalHint: string;
+    };
+  };
 };
 
 function fmtTs(iso: string | null, locale: string): string {
@@ -136,6 +148,7 @@ export function WoDetailView({
   updateWorkOrderAction,
   deleteDraftWorkOrderAction,
   cancelWorkOrderChainAction,
+  releaseWorkOrderAction,
 }: {
   workOrder: Wo;
   labels: WoDetailLabels;
@@ -154,6 +167,7 @@ export function WoDetailView({
   }) => Promise<EditWoResult>;
   deleteDraftWorkOrderAction?: (params: { id: string }) => Promise<DeleteDraftWorkOrderResult>;
   cancelWorkOrderChainAction?: (params: { id: string }) => Promise<CancelWorkOrderChainResult>;
+  releaseWorkOrderAction?: (params: { id: string }) => Promise<ReleaseWorkOrderResult>;
 }) {
   const router = useRouter();
   const wo = workOrder;
@@ -180,11 +194,51 @@ export function WoDetailView({
     && !!labels.cancelChain
     && !!cancelWorkOrderChainAction;
   const canEdit = isDraft && !!labels.edit;
+  const canRelease = isDraft && !!labels.release && !!releaseWorkOrderAction;
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
+  const [releasing, setReleasing] = React.useState(false);
+  const [releaseError, setReleaseError] = React.useState<string | null>(null);
   const [cancellingChain, setCancellingChain] = React.useState(false);
   const [cancelChainError, setCancelChainError] = React.useState<string | null>(null);
+
+  function factoryIncompleteMessage(missing: readonly string[]): string {
+    const fr = labels.release?.factoryReleaseIncomplete;
+    if (!fr) return labels.release?.error.persistence_failed ?? 'persistence_failed';
+    const names = missing
+      .map((m) => (m === 'active_bom' ? fr.activeBom : m === 'factory_spec' ? fr.factorySpec : m))
+      .filter(Boolean);
+    const list = names.length > 0 ? names.join(', ') : [fr.activeBom, fr.factorySpec].join(', ');
+    return `${fr.title.replace('{missing}', list)} ${fr.technicalHint}`.trim();
+  }
+
+  async function onRelease() {
+    if (!releaseWorkOrderAction || releasing) return;
+    if (!window.confirm((labels.release?.confirm ?? '').replace('{wo}', wo.woNumber))) return;
+    setReleasing(true);
+    setReleaseError(null);
+    try {
+      const result = await releaseWorkOrderAction({ id: wo.id });
+      if (!result.ok) {
+        const r = result as { error: string; missing?: readonly string[]; message?: string };
+        const message =
+          r.error === 'factory_release_incomplete'
+            ? r.message ?? factoryIncompleteMessage(r.missing ?? [])
+            : r.error === 'upstream_wip_not_ready' && r.message
+              ? r.message
+              : labels.release?.error[r.error] ?? labels.release?.error.persistence_failed ?? r.error;
+        setReleaseError(message);
+        setReleasing(false);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setReleaseError(labels.release?.error.persistence_failed ?? 'persistence_failed');
+    } finally {
+      setReleasing(false);
+    }
+  }
 
   async function onDeleteDraft() {
     if (!deleteDraftWorkOrderAction || deleting) return;
@@ -242,6 +296,18 @@ export function WoDetailView({
         <WoStatusBadge status={wo.status} label={statusLabel(wo.status)} />
         <Badge variant="outline">{wo.priority}</Badge>
         <div className="ml-auto flex items-center gap-2">
+          {canRelease ? (
+            <Button
+              type="button"
+              className="btn--primary btn-sm"
+              data-testid="wo-detail-release"
+              disabled={releasing || deleting || cancellingChain}
+              aria-busy={releasing}
+              onClick={onRelease}
+            >
+              {releasing ? labels.release!.pending : labels.release!.button}
+            </Button>
+          ) : null}
           {canEdit && updateWorkOrderAction && searchFgProductsAction && resources && labels.edit ? (
             <Button type="button" className="btn--secondary btn-sm" data-testid="wo-edit-order" onClick={() => setEditOpen(true)}>
               {labels.edit.editButton}
@@ -273,6 +339,12 @@ export function WoDetailView({
           ) : null}
         </div>
       </div>
+
+      {releaseError ? (
+        <div role="alert" data-testid="wo-detail-release-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {releaseError}
+        </div>
+      ) : null}
 
       {cancelChainError ? (
         <div role="alert" data-testid="wo-cancel-chain-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

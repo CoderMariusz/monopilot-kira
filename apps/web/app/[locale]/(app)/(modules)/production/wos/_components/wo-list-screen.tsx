@@ -18,6 +18,7 @@ import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/shared/download';
+import { formatUtcIsoMinute } from '../../../../../../../lib/shared/format-utc-datetime';
 import { buildListPageHref } from '../../../../../../../lib/shared/list-page-href';
 import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
 import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
@@ -125,10 +126,7 @@ function fmtQty(n: number): string {
   return QTY_FMT.format(Math.round(n));
 }
 function fmtDate(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toISOString().slice(0, 16).replace('T', ' ');
+  return formatUtcIsoMinute(iso);
 }
 function detailHref(locale: string, id: string): string {
   return `/${locale}/production/wos/${id}`;

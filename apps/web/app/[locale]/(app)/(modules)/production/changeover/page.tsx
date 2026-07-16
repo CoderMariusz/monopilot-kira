@@ -26,6 +26,7 @@ import {
   getChangeoverScreen,
   type SignOffStatus,
 } from './_actions/changeover-data';
+import { formatUtcDateTime } from '../../../../../../lib/shared/format-utc-datetime';
 import { ChangeoverTable, type ChangeoverTableLabels } from './_components/changeover-table';
 import type { BadgeVariant } from '@monopilot/ui/Badge';
 
@@ -65,7 +66,13 @@ async function ChangeoverContent() {
   }
 
   const data = result.data;
-  const dtf = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const formatStartedAt = (iso: string) =>
+    formatUtcDateTime(iso, locale, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
   // C4/F2: canonical write value is 'complete' (migration 280); legacy rows may
   // still read 'completed' until normalized — the shim accepts both.
@@ -105,7 +112,7 @@ async function ChangeoverContent() {
     },
     signOff: signOffLabel,
     signOffVariant,
-    dateFmt: (iso) => dtf.format(new Date(iso)),
+    dateFmt: formatStartedAt,
   };
 
   return (

@@ -18,6 +18,7 @@ export type ShippingTabsLabels = {
   salesOrders: string;
   shipments: string;
   customers: string;
+  rma: string;
 };
 
 export function ShippingTabs({
@@ -30,12 +31,14 @@ export function ShippingTabs({
   const pathname = usePathname() ?? '';
   const onShipments = pathname.includes('/shipping/shipments');
   const onCustomers = pathname.includes('/shipping/customers');
-  const onSalesOrders = !onShipments && !onCustomers;
+  const onRma = pathname.includes('/shipping/rma');
+  const onSalesOrders = !onShipments && !onCustomers && !onRma;
 
   const tabs = [
     { key: 'salesOrders', href: `/${locale}/shipping`, label: labels.salesOrders, active: onSalesOrders },
     { key: 'shipments', href: `/${locale}/shipping/shipments`, label: labels.shipments, active: onShipments },
     { key: 'customers', href: `/${locale}/shipping/customers`, label: labels.customers, active: onCustomers },
+    { key: 'rma', href: `/${locale}/shipping/rma`, label: labels.rma, active: onRma },
   ];
 
   return (

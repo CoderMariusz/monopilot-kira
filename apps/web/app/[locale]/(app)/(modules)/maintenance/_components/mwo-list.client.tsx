@@ -133,6 +133,17 @@ export type MwoListLabels = {
     errorRequired: string;
     errorFailed: string;
   };
+  edit: {
+    button: string;
+    title: string;
+    submit: string;
+    submitting: string;
+    cancel: string;
+    errorRequired: string;
+    errorFailed: string;
+    errorForbidden: string;
+    errorLocked: string;
+  };
   transition: {
     startTitle: string;
     completeTitle: string;

@@ -325,6 +325,14 @@ describe('recordCalibration', () => {
     if (result.ok) {
       expect(result.data.recordId).toBe(RECORD_ID);
       expect(result.data.nextDueDate).toBe('2026-11-28');
+      expect(result.data.rowPatch).toEqual({
+        instrumentId: INSTRUMENT_ID,
+        calibratedAt: '2026-06-01T10:00:00.000Z',
+        result: 'PASS',
+        certificateFileUrl: 'CERT-2026-001',
+        nextDueDate: '2026-11-28',
+        active: true,
+      });
     }
 
     expect(dualSignMock).toHaveBeenCalledWith(

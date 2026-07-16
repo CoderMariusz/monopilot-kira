@@ -10,7 +10,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createMwo, generateMwoFromPmSchedule, getMwoById, getMwoOverviewStats, listEquipmentForMwo, listMwos, listPmSchedules, transitionMwo, verifyMwoLotoLockout, verifyMwoLotoRelease } from '../mwo-actions';
+import { createMwo, generateMwoFromPmSchedule, getMwoById, getMwoOverviewStats, listEquipmentForMwo, listMwos, listPmSchedules, transitionMwo, updateMwo, verifyMwoLotoLockout, verifyMwoLotoRelease } from '../mwo-actions';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -45,6 +45,12 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
     async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
       action({ userId: USER_ID, orgId: ORG_ID, client }),
   ),
+}));
+
+const revalidateMock = vi.fn();
+
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: (...args: unknown[]) => revalidateMock(...args),
 }));
 
 const signEventMock = vi.fn();
@@ -320,6 +326,23 @@ function makeClient(): QueryClient {
         return { rows: [{ id: String(params?.[0]) }], rowCount: 1 };
       }
 
+      // updateMwo: editable-state guard.
+      if (
+        normalized.includes('select id::text, state') &&
+        normalized.includes('from public.maintenance_work_orders') &&
+        normalized.includes('limit 1')
+      ) {
+        return {
+          rows: [{ id: MWO_ID, state: currentState }],
+          rowCount: 1,
+        };
+      }
+
+      // updateMwo: field update (distinct from transition state change).
+      if (normalized.includes('update public.maintenance_work_orders w') && normalized.includes('equipment_id = $2')) {
+        return { rows: [{ id: MWO_ID }], rowCount: 1 };
+      }
+
       // transitionMwo: guarded update.
       if (normalized.startsWith('update public.maintenance_work_orders')) {
         const to = String(params?.[1]);
@@ -433,6 +456,7 @@ beforeEach(() => {
   duplicateOpenMwo = false;
   overviewPlanned = 0;
   client = makeClient();
+  revalidateMock.mockClear();
   signEventMock.mockReset();
   signEventMock.mockResolvedValue({
     signatureId: '88888888-8888-4888-8888-888888888888',
@@ -610,6 +634,58 @@ describe('createMwo', () => {
     const insert = calls().find((c) => c.sql.startsWith('insert into public.maintenance_work_orders'));
     expect(insert?.params?.[1]).toBe('auto_downtime');
     expect(insert?.params?.[4]).toBe(dtId);
+  });
+});
+
+describe('updateMwo', () => {
+  const input = {
+    mwoId: MWO_ID,
+    equipmentId: EQUIPMENT_ID,
+    title: 'Updated bearing inspection',
+    description: 'Corrected scope before start',
+    priority: 'high' as const,
+    dueDate: '2026-08-01',
+  };
+
+  it('updates an open MWO with mnt.mwo.request and revalidates maintenance routes', async () => {
+    currentState = 'open';
+
+    const result = await updateMwo(input);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.data.id).toBe(MWO_ID);
+    expect(result.data.title).toBe('PM: EQ-01 — preventive');
+
+    const update = calls().find(
+      (c) => c.sql.includes('update public.maintenance_work_orders w') && c.sql.includes('equipment_id = $2'),
+    );
+    expect(update?.params?.[0]).toBe(MWO_ID);
+    expect(update?.params?.[1]).toBe(EQUIPMENT_ID);
+    expect(update?.params?.[2]).toBe('Updated bearing inspection');
+    expect(update?.params?.[3]).toBe('Corrected scope before start');
+    expect(update?.params?.[4]).toBe('high');
+    expect(update?.params?.[5]).toBe('2026-08-01');
+
+    expect(revalidateMock).toHaveBeenCalledWith('/maintenance');
+    expect(revalidateMock).toHaveBeenCalledWith(`/maintenance/mwos/${MWO_ID}`);
+  });
+
+  it('rejects edits once the MWO is in progress', async () => {
+    currentState = 'in_progress';
+
+    const result = await updateMwo(input);
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'invalid_transition',
+      message: 'Work order can only be edited before execution starts',
+    });
+    expect(
+      calls().some(
+        (c) => c.sql.includes('update public.maintenance_work_orders w') && c.sql.includes('equipment_id = $2'),
+      ),
+    ).toBe(false);
   });
 });
 

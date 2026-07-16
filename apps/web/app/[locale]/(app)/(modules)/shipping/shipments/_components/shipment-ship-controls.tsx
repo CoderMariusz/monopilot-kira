@@ -100,6 +100,7 @@ export type ShipmentShipControlsProps = {
   status: string;
   shippedAt: string | null;
   bolPdfUrl?: string | null;
+  bolSha256?: string | null;
   bolSignedPdfUrl?: string | null;
   deliveredAt?: string | null;
   carrier?: string | null;
@@ -158,6 +159,7 @@ export function ShipmentShipControls({
   status,
   shippedAt,
   bolPdfUrl,
+  bolSha256,
   bolSignedPdfUrl,
   deliveredAt,
   carrier,
@@ -199,7 +201,7 @@ export function ShipmentShipControls({
   const [delivered, setDelivered] = React.useState(DELIVERED_STATES.has(normalized) || Boolean(deliveredAt));
   const [deliveredStamp, setDeliveredStamp] = React.useState<string | null>(deliveredAt ?? null);
   const [bolDocument, setBolDocument] = React.useState<string | null>(displayText(bolPdfUrl));
-  const [bolRef, setBolRef] = React.useState<string | null>(null);
+  const [bolRef, setBolRef] = React.useState<string | null>(displayText(bolSha256));
   const [signedBol, setSignedBol] = React.useState<string | null>(displayText(bolSignedPdfUrl));
   const [carrierValue, setCarrierValue] = React.useState<string | null>(displayText(carrier));
   const [serviceLevelValue, setServiceLevelValue] = React.useState<string | null>(displayText(serviceLevel));
@@ -207,6 +209,13 @@ export function ShipmentShipControls({
 
   const [shipPending, setShipPending] = React.useState(false);
   const [shipError, setShipError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const persistedBolRef = displayText(bolSha256);
+    if (persistedBolRef) {
+      setBolRef(persistedBolRef);
+    }
+  }, [bolSha256]);
 
   const hasBox = boxCount >= 1;
   // [Ship] remains visible before shipping but is actionable only after packing is sealed.
@@ -252,6 +261,8 @@ export function ShipmentShipControls({
   const activeIndex = stageOrder.indexOf(lifecycleStage);
   const bolHref = documentUrl(bolDocument);
   const signedBolHref = documentUrl(signedBol);
+  const persistedBolRef = displayText(bolSha256);
+  const bolReference = bolRef ?? persistedBolRef;
   const serviceLevelLabel = serviceLevelValue
     ? labels.bol.serviceLevelOptions[serviceLevelValue] ?? serviceLevelValue
     : null;
@@ -325,7 +336,7 @@ export function ShipmentShipControls({
               </dd>
             </div>
           ) : null}
-          {bolDocument || bolRef ? (
+          {bolDocument || bolReference ? (
             <div className="flex items-center justify-between gap-2">
               <dt className="text-slate-500">{labels.lifecycle.bolLink}</dt>
               <dd>
@@ -339,11 +350,10 @@ export function ShipmentShipControls({
                   >
                     {labels.lifecycle.bolLink}
                   </a>
-                ) : bolRef ? (
-                  // In-session generate returns the SHA-256 BOL reference; show the
-                  // (truncated) hash as the value.
+                ) : bolReference ? (
+                  // Persisted ext_data.bol_sha256 or in-session generateBol ref — show truncated hash.
                   <span className="font-mono text-blue-700" data-testid="shipment-bol-ref">
-                    {bolRef.slice(0, 12)}
+                    {bolReference.slice(0, 12)}
                   </span>
                 ) : (
                   // A BOL has been persisted (bol_pdf_url is set) but it is NOT a
@@ -419,7 +429,7 @@ export function ShipmentShipControls({
           <GenerateBolModal
             shipmentNumber={shipmentNumber}
             shipmentId={shipmentId}
-            hasBol={Boolean(bolDocument || bolRef)}
+            hasBol={Boolean(bolDocument || bolReference)}
             canBol={caps.canBol}
             statusReady={bolStatusReady}
             statusTooltip={labels.ship.bolNotAvailable}

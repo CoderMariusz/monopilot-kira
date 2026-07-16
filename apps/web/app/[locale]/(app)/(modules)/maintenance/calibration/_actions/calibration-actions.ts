@@ -40,6 +40,7 @@ import {
   recordCalibrationSchema,
   updateInstrumentSchema,
   type CalibrationPermissions,
+  type CalibrationRecordRowPatch,
   type InstrumentOption,
 } from '../_types/calibration-schemas';
 
@@ -466,12 +467,14 @@ export async function recordCalibration(input: {
   certificateRef?: string;
   signature: { password: string; nonce?: string };
   reviewerSignature: { userId: string; password: string; nonce?: string };
-}): Promise<ActionResult<{ recordId: string; nextDueDate: string }>> {
+}): Promise<ActionResult<{ recordId: string; nextDueDate: string; rowPatch: CalibrationRecordRowPatch }>> {
   try {
     const parsed = recordCalibrationSchema.parse(input);
     try {
       return await withOrgContext(
-        async (ctx: CalibrationContext): Promise<ActionResult<{ recordId: string; nextDueDate: string }>> => {
+        async (
+          ctx: CalibrationContext,
+        ): Promise<ActionResult<{ recordId: string; nextDueDate: string; rowPatch: CalibrationRecordRowPatch }>> => {
           if (!(await hasPermission(ctx, MNT_CALIB_RECORD_PERMISSION))) {
             return { ok: false, reason: 'forbidden' };
           }
@@ -634,8 +637,28 @@ export async function recordCalibration(input: {
             },
           });
 
+          const instrumentActiveAfterRecord = isFailureResult(parsed.result)
+            ? false
+            : parsed.result === 'PASS'
+              ? true
+              : instrumentRow.active;
+
           revalidateLocalized('/maintenance/calibration');
-          return { ok: true, data: { recordId: recordRow.id, nextDueDate } };
+          return {
+            ok: true,
+            data: {
+              recordId: recordRow.id,
+              nextDueDate,
+              rowPatch: {
+                instrumentId: parsed.instrumentId,
+                calibratedAt: calibratedAt.toISOString(),
+                result: parsed.result,
+                certificateFileUrl,
+                nextDueDate,
+                active: instrumentActiveAfterRecord,
+              },
+            },
+          };
         },
       );
     } catch (err) {

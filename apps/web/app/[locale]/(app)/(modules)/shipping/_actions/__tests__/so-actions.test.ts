@@ -710,6 +710,26 @@ describe('createSalesOrder', () => {
     );
   });
 
+  it('accepts trailing-zero qty and price on create and normalizes to DB scale (C114)', async () => {
+    await createSalesOrder({
+      customer_id: CUSTOMER_ID,
+      lines: [
+        {
+          item_id: ITEM_ID,
+          qty: '3.125000',
+          uom: 'kg',
+          unit_price_gbp: '2.345600',
+        },
+      ],
+    });
+
+    expect(insertedLines[0]).toMatchObject({
+      quantity_ordered: '3.125',
+      unit_price_gbp: '2.3456',
+      ext_data: { order_uom: 'kg', order_qty: '3.125' },
+    });
+  });
+
   it('persists high-precision list_price_gbp normalized to the stored 4dp scale', async () => {
     listPriceGbp = '12.3456789';
 

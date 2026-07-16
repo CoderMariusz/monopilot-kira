@@ -288,7 +288,7 @@ export default async function ShippingRoutePage({ params, searchParams }: PagePr
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.shipping') }, { label: t('breadcrumb.salesOrders') }]}
       />
-      <ShippingTabs locale={locale} labels={{ salesOrders: tShip('tabs.salesOrders'), shipments: tShip('tabs.shipments'), customers: tShip('tabs.customers') }} />
+      <ShippingTabs locale={locale} labels={{ salesOrders: tShip('tabs.salesOrders'), shipments: tShip('tabs.shipments'), customers: tShip('tabs.customers'), rma: tShip('tabs.rma') }} />
       <Suspense key={suspenseKey} fallback={<ListSkeleton />}>
         <ListContent locale={locale} autoOpenCreate={autoOpenCreate} page={page} filters={filters} />
       </Suspense>

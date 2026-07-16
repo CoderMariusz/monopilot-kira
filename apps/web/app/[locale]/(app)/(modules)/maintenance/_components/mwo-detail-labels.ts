@@ -88,6 +88,17 @@ export function buildMwoListLabels(t: MaintenanceTranslator): MwoDetailLabels {
       errorRequired: t('create.errorRequired'),
       errorFailed: t('create.errorFailed'),
     },
+    edit: {
+      button: t('edit.button'),
+      title: t('edit.title'),
+      submit: t('edit.submit'),
+      submitting: t('edit.submitting'),
+      cancel: t('edit.cancel'),
+      errorRequired: t('edit.errorRequired'),
+      errorFailed: t('edit.errorFailed'),
+      errorForbidden: t('edit.errorForbidden'),
+      errorLocked: t('edit.errorLocked'),
+    },
     transition: {
       startTitle: t('transition.startTitle'),
       completeTitle: t('transition.completeTitle'),
@@ -149,6 +160,7 @@ export function buildMwoListLabels(t: MaintenanceTranslator): MwoDetailLabels {
       lotoPendingBanner: t('detail.lotoPendingBanner'),
       lotoApply: t('detail.lotoApply'),
       lotoClear: t('detail.lotoClear'),
+      edit: t('edit.button'),
     },
     loto: {
       lockoutTitle: t('loto.lockoutTitle'),

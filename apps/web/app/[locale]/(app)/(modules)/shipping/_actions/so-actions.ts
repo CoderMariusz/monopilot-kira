@@ -13,6 +13,10 @@ import {
   resolveSalesLinePriceDetailed,
   SO_LINE_PRICE_CURRENCY,
 } from './sales-line-price';
+import {
+  normalizeSoLineQty,
+  normalizeSoLineUnitPrice,
+} from './so-line-numeric';
 import { cancelOpenShipmentForSoInContext } from './so-shipment-release';
 import {
   deallocateSalesOrderInContext,
@@ -106,7 +110,6 @@ type UpdateSalesOrderInput = {
   }>;
 };
 
-const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
 const PCT_PATTERN = /^\d+(?:\.\d{1,4})?$/;
 const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
 
@@ -678,11 +681,15 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     for (const line of input.lines) {
       const item = itemsById.get(line.item_id);
       if (!item) return { ok: false, error: 'invalid_input', message: 'Unknown sales order item' };
+      const normalizedOrderQty = normalizeSoLineQty(line.qty);
+      if (normalizedOrderQty == null) {
+        return { ok: false, error: 'invalid_input', message: 'Line quantity must be greater than zero' };
+      }
       let inventoryQty: string;
       try {
         inventoryQty = await resolveOrderQtyToInventoryQty(ctx.client, {
           itemId: line.item_id,
-          orderQty: line.qty,
+          orderQty: normalizedOrderQty,
           orderUom: line.uom,
         });
       } catch (err) {
@@ -704,10 +711,11 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
       }
       let unitPriceGbp: string;
       if (submittedPrice != null && submittedPrice.length > 0) {
-        if (!PRICE_PATTERN.test(submittedPrice) || Number(submittedPrice) <= 0) {
+        const normalizedPrice = normalizeSoLineUnitPrice(submittedPrice);
+        if (normalizedPrice == null) {
           return { ok: false, error: 'invalid_input', message: 'Unit price must be greater than zero' };
         }
-        unitPriceGbp = normalizeSoUnitPriceGbp(submittedPrice) ?? submittedPrice;
+        unitPriceGbp = normalizedPrice;
       } else {
         unitPriceGbp = resolveSalesLinePriceDetailed(item, {
           customerPriceGbp: customerPricesByItemId.get(line.item_id) ?? null,
@@ -722,7 +730,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
 
       resolvedLines.push({
         item_id: line.item_id,
-        order_qty: line.qty,
+        order_qty: normalizedOrderQty,
         inventory_qty: inventoryQty,
         uom: line.uom,
         unitPriceGbp,
@@ -851,7 +859,8 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
 
         const orderQty = patch.qty?.trim() ?? existing.order_qty;
         const orderUom = existing.order_uom;
-        if (!/^\d+(?:\.\d{1,3})?$/.test(orderQty) || Number(orderQty) <= 0) {
+        const normalizedOrderQty = normalizeSoLineQty(orderQty);
+        if (normalizedOrderQty == null) {
           return { ok: false, error: 'invalid_input', message: 'Line quantity must be greater than zero' };
         }
 
@@ -859,7 +868,7 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
         try {
           inventoryQty = await resolveOrderQtyToInventoryQty(ctx.client, {
             itemId: existing.product_id,
-            orderQty,
+            orderQty: normalizedOrderQty,
             orderUom,
           });
         } catch (err) {
@@ -891,10 +900,11 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
         const submittedPrice = patch.unit_price_gbp?.trim();
         let unitPriceGbp: string;
         if (submittedPrice && submittedPrice.length > 0) {
-          if (!PRICE_PATTERN.test(submittedPrice) || Number(submittedPrice) <= 0) {
+          const normalizedPrice = normalizeSoLineUnitPrice(submittedPrice);
+          if (normalizedPrice == null) {
             return { ok: false, error: 'invalid_input', message: 'Unit price must be greater than zero' };
           }
-          unitPriceGbp = normalizeSoUnitPriceGbp(submittedPrice) ?? submittedPrice;
+          unitPriceGbp = normalizedPrice;
         } else {
           const normalized = normalizeSoUnitPriceGbp(currentPrice);
           if (normalized == null || Number(normalized) <= 0) {
@@ -916,7 +926,7 @@ export async function updateSalesOrder(soId: string, input: UpdateSalesOrderInpu
         resolvedLineUpdates.push({
           id: patch.id,
           inventoryQty,
-          orderQty,
+          orderQty: normalizedOrderQty,
           orderUom,
           unitPriceGbp,
           discountPct,

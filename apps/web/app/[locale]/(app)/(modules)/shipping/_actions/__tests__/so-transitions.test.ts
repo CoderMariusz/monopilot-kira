@@ -17,7 +17,7 @@ describe('SO_LEGAL_TRANSITIONS matrix', () => {
     confirmed: ['allocated', 'cancelled'],
     allocated: ['partially_picked', 'picked', 'confirmed', 'cancelled'],
     partially_picked: ['picked', 'confirmed', 'cancelled'],
-    picked: ['partially_packed', 'packed', 'confirmed', 'cancelled'],
+    picked: ['partially_packed', 'packed', 'shipped', 'confirmed', 'cancelled'],
     partially_packed: ['packed', 'allocated', 'shipped', 'cancelled'],
     packed: ['manifested', 'partially_packed', 'allocated', 'shipped', 'cancelled'],
     manifested: ['shipped', 'packed', 'partially_packed', 'allocated', 'confirmed', 'cancelled'],
@@ -64,6 +64,10 @@ describe('SO_LEGAL_TRANSITIONS matrix', () => {
     expect(isLegalSoTransition('delivered', 'shipped')).toBe(false);
     expect(isLegalSoTransition('partially_delivered', 'shipped')).toBe(false);
     expect(isLegalShipmentTransition('delivered', 'shipped')).toBe(false);
+  });
+
+  it('allows picked to advance directly to shipped when the shipment ship confirm completes', () => {
+    expect(isLegalSoTransition('picked', 'shipped')).toBe(true);
   });
 
   it('allows deallocation regressions to confirmed from pre-pack states', () => {

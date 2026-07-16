@@ -59,6 +59,10 @@ const LABELS: MwoDetailLabels = {
     button: '', title: '', equipment: '', equipmentPlaceholder: '', noEquipment: '', titleField: '', titlePlaceholder: '',
     description: '', descriptionPlaceholder: '', priority: '', dueDate: '', submit: '', submitting: '', cancel: '', errorRequired: '', errorFailed: '',
   },
+  edit: {
+    button: 'Edit', title: 'Edit work order', submit: 'Save', submitting: 'Saving…', cancel: 'Cancel',
+    errorRequired: 'Required', errorFailed: 'Failed', errorForbidden: 'Forbidden', errorLocked: 'Locked',
+  },
   transition: {
     startTitle: 'Start', completeTitle: 'Complete', cancelTitle: 'Cancel', noteComplete: '', noteCancel: '',
     confirmStart: 'Start', confirmComplete: 'Complete', confirmCancel: 'Cancel', dismiss: 'Back',
@@ -85,6 +89,7 @@ const LABELS: MwoDetailLabels = {
     lotoPendingBanner: 'LOTO required',
     lotoApply: 'Apply LOTO',
     lotoClear: 'Clear LOTO',
+    edit: 'Edit',
   },
   loto: {
     lockoutTitle: 'Apply LOTO',
@@ -104,16 +109,21 @@ const LABELS: MwoDetailLabels = {
 };
 
 describe('MwoDetailClient', () => {
+  const equipment = [{ id: MWO.equipmentId!, code: 'EQ-01', name: 'Mixer 1', equipmentType: 'machine' }];
+  const noop = vi.fn();
+
   it('renders PM source card for schedule-linked MWOs', () => {
     render(
       <MwoDetailClient
         locale="en"
         mwo={MWO}
+        equipment={equipment}
         labels={LABELS}
-        permissions={{ canExecute: true, canCancel: false, canLotoApply: false, canLotoClear: false }}
-        transitionMwoAction={vi.fn()}
-        verifyLotoLockoutAction={vi.fn()}
-        verifyLotoReleaseAction={vi.fn()}
+        permissions={{ canEdit: true, canExecute: true, canCancel: false, canLotoApply: false, canLotoClear: false }}
+        transitionMwoAction={noop}
+        updateMwoAction={noop}
+        verifyLotoLockoutAction={noop}
+        verifyLotoReleaseAction={noop}
       />,
     );
 
@@ -128,15 +138,36 @@ describe('MwoDetailClient', () => {
       <MwoDetailClient
         locale="en"
         mwo={MWO}
+        equipment={equipment}
         labels={LABELS}
-        permissions={{ canExecute: true, canCancel: false, canLotoApply: false, canLotoClear: false }}
-        transitionMwoAction={vi.fn()}
-        verifyLotoLockoutAction={vi.fn()}
-        verifyLotoReleaseAction={vi.fn()}
+        permissions={{ canEdit: true, canExecute: true, canCancel: false, canLotoApply: false, canLotoClear: false }}
+        transitionMwoAction={noop}
+        updateMwoAction={noop}
+        verifyLotoLockoutAction={noop}
+        verifyLotoReleaseAction={noop}
       />,
     );
 
     fireEvent.click(screen.getByTestId('mwo-detail-start'));
     expect(screen.getByTestId('mwo-transition-modal')).toBeInTheDocument();
+  });
+
+  it('shows Edit for open MWOs and opens the edit modal', () => {
+    render(
+      <MwoDetailClient
+        locale="en"
+        mwo={MWO}
+        equipment={equipment}
+        labels={LABELS}
+        permissions={{ canEdit: true, canExecute: true, canCancel: false, canLotoApply: false, canLotoClear: false }}
+        transitionMwoAction={noop}
+        updateMwoAction={noop}
+        verifyLotoLockoutAction={noop}
+        verifyLotoReleaseAction={noop}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('mwo-detail-edit'));
+    expect(screen.getByTestId('mwo-edit-modal')).toBeInTheDocument();
   });
 });

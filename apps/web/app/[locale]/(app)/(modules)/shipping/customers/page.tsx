@@ -110,7 +110,7 @@ export default async function ShippingCustomersPage({ params, searchParams }: Pa
       />
       <ShippingTabs
         locale={locale}
-        labels={{ salesOrders: tShip('tabs.salesOrders'), shipments: tShip('tabs.shipments'), customers: tShip('tabs.customers') }}
+        labels={{ salesOrders: tShip('tabs.salesOrders'), shipments: tShip('tabs.shipments'), customers: tShip('tabs.customers'), rma: tShip('tabs.rma') }}
       />
       <Suspense fallback={<ListSkeleton />}>
         <ListContent locale={locale} autoOpenCreate={autoOpenCreate} />

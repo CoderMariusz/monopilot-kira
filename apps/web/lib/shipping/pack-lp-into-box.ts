@@ -22,7 +22,7 @@ export type PackQueryClient = {
 
 export type PackContext = { userId: string; orgId: string; client: PackQueryClient };
 
-export type PackLpInput = { shipmentId: string; lpId: string; boxId?: string };
+export type PackLpInput = { shipmentId: string; lpId: string; boxId?: string; quantity?: string };
 
 export type PackLpResult = { ok: true; boxId: string } | { ok: false; error: string };
 
@@ -82,16 +82,20 @@ export async function packLpIntoBoxCore(ctx: PackContext, input: PackLpInput): P
   const licensePlateId = await resolveLicensePlateId(ctx, input.lpId);
   if (!licensePlateId) return { ok: false, error: 'lp_not_found' };
 
-  const { rows: alreadyPackedRows } = await ctx.client.query<{ id: string }>(
-    `select sbc.id::text
+  const { rows: alreadyPackedRows } = await ctx.client.query<{ packed_qty: string }>(
+    `select coalesce(sum(sbc.quantity), 0)::text as packed_qty
        from public.shipment_box_contents sbc
+       join public.shipment_boxes sb
+         on sb.id = sbc.shipment_box_id
+        and sb.org_id = app.current_org_id()
       where sbc.org_id = app.current_org_id()
         and sbc.license_plate_id = $1::uuid
         and sbc.deleted_at is null
-      limit 1`,
-    [licensePlateId],
+        and sb.shipment_id = $2::uuid
+        and sb.deleted_at is null`,
+    [licensePlateId, input.shipmentId],
   );
-  if (alreadyPackedRows.length > 0) return { ok: false, error: 'already_packed' };
+  const alreadyPackedQty = alreadyPackedRows[0]?.packed_qty ?? '0';
 
   const { rows: allocationRows } = await ctx.client.query<{
     sales_order_line_id: string;
@@ -120,6 +124,31 @@ export async function packLpIntoBoxCore(ctx: PackContext, input: PackLpInput): P
   );
   const allocation = allocationRows[0];
   if (!allocation) return { ok: false, error: 'lp_not_allocated' };
+
+  const { rows: packQtyRows } = await ctx.client.query<{
+    pack_qty: string;
+    remaining_qty: string;
+    fully_packed: boolean;
+  }>(
+    `select case
+              when $3::text is null or btrim($3::text) = '' then
+                ($2::numeric(14,3) - $1::numeric(14,3))::text
+              else $3::text
+            end as pack_qty,
+            ($2::numeric(14,3) - $1::numeric(14,3))::text as remaining_qty,
+            ($1::numeric(14,3) >= $2::numeric(14,3)) as fully_packed`,
+    [alreadyPackedQty, allocation.quantity_allocated, input.quantity ?? null],
+  );
+  const packQty = packQtyRows[0]?.pack_qty;
+  if (!packQty || Number(packQty) <= 0) {
+    return { ok: false, error: 'already_packed' };
+  }
+  if (Number(packQty) > Number(packQtyRows[0]?.remaining_qty ?? '0')) {
+    return { ok: false, error: 'invalid_input' };
+  }
+  if (packQtyRows[0]?.fully_packed) {
+    return { ok: false, error: 'already_packed' };
+  }
 
   // Food-safety re-assert at PACK time (owner per-rule = HARD BLOCK): a quality
   // hold, QA-status reversion, or expiry can land AFTER allocation but before
@@ -224,7 +253,7 @@ export async function packLpIntoBoxCore(ctx: PackContext, input: PackLpInput): P
       allocation.product_id,
       licensePlateId,
       allocation.lot_number,
-      allocation.quantity_allocated,
+      packQty,
       userId,
     ],
   );

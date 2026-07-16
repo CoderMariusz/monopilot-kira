@@ -4,7 +4,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
-import { getPickListForSalesOrder, pickLine } from '../../_actions/pick-actions';
+import { getPickListForSalesOrder, pickLine, reassignPickLine } from '../../_actions/pick-actions';
 import { PickView, type PickViewLabels } from '../../_components/pick-view';
 
 export const dynamic = 'force-dynamic';
@@ -39,6 +39,13 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): PickViewLa
       pick: t('lines.pick'),
       pending: t('lines.pending'),
       empty: t('lines.empty'),
+      qtyLabel: t('lines.qtyLabel'),
+      reasonLabel: t('lines.reasonLabel'),
+      reasonPlaceholder: t('lines.reasonPlaceholder'),
+      reassignLabel: t('lines.reassignLabel'),
+      reassignPlaceholder: t('lines.reassignPlaceholder'),
+      reassign: t('lines.reassign'),
+      reassignPending: t('lines.reassignPending'),
     },
     lineStatus: {
       pending: t('lineStatus.pending'),
@@ -51,14 +58,24 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): PickViewLa
       invalid_state: t('errors.invalid_state'),
       allocation_not_found: t('errors.allocation_not_found'),
       lp_blocked_for_pick: t('errors.lp_blocked_for_pick'),
+      short_pick_reason_required: t('errors.short_pick_reason_required'),
+      reassign_required: t('errors.reassign_required'),
       persistence_failed: t('errors.persistence_failed'),
     },
   };
 }
 
-async function pickLineAction(lineId: string, quantityPicked: string) {
+async function pickLineAction(
+  lineId: string,
+  input: { quantityPicked: string; shortPickReason?: string },
+) {
   'use server';
-  return pickLine(lineId, { quantityPicked });
+  return pickLine(lineId, input);
+}
+
+async function reassignPickLineAction(lineId: string, licensePlateId: string) {
+  'use server';
+  return reassignPickLine(lineId, { licensePlateId });
 }
 
 async function PickContent({ locale, soId }: { locale: string; soId: string }) {
@@ -91,6 +108,7 @@ async function PickContent({ locale, soId }: { locale: string; soId: string }) {
       labels={buildLabels(t)}
       canPick={pickResult.ok ? pickResult.canPick : false}
       pickLineAction={pickLineAction}
+      reassignPickLineAction={reassignPickLineAction}
     />
   );
 }

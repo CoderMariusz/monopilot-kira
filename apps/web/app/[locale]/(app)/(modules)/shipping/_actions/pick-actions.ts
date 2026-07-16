@@ -226,7 +226,7 @@ export async function createPickList(soId: string): Promise<CreatePickListResult
 
 export async function pickLine(
   pickListLineId: string,
-  input: { pickedLicensePlateId?: string; quantityPicked: string },
+  input: { pickedLicensePlateId?: string; quantityPicked: string; shortPickReason?: string },
 ): Promise<PickLineResult> {
   return withOrgContext(async ({ userId, orgId, client }): Promise<PickLineResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
@@ -243,6 +243,11 @@ export async function pickLine(
       pick_list_id: string;
       sales_order_line_id: string | null;
       license_plate_id: string | null;
+      location_id: string | null;
+      product_id: string | null;
+      lot_number: string | null;
+      site_id: string | null;
+      pick_sequence: number | string | null;
       quantity_to_pick: string;
       status: string;
       sales_order_id: string | null;
@@ -252,6 +257,11 @@ export async function pickLine(
               pll.pick_list_id::text,
               pll.sales_order_line_id::text,
               pll.license_plate_id::text,
+              pll.location_id::text,
+              pll.product_id::text,
+              pll.lot_number,
+              pll.site_id::text,
+              pll.pick_sequence,
               pll.quantity_to_pick::text,
               pll.status,
               pl.sales_order_id::text,
@@ -280,29 +290,41 @@ export async function pickLine(
 
     const assignedLicensePlateId = line.license_plate_id;
     if (!assignedLicensePlateId) {
-      return { ok: false, error: 'invalid_input' };
+      return { ok: false, error: 'reassign_required' };
     }
     if (input.pickedLicensePlateId && input.pickedLicensePlateId !== assignedLicensePlateId) {
       return { ok: false, error: 'invalid_input' };
     }
 
-    const { rows: qtyRows } = await ctx.client.query<{ exact_match: boolean; short_pick: boolean }>(
+    const { rows: qtyRows } = await ctx.client.query<{
+      exact_match: boolean;
+      short_pick: boolean;
+      over_pick: boolean;
+      zero_pick: boolean;
+    }>(
       `select ($1::numeric(14,3) = $2::numeric(14,3)) as exact_match,
-              ($1::numeric(14,3) < $2::numeric(14,3)) as short_pick`,
+              ($1::numeric(14,3) < $2::numeric(14,3)) as short_pick,
+              ($1::numeric(14,3) > $2::numeric(14,3)) as over_pick,
+              ($1::numeric(14,3) <= 0::numeric(14,3)) as zero_pick`,
       [quantityPicked, line.quantity_to_pick],
     );
-    if (!qtyRows[0]?.exact_match) {
-      if (qtyRows[0]?.short_pick) {
-        return { ok: false, error: 'short_pick_not_supported' };
-      }
+    const qtyCheck = qtyRows[0];
+    if (!qtyCheck || qtyCheck.zero_pick || qtyCheck.over_pick) {
       return { ok: false, error: 'invalid_input' };
+    }
+
+    const isShortPick = qtyCheck.short_pick;
+    const shortPickReason = input.shortPickReason?.trim() ?? '';
+    if (isShortPick && !shortPickReason) {
+      return { ok: false, error: 'short_pick_reason_required' };
     }
 
     const lpBlocked = await assertLpPickable(ctx, assignedLicensePlateId);
     if (lpBlocked) return lpBlocked;
 
-    const { rows: allocationRows } = await ctx.client.query<{ id: string }>(
-      `select ia.id::text
+    const { rows: allocationRows } = await ctx.client.query<{ id: string; quantity_allocated: string }>(
+      `select ia.id::text,
+              ia.quantity_allocated::text
          from public.inventory_allocations ia
         where ia.org_id = app.current_org_id()
           and ia.sales_order_line_id = $1::uuid
@@ -317,34 +339,74 @@ export async function pickLine(
     }
     const allocationId = allocationRows[0].id;
 
+    const lineStatus = isShortPick ? 'short' : 'picked';
+    const extData = isShortPick
+      ? JSON.stringify({ short_pick_reason: shortPickReason })
+      : '{}';
+
     const { rowCount: lineUpdateCount } = await ctx.client.query(
       `update public.pick_list_lines
-          set status = 'picked',
-              quantity_picked = $2::numeric(14,3),
-              picked_license_plate_id = $3::uuid,
+          set status = $2,
+              quantity_picked = $3::numeric(14,3),
+              picked_license_plate_id = $4::uuid,
               picked_at = now(),
-              picked_by = $4::uuid,
+              picked_by = $5::uuid,
+              ext_data = coalesce(ext_data, '{}'::jsonb) || $6::jsonb,
               updated_at = now(),
-              updated_by = $4::uuid
+              updated_by = $5::uuid
         where org_id = app.current_org_id()
           and id = $1::uuid
           and deleted_at is null`,
-      [pickListLineId, quantityPicked, assignedLicensePlateId, userId],
+      [pickListLineId, lineStatus, quantityPicked, assignedLicensePlateId, userId, extData],
     );
     if (lineUpdateCount !== 1) return { ok: false, error: 'persistence_failed' };
 
     const { rowCount: allocationUpdateCount } = await ctx.client.query(
       `update public.inventory_allocations
           set status = 'picked',
+              quantity_allocated = $2::numeric(14,3),
               updated_at = now(),
-              updated_by = $2::uuid
+              updated_by = $3::uuid
         where org_id = app.current_org_id()
           and id = $1::uuid
           and deleted_at is null`,
-      [allocationId, userId],
+      [allocationId, quantityPicked, userId],
     );
     if (allocationUpdateCount !== 1) {
       throw new Error('persistence_failed');
+    }
+
+    if (isShortPick) {
+      const { rows: remainderRows } = await ctx.client.query<{ remainder: string }>(
+        `select ($1::numeric(14,3) - $2::numeric(14,3))::text as remainder`,
+        [line.quantity_to_pick, quantityPicked],
+      );
+      const remainder = remainderRows[0]?.remainder;
+      if (!remainder || Number(remainder) <= 0) {
+        throw new Error('persistence_failed');
+      }
+
+      await ctx.client.query(
+        `insert into public.pick_list_lines
+           (org_id, site_id, pick_list_id, sales_order_line_id, license_plate_id, location_id,
+            product_id, lot_number, quantity_to_pick, status, pick_sequence, created_by, updated_by, ext_data)
+         values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, null, $5::uuid,
+                 $6::uuid, $7, $8::numeric, 'pending', $9::integer, $10::uuid, $10::uuid,
+                 jsonb_build_object('short_pick_remainder', true, 'source_pick_line_id', $11::text))`,
+        [
+          orgId,
+          line.site_id,
+          line.pick_list_id,
+          line.sales_order_line_id,
+          line.location_id,
+          line.product_id,
+          line.lot_number,
+          remainder,
+          line.pick_sequence == null ? null : Number(line.pick_sequence) + 1,
+          userId,
+          pickListLineId,
+        ],
+      );
     }
 
     await ctx.client.query(
@@ -393,6 +455,28 @@ export async function pickLine(
       [line.pick_list_id],
     );
     const pendingCount = Number(pendingRows[0]?.pending_count ?? 0);
+
+    if (line.sales_order_id) {
+      const targetSoStatus = pendingCount === 0 ? 'picked' : 'partially_picked';
+      const currentSoStatus = await readLockedSalesOrderStatus(ctx, line.sales_order_id);
+      if (currentSoStatus !== 'not_found' && isSalesOrderStatus(currentSoStatus)) {
+        const writeResult = await writeSalesOrderStatusInContext(ctx, line.sales_order_id, targetSoStatus, {
+          currentStatus: currentSoStatus,
+        });
+        if (writeResult === 'illegal_transition' && pendingCount > 0) {
+          // Short-pick remainder may land while SO is still allocated; promote to partially_picked when legal.
+          if (currentSoStatus === 'allocated') {
+            const retry = await writeSalesOrderStatusInContext(ctx, line.sales_order_id, 'partially_picked', {
+              currentStatus: currentSoStatus,
+            });
+            if (retry === 'illegal_transition') throw new Error('illegal_transition');
+          }
+        } else if (writeResult === 'illegal_transition') {
+          throw new Error('illegal_transition');
+        }
+      }
+    }
+
     if (pendingCount === 0) {
       await ctx.client.query(
         `update public.pick_lists
@@ -405,23 +489,116 @@ export async function pickLine(
             and deleted_at is null`,
         [line.pick_list_id, userId],
       );
-
-      if (line.sales_order_id) {
-        const currentSoStatus = await readLockedSalesOrderStatus(ctx, line.sales_order_id);
-        if (currentSoStatus !== 'not_found' && isSalesOrderStatus(currentSoStatus)) {
-          const writeResult = await writeSalesOrderStatusInContext(ctx, line.sales_order_id, 'picked', {
-            currentStatus: currentSoStatus,
-          });
-          if (writeResult === 'illegal_transition') {
-            throw new Error('illegal_transition');
-          }
-        }
-      }
     }
 
     revalidateLocalized('/shipping');
     return { ok: true };
   });
+}
+
+export async function reassignPickLine(
+  pickListLineId: string,
+  input: { licensePlateId: string },
+): Promise<PickLineResult> {
+  return withOrgContext(async ({ userId, orgId, client }): Promise<PickLineResult> => {
+    const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };
+    const forbidden = await requirePermission(ctx, SHIP_PICK_EXECUTE);
+    if (forbidden) return forbidden;
+
+    const licensePlateId = input.licensePlateId?.trim();
+    if (!licensePlateId) {
+      return { ok: false, error: 'invalid_input' };
+    }
+
+    const { rows: lineRows } = await ctx.client.query<{
+      id: string;
+      sales_order_line_id: string | null;
+      quantity_to_pick: string;
+      status: string;
+      pick_list_status: string;
+    }>(
+      `select pll.id::text,
+              pll.sales_order_line_id::text,
+              pll.quantity_to_pick::text,
+              pll.status,
+              pl.status as pick_list_status
+         from public.pick_list_lines pll
+         join public.pick_lists pl
+           on pl.id = pll.pick_list_id
+          and pl.org_id = app.current_org_id()
+          and pl.deleted_at is null
+        where pll.org_id = app.current_org_id()
+          and pll.id = $1::uuid
+          and pll.deleted_at is null
+        for update of pll`,
+      [pickListLineId],
+    );
+    const line = lineRows[0];
+    if (!line || line.status !== 'pending' || !line.sales_order_line_id) {
+      return { ok: false, error: 'invalid_state' };
+    }
+    if (!OPEN_PICK_LIST_STATUSES.includes(line.pick_list_status as (typeof OPEN_PICK_LIST_STATUSES)[number])) {
+      return { ok: false, error: 'invalid_state' };
+    }
+
+    const resolvedLpId = await resolveLicensePlateIdForPick(ctx, licensePlateId);
+    if (!resolvedLpId) {
+      return { ok: false, error: 'invalid_input' };
+    }
+
+    const lpBlocked = await assertLpPickable(ctx, resolvedLpId);
+    if (lpBlocked) return lpBlocked;
+
+    const { rows: allocationRows } = await ctx.client.query<{ id: string }>(
+      `select ia.id::text
+         from public.inventory_allocations ia
+        where ia.org_id = app.current_org_id()
+          and ia.sales_order_line_id = $1::uuid
+          and ia.license_plate_id = $2::uuid
+          and ia.deleted_at is null
+          and ia.status = 'allocated'
+          and ia.quantity_allocated >= $3::numeric(14,3)
+        limit 1`,
+      [line.sales_order_line_id, resolvedLpId, line.quantity_to_pick],
+    );
+    if (!allocationRows[0]?.id) {
+      return { ok: false, error: 'allocation_not_found' };
+    }
+
+    const { rowCount } = await ctx.client.query(
+      `update public.pick_list_lines
+          set license_plate_id = $2::uuid,
+              updated_at = now(),
+              updated_by = $3::uuid,
+              ext_data = coalesce(ext_data, '{}'::jsonb) || jsonb_build_object('reassigned_at', now(), 'reassigned_by', $3::text)
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+          and deleted_at is null
+          and status = 'pending'`,
+      [pickListLineId, resolvedLpId, userId],
+    );
+    if (rowCount !== 1) return { ok: false, error: 'persistence_failed' };
+
+    revalidateLocalized('/shipping');
+    return { ok: true };
+  });
+}
+
+async function resolveLicensePlateIdForPick(ctx: ShippingContext, input: string): Promise<string | null> {
+  const candidate = input.trim();
+  if (!candidate) return null;
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidPattern.test(candidate)) return candidate;
+
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `select id::text
+       from public.license_plates
+      where org_id = app.current_org_id()
+        and (lp_number = $1 or lp_code = $1)
+      limit 1`,
+    [candidate],
+  );
+  return rows[0]?.id ?? null;
 }
 
 export async function getPickListForSalesOrder(soId: string): Promise<GetPickListResult> {
@@ -466,6 +643,7 @@ export async function getPickListForSalesOrder(soId: string): Promise<GetPickLis
       item_code: string | null;
       item_name: string | null;
       lp_code: string | null;
+      license_plate_id: string | null;
       quantity_to_pick: string;
       quantity_picked: string;
       status: string;
@@ -475,6 +653,7 @@ export async function getPickListForSalesOrder(soId: string): Promise<GetPickLis
               i.item_code,
               i.name as item_name,
               lp.lp_number as lp_code,
+              pll.license_plate_id::text,
               pll.quantity_to_pick::text,
               pll.quantity_picked::text,
               pll.status
@@ -510,9 +689,11 @@ export async function getPickListForSalesOrder(soId: string): Promise<GetPickLis
           itemCode: row.item_code,
           itemName: row.item_name,
           licensePlateCode: row.lp_code,
+          licensePlateId: row.license_plate_id,
           quantityToPick: row.quantity_to_pick,
           quantityPicked: row.quantity_picked,
           status: row.status,
+          needsReassign: row.status === 'pending' && !row.license_plate_id,
         })),
       },
     };

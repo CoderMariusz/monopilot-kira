@@ -24,6 +24,7 @@ import { Card } from '@monopilot/ui/Card';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { DateWindowSelect, type DateWindowOption } from '../_components/date-window-select.client';
+import { formatUtcDateTime } from '../../../../../../lib/shared/format-utc-datetime';
 import { ParetoBars, type ParetoBar } from '../_components/pareto-bars';
 import { getWasteScreen, type WasteByLineRow, type WasteParetoRow } from './_actions/waste-data';
 import { WasteTable, type WasteTableLabels } from './_components/waste-table';
@@ -88,7 +89,13 @@ async function WasteContent({ windowDays }: { windowDays: number }) {
 
   const data = result.data;
   const kgFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
-  const dtf = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const formatRecordedAt = (iso: string) =>
+    formatUtcDateTime(iso, locale, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
   const paretoBars: ParetoBar[] = data.pareto.map((p: WasteParetoRow, i) => ({
     key: `${p.categoryName}-${i}`,
@@ -122,7 +129,7 @@ async function WasteContent({ windowDays }: { windowDays: number }) {
     },
     voidedBadge: t('table.voidedBadge'),
     qtyFmt: (kg) => kgFmt.format(kg),
-    dateFmt: (iso) => dtf.format(new Date(iso)),
+    dateFmt: formatRecordedAt,
     correctionOfFmt: (ref) => t('table.correctionOf', { ref }),
   };
 

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import Modal from '@monopilot/ui/Modal';
 import { Button } from '@monopilot/ui/Button';
 
+import { formatUtcDateTime } from '../../../../../../lib/shared/format-utc-datetime';
+
 import type {
   OverrideSchedulerAssignmentInput,
   OverrideSchedulerAssignmentResult,
@@ -141,7 +143,10 @@ export function OverrideAssignmentModal({
                   <dt className="text-slate-500">{labels.currentStart}</dt>
                   <dd className="font-mono text-slate-900">
                     {target.plannedStartAt
-                      ? new Date(target.plannedStartAt).toLocaleString()
+                      ? formatUtcDateTime(target.plannedStartAt, 'en-US', {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })
                       : '—'}
                   </dd>
                 </div>

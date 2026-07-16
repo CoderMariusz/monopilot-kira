@@ -78,6 +78,7 @@ function mapShipmentRow(row: {
   packed_at: string | Date | null;
   shipped_at: string | Date | null;
   bol_pdf_url?: string | null;
+  bol_sha256?: string | null;
   bol_signed_pdf_url?: string | null;
   delivered_at?: string | Date | null;
   carrier?: string | null;
@@ -99,6 +100,7 @@ function mapShipmentRow(row: {
     packedAt: toText(row.packed_at),
     shippedAt: toText(row.shipped_at),
     bolPdfUrl: toText(row.bol_pdf_url),
+    bolSha256: toText(row.bol_sha256),
     bolSignedPdfUrl: toText(row.bol_signed_pdf_url),
     deliveredAt: toText(row.delivered_at),
     carrier: toText(row.carrier),
@@ -123,6 +125,7 @@ async function fetchShipmentRow(ctx: ShippingContext, id: string): Promise<Shipm
     packed_at: string | Date | null;
     shipped_at: string | Date | null;
     bol_pdf_url: string | null;
+    bol_sha256: string | null;
     bol_signed_pdf_url: string | null;
     delivered_at: string | Date | null;
     carrier: string | null;
@@ -148,6 +151,7 @@ async function fetchShipmentRow(ctx: ShippingContext, id: string): Promise<Shipm
             sh.created_at,
             sh.packed_at,
             sh.bol_pdf_url,
+            sh.ext_data->>'bol_sha256' as bol_sha256,
             sh.bol_signed_pdf_url,
             sh.delivered_at,
             sh.carrier,
@@ -228,6 +232,7 @@ export async function packLpIntoBox(input: {
   shipmentId: string;
   lpId: string;
   boxId?: string;
+  quantity?: string;
 }): Promise<PackLpIntoBoxResult> {
   return withOrgContext(async ({ userId, orgId, client }): Promise<PackLpIntoBoxResult> => {
     const ctx: ShippingContext = { userId, orgId, client: client as QueryClient };

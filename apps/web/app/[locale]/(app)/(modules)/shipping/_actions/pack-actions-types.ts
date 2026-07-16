@@ -12,6 +12,8 @@ export type ShipmentRow = {
   packedAt: string | null;
   shippedAt: string | null;
   bolPdfUrl?: string | null;
+  /** SHA-256 of the signed BOL payload (persisted in ext_data.bol_sha256 by generateBol). */
+  bolSha256?: string | null;
   bolSignedPdfUrl?: string | null;
   deliveredAt?: string | null;
   carrier?: string | null;

@@ -26,6 +26,7 @@ import { Card } from '@monopilot/ui/Card';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { DateWindowSelect, type DateWindowOption } from '../_components/date-window-select.client';
+import { formatUtcDateTime } from '../../../../../../lib/shared/format-utc-datetime';
 import { ParetoBars, type ParetoBar, type ParetoTone } from '../_components/pareto-bars';
 import {
   getDowntimeScreen,
@@ -111,12 +112,13 @@ async function DowntimeContent({ windowDays }: { windowDays: number }) {
   const hours = Math.floor(data.totalMin / 60);
   const mins = data.totalMin % 60;
 
-  const dtf = new Intl.DateTimeFormat(locale, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const formatStartedAt = (iso: string) =>
+    formatUtcDateTime(iso, locale, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
   const paretoBars: ParetoBar[] = data.pareto.map((p: DowntimeParetoRow, i) => ({
     key: `${p.categoryName ?? 'uncat'}-${i}`,
@@ -155,7 +157,7 @@ async function DowntimeContent({ windowDays }: { windowDays: number }) {
       changeover: t('source.changeover'),
     },
     durationFmt: (min) => t('table.minutes', { min }),
-    dateFmt: (iso) => dtf.format(new Date(iso)),
+    dateFmt: formatStartedAt,
   };
 
   return (

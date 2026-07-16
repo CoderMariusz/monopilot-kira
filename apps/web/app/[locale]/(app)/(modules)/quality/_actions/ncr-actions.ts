@@ -1,11 +1,13 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { ESignPolicyError, signEvent, type ESignPolicyErrorCode } from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import { getActiveSiteId } from '../../../../../../lib/site/site-context';
 import {
   DEFAULT_NCR_PAGE_SIZE,
@@ -27,6 +29,18 @@ type ActionFailure =
   | { ok: false; reason: 'forbidden' | 'error'; message?: string }
   | { ok: false; reason: 'policy'; code: ESignPolicyErrorCode; message?: string };
 type ActionResult<T> = { ok: true; data: T } | ActionFailure;
+
+function safeRevalidateNcrRoutes(ncrId?: string): void {
+  try {
+    revalidateLocalized('/quality');
+    revalidateLocalized('/quality/ncrs');
+    if (ncrId) {
+      revalidateLocalized(`/quality/ncrs/${ncrId}`);
+    }
+  } catch {
+    // revalidate is best-effort outside a Next request context (unit tests).
+  }
+}
 
 type NcrType = 'quality' | 'yield_issue' | 'allergen_deviation' | 'supplier' | 'process' | 'complaint_related';
 type NcrSeverity = 'critical' | 'major' | 'minor';
@@ -185,6 +199,35 @@ const closeSchema = z.object({
   resolution: z.string().trim().min(1).max(4000),
   signature: z.object({ password: z.string().min(1) }),
 });
+
+async function writeAuditEvent(
+  ctx: QualityContext,
+  params: {
+    action: string;
+    resourceType: 'ncr_report';
+    resourceId: string;
+    beforeState: unknown;
+    afterState: unknown;
+  },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.audit_events
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id,
+        before_state, after_state, request_id, retention_class)
+     values
+       (app.current_org_id(), $1::uuid, 'user', $2, $3, $4,
+        $5::jsonb, $6::jsonb, $7::uuid, 'standard')`,
+    [
+      ctx.userId,
+      params.action,
+      params.resourceType,
+      params.resourceId,
+      JSON.stringify(params.beforeState),
+      JSON.stringify(params.afterState),
+      randomUUID(),
+    ],
+  );
+}
 
 async function writeNcrOutbox(
   ctx: QualityContext,
@@ -590,6 +633,22 @@ export async function createNcr(input: {
         payload: { ncrId: row.id, ncrNumber: row.ncr_number, severity: parsed.severity, ncrType: parsed.ncrType },
       });
 
+      await writeAuditEvent(ctx, {
+        action: 'quality.ncr.opened',
+        resourceType: 'ncr_report',
+        resourceId: row.id,
+        beforeState: null,
+        afterState: {
+          ncrId: row.id,
+          ncrNumber: row.ncr_number,
+          status: 'open',
+          severity: parsed.severity,
+          ncrType: parsed.ncrType,
+        },
+      });
+
+      safeRevalidateNcrRoutes(row.id);
+
       return { ok: true, data: { id: row.id, ncrNumber: row.ncr_number, status: 'open' } };
     });
   } catch (err) {
@@ -611,6 +670,24 @@ export async function updateNcrInvestigation(input: {
     const parsed = investigationSchema.parse(input);
     return await withOrgContext(async (ctx): Promise<ActionResult<UpdatedNcrInvestigation>> => {
       if (!(await hasPermission(ctx, 'quality.ncr.create'))) return { ok: false, reason: 'forbidden' };
+
+      const before = await ctx.client.query<{
+        id: string;
+        status: NcrStatus;
+        root_cause: string | null;
+        root_cause_category: string | null;
+        immediate_action: string | null;
+      }>(
+        `select id::text, status, root_cause, root_cause_category, immediate_action
+           from public.ncr_reports
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and status not in ('closed', 'cancelled')
+          limit 1`,
+        [parsed.ncrId],
+      );
+      const prior = before.rows[0];
+      if (!prior) throw new Error('NCR not found or already terminal');
 
       const updated = await ctx.client.query<{
         id: string;
@@ -660,6 +737,28 @@ export async function updateNcrInvestigation(input: {
         aggregateId: row.id,
         payload: { ncrId: row.id, status: row.status },
       });
+
+      await writeAuditEvent(ctx, {
+        action: 'quality.ncr.updated',
+        resourceType: 'ncr_report',
+        resourceId: row.id,
+        beforeState: {
+          ncrId: prior.id,
+          status: prior.status,
+          rootCause: prior.root_cause,
+          rootCauseCategory: prior.root_cause_category,
+          immediateAction: prior.immediate_action,
+        },
+        afterState: {
+          ncrId: row.id,
+          status: row.status,
+          rootCause: row.root_cause,
+          rootCauseCategory: row.root_cause_category,
+          immediateAction: row.immediate_action,
+        },
+      });
+
+      safeRevalidateNcrRoutes(row.id);
 
       return {
         ok: true,
@@ -759,6 +858,29 @@ export async function closeNcr(input: {
           signatureHash: receipt.subjectHash,
         },
       });
+
+      await writeAuditEvent(ctx, {
+        action: 'quality.ncr.closed',
+        resourceType: 'ncr_report',
+        resourceId: parsed.ncrId,
+        beforeState: {
+          ncrId: ncr.id,
+          ncrNumber: ncr.ncr_number,
+          status: ncr.status,
+          severity: ncr.severity,
+        },
+        afterState: {
+          ncrId: parsed.ncrId,
+          ncrNumber: ncr.ncr_number,
+          status: 'closed',
+          severity: ncr.severity,
+          signatureHash: receipt.subjectHash,
+          closedAt: toIso(closedAt),
+          resolution: parsed.resolution,
+        },
+      });
+
+      safeRevalidateNcrRoutes(parsed.ncrId);
 
       return {
         ok: true,

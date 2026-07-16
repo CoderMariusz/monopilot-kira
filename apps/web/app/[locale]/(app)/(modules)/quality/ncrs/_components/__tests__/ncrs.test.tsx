@@ -18,6 +18,12 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const refreshMock = vi.fn();
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: refreshMock }),
+}));
+
 import { NcrListClient } from '../ncr-list.client';
 import { NcrCloseModal } from '../../[ncrId]/_components/ncr-close-modal.client';
 import { NcrDetailClient } from '../../[ncrId]/_components/ncr-detail.client';
@@ -38,6 +44,7 @@ const DETAIL_LABELS = buildNcrDetailLabels(tEn);
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  refreshMock.mockClear();
 });
 
 function makeRow(over: Partial<NcrListRow>): NcrListRow {
@@ -391,9 +398,12 @@ describe('NcrDetailClient (QA-009a parity)', () => {
   });
 
   it('saves the investigation while non-terminal via updateNcrInvestigation', async () => {
-    const updateInvestigationAction = vi.fn().mockResolvedValue({ ok: true, data: { id: 'n-1' } });
+    const updateInvestigationAction = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { id: 'n-1', status: 'investigating' },
+    });
     render(
-      <NcrDetailClient ncr={makeDetail()} labels={DETAIL_LABELS} locale="en" updateInvestigationAction={updateInvestigationAction as never} closeNcrAction={vi.fn() as never} />,
+      <NcrDetailClient ncr={makeDetail({ status: 'open' })} labels={DETAIL_LABELS} locale="en" updateInvestigationAction={updateInvestigationAction as never} closeNcrAction={vi.fn() as never} />,
     );
     fireEvent.change(screen.getByTestId('ncr-investigation-rootcause'), { target: { value: 'Sieve gap allowed fragment through.' } });
     fireEvent.change(screen.getByTestId('ncr-investigation-immediate'), { target: { value: 'Line stopped; batch held.' } });
@@ -406,6 +416,9 @@ describe('NcrDetailClient (QA-009a parity)', () => {
       immediateAction: 'Line stopped; batch held.',
     });
     expect(await screen.findByTestId('ncr-investigation-saved')).toBeInTheDocument();
+    expect(screen.getByTestId('ncr-detail-status')).toHaveTextContent('Investigating');
+    expect(screen.getByTestId('ncr-detail-close-open')).toBeInTheDocument();
+    expect(refreshMock).toHaveBeenCalledTimes(1);
   });
 
   it('opens the close modal from an investigating NCR', () => {

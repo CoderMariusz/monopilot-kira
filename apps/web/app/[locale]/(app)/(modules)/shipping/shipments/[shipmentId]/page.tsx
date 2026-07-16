@@ -151,6 +151,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): ShipmentPa
       title: t('pack.control.title'),
       lpLabel: t('pack.control.lpLabel'),
       lpPlaceholder: t('pack.control.lpPlaceholder'),
+      qtyLabel: t('pack.control.qtyLabel'),
+      qtyPlaceholder: t('pack.control.qtyPlaceholder'),
       boxLabel: t('pack.control.boxLabel'),
       newBox: t('pack.control.newBox'),
       submit: t('pack.control.submit'),
@@ -409,7 +411,7 @@ export default async function ShipmentPackPage({ params }: PageProps) {
           { label: t('pack.breadcrumbCurrent') },
         ]}
       />
-      <ShippingTabs locale={locale} labels={{ salesOrders: t('tabs.salesOrders'), shipments: t('tabs.shipments'), customers: t('tabs.customers') }} />
+      <ShippingTabs locale={locale} labels={{ salesOrders: t('tabs.salesOrders'), shipments: t('tabs.shipments'), customers: t('tabs.customers'), rma: t('tabs.rma') }} />
       <Suspense fallback={<PackSkeleton />}>
         <PackContent locale={locale} shipmentId={shipmentId} />
       </Suspense>

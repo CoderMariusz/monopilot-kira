@@ -41,6 +41,7 @@ import type {
   WorkOrderDetailStatus,
   WoDetailComponent,
 } from '../../../_actions/get-work-order-detail';
+import { formatUtcIsoMinute } from '../../../../../../../../lib/shared/format-utc-datetime';
 import type {
   ConsumableLp,
   ConsumeActionResult,
@@ -388,10 +389,7 @@ function fmtQty(n: number): string {
   return DISPLAY_QTY_FMT.format(n);
 }
 function fmtDate(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toISOString().slice(0, 16).replace('T', ' ');
+  return formatUtcIsoMinute(iso);
 }
 // E4B — labor formatters. Hours to 2dp ("h" suffix), money to 2dp (currency code
 // rendered alongside by the caller so it is not hard-coded to one symbol).

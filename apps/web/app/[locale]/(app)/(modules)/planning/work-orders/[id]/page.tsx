@@ -22,7 +22,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getPlanningWorkOrder } from '../_actions/getPlanningWorkOrder';
 import { updateWorkOrder } from '../_actions/update-work-order';
-import { cancelWorkOrderChain, deleteDraftWorkOrder } from '../_actions/releaseWorkOrder';
+import { cancelWorkOrderChain, deleteDraftWorkOrder, releaseWorkOrder } from '../_actions/releaseWorkOrder';
 import { searchFgProducts, listProductionResources } from '../_actions/wo-form-data';
 import { WoDetailView, type WoDetailLabels } from '../_components/wo-detail-view';
 
@@ -45,6 +45,11 @@ async function deleteDraftWorkOrderAction(params: { id: string }) {
   return deleteDraftWorkOrder(params);
 }
 
+async function releaseWorkOrderAction(params: { id: string }) {
+  'use server';
+  return releaseWorkOrder(params);
+}
+
 export const dynamic = 'force-dynamic';
 
 type PageProps = {
@@ -62,6 +67,9 @@ function DetailSkeleton() {
 }
 
 function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoDetailLabels {
+  const opt = (key: string, fallback: string): string => (t.has(key) ? t(key) : fallback);
+  const tpl = (key: string): string => String(t.raw(key));
+  const optTpl = (key: string, fallback: string): string => (t.has(key) ? tpl(key) : fallback);
   return {
     edit: {
       editButton: t('detail.edit.editButton'),
@@ -123,6 +131,34 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoDetailLa
       blocked: t.has('detail.cancelChain.blocked')
         ? t('detail.cancelChain.blocked')
         : 'This chain cannot be cancelled while execution or output activity exists.',
+    },
+    release: {
+      button: t('list.release'),
+      pending: t('list.releasing'),
+      confirm: tpl('list.confirmRelease'),
+      error: {
+        forbidden: t('errors.forbidden'),
+        not_found: t('errors.not_found'),
+        invalid_state: t('errors.invalid_state'),
+        invalid_input: t('errors.invalid_input'),
+        persistence_failed: t('errors.persistence_failed'),
+        pack_hierarchy_incomplete: opt(
+          'errors.pack_hierarchy_incomplete',
+          'This product is packed in boxes/eaches but the pack factors (net weight per each, eaches per box) are not set — fix the item master in Technical before releasing.',
+        ),
+      },
+      factoryReleaseIncomplete: {
+        title: optTpl(
+          'create.factoryReleaseIncomplete.title',
+          'This work order can’t be released — missing {missing}.',
+        ),
+        activeBom: opt('create.factoryReleaseIncomplete.activeBom', 'an active BOM'),
+        factorySpec: opt('create.factoryReleaseIncomplete.factorySpec', 'an approved factory spec'),
+        technicalHint: opt(
+          'create.factoryReleaseIncomplete.technicalHint',
+          'These are created in Technical.',
+        ),
+      },
     },
     status: {
       draft: t('woStatus.draft'),
@@ -243,6 +279,7 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
       updateWorkOrderAction={updateWorkOrderAction}
       deleteDraftWorkOrderAction={deleteDraftWorkOrderAction}
       cancelWorkOrderChainAction={cancelWorkOrderChain}
+      releaseWorkOrderAction={releaseWorkOrderAction}
     />
   );
 }

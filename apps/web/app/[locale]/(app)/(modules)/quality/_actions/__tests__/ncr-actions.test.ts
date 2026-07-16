@@ -36,6 +36,8 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 vi.mock('../../../../../../../lib/site/site-context', () => ({
   getActiveSiteId: vi.fn(async () => SITE_ID),
 }));
+vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized: vi.fn() }));
+import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
 
 vi.mock('@monopilot/e-sign', () => ({
   // wave F4: hold/NCR actions detect policy errors via instanceof — the mock must export the class
@@ -179,6 +181,21 @@ function makeClient(): QueryClient {
         return { rows: [{ id: NCR_ID, ncr_number: 'NCR-00001001', status: 'open' }], rowCount: 1 };
       }
 
+      if (q.includes('select id::text, status, root_cause') && q.includes('from public.ncr_reports')) {
+        return {
+          rows: [
+            {
+              id: NCR_ID,
+              status: 'open',
+              root_cause: null,
+              root_cause_category: null,
+              immediate_action: null,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
       if (q.startsWith('update public.ncr_reports') && q.includes('root_cause')) {
         return {
           rows: [
@@ -243,6 +260,7 @@ describe('quality NCR server actions', () => {
     listTotal = 1;
     client = makeClient();
     vi.mocked(getActiveSiteId).mockResolvedValue(SITE_ID);
+    vi.mocked(revalidateLocalized).mockClear();
     vi.clearAllMocks();
   });
 
@@ -340,6 +358,15 @@ describe('quality NCR server actions', () => {
     expect(update?.[1]?.[7]).toBe('Recalibrate jaw');
     const outbox = vi.mocked(client.query).mock.calls.find(([, params]) => params?.[0] === 'quality.ncr.updated');
     expect(outbox).toBeTruthy();
+    const audit = vi.mocked(client.query).mock.calls.find(
+      ([sql, params]) =>
+        normalize(String(sql)).startsWith('insert into public.audit_events') && params?.[1] === 'quality.ncr.updated',
+    );
+    expect(audit?.[1]?.[2]).toBe('ncr_report');
+    expect(audit?.[1]?.[3]).toBe(NCR_ID);
+    expect(JSON.parse(String(audit?.[1]?.[5])).status).toBe('investigating');
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith('/quality/ncrs');
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith(`/quality/ncrs/${NCR_ID}`);
   });
 
   it('getNcrDetail surfaces CCP-breach context for a ccp_deviation NCR (code/limits/measured value/reader)', async () => {

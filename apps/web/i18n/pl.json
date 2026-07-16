@@ -11455,7 +11455,14 @@
         "status": "Status",
         "pick": "Pobierz",
         "pending": "Pobieranie…",
-        "empty": "Brak pozycji na liście kompletacji."
+        "empty": "Brak pozycji na liście kompletacji.",
+        "qtyLabel": "Ilość do pobrania",
+        "reasonLabel": "Powód braku (short-pick)",
+        "reasonPlaceholder": "Wymagane przy pobraniu mniejszej ilości…",
+        "reassignLabel": "Przypisz LP",
+        "reassignPlaceholder": "Zeskanuj alternatywny kod LP…",
+        "reassign": "Przypisz",
+        "reassignPending": "Przypisywanie…"
       },
       "lineStatus": {
         "pending": "Oczekuje",
@@ -11483,6 +11490,8 @@
         "invalid_state": "Tej pozycji nie można już skompletować.",
         "allocation_not_found": "Nie znaleziono zaalokowanej palety.",
         "lp_blocked_for_pick": "Tej palety nie można pobrać (blokada, QA lub przeterminowanie).",
+        "short_pick_reason_required": "Podaj powód, gdy pobierasz mniej niż zaalokowana ilość.",
+        "reassign_required": "Przypisz tę pozycję do nośnika przed pobraniem.",
         "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
       }
     },
@@ -11498,7 +11507,8 @@
       "tabs": {
         "salesOrders": "Zamówienia sprzedaży",
         "shipments": "Wysyłki",
-        "customers": "Klienci"
+        "customers": "Klienci",
+        "rma": "Zwroty (RMA)"
       },
       "status": {
         "pending": "Oczekuje",
@@ -11571,6 +11581,8 @@
           "title": "Spakuj nośnik",
           "lpLabel": "Kod nośnika",
           "lpPlaceholder": "Zeskanuj lub wpisz kod nośnika…",
+          "qtyLabel": "Ilość",
+          "qtyPlaceholder": "Pozostaw puste, aby spakować pozostałą ilość",
           "boxLabel": "Karton",
           "newBox": "Nowy karton",
           "submit": "Spakuj",
@@ -11964,6 +11976,11 @@
         "contacts": {
           "title": "Kontakty ({n})",
           "empty": "Brak kontaktów dla tego klienta.",
+          "add": "Dodaj kontakt",
+          "edit": "Edytuj",
+          "remove": "Usuń",
+          "setPrimary": "Ustaw jako główny",
+          "pending": "Zapisywanie…",
           "primary": "Główny",
           "notPrimary": "—",
           "columns": {
@@ -11971,12 +11988,39 @@
             "title": "Stanowisko",
             "email": "E-mail",
             "phone": "Telefon",
-            "primary": "Główny"
+            "primary": "Główny",
+            "actions": "Akcje"
+          },
+          "modal": {
+            "createTitle": "Dodaj kontakt",
+            "editTitle": "Edytuj kontakt",
+            "subtitle": "Kontakty pojawiają się w korespondencji i dokumentach zamówień.",
+            "nameLabel": "Imię i nazwisko",
+            "namePlaceholder": "Pełne imię i nazwisko",
+            "titleLabel": "Stanowisko",
+            "titlePlaceholder": "Opcjonalnie",
+            "emailLabel": "E-mail",
+            "emailPlaceholder": "nazwa@firma.pl",
+            "phoneLabel": "Telefon",
+            "phonePlaceholder": "Opcjonalnie",
+            "primaryLabel": "Kontakt główny",
+            "primaryHelp": "Dozwolony jest tylko jeden kontakt główny na klienta.",
+            "submitCreate": "Dodaj kontakt",
+            "submitEdit": "Zapisz zmiany",
+            "submitting": "Zapisywanie…",
+            "errors": {
+              "nameRequired": "Podaj imię i nazwisko kontaktu.",
+              "emailInvalid": "Podaj prawidłowy adres e-mail."
+            }
           }
         },
         "allergens": {
           "title": "Ograniczenia alergenów ({n})",
           "empty": "Brak ograniczeń alergenów dla tego klienta.",
+          "add": "Dodaj ograniczenie",
+          "edit": "Edytuj",
+          "remove": "Usuń",
+          "pending": "Zapisywanie…",
           "restrictionType": {
             "refuses": "Odmawia",
             "requires_decl": "Wymaga deklaracji"
@@ -11984,7 +12028,24 @@
           "columns": {
             "allergen": "Alergen",
             "restriction": "Ograniczenie",
-            "notes": "Uwagi"
+            "notes": "Uwagi",
+            "actions": "Akcje"
+          },
+          "modal": {
+            "createTitle": "Dodaj ograniczenie alergenu",
+            "editTitle": "Edytuj ograniczenie alergenu",
+            "subtitle": "Określ, jak ten klient ogranicza alergeny w wysyłanych produktach.",
+            "allergenLabel": "Alergen",
+            "allergenPlaceholder": "Wybierz alergen",
+            "restrictionLabel": "Typ ograniczenia",
+            "notesLabel": "Uwagi",
+            "notesPlaceholder": "Opcjonalny kontekst dla operatorów i QA",
+            "submitCreate": "Dodaj ograniczenie",
+            "submitEdit": "Zapisz zmiany",
+            "submitting": "Zapisywanie…",
+            "errors": {
+              "allergenRequired": "Wybierz alergen."
+            }
           }
         },
         "orders": {
@@ -12014,6 +12075,114 @@
             "created": "Utworzono",
             "actions": "Akcje"
           }
+        }
+      }
+    },
+    "rma": {
+      "title": "Autoryzacje zwrotu towaru (RMA)",
+      "subtitle": "Twórz i zarządzaj zwrotami klientów z dyspozycją QA.",
+      "error": "Nie udało się wczytać RMA. Spróbuj ponownie.",
+      "createRma": "Utwórz RMA",
+      "rowsCount": "RMA: {n}",
+      "view": "Podgląd",
+      "allStatuses": "Wszystkie",
+      "statusFilterLabel": "Status RMA",
+      "breadcrumb": {
+        "shipping": "Wysyłka",
+        "rma": "Zwroty (RMA)"
+      },
+      "empty": {
+        "title": "Brak zwrotów",
+        "body": "Utwórz RMA, gdy klient musi zwrócić wysłany towar."
+      },
+      "status": {
+        "pending": "Oczekuje",
+        "approved": "Zatwierdzone",
+        "receiving": "Przyjmowanie",
+        "received": "Przyjęte",
+        "processed": "Przetworzone",
+        "closed": "Zamknięte"
+      },
+      "disposition": {
+        "none": "Oczekuje",
+        "restock": "Utylizacja magazynowa",
+        "scrap": "Złom",
+        "quality_hold": "Blokada jakości"
+      },
+      "columns": {
+        "rma": "Nr RMA",
+        "salesOrder": "Oryginalne ZS",
+        "customer": "Klient",
+        "reason": "Powód",
+        "lines": "Pozycje",
+        "status": "Status",
+        "created": "Utworzono",
+        "disposition": "Dyspozycja QA",
+        "actions": "Akcje"
+      },
+      "create": {
+        "title": "Utwórz RMA",
+        "customerLabel": "Klient",
+        "customerPlaceholder": "Wybierz klienta",
+        "salesOrderLabel": "ID zamówienia (opcjonalnie)",
+        "salesOrderPlaceholder": "UUID oryginalnego ZS",
+        "reasonLabel": "Kod powodu",
+        "reasonPlaceholder": "Wybierz powód",
+        "notesLabel": "Uwagi",
+        "notesPlaceholder": "Opcjonalne uwagi do zwrotu",
+        "productLabel": "ID produktu",
+        "productPlaceholder": "UUID pozycji FG",
+        "qtyLabel": "Ilość oczekiwana",
+        "addLine": "Dodaj pozycję",
+        "removeLine": "Usuń",
+        "submit": "Utwórz RMA",
+        "submitting": "Tworzenie…",
+        "cancel": "Anuluj",
+        "errors": {
+          "linesRequired": "Dodaj co najmniej jedną pozycję zwrotu z produktem."
+        }
+      },
+      "errors": {
+        "invalid_input": "Sprawdź formularz i spróbuj ponownie.",
+        "forbidden": "Nie masz uprawnień do tej operacji.",
+        "not_found": "Nie znaleziono tego RMA.",
+        "invalid_state": "Ta operacja nie jest dozwolona w bieżącym statusie RMA.",
+        "persistence_failed": "Coś poszło nie tak podczas zapisu. Spróbuj ponownie."
+      },
+      "detail": {
+        "title": "Szczegóły RMA",
+        "subtitle": "Przejrzyj pozycje, przyjmij ilości i zastosuj dyspozycję QA.",
+        "breadcrumbCurrent": "Szczegóły RMA",
+        "backToList": "Powrót do listy RMA",
+        "notFound": "Nie znaleziono tego RMA.",
+        "summaryTitle": "Podsumowanie",
+        "linesTitle": "Pozycje zwrotu",
+        "fields": {
+          "rma": "Nr RMA",
+          "customer": "Klient",
+          "salesOrder": "Zamówienie sprzedaży",
+          "reason": "Powód",
+          "status": "Status",
+          "disposition": "Dyspozycja",
+          "totalValue": "Wartość łączna",
+          "notes": "Uwagi",
+          "created": "Utworzono"
+        },
+        "lineColumns": {
+          "product": "Produkt",
+          "expected": "Ilość oczekiwana",
+          "received": "Ilość przyjęta",
+          "lot": "Partia",
+          "notes": "Uwagi"
+        },
+        "actions": {
+          "approve": "Zatwierdź",
+          "receive": "Oznacz jako przyjęte",
+          "processRestock": "Utylizacja magazynowa",
+          "processScrap": "Złom",
+          "processQualityHold": "Blokada jakości",
+          "close": "Zamknij RMA",
+          "pending": "Zapisywanie…"
         }
       }
     }

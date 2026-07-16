@@ -745,3 +745,97 @@ export const ssccCounters = pgTable('sscc_counters', {
 });
 export type SsccCounter = InferSelectModel<typeof ssccCounters>;
 export type NewSsccCounter = InferInsertModel<typeof ssccCounters>;
+
+// ---------------------------------------------------------------------------
+// rma_requests + rma_lines — Return Merchandise Authorization (T-026, §8.5).
+// ---------------------------------------------------------------------------
+export const rmaRequests = pgTable(
+  'rma_requests',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id'),
+    rmaSeq: bigint('rma_seq', { mode: 'bigint' }).notNull(),
+    rmaNumber: text('rma_number'),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => customers.id, { onDelete: 'restrict' }),
+    salesOrderId: uuid('sales_order_id').references(() => salesOrders.id, { onDelete: 'set null' }),
+    shipmentId: uuid('shipment_id').references(() => shipments.id, { onDelete: 'set null' }),
+    reasonCode: text('reason_code').notNull(),
+    status: text('status').notNull().default('pending'),
+    totalValueGbp: numeric('total_value_gbp', { precision: 14, scale: 2 }),
+    disposition: text('disposition'),
+    notes: text('notes'),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    approvedBy: uuid('approved_by'),
+    receivedAt: timestamp('received_at', { withTimezone: true }),
+    receivedBy: uuid('received_by'),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    processedBy: uuid('processed_by'),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    closedBy: uuid('closed_by'),
+    extData: jsonb('ext_data').notNull().default('{}'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid('created_by'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid('updated_by'),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => ({
+    numberUq: uniqueIndex('rma_requests_org_number_uq').on(t.orgId, t.rmaNumber),
+    orgIdx: index('rma_requests_org_idx').on(t.orgId),
+    customerIdx: index('rma_requests_customer_idx').on(t.customerId),
+    statusIdx: index('rma_requests_status_idx').on(t.orgId, t.status),
+    statusCheck: check(
+      'rma_requests_status_check',
+      sql`${t.status} in ('pending', 'approved', 'receiving', 'received', 'processed', 'closed')`,
+    ),
+    dispositionCheck: check(
+      'rma_requests_disposition_check',
+      sql`${t.disposition} is null or ${t.disposition} in ('restock', 'scrap', 'quality_hold')`,
+    ),
+  }),
+);
+export type RmaRequest = InferSelectModel<typeof rmaRequests>;
+export type NewRmaRequest = InferInsertModel<typeof rmaRequests>;
+
+export const rmaLines = pgTable(
+  'rma_lines',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id'),
+    rmaRequestId: uuid('rma_request_id')
+      .notNull()
+      .references(() => rmaRequests.id, { onDelete: 'cascade' }),
+    productId: uuid('product_id').notNull(), // soft FK → NPD product FG SSOT
+    quantityExpected: numeric('quantity_expected', { precision: 14, scale: 3 }).notNull(),
+    quantityReceived: numeric('quantity_received', { precision: 14, scale: 3 }).notNull().default('0'),
+    lotNumber: text('lot_number'),
+    reasonNotes: text('reason_notes'),
+    disposition: text('disposition'),
+    unitPriceGbp: numeric('unit_price_gbp', { precision: 14, scale: 4 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid('created_by'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid('updated_by'),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => ({
+    orgIdx: index('rma_lines_org_idx').on(t.orgId),
+    requestIdx: index('rma_lines_request_idx').on(t.rmaRequestId),
+    qtyExpectedCheck: check('rma_lines_qty_expected_positive', sql`${t.quantityExpected} > 0`),
+    qtyReceivedCheck: check('rma_lines_qty_received_nonneg', sql`${t.quantityReceived} >= 0`),
+    dispositionCheck: check(
+      'rma_lines_disposition_check',
+      sql`${t.disposition} is null or ${t.disposition} in ('restock', 'scrap', 'quality_hold')`,
+    ),
+  }),
+);
+export type RmaLine = InferSelectModel<typeof rmaLines>;
+export type NewRmaLine = InferInsertModel<typeof rmaLines>;

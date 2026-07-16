@@ -20,9 +20,9 @@ import { downloadCsv, isoDateStamp, toCsv } from '../../../../../../../lib/share
 import type { RecallDrill } from '../../trace/_components/trace-contracts';
 import {
   formatDuration,
+  formatDurationFromLabels,
   RECALL_TARGET_MS,
   type RecallDrillsLabels,
-  type Translator,
 } from '../../trace/_components/labels';
 
 type TargetStatus = 'within' | 'over' | 'in_progress';
@@ -97,13 +97,11 @@ export function RecallDrillsList({
   labels,
   locale,
   newDrillHref,
-  t,
 }: {
   drills: RecallDrill[];
   labels: RecallDrillsLabels;
   locale: string;
   newDrillHref: string;
-  t: Translator;
 }) {
   function exportCsv() {
     downloadCsv(buildRecallDrillsCsv(drills, labels), `recall-drills-${isoDateStamp()}.csv`);
@@ -188,7 +186,7 @@ export function RecallDrillsList({
                       className="px-4 py-2 tabular-nums text-slate-700"
                       data-testid={`recall-drill-duration-${drill.id}`}
                     >
-                      {formatDuration(t, drill.durationMs)}
+                      {formatDurationFromLabels(labels.duration, drill.durationMs)}
                     </td>
                     <td className="px-4 py-2">
                       <Badge variant={BADGE_VARIANT[status]} data-testid={`recall-drill-badge-${drill.id}`}>

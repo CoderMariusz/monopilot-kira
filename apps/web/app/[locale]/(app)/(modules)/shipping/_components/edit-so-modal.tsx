@@ -9,6 +9,12 @@ import Textarea from '@monopilot/ui/Textarea';
 
 import type { SoDetail, SoDetailLabels } from './so-detail-view';
 import { computeSoLineTotal, formatSoCurrencyDisplay } from '../_actions/sales-line-price';
+import {
+  isValidSoLineQtyInput,
+  isValidSoLineUnitPriceInput,
+  normalizeSoLineQty,
+  normalizeSoLineUnitPrice,
+} from '../_actions/so-line-numeric';
 
 export type EditSoResult = { ok: true; data: unknown } | { ok: false; error: string; message?: string };
 
@@ -36,8 +42,6 @@ export type EditSoModalProps = {
   onUpdated: () => void;
 };
 
-const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
-const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
 const PCT_PATTERN = /^\d+(?:\.\d{1,4})?$/;
 const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
 
@@ -109,11 +113,11 @@ export function EditSoModal({
     setFormError(null);
 
     for (const line of lines) {
-      if (!QTY_PATTERN.test(line.qty.trim()) || Number(line.qty) <= 0) {
+      if (!isValidSoLineQtyInput(line.qty)) {
         setFormError(labels.errors.linesInvalid);
         return;
       }
-      if (!PRICE_PATTERN.test(line.unitPriceGbp.trim()) || Number(line.unitPriceGbp) <= 0) {
+      if (!isValidSoLineUnitPriceInput(line.unitPriceGbp)) {
         setFormError(labels.errors.priceInvalid);
         return;
       }
@@ -136,9 +140,9 @@ export function EditSoModal({
         notes: notes.trim() || null,
         lines: lines.map((line) => ({
           id: line.id,
-          qty: line.qty.trim(),
+          qty: normalizeSoLineQty(line.qty)!,
           notes: line.notes.trim() || null,
-          unit_price_gbp: line.unitPriceGbp.trim(),
+          unit_price_gbp: normalizeSoLineUnitPrice(line.unitPriceGbp)!,
           discount_pct: line.discountPct.trim(),
           tax_pct: line.taxPct.trim(),
           currency: line.currency.trim().toUpperCase(),
@@ -192,15 +196,15 @@ export function EditSoModal({
               <tbody>
                 {lines.map((line) => {
                   const lineTotal =
-                    QTY_PATTERN.test(line.qty) &&
-                    PRICE_PATTERN.test(line.unitPriceGbp) &&
+                    isValidSoLineQtyInput(line.qty) &&
+                    isValidSoLineUnitPriceInput(line.unitPriceGbp) &&
                     PCT_PATTERN.test(line.discountPct) &&
                     PCT_PATTERN.test(line.taxPct) &&
                     CURRENCY_PATTERN.test(line.currency)
                       ? formatSoCurrencyDisplay(
                           computeSoLineTotal(
-                            line.qty.trim(),
-                            line.unitPriceGbp.trim(),
+                            normalizeSoLineQty(line.qty)!,
+                            normalizeSoLineUnitPrice(line.unitPriceGbp)!,
                             line.discountPct.trim(),
                             line.taxPct.trim(),
                           ),

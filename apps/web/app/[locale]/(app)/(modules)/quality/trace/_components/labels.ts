@@ -145,7 +145,19 @@ export type RecallDrillsLabels = {
     duration: string;
     rerun: string;
   };
+  duration: {
+    pending: string;
+    hm: string;
+    ms: string;
+    s: string;
+  };
 };
+
+function interpolateTemplate(template: string, values: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_m, k: string) =>
+    values[k] !== undefined ? String(values[k]) : `{${k}}`,
+  );
+}
 
 export function buildTraceLabels(t: Translator): TraceLabels {
   return {
@@ -280,6 +292,12 @@ export function buildRecallDrillsLabels(t: Translator): RecallDrillsLabels {
       duration: t('detail.duration'),
       rerun: t('detail.rerun'),
     },
+    duration: {
+      pending: t('durationPending'),
+      hm: t('durationHm'),
+      ms: t('durationMs'),
+      s: t('durationS'),
+    },
   };
 }
 
@@ -291,14 +309,30 @@ export const RECALL_TARGET_MS = 4 * 60 * 60 * 1000;
  * i18n side effects beyond the passed translator for the unit suffixes.
  */
 export function formatDuration(t: Translator, ms: number | null): string {
-  if (ms === null || ms < 0) return t('durationPending');
+  return formatDurationFromLabels(
+    {
+      pending: t('durationPending'),
+      hm: t('durationHm'),
+      ms: t('durationMs'),
+      s: t('durationS'),
+    },
+    ms,
+  );
+}
+
+/** Formats a drill KPI duration from pre-resolved label templates (RSC-safe). */
+export function formatDurationFromLabels(
+  labels: RecallDrillsLabels['duration'],
+  ms: number | null,
+): string {
+  if (ms === null || ms < 0) return labels.pending;
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  if (hours > 0) return t('durationHm', { h: hours, m: minutes });
-  if (minutes > 0) return t('durationMs', { m: minutes, s: seconds });
-  return t('durationS', { s: seconds });
+  if (hours > 0) return interpolateTemplate(labels.hm, { h: hours, m: minutes });
+  if (minutes > 0) return interpolateTemplate(labels.ms, { m: minutes, s: seconds });
+  return interpolateTemplate(labels.s, { s: seconds });
 }
 
 /**

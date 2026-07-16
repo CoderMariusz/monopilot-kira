@@ -154,7 +154,7 @@ export default async function ShipmentsListPage({ params, searchParams }: PagePr
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.shipping'), href: `/${locale}/shipping` }, { label: t('breadcrumb.shipments') }]}
       />
-      <ShippingTabs locale={locale} labels={{ salesOrders: t('tabs.salesOrders'), shipments: t('tabs.shipments'), customers: t('tabs.customers') }} />
+      <ShippingTabs locale={locale} labels={{ salesOrders: t('tabs.salesOrders'), shipments: t('tabs.shipments'), customers: t('tabs.customers'), rma: t('tabs.rma') }} />
       <Suspense key={suspenseKey} fallback={<ListSkeleton />}>
         <ListContent locale={locale} page={page} status={status} />
       </Suspense>

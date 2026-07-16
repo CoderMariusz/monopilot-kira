@@ -362,6 +362,12 @@ describe('quality hold server actions', () => {
     expect(lpUpdate?.[1]).toEqual([[LP_ID], USER_ID, ['consumed', 'merged', 'shipped', 'returned']]);
     const outbox = calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.outbox_events'));
     expect(outbox?.[1]?.[0]).toBe('quality.hold.created');
+    const createdAudit = calls.find(
+      ([sql, params]) =>
+        normalize(String(sql)).startsWith('insert into public.audit_events') && params?.[1] === 'quality.hold.created',
+    );
+    expect(createdAudit?.[1]?.[2]).toBe('quality_hold');
+    expect(createdAudit?.[1]?.[3]).toBe(HOLD_ID);
     expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith('/quality/holds');
     expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith(`/quality/holds/${HOLD_ID}`);
   });
@@ -547,6 +553,13 @@ describe('quality hold server actions', () => {
     expect(historyCalls).toHaveLength(1);
     const outbox = calls.find(([sql, params]) => normalize(String(sql)).startsWith('insert into public.outbox_events') && params?.[0] === 'quality.hold.released');
     expect(outbox).toBeTruthy();
+    const releasedAudit = calls.find(
+      ([sql, params]) =>
+        normalize(String(sql)).startsWith('insert into public.audit_events') && params?.[1] === 'quality.hold.released',
+    );
+    expect(releasedAudit?.[1]?.[2]).toBe('quality_hold');
+    expect(releasedAudit?.[1]?.[3]).toBe(HOLD_ID);
+    expect(JSON.parse(String(releasedAudit?.[1]?.[5])).status).toBe('released');
     expect(signEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         signerUserId: USER_ID,

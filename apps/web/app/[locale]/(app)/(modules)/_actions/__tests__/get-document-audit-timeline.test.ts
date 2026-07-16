@@ -167,6 +167,33 @@ describe('getDocumentAuditTimeline', () => {
     expect(result.rows).toHaveLength(0);
   });
 
+  it('reads quality_hold audit_events scoped to the hold id', async () => {
+    const holdId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const client = makeClient(holdId, {
+      auditEvents: [
+        {
+          id: '55',
+          action: 'quality.hold.released',
+          occurred_at: '2026-07-15T22:19:00.000Z',
+          actor_user_id: USER_ID,
+          actor_name: 'Apex Admin',
+          actor_type: 'user',
+          before_state: { status: 'open' },
+          after_state: { status: 'released', disposition: 'release_as_is' },
+        },
+      ],
+    });
+
+    const result = await getDocumentAuditTimeline('quality_hold', holdId, { client, limit: 50 });
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]?.action).toBe('quality.hold.released');
+    const params = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      sql.toLowerCase().includes('from public.audit_events'),
+    )?.[1];
+    expect(params).toEqual(expect.arrayContaining([holdId, 'quality_hold', 100]));
+  });
+
   it('paginates with offset + limit', async () => {
     const client = makeClient(ORG_PO_ID, {
       auditEvents: Array.from({ length: 3 }, (_, i) => ({

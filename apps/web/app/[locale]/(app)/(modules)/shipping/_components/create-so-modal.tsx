@@ -45,6 +45,12 @@ import {
   formatSoCurrencyDisplay,
   normalizeSoUnitPriceGbp,
 } from '../_actions/sales-line-price';
+import {
+  isValidSoLineQtyInput,
+  isValidSoLineUnitPriceInput,
+  normalizeSoLineQty,
+  normalizeSoLineUnitPrice,
+} from '../_actions/so-line-numeric';
 import { UomSelect, type UomOptionLabels } from '../../../../../../components/forms/uom-select';
 
 export type CreateSoLabels = {
@@ -149,8 +155,6 @@ export type CreateSoModalProps = {
   onCreated: () => void;
 };
 
-const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
-const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
 const PCT_PATTERN = /^\d+(?:\.\d{1,4})?$/;
 const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
 
@@ -300,11 +304,9 @@ export function CreateSoModal({
     const validLines = lines.filter(
       (l) =>
         l.item &&
-        QTY_PATTERN.test(l.qty.trim()) &&
-        Number(l.qty) > 0 &&
+        isValidSoLineQtyInput(l.qty) &&
         l.uom.trim().length > 0 &&
-        PRICE_PATTERN.test(l.unitPriceGbp.trim()) &&
-        Number(l.unitPriceGbp) > 0 &&
+        isValidSoLineUnitPriceInput(l.unitPriceGbp) &&
         PCT_PATTERN.test(l.discountPct.trim()) &&
         Number(l.discountPct) >= 0 &&
         Number(l.discountPct) <= 100 &&
@@ -326,9 +328,9 @@ export function CreateSoModal({
         notes: notes.trim() || undefined,
         lines: validLines.map((l) => ({
           item_id: l.item!.id,
-          qty: l.qty.trim(),
+          qty: normalizeSoLineQty(l.qty)!,
           uom: l.uom.trim(),
-          unit_price_gbp: l.unitPriceGbp.trim(),
+          unit_price_gbp: normalizeSoLineUnitPrice(l.unitPriceGbp)!,
           discount_pct: l.discountPct.trim(),
           tax_pct: l.taxPct.trim(),
           currency: l.currency.trim().toUpperCase(),
@@ -549,15 +551,15 @@ export function CreateSoModal({
                         />
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums" data-testid="create-so-line-total">
-                        {QTY_PATTERN.test(line.qty) &&
-                        PRICE_PATTERN.test(line.unitPriceGbp) &&
+                        {isValidSoLineQtyInput(line.qty) &&
+                        isValidSoLineUnitPriceInput(line.unitPriceGbp) &&
                         PCT_PATTERN.test(line.discountPct) &&
                         PCT_PATTERN.test(line.taxPct) &&
                         CURRENCY_PATTERN.test(line.currency)
                           ? formatSoCurrencyDisplay(
                               computeSoLineTotal(
-                                line.qty.trim(),
-                                line.unitPriceGbp.trim(),
+                                normalizeSoLineQty(line.qty)!,
+                                normalizeSoLineUnitPrice(line.unitPriceGbp)!,
                                 line.discountPct.trim(),
                                 line.taxPct.trim(),
                               ),

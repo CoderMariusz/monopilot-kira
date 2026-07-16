@@ -8,7 +8,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getMaintenanceTranslator } from '../../maintenance-labels';
 import { buildMwoListLabels } from '../../_components/mwo-detail-labels';
-import { getMwoById, getMwoPermissions, transitionMwo, verifyMwoLotoLockout, verifyMwoLotoRelease } from '../../_actions/mwo-actions';
+import { getMwoById, getMwoPermissions, listEquipmentForMwo, transitionMwo, updateMwo, verifyMwoLotoLockout, verifyMwoLotoRelease } from '../../_actions/mwo-actions';
 import { MwoDetailClient } from './_components/mwo-detail.client';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +28,12 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
   const t = getMaintenanceTranslator(locale);
   const labels = buildMwoListLabels(t);
 
-  const [mwoResult, permissions] = await Promise.all([getMwoById(id), getMwoPermissions()]);
+  const [mwoResult, permissions, equipmentResult] = await Promise.all([
+    getMwoById(id),
+    getMwoPermissions(),
+    listEquipmentForMwo(),
+  ]);
+  const equipment = equipmentResult.ok ? equipmentResult.data : [];
 
   if (!mwoResult.ok) {
     if (mwoResult.reason === 'forbidden') {
@@ -61,14 +66,17 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
     <MwoDetailClient
       locale={locale}
       mwo={mwoResult.data}
+      equipment={equipment}
       labels={labels}
       permissions={{
+        canEdit: permissions.canCreate,
         canExecute: permissions.canExecute,
         canCancel: permissions.canCancel,
         canLotoApply: permissions.canLotoApply,
         canLotoClear: permissions.canLotoClear,
       }}
       transitionMwoAction={transitionMwo}
+      updateMwoAction={updateMwo}
       verifyLotoLockoutAction={verifyMwoLotoLockout}
       verifyLotoReleaseAction={verifyMwoLotoRelease}
     />

@@ -86,7 +86,6 @@ async function ListContent({ locale, t }: { locale: string; t: Translator }) {
       labels={labels}
       locale={locale}
       newDrillHref={`/${locale}/quality/trace`}
-      t={t}
     />
   );
 }

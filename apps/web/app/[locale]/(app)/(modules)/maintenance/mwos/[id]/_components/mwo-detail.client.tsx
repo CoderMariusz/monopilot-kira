@@ -2,15 +2,17 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Card } from '@monopilot/ui/Card';
 
 import { MwoTransitionModal } from '../../../_components/mwo-transition-modal';
+import { MwoEditModal, type UpdateMwoAction } from '../../../_components/mwo-edit-modal';
 import { MwoLotoModal, type MwoLotoModalLabels } from '../../../_components/mwo-loto-modal';
 import { PRIORITY_VARIANT, STATE_VARIANT, fmtDate, fmtDateTime } from '../../../_components/mwo-list.client';
 import type { MwoListLabels, TransitionMwoAction } from '../../../_components/mwo-list.client';
+import type { EquipmentOption } from '../../../_actions/mwo-actions';
 import type { MwoDetailRow, MwoTransition } from '../../../_actions/mwo-actions';
 
 type LotoSignAction = (input: {
@@ -36,38 +38,50 @@ export type MwoDetailLabels = MwoListLabels & {
     lotoPendingBanner: string;
     lotoApply: string;
     lotoClear: string;
+    edit: string;
   };
   loto: MwoLotoModalLabels;
 };
 
 export function MwoDetailClient({
   locale,
-  mwo,
+  mwo: mwoProp,
+  equipment,
   labels,
   permissions,
   transitionMwoAction,
+  updateMwoAction,
   verifyLotoLockoutAction,
   verifyLotoReleaseAction,
 }: {
   locale: string;
   mwo: MwoDetailRow;
+  equipment: EquipmentOption[];
   labels: MwoDetailLabels;
   permissions: {
+    canEdit: boolean;
     canExecute: boolean;
     canCancel: boolean;
     canLotoApply: boolean;
     canLotoClear: boolean;
   };
   transitionMwoAction: TransitionMwoAction;
+  updateMwoAction: UpdateMwoAction;
   verifyLotoLockoutAction: LotoSignAction;
   verifyLotoReleaseAction: LotoSignAction;
 }) {
   const router = useRouter();
+  const [mwo, setMwo] = useState(mwoProp);
+  useEffect(() => {
+    setMwo(mwoProp);
+  }, [mwoProp]);
   const [pendingTransition, setPendingTransition] = useState<MwoTransition | null>(null);
   const [pendingLoto, setPendingLoto] = useState<'lockout' | 'release' | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const d = labels.detail;
 
   const terminal = mwo.state === 'completed' || mwo.state === 'cancelled';
+  const editable = !terminal && (mwo.state === 'open' || mwo.state === 'requested' || mwo.state === 'approved');
   const lotoRequired = mwo.loto.requiresLoto;
   const canStart = permissions.canExecute && (!lotoRequired || mwo.loto.lockoutActive);
 
@@ -146,6 +160,16 @@ export function MwoDetailClient({
 
         {!terminal ? (
           <div className="mt-4 flex flex-wrap gap-2">
+            {editable && permissions.canEdit ? (
+              <button
+                type="button"
+                data-testid="mwo-detail-edit"
+                onClick={() => setEditOpen(true)}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                {d.edit}
+              </button>
+            ) : null}
             {lotoRequired && mwo.state === 'open' && !mwo.loto.lockoutActive && permissions.canLotoApply ? (
               <button
                 type="button"
@@ -230,6 +254,21 @@ export function MwoDetailClient({
           {d.pmSourceEmpty}
         </p>
       )}
+
+      {editOpen ? (
+        <MwoEditModal
+          mwo={mwo}
+          equipment={equipment}
+          labels={labels}
+          updateMwoAction={updateMwoAction}
+          onClose={() => setEditOpen(false)}
+          onUpdated={(updated) => {
+            setEditOpen(false);
+            setMwo(updated);
+            refresh();
+          }}
+        />
+      ) : null}
 
       {pendingTransition ? (
         <MwoTransitionModal

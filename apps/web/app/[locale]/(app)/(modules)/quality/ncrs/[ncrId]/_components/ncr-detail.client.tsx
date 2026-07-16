@@ -150,9 +150,10 @@ export function NcrDetailClient({
   closeNcrAction: CloseNcrAction;
 }) {
   const router = useRouter();
-  const isClosed = TERMINAL.has(ncr.status);
+  const [status, setStatus] = useState(ncr.status);
+  const isClosed = TERMINAL.has(status);
   const isCritical = ncr.severity === 'critical';
-  const canClose = !isClosed && ncr.status === 'investigating';
+  const canClose = !isClosed && status === 'investigating';
 
   const [rootCause, setRootCause] = useState(ncr.rootCause ?? '');
   const [rootCauseCategory, setRootCauseCategory] = useState<string>(ncr.rootCauseCategory ?? '');
@@ -176,7 +177,11 @@ export function NcrDetailClient({
         setSaveError(labels.investigation.error.replace('{message}', result.message ?? result.reason));
         return;
       }
+      if (result.data.status) {
+        setStatus(result.data.status);
+      }
       setSaved(true);
+      router.refresh();
     });
   }
 
@@ -191,8 +196,8 @@ export function NcrDetailClient({
         <Badge variant={SEVERITY_VARIANT[ncr.severity] ?? 'muted'} data-testid="ncr-detail-severity">
           {labels.severityValues[ncr.severity] ?? ncr.severity}
         </Badge>
-        <Badge variant={STATUS_VARIANT[ncr.status] ?? 'muted'} data-testid="ncr-detail-status">
-          {labels.statusValues[ncr.status] ?? ncr.status}
+        <Badge variant={STATUS_VARIANT[status] ?? 'muted'} data-testid="ncr-detail-status">
+          {labels.statusValues[status] ?? status}
         </Badge>
         <div className="ml-auto flex items-center gap-2">
           {canClose && (

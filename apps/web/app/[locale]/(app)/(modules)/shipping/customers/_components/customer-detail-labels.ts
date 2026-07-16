@@ -2,6 +2,8 @@
  * Wave-shipping — Customer detail label builder.
  */
 import type { CustomerAddressModalLabels } from './customer-address-modal';
+import type { CustomerAllergenModalLabels } from './customer-allergen-modal';
+import type { CustomerContactModalLabels } from './customer-contact-modal';
 import type { EditCustomerLabels } from './edit-customer-modal';
 import type { CustomerDetailLabels } from './customer-detail-view';
 
@@ -90,6 +92,61 @@ export function buildCustomerDetailLabels(t: Translate): CustomerDetailLabels {
     },
   };
 
+  const allergenModal: CustomerAllergenModalLabels = {
+    createTitle: t('detail.allergens.modal.createTitle'),
+    editTitle: t('detail.allergens.modal.editTitle'),
+    subtitle: t('detail.allergens.modal.subtitle'),
+    allergenLabel: t('detail.allergens.modal.allergenLabel'),
+    allergenPlaceholder: t('detail.allergens.modal.allergenPlaceholder'),
+    restrictionLabel: t('detail.allergens.modal.restrictionLabel'),
+    restrictionOptions: {
+      refuses: t('detail.allergens.restrictionType.refuses'),
+      requires_decl: t('detail.allergens.restrictionType.requires_decl'),
+    },
+    notesLabel: t('detail.allergens.modal.notesLabel'),
+    notesPlaceholder: t('detail.allergens.modal.notesPlaceholder'),
+    submitCreate: t('detail.allergens.modal.submitCreate'),
+    submitEdit: t('detail.allergens.modal.submitEdit'),
+    submitting: t('detail.allergens.modal.submitting'),
+    cancel: t('create.cancel'),
+    errors: {
+      allergenRequired: t('detail.allergens.modal.errors.allergenRequired'),
+      invalid_input: t('errors.invalid_input'),
+      forbidden: t('errors.forbidden'),
+      not_found: t('errors.not_found'),
+      already_exists: t('errors.already_exists'),
+      persistence_failed: t('errors.persistence_failed'),
+    },
+  };
+
+  const contactModal: CustomerContactModalLabels = {
+    createTitle: t('detail.contacts.modal.createTitle'),
+    editTitle: t('detail.contacts.modal.editTitle'),
+    subtitle: t('detail.contacts.modal.subtitle'),
+    nameLabel: t('detail.contacts.modal.nameLabel'),
+    namePlaceholder: t('detail.contacts.modal.namePlaceholder'),
+    titleLabel: t('detail.contacts.modal.titleLabel'),
+    titlePlaceholder: t('detail.contacts.modal.titlePlaceholder'),
+    emailLabel: t('detail.contacts.modal.emailLabel'),
+    emailPlaceholder: t('detail.contacts.modal.emailPlaceholder'),
+    phoneLabel: t('detail.contacts.modal.phoneLabel'),
+    phonePlaceholder: t('detail.contacts.modal.phonePlaceholder'),
+    primaryLabel: t('detail.contacts.modal.primaryLabel'),
+    primaryHelp: t('detail.contacts.modal.primaryHelp'),
+    submitCreate: t('detail.contacts.modal.submitCreate'),
+    submitEdit: t('detail.contacts.modal.submitEdit'),
+    submitting: t('detail.contacts.modal.submitting'),
+    cancel: t('create.cancel'),
+    errors: {
+      nameRequired: t('detail.contacts.modal.errors.nameRequired'),
+      emailInvalid: t('detail.contacts.modal.errors.emailInvalid'),
+      invalid_input: t('errors.invalid_input'),
+      forbidden: t('errors.forbidden'),
+      not_found: t('errors.not_found'),
+      persistence_failed: t('errors.persistence_failed'),
+    },
+  };
+
   return {
     status: {
       active: t('status.active'),
@@ -166,6 +223,11 @@ export function buildCustomerDetailLabels(t: Translate): CustomerDetailLabels {
     contacts: {
       title: t('detail.contacts.title'),
       empty: t('detail.contacts.empty'),
+      add: t('detail.contacts.add'),
+      edit: t('detail.contacts.edit'),
+      remove: t('detail.contacts.remove'),
+      setPrimary: t('detail.contacts.setPrimary'),
+      pending: t('detail.contacts.pending'),
       primary: t('detail.contacts.primary'),
       notPrimary: t('detail.contacts.notPrimary'),
       columns: {
@@ -174,11 +236,21 @@ export function buildCustomerDetailLabels(t: Translate): CustomerDetailLabels {
         email: t('detail.contacts.columns.email'),
         phone: t('detail.contacts.columns.phone'),
         primary: t('detail.contacts.columns.primary'),
+        actions: t('detail.contacts.columns.actions'),
+      },
+      errors: {
+        forbidden: t('errors.forbidden'),
+        not_found: t('errors.not_found'),
+        persistence_failed: t('errors.persistence_failed'),
       },
     },
     allergens: {
       title: t('detail.allergens.title'),
       empty: t('detail.allergens.empty'),
+      add: t('detail.allergens.add'),
+      edit: t('detail.allergens.edit'),
+      remove: t('detail.allergens.remove'),
+      pending: t('detail.allergens.pending'),
       restrictionType: {
         refuses: t('detail.allergens.restrictionType.refuses'),
         requires_decl: t('detail.allergens.restrictionType.requires_decl'),
@@ -187,6 +259,13 @@ export function buildCustomerDetailLabels(t: Translate): CustomerDetailLabels {
         allergen: t('detail.allergens.columns.allergen'),
         restriction: t('detail.allergens.columns.restriction'),
         notes: t('detail.allergens.columns.notes'),
+        actions: t('detail.allergens.columns.actions'),
+      },
+      errors: {
+        forbidden: t('errors.forbidden'),
+        not_found: t('errors.not_found'),
+        already_exists: t('errors.already_exists'),
+        persistence_failed: t('errors.persistence_failed'),
       },
     },
     orders: {
@@ -219,5 +298,7 @@ export function buildCustomerDetailLabels(t: Translate): CustomerDetailLabels {
     },
     edit,
     addressModal,
+    allergenModal,
+    contactModal,
   };
 }

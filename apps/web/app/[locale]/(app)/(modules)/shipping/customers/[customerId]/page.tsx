@@ -9,6 +9,12 @@ import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
+import {
+  createCustomerAllergenRestriction,
+  deleteCustomerAllergenRestriction,
+  listAllergenReferenceOptions,
+  updateCustomerAllergenRestriction,
+} from '../_actions/customer-allergen-actions';
 import { getCustomer, updateCustomer, setCustomerActive } from '../_actions/customer-actions';
 import { listSalesOrders } from '../../_actions/so-actions';
 import {
@@ -17,6 +23,12 @@ import {
   deactivateCustomerAddress,
   setDefaultShippingAddress,
 } from '../_actions/customer-address-actions';
+import {
+  createCustomerContact,
+  updateCustomerContact,
+  deactivateCustomerContact,
+  setPrimaryCustomerContact,
+} from '../_actions/customer-contact-actions';
 import { CustomerDetailView } from '../_components/customer-detail-view';
 import { buildCustomerDetailLabels } from '../_components/customer-detail-labels';
 import { ShippingTabs } from '../../shipments/_components/shipping-tabs';
@@ -59,6 +71,8 @@ async function DetailContent({ locale, customerId }: { locale: string; customerI
   }
 
   const ordersResult = await listSalesOrders({ customerCode: result.data.code, limit: 50 });
+  const allergenOptionsResult = await listAllergenReferenceOptions();
+  const allergenOptions = allergenOptionsResult.ok ? allergenOptionsResult.data : [];
   const orderHistory =
     ordersResult.ok && ordersResult.data
       ? ordersResult.data.items.map((order) => ({
@@ -77,6 +91,7 @@ async function DetailContent({ locale, customerId }: { locale: string; customerI
       locale={locale}
       customer={result.data}
       orderHistory={orderHistory}
+      allergenOptions={allergenOptions}
       labels={buildCustomerDetailLabels((key) => t(key))}
       updateCustomerAction={updateCustomer}
       setCustomerActiveAction={setCustomerActive}
@@ -84,6 +99,13 @@ async function DetailContent({ locale, customerId }: { locale: string; customerI
       updateAddressAction={updateCustomerAddress}
       deactivateAddressAction={deactivateCustomerAddress}
       setDefaultShippingAddressAction={setDefaultShippingAddress}
+      createAllergenRestrictionAction={createCustomerAllergenRestriction}
+      updateAllergenRestrictionAction={updateCustomerAllergenRestriction}
+      deleteAllergenRestrictionAction={deleteCustomerAllergenRestriction}
+      createContactAction={createCustomerContact}
+      updateContactAction={updateCustomerContact}
+      deactivateContactAction={deactivateCustomerContact}
+      setPrimaryContactAction={setPrimaryCustomerContact}
     />
   );
 }
@@ -114,6 +136,7 @@ export default async function ShippingCustomerDetailPage({ params }: PageProps) 
           salesOrders: tShip('tabs.salesOrders'),
           shipments: tShip('tabs.shipments'),
           customers: tShip('tabs.customers'),
+          rma: tShip('tabs.rma'),
         }}
       />
       <Suspense fallback={<DetailSkeleton />}>

@@ -99,3 +99,13 @@ export type InstrumentOption = {
   calibrationIntervalDays: number;
   active: boolean;
 };
+
+/** Row fields returned after recordCalibration for immediate list reconciliation. */
+export type CalibrationRecordRowPatch = {
+  instrumentId: string;
+  calibratedAt: string;
+  result: CalibrationResult;
+  certificateFileUrl: string | null;
+  nextDueDate: string;
+  active: boolean;
+};

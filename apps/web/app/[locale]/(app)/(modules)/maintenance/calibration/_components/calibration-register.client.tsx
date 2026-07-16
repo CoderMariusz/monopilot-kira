@@ -1,10 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { toCsv } from '../../../../../../../lib/shared/download';
-import type { CalibrationDueRow, InstrumentOption } from '../_types/calibration-schemas';
+import type { CalibrationDueRow, CalibrationRecordRowPatch, InstrumentOption } from '../_types/calibration-schemas';
 import {
   createInstrument,
   deactivateInstrument,
@@ -98,8 +98,24 @@ function buildCsvHref(rows: CalibrationDueRow[], today: string, labels: Calibrat
   return `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
 }
 
+function applyRecordRowPatch(rows: CalibrationDueRow[], patch: CalibrationRecordRowPatch): CalibrationDueRow[] {
+  return rows.map((row) =>
+    row.instrumentId === patch.instrumentId
+      ? {
+          ...row,
+          recordId: row.recordId,
+          calibratedAt: patch.calibratedAt,
+          result: patch.result,
+          certificateFileUrl: patch.certificateFileUrl,
+          nextDueDate: patch.nextDueDate,
+          active: patch.active,
+        }
+      : row,
+  );
+}
+
 export function CalibrationRegisterClient({
-  rows,
+  rows: rowsProp,
   instruments,
   labels,
   permissions,
@@ -114,6 +130,10 @@ export function CalibrationRegisterClient({
   };
 }) {
   const router = useRouter();
+  const [rows, setRows] = useState(rowsProp);
+  useEffect(() => {
+    setRows(rowsProp);
+  }, [rowsProp]);
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const overdueCount = rows.filter((row) => row.active && isOverdue(row.nextDueDate, today)).length;
   const csvHref = buildCsvHref(rows, today, labels);
@@ -127,6 +147,12 @@ export function CalibrationRegisterClient({
 
   const refresh = () => {
     setModal(null);
+    router.refresh();
+  };
+
+  const refreshAfterRecord = (rowPatch: CalibrationRecordRowPatch) => {
+    setModal(null);
+    setRows((current) => applyRecordRowPatch(current, rowPatch));
     router.refresh();
   };
 
@@ -304,7 +330,7 @@ export function CalibrationRegisterClient({
           labels={labels.record}
           recordCalibrationAction={recordCalibration}
           onClose={() => setModal(null)}
-          onRecorded={refresh}
+          onRecorded={refreshAfterRecord}
         />
       ) : null}
     </>

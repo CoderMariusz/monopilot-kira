@@ -797,11 +797,27 @@ describe('GenerateBolModal — carrier/service/tracking → generateBol', () => 
     expect(await screen.findByTestId('shipment-bol-error')).toHaveTextContent('That shipment no longer exists.');
   });
 
-  // ── Regression: "BOL reference: BOL reference" placeholder. getShipment surfaces the
-  // serialized BOL payload in bolPdfUrl (NOT a browsable URL, NOT the SHA hash). On
-  // first paint after a reload bolRef is null, so the rail must render an honest em-dash
-  // as the value — NEVER the label text ("BOL reference") as its own value.
-  it('renders an em-dash (not the label as its value) when a non-URL BOL payload is persisted and no in-session ref exists', () => {
+  // ── Regression: signed BOL hash must rehydrate after reload (C109).
+  it('rehydrates the persisted BOL SHA-256 and shows Regenerate BOL after reload', () => {
+    const bolSha256 = 'b9a89fae2ccbdeadbeef0123456789abcdef';
+    renderPack(
+      makeDetail({
+        shipment: {
+          ...rows[0],
+          status: 'packed',
+          bolSha256,
+          carrier: 'SOL-R19 Audit Carrier',
+          trackingNumber: 'SOLR19TRACK001',
+        },
+      }),
+    );
+    expect(screen.getByTestId('shipment-bol-ref')).toHaveTextContent('b9a89fae2ccb');
+    expect(screen.getByTestId('shipment-generate-bol-trigger')).toHaveTextContent('Regenerate BOL');
+    expect(screen.getByTestId('shipment-carrier')).toHaveTextContent('SOL-R19 Audit Carrier');
+  });
+
+  // ── Regression: non-URL bol_pdf_url without a persisted hash still renders em-dash.
+  it('renders an em-dash when bol_pdf_url is a non-URL payload and no bol_sha256 exists', () => {
     renderPack(
       makeDetail({
         shipment: {

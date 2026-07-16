@@ -7,7 +7,7 @@
  * 'use client' module, EVERY export — including plain const arrays — becomes a
  * client-reference proxy in the RSC module graph, so iterating it on the server
  * throws `TypeError: ... LP_DEFERRED_ACTIONS is not iterable` and 500s the page
- * (page.tsx buildLabels()). Keeping the runtime values here (no directive) lets
+ * (lp-detail-labels.ts buildLpDetailLabels()). Keeping the runtime values here (no directive) lets
  * both layers import the real array.
  */
 

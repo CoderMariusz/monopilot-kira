@@ -73,6 +73,11 @@ export type CustomerAllergenRestriction = {
   updatedAt: string;
 };
 
+export type AllergenReferenceOption = {
+  id: string;
+  name: string;
+};
+
 export type CustomerResult<T> =
   | ({ ok: true; data: T } & (T extends Customer ? { id: string } : object))
   | { ok: false; error: CustomerError; message?: string };
@@ -82,6 +87,7 @@ export type CreateCustomerResult = CustomerResult<Customer>;
 export type GetCustomerResult = CustomerResult<CustomerDetail>;
 export type UpdateCustomerResult = CustomerResult<Customer>;
 export type AddressResult = CustomerResult<CustomerAddress>;
+export type ContactResult = CustomerResult<CustomerContact>;
 
 export type CreateCustomerInput = {
   code?: string;
@@ -122,3 +128,29 @@ export type CustomerAddressInput = {
 export type CustomerAddressUpdateInput = CustomerAddressInput & {
   addressId: string;
 };
+
+export type CustomerContactInput = {
+  customerId: string;
+  name: string;
+  title?: string;
+  email?: string;
+  phone?: string;
+  isPrimary: boolean;
+};
+
+export type CustomerContactUpdateInput = CustomerContactInput & {
+  contactId: string;
+};
+
+export type CustomerAllergenRestrictionInput = {
+  customerId: string;
+  allergenId: string;
+  restrictionType: 'refuses' | 'requires_decl';
+  notes?: string;
+};
+
+export type CustomerAllergenRestrictionUpdateInput = CustomerAllergenRestrictionInput & {
+  restrictionId: string;
+};
+
+export type AllergenRestrictionResult = CustomerResult<CustomerAllergenRestriction>;

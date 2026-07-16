@@ -32,6 +32,7 @@ let insertedBoxes: Array<Record<string, unknown>> = [];
 let insertedContents: Array<Record<string, unknown>> = [];
 let linkedLicensePlates: Array<Record<string, unknown>> = [];
 let existingPackedContent = false;
+let alreadyPackedQty = '0';
 let allocationExists = true;
 let lpBlocked = false;
 let lpCodeLookupId: string | null = LP_ID;
@@ -45,6 +46,7 @@ let detailContents: Array<{
   qty: string | null;
 }> = [];
 let existingBlockingShipment = false;
+let detailBolSha256: string | null = null;
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
 
 vi.mock('../../../../../../lib/auth/with-org-context', () => ({
@@ -132,6 +134,28 @@ function makeClient(): QueryClient {
         return {
           rows: lpCodeLookupId ? [{ id: lpCodeLookupId }] : [],
           rowCount: lpCodeLookupId ? 1 : 0,
+        };
+      }
+
+      if (q.startsWith('select coalesce(sum(sbc.quantity)')) {
+        return {
+          rows: [{ packed_qty: alreadyPackedQty }],
+          rowCount: 1,
+        };
+      }
+
+      if (q.startsWith('select case') && q.includes('pack_qty')) {
+        const requestedQty = params[2] as string | null;
+        const remaining = String(Number(params[1]) - Number(params[0]));
+        const packQty =
+          requestedQty && String(requestedQty).trim() !== '' ? String(requestedQty) : remaining;
+        return {
+          rows: [{
+            pack_qty: packQty,
+            remaining_qty: remaining,
+            fully_packed: Number(params[0]) >= Number(params[1]),
+          }],
+          rowCount: 1,
         };
       }
 
@@ -231,6 +255,7 @@ function makeClient(): QueryClient {
               created_at: '2026-06-22T10:00:00.000Z',
               packed_at: null,
               shipped_at: null,
+              bol_sha256: detailBolSha256,
             },
           ],
           rowCount: 1,
@@ -260,6 +285,7 @@ beforeEach(() => {
   insertedContents = [];
   linkedLicensePlates = [];
   existingPackedContent = false;
+  alreadyPackedQty = '0';
   allocationExists = true;
   lpBlocked = false;
   lpCodeLookupId = LP_ID;
@@ -274,6 +300,7 @@ beforeEach(() => {
       qty: '10.000',
     },
   ];
+  detailBolSha256 = null;
   queryLog = [];
   existingBlockingShipment = false;
   client = makeClient();
@@ -364,7 +391,7 @@ describe('packLpIntoBox', () => {
         product_id: ITEM_ID,
         license_plate_id: LP_ID,
         lot_number: 'BATCH-001',
-        quantity: '10.000',
+        quantity: '10',
         created_by: USER_ID,
       },
     ]);
@@ -394,6 +421,16 @@ describe('packLpIntoBox', () => {
     ).toBe(true);
   });
 
+  it('packs a partial LP quantity when quantity is supplied', async () => {
+    const result = await packLpIntoBox({ shipmentId: SHIPMENT_ID, lpId: LP_ID, quantity: '6.000' });
+
+    expect(result).toEqual({ ok: true, boxId: BOX_ID });
+    expect(insertedContents[0]).toMatchObject({
+      license_plate_id: LP_ID,
+      quantity: '6.000',
+    });
+  });
+
   it('refuses to pack an LP that is on hold / QA-unreleased / expired (food-safety guard)', async () => {
     lpBlocked = true;
 
@@ -412,7 +449,7 @@ describe('packLpIntoBox', () => {
     expect(result).toEqual({ ok: false, error: 'lp_not_found' });
     expect(insertedBoxes).toEqual([]);
     expect(insertedContents).toEqual([]);
-    expect(queryLog.some((entry) => normalize(entry.sql).startsWith('select sbc.id::text'))).toBe(false);
+    expect(queryLog.some((entry) => normalize(entry.sql).startsWith('select coalesce(sum(sbc.quantity)'))).toBe(false);
     expect(queryLog.some((entry) => normalize(entry.sql).startsWith('select ia.sales_order_line_id::text'))).toBe(false);
   });
 
@@ -475,5 +512,23 @@ describe('getShipment', () => {
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     expect(content.lpCode).not.toMatch(uuidPattern);
     expect(content.itemCode).not.toMatch(uuidPattern);
+  });
+
+  it('rehydrates the signed BOL SHA-256 from ext_data.bol_sha256', async () => {
+    detailBolSha256 = 'b9a89fae2ccbdeadbeef0123456789abcdef';
+
+    const result = await getShipment(SHIPMENT_ID);
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        shipment: {
+          bolSha256: detailBolSha256,
+        },
+      },
+    });
+    expect(
+      queryLog.some(({ sql }) => normalize(sql).includes("ext_data->>'bol_sha256'")),
+    ).toBe(true);
   });
 });

@@ -79,6 +79,8 @@ export type ShipmentPackLabels = {
     title: string;
     lpLabel: string;
     lpPlaceholder: string;
+    qtyLabel: string;
+    qtyPlaceholder: string;
     boxLabel: string;
     newBox: string;
     submit: string;
@@ -111,6 +113,7 @@ export type ShipmentPackViewProps = {
     shipmentId: string;
     lpId: string;
     boxId?: string;
+    quantity?: string;
   }) => Promise<PackLpResult>;
   sealShipmentAction: (shipmentId: string) => Promise<SealShipmentResult>;
   /** Reviewed ship-actions.ts seams (imported by the page, never authored here). */
@@ -141,6 +144,7 @@ export function ShipmentPackView({
   const { shipment, boxes } = detail;
 
   const [lp, setLp] = React.useState('');
+  const [packQty, setPackQty] = React.useState('');
   const [boxNumber, setBoxNumber] = React.useState(''); // '' = new box
   const [pending, setPending] = React.useState(false);
   const [sealPending, setSealPending] = React.useState(false);
@@ -199,6 +203,7 @@ export function ShipmentPackView({
       const result = await packLpIntoBoxAction({
         shipmentId: shipment.id,
         lpId: code,
+        ...(packQty.trim() ? { quantity: packQty.trim() } : {}),
         ...(chosen && chosen.boxId ? { boxId: chosen.boxId } : {}),
       });
       if (!result.ok) {
@@ -207,6 +212,7 @@ export function ShipmentPackView({
         return;
       }
       setLp('');
+      setPackQty('');
       setBoxNumber('');
       router.refresh();
     } catch {
@@ -278,6 +284,20 @@ export function ShipmentPackView({
                     }
                   }}
                   className="w-64"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="pack-qty-input" className="text-xs font-medium text-slate-600">
+                  {labels.pack.qtyLabel}
+                </label>
+                <Input
+                  id="pack-qty-input"
+                  data-testid="pack-qty-input"
+                  value={packQty}
+                  placeholder={labels.pack.qtyPlaceholder}
+                  disabled={disabled}
+                  onChange={(e) => setPackQty(e.target.value)}
+                  className="w-32"
                 />
               </div>
               <div className="flex w-44 flex-col gap-1">
@@ -456,6 +476,7 @@ export function ShipmentPackView({
             status={shipment.status}
             shippedAt={shipment.shippedAt}
             bolPdfUrl={shipment.bolPdfUrl ?? null}
+            bolSha256={shipment.bolSha256 ?? null}
             bolSignedPdfUrl={shipment.bolSignedPdfUrl ?? null}
             deliveredAt={shipment.deliveredAt ?? null}
             carrier={shipment.carrier ?? null}

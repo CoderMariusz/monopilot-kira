@@ -80,6 +80,17 @@ const LABELS: MwoListLabels = {
     errorRequired: 'Equipment and title are required.',
     errorFailed: 'Could not create the work order.',
   },
+  edit: {
+    button: 'Edit',
+    title: 'Edit maintenance work order',
+    submit: 'Save changes',
+    submitting: 'Saving…',
+    cancel: 'Cancel',
+    errorRequired: 'Equipment and title are required.',
+    errorFailed: 'Could not update the work order.',
+    errorForbidden: 'No permission to edit.',
+    errorLocked: 'Work order is locked.',
+  },
   transition: {
     startTitle: 'Start work order',
     completeTitle: 'Complete work order',

@@ -77,7 +77,6 @@ function renderList(drills: RecallDrill[]) {
       labels={LABELS}
       locale="en"
       newDrillHref="/en/quality/trace"
-      t={tEn}
     />,
   );
 }

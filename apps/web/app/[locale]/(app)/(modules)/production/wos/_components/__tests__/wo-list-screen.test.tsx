@@ -213,4 +213,18 @@ describe('WoListScreen (parity: wo-list.jsx:4-106)', () => {
     expect(screen.getByTestId('wo-list-empty-filtered')).toBeInTheDocument();
     expect(within(screen.getByTestId('wo-list-table-card')).queryByRole('table')).not.toBeInTheDocument();
   });
+
+  // React #418 (C062): schedule column uses UTC iso minutes so SSR and hydration agree.
+  it('renders schedule start/end in UTC wall time (hydration-stable, not host-tz shifted)', () => {
+    renderScreen([
+      {
+        ...ROWS[0]!,
+        scheduledStart: '2026-06-24T14:43:00.000Z',
+        scheduledEnd: '2026-06-24T15:43:00.000Z',
+      },
+    ]);
+    const row = screen.getByTestId(`wo-row-${ROWS[0]!.id}`);
+    expect(row).toHaveTextContent('2026-06-24 14:43');
+    expect(row).toHaveTextContent('2026-06-24 15:43');
+  });
 });

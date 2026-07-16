@@ -28,6 +28,8 @@ import { useRouter } from 'next/navigation';
 import Modal from '@monopilot/ui/Modal';
 import { Button } from '@monopilot/ui/Button';
 
+import { formatUtcDateTime } from '../../../../../../lib/shared/format-utc-datetime';
+
 import type { ApplyScheduleResult, SchedulerRunResult } from '../_actions/scheduler-types';
 import { toProposal, type SchedulerLabelMaps, type SchedulerProposal } from './scheduler-view-model';
 import {
@@ -126,9 +128,9 @@ export function SchedulerBoardView({
     setApplied(initialProposal?.applied ?? false);
   }, [initialProposal]);
 
-  const dateFmt = React.useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale, {
+  const formatPlannedAt = React.useCallback(
+    (iso: string | null) =>
+      formatUtcDateTime(iso, locale, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
@@ -367,11 +369,11 @@ export function SchedulerBoardView({
                             </span>
                           ) : null}
                           <span>
-                            {a.plannedStart ? dateFmt.format(new Date(a.plannedStart)) : '—'}
+                            {formatPlannedAt(a.plannedStart)}
                           </span>
                           {a.plannedEnd ? (
                             <span data-testid={`scheduler-assignment-end-${a.woLabel}`}>
-                              → {dateFmt.format(new Date(a.plannedEnd))}
+                              → {formatPlannedAt(a.plannedEnd)}
                             </span>
                           ) : null}
                         </span>

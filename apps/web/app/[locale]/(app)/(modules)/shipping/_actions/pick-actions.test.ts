@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { QaHoldActiveError } from '@monopilot/server/quality/holdsGuard.js';
 
-import { createPickList, pickLine } from './pick-actions';
+import { createPickList, pickLine, reassignPickLine } from './pick-actions';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -34,6 +34,9 @@ let batchHoldActive = false;
 let pendingLineCount = 0;
 let qtyExactMatch = true;
 let qtyShortPick = false;
+let qtyOverPick = false;
+let qtyZeroPick = false;
+let insertedRemainderLines: Array<Record<string, unknown>> = [];
 let insertedPickLists: Array<Record<string, unknown>> = [];
 let insertedPickLines: Array<Record<string, unknown>> = [];
 let updatedAllocations: Array<Record<string, unknown>> = [];
@@ -121,6 +124,15 @@ function makeClient(): QueryClient {
         return { rows: [{ id: PICK_LIST_ID }], rowCount: 1 };
       }
 
+      if (q.startsWith('insert into public.pick_list_lines') && q.includes('short_pick_remainder')) {
+        insertedRemainderLines.push({
+          pick_list_id: params[2],
+          sales_order_line_id: params[3],
+          quantity_to_pick: params[7],
+        });
+        return { rows: [], rowCount: 1 };
+      }
+
       if (q.startsWith('insert into public.pick_list_lines')) {
         insertedPickLines.push({
           pick_list_id: params[2],
@@ -139,6 +151,11 @@ function makeClient(): QueryClient {
               pick_list_id: PICK_LIST_ID,
               sales_order_line_id: LINE_ID,
               license_plate_id: LP_ID,
+              location_id: null,
+              product_id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+              lot_number: 'LOT-1',
+              site_id: SITE_ID,
+              pick_sequence: 1,
               quantity_to_pick: '10.000',
               status: lineStatus,
               sales_order_id: SO_ID,
@@ -149,11 +166,43 @@ function makeClient(): QueryClient {
         };
       }
 
-      if (q.startsWith('select ($1::numeric(14,3)')) {
+      if (q.startsWith('select pll.id::text') && q.includes('for update of pll') && !q.includes('for update of pll, pl')) {
         return {
-          rows: [{ exact_match: qtyExactMatch, short_pick: qtyShortPick }],
+          rows: [
+            {
+              id: PICK_LINE_ID,
+              sales_order_line_id: LINE_ID,
+              quantity_to_pick: '4.000',
+              status: lineStatus,
+              pick_list_status: pickListStatus,
+            },
+          ],
           rowCount: 1,
         };
+      }
+
+      if (q.startsWith('select ($1::numeric(14,3) = $2::numeric(14,3)')) {
+        return {
+          rows: [{
+            exact_match: qtyExactMatch,
+            short_pick: qtyShortPick,
+            over_pick: qtyOverPick,
+            zero_pick: qtyZeroPick,
+          }],
+          rowCount: 1,
+        };
+      }
+
+      if (q.includes('as remainder')) {
+        return { rows: [{ remainder: '4.000' }], rowCount: 1 };
+      }
+
+      if (q.startsWith('select id::text') && q.includes('from public.license_plates') && q.includes('lp_number')) {
+        return { rows: [{ id: OTHER_LP_ID }], rowCount: 1 };
+      }
+
+      if (q.startsWith('select ia.id::text') && q.includes('quantity_allocated >=')) {
+        return { rows: [{ id: ALLOCATION_ID }], rowCount: 1 };
       }
 
       if (q.startsWith('select case') && q.includes('license_plates lp') && q.includes('qa_status')) {
@@ -162,9 +211,18 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('select ia.id::text') && q.includes("ia.status = 'allocated'") && q.includes('for update')) {
         return {
-          rows: allocationExists ? [{ id: ALLOCATION_ID }] : [],
+          rows: allocationExists ? [{ id: ALLOCATION_ID, quantity_allocated: '10.000' }] : [],
           rowCount: allocationExists ? 1 : 0,
         };
+      }
+
+      if (q.startsWith('insert into public.pick_list_lines') && q.includes('short_pick_remainder')) {
+        insertedRemainderLines.push({
+          pick_list_id: params[2],
+          sales_order_line_id: params[3],
+          quantity_to_pick: params[7],
+        });
+        return { rows: [], rowCount: 1 };
       }
 
       if (q.startsWith('update public.pick_list_lines')) {
@@ -172,7 +230,7 @@ function makeClient(): QueryClient {
       }
 
       if (q.startsWith('update public.inventory_allocations') && q.includes("status = 'picked'")) {
-        updatedAllocations.push({ id: params[0], updated_by: params[1] });
+        updatedAllocations.push({ id: params[0], quantity_allocated: params[1], updated_by: params[2] });
         return { rows: [], rowCount: 1 };
       }
 
@@ -223,6 +281,9 @@ beforeEach(() => {
   pendingLineCount = 0;
   qtyExactMatch = true;
   qtyShortPick = false;
+  qtyOverPick = false;
+  qtyZeroPick = false;
+  insertedRemainderLines = [];
   insertedPickLists = [];
   insertedPickLines = [];
   updatedAllocations = [];
@@ -265,30 +326,50 @@ describe('pickLine', () => {
     const result = await pickLine(PICK_LINE_ID, { quantityPicked: '10.000' });
 
     expect(result).toEqual({ ok: true });
-    expect(updatedAllocations).toEqual([{ id: ALLOCATION_ID, updated_by: USER_ID }]);
+    expect(updatedAllocations).toEqual([{ id: ALLOCATION_ID, updated_by: USER_ID, quantity_allocated: '10.000' }]);
     expect(updatedSoStatuses).toEqual(['picked']);
     expect(outboxEvents).toHaveLength(1);
     expect(outboxEvents[0]?.event_type).toBe('shipping.pick.completed');
   });
 
-  it('rejects a short (partial) pick', async () => {
+  it('accepts a short pick with reason and creates a remainder line', async () => {
+    qtyExactMatch = false;
+    qtyShortPick = true;
+    pendingLineCount = 1;
+
+    const result = await pickLine(PICK_LINE_ID, {
+      quantityPicked: '6.000',
+      shortPickReason: 'Insufficient stock on LP',
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(insertedRemainderLines).toEqual([
+      {
+        pick_list_id: PICK_LIST_ID,
+        sales_order_line_id: LINE_ID,
+        quantity_to_pick: '4.000',
+      },
+    ]);
+    expect(updatedSoStatuses).toContain('partially_picked');
+  });
+
+  it('rejects a short pick without reason', async () => {
     qtyExactMatch = false;
     qtyShortPick = true;
 
     const result = await pickLine(PICK_LINE_ID, { quantityPicked: '5.000' });
 
-    expect(result).toEqual({ ok: false, error: 'short_pick_not_supported' });
+    expect(result).toEqual({ ok: false, error: 'short_pick_reason_required' });
     expect(updatedAllocations).toEqual([]);
-    expect(outboxEvents).toEqual([]);
   });
 
-  it('rejects a sub-scale quantity that would round to less than quantity_to_pick', async () => {
+  it('rejects a sub-scale quantity without short-pick reason', async () => {
     qtyExactMatch = false;
-    qtyShortPick = false;
+    qtyShortPick = true;
 
     const result = await pickLine(PICK_LINE_ID, { quantityPicked: '0.0004' });
 
-    expect(result).toEqual({ ok: false, error: 'invalid_input' });
+    expect(result).toEqual({ ok: false, error: 'short_pick_reason_required' });
     expect(updatedAllocations).toEqual([]);
   });
 
@@ -309,5 +390,14 @@ describe('pickLine', () => {
 
     expect(result).toEqual({ ok: false, error: 'invalid_input' });
     expect(updatedAllocations).toEqual([]);
+  });
+});
+
+describe('reassignPickLine', () => {
+  it('assigns a pending remainder line to another allocated LP', async () => {
+    const result = await reassignPickLine(PICK_LINE_ID, { licensePlateId: 'LP-OTHER' });
+
+    expect(result).toEqual({ ok: true });
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('set license_plate_id = $2::uuid'))).toBe(true);
   });
 });

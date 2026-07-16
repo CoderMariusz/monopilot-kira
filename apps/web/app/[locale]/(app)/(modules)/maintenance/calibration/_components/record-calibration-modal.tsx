@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 
 import { Select } from '@monopilot/ui/Select';
 
-import type { InstrumentOption } from '../_types/calibration-schemas';
+import type { CalibrationRecordRowPatch, InstrumentOption } from '../_types/calibration-schemas';
 import { ModalShell } from '../../_components/mwo-modal-shell';
 
 export type RecordCalibrationLabels = {
@@ -45,7 +45,7 @@ type RecordCalibrationAction = (input: {
   certificateRef?: string;
   signature: { password: string };
   reviewerSignature: { userId: string; password: string };
-}) => Promise<{ ok: boolean; reason?: string; message?: string }>;
+}) => Promise<{ ok: boolean; reason?: string; message?: string; rowPatch?: CalibrationRecordRowPatch }>;
 
 const RESULTS = ['PASS', 'FAIL', 'OUT_OF_SPEC'] as const;
 
@@ -62,7 +62,7 @@ export function RecordCalibrationModal({
   labels: RecordCalibrationLabels;
   recordCalibrationAction: RecordCalibrationAction;
   onClose: () => void;
-  onRecorded: () => void;
+  onRecorded: (rowPatch: CalibrationRecordRowPatch) => void;
 }) {
   const [instrumentId, setInstrumentId] = useState(defaultInstrumentId ?? '');
   const [calibratedAt, setCalibratedAt] = useState(new Date().toISOString().slice(0, 10));
@@ -118,7 +118,7 @@ export function RecordCalibrationModal({
         signature: { password: calibratorPassword },
         reviewerSignature: { userId: reviewerUserId.trim(), password: reviewerPassword },
       });
-      if (actionResult.ok) onRecorded();
+      if (actionResult.ok && actionResult.rowPatch) onRecorded(actionResult.rowPatch);
       else if (actionResult.reason === 'forbidden') setError(labels.errorForbidden);
       else if (actionResult.reason === 'sod_violation') setError(labels.errorSod);
       else if (actionResult.reason === 'esign_failed') setError(labels.errorEsign);

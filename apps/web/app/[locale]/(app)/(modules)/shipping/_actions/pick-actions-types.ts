@@ -4,9 +4,11 @@ export type PickListLineDetail = {
   itemCode: string | null;
   itemName: string | null;
   licensePlateCode: string | null;
+  licensePlateId: string | null;
   quantityToPick: string;
   quantityPicked: string;
   status: string;
+  needsReassign: boolean;
 };
 
 export type PickListDetail = {

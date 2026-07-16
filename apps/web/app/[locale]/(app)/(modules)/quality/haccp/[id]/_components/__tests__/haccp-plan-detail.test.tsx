@@ -142,7 +142,6 @@ function renderDetail(
       upsertCcpAction={upsertCcp as never}
       deactivateCcpAction={deactivateCcp as never}
       activatePlanAction={activate as never}
-      t={tEn}
     />,
   );
   return { upsertCcp, deactivateCcp, activate };

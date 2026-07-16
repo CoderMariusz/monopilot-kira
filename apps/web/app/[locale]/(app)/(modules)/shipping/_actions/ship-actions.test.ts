@@ -654,6 +654,19 @@ describe('shipShipment', () => {
     });
   });
 
+  it('ships when the sales order is still picked (packed shipment without an SO packed transition)', async () => {
+    salesOrderStatus = 'picked';
+
+    const result = await shipShipment(SHIPMENT_ID);
+
+    expect(result).toEqual({ ok: true });
+    expect(salesOrderUpdate).toMatchObject({
+      sales_order_id: SO_ID,
+      status: 'shipped',
+      updated_by: USER_ID,
+    });
+  });
+
   it('returns invalid_state for an empty shipment with no boxes', async () => {
     boxCount = 0;
     lpRows = [];

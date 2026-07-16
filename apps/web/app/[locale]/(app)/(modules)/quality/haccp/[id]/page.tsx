@@ -137,7 +137,6 @@ async function DetailContent({ locale, id, t }: { locale: string; id: string; t:
       upsertCcpAction={upsertCcp as unknown as UpsertCcpAction}
       deactivateCcpAction={deactivateCcp as unknown as DeactivateCcpAction}
       activatePlanAction={activateHaccpPlan as unknown as ActivatePlanAction}
-      t={t}
     />
   );
 }

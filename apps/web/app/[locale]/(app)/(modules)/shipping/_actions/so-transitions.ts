@@ -54,7 +54,7 @@ export const SO_LEGAL_TRANSITIONS: Record<SalesOrderStatus, readonly SalesOrderS
   confirmed: ['allocated', 'cancelled'],
   allocated: ['partially_picked', 'picked', 'confirmed', 'cancelled'],
   partially_picked: ['picked', 'confirmed', 'cancelled'],
-  picked: ['partially_packed', 'packed', 'confirmed', 'cancelled'],
+  picked: ['partially_packed', 'packed', 'shipped', 'confirmed', 'cancelled'],
   partially_packed: ['packed', 'allocated', 'shipped', 'cancelled'],
   packed: ['manifested', 'partially_packed', 'allocated', 'shipped', 'cancelled'],
   manifested: ['shipped', 'packed', 'partially_packed', 'allocated', 'confirmed', 'cancelled'],

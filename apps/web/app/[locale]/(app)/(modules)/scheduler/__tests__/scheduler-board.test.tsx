@@ -191,8 +191,8 @@ describe('SchedulerBoardView — run + proposed sequence', () => {
           woLabel: 'WO-A',
           lineId: LINE_1,
           sequence: 1,
-          plannedStart: '2026-06-24T06:00:00.000Z',
-          plannedEnd: '2026-06-24T10:00:00.000Z',
+          plannedStart: '2026-06-24T14:43:00.000Z',
+          plannedEnd: '2026-06-24T15:43:00.000Z',
           qty: '100 kg',
           durationMinutes: 240,
           profileKey: 'GLUTEN_FREE',
@@ -205,6 +205,9 @@ describe('SchedulerBoardView — run + proposed sequence', () => {
     expect(screen.queryByTestId('scheduler-empty')).not.toBeInTheDocument();
     expect(screen.getByTestId('scheduler-assignment-end-WO-A')).toBeInTheDocument();
     expect(screen.getByTestId('scheduler-assignment-duration-WO-A')).toHaveTextContent('240 min');
+    // React #418 (C040): planned timestamps use UTC timeZone so SSR (Vercel UTC) and
+    // browser hydration agree — 14:43Z must not shift with the host timezone.
+    expect(screen.getByTestId('scheduler-assignment-WO-A')).toHaveTextContent('2:43');
   });
 
   it('offers a 1-day planning horizon option', () => {

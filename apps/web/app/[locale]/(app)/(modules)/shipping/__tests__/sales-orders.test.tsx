@@ -448,6 +448,36 @@ describe('CreateSoModal — exposes all createSalesOrder fields + validation + R
 
     expect(screen.getByTestId('create-so-line-total')).toHaveTextContent('€10.75');
   });
+
+  it('accepts trailing-zero qty and price decimals and normalizes before createSalesOrder (C114)', async () => {
+    const { createSalesOrderAction } = renderList({ autoOpenCreate: true });
+    createSalesOrderAction.mockResolvedValue({ ok: true, data: {} });
+
+    const form = screen.getByTestId('create-so-form');
+    fireEvent.click(within(form).getAllByRole('combobox')[0]);
+    fireEvent.click(screen.getByRole('option', { name: /CUST-01/ }));
+    fireEvent.click(screen.getByRole('button', { name: '+ Add finished good' }));
+    fireEvent.change(screen.getByPlaceholderText('Search by code or name…'), { target: { value: 'FG' } });
+    fireEvent.click(await screen.findByText(/Sausage roll/));
+    fireEvent.change(screen.getByTestId('create-so-line-qty'), { target: { value: '3.125000' } });
+    fireEvent.change(screen.getByTestId('create-so-line-price'), { target: { value: '2.345600' } });
+    fireEvent.click(screen.getByTestId('create-so-submit'));
+
+    await waitFor(() => expect(createSalesOrderAction).toHaveBeenCalled());
+    expect(createSalesOrderAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customer_id: customers[0].id,
+        lines: [
+          expect.objectContaining({
+            item_id: 'item-uuid-1111',
+            qty: '3.125',
+            unit_price_gbp: '2.3456',
+          }),
+        ],
+      }),
+    );
+    expect(screen.queryByTestId('create-so-error')).toBeNull();
+  });
 });
 
 // ── Detail view ──

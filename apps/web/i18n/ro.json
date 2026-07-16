@@ -11377,7 +11377,14 @@
         "status": "Status",
         "pick": "Pick",
         "pending": "Picking…",
-        "empty": "No pick lines on this list."
+        "empty": "No pick lines on this list.",
+        "qtyLabel": "Quantity to pick",
+        "reasonLabel": "Short-pick reason",
+        "reasonPlaceholder": "Required when picking less than allocated…",
+        "reassignLabel": "Reassign LP",
+        "reassignPlaceholder": "Scan alternate LP code…",
+        "reassign": "Reassign",
+        "reassignPending": "Reassigning…"
       },
       "lineStatus": {
         "pending": "Pending",
@@ -11405,6 +11412,8 @@
         "invalid_state": "This pick line can no longer be picked.",
         "allocation_not_found": "The allocated license plate was not found.",
         "lp_blocked_for_pick": "This license plate cannot be picked (hold, QA, or expired).",
+        "short_pick_reason_required": "Enter a reason when picking less than the allocated quantity.",
+        "reassign_required": "Reassign this line to a license plate before picking.",
         "persistence_failed": "Something went wrong saving. Please retry."
       }
     },
@@ -11420,7 +11429,8 @@
       "tabs": {
         "salesOrders": "Sales orders",
         "shipments": "Shipments",
-        "customers": "Customers"
+        "customers": "Customers",
+        "rma": "Returns (RMA)"
       },
       "status": {
         "pending": "Pending",
@@ -11493,6 +11503,8 @@
           "title": "Pack a license plate",
           "lpLabel": "License plate code",
           "lpPlaceholder": "Scan or type LP code…",
+          "qtyLabel": "Quantity",
+          "qtyPlaceholder": "Leave blank to pack remaining allocated qty",
           "boxLabel": "Box",
           "newBox": "New box",
           "submit": "Pack",
@@ -11886,6 +11898,11 @@
         "contacts": {
           "title": "Contacts ({n})",
           "empty": "No contacts recorded for this customer.",
+          "add": "Add contact",
+          "edit": "Edit",
+          "remove": "Remove",
+          "setPrimary": "Set primary",
+          "pending": "Saving…",
           "primary": "Primary",
           "notPrimary": "—",
           "columns": {
@@ -11893,12 +11910,39 @@
             "title": "Title",
             "email": "Email",
             "phone": "Phone",
-            "primary": "Primary"
+            "primary": "Primary",
+            "actions": "Actions"
+          },
+          "modal": {
+            "createTitle": "Add contact",
+            "editTitle": "Edit contact",
+            "subtitle": "Contacts appear on customer correspondence and order documents.",
+            "nameLabel": "Name",
+            "namePlaceholder": "Full name",
+            "titleLabel": "Job title",
+            "titlePlaceholder": "Optional",
+            "emailLabel": "Email",
+            "emailPlaceholder": "name@company.com",
+            "phoneLabel": "Phone",
+            "phonePlaceholder": "Optional",
+            "primaryLabel": "Primary contact",
+            "primaryHelp": "Only one primary contact is allowed per customer.",
+            "submitCreate": "Add contact",
+            "submitEdit": "Save changes",
+            "submitting": "Saving…",
+            "errors": {
+              "nameRequired": "Enter a contact name.",
+              "emailInvalid": "Enter a valid email address."
+            }
           }
         },
         "allergens": {
           "title": "Allergen restrictions ({n})",
           "empty": "No allergen restrictions recorded for this customer.",
+          "add": "Add restriction",
+          "edit": "Edit",
+          "remove": "Remove",
+          "pending": "Saving…",
           "restrictionType": {
             "refuses": "Refuses",
             "requires_decl": "Requires declaration"
@@ -11906,7 +11950,24 @@
           "columns": {
             "allergen": "Allergen",
             "restriction": "Restriction",
-            "notes": "Notes"
+            "notes": "Notes",
+            "actions": "Actions"
+          },
+          "modal": {
+            "createTitle": "Add allergen restriction",
+            "editTitle": "Edit allergen restriction",
+            "subtitle": "Define how this customer restricts allergens on shipped products.",
+            "allergenLabel": "Allergen",
+            "allergenPlaceholder": "Select an allergen",
+            "restrictionLabel": "Restriction type",
+            "notesLabel": "Notes",
+            "notesPlaceholder": "Optional context for operators and QA",
+            "submitCreate": "Add restriction",
+            "submitEdit": "Save changes",
+            "submitting": "Saving…",
+            "errors": {
+              "allergenRequired": "Select an allergen."
+            }
           }
         },
         "orders": {
@@ -11936,6 +11997,114 @@
             "created": "Created",
             "actions": "Actions"
           }
+        }
+      }
+    },
+    "rma": {
+      "title": "Return merchandise authorisations",
+      "subtitle": "Create and manage customer returns with QA disposition.",
+      "error": "We could not load RMAs right now. Please retry.",
+      "createRma": "Create RMA",
+      "rowsCount": "{n} RMAs",
+      "view": "View",
+      "allStatuses": "All",
+      "statusFilterLabel": "RMA status",
+      "breadcrumb": {
+        "shipping": "Shipping",
+        "rma": "Returns (RMA)"
+      },
+      "empty": {
+        "title": "No returns yet",
+        "body": "Create an RMA when a customer needs to return shipped goods."
+      },
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "receiving": "Receiving",
+        "received": "Received",
+        "processed": "Processed",
+        "closed": "Closed"
+      },
+      "disposition": {
+        "none": "Pending",
+        "restock": "Restock",
+        "scrap": "Scrap",
+        "quality_hold": "Quality hold"
+      },
+      "columns": {
+        "rma": "RMA#",
+        "salesOrder": "Original SO",
+        "customer": "Customer",
+        "reason": "Reason",
+        "lines": "Lines",
+        "status": "Status",
+        "created": "Created",
+        "disposition": "QA disposition",
+        "actions": "Actions"
+      },
+      "create": {
+        "title": "Create RMA",
+        "customerLabel": "Customer",
+        "customerPlaceholder": "Select customer",
+        "salesOrderLabel": "Sales order ID (optional)",
+        "salesOrderPlaceholder": "UUID of the original SO",
+        "reasonLabel": "Reason code",
+        "reasonPlaceholder": "Select reason",
+        "notesLabel": "Notes",
+        "notesPlaceholder": "Optional return notes",
+        "productLabel": "Product ID",
+        "productPlaceholder": "FG item UUID",
+        "qtyLabel": "Qty expected",
+        "addLine": "Add line",
+        "removeLine": "Remove",
+        "submit": "Create RMA",
+        "submitting": "Creating…",
+        "cancel": "Cancel",
+        "errors": {
+          "linesRequired": "Add at least one return line with a product."
+        }
+      },
+      "errors": {
+        "invalid_input": "Check the form and try again.",
+        "forbidden": "You do not have permission to do that.",
+        "not_found": "That RMA could not be found.",
+        "invalid_state": "This action is not allowed in the current RMA status.",
+        "persistence_failed": "Something went wrong saving. Please retry."
+      },
+      "detail": {
+        "title": "RMA detail",
+        "subtitle": "Review lines, receive quantities, and apply QA disposition.",
+        "breadcrumbCurrent": "RMA detail",
+        "backToList": "Back to RMA list",
+        "notFound": "This RMA could not be found.",
+        "summaryTitle": "Summary",
+        "linesTitle": "Return lines",
+        "fields": {
+          "rma": "RMA#",
+          "customer": "Customer",
+          "salesOrder": "Sales order",
+          "reason": "Reason",
+          "status": "Status",
+          "disposition": "Disposition",
+          "totalValue": "Total value",
+          "notes": "Notes",
+          "created": "Created"
+        },
+        "lineColumns": {
+          "product": "Product",
+          "expected": "Qty expected",
+          "received": "Qty received",
+          "lot": "Lot",
+          "notes": "Notes"
+        },
+        "actions": {
+          "approve": "Approve",
+          "receive": "Mark received",
+          "processRestock": "Restock",
+          "processScrap": "Scrap",
+          "processQualityHold": "Quality hold",
+          "close": "Close RMA",
+          "pending": "Saving…"
         }
       }
     }

@@ -44,7 +44,7 @@ import type {
   CcpAddLabels,
   CcpRowActionsLabels,
 } from '../../_components/labels';
-import { formatLimit, type Translator } from '../../_components/labels';
+import { formatLimitFromLabels } from '../../_components/labels';
 import { CcpAddModal } from './ccp-add-modal.client';
 import { CcpRowActions } from './ccp-row-actions.client';
 import { PlanActivateModal } from '../../_components/plan-activate-modal.client';
@@ -72,7 +72,6 @@ export function PlanDetailClient({
   upsertCcpAction,
   deactivateCcpAction,
   activatePlanAction,
-  t,
 }: {
   plan: HaccpPlan;
   labels: PlanDetailLabels;
@@ -86,8 +85,6 @@ export function PlanDetailClient({
   upsertCcpAction: UpsertCcpAction;
   deactivateCcpAction: DeactivateCcpAction;
   activatePlanAction: ActivatePlanAction;
-  /** the same translator the labels were built from — used for {min}/{max} limit interpolation. */
-  t: Translator;
 }) {
   const router = useRouter();
   const [addOpen, setAddOpen] = useState(false);
@@ -265,7 +262,7 @@ export function PlanDetailClient({
                     </Badge>
                   </td>
                   <td className="px-4 py-3 font-mono text-slate-700" data-testid={`haccp-ccp-limit-${ccp.id}`}>
-                    {formatLimit(t, ccp.criticalLimitMin, ccp.criticalLimitMax, ccp.unit)}
+                    {formatLimitFromLabels(labels, ccp.criticalLimitMin, ccp.criticalLimitMax, ccp.unit)}
                   </td>
                   <td className="px-4 py-3 text-slate-700">{ccp.monitoringFrequency || '—'}</td>
                   {showRowActions && (

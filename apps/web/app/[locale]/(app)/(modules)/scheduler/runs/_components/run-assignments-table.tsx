@@ -4,6 +4,8 @@ import React from 'react';
 
 import { Button } from '@monopilot/ui/Button';
 
+import { formatUtcDateTime } from '../../../../../../../lib/shared/format-utc-datetime';
+
 import type { OverrideSchedulerAssignmentResult } from '../../_actions/scheduler-types';
 import {
   OverrideAssignmentModal,
@@ -32,15 +34,10 @@ type OverrideAction = (
 ) => Promise<OverrideSchedulerAssignmentResult>;
 
 function formatWhen(iso: string | null): string {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    });
-  } catch {
-    return iso;
-  }
+  return formatUtcDateTime(iso, 'en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
 }
 
 export function RunAssignmentsTable({

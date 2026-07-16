@@ -54,6 +54,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 import Textarea from '@monopilot/ui/Textarea';
 
+import { formatUtcIsoMinute } from '../../../../../../../../lib/shared/format-utc-datetime';
 import type { ReleaseLpQaDecision, ReleaseLpQaInput, ReleaseLpQaResult } from '../../../_actions/lp-qa-actions';
 import type { LicensePlateDetail } from '../../../_actions/shared';
 import type { WarehouseResult } from '../../../_actions/shared';
@@ -61,23 +62,28 @@ import type { createStockMove } from '../../../_actions/stock-move-actions';
 import type { listLocations } from '../../../_actions/location-read-actions';
 import type { blockLp, listOpenWorkOrdersForLpReserve, reserveLp, unblockLp, UnblockLpResult } from '../_actions/lp-detail-actions';
 import type { destroyLp, listSiblingLpsForMerge, mergeLps, splitLp } from '../_actions/lp-split-merge-destroy-actions';
-import { LpBlockModal, type LpBlockModalLabels } from './lp-block-modal.client';
-import { LpDestroyModal, type LpDestroyModalLabels } from './lp-destroy-modal.client';
-import { LpMergeModal, type LpMergeModalLabels } from './lp-merge-modal.client';
-import { LpMoveModal, type LpMoveLabels } from './lp-move-modal.client';
-import { LpSplitModal, type LpSplitModalLabels } from './lp-split-modal.client';
+import { LpBlockModal } from './lp-block-modal.client';
+import { LpDestroyModal } from './lp-destroy-modal.client';
+import { LpMergeModal } from './lp-merge-modal.client';
+import { LpMoveModal } from './lp-move-modal.client';
+import { LpSplitModal } from './lp-split-modal.client';
 import {
   LpMetadataEditModal,
-  type LpMetadataEditLabels,
   type UpdateLpMetadataInput,
   type UpdateLpMetadataResult,
 } from './lp-metadata-edit-modal.client';
-import { LpReserveModal, type LpReserveModalLabels } from './lp-reserve-modal.client';
+import { LpReserveModal } from './lp-reserve-modal.client';
 import { LP_DEFERRED_ACTIONS, LP_DETAIL_ACTIONS, type LpDetailAction, type LpDeferredAction } from './lp-detail-constants';
+import {
+  type LpDetailLabels,
+  type LpPrintLabelInput,
+  type LpPrintLabelResult,
+} from './lp-detail-labels';
 
 // Client-side consumers (tests) may keep importing these from here; SERVER code
-// must import from './lp-detail-constants' — see the regression note there.
+// must import from './lp-detail-constants' / './lp-detail-labels'.
 export { LP_DEFERRED_ACTIONS, LP_DETAIL_ACTIONS, type LpDetailAction, type LpDeferredAction };
+export type { LpDetailLabels, LpPrintLabelInput, LpPrintLabelResult };
 
 /** LP statuses for which the "move" action is NOT allowed (terminal lifecycle). */
 const IMMOVABLE_STATUSES = new Set(['consumed', 'merged', 'shipped', 'returned', 'destroyed']);
@@ -159,162 +165,6 @@ function humanizeQaStatus(qa: string): string {
     .replace(/^./, (c) => c.toUpperCase());
 }
 
-export type LpDetailLabels = {
-  back: string;
-  qtyLine: string;
-  statusLabel: Record<string, string>;
-  /** QA-status display dict (pending / released / on_hold / …) — keyed by the raw
-   *  lowercase qa_status so the badge never leaks an untranslated DB value. */
-  qaStatusLabel: Record<string, string>;
-  identity: {
-    title: string;
-    product: string;
-    itemType: string;
-    quantity: string;
-    reserved: string;
-    available: string;
-    batch: string;
-    supplierBatch: string;
-    expiry: string;
-    bestBefore: string;
-    catchWeight: string;
-    location: string;
-    warehouse: string;
-    source: string;
-    parentLp: string;
-    none: string;
-  };
-  actions: {
-    comingSoon: string;
-    labelByKey: Record<LpDetailAction, string>;
-    reserve: LpReserveModalLabels;
-    block: LpBlockModalLabels;
-    unblock: {
-      title: string;
-      intro: string;
-      reason: string;
-      reasonPlaceholder: string;
-      /** P0-B3 — e-sign (21 CFR Part 11) block copy for the required password. */
-      esign: {
-        title: string;
-        meaning: string;
-        password: string;
-        passwordHelp: string;
-        passwordPlaceholder: string;
-      };
-      cancel: string;
-      confirm: string;
-      submitting: string;
-      success: string;
-      errors: {
-        forbidden: string;
-        invalidState: string;
-        noOpenHold: string;
-        invalidInput: string;
-        notFound: string;
-        generic: string;
-      };
-    };
-    qaRelease: {
-      title: string;
-      decision: string;
-      released: string;
-      rejected: string;
-      note: string;
-      notePlaceholder: string;
-      cancel: string;
-      confirm: string;
-      unavailable: string;
-      denied: string;
-      invalidState: string;
-      error: string;
-    };
-    /** WH-R3 — Split modal copy. */
-    split: LpSplitModalLabels;
-    /** P1-19 — Merge modal copy. */
-    merge: LpMergeModalLabels;
-    /** WH-R3 — Destroy / scrap modal copy. */
-    destroy: LpDestroyModalLabels;
-    /** WH-R3 — tooltips shown on a gated (ineligible) action button. */
-    ineligible: {
-      split: string;
-      destroy: string;
-      merge: string;
-      reserve: string;
-      /** Past expiry_date — mirrors reserveLp / mergeLps invalid_state. */
-      expired: string;
-      /** qa on_hold OR active v_active_holds row. */
-      onHold: string;
-    };
-  };
-  move: LpMoveLabels;
-  /** C-R3 — edit-metadata (expiry / batch) modal copy. */
-  metadata: LpMetadataEditLabels;
-  ruleNote: string;
-  tab: Record<LpDetailTab, string>;
-  overview: { title: string };
-  history: {
-    empty: string;
-    by: string;
-    reason: string;
-    from: string;
-    to: string;
-    at: string;
-    reasonCol: string;
-  };
-  reservations: {
-    empty: string;
-    wo: string;
-    reservedQty: string;
-    available: string;
-    note: string;
-  };
-  movements: {
-    empty: string;
-    timestamp: string;
-    type: string;
-    from: string;
-    to: string;
-    qty: string;
-    reason: string;
-    reference: string;
-  };
-  genealogy: {
-    parentTitle: string;
-    childrenTitle: string;
-    noParent: string;
-    noChildren: string;
-    status: string;
-    qty: string;
-  };
-  labels: {
-    deferred: string;
-    printAction: string;
-    printing: string;
-    queued: string;
-    sent: string;
-    download: string;
-    error: string;
-    forbidden: string;
-    historyLink: string;
-    errors: {
-      generic: string;
-      entityNotFound: string;
-      printerNotFound: string;
-      unsupportedEntity: string;
-    };
-  };
-  raw: { title: string; empty: string };
-  expiryBanner: string;
-};
-
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toISOString().slice(0, 16).replace('T', ' ');
-}
-
 function IdentityRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 border-b border-slate-100 py-2 last:border-b-0">
@@ -328,11 +178,6 @@ function IdentityRow({ label, children }: { label: string; children: React.React
  * E1 — minimal view of the `printLabel` Server Action result the labels tab needs.
  * The action returns the full PrintJobRow; the client only reads status / result_url.
  */
-export type LpPrintLabelResult =
-  | { status: 'queued' | 'sent'; result_url: string | null }
-  | { status: 'failed'; result_url: null; code: string };
-export type LpPrintLabelInput = { entityType: 'lp'; entityId: string };
-
 export function LpDetailClient({
   detail,
   labels,
@@ -900,7 +745,7 @@ export function LpDetailClient({
                   <TableBody>
                     {detail.stateHistory.map((h) => (
                       <TableRow key={h.id} data-testid={`lp-history-${h.id}`}>
-                        <TableCell className="font-mono text-[11px] text-slate-500">{fmtDate(h.transitionedAt)}</TableCell>
+                        <TableCell className="font-mono text-[11px] text-slate-500">{formatUtcIsoMinute(h.transitionedAt)}</TableCell>
                         <TableCell className="font-mono text-xs">{h.fromState ?? '∅'}</TableCell>
                         <TableCell className="font-mono text-xs">{h.toState}</TableCell>
                         <TableCell className="text-xs text-slate-600">{h.reasonText ?? h.reasonCode ?? '—'}</TableCell>
@@ -966,7 +811,7 @@ export function LpDetailClient({
                   <TableBody>
                     {detail.moves.map((m) => (
                       <TableRow key={m.id} data-testid={`lp-move-${m.id}`}>
-                        <TableCell className="font-mono text-[11px] text-slate-500">{fmtDate(m.moveDate)}</TableCell>
+                        <TableCell className="font-mono text-[11px] text-slate-500">{formatUtcIsoMinute(m.moveDate)}</TableCell>
                         <TableCell className="text-xs">{m.moveType}</TableCell>
                         <TableCell className="font-mono text-xs text-slate-600">{m.fromLocationCode ?? '—'}</TableCell>
                         <TableCell className="font-mono text-xs text-slate-600">{m.toLocationCode ?? '—'}</TableCell>

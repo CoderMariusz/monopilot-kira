@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { ESignPolicyError, signEvent, type ESignPolicyErrorCode } from '@monopilot/e-sign';
 import { assertNoActiveHoldForLp } from '@monopilot/server/quality/holdsGuard.js';
@@ -149,6 +150,35 @@ const warehouseLpUnblockReleaseSchema = z.object({
   reasonText: z.string().trim().min(1).max(2000),
   signature: z.object({ password: z.string().min(1) }),
 });
+
+async function writeAuditEvent(
+  ctx: QualityContext,
+  params: {
+    action: string;
+    resourceType: 'quality_hold';
+    resourceId: string;
+    beforeState: unknown;
+    afterState: unknown;
+  },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.audit_events
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id,
+        before_state, after_state, request_id, retention_class)
+     values
+       (app.current_org_id(), $1::uuid, 'user', $2, $3, $4,
+        $5::jsonb, $6::jsonb, $7::uuid, 'standard')`,
+    [
+      ctx.userId,
+      params.action,
+      params.resourceType,
+      params.resourceId,
+      JSON.stringify(params.beforeState),
+      JSON.stringify(params.afterState),
+      randomUUID(),
+    ],
+  );
+}
 
 async function writeOutbox(
   ctx: QualityContext,
@@ -368,6 +398,21 @@ async function createHoldCore(
       referenceType: parsed.referenceType,
       referenceId: parsed.referenceId,
       lpIds,
+    },
+  });
+
+  await writeAuditEvent(ctx, {
+    action: 'quality.hold.created',
+    resourceType: 'quality_hold',
+    resourceId: created.id,
+    beforeState: null,
+    afterState: {
+      holdId: created.id,
+      holdNumber: created.hold_number,
+      status: 'open',
+      referenceType: parsed.referenceType,
+      referenceId: parsed.referenceId,
+      priority: parsed.priority,
     },
   });
 
@@ -895,6 +940,27 @@ export async function releaseHoldCore(
       holdNumber: current.hold_number,
       disposition: input.disposition,
       signatureHash,
+      releaseSource: options.releaseSource,
+    },
+  });
+
+  await writeAuditEvent(ctx, {
+    action: 'quality.hold.released',
+    resourceType: 'quality_hold',
+    resourceId: input.holdId,
+    beforeState: {
+      holdId: input.holdId,
+      holdNumber: current.hold_number,
+      status: current.hold_status,
+    },
+    afterState: {
+      holdId: input.holdId,
+      holdNumber: current.hold_number,
+      status: 'released',
+      disposition: dbDisposition,
+      releaseNotes: input.reasonText,
+      signatureHash,
+      releasedAt: toIso(releasedAt),
       releaseSource: options.releaseSource,
     },
   });

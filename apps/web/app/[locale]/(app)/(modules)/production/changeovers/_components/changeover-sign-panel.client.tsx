@@ -33,6 +33,7 @@ import type {
   SignChangeoverFn,
 } from './changeovers-contract';
 import type { ChangeoverSignLabels } from './labels';
+import { formatUtcIsoMinute } from '../../../../../../../lib/shared/format-utc-datetime';
 
 type Slot = 'first' | 'second';
 
@@ -41,9 +42,7 @@ type Slot = 'first' | 'second';
 // during render and blank the panel — matches the production-module date idiom
 // (`if (Number.isNaN(d.getTime())) return '—'`).
 function formatSignedAt(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toISOString().slice(0, 16).replace('T', ' ');
+  return formatUtcIsoMinute(value);
 }
 
 function SignatureSlot({

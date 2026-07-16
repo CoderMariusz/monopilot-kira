@@ -41,6 +41,7 @@ import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import type { MwoLotoStatus } from './mwo-types';
 import {
   advancePmScheduleOnMwoCompletion,
@@ -91,6 +92,8 @@ const ALL_STATES: MwoState[] = [
   'cancelled',
 ];
 const OPEN_BACKLOG_STATES: readonly MwoState[] = [...PM_OPEN_BACKLOG_STATES];
+/** MWO fields may be corrected only before execution starts. */
+const EDITABLE_MWO_STATES: readonly MwoState[] = ['requested', 'approved', 'open'];
 const PLANNED_MWO_SOURCES: readonly MwoSource[] = ['pm_schedule', 'calibration_alert'];
 const UNPLANNED_MWO_SOURCES: readonly MwoSource[] = ['manual_request', 'auto_downtime', 'oee_trigger'];
 
@@ -212,6 +215,15 @@ const createSchema = z.object({
   dueDate: z.string().date().optional(),
   /** Optional 08-production downtime_events soft link → source='auto_downtime'. */
   downtimeEventId: uuidSchema.optional(),
+});
+
+const updateMwoSchema = z.object({
+  mwoId: uuidSchema,
+  equipmentId: uuidSchema,
+  title: z.string().trim().min(3).max(200),
+  description: z.string().trim().max(4000).optional(),
+  priority: z.enum(['low', 'medium', 'high', 'critical']),
+  dueDate: z.string().date().optional(),
 });
 
 const generateFromScheduleSchema = z.object({
@@ -855,6 +867,144 @@ export async function createMwo(input: {
       };
     });
   } catch (err) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Update a non-started MWO (requested/approved/open). Gate: mnt.mwo.request.
+ * Equipment is validated org-scoped like createMwo. Fields lock once execution
+ * starts (in_progress) or the MWO reaches a terminal state.
+ */
+export async function updateMwo(input: {
+  mwoId: string;
+  equipmentId: string;
+  title: string;
+  description?: string;
+  priority: MwoPriority;
+  dueDate?: string;
+}): Promise<ActionResult<MwoDetailRow>> {
+  try {
+    const parsed = updateMwoSchema.parse(input);
+    const txn = await withOrgContext(async (ctx: MaintenanceContext): Promise<ActionResult<{ mwoId: string }>> => {
+      if (!(await hasPermission(ctx, MNT_MWO_REQUEST_PERMISSION))) {
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      const existing = await ctx.client.query<{ id: string; state: MwoState }>(
+        `select id::text, state
+           from public.maintenance_work_orders
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1`,
+        [parsed.mwoId],
+      );
+      const existingRow = existing.rows[0];
+      if (!existingRow) return { ok: false, reason: 'not_found' };
+      if (!EDITABLE_MWO_STATES.includes(existingRow.state)) {
+        return {
+          ok: false,
+          reason: 'invalid_transition',
+          message: 'Work order can only be edited before execution starts',
+        };
+      }
+
+      let equipment = await ctx.client.query<{ id: string; equipment_code: string; name: string }>(
+        `select id::text, equipment_code, name
+           from public.equipment
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          limit 1`,
+        [parsed.equipmentId],
+      );
+      let equipmentRow = equipment.rows[0];
+      if (!equipmentRow) {
+        const line = await ctx.client.query<{ id: string; site_id: string | null; code: string; name: string }>(
+          `select pl.id::text, pl.site_id::text, pl.code, pl.name
+             from public.production_lines pl
+            where pl.org_id = app.current_org_id()
+              and pl.id = $1::uuid
+              and pl.status = 'active'
+            limit 1`,
+          [parsed.equipmentId],
+        );
+        const lineRow = line.rows[0];
+        if (!lineRow) return { ok: false, reason: 'not_found', message: 'equipment not found' };
+
+        await ctx.client.query(
+          `insert into public.equipment (
+             id, org_id, site_id, equipment_code, name, equipment_type,
+             parent_line_id, active, created_by, updated_by
+           ) values (
+             $1::uuid, app.current_org_id(), $2::uuid, $3, $4, 'production_line',
+             $1::uuid, true, $5::uuid, $5::uuid
+           )
+           on conflict do nothing`,
+          [lineRow.id, lineRow.site_id, lineRow.code, lineRow.name, ctx.userId],
+        );
+
+        equipment = await ctx.client.query<{ id: string; equipment_code: string; name: string }>(
+          `select id::text, equipment_code, name
+             from public.equipment
+            where org_id = app.current_org_id()
+              and (id = $1::uuid or equipment_code = $2)
+            order by (id = $1::uuid) desc
+            limit 1`,
+          [lineRow.id, lineRow.code],
+        );
+        equipmentRow = equipment.rows[0];
+        if (!equipmentRow) throw new Error('line equipment projection failed');
+      }
+
+      const updated = await ctx.client.query<{ id: string }>(
+        `update public.maintenance_work_orders w
+            set equipment_id = $2::uuid,
+                title = $3,
+                requester_reason = $4,
+                priority = $5,
+                due_date = $6::date,
+                updated_by = $7::uuid,
+                updated_at = pg_catalog.now()
+          where w.org_id = app.current_org_id()
+            and w.id = $1::uuid
+            and w.state = any($8::text[])
+          returning w.id::text`,
+        [
+          parsed.mwoId,
+          equipmentRow.id,
+          parsed.title,
+          parsed.description ?? null,
+          parsed.priority,
+          parsed.dueDate ?? null,
+          ctx.userId,
+          EDITABLE_MWO_STATES,
+        ],
+      );
+      if (!updated.rows[0]) {
+        return {
+          ok: false,
+          reason: 'invalid_transition',
+          message: 'Work order can only be edited before execution starts',
+        };
+      }
+
+      return { ok: true, data: { mwoId: parsed.mwoId } };
+    });
+    if (!txn.ok) return txn;
+
+    revalidateLocalized('/maintenance');
+    revalidateLocalized(`/maintenance/mwos/${txn.data.mwoId}`);
+
+    const detail = await getMwoById(txn.data.mwoId);
+    if (!detail.ok) {
+      return { ok: false, reason: detail.reason, message: detail.message };
+    }
+    if (!detail.data) return { ok: false, reason: 'not_found' };
+    return { ok: true, data: detail.data };
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return { ok: false, reason: 'error', message: err.message };
+    }
     return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
   }
 }

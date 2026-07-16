@@ -11,7 +11,11 @@
  * satisfy it, so the RSC pages and the RTL tests assert the same resolved
  * strings.
  */
-import { formatLimit as formatQualityLimit } from '../../../../../../../lib/quality/format-limit';
+import {
+  formatLimit as formatQualityLimit,
+  formatLimitFromTemplates,
+  type LimitTemplates,
+} from '../../../../../../../lib/quality/format-limit';
 import type { HaccpPlanScopeType, HaccpPlanStatus, HazardType } from './haccp-contracts';
 
 export type Translator = (key: string, values?: Record<string, string | number>) => string;
@@ -408,4 +412,14 @@ export function formatLimit(
   unit: string,
 ): string {
   return formatQualityLimit(t, 'detail', min, max, unit);
+}
+
+/** Formats a CCP critical-limit range from pre-resolved detail labels (RSC-safe). */
+export function formatLimitFromLabels(
+  labels: LimitTemplates,
+  min: string | null,
+  max: string | null,
+  unit: string,
+): string {
+  return formatLimitFromTemplates(labels, min, max, unit);
 }

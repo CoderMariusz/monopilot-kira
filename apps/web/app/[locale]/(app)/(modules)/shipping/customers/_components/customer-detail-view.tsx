@@ -17,19 +17,30 @@ import { EmptyState } from '@monopilot/ui/EmptyState';
 import { CustomerStatusBadge } from './customer-status-badge';
 import { EditCustomerModal } from './edit-customer-modal';
 import { CustomerAddressModal } from './customer-address-modal';
+import { CustomerAllergenModal } from './customer-allergen-modal';
+import { CustomerContactModal } from './customer-contact-modal';
 import type {
   AddressResult,
+  AllergenReferenceOption,
+  AllergenRestrictionResult,
+  ContactResult,
   CustomerAddress,
   CustomerAddressInput,
   CustomerAddressUpdateInput,
   CustomerAllergenRestriction,
+  CustomerAllergenRestrictionInput,
+  CustomerAllergenRestrictionUpdateInput,
   CustomerContact,
+  CustomerContactInput,
+  CustomerContactUpdateInput,
   CustomerDetail,
   UpdateCustomerInput,
   UpdateCustomerResult,
 } from './customer-types';
 import type { EditCustomerLabels } from './edit-customer-modal';
 import type { CustomerAddressModalLabels } from './customer-address-modal';
+import type { CustomerAllergenModalLabels } from './customer-allergen-modal';
+import type { CustomerContactModalLabels } from './customer-contact-modal';
 
 type TabKey = 'profile' | 'addresses' | 'contacts' | 'allergens' | 'orders';
 
@@ -81,15 +92,26 @@ export type CustomerDetailLabels = {
   contacts: {
     title: string;
     empty: string;
+    add: string;
+    edit: string;
+    remove: string;
+    setPrimary: string;
+    pending: string;
     columns: Record<string, string>;
     primary: string;
     notPrimary: string;
+    errors: Record<string, string>;
   };
   allergens: {
     title: string;
     empty: string;
+    add: string;
+    edit: string;
+    remove: string;
+    pending: string;
     columns: Record<string, string>;
     restrictionType: Record<string, string>;
+    errors: Record<string, string>;
   };
   orders: {
     title: string;
@@ -100,12 +122,15 @@ export type CustomerDetailLabels = {
   };
   edit: EditCustomerLabels;
   addressModal: CustomerAddressModalLabels;
+  allergenModal: CustomerAllergenModalLabels;
+  contactModal: CustomerContactModalLabels;
 };
 
 export type CustomerDetailViewProps = {
   locale: string;
   customer: CustomerDetail;
   orderHistory: CustomerOrderHistoryRow[];
+  allergenOptions: AllergenReferenceOption[];
   labels: CustomerDetailLabels;
   updateCustomerAction: (input: UpdateCustomerInput) => Promise<UpdateCustomerResult>;
   setCustomerActiveAction: (input: { customerId: string; isActive: boolean }) => Promise<UpdateCustomerResult>;
@@ -113,6 +138,13 @@ export type CustomerDetailViewProps = {
   updateAddressAction: (input: CustomerAddressUpdateInput) => Promise<AddressResult>;
   deactivateAddressAction: (input: { customerId: string; addressId: string }) => Promise<AddressResult | { ok: true; data: { id: string } } | { ok: false; error: string }>;
   setDefaultShippingAddressAction: (input: { customerId: string; addressId: string }) => Promise<AddressResult>;
+  createAllergenRestrictionAction: (input: CustomerAllergenRestrictionInput) => Promise<AllergenRestrictionResult>;
+  updateAllergenRestrictionAction: (input: CustomerAllergenRestrictionUpdateInput) => Promise<AllergenRestrictionResult>;
+  deleteAllergenRestrictionAction: (input: { customerId: string; restrictionId: string }) => Promise<{ ok: true; data: { id: string } } | { ok: false; error: string }>;
+  createContactAction: (input: CustomerContactInput) => Promise<ContactResult>;
+  updateContactAction: (input: CustomerContactUpdateInput) => Promise<ContactResult>;
+  deactivateContactAction: (input: { customerId: string; contactId: string }) => Promise<ContactResult | { ok: true; data: { id: string } } | { ok: false; error: string }>;
+  setPrimaryContactAction: (input: { customerId: string; contactId: string }) => Promise<ContactResult>;
 };
 
 function formatDate(iso: string): string {
@@ -133,6 +165,7 @@ export function CustomerDetailView({
   locale,
   customer,
   orderHistory,
+  allergenOptions,
   labels,
   updateCustomerAction,
   setCustomerActiveAction,
@@ -140,12 +173,23 @@ export function CustomerDetailView({
   updateAddressAction,
   deactivateAddressAction,
   setDefaultShippingAddressAction,
+  createAllergenRestrictionAction,
+  updateAllergenRestrictionAction,
+  deleteAllergenRestrictionAction,
+  createContactAction,
+  updateContactAction,
+  deactivateContactAction,
+  setPrimaryContactAction,
 }: CustomerDetailViewProps) {
   const router = useRouter();
   const [tab, setTab] = React.useState<TabKey>('profile');
   const [editOpen, setEditOpen] = React.useState(false);
   const [addressOpen, setAddressOpen] = React.useState(false);
+  const [allergenOpen, setAllergenOpen] = React.useState(false);
+  const [contactOpen, setContactOpen] = React.useState(false);
   const [editingAddress, setEditingAddress] = React.useState<CustomerAddress | null>(null);
+  const [editingAllergen, setEditingAllergen] = React.useState<CustomerAllergenRestriction | null>(null);
+  const [editingContact, setEditingContact] = React.useState<CustomerContact | null>(null);
   const [pending, setPending] = React.useState(false);
   const [actionError, setActionError] = React.useState<string | null>(null);
 
@@ -195,6 +239,62 @@ export function CustomerDetailView({
   function openEditAddress(address: CustomerAddress) {
     setEditingAddress(address);
     setAddressOpen(true);
+  }
+
+  function openCreateAllergen() {
+    setEditingAllergen(null);
+    setAllergenOpen(true);
+  }
+
+  function openEditAllergen(restriction: CustomerAllergenRestriction) {
+    setEditingAllergen(restriction);
+    setAllergenOpen(true);
+  }
+
+  async function onDeleteAllergen(restrictionId: string) {
+    setPending(true);
+    setActionError(null);
+    const result = await deleteAllergenRestrictionAction({ customerId: customer.id, restrictionId });
+    setPending(false);
+    if (!result.ok) {
+      setActionError(labels.allergens.errors[(result as { error: string }).error] ?? labels.allergens.errors.persistence_failed);
+      return;
+    }
+    router.refresh();
+  }
+
+  async function onDeactivateContact(contactId: string) {
+    setPending(true);
+    setActionError(null);
+    const result = await deactivateContactAction({ customerId: customer.id, contactId });
+    setPending(false);
+    if (!result.ok) {
+      setActionError(labels.contacts.errors[(result as { error: string }).error] ?? labels.contacts.errors.persistence_failed);
+      return;
+    }
+    router.refresh();
+  }
+
+  async function onSetPrimaryContact(contactId: string) {
+    setPending(true);
+    setActionError(null);
+    const result = await setPrimaryContactAction({ customerId: customer.id, contactId });
+    setPending(false);
+    if (!result.ok) {
+      setActionError(labels.contacts.errors[result.error] ?? labels.contacts.errors.persistence_failed);
+      return;
+    }
+    router.refresh();
+  }
+
+  function openCreateContact() {
+    setEditingContact(null);
+    setContactOpen(true);
+  }
+
+  function openEditContact(contact: CustomerContact) {
+    setEditingContact(contact);
+    setContactOpen(true);
   }
 
   return (
@@ -382,12 +482,20 @@ export function CustomerDetailView({
 
       {tab === 'contacts' ? (
         <div className="rounded-xl border border-slate-200" data-testid="customer-detail-contacts">
-          <div className="border-b border-slate-200 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <h3 className="text-sm font-semibold text-slate-800">{labels.contacts.title.replace('{n}', String(customer.contacts.length))}</h3>
+            <Button type="button" className="btn--primary btn-sm" data-testid="customer-contact-add" onClick={openCreateContact}>
+              + {labels.contacts.add}
+            </Button>
           </div>
           {customer.contacts.length === 0 ? (
             <div className="p-6">
-              <EmptyState icon="◎" title={labels.contacts.empty} body="" action={<span />} />
+              <EmptyState
+                icon="◎"
+                title={labels.contacts.empty}
+                body=""
+                action={{ label: labels.contacts.add, onClick: openCreateContact }}
+              />
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -399,6 +507,7 @@ export function CustomerDetailView({
                     <th className="px-3 py-2">{labels.contacts.columns.email}</th>
                     <th className="px-3 py-2">{labels.contacts.columns.phone}</th>
                     <th className="px-3 py-2">{labels.contacts.columns.primary}</th>
+                    <th className="px-3 py-2">{labels.contacts.columns.actions}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -409,6 +518,21 @@ export function CustomerDetailView({
                       <td className="px-3 py-2">{contact.email ?? '—'}</td>
                       <td className="px-3 py-2">{contact.phone ?? '—'}</td>
                       <td className="px-3 py-2">{contact.isPrimary ? labels.contacts.primary : labels.contacts.notPrimary}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-1">
+                          <Button type="button" className="btn--ghost btn-sm" onClick={() => openEditContact(contact)}>
+                            {labels.contacts.edit}
+                          </Button>
+                          {!contact.isPrimary ? (
+                            <Button type="button" className="btn--ghost btn-sm" disabled={pending} onClick={() => void onSetPrimaryContact(contact.id)}>
+                              {labels.contacts.setPrimary}
+                            </Button>
+                          ) : null}
+                          <Button type="button" className="btn--ghost btn-sm" disabled={pending} onClick={() => void onDeactivateContact(contact.id)}>
+                            {labels.contacts.remove}
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -420,12 +544,20 @@ export function CustomerDetailView({
 
       {tab === 'allergens' ? (
         <div className="rounded-xl border border-slate-200" data-testid="customer-detail-allergens">
-          <div className="border-b border-slate-200 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <h3 className="text-sm font-semibold text-slate-800">{labels.allergens.title.replace('{n}', String(customer.allergenRestrictions.length))}</h3>
+            <Button type="button" className="btn--primary btn-sm" data-testid="customer-allergen-add" onClick={openCreateAllergen}>
+              + {labels.allergens.add}
+            </Button>
           </div>
           {customer.allergenRestrictions.length === 0 ? (
             <div className="p-6">
-              <EmptyState icon="◎" title={labels.allergens.empty} body="" action={<span />} />
+              <EmptyState
+                icon="◎"
+                title={labels.allergens.empty}
+                body=""
+                action={{ label: labels.allergens.add, onClick: openCreateAllergen }}
+              />
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -435,6 +567,7 @@ export function CustomerDetailView({
                     <th className="px-3 py-2">{labels.allergens.columns.allergen}</th>
                     <th className="px-3 py-2">{labels.allergens.columns.restriction}</th>
                     <th className="px-3 py-2">{labels.allergens.columns.notes}</th>
+                    <th className="px-3 py-2">{labels.allergens.columns.actions}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -443,6 +576,21 @@ export function CustomerDetailView({
                       <td className="px-3 py-2 font-medium text-slate-800">{restriction.allergenName}</td>
                       <td className="px-3 py-2">{labels.allergens.restrictionType[restriction.restrictionType] ?? restriction.restrictionType}</td>
                       <td className="px-3 py-2">{restriction.notes ?? '—'}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-1">
+                          <Button type="button" className="btn--ghost btn-sm" onClick={() => openEditAllergen(restriction)}>
+                            {labels.allergens.edit}
+                          </Button>
+                          <Button
+                            type="button"
+                            className="btn--ghost btn-sm"
+                            disabled={pending}
+                            onClick={() => void onDeleteAllergen(restriction.id)}
+                          >
+                            {pending ? labels.allergens.pending : labels.allergens.remove}
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -515,6 +663,29 @@ export function CustomerDetailView({
         labels={labels.addressModal}
         createAddressAction={createAddressAction}
         updateAddressAction={updateAddressAction}
+        onSaved={() => router.refresh()}
+      />
+
+      <CustomerAllergenModal
+        open={allergenOpen}
+        onOpenChange={setAllergenOpen}
+        customerId={customer.id}
+        restriction={editingAllergen}
+        allergenOptions={allergenOptions}
+        labels={labels.allergenModal}
+        createRestrictionAction={createAllergenRestrictionAction}
+        updateRestrictionAction={updateAllergenRestrictionAction}
+        onSaved={() => router.refresh()}
+      />
+
+      <CustomerContactModal
+        open={contactOpen}
+        onOpenChange={setContactOpen}
+        customerId={customer.id}
+        contact={editingContact}
+        labels={labels.contactModal}
+        createContactAction={createContactAction}
+        updateContactAction={updateContactAction}
         onSaved={() => router.refresh()}
       />
     </div>
