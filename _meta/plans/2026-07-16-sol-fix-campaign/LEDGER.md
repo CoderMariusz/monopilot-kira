@@ -102,3 +102,30 @@ Cursor-primary → Opus verification (W6-FIX 26 tsc ripples). mig508 RMA applied
 - ⬜ N-NPD-4 **P3** Technical recipe rollup ignores `scrap_pct` while waterfall applies packaging waste (two surfaces disagree — possibly intentional, flagged uncertain).
 
 Priorytet do naprawy: N-PRD-1/N-PRD-2/N-PLN-1 (3× P1) first. N-FIN-2 (customer PII) security. Owner directs wave sequencing.
+
+## === ROZSZERZENIE: fale wykonawcze W9–W11 (plan: PLAN-W9-W11.md) ===
+
+## W9 — Produkcja/Scheduler (P1 cluster) ✅ DEPLOYED (0853b972, dpl 3hnynx2i5) + VERIFIED
+tsc=0, 0 regresji (66<68, +2 pre-existing fixed), no mig. Proof: EXTENSION-W9-W11-E2E-PROOF.md.
+- ✅ W9-PRD-A: N-PRD-1 (cancelWo WAC guard, shared applyOutputWacReversal) · N-PRD-2 (cancelWo LP-destroy guard, shared lp-downstream-guard)
+- ✅ W9-PRD-B: N-PRD-3 (kg-conversion both close gates) · N-PRD-4 (resumeWo neg duration)
+- ✅ W9-PLN-A: N-PLN-1 (scheduler catch→omit no_feasible_capacity, no full-run crash)
+- ✅ W9-PLN-B: N-PLN-2 (changeover charged to capacity) · N-PLN-3 (MRP horizon=bucketHorizonEnd)
+- ✅ W9-PLN-C: N-PLN-4 (TO self-transfer same_warehouse) [BROWSER: blocked on prod]
+
+## W10 — Warehouse/Finance/Security ✅ DEPLOYED (1366c443, dpl nubiqxioh) + VERIFIED
+tsc=0, 0 regresji (66=66), no mig. Proof: EXTENSION-W9-W11-E2E-PROOF.md.
+- ✅ W10-WH-A: N-WH-1 (locations.is_active on all stock writes, location_inactive)
+- ✅ W10-WH-B: N-WH-2 (normalizeDecimal '200'→'2' fixed) · N-WH-3 (scanner pick site invariant lp_wrong_site)
+- ✅ W10-WH-C: N-WH-4 (deleted dead listFefoLps)
+- ✅ W10-FIN-A: N-FIN-2 (SECURITY customer PII permission-gate, negative test) · N-FIN-3 (advisory-lock code race)
+- ✅ W10-FIN-B: N-FIN-1 (PLN→reporting currency)
+
+## W11 — NPD/Costing ✅ DEPLOYED (65a266cb) + VERIFIED
+tsc=0, 0 real regresji (+1 new pg-test loud-fail no-DB), no mig. Proof: EXTENSION-W9-W11-E2E-PROOF.md.
+- ✅ W11-NPD-A: N-NPD-1 (WIP setupCost amortization, parity FG-direct)
+- ✅ W11-NPD-B: N-NPD-2 (cost-readiness locked version) · N-NPD-3 (cyclic WIP missing:true)
+- ✔ W11-NPD-C: N-NPD-4 (VERDICT: INTENTIONAL non-bug — rollup net cost vs waterfall waste_pct vs WO scrap_pct; comments added)
+### ✅ FABLE REGRESSION #3 (after W11) — Fable OUT-OF-CREDITS → substitute = rigorous per-wave stash/pop regression diff (0 cross-wave regressions W9/W10/W11) + prod E2E (N-PLN-4 interactive proof + affected screens live). All extension waves live.
+
+## === CAMPAIGN COMPLETE: 139 findings resolved (120 audit + 19 novel = 138 fixed + N-NPD-4 documented-non-bug). 11 waves on prod. mig 496-509. ===
