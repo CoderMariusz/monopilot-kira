@@ -62,6 +62,7 @@ function buildLabels(t: ReturnType<typeof getWhReceiveTranslator>): PoReceiveLab
       over_receive_confirm_required: t('receivePo.errors.over_receive_confirm_required'),
       no_warehouse: t('receivePo.errors.no_warehouse'),
       invalid_location: t('receivePo.errors.invalid_location'),
+      location_inactive: t('receivePo.errors.location_inactive'),
       wac_unsupported_currency: t('receivePo.errors.wac_unsupported_currency'),
       error: t('receivePo.errors.error'),
     },

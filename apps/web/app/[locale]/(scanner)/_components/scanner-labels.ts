@@ -177,6 +177,7 @@ interface ScannerLabelsShape {
     destinationHint: string;
     resolving: string;
     locationNotFound: string;
+    locationInactive: string;
     resolvedLabel: string;
     unsupportedCurrency: string;
     unknownCurrency: string;
@@ -249,6 +250,7 @@ interface ScannerLabelsShape {
     manualHint: string;
     resolving: string;
     locationNotFound: string;
+    locationInactive: string;
     resolvedLabel: string;
   };
   moveScreen: {
@@ -292,6 +294,7 @@ interface ScannerLabelsShape {
     permissionDenied: string;
     resolving: string;
     locationNotFound: string;
+    locationInactive: string;
     resolvedLabel: string;
   };
   pickScreen: {
@@ -630,6 +633,7 @@ const en: ScannerLabelsShape = {
     destinationHint: "Scan a location code or leave empty to receive into the default location",
     resolving: "Resolving location…",
     locationNotFound: "Location not found.",
+    locationInactive: "This location has been deactivated and cannot receive stock.",
     resolvedLabel: "Selected location",
     unsupportedCurrency:
       "Receipt blocked — this PO is not in GBP. Change the PO currency to GBP before receiving.",
@@ -709,6 +713,7 @@ const en: ScannerLabelsShape = {
     manualHint: "Scan a location code or pick a suggestion above",
     resolving: "Resolving location…",
     locationNotFound: "Location not found.",
+    locationInactive: "This location has been deactivated and cannot receive stock.",
     resolvedLabel: "Selected location",
   },
   moveScreen: {
@@ -752,6 +757,7 @@ const en: ScannerLabelsShape = {
     permissionDenied: "Session expired or permission denied.",
     resolving: "Resolving location…",
     locationNotFound: "Location not found.",
+    locationInactive: "This location has been deactivated and cannot receive stock.",
     resolvedLabel: "Selected location",
   },
   pickScreen: {
@@ -1115,6 +1121,7 @@ const pl: ScannerLabelsShape = {
     destinationHint: "Zeskanuj kod lokalizacji lub pozostaw puste, aby przyjąć do lokalizacji domyślnej",
     resolving: "Wyszukiwanie lokalizacji…",
     locationNotFound: "Nie znaleziono lokalizacji.",
+    locationInactive: "Ta lokalizacja została dezaktywowana i nie może przyjmować towaru.",
     resolvedLabel: "Wybrana lokalizacja",
     unsupportedCurrency:
       "Przyjęcie zablokowane — to ZZ nie jest w GBP. Zmień walutę ZZ na GBP przed przyjęciem.",
@@ -1193,6 +1200,7 @@ const pl: ScannerLabelsShape = {
     manualHint: "Zeskanuj kod lokalizacji lub wybierz sugestię powyżej",
     resolving: "Wyszukiwanie lokalizacji…",
     locationNotFound: "Nie znaleziono lokalizacji.",
+    locationInactive: "Ta lokalizacja została dezaktywowana i nie może przyjmować towaru.",
     resolvedLabel: "Wybrana lokalizacja",
   },
   moveScreen: {
@@ -1236,6 +1244,7 @@ const pl: ScannerLabelsShape = {
     permissionDenied: "Sesja wygasła lub brak uprawnień.",
     resolving: "Wyszukiwanie lokalizacji…",
     locationNotFound: "Nie znaleziono lokalizacji.",
+    locationInactive: "Ta lokalizacja została dezaktywowana i nie może przyjmować towaru.",
     resolvedLabel: "Wybrana lokalizacja",
   },
   pickScreen: {

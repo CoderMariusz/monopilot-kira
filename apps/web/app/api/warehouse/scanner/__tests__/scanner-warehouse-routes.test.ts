@@ -91,6 +91,7 @@ function mockMoveQueries(options: {
   expired?: boolean;
   onHold?: boolean;
   holdsViewMissing?: boolean;
+  destinationActive?: boolean;
 }) {
   fakeClient.query.mockImplementation(async (sql: string, params?: unknown[]) => {
     if (sql === 'begin' || sql === 'commit' || sql === 'rollback') return { rows: [] };
@@ -158,7 +159,15 @@ function mockMoveQueries(options: {
       return { rows: [{ allowed: true }] };
     }
     if (sql.includes('from public.locations')) {
-      return { rows: [{ id: ids.location, warehouse_id: ids.warehouse, site_id: ids.site }] };
+      const destinationActive = options.destinationActive ?? true;
+      return {
+        rows: [{
+          id: ids.location,
+          warehouse_id: ids.warehouse,
+          site_id: ids.site,
+          is_active: destinationActive,
+        }],
+      };
     }
     if (sql.includes('insert into public.stock_moves')) return { rows: [{ id: ids.move }] };
     // putaway promotion UPDATE (audit F-A01): guarded received→available with RETURNING
@@ -649,6 +658,25 @@ describe('warehouse scanner routes', () => {
     await expect(response.json()).resolves.toMatchObject({ ok: true, moveId: ids.move });
     expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('insert into public.stock_moves'))).toBe(
       true,
+    );
+  });
+
+  it('putaway rejects a deactivated destination bin with location_inactive (N-WH-1)', async () => {
+    const { POST } = await import('../putaway/route');
+    mockMoveQueries({ destinationActive: false });
+
+    const response = await POST(
+      postRequest('/api/warehouse/scanner/putaway', {
+        clientOpId: 'op-inactive-bin',
+        lpId: ids.lp,
+        toLocationId: ids.location,
+      }) as never,
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'location_inactive' });
+    expect(fakeClient.query.mock.calls.some((call) => String(call[0]).includes('insert into public.stock_moves'))).toBe(
+      false,
     );
   });
 

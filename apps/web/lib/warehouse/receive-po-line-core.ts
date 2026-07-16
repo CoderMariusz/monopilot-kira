@@ -74,6 +74,7 @@ export type ReceivePoLineCoreFailure = {
     | 'over_receive_cap'
     | 'over_receive_confirm_required'
     | 'invalid_location'
+    | 'location_inactive'
     | 'no_warehouse'
     | 'warehouse_site_mismatch'
     | 'supplier_blocked';
@@ -157,8 +158,10 @@ export async function executeReceivePoLineCore(
 
   let requestedLocation: RequestedLocation | null = null;
   if (input.toLocationId) {
-    requestedLocation = await resolveRequestedLocation(client, ctx, input.toLocationId, options.mode);
-    if (!requestedLocation) return { ok: false, code: 'invalid_location', poId: line.po_id };
+    const locationResult = await resolveRequestedLocation(client, ctx, input.toLocationId, options.mode);
+    if (locationResult === 'inactive') return { ok: false, code: 'location_inactive', poId: line.po_id };
+    if (!locationResult) return { ok: false, code: 'invalid_location', poId: line.po_id };
+    requestedLocation = locationResult;
   }
 
   const warehouse = await resolveWarehouse(
@@ -343,11 +346,11 @@ async function resolveRequestedLocation(
   ctx: ReceivePoLineCoreContext,
   locationId: string,
   mode: 'scanner' | 'desktop',
-): Promise<RequestedLocation | null> {
+): Promise<RequestedLocation | 'inactive' | null> {
   if (mode === 'scanner' && !ctx.siteId) return null;
 
-  const { rows } = await client.query<RequestedLocation>(
-    `select l.id, l.warehouse_id
+  const { rows } = await client.query<RequestedLocation & { is_active: boolean }>(
+    `select l.id, l.warehouse_id, coalesce(l.is_active, true) as is_active
        from public.locations l
        join public.warehouses w
          on w.id = l.warehouse_id
@@ -359,7 +362,10 @@ async function resolveRequestedLocation(
       limit 1`,
     [ctx.orgId, locationId, mode === 'scanner' ? ctx.siteId : null],
   );
-  return rows[0] ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  if (!row.is_active) return 'inactive';
+  return { id: row.id, warehouse_id: row.warehouse_id };
 }
 
 async function resolveWarehouse(
@@ -378,6 +384,7 @@ async function resolveWarehouse(
                  from public.locations l
                 where l.org_id = w.org_id
                   and l.warehouse_id = w.id
+                  and coalesce(l.is_active, true)
                 order by l.level asc, l.code asc
                 limit 1) as default_location_id
          from public.warehouses w
@@ -397,6 +404,7 @@ async function resolveWarehouse(
                  from public.locations l
                 where l.org_id = w.org_id
                   and l.warehouse_id = w.id
+                  and coalesce(l.is_active, true)
                 order by l.level asc, l.code asc
                 limit 1) as default_location_id
          from public.locations requested
@@ -419,6 +427,7 @@ async function resolveWarehouse(
                  from public.locations l
                 where l.org_id = w.org_id
                   and l.warehouse_id = w.id
+                  and coalesce(l.is_active, true)
                 order by l.level asc, l.code asc
                 limit 1) as default_location_id
          from public.warehouses w
@@ -440,6 +449,7 @@ async function resolveWarehouse(
                  from public.locations l
                 where l.org_id = w.org_id
                   and l.warehouse_id = w.id
+                  and coalesce(l.is_active, true)
                 order by l.level asc, l.code asc
                 limit 1) as default_location_id
          from public.warehouses w
@@ -467,6 +477,7 @@ async function resolveWarehouse(
                from public.locations l
               where l.org_id = w.org_id
                 and l.warehouse_id = w.id
+                and coalesce(l.is_active, true)
               order by l.level asc, l.code asc
               limit 1) as default_location_id
        from public.warehouses w

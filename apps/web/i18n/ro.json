@@ -7979,6 +7979,7 @@
             "over_receive_cap": "Cannot exceed 110% of the ordered quantity.",
             "no_warehouse": "No warehouse is configured — set one up in Settings before receiving.",
             "invalid_location": "That destination location is invalid.",
+            "location_inactive": "That location has been deactivated and cannot receive stock.",
             "invalid_state": "This purchase order can't be received in its current status.",
             "wac_unsupported_currency": "Recepția este blocată deoarece această comandă de achiziție nu este în GBP. Evaluarea stocurilor necesită în prezent GBP — schimbați moneda comenzii în GBP înainte de recepție sau recreați comanda în GBP. Comenzile în valută străină pot fi în continuare create și editate, dar nu pot fi recepționate până când conversia valutară (FX) este suportată.",
             "error": "Something went wrong receiving. Please retry."

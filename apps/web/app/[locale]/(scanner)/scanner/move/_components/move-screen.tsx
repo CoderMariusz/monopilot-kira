@@ -128,7 +128,11 @@ export function MoveScreen({ locale, labels }: { locale: string; labels: Scanner
           setResolveErr(L.locationNotFound);
           return;
         }
-        const body = (await res.json()) as LocationLookupResponse;
+        const body = (await res.json()) as LocationLookupResponse & { error?: string };
+        if (res.status === 422 && body.error === "location_inactive") {
+          setResolveErr(L.locationInactive);
+          return;
+        }
         if (!res.ok || !body.location) {
           setResolveErr(L.locationNotFound);
           return;
@@ -222,11 +226,11 @@ export function MoveScreen({ locale, labels }: { locale: string; labels: Scanner
         setSubmitErr(L.errNotMovable);
         return;
       }
+      const body = (await res.json()) as MoveResult & { error?: string };
       if (res.status === 422) {
-        setSubmitErr(L.errInvalid);
+        setSubmitErr(body.error === "location_inactive" ? L.locationInactive : L.errInvalid);
         return;
       }
-      const body = (await res.json()) as MoveResult;
       if (!res.ok || !body.ok) {
         setSubmitErr(L.errGeneric);
         return;

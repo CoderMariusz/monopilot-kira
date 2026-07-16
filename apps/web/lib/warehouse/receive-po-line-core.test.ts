@@ -269,6 +269,31 @@ describe('receive-po-line-core', () => {
     expect(client.calls.some((c) => c.sql.includes('insert into public.license_plates'))).toBe(false);
   });
 
+  it('rejects receive into a deactivated destination bin with location_inactive', async () => {
+    const client = makeClient({
+      orderedQty: '10.000000',
+      receivedQty: '0.000000',
+      requestedLocationInactive: true,
+    });
+
+    const result = await executeReceivePoLineCore(
+      client,
+      { orgId: ORG_A, userId: USER_A, siteId: SITE_ID },
+      { ...baseInput, toLocationId: BIN_LOCATION_ID },
+      {
+        mode: 'desktop',
+        genesisReasonCode: 'desktop_receive_po',
+        genesisReasonText: 'Desktop PO receipt',
+        requireOverReceiveConfirm: true,
+      },
+    );
+
+    expect(result).toEqual({ ok: false, code: 'location_inactive', poId: PO_ID });
+    const locationLookup = findCall(client, 'coalesce(l.is_active, true)');
+    expect(locationLookup).toBeDefined();
+    expect(client.calls.some((c) => c.sql.includes('insert into public.license_plates'))).toBe(false);
+  });
+
   it('scanner warehouse resolution is restricted to the scanner site', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.UTC(2026, 5, 11));
     const client = makeClient({
@@ -432,6 +457,7 @@ function makeClient(options: {
   warehouseSiteId?: string | null;
   locationVisible?: boolean;
   requestedLocationId?: string;
+  requestedLocationInactive?: boolean;
   uom?: string;
   wacResolved?: boolean;
 }): FakeClient {
@@ -485,8 +511,13 @@ function makeClient(options: {
           return { rows: [] as T[] };
         }
         const requestedId = String(params[1] ?? '');
+        if (options.requestedLocationInactive) {
+          return {
+            rows: [{ id: requestedId, warehouse_id: WAREHOUSE_ID, is_active: false }] as T[],
+          };
+        }
         return {
-          rows: [{ id: requestedId, warehouse_id: WAREHOUSE_ID }] as T[],
+          rows: [{ id: requestedId, warehouse_id: WAREHOUSE_ID, is_active: true }] as T[],
         };
       }
       if (normalized.includes('from public.locations requested')) {

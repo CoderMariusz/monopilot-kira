@@ -14,6 +14,7 @@ type LocationRow = {
   warehouse_id: string;
   warehouse_code: string;
   location_type: string;
+  is_active: boolean;
 };
 
 function isUuid(value: string): boolean {
@@ -35,7 +36,8 @@ export async function GET(request: NextRequest) {
                       loc.name,
                       loc.warehouse_id::text,
                       w.code as warehouse_code,
-                      loc.location_type
+                      loc.location_type,
+                      coalesce(loc.is_active, true) as is_active
                  from public.locations loc
                  join public.warehouses w
                    on w.org_id = app.current_org_id()
@@ -97,6 +99,7 @@ export async function GET(request: NextRequest) {
 
       const row = rows[0];
       if (!row) return jsonError('location_not_found', 404);
+      if (!row.is_active) return jsonError('location_inactive', 422);
 
       return jsonOk({
         location: {

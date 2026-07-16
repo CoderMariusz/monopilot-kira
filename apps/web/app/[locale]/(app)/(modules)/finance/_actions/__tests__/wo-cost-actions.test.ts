@@ -17,6 +17,8 @@ const PLN_WO_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const HISTORIC_WO_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const MIXED_ITEM_WO_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const MULTI_COST_WO_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+const MASTER_COST_WO_ID = '10101010-1010-4101-8101-101010101010';
+const UNCCOSTED_WO_ID = '20202020-2020-4202-8202-202020202020';
 
 type QueryCall = { sql: string; params: unknown[] };
 
@@ -150,6 +152,38 @@ const client = {
               raw_qty: '2',
               qty_kg: '2.000',
               cost_per_kg: '3.500000',
+              has_non_gbp_currency: false,
+              unresolved_uom: false,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (params?.[0] === MASTER_COST_WO_ID) {
+        return {
+          rows: [
+            {
+              item_code: 'RM-MASTER',
+              uom: null,
+              raw_qty: '4',
+              qty_kg: '4.000',
+              cost_per_kg: '3.000000',
+              has_non_gbp_currency: false,
+              unresolved_uom: false,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (params?.[0] === UNCCOSTED_WO_ID) {
+        return {
+          rows: [
+            {
+              item_code: 'RM-ZERO',
+              uom: null,
+              raw_qty: '2',
+              qty_kg: '2.000',
+              cost_per_kg: null,
               has_non_gbp_currency: false,
               unresolved_uom: false,
             },
@@ -470,6 +504,36 @@ describe('listCompletedWoCosts', () => {
     expect(materialsQuery?.sql).toContain('sum(coalesce(qty_kg, 0) * coalesce(cost_per_kg, 0))');
     expect(materialsQuery?.sql).not.toContain('max(cost_currency)');
     expect(materialsQuery?.sql).not.toContain('max(cost_per_kg)');
+  });
+
+  it('accepts WO actual cost for master-data-costed material without item_cost_history or WAC snapshot', async () => {
+    const result = await computeWoActualCost(MASTER_COST_WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.materials).toEqual([
+      { itemCode: 'RM-MASTER', qtyKg: '4.000', costPerKg: '3.000000', cost: '12.0000' },
+    ]);
+    expect(result.data.materialsTotal).toBe('12.0000');
+
+    const materialsQuery = calls.find(
+      (call) => call.sql.includes('from public.wo_material_consumption') && call.params[0] === MASTER_COST_WO_ID,
+    );
+    expect(materialsQuery?.sql).toContain('else coalesce(ch.currency, $3::text)');
+    expect(materialsQuery?.sql).not.toContain("coalesce(ch.currency, 'pln')");
+    expect(materialsQuery?.params?.[2]).toBe('GBP');
+  });
+
+  it('accepts WO actual cost when resolved material has no cost basis (zero-cost, not unsupported_currency)', async () => {
+    const result = await computeWoActualCost(UNCCOSTED_WO_ID);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.materials).toEqual([
+      { itemCode: 'RM-ZERO', qtyKg: '2.000', costPerKg: '0.000000', cost: '0.0000' },
+    ]);
+    expect(result.data.materialsTotal).toBe('0.0000');
+    expect(result.data.zeroCost).toBe(true);
   });
 
   it('rejects WO actual cost when a material row is costed in a non-GBP currency', async () => {

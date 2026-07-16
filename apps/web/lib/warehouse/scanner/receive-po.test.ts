@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   ReceivePoError,
+  getScannerPurchaseOrder,
   listScannerPurchaseOrders,
+  parseDecimal,
   receiveScannerPoLine,
   type ReceiveLineInput,
 } from './receive-po';
@@ -597,6 +599,30 @@ describe('scanner receive PO service', () => {
     });
   });
 
+  // N-WH-2: normalizeDecimal must preserve numeric magnitude — never strip
+  // trailing zeros from the whole string (which turns 200 → 2, 100 → 1).
+  describe('normalizeDecimal via getScannerPurchaseOrder (N-WH-2)', () => {
+    it('preserves bare-integer qty without 10ˣ under-display', async () => {
+      for (const qty of ['100', '200', '150'] as const) {
+        const client = makePoDetailClient({ qty, receivedQty: '0' });
+        const detail = await getScannerPurchaseOrder(client, session, PO_ID);
+        expect(detail?.lines[0]?.qty).toBe(qty);
+      }
+    });
+
+    it('canonicalizes fractional trailing zeros without changing numeric value', async () => {
+      const variants = ['1.200', '1.2', '1.200000'] as const;
+      const normalized: string[] = [];
+      for (const qty of variants) {
+        const client = makePoDetailClient({ qty, receivedQty: '0' });
+        const detail = await getScannerPurchaseOrder(client, session, PO_ID);
+        normalized.push(detail!.lines[0]!.qty);
+      }
+      expect(new Set(normalized)).toEqual(new Set(['1.2']));
+      expect(parseDecimal(normalized[0]!)).toBe(parseDecimal('1.2'));
+    });
+  });
+
   it('rejects WAC-governed receipts with an unresolvable UoM before any GRN/LP/grn_item writes', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const client = makeReceiveClient({
@@ -622,6 +648,44 @@ type FakeClient = QueryClient & {
   calls: Array<{ sql: string; params: readonly unknown[] }>;
   statements: string[];
 };
+
+function makePoDetailClient(options: { qty: string; receivedQty: string }): FakeClient {
+  const calls: FakeClient['calls'] = [];
+  const statements: string[] = [];
+  return {
+    calls,
+    statements,
+    async query<T = unknown>(sql: string, params: readonly unknown[] = []) {
+      const normalized = sql.trim().replace(/\s+/g, ' ');
+      calls.push({ sql: normalized, params });
+      if (normalized.includes('from public.purchase_orders po') && normalized.includes('pol.qty::text')) {
+        return {
+          rows: [
+            {
+              po_id: PO_ID,
+              po_number: 'PO-1',
+              supplier_code: 'SUP',
+              supplier_name: 'Supplier',
+              expected_delivery: null,
+              status: 'sent',
+              id: LINE_ID,
+              line_no: 1,
+              item_code: 'RM-1',
+              item_name: 'Raw material',
+              qty: options.qty,
+              uom: 'kg',
+              received_qty: options.receivedQty,
+              line_count: 0,
+              received_line_count: 0,
+            },
+          ] as T[],
+          rowCount: 1,
+        };
+      }
+      return { rows: [] as T[], rowCount: 0 };
+    },
+  };
+}
 
 function makeReceiveClient(options: {
   orderedQty?: string;

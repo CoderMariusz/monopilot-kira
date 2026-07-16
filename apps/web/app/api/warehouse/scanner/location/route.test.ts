@@ -81,6 +81,7 @@ describe('warehouse scanner location route', () => {
         warehouse_id: '80000000-0000-4000-8000-000000000001',
         warehouse_code: 'WH-1',
         location_type: 'rack',
+        is_active: true,
       }],
     });
 
@@ -116,6 +117,28 @@ describe('warehouse scanner location route', () => {
     expect(params).toEqual(['A-01', null]);
   });
 
+  it('returns location_inactive when the matched bin is deactivated', async () => {
+    const { GET } = await import('./route');
+    fakeClient.query.mockResolvedValue({
+      rows: [{
+        id: '70000000-0000-4000-8000-000000000001',
+        code: 'A-01',
+        name: 'Aisle 01',
+        warehouse_id: '80000000-0000-4000-8000-000000000001',
+        warehouse_code: 'WH-1',
+        location_type: 'rack',
+        is_active: false,
+      }],
+    });
+
+    const response = await GET(request('A-01') as never);
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'location_inactive' });
+    const [sql] = findLocationSelect();
+    expect(normalize(sql)).toContain('coalesce(loc.is_active, true)');
+  });
+
   it('passes uuid input as the id match candidate', async () => {
     const { GET } = await import('./route');
     const id = '70000000-0000-4000-8000-000000000001';
@@ -127,6 +150,7 @@ describe('warehouse scanner location route', () => {
         warehouse_id: '80000000-0000-4000-8000-000000000001',
         warehouse_code: 'WH-1',
         location_type: 'rack',
+        is_active: true,
       }],
     });
 

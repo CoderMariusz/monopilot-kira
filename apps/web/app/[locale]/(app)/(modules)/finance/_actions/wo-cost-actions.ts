@@ -344,7 +344,7 @@ async function computeWoActualCostInContext(
               case
                 when nullif(trim(c.ext_jsonb->>'wac_avg_cost'), '') is not null then $3::text
                 when ch.cost_per_kg is not null then ch.currency
-                else coalesce(ch.currency, 'PLN')
+                else coalesce(ch.currency, $3::text)
               end as cost_currency
          from public.wo_material_consumption c
          left join public.items i

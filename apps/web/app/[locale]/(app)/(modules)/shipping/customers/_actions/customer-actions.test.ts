@@ -22,7 +22,9 @@ const ADDRESS_ID = '44444444-4444-4444-8444-444444444444';
 
 let client: QueryClient;
 let queryLog: Array<{ sql: string; params: readonly unknown[] }> = [];
-let hasPermission = true;
+let hasReadPermission = true;
+let hasWritePermission = true;
+let allocatedMaxSeq = 4;
 
 const revalidatePath = vi.hoisted(() => vi.fn());
 
@@ -82,10 +84,20 @@ function makeClient(): QueryClient {
       const q = normalize(sql);
 
       if (q.includes('from public.user_roles')) {
-        return hasPermission ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
+        const permission = params[2];
+        if (permission === 'ship.dashboard.view') {
+          return hasReadPermission ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
+        }
+        if (permission === 'ship.so.create') {
+          return hasWritePermission ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+      if (q.includes('pg_advisory_xact_lock') && q.includes('cust-code:')) {
+        return { rows: [], rowCount: 1 };
       }
       if (q.startsWith('select max((substring(customer_code')) {
-        return { rows: [{ max_seq: 4 }], rowCount: 1 };
+        return { rows: [{ max_seq: allocatedMaxSeq }], rowCount: 1 };
       }
       if (q.startsWith('insert into public.customers')) {
         return { rows: [customerRow({ id: CUSTOMER_ID, customer_code: params[0], name: params[1] })], rowCount: 1 };
@@ -151,7 +163,9 @@ function makeClient(): QueryClient {
 
 beforeEach(() => {
   queryLog = [];
-  hasPermission = true;
+  hasReadPermission = true;
+  hasWritePermission = true;
+  allocatedMaxSeq = 4;
   client = makeClient();
   revalidatePath.mockClear();
 });
@@ -171,9 +185,67 @@ describe('createCustomer', () => {
     expect(insert, 'customer insert query').toBeTruthy();
     expect(normalize(insert!.sql)).toContain('values (app.current_org_id(), $1, $2');
   });
+
+  it('acquires an org+year advisory lock before allocating the next customer code', async () => {
+    await createCustomer({ name: 'Acme Retail', category: 'retail', isActive: true });
+    const lockIdx = queryLog.findIndex((entry) => normalize(entry.sql).includes('pg_advisory_xact_lock'));
+    const maxIdx = queryLog.findIndex((entry) => normalize(entry.sql).startsWith('select max((substring(customer_code'));
+    expect(lockIdx).toBeGreaterThanOrEqual(0);
+    expect(maxIdx).toBeGreaterThan(lockIdx);
+  });
+
+  it('assigns distinct auto-codes when createCustomer runs concurrently', async () => {
+    const originalQuery = client.query;
+    let lockQueue: Array<() => void> = [];
+    let lockHeld = false;
+
+    client.query = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+      const q = normalize(sql);
+      if (q.includes('pg_advisory_xact_lock') && q.includes('cust-code:')) {
+        await new Promise<void>((resolve) => {
+          if (!lockHeld) {
+            lockHeld = true;
+            resolve();
+            return;
+          }
+          lockQueue.push(resolve);
+        });
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('select max((substring(customer_code')) {
+        const next = allocatedMaxSeq + 1;
+        allocatedMaxSeq = next;
+        return { rows: [{ max_seq: next - 1 }], rowCount: 1 };
+      }
+      if (q.startsWith('insert into public.customers')) {
+        lockHeld = false;
+        const next = lockQueue.shift();
+        next?.();
+      }
+      return originalQuery.call(client, sql, params);
+    }) as QueryClient['query'];
+
+    const [first, second] = await Promise.all([
+      createCustomer({ name: 'Concurrent A', category: 'retail', isActive: true }),
+      createCustomer({ name: 'Concurrent B', category: 'retail', isActive: true }),
+    ]);
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    if (first.ok && second.ok) {
+      expect(first.data.code).not.toBe(second.data.code);
+    }
+  });
 });
 
 describe('listCustomers', () => {
+  it('returns forbidden when ship.dashboard.view is missing', async () => {
+    hasReadPermission = false;
+    const result = await listCustomers();
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('address_count'))).toBe(false);
+  });
+
   it('returns address counts from an org-scoped subquery', async () => {
     const result = await listCustomers();
     expect(result.ok).toBe(true);
@@ -192,6 +264,13 @@ describe('getCustomer', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe('invalid_input');
     expect(queryLog).toEqual([]);
+  });
+
+  it('returns forbidden when ship.dashboard.view is missing', async () => {
+    hasReadPermission = false;
+    const result = await getCustomer(CUSTOMER_ID);
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+    expect(queryLog.some((entry) => normalize(entry.sql).includes('from public.customers c'))).toBe(false);
   });
 
   it('loads customer and addresses scoped to app.current_org_id()', async () => {
@@ -220,7 +299,7 @@ describe('updateCustomer', () => {
   });
 
   it('returns forbidden when ship.so.create is missing', async () => {
-    hasPermission = false;
+    hasWritePermission = false;
     const result = await updateCustomer({
       customerId: CUSTOMER_ID,
       code: 'CUST-2026-00001',
@@ -247,11 +326,11 @@ describe('updateCustomer', () => {
 
 describe('setCustomerActive', () => {
   it('toggles is_active with permission gate ship.so.create', async () => {
-    hasPermission = false;
+    hasWritePermission = false;
     const denied = await setCustomerActive({ customerId: CUSTOMER_ID, isActive: false });
     expect(denied).toEqual({ ok: false, error: 'forbidden' });
 
-    hasPermission = true;
+    hasWritePermission = true;
     const result = await setCustomerActive({ customerId: CUSTOMER_ID, isActive: false });
     expect(result.ok).toBe(true);
     const update = queryLog.find((e) => normalize(e.sql).includes('is_active = $2'));

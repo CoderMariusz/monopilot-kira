@@ -57,6 +57,7 @@ const BUNDLE = {
         over_receive_confirm_required: 'Confirm over-receipt before submitting.',
         no_warehouse: 'No warehouse is configured — set one up in Settings before receiving.',
         invalid_location: 'That destination location is invalid.',
+        location_inactive: 'That location has been deactivated and cannot receive stock.',
         wac_unsupported_currency:
           'Receipt is blocked because this purchase order is not in GBP. Inventory valuation currently requires GBP — change the PO currency to GBP before receiving, or recreate the order in GBP.',
         error: 'Something went wrong receiving. Please retry.',
@@ -126,6 +127,7 @@ const BUNDLE = {
         over_receive_confirm_required: 'Potwierdź nadprzyjęcie przed wysłaniem.',
         no_warehouse: 'Brak skonfigurowanego magazynu — skonfiguruj go w Ustawieniach.',
         invalid_location: 'Ta lokalizacja docelowa jest nieprawidłowa.',
+        location_inactive: 'Ta lokalizacja została dezaktywowana i nie może przyjmować towaru.',
         wac_unsupported_currency:
           'Przyjęcie jest zablokowane, ponieważ to zamówienie nie jest w GBP. Wycena zapasów wymaga obecnie GBP — zmień walutę ZZ na GBP przed przyjęciem lub utwórz zamówienie ponownie w GBP.',
         error: 'Coś poszło nie tak podczas przyjęcia. Spróbuj ponownie.',

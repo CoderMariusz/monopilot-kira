@@ -294,6 +294,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
           over_receive_cap: t('receive.modal.errors.over_receive_cap'),
           no_warehouse: t('receive.modal.errors.no_warehouse'),
           invalid_location: t('receive.modal.errors.invalid_location'),
+          location_inactive: t('receive.modal.errors.location_inactive'),
           invalid_state: t('receive.modal.errors.invalid_state'),
           wac_unsupported_currency: t('receive.modal.errors.wac_unsupported_currency'),
           error: t('receive.modal.errors.error'),

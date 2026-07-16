@@ -196,7 +196,9 @@ export function ReceivePoItemScreen({
       const mapped =
         message === "invalid_location"
           ? L.locationNotFound
-          : message === "unsupported_currency"
+          : message === "location_inactive"
+            ? L.locationInactive
+            : message === "unsupported_currency"
             ? L.unsupportedCurrency
             : message === "unknown_currency"
               ? L.unknownCurrency

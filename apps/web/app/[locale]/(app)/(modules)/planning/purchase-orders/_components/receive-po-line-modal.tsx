@@ -77,6 +77,7 @@ export type ReceivePoLineLabels = {
     over_receive_cap: string;
     no_warehouse: string;
     invalid_location: string;
+    location_inactive: string;
     invalid_state: string;
     wac_unsupported_currency: string;
     error: string;

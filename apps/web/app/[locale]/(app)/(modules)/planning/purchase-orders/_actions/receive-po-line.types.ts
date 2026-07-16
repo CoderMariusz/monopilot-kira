@@ -16,6 +16,7 @@ export type DesktopReceiveError =
   | 'over_receive_confirm_required'
   | 'no_warehouse'
   | 'invalid_location'
+  | 'location_inactive'
   | 'invalid_state'
   | 'wac_unresolved_uom'
   | 'wac_unsupported_currency'

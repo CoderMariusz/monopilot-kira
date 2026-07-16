@@ -242,6 +242,7 @@ export async function suggestPutawayLocations(client: QueryClient, lpId: string)
           and held.status not in ('consumed', 'destroyed', 'shipped')
         where loc.org_id = app.current_org_id()
           and loc.warehouse_id = $1::uuid
+          and coalesce(loc.is_active, true)
       ),
       empty_locations as (
        select loc.id::text as location_id,
@@ -252,6 +253,7 @@ export async function suggestPutawayLocations(client: QueryClient, lpId: string)
          from public.locations loc
         where loc.org_id = app.current_org_id()
           and loc.warehouse_id = $1::uuid
+          and coalesce(loc.is_active, true)
           and not exists (
             select 1
               from public.license_plates held
@@ -269,6 +271,7 @@ export async function suggestPutawayLocations(client: QueryClient, lpId: string)
          from public.locations loc
         where loc.org_id = app.current_org_id()
           and loc.warehouse_id = $1::uuid
+          and coalesce(loc.is_active, true)
         order by case when loc.location_type in ('receiving', 'default') then 0 else 1 end,
                  loc.level asc,
                  loc.code asc
@@ -744,9 +747,10 @@ async function assertLpNotOnActiveHold(client: QueryClient, lpId: string): Promi
 }
 
 async function loadLocationScope(client: QueryClient, locationId: string): Promise<{ warehouseId: string; siteId: string }> {
-  const { rows } = await client.query<{ warehouse_id: string; site_id: string | null }>(
+  const { rows } = await client.query<{ warehouse_id: string; site_id: string | null; is_active: boolean }>(
     `select loc.warehouse_id::text,
-            w.site_id::text
+            w.site_id::text,
+            coalesce(loc.is_active, true) as is_active
        from public.locations loc
        join public.warehouses w
          on w.org_id = app.current_org_id()
@@ -759,6 +763,9 @@ async function loadLocationScope(client: QueryClient, locationId: string): Promi
   );
   const row = rows[0];
   if (!row?.site_id) throw new WarehouseScannerError('invalid_location', 422, 'Location not found. Scan the location again or choose another one.');
+  if (!row.is_active) {
+    throw new WarehouseScannerError('location_inactive', 422, 'This location has been deactivated and cannot receive stock.');
+  }
   return { warehouseId: row.warehouse_id, siteId: row.site_id };
 }
 

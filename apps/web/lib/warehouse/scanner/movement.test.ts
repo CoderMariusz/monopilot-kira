@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { moveScannerLp } from './movement';
+import { moveScannerLp, WarehouseScannerError } from './movement';
 import type { QueryClient } from '../../scanner/db';
 import type { ScannerSessionRow } from '../../scanner/session';
 
@@ -10,6 +10,7 @@ const SESSION_ID = '33333333-3333-4333-8333-333333333333';
 const LP_ID = '44444444-4444-4444-8444-444444444444';
 const FROM_LOCATION_ID = '55555555-5555-4555-8555-555555555555';
 const TO_LOCATION_ID = '66666666-6666-4666-8666-666666666666';
+const INACTIVE_LOCATION_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 
 const session: ScannerSessionRow = {
   id: SESSION_ID,
@@ -33,7 +34,7 @@ function normalize(sql: string): string {
 
 function makeClient(): QueryClient & { query: ReturnType<typeof vi.fn> } {
   return {
-    query: vi.fn(async (sql: string) => {
+    query: vi.fn(async (sql: string, params?: unknown[]) => {
       const q = normalize(sql);
       if (q.includes('from public.scanner_audit_log')) return { rows: [], rowCount: 0 };
       if (q.includes('from public.license_plates lp') && q.includes('for update')) {
@@ -59,8 +60,14 @@ function makeClient(): QueryClient & { query: ReturnType<typeof vi.fn> } {
         };
       }
       if (q.startsWith('select loc.warehouse_id::text')) {
+        const locationId = String(params?.[0] ?? '');
+        const isActive = locationId !== INACTIVE_LOCATION_ID;
         return {
-          rows: [{ warehouse_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', site_id: session.site_id }],
+          rows: [{
+            warehouse_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            site_id: session.site_id,
+            is_active: isActive,
+          }],
           rowCount: 1,
         };
       }
@@ -89,5 +96,37 @@ describe('scanner warehouse movement', () => {
     const insert = client.query.mock.calls.find(([sql]) => normalize(String(sql)).startsWith('insert into public.stock_moves'));
     expect(normalize(String(insert?.[0]))).toContain('org_id, site_id, move_number');
     expect(insert?.[1]?.[0]).toBe(session.site_id);
+  });
+
+  it('rejects putaway into a deactivated destination bin (N-WH-1)', async () => {
+    const client = makeClient();
+
+    await expect(
+      moveScannerLp(client, session, {
+        clientOpId: 'move-inactive',
+        lpId: LP_ID,
+        toLocationId: INACTIVE_LOCATION_ID,
+        moveType: 'putaway',
+      }),
+    ).rejects.toMatchObject({
+      code: 'location_inactive',
+      status: 422,
+    } satisfies Partial<WarehouseScannerError>);
+
+    expect(client.query.mock.calls.some(([sql]) => normalize(String(sql)).startsWith('insert into public.stock_moves'))).toBe(
+      false,
+    );
+  });
+
+  it('loadLocationScope SQL selects is_active for server-side guard', async () => {
+    const client = makeClient();
+    await moveScannerLp(client, session, {
+      clientOpId: 'move-active',
+      lpId: LP_ID,
+      toLocationId: TO_LOCATION_ID,
+      moveType: 'transfer',
+    });
+    const scope = client.query.mock.calls.find(([sql]) => normalize(String(sql)).startsWith('select loc.warehouse_id::text'));
+    expect(normalize(String(scope?.[0]))).toContain('coalesce(loc.is_active, true)');
   });
 });

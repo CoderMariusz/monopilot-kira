@@ -343,6 +343,14 @@ export async function receiveScannerPoLine(
         await client.query('commit');
         throw new ReceivePoError('invalid_location', 422);
       }
+      if (coreResult.code === 'location_inactive') {
+        await insertAudit(client, session, input.clientOpId, 'location_inactive', {
+          poLineId: input.poLineId,
+          toLocationId: input.toLocationId,
+        });
+        await client.query('commit');
+        throw new ReceivePoError('location_inactive', 422);
+      }
       if (coreResult.code === 'no_warehouse') {
         await insertAudit(client, session, input.clientOpId, 'no_warehouse_for_site', {
           poLineId: input.poLineId,
@@ -488,7 +496,7 @@ function validateReceiveInput(input: ReceiveLineInput): void {
 }
 
 function normalizeDecimal(value: string): string {
-  return formatDecimal(parseDecimal(String(value).replace(/0+$/, '').replace(/\.$/, '') || '0'));
+  return formatDecimal(parseDecimal(String(value)));
 }
 
 function isUuid(value: string): boolean {

@@ -69,6 +69,7 @@ export async function receivePoLineDesktop(input: DesktopReceiveInput): Promise<
           over_receive_confirm_required: { ok: false, error: 'over_receive_confirm_required' },
           no_warehouse: { ok: false, error: 'no_warehouse' },
           invalid_location: { ok: false, error: 'invalid_location' },
+          location_inactive: { ok: false, error: 'location_inactive' },
         };
         const mapped = map[coreResult.code] ?? { ok: false, error: 'error' as const };
         return { ...mapped, poId: coreResult.poId };

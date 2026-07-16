@@ -358,6 +358,7 @@ export function pgErrorToResult(err: unknown): CustomerError {
   return 'persistence_failed';
 }
 
+export const SHIP_CUSTOMER_READ = 'ship.dashboard.view';
 export const SHIP_CUSTOMER_WRITE = 'ship.so.create';
 
 export const CUSTOMER_SELECT =

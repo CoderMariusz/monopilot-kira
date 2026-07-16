@@ -6,7 +6,8 @@
  * Contract:
  *   - org-scoped: every statement filters org_id = app.current_org_id() (RLS, mig
  *     211 customers_org_context policy); no service-role bypass, no mocks.
- *   - RBAC: ship.so.create (seeded packages/db/migrations/212-shipping-outbox-and-rbac-seed.sql:199)
+ *   - RBAC: ship.dashboard.view (read), ship.so.create (write) — seeded
+ *     packages/db/migrations/212-shipping-outbox-and-rbac-seed.sql
  *   - validation: zod schemas in customer-action-schemas.ts
  *   - audit: writes public.audit_events rows for mutations
  */
@@ -21,6 +22,7 @@ import {
   CustomerActiveInput,
   CustomerCreateInput,
   CustomerUpdateInput,
+  SHIP_CUSTOMER_READ,
   SHIP_CUSTOMER_WRITE,
   ADDRESS_SELECT,
   ALLERGEN_RESTRICTION_SELECT,
@@ -44,7 +46,7 @@ type QueryClient = {
 
 type OrgActionContext = { userId: string; orgId: string; client: QueryClient };
 
-async function hasCustomerWritePermission(ctx: OrgActionContext): Promise<boolean> {
+async function hasCustomerPermission(ctx: OrgActionContext, permission: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
        from public.user_roles ur
@@ -57,9 +59,17 @@ async function hasCustomerWritePermission(ctx: OrgActionContext): Promise<boolea
           or coalesce(r.permissions, '[]'::jsonb) ? $3
         )
       limit 1`,
-    [ctx.userId, ctx.orgId, SHIP_CUSTOMER_WRITE],
+    [ctx.userId, ctx.orgId, permission],
   );
   return rows.length > 0;
+}
+
+async function hasCustomerReadPermission(ctx: OrgActionContext): Promise<boolean> {
+  return hasCustomerPermission(ctx, SHIP_CUSTOMER_READ);
+}
+
+async function hasCustomerWritePermission(ctx: OrgActionContext): Promise<boolean> {
+  return hasCustomerPermission(ctx, SHIP_CUSTOMER_WRITE);
 }
 
 async function writeCustomerAudit(
@@ -80,6 +90,10 @@ async function writeCustomerAudit(
 async function nextCustomerCode(ctx: OrgActionContext): Promise<string> {
   const year = new Date().getUTCFullYear();
   const prefix = `CUST-${year}-`;
+  await ctx.client.query(
+    `select pg_advisory_xact_lock(hashtextextended('cust-code:' || app.current_org_id()::text || ':' || $1::text, 0))`,
+    [String(year)],
+  );
   const { rows } = await ctx.client.query<{ max_seq: number | null }>(
     `select max((substring(customer_code from '^CUST-[0-9]{4}-([0-9]+)$'))::int) as max_seq
        from public.customers
@@ -127,8 +141,11 @@ export async function listCustomers(params: unknown = {}): Promise<CustomerResul
     typeof input.limit === 'number' && Number.isInteger(input.limit) ? Math.min(Math.max(input.limit, 1), 500) : 200;
 
   try {
-    return await withOrgContext(async ({ client }): Promise<CustomerResult<Customer[]>> => {
-      const { rows } = await (client as QueryClient).query<Parameters<typeof mapCustomer>[0]>(
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<CustomerResult<Customer[]>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasCustomerReadPermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await ctx.client.query<Parameters<typeof mapCustomer>[0]>(
         `select ${CUSTOMER_SELECT},
                 (select count(*)::int
                    from public.customer_addresses ca
@@ -157,11 +174,14 @@ export async function getCustomer(customerId: unknown): Promise<CustomerResult<C
   if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, error: 'invalid_input' };
 
   try {
-    return await withOrgContext(async ({ client }): Promise<CustomerResult<CustomerDetail>> => {
-      const customer = await loadCustomerById(client as QueryClient, id);
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<CustomerResult<CustomerDetail>> => {
+      const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
+      if (!(await hasCustomerReadPermission(ctx))) return { ok: false, error: 'forbidden' };
+
+      const customer = await loadCustomerById(ctx.client, id);
       if (!customer) return { ok: false, error: 'not_found' };
 
-      const { rows } = await (client as QueryClient).query<Parameters<typeof mapCustomerAddress>[0]>(
+      const { rows } = await ctx.client.query<Parameters<typeof mapCustomerAddress>[0]>(
         `select ${ADDRESS_SELECT}
            from public.customer_addresses
           where org_id = app.current_org_id()
@@ -171,7 +191,7 @@ export async function getCustomer(customerId: unknown): Promise<CustomerResult<C
         [id],
       );
 
-      const { rows: contactRows } = await (client as QueryClient).query<Parameters<typeof mapCustomerContact>[0]>(
+      const { rows: contactRows } = await ctx.client.query<Parameters<typeof mapCustomerContact>[0]>(
         `select ${CONTACT_SELECT}
            from public.customer_contacts
           where org_id = app.current_org_id()
@@ -181,7 +201,7 @@ export async function getCustomer(customerId: unknown): Promise<CustomerResult<C
         [id],
       );
 
-      const { rows: allergenRows } = await (client as QueryClient).query<
+      const { rows: allergenRows } = await ctx.client.query<
         Parameters<typeof mapCustomerAllergenRestriction>[0]
       >(
         `select ${ALLERGEN_RESTRICTION_SELECT}
