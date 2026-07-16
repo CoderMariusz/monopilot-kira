@@ -13,6 +13,7 @@ import { z } from 'zod';
 
 import { createWorkOrderChainForContext } from '../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/create-work-order-chain';
 import { releaseWorkOrderChainForContext } from '../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/releaseWorkOrder';
+import { WorkOrderChainError } from '../../../../../../../../app/[locale]/(app)/(modules)/planning/work-orders/_actions/shared';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import { materializeNpdBom } from '../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom';
@@ -302,6 +303,68 @@ async function persistPilotRunLineIds(
   );
 }
 
+function mapPlanningCreateError(planningError: string | undefined): {
+  error: CreatePilotWoError;
+  message?: string;
+} {
+  switch (planningError) {
+    case 'forbidden':
+      return { error: 'forbidden_planning_write', message: planningError };
+    case 'no_active_site':
+    case 'ambiguous_site':
+    case 'line_site_mismatch':
+      return { error: 'no_active_site', message: planningError };
+    case 'document_mask_missing':
+      return { error: 'document_mask_missing', message: planningError };
+    case 'no_active_bom':
+    case 'not_released_to_factory':
+      return { error: 'recipe_not_ready', message: planningError };
+    case 'pack_hierarchy_incomplete':
+      return { error: 'packs_per_box_required', message: planningError };
+    case 'not_found':
+      return { error: 'fg_item_missing', message: planningError };
+  }
+  return {
+    error: 'wo_create_failed',
+    message: planningError ?? 'wo_create_failed',
+  };
+}
+
+function mapThrownCreateError(error: unknown): CreatePilotWoResult {
+  if (error instanceof Error && error.message.startsWith('wo_create_failed:')) {
+    const planningError = error.message.slice('wo_create_failed:'.length);
+    const mapped = mapPlanningCreateError(planningError);
+    return {
+      ok: false,
+      error: mapped.error,
+      planningError,
+      message: mapped.message ?? planningError,
+    };
+  }
+  if (error instanceof WorkOrderChainError) {
+    const mapped = mapPlanningCreateError(error.planningError ?? error.code);
+    return {
+      ok: false,
+      error: mapped.error === 'wo_create_failed' ? 'wo_create_failed' : mapped.error,
+      planningError: error.planningError ?? error.code,
+      message: error.planningError ?? error.message,
+    };
+  }
+  if (error instanceof Error && error.name === 'NpdBomActivationValidationError') {
+    return {
+      ok: false,
+      error: 'recipe_not_ready',
+      message: error.message,
+    };
+  }
+  if (error instanceof Error && error.message.trim().length > 0) {
+    console.error('[createPilotWorkOrder] failed:', error);
+    return { ok: false, error: 'persistence_failed', message: error.message };
+  }
+  console.error('[createPilotWorkOrder] failed:', error);
+  return { ok: false, error: 'persistence_failed' };
+}
+
 /** Read the linked pilot WO for display (idempotent with closeout evidence). */
 export async function getPilotWorkOrderLink(projectId: string): Promise<PilotWorkOrderLink | null> {
   const parsed = Input.safeParse({ projectId });
@@ -433,18 +496,12 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
       );
 
       if (!createResult.ok) {
-        const error = createResult.error === 'forbidden'
-          ? 'forbidden_planning_write'
-          : createResult.error === 'no_active_site'
-            ? 'no_active_site'
-            : createResult.error === 'document_mask_missing'
-              ? 'document_mask_missing'
-              : 'wo_create_failed';
+        const mapped = mapPlanningCreateError(createResult.error);
         return {
           ok: false as const,
-          error,
+          error: mapped.error,
           planningError: createResult.error,
-          message: createResult.error,
+          message: mapped.message ?? createResult.error,
         };
       }
 
@@ -473,18 +530,6 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
       return { ok: true as const, data, created: true, released };
     });
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith('wo_create_failed:')) {
-      const planningError = error.message.slice('wo_create_failed:'.length);
-      const mapped = planningError === 'forbidden'
-        ? 'forbidden_planning_write'
-        : planningError === 'no_active_site'
-          ? 'no_active_site'
-          : planningError === 'document_mask_missing'
-            ? 'document_mask_missing'
-            : 'wo_create_failed';
-      return { ok: false, error: mapped, planningError, message: planningError };
-    }
-    console.error('[createPilotWorkOrder] failed:', error);
-    return { ok: false, error: 'persistence_failed' };
+    return mapThrownCreateError(error);
   }
 }

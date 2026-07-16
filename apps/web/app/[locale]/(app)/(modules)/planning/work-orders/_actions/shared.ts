@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { snapshotFromItemRow, type UomSnapshot } from '../../../../../../../lib/uom/convert';
 import type { PaginatedResult } from '../../../../../../../lib/shared/pagination';
 
 export { hasPermission } from '../../../../../../../lib/auth/has-permission';
@@ -66,6 +67,9 @@ export type WOHeader = {
   sourceOfDemand: string;
   sourceReference: string | null;
   notes: string | null;
+  qtyEntered: string | null;
+  qtyEnteredUom: EnteredUom | null;
+  uomSnapshot: UomSnapshot | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -298,6 +302,12 @@ export function mapWoHeader(row: WorkOrderRow): WOHeader {
     sourceOfDemand: row.source_of_demand,
     sourceReference: row.source_reference,
     notes: row.notes,
+    qtyEntered: row.qty_entered === null || row.qty_entered === undefined ? null : String(row.qty_entered),
+    qtyEnteredUom:
+      row.qty_entered_uom === 'base' || row.qty_entered_uom === 'each' || row.qty_entered_uom === 'box'
+        ? row.qty_entered_uom
+        : null,
+    uomSnapshot: row.uom_snapshot ? snapshotFromItemRow(row.uom_snapshot) : null,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
@@ -417,6 +427,9 @@ export type WorkOrderRow = {
   source_of_demand: string;
   source_reference: string | null;
   notes: string | null;
+  qty_entered?: string | null;
+  qty_entered_uom?: string | null;
+  uom_snapshot?: Record<string, unknown> | null;
   created_at: Date | string;
   updated_at: Date | string;
 };

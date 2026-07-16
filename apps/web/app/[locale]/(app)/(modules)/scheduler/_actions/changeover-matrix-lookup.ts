@@ -99,7 +99,8 @@ const UNCONFIGURED_PAIR_TRANSITION: ChangeoverTransition = {
  * Resolve a changeover transition between two allergen profiles using single-code
  * matrix rows (`allergen_from` ∈ from profile AND `allergen_to` ∈ to profile),
  * matching production changeover-actions matrix lookup. Each (from, to) pair
- * resolves line override first, then org default; pairs aggregate with max risk.
+ * resolves line override first, then org default, then the reverse pair as a
+ * symmetric fallback; pairs aggregate with max risk.
  */
 export function resolveChangeoverTransition(
   fromAllergens: string[],
@@ -131,7 +132,9 @@ export function resolveChangeoverTransition(
     for (const toCode of to) {
       if (fromCode === toCode) continue;
       matchedCrossPair = true;
-      const entry = resolvePairEntry(fromCode, toCode, lineId, matrix);
+      const entry =
+        resolvePairEntry(fromCode, toCode, lineId, matrix) ??
+        resolvePairEntry(toCode, fromCode, lineId, matrix);
       if (!entry) {
         return matrixConfigured ? UNCONFIGURED_PAIR_TRANSITION : ZERO_TRANSITION;
       }

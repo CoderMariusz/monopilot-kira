@@ -17,6 +17,7 @@
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { WoDetailView, type WoDetailLabels } from '../_components/wo-detail-view';
@@ -52,6 +53,7 @@ const editModalLabels: NonNullable<WoDetailLabels['edit']>['modal'] = {
   quantityPlaceholder: '0',
   quantityUom: { base: 'kg', each: 'each', box: 'box' },
   conversionPreview: '{qty} {unit} = {kg} {base}',
+  orderUnitLabel: 'Order unit',
   scheduledStartLabel: 'Scheduled start',
   lineLabel: 'Production line',
   machineLabel: 'Machine',
@@ -116,6 +118,9 @@ function makeWo(over: Partial<Wo> = {}): Wo {
     sourceOfDemand: 'manual',
     sourceReference: null,
     notes: 'keep cold',
+    qtyEntered: null,
+    qtyEnteredUom: null,
+    uomSnapshot: null,
     createdAt: '2026-06-01T00:00:00.000Z',
     updatedAt: '2026-06-02T00:00:00.000Z',
     materials: [],
@@ -253,6 +258,80 @@ describe('WO DRAFT edit affordance (Wave R1)', () => {
     await screen.findByTestId('edit-wo-form');
     fireEvent.click(screen.getByTestId('edit-wo-submit'));
     expect(await screen.findByTestId('edit-wo-error')).toHaveTextContent('no longer a draft');
+  });
+
+  it('C063: prefills the original order UoM (box) instead of base-only quantity', async () => {
+    const { update } = renderDetail({
+      wo: makeWo({
+        plannedQuantity: '3.000',
+        qtyEntered: '2',
+        qtyEnteredUom: 'box',
+        uomSnapshot: {
+          outputUom: 'box',
+          uomBase: 'kg',
+          netQtyPerEach: 1.5,
+          eachPerBox: 1,
+          boxesPerPallet: null,
+          weightMode: 'fixed',
+        },
+      }),
+    });
+    fireEvent.click(screen.getByTestId('wo-edit-order'));
+    const form = await screen.findByTestId('edit-wo-form');
+    expect(within(form).getByTestId('edit-wo-quantity')).toHaveValue('2');
+    expect(within(form).getByText('Planned quantity (box)')).toBeInTheDocument();
+    expect(within(form).getByTestId('edit-wo-conversion')).toHaveTextContent('2 box = 3.000 kg');
+
+    fireEvent.change(screen.getByTestId('edit-wo-quantity'), { target: { value: '4' } });
+    fireEvent.click(screen.getByTestId('edit-wo-submit'));
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update.mock.calls[0][0]).toMatchObject({ id: 'wo-1', plannedQuantity: '6' });
+  });
+});
+
+describe('WO dependency direction badges (C064)', () => {
+  const ROOT_ID = 'root-wo-id';
+  const CHILD_ID = 'child-wo-id';
+
+  async function openDependenciesTab(wo: Wo) {
+    const user = userEvent.setup();
+    renderDetail({ wo });
+    await user.click(screen.getByTestId('wo-tab-dependencies'));
+    return screen.findByTestId('wo-dependencies-table');
+  }
+
+  it('labels a WIP child as upstream when the current WO is the consuming FG parent', async () => {
+    const table = await openDependenciesTab(makeWo({
+      id: ROOT_ID,
+      dependencies: [{
+        id: 'dep-1',
+        parentWoId: ROOT_ID,
+        childWoId: CHILD_ID,
+        materialLink: 'mat-1',
+        requiredQty: '25.452',
+        createdAt: '2026-06-01T00:00:00.000Z',
+      }],
+    }));
+    expect(within(table).getByText('upstream')).toBeInTheDocument();
+    expect(within(table).queryByText('downstream')).not.toBeInTheDocument();
+    expect(within(table).getByText(CHILD_ID.slice(0, 8))).toBeInTheDocument();
+  });
+
+  it('labels the consuming FG root as downstream when the current WO is the WIP child', async () => {
+    const table = await openDependenciesTab(makeWo({
+      id: CHILD_ID,
+      dependencies: [{
+        id: 'dep-1',
+        parentWoId: ROOT_ID,
+        childWoId: CHILD_ID,
+        materialLink: 'mat-1',
+        requiredQty: '25.452',
+        createdAt: '2026-06-01T00:00:00.000Z',
+      }],
+    }));
+    expect(within(table).getByText('downstream')).toBeInTheDocument();
+    expect(within(table).queryByText('upstream')).not.toBeInTheDocument();
+    expect(within(table).getByText(ROOT_ID.slice(0, 8))).toBeInTheDocument();
   });
 });
 

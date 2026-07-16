@@ -22,6 +22,7 @@ import type {
 
 /** Flattened, display-ready proposed placement of one WO on a line. */
 export type ProposedAssignment = {
+  assignmentId: string;
   woId: string;
   /** Display label for the WO (wo_number when the backend supplies it, else a short id). */
   woLabel: string;
@@ -185,6 +186,7 @@ export function toProposal(
         const qty = qtyByWoId[row.wo_id] ?? null;
         const uom = uomByWoId[row.wo_id];
         return {
+          assignmentId: row.id,
           woId: row.wo_id,
           woLabel: woNumberById[row.wo_id] ?? shortId(row.wo_id),
           lineId: row.line_id ?? '',

@@ -160,7 +160,7 @@ describe('listPlanningWorkOrders', () => {
       String(sql).includes('to_jsonb(exec.*)'),
     );
     expect(dataCall?.[1]).toEqual(['RELEASED', 'FG', SITE_ID, false, 10, 0]);
-    expect(String(dataCall?.[0])).toContain('($3::uuid is null or wo.site_id = $3::uuid)');
+    expect(String(dataCall?.[0])).toContain('coalesce(wo.site_id, pl.site_id) = $3::uuid');
     expect(String(dataCall?.[0])).toContain('wo.id desc');
   });
 
@@ -205,12 +205,88 @@ describe('listPlanningWorkOrders', () => {
       String(sql).includes('to_jsonb(exec.*)'),
     );
     expect(dataCall?.[1]).toEqual([null, null, null, false, 50, 0]);
-    expect(String(dataCall?.[0])).toContain('($3::uuid is null or wo.site_id = $3::uuid)');
+    expect(String(dataCall?.[0])).toContain('coalesce(wo.site_id, pl.site_id) = $3::uuid');
     const archivedCall = vi.mocked(client.query).mock.calls.find(([sql]) =>
       String(sql).includes('archived_count'),
     );
     expect(archivedCall?.[1]).toEqual([null, null, null]);
-    expect(String(archivedCall?.[0])).toContain('($3::uuid is null or wo.site_id = $3::uuid)');
+    expect(String(archivedCall?.[0])).toContain('coalesce(wo.site_id, pl.site_id) = $3::uuid');
+  });
+
+  it('scopes active site through production line when wo.site_id is null (pilot FG rows)', async () => {
+    listTotal = 1;
+    client.query = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+      const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+      expect(String(sql)).toContain('coalesce(wo.site_id, pl.site_id) = $3::uuid');
+      if (normalized.includes('select count(*)::int as total')) {
+        return { rows: [{ total: 1 }], rowCount: 1 };
+      }
+      if (normalized.includes('group by wo.status')) {
+        return { rows: [{ status: 'RELEASED', n: 1 }], rowCount: 1 };
+      }
+      if (normalized.startsWith('select count(*) as archived_count')) {
+        return { rows: [{ archived_count: 0 }], rowCount: 1 };
+      }
+      if (normalized.includes('to_jsonb(exec.*)')) {
+        expect(params).toEqual(['RELEASED', 'WO-pilot-FG-016', SITE_ID, false, 50, 0]);
+        return {
+          rows: [{
+            ...makeSummaryRow(16),
+            wo_number: 'WO-pilot-FG-016',
+            item_code: 'FG-016',
+            status: 'RELEASED',
+          }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await listPlanningWorkOrders({ status: 'RELEASED', search: 'WO-pilot-FG-016' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.workOrders).toEqual([
+      expect.objectContaining({ woNumber: 'WO-pilot-FG-016', itemCode: 'FG-016', status: 'RELEASED' }),
+    ]);
+  });
+
+  it('returns a released pilot FG row when only the production line site matches the active site filter', async () => {
+    listTotal = 1;
+    client.query = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+      const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+      if (normalized.includes('select count(*)::int as total')) {
+        expect(params[2]).toBe(SITE_ID);
+        return { rows: [{ total: 1 }], rowCount: 1 };
+      }
+      if (normalized.includes('group by wo.status')) {
+        return { rows: [{ status: 'RELEASED', n: 1 }], rowCount: 1 };
+      }
+      if (normalized.startsWith('select count(*) as archived_count')) {
+        return { rows: [{ archived_count: 0 }], rowCount: 1 };
+      }
+      if (normalized.includes('to_jsonb(exec.*)')) {
+        return {
+          rows: [{
+            ...makeSummaryRow(16),
+            wo_number: 'WO-pilot-FG-016',
+            item_code: 'FG-016',
+            status: 'RELEASED',
+          }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await listPlanningWorkOrders({ search: 'WO-pilot-FG-016' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.workOrders[0]?.woNumber).toBe('WO-pilot-FG-016');
+    expect(String(vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).includes('to_jsonb(exec.*)'),
+    )?.[0])).toContain('left join public.production_lines pl');
   });
 
   it('returns persistence_failed when the query fails', async () => {

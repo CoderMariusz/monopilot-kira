@@ -17,9 +17,14 @@ import {
   type WOSummaryRow,
 } from './shared';
 
+const WO_LIST_LINE_JOIN = `
+         left join public.production_lines pl
+           on pl.org_id = wo.org_id
+          and pl.id = wo.production_line_id`;
+
 const WO_LIST_FILTER_WHERE = `
          where wo.org_id = app.current_org_id()
-           and ($3::uuid is null or wo.site_id = $3::uuid)
+           and ($3::uuid is null or coalesce(wo.site_id, pl.site_id) = $3::uuid)
            and ($1::text is null or wo.status = $1)
            and (
              $2::text is null
@@ -69,6 +74,7 @@ export async function listPlanningWorkOrders(params: {
              left join public.org_document_settings ods
                on ods.org_id = wo.org_id
               and ods.doc_type = 'wo'
+            ${WO_LIST_LINE_JOIN}
             ${WO_LIST_FILTER_WHERE}`,
           [...listParams],
         ),
@@ -89,6 +95,7 @@ export async function listPlanningWorkOrders(params: {
          left join public.org_document_settings ods
            on ods.org_id = wo.org_id
           and ods.doc_type = 'wo'
+         ${WO_LIST_LINE_JOIN}
          left join lateral (
            select count(*)::int as material_count
              from public.wo_materials wm
@@ -131,6 +138,7 @@ export async function listPlanningWorkOrders(params: {
              left join public.org_document_settings ods
                on ods.org_id = wo.org_id
               and ods.doc_type = 'wo'
+            ${WO_LIST_LINE_JOIN}
             ${WO_LIST_FILTER_WHERE}
             group by wo.status`,
           [...countParams],
@@ -143,8 +151,9 @@ export async function listPlanningWorkOrders(params: {
            left join public.org_document_settings ods
              on ods.org_id = wo.org_id
             and ods.doc_type = 'wo'
+          ${WO_LIST_LINE_JOIN}
           where wo.org_id = app.current_org_id()
-            and ($3::uuid is null or wo.site_id = $3::uuid)
+            and ($3::uuid is null or coalesce(wo.site_id, pl.site_id) = $3::uuid)
             and ($1::text is null or wo.status = $1)
             and (
               $2::text is null

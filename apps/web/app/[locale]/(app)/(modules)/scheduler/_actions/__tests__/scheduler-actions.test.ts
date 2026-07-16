@@ -45,7 +45,7 @@ vi.mock('../../../../../../../lib/site/site-context', () => ({
   getActiveSiteId: vi.fn(async () => SITE_ID),
 }));
 
-import { applySchedule, getLatestSchedulerRun, listChangeoverMatrix, runScheduler, upsertChangeoverMatrixEntry } from '../scheduler-actions';
+import { applySchedule, getLatestSchedulerRun, listChangeoverMatrix, overrideSchedulerAssignment, runScheduler, upsertChangeoverMatrixEntry } from '../scheduler-actions';
 import { DEFAULT_SEQUENCE_SOLVER_CONFIG, sequenceWorkOrders } from '../sequence-solver';
 
 function normalize(sql: string): string {
@@ -255,10 +255,25 @@ function makeClient(): QueryClient {
       }
 
       if (q.includes('from public.scheduler_assignments')) {
+        if (q.includes('and id = $1::uuid')) {
+          const found = assignmentRows.find((row) => row.id === params[0]);
+          return {
+            rows: found ? [found] : [],
+            rowCount: found ? 1 : 0,
+          };
+        }
         return {
           rows: assignmentRows,
           rowCount: assignmentRows.length,
         };
+      }
+
+      if (q.includes('from public.production_lines') && q.includes('limit 1')) {
+        return { rows: [{ ok: true }], rowCount: 1 };
+      }
+
+      if (q.startsWith('insert into public.outbox_events')) {
+        return { rows: [], rowCount: 1 };
       }
 
       if (q.startsWith('update public.work_orders')) {
@@ -267,6 +282,24 @@ function makeClient(): QueryClient {
 
       if (q.startsWith('update public.scheduler_assignments')) {
         const found = assignmentRows.find((row) => row.id === params[0]);
+        if (q.includes('set override_original_line_id')) {
+          return {
+            rows: found
+              ? [
+                  {
+                    ...found,
+                    status: 'overridden',
+                    line_id: String(params[1]),
+                    planned_start_at: String(params[2]),
+                    planned_end_at: params[3] ? String(params[3]) : null,
+                    override_reason_code: String(params[4]),
+                    override_by: String(params[5]),
+                  } satisfies SchedulerAssignment,
+                ]
+              : [],
+            rowCount: found ? 1 : 0,
+          };
+        }
         return {
           rows: found
             ? [
@@ -616,6 +649,73 @@ describe('applySchedule', () => {
   });
 });
 
+describe('overrideSchedulerAssignment', () => {
+  const ASSIGNMENT_ID = '88888888-8888-4888-8888-888888888888';
+
+  it('persists an override with audit columns and emits outbox', async () => {
+    assignmentRows = [
+      assignmentRow({
+        id: ASSIGNMENT_ID,
+        woId: WO_A,
+        sequence: 1,
+        start: '2026-06-01T08:00:00.000Z',
+        end: '2026-06-01T09:00:00.000Z',
+        changeover: 0,
+      }),
+    ];
+
+    const result = await overrideSchedulerAssignment({
+      assignmentId: ASSIGNMENT_ID,
+      lineId: LINE_OVERRIDE_ID,
+      plannedStartAt: '2026-06-02T10:00:00.000Z',
+      reasonCode: 'capacity_constraint',
+      reasonNotes: 'Move to spare line',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.assignment.status).toBe('overridden');
+    expect(result.assignment.line_id).toBe(LINE_OVERRIDE_ID);
+    expect(result.assignment.override_reason_code).toBe('capacity_constraint');
+
+    const overrideUpdate = calls.find(
+      (call) =>
+        normalize(call.sql).startsWith('update public.scheduler_assignments') &&
+        normalize(call.sql).includes('set override_original_line_id'),
+    );
+    expect(overrideUpdate).toBeDefined();
+
+    const outbox = calls.find(
+      (call) =>
+        normalize(call.sql).startsWith('insert into public.outbox_events') &&
+        call.params[0] === 'scheduler.assignment.overridden',
+    );
+    expect(outbox).toBeDefined();
+  });
+
+  it('rejects override when the run is already applied', async () => {
+    runAlreadyApplied = true;
+    assignmentRows = [
+      assignmentRow({
+        id: ASSIGNMENT_ID,
+        woId: WO_A,
+        sequence: 1,
+        start: '2026-06-01T08:00:00.000Z',
+        changeover: 0,
+      }),
+    ];
+
+    const result = await overrideSchedulerAssignment({
+      assignmentId: ASSIGNMENT_ID,
+      lineId: LINE_OVERRIDE_ID,
+      plannedStartAt: '2026-06-02T10:00:00.000Z',
+      reasonCode: 'other',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'run_already_applied' });
+  });
+});
+
 describe('scheduler RBAC gates', () => {
   it('uses the scheduler-specific permission strings', async () => {
     await runScheduler({ lineId: LINE_ID, horizonDays: 7 });
@@ -634,6 +734,17 @@ describe('scheduler RBAC gates', () => {
     await upsertChangeoverMatrixEntry({ id: '66666666-6666-4666-8666-666666666666', changeover_minutes: '15.00' });
     expect(calls.find((call) => normalize(call.sql).includes('from public.user_roles'))?.params[2]).toBe(
       'scheduler.matrix.edit',
+    );
+
+    calls = [];
+    await overrideSchedulerAssignment({
+      assignmentId: '88888888-8888-4888-8888-888888888888',
+      lineId: LINE_OVERRIDE_ID,
+      plannedStartAt: '2026-06-02T10:00:00.000Z',
+      reasonCode: 'other',
+    });
+    expect(calls.find((call) => normalize(call.sql).includes('from public.user_roles'))?.params[2]).toBe(
+      'scheduler.assignment.override',
     );
 
     calls = [];

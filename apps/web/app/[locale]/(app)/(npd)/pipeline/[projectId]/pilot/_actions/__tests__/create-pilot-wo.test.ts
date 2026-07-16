@@ -449,6 +449,7 @@ describe('createPilotWorkOrder', () => {
   it.each([
     ['no_active_site', 'no_active_site'],
     ['document_mask_missing', 'document_mask_missing'],
+    ['pack_hierarchy_incomplete', 'packs_per_box_required'],
     ['persistence_failed', 'wo_create_failed'],
   ] as const)('maps chain %s to pilot %s and preserves the inner planning error', async (planningError, pilotError) => {
     handlerHolder.handler = permHandler(['npd.pilot.write'], seedHappyPath());
@@ -461,6 +462,19 @@ describe('createPilotWorkOrder', () => {
       error: pilotError,
       planningError,
       message: planningError,
+    });
+  });
+
+  it('surfaces persistence failures with the underlying error message', async () => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], seedHappyPath());
+    createWorkOrderChainMock.mockRejectedValue(new Error('duplicate key value violates unique constraint'));
+
+    const result = await createPilotWorkOrder({ projectId: PROJECT });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'persistence_failed',
+      message: 'duplicate key value violates unique constraint',
     });
   });
 });

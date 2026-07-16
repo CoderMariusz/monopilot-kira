@@ -170,6 +170,29 @@ describe('ChangeoverMatrixEditor — edit a cell', () => {
   });
 });
 
+describe('ChangeoverMatrixEditor — bootstrap validation', () => {
+  it('reports missing from profile before cost validation', async () => {
+    renderEditor({ profileKeys: [], entries: [] });
+
+    fireEvent.click(screen.getByTestId('matrix-add-submit'));
+
+    expect(await screen.findByTestId('matrix-add-error')).toHaveTextContent(
+      en.errors.missing_from,
+    );
+  });
+
+  it('reports missing to profile when only from is filled', async () => {
+    renderEditor({ profileKeys: [], entries: [] });
+
+    fireEvent.change(screen.getByTestId('matrix-add-from'), { target: { value: 'GLUTEN_FREE' } });
+    fireEvent.click(screen.getByTestId('matrix-add-submit'));
+
+    expect(await screen.findByTestId('matrix-add-error')).toHaveTextContent(
+      en.errors.missing_to,
+    );
+  });
+});
+
 describe('i18n — Scheduler.matrix locale parity', () => {
   it('defines Scheduler.matrix in all four locales', () => {
     for (const messages of [enMessages, plMessages, roMessages, ukMessages]) {

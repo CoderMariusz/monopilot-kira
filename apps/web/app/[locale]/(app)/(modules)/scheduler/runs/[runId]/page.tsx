@@ -7,6 +7,8 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getSchedulerRunDetail } from '../_actions/runs-loaders';
+import { overrideSchedulerAssignment } from '../../_actions/scheduler-actions';
+import { loadSchedulerOverrideAccess } from '../../_lib/scheduler-labels';
 import { RunDetail, type RunDetailLabels } from '../_components/run-detail';
 import { SchedulerSectionNav } from '../_components/scheduler-section-nav';
 
@@ -56,6 +58,10 @@ export default async function SchedulerRunDetailPage({ params }: PageProps) {
       </div>
     );
   } else {
+    const overrideAccess = await loadSchedulerOverrideAccess();
+    const overrideLines = overrideAccess.ok ? overrideAccess.lines : [];
+    const canOverride = overrideAccess.ok ? overrideAccess.canOverride : false;
+
     const labels: RunDetailLabels = {
       backToRuns: opt('backToRuns', '← All runs'),
       openOnBoard: opt('openOnBoard', 'Open on board'),
@@ -69,14 +75,49 @@ export default async function SchedulerRunDetailPage({ params }: PageProps) {
         when: opt('columns.when', 'When'),
         optimizer: opt('optimizer', 'Optimizer'),
       },
-      columns: {
-        sequence: opt('detail.sequence', 'Seq'),
-        wo: opt('detail.wo', 'Work order'),
-        line: opt('detail.line', 'Line'),
-        start: opt('detail.start', 'Planned start'),
-        end: opt('detail.end', 'Planned end'),
-        changeover: opt('detail.changeover', 'Changeover (min)'),
-        status: opt('columns.status', 'Status'),
+      assignments: {
+        columns: {
+          sequence: opt('detail.sequence', 'Seq'),
+          wo: opt('detail.wo', 'Work order'),
+          line: opt('detail.line', 'Line'),
+          start: opt('detail.start', 'Planned start'),
+          end: opt('detail.end', 'Planned end'),
+          changeover: opt('detail.changeover', 'Changeover (min)'),
+          status: opt('columns.status', 'Status'),
+          actions: opt('detail.actions', 'Actions'),
+        },
+        override: opt('detail.override', 'Override'),
+        overrideModal: {
+          title: opt('override.title', 'Override assignment — {wo}'),
+          currentLine: opt('override.currentLine', 'Current line'),
+          currentStart: opt('override.currentStart', 'Current planned start'),
+          newLine: opt('override.newLine', 'New line'),
+          newStart: opt('override.newStart', 'New planned start'),
+          reasonCode: opt('override.reasonCode', 'Reason code'),
+          reasonNotes: opt('override.reasonNotes', 'Notes (optional)'),
+          selectReason: opt('override.selectReason', '— Select reason —'),
+          cancel: opt('override.cancel', 'Cancel'),
+          confirm: opt('override.confirm', 'Confirm override'),
+          saving: opt('override.saving', 'Saving…'),
+          reasonOptions: {
+            customer_priority: opt('override.reasons.customer_priority', 'Customer delivery deadline'),
+            material_shortage: opt('override.reasons.material_shortage', 'Material not available'),
+            line_maintenance: opt('override.reasons.line_maintenance', 'Line maintenance conflict'),
+            capacity_constraint: opt('override.reasons.capacity_constraint', 'Capacity re-allocation'),
+            planner_judgement: opt('override.reasons.planner_judgement', 'Professional judgement'),
+            other: opt('override.reasons.other', 'Other'),
+          },
+          errors: {
+            invalid_input: opt('override.errors.invalid_input', 'Complete all required fields.'),
+            forbidden: opt('override.errors.forbidden', 'You do not have permission to override assignments.'),
+            not_found: opt('override.errors.not_found', 'This assignment could not be found.'),
+            run_already_applied: opt(
+              'override.errors.run_already_applied',
+              'This run was already applied — overrides are no longer allowed.',
+            ),
+            persistence_failed: opt('override.errors.persistence_failed', 'Something went wrong. Please try again.'),
+          },
+        },
       },
       horizonDays: (n) =>
         t.has('horizonDays') ? t('horizonDays', { n }) : `${n} days`,
@@ -87,6 +128,9 @@ export default async function SchedulerRunDetailPage({ params }: PageProps) {
         run={result.run}
         assignments={result.assignments}
         labels={labels}
+        canOverride={canOverride}
+        lines={overrideLines}
+        overrideAction={canOverride ? overrideSchedulerAssignment : undefined}
       />
     );
   }

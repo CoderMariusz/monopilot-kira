@@ -26,7 +26,7 @@ import {
   requireActionPermission,
   PLANNING_TO_MANAGE_PERMISSION,
   isPgError,
-  numeric3Schema,
+  numeric6PositiveSchema,
   pgErrorToResult,
   toIso,
   uuidSchema,
@@ -170,7 +170,7 @@ const UpdateTransferOrderInput = z.object({
 const AddTransferOrderLineInput = z.object({
   toId: uuidSchema,
   itemId: uuidSchema,
-  quantity: numeric3Schema,
+  quantity: numeric6PositiveSchema,
   uom: z.string().trim().min(1).max(32),
   notes: z.string().trim().max(2000).optional(),
 });
@@ -178,7 +178,7 @@ const AddTransferOrderLineInput = z.object({
 const UpdateTransferOrderLineInput = z.object({
   toId: uuidSchema,
   lineId: uuidSchema,
-  quantity: numeric3Schema.optional(),
+  quantity: numeric6PositiveSchema.optional(),
   uom: z.string().trim().min(1).max(32).optional(),
   notes: z.string().trim().max(2000).optional(),
 });

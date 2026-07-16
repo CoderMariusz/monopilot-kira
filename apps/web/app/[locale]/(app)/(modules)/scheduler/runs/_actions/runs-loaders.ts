@@ -102,6 +102,11 @@ function toIso(value: string | Date | null | undefined): string | null {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 
+function formatStaleLineLabel(lineId: string | null): string | null {
+  if (!lineId) return null;
+  return `Unknown line (${lineId.slice(0, 8)}…)`;
+}
+
 function asCount(value: string | number | null | undefined): number {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
@@ -273,7 +278,7 @@ export async function getSchedulerRunDetail(
             woId: row.wo_id,
             woNumber: row.wo_number ?? row.wo_id.slice(0, 8),
             lineId: row.line_id,
-            lineLabel: line ? `${line.code} — ${line.name}` : row.line_id,
+            lineLabel: line ? `${line.code} — ${line.name}` : formatStaleLineLabel(row.line_id),
             status: row.status,
             sequenceIndex: row.sequence_index,
             plannedStartAt: toIso(row.planned_start_at),

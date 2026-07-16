@@ -533,6 +533,23 @@ describe('planning transfer order actions', () => {
     expect(client.query).toHaveBeenCalledWith(expect.stringContaining("and t.status = 'draft'"), expect.any(Array));
   });
 
+  it('C060: accepts a six-decimal positive quantity on addTransferOrderLine', async () => {
+    const result = await addTransferOrderLine(TO_ID, { itemId: ITEM_ID, quantity: '1.000001', uom: 'kg' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining('insert into public.transfer_order_lines'),
+      expect.arrayContaining([TO_ID, ITEM_ID, '1.000001', 'kg']),
+    );
+  });
+
+  it('C060: rejects a seven-decimal quantity on updateTransferOrderLine', async () => {
+    const result = await updateTransferOrderLine(TO_ID, '66666666-6666-4666-8666-666666666666', {
+      quantity: '1.0000001',
+    });
+    expect(result).toEqual({ ok: false, error: 'invalid_input', message: expect.any(String) });
+  });
+
   it('re-checks draft status in updateTransferOrderLine for races', async () => {
     raceLineUpdate = true;
 

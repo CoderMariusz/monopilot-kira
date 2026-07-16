@@ -29,8 +29,9 @@ import { ItemPicker, type ItemSearchFn } from '../../../../(npd)/_components/ite
 import type { ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items-types';
 import type { SearchTransferItemsInput } from '../_actions/to-form-data';
 import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
+import { toMicro } from '../../../../../../../lib/shared/decimal';
 
-const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
+const QTY_PATTERN = /^\d+(?:\.\d{1,6})?$/;
 
 export type ToLineModalLabels = {
   addTitle: string;
@@ -129,7 +130,7 @@ export function ToLineModal({
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
-    if (!QTY_PATTERN.test(qty.trim()) || Number(qty) <= 0 || !uom.trim()) {
+    if (!QTY_PATTERN.test(qty.trim()) || toMicro(qty.trim()) <= 0n || !uom.trim()) {
       setFormError(labels.errors.qtyRequired);
       return;
     }

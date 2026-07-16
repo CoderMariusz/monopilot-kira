@@ -4,6 +4,11 @@ import type {
   SchedulerRunAssignmentItem,
   SchedulerRunListItem,
 } from '../_actions/runs-loaders';
+import {
+  RunAssignmentsTable,
+  type RunAssignmentsTableLabels,
+} from './run-assignments-table';
+import type { OverrideSchedulerAssignmentResult } from '../../_actions/scheduler-types';
 
 export type RunDetailLabels = {
   backToRuns: string;
@@ -18,15 +23,7 @@ export type RunDetailLabels = {
     when: string;
     optimizer: string;
   };
-  columns: {
-    sequence: string;
-    wo: string;
-    line: string;
-    start: string;
-    end: string;
-    changeover: string;
-    status: string;
-  };
+  assignments: RunAssignmentsTableLabels;
   horizonDays: (n: number) => string;
 };
 
@@ -47,11 +44,19 @@ export function RunDetail({
   run,
   assignments,
   labels,
+  canOverride = false,
+  lines = [],
+  overrideAction,
 }: {
   locale: string;
   run: SchedulerRunListItem;
   assignments: SchedulerRunAssignmentItem[];
   labels: RunDetailLabels;
+  canOverride?: boolean;
+  lines?: Array<{ id: string; code: string; name: string }>;
+  overrideAction?: (
+    input: import('../../_actions/scheduler-types').OverrideSchedulerAssignmentInput,
+  ) => Promise<OverrideSchedulerAssignmentResult>;
 }) {
   return (
     <div data-testid="scheduler-run-detail" className="flex flex-col gap-4">
@@ -117,45 +122,14 @@ export function RunDetail({
           {labels.emptyAssignments}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table
-            data-testid="scheduler-run-assignments-table"
-            className="min-w-full text-left text-sm"
-          >
-            <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-4 py-3 font-medium">{labels.columns.sequence}</th>
-                <th className="px-4 py-3 font-medium">{labels.columns.wo}</th>
-                <th className="px-4 py-3 font-medium">{labels.columns.line}</th>
-                <th className="px-4 py-3 font-medium">{labels.columns.start}</th>
-                <th className="px-4 py-3 font-medium">{labels.columns.end}</th>
-                <th className="px-4 py-3 font-medium">{labels.columns.changeover}</th>
-                <th className="px-4 py-3 font-medium">{labels.columns.status}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assignments.map((a) => (
-                <tr
-                  key={a.id}
-                  data-testid={`scheduler-run-assignment-${a.id}`}
-                  className="border-b border-slate-100 last:border-0"
-                >
-                  <td className="px-4 py-3 text-slate-700">{a.sequenceIndex ?? '—'}</td>
-                  <td className="px-4 py-3 font-medium text-slate-900">{a.woNumber}</td>
-                  <td className="px-4 py-3 text-slate-700">{a.lineLabel ?? '—'}</td>
-                  <td className="px-4 py-3 text-slate-700">{formatWhen(a.plannedStartAt)}</td>
-                  <td className="px-4 py-3 text-slate-700">{formatWhen(a.plannedEndAt)}</td>
-                  <td className="px-4 py-3 text-slate-700">{a.changeoverMinutes ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium uppercase text-slate-700">
-                      {a.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <RunAssignmentsTable
+          assignments={assignments}
+          applied={run.applied}
+          canOverride={canOverride}
+          lines={lines}
+          labels={labels.assignments}
+          overrideAction={overrideAction}
+        />
       )}
     </div>
   );

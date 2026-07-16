@@ -182,12 +182,31 @@ describe('ScheduleBoardView — board rendering', () => {
     expect(noLane.getByTestId('schedule-bar-WO-NL')).toBeInTheDocument();
   });
 
-  it('lists unscheduled WOs in the side list with a Schedule CTA', () => {
+  it('lists unscheduled WOs in the side list; Schedule CTA only for RELEASED', () => {
     renderBoard();
 
     const row = within(screen.getByTestId('schedule-unscheduled-WO-U'));
     expect(row.getByText('WO-U')).toBeInTheDocument();
-    expect(row.getByRole('button', { name: en.unscheduled.cta })).toBeInTheDocument();
+    expect(row.queryByRole('button', { name: en.unscheduled.cta })).not.toBeInTheDocument();
+  });
+
+  it('does not open the reschedule modal for IN_PROGRESS bars', () => {
+    const data = makeData();
+    data.scheduled.push(
+      wo({
+        id: 'f0000000-0000-4000-8000-00000000000f',
+        woNumber: 'WO-IP',
+        status: 'IN_PROGRESS',
+        scheduledStart: '2026-06-14T08:00:00.000Z',
+        scheduledEnd: '2026-06-14T16:00:00.000Z',
+      }),
+    );
+    renderBoard(data);
+
+    const bar = screen.getByTestId('schedule-bar-WO-IP');
+    expect(bar).toHaveAttribute('data-reschedulable', 'false');
+    fireEvent.click(bar);
+    expect(screen.queryByTestId('reschedule-save')).not.toBeInTheDocument();
   });
 
   it('shows the empty copy when there are no scheduled WOs', () => {
@@ -197,14 +216,14 @@ describe('ScheduleBoardView — board rendering', () => {
 });
 
 describe('ScheduleBoardView — reschedule modal', () => {
-  it('opens on bar click prefilled and submits the exact payload (line kept)', async () => {
+  it('opens on RELEASED bar click prefilled and submits the exact payload (line kept)', async () => {
     const action = vi.fn(async () => ({
       ok: true as const,
-      workOrder: wo({ id: 'a0000000-0000-4000-8000-00000000000a', woNumber: 'WO-A' }),
+      workOrder: wo({ id: 'b0000000-0000-4000-8000-00000000000b', woNumber: 'WO-B', status: 'RELEASED' }),
     }));
     renderBoard(makeData(), action);
 
-    fireEvent.click(screen.getByTestId('schedule-bar-WO-A'));
+    fireEvent.click(screen.getByTestId('schedule-bar-WO-B'));
     expect(await screen.findByTestId('reschedule-save')).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId('reschedule-start'), { target: { value: '2026-06-13T09:30' } });
@@ -213,25 +232,39 @@ describe('ScheduleBoardView — reschedule modal', () => {
 
     await waitFor(() => expect(action).toHaveBeenCalledTimes(1));
     expect(action).toHaveBeenCalledWith({
-      woId: 'a0000000-0000-4000-8000-00000000000a',
-      // The bar already has a line → the select shows that line, so the
-      // payload carries it explicitly.
+      woId: 'b0000000-0000-4000-8000-00000000000b',
       lineId: LINE_1,
-      scheduledStart: new Date('2026-06-13T09:30').toISOString(),
-      scheduledEnd: new Date('2026-06-13T17:30').toISOString(),
+      scheduledStart: '2026-06-13T09:30:00.000Z',
+      scheduledEnd: '2026-06-13T17:30:00.000Z',
     });
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
-  it('opens from the unscheduled list and omits lineId when keeping current', async () => {
+  it('opens from the unscheduled list for RELEASED WOs only', async () => {
     const action = vi.fn(async () => ({
       ok: true as const,
-      workOrder: wo({ id: 'd0000000-0000-4000-8000-00000000000d', woNumber: 'WO-U' }),
+      workOrder: wo({
+        id: 'e0000000-0000-4000-8000-00000000000e',
+        woNumber: 'WO-R',
+        status: 'RELEASED',
+      }),
     }));
-    renderBoard(makeData(), action);
+    const data = makeData({
+      unscheduled: [
+        wo({
+          id: 'e0000000-0000-4000-8000-00000000000e',
+          woNumber: 'WO-R',
+          status: 'RELEASED',
+          productionLineId: null,
+          scheduledStart: null,
+          scheduledEnd: null,
+        }),
+      ],
+    });
+    renderBoard(data, action);
 
     fireEvent.click(
-      within(screen.getByTestId('schedule-unscheduled-WO-U')).getByRole('button', { name: en.unscheduled.cta }),
+      within(screen.getByTestId('schedule-unscheduled-WO-R')).getByRole('button', { name: en.unscheduled.cta }),
     );
     fireEvent.change(await screen.findByTestId('reschedule-start'), { target: { value: '2026-06-14T06:00' } });
     fireEvent.change(screen.getByTestId('reschedule-end'), { target: { value: '2026-06-14T14:00' } });
@@ -239,17 +272,39 @@ describe('ScheduleBoardView — reschedule modal', () => {
 
     await waitFor(() => expect(action).toHaveBeenCalledTimes(1));
     expect(action).toHaveBeenCalledWith({
-      woId: 'd0000000-0000-4000-8000-00000000000d',
-      scheduledStart: new Date('2026-06-14T06:00').toISOString(),
-      scheduledEnd: new Date('2026-06-14T14:00').toISOString(),
+      woId: 'e0000000-0000-4000-8000-00000000000e',
+      scheduledStart: '2026-06-14T06:00:00.000Z',
+      scheduledEnd: '2026-06-14T14:00:00.000Z',
     });
+  });
+
+  it('prefills modal inputs and detail line with the same site-timezone civil time', async () => {
+    const iso = '2026-06-12T08:00:00.000Z';
+    const data = makeData({
+      siteTimezone: 'Europe/London',
+      scheduled: [
+        wo({
+          id: 'b0000000-0000-4000-8000-00000000000b',
+          woNumber: 'WO-B',
+          status: 'RELEASED',
+          scheduledStart: iso,
+          scheduledEnd: '2026-06-12T16:00:00.000Z',
+        }),
+      ],
+      unscheduled: [],
+    });
+    renderBoard(data);
+
+    fireEvent.click(screen.getByTestId('schedule-bar-WO-B'));
+    expect(await screen.findByTestId('reschedule-start')).toHaveValue('2026-06-12T09:00');
+    expect(screen.getByTestId('reschedule-current-times')).toHaveTextContent('09:00');
   });
 
   it('surfaces action errors inline (invalid_range) and stays open', async () => {
     const action = vi.fn(async () => ({ ok: false as const, error: 'invalid_range' as const }));
     renderBoard(makeData(), action);
 
-    fireEvent.click(screen.getByTestId('schedule-bar-WO-A'));
+    fireEvent.click(screen.getByTestId('schedule-bar-WO-B'));
     fireEvent.change(await screen.findByTestId('reschedule-start'), { target: { value: '2026-06-13T17:30' } });
     fireEvent.change(screen.getByTestId('reschedule-end'), { target: { value: '2026-06-13T09:30' } });
     fireEvent.click(screen.getByTestId('reschedule-save'));
@@ -261,10 +316,22 @@ describe('ScheduleBoardView — reschedule modal', () => {
 
   it('blocks submit with empty datetime inputs (invalid_input, no action call)', async () => {
     const action = vi.fn();
-    renderBoard(makeData(), action as any);
+    const data = makeData({
+      unscheduled: [
+        wo({
+          id: 'e0000000-0000-4000-8000-00000000000e',
+          woNumber: 'WO-R',
+          status: 'RELEASED',
+          productionLineId: null,
+          scheduledStart: null,
+          scheduledEnd: null,
+        }),
+      ],
+    });
+    renderBoard(data, action as any);
 
     fireEvent.click(
-      within(screen.getByTestId('schedule-unscheduled-WO-U')).getByRole('button', { name: en.unscheduled.cta }),
+      within(screen.getByTestId('schedule-unscheduled-WO-R')).getByRole('button', { name: en.unscheduled.cta }),
     );
     fireEvent.click(await screen.findByTestId('reschedule-save'));
 

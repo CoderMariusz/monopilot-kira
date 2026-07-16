@@ -230,3 +230,23 @@ export type ListChangeoverMatrixResult =
 export type UpsertChangeoverMatrixEntryResult =
   | { ok: true; entry: ChangeoverMatrixEntry }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
+
+export type OverrideSchedulerAssignmentInput = {
+  assignmentId: string;
+  lineId: string;
+  plannedStartAt: string;
+  reasonCode: string;
+  reasonNotes?: string | null;
+};
+
+export type OverrideSchedulerAssignmentResult =
+  | { ok: true; assignment: SchedulerAssignment }
+  | {
+      ok: false;
+      error:
+        | 'invalid_input'
+        | 'forbidden'
+        | 'not_found'
+        | 'run_already_applied'
+        | 'persistence_failed';
+    };

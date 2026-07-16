@@ -125,7 +125,7 @@ describe('rescheduleWorkOrder', () => {
   beforeEach(() => {
     getActiveSiteIdMock.mockResolvedValue(SITE_ID);
     allowPermission = true;
-    currentStatus = 'DRAFT';
+    currentStatus = 'RELEASED';
     updateVisibleStatus = null;
     lineExists = true;
     lineSiteId = SITE_ID;
@@ -143,7 +143,7 @@ describe('rescheduleWorkOrder', () => {
     );
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining('update public.work_orders'),
-      [WO_ID, START, END, LINE_ID, USER_ID, ['DRAFT', 'RELEASED'], 'DRAFT'],
+      [WO_ID, START, END, LINE_ID, USER_ID, ['RELEASED'], 'RELEASED'],
     );
     const lockRead = vi
       .mocked(client.query)
@@ -152,7 +152,7 @@ describe('rescheduleWorkOrder', () => {
     // Audit row like the neighbours: action 'reschedule', status unchanged.
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining("'reschedule'"),
-      expect.arrayContaining([WO_ID, 'DRAFT', USER_ID]),
+      expect.arrayContaining([WO_ID, 'RELEASED', USER_ID]),
     );
   });
 
@@ -162,7 +162,7 @@ describe('rescheduleWorkOrder', () => {
     expect(result.ok).toBe(true);
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining('coalesce($4::uuid, wo.production_line_id)'),
-      [WO_ID, START, END, null, USER_ID, ['DRAFT', 'RELEASED'], 'DRAFT'],
+      [WO_ID, START, END, null, USER_ID, ['RELEASED'], 'RELEASED'],
     );
     // No line-existence check is run when no line is supplied.
     expect(client.query).not.toHaveBeenCalledWith(
@@ -206,7 +206,7 @@ describe('rescheduleWorkOrder', () => {
     ).resolves.toEqual({ ok: false, error: 'not_found' });
   });
 
-  it.each(['IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CLOSED', 'CANCELLED'])(
+  it.each(['DRAFT', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CLOSED', 'CANCELLED'])(
     'legal-state gate: rejects %s with invalid_state',
     async (status) => {
       currentStatus = status;
@@ -225,7 +225,7 @@ describe('rescheduleWorkOrder', () => {
   });
 
   it('returns invalid_state when status changes between read and update', async () => {
-    currentStatus = 'DRAFT';
+    currentStatus = 'RELEASED';
     updateVisibleStatus = 'IN_PROGRESS';
 
     const result = await rescheduleWorkOrder({ woId: WO_ID, scheduledStart: START, scheduledEnd: END });
@@ -233,7 +233,7 @@ describe('rescheduleWorkOrder', () => {
     expect(result).toEqual({ ok: false, error: 'invalid_state' });
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining('and wo.status = $7'),
-      [WO_ID, START, END, null, USER_ID, ['DRAFT', 'RELEASED'], 'DRAFT'],
+      [WO_ID, START, END, null, USER_ID, ['RELEASED'], 'RELEASED'],
     );
   });
 
@@ -314,7 +314,7 @@ describe('getScheduleBoard', () => {
       .mocked(client.query)
       .mock.calls.filter(([sql]) => String(sql).includes('from public.work_orders wo'));
     expect(workOrderReads).toHaveLength(3);
-    expect(workOrderReads[0]?.[0]).toContain('wo.site_id = $4::uuid');
+    expect(workOrderReads[0]?.[0]).toContain('$4::uuid is null or coalesce(wo.site_id, pl.site_id) = $4::uuid');
     expect(workOrderReads[0]?.[1]).toEqual([
       ['DRAFT', 'RELEASED', 'IN_PROGRESS'],
       expect.any(String),
@@ -429,28 +429,31 @@ describe('getScheduleBoard', () => {
     );
   });
 
-  it('fails closed with no active site before running board reads', async () => {
+  it('returns all org lines and work orders when all-sites is active', async () => {
     getActiveSiteIdMock.mockResolvedValue(null);
 
     const result = await getScheduleBoard();
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
-    expect(result.data).toMatchObject({
-      lines: [],
-      scheduled: [],
-      unscheduled: [],
-      unscheduledPagination: {
-        items: [],
-        total: 0,
-        page: 1,
-        limit: 50,
-        offset: 0,
-        hasMore: false,
-      },
-      noActiveSite: true,
-    });
-    expect(client.query).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(client.query).mock.calls[0]?.[0]).toContain('from public.user_roles');
+    expect(result.data.lines).toEqual([{ id: LINE_ID, code: 'LINE-01', name: 'Line One' }]);
+    expect(result.data.scheduled).toHaveLength(1);
+    expect(result.data.siteTimezone).toBe('UTC');
+    expect(result.data).not.toHaveProperty('noActiveSite');
+
+    const linesCall = vi
+      .mocked(client.query)
+      .mock.calls.find(([sql]) => String(sql).includes('from public.production_lines pl'));
+    expect(linesCall?.[1]).toEqual([null]);
+
+    const scheduledCall = vi
+      .mocked(client.query)
+      .mock.calls.find(
+        ([sql]) =>
+          String(sql).includes('from public.work_orders wo') &&
+          String(sql).includes('scheduled_start_time is not null'),
+      );
+    expect(scheduledCall?.[0]).toContain('$4::uuid is null or coalesce(wo.site_id, pl.site_id) = $4::uuid');
+    expect(scheduledCall?.[1]?.[3]).toBeNull();
   });
 });

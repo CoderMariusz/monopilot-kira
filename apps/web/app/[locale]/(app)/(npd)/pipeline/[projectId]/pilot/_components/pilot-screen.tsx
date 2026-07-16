@@ -206,6 +206,11 @@ export type PilotLabels = {
   createPilotWoErrorPlanningWrite?: string;
   createPilotWoErrorDocumentMaskMissing?: string;
   createPilotWoErrorFgItemMissing?: string;
+  createPilotWoErrorNoPlannedQuantity?: string;
+  createPilotWoErrorProductionCodeConflict?: string;
+  createPilotWoErrorPacksPerBox?: string;
+  createPilotWoErrorPersistence?: string;
+  createPilotWoErrorNotFound?: string;
 };
 
 export type ToggleChecklistCall = { itemId: string; isChecked: boolean };
@@ -429,9 +434,10 @@ export function PilotScreen({
       case 'no_linked_fg':
         return labels.createPilotWoErrorNoFg;
       case 'fg_item_missing':
+      case 'not_found':
         return labels.createPilotWoErrorFgItemMissing ?? labels.createPilotWoErrorNoFg;
       case 'recipe_not_ready':
-        return labels.createPilotWoErrorRecipe;
+        return message ?? labels.createPilotWoErrorRecipe;
       case 'forbidden':
         return labels.createPilotWoErrorForbidden;
       case 'forbidden_planning_write':
@@ -442,14 +448,24 @@ export function PilotScreen({
         return labels.createPilotWoErrorNoActiveSite ?? labels.createPilotWoError;
       case 'document_mask_missing':
         return labels.createPilotWoErrorDocumentMaskMissing ?? labels.createPilotWoError;
+      case 'no_planned_quantity':
+        return labels.createPilotWoErrorNoPlannedQuantity ?? labels.createPilotWoError;
+      case 'production_code_conflict':
+        return labels.createPilotWoErrorProductionCodeConflict ?? labels.createPilotWoErrorRecipe;
+      case 'packs_per_box_required':
+        return labels.createPilotWoErrorPacksPerBox ?? labels.createPilotWoErrorRecipe;
       case 'wip_item_required':
         return message ?? labels.createPilotWoError;
       case 'wo_create_failed':
         return message
           ? `${labels.createPilotWoErrorPlanning}: ${message}`
           : labels.createPilotWoErrorPlanning;
+      case 'persistence_failed':
+        return message ?? labels.createPilotWoErrorPersistence ?? labels.createPilotWoError;
+      case 'invalid_input':
+        return message ?? labels.createPilotWoError;
       default:
-        return labels.createPilotWoError;
+        return message ?? labels.createPilotWoError;
     }
   }
 

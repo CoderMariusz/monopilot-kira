@@ -115,6 +115,10 @@ const LABELS: PilotLabels = {
   createPilotWoErrorRecipe: 'Lock the recipe version (or activate a production BOM) before creating a pilot work order.',
   createPilotWoErrorForbidden: 'You do not have permission to create a pilot work order.',
   createPilotWoErrorPlanning: 'Planning rejected the work order',
+  createPilotWoErrorNoPlannedQuantity: 'Enter a positive batch size in the pilot run plan before creating the work order.',
+  createPilotWoErrorProductionCodeConflict: 'The production item code is already used by another product. Resolve the code conflict in Technical before creating the pilot WO.',
+  createPilotWoErrorPacksPerBox: 'Packaging hierarchy is incomplete — set packs-per-box on the FG item (or complete packaging) before creating the pilot WO.',
+  createPilotWoErrorPersistence: 'Could not save the pilot work order. Check prerequisites and try again.',
 };
 
 const LINES: ProductionLineOption[] = [
@@ -374,6 +378,28 @@ describe('PilotScreen — pilot WO errors', () => {
     fireEvent.click(screen.getByTestId('create-pilot-wo-button'));
 
     await waitFor(() => expect(screen.getByTestId('create-pilot-wo-error')).toHaveTextContent(message));
+  });
+
+  it('shows the packs-per-box prerequisite instead of the generic error', async () => {
+    const onCreatePilotWo = vi.fn().mockResolvedValue({ ok: false, error: 'packs_per_box_required' });
+    renderReady({ onCreatePilotWo });
+
+    fireEvent.click(screen.getByTestId('create-pilot-wo-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('create-pilot-wo-error')).toHaveTextContent(LABELS.createPilotWoErrorPacksPerBox!),
+    );
+  });
+
+  it('shows the missing batch-size prerequisite instead of the generic error', async () => {
+    const onCreatePilotWo = vi.fn().mockResolvedValue({ ok: false, error: 'no_planned_quantity' });
+    renderReady({ onCreatePilotWo });
+
+    fireEvent.click(screen.getByTestId('create-pilot-wo-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('create-pilot-wo-error')).toHaveTextContent(LABELS.createPilotWoErrorNoPlannedQuantity!),
+    );
   });
 });
 

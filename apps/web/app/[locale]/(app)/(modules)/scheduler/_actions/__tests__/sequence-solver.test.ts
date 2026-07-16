@@ -341,33 +341,29 @@ describe('sequenceWorkOrders', () => {
     expect(result[1].planned_start_at).toBe('2026-06-25T00:00:00.000Z');
   });
 
-  it('without capacity config keeps back-to-back sequencing from now (invariance)', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
-    const first = wo({
-      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      due: '2026-06-01T08:00:00.000Z',
-      allergens: ['milk'],
-      scheduledStart: '2026-06-01T08:00:00.000Z',
-      scheduledEnd: '2026-06-01T10:00:00.000Z',
-    });
-    const second = wo({
-      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-      due: '2026-06-02T08:00:00.000Z',
-      allergens: ['soy'],
-      scheduledStart: '2026-06-02T08:00:00.000Z',
-      scheduledEnd: '2026-06-02T11:00:00.000Z',
-    });
+  it('enforces finite daily capacity by default while explicit null opts out', () => {
+    const lineKey = LINE_ID;
+    const earliestMs = Date.parse('2026-06-24T16:00:00.000Z');
+    const runDurationMs = 60 * 60 * 1000;
+    const used = new Map([[`${lineKey}|2026-06-24`, 16 * 60 * 60 * 1000]]);
 
-    const withDefault = seq([first, second], [], DEFAULT_SEQUENCE_SOLVER_CONFIG);
-    const explicitNull = seq([first, second], [], {
-      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
-      capacityHoursPerDay: null,
-    });
+    const withDefault = __resolvePlannedStartForTests(
+      lineKey,
+      earliestMs,
+      runDurationMs,
+      DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      new Map(used),
+    );
+    const withoutCapacity = __resolvePlannedStartForTests(
+      lineKey,
+      earliestMs,
+      runDurationMs,
+      { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: null },
+      new Map(used),
+    );
 
-    expect(withDefault).toEqual(explicitNull);
-    expect(withDefault[0].planned_start_at).toBe('2026-06-24T12:00:00.000Z');
-    expect(withDefault[1].planned_start_at).toBe('2026-06-24T14:00:00.000Z');
+    expect(withDefault).toBe(Date.parse('2026-06-25T00:00:00.000Z'));
+    expect(withoutCapacity).toBe(earliestMs);
   });
 
   it('moves a WO at 00:44 into its line 06:00–14:00 shift window', () => {
@@ -416,7 +412,7 @@ describe('sequenceWorkOrders', () => {
     expect(result[0].planned_start_at).toBe('2026-06-24T00:44:00.000Z');
   });
 
-  it('avoids PM windows when respectPmWindows is enabled', () => {
+  it('default solver output changes when PM windows are present', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
     const first = wo({
@@ -434,9 +430,12 @@ describe('sequenceWorkOrders', () => {
       scheduledEnd: '2026-06-02T09:00:00.000Z',
     });
 
-    const result = seq([first, second], [], {
+    const withoutPm = seq([first, second], [], {
       ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
-      respectPmWindows: true,
+      respectPmWindows: false,
+    });
+    const withPm = seq([first, second], [], {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
       pmWindows: [
         {
           line_id: LINE_ID,
@@ -446,10 +445,11 @@ describe('sequenceWorkOrders', () => {
       ],
     });
 
-    expect(result[1].planned_start_at).toBe('2026-06-24T15:00:00.000Z');
+    expect(withoutPm[1].planned_start_at).toBe('2026-06-24T13:00:00.000Z');
+    expect(withPm[1].planned_start_at).toBe('2026-06-24T15:00:00.000Z');
   });
 
-  it('matches default sequencing when capacityHoursPerDay is null (empty config invariance)', () => {
+  it('keeps schedules below the default cap unchanged when capacityHoursPerDay is null', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-24T12:00:00.000Z'));
     const first = wo({
@@ -691,15 +691,14 @@ describe('sequenceWorkOrders', () => {
     ).toThrow(SequenceCapacityInfeasibleError);
   });
 
-  it('places the next released WO after pre-seeded active line occupancy', () => {
+  it('moves a released WO after an open-ended in-progress line occupation', () => {
     const nowMs = Date.parse('2026-06-24T08:00:00.000Z');
-    const occupyEnd = nowMs + 3 * 60 * 60 * 1000;
     const activeWo = wo({
       id: 'active-wo',
-      due: new Date(occupyEnd).toISOString(),
+      due: '2026-06-23T08:00:00.000Z',
       allergens: ['milk'],
-      scheduledStart: new Date(nowMs).toISOString(),
-      scheduledEnd: new Date(occupyEnd).toISOString(),
+      scheduledStart: '2026-06-23T08:00:00.000Z',
+      routingDurationMs: 3 * 60 * 60 * 1000,
     });
     activeWo.status = 'IN_PROGRESS';
 
@@ -711,14 +710,22 @@ describe('sequenceWorkOrders', () => {
     });
     releasedWo.status = 'RELEASED';
 
-    const preoccupied = buildPreoccupiedSeed([activeWo], DEFAULT_SEQUENCE_SOLVER_CONFIG);
-    const result = seq([releasedWo], [], {
+    const withoutOccupancy = seq([releasedWo], [], {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      nowMs,
+    });
+    const preoccupied = buildPreoccupiedSeed(
+      [activeWo],
+      { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, nowMs },
+    );
+    const withOccupancy = seq([releasedWo], [], {
       ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
       nowMs,
       preoccupied,
     });
 
-    expect(Date.parse(result[0].planned_start_at)).toBeGreaterThanOrEqual(occupyEnd);
+    expect(withoutOccupancy[0].planned_start_at).toBe('2026-06-24T08:00:00.000Z');
+    expect(withOccupancy[0].planned_start_at).toBe('2026-06-24T11:00:00.000Z');
   });
 
   it('schedules milk then nuts when no changeover matrix is configured (permissive)', () => {

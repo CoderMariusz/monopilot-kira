@@ -6444,6 +6444,11 @@
       "createPilotWoErrorPlanningWrite": "Your role is missing npd.planning.write — ask an admin to grant it.",
       "createPilotWoErrorDocumentMaskMissing": "The organization has no WO numbering mask configured (Settings > Documents).",
       "createPilotWoErrorFgItemMissing": "The FG item record is missing from the item master. Re-create or map the FG candidate.",
+      "createPilotWoErrorNoPlannedQuantity": "Enter a positive batch size in the pilot run plan before creating the work order.",
+      "createPilotWoErrorProductionCodeConflict": "The production item code is already used by another product. Resolve the code conflict in Technical before creating the pilot WO.",
+      "createPilotWoErrorPacksPerBox": "Packaging hierarchy is incomplete — set packs-per-box on the FG item (or complete packaging) before creating the pilot WO.",
+      "createPilotWoErrorPersistence": "Could not save the pilot work order. Check prerequisites and try again.",
+      "createPilotWoErrorNotFound": "The NPD project was not found.",
       "fieldLineRequired": "Production line is required.",
       "batchUnitLabel": "kg",
       "deletePlan": "Șterge planul",
@@ -12161,6 +12166,35 @@
       "confirm": "Apply schedule",
       "cancel": "Cancel"
     },
+    "override": {
+      "button": "Override",
+      "title": "Override assignment — {wo}",
+      "currentLine": "Current line",
+      "currentStart": "Current planned start",
+      "newLine": "New line",
+      "newStart": "New planned start",
+      "reasonCode": "Reason code",
+      "reasonNotes": "Notes (optional)",
+      "selectReason": "— Select reason —",
+      "cancel": "Cancel",
+      "confirm": "Confirm override",
+      "saving": "Saving…",
+      "reasons": {
+        "customer_priority": "Customer delivery deadline",
+        "material_shortage": "Material not available",
+        "line_maintenance": "Line maintenance conflict",
+        "capacity_constraint": "Capacity re-allocation",
+        "planner_judgement": "Professional judgement",
+        "other": "Other"
+      },
+      "errors": {
+        "invalid_input": "Complete all required fields.",
+        "forbidden": "You do not have permission to override assignments.",
+        "not_found": "This assignment could not be found.",
+        "run_already_applied": "This run was already applied — overrides are no longer allowed.",
+        "persistence_failed": "Something went wrong. Please try again."
+      }
+    },
     "errors": {
       "invalid_input": "Invalid input. Check the horizon and try again.",
       "forbidden": "You do not have permission to perform this action.",
@@ -12199,6 +12233,10 @@
         "wash": "Wash required"
       },
       "errors": {
+        "missing_from": "Enter the from allergen profile.",
+        "missing_to": "Enter the to allergen profile.",
+        "same_profile": "From and to profiles must be different.",
+        "invalid_cost": "Enter a valid non-negative cost.",
         "invalid_input": "Enter a valid non-negative cost.",
         "forbidden": "You do not have permission to edit the changeover matrix.",
         "not_found": "This matrix entry could not be found.",
@@ -12239,7 +12277,37 @@
         "line": "Line",
         "start": "Planned start",
         "end": "Planned end",
-        "changeover": "Changeover (min)"
+        "changeover": "Changeover (min)",
+        "actions": "Actions",
+        "override": "Override"
+      },
+      "override": {
+        "title": "Override assignment — {wo}",
+        "currentLine": "Current line",
+        "currentStart": "Current planned start",
+        "newLine": "New line",
+        "newStart": "New planned start",
+        "reasonCode": "Reason code",
+        "reasonNotes": "Notes (optional)",
+        "selectReason": "— Select reason —",
+        "cancel": "Cancel",
+        "confirm": "Confirm override",
+        "saving": "Saving…",
+        "reasons": {
+          "customer_priority": "Customer delivery deadline",
+          "material_shortage": "Material not available",
+          "line_maintenance": "Line maintenance conflict",
+          "capacity_constraint": "Capacity re-allocation",
+          "planner_judgement": "Professional judgement",
+          "other": "Other"
+        },
+        "errors": {
+          "invalid_input": "Complete all required fields.",
+          "forbidden": "You do not have permission to override assignments.",
+          "not_found": "This assignment could not be found.",
+          "run_already_applied": "This run was already applied — overrides are no longer allowed.",
+          "persistence_failed": "Something went wrong. Please try again."
+        }
       }
     },
     "capacity": {

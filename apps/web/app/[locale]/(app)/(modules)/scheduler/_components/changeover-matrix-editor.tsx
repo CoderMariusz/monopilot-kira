@@ -59,6 +59,23 @@ export type ChangeoverMatrixLabels = {
   errors: Record<string, string>;
 };
 
+type BootstrapValidationError = 'missing_from' | 'missing_to' | 'same_profile' | 'invalid_cost';
+
+function validateBootstrapPair(
+  from: string,
+  to: string,
+  costStr: string,
+): BootstrapValidationError | null {
+  const fromTrim = from.trim();
+  const toTrim = to.trim();
+  if (!fromTrim) return 'missing_from';
+  if (!toTrim) return 'missing_to';
+  if (fromTrim === toTrim) return 'same_profile';
+  const cost = Number(costStr);
+  if (!Number.isFinite(cost) || cost < 0) return 'invalid_cost';
+  return null;
+}
+
 type UpsertAction = (
   entry: Partial<ChangeoverMatrixEntry>,
 ) => Promise<UpsertChangeoverMatrixEntryResult>;
@@ -126,7 +143,7 @@ export function ChangeoverMatrixEditor({
     if (!editing) return;
     const cost = Number(editing.cost);
     if (!Number.isFinite(cost) || cost < 0) {
-      setErrorKey('invalid_input');
+      setErrorKey('invalid_cost');
       return;
     }
     setSaving(true);
@@ -147,13 +164,14 @@ export function ChangeoverMatrixEditor({
   };
 
   const addFirstPair = async () => {
+    const validationError = validateBootstrapPair(newFrom, newTo, newCost);
+    if (validationError) {
+      setErrorKey(validationError);
+      return;
+    }
     const from = newFrom.trim();
     const to = newTo.trim();
     const cost = Number(newCost);
-    if (!from || !to || from === to || !Number.isFinite(cost) || cost < 0) {
-      setErrorKey('invalid_input');
-      return;
-    }
     setAdding(true);
     setErrorKey(null);
     const result = await upsertAction({

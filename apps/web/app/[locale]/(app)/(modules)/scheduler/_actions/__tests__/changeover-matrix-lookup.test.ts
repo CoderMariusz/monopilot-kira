@@ -72,6 +72,22 @@ describe('resolveChangeoverTransition', () => {
     expect(transition.risk_level).toBe('low');
   });
 
+  it('uses the configured reverse direction when the requested direction is missing', () => {
+    const entries = [
+      matrix('nuts', 'milk', 35, {
+        requires_cleaning: true,
+        risk_level: 'high',
+      }),
+    ];
+
+    const transition = resolveChangeoverTransition(['milk'], ['nuts'], null, entries);
+
+    expect(transition.minutes).toBe(35);
+    expect(transition.requires_cleaning).toBe(true);
+    expect(transition.risk_level).toBe('high');
+    expect(transition.feasible).toBe(true);
+  });
+
   it('falls back to org default per pair when only some pairs have a line override', () => {
     const lineId = '22222222-2222-4222-8222-222222222222';
     const entries = [

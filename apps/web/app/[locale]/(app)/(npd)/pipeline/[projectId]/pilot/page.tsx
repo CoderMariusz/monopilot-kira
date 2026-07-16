@@ -150,6 +150,11 @@ const DEFAULT_LABELS: PilotLabels = {
   createPilotWoErrorPlanningWrite: 'Your role is missing npd.planning.write — ask an admin to grant it.',
   createPilotWoErrorDocumentMaskMissing: 'The organization has no WO numbering mask configured (Settings > Documents).',
   createPilotWoErrorFgItemMissing: 'The FG item record is missing from the item master. Re-create or map the FG candidate.',
+  createPilotWoErrorNoPlannedQuantity: 'Enter a positive batch size in the pilot run plan before creating the work order.',
+  createPilotWoErrorProductionCodeConflict: 'The production item code is already used by another product. Resolve the code conflict in Technical before creating the pilot WO.',
+  createPilotWoErrorPacksPerBox: 'Packaging hierarchy is incomplete — set packs-per-box on the FG item (or complete packaging) before creating the pilot WO.',
+  createPilotWoErrorPersistence: 'Could not save the pilot work order. Check prerequisites and try again.',
+  createPilotWoErrorNotFound: 'The NPD project was not found.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof PilotLabels>;

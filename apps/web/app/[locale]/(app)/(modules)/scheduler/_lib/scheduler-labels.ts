@@ -15,6 +15,15 @@ import { hasPermission, type OrgActionContext } from '../../planning/work-orders
 import type { SchedulerLabelMaps } from '../_components/scheduler-view-model';
 
 const SCHEDULER_READ_PERMISSION = 'scheduler.run.read';
+const SCHEDULER_OVERRIDE_PERMISSION = 'scheduler.assignment.override';
+
+export type SchedulerOverrideAccessResult =
+  | {
+      ok: true;
+      canOverride: boolean;
+      lines: Array<{ id: string; code: string; name: string }>;
+    }
+  | { ok: false; error: 'forbidden' | 'persistence_failed' };
 
 export type SchedulerAccessResult =
   | { ok: true; labelMaps: SchedulerLabelMaps }
@@ -121,6 +130,38 @@ export async function loadSchedulerAccess(): Promise<SchedulerAccessResult> {
     });
   } catch (error) {
     console.error('[scheduler/loadSchedulerAccess] persistence_failed', error);
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+/**
+ * Read gate + production-line options for the assignment override modal.
+ * RBAC is enforced again inside overrideSchedulerAssignment — this only
+ * controls whether the UI exposes the action.
+ */
+export async function loadSchedulerOverrideAccess(): Promise<SchedulerOverrideAccessResult> {
+  try {
+    return await withOrgContext(async (ctx: OrgActionContext): Promise<SchedulerOverrideAccessResult> => {
+      if (!(await hasPermission(ctx, SCHEDULER_READ_PERMISSION))) {
+        return { ok: false, error: 'forbidden' };
+      }
+
+      const canOverride = await hasPermission(ctx, SCHEDULER_OVERRIDE_PERMISSION);
+      const lines = await ctx.client.query<{ id: string; code: string; name: string }>(
+        `select id::text, code, name
+           from public.production_lines
+          where org_id = app.current_org_id()
+          order by code`,
+      );
+
+      return {
+        ok: true,
+        canOverride,
+        lines: lines.rows,
+      };
+    });
+  } catch (error) {
+    console.error('[scheduler/loadSchedulerOverrideAccess] persistence_failed', error);
     return { ok: false, error: 'persistence_failed' };
   }
 }

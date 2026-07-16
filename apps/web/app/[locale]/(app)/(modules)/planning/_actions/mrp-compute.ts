@@ -51,9 +51,10 @@
  *   - net >= 0 and 0 < net < min_qty,
  *     or net == 0 with min_qty > 0      → 'below_min' (amber — its own severity,
  *                    distinct from the red shortage badge AND from 'at_risk').
- *   - Suggested qty WITH a threshold    = ceil(max(min_qty − net, reorder_qty))
- *     (top back up to the floor, never less than the configured lot). Without
- *     a threshold the existing rule holds: ceil(−net) on shortage only.
+ *   - Suggested qty WITH a threshold    = ceil(gap / reorder_qty) × reorder_qty
+ *     when reorder_qty > 0 (fixed lot / lot multiple); else ceil(gap) whole
+ *     units. gap = max(min_qty − net, −net). Without a threshold the existing
+ *     rule holds: ceil(−net) on shortage only.
  *   - Suggested due date = today + suppliers.lead_time_days (mig 261) ONLY when
  *     preferred_supplier_id resolves to a supplier row; otherwise null (honest —
  *     we never invent a lead time).
@@ -62,7 +63,8 @@
  */
 import {
   MICRO_SCALE,
-  ceilMicroToWholeUnits,
+  ceilGapToLotMultiple,
+  formatSuggestedQty,
   microToFixed,
   mulMicro,
   toMicro,
@@ -431,16 +433,15 @@ export function computeMrp(input: {
     totalDemand += acc.demand;
 
     // Suggested qty: without a threshold, cover the shortage; with one, top
-    // back up to the min_qty floor and never order less than the configured
-    // reorder lot — ceil(max(min_qty − net, reorder_qty, −net)).
+    // back up to the min_qty floor and round up to the configured lot multiple.
     let suggestedAction: MrpSuggestedAction | null = null;
     if (isShort || isBelowMin) {
       const gap = minQty - net > -net ? minQty - net : -net;
-      const qtyMicro = gap > reorderQty ? gap : reorderQty;
+      const qtyMicro = ceilGapToLotMultiple(gap, reorderQty);
       const leadDays = threshold?.preferred_supplier_id ? threshold.lead_time_days : null;
       suggestedAction = {
         type: item.item_type === 'intermediate' || item.item_type === 'fg' ? 'make' : 'buy',
-        qty: ceilMicroToWholeUnits(qtyMicro).toString(),
+        qty: formatSuggestedQty(qtyMicro),
         dueDate:
           leadDays !== null && leadDays !== undefined && Number.isFinite(leadDays)
             ? addDaysIso(todayIso, leadDays)
@@ -530,7 +531,7 @@ function buildSuggestedAction(
 ): MrpSuggestedAction | null {
   if (!isShort && !isBelowMin) return null;
   const gap = minQty - net > -net ? minQty - net : -net;
-  const qtyMicro = gap > reorderQty ? gap : reorderQty;
+  const qtyMicro = ceilGapToLotMultiple(gap, reorderQty);
   const hasLead = leadDays !== null && leadDays !== undefined && Number.isFinite(leadDays);
   let dueDate =
     singleBucketMode && hasLead ? addDaysIso(todayIso, leadDays!) : bucketDate;
@@ -553,7 +554,7 @@ function buildSuggestedAction(
   }
   return {
     type: item.item_type === 'intermediate' || item.item_type === 'fg' ? 'make' : 'buy',
-    qty: ceilMicroToWholeUnits(qtyMicro).toString(),
+    qty: formatSuggestedQty(qtyMicro),
     dueDate: hasLead || !singleBucketMode ? dueDate : null,
     ...(releaseDate ? { releaseDate } : {}),
     ...(isLate ? { isLate } : {}),

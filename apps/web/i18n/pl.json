@@ -6513,6 +6513,11 @@
       "createPilotWoErrorPlanningWrite": "Twoja rola nie ma uprawnienia npd.planning.write — poproś administratora o nadanie.",
       "createPilotWoErrorDocumentMaskMissing": "Organizacja nie ma skonfigurowanej maski numeracji WO (Ustawienia > Dokumenty).",
       "createPilotWoErrorFgItemMissing": "Brak rekordu FG w kartotece pozycji. Utwórz lub zmapuj kandydata FG ponownie.",
+      "createPilotWoErrorNoPlannedQuantity": "Podaj dodatni rozmiar partii w planie przebiegu pilotażowego przed utworzeniem zlecenia.",
+      "createPilotWoErrorProductionCodeConflict": "Kod produkcyjny jest już używany przez inny produkt. Rozwiąż konflikt kodu w module Techniczny przed utworzeniem zlecenia pilotażowego.",
+      "createPilotWoErrorPacksPerBox": "Hierarchia opakowań jest niekompletna — ustaw liczbę sztuk w opakowaniu na pozycji FG (lub uzupełnij opakowanie) przed utworzeniem zlecenia pilotażowego.",
+      "createPilotWoErrorPersistence": "Nie udało się zapisać zlecenia pilotażowego. Sprawdź wymagania wstępne i spróbuj ponownie.",
+      "createPilotWoErrorNotFound": "Nie znaleziono projektu NPD.",
       "fieldLineRequired": "Linia produkcyjna jest wymagana.",
       "batchUnitLabel": "kg",
       "deletePlan": "Usuń plan",
@@ -12239,6 +12244,35 @@
       "confirm": "Zastosuj harmonogram",
       "cancel": "Anuluj"
     },
+    "override": {
+      "button": "Nadpisz",
+      "title": "Nadpisz przypisanie — {wo}",
+      "currentLine": "Bieżąca linia",
+      "currentStart": "Bieżący planowany start",
+      "newLine": "Nowa linia",
+      "newStart": "Nowy planowany start",
+      "reasonCode": "Kod powodu",
+      "reasonNotes": "Notatki (opcjonalnie)",
+      "selectReason": "— Wybierz powód —",
+      "cancel": "Anuluj",
+      "confirm": "Potwierdź nadpisanie",
+      "saving": "Zapisywanie…",
+      "reasons": {
+        "customer_priority": "Termin dostawy dla klienta",
+        "material_shortage": "Brak materiału",
+        "line_maintenance": "Konflikt konserwacji linii",
+        "capacity_constraint": "Przydział zdolności produkcyjnej",
+        "planner_judgement": "Ocena planisty",
+        "other": "Inne"
+      },
+      "errors": {
+        "invalid_input": "Uzupełnij wszystkie wymagane pola.",
+        "forbidden": "Nie masz uprawnień do nadpisywania przypisań.",
+        "not_found": "Nie znaleziono tego przypisania.",
+        "run_already_applied": "Ten przebieg został już zastosowany — nadpisywanie nie jest możliwe.",
+        "persistence_failed": "Coś poszło nie tak. Spróbuj ponownie."
+      }
+    },
     "errors": {
       "invalid_input": "Nieprawidłowe dane. Sprawdź horyzont i spróbuj ponownie.",
       "forbidden": "Nie masz uprawnień do wykonania tej operacji.",
@@ -12277,6 +12311,10 @@
         "wash": "Wymagane mycie"
       },
       "errors": {
+        "missing_from": "Podaj profil alergenu źródłowego.",
+        "missing_to": "Podaj profil alergenu docelowego.",
+        "same_profile": "Profile źródłowy i docelowy muszą się różnić.",
+        "invalid_cost": "Podaj prawidłowy, nieujemny koszt.",
         "invalid_input": "Podaj prawidłowy, nieujemny koszt.",
         "forbidden": "Nie masz uprawnień do edycji macierzy przezbrojeń.",
         "not_found": "Nie znaleziono tej pozycji macierzy.",
@@ -12317,7 +12355,37 @@
         "line": "Linia",
         "start": "Planowany start",
         "end": "Planowany koniec",
-        "changeover": "Przezbrojenie (min)"
+        "changeover": "Przezbrojenie (min)",
+        "actions": "Akcje",
+        "override": "Nadpisz"
+      },
+      "override": {
+        "title": "Nadpisz przypisanie — {wo}",
+        "currentLine": "Bieżąca linia",
+        "currentStart": "Bieżący planowany start",
+        "newLine": "Nowa linia",
+        "newStart": "Nowy planowany start",
+        "reasonCode": "Kod powodu",
+        "reasonNotes": "Notatki (opcjonalnie)",
+        "selectReason": "— Wybierz powód —",
+        "cancel": "Anuluj",
+        "confirm": "Potwierdź nadpisanie",
+        "saving": "Zapisywanie…",
+        "reasons": {
+          "customer_priority": "Termin dostawy dla klienta",
+          "material_shortage": "Brak materiału",
+          "line_maintenance": "Konflikt konserwacji linii",
+          "capacity_constraint": "Przydział zdolności produkcyjnej",
+          "planner_judgement": "Ocena planisty",
+          "other": "Inne"
+        },
+        "errors": {
+          "invalid_input": "Uzupełnij wszystkie wymagane pola.",
+          "forbidden": "Nie masz uprawnień do nadpisywania przypisań.",
+          "not_found": "Nie znaleziono tego przypisania.",
+          "run_already_applied": "Ten przebieg został już zastosowany — nadpisywanie nie jest możliwe.",
+          "persistence_failed": "Coś poszło nie tak. Spróbuj ponownie."
+        }
       }
     },
     "capacity": {

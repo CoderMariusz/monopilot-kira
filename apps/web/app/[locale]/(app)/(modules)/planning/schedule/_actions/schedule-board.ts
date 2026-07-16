@@ -125,6 +125,9 @@ const WO_SELECT = `
          wo.planned_quantity::text as planned_quantity, wo.uom,
          i.item_code, i.name as item_name
     from public.work_orders wo
+    left join public.production_lines pl
+      on pl.org_id = wo.org_id
+     and pl.id = wo.production_line_id
     left join public.items i
       on i.id = wo.product_id
      and i.org_id = wo.org_id
@@ -150,32 +153,18 @@ export async function getScheduleBoard(input?: {
       const windowEnd = new Date(windowStart.getTime() + BOARD_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
       const s = await getActiveSiteId({ client: ctx.client });
-      if (!s) {
-        return {
-          ok: true,
-          data: {
-            windowStart: windowStart.toISOString(),
-            windowEnd: windowEnd.toISOString(),
-            siteTimezone: 'UTC',
-            lines: [],
-            scheduled: [],
-            unscheduled: [],
-            unscheduledPagination: emptyPaginatedResult(unscheduledPage),
-            capacityBlocks: [],
-            lineDayUtilization: [],
-            noActiveSite: true,
-          } as ScheduleBoardData & { noActiveSite: true },
-        };
-      }
 
-      const siteTimezoneResult = await ctx.client.query<{ timezone: string }>(
-        `select timezone
-           from public.sites
-          where org_id = app.current_org_id()
-            and id = $1::uuid
-          limit 1`,
-        [s],
-      );
+      const siteTimezoneResult =
+        s === null
+          ? { rows: [] as Array<{ timezone: string }> }
+          : await ctx.client.query<{ timezone: string }>(
+              `select timezone
+                 from public.sites
+                where org_id = app.current_org_id()
+                  and id = $1::uuid
+                limit 1`,
+              [s],
+            );
       const siteTimezone = siteTimezoneResult.rows[0]?.timezone ?? 'UTC';
 
       const linesResult = await ctx.client.query<ScheduleBoardLine>(
@@ -191,7 +180,7 @@ export async function getScheduleBoard(input?: {
       const scheduledResult = await ctx.client.query<WoRow>(
         `${WO_SELECT}
      and wo.status = any($1::text[])
-     and wo.site_id = $4::uuid
+     and ($4::uuid is null or coalesce(wo.site_id, pl.site_id) = $4::uuid)
      and wo.scheduled_start_time is not null
      and wo.scheduled_start_time < $3::timestamptz
      and coalesce(wo.scheduled_end_time, wo.scheduled_start_time + interval '1 hour') > $2::timestamptz
@@ -203,16 +192,19 @@ export async function getScheduleBoard(input?: {
         ctx.client.query<{ total: number }>(
           `select count(*)::int as total
              from public.work_orders wo
+             left join public.production_lines pl
+               on pl.org_id = wo.org_id
+              and pl.id = wo.production_line_id
             where wo.org_id = app.current_org_id()
               and wo.status = any($1::text[])
-              and wo.site_id = $2::uuid
+              and ($2::uuid is null or coalesce(wo.site_id, pl.site_id) = $2::uuid)
               and wo.scheduled_start_time is null`,
           [[...BOARD_STATUSES], s],
         ),
         ctx.client.query<WoRow>(
           `${WO_SELECT}
      and wo.status = any($1::text[])
-     and wo.site_id = $2::uuid
+     and ($2::uuid is null or coalesce(wo.site_id, pl.site_id) = $2::uuid)
      and wo.scheduled_start_time is null
    order by wo.created_at desc, wo.id desc
    limit $3::integer offset $4::integer`,
@@ -242,7 +234,7 @@ export async function getScheduleBoard(input?: {
              on pl.org_id = pcb.org_id
             and pl.id = pcb.line_id
           where pcb.org_id = app.current_org_id()
-            and pl.site_id = $3::uuid
+            and ($3::uuid is null or pl.site_id = $3::uuid or pl.site_id is null)
             and pcb.block_date >= $1::date
             and pcb.block_date < $2::date
           order by pcb.block_date, pcb.start_time`,

@@ -449,7 +449,7 @@ describe('computeMrp — reorder thresholds (mig 178, CL2)', () => {
     expect(rows).toHaveLength(1);
     const row = rows[0];
     expect(row.severity).toBe('below_min');
-    expect(row.suggestedAction).toEqual({ type: 'buy', qty: '13', dueDate: null, supplierId: null }); // ceil(12.5) > lot 10
+    expect(row.suggestedAction).toEqual({ type: 'buy', qty: '20', dueDate: null, supplierId: null }); // ceil(12.5/10)*10
     expect(kpis.itemsBelowMin).toBe(1);
   });
 
@@ -467,6 +467,32 @@ describe('computeMrp — reorder thresholds (mig 178, CL2)', () => {
     expect(row.severity).toBe('below_min'); // 0.999999 < 1.000001 — exact, no float dust
     // gap = 0.000002 → ceil to 1 whole unit.
     expect(row.suggestedAction).toEqual({ type: 'make', qty: '1', dueDate: null, supplierId: null });
+  });
+
+  it('R10-02: rounds the replenishment gap up to the configured reorder lot multiple (6dp exact)', () => {
+    const { rows } = computeMrp({
+      items: [RM_FLOUR],
+      onHand: [],
+      demand: [],
+      poSupply: [],
+      productionSupply: [],
+      thresholds: [
+        threshold({
+          min_qty: '123.456788',
+          reorder_qty: '7.654322',
+        }),
+      ],
+      today: '2026-07-15',
+    });
+    const row = rows[0];
+    expect(row.severity).toBe('below_min');
+    // ceil(123.456788 / 7.654322) = 17 lots → 17 × 7.654322 = 130.123474
+    expect(row.suggestedAction).toEqual({
+      type: 'buy',
+      qty: '130.123474',
+      dueDate: null,
+      supplierId: null,
+    });
   });
 
   it('a satisfied floor changes nothing (net >= min → covered, no suggestion)', () => {

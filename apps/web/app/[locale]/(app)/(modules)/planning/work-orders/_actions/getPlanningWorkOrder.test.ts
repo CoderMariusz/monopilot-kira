@@ -41,6 +41,9 @@ describe('getPlanningWorkOrder', () => {
                 source_of_demand: 'manual',
                 source_reference: 'FG-NPD-004',
                 notes: null,
+                qty_entered: null,
+                qty_entered_uom: null,
+                uom_snapshot: null,
                 created_at: '2026-06-09T07:00:00.000Z',
                 updated_at: '2026-06-09T07:00:00.000Z',
               },
@@ -143,6 +146,9 @@ describe('getPlanningWorkOrder', () => {
     expect(result.workOrder).toEqual(
       expect.objectContaining({
         id: WO_ID,
+        qtyEntered: null,
+        qtyEnteredUom: null,
+        uomSnapshot: null,
         materials: [expect.objectContaining({ materialName: 'Flour' })],
         operations: [expect.objectContaining({ operationName: 'Mix' })],
         schedules: [expect.objectContaining({ outputRole: 'primary' })],

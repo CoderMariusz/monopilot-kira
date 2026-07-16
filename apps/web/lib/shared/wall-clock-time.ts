@@ -188,3 +188,40 @@ export function wallClockToInstant(
 
   return null;
 }
+
+/** UTC ISO instant → `datetime-local` value interpreted in `timeZone`. */
+export function instantToDatetimeLocalInput(iso: string | null, timeZone: string): string {
+  if (!iso) return '';
+  const utcMs = Date.parse(iso);
+  if (Number.isNaN(utcMs)) return '';
+  const parts = formatWallClockInZone(utcMs, timeZone);
+  return `${formatWallDate(parts)}T${formatWallTime(parts, false)}`;
+}
+
+/** `datetime-local` wall time in `timeZone` → UTC ISO instant. */
+export function datetimeLocalInputToInstant(value: string, timeZone: string): string | null {
+  if (!value) return null;
+  const [blockDate, time] = value.split('T');
+  if (!blockDate || !time) return null;
+  const utcMs = wallClockToInstant(blockDate, time, timeZone);
+  return utcMs === null ? null : new Date(utcMs).toISOString();
+}
+
+/** Display a UTC ISO instant in the site IANA timezone (board + detail parity). */
+export function formatInstantInTimeZone(
+  iso: string | null,
+  locale: string,
+  timeZone: string,
+): string {
+  if (!iso) return '—';
+  const utcMs = Date.parse(iso);
+  if (Number.isNaN(utcMs)) return '—';
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone,
+  }).format(new Date(utcMs));
+}

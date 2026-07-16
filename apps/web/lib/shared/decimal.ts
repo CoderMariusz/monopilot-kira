@@ -93,3 +93,21 @@ export function ceilMicroToWholeUnits(micro: bigint): bigint {
   if (micro <= 0n) return 0n;
   return (micro + MICRO_SCALE - 1n) / MICRO_SCALE;
 }
+
+/**
+ * Round a replenishment gap up to the next whole multiple of a fixed lot size.
+ * When lotMicro ≤ 0, falls back to whole-unit ceiling (legacy no-lot behaviour).
+ */
+export function ceilGapToLotMultiple(gapMicro: bigint, lotMicro: bigint): bigint {
+  if (gapMicro <= 0n) return 0n;
+  if (lotMicro <= 0n) return ceilMicroToWholeUnits(gapMicro) * MICRO_SCALE;
+  const lots = (gapMicro + lotMicro - 1n) / lotMicro;
+  return lots * lotMicro;
+}
+
+/** Format a suggested replenishment qty — integer when whole, else trimmed decimal. */
+export function formatSuggestedQty(qtyMicro: bigint): string {
+  if (qtyMicro <= 0n) return '0';
+  if (qtyMicro % MICRO_SCALE === 0n) return (qtyMicro / MICRO_SCALE).toString();
+  return microToDecimal(qtyMicro);
+}

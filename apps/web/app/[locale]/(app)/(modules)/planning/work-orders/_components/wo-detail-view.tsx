@@ -291,6 +291,9 @@ export function WoDetailView({
             productName: null,
             uomBase: wo.uom,
             plannedQuantity: wo.plannedQuantity,
+            qtyEntered: wo.qtyEntered,
+            qtyEnteredUom: wo.qtyEnteredUom,
+            uomSnapshot: wo.uomSnapshot,
             scheduledStartTime: wo.scheduledStartTime,
             productionLineId: wo.productionLineId,
             notes: wo.notes,
@@ -453,7 +456,7 @@ export function WoDetailView({
                     return (
                       <tr key={d.id} className="border-t border-slate-100">
                         <td className="px-4 py-2">
-                          <Badge variant="info">{isParent ? 'downstream' : 'upstream'}</Badge>
+                          <Badge variant="info">{isParent ? 'upstream' : 'downstream'}</Badge>
                         </td>
                         <td className="px-4 py-2 font-mono text-blue-700">{isParent ? d.childWoId.slice(0, 8) : d.parentWoId.slice(0, 8)}</td>
                         <td className="px-4 py-2 text-right font-mono">{d.requiredQty ?? '—'}</td>

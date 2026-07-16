@@ -103,7 +103,7 @@ export type EditWoModalProps = {
   onOpenChange: (open: boolean) => void;
   labels: EditWoLabels;
   resources: ProductionResources;
-  /** Current WO header values to prefill (plannedQuantity is in base `uom`). */
+  /** Current WO header values to prefill (plannedQuantity is stored in base `uom`). */
   initial: {
     id: string;
     productId: string;
@@ -111,6 +111,9 @@ export type EditWoModalProps = {
     productName: string | null;
     uomBase: string;
     plannedQuantity: string;
+    qtyEntered: string | null;
+    qtyEnteredUom: OutputUom | null;
+    uomSnapshot: UomSnapshot | null;
     scheduledStartTime: string | null;
     productionLineId: string | null;
     notes: string | null;
@@ -133,6 +136,40 @@ function fmtKg(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
 
+function resolveProductSnapshot(initial: EditWoModalProps['initial']): UomSnapshot {
+  if (initial.uomSnapshot) return initial.uomSnapshot;
+  return {
+    outputUom: 'base',
+    uomBase: initial.uomBase,
+    netQtyPerEach: null,
+    eachPerBox: null,
+    boxesPerPallet: null,
+    weightMode: 'fixed',
+  };
+}
+
+function resolveInitialOrderState(initial: EditWoModalProps['initial']): { orderUom: OutputUom; quantity: string } {
+  if (initial.qtyEntered && initial.qtyEnteredUom && initial.qtyEnteredUom !== 'base') {
+    return { orderUom: initial.qtyEnteredUom, quantity: initial.qtyEntered };
+  }
+  return { orderUom: 'base', quantity: initial.plannedQuantity };
+}
+
+function buildOrderUnitOptions(
+  snap: UomSnapshot,
+  labels: Pick<EditWoLabels, 'quantityUom'>,
+): { value: OutputUom; label: string }[] {
+  const hasEach = snap.netQtyPerEach !== null && Number.isFinite(snap.netQtyPerEach) && snap.netQtyPerEach > 0;
+  const hasBox =
+    hasEach && snap.eachPerBox !== null && Number.isFinite(snap.eachPerBox) && snap.eachPerBox > 0;
+  const opts: { value: OutputUom; label: string }[] = [
+    { value: 'base', label: labels.quantityUom?.base ?? snap.uomBase },
+  ];
+  if (hasEach) opts.push({ value: 'each', label: labels.quantityUom?.each ?? 'each' });
+  if (hasBox) opts.push({ value: 'box', label: labels.quantityUom?.box ?? 'box' });
+  return opts;
+}
+
 function toDateInput(iso: string | null): string {
   return utcIsoToCivilDate(iso);
 }
@@ -147,14 +184,21 @@ export function EditWoModal({
   updateWorkOrderAction,
   onSaved,
 }: EditWoModalProps) {
+  const unchangedProductSnapshot = React.useMemo(() => resolveProductSnapshot(initial), [
+    initial.uomBase,
+    initial.uomSnapshot,
+  ]);
+  const initialOrderState = React.useMemo(() => resolveInitialOrderState(initial), [
+    initial.plannedQuantity,
+    initial.qtyEntered,
+    initial.qtyEnteredUom,
+  ]);
+
   // null product = unchanged (keep the WO's current product). A picked product is a
   // product CHANGE → re-snapshot, and the qty is then entered in its output unit.
   const [changedProduct, setChangedProduct] = React.useState<PickedProduct | null>(null);
-  // P0-UOM — the unit the (changed-product) quantity is entered in. Defaults to
-  // 'base' (the WO stores base qty for the unchanged product); reset to the new
-  // item's default output unit when a product is picked, switchable by the planner.
-  const [orderUom, setOrderUom] = React.useState<OutputUom>('base');
-  const [quantity, setQuantity] = React.useState(initial.plannedQuantity);
+  const [orderUom, setOrderUom] = React.useState<OutputUom>(initialOrderState.orderUom);
+  const [quantity, setQuantity] = React.useState(initialOrderState.quantity);
   const [scheduledStart, setScheduledStart] = React.useState(toDateInput(initial.scheduledStartTime));
   const [lineId, setLineId] = React.useState(initial.productionLineId ?? '');
   const [notes, setNotes] = React.useState(initial.notes ?? '');
@@ -163,9 +207,10 @@ export function EditWoModal({
 
   React.useEffect(() => {
     if (open) {
+      const nextOrderState = resolveInitialOrderState(initial);
       setChangedProduct(null);
-      setOrderUom('base');
-      setQuantity(initial.plannedQuantity);
+      setOrderUom(nextOrderState.orderUom);
+      setQuantity(nextOrderState.quantity);
       setScheduledStart(toDateInput(initial.scheduledStartTime));
       setLineId(initial.productionLineId ?? '');
       setNotes(initial.notes ?? '');
@@ -176,6 +221,8 @@ export function EditWoModal({
     open,
     initial.id,
     initial.plannedQuantity,
+    initial.qtyEntered,
+    initial.qtyEnteredUom,
     initial.scheduledStartTime,
     initial.productionLineId,
     initial.notes,
@@ -210,42 +257,30 @@ export function EditWoModal({
     setFormError(null);
   }
 
-  // P0-UOM — the units the planner may ORDER in for a CHANGED product. Same
-  // convertibility rule as create: always base, `each` when net_qty_per_each>0,
-  // `box` when net_qty_per_each>0 AND each_per_box>0.
-  const orderUnitOptions = React.useMemo(() => {
-    if (!changedProduct) return [];
-    const snap = changedProduct.snapshot;
-    const hasEach = snap.netQtyPerEach !== null && Number.isFinite(snap.netQtyPerEach) && snap.netQtyPerEach > 0;
-    const hasBox =
-      hasEach && snap.eachPerBox !== null && Number.isFinite(snap.eachPerBox) && snap.eachPerBox > 0;
-    const opts: { value: OutputUom; label: string }[] = [
-      { value: 'base', label: labels.quantityUom?.base ?? snap.uomBase },
-    ];
-    if (hasEach) opts.push({ value: 'each', label: labels.quantityUom?.each ?? 'each' });
-    if (hasBox) opts.push({ value: 'box', label: labels.quantityUom?.box ?? 'box' });
-    return opts;
-  }, [changedProduct, labels.quantityUom]);
+  // P0-UOM — the units the planner may ORDER in. For an unchanged product this
+  // comes from the WO's pinned uom_snapshot; for a changed product from the pick.
+  const activeSnapshot = changedProduct?.snapshot ?? unchangedProductSnapshot;
+  const orderUnitOptions = React.useMemo(
+    () => buildOrderUnitOptions(activeSnapshot, labels),
+    [activeSnapshot, labels],
+  );
 
-  // The chosen ORDER unit drives the qty label + conversion preview. Unchanged
-  // product = the WO already stores base qty, so we edit in base (no selector,
-  // no preview). A changed product is entered in the chosen order unit (preview
-  // shows the base-kg conversion).
+  // The chosen ORDER unit drives the qty label + conversion preview.
   const unitWord =
     orderUom === 'box' ? labels.quantityUom?.box : orderUom === 'each' ? labels.quantityUom?.each : undefined;
   const qtyLabel = unitWord ? `${labels.quantityLabel} (${unitWord})` : labels.quantityLabel;
   const orderUnitLabel = labels.orderUnitLabel ?? 'Order unit';
 
   let conversionPreview: string | null = null;
-  if (changedProduct && orderUom !== 'base' && QTY_PATTERN.test(quantity.trim()) && Number(quantity) > 0) {
+  if (orderUom !== 'base' && QTY_PATTERN.test(quantity.trim()) && Number(quantity) > 0) {
     try {
-      const baseKg = toBaseQty(changedProduct.snapshot, Number(quantity.trim()), orderUom);
+      const baseKg = toBaseQty(activeSnapshot, Number(quantity.trim()), orderUom);
       conversionPreview =
         labels.conversionPreview
           ?.replace('{qty}', quantity.trim())
           .replace('{unit}', unitWord ?? orderUom)
           .replace('{kg}', fmtKg(baseKg))
-          .replace('{base}', changedProduct.snapshot.uomBase) ?? null;
+          .replace('{base}', activeSnapshot.uomBase) ?? null;
     } catch {
       conversionPreview = labels.errors.uom_conversion_unavailable ?? null;
     }
@@ -260,12 +295,11 @@ export function EditWoModal({
       return;
     }
 
-    // Resolve the base-qty for the contract. Unchanged product → qty is already base.
-    // Changed product → convert from its output unit.
+    // Resolve the base-qty for the contract from the active snapshot + order unit.
     let plannedBase: string;
-    if (changedProduct && orderUom !== 'base') {
+    if (orderUom !== 'base') {
       try {
-        plannedBase = String(toBaseQty(changedProduct.snapshot, Number(quantity.trim()), orderUom));
+        plannedBase = String(toBaseQty(activeSnapshot, Number(quantity.trim()), orderUom));
       } catch (err) {
         setFormError(
           err instanceof TypedError
@@ -340,7 +374,7 @@ export function EditWoModal({
             <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="edit-wo-product">
               <span className="font-mono font-semibold text-blue-700">{currentProductLabel}</span>
               {changedProduct ? (
-                <button type="button" className="btn btn--ghost btn-sm" data-testid="edit-wo-product-reset" onClick={() => { setChangedProduct(null); setOrderUom('base'); setQuantity(initial.plannedQuantity); }}>
+                <button type="button" className="btn btn--ghost btn-sm" data-testid="edit-wo-product-reset" onClick={() => { const next = resolveInitialOrderState(initial); setChangedProduct(null); setOrderUom(next.orderUom); setQuantity(next.quantity); }}>
                   ✕
                 </button>
               ) : null}
@@ -365,9 +399,8 @@ export function EditWoModal({
             ) : null}
           </div>
 
-          {/* P0-UOM — Order unit selector. Only when the product was changed AND its
-              pack hierarchy offers more than one convertible unit. */}
-          {changedProduct && orderUnitOptions.length > 1 ? (
+          {/* P0-UOM — Order unit selector when the pack hierarchy offers more than one unit. */}
+          {orderUnitOptions.length > 1 ? (
             <label className="flex flex-col gap-1" data-testid="edit-wo-order-unit">
               <span className="text-sm font-medium text-slate-700">{orderUnitLabel}</span>
               <Select
@@ -379,7 +412,7 @@ export function EditWoModal({
             </label>
           ) : null}
 
-          {/* Planned quantity (chosen order unit when product changed; base otherwise). */}
+          {/* Planned quantity in the chosen order unit (box/each/base). */}
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium text-slate-700">{qtyLabel}</span>
             <Input

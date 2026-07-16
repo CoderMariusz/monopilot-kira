@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { z } from 'zod';
 
+import { toMicro } from '../../../../../../lib/shared/decimal';
+
 export const PLANNING_WRITE_PERMISSION = 'npd.planning.write';
 export const PLANNING_READ_PERMISSION = 'scheduler.run.read';
 export const PLANNING_PO_MANAGE_PERMISSION = 'planning.po.manage';
@@ -37,6 +39,12 @@ export const numeric3Schema = z
   .trim()
   .regex(/^\d+(?:\.\d{1,3})?$/)
   .refine((value) => Number(value) > 0, 'quantity must be positive');
+/** Positive quantity up to 6 dp — transfer-order line editor (mig 505 NUMERIC(18,6)). */
+export const numeric6PositiveSchema = z
+  .string()
+  .trim()
+  .regex(/^\d+(?:\.\d{1,6})?$/)
+  .refine((value) => toMicro(value) > 0n, 'quantity must be positive');
 export const numeric4Schema = z
   .string()
   .trim()

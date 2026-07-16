@@ -59,8 +59,8 @@ export const DEFAULT_SEQUENCE_SOLVER_CONFIG: SequenceSolverConfig = {
   changeoverWeight: 1,
   duedateWeight: 1,
   utilizationWeight: 1,
-  capacityHoursPerDay: null,
-  respectPmWindows: false,
+  capacityHoursPerDay: 16,
+  respectPmWindows: true,
   pmWindows: [],
 };
 
@@ -543,7 +543,11 @@ export function buildPreoccupiedSeed(
     const scheduledEnd = timestampMs(wo.scheduled_end_time) ?? timestampMs(wo.planned_end_date);
     let startMs = scheduledStart;
     let endMs = scheduledEnd;
-    if (startMs === null && endMs !== null) {
+    const nowMs = config.nowMs ?? Date.now();
+    if ((wo.status as string) === 'IN_PROGRESS' && (endMs === null || endMs <= nowMs)) {
+      startMs = nowMs;
+      endMs = nowMs + runDuration;
+    } else if (startMs === null && endMs !== null) {
       startMs = endMs - runDuration;
     } else if (startMs !== null && endMs === null) {
       endMs = startMs + runDuration;

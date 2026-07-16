@@ -7,6 +7,8 @@
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { PRODUCTION_LINES_SITE_FILTER_SQL } from '../../../../../../../lib/site/production-lines-site-filter';
+import { getActiveSiteId } from '../../../../../../../lib/site/site-context';
 import {
   hasPermission,
   type OrgActionContext,
@@ -60,6 +62,7 @@ type IntervalRow = {
   start_at: string | Date;
   end_at: string | Date;
   source: 'wo' | 'draft';
+  alternative_key: string | null;
 };
 
 function toIsoDay(ms: number): string {
@@ -114,6 +117,8 @@ export async function loadSchedulerCapacity(): Promise<LoadCapacityResult> {
         return { ok: false, error: 'forbidden' };
       }
 
+      const activeSiteId = await getActiveSiteId({ client: ctx.client });
+
       const configs = await ctx.client.query<ConfigRow>(
         `select line_id, default_horizon_days, capacity_hours_per_day::text
            from public.scheduler_config
@@ -139,14 +144,16 @@ export async function loadSchedulerCapacity(): Promise<LoadCapacityResult> {
       const horizonEnd = new Date(horizonEndMs).toISOString();
 
       const linesResult = await ctx.client.query<LineRow>(
-        `select id::text, code, name
-           from public.production_lines
-          where org_id = app.current_org_id()
-          order by code`,
+        `select pl.id::text, pl.code, pl.name
+           from public.production_lines pl
+          where pl.org_id = app.current_org_id()
+            ${PRODUCTION_LINES_SITE_FILTER_SQL}
+          order by pl.code`,
+        [activeSiteId],
       );
 
       const intervals = await ctx.client.query<IntervalRow>(
-        `select line_id, start_at, end_at, source
+        `select line_id, start_at, end_at, source, alternative_key
            from (
              select
                wo.production_line_id::text as line_id,
@@ -155,8 +162,12 @@ export async function loadSchedulerCapacity(): Promise<LoadCapacityResult> {
                  wo.scheduled_end_time,
                  wo.scheduled_start_time + interval '1 hour'
                ) as end_at,
-               'wo'::text as source
+               'wo'::text as source,
+               null::text as alternative_key
              from public.work_orders wo
+             join public.production_lines pl
+               on pl.org_id = wo.org_id
+              and pl.id = wo.production_line_id
             where wo.org_id = app.current_org_id()
               and wo.status = any(array['RELEASED', 'IN_PROGRESS']::varchar[])
               and wo.production_line_id is not null
@@ -166,6 +177,7 @@ export async function loadSchedulerCapacity(): Promise<LoadCapacityResult> {
                     wo.scheduled_end_time,
                     wo.scheduled_start_time + interval '1 hour'
                   ) > $1::timestamptz
+              and ($3::uuid is null or pl.site_id = $3::uuid or pl.site_id is null)
              union all
              select
                sa.line_id,
@@ -174,8 +186,12 @@ export async function loadSchedulerCapacity(): Promise<LoadCapacityResult> {
                  sa.planned_end_at,
                  sa.planned_start_at + interval '1 hour'
                ) as end_at,
-               'draft'::text as source
+               'draft'::text as source,
+               sa.wo_id::text as alternative_key
              from public.scheduler_assignments sa
+             join public.production_lines pl
+               on pl.org_id = sa.org_id
+              and pl.id::text = sa.line_id
             where sa.org_id = app.current_org_id()
               and sa.status = 'draft'
               and sa.line_id is not null
@@ -185,9 +201,10 @@ export async function loadSchedulerCapacity(): Promise<LoadCapacityResult> {
                     sa.planned_end_at,
                     sa.planned_start_at + interval '1 hour'
                   ) > $1::timestamptz
+              and ($3::uuid is null or pl.site_id = $3::uuid or pl.site_id is null)
            ) occupancy
           where line_id is not null`,
-        [horizonStart, horizonEnd],
+        [horizonStart, horizonEnd, activeSiteId],
       );
 
       const dayKeys: string[] = [];
@@ -197,8 +214,28 @@ export async function loadSchedulerCapacity(): Promise<LoadCapacityResult> {
 
       type Acc = { wo: Map<string, number>; draft: Map<string, number> };
       const byLine = new Map<string, Acc>();
+      const occupancyRows: IntervalRow[] = [];
+      const selectedDrafts = new Map<string, { row: IntervalRow; occupiedMs: number }>();
 
       for (const row of intervals.rows) {
+        if (row.source !== 'draft' || row.alternative_key === null) {
+          occupancyRows.push(row);
+          continue;
+        }
+        const bounds = intervalMs(row.start_at, row.end_at);
+        if (!bounds) continue;
+        const occupiedMs = Math.max(
+          0,
+          Math.min(bounds.endMs, horizonEndMs) - Math.max(bounds.startMs, horizonStartMs),
+        );
+        const selected = selectedDrafts.get(row.alternative_key);
+        if (!selected || occupiedMs > selected.occupiedMs) {
+          selectedDrafts.set(row.alternative_key, { row, occupiedMs });
+        }
+      }
+      occupancyRows.push(...Array.from(selectedDrafts.values(), ({ row }) => row));
+
+      for (const row of occupancyRows) {
         const bounds = intervalMs(row.start_at, row.end_at);
         if (!bounds) continue;
         let acc = byLine.get(row.line_id);

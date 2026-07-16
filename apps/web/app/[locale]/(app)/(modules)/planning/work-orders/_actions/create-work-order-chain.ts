@@ -487,6 +487,11 @@ async function loadWorkOrderByNumber(ctx: OrgActionContext, woNumber: string): P
     plannedQuantity: row.planned_quantity,
     producedQuantity: row.produced_quantity,
     uom: row.uom,
+    // Chain view uses canonical base quantity; entered-UoM detail (C063) is not
+    // surfaced here, so default to the base planned quantity.
+    qtyEntered: row.planned_quantity,
+    qtyEnteredUom: 'base' as const,
+    uomSnapshot: null,
     status: row.status,
     scheduledStartTime: row.scheduled_start_time,
     scheduledEndTime: row.scheduled_end_time,

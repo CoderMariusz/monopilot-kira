@@ -33,8 +33,15 @@ import { Select } from '@monopilot/ui/Select';
 import { ListPaginationFooter, type ListPaginationLabels } from '../../../../../../../lib/shared/list-pagination-footer';
 
 import {
+  datetimeLocalInputToInstant,
+  formatInstantInTimeZone,
+  instantToDatetimeLocalInput,
+} from '../../../../../../../lib/shared/wall-clock-time';
+
+import {
   barGeometry,
   barInterval,
+  canRescheduleWorkOrder,
   computeConflictIds,
   windowDayKeys,
   type BarInterval,
@@ -83,21 +90,6 @@ const STATUS_BAR_CLASS: Record<string, string> = {
   IN_PROGRESS: 'bg-emerald-100 border-emerald-500 text-emerald-900',
 };
 
-/** datetime-local input value (local time, minute precision) from ISO. */
-function isoToLocalInput(iso: string | null): string {
-  if (!iso) return '';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function localInputToIso(value: string): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-
 const KEEP_LINE = '__keep__';
 
 export function ScheduleBoardView({
@@ -123,13 +115,17 @@ export function ScheduleBoardView({
   const windowEndMs = Date.parse(data.windowEnd);
   const dayKeys = windowDayKeys(data.windowStart);
 
+  const siteTimezone = data.siteTimezone;
+
   const dayFmt = new Intl.DateTimeFormat(locale, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
-    timeZone: 'UTC',
+    timeZone: siteTimezone,
   });
-  const timeFmt = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' });
+
+  const formatScheduleInstant = (iso: string | null) =>
+    formatInstantInTimeZone(iso, locale, siteTimezone);
 
   const intervals = data.scheduled
     .map((wo) => barInterval(wo))
@@ -153,10 +149,11 @@ export function ScheduleBoardView({
       : `/${locale}/planning/schedule?uPage=${page}`;
 
   const openModal = (wo: ScheduleBoardWo) => {
+    if (!canRescheduleWorkOrder(wo.status)) return;
     setSelected(wo);
     setErrorKey(null);
-    setFormStart(isoToLocalInput(wo.scheduledStart));
-    setFormEnd(isoToLocalInput(wo.scheduledEnd));
+    setFormStart(instantToDatetimeLocalInput(wo.scheduledStart, siteTimezone));
+    setFormEnd(instantToDatetimeLocalInput(wo.scheduledEnd, siteTimezone));
     setFormLine(wo.productionLineId ?? KEEP_LINE);
   };
 
@@ -168,8 +165,8 @@ export function ScheduleBoardView({
 
   const submit = async () => {
     if (!selected) return;
-    const startIso = localInputToIso(formStart);
-    const endIso = localInputToIso(formEnd);
+    const startIso = datetimeLocalInputToInstant(formStart, siteTimezone);
+    const endIso = datetimeLocalInputToInstant(formEnd, siteTimezone);
     if (!startIso || !endIso) {
       setErrorKey('invalid_input');
       return;
@@ -267,25 +264,56 @@ export function ScheduleBoardView({
                       if (!geometry) return null;
                       const conflict = conflictIds.has(wo.id);
                       const openEnded = wo.scheduledEnd === null;
-                      return (
+                      const reschedulable = canRescheduleWorkOrder(wo.status);
+                      const barTitle = [
+                        wo.woNumber,
+                        wo.itemCode ?? '',
+                        statusLabel(wo.status),
+                        wo.scheduledStart
+                          ? formatScheduleInstant(wo.scheduledStart)
+                          : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ');
+                      const barClassName = [
+                        'absolute top-2 h-12 overflow-hidden rounded-md border px-1.5 py-0.5 text-left text-[11px] leading-tight',
+                        STATUS_BAR_CLASS[wo.status] ?? 'bg-slate-100 border-slate-300 text-slate-700',
+                        conflict ? 'border-2 border-red-500 ring-2 ring-red-200' : '',
+                        openEnded ? 'border-dashed' : '',
+                        reschedulable ? 'cursor-pointer' : 'cursor-default',
+                      ].join(' ');
+                      const barBody = (
+                        <>
+                          <span className="block truncate font-mono font-semibold">{wo.woNumber}</span>
+                          <span className="block truncate">{wo.itemCode ?? wo.itemName ?? ''}</span>
+                        </>
+                      );
+                      return reschedulable ? (
                         <button
                           key={wo.id}
                           type="button"
                           onClick={() => openModal(wo)}
                           data-testid={`schedule-bar-${wo.woNumber}`}
                           data-conflict={conflict ? 'true' : 'false'}
-                          title={`${wo.woNumber} · ${wo.itemCode ?? ''} · ${statusLabel(wo.status)}`}
-                          className={[
-                            'absolute top-2 h-12 overflow-hidden rounded-md border px-1.5 py-0.5 text-left text-[11px] leading-tight',
-                            STATUS_BAR_CLASS[wo.status] ?? 'bg-slate-100 border-slate-300 text-slate-700',
-                            conflict ? 'border-2 border-red-500 ring-2 ring-red-200' : '',
-                            openEnded ? 'border-dashed' : '',
-                          ].join(' ')}
+                          data-reschedulable="true"
+                          title={barTitle}
+                          className={barClassName}
                           style={{ left: `${geometry.leftPct}%`, width: `${geometry.widthPct}%` }}
                         >
-                          <span className="block truncate font-mono font-semibold">{wo.woNumber}</span>
-                          <span className="block truncate">{wo.itemCode ?? wo.itemName ?? ''}</span>
+                          {barBody}
                         </button>
+                      ) : (
+                        <div
+                          key={wo.id}
+                          data-testid={`schedule-bar-${wo.woNumber}`}
+                          data-conflict={conflict ? 'true' : 'false'}
+                          data-reschedulable="false"
+                          title={barTitle}
+                          className={barClassName}
+                          style={{ left: `${geometry.leftPct}%`, width: `${geometry.widthPct}%` }}
+                        >
+                          {barBody}
+                        </div>
                       );
                     })}
                   </div>
@@ -324,9 +352,11 @@ export function ScheduleBoardView({
                 <span className="truncate text-slate-600">{wo.itemCode ?? wo.itemName ?? '—'}</span>
                 <span className="text-xs text-slate-500">{statusLabel(wo.status)}</span>
                 <span className="ml-auto" />
-                <Button type="button" className="btn-sm" onClick={() => openModal(wo)}>
-                  {labels.scheduleCta}
-                </Button>
+                {canRescheduleWorkOrder(wo.status) ? (
+                  <Button type="button" className="btn-sm" onClick={() => openModal(wo)}>
+                    {labels.scheduleCta}
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -394,9 +424,9 @@ export function ScheduleBoardView({
                   </p>
                 ) : null}
                 {selected.scheduledStart ? (
-                  <p className="text-xs text-slate-400">
-                    {timeFmt.format(new Date(selected.scheduledStart))}
-                    {selected.scheduledEnd ? ` – ${timeFmt.format(new Date(selected.scheduledEnd))}` : ''}
+                  <p className="text-xs text-slate-400" data-testid="reschedule-current-times">
+                    {formatScheduleInstant(selected.scheduledStart)}
+                    {selected.scheduledEnd ? ` – ${formatScheduleInstant(selected.scheduledEnd)}` : ''}
                   </p>
                 ) : null}
               </div>

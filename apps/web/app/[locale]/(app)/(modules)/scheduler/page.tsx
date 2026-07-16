@@ -22,8 +22,8 @@ import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
-import { runScheduler, applySchedule, getLatestSchedulerRun } from './_actions/scheduler-actions';
-import { hydrateSchedulerLabelsForWoIds, loadSchedulerAccess } from './_lib/scheduler-labels';
+import { runScheduler, applySchedule, getLatestSchedulerRun, overrideSchedulerAssignment } from './_actions/scheduler-actions';
+import { hydrateSchedulerLabelsForWoIds, loadSchedulerAccess, loadSchedulerOverrideAccess } from './_lib/scheduler-labels';
 import { SchedulerBoardView, type SchedulerBoardLabels } from './_components/scheduler-board-view';
 import { toProposal } from './_components/scheduler-view-model';
 
@@ -62,6 +62,7 @@ async function BoardContent({
 }) {
   const t = await getTranslations('Scheduler');
   const access = await loadSchedulerAccess();
+  const overrideAccess = await loadSchedulerOverrideAccess();
 
   if (!access.ok && access.error === 'forbidden') {
     return (
@@ -121,6 +122,37 @@ async function BoardContent({
       confirm: t('apply.confirm'),
       cancel: t('apply.cancel'),
     },
+    override: {
+      button: t('override.button'),
+      modal: {
+        title: t('override.title'),
+        currentLine: t('override.currentLine'),
+        currentStart: t('override.currentStart'),
+        newLine: t('override.newLine'),
+        newStart: t('override.newStart'),
+        reasonCode: t('override.reasonCode'),
+        reasonNotes: t('override.reasonNotes'),
+        selectReason: t('override.selectReason'),
+        cancel: t('override.cancel'),
+        confirm: t('override.confirm'),
+        saving: t('override.saving'),
+        reasonOptions: {
+          customer_priority: t('override.reasons.customer_priority'),
+          material_shortage: t('override.reasons.material_shortage'),
+          line_maintenance: t('override.reasons.line_maintenance'),
+          capacity_constraint: t('override.reasons.capacity_constraint'),
+          planner_judgement: t('override.reasons.planner_judgement'),
+          other: t('override.reasons.other'),
+        },
+        errors: {
+          invalid_input: t('override.errors.invalid_input'),
+          forbidden: t('override.errors.forbidden'),
+          not_found: t('override.errors.not_found'),
+          run_already_applied: t('override.errors.run_already_applied'),
+          persistence_failed: t('override.errors.persistence_failed'),
+        },
+      },
+    },
     errors: {
       invalid_input: t('errors.invalid_input'),
       forbidden: t('errors.forbidden'),
@@ -154,6 +186,11 @@ async function BoardContent({
       locale={locale}
       runAction={runScheduler}
       applyAction={applySchedule}
+      overrideAction={
+        overrideAccess.ok && overrideAccess.canOverride ? overrideSchedulerAssignment : undefined
+      }
+      canOverride={overrideAccess.ok ? overrideAccess.canOverride : false}
+      lineOptions={overrideAccess.ok ? overrideAccess.lines : []}
       labelMaps={access.labelMaps}
       initialProposal={initialProposal}
     />

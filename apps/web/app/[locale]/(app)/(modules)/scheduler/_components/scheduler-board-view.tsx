@@ -30,6 +30,11 @@ import { Button } from '@monopilot/ui/Button';
 
 import type { ApplyScheduleResult, SchedulerRunResult } from '../_actions/scheduler-types';
 import { toProposal, type SchedulerLabelMaps, type SchedulerProposal } from './scheduler-view-model';
+import {
+  OverrideAssignmentModal,
+  type OverrideAssignmentModalLabels,
+  type OverrideAssignmentTarget,
+} from './override-assignment-modal';
 
 export type SchedulerBoardLabels = {
   run: {
@@ -65,11 +70,18 @@ export type SchedulerBoardLabels = {
     confirm: string;
     cancel: string;
   };
+  override?: {
+    button: string;
+    modal: OverrideAssignmentModalLabels;
+  };
   errors: Record<string, string>;
 };
 
 type RunAction = (input: { lineId?: string; horizonDays?: number }) => Promise<SchedulerRunResult>;
 type ApplyAction = (runId: string) => Promise<ApplyScheduleResult>;
+type OverrideAction = (
+  input: import('../_actions/scheduler-types').OverrideSchedulerAssignmentInput,
+) => Promise<import('../_actions/scheduler-types').OverrideSchedulerAssignmentResult>;
 
 const HORIZON_OPTIONS = [1, 2, 3, 7, 14, 30] as const;
 
@@ -78,6 +90,9 @@ export function SchedulerBoardView({
   locale,
   runAction,
   applyAction,
+  overrideAction,
+  canOverride = false,
+  lineOptions = [],
   labelMaps,
   initialProposal = null,
 }: {
@@ -85,6 +100,9 @@ export function SchedulerBoardView({
   locale: string;
   runAction: RunAction;
   applyAction: ApplyAction;
+  overrideAction?: OverrideAction;
+  canOverride?: boolean;
+  lineOptions?: Array<{ id: string; code: string; name: string }>;
   labelMaps?: SchedulerLabelMaps;
   initialProposal?: SchedulerProposal | null;
 }) {
@@ -99,6 +117,9 @@ export function SchedulerBoardView({
   const [applying, setApplying] = React.useState(false);
   const [applyError, setApplyError] = React.useState<string | null>(null);
   const [applied, setApplied] = React.useState(initialProposal?.applied ?? false);
+
+  const [overrideTarget, setOverrideTarget] = React.useState<OverrideAssignmentTarget | null>(null);
+  const showOverride = canOverride && !applied && Boolean(overrideAction) && lineOptions.length > 0;
 
   React.useEffect(() => {
     setProposal(initialProposal);
@@ -315,6 +336,28 @@ export function SchedulerBoardView({
                           </span>
                         ) : null}
                         <span className="ml-auto flex flex-wrap items-center justify-end gap-3 font-mono text-xs text-slate-500">
+                          {showOverride && labels.override ? (
+                            <Button
+                              type="button"
+                              className="btn--secondary"
+                              data-testid={`scheduler-override-open-${a.assignmentId}`}
+                              onClick={() =>
+                                setOverrideTarget({
+                                  assignmentId: a.assignmentId,
+                                  woLabel: a.woLabel,
+                                  lineId: a.lineId || null,
+                                  lineLabel:
+                                    labelMaps?.lineById?.[a.lineId]
+                                      ? `${labelMaps.lineById[a.lineId].code} — ${labelMaps.lineById[a.lineId].name}`
+                                      : null,
+                                  plannedStartAt: a.plannedStart,
+                                  plannedEndAt: a.plannedEnd,
+                                })
+                              }
+                            >
+                              {labels.override.button}
+                            </Button>
+                          ) : null}
                           {a.qty ? (
                             <span data-testid={`scheduler-assignment-qty-${a.woLabel}`}>{a.qty}</span>
                           ) : null}
@@ -371,6 +414,17 @@ export function SchedulerBoardView({
           </Button>
         </Modal.Footer>
       </Modal>
+
+      {showOverride && overrideAction && labels.override ? (
+        <OverrideAssignmentModal
+          open={overrideTarget !== null}
+          target={overrideTarget}
+          lines={lineOptions}
+          labels={labels.override.modal}
+          overrideAction={overrideAction}
+          onClose={() => setOverrideTarget(null)}
+        />
+      ) : null}
     </div>
   );
 }

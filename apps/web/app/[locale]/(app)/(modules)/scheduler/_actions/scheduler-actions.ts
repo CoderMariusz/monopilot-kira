@@ -27,11 +27,14 @@ import type {
   SequenceSolverConfig,
   UpsertChangeoverMatrixEntryResult,
   WorkOrderForScheduling,
+  OverrideSchedulerAssignmentInput,
+  OverrideSchedulerAssignmentResult,
 } from './scheduler-types';
 
 const SCHEDULER_RUN_DISPATCH_PERMISSION = 'scheduler.run.dispatch';
 const SCHEDULER_RUN_READ_PERMISSION = 'scheduler.run.read';
 const SCHEDULER_ASSIGNMENT_APPROVE_PERMISSION = 'scheduler.assignment.approve';
+const SCHEDULER_ASSIGNMENT_OVERRIDE_PERMISSION = 'scheduler.assignment.override';
 const SCHEDULER_MATRIX_READ_PERMISSION = 'scheduler.matrix.read';
 const SCHEDULER_MATRIX_EDIT_PERMISSION = 'scheduler.matrix.edit';
 const OPTIMIZER_VERSION = 'e8-greedy-v1';
@@ -42,6 +45,7 @@ const OCCUPYING_WO_STATUSES = ['IN_PROGRESS', 'RELEASED'] as const;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SCHEDULER_RUN_COMPLETED_EVENT = 'scheduler.run.completed';
 const PLANNING_SCHEDULE_PUBLISHED_EVENT = 'planning.schedule.published';
+const SCHEDULER_ASSIGNMENT_OVERRIDDEN_EVENT = 'scheduler.assignment.overridden';
 
 const RUN_SELECT = `
   run_id::text,
@@ -612,6 +616,126 @@ async function insertSchedulerAssignments(
   return rows;
 }
 
+async function loadAssignmentById(
+  ctx: OrgActionContext,
+  assignmentId: string,
+): Promise<SchedulerAssignment | null> {
+  const { rows } = await ctx.client.query<SchedulerAssignment>(
+    `select ${ASSIGNMENT_SELECT}
+       from public.scheduler_assignments
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [assignmentId],
+  );
+  return rows[0] ?? null;
+}
+
+async function lineExistsInOrg(ctx: OrgActionContext, lineId: string): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.production_lines
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [lineId],
+  );
+  return rows.length > 0;
+}
+
+function shiftEndPreservingDuration(
+  originalStart: string | Date | null,
+  originalEnd: string | Date | null,
+  newStart: Date,
+): Date | null {
+  if (!originalStart || !originalEnd) return null;
+  const startMs = new Date(originalStart).getTime();
+  const endMs = new Date(originalEnd).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null;
+  return new Date(newStart.getTime() + (endMs - startMs));
+}
+
+async function overrideSchedulerAssignmentRow(
+  ctx: OrgActionContext,
+  assignment: SchedulerAssignment,
+  input: {
+    lineId: string;
+    plannedStartAt: Date;
+    plannedEndAt: Date | null;
+    reasonCode: string;
+    reasonNotes: string | null;
+  },
+): Promise<SchedulerAssignment | null> {
+  const extPatch =
+    input.reasonNotes && input.reasonNotes.length > 0
+      ? JSON.stringify({ override_reason_notes: input.reasonNotes })
+      : '{}';
+
+  const { rows } = await ctx.client.query<SchedulerAssignment>(
+    `update public.scheduler_assignments
+        set override_original_line_id = coalesce(override_original_line_id, line_id),
+            override_original_start_at = coalesce(override_original_start_at, planned_start_at),
+            line_id = $2::text,
+            planned_start_at = $3::timestamptz,
+            planned_end_at = $4::timestamptz,
+            override_reason_code = $5::text,
+            override_by = $6::uuid,
+            override_at = now(),
+            status = 'overridden',
+            ext = coalesce(ext, '{}'::jsonb) || $7::jsonb,
+            updated_at = now()
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and status in ('draft', 'overridden')
+      returning ${ASSIGNMENT_SELECT}`,
+    [
+      assignment.id,
+      input.lineId,
+      input.plannedStartAt.toISOString(),
+      input.plannedEndAt?.toISOString() ?? null,
+      input.reasonCode,
+      ctx.userId,
+      extPatch,
+    ],
+  );
+  return rows[0] ?? null;
+}
+
+async function emitAssignmentOverriddenEvent(
+  ctx: OrgActionContext,
+  assignment: SchedulerAssignment,
+  override: {
+    lineId: string;
+    plannedStartAt: string;
+    reasonCode: string;
+    reasonNotes: string | null;
+  },
+): Promise<void> {
+  await ctx.client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values
+       (app.current_org_id(), $1, 'scheduler_assignment', $2::uuid, $3::jsonb, $4)`,
+    [
+      SCHEDULER_ASSIGNMENT_OVERRIDDEN_EVENT,
+      assignment.id,
+      JSON.stringify({
+        assignment_id: assignment.id,
+        run_id: assignment.run_id,
+        wo_id: assignment.wo_id,
+        actor_user_id: ctx.userId,
+        original_line_id: assignment.override_original_line_id ?? assignment.line_id,
+        original_planned_start_at: assignment.override_original_start_at ?? assignment.planned_start_at,
+        new_line_id: override.lineId,
+        new_planned_start_at: override.plannedStartAt,
+        reason_code: override.reasonCode,
+        reason_notes: override.reasonNotes,
+      }),
+      OPTIMIZER_VERSION,
+    ],
+  );
+}
+
 async function loadRun(ctx: OrgActionContext, runId: string, lockForUpdate = false): Promise<SchedulerRunRow | null> {
   const { rows } = await ctx.client.query<SchedulerRunRow>(
     `select ${RUN_SELECT}
@@ -1030,6 +1154,71 @@ export async function applySchedule(runId: string): Promise<ApplyScheduleResult>
     });
   } catch (error) {
     console.error('[scheduler/applySchedule] persistence_failed', error);
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function overrideSchedulerAssignment(
+  input: OverrideSchedulerAssignmentInput,
+): Promise<OverrideSchedulerAssignmentResult> {
+  const assignmentId = input.assignmentId?.trim() ?? '';
+  const lineId = input.lineId?.trim() ?? '';
+  const reasonCode = input.reasonCode?.trim() ?? '';
+  const reasonNotes = input.reasonNotes?.trim() || null;
+  const plannedStartAt = input.plannedStartAt?.trim() ?? '';
+
+  if (!isUuid(assignmentId) || !isUuid(lineId) || !reasonCode || !plannedStartAt) {
+    return { ok: false, error: 'invalid_input' };
+  }
+
+  const newStart = new Date(plannedStartAt);
+  if (!Number.isFinite(newStart.getTime())) {
+    return { ok: false, error: 'invalid_input' };
+  }
+
+  try {
+    return await withOrgContext(async (ctx: OrgActionContext): Promise<OverrideSchedulerAssignmentResult> => {
+      if (!(await hasPermission(ctx, SCHEDULER_ASSIGNMENT_OVERRIDE_PERMISSION))) {
+        return { ok: false, error: 'forbidden' };
+      }
+
+      const assignment = await loadAssignmentById(ctx, assignmentId);
+      if (!assignment) return { ok: false, error: 'not_found' };
+
+      const run = await loadRun(ctx, assignment.run_id);
+      if (!run) return { ok: false, error: 'not_found' };
+      if (wasApplied(run)) return { ok: false, error: 'run_already_applied' };
+
+      if (!(await lineExistsInOrg(ctx, lineId))) {
+        return { ok: false, error: 'invalid_input' };
+      }
+
+      const newEnd = shiftEndPreservingDuration(
+        assignment.planned_start_at,
+        assignment.planned_end_at,
+        newStart,
+      );
+
+      const updated = await overrideSchedulerAssignmentRow(ctx, assignment, {
+        lineId,
+        plannedStartAt: newStart,
+        plannedEndAt: newEnd,
+        reasonCode,
+        reasonNotes,
+      });
+      if (!updated) return { ok: false, error: 'not_found' };
+
+      await emitAssignmentOverriddenEvent(ctx, assignment, {
+        lineId,
+        plannedStartAt: newStart.toISOString(),
+        reasonCode,
+        reasonNotes,
+      });
+
+      return { ok: true, assignment: updated };
+    });
+  } catch (error) {
+    console.error('[scheduler/overrideSchedulerAssignment] persistence_failed', error);
     return { ok: false, error: 'persistence_failed' };
   }
 }

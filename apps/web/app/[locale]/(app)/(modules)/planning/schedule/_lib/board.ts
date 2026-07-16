@@ -12,8 +12,12 @@ import { wallClockToInstant } from '../../../../../../../lib/shared/wall-clock-t
 /** WO statuses that appear on the board (planning-phase + running). */
 export const BOARD_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS'] as const;
 
-/** WO statuses rescheduleWorkOrder accepts ("planned"=DRAFT + RELEASED). */
-export const RESCHEDULE_LEGAL_STATUSES = ['DRAFT', 'RELEASED'] as const;
+/** WO statuses rescheduleWorkOrder accepts — released/planned only, not draft or in-flight. */
+export const RESCHEDULE_LEGAL_STATUSES = ['RELEASED'] as const;
+
+export function canRescheduleWorkOrder(status: string): boolean {
+  return (RESCHEDULE_LEGAL_STATUSES as readonly string[]).includes(status);
+}
 
 /** Board window length — 7 days starting today (UTC midnight). */
 export const BOARD_WINDOW_DAYS = 7;

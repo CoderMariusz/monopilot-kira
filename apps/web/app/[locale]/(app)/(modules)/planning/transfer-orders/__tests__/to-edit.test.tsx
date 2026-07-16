@@ -328,6 +328,17 @@ describe('TO DRAFT edit affordances (Wave R1)', () => {
     expect(updateLine).toHaveBeenCalledWith('to-1', 'line-1', { quantity: '75', uom: 'kg' });
   });
 
+  it('C060: accepts a positive six-decimal quantity in the line editor', async () => {
+    const { updateLine } = renderDetail();
+    fireEvent.click(screen.getByTestId('to-line-edit-line-1'));
+    const form = await screen.findByTestId('to-line-form');
+    fireEvent.change(within(form).getByTestId('to-line-qty'), { target: { value: '1.000001' } });
+    fireEvent.click(screen.getByTestId('to-line-submit'));
+    await waitFor(() => expect(updateLine).toHaveBeenCalledTimes(1));
+    expect(updateLine).toHaveBeenCalledWith('to-1', 'line-1', { quantity: '1.000001', uom: 'kg' });
+    expect(screen.queryByTestId('to-line-error')).not.toBeInTheDocument();
+  });
+
   it('adds a line via addTransferOrderLine after picking a product', async () => {
     const { addLine } = renderDetail();
     fireEvent.click(screen.getByTestId('to-add-line'));
