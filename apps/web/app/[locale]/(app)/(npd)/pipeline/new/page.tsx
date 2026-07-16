@@ -114,6 +114,11 @@ const DEFAULT_LABELS: WizardLabels = {
     'Output unit "boxes" requires pack weight (g) and packs per case greater than 0.',
   errorRetailPrice:
     'Target retail price must be a non-negative amount with at most two decimal places.',
+  errorTargetLaunchPast: 'Target launch date must be today or later.',
+  errorPackWeight: 'Pack weight must be greater than 0 with at most three decimal places.',
+  errorPacksPerCase: 'Packs per case must be a whole number of at least 1.',
+  errorWeeklyVolumePrecision: 'Weekly volume allows at most three decimal places.',
+  errorRunsPerWeekInteger: 'Runs per week must be a whole number of at least 1.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof WizardLabels>;

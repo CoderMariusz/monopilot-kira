@@ -31,6 +31,11 @@ import { ReleaseBundlePanelButton } from './release-bundle-panel.client';
 import { RecallSpecButton } from './recall-spec.client';
 import { ReleaseSpecButton } from './release-spec.client';
 import { CreateFactorySpecModal } from './create-factory-spec-modal.client';
+import {
+  DeleteFactorySpecModal,
+  EditFactorySpecModal,
+  SaveFactorySpecVersionModal,
+} from './factory-spec-lifecycle-modals.client';
 
 function Dialog({
   open,
@@ -136,11 +141,15 @@ export function FactorySpecRowActions({
 
   const badge = specBadge(spec.status);
   const isImmutable = spec.status === 'approved_for_factory' || spec.status === 'released_to_factory';
+  const isMutable = spec.status === 'draft' || spec.status === 'in_review';
   const bomPending = spec.bomStatus != null && ['draft', 'in_review'].includes(spec.bomStatus);
   const isReleased = spec.status === 'released_to_factory';
   const isApproved = spec.status === 'approved_for_factory';
   const requiresNpdHandoff = spec.fgNpdProjectId != null;
   const [cloneOpen, setCloneOpen] = React.useState(false);
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [versionOpen, setVersionOpen] = React.useState(false);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
 
   return (
     <span className="flex items-center justify-end gap-3">
@@ -171,6 +180,38 @@ export function FactorySpecRowActions({
         </span>
       ) : null}
 
+      {isMutable && canApprove ? (
+        <>
+          <button
+            type="button"
+            className="font-medium hover:underline"
+            style={{ color: 'var(--blue)' }}
+            onClick={() => setEditOpen(true)}
+            data-testid={`factory-spec-edit-${spec.id}`}
+          >
+            {t('lifecycle.edit.action')}
+          </button>
+          <button
+            type="button"
+            className="font-medium hover:underline"
+            style={{ color: 'var(--blue)' }}
+            onClick={() => setVersionOpen(true)}
+            data-testid={`factory-spec-save-version-${spec.id}`}
+          >
+            {t('lifecycle.version.action')}
+          </button>
+          <button
+            type="button"
+            className="font-medium hover:underline"
+            style={{ color: 'var(--red)' }}
+            onClick={() => setDeleteOpen(true)}
+            data-testid={`factory-spec-delete-${spec.id}`}
+          >
+            {t('lifecycle.delete.action')}
+          </button>
+        </>
+      ) : null}
+
       {isImmutable && canApprove ? (
         <button
           type="button"
@@ -197,6 +238,10 @@ export function FactorySpecRowActions({
         supersedesSpecId={spec.id}
         defaultSpecCode={spec.specCode}
       />
+
+      <EditFactorySpecModal open={editOpen} onClose={() => setEditOpen(false)} spec={spec} />
+      <SaveFactorySpecVersionModal open={versionOpen} onClose={() => setVersionOpen(false)} spec={spec} />
+      <DeleteFactorySpecModal open={deleteOpen} onClose={() => setDeleteOpen(false)} spec={spec} />
 
       <Dialog
         open={open}
@@ -230,6 +275,7 @@ export function FactorySpecRowActions({
           />
           <SummaryRow label={t('modal.shelfLife')} value={spec.shelfLifeDays != null ? `${spec.shelfLifeDays} d` : '—'} mono />
           <SummaryRow label={t('modal.source')} value={spec.source} />
+          <SummaryRow label={t('modal.notes')} value={spec.notes?.trim() ? spec.notes : t('modal.noNotes')} />
         </dl>
 
         <div className="mt-3 flex items-center gap-2">

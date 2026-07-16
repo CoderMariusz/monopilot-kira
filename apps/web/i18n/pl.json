@@ -4286,6 +4286,59 @@
           "PENDING_NPD_RELEASE": "Oczekuje na zwolnienie NPD",
           "PENDING_TECHNICAL_APPROVAL": "Oczekuje na zatwierdzenie techniczne",
           "RELEASE_BLOCKED": "Zwolnienie zablokowane"
+        },
+        "notes": "Notatki",
+        "noNotes": "—"
+      },
+      "lifecycle": {
+        "edit": {
+          "action": "Edytuj",
+          "title": "Edytuj specyfikację · {spec}",
+          "subtitle": "v{version} · pola robocze",
+          "specCode": "Kod specyfikacji",
+          "notes": "Notatki",
+          "cancel": "Anuluj",
+          "submit": "Zapisz zmiany",
+          "saving": "Zapisywanie…",
+          "errors": {
+            "forbidden": "Nie masz uprawnień do edycji specyfikacji.",
+            "invalid_state": "Tej specyfikacji nie można już edytować.",
+            "persistence_failed": "Nie udało się zapisać specyfikacji."
+          }
+        },
+        "version": {
+          "action": "Zapisz wersję",
+          "title": "Zapisz wersję specyfikacji",
+          "subtitle": "{spec} · v{version} → v{nextVersion}",
+          "specCode": "Kod specyfikacji",
+          "notes": "Notatki",
+          "changeReason": "Powód zmiany",
+          "changeReasonHelp": "Min. 10 znaków — trafia do audytu.",
+          "changeReasonPlaceholder": "np. Poprawiono notatki dot. terminu ważności przed review.",
+          "previousVersionNote": "Poprzednia wersja (v{version}) pozostaje dostępna tylko do odczytu.",
+          "cancel": "Anuluj",
+          "submit": "Zapisz wersję",
+          "saving": "Zapisywanie…",
+          "errors": {
+            "forbidden": "Nie masz uprawnień do wersjonowania specyfikacji.",
+            "invalid_state": "Tej specyfikacji nie można zapisać jako nowej wersji w bieżącym stanie.",
+            "persistence_failed": "Nie udało się zapisać nowej wersji specyfikacji."
+          }
+        },
+        "delete": {
+          "action": "Usuń",
+          "title": "Usuń specyfikację · {spec}",
+          "subtitle": "v{version} · trwałe usunięcie",
+          "warning": "To trwale usuwa specyfikację roboczą/w review. Operacji nie można cofnąć.",
+          "cancel": "Anuluj",
+          "confirm": "Usuń specyfikację",
+          "deleting": "Usuwanie…",
+          "errors": {
+            "forbidden": "Nie masz uprawnień do usuwania specyfikacji.",
+            "referenced": "Nie można usunąć — specyfikacja jest nadal powiązana.",
+            "invalid_state": "Usunąć można tylko specyfikacje draft/in_review.",
+            "persistence_failed": "Nie udało się usunąć specyfikacji."
+          }
         }
       },
       "recall": {
@@ -6920,7 +6973,12 @@
       "fieldOutputUnitPieces": "sztuki",
       "fieldOutputUnitBoxes": "kartony",
       "errorBoxesOutputUnit": "Jednostka wyjściowa „kartony” wymaga masy opakowania (g) i liczby opakowań w kartonie większej niż 0.",
-      "errorRetailPrice": "Cena detaliczna musi być nieujemna i mieć co najwyżej dwa miejsca po przecinku."
+      "errorRetailPrice": "Cena detaliczna musi być nieujemna i mieć co najwyżej dwa miejsca po przecinku.",
+      "errorTargetLaunchPast": "Data wprowadzenia musi przypadać dziś lub później.",
+      "errorPackWeight": "Waga opakowania musi być większa niż 0 i mieć co najwyżej trzy miejsca po przecinku.",
+      "errorPacksPerCase": "Liczba opakowań w kartonie musi być liczbą całkowitą co najmniej 1.",
+      "errorWeeklyVolumePrecision": "Wolumen tygodniowy może mieć co najwyżej trzy miejsca po przecinku.",
+      "errorRunsPerWeekInteger": "Liczba partii tygodniowo musi być liczbą całkowitą co najmniej 1."
     },
     "faBomTab": {
       "title": "BOM (widok obliczony)",
@@ -9844,6 +9902,7 @@
       "menu": "Menu",
       "syncTitle": "Status synchronizacji",
       "online": "ONLINE",
+      "offline": "OFFLINE",
       "queued": "W KOLEJCE",
       "syncErr": "BŁĄD SYNC"
     },
@@ -12224,7 +12283,8 @@
       "allLines": "Wszystkie linie",
       "from": "Od",
       "to": "Do",
-      "ariaLabel": "Filtry raportów"
+      "ariaLabel": "Filtry raportów",
+      "invalidRange": "Data początkowa musi być wcześniejsza lub równa dacie końcowej."
     },
     "inventory": {
       "columns": {
@@ -12914,6 +12974,64 @@
         "PASS": "Zaliczony",
         "FAIL": "Niezaliczony",
         "OUT_OF_SPEC": "Poza spec."
+      }
+    },
+    "assets": {
+      "list": {
+        "title": "Aktywa",
+        "subtitle": "Rejestr urządzeń utrzymania ruchu — wymagania LOTO i kalibracji",
+        "breadcrumb": {
+          "maintenance": "Utrzymanie ruchu",
+          "assets": "Aktywa"
+        },
+        "denied": "Brak uprawnień do przeglądania aktywów utrzymania ruchu (mnt.asset.read).",
+        "error": "Nie udało się wczytać aktywów. Spróbuj ponownie.",
+        "emptyTitle": "Brak zarejestrowanych aktywów",
+        "emptyBody": "Dodaj pierwsze urządzenie lub linię, aby zlecenia MWO i LOTO mogły się do niego odwoływać.",
+        "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+        "countLine": "{total} aktywów · {loto} wymaga LOTO",
+        "addAsset": "+ Dodaj aktywo",
+        "exportCsv": "Eksport CSV",
+        "col": {
+          "code": "Kod",
+          "name": "Nazwa",
+          "type": "Typ",
+          "loto": "LOTO",
+          "calibration": "Kalibracja",
+          "status": "Status"
+        },
+        "lotoYes": "Wymagane",
+        "lotoNo": "—",
+        "calYes": "Wymagana",
+        "calNo": "—",
+        "statusActive": "Aktywne",
+        "statusInactive": "Nieaktywne"
+      },
+      "form": {
+        "createTitle": "Dodaj aktywo utrzymania ruchu",
+        "code": "Kod aktywa",
+        "codePlaceholder": "np. MIX-01",
+        "name": "Nazwa",
+        "namePlaceholder": "np. Mieszalnik główny",
+        "type": "Typ urządzenia",
+        "requiresLoto": "Wymaga LOTO przed pracą",
+        "requiresCalibration": "Wymaga kalibracji",
+        "submit": "Zapisz aktywo",
+        "submitting": "Zapisywanie…",
+        "cancel": "Anuluj",
+        "errorRequired": "Kod i nazwa są wymagane.",
+        "errorFailed": "Nie udało się zapisać aktywa. Spróbuj ponownie.",
+        "errorForbidden": "Brak uprawnień do edycji aktywów (mnt.asset.edit).",
+        "errorConflict": "Aktywo o tym kodzie już istnieje."
+      },
+      "types": {
+        "mixer": "Mieszalnik",
+        "oven": "Piec",
+        "packer": "Pakowarka",
+        "scale": "Waga",
+        "thermometer": "Termometr",
+        "conveyor": "Przenośnik",
+        "other": "Inne"
       }
     }
   },

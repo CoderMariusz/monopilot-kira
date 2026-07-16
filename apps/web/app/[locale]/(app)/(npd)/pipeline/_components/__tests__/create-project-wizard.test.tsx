@@ -155,6 +155,11 @@ const LABELS: WizardLabels = {
   errorForbidden: 'lbl.errorForbidden',
   errorBoxesOutputUnit: 'lbl.errorBoxesOutputUnit',
   errorRetailPrice: 'lbl.errorRetailPrice',
+  errorTargetLaunchPast: 'lbl.errorTargetLaunchPast',
+  errorPackWeight: 'lbl.errorPackWeight',
+  errorPacksPerCase: 'lbl.errorPacksPerCase',
+  errorWeeklyVolumePrecision: 'lbl.errorWeeklyVolumePrecision',
+  errorRunsPerWeekInteger: 'lbl.errorRunsPerWeekInteger',
 };
 
 const defaultAction = vi.fn(async () => ({ ok: true as const, data: { id: 'pid-7', code: 'NPD-007' } }));
@@ -178,14 +183,16 @@ function fillRequiredBasics(name = 'Sliced Ham 200g') {
 }
 
 describe('parseWeeklyVolumePacks / parseRunsPerWeek', () => {
-  it('rejects -1 weekly volume and 0 runs/week; accepts valid values', () => {
+  it('rejects -1 weekly volume, 0/fractional runs/week; accepts valid values', () => {
     expect(parseWeeklyVolumePacks('-1')).toBeNull();
     expect(parseWeeklyVolumePacks('0')).toBeNull();
     expect(parseWeeklyVolumePacks('')).toBeNull();
+    expect(parseWeeklyVolumePacks('1234.5678')).toBeNull();
     expect(parseWeeklyVolumePacks('5000')).toBe(5000);
 
     expect(parseRunsPerWeek('0')).toBeNull();
     expect(parseRunsPerWeek('-1')).toBeNull();
+    expect(parseRunsPerWeek('2.5')).toBeNull();
     expect(parseRunsPerWeek('')).toBeNull();
     expect(parseRunsPerWeek('3')).toBe(3);
   });
@@ -245,6 +252,20 @@ describe('CreateProjectWizard — parity, navigation, validation', () => {
     fireEvent.change(screen.getByTestId('wiz-weekly-volume'), { target: { value: '5000' } });
     fireEvent.change(screen.getByTestId('wiz-runs-per-week'), { target: { value: '3' } });
     expect(cont).not.toBeDisabled();
+  });
+
+  it('shows immediate Basics boundary errors for past date, zero pack weight, zero packs/case, and fractional runs', () => {
+    renderWizard();
+    fillRequiredBasics();
+    fireEvent.change(screen.getByTestId('wiz-target-launch'), { target: { value: '2020-01-01' } });
+    fireEvent.change(screen.getByTestId('wiz-pack-weight'), { target: { value: '0' } });
+    fireEvent.change(screen.getByTestId('wiz-packs-per-case'), { target: { value: '0' } });
+    fireEvent.change(screen.getByTestId('wiz-runs-per-week'), { target: { value: '2.5' } });
+    expect(screen.getByTestId('wizard-continue')).toBeDisabled();
+    expect(screen.getByTestId('wiz-target-launch-error')).toHaveTextContent('lbl.errorTargetLaunchPast');
+    expect(screen.getByTestId('wiz-pack-weight-error')).toHaveTextContent('lbl.errorPackWeight');
+    expect(screen.getByTestId('wiz-packs-per-case-error')).toHaveTextContent('lbl.errorPacksPerCase');
+    expect(screen.getByTestId('wiz-runs-per-week-error')).toHaveTextContent('lbl.errorRunsPerWeekInteger');
   });
 
   it('navigates Basics → Brief → Starting point; Clone (no source) + Template are disabled, Blank stays selected', () => {

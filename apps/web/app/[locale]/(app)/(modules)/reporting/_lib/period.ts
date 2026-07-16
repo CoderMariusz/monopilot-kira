@@ -1,5 +1,6 @@
 import {
   computeReportingWindow,
+  detectCustomRangeError,
   reportingWindowDays,
   REPORTING_PERIODS,
   type ReportingPeriod,
@@ -9,6 +10,7 @@ import {
 
 export {
   computeReportingWindow,
+  detectCustomRangeError,
   reportingWindowDays,
   REPORTING_PERIODS,
   type ReportingPeriod,
@@ -21,6 +23,8 @@ export type PeriodFilterSelection = {
   fromDate: string;
   toDate: string;
   window: ReportingWindow;
+  /** Set when custom period params are present but invalid (from > to). */
+  rangeError: 'reversed' | null;
 };
 
 function firstSearchValue(value: string | string[] | undefined): string | undefined {
@@ -39,11 +43,14 @@ export function parsePeriodSearchParams(
   const rawFrom = firstSearchValue(searchParams?.from);
   const rawTo = firstSearchValue(searchParams?.to);
   const window = computeReportingWindow(rawPeriod, { from: rawFrom, to: rawTo, now });
+  const rangeError = detectCustomRangeError(searchParams);
+  const period = rawPeriod === 'custom' ? 'custom' : window.period;
 
   return {
-    period: window.period,
-    fromDate: window.period === 'custom' && rawFrom ? rawFrom : dateInputValue(window.from),
-    toDate: window.period === 'custom' && rawTo ? rawTo : dateInputValue(window.to),
+    period,
+    fromDate: rawPeriod === 'custom' && rawFrom ? rawFrom : dateInputValue(window.from),
+    toDate: rawPeriod === 'custom' && rawTo ? rawTo : dateInputValue(window.to),
     window,
+    rangeError,
   };
 }

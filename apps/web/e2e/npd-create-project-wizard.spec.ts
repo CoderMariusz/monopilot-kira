@@ -94,6 +94,8 @@ test.describe('NPD create-project wizard — 4 steps (project.jsx:107-263)', () 
     await expect(page.getByTestId('wizard-continue')).toBeDisabled();
     await page.locator('#wiz-name').fill('E2E Sliced Ham 200g');
     await page.locator('#wiz-target').fill('2026-09-01');
+    await page.locator('#wiz-weekly-volume').fill('5000');
+    await page.locator('#wiz-runs-per-week').fill('3');
     // Optional "Packs per case" integer (costing-v2 backend; copied to the FG).
     await expect(page.locator('#wiz-packs-per-case')).toBeVisible();
     await page.locator('#wiz-packs-per-case').fill('12');
@@ -124,5 +126,28 @@ test.describe('NPD create-project wizard — 4 steps (project.jsx:107-263)', () 
     await page.getByTestId('wizard-create').click();
     await page.waitForURL(/\/pipeline\/[a-f0-9-]{36}/, { timeout: 15_000 });
     await page.screenshot({ path: path.join(artifactDir, 'created-project.png'), fullPage: true });
+  });
+
+  test('Basics boundary guards block Continue for past date, zero pack, and fractional runs', async ({ page }) => {
+    await signIn(page);
+    await page.goto(url('/en/pipeline/new'), { waitUntil: 'domcontentloaded' });
+
+    await page.locator('#wiz-name').fill('Boundary Guard E2E');
+    await page.locator('#wiz-weekly-volume').fill('5000');
+    await page.locator('#wiz-runs-per-week').fill('3');
+    await page.locator('#wiz-target').fill('2020-01-01');
+    await page.locator('#wiz-pack-weight').fill('0');
+    await page.locator('#wiz-packs-per-case').fill('0');
+    await page.locator('#wiz-runs-per-week').fill('2.5');
+
+    await expect(page.getByTestId('wiz-target-launch-error')).toBeVisible();
+    await expect(page.getByTestId('wiz-pack-weight-error')).toBeVisible();
+    await expect(page.getByTestId('wiz-packs-per-case-error')).toBeVisible();
+    await expect(page.getByTestId('wiz-runs-per-week-error')).toBeVisible();
+    await expect(page.getByTestId('wizard-continue')).toBeDisabled();
+    await page.screenshot({
+      path: path.join(artifactDir, 'step-1-basics-boundary-guards.png'),
+      fullPage: true,
+    });
   });
 });

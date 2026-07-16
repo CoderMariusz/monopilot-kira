@@ -61,6 +61,20 @@ function parseIsoDateParam(value: string | undefined, boundary: 'start' | 'end')
   return boundary === 'end' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? endOfUtcDay(parsed) : parsed;
 }
 
+/** Detect reversed custom range before computeReportingWindow silently falls back. */
+export function detectCustomRangeError(
+  searchParams: ReportingSearchParams | undefined,
+): 'reversed' | null {
+  const rawPeriod = firstSearchValue(searchParams?.period);
+  if (rawPeriod !== 'custom') return null;
+  const rawFrom = firstSearchValue(searchParams?.from);
+  const rawTo = firstSearchValue(searchParams?.to);
+  const from = parseIsoDateParam(rawFrom, 'start');
+  const to = parseIsoDateParam(rawTo, 'end');
+  if (from && to && from.getTime() > to.getTime()) return 'reversed';
+  return null;
+}
+
 function dateInputValue(value: Date): string {
   return value.toISOString().slice(0, 10);
 }

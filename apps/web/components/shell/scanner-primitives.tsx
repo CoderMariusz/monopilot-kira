@@ -27,6 +27,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -48,15 +49,16 @@ const T = {
   red: "#ef4444",
 } as const;
 
-type SyncState = "online" | "queued" | "err";
+type SyncState = "online" | "offline" | "queued" | "err";
 
 export type TopbarProps = {
   title: string;
   onBack?: () => void;
   /**
    * Connectivity badge. When omitted the badge reflects live `navigator.onLine`
-   * (online ⇄ err on offline events) so it is never a hardcoded lie. Pass an
-   * explicit value only when the screen tracks its own sync queue / fetch error.
+   * (online ⇄ offline on connectivity events) so it is never a hardcoded lie.
+   * Pass an explicit value only when the screen tracks its own sync queue /
+   * fetch error (`queued` / `err`).
    */
   syncState?: SyncState;
   /** When provided, renders the ⋮ menu button. Omitted ⇒ no dead button. */
@@ -68,29 +70,34 @@ export type TopbarProps = {
     menu: string;
     syncTitle: string;
     online: string;
+    offline: string;
     queued: string;
     syncErr: string;
   };
 };
 
+function subscribeToOnlineStatus(onStoreChange: () => void) {
+  window.addEventListener("online", onStoreChange);
+  window.addEventListener("offline", onStoreChange);
+  return () => {
+    window.removeEventListener("online", onStoreChange);
+    window.removeEventListener("offline", onStoreChange);
+  };
+}
+
 /**
- * Live connectivity hook for the sync badge. SSR/first paint assumes online
- * (so server and client markup agree), then reconciles to the real
- * `navigator.onLine` value and tracks online/offline events.
+ * Live connectivity hook for the sync badge. Uses `useSyncExternalStore` so the
+ * first client paint reads `navigator.onLine` immediately (no false ONLINE
+ * flash on an offline boot / SW-cached shell). SSR snapshot is pessimistic
+ * (offline) so we never claim online before the client confirms connectivity.
  */
-function useOnlineSync(): SyncState {
-  const [online, setOnline] = useState(true);
-  useEffect(() => {
-    const sync = () => setOnline(navigator.onLine);
-    sync();
-    window.addEventListener("online", sync);
-    window.addEventListener("offline", sync);
-    return () => {
-      window.removeEventListener("online", sync);
-      window.removeEventListener("offline", sync);
-    };
-  }, []);
-  return online ? "online" : "err";
+function useOnlineSync(): "online" | "offline" {
+  const online = useSyncExternalStore(
+    subscribeToOnlineStatus,
+    () => navigator.onLine,
+    () => false,
+  );
+  return online ? "online" : "offline";
 }
 
 // shell.jsx:36-58
@@ -114,12 +121,18 @@ export function Topbar({
       ? { bg: "#3b2f0b", fg: T.amber, text: labels.queued }
       : effectiveSync === "err"
         ? { bg: "#3b1212", fg: T.red, text: labels.syncErr }
-        : { bg: "#0e2a18", fg: T.green, text: labels.online };
+        : effectiveSync === "offline"
+          ? { bg: "#2a2410", fg: T.amber, text: labels.offline }
+          : { bg: "#0e2a18", fg: T.green, text: labels.online };
+
+  const badgeAria = `${labels.syncTitle}: ${badge.text}`;
 
   const tbtn: CSSProperties = {
     display: "flex",
-    height: 40,
-    width: 40,
+    minHeight: 44,
+    minWidth: 44,
+    height: 44,
+    width: 44,
     flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
@@ -144,11 +157,23 @@ export function Topbar({
       }}
     >
       {showBack ? (
-        <button type="button" style={tbtn} onClick={onBack} aria-label={labels.back}>
+        <button
+          type="button"
+          className="scanner-topbar-btn"
+          style={tbtn}
+          onClick={onBack}
+          aria-label={labels.back}
+        >
           ←
         </button>
       ) : (
-        <button type="button" aria-hidden="true" disabled style={{ ...tbtn, opacity: 0 }}>
+        <button
+          type="button"
+          aria-hidden="true"
+          disabled
+          className="scanner-topbar-btn"
+          style={{ ...tbtn, opacity: 0 }}
+        >
           ·
         </button>
       )}
@@ -167,7 +192,9 @@ export function Topbar({
         {title}
       </div>
       <span
-        title={labels.syncTitle}
+        data-testid="scanner-sync-badge"
+        role="status"
+        aria-label={badgeAria}
         style={{
           flexShrink: 0,
           padding: "3px 8px",
@@ -182,7 +209,13 @@ export function Topbar({
         {badge.text}
       </span>
       {onMenu ? (
-        <button type="button" style={tbtn} onClick={onMenu} aria-label={labels.menu}>
+        <button
+          type="button"
+          className="scanner-topbar-btn"
+          style={tbtn}
+          onClick={onMenu}
+          aria-label={labels.menu}
+        >
           ⋮
         </button>
       ) : null}
@@ -520,13 +553,18 @@ export function Banner({
   title,
   children,
   onDismiss,
+  id,
+  bannerRef,
+  ...rest
 }: {
   kind?: "info" | "warn" | "err" | "success";
   icon?: ReactNode;
   title?: ReactNode;
   children?: ReactNode;
   onDismiss?: () => void;
-}) {
+  id?: string;
+  bannerRef?: React.Ref<HTMLDivElement>;
+} & Omit<React.HTMLAttributes<HTMLDivElement>, "title">) {
   const palette =
     kind === "warn"
       ? { bg: "#3b2f0b", fg: T.amber, ic: "⚠️" }
@@ -537,6 +575,11 @@ export function Banner({
           : { bg: "#0e2333", fg: T.blue2, ic: "💡" };
   return (
     <div
+      ref={bannerRef}
+      id={id}
+      role={kind === "err" ? "alert" : undefined}
+      aria-live={kind === "err" ? "assertive" : undefined}
+      tabIndex={kind === "err" ? -1 : undefined}
       style={{
         display: "flex",
         gap: 10,
@@ -547,6 +590,7 @@ export function Banner({
         color: T.txt2,
         fontSize: 12,
       }}
+      {...rest}
     >
       <span aria-hidden="true" style={{ color: palette.fg }}>
         {icon || palette.ic}

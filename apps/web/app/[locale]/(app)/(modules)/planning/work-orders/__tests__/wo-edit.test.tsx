@@ -135,6 +135,8 @@ function makeWo(over: Partial<Wo> = {}): Wo {
     scheduledStartTime: '2026-07-05T00:00:00.000Z',
     scheduledEndTime: null,
     productionLineId: 'line-1',
+    productionLineCode: 'L1',
+    productionLineName: 'Line One',
     priority: 'normal',
     sourceOfDemand: 'manual',
     sourceReference: null,
@@ -172,6 +174,7 @@ const fgRow: FgProductOption = {
 
 function renderDetail(over: {
   wo?: Wo;
+  resources?: ProductionResources;
   update?: ReturnType<typeof vi.fn>;
   deleteDraft?: ReturnType<typeof vi.fn>;
   release?: ReturnType<typeof vi.fn>;
@@ -185,7 +188,7 @@ function renderDetail(over: {
       workOrder={over.wo ?? makeWo()}
       labels={labels}
       locale="en"
-      resources={resources}
+      resources={over.resources ?? resources}
       searchFgProductsAction={search}
       updateWorkOrderAction={update}
       deleteDraftWorkOrderAction={deleteDraft}
@@ -369,7 +372,7 @@ describe('WO detail summary — line resolves to a human label, never a raw UUID
     renderDetail();
     const summary = screen.getByTestId('wo-detail-summary');
     // resources.lines = [{ id: 'line-1', code: 'L1', name: 'Line One' }]; makeWo().productionLineId === 'line-1'.
-    expect(within(summary).getByText('L1')).toBeInTheDocument();
+    expect(within(summary).getByText('L1 — Line One')).toBeInTheDocument();
     // The raw UUID must NOT leak into the rendered Line cell.
     expect(within(summary).queryByText('line-1')).not.toBeInTheDocument();
   });
@@ -380,10 +383,34 @@ describe('WO detail summary — line resolves to a human label, never a raw UUID
     expect(within(summary).getAllByText('—').length).toBeGreaterThan(0);
   });
 
-  it('shows the raw id only when the line is not in the loaded resources (honest fallback)', () => {
-    renderDetail({ wo: makeWo({ productionLineId: 'unknown-line-xyz' }) });
+  it('shows an 8-char prefix when the line is not in resources and the server join has no code', () => {
+    const lineUuid = '9a9d4be6-cda1-45ea-a1e0-5f7ded346c76';
+    renderDetail({
+      wo: makeWo({
+        productionLineId: lineUuid,
+        productionLineCode: null,
+        productionLineName: null,
+      }),
+      resources: { lines: [], machines: [] },
+    });
     const summary = screen.getByTestId('wo-detail-summary');
-    expect(within(summary).getByText('unknown-line-xyz')).toBeInTheDocument();
+    expect(within(summary).getByText('9a9d4be6')).toBeInTheDocument();
+    expect(within(summary).queryByText(lineUuid)).not.toBeInTheDocument();
+  });
+
+  it('prefers server-joined line code when resources.lines is site-filtered (F07-04)', () => {
+    const lineUuid = '9a9d4be6-cda1-45ea-a1e0-5f7ded346c76';
+    renderDetail({
+      wo: makeWo({
+        productionLineId: lineUuid,
+        productionLineCode: 'LINE01',
+        productionLineName: 'Tester line',
+      }),
+      resources: { lines: [], machines: [] },
+    });
+    const summary = screen.getByTestId('wo-detail-summary');
+    expect(within(summary).getByText('LINE01 — Tester line')).toBeInTheDocument();
+    expect(within(summary).queryByText(lineUuid)).not.toBeInTheDocument();
   });
 });
 

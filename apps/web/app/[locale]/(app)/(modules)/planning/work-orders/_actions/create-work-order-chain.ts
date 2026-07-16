@@ -502,6 +502,8 @@ async function loadWorkOrderByNumber(ctx: OrgActionContext, woNumber: string): P
     scheduledStartTime: row.scheduled_start_time,
     scheduledEndTime: row.scheduled_end_time,
     productionLineId: row.production_line_id,
+    productionLineCode: null,
+    productionLineName: null,
     priority: row.priority,
     sourceOfDemand: row.source_of_demand,
     sourceReference: row.source_reference,

@@ -164,6 +164,16 @@ export default async function CalibrationRegisterPage({ params }: PageProps) {
         <p className="mt-2 max-w-3xl text-sm text-slate-600">{t('list.subtitle')}</p>
       </header>
 
+      <nav aria-label="Maintenance navigation" className="flex flex-wrap gap-2">
+        <Link
+          href={`/${locale}/maintenance/assets`}
+          prefetch={false}
+          className="inline-flex rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-950 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+        >
+          Assets
+        </Link>
+      </nav>
+
       <CalibrationRegisterClient
         rows={rows}
         instruments={instruments}

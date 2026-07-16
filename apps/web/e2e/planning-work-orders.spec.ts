@@ -72,4 +72,22 @@ test.describe('Work Orders list + create + detail parity (wo-list.jsx / wo-detai
     await expect(page.getByTestId('wo-d365-not-live')).toBeVisible();
     await page.screenshot({ path: path.join(evidenceDir, 'wo-detail-not-live.png'), fullPage: true });
   });
+
+  test('detail: Line summary shows code/name, never a raw UUID (F07-04 / C039)', async ({ page }) => {
+    await page.goto(`${baseURL}${listRoute}`);
+    const firstLink = page.locator('[data-testid^="wo-link-"]').first();
+    await firstLink.click();
+
+    const summary = page.getByTestId('wo-detail-summary');
+    await expect(summary).toBeVisible();
+    const lineCell = summary.locator('dt', { hasText: /^Line$/i }).locator('xpath=following-sibling::dd[1]');
+    await expect(lineCell).toBeVisible();
+    const lineText = (await lineCell.textContent())?.trim() ?? '';
+    expect(lineText).not.toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    if (lineText !== '—') {
+      expect(lineText.length).toBeLessThan(36);
+    }
+  });
 });

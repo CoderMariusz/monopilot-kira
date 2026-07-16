@@ -680,7 +680,9 @@ export function VersionSaveModal({
         setError(t('forbidden'));
       } else if (result.error === 'conflict') {
         setError(t('conflict'));
-      } else if (result.error === 'validation_failed') {
+      } else if (result.error === 'validation_failed' || result.error === 'invalid_state') {
+        setError(result.message ?? t('saveError'));
+      } else if (result.error === 'persistence_failed') {
         setError(result.message ?? t('saveError'));
       } else {
         setError(t('saveError'));

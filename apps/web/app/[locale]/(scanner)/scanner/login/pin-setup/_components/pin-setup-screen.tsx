@@ -8,7 +8,7 @@
 // to ../login.
 // ============================================================
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -35,6 +35,12 @@ export function PinSetupScreen({ locale, labels }: { locale: string; labels: Sca
   const [firstPin, setFirstPin] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const errBannerRef = useRef<HTMLDivElement | null>(null);
+  const errId = useId();
+
+  useEffect(() => {
+    if (err) errBannerRef.current?.focus();
+  }, [err]);
 
   const validatePolicy = (p: string): string | null => {
     if (p.length < MIN_LEN) return L.errMinLen.replace("{min}", String(MIN_LEN));
@@ -121,7 +127,12 @@ export function PinSetupScreen({ locale, labels }: { locale: string; labels: Sca
               placeholder={L.emailPlaceholder}
               inputMode="email"
               autoComplete="username"
-              style={fieldInputStyle}
+              aria-invalid={err ? true : undefined}
+              aria-describedby={err ? errId : undefined}
+              style={{
+                ...fieldInputStyle,
+                borderColor: err ? T.red : T.elev,
+              }}
             />
             <label htmlFor="pin-setup-password" style={{ ...fieldLabelStyle, marginTop: 12 }}>
               {L.passwordLabel}
@@ -133,7 +144,12 @@ export function PinSetupScreen({ locale, labels }: { locale: string; labels: Sca
               onChange={(e) => setPassword(e.target.value)}
               placeholder={L.passwordPlaceholder}
               autoComplete="current-password"
-              style={fieldInputStyle}
+              aria-invalid={err ? true : undefined}
+              aria-describedby={err ? errId : undefined}
+              style={{
+                ...fieldInputStyle,
+                borderColor: err ? T.red : T.elev,
+              }}
             />
           </div>
         )}
@@ -141,7 +157,10 @@ export function PinSetupScreen({ locale, labels }: { locale: string; labels: Sca
         <div style={{ padding: "16px 16px 8px", textAlign: "center" }}>
           <div style={{ fontSize: 13, color: T.mute, marginBottom: 8 }}>{hint}</div>
           <div
+            role="group"
             aria-label={title}
+            aria-invalid={err ? true : undefined}
+            aria-describedby={err ? errId : undefined}
             style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 6 }}
           >
             {Array.from({ length: MAX_LEN }).map((_, i) => (
@@ -186,13 +205,19 @@ export function PinSetupScreen({ locale, labels }: { locale: string; labels: Sca
             ⌫
           </button>
         </div>
-
-        {err && (
-          <Banner kind="err" title={err}>
-            {" "}
-          </Banner>
-        )}
       </div>
+
+      {err ? (
+        <Banner
+          id={errId}
+          kind="err"
+          title={err}
+          bannerRef={errBannerRef}
+          style={{ flexShrink: 0, margin: "0 0 4px" }}
+        >
+          {" "}
+        </Banner>
+      ) : null}
 
       <div
         style={{

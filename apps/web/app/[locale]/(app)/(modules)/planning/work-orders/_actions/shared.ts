@@ -63,6 +63,8 @@ export type WOHeader = {
   scheduledStartTime: string | null;
   scheduledEndTime: string | null;
   productionLineId: string | null;
+  productionLineCode: string | null;
+  productionLineName: string | null;
   priority: string;
   sourceOfDemand: string;
   sourceReference: string | null;
@@ -303,6 +305,8 @@ export function mapWoHeader(row: WorkOrderRow): WOHeader {
     scheduledStartTime: toNullableIso(row.scheduled_start_time),
     scheduledEndTime: toNullableIso(row.scheduled_end_time),
     productionLineId: row.production_line_id,
+    productionLineCode: row.production_line_code ?? null,
+    productionLineName: row.production_line_name ?? null,
     priority: row.priority,
     sourceOfDemand: row.source_of_demand,
     sourceReference: row.source_reference,
@@ -433,6 +437,8 @@ export type WorkOrderRow = {
   scheduled_start_time: Date | string | null;
   scheduled_end_time: Date | string | null;
   production_line_id: string | null;
+  production_line_code?: string | null;
+  production_line_name?: string | null;
   priority: string;
   source_of_demand: string;
   source_reference: string | null;

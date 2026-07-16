@@ -627,6 +627,7 @@
       "fieldBarcodeHelp": "Auto-generated if blank — for location QR / Code128 printing",
       "upsertSuccess": "Location saved.",
       "upsertError": "Location save failed.",
+      "duplicateCodeError": "Lokalizacja o tym kodzie już istnieje w tym magazynie.",
       "deleteSuccess": "Location deleted.",
       "deleteError": "Location delete failed.",
       "deleteHasChildren": "Delete child locations first.",

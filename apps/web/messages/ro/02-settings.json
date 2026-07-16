@@ -627,6 +627,7 @@
       "fieldBarcodeHelp": "Generat automat dacă este gol — pentru tipărirea codului QR / Code128 al locației",
       "upsertSuccess": "Locație salvată.",
       "upsertError": "Salvarea locației a eșuat.",
+      "duplicateCodeError": "O locație cu acest cod există deja în acest depozit.",
       "deleteSuccess": "Locație ștearsă.",
       "deleteError": "Ștergerea locației a eșuat.",
       "deleteHasChildren": "Ștergeți mai întâi locațiile copil.",

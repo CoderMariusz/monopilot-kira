@@ -39,7 +39,8 @@ const LABELS: ChangeoverTableLabels = {
 const ROWS: ChangeoverEventRow[] = [
   {
     id: 'c1',
-    lineId: 'LINE-04',
+    lineId: '9a9d4be6-cda1-45ea-a1e0-5f7ded346c76',
+    lineLabel: 'LINE-04',
     woFromNumber: 'WO-2026-0041',
     woToNumber: 'WO-2026-0046',
     allergenFrom: [],
@@ -60,6 +61,8 @@ describe('Changeover events (parity: other-screens.jsx:298-397)', () => {
     expect(screen.getByTestId('production-changeover-risk-c1')).toHaveTextContent('Medium');
     expect(screen.getByTestId('production-changeover-signoff-c1')).toHaveTextContent('Pending');
     const table = screen.getByTestId('production-changeover-table');
+    expect(within(table).getByText('LINE-04')).toBeInTheDocument();
+    expect(within(table).queryByText('9a9d4be6-cda1-45ea-a1e0-5f7ded346c76')).not.toBeInTheDocument();
     expect(within(table).getByText('gluten')).toBeInTheDocument();
     expect(within(table).getByText('celery')).toBeInTheDocument();
     expect(within(table).getByText('WO-2026-0041 → WO-2026-0046')).toBeInTheDocument();

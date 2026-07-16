@@ -128,6 +128,14 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
         const parent = parentId ? client.locations.get(parentId) : null;
         const warehouseId = params.map(String).includes(OTHER_WAREHOUSE_ID) ? OTHER_WAREHOUSE_ID : WAREHOUSE_ID;
         const code = String(params.find((value) => typeof value === 'string' && /bin|aisle|zone|rack/i.test(value)) ?? 'BIN-NEW');
+        const duplicate = Array.from(client.locations.values()).some(
+          (location) => location.warehouse_id === warehouseId && location.code === code,
+        );
+        if (duplicate && normalized.startsWith('insert into public.locations')) {
+          const error = new Error('duplicate key value violates unique constraint "locations_org_wh_code_key"') as Error & { code: string };
+          error.code = '23505';
+          throw error;
+        }
         const explicitLevel = Number(params.find((value) => typeof value === 'number'));
         const level = Number.isInteger(explicitLevel) ? explicitLevel : (parent?.level ?? 0) + 1;
         const row = { id, warehouse_id: warehouseId, parent_id: parentId, code, level, path: parent ? `${parent.path}.${code}` : code };
@@ -311,6 +319,30 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     expect(created).toMatchObject({ ok: true, data: { level: 3, path: 'ZONE-A.AISLE-01.RACK-02' } });
     expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.location.upserted')).toBe(true);
     expect(currentClient.calls.some((call) => call.sql.includes('app.current_org_id()'))).toBe(true);
+  });
+
+  it('maps a per-warehouse duplicate location code to duplicate_code (C016)', async () => {
+    const upsertLocation = await loadAction<
+      (input: {
+        warehouseId: string;
+        parentId: string | null;
+        code: string;
+        name: string;
+        level: number;
+        locationType: string;
+      }) => Promise<{ ok: boolean; error?: string }>
+    >('location.ts', 'upsertLocation', () => import(`${__dirname}/location.ts`) as Promise<Record<string, unknown>>);
+
+    await expect(
+      upsertLocation({
+        warehouseId: WAREHOUSE_ID,
+        parentId: null,
+        code: 'ZONE-A',
+        name: 'Duplicate zone code',
+        level: 1,
+        locationType: 'storage',
+      }),
+    ).resolves.toMatchObject({ ok: false, error: 'duplicate_code' });
   });
 
   it('deletes a leaf location through settings.infra.update, rejects parent locations with children, and emits outbox', async () => {

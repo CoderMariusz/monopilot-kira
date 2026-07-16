@@ -34,6 +34,7 @@ import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@monopilot/ui/Tabs';
 
+import { resolveProductionLineLabel } from '../../../../../../../lib/production/resolve-line-label';
 import { WoStatusBadge } from './wo-status-badge';
 import { EditWoModal, type EditWoLabels, type EditWoResult } from './edit-wo-modal';
 import type { DeleteDraftWorkOrderResult, GetPlanningWorkOrderResult, CancelWorkOrderChainResult, ReleaseWorkOrderResult } from '../_actions/shared';
@@ -173,14 +174,16 @@ export function WoDetailView({
   const wo = workOrder;
   const statusLabel = (s: string) => labels.status[s.toLowerCase()] ?? s;
 
-  // UUID→name: the summary "Line" field must show the production-line CODE (parity:
-  // wo-detail.jsx:60 renders {w.lineCode}, and the WO list view already resolves the
-  // id via resources.lines). Without this the raw production_line_id UUID leaked into
-  // the summary. Honest fallback: the id itself when the line isn't in the loaded
-  // resources (e.g. a deactivated line), and '—' when the WO has no line.
-  const lineLabel = wo.productionLineId
-    ? resources?.lines.find((l) => l.id === wo.productionLineId)?.code ?? wo.productionLineId
-    : '—';
+  // UUID→name: summary "Line" must show production-line code/name (parity: wo-detail.jsx:60).
+  // Server join supplies code/name even when resources.lines is site-filtered (C039 / F07-04).
+  const resourceLine = wo.productionLineId
+    ? resources?.lines.find((l) => l.id === wo.productionLineId)
+    : undefined;
+  const lineLabel = resolveProductionLineLabel({
+    lineCode: wo.productionLineCode ?? resourceLine?.code ?? null,
+    lineName: wo.productionLineName ?? resourceLine?.name ?? null,
+    lineId: wo.productionLineId,
+  });
 
   // Wave R1 — DRAFT edit affordance. Gated on status===DRAFT AND the seams wired.
   // Keep the wiring checks INLINE on the render guard below so TS narrows the

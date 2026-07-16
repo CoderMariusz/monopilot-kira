@@ -65,6 +65,10 @@ vi.mock('next-intl/server', () => ({
       deleteSuccess: 'Location deleted.',
       deleteError: 'Location delete failed.',
       deleteHasChildren: 'Delete child locations first.',
+      duplicateCodeError: 'A location with this code already exists in this warehouse.',
+      binOccupancyTitle: 'Bin occupancy',
+      noBinsTitle: 'No bins in this zone',
+      noLpsAtLocation: 'No LPs at this location.',
     };
     return Object.entries(values ?? {}).reduce(
       (label, [name, value]) => label.replace(`{${name}}`, String(value)),
@@ -531,5 +535,57 @@ describe('UI-SET-002 locations modal CRUD parity RED', () => {
     expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /\+ child/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('surfaces duplicate_code from upsertLocation instead of the generic save failure (C016)', async () => {
+    const user = userEvent.setup();
+    const upsertLocation = vi.fn(async () => ({ ok: false as const, error: 'duplicate_code' as const }));
+    await renderLocationModalCrud({ canUpdateInfra: true, upsertLocation });
+
+    await user.click(screen.getByRole('button', { name: /\+ add location/i }));
+    const dialog = currentDialog();
+    await user.type(within(dialog).getByLabelText(/code/i), 'DUP-01');
+    await user.type(within(dialog).getByLabelText(/^name/i), 'Duplicate test');
+    await user.click(within(dialog).getByRole('button', { name: /create location/i }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/already exists in this warehouse/i);
+    expect(within(dialog).queryByText(/^location save failed\.$/i)).not.toBeInTheDocument();
+  });
+
+  it('shows bin occupancy for zones but not for bin leaves in 3-tier and 2-tier hierarchies (C017)', async () => {
+    const user = userEvent.setup();
+    const threeTierLocations: LocationRow[] = [
+      { id: 'root-apex', warehouseId: 'wh-apex', warehouseCode: 'APEX', warehouseName: 'Apex Dairy Warehouse', parentId: null, name: 'Apex Dairy Warehouse', level: 1, path: 'apex' },
+      { id: 'zone-empty', warehouseId: 'wh-apex', warehouseCode: 'APEX', warehouseName: 'Apex Dairy Warehouse', parentId: 'root-apex', name: 'Empty Zone', level: 2, path: 'apex.z-empty' },
+      { id: 'bin-a02-01', warehouseId: 'wh-apex', warehouseCode: 'APEX', warehouseName: 'Apex Dairy Warehouse', parentId: 'zone-empty', name: 'A02 Bin 01', level: 3, path: 'apex.z-empty.b01' },
+    ];
+    await renderLocationModalCrud({
+      canUpdateInfra: true,
+      locations: threeTierLocations,
+      searchParams: { selectedLocationId: 'zone-empty' },
+    });
+
+    expect(screen.getByRole('heading', { name: /bin occupancy/i })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: /selected location/i })).getByText(/empty zone/i)).toBeInTheDocument();
+
+    const tree = screen.getByRole('tree', { name: /location tree/i });
+    const binTreeItem = within(tree).getByText('A02 Bin 01').closest('[role="treeitem"]');
+    await user.click(binTreeItem as HTMLElement);
+    expect(screen.queryByRole('heading', { name: /bin occupancy/i })).not.toBeInTheDocument();
+
+    cleanup();
+    const twoTierLocations: LocationRow[] = [
+      { id: 'zone-r02', warehouseId: 'wh-apex', warehouseCode: 'APEX', warehouseName: 'Apex Dairy Warehouse', parentId: null, name: 'SOL-R02 Zone', level: 1, path: 'sol-zone' },
+      { id: 'bin-r02', warehouseId: 'wh-apex', warehouseCode: 'APEX', warehouseName: 'Apex Dairy Warehouse', parentId: 'zone-r02', name: 'SOL-R02 Bin', level: 2, path: 'sol-zone.bin' },
+    ];
+    await renderLocationModalCrud({
+      canUpdateInfra: true,
+      locations: twoTierLocations,
+      searchParams: { selectedLocationId: 'bin-r02' },
+    });
+
+    expect(screen.queryByText(/no bins in this zone/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /bin occupancy/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/no lps at this location/i)).toBeInTheDocument();
   });
 });

@@ -28,6 +28,9 @@ const loadBundleMock = vi.fn();
 const createFactorySpecMock = vi.fn();
 const submitForReviewMock = vi.fn();
 const linkBomMock = vi.fn();
+const updateFactorySpecMock = vi.fn();
+const deleteFactorySpecMock = vi.fn();
+const saveFactorySpecVersionMock = vi.fn();
 const refreshMock = vi.fn();
 
 vi.mock('next/navigation', () => ({
@@ -50,6 +53,11 @@ vi.mock('../../actions/create-factory-spec', () => ({
 vi.mock('../../actions/factory-spec-flow', () => ({
   submitFactorySpecForReview: (...args: unknown[]) => submitForReviewMock(...args),
   linkFactorySpecBom: (...args: unknown[]) => linkBomMock(...args),
+}));
+vi.mock('../../actions/factory-spec-lifecycle', () => ({
+  updateFactorySpec: (...args: unknown[]) => updateFactorySpecMock(...args),
+  deleteFactorySpec: (...args: unknown[]) => deleteFactorySpecMock(...args),
+  saveFactorySpecVersion: (...args: unknown[]) => saveFactorySpecVersionMock(...args),
 }));
 vi.mock('../../../../../../../(npd)/fa/actions/search-items', () => ({
   searchItems: vi.fn(),
@@ -101,6 +109,7 @@ const baseSpec: FactorySpecListItem = {
   bomStatus: 'in_review',
   d365ItemId: null,
   fgNpdProjectId: null,
+  notes: 'Shelf-life review notes',
   updatedAt: '2026-04-30T11:22:00.000Z',
 };
 
@@ -184,12 +193,20 @@ describe('T-060 FactorySpecRowActions review modal', () => {
     expect(screen.getByText('Release status')).toBeInTheDocument();
     expect(screen.getByText('Paired BOM')).toBeInTheDocument();
     expect(screen.getByText('BOM v8')).toBeInTheDocument();
+    expect(screen.getByText('Shelf-life review notes')).toBeInTheDocument();
     // Pending paired BOM → the G4-alone note is shown.
     expect(
       screen.getByText(/Gate-4 alone does not unlock factory use/i),
     ).toBeInTheDocument();
     // FA-* legacy id must NOT appear.
     expect(screen.queryByText(/FA5101|SP-0421/)).not.toBeInTheDocument();
+  });
+
+  it('exposes edit, save version, and delete actions for draft/in_review specs', () => {
+    render(React.createElement(FactorySpecRowActions, { spec: baseSpec, canApprove: true, reviewLabel: 'Review' }));
+    expect(screen.getByTestId(`factory-spec-edit-${baseSpec.id}`)).toHaveTextContent('Edit');
+    expect(screen.getByTestId(`factory-spec-save-version-${baseSpec.id}`)).toHaveTextContent('Save version');
+    expect(screen.getByTestId(`factory-spec-delete-${baseSpec.id}`)).toHaveTextContent('Delete');
   });
 
   it('shows the clone-on-write warning for an approved (immutable) version', () => {

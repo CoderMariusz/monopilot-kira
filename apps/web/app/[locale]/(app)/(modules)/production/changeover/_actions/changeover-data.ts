@@ -11,6 +11,7 @@
  * server-side on `production.oee.read` (migration 185) like the dashboard loader.
  */
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { resolveProductionLineLabel } from '../../../../../../../lib/production/resolve-line-label';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -34,6 +35,8 @@ export type SignOffStatus = 'pending' | 'first_signed' | 'complete' | string;
 export type ChangeoverEventRow = {
   id: string;
   lineId: string;
+  /** Resolved display label (code/name); never a raw line UUID. */
+  lineLabel: string;
   woFromNumber: string | null;
   woToNumber: string | null;
   allergenFrom: string[];
@@ -106,6 +109,8 @@ export async function getChangeoverScreen(): Promise<ChangeoverScreenResult> {
       const eventsRes = await c.query<{
         id: string;
         line_id: string;
+        line_code: string | null;
+        line_name: string | null;
         wo_from_number: string | null;
         wo_to_number: string | null;
         allergen_from: string[] | null;
@@ -119,6 +124,8 @@ export async function getChangeoverScreen(): Promise<ChangeoverScreenResult> {
       }>(
         `select ce.id::text as id,
                 ce.line_id,
+                pl.code as line_code,
+                pl.name as line_name,
                 wf.wo_number as wo_from_number,
                 wt.wo_number as wo_to_number,
                 ce.allergen_from,
@@ -130,6 +137,9 @@ export async function getChangeoverScreen(): Promise<ChangeoverScreenResult> {
                 ce.atp_required,
                 ce.dual_sign_off_status
            from public.changeover_events ce
+           left join public.production_lines pl
+             on pl.org_id = ce.org_id
+            and pl.id = ce.line_id
            left join public.work_orders wf
              on wf.id = ce.wo_from_id and wf.org_id = ce.org_id
            left join public.work_orders wt
@@ -141,6 +151,11 @@ export async function getChangeoverScreen(): Promise<ChangeoverScreenResult> {
       const events: ChangeoverEventRow[] = eventsRes.rows.map((r) => ({
         id: r.id,
         lineId: r.line_id,
+        lineLabel: resolveProductionLineLabel({
+          lineCode: r.line_code,
+          lineName: r.line_name,
+          lineId: r.line_id,
+        }),
         woFromNumber: r.wo_from_number,
         woToNumber: r.wo_to_number,
         allergenFrom: Array.isArray(r.allergen_from) ? r.allergen_from : [],

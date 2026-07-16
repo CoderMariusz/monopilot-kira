@@ -39,6 +39,8 @@ describe('getPlanningWorkOrder', () => {
                 scheduled_start_time: null,
                 scheduled_end_time: null,
                 production_line_id: null,
+                production_line_code: null,
+                production_line_name: null,
                 priority: 'normal',
                 source_of_demand: 'manual',
                 source_reference: 'FG-NPD-004',
@@ -153,6 +155,8 @@ describe('getPlanningWorkOrder', () => {
     expect(result.workOrder).toEqual(
       expect.objectContaining({
         id: WO_ID,
+        productionLineCode: null,
+        productionLineName: null,
         qtyEntered: null,
         qtyEnteredUom: null,
         uomSnapshot: null,
@@ -174,5 +178,58 @@ describe('getPlanningWorkOrder', () => {
     client.query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
 
     await expect(getPlanningWorkOrder({ id: WO_ID })).resolves.toEqual({ ok: false, error: 'not_found' });
+  });
+
+  it('joins production_lines for human-readable line labels (C039)', async () => {
+    const lineId = '9a9d4be6-cda1-45ea-a1e0-5f7ded346c76';
+    client.query = vi.fn(async (sql: string) => {
+      const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
+      if (normalized.includes('from public.work_orders wo')) {
+        expect(normalized).toContain('left join public.production_lines pl');
+        return {
+          rows: [
+            {
+              id: WO_ID,
+              wo_number: 'WO-pilot-FG-016',
+              product_id: PRODUCT_ID,
+              item_code: 'FG-016',
+              item_type_at_creation: 'fg',
+              planned_quantity: '200.000',
+              produced_quantity: null,
+              uom: 'kg',
+              status: 'RELEASED',
+              scheduled_start_time: '2026-07-12T00:00:00.000Z',
+              scheduled_end_time: null,
+              production_line_id: lineId,
+              production_line_code: 'LINE01',
+              production_line_name: 'Tester line',
+              priority: 'normal',
+              source_of_demand: 'manual',
+              source_reference: null,
+              notes: null,
+              qty_entered: null,
+              qty_entered_uom: null,
+              uom_snapshot: null,
+              active_bom_header_id: null,
+              active_bom_version: null,
+              active_factory_spec_id: null,
+              active_factory_spec_version: null,
+              active_factory_spec_code: null,
+              created_at: '2026-06-09T07:00:00.000Z',
+              updated_at: '2026-06-09T07:00:00.000Z',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await getPlanningWorkOrder({ id: WO_ID });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.workOrder.productionLineCode).toBe('LINE01');
+    expect(result.workOrder.productionLineName).toBe('Tester line');
+    expect(result.workOrder.productionLineId).toBe(lineId);
   });
 });

@@ -32,6 +32,7 @@ import {
   isPgError,
   type OrgActionContext,
   type QueryClient,
+  formatBomNumeric,
   formatRmUsabilityFailures,
   validateBomLineRmUsability,
   validateBomManufacturingOperationNames,
@@ -202,12 +203,19 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
       let version: number;
 
       if (input.sourceBomHeaderId) {
-        const { rows: sourceHeaderRows } = await c.query<{ parent_item_code: string }>(
-          `select i.item_code as parent_item_code
+        const { rows: sourceHeaderRows } = await c.query<{
+          parent_item_code: string;
+          status: string;
+          version: number;
+        }>(
+          `select i.item_code as parent_item_code,
+                  header.status,
+                  header.version
              from public.bom_headers header
              join public.items i on i.id = header.item_id and i.org_id = header.org_id
             where header.org_id = app.current_org_id()
-              and header.id = $1::uuid`,
+              and header.id = $1::uuid
+            for update`,
           [input.sourceBomHeaderId],
         );
         const sourceHeader = sourceHeaderRows[0];
@@ -220,47 +228,107 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
           };
         }
 
-        const edit = await callBomRequestVersionEdit(c, {
-          sourceBomHeaderId: input.sourceBomHeaderId,
-          requestedBy: userId,
-          notes: input.notes ?? null,
-        });
-        if (!edit) return { ok: false, error: 'persistence_failed' };
-        headerId = edit.bom_header_id;
-        version = edit.version;
+        if (['draft', 'in_review'].includes(sourceHeader.status)) {
+          await c.query(
+            `select pg_advisory_xact_lock(hashtextextended($1::text || ':bom-draft-version:' || $2::text, 0))`,
+            [orgId, parentItem.id],
+          );
 
-        const { rows: lockedDraftRows } = await c.query<{ id: string }>(
-          `select header.id
-             from public.bom_headers header
-            where header.org_id = app.current_org_id()
-              and header.id = $1::uuid
-            for update`,
-          [headerId],
-        );
-        if (!lockedDraftRows[0]) return { ok: false, error: 'persistence_failed' };
+          const { rows: verRows } = await c.query<{ next_version: number }>(
+            `select coalesce(max(version), 0) + 1 as next_version
+               from public.bom_headers
+              where org_id = app.current_org_id()
+                and item_id = $1::uuid`,
+            [parentItem.id],
+          );
+          version = Number(verRows[0]?.next_version ?? sourceHeader.version + 1);
 
-        await c.query(
-          `update public.bom_headers header
-              set yield_pct = $2::numeric,
-                  effective_from = coalesce($3::date, header.effective_from),
-                  notes = coalesce($4, header.notes),
-                  bom_type = $5
-            where header.org_id = app.current_org_id()
-              and header.id = $1::uuid`,
-          [headerId, input.yieldPct, input.effectiveFrom ?? null, input.notes ?? null, input.bom_type],
-        );
-        await c.query(
-          `delete from public.bom_lines line
-            where line.org_id = app.current_org_id()
-              and line.bom_header_id = $1::uuid`,
-          [headerId],
-        );
-        await c.query(
-          `delete from public.bom_co_products cp
-            where cp.org_id = app.current_org_id()
-              and cp.bom_header_id = $1::uuid`,
-          [headerId],
-        );
+          const { rows: headerRows } = await c.query<{ id: string }>(
+            `insert into public.bom_headers
+               (org_id, product_id, item_id, origin_module, status, version, supersedes_bom_header_id,
+                yield_pct, effective_from, notes, created_by_user, app_version, bom_type)
+             values
+               (app.current_org_id(), $1, $2::uuid, 'technical', 'draft', $3, $4::uuid,
+                $5::numeric, coalesce($6::date, current_date), $7, $8::uuid, 'technical-bom-v1', $9)
+             returning id`,
+            [
+              headerProductId,
+              parentItem.id,
+              version,
+              input.sourceBomHeaderId,
+              formatBomNumeric(input.yieldPct ?? 100),
+              input.effectiveFrom ?? null,
+              input.notes ?? null,
+              userId,
+              input.bom_type,
+            ],
+          );
+          headerId = headerRows[0]?.id ?? '';
+          if (!headerId) return { ok: false, error: 'persistence_failed' };
+
+          await c.query(
+            `update public.bom_headers header
+                set status = 'archived',
+                    effective_to = coalesce(header.effective_to, current_date)
+              where header.org_id = app.current_org_id()
+                and header.id = $1::uuid`,
+            [input.sourceBomHeaderId],
+          );
+        } else if (['technical_approved', 'active'].includes(sourceHeader.status)) {
+          const edit = await callBomRequestVersionEdit(c, {
+            sourceBomHeaderId: input.sourceBomHeaderId,
+            requestedBy: userId,
+            notes: input.notes ?? null,
+          });
+          if (!edit) return { ok: false, error: 'persistence_failed' };
+          headerId = edit.bom_header_id;
+          version = edit.version;
+
+          const { rows: lockedDraftRows } = await c.query<{ id: string }>(
+            `select header.id
+               from public.bom_headers header
+              where header.org_id = app.current_org_id()
+                and header.id = $1::uuid
+              for update`,
+            [headerId],
+          );
+          if (!lockedDraftRows[0]) return { ok: false, error: 'persistence_failed' };
+
+          await c.query(
+            `update public.bom_headers header
+                set yield_pct = $2::numeric,
+                    effective_from = coalesce($3::date, header.effective_from),
+                    notes = coalesce($4, header.notes),
+                    bom_type = $5
+              where header.org_id = app.current_org_id()
+                and header.id = $1::uuid`,
+            [
+              headerId,
+              formatBomNumeric(input.yieldPct ?? 100),
+              input.effectiveFrom ?? null,
+              input.notes ?? null,
+              input.bom_type,
+            ],
+          );
+          await c.query(
+            `delete from public.bom_lines line
+              where line.org_id = app.current_org_id()
+                and line.bom_header_id = $1::uuid`,
+            [headerId],
+          );
+          await c.query(
+            `delete from public.bom_co_products cp
+              where cp.org_id = app.current_org_id()
+                and cp.bom_header_id = $1::uuid`,
+            [headerId],
+          );
+        } else {
+          return {
+            ok: false,
+            error: 'invalid_state',
+            message: `BOM version is ${sourceHeader.status} and cannot be saved as a new draft version`,
+          };
+        }
       } else {
         // ── version = previous_max + 1 (org + product scoped) ──────────────────────
         const { rows: verRows } = await c.query<{ next_version: number }>(
@@ -282,7 +350,7 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
             headerProductId,
             parentItem.id,
             version,
-            input.yieldPct,
+            formatBomNumeric(input.yieldPct ?? 100),
             input.effectiveFrom ?? null,
             input.notes ?? null,
             userId,
@@ -307,9 +375,9 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
             line.itemId ?? null,
             line.componentCode,
             line.componentType ?? null,
-            line.quantity,
+            formatBomNumeric(line.quantity),
             line.uom,
-            line.scrapPct ?? 0,
+            formatBomNumeric(line.scrapPct ?? 0),
             line.manufacturingOperationName ?? null,
             line.sequence ?? null,
             line.isPhantom ?? false,
@@ -323,7 +391,14 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
              (org_id, bom_header_id, co_product_item_id, quantity, uom, allocation_pct, is_byproduct)
            values
              (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5::numeric, $6)`,
-          [headerId, cp.coProductItemId, cp.quantity, cp.uom, cp.allocationPct, cp.isByproduct ?? false],
+          [
+            headerId,
+            cp.coProductItemId,
+            formatBomNumeric(cp.quantity),
+            cp.uom,
+            formatBomNumeric(cp.allocationPct),
+            cp.isByproduct ?? false,
+          ],
         );
       }
 
@@ -350,7 +425,13 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
     });
   } catch (err) {
     if (isPgError(err) && err.code === '23505') return { ok: false, error: 'conflict', message: 'duplicate BOM version' };
-    if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
+    if (isPgError(err) && err.code === '23514') {
+      return {
+        ok: false,
+        error: 'invalid_state',
+        message: err.message ?? 'BOM version cannot be saved in its current state',
+      };
+    }
     if (isPgError(err) && err.code === '23503') return { ok: false, error: 'invalid_input', message: 'invalid reference' };
     console.error('[technical/bom] createBomDraft persistence_failed', {
       err: err instanceof Error ? err.message : String(err),

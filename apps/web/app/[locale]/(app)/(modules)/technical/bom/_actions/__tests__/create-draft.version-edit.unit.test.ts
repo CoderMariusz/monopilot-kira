@@ -38,11 +38,14 @@ function makeClient(editCalls: { decision: string }[]): {
   const query = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
     calls.push({ sql, params });
     const n = normalize(sql);
+    if (n.includes('parent_item_code')) {
+      return {
+        rows: [{ parent_item_code: 'FG-1', status: 'active', version: 2 }],
+        rowCount: 1,
+      };
+    }
     if (n.includes('from public.bom_headers header') && n.includes('header.status')) {
       return { rows: [{ status: 'active' }], rowCount: 1 };
-    }
-    if (n.includes('parent_item_code')) {
-      return { rows: [{ parent_item_code: 'FG-1' }], rowCount: 1 };
     }
     if (n.includes('header.product_id')) {
       return { rows: [{ product_id: 'FG-1' }], rowCount: 1 };

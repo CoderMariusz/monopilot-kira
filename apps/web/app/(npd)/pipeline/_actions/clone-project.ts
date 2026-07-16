@@ -16,6 +16,14 @@ import {
   type NpdBriefOutputUnit,
 } from './_lib/materialize-npd-bom';
 import { parseOptionalRetailPriceEur } from './_lib/retail-price-eur';
+import {
+  parseFutureTargetLaunch,
+  parseOptionalPackWeightG,
+  parseOptionalPacksPerCase,
+  parseRequiredRunsPerWeek,
+  parseRequiredWeeklyVolumePacks,
+  todayIsoDateUtc,
+} from './_lib/wizard-basics-validation';
 
 /**
  * cloneProject — create a NEW NPD project seeded from an EXISTING one.
@@ -334,13 +342,22 @@ function parseCloneInput(rawInput: unknown): CloneProjectInput | null {
   const marketingClaims = trimOptionalString(raw.marketingClaims, 600);
   const constraints = trimOptionalString(raw.constraints, 2000);
   const notes = trimOptionalString(raw.notes, 2000);
-  const targetLaunch = parseOptionalDate(raw.targetLaunch);
+  const targetLaunch =
+    raw.targetLaunch === undefined
+      ? null
+      : parseFutureTargetLaunch(raw.targetLaunch, todayIsoDateUtc());
   const targetRetailPriceEur = parseOptionalRetailPriceEur(raw.targetRetailPriceEur);
-  const packWeightG = parseOptionalNonNeg(raw.packWeightG);
-  const packsPerCase = parseOptionalNonNegInteger(raw.packsPerCase);
+  const packWeightG =
+    raw.packWeightG === undefined ? null : parseOptionalPackWeightG(raw.packWeightG);
+  const packsPerCase =
+    raw.packsPerCase === undefined ? null : parseOptionalPacksPerCase(raw.packsPerCase);
   const outputUnit = parseOptionalOutputUnit(raw.outputUnit);
-  const weeklyVolumePacks = parseOptionalNonNeg(raw.weeklyVolumePacks);
-  const runsPerWeek = parseOptionalNonNeg(raw.runsPerWeek);
+  const weeklyVolumePacks =
+    raw.weeklyVolumePacks === undefined
+      ? null
+      : parseRequiredWeeklyVolumePacks(raw.weeklyVolumePacks);
+  const runsPerWeek =
+    raw.runsPerWeek === undefined ? null : parseRequiredRunsPerWeek(raw.runsPerWeek);
   const prio = raw.prio === undefined || raw.prio === null ? null : parsePriority(raw.prio);
 
   if (
@@ -371,31 +388,6 @@ function parseOptionalOutputUnit(value: unknown): NpdBriefOutputUnit | null | un
   if (value === undefined || value === null || value === '') return null;
   if (value === 'kg' || value === 'pieces' || value === 'boxes') return value;
   return undefined;
-}
-
-function parseOptionalDate(value: unknown): string | null | undefined {
-  if (value === undefined || value === null || value === '') return null;
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
-  return Number.isFinite(Date.parse(`${value}T00:00:00.000Z`)) ? value : undefined;
-}
-
-function parseOptionalNonNeg(value: unknown): number | null | undefined {
-  if (value === undefined || value === null || value === '') return null;
-  const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : NaN;
-  if (!Number.isFinite(n) || n < 0) return undefined;
-  return n;
-}
-
-function parseOptionalNonNegInteger(value: unknown): number | null | undefined {
-  if (value === undefined || value === null || value === '') return null;
-  const n =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string' && /^\d+$/.test(value.trim())
-        ? Number(value.trim())
-        : NaN;
-  if (!Number.isInteger(n) || n < 0) return undefined;
-  return n;
 }
 
 async function allocateProjectCode(ctx: OrgContextLike): Promise<string> {

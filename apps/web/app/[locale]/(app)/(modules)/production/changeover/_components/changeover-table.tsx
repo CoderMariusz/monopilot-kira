@@ -69,7 +69,7 @@ export function ChangeoverTable({
             return (
               <tr key={r.id} data-testid={`production-changeover-row-${r.id}`} className="border-b border-slate-100 last:border-0">
                 <td className="px-3 py-2 font-mono text-xs text-slate-600">{labels.dateFmt(r.startedAt)}</td>
-                <td className="px-3 py-2 font-mono text-slate-700">{r.lineId}</td>
+                <td className="px-3 py-2 font-mono text-slate-700">{r.lineLabel}</td>
                 <td className="px-3 py-2 font-mono text-xs text-slate-600">
                   {(r.woFromNumber ?? '—') + ' → ' + (r.woToNumber ?? '—')}
                 </td>

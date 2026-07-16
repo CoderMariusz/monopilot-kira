@@ -22,6 +22,7 @@ export type PeriodSelectorLabels = {
   to: string;
   ariaLabel: string;
   periodGroupLabel: string;
+  invalidRange?: string;
 };
 
 export type PeriodSelectorProps = {
@@ -36,6 +37,7 @@ export type PeriodSelectorProps = {
   showSearchFilter?: boolean;
   ariaLabel?: string;
   testId?: string;
+  rangeError?: 'reversed' | null;
 };
 
 const PERIOD_BUTTONS: Array<{ value: ReportingPeriod; labelKey: keyof PeriodSelectorLabels }> = [
@@ -64,6 +66,7 @@ export function PeriodSelector({
   showSearchFilter = true,
   ariaLabel,
   testId = 'reporting-period-selector',
+  rangeError = null,
 }: PeriodSelectorProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -152,6 +155,15 @@ export function PeriodSelector({
                 className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
               />
             </label>
+            {rangeError === 'reversed' && labels.invalidRange ? (
+              <p
+                role="alert"
+                data-testid={`${testId}-range-error`}
+                className="md:col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+              >
+                {labels.invalidRange}
+              </p>
+            ) : null}
           </div>
         ) : null}
 

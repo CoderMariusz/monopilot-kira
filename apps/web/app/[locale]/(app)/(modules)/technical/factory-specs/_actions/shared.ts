@@ -69,6 +69,8 @@ export type FactorySpecListItem = {
   d365ItemId: string | null;
   /** Set when the FG item is linked to an NPD project — release must go via handoff. */
   fgNpdProjectId: string | null;
+  /** Free-form notes captured at create/edit; surfaced in Review. */
+  notes: string | null;
   updatedAt: string;
 };
 

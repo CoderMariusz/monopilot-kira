@@ -2,17 +2,31 @@
 
 import React from 'react';
 
+import { childBinsForZone, isLocationZone } from './location-hierarchy';
+import { mapUpsertLocationError } from './location-upsert-errors';
+import type {
+  DeleteLocationInput,
+  DeleteLocationResult,
+  LocationRow,
+  UpsertLocationInput,
+  UpsertLocationResult,
+  Warehouse,
+} from './location-types';
+
+export type {
+  DeleteLocationInput,
+  DeleteLocationResult,
+  LocationRow,
+  UpsertLocationInput,
+  UpsertLocationResult,
+  Warehouse,
+} from './location-types';
+
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, type SelectOption } from '@monopilot/ui/Select';
 
-export type Warehouse = { id: string; code: string; name: string };
-export type LocationRow = { id: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean; warehouseCode?: string | null; warehouseName?: string | null; siteCode?: string | null; siteName?: string | null; lpCount?: number };
-export type UpsertLocationInput = { id?: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; locationType: string; active?: boolean; barcode?: string | null };
-export type UpsertLocationResult = { ok: true; data: { id: string; path: string; level: number } } | { ok: false; error: string };
-export type DeleteLocationInput = { locationId: string; warehouseId: string };
-export type DeleteLocationResult = { ok: true; data: { locationId: string; warehouseId: string } } | { ok: false; error: string };
 export type LocationTreeLabels = {
   title: string;
   subtitle: string;
@@ -83,6 +97,7 @@ export type LocationTreeLabels = {
   fieldBarcodeHelp: string;
   upsertSuccess: string;
   upsertError: string;
+  duplicateCodeError: string;
   deleteSuccess: string;
   deleteError: string;
   deleteHasChildren: string;
@@ -170,7 +185,8 @@ export function LocationTreeScreen({
     () => warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
     [warehouses],
   );
-  const bins = selectedLocation && selectedLocation.level === 2 ? visibleRows.filter((location) => location.parentId === selectedLocation.id) : [];
+  const bins = selectedLocation ? childBinsForZone(selectedLocation, visibleRows) : [];
+  const showBinOccupancy = selectedLocation ? isLocationZone(selectedLocation, visibleRows) : false;
 
   function openDialog(mode: DialogMode, location?: LocationRow | null) {
     if (!canUpdateInfra) return;
@@ -222,7 +238,7 @@ export function LocationTreeScreen({
     };
     const result = await upsertLocation(input);
     if (!result.ok) {
-      setFormError(labels.upsertError);
+      setFormError(mapUpsertLocationError(result.error, labels));
       return;
     }
     const saved: LocationRow = { id: result.data.id, warehouseId, parentId: input.parentId, code: input.code, name: input.name, level: result.data.level, path: result.data.path, locationType: input.locationType, barcode: input.barcode ?? null, isActive: input.active ?? true };
@@ -326,7 +342,7 @@ export function LocationTreeScreen({
                 </div>
               ) : null}
 
-              {selectedLocation?.level === 2 ? <BinOccupancy labels={labels} bins={bins} canUpdateInfra={canUpdateInfra} /> : null}
+              {showBinOccupancy ? <BinOccupancy labels={labels} bins={bins} canUpdateInfra={canUpdateInfra} /> : null}
 
               <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"><h3 className="text-sm font-semibold">{labels.lpsTableTitle} (0)</h3><a href="/en/warehouse/license-plates" className="text-sm font-medium text-blue-700 hover:underline">{labels.openFullLpList}</a></div>

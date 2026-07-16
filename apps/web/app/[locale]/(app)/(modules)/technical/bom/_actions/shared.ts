@@ -91,7 +91,25 @@ export type BomActionError =
   | 'not_found'
   | 'conflict'
   | 'validation_failed'
+  | 'invalid_state'
   | 'persistence_failed';
+
+/** Max decimal places for bom_lines.quantity / scrap_pct (migration 090: numeric(14,6)). */
+export const MAX_BOM_NUMERIC_DP = 6;
+
+/** Bind BOM quantities as exact ::numeric strings — never pass float-coerced JSON numbers. */
+export function formatBomNumeric(value: number | string): string {
+  const raw = typeof value === 'number' ? value.toFixed(MAX_BOM_NUMERIC_DP) : value.trim();
+  const normalized = raw.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  if (!/^\d+(\.\d+)?$/.test(normalized)) {
+    throw new Error('quantity must be a positive decimal');
+  }
+  const dp = (normalized.split('.')[1] ?? '').length;
+  if (dp > MAX_BOM_NUMERIC_DP) {
+    throw new Error(`supports at most ${MAX_BOM_NUMERIC_DP} decimal places`);
+  }
+  return normalized;
+}
 
 // ── Validation rule codes (PRD §7.4/§7.6) ─────────────────────────────────────
 export type BomValidationCode =

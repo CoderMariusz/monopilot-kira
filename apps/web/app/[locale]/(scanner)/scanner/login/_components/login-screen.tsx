@@ -7,7 +7,7 @@
 // contract authenticates email + PIN in a single POST /api/scanner/login.
 // ============================================================
 
-import { useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -35,6 +35,12 @@ export function LoginScreen({ locale, labels }: { locale: string; labels: Scanne
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const emailRef = useRef<HTMLInputElement | null>(null);
+  const errBannerRef = useRef<HTMLDivElement | null>(null);
+  const errId = useId();
+
+  useEffect(() => {
+    if (err) errBannerRef.current?.focus();
+  }, [err]);
 
   const press = (digit: string) => {
     if (err) setErr(null);
@@ -112,14 +118,22 @@ export function LoginScreen({ locale, labels }: { locale: string; labels: Scanne
             inputMode="email"
             autoComplete="username"
             autoFocus
-            style={fieldInputStyle}
+            aria-invalid={err ? true : undefined}
+            aria-describedby={err ? errId : undefined}
+            style={{
+              ...fieldInputStyle,
+              borderColor: err ? T.red : T.elev,
+            }}
           />
         </div>
 
         <div style={{ padding: "8px 16px 0", textAlign: "center" }}>
           <div style={{ fontSize: 13, color: T.mute, marginBottom: 8 }}>{L.pinHint}</div>
           <div
+            role="group"
             aria-label={L.pinLabel}
+            aria-invalid={err ? true : undefined}
+            aria-describedby={err ? errId : undefined}
             style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 8 }}
           >
             {Array.from({ length: 6 }).map((_, i) => (
@@ -152,16 +166,22 @@ export function LoginScreen({ locale, labels }: { locale: string; labels: Scanne
           </button>
         </div>
 
-        {err && (
-          <Banner kind="err" title={err}>
-            {" "}
-          </Banner>
-        )}
-
         <div style={{ padding: "8px 16px 20px", textAlign: "center" }}>
           <div style={{ fontSize: 10, color: T.hint }}>{L.version}</div>
         </div>
       </div>
+
+      {err ? (
+        <Banner
+          id={errId}
+          kind="err"
+          title={err}
+          bannerRef={errBannerRef}
+          style={{ flexShrink: 0, margin: "0 0 4px" }}
+        >
+          {" "}
+        </Banner>
+      ) : null}
 
       <div
         style={{

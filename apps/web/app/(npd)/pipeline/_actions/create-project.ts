@@ -9,6 +9,14 @@ import {
 } from './_lib/materialize-npd-bom';
 import { parseOptionalRetailPriceEur } from './_lib/retail-price-eur';
 import {
+  parseFutureTargetLaunch,
+  parseOptionalPackWeightG,
+  parseOptionalPacksPerCase,
+  parseRequiredRunsPerWeek,
+  parseRequiredWeeklyVolumePacks,
+  todayIsoDateUtc,
+} from './_lib/wizard-basics-validation';
+import {
   DEFAULT_TEMPLATE_ID,
   PROJECT_CODE_SEQUENCE,
   PROJECT_CREATE_PERMISSION,
@@ -16,10 +24,8 @@ import {
   type OrgContextLike,
   type ProjectPriority,
   hasPermission,
-  parseOptionalNonNegNumber,
   parsePriority,
   parseStartFrom,
-  parseTargetLaunch,
   trimOptionalString,
 } from './shared';
 
@@ -178,7 +184,7 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   const type = trimOptionalString(input.type, 120);
   const prio = parsePriority(input.prio);
   const owner = trimOptionalString(input.owner, 120);
-  const targetLaunch = parseTargetLaunch(input.targetLaunch);
+  const targetLaunch = parseFutureTargetLaunch(input.targetLaunch, todayIsoDateUtc());
   const notes = trimOptionalString(input.notes, 2000);
   const templateId = trimOptionalString(input.templateId, 80) ?? DEFAULT_TEMPLATE_ID;
 
@@ -189,11 +195,11 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   const marketingClaims = trimOptionalString(input.marketingClaims, 600);
   const constraints = trimOptionalString(input.constraints, 2000);
   const targetRetailPriceEur = parseOptionalRetailPriceEur(input.targetRetailPriceEur);
-  const packWeightG = parseOptionalNonNegNumber(input.packWeightG);
-  const packsPerCase = parseOptionalNonNegInteger(input.packsPerCase);
+  const packWeightG = parseOptionalPackWeightG(input.packWeightG);
+  const packsPerCase = parseOptionalPacksPerCase(input.packsPerCase);
   const outputUnit = parseOptionalOutputUnit(input.outputUnit);
   // Basics labels mark these required (*): weekly volume > 0, runs/week ≥ 1.
-  const weeklyVolumePacks = parseRequiredPositiveNumber(input.weeklyVolumePacks);
+  const weeklyVolumePacks = parseRequiredWeeklyVolumePacks(input.weeklyVolumePacks);
   const runsPerWeek = parseRequiredRunsPerWeek(input.runsPerWeek);
   const startFrom = parseStartFrom(input.startFrom);
   const cloneSource = trimOptionalString(input.cloneSource, 120);
@@ -233,34 +239,6 @@ function parseOptionalOutputUnit(value: unknown): NpdBriefOutputUnit | null | un
   if (value === undefined || value === null || value === '') return null;
   if (value === 'kg' || value === 'pieces' || value === 'boxes') return value;
   return undefined;
-}
-
-/** Required weekly volume (packs): finite and > 0. Empty/neg/NaN → undefined. */
-function parseRequiredPositiveNumber(value: unknown): number | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
-  const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : NaN;
-  if (!Number.isFinite(n) || n <= 0) return undefined;
-  return n;
-}
-
-/** Required runs/week: finite and ≥ 1. Empty/0/neg/NaN → undefined. */
-function parseRequiredRunsPerWeek(value: unknown): number | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
-  const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : NaN;
-  if (!Number.isFinite(n) || n < 1) return undefined;
-  return n;
-}
-
-function parseOptionalNonNegInteger(value: unknown): number | null | undefined {
-  if (value === undefined || value === null || value === '') return null;
-  const n =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string' && /^\d+$/.test(value.trim())
-        ? Number(value.trim())
-        : NaN;
-  if (!Number.isInteger(n) || n < 0) return undefined;
-  return n;
 }
 
 async function allocateProjectCode(ctx: OrgContextLike): Promise<string> {

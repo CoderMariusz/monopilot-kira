@@ -197,6 +197,7 @@ async function buildSelectorLabels(locale: string): Promise<PeriodSelectorLabels
     to: t('filter.to'),
     ariaLabel: t('filter.ariaLabel'),
     periodGroupLabel: t('period.groupLabel'),
+    invalidRange: t('filter.invalidRange'),
   };
 }
 
@@ -388,12 +389,22 @@ export default async function OeeRoutePage({ params, searchParams }: PageProps) 
         showSearchFilter={false}
         ariaLabel={t('title')}
         testId="oee-period-selector"
+        rangeError={periodSelection.rangeError}
       />
+      {periodSelection.rangeError === 'reversed' ? (
+        <div
+          role="alert"
+          data-testid="oee-period-range-error"
+          className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700"
+        >
+          {selectorLabels.invalidRange}
+        </div>
+      ) : null}
       <Suspense
         key={[periodSelection.period, periodSelection.fromDate, periodSelection.toDate].join(':')}
         fallback={<OeeSkeleton />}
       >
-        <OeeContent window={periodSelection.window} />
+        {periodSelection.rangeError ? null : <OeeContent window={periodSelection.window} />}
       </Suspense>
     </main>
   );

@@ -21,6 +21,7 @@ const labels = {
   menu: "Menu",
   syncTitle: "Sync status",
   online: "ONLINE",
+  offline: "OFFLINE",
   queued: "QUEUED",
   syncErr: "SYNC ERR",
 };
@@ -71,13 +72,23 @@ describe("Topbar — sync badge reflects connectivity", () => {
     setOnline(true);
     render(<Topbar title="Scanner" labels={labels} />);
     expect(screen.getByText("ONLINE")).toBeInTheDocument();
+    expect(screen.queryByText("OFFLINE")).toBeNull();
     expect(screen.queryByText("SYNC ERR")).toBeNull();
   });
 
-  it("reflects offline as SYNC ERR (badge is not a hardcoded lie)", () => {
+  it("reflects offline as OFFLINE (not a sync-error lie)", () => {
     setOnline(false);
     render(<Topbar title="Scanner" labels={labels} />);
-    expect(screen.getByText("SYNC ERR")).toBeInTheDocument();
+    expect(screen.getByText("OFFLINE")).toBeInTheDocument();
+    expect(screen.queryByText("SYNC ERR")).toBeNull();
+  });
+
+  it("announces connectivity with role=status and aria-label", () => {
+    setOnline(false);
+    render(<Topbar title="Scanner" labels={labels} />);
+    const badge = screen.getByTestId("scanner-sync-badge");
+    expect(badge).toHaveAttribute("role", "status");
+    expect(badge).toHaveAttribute("aria-label", "Sync status: OFFLINE");
   });
 
   it("updates the badge live on an offline event", () => {
@@ -88,13 +99,39 @@ describe("Topbar — sync badge reflects connectivity", () => {
       setOnline(false);
       window.dispatchEvent(new Event("offline"));
     });
-    expect(screen.getByText("SYNC ERR")).toBeInTheDocument();
+    expect(screen.getByText("OFFLINE")).toBeInTheDocument();
   });
 
-  it("still honours an explicit syncState override", () => {
+  it("updates the badge live on an online event after reconnect", () => {
+    setOnline(false);
+    render(<Topbar title="Scanner" labels={labels} />);
+    expect(screen.getByText("OFFLINE")).toBeInTheDocument();
+    act(() => {
+      setOnline(true);
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(screen.getByText("ONLINE")).toBeInTheDocument();
+  });
+
+  it("still honours an explicit syncState override for queued work", () => {
     setOnline(true);
     render(<Topbar title="Scanner" syncState="queued" labels={labels} />);
     expect(screen.getByText("QUEUED")).toBeInTheDocument();
+  });
+
+  it("still honours an explicit syncState override for sync errors", () => {
+    setOnline(true);
+    render(<Topbar title="Scanner" syncState="err" labels={labels} />);
+    expect(screen.getByText("SYNC ERR")).toBeInTheDocument();
+  });
+});
+
+describe("Topbar — Back touch target (WCAG 2.5.5)", () => {
+  it("Back button meets the 44×44px minimum hit area", () => {
+    render(<Topbar title="Set PIN" onBack={() => {}} labels={labels} />);
+    const btn = screen.getByRole("button", { name: "Back" });
+    expect(btn).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
+    expect(btn).toHaveClass("scanner-topbar-btn");
   });
 });
 

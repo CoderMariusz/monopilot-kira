@@ -101,6 +101,32 @@ describe("LoginScreen", () => {
     expect(window.sessionStorage.getItem(SCANNER_SESSION_STORAGE_KEY)).toBeNull();
   });
 
+  it("on 401 invalid_pin announces error for assistive tech (role=alert, field linkage)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 401,
+      json: async () => ({ error: "invalid_pin" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderLogin();
+    typeEmailAndPin("9999");
+    fireEvent.click(screen.getByRole("button", { name: labels.login.submit }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(labels.login.errInvalidPin);
+    expect(alert).toHaveAttribute("aria-live", "assertive");
+
+    const email = screen.getByLabelText(labels.login.emailLabel);
+    expect(email).toHaveAttribute("aria-invalid", "true");
+    const errId = alert.id;
+    expect(errId).toBeTruthy();
+    expect(email).toHaveAttribute("aria-describedby", errId);
+
+    const pinGroup = screen.getByRole("group", { name: labels.login.pinLabel });
+    expect(pinGroup).toHaveAttribute("aria-invalid", "true");
+    expect(pinGroup).toHaveAttribute("aria-describedby", errId);
+  });
+
   it("on 409 pin_not_enrolled routes to the pin-setup screen", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       status: 409,

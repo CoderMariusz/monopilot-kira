@@ -26,7 +26,8 @@ export async function getPlanningWorkOrder(params: { id: string }): Promise<GetP
         `select wo.id, wo.wo_number, wo.product_id, i.item_code, wo.item_type_at_creation,
                 wo.planned_quantity::text as planned_quantity, wo.produced_quantity::text as produced_quantity,
                 wo.uom, wo.status, wo.scheduled_start_time, wo.scheduled_end_time,
-                wo.production_line_id, wo.priority, wo.source_of_demand,
+                wo.production_line_id, pl.code as production_line_code, pl.name as production_line_name,
+                wo.priority, wo.source_of_demand,
                 wo.source_reference, wo.ext_jsonb->>'notes' as notes,
                 wo.qty_entered::text as qty_entered, wo.qty_entered_uom, wo.uom_snapshot,
                 wo.active_bom_header_id, bh.version as active_bom_version,
@@ -35,6 +36,9 @@ export async function getPlanningWorkOrder(params: { id: string }): Promise<GetP
                 wo.created_at, wo.updated_at
            from public.work_orders wo
            left join public.items i on i.id = wo.product_id and i.org_id = app.current_org_id()
+           left join public.production_lines pl
+             on pl.org_id = wo.org_id
+            and pl.id = wo.production_line_id
            left join public.bom_headers bh
              on bh.id = wo.active_bom_header_id
             and bh.org_id = app.current_org_id()

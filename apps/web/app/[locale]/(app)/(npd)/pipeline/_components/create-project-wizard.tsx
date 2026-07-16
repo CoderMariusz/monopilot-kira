@@ -44,6 +44,18 @@ import {
   formatRetailPriceEurDisplay,
   parseRetailPriceEurInput,
 } from '../../../../../(npd)/pipeline/_actions/_lib/retail-price-eur';
+import {
+  packWeightInputInvalid,
+  packsPerCaseInputInvalid,
+  parseOptionalPackWeightG,
+  parseOptionalPacksPerCase,
+  parsePacksPerCaseInput,
+  parseRunsPerWeekInput,
+  parseTargetLaunchInput,
+  parseWeeklyVolumePacksInput,
+  targetLaunchInputInvalid,
+  todayIsoDateUtc,
+} from '../../../../../(npd)/pipeline/_actions/_lib/wizard-basics-validation';
 
 const WIZARD_FIELD_FALLBACKS = {
   fieldRunsPerWeek: 'Runs per week (estimate)',
@@ -57,11 +69,15 @@ const WIZARD_FIELD_FALLBACKS = {
   errorBoxesOutputUnit:
     'Output unit "boxes" requires pack weight (g) and packs per case greater than 0.',
   errorRetailPrice: 'Target retail price must be a non-negative amount with at most two decimal places.',
+  errorTargetLaunchPast: 'Target launch date must be today or later.',
+  errorPackWeight: 'Pack weight must be greater than 0 with at most three decimal places.',
+  errorPacksPerCase: 'Packs per case must be a whole number of at least 1.',
+  errorWeeklyVolumePrecision: 'Weekly volume allows at most three decimal places.',
+  errorRunsPerWeekInteger: 'Runs per week must be a whole number of at least 1.',
 } as const;
 
 /** Field errors — not on WizardLabels (avoids forcing page i18n churn for this fix). */
 const WEEKLY_VOLUME_ERROR = 'Weekly volume must be greater than 0.';
-const RUNS_PER_WEEK_ERROR = 'Runs per week must be at least 1.';
 const RETAIL_PRICE_ERROR = WIZARD_FIELD_FALLBACKS.errorRetailPrice;
 
 const OUTPUT_UNIT_VALUES = ['kg', 'pieces', 'boxes'] as const;
@@ -227,6 +243,11 @@ export type WizardLabels = {
   errorForbidden: string;
   errorBoxesOutputUnit: string;
   errorRetailPrice: string;
+  errorTargetLaunchPast: string;
+  errorPackWeight: string;
+  errorPacksPerCase: string;
+  errorWeeklyVolumePrecision: string;
+  errorRunsPerWeekInteger: string;
 };
 
 /** Category options are loaded server-side from Reference.ProductCategories. */
@@ -282,40 +303,24 @@ function nullable(value: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/** Parse the EUR input ("19.90", "19,90") to a non-negative number or null. */
-function parseEur(value: string): number | null {
-  const trimmed = value.trim().replace(',', '.');
-  if (trimmed.length === 0) return null;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-}
-
-/** Required weekly packs — finite and > 0. Empty/neg/NaN → null. */
+/** Required weekly packs — finite and > 0. Empty/neg/NaN/excess precision → null. */
 export function parseWeeklyVolumePacks(value: string): number | null {
-  const trimmed = value.trim().replace(',', '.');
-  if (trimmed.length === 0) return null;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  return parseWeeklyVolumePacksInput(value);
 }
 
-/** Required runs/week — finite and ≥ 1. Empty/0/neg/NaN → null. */
+/** Required runs/week — whole number ≥ 1. Empty/0/fractional/neg/NaN → null. */
 export function parseRunsPerWeek(value: string): number | null {
-  const trimmed = value.trim().replace(',', '.');
-  if (trimmed.length === 0) return null;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : null;
+  return parseRunsPerWeekInput(value);
 }
 
 /**
- * Parse the optional "Packs per case" input to a non-negative integer.
- * Empty (or invalid) → `undefined` so the field is OMITTED from the payload
- * (the optional createProject input keeps the backend default / FG copy untouched).
+ * Parse the optional "Packs per case" input to a positive integer.
+ * Empty (or invalid) → `undefined` so the field is OMITTED from the payload.
  */
 function parseOptionalInteger(value: string): number | undefined {
-  const trimmed = value.trim();
-  if (trimmed.length === 0) return undefined;
-  const parsed = Number(trimmed);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+  const parsed = parsePacksPerCaseInput(value);
+  if (parsed === null || parsed === undefined) return undefined;
+  return parsed;
 }
 
 /** Spread helper: include `packsPerCase` only when the input parses to an integer. */
@@ -333,9 +338,13 @@ function outputUnitField(value: string): { outputUnit?: OutputUnitValue } {
 
 function boxesOutputUnitInvalid(form: FormState): boolean {
   if (form.outputUnit !== 'boxes') return false;
-  const packWeight = form.packWeightG.trim();
-  const packsPerCase = form.packsPerCase.trim();
-  return packWeight === '' || packsPerCase === '' || Number(packsPerCase) <= 0;
+  const packWeight = parseOptionalPackWeightG(form.packWeightG);
+  const packsPerCase = parseOptionalPacksPerCase(form.packsPerCase);
+  return packWeight == null || packsPerCase == null;
+}
+
+function wizardErrorLabel(labels: WizardLabels, key: keyof typeof WIZARD_FIELD_FALLBACKS): string {
+  return wizardLabel(labels, key);
 }
 
 /** localStorage key — scopeId is org/user (or test id); foreign scopes never restore. */
@@ -409,6 +418,7 @@ export function CreateProjectWizard({
 }) {
   const router = useRouter();
   const defaultCategory = categoryOptions[0]?.value ?? '';
+  const todayYmd = React.useMemo(() => todayIsoDateUtc(), []);
   const [step, setStep] = React.useState(1);
   const [form, setForm] = React.useState<FormState>(() => INITIAL_FORM(defaultCategory));
   const [submitting, setSubmitting] = React.useState(false);
@@ -445,10 +455,16 @@ export function CreateProjectWizard({
   const weeklyVolumeInvalid =
     form.weeklyVolumePacks.trim().length > 0 && weeklyVolumeParsed === null;
   const runsPerWeekInvalid = form.runsPerWeek.trim().length > 0 && runsPerWeekParsed === null;
+  const targetLaunchInvalid = targetLaunchInputInvalid(form.targetLaunch, todayYmd);
+  const packWeightInvalid = packWeightInputInvalid(form.packWeightG);
+  const packsPerCaseInvalid = packsPerCaseInputInvalid(form.packsPerCase);
   const retailPriceParsed = parseRetailPriceEurInput(form.targetRetailPriceEur);
   const retailPriceInvalid =
     form.targetRetailPriceEur.trim().length > 0 && retailPriceParsed === undefined;
-  const basicsIncomplete = nameEmpty || weeklyVolumeParsed === null || runsPerWeekParsed === null;
+  const basicsFieldErrors =
+    targetLaunchInvalid || packWeightInvalid || packsPerCaseInvalid || weeklyVolumeInvalid || runsPerWeekInvalid;
+  const basicsIncomplete =
+    nameEmpty || weeklyVolumeParsed === null || runsPerWeekParsed === null || basicsFieldErrors;
   const briefIncomplete = retailPriceInvalid;
   const canCreate = Boolean(createAction);
   // Clone is offered only when the clone action is injected AND there is ≥1 source.
@@ -482,8 +498,20 @@ export function CreateProjectWizard({
     const targetRetailPriceEur = parseRetailPriceEurInput(form.targetRetailPriceEur);
     if (weeklyVolumePacks === null || runsPerWeek === null) {
       setServerError(
-        weeklyVolumePacks === null ? WEEKLY_VOLUME_ERROR : RUNS_PER_WEEK_ERROR,
+        weeklyVolumePacks === null ? WEEKLY_VOLUME_ERROR : wizardErrorLabel(labels, 'errorRunsPerWeekInteger'),
       );
+      return;
+    }
+    if (targetLaunchInputInvalid(form.targetLaunch, todayYmd)) {
+      setServerError(wizardErrorLabel(labels, 'errorTargetLaunchPast'));
+      return;
+    }
+    if (packWeightInputInvalid(form.packWeightG)) {
+      setServerError(wizardErrorLabel(labels, 'errorPackWeight'));
+      return;
+    }
+    if (packsPerCaseInputInvalid(form.packsPerCase)) {
+      setServerError(wizardErrorLabel(labels, 'errorPacksPerCase'));
       return;
     }
     if (targetRetailPriceEur === undefined) {
@@ -517,9 +545,9 @@ export function CreateProjectWizard({
           overrides: {
             name: form.name.trim(),
             type: form.type,
-            targetLaunch: nullable(form.targetLaunch),
+            targetLaunch: parseTargetLaunchInput(form.targetLaunch, todayYmd),
             packFormat: nullable(form.packFormat),
-            packWeightG: parseEur(form.packWeightG),
+            packWeightG: parseOptionalPackWeightG(form.packWeightG) ?? null,
             ...packsPerCaseField(form.packsPerCase),
             ...outputUnitField(form.outputUnit),
             weeklyVolumePacks,
@@ -557,9 +585,9 @@ export function CreateProjectWizard({
       const result = await createAction({
         name: form.name.trim(),
         type: form.type,
-        targetLaunch: nullable(form.targetLaunch),
+        targetLaunch: parseTargetLaunchInput(form.targetLaunch, todayYmd),
         packFormat: nullable(form.packFormat),
-        packWeightG: parseEur(form.packWeightG),
+        packWeightG: parseOptionalPackWeightG(form.packWeightG) ?? null,
         ...packsPerCaseField(form.packsPerCase),
         ...outputUnitField(form.outputUnit),
         weeklyVolumePacks,
@@ -586,7 +614,7 @@ export function CreateProjectWizard({
       setServerError(labels.errorGeneric);
       setSubmitting(false);
     }
-  }, [createAction, cloneAction, draftScopeId, form, labels, locale, router]);
+  }, [createAction, cloneAction, draftScopeId, form, labels, locale, router, todayYmd]);
 
   // Clone is REAL now (cloneProject) — enabled whenever the action is injected and
   // there is ≥1 source project to clone from (else honestly disabled with a "nothing
@@ -717,9 +745,17 @@ export function CreateProjectWizard({
               <input
                 id="wiz-target"
                 type="date"
+                min={todayYmd}
                 value={form.targetLaunch}
+                aria-invalid={targetLaunchInvalid || undefined}
                 onChange={(e) => update('targetLaunch', e.target.value)}
+                data-testid="wiz-target-launch"
               />
+              {targetLaunchInvalid ? (
+                <p className="text-xs" role="alert" data-testid="wiz-target-launch-error" style={{ color: 'var(--danger, #b91c1c)' }}>
+                  {wizardErrorLabel(labels, 'errorTargetLaunchPast')}
+                </p>
+              ) : null}
             </div>
             <div className="ff">
               <label htmlFor="wiz-format">{labels.fieldPackFormat}</label>
@@ -753,13 +789,20 @@ export function CreateProjectWizard({
               <input
                 id="wiz-pack-weight"
                 type="number"
-                min="0"
-                step="any"
+                min="0.001"
+                step="0.001"
                 inputMode="decimal"
                 placeholder={labels.fieldPackWeightPlaceholder}
                 value={form.packWeightG}
+                aria-invalid={packWeightInvalid || undefined}
                 onChange={(e) => update('packWeightG', e.target.value)}
+                data-testid="wiz-pack-weight"
               />
+              {packWeightInvalid ? (
+                <p className="text-xs" role="alert" data-testid="wiz-pack-weight-error" style={{ color: 'var(--danger, #b91c1c)' }}>
+                  {wizardErrorLabel(labels, 'errorPackWeight')}
+                </p>
+              ) : null}
             </div>
             {/* Packs per case — optional non-negative integer; empty omits the field. */}
             <div className="ff">
@@ -767,13 +810,20 @@ export function CreateProjectWizard({
               <input
                 id="wiz-packs-per-case"
                 type="number"
-                min="0"
+                min="1"
                 step="1"
                 inputMode="numeric"
                 placeholder={labels.fieldPacksPerCasePlaceholder}
                 value={form.packsPerCase}
+                aria-invalid={packsPerCaseInvalid || undefined}
                 onChange={(e) => update('packsPerCase', e.target.value)}
+                data-testid="wiz-packs-per-case"
               />
+              {packsPerCaseInvalid ? (
+                <p className="text-xs" role="alert" data-testid="wiz-packs-per-case-error" style={{ color: 'var(--danger, #b91c1c)' }}>
+                  {wizardErrorLabel(labels, 'errorPacksPerCase')}
+                </p>
+              ) : null}
             </div>
             <div className="ff">
               <label htmlFor="wiz-output-unit">{labels.fieldOutputUnit}</label>
@@ -798,7 +848,7 @@ export function CreateProjectWizard({
                 id="wiz-weekly-volume"
                 type="number"
                 min="0.000001"
-                step="any"
+                step="0.001"
                 inputMode="decimal"
                 required
                 aria-invalid={weeklyVolumeInvalid}
@@ -809,7 +859,10 @@ export function CreateProjectWizard({
               />
               {weeklyVolumeInvalid && (
                 <p className="text-xs" role="alert" data-testid="wiz-weekly-volume-error" style={{ color: 'var(--danger, #b91c1c)' }}>
-                  {WEEKLY_VOLUME_ERROR}
+                  {form.weeklyVolumePacks.trim().includes('.') &&
+                  form.weeklyVolumePacks.trim().replace(',', '.').split('.')[1]?.length > 3
+                    ? wizardErrorLabel(labels, 'errorWeeklyVolumePrecision')
+                    : WEEKLY_VOLUME_ERROR}
                 </p>
               )}
             </div>
@@ -822,8 +875,8 @@ export function CreateProjectWizard({
                 id="wiz-runs-per-week"
                 type="number"
                 min="1"
-                step="any"
-                inputMode="decimal"
+                step="1"
+                inputMode="numeric"
                 required
                 aria-invalid={runsPerWeekInvalid}
                 placeholder={labels.fieldRunsPerWeekPlaceholder || WIZARD_FIELD_FALLBACKS.fieldRunsPerWeekPlaceholder}
@@ -833,7 +886,7 @@ export function CreateProjectWizard({
               />
               {runsPerWeekInvalid && (
                 <p className="text-xs" role="alert" data-testid="wiz-runs-per-week-error" style={{ color: 'var(--danger, #b91c1c)' }}>
-                  {RUNS_PER_WEEK_ERROR}
+                  {wizardErrorLabel(labels, 'errorRunsPerWeekInteger')}
                 </p>
               )}
               <p className="muted text-xs" data-testid="wiz-runs-per-week-help">

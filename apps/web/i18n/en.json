@@ -4433,7 +4433,12 @@
       "fieldOutputUnitPieces": "pieces",
       "fieldOutputUnitBoxes": "boxes",
       "errorBoxesOutputUnit": "Output unit \"boxes\" requires pack weight (g) and packs per case greater than 0.",
-      "errorRetailPrice": "Target retail price must be a non-negative amount with at most two decimal places."
+      "errorRetailPrice": "Target retail price must be a non-negative amount with at most two decimal places.",
+      "errorTargetLaunchPast": "Target launch date must be today or later.",
+      "errorPackWeight": "Pack weight must be greater than 0 with at most three decimal places.",
+      "errorPacksPerCase": "Packs per case must be a whole number of at least 1.",
+      "errorWeeklyVolumePrecision": "Weekly volume allows at most three decimal places.",
+      "errorRunsPerWeekInteger": "Runs per week must be a whole number of at least 1."
     },
     "faBomTab": {
       "title": "BOM (computed view)",
@@ -6909,6 +6914,59 @@
           "PENDING_NPD_RELEASE": "Pending NPD release",
           "PENDING_TECHNICAL_APPROVAL": "Pending Technical approval",
           "RELEASE_BLOCKED": "Release blocked"
+        },
+        "notes": "Notes",
+        "noNotes": "—"
+      },
+      "lifecycle": {
+        "edit": {
+          "action": "Edit",
+          "title": "Edit specification · {spec}",
+          "subtitle": "v{version} · draft/in_review fields",
+          "specCode": "Specification code",
+          "notes": "Notes",
+          "cancel": "Cancel",
+          "submit": "Save changes",
+          "saving": "Saving…",
+          "errors": {
+            "forbidden": "You do not have permission to edit specifications.",
+            "invalid_state": "This specification can no longer be edited in place.",
+            "persistence_failed": "Could not save the specification."
+          }
+        },
+        "version": {
+          "action": "Save version",
+          "title": "Save specification version",
+          "subtitle": "{spec} · v{version} → v{nextVersion}",
+          "specCode": "Specification code",
+          "notes": "Notes",
+          "changeReason": "Change reason",
+          "changeReasonHelp": "Min 10 characters — referenced in the audit trail.",
+          "changeReasonPlaceholder": "e.g. Corrected shelf-life notes before review.",
+          "previousVersionNote": "Previous version (v{version}) stays available read-only.",
+          "cancel": "Cancel",
+          "submit": "Save version",
+          "saving": "Saving…",
+          "errors": {
+            "forbidden": "You do not have permission to version specifications.",
+            "invalid_state": "This specification cannot be versioned in its current state.",
+            "persistence_failed": "Could not save the new specification version."
+          }
+        },
+        "delete": {
+          "action": "Delete",
+          "title": "Delete specification · {spec}",
+          "subtitle": "v{version} · permanent removal",
+          "warning": "This permanently deletes the draft/in_review specification. It cannot be undone.",
+          "cancel": "Cancel",
+          "confirm": "Delete specification",
+          "deleting": "Deleting…",
+          "errors": {
+            "forbidden": "You do not have permission to delete specifications.",
+            "referenced": "Cannot delete — this specification is still referenced.",
+            "invalid_state": "Only draft or in_review specifications can be deleted.",
+            "persistence_failed": "Could not delete the specification."
+          }
         }
       },
       "release": {
@@ -9882,6 +9940,7 @@
       "menu": "Menu",
       "syncTitle": "Sync status",
       "online": "ONLINE",
+      "offline": "OFFLINE",
       "queued": "QUEUED",
       "syncErr": "SYNC ERR"
     },
@@ -12253,7 +12312,8 @@
       "allLines": "All lines",
       "from": "From",
       "to": "To",
-      "ariaLabel": "Reporting filters"
+      "ariaLabel": "Reporting filters",
+      "invalidRange": "The start date must be on or before the end date."
     },
     "inventory": {
       "columns": {
@@ -12943,6 +13003,64 @@
         "PASS": "Pass",
         "FAIL": "Fail",
         "OUT_OF_SPEC": "Out of spec"
+      }
+    },
+    "assets": {
+      "list": {
+        "title": "Assets",
+        "subtitle": "Maintenance equipment registry — configure LOTO and calibration requirements",
+        "breadcrumb": {
+          "maintenance": "Maintenance",
+          "assets": "Assets"
+        },
+        "denied": "You do not have permission to view maintenance assets. Ask an administrator for the mnt.asset.read permission.",
+        "error": "Could not load maintenance assets. Please try again.",
+        "emptyTitle": "No assets registered yet",
+        "emptyBody": "Add the first machine or line asset so maintenance work orders and LOTO can reference it.",
+        "searchPlaceholder": "Search by code or name…",
+        "countLine": "{total} assets · {loto} require LOTO",
+        "addAsset": "+ Add asset",
+        "exportCsv": "Export CSV",
+        "col": {
+          "code": "Code",
+          "name": "Name",
+          "type": "Type",
+          "loto": "LOTO",
+          "calibration": "Calibration",
+          "status": "Status"
+        },
+        "lotoYes": "Required",
+        "lotoNo": "—",
+        "calYes": "Required",
+        "calNo": "—",
+        "statusActive": "Active",
+        "statusInactive": "Inactive"
+      },
+      "form": {
+        "createTitle": "Add maintenance asset",
+        "code": "Asset code",
+        "codePlaceholder": "e.g. MIX-01",
+        "name": "Name",
+        "namePlaceholder": "e.g. Main mixer",
+        "type": "Equipment type",
+        "requiresLoto": "Requires LOTO before maintenance",
+        "requiresCalibration": "Requires calibration",
+        "submit": "Save asset",
+        "submitting": "Saving…",
+        "cancel": "Cancel",
+        "errorRequired": "Code and name are required.",
+        "errorFailed": "Could not save the asset. Please try again.",
+        "errorForbidden": "You do not have permission to edit maintenance assets.",
+        "errorConflict": "An asset with this code already exists."
+      },
+      "types": {
+        "mixer": "Mixer",
+        "oven": "Oven",
+        "packer": "Packer",
+        "scale": "Scale",
+        "thermometer": "Thermometer",
+        "conveyor": "Conveyor",
+        "other": "Other"
       }
     }
   },

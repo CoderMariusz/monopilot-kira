@@ -143,7 +143,14 @@ export default async function MaintenancePage({ params }: PageProps) {
           { label: t('list.title') },
         ]}
       />
-      <nav aria-label="Maintenance navigation">
+      <nav aria-label="Maintenance navigation" className="flex flex-wrap gap-2">
+        <Link
+          href={`/${locale}/maintenance/assets`}
+          prefetch={false}
+          className="inline-flex rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-950 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+        >
+          Assets
+        </Link>
         <Link
           href={`/${locale}/maintenance/calibration`}
           prefetch={false}

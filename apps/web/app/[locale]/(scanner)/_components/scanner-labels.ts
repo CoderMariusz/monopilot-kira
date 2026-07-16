@@ -22,6 +22,7 @@ interface ScannerLabelsShape {
     menu: string;
     syncTitle: string;
     online: string;
+    offline: string;
     queued: string;
     syncErr: string;
   };
@@ -443,6 +444,7 @@ const en: ScannerLabelsShape = {
     menu: "Menu",
     syncTitle: "Sync status",
     online: "ONLINE",
+    offline: "OFFLINE",
     queued: "QUEUED",
     syncErr: "SYNC ERR",
   },
@@ -929,6 +931,7 @@ const pl: ScannerLabelsShape = {
     menu: "Menu",
     syncTitle: "Status synchronizacji",
     online: "ONLINE",
+    offline: "OFFLINE",
     queued: "W KOLEJCE",
     syncErr: "BŁĄD SYNC",
   },

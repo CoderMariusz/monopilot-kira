@@ -48,6 +48,7 @@ type SpecRow = {
   bom_status: string | null;
   d365_item_id: string | null;
   fg_npd_project_id: string | null;
+  notes: string | null;
   updated_at: string | Date;
 };
 
@@ -69,6 +70,7 @@ function mapRow(row: SpecRow): FactorySpecListItem | null {
     bomStatus: row.bom_status,
     d365ItemId: row.d365_item_id,
     fgNpdProjectId: row.fg_npd_project_id === null ? null : String(row.fg_npd_project_id),
+    notes: row.notes,
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
   };
 }
@@ -93,6 +95,7 @@ export async function listFactorySpecs(): Promise<ListFactorySpecsResult> {
                   fs.bom_version,
                   bh.status as bom_status,
                   fs.d365_item_id,
+                  fs.notes,
                   i.npd_project_id::text as fg_npd_project_id,
                   fs.updated_at
              from public.factory_specs fs

@@ -1,6 +1,14 @@
 import { getTranslations } from 'next-intl/server';
 
 import { LocationTreeScreen } from './location-tree-client';
+import type {
+  DeleteLocationInput,
+  DeleteLocationResult,
+  LocationRow,
+  UpsertLocationInput,
+  UpsertLocationResult,
+  Warehouse,
+} from './location-types';
 
 import { deleteLocation as removeLocation, upsertLocation as persistLocation } from '../../../../../../../actions/infra/location';
 import { importLocationCsvAction } from './_actions/import-location-csv';
@@ -8,30 +16,10 @@ import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = { query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<T>> };
-type Warehouse = { id: string; code: string; name: string };
-type LocationRow = { id: string; warehouseId: string; warehouseCode?: string | null; warehouseName?: string | null; siteCode?: string | null; siteName?: string | null; lpCount?: number; parentId: string | null; code: string; name: string; level: number; path: string; locationType?: string | null; barcode?: string | null; isActive?: boolean };
 type CreateLocationInput = { csvRowNumber: number; warehouseId: string; parentPath: string | null; name: string; level: number; path: string };
 type CreateLocationResult =
   | { ok: true; data?: unknown }
   | { ok: false; error?: { code?: string; rowNumber?: number; validation?: string; message?: string } };
-type UpsertLocationInput = {
-  id?: string;
-  warehouseId: string;
-  parentId: string | null;
-  code: string;
-  name: string;
-  level: number;
-  locationType: string;
-  active?: boolean;
-  barcode?: string | null;
-};
-type UpsertLocationResult =
-  | { ok: true; data: { id: string; path: string; level: number } }
-  | { ok: false; error: string };
-type DeleteLocationInput = { locationId: string; warehouseId: string };
-type DeleteLocationResult =
-  | { ok: true; data: { locationId: string; warehouseId: string } }
-  | { ok: false; error: string };
 type LocationTreePageProps = {
   params?: Promise<{ locale: string }>;
   searchParams?: Promise<{ warehouseId?: string; importStatus?: string; importMessage?: string; modal?: string; selectedLocationId?: string; parentId?: string; upsertStatus?: string; upsertMessage?: string }> | { warehouseId?: string; importStatus?: string; importMessage?: string; modal?: string; selectedLocationId?: string; parentId?: string; upsertStatus?: string; upsertMessage?: string };
@@ -116,6 +104,7 @@ type LocationTreeLabels = {
   fieldBarcodeHelp: string;
   upsertSuccess: string;
   upsertError: string;
+  duplicateCodeError: string;
   deleteSuccess: string;
   deleteError: string;
   deleteHasChildren: string;
@@ -197,6 +186,7 @@ const DEFAULT_LABELS: LocationTreeLabels = {
   fieldBarcodeHelp: 'Auto-generated if blank — for location QR / Code128 printing',
   upsertSuccess: 'Location saved.',
   upsertError: 'Location save failed.',
+  duplicateCodeError: 'A location with this code already exists in this warehouse.',
   deleteSuccess: 'Location deleted.',
   deleteError: 'Location delete failed.',
   deleteHasChildren: 'Delete child locations first.',
