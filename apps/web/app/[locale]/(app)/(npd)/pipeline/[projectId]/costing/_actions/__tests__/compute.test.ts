@@ -882,6 +882,71 @@ describe('computeAndSaveInitialBreakdown — lookup honesty (W9-L6, fake client)
     expect(typeof persistedCosts.get(largeWipItemId)).toBe('string');
   });
 
+  it('persists WIP unit cost including amortised setup_cost (N-NPD-1)', async () => {
+    const { computeAndSaveInitialBreakdown } = await import('../compute');
+    const wipDefId = '00000000-0000-4000-8000-00000000a021';
+    const wipItemId = '00000000-0000-4000-8000-00000000c021';
+    const persistedCosts = new Map<string, unknown>();
+    handler = (sql, params) => {
+      if (sql.includes(BOOTSTRAP_MARK)) return { rows: [lockedFormulationRow('FG-WIP-SETUP')] };
+      if (
+        sql.includes('from public.formulation_ingredients') &&
+        !sql.includes('formulation_wips')
+      ) {
+        return {
+          rows: [
+            { rm_code: 'WIP-DOUGH', qty_kg: '0.20', pct: null, cost_per_kg_eur: null, wip_definition_id: wipDefId },
+          ],
+        };
+      }
+      if (sql.includes('formulation_wips') && sql.includes('bom_headers')) {
+        return {
+          rows: [{
+            wip_definition_id: wipDefId,
+            wip_item_id: wipItemId,
+            qty_kg: '0.20',
+            yield_pct: '100',
+            raw_material_cost_per_output_unit: '1.0000',
+            composition_missing_cost: false,
+          }],
+        };
+      }
+      if (sql.includes('npd_wip_processes') || sql.includes('wip_definition_processes')) {
+        return {
+          rows: [{
+            wip_definition_id: wipDefId,
+            wip_item_id: wipItemId,
+            process_id: '00000000-0000-4000-8000-00000000b021',
+            duration_hours: '0',
+            additional_cost: '0',
+            throughput_per_hour: '100',
+            throughput_uom: 'kg',
+            setup_cost: '50',
+            rate_per_hour: '0',
+            headcount: '0',
+          }],
+        };
+      }
+      if (sql.includes('"Reference"."AlertThresholds"')) return { rows: [{ value_int: 15, value_text: null }] };
+      if (sql.includes('insert into public.costing_breakdowns')) return { rows: [{ id: randomUUID() }] };
+      if (sql.includes('from public.item_cost_history') && sql.includes('effective_to is null')) {
+        return { rows: [] };
+      }
+      if (sql.includes('update public.item_cost_history')) return { rows: [] };
+      if (sql.includes('insert into public.item_cost_history')) {
+        persistedCosts.set(params?.[0] as string, params?.[1]);
+        return { rows: [{ id: randomUUID() }] };
+      }
+      if (sql.includes('update public.items') && sql.includes('cost_per_kg')) return { rows: [] };
+      return { rows: [] };
+    };
+
+    const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
+    expect(res.ok).toBe(true);
+    // material 1.00 + setup 50×2/1000/0.20 = 0.50 → 1.50/kg
+    expect(persistedCosts.get(wipItemId)).toBe('1.5000');
+  });
+
   it('blocks when any WIP composition item has no effective cost', async () => {
     const { computeAndSaveInitialBreakdown } = await import('../compute');
     handler = (sql) => {

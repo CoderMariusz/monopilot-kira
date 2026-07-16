@@ -682,8 +682,24 @@ export async function checkCostingNutritionReady(
          select 1
            from public.costing_breakdowns cb
            join project_row p on p.product_code = cb.product_code
+           left join locked_recipe lr on true
+           left join public.formulations f
+             on f.project_id = p.id
+            and f.org_id = app.current_org_id()
           where cb.org_id = app.current_org_id()
             and lower(cb.scenario) = 'target'
+            and (
+              lr.locked_version_id is null
+              or (
+                f.current_version_id = lr.locked_version_id
+                and cb.computed_at >= coalesce(
+                  f.locked_at,
+                  (select fv2.created_at
+                     from public.formulation_versions fv2
+                    where fv2.id = lr.locked_version_id)
+                )
+              )
+            )
        ) as cost_ready,
        exists (
          select 1

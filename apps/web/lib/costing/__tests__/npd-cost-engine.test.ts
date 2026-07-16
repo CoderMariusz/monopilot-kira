@@ -385,6 +385,44 @@ describe('computeNpdCostEngine', () => {
     expect(result.steps[2]!.valueEur).toBe('0.3600');
   });
 
+  it('N-NPD-1: WIP process setup_cost amortises into unit cost and WIP labour stage', () => {
+    const result = computeNpdCostEngine(
+      breadInput({
+        ingredients: [],
+        yieldPct: '100',
+        wipComponents: [
+          {
+            quantity: '0.2',
+            quantityUom: 'kg',
+            rawMaterialCostPerOutputUnit: '1.00',
+            yieldPct: '100',
+            wipDefinitionId: 'wip-dough',
+            wipItemId: 'item-dough',
+            processes: [
+              {
+                throughputPerHour: '100',
+                throughputUom: 'kg',
+                setupCost: '50',
+                roles: [{ ratePerHour: '0', headcount: '0' }],
+              },
+            ],
+          },
+        ],
+        processes: [],
+        packagingComponents: [],
+        overheadPerKg: '0',
+        logisticsPerBox: '0',
+      }),
+    );
+
+    // setup 50 × runs 2 / volume 1000 / 0.2 kg per pack = 0.50/kg → unit 1.50
+    expect(result.wipComponentCosts[0]!.unitCostEur).toBe('1.5000');
+    // WIP labour per pack: 0.50/kg × 0.2 kg = 0.10
+    expect(result.params.processLabourEur).toBe('0.1000');
+    // FG setup step stays FG-process only (no double-count)
+    expect(result.params.setupEur).toBe('0.0000');
+  });
+
   it('C033: preserves exact decimal beyond IEEE-754 binary fractions', () => {
     const result = computeNpdCostEngine(
       breadInput({

@@ -30,6 +30,16 @@ export type WipProcessCostInput = {
   /** When set with duration, defines batch output qty (e.g. 200 kg/h × 5 h). */
   throughputPerHour?: string;
   throughputUom?: string | null;
+  /** Per-run setup cost; amortised via {@link WipSetupAmortization}. */
+  setupCost?: string;
+};
+
+/** Brief inputs for setup amortisation: setup × runs / volume / wipQty → per WIP output unit. */
+export type WipSetupAmortization = {
+  runsPerWeek: string;
+  weeklyVolumePacks: string;
+  /** WIP output units consumed per FG pack (formulation qty per pack). */
+  wipQtyPerFgPack: string;
 };
 
 /** ponytail: depth ceiling for WIP-in-WIP — deeper trees need an explicit design pass. */
@@ -136,8 +146,14 @@ export function computeWipUnitCost(input: {
   materials: WipMaterialLineCost[];
   processes: WipProcessCostInput[];
   yieldPct?: string;
+  setupAmortization?: WipSetupAmortization;
 }): string {
-  return computeWipCostPartsDecimal(sumMaterialCost(input.materials), input.processes, input.yieldPct)
+  return computeWipCostPartsDecimal(
+    sumMaterialCost(input.materials),
+    input.processes,
+    input.yieldPct,
+    input.setupAmortization,
+  )
     .unitCost
     .toFixed(COST_DP);
 }
@@ -146,6 +162,7 @@ export function computeWipCostParts(input: {
   rawMaterialCostPerOutputUnit: string;
   processes: WipProcessCostInput[];
   yieldPct?: string;
+  setupAmortization?: WipSetupAmortization;
 }): {
   rawMaterialUnitCost: string;
   processLaborPerOutputUnit: string;
@@ -154,7 +171,12 @@ export function computeWipCostParts(input: {
   unitCostEur: string;
 } {
   const rawMaterial = nonNegativeDec(input.rawMaterialCostPerOutputUnit);
-  const parts = computeWipCostPartsDecimal(rawMaterial, input.processes, input.yieldPct);
+  const parts = computeWipCostPartsDecimal(
+    rawMaterial,
+    input.processes,
+    input.yieldPct,
+    input.setupAmortization,
+  );
   return {
     rawMaterialUnitCost: rawMaterial.toFixed(SCALE),
     processLaborPerOutputUnit: parts.processLabor.toFixed(SCALE),
@@ -166,9 +188,12 @@ export function computeWipCostParts(input: {
   };
 }
 
+export type WipTreeChildCost = string | { unitCost: string; missing?: boolean };
+
 /**
  * Cycle-safe recursive cost over a WIP tree. `resolveChild` returns null when a
- * leaf has no price (honest missing). Cycle / depth-ceiling edges contribute 0.
+ * leaf has no price (honest missing). Cycle / depth-ceiling edges contribute 0
+ * and set `missing: true`.
  */
 export function computeWipTreeUnitCost(input: {
   itemId: string;
@@ -181,15 +206,23 @@ export function computeWipTreeUnitCost(input: {
   }>;
   processes: WipProcessCostInput[];
   yieldPct?: string;
+  setupAmortization?: WipSetupAmortization;
   visited?: ReadonlySet<string>;
   depth?: number;
-  resolveChild?: (childItemId: string, visited: ReadonlySet<string>, depth: number) => string | null;
+  resolveChild?: (
+    childItemId: string,
+    visited: ReadonlySet<string>,
+    depth: number,
+  ) => WipTreeChildCost | null;
 }): { unitCost: string; missing: boolean } {
   const depth = input.depth ?? 0;
   const visited = new Set(input.visited ?? []);
   if (visited.has(input.itemId) || depth > WIP_COST_DEPTH_CEILING) {
     // ponytail: cycle / depth break → zero contribution, do not explode
-    return { unitCost: Dec.zero().toFixed(COST_DP), missing: depth > WIP_COST_DEPTH_CEILING };
+    return {
+      unitCost: Dec.zero().toFixed(COST_DP),
+      missing: visited.has(input.itemId) || depth > WIP_COST_DEPTH_CEILING,
+    };
   }
   visited.add(input.itemId);
 
@@ -202,15 +235,20 @@ export function computeWipTreeUnitCost(input: {
     }
     if (line.isIntermediate && line.childItemId && input.resolveChild) {
       if (visited.has(line.childItemId)) {
-        // ponytail: cycle edge → zero contribution, do not explode
-        continue;
-      }
-      const child = input.resolveChild(line.childItemId, visited, depth + 1);
-      if (child === null) {
+        // ponytail: cycle edge → zero contribution, honest incomplete
         missing = true;
         continue;
       }
-      resolvedMaterials.push({ qtyPerUnit: line.qtyPerUnit, unitCost: child });
+      const childResult = input.resolveChild(line.childItemId, visited, depth + 1);
+      if (childResult === null) {
+        missing = true;
+        continue;
+      }
+      const childCost = typeof childResult === 'string' ? childResult : childResult.unitCost;
+      if (typeof childResult === 'object' && childResult.missing) {
+        missing = true;
+      }
+      resolvedMaterials.push({ qtyPerUnit: line.qtyPerUnit, unitCost: childCost });
       continue;
     }
     missing = true;
@@ -221,6 +259,7 @@ export function computeWipTreeUnitCost(input: {
       materials: resolvedMaterials,
       processes: input.processes,
       yieldPct: input.yieldPct,
+      setupAmortization: input.setupAmortization,
     }),
     missing,
   };
@@ -240,16 +279,48 @@ function sumMaterialCost(lines: WipMaterialLineCost[]): Dec {
   }, Dec.zero());
 }
 
+/**
+ * Amortises Σ setup_cost to one WIP output unit (D25 / mig429).
+ * Per FG pack: setup × runs / volume; per WIP unit: ÷ wip qty per pack.
+ */
+export function computeWipSetupPerOutputUnit(
+  processes: WipProcessCostInput[],
+  amortization: WipSetupAmortization | undefined,
+): string {
+  return computeWipSetupPerOutputUnitDec(processes, amortization).toFixed(COST_DP);
+}
+
+function computeWipSetupPerOutputUnitDec(
+  processes: WipProcessCostInput[],
+  amortization: WipSetupAmortization | undefined,
+): Dec {
+  if (!amortization) return Dec.zero();
+  const runs = nonNegativeDec(amortization.runsPerWeek);
+  const volume = nonNegativeDec(amortization.weeklyVolumePacks);
+  const wipQty = nonNegativeDec(amortization.wipQtyPerFgPack);
+  if (volume.isZero() || wipQty.isZero()) return Dec.zero();
+
+  const safeProcesses = Array.isArray(processes) ? processes : [];
+  const setupTotal = safeProcesses.reduce(
+    (sum, process) => sum.add(nonNegativeDec(process.setupCost)),
+    Dec.zero(),
+  );
+  return setupTotal.mul(runs).div(volume).div(wipQty);
+}
+
 function computeWipCostPartsDecimal(
   rawMaterial: Dec,
   processes: WipProcessCostInput[],
   yieldPct: string | undefined,
+  setupAmortization?: WipSetupAmortization,
 ): { processLabor: Dec; yieldedRawMaterial: Dec; unitCost: Dec } {
   const safeProcesses = Array.isArray(processes) ? processes : [];
   const batchOutputKg = inferWipBatchOutputKgDec(safeProcesses);
-  const processLabor = safeProcesses.reduce((sum, process) => {
-    return sum.add(computeWipProcessLaborPerOutputUnitDec(process, batchOutputKg));
-  }, Dec.zero());
+  const processLabor = safeProcesses
+    .reduce((sum, process) => {
+      return sum.add(computeWipProcessLaborPerOutputUnitDec(process, batchOutputKg));
+    }, Dec.zero())
+    .add(computeWipSetupPerOutputUnitDec(safeProcesses, setupAmortization));
   const yieldFactor = validYieldFactor(yieldPct);
   return {
     processLabor,

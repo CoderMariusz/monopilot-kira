@@ -30,6 +30,7 @@ import {
   decimalGt,
   decimalLt,
   decimalLte,
+  mapWipProcesses,
   type CostingErrorCode,
   type NpdCostEngineInput,
   type NpdCostProcessInput,
@@ -417,6 +418,8 @@ export async function computeAndSaveInitialBreakdown(raw: unknown): Promise<Comp
         userId,
         costRows: wipCosts.rows,
         processRows: wipProcesses.rows,
+        runsPerWeek: recipe.runs_per_week,
+        weeklyVolumePacks: recipe.weekly_volume_packs,
       });
 
       return {
@@ -853,8 +856,20 @@ async function persistWipUnitCosts(input: {
   userId: string;
   costRows: WipComponentCostRow[];
   processRows: WipProcessRow[];
+  runsPerWeek: string | null;
+  weeklyVolumePacks: string | null;
 }): Promise<void> {
   const processesByDefinition = groupWipProcesses(input.processRows);
+  const setupAmortization =
+    input.runsPerWeek &&
+    input.weeklyVolumePacks &&
+    decimalGt(input.runsPerWeek, '0') &&
+    decimalGt(input.weeklyVolumePacks, '0')
+      ? {
+          runsPerWeek: input.runsPerWeek,
+          weeklyVolumePacks: input.weeklyVolumePacks,
+        }
+      : undefined;
 
   for (const row of input.costRows) {
     const wipItemId = row.wip_item_id;
@@ -863,17 +878,14 @@ async function persistWipUnitCosts(input: {
     const processes = processesByDefinition.get(row.wip_definition_id) ?? [];
     const unitCost = computeWipUnitCost({
       materials: [{ qtyPerUnit: '1', unitCost: row.raw_material_cost_per_output_unit }],
-      processes: processes.map((process) => ({
-        roles: process.roles.map((role) => ({
-          rolePerHour: role.ratePerHour ?? '0',
-          headcount: role.headcount ?? '0',
-        })),
-        durationHours: process.durationHours ?? '0',
-        additionalCost: process.additionalCost ?? '0',
-        throughputPerHour: process.throughputPerHour ?? undefined,
-        throughputUom: process.throughputUom ?? undefined,
-      })),
+      processes: mapWipProcesses(processes),
       yieldPct: row.yield_pct,
+      setupAmortization: setupAmortization
+        ? {
+            ...setupAmortization,
+            wipQtyPerFgPack: row.qty_kg ?? '0',
+          }
+        : undefined,
     });
     const costPerKg = unitCost;
 

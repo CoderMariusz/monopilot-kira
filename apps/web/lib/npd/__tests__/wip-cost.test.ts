@@ -5,6 +5,7 @@ import {
   computeWipMaterialCost,
   computeWipProcessCost,
   computeWipProcessLaborPerOutputUnit,
+  computeWipSetupPerOutputUnit,
   computeWipTreeUnitCost,
   computeWipUnitCost,
   inferWipBatchOutputKg,
@@ -145,6 +146,36 @@ describe('wip-cost', () => {
         }),
       ).toBe('4.4444');
     });
+
+    it('amortises setup into unit cost (D25 — parity with FG sumSetup)', () => {
+      // setup 50 × runs 2 / volume 1000 / wip qty 0.2 kg per pack = 0.50/kg
+      expect(
+        computeWipSetupPerOutputUnit(
+          [{ roles: [], durationHours: '0', additionalCost: '0', setupCost: '50' }],
+          { runsPerWeek: '2', weeklyVolumePacks: '1000', wipQtyPerFgPack: '0.2' },
+        ),
+      ).toBe('0.5000');
+
+      expect(
+        computeWipUnitCost({
+          materials: [{ qtyPerUnit: '1', unitCost: '1.00' }],
+          processes: [
+            {
+              roles: [],
+              durationHours: '0',
+              additionalCost: '0',
+              setupCost: '50',
+            },
+          ],
+          yieldPct: '100',
+          setupAmortization: {
+            runsPerWeek: '2',
+            weeklyVolumePacks: '1000',
+            wipQtyPerFgPack: '0.2',
+          },
+        }),
+      ).toBe('1.5000');
+    });
   });
 
   describe('WIP-019 regression (run-06 C033)', () => {
@@ -189,14 +220,38 @@ describe('wip-cost', () => {
   });
 
   describe('computeWipTreeUnitCost (cycle + depth guard)', () => {
-    it('breaks cycles with a visited-set (contributes 0, not missing)', () => {
+    it('marks cyclic self-edge as missing (zero contribution, not false-complete)', () => {
       const result = computeWipTreeUnitCost({
         itemId: 'wip-a',
         materials: [{ childItemId: 'wip-a', qtyPerUnit: '1', unitCost: null, isIntermediate: true }],
         processes: [],
         resolveChild: () => '99',
       });
-      expect(result).toEqual({ unitCost: '0.0000', missing: false });
+      expect(result).toEqual({ unitCost: '0.0000', missing: true });
+    });
+
+    it('marks nested WIP cycle as missing instead of under-counting', () => {
+      const result = computeWipTreeUnitCost({
+        itemId: 'wip-parent',
+        materials: [{ childItemId: 'wip-child', qtyPerUnit: '1', unitCost: null, isIntermediate: true }],
+        processes: [],
+        resolveChild: (childId, visited) => {
+          if (childId === 'wip-child') {
+            const child = computeWipTreeUnitCost({
+              itemId: 'wip-child',
+              materials: [{ childItemId: 'wip-parent', qtyPerUnit: '1', unitCost: null, isIntermediate: true }],
+              processes: [],
+              visited,
+              depth: 1,
+              resolveChild: () => '50',
+            });
+            return { unitCost: child.unitCost, missing: child.missing };
+          }
+          return null;
+        },
+      });
+      expect(result.missing).toBe(true);
+      expect(result.unitCost).toBe('0.0000');
     });
 
     it('marks missing when depth exceeds WIP_COST_DEPTH_CEILING', () => {

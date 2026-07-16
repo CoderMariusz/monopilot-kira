@@ -6,6 +6,12 @@
  * supplier → list → wip_computed from ACTIVE BOM + npd_wip_processes labour per
  * mig 491). Portfolio list stays FG-only by product decision — roll-up correctness
  * for WIPs is in the recipe BOM total, not the portfolio catalogue.
+ *
+ * Loss factors are intentionally excluded: Σ(bl.quantity × vec.amount) uses BOM
+ * net quantities only. bom_lines.scrap_pct inflates WO/MRP consumption
+ * (qty ÷ (1 − scrap/100), mig 393); packaging_components.waste_pct inflates NPD
+ * waterfall packaging (qty × cost × (1 + waste/100), D41/mig 427). Those are
+ * separate concerns — do not fold scrap_pct or waste_pct into this standard rollup.
  */
 
 export const MIXED_CURRENCY_ROLLUP_MARKER = 'mixed_currency';

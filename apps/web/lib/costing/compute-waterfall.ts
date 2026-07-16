@@ -6,7 +6,7 @@
  */
 
 import { Dec, type RecomputeIngredient } from '@monopilot/domain';
-import { computeWipCostParts, type WipProcessCostInput } from '../npd/wip-cost';
+import { computeWipCostParts, type WipProcessCostInput, type WipSetupAmortization } from '../npd/wip-cost';
 
 export const COSTING_WATERFALL_STEP_NAMES = [
   'Raw materials',
@@ -237,10 +237,16 @@ export function computeNpdCostEngine(input: NpdCostEngineInput): WaterfallResult
   let yieldedWipLabourPerPack = Dec.zero();
   const wipComponentCosts: NpdWipComponentCost[] = [];
   for (const wip of input.wipComponents ?? []) {
+    const setupAmortization: WipSetupAmortization = {
+      runsPerWeek: runsPerWeek.toFixed(4),
+      weeklyVolumePacks: weeklyVolumePacks.toFixed(4),
+      wipQtyPerFgPack: normaliseNumeric(wip.quantity) ?? '0',
+    };
     const parts = computeWipCostParts({
       rawMaterialCostPerOutputUnit: wip.rawMaterialCostPerOutputUnit,
       processes: mapWipProcesses(wip.processes),
       yieldPct: wip.yieldPct,
+      setupAmortization: missing.includes('brief_inputs_required') ? undefined : setupAmortization,
     });
     const materialUnitCost = Dec.from(parts.rawMaterialUnitCost);
     const yieldedMaterialUnitCost = Dec.from(parts.yieldedRawMaterialUnitCost);
@@ -394,7 +400,7 @@ function computeProcessLabour(
   return { perPack, legacyDurationBasis };
 }
 
-function mapWipProcesses(processes: NpdCostProcessInput[]): WipProcessCostInput[] {
+export function mapWipProcesses(processes: NpdCostProcessInput[]): WipProcessCostInput[] {
   return processes.map((process) => ({
     roles: process.roles.map((role) => ({
       rolePerHour: normaliseNumeric(role.ratePerHour) ?? '0',
@@ -404,6 +410,7 @@ function mapWipProcesses(processes: NpdCostProcessInput[]): WipProcessCostInput[
     additionalCost: normaliseNumeric(process.additionalCost) ?? '0',
     throughputPerHour: normaliseNumeric(process.throughputPerHour),
     throughputUom: process.throughputUom,
+    setupCost: normaliseNumeric(process.setupCost) ?? '0',
   }));
 }
 
@@ -417,6 +424,7 @@ function sumSetup(processes: NpdCostProcessInput[]): Dec {
   return processes.reduce((sum, process) => sum.add(Dec.from(process.setupCost)), Dec.zero());
 }
 
+/** NPD costing loss (waste_pct, D41) — not bom_lines.scrap_pct (WO requisition). */
 function sumPackaging(components: NpdCostEngineInput['packagingComponents']): Dec {
   return components.reduce((sum, component) => {
     const wasteFactor = ONE.add(Dec.from(component.wastePct).div(HUNDRED));
