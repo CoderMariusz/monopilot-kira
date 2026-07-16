@@ -176,7 +176,9 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
         const current = client.warehouses.get(id) ?? { id, is_active: true };
         const row = normalized.includes('set name =')
           ? { ...current, name: String(params[1]) }
-          : { id, is_active: false };
+          : normalized.includes("deactivated_at") && normalized.includes('-')
+            ? { ...current, is_active: true }
+            : { id, is_active: false };
         client.warehouses.set(id, row);
         return { rows: [row] as never[], rowCount: 1 };
       }
@@ -369,6 +371,27 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     expect(preflight).toContain('wo.production_line_id');
     expect(preflight).toContain('pl.warehouse_id');
     expect(preflight).toContain('lp.reserved_qty');
+  });
+
+  it('reactivates a deactivated warehouse and emits settings.warehouse.reactivated', async () => {
+    const deactivateWarehouse = await loadAction<
+      (input: { warehouseId: string }) => Promise<{ ok: boolean; error?: string; data?: { isActive: boolean } }>
+    >('warehouse.ts', 'deactivateWarehouse', () => import(`${__dirname}/warehouse.ts`) as Promise<Record<string, unknown>>);
+    const reactivateWarehouse = await loadAction<
+      (input: { warehouseId: string }) => Promise<{ ok: boolean; error?: string; data?: { isActive: boolean } }>
+    >('warehouse.ts', 'reactivateWarehouse', () => import(`${__dirname}/warehouse.ts`) as Promise<Record<string, unknown>>);
+
+    await expect(deactivateWarehouse({ warehouseId: WAREHOUSE_ID })).resolves.toMatchObject({
+      ok: true,
+      data: { isActive: false },
+    });
+
+    await expect(reactivateWarehouse({ warehouseId: WAREHOUSE_ID })).resolves.toMatchObject({
+      ok: true,
+      data: { isActive: true },
+    });
+    expect(currentClient.warehouses.get(WAREHOUSE_ID)?.is_active).toBe(true);
+    expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.warehouse.reactivated')).toBe(true);
   });
 
   it('creates warehouses with a required site_id and persists it into public.warehouses', async () => {

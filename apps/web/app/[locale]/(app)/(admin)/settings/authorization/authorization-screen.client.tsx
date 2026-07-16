@@ -94,6 +94,7 @@ export type CopyKey =
   | 'blockerAuthorizerRoleMissing'
   | 'blockerGateRuleMissing'
   | 'blockerMinApproversInvalid'
+  | 'blockerMinApproversDualSignInvalid'
   | 'blockerPolicyDisabled'
   | 'blockerRequestPermissionMissing'
   | 'blockerRequiresNewVersionRequired'
@@ -252,6 +253,7 @@ function blockerMessage(blocker: Blocker, copy: Copy) {
     authorizer_role_missing: 'blockerAuthorizerRoleMissing',
     gate_rule_missing: 'blockerGateRuleMissing',
     min_approvers_invalid: 'blockerMinApproversInvalid',
+    min_approvers_dual_sign_invalid: 'blockerMinApproversDualSignInvalid',
     policy_disabled: 'blockerPolicyDisabled',
     request_permission_missing: 'blockerRequestPermissionMissing',
     requires_new_version_required: 'blockerRequiresNewVersionRequired',
@@ -426,9 +428,9 @@ export default function AuthorizationPoliciesScreen(pageProps: AuthorizationPage
       setFieldAlert(copy('policySaveError'));
       setServerBlockers([
         {
-          code: 'min_approvers_invalid',
+          code: 'min_approvers_dual_sign_invalid',
           policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY,
-          message: copy('blockerMinApproversInvalid'),
+          message: copy('blockerMinApproversDualSignInvalid'),
         },
       ]);
       setSaved(false);

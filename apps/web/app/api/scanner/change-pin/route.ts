@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       return jsonError('invalid_pin', 401);
     }
 
-    await setPin(session.user_id, newPin);
+    await setPin(session.user_id, newPin, { client });
     await writeScannerSessionAudit(client, session, 'scanner.change_pin', 'ok');
     return jsonOk({});
   });

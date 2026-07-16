@@ -49,11 +49,22 @@ type FakeClientOptions = {
   seatLimit: number | null;
   activeUsers: number;
   rolesById: Record<string, { id: string; org_id: string; code: string; is_system: boolean; display_order: number | null }>;
+  existingUser?: {
+    id: string;
+    org_id: string;
+    email: string;
+    name: string;
+    role_id: string;
+    is_active: boolean;
+    invite_token: string | null;
+    invite_token_expires_at: string | null;
+  } | null;
 };
 
 type FakeClient = {
   calls: QueryCall[];
   upsertedUser: Record<string, unknown> | null;
+  updatedInvite: Record<string, unknown> | null;
   outboxEvents: Array<{ event_type: string; payload: Record<string, unknown> }>;
   conflictEmailOrgId?: string;
   query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
@@ -64,6 +75,7 @@ function makeClient(opts: FakeClientOptions): FakeClient {
   const client: FakeClient = {
     calls,
     upsertedUser: null,
+    updatedInvite: null,
     outboxEvents: [],
     async query(sql: string, params: unknown[] = []) {
       calls.push({ sql, params });
@@ -90,6 +102,23 @@ function makeClient(opts: FakeClientOptions): FakeClient {
         return { rows: role ? [role] : [], rowCount: role ? 1 : 0 };
       }
 
+      if (norm.startsWith('select') && norm.includes('from public.users') && norm.includes('where email =')) {
+        if (!opts.existingUser) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [opts.existingUser], rowCount: 1 };
+      }
+
+      if (norm.startsWith('update public.users') && norm.includes('invite_token =')) {
+        client.updatedInvite = {
+          invite_token: params[0],
+          invite_token_expires_at: params[1],
+          id: params[2],
+          org_id: params[3],
+        };
+        return { rows: [{ id: params[2] }], rowCount: 1 };
+      }
+
       if (norm.startsWith('insert into public.users')) {
         if (client.conflictEmailOrgId && client.conflictEmailOrgId !== params[0]) {
           return { rows: [], rowCount: 0 };
@@ -103,7 +132,7 @@ function makeClient(opts: FakeClientOptions): FakeClient {
           invite_token: params[5],
           invite_token_expires_at: params[6],
         };
-        return { rows: [], rowCount: 1 };
+        return { rows: [{ id: 'new-invite-user-id' }], rowCount: 1 };
       }
 
       if (norm.startsWith('insert into public.outbox_events')) {
@@ -255,13 +284,100 @@ describe('inviteUser roleId handling', () => {
       rolesById: {
         [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', is_system: false, display_order: 99 },
       },
+      existingUser: {
+        id: 'foreign-user-id',
+        org_id: OTHER_ORG_ID,
+        email: 'existing@example.com',
+        name: 'Foreign User',
+        role_id: VIEWER_ROLE_ID,
+        is_active: false,
+        invite_token: 'old-token',
+        invite_token_expires_at: null,
+      },
     });
-    currentClient.conflictEmailOrgId = OTHER_ORG_ID;
     const { inviteUser } = await loadInvite();
     const result = await inviteUser({ email: 'existing@example.com', roleId: VIEWER_ROLE_ID });
 
     expect(result).toEqual({ ok: false, error: 'invalid_input' });
     expect(currentClient.upsertedUser).toBeNull();
+    expect(currentClient.updatedInvite).toBeNull();
+  });
+
+  it('rejects re-inviting an active user with email_taken', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: null,
+      activeUsers: 1,
+      rolesById: {
+        [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', is_system: false, display_order: 99 },
+        [OWNER_ROLE_ID]: { id: OWNER_ROLE_ID, org_id: ORG_ID, code: 'npd.manager', is_system: false, display_order: 10 },
+      },
+      existingUser: {
+        id: 'active-user-id',
+        org_id: ORG_ID,
+        email: 'active@example.com',
+        name: 'Active User',
+        role_id: VIEWER_ROLE_ID,
+        is_active: true,
+        invite_token: null,
+        invite_token_expires_at: null,
+      },
+    });
+    const { inviteUser } = await loadInvite();
+    const result = await inviteUser({
+      email: 'active@example.com',
+      name: 'SOL-R01-DUPLICATE',
+      roleId: OWNER_ROLE_ID,
+    });
+
+    expect(result).toEqual({ ok: false, error: 'email_taken' });
+    expect(_mockGenerateLink).not.toHaveBeenCalled();
+    expect(currentClient.upsertedUser).toBeNull();
+    expect(currentClient.updatedInvite).toBeNull();
+  });
+
+  it('re-sends a pending invite without overwriting name or role', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: null,
+      activeUsers: 0,
+      rolesById: {
+        [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', is_system: false, display_order: 99 },
+        [OWNER_ROLE_ID]: { id: OWNER_ROLE_ID, org_id: ORG_ID, code: 'npd.manager', is_system: false, display_order: 10 },
+      },
+      existingUser: {
+        id: 'pending-user-id',
+        org_id: ORG_ID,
+        email: 'pending@example.com',
+        name: 'Original Name',
+        role_id: VIEWER_ROLE_ID,
+        is_active: false,
+        invite_token: 'old-token',
+        invite_token_expires_at: '2026-07-01T00:00:00.000Z',
+      },
+    });
+    const { inviteUser } = await loadInvite();
+    const result = await inviteUser({
+      email: 'pending@example.com',
+      name: 'SOL-R01-DUPLICATE',
+      roleId: OWNER_ROLE_ID,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.resent).toBe(true);
+    }
+    expect(_mockGenerateLink).toHaveBeenCalledTimes(1);
+    expect(currentClient.upsertedUser).toBeNull();
+    expect(currentClient.updatedInvite).toMatchObject({
+      id: 'pending-user-id',
+      org_id: ORG_ID,
+      invite_token: 'hashed-token-stub',
+    });
+    expect(currentClient.updatedInvite).not.toMatchObject({
+      name: 'SOL-R01-DUPLICATE',
+      role_id: OWNER_ROLE_ID,
+    });
   });
 
   it('never silently defaults the role to a system owner/admin role', async () => {

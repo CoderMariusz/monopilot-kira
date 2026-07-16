@@ -161,7 +161,13 @@ type EmailTemplateDraft = {
 
 type EmailTemplateVariableGroup = {
   group: string;
-  vars: Array<{ name: string; token: `{{${string}}}`; desc: string }>;
+  vars: Array<{ name: string; token: `{{${string}}}`; desc: string; triggers?: readonly string[] }>;
+};
+
+type EmailTriggerOption = {
+  code: string;
+  label: string;
+  description: string;
 };
 
 type EmailTemplateSaveResult =
@@ -182,6 +188,7 @@ type EmailTemplatesPageProps = {
   providerSettings?: EmailProviderSettings;
   templates?: EmailTemplate[];
   variableGroups?: EmailTemplateVariableGroup[];
+  supportedTriggers?: EmailTriggerOption[];
   saveTemplate?: (input: EmailTemplateDraft) => Promise<EmailTemplateSaveResult>;
   testSend?: (input: TestSendInput) => Promise<TestSendResult>;
 };
@@ -195,38 +202,56 @@ const providerSettings: EmailProviderSettings = {
   fromName: 'Apex Foods · Monopilot',
 };
 
-const templates: EmailTemplate[] = [
+const supportedTriggers: EmailTriggerOption[] = [
   {
-    code: 'po_to_supplier',
-    name: 'Purchase order → supplier',
-    consumer: 'Planning',
-    subject: 'PO {{po_number}} for {{supplier_email}}',
-    body: 'Hello supplier, please confirm PO {{po_number}} before dispatch.',
-    active: true,
-    activeTo: ['{{supplier_email}}', 'procurement@example.com'],
+    code: 'core_closed',
+    label: 'FA core closed',
+    description: 'Fired when a factory acceptance core stage is closed.',
   },
   {
-    code: 'qa_hold_created',
-    name: 'Quality hold created',
-    consumer: 'QA',
-    subject: 'Hold {{hold_code}} requires QA review',
-    body: 'QA hold {{hold_code}} is waiting for release.',
+    code: 'fa_d365_ready',
+    label: 'FA D365 ready',
+    description: 'Fired when a factory acceptance record is ready for Dynamics 365.',
+  },
+];
+
+const templates: EmailTemplate[] = [
+  {
+    code: 'core_closed',
+    name: 'FA core closed notice',
+    consumer: 'NPD',
+    subject: 'FA {{fa_code}} closed',
+    body: 'FA {{fa_code}} was closed by {{closed_by}} for {{dept}}.',
+    active: true,
+    activeTo: ['ops@example.com'],
+  },
+  {
+    code: 'fa_d365_ready',
+    name: 'FA D365 ready',
+    consumer: 'Finance',
+    subject: 'FA {{fa_code}} ready for D365',
+    body: 'FA {{fa_code}} reached stage {{d365_stage}} at {{ready_at}}.',
     active: false,
-    activeTo: ['quality@example.com'],
+    activeTo: ['finance@example.com'],
   },
 ];
 
 const variableGroups: EmailTemplateVariableGroup[] = [
   {
-    group: 'Purchase order',
+    group: 'Factory acceptance',
     vars: [
-      { name: 'po_number', token: '{{po_number}}', desc: 'Purchase order number' },
-      { name: 'supplier_email', token: '{{supplier_email}}', desc: 'Supplier primary email' },
+      { name: 'fa_code', token: '{{fa_code}}', desc: 'Factory acceptance code', triggers: ['core_closed', 'fa_d365_ready'] },
+      { name: 'dept', token: '{{dept}}', desc: 'Owning department', triggers: ['core_closed', 'fa_d365_ready'] },
+      { name: 'closed_by', token: '{{closed_by}}', desc: 'User who closed the FA', triggers: ['core_closed'] },
+      { name: 'closed_at', token: '{{closed_at}}', desc: 'Close timestamp', triggers: ['core_closed'] },
     ],
   },
   {
-    group: 'Quality',
-    vars: [{ name: 'hold_code', token: '{{hold_code}}', desc: 'QA hold code' }],
+    group: 'D365 sync',
+    vars: [
+      { name: 'd365_stage', token: '{{d365_stage}}', desc: 'D365 stage', triggers: ['fa_d365_ready'] },
+      { name: 'ready_at', token: '{{ready_at}}', desc: 'D365-ready timestamp', triggers: ['fa_d365_ready'] },
+    ],
   },
 ];
 
@@ -264,6 +289,7 @@ async function renderEmailTemplatesPage(overrides: Partial<EmailTemplatesPagePro
     providerSettings,
     templates,
     variableGroups,
+    supportedTriggers,
     saveTemplate: vi.fn(async (input: EmailTemplateDraft): Promise<EmailTemplateSaveResult> => ({
       ok: true,
       templateCode: input.code,
@@ -374,7 +400,7 @@ describe('SET-090 email_templates_screen prototype parity', () => {
     for (const header of ['Trigger code', 'Name', 'Consumer', 'Subject preview', 'Active', '']) {
       expect(within(table).getByRole('columnheader', { name: header })).toBeInTheDocument();
     }
-    expect(within(table).getByRole('row', { name: /po_to_supplier purchase order → supplier planning/i })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /core_closed fa core closed notice npd/i })).toBeInTheDocument();
     expect(screen.getByText('active')).toHaveAttribute('data-slot', 'badge');
     expect(screen.getByText('off')).toHaveAttribute('data-slot', 'badge');
     expect(screen.getByText(/variables reference/i)).toHaveAttribute('role', 'note');
@@ -409,8 +435,8 @@ describe('SET-090 email_templates_screen prototype parity', () => {
           "",
         ],
         "templateCodes": [
-          "po_to_supplier",
-          "qa_hold_created",
+          "core_closed",
+          "fa_d365_ready",
         ],
       }
     `);
@@ -419,7 +445,7 @@ describe('SET-090 email_templates_screen prototype parity', () => {
   it('does not render Apex/no-reply provider settings or sample templates when no live email loader data is injected', async () => {
     await renderEmailTemplatesPageWithoutInjectedData();
 
-    expect(document.body).not.toHaveTextContent(/Apex|no-reply@monopilot\.apex\.pl|po_to_supplier|qa_hold_created/i);
+    expect(document.body).not.toHaveTextContent(/Apex|no-reply@monopilot\.apex\.pl|core_closed|fa_d365_ready/i);
     expect(
       screen.queryAllByTestId('settings-email-template-row'),
       'Default production render must be live-loader backed or an explicit placeholder; it must not fabricate email template rows.',
@@ -445,7 +471,7 @@ describe('SET-090 email_templates_screen prototype parity', () => {
     await user.tab();
     expect(screen.getByRole('textbox', { name: /from name/i })).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole('button', { name: /edit po_to_supplier|edit/i })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /edit core_closed|edit/i })).toHaveFocus();
 
     await user.click(screen.getByRole('button', { name: /\+ new template/i }));
 
@@ -455,10 +481,10 @@ describe('SET-090 email_templates_screen prototype parity', () => {
     assertModalA11y(newDialog, /new email template/i);
 
     await user.click(within(newDialog).getByRole('button', { name: /close|cancel/i }));
-    await user.click(screen.getByRole('button', { name: /edit po_to_supplier|edit/i }));
-    const editDialog = await screen.findByRole('dialog', { name: /edit template.*po_to_supplier/i });
+    await user.click(screen.getByRole('button', { name: /edit core_closed|edit/i }));
+    const editDialog = await screen.findByRole('dialog', { name: /edit template.*core_closed/i });
     expect(editDialog).toHaveAttribute('data-modal-id', 'SM-04');
-    assertModalA11y(editDialog, /edit template.*po_to_supplier/i);
+    assertModalA11y(editDialog, /edit template.*core_closed/i);
   });
 
   it('links the variables reference to the localized /en/settings/email/variables route instead of plain helper text', async () => {
@@ -472,15 +498,13 @@ describe('SET-090 email_templates_screen prototype parity', () => {
     const user = userEvent.setup();
     await renderEmailTemplatesPage();
 
-    await user.click(screen.getByRole('button', { name: /edit po_to_supplier|edit/i }));
+    await user.click(screen.getByRole('button', { name: /edit core_closed|edit/i }));
 
-    const dialog = await screen.findByRole('dialog', { name: /edit template.*po_to_supplier/i });
+    const dialog = await screen.findByRole('dialog', { name: /edit template.*core_closed/i });
     expect(dialog).toHaveAttribute('data-modal-id', 'SM-04');
-    expect(within(dialog).getByRole('textbox', { name: /trigger code/i })).toHaveValue('po_to_supplier');
-    expect(within(dialog).getByRole('textbox', { name: /display name/i })).toHaveValue('Purchase order → supplier');
-    expect(within(dialog).getByRole('textbox', { name: /active recipients \(to\)/i })).toHaveValue(
-      '{{supplier_email}}; procurement@example.com',
-    );
+    expect(within(dialog).getByLabelText(/trigger code/i)).toHaveValue('core_closed');
+    expect(within(dialog).getByRole('textbox', { name: /display name/i })).toHaveValue('FA core closed notice');
+    expect(within(dialog).getByRole('textbox', { name: /active recipients \(to\)/i })).toHaveValue('ops@example.com');
     expect(within(dialog).getByRole('button', { name: /next/i })).toBeEnabled();
   });
 
@@ -493,24 +517,24 @@ describe('SET-090 email_templates_screen prototype parity', () => {
     }));
     await renderEmailTemplatesPage({ saveTemplate });
 
-    await user.click(screen.getByRole('button', { name: /edit po_to_supplier|edit/i }));
-    const dialog = await screen.findByRole('dialog', { name: /edit template.*po_to_supplier/i });
+    await user.click(screen.getByRole('button', { name: /edit core_closed|edit/i }));
+    const dialog = await screen.findByRole('dialog', { name: /edit template.*core_closed/i });
     await user.click(within(dialog).getByRole('button', { name: /next/i }));
     await user.clear(within(dialog).getByRole('textbox', { name: /subject/i }));
-    await user.type(within(dialog).getByRole('textbox', { name: /subject/i }), 'Updated PO {{po_number}}');
+    await user.type(within(dialog).getByRole('textbox', { name: /subject/i }), 'Updated FA {{fa_code}}');
     await user.clear(within(dialog).getByRole('textbox', { name: /^body/i }));
-    await user.type(within(dialog).getByRole('textbox', { name: /^body/i }), 'Updated body for {{po_number}} and {{supplier_email}}.');
+    await user.type(within(dialog).getByRole('textbox', { name: /^body/i }), 'Updated body for {{fa_code}} and {{closed_by}}.');
     await user.click(within(dialog).getByRole('button', { name: /next: review/i }));
     await user.click(within(dialog).getByRole('button', { name: /save template/i }));
 
     expect(saveTemplate).toHaveBeenCalledWith(
       expect.objectContaining({
-        code: 'po_to_supplier',
-        subject: 'Updated PO {{po_number}}',
-        body: 'Updated body for {{po_number}} and {{supplier_email}}.',
+        code: 'core_closed',
+        subject: 'Updated FA {{fa_code}}',
+        body: 'Updated body for {{fa_code}} and {{closed_by}}.',
       }),
     );
-    expect(await screen.findByRole('row', { name: /po_to_supplier.*updated po \{\{po_number\}\}/i })).toBeInTheDocument();
+    expect(await screen.findByRole('row', { name: /core_closed.*updated fa \{\{fa_code\}\}/i })).toBeInTheDocument();
   });
 
   it("calls the Test send action with provider settings and shows the required success toast with message_id", async () => {

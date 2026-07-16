@@ -58,6 +58,8 @@ describe('settings/sites updateSiteSettings', () => {
               name: 'Kraków HQ',
               is_default: true,
               country: 'Poland',
+              timezone: 'Europe/Warsaw',
+              legal_entity: 'Apex 22 PL',
               address_text: 'ul. Wadowicka 3, Kraków',
               latitude: null,
               longitude: null,
@@ -89,6 +91,67 @@ describe('settings/sites updateSiteSettings', () => {
     expect(update?.sql).toContain('org_id = app.current_org_id()');
     expect(update?.params?.[0]).toBe(ORG_ID);
     expect(update?.params?.[1]).toBe(SITE_ID);
+  });
+
+  it('persists timezone, country and legal_entity when provided', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    mockOrgContext((sql, params) => {
+      calls.push({ sql, params });
+      if (/update public\.sites/i.test(sql) && /returning/i.test(sql)) {
+        return {
+          rows: [
+            {
+              id: SITE_ID,
+              org_id: ORG_ID,
+              site_code: 'KRK',
+              name: 'Kraków HQ',
+              is_default: false,
+              country: 'GB',
+              timezone: 'Europe/London',
+              legal_entity: 'Apex UK',
+              address_text: '',
+              latitude: null,
+              longitude: null,
+              map_x: '50',
+              map_y: '50',
+              operating_hours: 'Mon-Fri 08:00-18:00',
+              haccp_enabled: false,
+              haccp_valid_until: null,
+              line_count: '0',
+              worker_count: '0',
+              is_active: true,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await updateSiteSettings(ORG_ID, SITE_ID, {
+      operating_hours: 'Mon-Fri 08:00-18:00',
+      timezone: 'Europe/London',
+      country: 'GB',
+      legal_entity: 'Apex UK',
+    });
+
+    expect(result.ok).toBe(true);
+    const update = calls.find((call) => /update public\.sites/i.test(call.sql) && /returning/i.test(call.sql));
+    expect(update?.params?.[6]).toBe(true);
+    expect(update?.params?.[7]).toBe('Europe/London');
+    expect(update?.params?.[8]).toBe(true);
+    expect(update?.params?.[9]).toBe('GB');
+    expect(update?.params?.[10]).toBe(true);
+    expect(update?.params?.[11]).toBe('Apex UK');
+  });
+
+  it('rejects an invalid IANA timezone', async () => {
+    mockOrgContext(() => ({ rows: [], rowCount: 0 }));
+    const result = await updateSiteSettings(ORG_ID, SITE_ID, {
+      operating_hours: 'Mon-Fri 08:00-18:00',
+      timezone: 'Not/A/Timezone',
+    });
+    expect(result).toEqual({ ok: false, error: 'invalid_input' });
   });
 
   it('returns forbidden without settings.org.update', async () => {

@@ -76,6 +76,7 @@ const AUTHORIZATION_LABEL_KEYS: CopyKey[] = [
   'blockerAuthorizerRoleMissing',
   'blockerGateRuleMissing',
   'blockerMinApproversInvalid',
+  'blockerMinApproversDualSignInvalid',
   'blockerPolicyDisabled',
   'blockerRequestPermissionMissing',
   'blockerRequiresNewVersionRequired',
@@ -190,7 +191,7 @@ function technicalBlockers(row: AuthorizationPolicyRow, labels: AuthorizationScr
   if (toNumber(row.min_approvers, 0) < 1) blockers.push({ code: 'min_approvers_invalid', policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY, message: labels.blockerMinApproversInvalid });
   const requireDualSignOff = Boolean(row.settings_json?.require_dual_sign_off ?? DEFAULT_REQUIRE_DUAL_SIGN_OFF);
   if (requireDualSignOff && toNumber(row.min_approvers, 0) < 2) {
-    blockers.push({ code: 'min_approvers_invalid', policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY, message: labels.blockerMinApproversInvalid });
+    blockers.push({ code: 'min_approvers_dual_sign_invalid', policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY, message: labels.blockerMinApproversDualSignInvalid });
   }
   if (!row.approver_role_codes?.length) blockers.push({ code: 'approver_role_missing', policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY, message: labels.blockerApproverRoleMissing });
   return blockers;

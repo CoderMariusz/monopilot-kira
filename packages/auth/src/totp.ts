@@ -50,14 +50,13 @@ export function getMfaMasterKeyFromEnv(): string {
   }
   return key;
 }
-
-// Side-effect import-time check: fail-fast on module load in production if
-// MFA_MASTER_KEY is missing. Test runs (NODE_ENV=test) and dev are unaffected.
-if (process.env.NODE_ENV === 'production' && !process.env.MFA_MASTER_KEY) {
-  throw new Error(
-    'MFA_MASTER_KEY must be set in production (packages/auth/totp.ts loaded with no master key).',
-  );
-}
+// NOTE: the production key guard is enforced at point-of-use in
+// `getMfaMasterKeyFromEnv()` (throws when TOTP enrol/verify actually reads the
+// key in production), NOT at module load. A module-load throw broke `next build`
+// once a statically-collected page (account/profile MFA reconfigure) imports
+// this module: the build evaluates the module with NODE_ENV=production but no
+// runtime env, crashing page-data collection. Import must stay side-effect-free;
+// callers that lack the key surface a disabled/degraded MFA UI instead.
 
 const hkdfAsync = promisify(hkdf);
 

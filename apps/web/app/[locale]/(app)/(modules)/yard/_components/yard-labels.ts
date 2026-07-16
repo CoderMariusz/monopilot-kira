@@ -179,6 +179,12 @@ export function buildDocksLabels(t: Translator): DocksLabels {
     emptyHint: t('docks.emptyHint'),
     add: t('docks.add'),
     edit: t('docks.edit'),
+    deleteDock: t('docks.delete'),
+    deleteDockTitle: t('docks.deleteTitle'),
+    deleteDockBody: t('docks.deleteBody'),
+    deleteDockPending: t('docks.deletePending'),
+    deleteDockBlocked: t('docks.deleteBlocked'),
+    confirmDelete: t('docks.confirmDelete'),
     active: t('docks.active'),
     inactive: t('docks.inactive'),
     noWarehouse: t('docks.noWarehouse'),
@@ -211,7 +217,14 @@ export function buildDocksLabels(t: Translator): DocksLabels {
         not_found: t('docks.modal.errors.not_found'),
         already_exists: t('docks.modal.errors.already_exists'),
         persistence_failed: t('docks.modal.errors.persistence_failed'),
+        has_dependents: t('docks.modal.errors.has_dependents'),
       },
+    },
+    deleteErrors: {
+      has_dependents: t('docks.deleteBlocked'),
+      not_found: t('docks.modal.errors.not_found'),
+      forbidden: t('docks.modal.errors.forbidden'),
+      persistence_failed: t('docks.modal.errors.persistence_failed'),
     },
   };
 }

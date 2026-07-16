@@ -42,6 +42,47 @@ type MyProfileRole = {
 
 type SaveProfileInput = Pick<MyProfileUser, "fullName" | "displayName" | "phone"> & UserPreferences;
 
+type MyProfileMfaState = {
+  enabled: boolean;
+  deviceLabel: string;
+  addedAt: string;
+  enrollmentAvailable: boolean;
+};
+
+export type MyProfileMfaLabels = {
+  reconfigureTitle: string;
+  backupCodesTitle: string;
+  enrollInstructions: string;
+  backupCodesInstructions: string;
+  backupCodesRotateWarning: string;
+  secretLabel: string;
+  verificationCodeLabel: string;
+  backupCodesListLabel: string;
+  confirm: string;
+  close: string;
+  generating: string;
+  verifying: string;
+  invalidCode: string;
+  unavailableTitle: string;
+  unavailableBody: string;
+  copyCodes: string;
+};
+
+type BeginMfaReconfigure = () => Promise<
+  | { ok: true; secret: string; provisioningUri: string }
+  | { ok: false; error?: string }
+>;
+
+type ConfirmMfaReconfigure = (input: { code: string }) => Promise<
+  | { ok: true; backupCodes: string[] }
+  | { ok: false; error?: string }
+>;
+
+type RegenerateBackupCodes = (input: { code: string }) => Promise<
+  | { ok: true; backupCodes: string[] }
+  | { ok: false; error?: string }
+>;
+
 type MyProfilePageProps = {
   user?: MyProfileUser;
   /** Role(s) assigned to the signed-in user; rendered read-only in Profile. */
@@ -50,7 +91,8 @@ type MyProfilePageProps = {
   roleLabel?: string;
   preferences?: UserPreferences;
   sessions?: UserSession[];
-  mfa?: { enabled: boolean; deviceLabel: string; addedAt: string };
+  mfa?: MyProfileMfaState;
+  mfaLabels?: MyProfileMfaLabels;
   canEditProfile?: boolean;
   state?: "ready" | "loading" | "empty" | "error" | "permission-denied";
   saveProfile?: (input: SaveProfileInput) => Promise<{ ok?: boolean; error?: string } | unknown> | { ok?: boolean; error?: string } | unknown;
@@ -71,6 +113,10 @@ type MyProfilePageProps = {
     error?: string;
   }> | { ok?: boolean; deletedSessionId?: string; invalidatedSessionToken?: boolean; error?: string };
   logoutEverywhere?: () => Promise<unknown> | unknown;
+  beginMfaReconfigure?: BeginMfaReconfigure;
+  confirmMfaReconfigure?: ConfirmMfaReconfigure;
+  regenerateBackupCodes?: RegenerateBackupCodes;
+  onMfaEnrollmentComplete?: () => void;
 };
 
 const fallbackUser: MyProfileUser = {
@@ -119,13 +165,87 @@ function sameDraft(a: SaveProfileInput, b: SaveProfileInput) {
   );
 }
 
-function MfaDialog({ modalId, onClose }: { modalId: "SM-MFA-ENROLL" | "SM-BACKUP-CODES"; onClose: () => void }) {
+const defaultMfaLabels: MyProfileMfaLabels = {
+  reconfigureTitle: "Reconfigure authenticator",
+  backupCodesTitle: "Backup codes",
+  enrollInstructions: "Add this secret to your authenticator app, then enter the six-digit code to confirm.",
+  backupCodesInstructions: "Backup codes are shown once. Store them in a secure password manager.",
+  backupCodesRotateWarning: "Generating new codes invalidates any previous backup codes.",
+  secretLabel: "Authenticator secret",
+  verificationCodeLabel: "Verification code",
+  backupCodesListLabel: "Your backup codes",
+  confirm: "Confirm",
+  close: "Close",
+  generating: "Preparing enrollment…",
+  verifying: "Verifying…",
+  invalidCode: "Enter a valid six-digit code.",
+  unavailableTitle: "MFA enrollment unavailable",
+  unavailableBody: "TOTP enrollment is not configured on this deployment (MFA_MASTER_KEY missing).",
+  copyCodes: "Copy codes",
+};
+
+function MfaDialog({
+  modalId,
+  labels,
+  enrollmentAvailable,
+  mfaEnabled,
+  beginMfaReconfigure,
+  confirmMfaReconfigure,
+  regenerateBackupCodes,
+  onEnrollmentComplete,
+  onClose,
+}: {
+  modalId: "SM-MFA-ENROLL" | "SM-BACKUP-CODES";
+  labels: MyProfileMfaLabels;
+  enrollmentAvailable: boolean;
+  mfaEnabled: boolean;
+  beginMfaReconfigure?: BeginMfaReconfigure;
+  confirmMfaReconfigure?: ConfirmMfaReconfigure;
+  regenerateBackupCodes?: RegenerateBackupCodes;
+  onEnrollmentComplete?: () => void;
+  onClose: () => void;
+}) {
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const onCloseRef = React.useRef(onClose);
   const outerTitleId = React.useId();
   const helperTitleId = React.useId();
-  const title = modalId === "SM-MFA-ENROLL" ? "SM-MFA-ENROLL — Reconfigure authenticator" : "SM-BACKUP-CODES — Backup codes";
+  const title = modalId === "SM-MFA-ENROLL" ? labels.reconfigureTitle : labels.backupCodesTitle;
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [secret, setSecret] = React.useState<string | null>(null);
+  const [provisioningUri, setProvisioningUri] = React.useState<string | null>(null);
+  const [verificationCode, setVerificationCode] = React.useState("");
+  const [backupCodes, setBackupCodes] = React.useState<string[] | null>(null);
   onCloseRef.current = onClose;
+
+  React.useEffect(() => {
+    if (!enrollmentAvailable) return;
+    if (modalId !== "SM-MFA-ENROLL" || !beginMfaReconfigure) return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    void beginMfaReconfigure()
+      .then((result) => {
+        if (cancelled) return;
+        if (result.ok === true) {
+          setSecret(result.secret);
+          setProvisioningUri(result.provisioningUri);
+          return;
+        }
+        setError(labels.unavailableBody);
+      })
+      .catch(() => {
+        if (!cancelled) setError(labels.unavailableBody);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [beginMfaReconfigure, enrollmentAvailable, labels.unavailableBody, modalId]);
 
   React.useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -165,6 +285,52 @@ function MfaDialog({ modalId, onClose }: { modalId: "SM-MFA-ENROLL" | "SM-BACKUP
     };
   }, []);
 
+  async function handleConfirmEnrollment() {
+    if (!confirmMfaReconfigure) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await confirmMfaReconfigure({ code: verificationCode });
+      if (result.ok === true) {
+        setBackupCodes(result.backupCodes);
+        onEnrollmentComplete?.();
+        return;
+      }
+      setError(result.error === "invalid_code" ? labels.invalidCode : labels.unavailableBody);
+    } catch {
+      setError(labels.unavailableBody);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRegenerateBackupCodes() {
+    if (!regenerateBackupCodes) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await regenerateBackupCodes({ code: verificationCode });
+      if (result.ok === true) {
+        setBackupCodes(result.backupCodes);
+        return;
+      }
+      if (result.error === "not_enrolled") {
+        setError(labels.unavailableBody);
+        return;
+      }
+      setError(result.error === "invalid_code" ? labels.invalidCode : labels.unavailableBody);
+    } catch {
+      setError(labels.unavailableBody);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function copyBackupCodes() {
+    if (!backupCodes?.length) return;
+    void navigator.clipboard.writeText(backupCodes.join("\n"));
+  }
+
   return (
     <>
       <span data-radix-focus-guard tabIndex={0} aria-hidden="true" />
@@ -176,6 +342,7 @@ function MfaDialog({ modalId, onClose }: { modalId: "SM-MFA-ENROLL" | "SM-BACKUP
           aria-labelledby={outerTitleId}
           data-focus-trap="radix-dialog"
           data-modal-id={modalId}
+          data-mfa-available={enrollmentAvailable ? "true" : "false"}
           className="w-full max-w-lg rounded-xl bg-white shadow-2xl"
           onMouseDown={(event) => event.stopPropagation()}
         >
@@ -185,18 +352,109 @@ function MfaDialog({ modalId, onClose }: { modalId: "SM-MFA-ENROLL" | "SM-BACKUP
             </h3>
           </div>
           <div className="grid gap-3 px-5 py-4 text-sm text-slate-700">
-            {modalId === "SM-MFA-ENROLL" ? (
-              <p>Scan a new authenticator QR code, then confirm the six-digit code before replacing the current device.</p>
+            {!enrollmentAvailable ? (
+              <>
+                <p className="font-medium text-slate-900">{labels.unavailableTitle}</p>
+                <p>{labels.unavailableBody}</p>
+              </>
+            ) : modalId === "SM-MFA-ENROLL" ? (
+              <>
+                <p>{labels.enrollInstructions}</p>
+                {loading && !secret ? <p role="status">{labels.generating}</p> : null}
+                {secret ? (
+                  <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{labels.secretLabel}</div>
+                      <code className="mt-1 block break-all font-mono text-sm" data-testid="mfa-enroll-secret">
+                        {secret}
+                      </code>
+                    </div>
+                    {provisioningUri ? (
+                      <code className="block break-all font-mono text-[11px] text-slate-500" data-testid="mfa-enroll-uri">
+                        {provisioningUri}
+                      </code>
+                    ) : null}
+                  </div>
+                ) : null}
+                {backupCodes ? (
+                  <div>
+                    <div className="mb-2 font-medium">{labels.backupCodesListLabel}</div>
+                    <ul className="grid grid-cols-2 gap-1 font-mono text-sm" data-testid="mfa-backup-codes-list">
+                      {backupCodes.map((code) => (
+                        <li key={code}>{code}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <label className="grid gap-1">
+                    <span className="text-sm font-medium text-slate-900">{labels.verificationCodeLabel}</span>
+                    <input
+                      id="mfa-verification-code"
+                      className="max-w-[420px] rounded border border-slate-300 px-3 py-2 font-mono text-sm"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      value={verificationCode}
+                      onChange={(event) => setVerificationCode(event.currentTarget.value)}
+                      disabled={loading || !secret}
+                    />
+                  </label>
+                )}
+              </>
             ) : (
-              <p>Backup codes are shown once. Store them in a secure password manager and rotate them after use.</p>
+              <>
+                <p>{labels.backupCodesInstructions}</p>
+                <p className="text-amber-800">{labels.backupCodesRotateWarning}</p>
+                {backupCodes ? (
+                  <div>
+                    <div className="mb-2 font-medium">{labels.backupCodesListLabel}</div>
+                    <ul className="grid grid-cols-2 gap-1 font-mono text-sm" data-testid="mfa-backup-codes-list">
+                      {backupCodes.map((code) => (
+                        <li key={code}>{code}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <label className="grid gap-1">
+                    <span className="text-sm font-medium text-slate-900">{labels.verificationCodeLabel}</span>
+                    <input
+                      id="mfa-backup-verification-code"
+                      className="max-w-[420px] rounded border border-slate-300 px-3 py-2 font-mono text-sm"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      value={verificationCode}
+                      onChange={(event) => setVerificationCode(event.currentTarget.value)}
+                      disabled={loading || !mfaEnabled}
+                    />
+                  </label>
+                )}
+              </>
             )}
+            {error ? <p role="alert" className="text-sm font-medium text-red-700">{error}</p> : null}
             <div hidden role="dialog" aria-modal="true" aria-labelledby={helperTitleId} data-focus-trap="radix-dialog">
               <span id={helperTitleId}>Modal accessibility probe</span>
             </div>
           </div>
           <div className="flex justify-end gap-2 rounded-b-xl border-t border-slate-200 bg-slate-50 px-5 py-4">
+            {backupCodes ? (
+              <Button type="button" className="btn-secondary" onClick={copyBackupCodes}>
+                {labels.copyCodes}
+              </Button>
+            ) : enrollmentAvailable && modalId === "SM-MFA-ENROLL" && secret && !backupCodes ? (
+              <Button type="button" className="btn-primary" disabled={loading} onClick={() => void handleConfirmEnrollment()}>
+                {loading ? labels.verifying : labels.confirm}
+              </Button>
+            ) : enrollmentAvailable && modalId === "SM-BACKUP-CODES" && !backupCodes ? (
+              <Button
+                type="button"
+                className="btn-primary"
+                disabled={loading || !mfaEnabled}
+                onClick={() => void handleRegenerateBackupCodes()}
+              >
+                {loading ? labels.verifying : labels.confirm}
+              </Button>
+            ) : null}
             <Button type="button" onClick={onClose}>
-              Close
+              {labels.close}
             </Button>
           </div>
         </div>
@@ -212,7 +470,8 @@ export default function MyProfilePage({
   roleLabel = "Role",
   preferences = fallbackPreferences,
   sessions = [],
-  mfa = { enabled: false, deviceLabel: "Authenticator app", addedAt: "" },
+  mfa = { enabled: false, deviceLabel: "Authenticator app", addedAt: "", enrollmentAvailable: false },
+  mfaLabels = defaultMfaLabels,
   canEditProfile = false,
   state = "ready",
   saveProfile,
@@ -220,9 +479,14 @@ export default function MyProfilePage({
   updateLanguagePreference,
   revokeSession,
   logoutEverywhere,
+  beginMfaReconfigure,
+  confirmMfaReconfigure,
+  regenerateBackupCodes,
+  onMfaEnrollmentComplete,
 }: MyProfilePageProps) {
   const normalizedUser = { ...fallbackUser, ...user };
   const normalizedPreferences = { ...fallbackPreferences, ...preferences };
+  const [mfaState, setMfaState] = React.useState(mfa);
   const [saved, setSaved] = React.useState<SaveProfileInput>(() => profileToDraft(normalizedUser, normalizedPreferences));
   const [draft, setDraft] = React.useState<SaveProfileInput>(() => profileToDraft(normalizedUser, normalizedPreferences));
   const [visibleSessions, setVisibleSessions] = React.useState<UserSession[]>(sessions);
@@ -239,10 +503,11 @@ export default function MyProfilePage({
     setSaved(nextDraft);
     setDraft(nextDraft);
     setVisibleSessions(sessions);
+    setMfaState(mfa);
     setMessage(null);
     setError(null);
     setPasswordDraft({ currentPassword: "", newPassword: "", confirmNew: "" });
-  }, [user, preferences, sessions]);
+  }, [user, preferences, sessions, mfa]);
 
   if (state === "loading") {
     return (
@@ -489,15 +754,36 @@ export default function MyProfilePage({
 
       <Section
         title="Two-factor authentication"
-        action={<span className="badge badge-green">● {mfa.enabled ? "Enabled" : "Disabled"}</span>}
+        action={<span className="badge badge-green">● {mfaState.enabled ? "Enabled" : "Disabled"}</span>}
       >
-        <SRow label="Authenticator app" hint={`${mfa.deviceLabel}. Added ${mfa.addedAt}.`}>
-          <Button className="btn-secondary btn-sm" type="button" data-modal-id="SM-MFA-ENROLL" onClick={() => setOpenModalId("SM-MFA-ENROLL")}>
+        <SRow
+          label="Authenticator app"
+          hint={
+            mfaState.enrollmentAvailable
+              ? `${mfaState.deviceLabel}${mfaState.addedAt ? `. Added ${mfaState.addedAt}` : ""}`
+              : mfaLabels.unavailableBody
+          }
+        >
+          <Button
+            className="btn-secondary btn-sm"
+            type="button"
+            data-modal-id="SM-MFA-ENROLL"
+            disabled={!mfaState.enrollmentAvailable}
+            title={mfaState.enrollmentAvailable ? undefined : mfaLabels.unavailableBody}
+            onClick={() => setOpenModalId("SM-MFA-ENROLL")}
+          >
             Reconfigure
           </Button>
         </SRow>
         <SRow label="Backup codes" hint="Use these if you lose access to your authenticator.">
-          <Button className="btn-ghost btn-sm" type="button" data-modal-id="SM-BACKUP-CODES" onClick={() => setOpenModalId("SM-BACKUP-CODES")}>
+          <Button
+            className="btn-ghost btn-sm"
+            type="button"
+            data-modal-id="SM-BACKUP-CODES"
+            disabled={!mfaState.enrollmentAvailable}
+            title={mfaState.enrollmentAvailable ? undefined : mfaLabels.unavailableBody}
+            onClick={() => setOpenModalId("SM-BACKUP-CODES")}
+          >
             Show codes
           </Button>
         </SRow>
@@ -560,7 +846,26 @@ export default function MyProfilePage({
         </SRow>
       </Section>
 
-      {openModalId ? <MfaDialog modalId={openModalId} onClose={() => setOpenModalId(null)} /> : null}
+      {openModalId ? (
+        <MfaDialog
+          modalId={openModalId}
+          labels={mfaLabels}
+          enrollmentAvailable={mfaState.enrollmentAvailable}
+          mfaEnabled={mfaState.enabled}
+          beginMfaReconfigure={beginMfaReconfigure}
+          confirmMfaReconfigure={confirmMfaReconfigure}
+          regenerateBackupCodes={regenerateBackupCodes}
+          onEnrollmentComplete={() => {
+            setMfaState((current) => ({
+              ...current,
+              enabled: true,
+              addedAt: new Date().toISOString().slice(0, 10),
+            }));
+            onMfaEnrollmentComplete?.();
+          }}
+          onClose={() => setOpenModalId(null)}
+        />
+      ) : null}
     </main>
   );
 }

@@ -171,7 +171,9 @@ export async function setEsignPinAction(input: SetPinInput): Promise<SetPinResul
 
       // The ONLY user_pins write — the shared scanner path (argon2id hash +
       // upsert; resets attempts_count/locked_until inside setPin itself).
-      await setPin(userId, input.newPin);
+      // Reuse the outer withOrgContext transaction — setPin's default owner pool
+      // would wait on verifyPin's FOR UPDATE row lock and deadlock the action.
+      await setPin(userId, input.newPin, { client: queryClient });
       await writeScannerAudit(queryClient, { ...auditBase, resultCode: 'ok' });
 
       return { ok: true as const, pinSet: true as const };

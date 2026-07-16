@@ -4,6 +4,7 @@ import React from 'react';
 
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import Summary from '@monopilot/ui/Summary';
 import Textarea from '@monopilot/ui/Textarea';
 
@@ -13,6 +14,13 @@ export type TemplateVariable = {
   name: string;
   token?: `{{${string}}}`;
   desc: string;
+  triggers?: readonly string[];
+};
+
+export type EmailTriggerOption = {
+  code: string;
+  label: string;
+  description: string;
 };
 
 export type EmailTemplateVariableGroup = {
@@ -38,6 +46,7 @@ export type EmailTemplateEditModalProps = {
   onOpenChange: (open: boolean) => void;
   template?: EmailTemplateDraft;
   eventPayloadSchema: { variables: string[] };
+  supportedTriggers: EmailTriggerOption[];
   variableGroups: EmailTemplateVariableGroup[];
   saveTemplate: (input: EmailTemplateDraft) => Promise<EmailTemplateSaveResult>;
 };
@@ -112,6 +121,26 @@ function variableToken(variable: TemplateVariable) {
   return variable.token ?? `{{${variable.name}}}`;
 }
 
+function variableAppliesToTrigger(variable: TemplateVariable, triggerCode: string) {
+  if (!variable.triggers || variable.triggers.length === 0) return true;
+  return variable.triggers.includes(triggerCode);
+}
+
+function groupsForTrigger(groups: EmailTemplateVariableGroup[], triggerCode: string): EmailTemplateVariableGroup[] {
+  return groups
+    .map((group) => ({
+      ...group,
+      vars: group.vars.filter((variable) => variableAppliesToTrigger(variable, triggerCode)),
+    }))
+    .filter((group) => group.vars.length > 0);
+}
+
+function allowedVariablesForTrigger(groups: EmailTemplateVariableGroup[], triggerCode: string): Set<string> {
+  return new Set(
+    groupsForTrigger(groups, triggerCode).flatMap((group) => group.vars.map((variable) => variable.name)),
+  );
+}
+
 function parseRecipients(value: string) {
   return value
     .split(';')
@@ -157,10 +186,12 @@ export function EmailTemplateEditModal({
   onOpenChange,
   template,
   eventPayloadSchema,
+  supportedTriggers,
   variableGroups,
   saveTemplate,
 }: EmailTemplateEditModalProps) {
   const tpl = template ?? EMPTY_TEMPLATE;
+  const isEditing = Boolean(tpl.code);
   const triggerCodeId = React.useId();
   const displayNameId = React.useId();
   const activeToId = React.useId();
@@ -209,20 +240,45 @@ export function EmailTemplateEditModal({
     };
   }, [open, tpl.activeTo, tpl.body, tpl.code, tpl.name, tpl.subject]);
 
-  const codeInvalid = code.length > 0 && !/^[a-z0-9_]{3,}$/.test(code);
-  const metaValid = /^[a-z0-9_]{3,}$/.test(code) && name.trim().length >= 3;
+  const supportedTriggerCodes = React.useMemo(
+    () => new Set(supportedTriggers.map((trigger) => trigger.code)),
+    [supportedTriggers],
+  );
+  const codeInvalid = !isEditing && code.length > 0 && !supportedTriggerCodes.has(code);
+  const metaValid = name.trim().length >= 3 && (isEditing || supportedTriggerCodes.has(code));
   const bodyValid = subject.trim().length >= 3 && body.trim().length >= 10;
-  const allowedVariables = React.useMemo(() => new Set(eventPayloadSchema.variables), [eventPayloadSchema.variables]);
+  const triggerOptions = React.useMemo(
+    () => supportedTriggers.map((trigger) => ({ value: trigger.code, label: `${trigger.label} (${trigger.code})` })),
+    [supportedTriggers],
+  );
+  const selectedTriggerHelp = React.useMemo(() => {
+    const match = supportedTriggers.find((trigger) => trigger.code === code);
+    if (!match) {
+      return supportedTriggers.length > 0
+        ? `Choose a supported trigger: ${supportedTriggers.map((trigger) => trigger.code).join(', ')}.`
+        : 'No supported triggers are configured.';
+    }
+    return match.description;
+  }, [code, supportedTriggers]);
+  const scopedVariableGroups = React.useMemo(
+    () => (code ? groupsForTrigger(variableGroups, code) : []),
+    [code, variableGroups],
+  );
+  const allowedVariables = React.useMemo(() => {
+    if (code && supportedTriggerCodes.has(code)) return allowedVariablesForTrigger(variableGroups, code);
+    if (code) return new Set(eventPayloadSchema.variables);
+    return new Set<string>();
+  }, [code, eventPayloadSchema.variables, supportedTriggerCodes, variableGroups]);
   const filteredGroups = React.useMemo(() => {
     const query = variableQuery.trim().toLowerCase();
 
-    return variableGroups
+    return scopedVariableGroups
       .map((group) => ({
         ...group,
         vars: group.vars.filter((variable) => (query ? variable.name.toLowerCase().startsWith(query) : true)),
       }))
       .filter((group) => group.vars.length > 0);
-  }, [variableGroups, variableQuery]);
+  }, [scopedVariableGroups, variableQuery]);
 
   function markComplete(currentStep: WizardStep) {
     setCompleted((prior) => new Set([...prior, currentStep]));
@@ -359,18 +415,38 @@ export function EmailTemplateEditModal({
                 id={triggerCodeId}
                 label="Trigger code"
                 required
-                help="Machine-readable. snake_case, min 3 chars."
-                error={codeInvalid ? 'Must be snake_case, min 3 chars' : undefined}
+                help={selectedTriggerHelp}
+                error={codeInvalid ? 'Choose a supported trigger code from the list.' : undefined}
               >
-                <Input
-                  id={triggerCodeId}
-                  value={code}
-                  onChange={(event) => setCode(event.target.value)}
-                  className="mono"
-                  placeholder="po_to_supplier"
-                  aria-describedby={codeInvalid ? `${triggerCodeId}-error` : `${triggerCodeId}-help`}
-                  aria-invalid={codeInvalid ? 'true' : undefined}
-                />
+                {isEditing ? (
+                  <Input
+                    id={triggerCodeId}
+                    value={code}
+                    readOnly
+                    className="mono"
+                    aria-describedby={`${triggerCodeId}-help`}
+                  />
+                ) : (
+                  <Select
+                    value={code || undefined}
+                    onValueChange={(value) => {
+                      setCode(value);
+                      setValidationError(null);
+                    }}
+                    options={triggerOptions}
+                  >
+                    <SelectTrigger id={triggerCodeId} aria-label="Trigger code" className="mono min-w-[280px]">
+                      <SelectValue placeholder="core_closed" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {supportedTriggers.map((trigger) => (
+                        <SelectItem key={trigger.code} value={trigger.code}>
+                          {trigger.label} ({trigger.code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </Field>
               <Field id={displayNameId} label="Display name" required>
                 <Input

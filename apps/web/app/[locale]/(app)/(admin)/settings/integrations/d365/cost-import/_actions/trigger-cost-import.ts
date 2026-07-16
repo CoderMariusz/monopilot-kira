@@ -25,6 +25,7 @@
  */
 
 import { withOrgContext } from '../../../../../../../../../lib/auth/with-org-context';
+import { isCostImportPermitted } from '../../../../../../../../../actions/d365/export-only-policy';
 import { D365DisabledError, assertD365Enabled } from '../../../../../../../../../lib/integrations/d365/gate';
 import { enqueuePullJob } from '../../../../../../../../../lib/integrations/d365/pull';
 import { hasD365SyncPermission } from '../../../../../../../../../lib/integrations/d365/rbac';
@@ -43,7 +44,7 @@ export type TriggerCostImportInput = {
 
 export type TriggerCostImportResult =
   | { ok: true; jobId: string; duplicate: boolean }
-  | { ok: false; error: 'forbidden' | 'disabled' | 'invalid_input' | 'persistence_failed'; message?: string };
+  | { ok: false; error: 'forbidden' | 'disabled' | 'invalid_input' | 'export_only_violation' | 'persistence_failed'; message?: string };
 
 const MIN_REASON_LEN = 10;
 
@@ -51,6 +52,14 @@ export async function triggerCostImport(input: TriggerCostImportInput): Promise<
   const reason = (input?.reason ?? '').trim();
   if (reason.length < MIN_REASON_LEN) {
     return { ok: false, error: 'invalid_input', message: `reason must be at least ${MIN_REASON_LEN} characters` };
+  }
+
+  if (!isCostImportPermitted()) {
+    return {
+      ok: false,
+      error: 'export_only_violation',
+      message: 'D365 cost import is blocked per R15 export-only policy (Monopilot → D365 only).',
+    };
   }
 
   try {

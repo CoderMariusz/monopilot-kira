@@ -28,6 +28,10 @@ vi.mock('../../../../../../lib/auth/supabase-server', () => ({
     Promise.resolve({ auth: { updateUser: updateUserMock, signOut: signOutMock } }),
 }));
 
+vi.mock('./mfa-actions', () => ({
+  readMfaBackendAvailability: () => ({ available: false }),
+}));
+
 import {
   logoutEverywhereAction,
   readMyProfile,
@@ -47,18 +51,19 @@ beforeEach(() => {
 
 describe('readMyProfile — real signed-in user fetch', () => {
   it('reads the real public.users row + the user roles scoped by the signed-in user id and org', async () => {
-    // First query → user row; second query → the user's role(s) in the active org.
+    // First query → user row; second query → roles; third → MFA enrollment.
     queryMock
       .mockResolvedValueOnce({
         rows: [{ id: 'real-user-uuid', email: 'k.nowak@apex.pl', name: 'Krzysztof Nowak', display_name: 'K. Nowak', language: 'pl' }],
       })
       .mockResolvedValueOnce({
         rows: [{ code: 'production_manager', name: 'Production Manager' }],
-      });
+      })
+      .mockResolvedValueOnce({ rows: [] });
 
     const data = await readMyProfile();
 
-    expect(queryMock).toHaveBeenCalledTimes(2);
+    expect(queryMock).toHaveBeenCalledTimes(3);
     const [userSql, userParams] = queryMock.mock.calls[0];
     expect(userSql).toContain('from public.users');
     expect(userParams).toEqual(['real-user-uuid']);
@@ -81,6 +86,7 @@ describe('readMyProfile — real signed-in user fetch', () => {
     expect(data.roles).toEqual([{ code: 'production_manager', name: 'Production Manager' }]);
     expect(data.preferences.language).toBe('pl');
     expect(data.canEditProfile).toBe(true);
+    expect(data.mfa.enabled).toBe(false);
   });
 
   it('returns the empty state when the signed-in user has no public.users row', async () => {

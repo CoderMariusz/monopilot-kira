@@ -31,9 +31,24 @@ function formatTemplate(template: string, count: number) {
   return template.replace(/\{count\}/g, String(count));
 }
 
-// ponytail: R15 export-only — UI never advertises D365→Monopilot import
-function displayDirection(_direction: D365Direction) {
-  return 'Monopilot → D365';
+function isCostRelatedMapping(row: { d365_field: string; monopilot_field: string }) {
+  return /cost|standard_cost|cost_per_kg/i.test(row.d365_field) || /cost|standard_cost|cost_per_kg/i.test(row.monopilot_field);
+}
+
+function displayDirection(
+  direction: D365Direction,
+  labels: Pick<D365MappingLabels, 'directionIncoming' | 'directionOutgoing' | 'directionBoth'>,
+) {
+  switch (direction) {
+    case 'incoming':
+      return labels.directionIncoming;
+    case 'outgoing':
+      return labels.directionOutgoing;
+    case 'both':
+      return labels.directionBoth;
+    default:
+      return labels.directionOutgoing;
+  }
 }
 
 function filteredRows(rows: D365FieldMapping[], dir: D365Filter) {
@@ -125,10 +140,11 @@ function DirectionFilters({
   dir: D365Filter;
   locale: string;
 }) {
+  const incoming = rows.filter((row) => row.direction === 'incoming').length;
   const outgoing = rows.filter((row) => row.direction === 'outgoing').length;
-  // R15: no "incoming" filter — that label implied unsupported import
   const items: Array<{ key: D365Filter; text: string }> = [
     { key: 'all', text: formatTemplate(labels.all, rows.length) },
+    { key: 'incoming', text: formatTemplate(labels.incoming, incoming) },
     { key: 'outgoing', text: formatTemplate(labels.outgoing, outgoing) },
   ];
 
@@ -215,6 +231,7 @@ export default function D365MappingScreen({
   }
 
   const hasUnmappedAllergens = rows.some((row) => row.unmapped);
+  const hasCostExportMapping = rows.some((row) => isCostRelatedMapping(row) && row.direction === 'outgoing');
   const guidanceClassName = hasUnmappedAllergens ? 'alert alert-red text-xs' : 'alert alert-blue text-xs';
 
   return (
@@ -223,6 +240,7 @@ export default function D365MappingScreen({
       <div data-region="mapping-guidance" role="alert" className={guidanceClassName}>
         <span>{labels.changeNotice}</span>
         {hasUnmappedAllergens ? <span> {labels.unmappedAlert}</span> : null}
+        {hasCostExportMapping ? <span> {labels.costExportOnlyNotice}</span> : null}
       </div>
       <DirectionFilters labels={labels} rows={rows} dir={dir} locale={locale} />
       {exportStatus ? (
@@ -252,7 +270,7 @@ export default function D365MappingScreen({
                 {visibleRows.map((row) => (
                   <TableRow key={`${row.d365_field}:${row.monopilot_field}`} data-testid="settings-d365-mapping-row">
                     <TableCell className="mono text-xs">{row.d365_field}</TableCell>
-                    <TableCell className="mono muted text-xs">{displayDirection(row.direction)}</TableCell>
+                    <TableCell className="mono muted text-xs">{displayDirection(row.direction, labels)}</TableCell>
                     <TableCell className="mono text-xs font-semibold">{row.monopilot_field}</TableCell>
                     <TableCell>
                       <Badge variant="muted" className="text-[10px]">

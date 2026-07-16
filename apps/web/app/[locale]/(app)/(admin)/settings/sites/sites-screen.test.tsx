@@ -62,6 +62,8 @@ const sites: SiteRow[] = [
     name: 'Kraków HQ',
     address: 'ul. Wadowicka 3, Kraków',
     country: 'Poland',
+    timezone: 'Europe/Warsaw',
+    legal_entity: 'Apex 22 PL',
     latitude: null,
     longitude: null,
     map_x: 40,
@@ -83,6 +85,8 @@ const sites: SiteRow[] = [
     name: 'Warsaw Plant',
     address: 'ul. Prosta 12, Warsaw',
     country: 'Poland',
+    timezone: 'Europe/Warsaw',
+    legal_entity: 'Apex 22 PL',
     latitude: null,
     longitude: null,
     map_x: 60,
@@ -182,13 +186,27 @@ describe('SitesScreen', () => {
     expect(screen.getAllByTestId('sites-list-item')).toHaveLength(sites.length);
   });
 
-  it('keeps overlapping pin labels from intercepting the interactive pin dots', () => {
+  it('keeps overlapping pin labels from intercepting clicks on the pin button', () => {
     renderScreen();
 
     for (const pin of screen.getAllByTestId('sites-map-pin')) {
-      expect(pin).toHaveStyle({ pointerEvents: 'none' });
-      expect(pin.querySelector('.dot')).toHaveStyle({ pointerEvents: 'auto' });
+      expect(pin.querySelector('.pin-label')).toHaveStyle({ pointerEvents: 'none' });
     }
+  });
+
+  it('spreads map pins that share coordinates so each remains selectable', () => {
+    const overlappingSites: SiteRow[] = [
+      { ...sites[0], id: 'aaaa-aaaa', map_x: 50, map_y: 50 },
+      { ...sites[1], id: 'bbbb-bbbb', map_x: 50, map_y: 50 },
+      { ...sites[0], id: 'cccc-cccc', map_x: 50, map_y: 50 },
+    ];
+    renderScreen({ sites: overlappingSites, initialSelectedSiteId: overlappingSites[0].id, initialLines: [] });
+
+    const pins = screen.getAllByTestId('sites-map-pin');
+    expect(pins).toHaveLength(3);
+    const positions = pins.map((pin) => `${pin.style.left}:${pin.style.top}`);
+    expect(new Set(positions).size).toBe(3);
+    expect(screen.getByRole('button', { name: /Kraków HQ \(1 of 3\)/ })).toBeInTheDocument();
   });
 
   it('composes the shared .sg-* section structure', () => {
@@ -392,6 +410,9 @@ describe('SitesScreen — create/edit flows', () => {
       ok: true as const,
       data: {
         ...sites[0],
+        timezone: 'Europe/London',
+        country: 'GB',
+        legal_entity: 'Apex UK',
         settings: {
           primary: sites[0].settings.primary,
           operating_hours: 'Mon-Fri 07:00-21:00',
@@ -407,17 +428,32 @@ describe('SitesScreen — create/edit flows', () => {
     const hours = within(form).getByLabelText(/Operating hours/i) as HTMLInputElement;
     await user.clear(hours);
     await user.type(hours, 'Mon-Fri 07:00-21:00');
+    await user.clear(within(form).getByLabelText(/Timezone/i));
+    await user.type(within(form).getByLabelText(/Timezone/i), 'Europe/London');
+    await user.clear(within(form).getByLabelText(/Country/i));
+    await user.type(within(form).getByLabelText(/Country/i), 'GB');
+    await user.clear(within(form).getByLabelText(/Legal entity/i));
+    await user.type(within(form).getByLabelText(/Legal entity/i), 'Apex UK');
     await user.click(within(form).getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(updateSiteSettingsAction).toHaveBeenCalledTimes(1));
     expect(updateSiteSettingsAction).toHaveBeenCalledWith(
       sites[0].org_id,
       sites[0].id,
-      expect.objectContaining({ operating_hours: 'Mon-Fri 07:00-21:00' }),
+      expect.objectContaining({
+        operating_hours: 'Mon-Fri 07:00-21:00',
+        timezone: 'Europe/London',
+        country: 'GB',
+        legal_entity: 'Apex UK',
+      }),
     );
     await waitFor(() => expect(screen.queryByTestId('sites-edit-settings-form')).not.toBeInTheDocument());
     expect(refreshMock).toHaveBeenCalled();
-    expect(screen.getByText('Mon-Fri 07:00-21:00')).toBeInTheDocument();
+    const settings = screen.getByRole('region', { name: 'Site settings' });
+    expect(within(settings).getByText('Mon-Fri 07:00-21:00')).toBeInTheDocument();
+    expect(within(settings).getByText('Europe/London')).toBeInTheDocument();
+    expect(within(settings).getByText('GB')).toBeInTheDocument();
+    expect(within(settings).getByText('Apex UK')).toBeInTheDocument();
   });
 
   it('hides the site settings edit affordance when canEdit is false', () => {

@@ -127,7 +127,7 @@ function makeClient(options: {
       if (norm.startsWith('insert into public.audit_log')) {
         client.auditRows.push({
           action: params[2],
-          resource_type: norm.includes("'org_security_policies'") ? 'org_security_policies' : 'unknown',
+          resource_type: norm.includes("'users'") ? 'users' : 'unknown',
           resource_id: params[3],
           retention_class: norm.includes("'security'") ? 'security' : 'unknown',
         });
@@ -183,7 +183,7 @@ describe('assignRole behavior', () => {
     expect(currentClient.updatedRoleId).toBe(OPERATOR_ROLE_ID);
     expect(currentClient.auditRows[0]).toMatchObject({
       action: 'settings.role.assigned',
-      resource_type: 'org_security_policies',
+      resource_type: 'users',
       resource_id: TARGET_USER_ID,
       retention_class: 'security',
     });

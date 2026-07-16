@@ -4,9 +4,10 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const PROBE_TO = 'ops@example.com';
 
-const { _withOrgContextRunner, _resendSend } = vi.hoisted(() => ({
+const { _withOrgContextRunner, _resendSend, _hasPermission } = vi.hoisted(() => ({
   _withOrgContextRunner: vi.fn(),
   _resendSend: vi.fn(),
+  _hasPermission: vi.fn(),
 }));
 
 vi.mock('@monopilot/db/with-org-context', () => ({
@@ -15,6 +16,10 @@ vi.mock('@monopilot/db/with-org-context', () => ({
 
 vi.mock('../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: unknown) => Promise<unknown>) => _withOrgContextRunner(action)),
+}));
+
+vi.mock('../../lib/auth/has-permission', () => ({
+  hasPermission: vi.fn(async () => _hasPermission()),
 }));
 
 vi.mock('resend', () => ({
@@ -53,6 +58,7 @@ beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   currentClient = makeClient();
+  _hasPermission.mockResolvedValue(true);
   _withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
     action({ userId: USER_ID, orgId: ORG_ID, sessionToken: 'session-token-stub', client: currentClient }),
   );
@@ -76,6 +82,40 @@ describe('email_config Server Actions (T-031 RED)', () => {
 
     expect(result).toMatchObject({ status: 'error', code: 'RECIPIENTS_EMPTY' });
     expect(writeCalls(), 'RECIPIENTS_EMPTY must fail before reference/audit writes').toHaveLength(0);
+  });
+
+  it('rejects unsupported trigger codes such as po_to_supplier before any write (C023)', async () => {
+    const upsertEmailConfig = await loadAction<
+      (input: EmailConfigInput) => Promise<EmailActionResult>
+    >('upsert-config.ts', 'upsertEmailConfig', () => import(`${__dirname}/upsert-config.ts`) as Promise<Record<string, unknown>>);
+
+    const result = await upsertEmailConfig({
+      triggerCode: 'po_to_supplier',
+      recipientsTo: 'supplier@example.com',
+      subjectTemplate: 'PO notice',
+      bodyTemplate: 'Please confirm.',
+      isActive: true,
+    });
+
+    expect(result).toMatchObject({ status: 'error', code: 'UNKNOWN_TRIGGER_CODE' });
+    expect(writeCalls(), 'UNKNOWN_TRIGGER_CODE must fail before reference/audit writes').toHaveLength(0);
+  });
+
+  it('accepts canonical trigger codes with allowed merge fields (C023)', async () => {
+    const upsertEmailConfig = await loadAction<
+      (input: EmailConfigInput) => Promise<EmailActionResult>
+    >('upsert-config.ts', 'upsertEmailConfig', () => import(`${__dirname}/upsert-config.ts`) as Promise<Record<string, unknown>>);
+
+    const result = await upsertEmailConfig({
+      triggerCode: 'core_closed',
+      recipientsTo: 'ops@example.com',
+      subjectTemplate: 'Core closed {{fa_code}}',
+      bodyTemplate: 'Closed by {{closed_by}} for {{dept}} at {{closed_at}}.',
+      isActive: true,
+    });
+
+    expect(result).toMatchObject({ status: 'ok', data: { triggerCode: 'core_closed' } });
+    expect(writeCalls().length).toBeGreaterThan(0);
   });
 
   it('V-SET-71 rejects Mustache variables absent from the trigger payload schema before any write', async () => {
@@ -165,7 +205,7 @@ function makeClient(): FakeClient {
       }
       if (normalized.startsWith('insert into public.reference_tables') || normalized.startsWith('update public.reference_tables')) {
         client.referenceRows.push({ params });
-        return { rows: [{ row_key: 'fa_d365_ready', row_data: params[3] ?? {}, version: 2 }] as T[], rowCount: 1 };
+        return { rows: [{ row_key: String(params[2] ?? 'fa_d365_ready'), row_data: params[3] ?? {}, version: 2 }] as T[], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.audit_log') || normalized.startsWith('insert into public.audit_events')) {
         client.auditRows.push({

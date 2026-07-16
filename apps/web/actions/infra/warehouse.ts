@@ -49,6 +49,10 @@ export type DeactivateWarehouseResult =
       dependents?: WarehouseDependents;
     };
 
+export type ReactivateWarehouseResult =
+  | { ok: true; data: { warehouseId: string; isActive: boolean } }
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'not_deactivated' | 'persistence_failed' };
+
 export type RenameWarehouseResult =
   | { ok: true; data: { id: string; name: string } }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
@@ -133,6 +137,44 @@ export async function createWarehouse(rawInput: unknown): Promise<CreateWarehous
     });
   } catch (error) {
     console.error('[settings/infra/warehouse:create] persistence_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function reactivateWarehouse(rawInput: unknown): Promise<ReactivateWarehouseResult> {
+  const input = parseDeactivateInput(rawInput);
+  if (!input) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<ReactivateWarehouseResult> => {
+      if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await client.query<WarehouseRow>(
+        `update public.warehouses
+            set address = (coalesce(address, '{}'::jsonb) - 'deactivated_at' - 'deactivated_by')
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+            and coalesce(address, '{}'::jsonb) ? 'deactivated_at'
+        returning id, true as is_active`,
+        [input.warehouseId],
+      );
+      const row = rows[0];
+      if (!row) {
+        if (!(await getWarehouse(client, input.warehouseId))) return { ok: false, error: 'not_found' };
+        return { ok: false, error: 'not_deactivated' };
+      }
+
+      await writeSettingsInfraOutbox(client, {
+        orgId,
+        eventType: 'settings.warehouse.reactivated',
+        aggregateType: 'warehouse',
+        aggregateId: row.id,
+        payload: { warehouse_id: row.id, actor_user_id: userId },
+      });
+
+      return { ok: true, data: { warehouseId: row.id, isActive: true } };
+    });
+  } catch {
     return { ok: false, error: 'persistence_failed' };
   }
 }

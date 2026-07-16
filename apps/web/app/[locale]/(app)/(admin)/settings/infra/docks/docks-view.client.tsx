@@ -35,54 +35,11 @@ import {
   type UpsertDockDoorInput,
 } from '../../../../(modules)/yard/_components/yard-shared';
 import { buildDocksLabels } from '../../../../(modules)/yard/_components/yard-labels';
+import type { DocksLabels } from '../../../../(modules)/yard/_components/yard-types';
 
 export type WarehouseOption = {
   id: string;
   name: string;
-};
-
-export type DocksLabels = {
-  loading: string;
-  denied: string;
-  error: string;
-  empty: string;
-  emptyHint: string;
-  add: string;
-  edit: string;
-  active: string;
-  inactive: string;
-  noWarehouse: string;
-  columns: {
-    code: string;
-    name: string;
-    direction: string;
-    warehouse: string;
-    status: string;
-    actions: string;
-  };
-  directionLabel: (d: DockDoorDirection) => string;
-  modal: {
-    titleAdd: string;
-    titleEdit: string;
-    codeLabel: string;
-    nameLabel: string;
-    directionLabel: string;
-    warehouseLabel: string;
-    noWarehouse: string;
-    activeLabel: string;
-    submit: string;
-    submitting: string;
-    cancel: string;
-    directionOption: (d: DockDoorDirection) => string;
-    errors: {
-      codeRequired: string;
-      invalid_input: string;
-      forbidden: string;
-      not_found: string;
-      already_exists: string;
-      persistence_failed: string;
-    };
-  };
 };
 
 export type DocksViewProps = {
@@ -91,6 +48,7 @@ export type DocksViewProps = {
   canManage: boolean;
   /** Server Action seam (injected from the RSC page). THROWS on failure. */
   upsertDockDoorAction: (input: UpsertDockDoorInput) => Promise<DockDoorRow>;
+  deleteDockDoorAction?: (dockDoorId: string) => Promise<void>;
   /** Server-resolved state so permission-denied / error never render-then-hide. */
   state: 'ready' | 'empty' | 'forbidden' | 'error';
 };
@@ -105,7 +63,7 @@ function directionBadge(direction: DockDoorDirection): string {
   return 'badge-green';
 }
 
-export function DocksView({ initialDocks, warehouses, canManage, upsertDockDoorAction, state }: DocksViewProps) {
+export function DocksView({ initialDocks, warehouses, canManage, upsertDockDoorAction, deleteDockDoorAction, state }: DocksViewProps) {
   // Labels built client-side from the `Yard` next-intl namespace: they contain
   // function-valued members (directionLabel/directionOption) which the RSC
   // boundary cannot serialise, so they must NOT be passed as a prop.
@@ -113,9 +71,29 @@ export function DocksView({ initialDocks, warehouses, canManage, upsertDockDoorA
   const labels = React.useMemo(() => buildDocksLabels(t), [t]);
   const [docks, setDocks] = React.useState<DockDoorRow[]>(() => [...initialDocks]);
   const [modal, setModal] = React.useState<ModalState>({ open: false });
+  const [deleteTarget, setDeleteTarget] = React.useState<DockDoorRow | null>(null);
+  const [deletePending, setDeletePending] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
   const warehouseName = (id: string | null): string | null =>
     id ? warehouses.find((w) => w.id === id)?.name ?? null : null;
+
+  async function submitDelete() {
+    if (!canManage || !deleteDockDoorAction || !deleteTarget || deletePending) return;
+    setDeletePending(true);
+    setDeleteError(null);
+    try {
+      await deleteDockDoorAction(deleteTarget.id);
+      setDocks((current) => current.filter((dock) => dock.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (error) {
+      const kind = classifyYardError(error);
+      const map = labels.deleteErrors as Record<string, string>;
+      setDeleteError(map[kind] ?? labels.deleteErrors.persistence_failed);
+    } finally {
+      setDeletePending(false);
+    }
+  }
 
   if (state === 'forbidden') {
     return (
@@ -185,15 +163,31 @@ export function DocksView({ initialDocks, warehouses, canManage, upsertDockDoorA
                       )}
                     </td>
                     <td className="px-3 py-2 text-right">
-                      <button
-                        type="button"
-                        className="btn btn--secondary btn-sm"
-                        data-testid={`dock-edit-${dock.code}`}
-                        disabled={!canManage}
-                        onClick={() => setModal({ open: true, editing: dock })}
-                      >
-                        {labels.edit}
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          className="btn btn--secondary btn-sm"
+                          data-testid={`dock-edit-${dock.code}`}
+                          disabled={!canManage}
+                          onClick={() => setModal({ open: true, editing: dock })}
+                        >
+                          {labels.edit}
+                        </button>
+                        {deleteDockDoorAction ? (
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn-sm"
+                            data-testid={`dock-delete-${dock.code}`}
+                            disabled={!canManage || deletePending}
+                            onClick={() => {
+                              setDeleteTarget(dock);
+                              setDeleteError(null);
+                            }}
+                          >
+                            {labels.deleteDock}
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -218,6 +212,24 @@ export function DocksView({ initialDocks, warehouses, canManage, upsertDockDoorA
             });
           }}
         />
+      ) : null}
+
+      {deleteTarget ? (
+        <Modal open onOpenChange={(open) => (!open && !deletePending ? setDeleteTarget(null) : undefined)} size="md" modalId="settings_dock_door_delete">
+          <div className="flex flex-col gap-4 p-1">
+            <h2 className="text-lg font-semibold text-slate-950">{labels.deleteDockTitle}</h2>
+            <p className="text-sm text-slate-700">{labels.deleteDockBody.replace('{name}', deleteTarget.name ?? deleteTarget.code)}</p>
+            {deleteError ? <p role="alert" className="text-sm text-red-700">{deleteError}</p> : null}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="dry-run" disabled={deletePending} onClick={() => setDeleteTarget(null)}>
+                {labels.modal.cancel}
+              </Button>
+              <Button type="button" disabled={deletePending} onClick={() => void submitDelete()}>
+                {deletePending ? labels.deleteDockPending : labels.confirmDelete}
+              </Button>
+            </div>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );

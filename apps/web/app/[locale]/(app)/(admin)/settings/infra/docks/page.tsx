@@ -25,7 +25,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
-import { listDockDoors, upsertDockDoor } from '../../../../(modules)/yard/_actions/yard-actions';
+import { listDockDoors, upsertDockDoor, deleteDockDoor } from '../../../../(modules)/yard/_actions/yard-actions';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { DocksView, type WarehouseOption } from './docks-view.client';
 import type { DockDoorRow } from '../../../../(modules)/yard/_components/yard-shared';
@@ -100,6 +100,7 @@ export default async function DocksPage({ params }: DocksPageProps) {
         warehouses={warehouses}
         canManage={canManage}
         upsertDockDoorAction={upsertDockDoor}
+        deleteDockDoorAction={deleteDockDoor}
         state={state}
       />
     </main>

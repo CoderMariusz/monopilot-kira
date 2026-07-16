@@ -156,7 +156,7 @@ export async function assignUserSites(input: AssignUserSitesInput): Promise<Assi
       await (client as QueryClient).query(
         `insert into public.audit_log
            (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
-         values ($1::uuid, $2::uuid, 'user', $3, 'org_security_policies', $4, null, $5::jsonb, 'security')`,
+         values ($1::uuid, $2::uuid, 'user', $3, 'users', $4, null, $5::jsonb, 'security')`,
         [
           orgId,
           userId,

@@ -35,11 +35,13 @@ export type YardActionErrorKind =
   | 'overlap'
   | 'not_found'
   | 'invalid_input'
+  | 'has_dependents'
   | 'persistence_failed';
 
 export function classifyYardError(error: unknown): YardActionErrorKind {
   const message = error instanceof Error ? error.message.toLowerCase() : '';
   if (message === 'forbidden') return 'forbidden';
+  if (message === 'has_dependents') return 'has_dependents';
   if (message.includes('overlap')) return 'overlap';
   if (message.includes('not found')) return 'not_found';
   if (

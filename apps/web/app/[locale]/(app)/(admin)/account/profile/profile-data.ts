@@ -30,6 +30,7 @@
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { createServerSupabaseClient } from '../../../../../../lib/auth/supabase-server';
+import { readMfaBackendAvailability } from './mfa-actions';
 
 export type ProfileLanguage = 'en' | 'pl' | 'de';
 export type ProfileTimezone = 'Europe/Warsaw' | 'Europe/Berlin' | 'Europe/London';
@@ -65,6 +66,14 @@ export type UserSession = {
 
 export type SaveProfileInput = Pick<MyProfileUser, 'fullName' | 'displayName' | 'phone'> & UserPreferences;
 
+export type MyProfileMfaState = {
+  enabled: boolean;
+  deviceLabel: string;
+  addedAt: string;
+  /** True when MFA_MASTER_KEY is configured — enrollment actions are wired. */
+  enrollmentAvailable: boolean;
+};
+
 export type MyProfileData = {
   state: 'ready' | 'empty' | 'error';
   user: MyProfileUser | null;
@@ -72,7 +81,7 @@ export type MyProfileData = {
   roles: MyProfileRole[];
   preferences: UserPreferences;
   sessions: UserSession[];
-  mfa: { enabled: boolean; deviceLabel: string; addedAt: string };
+  mfa: MyProfileMfaState;
   canEditProfile: boolean;
 };
 
@@ -161,13 +170,28 @@ export async function readMyProfile(): Promise<MyProfileData> {
         phone: '',
       };
 
+      const mfaEnrollment = await queryClient.query<{ enrolled_at: string | null }>(
+        `select enrolled_at::text as enrolled_at
+           from public.mfa_secrets
+          where user_id = $1::uuid
+          limit 1`,
+        [userId],
+      );
+      const enrolledAt = mfaEnrollment.rows[0]?.enrolled_at ?? '';
+      const mfaAvailability = readMfaBackendAvailability();
+
       return {
         state: 'ready',
         user,
         roles,
         preferences: { language, timezone: 'Europe/Warsaw' },
         sessions: buildCurrentSessionRow(email),
-        mfa: { enabled: false, deviceLabel: 'Authenticator app', addedAt: '' },
+        mfa: {
+          enabled: Boolean(enrolledAt),
+          deviceLabel: 'Authenticator app',
+          addedAt: enrolledAt ? enrolledAt.slice(0, 10) : '',
+          enrollmentAvailable: mfaAvailability.available,
+        },
         canEditProfile: true,
       };
     });
@@ -203,7 +227,7 @@ function emptyProfileData(): MyProfileData {
     roles: [],
     preferences: { language: 'en', timezone: 'Europe/Warsaw' },
     sessions: [],
-    mfa: { enabled: false, deviceLabel: 'Authenticator app', addedAt: '' },
+    mfa: { enabled: false, deviceLabel: 'Authenticator app', addedAt: '', enrollmentAvailable: false },
     canEditProfile: false,
   };
 }
@@ -215,7 +239,7 @@ function errorProfileData(): MyProfileData {
     roles: [],
     preferences: { language: 'en', timezone: 'Europe/Warsaw' },
     sessions: [],
-    mfa: { enabled: false, deviceLabel: 'Authenticator app', addedAt: '' },
+    mfa: { enabled: false, deviceLabel: 'Authenticator app', addedAt: '', enrollmentAvailable: false },
     canEditProfile: false,
   };
 }

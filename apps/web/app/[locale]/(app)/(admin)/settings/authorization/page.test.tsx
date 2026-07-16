@@ -88,6 +88,7 @@ const labels = {
   blockerAuthorizerRoleMissing: 'Select at least one authorized role',
   blockerGateRuleMissing: 'Technical approval gate rule is missing',
   blockerMinApproversInvalid: 'Minimum approvers must be at least 1',
+  blockerMinApproversDualSignInvalid: 'Dual sign-off requires at least 2 approvers',
   blockerPolicyDisabled: 'Policy is disabled',
   blockerRequestPermissionMissing: 'Request permission is missing',
   blockerRequiresNewVersionRequired: 'requires_new_version must remain true for released-product edits',
@@ -389,6 +390,34 @@ describe('SET-011b policy editing behavior', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/self_authorization/i);
     expect(screen.getByText(/requester and authorizer must be different users/i)).toBeInTheDocument();
     expect(screen.queryByText(/policies saved/i)).not.toBeInTheDocument();
+  });
+
+  it('blocks technical dual-sign saves below two approvers with the dual-sign-specific message', async () => {
+    const user = userEvent.setup();
+    const updateAuthorizationPolicy = vi.fn().mockResolvedValue({ ok: true, data: { policyCode: 'npd_post_release_edit', version: 8 } });
+    await renderAuthorizationPage({
+      updateAuthorizationPolicy,
+      policies: {
+        ...readyPolicies,
+        technical: {
+          ...readyPolicies.technical!,
+          requireDualSignOff: true,
+          minApprovers: 2,
+        },
+      },
+    });
+
+    const technicalCard = screen.getByRole('region', { name: /technical product-spec approval gate/i });
+    const minApprovers = within(technicalCard).getByRole('spinbutton', { name: /minimum approvers/i });
+    fireEvent.change(minApprovers, { target: { value: '1' } });
+
+    await user.type(screen.getByRole('textbox', { name: /audit reason/i }), 'Attempted invalid dual-sign threshold');
+    await user.click(screen.getByRole('button', { name: /save policies/i }));
+
+    expect(updateAuthorizationPolicy).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(/min_approvers_dual_sign_invalid/i);
+    expect(screen.getByText(/dual sign-off requires at least 2 approvers/i)).toBeInTheDocument();
+    expect(screen.queryByText(/minimum approvers must be at least 1/i)).not.toBeInTheDocument();
   });
 
   it('keeps the Technical gate rule read-only and factory-use blocking locked on', async () => {

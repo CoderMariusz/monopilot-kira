@@ -83,7 +83,7 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
       if (norm.startsWith('insert into public.audit_log')) {
         client.auditRows.push({
           action: params[2],
-          resource_type: norm.includes("'org_security_policies'") ? 'org_security_policies' : 'unknown',
+          resource_type: norm.includes("'users'") ? 'users' : 'unknown',
           resource_id: params[3],
           retention_class: norm.includes("'security'") ? 'security' : 'unknown',
           after_state: JSON.parse(params[4] as string),
@@ -144,7 +144,7 @@ describe('assignUserSites behavior', () => {
 
     expect(currentClient.auditRows[0]).toMatchObject({
       action: 'settings.user.sites_assigned',
-      resource_type: 'org_security_policies',
+      resource_type: 'users',
       resource_id: TARGET_USER_ID,
       retention_class: 'security',
     });

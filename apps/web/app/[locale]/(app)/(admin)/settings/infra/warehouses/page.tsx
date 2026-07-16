@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import {
   createWarehouse as t029CreateWarehouse,
   deactivateWarehouse as t029DeactivateWarehouse,
+  reactivateWarehouse as t029ReactivateWarehouse,
   deleteWarehouse as t029DeleteWarehouse,
   renameWarehouse as t029RenameWarehouse,
   updateWarehouseStorageRules as t029UpdateWarehouseStorageRules,
@@ -15,6 +16,8 @@ import WarehouseListScreen, {
   type CreateWarehouseResult,
   type DeactivateWarehouseInput,
   type DeactivateWarehouseResult,
+  type ReactivateWarehouseInput,
+  type ReactivateWarehouseResult,
   type DeleteWarehouseInput,
   type DeleteWarehouseResult,
   type RenameWarehouseInput,
@@ -100,6 +103,7 @@ type PageProps = {
   canUpdateInfra?: boolean;
   createWarehouse?: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse?: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
+  reactivateWarehouse?: (input: ReactivateWarehouseInput) => Promise<ReactivateWarehouseResult>;
   renameWarehouse?: (input: RenameWarehouseInput) => Promise<RenameWarehouseResult>;
   deleteWarehouse?: (input: DeleteWarehouseInput) => Promise<DeleteWarehouseResult>;
   updateStorageRules?: (input: UpdateStorageRulesInput) => Promise<UpdateStorageRulesResult>;
@@ -132,6 +136,7 @@ const DEFAULT_LABELS: WarehouseLabels = {
   openLocations: 'Open locations for {name}',
   selectWarehouse: 'Select {name}',
   bulkActivate: 'Bulk Activate',
+  bulkActivatePending: 'Activating…',
   bulkDeactivate: 'Bulk Deactivate',
   bulkDeactivatePending: 'Deactivating…',
   softWarningTitle: 'Active work orders reference this warehouse',
@@ -189,6 +194,9 @@ const DEFAULT_LABELS: WarehouseLabels = {
   renameWarehouseTitle: 'Rename warehouse',
   renameWarehousePending: 'Renaming…',
   renameWarehouseFailed: 'Warehouse could not be renamed.',
+  reactivateWarehouse: 'Reactivate warehouse',
+  reactivateWarehousePending: 'Reactivating…',
+  reactivateSuccess: 'Warehouse reactivated.',
   deleteWarehouse: 'Delete warehouse',
   deleteWarehouseTitle: 'Delete warehouse',
   deleteWarehouseBody: 'Delete {name}? This cannot be undone.',
@@ -398,6 +406,11 @@ async function runDeactivateWarehouse(input: DeactivateWarehouseInput): Promise<
   return t029DeactivateWarehouse(input) as Promise<DeactivateWarehouseResult>;
 }
 
+async function runReactivateWarehouse(input: ReactivateWarehouseInput): Promise<ReactivateWarehouseResult> {
+  'use server';
+  return t029ReactivateWarehouse(input) as Promise<ReactivateWarehouseResult>;
+}
+
 async function runRenameWarehouse(input: RenameWarehouseInput): Promise<RenameWarehouseResult> {
   'use server';
   return t029RenameWarehouse(input) as Promise<RenameWarehouseResult>;
@@ -436,6 +449,7 @@ export default async function WarehousesPage(propsInput: unknown = {}) {
       canUpdateInfra={props.canUpdateInfra ?? runtime.canUpdateInfra}
       createWarehouse={props.createWarehouse ?? runCreateWarehouse}
       deactivateWarehouse={props.deactivateWarehouse ?? runDeactivateWarehouse}
+      reactivateWarehouse={props.reactivateWarehouse ?? runReactivateWarehouse}
       renameWarehouse={props.renameWarehouse ?? runRenameWarehouse}
       deleteWarehouse={props.deleteWarehouse ?? runDeleteWarehouse}
       updateStorageRules={props.updateStorageRules ?? runUpdateStorageRules}

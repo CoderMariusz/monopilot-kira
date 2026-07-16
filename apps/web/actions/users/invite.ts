@@ -1,7 +1,6 @@
 'use server';
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
-import { createServerSupabaseClient } from '../../lib/auth/supabase-server';
 import { SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT } from './user-role-policy';
 import { createSupabaseAuthAdmin } from './supabase-admin';
 
@@ -19,13 +18,14 @@ export type InviteUserInput = {
 };
 
 export type InviteUserResult =
-  | { ok: true; data: { email: string; expiresAt: string } }
+  | { ok: true; data: { email: string; expiresAt: string; resent?: boolean } }
   | {
       ok: false;
       error:
         | 'invalid_input'
         | 'forbidden'
         | 'seat_limit_exceeded'
+        | 'email_taken'
         | 'invite_failed'
         | 'persistence_failed';
     };
@@ -41,6 +41,17 @@ type RoleRow = {
   is_system: boolean;
   display_order: number | null;
 };
+
+type ExistingUserRow = {
+  id: string;
+  is_active: boolean;
+  invite_token: string | null;
+  invite_token_expires_at: string | null;
+};
+
+function hasOutstandingInvite(row: ExistingUserRow): boolean {
+  return row.invite_token !== null || row.invite_token_expires_at !== null;
+}
 
 function normalizeEmail(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -134,46 +145,72 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
       return { ok: false, error: 'seat_limit_exceeded' };
     }
 
-    // f4.1: generateLink is an admin API — the session client gets 403 not_admin.
-    const supabase = await createSupabaseAuthAdmin();
-    const linkResponse = await supabase.auth.admin.generateLink({
-      type: 'invite',
-      email,
-      options: {
-        data: {
-          org_id: orgId,
-          invited_by: userId,
-          expires_in: INVITE_TTL_SECONDS,
-          site: site ?? undefined,
-          personal_message: personalMessage ?? undefined,
-        },
-        redirectTo: redirectTo ?? undefined,
-      },
-    });
-    if (linkResponse.error) {
-      return { ok: false, error: 'invite_failed' };
+    const { rows: existingRows } = await client.query<ExistingUserRow & { org_id: string; role_id: string }>(
+      `select id, org_id, is_active, invite_token, invite_token_expires_at, role_id
+         from public.users
+        where email = $1::citext
+        limit 1`,
+      [email],
+    );
+    const existing = existingRows[0];
+
+    if (existing && existing.org_id !== orgId) {
+      return { ok: false, error: 'invalid_input' };
     }
 
-    const inviteToken =
-      linkResponse.data?.properties?.hashed_token ??
-      linkResponse.data?.properties?.email_otp ??
-      linkResponse.data?.user?.id ??
-      null;
+    if (existing?.is_active) {
+      return { ok: false, error: 'email_taken' };
+    }
+
+    const minted = await mintInviteLink(email, orgId, userId, site, personalMessage, redirectTo);
+    if (!minted.ok) {
+      return minted;
+    }
+    const inviteToken = minted.inviteToken;
 
     try {
+      if (existing) {
+        if (!hasOutstandingInvite(existing)) {
+          return { ok: false, error: 'email_taken' };
+        }
+
+        const resent = await client.query<{ id: string }>(
+          `update public.users
+              set invite_token = $1,
+                  invite_token_expires_at = $2::timestamptz,
+                  updated_at = now()
+            where id = $3::uuid
+              and org_id = $4::uuid
+              and is_active = false
+            returning id`,
+          [inviteToken, expiresAt.toISOString(), existing.id, orgId],
+        );
+        if ((resent.rowCount ?? resent.rows.length) < 1) {
+          return { ok: false, error: 'persistence_failed' };
+        }
+
+        await writeInviteAuditAndOutbox(
+          client,
+          orgId,
+          userId,
+          existing.id,
+          email,
+          existing.role_id,
+          expiresAt,
+          site,
+          personalMessage,
+        );
+
+        return {
+          ok: true,
+          data: { email, expiresAt: expiresAt.toISOString(), resent: true },
+        };
+      }
+
       const invited = await client.query<{ id: string }>(
         `insert into public.users
            (org_id, email, name, role_id, language, is_active, invite_token, invite_token_expires_at, updated_at)
          values ($1::uuid, $2::citext, $3, $4::uuid, $5, false, $6, $7::timestamptz, now())
-         on conflict (email) do update set
-           name = excluded.name,
-           role_id = excluded.role_id,
-           language = excluded.language,
-           is_active = false,
-           invite_token = excluded.invite_token,
-           invite_token_expires_at = excluded.invite_token_expires_at,
-           updated_at = now()
-         where public.users.org_id = excluded.org_id
          returning id`,
         [orgId, email, name, roleId, language, inviteToken, expiresAt.toISOString()],
       );
@@ -181,44 +218,16 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
         return { ok: false, error: 'invalid_input' };
       }
 
-      await client.query(
-        `insert into public.audit_log
-           (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
-         values ($1::uuid, $2::uuid, 'user', $3, 'org_security_policies', $4, null, $5::jsonb, 'security')`,
-        [
-          orgId,
-          userId,
-          'settings.user.invited',
-          invited.rows[0]?.id ?? email,
-          JSON.stringify({
-            org_id: orgId,
-            email,
-            role_id: roleId,
-            invited_by: userId,
-            expires_at: expiresAt.toISOString(),
-            site,
-            personal_message_present: Boolean(personalMessage),
-          }),
-        ],
-      );
-
-      await client.query(
-        `insert into public.outbox_events
-           (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-         values ($1::uuid, $2, 'user', $3::uuid, $4::jsonb, 'settings-invite-user-v1')`,
-        [
-          orgId,
-          'settings.user.invited',
-          userId,
-          JSON.stringify({
-            org_id: orgId,
-            email,
-            invited_by: userId,
-            expires_at: expiresAt.toISOString(),
-            site,
-            personal_message_present: Boolean(personalMessage),
-          }),
-        ],
+      await writeInviteAuditAndOutbox(
+        client,
+        orgId,
+        userId,
+        invited.rows[0]?.id ?? email,
+        email,
+        roleId,
+        expiresAt,
+        site,
+        personalMessage,
       );
     } catch {
       return { ok: false, error: 'persistence_failed' };
@@ -226,6 +235,100 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
 
     return { ok: true, data: { email, expiresAt: expiresAt.toISOString() } };
   });
+}
+
+// Helpers are declared AFTER inviteUser so raw source order mirrors execution
+// order (seat/active-count pre-flight → mint auth link → write audit+outbox).
+// The structural guards in invite.test.ts read this source-position ordering.
+async function mintInviteLink(
+  email: string,
+  orgId: string,
+  userId: string,
+  site: string | null,
+  personalMessage: string | null,
+  redirectTo: string | null,
+): Promise<{ ok: true; inviteToken: string } | { ok: false; error: 'invite_failed' }> {
+  const supabase = await createSupabaseAuthAdmin();
+  const linkResponse = await supabase.auth.admin.generateLink({
+    type: 'invite',
+    email,
+    options: {
+      data: {
+        org_id: orgId,
+        invited_by: userId,
+        expires_in: INVITE_TTL_SECONDS,
+        site: site ?? undefined,
+        personal_message: personalMessage ?? undefined,
+      },
+      redirectTo: redirectTo ?? undefined,
+    },
+  });
+  if (linkResponse.error) {
+    return { ok: false, error: 'invite_failed' };
+  }
+
+  const inviteToken =
+    linkResponse.data?.properties?.hashed_token ??
+    linkResponse.data?.properties?.email_otp ??
+    linkResponse.data?.user?.id ??
+    null;
+  if (!inviteToken) {
+    return { ok: false, error: 'invite_failed' };
+  }
+
+  return { ok: true, inviteToken };
+}
+
+async function writeInviteAuditAndOutbox(
+  client: Parameters<Parameters<typeof withOrgContext>[0]>[0]['client'],
+  orgId: string,
+  userId: string,
+  invitedUserId: string,
+  email: string,
+  roleId: string,
+  expiresAt: Date,
+  site: string | null,
+  personalMessage: string | null,
+): Promise<void> {
+  await client.query(
+    `insert into public.audit_log
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
+     values ($1::uuid, $2::uuid, 'user', $3, 'users', $4, null, $5::jsonb, 'security')`,
+    [
+      orgId,
+      userId,
+      'settings.user.invited',
+      invitedUserId,
+      JSON.stringify({
+        org_id: orgId,
+        email,
+        role_id: roleId,
+        invited_by: userId,
+        expires_at: expiresAt.toISOString(),
+        site,
+        personal_message_present: Boolean(personalMessage),
+      }),
+    ],
+  );
+
+  await client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values ($1::uuid, $2, 'user', $3::uuid, $4::jsonb, 'settings-invite-user-v1')`,
+    [
+      orgId,
+      'settings.user.invited',
+      userId,
+      JSON.stringify({
+        org_id: orgId,
+        email,
+        invited_by: userId,
+        expires_at: expiresAt.toISOString(),
+        site,
+        personal_message_present: Boolean(personalMessage),
+      }),
+    ],
+  );
 }
 
 function normalizeRedirectTo(value: unknown): string | null | 'invalid' {

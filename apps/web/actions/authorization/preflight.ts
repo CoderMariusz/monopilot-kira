@@ -19,6 +19,7 @@ export type TechnicalApprovalBlocker =
   | { code: 'approval_policy_disabled'; policyCode: typeof TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY }
   | { code: 'gate_rule_missing'; policyCode: typeof TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY }
   | { code: 'min_approvers_invalid'; policyCode: typeof TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY }
+  | { code: 'min_approvers_dual_sign_invalid'; policyCode: typeof TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY }
   | { code: 'approver_role_missing'; policyCode: typeof TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY };
 
 export type NpdPostReleaseEditPreflightResult =
@@ -97,7 +98,7 @@ export async function runTechnicalApprovalPreflight(input: {
   if (!activeGate) blockers.push({ code: 'gate_rule_missing', policyCode });
   if (toNumber(policy.min_approvers) < 1) blockers.push({ code: 'min_approvers_invalid', policyCode });
   if (Boolean(policy.settings_json?.require_dual_sign_off) && toNumber(policy.min_approvers) < 2) {
-    blockers.push({ code: 'min_approvers_invalid', policyCode });
+    blockers.push({ code: 'min_approvers_dual_sign_invalid', policyCode });
   }
   if (arrayLength(policy.approver_role_codes) < 1) blockers.push({ code: 'approver_role_missing', policyCode });
 

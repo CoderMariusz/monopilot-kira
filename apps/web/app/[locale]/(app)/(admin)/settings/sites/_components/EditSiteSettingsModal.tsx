@@ -35,6 +35,9 @@ export function EditSiteSettingsModal({
   onSuccess: (site: SiteRow) => void;
 }) {
   const [primary, setPrimary] = React.useState(site.settings.primary);
+  const [timezone, setTimezone] = React.useState(site.timezone);
+  const [country, setCountry] = React.useState(site.country ?? '');
+  const [legalEntity, setLegalEntity] = React.useState(site.legal_entity ?? '');
   const [operatingHours, setOperatingHours] = React.useState(site.settings.operating_hours);
   const [haccpEnabled, setHaccpEnabled] = React.useState(site.settings.haccp_enabled);
   const [haccpValidUntil, setHaccpValidUntil] = React.useState(site.settings.haccp_valid_until ?? '');
@@ -51,6 +54,9 @@ export function EditSiteSettingsModal({
     try {
       const result = await action(site.org_id, site.id, {
         primary,
+        timezone: timezone.trim() || 'UTC',
+        country: country.trim() || null,
+        legal_entity: legalEntity.trim() || null,
         operating_hours: operatingHours.trim(),
         haccp_enabled: haccpEnabled,
         haccp_valid_until: haccpEnabled ? haccpValidUntil.trim() : null,
@@ -83,6 +89,30 @@ export function EditSiteSettingsModal({
               {labels.fieldPrimary}
             </label>
           </div>
+          <Field id="site-settings-timezone" label={labels.fieldTimezone} required requiredLabel={labels.required}>
+            <input
+              id="site-settings-timezone"
+              className="form-input"
+              value={timezone}
+              onChange={(event) => setTimezone(event.currentTarget.value)}
+            />
+          </Field>
+          <Field id="site-settings-country" label={labels.fieldCountry} requiredLabel={labels.required}>
+            <input
+              id="site-settings-country"
+              className="form-input"
+              value={country}
+              onChange={(event) => setCountry(event.currentTarget.value)}
+            />
+          </Field>
+          <Field id="site-settings-legal-entity" label={labels.fieldLegalEntity} requiredLabel={labels.required}>
+            <input
+              id="site-settings-legal-entity"
+              className="form-input"
+              value={legalEntity}
+              onChange={(event) => setLegalEntity(event.currentTarget.value)}
+            />
+          </Field>
           <Field id="site-settings-hours" label={labels.fieldOperatingHours} required requiredLabel={labels.required}>
             <input
               id="site-settings-hours"

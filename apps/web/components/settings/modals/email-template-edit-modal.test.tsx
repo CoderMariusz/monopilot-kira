@@ -14,6 +14,7 @@ type TemplateVariable = {
   name: string;
   token: `{{${string}}}`;
   desc: string;
+  triggers?: readonly string[];
 };
 
 type EmailTemplateVariableGroup = {
@@ -34,39 +35,73 @@ type EmailTemplateSaveResult =
   | { ok: true; templateCode: string; revalidatedPath: '/settings/email-templates' }
   | { ok: false; error: 'UNKNOWN_TEMPLATE_VAR' | 'TEMPLATE_CODE_INVALID' | string };
 
+type EmailTriggerOption = {
+  code: string;
+  label: string;
+  description: string;
+};
+
 type EmailTemplateEditModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   template?: EmailTemplateDraft;
   eventPayloadSchema: { variables: string[] };
+  supportedTriggers: EmailTriggerOption[];
   variableGroups: EmailTemplateVariableGroup[];
   saveTemplate: (input: EmailTemplateDraft) => Promise<EmailTemplateSaveResult>;
 };
+
+const supportedTriggers: EmailTriggerOption[] = [
+  {
+    code: 'core_closed',
+    label: 'FA core closed',
+    description: 'Fired when a factory acceptance core stage is closed.',
+  },
+  {
+    code: 'fa_d365_ready',
+    label: 'FA D365 ready',
+    description: 'Fired when a factory acceptance record is ready for Dynamics 365.',
+  },
+];
 
 const variableGroups: EmailTemplateVariableGroup[] = [
   {
     group: 'Factory acceptance',
     vars: [
-      { name: 'fa_batch_code', token: '{{fa_batch_code}}', desc: 'Factory acceptance batch code' },
-      { name: 'fa_released_by', token: '{{fa_released_by}}', desc: 'Factory acceptance approver' },
+      {
+        name: 'fa_code',
+        token: '{{fa_code}}',
+        desc: 'Factory acceptance code',
+        triggers: ['core_closed', 'fa_d365_ready'],
+      },
+      {
+        name: 'closed_by',
+        token: '{{closed_by}}',
+        desc: 'Factory acceptance approver',
+        triggers: ['core_closed'],
+      },
     ],
   },
   {
-    group: 'Supplier',
+    group: 'D365 sync',
     vars: [
-      { name: 'supplier_email', token: '{{supplier_email}}', desc: 'Supplier primary email' },
-      { name: 'po_number', token: '{{po_number}}', desc: 'Purchase order number' },
+      {
+        name: 'd365_stage',
+        token: '{{d365_stage}}',
+        desc: 'Dynamics 365 stage',
+        triggers: ['fa_d365_ready'],
+      },
     ],
   },
 ];
 
 const editTemplate: EmailTemplateDraft = {
-  code: 'po_to_supplier',
-  name: 'Purchase order → supplier',
-  subject: 'PO {{po_number}} for {{supplier_email}}',
-  body: 'Hello supplier, please confirm PO {{po_number}} before dispatch.',
+  code: 'core_closed',
+  name: 'FA core closed notice',
+  subject: 'FA {{fa_code}} closed',
+  body: 'Hello, FA {{fa_code}} was closed by {{closed_by}}.',
   active: true,
-  activeTo: ['{{supplier_email}}', 'procurement@example.com'],
+  activeTo: ['ops@example.com'],
 };
 
 async function loadEmailTemplateEditModal() {
@@ -90,11 +125,12 @@ async function renderEmailTemplateEditModal(overrides: Partial<EmailTemplateEdit
     open: true,
     onOpenChange: vi.fn(),
     template: editTemplate,
-    eventPayloadSchema: { variables: ['po_number', 'supplier_email', 'fa_batch_code', 'fa_released_by'] },
+    eventPayloadSchema: { variables: ['fa_code', 'closed_by', 'd365_stage'] },
+    supportedTriggers,
     variableGroups,
     saveTemplate: vi.fn().mockResolvedValue({
       ok: true,
-      templateCode: 'po_to_supplier',
+      templateCode: 'core_closed',
       revalidatedPath: '/settings/email-templates',
     }),
     ...overrides,
@@ -105,7 +141,7 @@ async function renderEmailTemplateEditModal(overrides: Partial<EmailTemplateEdit
 }
 
 function getDialog() {
-  return screen.getByRole('dialog', { name: /edit template.*po_to_supplier|new email template/i });
+  return screen.getByRole('dialog', { name: /edit template.*core_closed|new email template/i });
 }
 
 function footerButtonNames(dialog: HTMLElement) {
@@ -116,10 +152,16 @@ function footerButtonNames(dialog: HTMLElement) {
 }
 
 async function completeMetaStep(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) {
-  await user.clear(within(dialog).getByRole('textbox', { name: /trigger code/i }));
-  await user.type(within(dialog).getByRole('textbox', { name: /trigger code/i }), 'po_to_supplier');
+  const trigger = within(dialog).getByLabelText(/trigger code/i);
+  if (trigger.tagName === 'BUTTON') {
+    await user.click(trigger);
+    await user.click(screen.getByRole('option', { name: /core_closed/i }));
+  } else if (!(trigger as HTMLInputElement).readOnly) {
+    await user.clear(trigger);
+    await user.type(trigger, 'core_closed');
+  }
   await user.clear(within(dialog).getByRole('textbox', { name: /display name/i }));
-  await user.type(within(dialog).getByRole('textbox', { name: /display name/i }), 'Purchase order supplier');
+  await user.type(within(dialog).getByRole('textbox', { name: /display name/i }), 'FA core closed notice');
   await user.click(within(dialog).getByRole('button', { name: /next/i }));
 }
 
@@ -139,23 +181,15 @@ describe('SM-04 EmailTemplateEditModal prototype parity', () => {
     expect(within(dialog).getByText('Subject + body')).toBeInTheDocument();
     expect(within(dialog).getByText('Review')).toBeInTheDocument();
 
-    const code = within(dialog).getByRole('textbox', { name: /trigger code/i });
+    const code = within(dialog).getByLabelText(/trigger code/i);
     const name = within(dialog).getByRole('textbox', { name: /display name/i });
     const recipients = within(dialog).getByRole('textbox', { name: /active recipients \(to\)/i });
-    expect(code.closest('[data-slot="input"]')).toBeTruthy();
     expect(name.closest('[data-slot="input"]')).toBeTruthy();
     expect(recipients.closest('[data-slot="input"]')).toBeTruthy();
     expect(footerButtonNames(dialog).slice(-2)).toEqual(['Cancel', 'Next →']);
 
-    await user.clear(code);
-    expect(within(dialog).getByRole('button', { name: /next/i })).toBeDisabled();
-    await user.type(code, 'po_to_supplier');
     expect(within(dialog).getByRole('button', { name: /next/i })).toBeEnabled();
-    expect(code).toHaveFocus();
-    await user.tab();
-    expect(name).toHaveFocus();
-    await user.tab();
-    expect(recipients).toHaveFocus();
+    expect(code).toHaveAttribute('readonly');
 
     await user.click(within(dialog).getByRole('button', { name: /next/i }));
     const subject = within(dialog).getByRole('textbox', { name: /subject/i });
@@ -213,7 +247,7 @@ describe('SM-04 EmailTemplateEditModal prototype parity', () => {
           "Subject + body",
           "Review",
         ],
-        "title": "Edit template — po_to_supplier",
+        "title": "Edit template — core_closed",
       }
     `);
 
@@ -226,7 +260,7 @@ describe('SM-04 EmailTemplateEditModal variable validation', () => {
     const user = userEvent.setup();
     await renderEmailTemplateEditModal({
       template: { ...editTemplate, body: 'Valid body content with {{not_in_schema}}.' },
-      eventPayloadSchema: { variables: ['po_number', 'supplier_email'] },
+      eventPayloadSchema: { variables: ['fa_code', 'closed_by'] },
     });
     const dialog = getDialog();
 
@@ -246,13 +280,27 @@ describe('SM-04 EmailTemplateEditModal variable validation', () => {
     await completeMetaStep(user, dialog);
     await user.type(within(dialog).getByRole('searchbox', { name: /search variables/i }), 'fa_');
 
-    expect(within(dialog).getByRole('button', { name: /fa_batch_code/i })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: /fa_released_by/i })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: /supplier_email/i })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: /po_number/i })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /fa_code/i })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: /d365_stage/i })).not.toBeInTheDocument();
 
     const body = within(dialog).getByRole('textbox', { name: /^body/i });
-    await user.click(within(dialog).getByRole('button', { name: /fa_batch_code/i }));
-    expect((body as HTMLTextAreaElement).value).toContain('{{fa_batch_code}}');
+    await user.click(within(dialog).getByRole('button', { name: /fa_code/i }));
+    expect((body as HTMLTextAreaElement).value).toContain('{{fa_code}}');
+  });
+
+  it('exposes supported trigger codes in a selector for new templates (C023)', async () => {
+    const user = userEvent.setup();
+    await renderEmailTemplateEditModal({ template: undefined });
+    const dialog = getDialog();
+
+    expect(within(dialog).getByLabelText(/trigger code/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/core_closed/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/fa_d365_ready/i)).toBeInTheDocument();
+    expect(within(dialog).queryByPlaceholderText('po_to_supplier')).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByLabelText(/trigger code/i));
+    await user.click(screen.getByRole('option', { name: /core_closed/i }));
+    await user.type(within(dialog).getByRole('textbox', { name: /display name/i }), 'FA closed mail');
+    expect(within(dialog).getByRole('button', { name: /next/i })).toBeEnabled();
   });
 });

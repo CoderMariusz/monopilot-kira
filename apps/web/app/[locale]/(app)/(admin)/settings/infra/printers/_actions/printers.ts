@@ -129,6 +129,8 @@ const ListPrintJobsInput = z
   })
   .strict();
 
+const DeletePrinterInput = z.object({ id: UuidInput }).strict();
+
 export type UpsertPrinterInput = z.input<typeof UpsertPrinterInput>;
 export type PrintLabelInput = z.input<typeof PrintLabelInput>;
 export type ListPrintJobsInput = z.input<typeof ListPrintJobsInput>;
@@ -518,6 +520,42 @@ export async function listPrintJobs(rawInput: ListPrintJobsInput = {}): Promise<
       [input.status ?? null],
     );
     return rows.map(toPrintJobListRow);
+  });
+}
+
+export async function deletePrinter(rawInput: { id: string }): Promise<void> {
+  const input = DeletePrinterInput.parse(rawInput);
+  await withOrgContext(async (ctx): Promise<void> => {
+    const context = ctx as OrgContextLike;
+    await assertCanUsePrinters(context);
+
+    const { rows: printerRows } = await context.client.query<{ id: string }>(
+      `select id::text
+         from public.printers
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+        limit 1`,
+      [input.id],
+    );
+    if (!printerRows[0]) throw new Error('printer_not_found');
+
+    const { rows: dependencyRows } = await context.client.query<{ job_count: number | string }>(
+      `select count(*)::integer as job_count
+         from public.print_jobs
+        where org_id = app.current_org_id()
+          and printer_id = $1::uuid`,
+      [input.id],
+    );
+    const jobCount = Number(dependencyRows[0]?.job_count ?? 0);
+    if (Number.isFinite(jobCount) && jobCount > 0) throw new Error('has_dependents');
+
+    const { rowCount } = await context.client.query(
+      `delete from public.printers
+        where org_id = app.current_org_id()
+          and id = $1::uuid`,
+      [input.id],
+    );
+    if ((rowCount ?? 0) === 0) throw new Error('printer_not_found');
   });
 }
 

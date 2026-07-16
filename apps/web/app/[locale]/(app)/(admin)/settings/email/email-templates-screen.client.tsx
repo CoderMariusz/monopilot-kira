@@ -14,9 +14,10 @@ import EmailTemplateEditModal, {
   type EmailTemplateDraft,
   type EmailTemplateSaveResult,
   type EmailTemplateVariableGroup,
+  type EmailTriggerOption,
 } from '../../../../../../components/settings/modals/email-template-edit-modal';
 
-export type { EmailTemplateDraft, EmailTemplateSaveResult, EmailTemplateVariableGroup };
+export type { EmailTemplateDraft, EmailTemplateSaveResult, EmailTemplateVariableGroup, EmailTriggerOption };
 
 export type EmailProvider = 'Resend' | 'Postmark' | 'SES';
 
@@ -100,6 +101,7 @@ export default function EmailTemplatesScreen({
   providerSettings,
   templates,
   variableGroups = [],
+  supportedTriggers = [],
   variablesHref = '/en/settings/email/variables',
   state,
   saveTemplate,
@@ -109,6 +111,7 @@ export default function EmailTemplatesScreen({
   providerSettings: EmailProviderSettings;
   templates: EmailTemplate[];
   variableGroups?: EmailTemplateVariableGroup[];
+  supportedTriggers?: EmailTriggerOption[];
   variablesHref?: string;
   state: PageState;
   saveTemplate?: SaveTemplate;
@@ -151,9 +154,7 @@ export default function EmailTemplatesScreen({
 
   const eventPayloadSchema = React.useMemo(
     () => ({
-      variables: variableGroups.flatMap((group) =>
-        group.vars.map((variable) => (variable.token ?? `{{${variable.name}}}`).replace(/^{{\s*/, '').replace(/\s*}}$/, '')),
-      ),
+      variables: variableGroups.flatMap((group) => group.vars.map((variable) => variable.name)),
     }),
     [variableGroups],
   );
@@ -333,6 +334,7 @@ export default function EmailTemplatesScreen({
           }}
           template={draftFromTemplate(modalTemplate)}
           eventPayloadSchema={eventPayloadSchema}
+          supportedTriggers={supportedTriggers}
           variableGroups={variableGroups}
           saveTemplate={handleSaveTemplate}
         />

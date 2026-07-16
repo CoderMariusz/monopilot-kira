@@ -56,4 +56,11 @@ export const D365_FIELD_MAPPING_MANIFEST: readonly D365FieldMappingRow[] = [
     transform: 'unmapped',
     unmapped: true,
   },
+  {
+    d365_field: 'InventCost.StandardCost',
+    direction: 'outgoing',
+    monopilot_field: 'finance.standard_cost_posted',
+    type: 'numeric',
+    transform: 'none',
+  },
 ] as const;

@@ -32,7 +32,7 @@ async function labelsFor(): Promise<D365MappingLabels> {
     subtitle: safeLabel(
       t,
       'subtitle',
-      'Export-only field map (Monopilot → D365). Mapping is deployed via CI/CD.',
+      'How D365 entity fields map to Monopilot tables.',
     ),
     exportCsv: safeLabel(t, 'exportCsv', 'Export mapping CSV'),
     testConnection: safeLabel(t, 'testConnection', 'Test connection'),
@@ -43,9 +43,16 @@ async function labelsFor(): Promise<D365MappingLabels> {
     ),
     unmappedAlert: safeLabel(t, 'unmappedAlert', 'Item.allergens[] is unmapped in D365 field mapping.'),
     all: safeLabel(t, 'all', 'All ({count})'),
-    // R15 export-only — keep key for type compat; UI no longer shows an incoming filter
-    incoming: safeLabel(t, 'incoming', 'Monopilot → D365 ({count})'),
+    incoming: safeLabel(t, 'incoming', 'D365 → Monopilot ({count})'),
     outgoing: safeLabel(t, 'outgoing', 'Monopilot → D365 ({count})'),
+    directionIncoming: safeLabel(t, 'directionIncoming', 'D365 → Monopilot'),
+    directionOutgoing: safeLabel(t, 'directionOutgoing', 'Monopilot → D365'),
+    directionBoth: safeLabel(t, 'directionBoth', 'Bidirectional'),
+    costExportOnlyNotice: safeLabel(
+      t,
+      'costExportOnlyNotice',
+      'Cost data is export-only (Monopilot → D365). D365 → Monopilot cost import is not permitted per R15.',
+    ),
     directionFilterLabel: safeLabel(t, 'directionFilterLabel', 'D365 mapping direction'),
     fieldLevelMap: safeLabel(t, 'fieldLevelMap', 'Field-level map'),
     d365Field: safeLabel(t, 'd365Field', 'D365 field'),

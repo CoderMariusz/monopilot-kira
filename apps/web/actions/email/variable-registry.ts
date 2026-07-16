@@ -35,6 +35,33 @@ export type EmailMergeVariableGroup = {
   vars: readonly EmailMergeVariable[];
 };
 
+export type EmailTriggerDefinition = {
+  /** Machine-readable trigger code stored as the template row key. */
+  code: string;
+  /** Short label shown in the template wizard trigger selector. */
+  label: string;
+  /** One-line description of when the trigger fires. */
+  description: string;
+};
+
+/**
+ * Canonical trigger codes whose payload contracts are enforced by
+ * `upsertEmailConfig`. The email template wizard must expose this list so users
+ * cannot submit unsupported codes such as the legacy `po_to_supplier` example.
+ */
+export const EMAIL_TRIGGER_REGISTRY: readonly EmailTriggerDefinition[] = [
+  {
+    code: 'core_closed',
+    label: 'FA core closed',
+    description: 'Fired when a factory acceptance core stage is closed.',
+  },
+  {
+    code: 'fa_d365_ready',
+    label: 'FA D365 ready',
+    description: 'Fired when a factory acceptance record is ready for Dynamics 365.',
+  },
+] as const;
+
 /**
  * Grouped merge-field catalog. Group names mirror the prototype's domain
  * sections. `triggers` ties each field back to the trigger payload schema the
@@ -110,4 +137,22 @@ export function triggerPayloadSchema(): Record<string, readonly string[]> {
     }
   }
   return schema;
+}
+
+/** Supported trigger codes derived from the canonical registry. */
+export function supportedEmailTriggers(): readonly EmailTriggerDefinition[] {
+  return EMAIL_TRIGGER_REGISTRY;
+}
+
+/** Variable root names allowed for a given trigger code. */
+export function variablesForTrigger(triggerCode: string): readonly string[] {
+  return triggerPayloadSchema()[triggerCode] ?? [];
+}
+
+/** Merge-field groups filtered to variables populated by the given trigger. */
+export function variableGroupsForTrigger(triggerCode: string): readonly EmailMergeVariableGroup[] {
+  return EMAIL_MERGE_FIELD_REGISTRY.map((group) => ({
+    group: group.group,
+    vars: group.vars.filter((variable) => variable.triggers.includes(triggerCode)),
+  })).filter((group) => group.vars.length > 0);
 }

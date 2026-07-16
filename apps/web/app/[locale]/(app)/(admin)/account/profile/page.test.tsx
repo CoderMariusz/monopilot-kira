@@ -18,6 +18,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { assertModalA11y } from '../../../../../../../../packages/ui/test/assertModalA11y';
 
+vi.mock('./mfa-actions', () => ({
+  beginMfaReconfigureAction: vi.fn(),
+  confirmMfaReconfigureAction: vi.fn(),
+  regenerateBackupCodesAction: vi.fn(),
+  readMfaBackendAvailability: () => ({ available: true }),
+}));
+
 type MyProfileUser = {
   id: string;
   initials: string;
@@ -48,7 +55,7 @@ type MyProfilePageProps = {
   user: MyProfileUser;
   preferences: UserPreferences;
   sessions: UserSession[];
-  mfa: { enabled: boolean; deviceLabel: string; addedAt: string };
+  mfa: { enabled: boolean; deviceLabel: string; addedAt: string; enrollmentAvailable?: boolean };
   canEditProfile: boolean;
   state?: 'ready' | 'loading' | 'empty' | 'error' | 'permission-denied';
   saveProfile: ReturnType<typeof vi.fn>;
@@ -56,6 +63,27 @@ type MyProfilePageProps = {
   updateLanguagePreference: ReturnType<typeof vi.fn>;
   revokeSession: ReturnType<typeof vi.fn>;
   logoutEverywhere: ReturnType<typeof vi.fn>;
+  beginMfaReconfigure?: ReturnType<typeof vi.fn>;
+  confirmMfaReconfigure?: ReturnType<typeof vi.fn>;
+  regenerateBackupCodes?: ReturnType<typeof vi.fn>;
+  mfaLabels?: {
+    reconfigureTitle: string;
+    backupCodesTitle: string;
+    enrollInstructions: string;
+    backupCodesInstructions: string;
+    backupCodesRotateWarning: string;
+    secretLabel: string;
+    verificationCodeLabel: string;
+    backupCodesListLabel: string;
+    confirm: string;
+    close: string;
+    generating: string;
+    verifying: string;
+    invalidCode: string;
+    unavailableTitle: string;
+    unavailableBody: string;
+    copyCodes: string;
+  };
 };
 
 type MyProfilePage = (props: MyProfilePageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -118,7 +146,32 @@ async function renderMyProfile(overrides: Partial<MyProfilePageProps> = {}) {
     user: profileUser,
     preferences,
     sessions,
-    mfa: { enabled: true, deviceLabel: 'Google Authenticator on iPhone', addedAt: '2025-07-14' },
+    mfa: { enabled: true, deviceLabel: 'Google Authenticator on iPhone', addedAt: '2025-07-14', enrollmentAvailable: true },
+    beginMfaReconfigure: vi.fn().mockResolvedValue({
+      ok: true,
+      secret: 'BASE32SECRET',
+      provisioningUri: 'otpauth://totp/Monopilot:test?secret=BASE32SECRET',
+    }),
+    confirmMfaReconfigure: vi.fn().mockResolvedValue({ ok: true, backupCodes: ['code-1', 'code-2'] }),
+    regenerateBackupCodes: vi.fn().mockResolvedValue({ ok: true, backupCodes: ['fresh-1', 'fresh-2'] }),
+    mfaLabels: {
+      reconfigureTitle: 'Reconfigure authenticator',
+      backupCodesTitle: 'Backup codes',
+      enrollInstructions: 'Add this secret to your authenticator app, then enter the six-digit code to confirm.',
+      backupCodesInstructions: 'Backup codes are shown once. Store them in a secure password manager.',
+      backupCodesRotateWarning: 'Generating new codes invalidates any previous backup codes.',
+      secretLabel: 'Authenticator secret',
+      verificationCodeLabel: 'Verification code',
+      backupCodesListLabel: 'Your backup codes',
+      confirm: 'Confirm',
+      close: 'Close',
+      generating: 'Preparing enrollment…',
+      verifying: 'Verifying…',
+      invalidCode: 'Enter a valid six-digit code.',
+      unavailableTitle: 'MFA enrollment unavailable',
+      unavailableBody: 'TOTP enrollment is not configured on this deployment (MFA_MASTER_KEY missing).',
+      copyCodes: 'Copy codes',
+    },
     canEditProfile: true,
     state: 'ready',
     saveProfile: vi.fn().mockResolvedValue({ ok: true, user: profileUser, preferences }),
@@ -334,17 +387,27 @@ describe('SET-101 my_profile_screen prototype parity', () => {
     await renderMyProfile();
 
     await user.click(screen.getByRole('button', { name: /^Reconfigure$/i }));
-    const reconfigureDialog = await screen.findByRole('dialog', { name: /SM-MFA-ENROLL/i });
+    const reconfigureDialog = await screen.findByRole('dialog', { name: /reconfigure authenticator/i });
     expect(reconfigureDialog).toHaveAttribute('data-modal-id', 'SM-MFA-ENROLL');
+    expect(await screen.findByTestId('mfa-enroll-secret')).toHaveTextContent('BASE32SECRET');
     await assertModalA11y(reconfigureDialog);
 
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('dialog', { name: /SM-MFA-ENROLL/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /reconfigure authenticator/i })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /^Show codes$/i }));
-    const backupDialog = await screen.findByRole('dialog', { name: /SM-BACKUP-CODES/i });
+    const backupDialog = await screen.findByRole('dialog', { name: /backup codes/i });
     expect(backupDialog).toHaveAttribute('data-modal-id', 'SM-BACKUP-CODES');
     await assertModalA11y(backupDialog);
+  });
+
+  it('disables MFA controls and surfaces unavailable copy when enrollment backend is missing', async () => {
+    await renderMyProfile({
+      mfa: { enabled: false, deviceLabel: 'Authenticator app', addedAt: '', enrollmentAvailable: false },
+    });
+
+    expect(screen.getByRole('button', { name: /^Reconfigure$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Show codes$/i })).toBeDisabled();
   });
 });
 

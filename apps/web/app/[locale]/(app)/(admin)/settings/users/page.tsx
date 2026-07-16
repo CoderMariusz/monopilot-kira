@@ -9,6 +9,7 @@ import { resetUserMfa } from '../../../../../../actions/users/reset-user-mfa';
 import { inviteUser } from '../../../../../../actions/users/invite';
 import { resetPassword } from '../../../../../../actions/users/reset-password';
 import { hasAnyPermission } from '../../../../../../lib/auth/has-permission';
+import { USERS_DIRECTORY_ACCESS_PERMISSIONS } from '../../../../../../lib/rbac/users-directory-access';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { ALL_PERMISSIONS } from '../../../../../../../../packages/rbac/src/permissions.enum';
 import SettingsUsersScreen, {
@@ -185,7 +186,7 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
       const queryClient = client as QueryClient;
       const permissionCtx = { client: queryClient, userId, orgId };
       const [canView, canInviteUsers, canAssignRoles, canResetPasswords, canDeactivateUsers] = await Promise.all([
-        hasAnyPermission(permissionCtx, ['settings.users.view', 'settings.users.invite', 'settings.roles.assign', 'settings.users.create', 'settings.users.deactivate']),
+        hasAnyPermission(permissionCtx, [...USERS_DIRECTORY_ACCESS_PERMISSIONS]),
         hasAnyPermission(permissionCtx, ['settings.users.invite']),
         hasAnyPermission(permissionCtx, ['settings.roles.assign']),
         hasAnyPermission(permissionCtx, ['org.access.admin']),

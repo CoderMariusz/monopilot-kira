@@ -184,6 +184,7 @@ export enum EventType {
   SETTINGS_USER_INVITED = 'settings.user.invited',
   SETTINGS_USER_REACTIVATED = 'settings.user.reactivated',
   SETTINGS_WAREHOUSE_DEACTIVATED = 'settings.warehouse.deactivated',
+  SETTINGS_WAREHOUSE_REACTIVATED = 'settings.warehouse.reactivated',
   SETTINGS_WAREHOUSE_STORAGE_RULES_UPDATED = 'settings.warehouse.storage_rules_updated',
   SHIPMENT_CREATED = 'shipment.created',
   // 11-shipping outbound lifecycle events (PRD 11-SHIPPING §9.1/§12.1; producer prefix shipping.*).

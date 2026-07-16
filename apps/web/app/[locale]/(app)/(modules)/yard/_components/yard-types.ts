@@ -147,6 +147,12 @@ export type DocksLabels = {
   emptyHint: string;
   add: string;
   edit: string;
+  deleteDock: string;
+  deleteDockTitle: string;
+  deleteDockBody: string;
+  deleteDockPending: string;
+  deleteDockBlocked: string;
+  confirmDelete: string;
   active: string;
   inactive: string;
   noWarehouse: string;
@@ -179,6 +185,13 @@ export type DocksLabels = {
       not_found: string;
       already_exists: string;
       persistence_failed: string;
+      has_dependents: string;
     };
+  };
+  deleteErrors: {
+    has_dependents: string;
+    not_found: string;
+    forbidden: string;
+    persistence_failed: string;
   };
 };

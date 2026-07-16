@@ -58,6 +58,78 @@ describe('upsertSecurityPolicy atomicity', () => {
     expect(queryCalls.filter((sql) => sql.includes('insert into public.org_security_policies'))).toHaveLength(1);
   });
 
+  it('persists MFA policy fields through app.upsert_my_tenant_idp_policy after org_security_policies upsert', async () => {
+    const queryCalls: string[] = [];
+
+    withOrgContextMock.mockImplementation(async (action) => {
+      const client = {
+        query: vi.fn(async (sql: string) => {
+          const normalized = normalizeSql(sql);
+          queryCalls.push(normalized);
+
+          if (normalized.includes('from public.user_roles')) {
+            return { rows: [{ ok: true }] };
+          }
+          if (normalized.includes('insert into public.org_security_policies')) {
+            return { rows: [{ org_id: ORG_ID }] };
+          }
+          if (normalized.includes('app.upsert_my_tenant_idp_policy')) {
+            return { rows: [{ ok: true }] };
+          }
+          if (normalized.includes('insert into public.outbox_events')) {
+            return { rows: [], rowCount: 1 };
+          }
+          if (normalized.includes('insert into public.audit_log')) {
+            return { rows: [], rowCount: 1 };
+          }
+          return { rows: [] };
+        }),
+      };
+      return action({ userId: USER_ID, orgId: ORG_ID, client });
+    });
+
+    const { upsertSecurityPolicy } = await import('./upsert-policy');
+    const result = await upsertSecurityPolicy({
+      mfa_requirement: 'optional',
+      mfa_allowed_methods: ['totp'],
+    });
+
+    expect(result.ok).toBe(true);
+    const policyIndex = queryCalls.findIndex((sql) => sql.includes('insert into public.org_security_policies'));
+    const idpIndex = queryCalls.findIndex((sql) => sql.includes('app.upsert_my_tenant_idp_policy'));
+    expect(policyIndex).toBeGreaterThanOrEqual(0);
+    expect(idpIndex).toBeGreaterThan(policyIndex);
+  });
+
+  it('returns persistence_failed when app.upsert_my_tenant_idp_policy returns false', async () => {
+    withOrgContextMock.mockImplementation(async (action) => {
+      const client = {
+        query: vi.fn(async (sql: string) => {
+          const normalized = normalizeSql(sql);
+          if (normalized.includes('from public.user_roles')) {
+            return { rows: [{ ok: true }] };
+          }
+          if (normalized.includes('insert into public.org_security_policies')) {
+            return { rows: [{ org_id: ORG_ID }] };
+          }
+          if (normalized.includes('app.upsert_my_tenant_idp_policy')) {
+            return { rows: [{ ok: false }] };
+          }
+          return { rows: [] };
+        }),
+      };
+      return action({ userId: USER_ID, orgId: ORG_ID, client });
+    });
+
+    const { upsertSecurityPolicy } = await import('./upsert-policy');
+    const result = await upsertSecurityPolicy({
+      mfa_requirement: 'optional',
+      mfa_allowed_methods: ['totp'],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'persistence_failed' });
+  });
+
   it('runs MFA markers only after org_security_policies upsert succeeds', async () => {
     const queryCalls: string[] = [];
 
@@ -72,6 +144,9 @@ describe('upsertSecurityPolicy atomicity', () => {
           }
           if (normalized.includes('insert into public.org_security_policies')) {
             return { rows: [{ org_id: ORG_ID }] };
+          }
+          if (normalized.includes('app.upsert_my_tenant_idp_policy')) {
+            return { rows: [{ ok: true }] };
           }
           if (normalized.includes('update public.users') && normalized.includes('requires_mfa_at')) {
             return { rows: [], rowCount: 1 };
@@ -116,6 +191,9 @@ describe('upsertSecurityPolicy atomicity', () => {
           }
           if (normalized.includes('insert into public.org_security_policies')) {
             return { rows: [{ org_id: ORG_ID }] };
+          }
+          if (normalized.includes('app.upsert_my_tenant_idp_policy')) {
+            return { rows: [{ ok: true }] };
           }
           if (normalized.includes('update public.users') && normalized.includes('is_active = true')) {
             return { rows: [], rowCount: 3 };

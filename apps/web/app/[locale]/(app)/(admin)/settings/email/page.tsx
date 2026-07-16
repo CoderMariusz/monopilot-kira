@@ -3,6 +3,7 @@ import EmailTemplatesScreen, {
   type EmailTemplateVariableGroup,
   type EmailProviderSettings,
   type EmailTemplate,
+  type EmailTriggerOption,
   type Labels,
   type PageState,
   type SaveTemplate,
@@ -21,6 +22,7 @@ type EmailTemplatesPageProps = {
   providerSettings?: EmailProviderSettings;
   templates?: EmailTemplate[];
   variableGroups?: EmailTemplateVariableGroup[];
+  supportedTriggers?: EmailTriggerOption[];
   saveTemplate?: SaveTemplate;
   testSend?: (input: TestSendInput) => Promise<TestSendResult>;
 };
@@ -99,6 +101,7 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
   let providerSettings: EmailProviderSettings;
   let templates: EmailTemplate[];
   let variableGroups: EmailTemplateVariableGroup[];
+  let supportedTriggers: EmailTriggerOption[];
   let loadedState: PageState;
   let canEdit: boolean;
 
@@ -106,6 +109,7 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
     providerSettings = props.providerSettings ?? DEFAULT_PROVIDER_SETTINGS;
     templates = props.templates ?? [];
     variableGroups = props.variableGroups ?? [];
+    supportedTriggers = props.supportedTriggers ?? [];
     loadedState = props.state ?? (templates.length === 0 ? 'empty' : 'ready');
     // Injected mode cannot prove RBAC; edit/test-send availability is driven solely
     // by the explicitly injected action props below.
@@ -115,6 +119,7 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
     providerSettings = loaded.providerSettings;
     templates = loaded.templates;
     variableGroups = loaded.variableGroups;
+    supportedTriggers = loaded.supportedTriggers;
     loadedState = loaded.state;
     canEdit = loaded.canEdit;
   }
@@ -150,6 +155,7 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
       providerSettings={providerSettings}
       templates={templates}
       variableGroups={variableGroups}
+      supportedTriggers={supportedTriggers}
       variablesHref={`/${locale}/settings/email/variables`}
       state={state}
       saveTemplate={reviewedSaveTemplate}

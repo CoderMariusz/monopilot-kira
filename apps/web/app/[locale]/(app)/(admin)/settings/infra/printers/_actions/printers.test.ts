@@ -26,6 +26,7 @@ type FakeClient = {
   gs1Gtin: string | null;
   printerType: 'pdf' | 'zpl';
   insertedJobs: number;
+  printJobCount: number;
   query: (sql: string, params?: readonly unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
 };
 
@@ -160,6 +161,21 @@ describe('printer server actions', () => {
     expect(insert.params[4]).toBe(LP_ID);
     expect(insert.params[7]).toBe('sent');
   });
+
+  it('deletePrinter blocks deletion when print jobs exist and deletes when clear', async () => {
+    currentClient = makeClient({ printJobCount: 2 });
+    const { deletePrinter } = await loadActions();
+
+    await expect(deletePrinter({ id: PRINTER_ID })).rejects.toThrow('has_dependents');
+
+    currentClient = makeClient({ printJobCount: 0 });
+    const { deletePrinter: deleteClear } = await loadActions();
+    await expect(deleteClear({ id: PRINTER_ID })).resolves.toBeUndefined();
+
+    const deleteCall = callContaining('delete from public.printers');
+    expect(deleteCall.sql).toContain('app.current_org_id()');
+    expect(deleteCall.params).toEqual([PRINTER_ID]);
+  });
 });
 
 type ActionsModule = {
@@ -175,19 +191,21 @@ type ActionsModule = {
     status: string;
     payload: Record<string, unknown>;
   }>;
+  deletePrinter(input: { id: string }): Promise<void>;
 };
 
 async function loadActions(): Promise<ActionsModule> {
   return (await import('./printers')) as ActionsModule;
 }
 
-function makeClient(options: { gs1Gtin?: string | null; batchLot?: string; printerType?: 'pdf' | 'zpl'; canEdit?: boolean } = {}): FakeClient {
+function makeClient(options: { gs1Gtin?: string | null; batchLot?: string; printerType?: 'pdf' | 'zpl'; canEdit?: boolean; printJobCount?: number } = {}): FakeClient {
   const client: FakeClient = {
     calls: [],
     canEdit: options.canEdit ?? true,
     gs1Gtin: options.gs1Gtin === undefined ? '00614141123452' : options.gs1Gtin,
     printerType: options.printerType ?? 'pdf',
     insertedJobs: 0,
+    printJobCount: options.printJobCount ?? 0,
     async query(sql, params = []) {
       client.calls.push({ sql, params });
       const n = normalize(sql);
@@ -222,6 +240,18 @@ function makeClient(options: { gs1Gtin?: string | null; batchLot?: string; print
           rows: [{ id: PRINTER_ID, printer_type: client.printerType, site_id: SITE_ID, name: 'Dispatch PDF' }],
           rowCount: 1,
         };
+      }
+
+      if (n.includes('from public.printers') && n.includes('limit 1')) {
+        return { rows: [{ id: PRINTER_ID }], rowCount: 1 };
+      }
+
+      if (n.includes('from public.print_jobs') && n.includes('count(*)')) {
+        return { rows: [{ job_count: client.printJobCount }], rowCount: 1 };
+      }
+
+      if (n.startsWith('delete from public.printers')) {
+        return { rows: [], rowCount: 1 };
       }
 
       if (n.includes('from public.license_plates lp') && n.includes('lp.product_id::text as item_id')) {

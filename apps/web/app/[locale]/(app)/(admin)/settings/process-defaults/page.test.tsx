@@ -292,6 +292,18 @@ describe('W2-T1 unified Processes screen', () => {
     expect(within(table).getAllByTestId('process-default-overridden-badge').length).toBe(2);
   });
 
+  it('Edit modal yield help describes a consistent inclusive upper bound and exclusive zero bound (C024)', async () => {
+    const user = userEvent.setup();
+    await renderPage();
+    await user.click(screen.getByRole('button', { name: /edit mixing/i }));
+    const dialog = screen.getByRole('dialog', { name: /mixing/i });
+
+    const help = within(dialog).getByText(/valid range: \(0, 100\]/i);
+    expect(help).toBeInTheDocument();
+    expect(help.textContent).not.toMatch(/\(0–100\]/);
+    expect(help.textContent).toMatch(/greater than 0/i);
+  });
+
   it('Edit modal exposes prefix (auto-number placeholder), setup cost, throughput + UoM, yield and a roles editor', async () => {
     const user = userEvent.setup();
     await renderPage();

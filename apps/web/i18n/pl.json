@@ -379,6 +379,7 @@
       "blockerAuthorizerRoleMissing": "Wybierz co najmniej jedną rolę autoryzującą",
       "blockerGateRuleMissing": "Brakuje reguły bramki zatwierdzenia technicznego",
       "blockerMinApproversInvalid": "Minimalna liczba zatwierdzających musi wynosić co najmniej 1",
+      "blockerMinApproversDualSignInvalid": "Podwójny podpis wymaga co najmniej 2 zatwierdzających",
       "blockerPolicyDisabled": "Polityka jest wyłączona",
       "blockerRequestPermissionMissing": "Brakuje uprawnienia do wnioskowania",
       "blockerRequiresNewVersionRequired": "requires_new_version musi pozostać true dla zmian wydanych produktów",
@@ -1493,7 +1494,7 @@
       "fieldThroughputUom": "Jednostka wydajności",
       "fieldThroughputHelp": "Produkcja na godzinę w jednostce obok; wyznacza czas pracy (ilość ÷ wydajność).",
       "fieldYield": "Uzysk %",
-      "fieldYieldHelp": "Oczekiwany procent dobrego produktu (0–100].",
+      "fieldYieldHelp": "Oczekiwany procent dobrego produktu. Wartość musi być większa od 0 i nie większa niż 100. Zakres: (0, 100].",
       "productRatesTitle": "Stawki per produkt",
       "productRatesNote": "Tylko do odczytu — rzeczywiste stawki zapisane per produkt (zakładka produkcji NPD). Edytuj je na produkcie, nie tutaj.",
       "productRatesEmpty": "Żaden produkt nie używa jeszcze tego procesu.",
@@ -1958,6 +1959,7 @@
         "d365_cost_import": "Import kosztów D365",
         "documents": "Numeracja dokumentów",
         "signoff": "Zasady zatwierdzeń",
+        "authorization": "Polityki autoryzacji",
         "lines": "Linie produkcyjne",
         "locations": "Lokalizacje",
         "my_pin": "PIN e-podpisu i skanera",
@@ -3392,8 +3394,10 @@
         "d365": "D365"
       },
       "disabledBanner": "Konektor D365 jest wyłączony dla tej organizacji. Import kosztów jest niedostępny. Lokalna historia kosztów pozostaje źródłem prawdy i można ją edytować w Technologia › Koszty.",
+      "exportOnlyBanner": "Import kosztów z D365 jest zablokowany zgodnie z polityką R15 export-only. Dane kosztowe przepływają tylko Monopilot → D365.",
+      "mappingLink": "Ustawienia › Integracje › Mapowanie D365",
       "settingsLink": "Ustawienia › Integracje",
-      "sourceOfTruthNote": "Lokalna historia kosztów jest źródłem prawdy. Import z D365 dopisuje nowy wpis kosztu oznaczony source=d365_sync; nigdy nie nadpisuje w miejscu. Pozycje z |Δ| ≥ 5% wymagają podpisu Technologii.",
+      "sourceOfTruthNote": "Lokalna historia kosztów jest źródłem prawdy. Przychodząca synchronizacja kosztów z D365 jest niedozwolona; eksportuj aktualizacje kosztów do D365 tylko z Monopilot.",
       "kpi": {
         "connector": "Konektor",
         "connectorValue": "OK",
@@ -10309,7 +10313,23 @@
       }
     },
     "profile": {
-      "roleLabel": "Rola"
+      "roleLabel": "Rola",
+      "mfa_reconfigure_title": "Skonfiguruj ponownie aplikację uwierzytelniającą",
+      "mfa_backup_codes_title": "Kody zapasowe",
+      "mfa_enroll_instructions": "Dodaj ten sekret do aplikacji uwierzytelniającej, a następnie wpisz sześciocyfrowy kod potwierdzający.",
+      "mfa_backup_codes_instructions": "Kody zapasowe są pokazywane tylko raz. Przechowuj je w bezpiecznym menedżerze haseł.",
+      "mfa_backup_codes_rotate_warning": "Wygenerowanie nowych kodów unieważnia wszystkie poprzednie kody zapasowe.",
+      "mfa_secret_label": "Sekret uwierzytelniający",
+      "mfa_verification_code_label": "Kod weryfikacyjny",
+      "mfa_backup_codes_list_label": "Twoje kody zapasowe",
+      "mfa_confirm": "Potwierdź",
+      "mfa_close": "Zamknij",
+      "mfa_generating": "Przygotowywanie rejestracji…",
+      "mfa_verifying": "Weryfikowanie…",
+      "mfa_invalid_code": "Wpisz prawidłowy sześciocyfrowy kod.",
+      "mfa_unavailable_title": "Rejestracja MFA niedostępna",
+      "mfa_unavailable_body": "Rejestracja TOTP nie jest skonfigurowana w tym wdrożeniu (brak MFA_MASTER_KEY).",
+      "mfa_copy_codes": "Kopiuj kody"
     }
   },
   "Finance": {
@@ -12350,6 +12370,12 @@
       "emptyHint": "Dodaj bramę dokową, aby planować przy niej awizacje.",
       "add": "Dodaj bramę dokową",
       "edit": "Edytuj",
+      "delete": "Usuń",
+      "deleteTitle": "Usuń bramę dokową",
+      "deleteBody": "Usunąć {name}? Tej operacji nie można cofnąć.",
+      "deletePending": "Usuwanie…",
+      "deleteBlocked": "Ta brama dokowa ma jeszcze awizacje i nie może zostać usunięta.",
+      "confirmDelete": "Usuń",
       "active": "Aktywna",
       "inactive": "Nieaktywna",
       "noWarehouse": "Brak magazynu",
@@ -12379,7 +12405,8 @@
           "forbidden": "Nie masz uprawnień do edycji bram dokowych.",
           "not_found": "Nie znaleziono bramy dokowej.",
           "already_exists": "Brama dokowa z tym kodem już istnieje.",
-          "persistence_failed": "Zapis nie powiódł się. Spróbuj ponownie."
+          "persistence_failed": "Zapis nie powiódł się. Spróbuj ponownie.",
+          "has_dependents": "Ta brama dokowa ma jeszcze awizacje i nie może zostać usunięta."
         }
       }
     },

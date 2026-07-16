@@ -114,7 +114,32 @@ async function renderMyProfile(overrides: Partial<MyProfilePageProps> = {}) {
     user: profileUser,
     preferences,
     sessions,
-    mfa: { enabled: true, deviceLabel: 'Google Authenticator on iPhone', addedAt: '2025-07-14' },
+    mfa: { enabled: true, deviceLabel: 'Google Authenticator on iPhone', addedAt: '2025-07-14', enrollmentAvailable: true },
+    beginMfaReconfigure: vi.fn().mockResolvedValue({
+      ok: true,
+      secret: 'BASE32SECRET',
+      provisioningUri: 'otpauth://totp/Monopilot:test?secret=BASE32SECRET',
+    }),
+    confirmMfaReconfigure: vi.fn().mockResolvedValue({ ok: true, backupCodes: ['code-1', 'code-2'] }),
+    regenerateBackupCodes: vi.fn().mockResolvedValue({ ok: true, backupCodes: ['fresh-1', 'fresh-2'] }),
+    mfaLabels: {
+      reconfigureTitle: 'Reconfigure authenticator',
+      backupCodesTitle: 'Backup codes',
+      enrollInstructions: 'Add this secret to your authenticator app, then enter the six-digit code to confirm.',
+      backupCodesInstructions: 'Backup codes are shown once. Store them in a secure password manager.',
+      backupCodesRotateWarning: 'Generating new codes invalidates any previous backup codes.',
+      secretLabel: 'Authenticator secret',
+      verificationCodeLabel: 'Verification code',
+      backupCodesListLabel: 'Your backup codes',
+      confirm: 'Confirm',
+      close: 'Close',
+      generating: 'Preparing enrollment…',
+      verifying: 'Verifying…',
+      invalidCode: 'Enter a valid six-digit code.',
+      unavailableTitle: 'MFA enrollment unavailable',
+      unavailableBody: 'TOTP enrollment is not configured on this deployment (MFA_MASTER_KEY missing).',
+      copyCodes: 'Copy codes',
+    },
     canEditProfile: true,
     state: 'ready',
     saveProfile: vi.fn().mockResolvedValue({ ok: true, user: profileUser, preferences }),
@@ -330,15 +355,16 @@ describe('SET-101 my_profile_screen prototype parity', () => {
     await renderMyProfile();
 
     await user.click(screen.getByRole('button', { name: /^Reconfigure$/i }));
-    const reconfigureDialog = await screen.findByRole('dialog', { name: /SM-MFA-ENROLL/i });
+    const reconfigureDialog = await screen.findByRole('dialog', { name: /reconfigure authenticator/i });
     expect(reconfigureDialog).toHaveAttribute('data-modal-id', 'SM-MFA-ENROLL');
+    expect(await screen.findByTestId('mfa-enroll-secret')).toHaveTextContent('BASE32SECRET');
     await assertModalA11y(reconfigureDialog);
 
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('dialog', { name: /SM-MFA-ENROLL/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /reconfigure authenticator/i })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /^Show codes$/i }));
-    const backupDialog = await screen.findByRole('dialog', { name: /SM-BACKUP-CODES/i });
+    const backupDialog = await screen.findByRole('dialog', { name: /backup codes/i });
     expect(backupDialog).toHaveAttribute('data-modal-id', 'SM-BACKUP-CODES');
     await assertModalA11y(backupDialog);
   });

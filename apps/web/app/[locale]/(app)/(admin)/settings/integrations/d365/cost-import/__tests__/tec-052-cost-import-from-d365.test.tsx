@@ -39,9 +39,12 @@ afterEach(() => {
 
 const COPY: CostImportCopy = {
   disabledBanner: 'D365 connector disabled for this org. Cost import is unavailable.',
+  exportOnlyBanner: 'D365 cost import is blocked per R15 export-only policy.',
+  mappingLink: 'Settings › Integrations › D365 mapping',
+  mappingHref: '/settings/integrations/d365/mapping',
   settingsLink: 'Settings › Integrations',
   settingsHref: '/settings/integrations/d365',
-  sourceOfTruthNote: 'Local cost history is source of truth. Import appends source=d365_sync; never overwrites in place.',
+  sourceOfTruthNote: 'Local cost history is source of truth. D365 inbound cost sync is not permitted.',
   kpi: { connector: 'Connector', connectorValue: 'OK', pulled: 'Items pulled', changed: 'Changed', over5: '|Δ| ≥ 5%' },
   signoffLabel: 'Sign-off reason',
   signoffHelp: 'Required when |Δ| ≥ 5% (min 10 chars).',
@@ -63,6 +66,26 @@ const ROWS: CostDiffRow[] = [
 ];
 const COUNTS = { changed: 2, over5: 1, same: 0 };
 
+describe('TEC-052 R15 export-only cost posture (C021)', () => {
+  it('shows export-only banner + mapping link and hides diff/apply when inbound cost import is blocked', () => {
+    render(
+      <CostImport
+        d365Enabled
+        exportOnly
+        canTrigger={false}
+        rows={[]}
+        counts={{ changed: 0, over5: 0, same: 0 }}
+        copy={COPY}
+      />,
+    );
+    expect(screen.getByTestId('d365-cost-import-export-only')).toHaveTextContent(/export-only/i);
+    expect(screen.getByTestId('d365-cost-import-mapping-link')).toHaveAttribute('href', '/settings/integrations/d365/mapping');
+    expect(screen.getByTestId('d365-cost-import-sot-note')).toHaveTextContent(/not permitted/i);
+    expect(screen.queryByTestId('d365-cost-import-apply')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('d365-cost-import-kpis')).not.toBeInTheDocument();
+  });
+});
+
 describe('TEC-052 D365 disabled state (R15: keeps Settings usable, never blocks release)', () => {
   it('shows the disabled banner + settings link + source-of-truth note; no diff/apply', () => {
     render(<CostImport d365Enabled={false} canTrigger={false} rows={[]} counts={{ changed: 0, over5: 0, same: 0 }} copy={COPY} />);
@@ -79,7 +102,7 @@ describe('TEC-052 parity (spec-driven-screens.jsx:551-648)', () => {
     expect(screen.getByTestId('d365-cost-import-kpis')).toBeInTheDocument();
     expect(screen.getByTestId('d365-cost-import-row-RM-1001')).toBeInTheDocument();
     expect(screen.getByTestId('d365-cost-import-row-RM-3001')).toBeInTheDocument();
-    expect(screen.getByTestId('d365-cost-import-sot-note')).toHaveTextContent(/never overwrites in place/i);
+    expect(screen.getByTestId('d365-cost-import-sot-note')).toHaveTextContent(/not permitted/i);
   });
 
   it('renders Δ% with sign + value verbatim (colour is not the sole signal) and flags |Δ|≥5% rows', () => {

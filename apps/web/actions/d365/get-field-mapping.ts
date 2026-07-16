@@ -2,6 +2,7 @@
 
 import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { normalizeFieldMappingsForExportOnly } from './export-only-policy';
 import {
   D365_FIELD_MAPPING_MANIFEST,
   D365_FIELD_MAPPING_TABLE_CODE,
@@ -64,8 +65,10 @@ export async function getD365FieldMapping(): Promise<GetD365FieldMappingResult> 
       );
 
       const overrides = rows.map((row) => coerceRow(row.row_data)).filter((row): row is D365FieldMappingRow => row !== null);
-      if (overrides.length > 0) return { ok: true, data: overrides, source: 'reference_tables' };
-      return { ok: true, data: [...D365_FIELD_MAPPING_MANIFEST], source: 'manifest' };
+      if (overrides.length > 0) {
+        return { ok: true, data: normalizeFieldMappingsForExportOnly(overrides), source: 'reference_tables' };
+      }
+      return { ok: true, data: normalizeFieldMappingsForExportOnly([...D365_FIELD_MAPPING_MANIFEST]), source: 'manifest' };
     });
   } catch {
     return { ok: false, error: 'persistence_failed' };

@@ -2,7 +2,7 @@
 
 import { hasPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
-import { EMAIL_MERGE_FIELD_REGISTRY } from './variable-registry';
+import { EMAIL_MERGE_FIELD_REGISTRY, supportedEmailTriggers, type EmailTriggerDefinition } from './variable-registry';
 
 /**
  * Server-side read loaders for the SET-090 (Email templates) and SET-091
@@ -35,14 +35,22 @@ export type LoadedEmailTemplate = {
   activeTo?: string[];
 };
 
-export type LoadedEmailVariable = { name: string; token: `{{${string}}}`; desc: string; example: string };
+export type LoadedEmailVariable = {
+  name: string;
+  token: `{{${string}}}`;
+  desc: string;
+  example: string;
+  triggers: readonly string[];
+};
 export type LoadedEmailVariableGroup = { group: string; vars: LoadedEmailVariable[] };
+export type LoadedEmailTrigger = EmailTriggerDefinition;
 
 export type EmailTemplatesData = {
   state: 'ready' | 'empty' | 'error' | 'permission_denied';
   providerSettings: LoadedEmailProvider;
   templates: LoadedEmailTemplate[];
   variableGroups: LoadedEmailVariableGroup[];
+  supportedTriggers: LoadedEmailTrigger[];
   canEdit: boolean;
 };
 
@@ -84,8 +92,13 @@ function variableGroupsFromRegistry(): LoadedEmailVariableGroup[] {
       token: variable.token,
       desc: variable.desc,
       example: variable.example,
+      triggers: variable.triggers,
     })),
   }));
+}
+
+function triggersFromRegistry(): LoadedEmailTrigger[] {
+  return supportedEmailTriggers().map((trigger) => ({ ...trigger }));
 }
 
 function parseRowData(raw: TemplateRow['row_data']): Record<string, unknown> {
@@ -177,6 +190,7 @@ async function loadTemplates(client: QueryClient): Promise<LoadedEmailTemplate[]
 
 export async function loadEmailTemplatesData(): Promise<EmailTemplatesData> {
   const variableGroups = variableGroupsFromRegistry();
+  const supportedTriggers = triggersFromRegistry();
   try {
     return await withOrgContext(async (ctx): Promise<EmailTemplatesData> => {
       const context = ctx as OrgContextLike;
@@ -185,7 +199,14 @@ export async function loadEmailTemplatesData(): Promise<EmailTemplatesData> {
         hasPermission(context, EMAIL_EDIT_PERMISSION),
       ]);
       if (!canView && !canEdit) {
-        return { state: 'permission_denied', providerSettings: { ...DEFAULT_PROVIDER }, templates: [], variableGroups, canEdit: false };
+        return {
+          state: 'permission_denied',
+          providerSettings: { ...DEFAULT_PROVIDER },
+          templates: [],
+          variableGroups,
+          supportedTriggers,
+          canEdit: false,
+        };
       }
 
       const [providerSettings, templates] = await Promise.all([
@@ -198,6 +219,7 @@ export async function loadEmailTemplatesData(): Promise<EmailTemplatesData> {
         providerSettings,
         templates,
         variableGroups,
+        supportedTriggers,
         canEdit,
       };
     });
@@ -206,7 +228,14 @@ export async function loadEmailTemplatesData(): Promise<EmailTemplatesData> {
       '[settings/email] load_failed',
       error instanceof Error ? { message: error.message } : { message: String(error) },
     );
-    return { state: 'error', providerSettings: { ...DEFAULT_PROVIDER }, templates: [], variableGroups, canEdit: false };
+    return {
+      state: 'error',
+      providerSettings: { ...DEFAULT_PROVIDER },
+      templates: [],
+      variableGroups,
+      supportedTriggers,
+      canEdit: false,
+    };
   }
 }
 

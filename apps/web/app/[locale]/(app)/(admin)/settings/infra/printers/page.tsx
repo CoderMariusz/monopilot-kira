@@ -20,7 +20,7 @@ import React from 'react';
 
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { listPrinters, upsertPrinter as persistPrinter } from './_actions/printers';
+import { listPrinters, upsertPrinter as persistPrinter, deletePrinter as removePrinter } from './_actions/printers';
 import PrintersScreen, {
   type PageState,
   type PrinterRow,
@@ -47,6 +47,7 @@ type PrintersPageProps = {
   canManage?: boolean;
   state?: PageState;
   upsertPrinter?: (input: UpsertPrinterInput) => Promise<PrinterRow> | PrinterRow;
+  deletePrinter?: (printerId: string) => Promise<void> | void;
 };
 
 type LoaderResult = {
@@ -89,6 +90,12 @@ const LABEL_KEYS: Array<keyof PrintersLabels> = [
   'edit',
   'deactivate',
   'activate',
+  'deletePrinter',
+  'deletePrinterTitle',
+  'deletePrinterBody',
+  'deletePrinterPending',
+  'deletePrinterBlocked',
+  'confirmDelete',
   'addressNone',
   'locationNone',
   'siteNone',
@@ -206,6 +213,7 @@ export default async function PrintersPage(propsInput: unknown = {}) {
       canManage={props.canManage ?? loaded.canManage}
       state={props.state ?? loaded.state}
       upsertPrinter={props.upsertPrinter ?? persistPrinter}
+      deletePrinter={props.deletePrinter ?? ((printerId: string) => removePrinter({ id: printerId }))}
     />
   );
 }

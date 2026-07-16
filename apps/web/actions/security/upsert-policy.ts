@@ -28,6 +28,43 @@ type ParsePolicyResult = {
   error?: Exclude<UpsertSecurityPolicyResult, { ok: true }>['error'];
 };
 
+type TenantIdpMfaPolicy = {
+  mfa_required: boolean;
+  mfa_required_for_roles: string[];
+};
+
+function mapMfaRequirementToIdpPolicy(
+  mfaRequirement: ParsedSecurityPolicyInput['mfa_requirement'],
+): TenantIdpMfaPolicy {
+  if (mfaRequirement === 'required_all') {
+    return { mfa_required: true, mfa_required_for_roles: [] };
+  }
+  if (mfaRequirement === 'required_admins') {
+    return {
+      mfa_required: true,
+      mfa_required_for_roles: ['org.access.admin', 'org.schema.admin'],
+    };
+  }
+  return { mfa_required: false, mfa_required_for_roles: [] };
+}
+
+async function persistTenantIdpPolicy({
+  client,
+  input,
+}: {
+  client: QueryClient;
+  input: ParsedSecurityPolicyInput;
+}): Promise<void> {
+  const mfaPolicy = mapMfaRequirementToIdpPolicy(input.mfa_requirement);
+  const { rows } = await client.query<{ ok: boolean }>(
+    `select app.upsert_my_tenant_idp_policy($1::boolean, $2::text[], $3::text[], null::boolean) as ok`,
+    [mfaPolicy.mfa_required, mfaPolicy.mfa_required_for_roles, input.mfa_allowed_methods],
+  );
+  if (!rows[0]?.ok) {
+    throw new Error('IDP_POLICY_PERSIST_FAILED');
+  }
+}
+
 function parseInput(input: UpsertSecurityPolicyInput | null | undefined): ParsePolicyResult {
   if (!input || typeof input !== 'object') return { error: 'invalid_input' };
 
@@ -89,6 +126,8 @@ export async function upsertPolicy(rawInput: UpsertSecurityPolicyInput): Promise
       if (!upsert.rows[0]?.org_id) {
         throw new Error('PERSISTENCE_FAILED');
       }
+
+      await persistTenantIdpPolicy({ client, input });
 
       if (input.mfa_requirement === 'required_admins') {
         await forceAdminMfa({ client, orgId, actorUserId: userId });

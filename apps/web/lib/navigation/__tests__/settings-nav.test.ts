@@ -70,6 +70,7 @@ const EXPECTED_SETTINGS_NAV = [
     admin: true,
     items: [
       { key: "signoff", label: "Sign-off policies", icon: "✍" },
+      { key: "authorization", label: "Authorization policies", icon: "🛡" },
       // Stale test contract: scanner PIN/sign-off settings now live in this section.
       { key: "scanner-auth", label: "Sign-off & PINs", icon: "🔐" },
     ],

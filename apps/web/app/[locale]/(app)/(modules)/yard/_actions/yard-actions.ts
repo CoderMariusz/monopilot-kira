@@ -362,6 +362,45 @@ export async function upsertDockDoor(input: UpsertDockDoorInput): Promise<DockDo
   });
 }
 
+export async function deleteDockDoor(dockDoorId: string): Promise<void> {
+  const id = dockDoorId.trim();
+  if (!id) throw new Error('invalid input');
+
+  await withOrgContext(async ({ userId, orgId, client }): Promise<void> => {
+    const ctx: YardActionContext = { userId, orgId, client: client as QueryClient };
+    await requireYardPermission(ctx);
+
+    const { rows: doorRows } = await ctx.client.query<{ id: string }>(
+      `select id
+         from public.dock_doors
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+        limit 1`,
+      [id],
+    );
+    if (!doorRows[0]) throw new Error('dock door not found');
+
+    const { rows: dependencyRows } = await ctx.client.query<{ appointment_count: number | string }>(
+      `select count(*)::integer as appointment_count
+         from public.dock_appointments
+        where org_id = app.current_org_id()
+          and dock_door_id = $1::uuid`,
+      [id],
+    );
+    const appointmentCount = Number(dependencyRows[0]?.appointment_count ?? 0);
+    if (Number.isFinite(appointmentCount) && appointmentCount > 0) throw new Error('has_dependents');
+
+    const { rows: deletedRows } = await ctx.client.query<{ id: string }>(
+      `delete from public.dock_doors
+        where org_id = app.current_org_id()
+          and id = $1::uuid
+       returning id`,
+      [id],
+    );
+    if (!deletedRows[0]) throw new Error('dock door not found');
+  });
+}
+
 export async function listAppointments(input: ListAppointmentsInput): Promise<AppointmentRow[]> {
   const from = requireValidDate(input.from, 'from');
   const to = requireValidDate(input.to, 'to');

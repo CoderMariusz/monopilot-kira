@@ -398,6 +398,7 @@
       "blockerAuthorizerRoleMissing": "Select at least one authorized role",
       "blockerGateRuleMissing": "Technical approval gate rule is missing",
       "blockerMinApproversInvalid": "Minimum approvers must be at least 1",
+      "blockerMinApproversDualSignInvalid": "Dual sign-off requires at least 2 approvers",
       "blockerPolicyDisabled": "Policy is disabled",
       "blockerRequestPermissionMissing": "Request permission is missing",
       "blockerRequiresNewVersionRequired": "requires_new_version must remain true for released-product edits",
@@ -1512,7 +1513,7 @@
       "fieldThroughputUom": "Throughput UoM",
       "fieldThroughputHelp": "Output per hour in the unit on the right; drives runtime (qty ÷ throughput).",
       "fieldYield": "Yield %",
-      "fieldYieldHelp": "Expected good output percentage (0–100].",
+      "fieldYieldHelp": "Expected good output percentage. Must be greater than 0 and at most 100. Valid range: (0, 100].",
       "productRatesTitle": "Per-product rates",
       "productRatesNote": "Read-only — actual rates saved per product (NPD production tab). Edit them on the product, not here.",
       "productRatesEmpty": "No product uses this process yet.",
@@ -1977,6 +1978,7 @@
         "d365_cost_import": "D365 cost import",
         "documents": "Document numbering",
         "signoff": "Sign-off policies",
+        "authorization": "Authorization policies",
         "lines": "Production lines",
         "locations": "Locations",
         "my_pin": "E-sign & scanner PIN",
@@ -6014,8 +6016,10 @@
         "d365": "D365"
       },
       "disabledBanner": "D365 connector disabled for this org. Cost import is unavailable. Local cost history remains source of truth and is editable from Technical › Costs.",
+      "exportOnlyBanner": "D365 cost import is blocked per R15 export-only policy. Cost data flows Monopilot → D365 only.",
+      "mappingLink": "Settings › Integrations › D365 mapping",
       "settingsLink": "Settings › Integrations",
-      "sourceOfTruthNote": "Local cost history is source of truth. Importing from D365 appends a new cost entry tagged source=d365_sync; it never overwrites in place. Items with |Δ| ≥ 5% require Technical sign-off.",
+      "sourceOfTruthNote": "Local cost history is source of truth. D365 inbound cost sync is not permitted; export cost updates to D365 from Monopilot only.",
       "kpi": {
         "connector": "Connector",
         "connectorValue": "OK",
@@ -10328,7 +10332,23 @@
       }
     },
     "profile": {
-      "roleLabel": "Role"
+      "roleLabel": "Role",
+      "mfa_reconfigure_title": "Reconfigure authenticator",
+      "mfa_backup_codes_title": "Backup codes",
+      "mfa_enroll_instructions": "Add this secret to your authenticator app, then enter the six-digit code to confirm.",
+      "mfa_backup_codes_instructions": "Backup codes are shown once. Store them in a secure password manager.",
+      "mfa_backup_codes_rotate_warning": "Generating new codes invalidates any previous backup codes.",
+      "mfa_secret_label": "Authenticator secret",
+      "mfa_verification_code_label": "Verification code",
+      "mfa_backup_codes_list_label": "Your backup codes",
+      "mfa_confirm": "Confirm",
+      "mfa_close": "Close",
+      "mfa_generating": "Preparing enrollment…",
+      "mfa_verifying": "Verifying…",
+      "mfa_invalid_code": "Enter a valid six-digit code.",
+      "mfa_unavailable_title": "MFA enrollment unavailable",
+      "mfa_unavailable_body": "TOTP enrollment is not configured on this deployment (MFA_MASTER_KEY missing).",
+      "mfa_copy_codes": "Copy codes"
     }
   },
   "Finance": {
@@ -12379,6 +12399,12 @@
       "emptyHint": "Add a dock door to schedule appointments against it.",
       "add": "Add dock door",
       "edit": "Edit",
+      "delete": "Delete",
+      "deleteTitle": "Delete dock door",
+      "deleteBody": "Delete {name}? This cannot be undone.",
+      "deletePending": "Deleting…",
+      "deleteBlocked": "This dock door still has appointments and cannot be deleted.",
+      "confirmDelete": "Delete",
       "active": "Active",
       "inactive": "Inactive",
       "noWarehouse": "No warehouse",
@@ -12408,7 +12434,8 @@
           "forbidden": "You do not have permission to edit dock doors.",
           "not_found": "Dock door not found.",
           "already_exists": "A dock door with this code already exists.",
-          "persistence_failed": "Saving failed. Try again."
+          "persistence_failed": "Saving failed. Try again.",
+          "has_dependents": "This dock door still has appointments and cannot be deleted."
         }
       }
     },

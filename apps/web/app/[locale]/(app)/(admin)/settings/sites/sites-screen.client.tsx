@@ -27,6 +27,7 @@ import { DeleteSiteModal } from './_components/DeleteSiteModal';
 import { EditLineModal } from './_components/EditLineModal';
 import { EditSiteSettingsModal, type UpdateSiteSettingsAction } from './_components/EditSiteSettingsModal';
 import { RenameSiteModal } from './_components/RenameSiteModal';
+import { resolveSitePinPositions, type SitePinPosition } from './_components/site-map-pins';
 
 /**
  * Sites & production lines settings screen.
@@ -255,6 +256,13 @@ export default function SitesScreen({
     [siteRows, selectedSiteId],
   );
 
+  const pinPositionById = React.useMemo(() => {
+    const positions = resolveSitePinPositions(
+      siteRows.map((site) => ({ id: site.id, map_x: site.map_x, map_y: site.map_y })),
+    );
+    return new Map(positions.map((position) => [position.id, position]));
+  }, [siteRows]);
+
   React.useEffect(() => {
     setSiteRows(sites);
   }, [sites]);
@@ -377,22 +385,31 @@ export default function SitesScreen({
                 >
                   {selectedSite?.country?.trim() || labels.mapRegionFallback}
                 </div>
-                {siteRows.map((site) => (
+                {siteRows.map((site) => {
+                  const position: SitePinPosition = pinPositionById.get(site.id) ?? {
+                    id: site.id,
+                    map_x: site.map_x,
+                    map_y: site.map_y,
+                  };
+                  const clusterSuffix =
+                    position.cluster_size && position.cluster_size > 1
+                      ? ` (${position.cluster_index} of ${position.cluster_size})`
+                      : '';
+                  return (
                   <button
                     key={site.id}
                     type="button"
                     className="site-pin"
                     data-testid="sites-map-pin"
+                    data-site-id={site.id}
                     aria-pressed={selectedSiteId === site.id}
-                    aria-label={site.name}
+                    aria-label={`${site.name}${clusterSuffix}`}
                     style={{
-                      left: `${site.map_x}%`,
-                      top: `${site.map_y}%`,
+                      left: `${position.map_x}%`,
+                      top: `${position.map_y}%`,
                       background: 'transparent',
                       border: 'none',
                       padding: 0,
-                      // ponytail: only the dot accepts pointers; overlapping decorative labels click through.
-                      pointerEvents: 'none',
                     }}
                     onClick={() => handleSelect(site.id)}
                   >
@@ -400,12 +417,14 @@ export default function SitesScreen({
                       className="dot"
                       style={{
                         background: selectedSiteId === site.id ? 'var(--blue)' : 'var(--gray-400, #94a3b8)',
-                        pointerEvents: 'auto',
                       }}
                     />
-                    <div className="pin-label">{site.name}</div>
+                    <div className="pin-label" style={{ pointerEvents: 'none' }} aria-hidden="true">
+                      {site.name}
+                    </div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
             <ul data-testid="sites-list" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
@@ -566,6 +585,15 @@ export default function SitesScreen({
                     disabled
                   />
                 </SRow>
+                <SRow label={modalLabels.fieldTimezone}>
+                  <div className="mono">{selectedSite.timezone}</div>
+                </SRow>
+                <SRow label={modalLabels.fieldCountry}>
+                  <div>{selectedSite.country?.trim() || '—'}</div>
+                </SRow>
+                <SRow label={modalLabels.fieldLegalEntity}>
+                  <div>{selectedSite.legal_entity?.trim() || '—'}</div>
+                </SRow>
                 <SRow label={labels.operatingHours}>
                   <div className="mono">{selectedSite.settings.operating_hours}</div>
                 </SRow>
@@ -632,17 +660,17 @@ export default function SitesScreen({
             setActiveModal(null);
             setSiteRows((current) =>
               current.map((site) => {
-                if (updated.settings.primary) {
-                  return {
-                    ...site,
-                    settings: {
-                      ...site.settings,
-                      primary: site.id === updated.id,
-                      ...(site.id === updated.id ? updated.settings : {}),
-                    },
-                  };
+                if (site.id !== updated.id) {
+                  if (updated.settings.primary) {
+                    return { ...site, settings: { ...site.settings, primary: false } };
+                  }
+                  return site;
                 }
-                return site.id === updated.id ? { ...site, ...updated } : site;
+                return {
+                  ...site,
+                  ...updated,
+                  settings: { ...site.settings, ...updated.settings },
+                };
               }),
             );
             router.refresh();

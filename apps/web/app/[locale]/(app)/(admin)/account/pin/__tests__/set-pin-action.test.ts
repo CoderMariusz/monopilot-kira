@@ -108,7 +108,7 @@ describe('setEsignPinAction', () => {
     expect(_verifySupabaseLoginPassword).toHaveBeenCalledWith(EMAIL, 'Admin2026!!!');
     // EXACT scanner write path, once, with the verified caller's id.
     expect(_setPin).toHaveBeenCalledTimes(1);
-    expect(_setPin).toHaveBeenCalledWith(USER_ID, '4711');
+    expect(_setPin).toHaveBeenCalledWith(USER_ID, '4711', { client });
     expect(_verifyPin).not.toHaveBeenCalled();
     expect(_writeScannerAudit).toHaveBeenCalledWith(
       client,
@@ -133,8 +133,21 @@ describe('setEsignPinAction', () => {
 
     expect(result).toEqual({ ok: true, pinSet: true });
     expect(_verifyPin).toHaveBeenCalledWith(USER_ID, '1234', { client });
-    expect(_setPin).toHaveBeenCalledWith(USER_ID, '987654');
+    expect(_setPin).toHaveBeenCalledWith(USER_ID, '987654', { client });
     expect(_verifySupabaseLoginPassword).not.toHaveBeenCalled();
+  });
+
+  it('writes the new PIN through the same org-context client to avoid row-lock deadlock', async () => {
+    const { setEsignPinAction } = await loadActions();
+
+    await setEsignPinAction({
+      authMethod: 'pin',
+      currentSecret: '1234',
+      newPin: '5678',
+      confirmPin: '5678',
+    });
+
+    expect(_setPin).toHaveBeenCalledWith(USER_ID, '5678', { client });
   });
 
   it('rejects a wrong current password without writing the PIN', async () => {

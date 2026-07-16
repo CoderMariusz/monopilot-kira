@@ -71,6 +71,12 @@ export type PrintersLabels = {
   edit: string;
   deactivate: string;
   activate: string;
+  deletePrinter: string;
+  deletePrinterTitle: string;
+  deletePrinterBody: string;
+  deletePrinterPending: string;
+  deletePrinterBlocked: string;
+  confirmDelete: string;
   addressNone: string;
   locationNone: string;
   siteNone: string;
@@ -135,6 +141,7 @@ export default function PrintersScreen({
   labels,
   canManage,
   upsertPrinter,
+  deletePrinter,
   state = 'ready',
 }: {
   initialPrinters: PrinterRow[];
@@ -142,6 +149,7 @@ export default function PrintersScreen({
   labels: PrintersLabels;
   canManage: boolean;
   upsertPrinter: (input: UpsertPrinterInput) => Promise<PrinterRow> | PrinterRow;
+  deletePrinter?: (printerId: string) => Promise<void> | void;
   state?: PageState;
 }) {
   const router = useRouter();
@@ -151,6 +159,9 @@ export default function PrintersScreen({
   const [pending, setPending] = React.useState(false);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
   const [actionError, setActionError] = React.useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<PrinterRow | null>(null);
+  const [deletePending, setDeletePending] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
   const disabledReason = canManage ? undefined : labels.insufficientPermission;
   const editing = draft.id != null;
@@ -232,6 +243,24 @@ export default function PrintersScreen({
       setActionError(labels.saveFailed);
     } finally {
       setPending(false);
+    }
+  }
+
+  async function submitDelete() {
+    if (!canManage || !deletePrinter || !deleteTarget || deletePending) return;
+    setDeletePending(true);
+    setDeleteError(null);
+    setActionError(null);
+    try {
+      await deletePrinter(deleteTarget.id);
+      setRows((current) => current.filter((row) => row.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      router.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : '';
+      setDeleteError(message === 'has_dependents' ? labels.deletePrinterBlocked : labels.saveFailed);
+    } finally {
+      setDeletePending(false);
     }
   }
 
@@ -462,6 +491,20 @@ export default function PrintersScreen({
                         >
                           {printer.is_active ? labels.deactivate : labels.activate}
                         </Button>
+                        {deletePrinter ? (
+                          <Button
+                            type="button"
+                            variant="dry-run"
+                            disabled={!canManage || pending || deletePending}
+                            aria-label={canManage ? `${labels.deletePrinter} ${printer.name}` : `${labels.deletePrinter} — ${labels.insufficientPermission}`}
+                            onClick={() => {
+                              setDeleteTarget(printer);
+                              setDeleteError(null);
+                            }}
+                          >
+                            {labels.deletePrinter}
+                          </Button>
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -488,6 +531,22 @@ export default function PrintersScreen({
           </div>
         )}
       </section>
+
+      {deleteTarget ? (
+        <div role="dialog" aria-modal="true" aria-labelledby="delete-printer-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
+          <div className="w-full max-w-md rounded-xl border border-red-200 bg-white p-5 shadow-lg">
+            <h2 id="delete-printer-title" className="text-lg font-semibold text-slate-950">{labels.deletePrinterTitle}</h2>
+            <p className="mt-3 text-sm text-slate-700">{labels.deletePrinterBody.replace('{name}', deleteTarget.name)}</p>
+            {deleteError ? <p role="alert" className="mt-3 text-sm text-red-700">{deleteError}</p> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="dry-run" onClick={() => setDeleteTarget(null)} disabled={deletePending}>{labels.cancel}</Button>
+              <Button type="button" onClick={() => void submitDelete()} disabled={deletePending}>
+                {deletePending ? labels.deletePrinterPending : labels.confirmDelete}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

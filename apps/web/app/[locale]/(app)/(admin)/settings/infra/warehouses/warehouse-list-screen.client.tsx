@@ -71,6 +71,11 @@ export type DeactivateWarehouseResult =
       warning?: { code?: 'SOFT_WARNING_ACTIVE_WO' | 'ACTIVE_WO_REFERENCES' | string; activeWoCount?: number; activeWorkOrders?: number };
     };
 
+export type ReactivateWarehouseInput = { warehouseId: string };
+export type ReactivateWarehouseResult =
+  | { ok: true; data?: { warehouseId?: string; isActive?: boolean } }
+  | { ok: false; error?: string };
+
 export type RenameWarehouseInput = { warehouseId: string; name: string };
 export type RenameWarehouseResult = { ok: true; data: { id: string; name: string } } | { ok: false; error?: string };
 export type DeleteWarehouseInput = { warehouseId: string };
@@ -107,6 +112,7 @@ export type WarehouseLabels = {
   openLocations: string;
   selectWarehouse: string;
   bulkActivate: string;
+  bulkActivatePending: string;
   bulkDeactivate: string;
   bulkDeactivatePending: string;
   softWarningTitle: string;
@@ -164,6 +170,9 @@ export type WarehouseLabels = {
   renameWarehouseTitle: string;
   renameWarehousePending: string;
   renameWarehouseFailed: string;
+  reactivateWarehouse: string;
+  reactivateWarehousePending: string;
+  reactivateSuccess: string;
   deleteWarehouse: string;
   deleteWarehouseTitle: string;
   deleteWarehouseBody: string;
@@ -182,6 +191,7 @@ export default function WarehouseListScreen({
   canUpdateInfra,
   createWarehouse,
   deactivateWarehouse,
+  reactivateWarehouse,
   renameWarehouse,
   deleteWarehouse,
   updateStorageRules,
@@ -194,6 +204,7 @@ export default function WarehouseListScreen({
   canUpdateInfra: boolean;
   createWarehouse: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
+  reactivateWarehouse: (input: ReactivateWarehouseInput) => Promise<ReactivateWarehouseResult>;
   renameWarehouse: (input: RenameWarehouseInput) => Promise<RenameWarehouseResult>;
   deleteWarehouse: (input: DeleteWarehouseInput) => Promise<DeleteWarehouseResult>;
   updateStorageRules?: (input: UpdateStorageRulesInput) => Promise<UpdateStorageRulesResult>;
@@ -206,6 +217,7 @@ export default function WarehouseListScreen({
   const [filterValue, setFilterValue] = React.useState('');
   const [debouncedFilter, setDebouncedFilter] = React.useState('');
   const [pending, setPending] = React.useState(false);
+  const [activatePending, setActivatePending] = React.useState(false);
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [createPending, setCreatePending] = React.useState(false);
   const [createStatus, setCreateStatus] = React.useState<string | null>(null);
@@ -363,6 +375,10 @@ export default function WarehouseListScreen({
     );
   }
 
+  function markReactivated(warehouseId: string) {
+    setRows((current) => current.map((row) => (row.id === warehouseId ? { ...row, deactivated_at: null } : row)));
+  }
+
   async function submitCreateWarehouse(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canUpdateInfra || createPending) return;
@@ -397,12 +413,51 @@ export default function WarehouseListScreen({
     }
   }
 
+  async function bulkActivate() {
+    if (!canUpdateInfra || selected.size === 0 || activatePending) return;
+    setActivatePending(true);
+    setError(null);
+    try {
+      for (const warehouseId of selected) {
+        const row = rows.find((item) => item.id === warehouseId);
+        if (!row || row.deactivated_at === null) continue;
+        const result = await reactivateWarehouse({ warehouseId });
+        if (!result.ok) {
+          setError(labels.error);
+          return;
+        }
+        markReactivated(result.data?.warehouseId ?? warehouseId);
+      }
+      setSelected(new Set());
+    } finally {
+      setActivatePending(false);
+    }
+  }
+
+  async function submitReactivate(warehouseId: string) {
+    if (!canUpdateInfra || activatePending) return;
+    setActivatePending(true);
+    setError(null);
+    try {
+      const result = await reactivateWarehouse({ warehouseId });
+      if (!result.ok) {
+        setError(labels.error);
+        return;
+      }
+      markReactivated(result.data?.warehouseId ?? warehouseId);
+    } finally {
+      setActivatePending(false);
+    }
+  }
+
   async function bulkDeactivate() {
     if (!canUpdateInfra || selected.size === 0 || pending) return;
     setPending(true);
     setError(null);
     try {
       for (const warehouseId of selected) {
+        const row = rows.find((item) => item.id === warehouseId);
+        if (!row || row.deactivated_at !== null) continue;
         const result = await deactivateWarehouse({ warehouseId });
         if (result.ok === false) {
           if (isDependencyBlock(result)) {
@@ -465,6 +520,14 @@ export default function WarehouseListScreen({
     }
   }
 
+  const selectedDeactivatedCount = React.useMemo(
+    () => Array.from(selected).filter((id) => rows.find((row) => row.id === id)?.deactivated_at !== null).length,
+    [rows, selected],
+  );
+  const selectedActiveCount = React.useMemo(
+    () => Array.from(selected).filter((id) => rows.find((row) => row.id === id)?.deactivated_at === null).length,
+    [rows, selected],
+  );
   const disabledReason = canUpdateInfra ? undefined : labels.insufficientPermission;
   const deactivateButtonName = disabledReason ? `${labels.bulkDeactivate} — ${disabledReason}` : labels.bulkDeactivate;
   const statePanel = renderStatePanel(state, labels);
@@ -494,8 +557,17 @@ export default function WarehouseListScreen({
             <Button
               type="button"
               className="btn-secondary"
+              onClick={() => void bulkActivate()}
+              disabled={!canUpdateInfra || selectedDeactivatedCount === 0 || activatePending}
+              aria-label={disabledReason ? `${labels.bulkActivate} — ${disabledReason}` : labels.bulkActivate}
+            >
+              {activatePending ? labels.bulkActivatePending : labels.bulkActivate}
+            </Button>
+            <Button
+              type="button"
+              className="btn-secondary"
               onClick={() => void bulkDeactivate()}
-              disabled={!canUpdateInfra || selected.size === 0 || pending}
+              disabled={!canUpdateInfra || selectedActiveCount === 0 || pending}
               aria-label={deactivateButtonName}
             >
               {pending ? labels.bulkDeactivatePending : labels.bulkDeactivate}
@@ -598,7 +670,7 @@ export default function WarehouseListScreen({
                           className="h-4 w-4 rounded border-slate-300"
                           checked={selected.has(warehouse.id)}
                           onChange={(event) => toggleSelected(warehouse.id, event.currentTarget.checked)}
-                          disabled={warehouse.deactivated_at !== null || pending || !canUpdateInfra}
+                          disabled={pending || activatePending || !canUpdateInfra}
                           aria-label={formatTemplate(labels.selectWarehouse, { name: warehouse.name })}
                         />
                       </TableCell>
@@ -653,6 +725,17 @@ export default function WarehouseListScreen({
                         <Button type="button" variant="dry-run" disabled={!canUpdateInfra} aria-label={`${labels.renameWarehouse} — ${warehouse.name}`} onClick={() => { setRenameTarget(warehouse); setRenameName(warehouse.name); }}>
                           {labels.renameWarehouse}
                         </Button>
+                        {warehouse.deactivated_at ? (
+                          <Button
+                            type="button"
+                            variant="dry-run"
+                            disabled={!canUpdateInfra || activatePending}
+                            aria-label={`${labels.reactivateWarehouse} — ${warehouse.name}`}
+                            onClick={() => void submitReactivate(warehouse.id)}
+                          >
+                            {activatePending ? labels.reactivateWarehousePending : labels.reactivateWarehouse}
+                          </Button>
+                        ) : null}
                         <Button type="button" variant="dry-run" disabled={!canUpdateInfra} aria-label={`${labels.deleteWarehouse} — ${warehouse.name}`} onClick={() => { setDeleteTarget(warehouse); setDeleteError(null); }}>
                           {labels.deleteWarehouse}
                         </Button>

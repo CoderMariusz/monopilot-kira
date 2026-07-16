@@ -102,4 +102,24 @@ describe('T-018 admin user Server Actions', () => {
     const auditIndex = source.indexOf('settings.user.mfa_reset');
     expect(auditIndex, 'resetUserMfa must write an audit row with settings.user.mfa_reset').toBeGreaterThan(guardIndex);
   });
+
+  it('user lifecycle actions audit the users table as resource_type, not org_security_policies', () => {
+    const auditedActions = [
+      'invite.ts',
+      'create-user-with-password.ts',
+      'assign-role.ts',
+      'deactivate.ts',
+      'reactivate.ts',
+      'assign-user-sites.ts',
+      'reset-user-mfa.ts',
+    ];
+
+    for (const fileName of auditedActions) {
+      const source = readActionSource(fileName);
+      expect(source, `${fileName} must tag audit rows with resource_type users`).toContain("'users'");
+      expect(source, `${fileName} must not mislabel user lifecycle audits as org_security_policies`).not.toContain(
+        "'org_security_policies'",
+      );
+    }
+  });
 });

@@ -34,6 +34,9 @@ import { triggerCostImport } from '../_actions/trigger-cost-import';
 
 export type CostImportCopy = {
   disabledBanner: string;
+  exportOnlyBanner: string;
+  mappingLink: string;
+  mappingHref: string;
   settingsLink: string;
   settingsHref: string;
   sourceOfTruthNote: string;
@@ -57,12 +60,14 @@ const REASON_MIN = 10;
 
 export function CostImport({
   d365Enabled,
+  exportOnly = false,
   canTrigger,
   rows,
   counts,
   copy,
 }: {
   d365Enabled: boolean;
+  exportOnly?: boolean;
   canTrigger: boolean;
   rows: CostDiffRow[];
   counts: { changed: number; over5: number; same: number };
@@ -85,11 +90,34 @@ export function CostImport({
         setFeedback({ kind: 'ok', text: res.duplicate ? copy.duplicate : copy.applied.replace('{jobId}', res.jobId.slice(0, 8)) });
       } else if (res.error === 'forbidden') {
         setFeedback({ kind: 'error', text: copy.triggerForbidden });
+      } else if (res.error === 'export_only_violation') {
+        setFeedback({ kind: 'error', text: copy.exportOnlyBanner });
       } else {
         setFeedback({ kind: 'error', text: copy.triggerError });
       }
     });
   };
+
+  // ── R15 export-only: inbound cost import is blocked even when D365 is enabled. ─
+  if (exportOnly) {
+    return (
+      <div data-screen="settings-d365-cost-import" className="flex flex-col gap-3">
+        <div role="note" data-testid="d365-cost-import-export-only" className="alert alert-amber" style={{ marginBottom: 0 }}>
+          {copy.exportOnlyBanner}{' '}
+          <Link
+            href={copy.mappingHref}
+            data-testid="d365-cost-import-mapping-link"
+            style={{ color: 'var(--blue)', fontWeight: 500 }}
+          >
+            {copy.mappingLink}
+          </Link>
+        </div>
+        <div role="note" data-testid="d365-cost-import-sot-note" className="alert alert-blue" style={{ marginBottom: 0 }}>
+          {copy.sourceOfTruthNote}
+        </div>
+      </div>
+    );
+  }
 
   // ── D365 disabled: banner only; the rest of Settings stays usable. ───────────
   if (!d365Enabled) {

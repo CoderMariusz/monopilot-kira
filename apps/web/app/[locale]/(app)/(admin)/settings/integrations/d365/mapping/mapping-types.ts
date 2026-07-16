@@ -31,6 +31,10 @@ export type D365MappingLabels = {
   all: string;
   incoming: string;
   outgoing: string;
+  directionIncoming: string;
+  directionOutgoing: string;
+  directionBoth: string;
+  costExportOnlyNotice: string;
   directionFilterLabel: string;
   fieldLevelMap: string;
   d365Field: string;

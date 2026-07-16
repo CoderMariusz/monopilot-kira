@@ -54,19 +54,26 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
  * Hash the given PIN with argon2id and upsert it into user_pins.
  * Resets attempts_count and locked_until on each setPin call.
  */
-export async function setPin(userId: string, pin: string): Promise<void> {
-  const hash = await argon2.hash(pin, ARGON2_OPTS);
-  await getPool().query(
-    `INSERT INTO public.user_pins (user_id, pin_hash, attempts_count, locked_until, last_attempt_at)
+const SET_PIN_SQL = `INSERT INTO public.user_pins (user_id, pin_hash, attempts_count, locked_until, last_attempt_at)
      VALUES ($1, $2, 0, NULL, NULL)
      ON CONFLICT (user_id) DO UPDATE
        SET pin_hash       = EXCLUDED.pin_hash,
            attempts_count = 0,
            locked_until   = NULL,
            last_attempt_at = NULL,
-           updated_at     = now()`,
-    [userId, hash],
-  );
+           updated_at     = now()`;
+
+export async function setPin(
+  userId: string,
+  pin: string,
+  options: { client?: QueryClient } = {},
+): Promise<void> {
+  const hash = await argon2.hash(pin, ARGON2_OPTS);
+  if (options.client) {
+    await options.client.query(SET_PIN_SQL, [userId, hash]);
+    return;
+  }
+  await getPool().query(SET_PIN_SQL, [userId, hash]);
 }
 
 /**

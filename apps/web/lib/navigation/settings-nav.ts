@@ -95,6 +95,10 @@ export const SETTINGS_NAV_GROUPS = [
   ]),
   group("signoff", "Sign-off", true, [
     item("signoff", "Sign-off policies", "✍"),
+    // C007 — authorization policies (org_authorization_policies / S22) were a
+    // URL-only dead-end; surface next to the other sign-off governance screens.
+    // Page RBAC (settings.authorization.edit) is enforced server-side on actions.
+    item("authorization", "Authorization policies", "🛡", false, "/settings/authorization"),
     // Owner-requested section gathering the scanner PIN / sign-off toggles
     // (currently: supervisor-PIN requirement for scanner reverse-consume).
     item("scanner-auth", "Sign-off & PINs", "🔐", false, "/settings/scanner-auth"),

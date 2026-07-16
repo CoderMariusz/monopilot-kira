@@ -58,6 +58,9 @@ async function CostImportContent() {
 
   const copy: CostImportCopy = {
     disabledBanner: t('disabledBanner'),
+    exportOnlyBanner: t('exportOnlyBanner'),
+    mappingLink: t('mappingLink'),
+    mappingHref: '/settings/integrations/d365/mapping',
     settingsLink: t('settingsLink'),
     settingsHref: '/settings/integrations/d365',
     sourceOfTruthNote: t('sourceOfTruthNote'),
@@ -92,8 +95,9 @@ async function CostImportContent() {
   return (
     <CostImport
       d365Enabled={result.d365Enabled}
+      exportOnly={result.ok && result.state === 'export_only'}
       canTrigger={result.ok && 'canTrigger' in result ? result.canTrigger : false}
-      rows={result.state === 'disabled' ? [] : result.rows}
+      rows={result.state === 'disabled' || result.state === 'export_only' ? [] : result.rows}
       counts={result.counts}
       copy={copy}
     />

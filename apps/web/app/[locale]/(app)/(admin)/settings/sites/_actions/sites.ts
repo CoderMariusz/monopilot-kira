@@ -25,6 +25,9 @@ export type SiteSettings = {
   operating_hours: string;
   haccp_enabled: boolean;
   haccp_valid_until: string | null;
+  timezone?: string;
+  country?: string | null;
+  legal_entity?: string | null;
 };
 
 export type SiteRow = {
@@ -34,6 +37,8 @@ export type SiteRow = {
   name: string;
   address: string;
   country: string | null;
+  timezone: string;
+  legal_entity: string | null;
   latitude: string | null;
   longitude: string | null;
   map_x: number;
@@ -148,6 +153,8 @@ type SiteDbRow = {
   name: string;
   is_default: boolean;
   country: string | null;
+  timezone: string | null;
+  legal_entity: string | null;
   address_text: string | null;
   latitude: string | null;
   longitude: string | null;
@@ -180,12 +187,33 @@ type LineDbRow = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UuidInput = z.string().trim().regex(UUID_RE);
 
+function isValidIanaTimezone(tz: string): boolean {
+  try {
+    const supported = Intl.supportedValuesOf?.('timeZone');
+    if (supported) return supported.includes(tz);
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const IanaTimezoneInput = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .refine(isValidIanaTimezone, { message: 'invalid IANA timezone' });
+
 const SiteSettingsInput = z
   .object({
     primary: z.boolean().optional(),
     operating_hours: z.string().trim().min(1).max(240).optional(),
     haccp_enabled: z.boolean().optional(),
     haccp_valid_until: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    timezone: IanaTimezoneInput.optional(),
+    country: z.string().trim().max(120).nullable().optional(),
+    legal_entity: z.string().trim().max(200).nullable().optional(),
   })
   .strict();
 
@@ -199,7 +227,7 @@ const CreateSiteSchema = z
   .object({
     site_code: CodeInput,
     name: NameInput,
-    timezone: z.string().trim().min(1).max(64).optional(),
+    timezone: IanaTimezoneInput.optional(),
     country: z.string().trim().min(1).max(120).nullable().optional(),
     legal_entity: z.string().trim().min(1).max(200).nullable().optional(),
     is_default: z.boolean().optional(),
@@ -271,6 +299,8 @@ function toSiteRow(row: SiteDbRow): SiteRow {
     name: row.name,
     address: row.address_text?.trim() || '',
     country: row.country,
+    timezone: row.timezone?.trim() || 'UTC',
+    legal_entity: row.legal_entity,
     latitude: row.latitude,
     longitude: row.longitude,
     map_x: numeric(row.map_x, 50),
@@ -328,6 +358,8 @@ async function querySites(context: OrgContextLike, orgId: string): Promise<SiteR
             s.name,
             s.is_default,
             s.country,
+            s.timezone,
+            s.legal_entity,
             concat_ws(', ',
               nullif(s.address->>'street', ''),
               nullif(s.address->>'city', ''),
@@ -359,7 +391,7 @@ async function querySites(context: OrgContextLike, orgId: string): Promise<SiteR
       where s.org_id = app.current_org_id()
         and s.org_id = $1::uuid
         and s.is_active = true
-      group by s.id, s.org_id, s.site_code, s.name, s.is_default, s.country, s.address, s.l3_ext_cols, s.is_active
+      group by s.id, s.org_id, s.site_code, s.name, s.is_default, s.country, s.timezone, s.legal_entity, s.address, s.l3_ext_cols, s.is_active
       order by s.is_default desc, lower(s.name), lower(s.site_code)`,
     [orgId],
   );
@@ -487,16 +519,20 @@ export async function updateSiteSettings(
         );
       }
 
+      const input = parsed.data.settings;
       const { rows } = await context.client.query<SiteDbRow>(
         `update public.sites
             set is_default = coalesce($3::boolean, is_default),
+                timezone = case when $7::boolean then $8::text else timezone end,
+                country = case when $9::boolean then $10::text else country end,
+                legal_entity = case when $11::boolean then $12::text else legal_entity end,
                 l3_ext_cols = l3_ext_cols
                   || jsonb_strip_nulls(jsonb_build_object(
                        'operating_hours', $4::text,
                        'haccp_enabled', $5::boolean,
                        'haccp_valid_until', $6::text
                      )),
-                updated_by = $7::uuid,
+                updated_by = $13::uuid,
                 updated_at = now()
           where org_id = app.current_org_id()
             and org_id = $1::uuid
@@ -507,6 +543,8 @@ export async function updateSiteSettings(
                     name,
                     is_default,
                     country,
+                    timezone,
+                    legal_entity,
                     concat_ws(', ',
                       nullif(address->>'street', ''),
                       nullif(address->>'city', ''),
@@ -526,10 +564,16 @@ export async function updateSiteSettings(
         [
           parsed.data.orgId,
           parsed.data.siteId,
-          parsed.data.settings.primary ?? null,
-          parsed.data.settings.operating_hours ?? null,
-          parsed.data.settings.haccp_enabled ?? null,
-          parsed.data.settings.haccp_valid_until ?? null,
+          input.primary ?? null,
+          input.operating_hours ?? null,
+          input.haccp_enabled ?? null,
+          input.haccp_valid_until ?? null,
+          input.timezone !== undefined,
+          input.timezone ?? null,
+          input.country !== undefined,
+          input.country ?? null,
+          input.legal_entity !== undefined,
+          input.legal_entity ?? null,
           context.userId,
         ],
       );

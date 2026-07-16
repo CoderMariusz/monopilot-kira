@@ -30,6 +30,7 @@
  */
 
 import { withOrgContext } from '../../../../../../../../../lib/auth/with-org-context';
+import { isCostImportPermitted } from '../../../../../../../../../actions/d365/export-only-policy';
 import { isD365Enabled } from '../../../../../../../../../lib/integrations/d365/gate';
 import { hasD365SyncPermission } from '../../../../../../../../../lib/integrations/d365/rbac';
 
@@ -65,6 +66,14 @@ export type LoadD365CostImportResult =
       counts: { changed: number; over5: number; same: number };
     }
   | { ok: true; d365Enabled: false; canTrigger: false; state: 'disabled'; rows: []; counts: { changed: 0; over5: 0; same: 0 } }
+  | {
+      ok: true;
+      d365Enabled: boolean;
+      canTrigger: false;
+      state: 'export_only';
+      rows: [];
+      counts: { changed: 0; over5: 0; same: 0 };
+    }
   | { ok: false; state: 'error' };
 
 type DiffDbRow = {
@@ -95,6 +104,17 @@ export async function loadD365CostImport(): Promise<LoadD365CostImportResult> {
           d365Enabled: false,
           canTrigger: false,
           state: 'disabled',
+          rows: [],
+          counts: { changed: 0, over5: 0, same: 0 },
+        };
+      }
+
+      if (!isCostImportPermitted()) {
+        return {
+          ok: true,
+          d365Enabled: true,
+          canTrigger: false,
+          state: 'export_only',
           rows: [],
           counts: { changed: 0, over5: 0, same: 0 },
         };

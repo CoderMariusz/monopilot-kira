@@ -365,6 +365,7 @@
       "blockerAuthorizerRoleMissing": "Виберіть принаймні одну авторизовану роль",
       "blockerGateRuleMissing": "Правило технічної точки контролю затвердження відсутнє",
       "blockerMinApproversInvalid": "Мінімальна кількість затверджувачів повинна бути не менше 1",
+      "blockerMinApproversDualSignInvalid": "Подвійний підпис вимагає принаймні 2 затверджувачів",
       "blockerPolicyDisabled": "Політика вимкнена",
       "blockerRequestPermissionMissing": "Дозвіл на запит відсутній",
       "blockerRequiresNewVersionRequired": "requires_new_version повинен залишатися true для редагувань випущених продуктів",
@@ -1329,7 +1330,7 @@
       "fieldThroughputUom": "Throughput UoM",
       "fieldThroughputHelp": "Output per hour in the unit on the right; drives runtime (qty ÷ throughput).",
       "fieldYield": "Yield %",
-      "fieldYieldHelp": "Expected good output percentage (0–100].",
+      "fieldYieldHelp": "Expected good output percentage. Must be greater than 0 and at most 100. Valid range: (0, 100].",
       "productRatesTitle": "Per-product rates",
       "productRatesNote": "Read-only — actual rates saved per product (NPD production tab). Edit them on the product, not here.",
       "productRatesEmpty": "No product uses this process yet.",
@@ -1889,6 +1890,7 @@
         "d365_cost_import": "Імпорт витрат D365",
         "documents": "Document numbering",
         "signoff": "Sign-off policies",
+        "authorization": "Політики авторизації",
         "lines": "Production lines",
         "locations": "Locations",
         "my_pin": "E-sign & scanner PIN",
@@ -3323,8 +3325,10 @@
         "d365": "D365"
       },
       "disabledBanner": "D365 connector disabled for this org. Cost import is unavailable. Local cost history remains source of truth and is editable from Technical › Costs.",
+      "exportOnlyBanner": "D365 cost import is blocked per R15 export-only policy. Cost data flows Monopilot → D365 only.",
+      "mappingLink": "Settings › Integrations › D365 mapping",
       "settingsLink": "Settings › Integrations",
-      "sourceOfTruthNote": "Local cost history is source of truth. Importing from D365 appends a new cost entry tagged source=d365_sync; it never overwrites in place. Items with |Δ| ≥ 5% require Technical sign-off.",
+      "sourceOfTruthNote": "Local cost history is source of truth. D365 inbound cost sync is not permitted; export cost updates to D365 from Monopilot only.",
       "kpi": {
         "connector": "Connector",
         "connectorValue": "OK",
@@ -10231,7 +10235,23 @@
       }
     },
     "profile": {
-      "roleLabel": "Role"
+      "roleLabel": "Role",
+      "mfa_reconfigure_title": "Переналаштувати застосунок автентифікації",
+      "mfa_backup_codes_title": "Резервні коди",
+      "mfa_enroll_instructions": "Додайте цей секрет до застосунку автентифікації, потім введіть шестизначний код для підтвердження.",
+      "mfa_backup_codes_instructions": "Резервні коди показуються лише один раз. Зберігайте їх у безпечному менеджері паролів.",
+      "mfa_backup_codes_rotate_warning": "Генерація нових кодів анулює всі попередні резервні коди.",
+      "mfa_secret_label": "Секрет автентифікатора",
+      "mfa_verification_code_label": "Код перевірки",
+      "mfa_backup_codes_list_label": "Ваші резервні коди",
+      "mfa_confirm": "Підтвердити",
+      "mfa_close": "Закрити",
+      "mfa_generating": "Підготовка реєстрації…",
+      "mfa_verifying": "Перевірка…",
+      "mfa_invalid_code": "Введіть дійсний шестизначний код.",
+      "mfa_unavailable_title": "Реєстрація MFA недоступна",
+      "mfa_unavailable_body": "Реєстрація TOTP не налаштована в цьому розгортанні (відсутній MFA_MASTER_KEY).",
+      "mfa_copy_codes": "Копіювати коди"
     }
   },
   "Finance": {
@@ -12272,6 +12292,12 @@
       "emptyHint": "Add a dock door to schedule appointments against it.",
       "add": "Add dock door",
       "edit": "Edit",
+      "delete": "Delete",
+      "deleteTitle": "Delete dock door",
+      "deleteBody": "Delete {name}? This cannot be undone.",
+      "deletePending": "Deleting…",
+      "deleteBlocked": "This dock door still has appointments and cannot be deleted.",
+      "confirmDelete": "Delete",
       "active": "Active",
       "inactive": "Inactive",
       "noWarehouse": "No warehouse",
@@ -12301,7 +12327,8 @@
           "forbidden": "You do not have permission to edit dock doors.",
           "not_found": "Dock door not found.",
           "already_exists": "A dock door with this code already exists.",
-          "persistence_failed": "Saving failed. Try again."
+          "persistence_failed": "Saving failed. Try again.",
+          "has_dependents": "This dock door still has appointments and cannot be deleted."
         }
       }
     },
