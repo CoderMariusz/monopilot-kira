@@ -126,6 +126,16 @@ export type MrpThresholdRow = {
   preferred_supplier_id: string | null;
   /** suppliers.lead_time_days resolved via preferred_supplier_id; null when unset/unresolved. */
   lead_time_days: number | null;
+  preferred_supplier_code?: string | null;
+  preferred_supplier_name?: string | null;
+  preferred_supplier_status?: string | null;
+};
+
+export type MrpPreferredSupplier = {
+  id: string;
+  code: string | null;
+  name: string | null;
+  status: string | null;
 };
 
 export type MrpSeverity = 'shortage' | 'below_min' | 'at_risk' | 'covered';
@@ -154,6 +164,10 @@ export type MrpRow = {
   onHand: string;
   reserved: string;
   openSupply: string;
+  /** Open PO remainder contributing to openSupply (3-dp base UoM). */
+  supplyFromPo: string;
+  /** Released/in-progress WO schedule_outputs contributing to openSupply (3-dp base UoM). */
+  supplyFromProduction: string;
   demand: string;
   /**
    * Portion of `demand` coming from demand_forecasts (independent demand, mig 302).
@@ -175,6 +189,8 @@ export type MrpRow = {
   minQty: string | null;
   /** UoMs whose quantities could NOT be netted (no clean base conversion). */
   excludedUoms: string[];
+  /** reorder_thresholds.preferred_supplier_id when configured; else null. */
+  preferredSupplier: MrpPreferredSupplier | null;
 };
 
 export type MrpKpis = {
@@ -229,6 +245,8 @@ type Acc = {
   onHand: bigint;
   reserved: bigint;
   openSupply: bigint;
+  poSupply: bigint;
+  productionSupply: bigint;
   demand: bigint;
   /** Sub-total of `demand` that came from demand_forecasts (independent demand). */
   forecastDemand: bigint;
@@ -318,6 +336,8 @@ export function computeMrp(input: {
         onHand: 0n,
         reserved: 0n,
         openSupply: 0n,
+        poSupply: 0n,
+        productionSupply: 0n,
         demand: 0n,
         forecastDemand: 0n,
         soDemand: 0n,
@@ -385,9 +405,11 @@ export function computeMrp(input: {
   });
   apply(input.poSupply, (acc, q) => {
     acc.openSupply += q;
+    acc.poSupply += q;
   });
   apply(input.productionSupply, (acc, q) => {
     acc.openSupply += q;
+    acc.productionSupply += q;
   });
 
   // A configured floor surfaces its item even with zero stock/demand/supply —
@@ -459,6 +481,8 @@ export function computeMrp(input: {
       onHand: microToFixed(acc.onHand, 3),
       reserved: microToFixed(acc.reserved, 3),
       openSupply: microToFixed(acc.openSupply, 3),
+      supplyFromPo: microToFixed(acc.poSupply, 3),
+      supplyFromProduction: microToFixed(acc.productionSupply, 3),
       demand: microToFixed(acc.demand, 3),
       forecastDemand: microToFixed(acc.forecastDemand, 3),
       soDemand: microToFixed(acc.soDemand, 3),
@@ -467,6 +491,14 @@ export function computeMrp(input: {
       suggestedAction,
       minQty: threshold ? microToFixed(minQty, 3) : null,
       excludedUoms: [...acc.excludedUoms].sort(),
+      preferredSupplier: threshold?.preferred_supplier_id
+        ? {
+            id: threshold.preferred_supplier_id,
+            code: threshold.preferred_supplier_code ?? null,
+            name: threshold.preferred_supplier_name ?? null,
+            status: threshold.preferred_supplier_status ?? null,
+          }
+        : null,
     });
   }
 
@@ -508,6 +540,8 @@ type BucketAcc = {
   forecastDemand: bigint;
   soDemand: bigint;
   scheduledReceipts: bigint;
+  poReceipts: bigint;
+  productionReceipts: bigint;
   excludedUoms: Set<string>;
   touched: boolean;
 };
@@ -624,6 +658,8 @@ export function computeMrpPhased(input: {
         forecastDemand: 0n,
         soDemand: 0n,
         scheduledReceipts: 0n,
+        poReceipts: 0n,
+        productionReceipts: 0n,
         excludedUoms: new Set<string>(),
         touched: false,
       }));
@@ -686,9 +722,11 @@ export function computeMrpPhased(input: {
   });
   applyTimed(input.poSupply, (acc, q) => {
     acc.scheduledReceipts += q;
+    acc.poReceipts += q;
   });
   applyTimed(input.productionSupply, (acc, q) => {
     acc.scheduledReceipts += q;
+    acc.productionReceipts += q;
   });
 
   for (const [itemId, t] of thresholdByItem) {
@@ -717,6 +755,8 @@ export function computeMrpPhased(input: {
     let pab = onHandEntry.onHand - onHandEntry.reserved;
     let totalDemandMicro = 0n;
     let totalReceiptsMicro = 0n;
+    let totalPoReceiptsMicro = 0n;
+    let totalProductionReceiptsMicro = 0n;
     let totalForecastMicro = 0n;
     let totalSoMicro = 0n;
     let worst: MrpSeverity = 'covered';
@@ -728,6 +768,8 @@ export function computeMrpPhased(input: {
       for (const uom of acc.excludedUoms) excludedUoms.add(uom);
       totalDemandMicro += acc.demand;
       totalReceiptsMicro += acc.scheduledReceipts;
+      totalPoReceiptsMicro += acc.poReceipts;
+      totalProductionReceiptsMicro += acc.productionReceipts;
       totalForecastMicro += acc.forecastDemand;
       totalSoMicro += acc.soDemand;
 
@@ -782,6 +824,8 @@ export function computeMrpPhased(input: {
         onHand: i === 0 ? microToFixed(onHandEntry.onHand, 3) : '0.000',
         reserved: i === 0 ? microToFixed(onHandEntry.reserved, 3) : '0.000',
         openSupply: microToFixed(acc.scheduledReceipts, 3),
+        supplyFromPo: microToFixed(acc.poReceipts, 3),
+        supplyFromProduction: microToFixed(acc.productionReceipts, 3),
         demand: microToFixed(acc.demand, 3),
         forecastDemand: microToFixed(acc.forecastDemand, 3),
         soDemand: microToFixed(acc.soDemand, 3),
@@ -790,6 +834,14 @@ export function computeMrpPhased(input: {
         suggestedAction,
         minQty: threshold ? microToFixed(minQty, 3) : null,
         excludedUoms: [...excludedUoms].sort(),
+        preferredSupplier: threshold?.preferred_supplier_id
+          ? {
+              id: threshold.preferred_supplier_id,
+              code: threshold.preferred_supplier_code ?? null,
+              name: threshold.preferred_supplier_name ?? null,
+              status: threshold.preferred_supplier_status ?? null,
+            }
+          : null,
         bucketDate: bucketDates[i]!,
         bucketIndex: i,
         scheduledReceipts: microToFixed(acc.scheduledReceipts, 3),
@@ -837,6 +889,8 @@ export function computeMrpPhased(input: {
       onHand: microToFixed(onHandEntry.onHand, 3),
       reserved: microToFixed(onHandEntry.reserved, 3),
       openSupply: microToFixed(totalReceiptsMicro, 3),
+      supplyFromPo: microToFixed(totalPoReceiptsMicro, 3),
+      supplyFromProduction: microToFixed(totalProductionReceiptsMicro, 3),
       demand: microToFixed(totalDemandMicro, 3),
       forecastDemand: microToFixed(totalForecastMicro, 3),
       soDemand: microToFixed(totalSoMicro, 3),
@@ -845,6 +899,14 @@ export function computeMrpPhased(input: {
       suggestedAction: summaryAction,
       minQty: threshold ? microToFixed(minQty, 3) : null,
       excludedUoms: [...excludedUoms].sort(),
+      preferredSupplier: threshold?.preferred_supplier_id
+        ? {
+            id: threshold.preferred_supplier_id,
+            code: threshold.preferred_supplier_code ?? null,
+            name: threshold.preferred_supplier_name ?? null,
+            status: threshold.preferred_supplier_status ?? null,
+          }
+        : null,
     });
   }
 

@@ -358,6 +358,17 @@ describe('warehouse backend actions', () => {
     expect(listCall?.[1]).toEqual([null, null, null, 50, 50]);
   });
 
+  it('createStockMove rejects same-location transfers before inserting a stock move (C101)', async () => {
+    await expect(createStockMove({ lpId: LP_ID, toLocationId: '55555555-5555-4555-8555-555555555555', clientOpId: 'op-same' })).resolves.toEqual({
+      ok: false,
+      reason: 'error',
+      message: 'same_location',
+    });
+
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => normalize(sql));
+    expect(calls.some((sql) => sql.startsWith('insert into public.stock_moves'))).toBe(false);
+  });
+
   it('createStockMove rejects immovable LP statuses before inserting a stock move', async () => {
     lpStatus = 'consumed';
 

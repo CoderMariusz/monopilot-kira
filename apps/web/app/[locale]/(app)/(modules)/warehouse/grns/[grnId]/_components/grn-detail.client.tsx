@@ -54,6 +54,10 @@ import {
   type SubmitTempCheckInput,
   type SubmitTempCheckResult,
 } from './grn-temp-check.client';
+import {
+  buildPoLineReceiptAggregates,
+  resolveLineReceiptAggregate,
+} from '../../_lib/grn-line-aggregates';
 
 const STATUS_VARIANT: Record<string, BadgeVariant> = {
   draft: 'warning',
@@ -66,14 +70,15 @@ export type GrnDetailLabels = {
   notesLabel: string;
   itemsTitle: string;
   emptyItems: string;
-  facts: {
-    source: string;
-    supplier: string;
-    receiptDate: string;
-    warehouse: string;
-    status: string;
-    none: string;
-  };
+    facts: {
+      source: string;
+      supplier: string;
+      receiptDate: string;
+      warehouse: string;
+      status: string;
+      purchaseOrder: string;
+      none: string;
+    };
   status: Record<string, string>;
   col: {
     line: string;
@@ -165,22 +170,6 @@ function CsvExportIcon() {
   );
 }
 
-function receiptLineState(ordered: string | null, received: string): 'none' | 'partial' | 'full' | 'over' | 'short' {
-  if (ordered == null) return 'none';
-  const o = Number(ordered);
-  const r = Number(received);
-  if (!(r > 0)) return 'none';
-  if (r > o) return 'over';
-  if (r >= o) return 'full';
-  return 'partial';
-}
-
-function outstandingQty(ordered: string | null, received: string): string | null {
-  if (ordered == null) return null;
-  const rem = Number(ordered) - Number(received);
-  return String(Number(rem.toFixed(3)));
-}
-
 export function GrnDetailClient({
   grn,
   labels,
@@ -241,6 +230,7 @@ export function GrnDetailClient({
   const [printBusyItemId, setPrintBusyItemId] = useState<string | null>(null);
   const [printResult, setPrintResult] = useState<{ itemId: string; result: GrnPrintLabelResult } | null>(null);
   const [printError, setPrintError] = useState<{ itemId: string; message: string } | null>(null);
+  const poLineAggregates = buildPoLineReceiptAggregates(grn.items);
 
   function handleExportCsv() {
     const header = [
@@ -326,6 +316,19 @@ export function GrnDetailClient({
         </Fact>
         <Fact label={labels.facts.warehouse}>
           <span className="font-mono text-xs">{grn.warehouseCode ?? dash}</span>
+        </Fact>
+        <Fact label={labels.facts.purchaseOrder}>
+          {grn.poId && grn.poNumber ? (
+            <Link
+              href={`/${locale}/planning/purchase-orders/${grn.poId}`}
+              data-testid="grn-detail-po-link"
+              className="font-mono text-xs text-sky-700 hover:underline"
+            >
+              {grn.poNumber}
+            </Link>
+          ) : (
+            dash
+          )}
         </Fact>
         <Fact label={labels.facts.status}>
           <Badge variant={STATUS_VARIANT[grn.status] ?? 'muted'} data-testid="grn-detail-status">
@@ -418,10 +421,13 @@ export function GrnDetailClient({
                 // flag (mig-298 cancelled_at). Cancelled lines are struck/badged
                 // and BOTH the Release-QC and Cancel affordances are hidden.
                 const isCancelled = it.cancelled === true;
+                const lineAggregate = resolveLineReceiptAggregate(it, poLineAggregates);
                 const cancelBlockedMessage =
                   it.cancelBlockReason === 'already_cancelled'
                     ? labels.cancelLine.errors.already_cancelled
-                    : labels.cancelLine.errors.lp_not_cancellable;
+                    : it.cancelBlockReason === 'grn_completed'
+                      ? labels.cancelLine.errors.grn_completed
+                      : labels.cancelLine.errors.lp_not_cancellable;
                 return (
                 <TableRow
                   key={it.id}
@@ -452,10 +458,10 @@ export function GrnDetailClient({
                   <TableCell className="text-right font-mono text-sm tabular-nums text-slate-600">
                     <div className="flex flex-col items-end gap-0.5">
                       <span>
-                        {it.orderedQty == null ? dash : `${outstandingQty(it.orderedQty, it.receivedQty) ?? dash} ${it.uom}`}
+                        {lineAggregate.outstanding == null ? dash : `${lineAggregate.outstanding} ${it.uom}`}
                       </span>
                       {(() => {
-                        const state = receiptLineState(it.orderedQty, it.receivedQty);
+                        const state = lineAggregate.state;
                         if (state === 'over' && labels.overReceivedBadge) {
                           return (
                             <Badge variant="danger" className="text-[10px]" data-testid={`grn-line-over-${it.id}`}>

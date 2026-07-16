@@ -41,6 +41,7 @@ export type LpMoveLabels = {
   currentLocation: string;
   loadingLocations: string;
   noLocations: string;
+  noAlternateLocations: string;
   locationsError: string;
   cancel: string;
   submit: string;
@@ -51,6 +52,7 @@ export type LpMoveLabels = {
   errorForbidden: string;
   errorLocked: string;
   errorInvalidState: string;
+  errorSameLocation: string;
   errorNotFound: string;
   success: string;
 };
@@ -74,7 +76,7 @@ export function LpMoveModal({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  lp: { id: string; lpNumber: string; currentLocationCode: string | null };
+  lp: { id: string; lpNumber: string; currentLocationCode: string | null; currentLocationId: string | null };
   labels: LpMoveLabels;
   listLocationsAction: typeof listLocations;
   createStockMoveAction: typeof createStockMove;
@@ -86,6 +88,8 @@ export function LpMoveModal({
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const destinationOptions = locations.filter((l) => l.id !== lp.currentLocationId);
 
   // Load org-scoped locations when the modal opens.
   useEffect(() => {
@@ -101,12 +105,13 @@ export function LpMoveModal({
         return;
       }
       setLocations(res.data);
-      setLoadState(res.data.length === 0 ? 'empty' : 'ready');
+      const alternates = res.data.filter((l) => l.id !== lp.currentLocationId);
+      setLoadState(alternates.length === 0 ? 'empty' : 'ready');
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, listLocationsAction]);
+  }, [open, listLocationsAction, lp.currentLocationId]);
 
   function reset() {
     setToLocationId('');
@@ -123,6 +128,7 @@ export function LpMoveModal({
     if (reason === 'forbidden') return labels.errorForbidden;
     if (reason === 'not_found') return labels.errorNotFound;
     if (message === 'locked') return labels.errorLocked;
+    if (message === 'same_location') return labels.errorSameLocation;
     if (message === 'immovable_status' || message === 'invalid_state') return labels.errorInvalidState;
     // Fall back to the verbatim action message/reason.
     return labels.error.replace('{message}', message ?? reason);
@@ -132,6 +138,10 @@ export function LpMoveModal({
     setError(null);
     if (toLocationId === '') {
       setError(labels.validation.destinationRequired);
+      return;
+    }
+    if (lp.currentLocationId && toLocationId === lp.currentLocationId) {
+      setError(labels.errorSameLocation);
       return;
     }
     startTransition(async () => {
@@ -182,7 +192,7 @@ export function LpMoveModal({
 
           {loadState === 'empty' && (
             <p data-testid="lp-move-no-locations" className="text-sm text-slate-500">
-              {labels.noLocations}
+              {locations.length === 0 ? labels.noLocations : labels.noAlternateLocations}
             </p>
           )}
 
@@ -199,7 +209,7 @@ export function LpMoveModal({
                     value={toLocationId}
                     onValueChange={setToLocationId}
                     placeholder={labels.destinationPlaceholder}
-                    options={locations.map((l) => ({
+                    options={destinationOptions.map((l) => ({
                       value: l.id,
                       label: l.warehouseCode ? `${l.warehouseCode} · ${l.code} — ${l.name}` : `${l.code} — ${l.name}`,
                     }))}

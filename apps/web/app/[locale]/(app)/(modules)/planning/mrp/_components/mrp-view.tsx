@@ -74,7 +74,14 @@ export type MrpLabels = {
     demand: string;
     net: string;
     action: string;
+    supplier: string;
   };
+  supplyProvenance: {
+    po: string;
+    production: string;
+  };
+  supplierStatus: Record<string, string>;
+  noPreferredSupplier: string;
   severity: Record<MrpSeverity, string>;
   actionTypes: { buy: string; make: string; transfer: string; none: string };
   itemTypes: Record<string, string>;
@@ -152,6 +159,19 @@ function KpiTiles({ data, labels }: { data: MrpRunData; labels: MrpLabels }) {
   );
 }
 
+function supplierBadgeClass(status: string | null): string {
+  switch ((status ?? '').toLowerCase()) {
+    case 'active':
+      return 'badge badge-green';
+    case 'inactive':
+      return 'badge badge-gray';
+    case 'blocked':
+      return 'badge badge-red';
+    default:
+      return 'badge badge-gray';
+  }
+}
+
 function ResultsTable({ rows, labels }: { rows: MrpRow[]; labels: MrpLabels }) {
   return (
     <div className="overflow-x-auto">
@@ -165,6 +185,7 @@ function ResultsTable({ rows, labels }: { rows: MrpRow[]; labels: MrpLabels }) {
             <th className="px-3 py-2 text-right">{labels.columns.openSupply}</th>
             <th className="px-3 py-2 text-right">{labels.columns.demand}</th>
             <th className="px-3 py-2 text-right">{labels.columns.net}</th>
+            <th className="px-3 py-2">{labels.columns.supplier}</th>
             <th className="px-3 py-2">{labels.columns.action}</th>
           </tr>
         </thead>
@@ -185,7 +206,12 @@ function ResultsTable({ rows, labels }: { rows: MrpRow[]; labels: MrpLabels }) {
               </td>
               <td className="px-3 py-2 text-right font-mono">{row.onHand}</td>
               <td className="px-3 py-2 text-right font-mono">{row.reserved}</td>
-              <td className="px-3 py-2 text-right font-mono">{row.openSupply}</td>
+              <td className="px-3 py-2 text-right">
+                <div className="font-mono">{row.openSupply}</div>
+                <div className="mt-0.5 text-xs text-slate-500" data-testid={`mrp-supply-${row.itemCode}`}>
+                  {labels.supplyProvenance.po}: {row.supplyFromPo} · {labels.supplyProvenance.production}: {row.supplyFromProduction}
+                </div>
+              </td>
               <td className="px-3 py-2 text-right font-mono">{row.demand}</td>
               <td className="px-3 py-2 text-right">
                 <span className={severityBadgeClass(row.severity)} data-testid={`mrp-net-${row.itemCode}`}>
@@ -197,6 +223,30 @@ function ResultsTable({ rows, labels }: { rows: MrpRow[]; labels: MrpLabels }) {
                     {labels.minQty}: {row.minQty} {row.uomBase}
                   </div>
                 ) : null}
+              </td>
+              <td className="px-3 py-2">
+                {row.preferredSupplier ? (
+                  <div data-testid={`mrp-supplier-${row.itemCode}`}>
+                    <div className="font-mono text-xs font-semibold text-slate-800">
+                      {row.preferredSupplier.code ?? row.preferredSupplier.id.slice(0, 8)}
+                    </div>
+                    {row.preferredSupplier.name ? (
+                      <div className="text-xs text-slate-600">{row.preferredSupplier.name}</div>
+                    ) : null}
+                    {row.preferredSupplier.status ? (
+                      <span
+                        className={`${supplierBadgeClass(row.preferredSupplier.status)} mt-0.5`}
+                        data-testid={`mrp-supplier-status-${row.itemCode}`}
+                      >
+                        {labels.supplierStatus[row.preferredSupplier.status] ?? row.preferredSupplier.status}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-400" data-testid={`mrp-supplier-${row.itemCode}`}>
+                    {labels.noPreferredSupplier}
+                  </span>
+                )}
               </td>
               <td className="px-3 py-2">
                 {row.suggestedAction ? (

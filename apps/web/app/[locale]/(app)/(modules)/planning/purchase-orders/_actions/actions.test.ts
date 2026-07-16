@@ -104,6 +104,9 @@ function makeClient(): QueryClient {
       if (normalized.startsWith('select status from public.suppliers')) {
         return { rows: [{ status: supplierStatus }], rowCount: 1 };
       }
+      if (normalized.includes('s.status as supplier_status')) {
+        return { rows: [{ supplier_status: supplierStatus }], rowCount: 1 };
+      }
       if (normalized.includes('from public.suppliers supplier_row')) {
         return { rows: [{ status: supplierStatus }], rowCount: 1 };
       }
@@ -535,6 +538,56 @@ describe('planning purchase order actions', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.data.status).toBe('sent');
+  });
+
+  it('rejects draft -> sent when supplier is blocked (C050)', async () => {
+    currentStatus = 'draft';
+    supplierStatus = 'blocked';
+
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'sent');
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'supplier_blocked',
+      code: 'supplier_blocked',
+      message: 'Supplier is blocked',
+    });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.startsWith('update public.purchase_orders') && sql.includes('set status = $2'))).toBe(
+      false,
+    );
+  });
+
+  it('rejects sent -> confirmed when supplier is inactive (C050)', async () => {
+    currentStatus = 'sent';
+    supplierStatus = 'inactive';
+
+    const result = await transitionPurchaseOrderStatus(PO_ID, 'confirmed');
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'supplier_blocked',
+      code: 'supplier_blocked',
+      message: 'Supplier is inactive',
+    });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.startsWith('update public.purchase_orders') && sql.includes('set status = $2'))).toBe(
+      false,
+    );
+  });
+
+  it('accepts create with a six-decimal line quantity (C098)', async () => {
+    const result = await createPurchaseOrder({
+      supplierId: SUPPLIER_ID,
+      lines: [{ itemId: ITEM_ID, qty: '10.123456', uom: 'kg', unitPrice: '6.2000', lineNo: 1 }],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    const lineInsert = vi.mocked(client.query).mock.calls.find(([sql]) =>
+      String(sql).startsWith('insert into public.purchase_order_lines'),
+    );
+    expect(lineInsert?.[1]?.[2]).toBe('10.123456');
   });
 
   it('rejects manual transition to received when open quantity remains (confirmed -> received)', async () => {

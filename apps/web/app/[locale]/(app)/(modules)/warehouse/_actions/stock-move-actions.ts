@@ -276,6 +276,10 @@ export async function createStockMove(input: CreateStockMoveInput): Promise<Ware
       if (siteId && destination.site_id !== siteId) {
         return { ok: false, reason: 'error', message: 'cross_site_destination' };
       }
+      // C101 — reject no-op transfers (from === to); never write a fake stock_move row.
+      if (lp.location_id && lp.location_id === toLocationId) {
+        return { ok: false, reason: 'error', message: 'same_location' };
+      }
 
       const transactionId = uuidFromSeed(`warehouse.stock.move:${orgId}:${lpId}:${clientOpId}`);
       const moveNumber = moveNumberFromTransactionId(transactionId);

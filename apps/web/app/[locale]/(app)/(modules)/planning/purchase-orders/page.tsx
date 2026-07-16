@@ -188,6 +188,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       lineQty: t('create.lineQty'),
       lineUom: t('create.lineUom'),
       lineUnitPrice: t('create.lineUnitPrice'),
+      lineTaxPct: t('create.lineTaxPct'),
+      taxPctPlaceholder: t('create.taxPctPlaceholder'),
       priceSource: {
         spec: t('create.priceSource.spec'),
         list_price: t('create.priceSource.list_price'),

@@ -46,12 +46,32 @@ function safeRevalidateManufacturingOperationsRoute(): void {
   }
 }
 
+function serializeCreatedAt(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
+}
+
+function serializeManufacturingOperation(row: ManufacturingOperation): ManufacturingOperation {
+  return {
+    id: String(row.id),
+    org_id: String(row.org_id),
+    operation_name: String(row.operation_name),
+    process_suffix: String(row.process_suffix),
+    description: row.description === null || row.description === undefined ? null : String(row.description),
+    operation_seq: Number(row.operation_seq),
+    industry_code: row.industry_code,
+    is_active: Boolean(row.is_active),
+    marker: row.marker ?? 'ORG-CONFIG',
+    ...(row.created_at == null ? {} : { created_at: serializeCreatedAt(row.created_at) }),
+  };
+}
+
 export async function createManufacturingOperation(rawInput: unknown): Promise<CreateManufacturingOperationResult> {
   const input = parseInput(rawInput);
   if (!input) return { ok: false, error: 'invalid_input' };
 
   try {
-    return await runWithOrgContext(async (ctx) => {
+    const result = await runWithOrgContext<CreateManufacturingOperationResult>(async (ctx): Promise<CreateManufacturingOperationResult> => {
       if (!(await hasPermission(ctx, 'manufacturing_operations.create'))) return { ok: false, error: 'forbidden' };
       const duplicate = await findDuplicate(ctx.client, input);
       if (duplicate === 'name') return { ok: false, error: 'duplicate_operation_name' };
@@ -87,9 +107,13 @@ export async function createManufacturingOperation(rawInput: unknown): Promise<C
         payload: { id: row.id, operationName: row.operation_name, processSuffix: row.process_suffix, industryCode: row.industry_code },
       });
 
-      safeRevalidateManufacturingOperationsRoute();
-      return { ok: true, data: row };
+      return { ok: true, data: serializeManufacturingOperation(row) };
     });
+
+    if (result.ok) {
+      safeRevalidateManufacturingOperationsRoute();
+    }
+    return result;
   } catch (error) {
     return mapPersistenceError(error);
   }
@@ -129,7 +153,8 @@ function parseInput(raw: unknown): Input | null {
 function normalizeName(v: unknown): string | null {
   if (typeof v !== 'string') return null;
   const s = v.trim();
-  return /^[A-Za-z0-9 ]{1,50}$/.test(s) ? s : null;
+  // Seed rows include Process_A; routings and audit markers may use hyphens.
+  return /^[A-Za-z0-9 _-]{1,50}$/.test(s) ? s : null;
 }
 
 function normalizeSuffix(v: unknown): string | null {

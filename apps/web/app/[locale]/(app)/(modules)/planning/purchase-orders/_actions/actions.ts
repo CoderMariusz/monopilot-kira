@@ -17,8 +17,9 @@ import {
   requireActionPermission,
   PLANNING_PO_MANAGE_PERMISSION,
   isPgError,
-  numeric3Schema,
   numeric4Schema,
+  numeric6PositiveSchema,
+  pctSchema,
   pgErrorToResult,
   toIso,
   uuidSchema,
@@ -58,6 +59,7 @@ type PurchaseOrderLineRow = {
   qty: string;
   uom: string;
   unit_price: string;
+  tax_pct: string;
   line_no: number;
   received_qty: string | null;
 };
@@ -71,6 +73,7 @@ type PurchaseOrderLine = {
   qty: string;
   uom: string;
   unitPrice: string;
+  taxPct: string;
   lineNo: number;
   /** Sum of grn_items.received_qty for this PO line (non-cancelled GRNs). */
   receivedQty: string;
@@ -92,7 +95,16 @@ type PurchaseOrder = {
   updatedAt: string;
 };
 
-type PurchaseOrderDetail = PurchaseOrder & { lines: PurchaseOrderLine[] };
+type PurchaseOrderDetail = PurchaseOrder & {
+  lines: PurchaseOrderLine[];
+  relatedGrns: PoRelatedGrn[];
+};
+
+type PoRelatedGrn = {
+  id: string;
+  grnNumber: string;
+  status: string;
+};
 type PurchaseOrderError =
   | ProcurementError
   | 'last_line'
@@ -187,17 +199,19 @@ const UpdatePurchaseOrderInput = z.object({
 const AddPurchaseOrderLineInput = z.object({
   poId: uuidSchema,
   itemId: uuidSchema,
-  qty: numeric3Schema,
+  qty: numeric6PositiveSchema,
   uom: z.string().trim().min(1).max(32),
   unitPrice: numeric4Schema,
+  taxPct: pctSchema.default('0'),
 });
 
 const UpdatePurchaseOrderLineInput = z.object({
   poId: uuidSchema,
   lineId: uuidSchema,
-  qty: numeric3Schema.optional(),
+  qty: numeric6PositiveSchema.optional(),
   uom: z.string().trim().min(1).max(32).optional(),
   unitPrice: numeric4Schema.optional(),
+  taxPct: pctSchema.optional(),
 });
 
 const DeletePurchaseOrderLineInput = z.object({
@@ -256,6 +270,7 @@ function mapLine(row: PurchaseOrderLineRow): PurchaseOrderLine {
     qty: String(row.qty),
     uom: row.uom,
     unitPrice: String(row.unit_price),
+    taxPct: String(row.tax_pct ?? '0'),
     lineNo: Number(row.line_no),
     receivedQty: String(row.received_qty ?? '0'),
   };
@@ -268,7 +283,8 @@ async function fetchLines(client: QueryClient, poId: string): Promise<PurchaseOr
   // already counts them, so the detail page must agree with the chip/status.
   const { rows } = await client.query<PurchaseOrderLineRow>(
     `select l.id, l.po_id, l.item_id, i.item_code, i.name as item_name,
-            l.qty::text as qty, l.uom, l.unit_price::text as unit_price, l.line_no,
+            l.qty::text as qty, l.uom, l.unit_price::text as unit_price,
+            coalesce(l.tax_pct, 0)::text as tax_pct, l.line_no,
             coalesce(rec.received_qty, 0)::text as received_qty
        from public.purchase_order_lines l
        left join public.items i on i.org_id = app.current_org_id() and i.id = l.item_id
@@ -290,6 +306,23 @@ async function fetchLines(client: QueryClient, poId: string): Promise<PurchaseOr
     [poId],
   );
   return rows.map(mapLine);
+}
+
+async function fetchRelatedGrns(client: QueryClient, poId: string): Promise<PoRelatedGrn[]> {
+  const { rows } = await client.query<{ id: string; grn_number: string; status: string }>(
+    `select g.id::text, g.grn_number, g.status
+       from public.grns g
+      where g.org_id = app.current_org_id()
+        and g.po_id = $1::uuid
+      order by g.receipt_date desc, g.grn_number asc`,
+    [poId],
+  );
+  return rows.map((row) => ({ id: row.id, grnNumber: row.grn_number, status: row.status }));
+}
+
+async function fetchPurchaseOrderDetail(client: QueryClient, poId: string, header: PurchaseOrderRow): Promise<PurchaseOrderDetail> {
+  const [lines, relatedGrns] = await Promise.all([fetchLines(client, poId), fetchRelatedGrns(client, poId)]);
+  return { ...mapPurchaseOrder(header), lines, relatedGrns };
 }
 
 async function fetchDraftPurchaseOrderForUpdate(client: QueryClient, poId: string): Promise<PurchaseOrderRow | null> {
@@ -375,8 +408,39 @@ async function ensureSupplierInOrg(client: QueryClient, supplierId: string): Pro
   );
   const supplier = rows[0];
   if (!supplier) return 'not_found';
-  if (supplier.status === 'blocked') return 'supplier_blocked';
+  if (supplier.status !== 'active') return 'supplier_blocked';
   return 'ok';
+}
+
+/** Forward PO transitions require the linked supplier to remain active (C050). */
+const SUPPLIER_ACTIVE_REQUIRED_TRANSITIONS = new Set(['sent', 'confirmed', 'partially_received', 'received']);
+
+async function ensurePurchaseOrderSupplierActive(
+  client: QueryClient,
+  poId: string,
+): Promise<{ ok: true } | { ok: false; error: 'not_found' | 'supplier_blocked'; message: string }> {
+  const { rows } = await client.query<{ supplier_status: string }>(
+    `select s.status as supplier_status
+       from public.purchase_orders po
+       join public.suppliers s
+         on s.org_id = po.org_id
+        and s.id = po.supplier_id
+      where po.org_id = app.current_org_id()
+        and po.id = $1::uuid
+      limit 1
+      for update of s`,
+    [poId],
+  );
+  const row = rows[0];
+  if (!row) return { ok: false, error: 'not_found', message: 'Purchase order not found' };
+  if (row.supplier_status !== 'active') {
+    return {
+      ok: false,
+      error: 'supplier_blocked',
+      message: row.supplier_status === 'blocked' ? 'Supplier is blocked' : 'Supplier is inactive',
+    };
+  }
+  return { ok: true };
 }
 
 async function ensureItemInOrg(client: QueryClient, itemId: string): Promise<boolean> {
@@ -515,7 +579,7 @@ export async function getPurchaseOrder(id: string): Promise<PurchaseOrderResult<
       );
       const row = rows[0];
       if (!row) return { ok: false, error: 'not_found' };
-      return { ok: true, data: { ...mapPurchaseOrder(row), lines: await fetchLines(c, id) } };
+      return { ok: true, data: await fetchPurchaseOrderDetail(c, id, row) };
     });
   } catch (err) {
     console.error('[planning/purchase-orders] getPurchaseOrder failed', err);
@@ -531,7 +595,9 @@ export async function createPurchaseOrder(rawInput: unknown): Promise<PurchaseOr
   try {
     const result = await withOrgContext(async ({ userId, orgId, client }): Promise<PurchaseOrderResult<PurchaseOrderDetail>> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
-      return createPurchaseOrderCore(ctx, input);
+      const created = await createPurchaseOrderCore(ctx, input);
+      if (!created.ok) return created;
+      return { ok: true, data: { ...created.data, relatedGrns: [] } };
     });
     if (result.ok) revalidatePurchaseOrderPaths(result.data.id);
     return result;
@@ -610,7 +676,7 @@ export async function updatePurchaseOrder(rawInput: unknown): Promise<PurchaseOr
         },
       });
       revalidatePurchaseOrderPaths(row.id);
-      return { ok: true, data: { ...mapPurchaseOrder(row), lines: await fetchLines(ctx.client, row.id) } };
+      return { ok: true, data: await fetchPurchaseOrderDetail(ctx.client, row.id, row) };
     });
   } catch (err) {
     const error = pgErrorToResult(err);
@@ -641,13 +707,13 @@ export async function addPurchaseOrderLine(rawInput: unknown): Promise<PurchaseO
         try {
           const { rows } = await ctx.client.query<{ id: string; line_no: number }>(
             `insert into public.purchase_order_lines
-               (org_id, po_id, item_id, qty, uom, unit_price, line_no, created_by, updated_by)
-             select app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5::numeric,
+               (org_id, po_id, item_id, qty, uom, unit_price, tax_pct, line_no, created_by, updated_by)
+             select app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5::numeric, $6::numeric,
                     coalesce((select max(line_no)
                                 from public.purchase_order_lines
                                where org_id = app.current_org_id()
                                  and po_id = $1::uuid), 0) + 1,
-                    $6::uuid, $6::uuid
+                    $7::uuid, $7::uuid
               where exists (
                     select 1
                       from public.purchase_orders
@@ -656,7 +722,7 @@ export async function addPurchaseOrderLine(rawInput: unknown): Promise<PurchaseO
                        and status = 'draft'
                   )
             returning id, line_no`,
-            [input.poId, input.itemId, input.qty, input.uom, input.unitPrice, userId],
+            [input.poId, input.itemId, input.qty, input.uom, input.unitPrice, input.taxPct, userId],
           );
           await ctx.client.query('release savepoint po_line_append');
           return rows[0] ?? null;
@@ -684,10 +750,11 @@ export async function addPurchaseOrderLine(rawInput: unknown): Promise<PurchaseO
           qty: input.qty,
           uom: input.uom,
           unitPrice: input.unitPrice,
+          taxPct: input.taxPct,
         },
       });
       revalidatePurchaseOrderPaths(header.id);
-      return { ok: true, data: { ...mapPurchaseOrder(header), lines: await fetchLines(ctx.client, header.id) } };
+      return { ok: true, data: await fetchPurchaseOrderDetail(ctx.client, header.id, header) };
     });
   } catch (err) {
     const error = pgErrorToResult(err);
@@ -714,7 +781,8 @@ export async function updatePurchaseOrderLine(rawInput: unknown): Promise<Purcha
 
       const { rows: beforeRows } = await ctx.client.query<PurchaseOrderLineRow>(
         `select l.id, l.po_id, l.item_id, null::text as item_code, null::text as item_name,
-                l.qty::text as qty, l.uom, l.unit_price::text as unit_price, l.line_no,
+                l.qty::text as qty, l.uom, l.unit_price::text as unit_price,
+                coalesce(l.tax_pct, 0)::text as tax_pct, l.line_no,
                 null::text as received_qty
            from public.purchase_order_lines l
           where l.org_id = app.current_org_id()
@@ -731,7 +799,8 @@ export async function updatePurchaseOrderLine(rawInput: unknown): Promise<Purcha
             set qty = coalesce($3::numeric, qty),
                 uom = coalesce($4, uom),
                 unit_price = coalesce($5::numeric, unit_price),
-                updated_by = $6::uuid
+                tax_pct = coalesce($6::numeric, tax_pct),
+                updated_by = $7::uuid
            from public.purchase_orders po
           where l.org_id = app.current_org_id()
             and po.org_id = app.current_org_id()
@@ -739,7 +808,7 @@ export async function updatePurchaseOrderLine(rawInput: unknown): Promise<Purcha
             and po.id = $1::uuid
             and po.status = 'draft'
             and l.id = $2::uuid`,
-        [input.poId, input.lineId, input.qty ?? null, input.uom ?? null, input.unitPrice ?? null, userId],
+        [input.poId, input.lineId, input.qty ?? null, input.uom ?? null, input.unitPrice ?? null, input.taxPct ?? null, userId],
       );
       if (rowCount !== 1) return { ok: false, error: 'invalid_state', code: 'invalid_state' };
 
@@ -747,16 +816,17 @@ export async function updatePurchaseOrderLine(rawInput: unknown): Promise<Purcha
         action: 'planning.purchase_order.line_updated',
         resourceType: 'purchase_order',
         resourceId: header.id,
-        beforeState: { lineId: before.id, qty: before.qty, uom: before.uom, unitPrice: before.unit_price },
+        beforeState: { lineId: before.id, qty: before.qty, uom: before.uom, unitPrice: before.unit_price, taxPct: before.tax_pct },
         afterState: {
           lineId: before.id,
           qty: input.qty ?? before.qty,
           uom: input.uom ?? before.uom,
           unitPrice: input.unitPrice ?? before.unit_price,
+          taxPct: input.taxPct ?? before.tax_pct,
         },
       });
       revalidatePurchaseOrderPaths(header.id);
-      return { ok: true, data: { ...mapPurchaseOrder(header), lines: await fetchLines(ctx.client, header.id) } };
+      return { ok: true, data: await fetchPurchaseOrderDetail(ctx.client, header.id, header) };
     });
   } catch (err) {
     const error = pgErrorToResult(err);
@@ -783,7 +853,8 @@ export async function deletePurchaseOrderLine(rawInput: unknown): Promise<Purcha
 
       const { rows: beforeRows } = await ctx.client.query<PurchaseOrderLineRow>(
         `select l.id, l.po_id, l.item_id, null::text as item_code, null::text as item_name,
-                l.qty::text as qty, l.uom, l.unit_price::text as unit_price, l.line_no,
+                l.qty::text as qty, l.uom, l.unit_price::text as unit_price,
+                coalesce(l.tax_pct, 0)::text as tax_pct, l.line_no,
                 null::text as received_qty
            from public.purchase_order_lines l
           where l.org_id = app.current_org_id()
@@ -845,7 +916,7 @@ export async function deletePurchaseOrderLine(rawInput: unknown): Promise<Purcha
         afterState: null,
       });
       revalidatePurchaseOrderPaths(header.id);
-      return { ok: true, data: { ...mapPurchaseOrder(header), lines: await fetchLines(ctx.client, header.id) } };
+      return { ok: true, data: await fetchPurchaseOrderDetail(ctx.client, header.id, header) };
     });
   } catch (err) {
     const error = pgErrorToResult(err);
@@ -997,6 +1068,18 @@ export async function transitionPurchaseOrderStatus(id: string, status: string):
       if (parsed.data === 'cancelled') {
         const receiptState = await getPurchaseOrderReceiptState(ctx.client, id);
         if (receiptState.activeReceivedCount > 0) return { ok: false, error: 'po_has_receipts', code: 'po_has_receipts' };
+      }
+
+      if (SUPPLIER_ACTIVE_REQUIRED_TRANSITIONS.has(parsed.data)) {
+        const supplierCheck = await ensurePurchaseOrderSupplierActive(ctx.client, id);
+        if (!supplierCheck.ok) {
+          return {
+            ok: false,
+            error: supplierCheck.error,
+            code: supplierCheck.error,
+            message: supplierCheck.message,
+          };
+        }
       }
 
       const { rows } = await ctx.client.query<PurchaseOrderRow>(

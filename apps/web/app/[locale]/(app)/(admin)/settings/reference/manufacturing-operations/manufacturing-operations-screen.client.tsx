@@ -67,6 +67,7 @@ export type ManufacturingOperationsScreenLabels = {
   duplicateOperationName: string;
   duplicateProcessSuffix: string;
   createFailed: string;
+  invalidInput: string;
   cancel: string;
   reset: string;
   editDialogTitle: string;
@@ -304,6 +305,7 @@ export default function ManufacturingOperationsScreen({
     }
     if (result.error === 'duplicate_operation_name') setCreateError(labels.duplicateOperationName);
     else if (result.error === 'duplicate_process_suffix') setCreateError(labels.duplicateProcessSuffix);
+    else if (result.error === 'invalid_input') setCreateError(labels.invalidInput);
     else setCreateError(labels.createFailed);
   }
 

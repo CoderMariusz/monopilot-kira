@@ -290,6 +290,13 @@ export type {
   ReorderThreshold,
   NewReorderThreshold,
 } from './planning-mrp.js';
+export { purchaseOrders, purchaseOrderLines } from './planning-procurement.js';
+export type {
+  PurchaseOrder,
+  NewPurchaseOrder,
+  PurchaseOrderLine,
+  NewPurchaseOrderLine,
+} from './planning-procurement.js';
 export { capacityPlans, capacityPlanLines } from './planning-capacity.js';
 export type {
   CapacityPlan,

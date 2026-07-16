@@ -41,6 +41,7 @@ type PurchaseOrderLineRow = {
   qty: string;
   uom: string;
   unit_price: string;
+  tax_pct: string;
   line_no: number;
   received_qty: string | null;
 };
@@ -54,6 +55,7 @@ type PurchaseOrderLine = {
   qty: string;
   uom: string;
   unitPrice: string;
+  taxPct: string;
   lineNo: number;
   receivedQty: string;
 };
@@ -126,6 +128,7 @@ function mapLine(row: PurchaseOrderLineRow): PurchaseOrderLine {
     qty: String(row.qty),
     uom: row.uom,
     unitPrice: String(row.unit_price),
+    taxPct: String(row.tax_pct ?? '0'),
     lineNo: Number(row.line_no),
     receivedQty: String(row.received_qty ?? '0'),
   };
@@ -134,7 +137,8 @@ function mapLine(row: PurchaseOrderLineRow): PurchaseOrderLine {
 async function fetchLines(client: QueryClient, poId: string): Promise<PurchaseOrderLine[]> {
   const { rows } = await client.query<PurchaseOrderLineRow>(
     `select l.id, l.po_id, l.item_id, i.item_code, i.name as item_name,
-            l.qty::text as qty, l.uom, l.unit_price::text as unit_price, l.line_no,
+            l.qty::text as qty, l.uom, l.unit_price::text as unit_price,
+            coalesce(l.tax_pct, 0)::text as tax_pct, l.line_no,
             coalesce(rec.received_qty, 0)::text as received_qty
        from public.purchase_order_lines l
        left join public.items i on i.org_id = app.current_org_id() and i.id = l.item_id
@@ -245,10 +249,10 @@ export async function createPurchaseOrderCore(
   for (const line of input.lines) {
     await ctx.client.query(
       `insert into public.purchase_order_lines
-         (org_id, po_id, item_id, qty, uom, unit_price, line_no, created_by, updated_by)
+         (org_id, po_id, item_id, qty, uom, unit_price, tax_pct, line_no, created_by, updated_by)
        values
-         (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5::numeric, $6::integer, $7::uuid, $7::uuid)`,
-      [header.id, line.itemId, line.qty, line.uom, line.unitPrice, line.lineNo, userId],
+         (app.current_org_id(), $1::uuid, $2::uuid, $3::numeric, $4, $5::numeric, $6::numeric, $7::integer, $8::uuid, $8::uuid)`,
+      [header.id, line.itemId, line.qty, line.uom, line.unitPrice, line.taxPct, line.lineNo, userId],
     );
   }
 

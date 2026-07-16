@@ -62,6 +62,14 @@ export type WoDetailLabels = {
     d365: string;
   };
   materials: { title: string; seq: string; name: string; required: string; source: string; empty: string };
+  snapshot: {
+    title: string;
+    bomHeaderId: string;
+    bomVersion: string;
+    factorySpecId: string;
+    factorySpecVersion: string;
+    none: string;
+  };
   operations: { title: string; seq: string; op: string; expDur: string; expYield: string; status: string; empty: string };
   outputs: { title: string; role: string; product: string; planned: string; allocation: string; disposition: string; empty: string };
   dependencies: { title: string; direction: string; wo: string; requiredQty: string; materialLink: string; empty: string };
@@ -342,8 +350,38 @@ export function WoDetailView({
           <TabsTrigger value="d365" data-testid="wo-tab-d365">{labels.tabs.d365}</TabsTrigger>
         </TabsList>
 
-        {/* Overview — materials + operations */}
+        {/* Overview — pinned BOM/spec snapshot + materials + operations */}
         <TabsContent value="overview" data-testid="wo-panel-overview" className="flex flex-col gap-4 pt-3">
+          <section
+            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+            data-testid="wo-snapshot-lineage"
+          >
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{labels.snapshot.title}</h3>
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-400">{labels.snapshot.bomHeaderId}</dt>
+                <dd className="font-mono text-slate-800" data-testid="wo-snapshot-bom-id">
+                  {wo.activeBomHeaderId ?? labels.snapshot.none}
+                </dd>
+                <dt className="mt-2 text-xs uppercase tracking-wide text-slate-400">{labels.snapshot.bomVersion}</dt>
+                <dd className="font-mono text-slate-800" data-testid="wo-snapshot-bom-version">
+                  {wo.activeBomVersion ?? labels.snapshot.none}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-400">{labels.snapshot.factorySpecId}</dt>
+                <dd className="font-mono text-slate-800" data-testid="wo-snapshot-spec-id">
+                  {wo.activeFactorySpecId ?? labels.snapshot.none}
+                </dd>
+                <dt className="mt-2 text-xs uppercase tracking-wide text-slate-400">{labels.snapshot.factorySpecVersion}</dt>
+                <dd className="font-mono text-slate-800" data-testid="wo-snapshot-spec-version">
+                  {wo.activeFactorySpecVersion ?? labels.snapshot.none}
+                  {wo.activeFactorySpecCode ? ` (${wo.activeFactorySpecCode})` : ''}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
           <section className="rounded-xl border border-slate-200">
             <h3 className="border-b border-slate-100 px-4 py-2 text-sm font-semibold">{labels.materials.title}</h3>
             {wo.materials.length === 0 ? (

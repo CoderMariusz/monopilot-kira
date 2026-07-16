@@ -63,6 +63,7 @@ type UnitsLabels = {
   errorAlreadyExists: string;
   errorForbidden: string;
   errorInvalidInput: string;
+  errorFactorPositive: string;
   errorGeneric: string;
   editUnit: string;
   deleteUnit: string;
@@ -135,6 +136,7 @@ const DEFAULT_LABELS: UnitsLabels = {
   errorAlreadyExists: 'A unit or conversion with that code already exists.',
   errorForbidden: 'You do not have permission to manage units.',
   errorInvalidInput: 'Please check the values and try again.',
+  errorFactorPositive: 'Conversion factor must be greater than zero.',
   errorGeneric: 'Could not save. Please try again.',
   editUnit: 'Edit',
   deleteUnit: 'Delete',
@@ -310,6 +312,7 @@ function toManagerLabels(labels: UnitsLabels): UnitsManagerLabels {
     errorAlreadyExists: labels.errorAlreadyExists,
     errorForbidden: labels.errorForbidden,
     errorInvalidInput: labels.errorInvalidInput,
+    errorFactorPositive: labels.errorFactorPositive,
     errorGeneric: labels.errorGeneric,
     editUnit: labels.editUnit,
     deleteUnit: labels.deleteUnit,

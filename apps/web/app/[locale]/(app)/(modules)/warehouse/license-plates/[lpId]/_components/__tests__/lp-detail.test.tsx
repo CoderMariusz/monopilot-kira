@@ -264,6 +264,7 @@ function buildLabels(locale: string): LpDetailLabels {
       currentLocation: t('detail.move.currentLocation'),
       loadingLocations: t('detail.move.loadingLocations'),
       noLocations: t('detail.move.noLocations'),
+      noAlternateLocations: t('detail.move.noAlternateLocations'),
       locationsError: t('detail.move.locationsError'),
       cancel: t('detail.move.cancel'),
       submit: t('detail.move.submit'),
@@ -273,6 +274,7 @@ function buildLabels(locale: string): LpDetailLabels {
       errorForbidden: t('detail.move.errorForbidden'),
       errorLocked: t('detail.move.errorLocked'),
       errorInvalidState: t('detail.move.errorInvalidState'),
+      errorSameLocation: t('detail.move.errorSameLocation'),
       errorNotFound: t('detail.move.errorNotFound'),
       success: t('detail.move.success'),
     },
@@ -364,6 +366,18 @@ function buildLabels(locale: string): LpDetailLabels {
       error: t('detail.labels.error'),
       forbidden: t('detail.labels.forbidden'),
       historyLink: t('detail.labels.historyLink'),
+      errors: {
+        generic: t('detail.labels.error'),
+        entityNotFound: t.has('detail.labels.errors.entityNotFound')
+          ? t('detail.labels.errors.entityNotFound')
+          : 'License plate not found — it may have been removed.',
+        printerNotFound: t.has('detail.labels.errors.printerNotFound')
+          ? t('detail.labels.errors.printerNotFound')
+          : 'The selected printer is missing or inactive.',
+        unsupportedEntity: t.has('detail.labels.errors.unsupportedEntity')
+          ? t('detail.labels.errors.unsupportedEntity')
+          : 'Only license-plate labels can be printed from here.',
+      },
     },
     raw: { title: t('detail.raw.title'), empty: t('detail.raw.empty') },
     expiryBanner: t('detail.expiryBanner'),
@@ -790,6 +804,14 @@ describe('LpDetailClient (WH-003 parity)', () => {
     expect(screen.getByTestId('lp-unblock-confirm')).toBeEnabled();
   });
 
+  it('C102 — HIDES Block for terminal LPs (merged / consumed / shipped / destroyed / returned)', () => {
+    for (const status of ['merged', 'consumed', 'shipped', 'destroyed', 'returned']) {
+      const { unmount } = renderDetail({ status });
+      expect(screen.queryByTestId('lp-action-block')).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
   it('P0-B3 — unblock submits the e-sign password through to unblockLp (real entry point)', async () => {
     const user = userEvent.setup();
     // Spy that mirrors the real unblockLp(lpId, reason, password) signature.
@@ -900,6 +922,19 @@ describe('LpDetailClient (WH-003 parity)', () => {
     expect(print).toHaveAccessibleName(/settings\.org\.update/i);
     fireEvent.click(print);
     expect(printLabelAction).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a typed print failure inline instead of a generic crash', async () => {
+    const printLabelAction = vi.fn(async () => ({
+      status: 'failed' as const,
+      result_url: null,
+      code: 'entity_not_found',
+    }));
+    renderDetail({}, EN, { printLabelAction });
+    fireEvent.click(screen.getByTestId('lp-detail-tab-labels'));
+    fireEvent.click(screen.getByTestId('lp-labels-print'));
+    expect(await screen.findByTestId('lp-labels-print-error')).toHaveTextContent(EN.labels.errors.entityNotFound);
+    expect(screen.queryByTestId('lp-labels-print-result')).not.toBeInTheDocument();
   });
 
   it('renders header status + QA badges and UoM from data', () => {

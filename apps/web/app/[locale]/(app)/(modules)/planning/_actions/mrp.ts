@@ -418,7 +418,10 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
                 rt.min_qty::text as min_qty,
                 rt.reorder_qty::text as reorder_qty,
                 rt.preferred_supplier_id,
-                s.lead_time_days
+                s.lead_time_days,
+                s.code as preferred_supplier_code,
+                s.name as preferred_supplier_name,
+                s.status as preferred_supplier_status
            from public.reorder_thresholds rt
            left join public.suppliers s
              on s.org_id = app.current_org_id()
@@ -1260,6 +1263,7 @@ export async function convertPlannedToPo(plannedOrderIds: string[]): Promise<Mrp
             qty: quantityToNumeric3(row.quantity) ?? row.quantity,
             uom: row.uom,
             unitPrice: prices[index]?.unitPrice ?? '0',
+            taxPct: '0',
             lineNo: index + 1,
           })),
         });

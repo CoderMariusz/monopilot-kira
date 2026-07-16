@@ -98,8 +98,9 @@ const detailLabels: WoDetailLabels = {
   status: listLabels.status,
   summary: enWo.detail.summary,
   tabs: enWo.detail.tabs,
-  materials: enWo.detail.materials,
-  operations: enWo.detail.operations,
+    materials: enWo.detail.materials,
+    snapshot: enWo.detail.snapshot,
+    operations: enWo.detail.operations,
   outputs: enWo.detail.outputs,
   dependencies: enWo.detail.dependencies,
   history: enWo.detail.history,
@@ -796,6 +797,11 @@ describe('WoListView — P0-UOM Order unit selector', () => {
 describe('WoDetailView — 7 tabs from fixture (parity: wo-detail.jsx:107-585)', () => {
   const fixture: Extract<GetPlanningWorkOrderResult, { ok: true }>['workOrder'] = {
     ...(makeRow({ id: 'wo-1', woNumber: 'WO-DETAIL' }) as any),
+    activeBomHeaderId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    activeBomVersion: 3,
+    activeFactorySpecId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    activeFactorySpecVersion: 2,
+    activeFactorySpecCode: 'FS-FG-004',
     materials: [
       { id: 'm1', woId: 'wo-1', productId: 'p1', materialName: 'Demo Flour', requiredQty: '700', consumedQty: '0', reservedQty: '0', uom: 'kg', sequence: 1, materialSource: 'stock', bomItemId: null, bomVersion: 1, notes: null },
     ],
@@ -822,6 +828,16 @@ describe('WoDetailView — 7 tabs from fixture (parity: wo-detail.jsx:107-585)',
     // Overview is the default tab — materials + operations rendered.
     expect(screen.getByTestId('wo-materials-table')).toHaveTextContent('Demo Flour');
     expect(screen.getByTestId('wo-operations-table')).toHaveTextContent('Mix');
+  });
+
+  it('renders pinned BOM and factory-spec snapshot identifiers on Overview', () => {
+    render(<WoDetailView workOrder={fixture} labels={detailLabels} locale="en" />);
+
+    expect(screen.getByTestId('wo-snapshot-lineage')).toBeInTheDocument();
+    expect(screen.getByTestId('wo-snapshot-bom-id')).toHaveTextContent('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    expect(screen.getByTestId('wo-snapshot-bom-version')).toHaveTextContent('3');
+    expect(screen.getByTestId('wo-snapshot-spec-id')).toHaveTextContent('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+    expect(screen.getByTestId('wo-snapshot-spec-version')).toHaveTextContent('2 (FS-FG-004)');
   });
 
   it('renders honest "not live" panels for Reservations / Sequencing / D365 (no data source)', async () => {

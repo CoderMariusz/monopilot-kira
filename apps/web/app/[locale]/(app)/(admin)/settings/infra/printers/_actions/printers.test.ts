@@ -125,6 +125,22 @@ describe('printer server actions', () => {
     expect(String(insertedPayload.gs1_human)).not.toContain('(01)');
   });
 
+  it('invalid GS1 lot still persists a print job with gs1_build_error instead of throwing', async () => {
+    currentClient = makeClient({ batchLot: 'LOT WITH SPACE' });
+    const { printLabel } = await loadActions();
+
+    const result = await printLabel({
+      entityType: 'lp',
+      entityId: LP_ID,
+      printerId: PRINTER_ID,
+    });
+
+    expect(result.status).toBe('sent');
+    expect(result.payload.gs1_build_error).toMatch(/Invalid lot/);
+    expect(result.payload.gs1_raw).toBeNull();
+    expect(currentClient.insertedJobs).toBe(1);
+  });
+
   it('reprintFromHistory clones the job', async () => {
     const { reprintFromHistory } = await loadActions();
 
@@ -165,7 +181,7 @@ async function loadActions(): Promise<ActionsModule> {
   return (await import('./printers')) as ActionsModule;
 }
 
-function makeClient(options: { gs1Gtin?: string | null; printerType?: 'pdf' | 'zpl'; canEdit?: boolean } = {}): FakeClient {
+function makeClient(options: { gs1Gtin?: string | null; batchLot?: string; printerType?: 'pdf' | 'zpl'; canEdit?: boolean } = {}): FakeClient {
   const client: FakeClient = {
     calls: [],
     canEdit: options.canEdit ?? true,
@@ -217,7 +233,7 @@ function makeClient(options: { gs1Gtin?: string | null; printerType?: 'pdf' | 'z
               lp_code: 'LP-0001',
               item_id: ITEM_ID,
               gs1_gtin: client.gs1Gtin,
-              batch_lot: 'LOTA',
+              batch_lot: options.batchLot ?? 'LOTA',
               expiry_date: '2026-07-31',
               catch_weight_kg: '12.500000',
             },

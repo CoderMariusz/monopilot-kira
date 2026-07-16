@@ -54,6 +54,7 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>, receiveT: ReturnTyp
       supplier: t('grnDetail.facts.supplier'),
       receiptDate: t('grnDetail.facts.receiptDate'),
       warehouse: t('grnDetail.facts.warehouse'),
+      purchaseOrder: t('grnDetail.facts.purchaseOrder'),
       status: t('grnDetail.facts.status'),
       none: t('grnDetail.facts.none'),
     },
@@ -126,6 +127,7 @@ function buildLabels(t: ReturnType<typeof getWhcTranslator>, receiveT: ReturnTyp
         not_found: t('grnDetail.cancelLine.errors.not_found'),
         lp_not_cancellable: t('grnDetail.cancelLine.errors.lp_not_cancellable'),
         already_cancelled: t('grnDetail.cancelLine.errors.already_cancelled'),
+        grn_completed: t('grnDetail.cancelLine.errors.grn_completed'),
         invalid_input: t('grnDetail.cancelLine.errors.invalid_input'),
         persistence_failed: t('grnDetail.cancelLine.errors.persistence_failed'),
         session_expired: 'Your session expired. Please log in again.',
@@ -308,11 +310,11 @@ async function DetailContent({ locale, grnId }: { locale: string; grnId: string 
         printDocumentHref={`/${locale}/warehouse/grns/${grnId}/print`}
         releaseQaAction={releaseLpQa}
         cancelGrnLineAction={cancelGrnLineAction}
-        canCancelLines={result.data.status !== 'cancelled' && canCancel}
+        canCancelLines={result.data.status === 'draft' && canCancel}
         printLabelAction={printGrnLineLabel}
         canPrint={canPrint}
         submitConditionCheck={submitConditionCheckAction}
-        canRecordTemp={result.data.status !== 'cancelled' && canRecordTemp}
+        canRecordTemp={result.data.status === 'draft' && canRecordTemp}
       />
       <DocumentAuditTimelineSection entityType="grn" entityId={result.data.id} locale={locale} />
     </div>

@@ -63,7 +63,11 @@ const LABELS = {
     demand: 'Demand',
     net: 'Net position',
     action: 'Suggested action',
+    supplier: 'Preferred supplier',
   },
+  supplyProvenance: { po: 'PO', production: 'Prod' },
+  supplierStatus: { active: 'Active', inactive: 'Inactive', blocked: 'Blocked' },
+  noPreferredSupplier: 'None configured',
   severity: {
     shortage: 'Shortage',
     below_min: 'Below min stock',
@@ -123,12 +127,17 @@ const SHORT_ROW: MrpRow = {
   onHand: '40.000',
   reserved: '10.000',
   openSupply: '25.000',
+  supplyFromPo: '25.000',
+  supplyFromProduction: '0.000',
   demand: '80.000',
+  forecastDemand: '0.000',
+  soDemand: '0.000',
   net: '-25.000',
   severity: 'shortage',
   suggestedAction: { type: 'buy', qty: '25', dueDate: null, supplierId: null },
   minQty: null,
   excludedUoms: [],
+  preferredSupplier: null,
 };
 
 const MAKE_ROW: MrpRow = {
@@ -140,12 +149,17 @@ const MAKE_ROW: MrpRow = {
   onHand: '0.000',
   reserved: '0.000',
   openSupply: '12.000',
+  supplyFromPo: '0.000',
+  supplyFromProduction: '12.000',
   demand: '20.000',
+  forecastDemand: '0.000',
+  soDemand: '0.000',
   net: '-8.000',
   severity: 'shortage',
   suggestedAction: { type: 'make', qty: '8', dueDate: null, supplierId: null },
   minQty: null,
   excludedUoms: [],
+  preferredSupplier: null,
 };
 
 const COVERED_ROW: MrpRow = {
@@ -157,12 +171,17 @@ const COVERED_ROW: MrpRow = {
   onHand: '500.000',
   reserved: '0.000',
   openSupply: '0.000',
+  supplyFromPo: '0.000',
+  supplyFromProduction: '0.000',
   demand: '100.000',
+  forecastDemand: '0.000',
+  soDemand: '0.000',
   net: '400.000',
   severity: 'covered',
   suggestedAction: null,
   minQty: null,
   excludedUoms: ['lb'],
+  preferredSupplier: null,
 };
 
 /** CL2 — below-min threshold row: net positive but under the configured floor. */
@@ -175,12 +194,22 @@ const BELOW_MIN_ROW: MrpRow = {
   onHand: '8.000',
   reserved: '0.000',
   openSupply: '0.000',
+  supplyFromPo: '0.000',
+  supplyFromProduction: '0.000',
   demand: '0.000',
+  forecastDemand: '0.000',
+  soDemand: '0.000',
   net: '8.000',
   severity: 'below_min',
   suggestedAction: { type: 'buy', qty: '12', dueDate: '2026-06-18', supplierId: 'sup-1' },
   minQty: '20.000',
   excludedUoms: [],
+  preferredSupplier: {
+    id: 'sup-1',
+    code: 'SUP-FLOUR',
+    name: 'Mill Co',
+    status: 'active',
+  },
 };
 
 function okResult(
@@ -449,5 +478,18 @@ describeUi('/planning/mrp — MrpView', () => {
     renderView({ listRunsAction });
     await waitFor(() => expect(listRunsAction).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByTestId('mrp-previous-runs')).toBeNull());
+  });
+
+  it('renders open-supply provenance and preferred supplier status in the results table', async () => {
+    const runAction = vi.fn(async () => okResult([SHORT_ROW, BELOW_MIN_ROW]));
+    renderView({ runAction, timeFormatter: (iso) => iso });
+
+    fireEvent.click(screen.getByTestId('mrp-run-button'));
+    await waitFor(() => expect(screen.getByTestId('mrp-results-table')).toBeInTheDocument());
+
+    expect(screen.getByTestId('mrp-supply-RM-FLOUR')).toHaveTextContent('PO: 25.000 · Prod: 0.000');
+    expect(screen.getByTestId('mrp-supplier-RM-SALT')).toHaveTextContent('SUP-FLOUR');
+    expect(screen.getByTestId('mrp-supplier-status-RM-SALT')).toHaveTextContent('Active');
+    expect(screen.getByTestId('mrp-supplier-RM-FLOUR')).toHaveTextContent('None configured');
   });
 });

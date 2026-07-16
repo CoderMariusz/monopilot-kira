@@ -1287,7 +1287,7 @@ describe('convertPlannedToPo', () => {
         expectedDelivery: '2026-06-18',
         currency: 'GBP',
         notes: 'Created from MRP planned orders',
-        lines: [{ itemId: FLOUR_ID, qty: '25.000', uom: 'kg', unitPrice: '6.2500', lineNo: 1 }],
+        lines: [{ itemId: FLOUR_ID, qty: '25.000', uom: 'kg', unitPrice: '6.2500', taxPct: '0', lineNo: 1 }],
       },
     );
     expect(releasedUpdates).toEqual([[[PO_PLANNED_ID], PO_ID]]);
@@ -1326,7 +1326,7 @@ describe('convertPlannedToPo', () => {
       priceWarnings: [{ id: PO_PLANNED_ID, reason: 'missing supplier spec price' }],
     });
     expect(createPurchaseOrderCoreMock.mock.calls[0]?.[1]).toMatchObject({
-      lines: [{ itemId: FLOUR_ID, qty: '25.000', uom: 'kg', unitPrice: '0', lineNo: 1 }],
+      lines: [{ itemId: FLOUR_ID, qty: '25.000', uom: 'kg', unitPrice: '0', taxPct: '0', lineNo: 1 }],
     });
   });
 

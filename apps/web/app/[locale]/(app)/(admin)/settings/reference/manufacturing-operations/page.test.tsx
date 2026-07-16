@@ -114,6 +114,7 @@ const labels: ManufacturingOperationsScreenLabels = {
   duplicateOperationName: 'An operation with this name already exists.',
   duplicateProcessSuffix: 'An operation with this suffix already exists for this industry.',
   createFailed: 'Unable to create manufacturing operation.',
+  invalidInput: 'Check the operation name, suffix, sequence, and industry fields.',
   cancel: 'Cancel',
   reset: 'Reset',
   fieldIndustry: 'Industry',

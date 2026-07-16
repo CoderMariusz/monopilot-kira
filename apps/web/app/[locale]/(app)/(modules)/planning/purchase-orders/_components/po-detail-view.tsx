@@ -35,6 +35,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { PoStatusBadge } from './po-status-badge';
@@ -50,6 +51,7 @@ import {
 import type { PoSupplierOption } from '../_actions/po-form-data-types';
 import type { DesktopReceiveInput, DesktopReceiveResult } from '../_actions/receive-po-line.types';
 import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items-types';
+import { computePoLineGross, computePoOrderTotals } from '../_actions/po-line-price';
 
 export type PoDetailLine = {
   id: string;
@@ -58,9 +60,16 @@ export type PoDetailLine = {
   qty: string;
   uom: string;
   unitPrice: string;
+  taxPct: string;
   lineNo: number;
   /** Σ grn_items.received_qty for this line (non-cancelled GRNs), decimal string. */
   receivedQty: string;
+};
+
+export type PoRelatedGrn = {
+  id: string;
+  grnNumber: string;
+  status: string;
 };
 
 export type PoDetail = {
@@ -76,6 +85,7 @@ export type PoDetail = {
   notes: string | null;
   createdAt: string;
   lines: PoDetailLine[];
+  relatedGrns: PoRelatedGrn[];
 };
 
 export type PoDetailLabels = {
@@ -87,8 +97,14 @@ export type PoDetailLabels = {
     expected: string;
     currency: string;
     destinationWarehouse: string;
-    total: string;
-    created: string;
+      total: string;
+      netTotal: string;
+      taxTotal: string;
+      created: string;
+    };
+  relatedGrns: {
+    title: string;
+    empty: string;
   };
   lines: {
     title: string;
@@ -97,6 +113,7 @@ export type PoDetailLabels = {
     qty: string;
     uom: string;
     unitPrice: string;
+    taxPct: string;
     lineTotal: string;
     received: string;
     receivedFull: string;
@@ -232,6 +249,7 @@ export function PoDetailView({
     qty: string;
     uom: string;
     unitPrice: string;
+    taxPct: string;
   }) => Promise<PoLineMutationResult>;
   updatePurchaseOrderLineAction?: (input: {
     poId: string;
@@ -239,6 +257,7 @@ export function PoDetailView({
     qty?: string;
     uom?: string;
     unitPrice?: string;
+    taxPct?: string;
   }) => Promise<PoLineMutationResult>;
   deletePurchaseOrderLineAction?: (input: { poId: string; lineId: string }) => Promise<PoLineMutationResult>;
   /** Desktop receive seam. RBAC (warehouse.grn.receive) enforced server-side inside
@@ -321,6 +340,7 @@ export function PoDetailView({
       qty: line.qty,
       uom: line.uom,
       unitPrice: line.unitPrice,
+      taxPct: line.taxPct,
     });
     setLineModalOpen(true);
   }
@@ -336,7 +356,13 @@ export function PoDetailView({
     setReceiveOpen(true);
   }
 
-  const orderTotal = po.lines.reduce((sum, l) => sum + Number(l.qty) * Number(l.unitPrice), 0);
+  const lineTotals = computePoOrderTotals(
+    po.lines.map((l) => ({ qty: l.qty, unitPrice: l.unitPrice, taxPct: l.taxPct })),
+  );
+
+  function formatMoney(amount: string): string {
+    return `${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${po.currency}`;
+  }
 
   // Receipt rollup. Lines can carry mixed UoMs, so the header progress is
   // line-based (fully received lines / total lines), never a cross-UoM qty sum.
@@ -474,6 +500,7 @@ export function PoDetailView({
                     <th className="px-3 py-2 text-right">{labels.lines.qty}</th>
                     <th className="px-3 py-2">{labels.lines.uom}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.unitPrice}</th>
+                    <th className="px-3 py-2 text-right">{labels.lines.taxPct}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.lineTotal}</th>
                     <th className="px-3 py-2 text-right">{labels.lines.received}</th>
                     {canEdit || canReceive ? <th className="px-3 py-2 text-right" /> : null}
@@ -490,8 +517,9 @@ export function PoDetailView({
                       <td className="px-3 py-2 text-right font-mono tabular-nums">{l.qty}</td>
                       <td className="px-3 py-2 font-mono text-xs">{l.uom}</td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums">{money(Number(l.unitPrice), po.currency)}</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-600">{l.taxPct}%</td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums font-semibold">
-                        {money(Number(l.qty) * Number(l.unitPrice), po.currency)}
+                        {formatMoney(computePoLineGross(l.qty, l.unitPrice, l.taxPct))}
                       </td>
                       <td className="px-3 py-2 text-right" data-testid={`po-line-received-${l.id}`}>
                         <div className="flex items-center justify-end gap-2">
@@ -609,12 +637,46 @@ export function PoDetailView({
                 </div>
               </div>
               <div className="mt-1 flex justify-between gap-2 border-t border-slate-200 pt-2">
+                <dt className="text-slate-500">{labels.summary.netTotal}</dt>
+                <dd className="font-mono text-xs text-slate-800" data-testid="po-detail-net-total">
+                  {formatMoney(lineTotals.netTotal)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-slate-500">{labels.summary.taxTotal}</dt>
+                <dd className="font-mono text-xs text-slate-800" data-testid="po-detail-tax-total">
+                  {formatMoney(lineTotals.taxTotal)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2 border-t border-slate-200 pt-2">
                 <dt className="font-semibold text-slate-700">{labels.summary.total}</dt>
                 <dd className="font-mono font-semibold text-slate-900" data-testid="po-detail-total">
-                  {money(orderTotal, po.currency)}
+                  {formatMoney(lineTotals.grossTotal)}
                 </dd>
               </div>
             </dl>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 p-4" data-testid="po-detail-related-grns">
+            <div className="mb-3 text-sm font-semibold text-slate-700">{labels.relatedGrns.title}</div>
+            {po.relatedGrns.length === 0 ? (
+              <p className="text-sm text-slate-500">{labels.relatedGrns.empty}</p>
+            ) : (
+              <ul className="flex flex-col gap-2 text-sm">
+                {po.relatedGrns.map((grn) => (
+                  <li key={grn.id}>
+                    <Link
+                      href={`/${locale}/warehouse/grns/${grn.id}`}
+                      data-testid={`po-related-grn-${grn.id}`}
+                      className="font-mono text-sky-700 hover:underline"
+                    >
+                      {grn.grnNumber}
+                    </Link>
+                    <span className="ml-2 text-xs uppercase tracking-wide text-slate-500">{grn.status}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {actions.length > 0 ? (

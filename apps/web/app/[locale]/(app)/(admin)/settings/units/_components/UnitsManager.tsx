@@ -21,9 +21,9 @@ import {
   createCustomConversion,
   createUnit,
   type CreateConversionResult,
-  type CreateUnitResult,
-  type UnitsActionError,
 } from '../_actions/manage-units';
+import type { CreateUnitResult, UnitsActionError } from '../_actions/units-validation';
+import { FACTOR_TO_BASE_MIN_EXCLUSIVE } from '../_actions/units-validation';
 
 /**
  * Lightweight, accessible modal dialog (role="dialog" + aria-modal, focus on
@@ -122,6 +122,7 @@ export type UnitsManagerLabels = {
   errorAlreadyExists: string;
   errorForbidden: string;
   errorInvalidInput: string;
+  errorFactorPositive: string;
   errorGeneric: string;
   editUnit: string;
   deleteUnit: string;
@@ -133,14 +134,14 @@ export type UnitsManagerLabels = {
 
 const CATEGORY_VALUES = ['mass', 'volume', 'count', 'length'] as const;
 
-function errorLabel(labels: UnitsManagerLabels, error: UnitsActionError): string {
+function errorLabel(labels: UnitsManagerLabels, error: UnitsActionError, message?: string): string {
   switch (error) {
     case 'already_exists':
       return labels.errorAlreadyExists;
     case 'forbidden':
       return labels.errorForbidden;
     case 'invalid_input':
-      return labels.errorInvalidInput;
+      return message ?? labels.errorInvalidInput;
     case 'in_use':
       return labels.errorInUse;
     case 'not_found':
@@ -192,21 +193,30 @@ function AddUnitDialog({ labels }: { labels: UnitsManagerLabels }) {
     setError(null);
     const form = event.currentTarget;
     const data = new FormData(form);
+    const factorToBase = Number(data.get('factorToBase') ?? '');
+    if (!Number.isFinite(factorToBase) || factorToBase <= FACTOR_TO_BASE_MIN_EXCLUSIVE) {
+      setError(labels.errorFactorPositive);
+      return;
+    }
     const payload = {
       category,
       code: String(data.get('code') ?? '').trim(),
       name: String(data.get('name') ?? '').trim(),
-      factorToBase: Number(data.get('factorToBase') ?? ''),
+      factorToBase,
       isBase,
     };
     startTransition(async () => {
-      const result: CreateUnitResult = await createUnit(payload);
-      if (result.ok) {
-        reset();
-        setOpen(false);
-        router.refresh();
-      } else {
-        setError(errorLabel(labels, result.error));
+      try {
+        const result: CreateUnitResult = await createUnit(payload);
+        if (result.ok) {
+          reset();
+          setOpen(false);
+          router.refresh();
+          return;
+        }
+        setError(errorLabel(labels, result.error, result.message));
+      } catch {
+        setError(labels.errorGeneric);
       }
     });
   }
@@ -252,7 +262,17 @@ function AddUnitDialog({ labels }: { labels: UnitsManagerLabels }) {
           </div>
           <div className="ff">
             <label htmlFor="settings-units-add-factor">{labels.factorToBase}</label>
-            <Input id="settings-units-add-factor" name="factorToBase" required inputMode="decimal" defaultValue="1" className="form-input mono" />
+            <Input
+              id="settings-units-add-factor"
+              name="factorToBase"
+              required
+              type="number"
+              min={0.000001}
+              step="any"
+              inputMode="decimal"
+              defaultValue="1"
+              className="form-input mono"
+            />
           </div>
           <label className="ff-inline-check" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
             <input type="checkbox" checked={isBase} onChange={(event) => setIsBase(event.currentTarget.checked)} />

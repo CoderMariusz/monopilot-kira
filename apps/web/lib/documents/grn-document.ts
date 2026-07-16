@@ -1,4 +1,5 @@
 import { fetchCompanyHeader, type QueryClient } from './company-header';
+import { GRN_LINE_EXPIRY_SQL } from '../../app/[locale]/(app)/(modules)/warehouse/grns/_lib/grn-read-model';
 import type { DocumentLine, GrnDocumentData, GrnDocumentTotals } from './types';
 
 export type GrnHeaderRow = {
@@ -161,7 +162,7 @@ export async function assembleGrnDocument(
             gi.received_qty::text,
             gi.uom,
             gi.batch_number,
-            gi.expiry_date,
+            ${GRN_LINE_EXPIRY_SQL} as expiry_date,
             lp.lp_number,
             i.gs1_gtin,
             (gi.cancelled_at is not null) as cancelled

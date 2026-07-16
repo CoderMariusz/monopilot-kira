@@ -492,6 +492,12 @@ async function loadWorkOrderByNumber(ctx: OrgActionContext, woNumber: string): P
     qtyEntered: row.planned_quantity,
     qtyEnteredUom: 'base' as const,
     uomSnapshot: null,
+    // C065: pinned BOM/spec version not surfaced in the chain view.
+    activeBomHeaderId: null,
+    activeBomVersion: null,
+    activeFactorySpecId: null,
+    activeFactorySpecVersion: null,
+    activeFactorySpecCode: null,
     status: row.status,
     scheduledStartTime: row.scheduled_start_time,
     scheduledEndTime: row.scheduled_end_time,

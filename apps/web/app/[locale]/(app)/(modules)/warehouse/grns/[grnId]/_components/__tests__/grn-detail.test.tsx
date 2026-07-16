@@ -37,6 +37,7 @@ const LABELS: GrnDetailLabels = {
     item: 'Item',
     ordered: 'Ordered',
     received: 'Received',
+    outstanding: 'Outstanding',
     batch: 'Batch',
     supplierBatch: 'Supplier batch',
     expiry: 'Expiry',
@@ -94,6 +95,7 @@ const LABELS: GrnDetailLabels = {
       lp_not_cancellable:
         'This pallet has already been moved, reserved or consumed — cancel is not possible; correct via stock adjustment instead.',
       already_cancelled: 'This receipt line has already been cancelled.',
+      grn_completed: 'This GRN is completed — receipt lines cannot be changed.',
       invalid_input: 'Check the fields and try again.',
       persistence_failed: 'We could not cancel this receipt line. Try again.',
       session_expired: 'Your session expired. Please log in again.',
@@ -113,6 +115,8 @@ const LABELS: GrnDetailLabels = {
     noRange: 'No temperature range is configured for this product.',
     error: 'The temperature could not be recorded. Try again.',
   },
+  overReceivedBadge: 'Over-received',
+  shortReceivedBadge: 'Short',
 };
 
 const GRN: GrnDetail = {
@@ -282,9 +286,10 @@ describe('GrnDetailClient — cancel receipt line (C-R3)', () => {
     expect(cancelGrnLineAction).not.toHaveBeenCalled();
   });
 
-  it('hides the cancel affordances entirely when canCancelLines is false', () => {
+  it('hides the cancel affordances entirely when canCancelLines is false (C052 completed GRN)', () => {
     renderGrn({ canCancelLines: false });
     expect(screen.queryByTestId('grn-cancel-line-line-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('grn-cancel-line-line-2')).not.toBeInTheDocument();
   });
 
   it('opens the reason/note modal (NO password field — receipt corrections have no e-sign)', async () => {
@@ -380,7 +385,42 @@ describe('GrnDetailClient — cancel receipt line (C-R3)', () => {
     expect(screen.queryByTestId('grn-item-cancelled-line-1')).not.toBeInTheDocument();
     expect(screen.getByTestId('grn-cancel-line-line-1')).toBeInTheDocument();
   });
+});
 
+describe('GrnDetailClient — multi-receipt outstanding (C053)', () => {
+  it('shows aggregate zero outstanding and over-received on every row for the same PO line', () => {
+    const grn: GrnDetail = {
+      ...GRN,
+      items: [
+        {
+          ...GRN.items[0]!,
+          id: 'line-a',
+          lineNumber: 1,
+          poLineId: 'pol-flour',
+          orderedQty: '13.456',
+          receivedQty: '5.678',
+        },
+        {
+          ...GRN.items[1]!,
+          id: 'line-b',
+          lineNumber: 2,
+          poLineId: 'pol-flour',
+          orderedQty: '13.456',
+          receivedQty: '7.779',
+        },
+      ],
+    };
+    renderGrn({ grn, canCancelLines: false });
+    expect(screen.getByTestId('grn-item-line-a')).toHaveTextContent('0 kg');
+    expect(screen.getByTestId('grn-item-line-b')).toHaveTextContent('0 kg');
+    expect(screen.getByTestId('grn-line-over-line-a')).toHaveTextContent('Over-received');
+    expect(screen.getByTestId('grn-line-over-line-b')).toHaveTextContent('Over-received');
+    expect(screen.queryByTestId('grn-line-short-line-a')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('grn-line-short-line-b')).not.toBeInTheDocument();
+  });
+});
+
+describe('GrnDetailClient — cancel receipt line (C-R3) parity evidence', () => {
   it('PARITY EVIDENCE: captures idle + lp_not_cancellable error states + a11y report', async () => {
     const user = userEvent.setup();
     const write = (name: string) => {

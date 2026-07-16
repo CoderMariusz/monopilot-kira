@@ -84,6 +84,8 @@ export type CreatePoLabels = {
   lineQty: string;
   lineUom: string;
   lineUnitPrice: string;
+  lineTaxPct: string;
+  taxPctPlaceholder: string;
   /**
    * BUG1 — subtle hint shown beside a line's unit price when it was pre-filled
    * from the supplier data. Keyed by the source so the operator knows whether the
@@ -150,6 +152,7 @@ type CreatePoLine = {
   qty: string;
   uom: string;
   unitPrice: string;
+  taxPct: string;
   /** BUG1 — where the pre-filled unitPrice came from (null once user-edited / blank). */
   priceSource: 'spec' | 'list_price' | null;
 };
@@ -175,7 +178,7 @@ export type CreatePoModalProps = {
     expectedDelivery?: string;
     currency: string;
     notes?: string;
-    lines: Array<{ itemId: string; qty: string; uom: string; unitPrice: string; lineNo: number }>;
+    lines: Array<{ itemId: string; qty: string; uom: string; unitPrice: string; taxPct: string; lineNo: number }>;
   }) => Promise<CreatePoResult>;
   /** Called after a successful create so the list can refresh. */
   onCreated: () => void;
@@ -187,11 +190,12 @@ export type CreatePoModalProps = {
   setSiteAction: (siteId: string | null) => Promise<{ ok: boolean }>;
 };
 
-const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
+const QTY_PATTERN = /^\d+(?:\.\d{1,6})?$/;
 const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
+const PCT_PATTERN = /^\d+(?:\.\d{1,4})?$/;
 
 function makeLine(): CreatePoLine {
-  return { key: Math.random().toString(36).slice(2), item: null, qty: '', uom: '', unitPrice: '', priceSource: null };
+  return { key: Math.random().toString(36).slice(2), item: null, qty: '', uom: '', unitPrice: '', taxPct: '0', priceSource: null };
 }
 
 export function CreatePoModal({
@@ -325,7 +329,14 @@ export function CreatePoModal({
       return;
     }
     const validLines = lines.filter(
-      (l) => l.item && QTY_PATTERN.test(l.qty.trim()) && Number(l.qty) > 0 && l.uom.trim().length > 0,
+      (l) =>
+        l.item &&
+        QTY_PATTERN.test(l.qty.trim()) &&
+        Number(l.qty) > 0 &&
+        l.uom.trim().length > 0 &&
+        PCT_PATTERN.test(l.taxPct.trim()) &&
+        Number(l.taxPct) >= 0 &&
+        Number(l.taxPct) <= 100,
     );
     if (validLines.length === 0) {
       setFormError(labels.errors.linesRequired);
@@ -346,6 +357,7 @@ export function CreatePoModal({
           qty: l.qty.trim(),
           uom: l.uom.trim(),
           unitPrice: PRICE_PATTERN.test(l.unitPrice.trim()) ? l.unitPrice.trim() : '0',
+          taxPct: l.taxPct.trim() || '0',
           lineNo: idx + 1,
         })),
       });
@@ -487,6 +499,7 @@ export function CreatePoModal({
                     <th className="px-3 py-2 text-right">{labels.lineQty}</th>
                     <th className="px-3 py-2">{labels.lineUom}</th>
                     <th className="px-3 py-2 text-right">{labels.lineUnitPrice}</th>
+                    <th className="px-3 py-2 text-right">{labels.lineTaxPct}</th>
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
@@ -563,6 +576,17 @@ export function CreatePoModal({
                             {labels.priceSource[line.priceSource]}
                           </span>
                         ) : null}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={line.taxPct}
+                          data-testid="create-po-line-tax"
+                          placeholder={labels.taxPctPlaceholder}
+                          onChange={(e) => updateLine(line.key, { taxPct: e.target.value })}
+                          className="w-20 text-right"
+                        />
                       </td>
                       <td className="px-3 py-2 text-right">
                         {lines.length > 1 ? (

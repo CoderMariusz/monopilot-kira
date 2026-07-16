@@ -65,6 +65,7 @@ const LABEL_KEYS = [
   'duplicate_operation_name',
   'duplicate_process_suffix',
   'create_failed',
+  'invalid_input',
   'cancel',
   'reset',
   'edit_dialog_title',
@@ -129,6 +130,7 @@ const LABEL_MAP: Record<LabelKey, LabelCamelKey> = {
   duplicate_operation_name: 'duplicateOperationName',
   duplicate_process_suffix: 'duplicateProcessSuffix',
   create_failed: 'createFailed',
+  invalid_input: 'invalidInput',
   cancel: 'cancel',
   reset: 'reset',
   edit_dialog_title: 'editDialogTitle',
@@ -190,6 +192,7 @@ const EN_LABEL_FALLBACKS: Record<LabelKey, string> = {
   duplicate_operation_name: 'An operation with this name already exists.',
   duplicate_process_suffix: 'An operation with this suffix already exists for this industry.',
   create_failed: 'Unable to create manufacturing operation.',
+  invalid_input: 'Check the operation name, suffix, sequence, and industry fields.',
   cancel: 'Cancel',
   reset: 'Reset',
   edit_dialog_title: 'Edit manufacturing operation',
@@ -239,18 +242,9 @@ async function resetToSeed(industryCode: IndustryCode) {
   return resetManufacturingOperationsToSeed({ industryCode, confirmReset: true });
 }
 
-async function addOperation(input: {
-  operationName: string;
-  processSuffix: string;
-  description: string | null;
-  operationSeq: number;
-  industryCode: IndustryCode;
-  isActive: boolean;
-}) {
-  'use server';
-
-  return createManufacturingOperation(input);
-}
+// Pass the canonical `'use server'` action by reference — do not wrap in a plain
+// closure or Next.js cannot serialize it across the RSC boundary.
+const createOperationForClient = createManufacturingOperation;
 
 async function editOperation(input: {
   id: string;
@@ -299,7 +293,7 @@ export default async function ManufacturingOperationsPage({ params }: PageProps)
         operations={[]}
         error={result.error === 'forbidden' ? null : labels.error}
         canManage={result.error === 'forbidden' ? false : true}
-        createOperation={addOperation}
+        createOperation={createOperationForClient}
         updateOperation={editOperation}
         deactivateOperation={removeOperation}
         reorderOperations={reorderOperations}
@@ -312,7 +306,7 @@ export default async function ManufacturingOperationsPage({ params }: PageProps)
     <ManufacturingOperationsScreen
       labels={labels}
       operations={normalizeOperations(result.data)}
-      createOperation={addOperation}
+      createOperation={createOperationForClient}
       updateOperation={editOperation}
       deactivateOperation={removeOperation}
       reorderOperations={reorderOperations}

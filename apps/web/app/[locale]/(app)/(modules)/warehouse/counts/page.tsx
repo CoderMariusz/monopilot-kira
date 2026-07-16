@@ -90,6 +90,9 @@ function buildLabels(t: ReturnType<typeof getCountsTranslator>): CountSessionLis
       creating: t('create.creating'),
       denied: t('create.denied'),
       error: t('create.error'),
+      noStock: t.has('create.noStock')
+        ? t('create.noStock')
+        : 'No license plates with stock were found in this warehouse — receive or adjust stock before starting a count.',
       siteMismatch: t.has('create.siteMismatch')
         ? t('create.siteMismatch')
         : 'This warehouse belongs to a different site. Creating will switch your top-bar site to match so the session stays visible in the list.',

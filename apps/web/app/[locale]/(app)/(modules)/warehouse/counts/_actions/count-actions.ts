@@ -44,6 +44,8 @@ const DESTROYED_STATUS = 'destroyed';
  * default-WARN tier. Set to 0 in feature_flags to opt OUT entirely.
  */
 const COUNT_VARIANCE_DEFAULT_WARN_PCT = 5;
+/** LP lifecycle states excluded from count snapshots (terminal / no longer on-hand). */
+const COUNT_EXCLUDED_LP_STATUSES = ['consumed', 'merged', 'shipped'] as const;
 
 type SessionRow = {
   id: string;
@@ -868,6 +870,47 @@ export async function listCountWarehouses(): Promise<CountWarehouseOption[]> {
   });
 }
 
+async function countWarehouseStockLines(client: QueryClient, warehouseId: string): Promise<number> {
+  const { rows } = await client.query<{ line_count: number | string }>(
+    `select count(*)::int as line_count
+       from public.license_plates lp
+      where lp.org_id = app.current_org_id()
+        and lp.warehouse_id = $1::uuid
+        and lp.location_id is not null
+        and lp.quantity > 0
+        and lp.status <> all($2::text[])`,
+    [warehouseId, COUNT_EXCLUDED_LP_STATUSES],
+  );
+  return toInt(rows[0]?.line_count);
+}
+
+async function seedCountSessionLines(
+  client: QueryClient,
+  sessionId: string,
+  warehouseId: string,
+): Promise<number> {
+  const { rowCount } = await client.query(
+    `insert into public.count_lines (
+       org_id, session_id, location_id, item_id, lp_id, system_qty, status
+     )
+     select app.current_org_id(),
+            $1::uuid,
+            lp.location_id,
+            lp.product_id,
+            lp.id,
+            greatest(lp.quantity - lp.reserved_qty, 0),
+            'pending'
+       from public.license_plates lp
+      where lp.org_id = app.current_org_id()
+        and lp.warehouse_id = $2::uuid
+        and lp.location_id is not null
+        and lp.quantity > 0
+        and lp.status <> all($3::text[])`,
+    [sessionId, warehouseId, COUNT_EXCLUDED_LP_STATUSES],
+  );
+  return toInt(rowCount);
+}
+
 export async function createCountSession(input: CreateCountSessionInput): Promise<string> {
   const warehouseId = assertUuid(input?.warehouseId, 'warehouse_id');
   const countType = assertCountType(input?.countType);
@@ -887,6 +930,9 @@ export async function createCountSession(input: CreateCountSessionInput): Promis
     const siteId = site.rows[0]?.site_id;
     if (!siteId) throw new Error('warehouse_site_required');
 
+    const stockLineCount = await countWarehouseStockLines(ctx.client, warehouseId);
+    if (stockLineCount === 0) throw new Error('count_no_stock');
+
     const { rows } = await ctx.client.query<{ id: string }>(
       `insert into public.count_sessions (org_id, site_id, warehouse_id, count_type, status)
        values (app.current_org_id(), $1::uuid, $2::uuid, $3, 'open')
@@ -895,6 +941,10 @@ export async function createCountSession(input: CreateCountSessionInput): Promis
     );
     const sessionId = rows[0]?.id;
     if (!sessionId) throw new Error('count_session_insert_failed');
+
+    const seededLines = await seedCountSessionLines(ctx.client, sessionId, warehouseId);
+    if (seededLines === 0) throw new Error('count_no_stock');
+
     revalidateLocalized('/warehouse/counts', 'page');
     return sessionId;
   });

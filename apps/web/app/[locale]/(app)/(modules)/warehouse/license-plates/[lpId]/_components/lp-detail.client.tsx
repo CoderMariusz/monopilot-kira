@@ -105,6 +105,9 @@ const DESTROY_BLOCKED_STATUSES = new Set(['consumed', 'shipped', 'merged', 'dest
  */
 const METADATA_LOCKED_STATUSES = new Set(['consumed', 'shipped', 'merged', 'destroyed']);
 
+/** C102 — terminal lifecycle states cannot be blocked (server blockLp re-enforces). */
+const BLOCK_BLOCKED_STATUSES = new Set(['consumed', 'shipped', 'merged', 'destroyed', 'returned']);
+
 export type LpDetailTab =
   | 'overview'
   | 'history'
@@ -294,6 +297,12 @@ export type LpDetailLabels = {
     error: string;
     forbidden: string;
     historyLink: string;
+    errors: {
+      generic: string;
+      entityNotFound: string;
+      printerNotFound: string;
+      unsupportedEntity: string;
+    };
   };
   raw: { title: string; empty: string };
   expiryBanner: string;
@@ -319,7 +328,9 @@ function IdentityRow({ label, children }: { label: string; children: React.React
  * E1 — minimal view of the `printLabel` Server Action result the labels tab needs.
  * The action returns the full PrintJobRow; the client only reads status / result_url.
  */
-export type LpPrintLabelResult = { status: 'queued' | 'sent' | 'failed'; result_url: string | null };
+export type LpPrintLabelResult =
+  | { status: 'queued' | 'sent'; result_url: string | null }
+  | { status: 'failed'; result_url: null; code: string };
 export type LpPrintLabelInput = { entityType: 'lp'; entityId: string };
 
 export function LpDetailClient({
@@ -412,6 +423,7 @@ export function LpDetailClient({
   // AUDIT #5: "move" is live unless the LP is in a terminal lifecycle state.
   const canMove = !IMMOVABLE_STATUSES.has(detail.status.toLowerCase());
   const isBlocked = detail.status.toLowerCase() === 'blocked';
+  const canBlock = !isBlocked && !BLOCK_BLOCKED_STATUSES.has(detail.status.toLowerCase());
   // C-R3: metadata edit is hidden for terminal LPs (consumed/shipped/merged/destroyed).
   const canEditMetadata = !METADATA_LOCKED_STATUSES.has(detail.status.toLowerCase());
   // WH-R3: split is allowed for material-present, non-terminal LPs WITH positive
@@ -529,6 +541,15 @@ export function LpDetailClient({
     });
   }
 
+  function printErrorMessage(code: string): string {
+    const errors = labels.labels.errors;
+    if (code === 'forbidden') return labels.labels.forbidden;
+    if (code === 'entity_not_found') return errors.entityNotFound;
+    if (code === 'printer_not_found') return errors.printerNotFound;
+    if (code === 'unsupported_entity_type') return errors.unsupportedEntity;
+    return errors.generic;
+  }
+
   async function submitPrintLabel() {
     if (!canPrint || printPending) return;
     setPrintPending(true);
@@ -536,9 +557,13 @@ export function LpDetailClient({
     setPrintResult(null);
     try {
       const result = await printLabelAction({ entityType: 'lp', entityId: detail.id });
+      if (result.status === 'failed') {
+        setPrintError(printErrorMessage(result.code));
+        return;
+      }
       setPrintResult(result);
     } catch {
-      setPrintError(labels.labels.error);
+      setPrintError(labels.labels.errors.generic);
     } finally {
       setPrintPending(false);
     }
@@ -707,7 +732,7 @@ export function LpDetailClient({
                   {labels.actions.labelByKey[key]}
                 </button>
               ) : key === 'block' ? (
-                isBlocked ? null : (
+                canBlock ? (
                 <button
                   key={key}
                   type="button"
@@ -717,7 +742,7 @@ export function LpDetailClient({
                 >
                   {labels.actions.labelByKey[key]}
                 </button>
-                )
+                ) : null
               ) : key === 'unblock' ? (
                 isBlocked ? (
                   <button
@@ -1245,7 +1270,12 @@ export function LpDetailClient({
       <LpMoveModal
         open={moveModalOpen}
         onOpenChange={setMoveModalOpen}
-        lp={{ id: detail.id, lpNumber: detail.lpNumber, currentLocationCode: detail.locationCode }}
+        lp={{
+          id: detail.id,
+          lpNumber: detail.lpNumber,
+          currentLocationCode: detail.locationCode,
+          currentLocationId: detail.locationId,
+        }}
         labels={labels.move}
         listLocationsAction={listLocationsAction}
         createStockMoveAction={createStockMoveAction}

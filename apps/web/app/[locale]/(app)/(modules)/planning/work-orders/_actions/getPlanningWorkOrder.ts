@@ -29,9 +29,18 @@ export async function getPlanningWorkOrder(params: { id: string }): Promise<GetP
                 wo.production_line_id, wo.priority, wo.source_of_demand,
                 wo.source_reference, wo.ext_jsonb->>'notes' as notes,
                 wo.qty_entered::text as qty_entered, wo.qty_entered_uom, wo.uom_snapshot,
+                wo.active_bom_header_id, bh.version as active_bom_version,
+                wo.active_factory_spec_id, fs.version as active_factory_spec_version,
+                fs.spec_code as active_factory_spec_code,
                 wo.created_at, wo.updated_at
            from public.work_orders wo
            left join public.items i on i.id = wo.product_id and i.org_id = app.current_org_id()
+           left join public.bom_headers bh
+             on bh.id = wo.active_bom_header_id
+            and bh.org_id = app.current_org_id()
+           left join public.factory_specs fs
+             on fs.id = wo.active_factory_spec_id
+            and fs.org_id = app.current_org_id()
           where wo.org_id = app.current_org_id()
             and wo.id = $1::uuid
           limit 1`,

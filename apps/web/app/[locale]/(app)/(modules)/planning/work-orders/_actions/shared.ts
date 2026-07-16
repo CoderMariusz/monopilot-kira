@@ -70,6 +70,11 @@ export type WOHeader = {
   qtyEntered: string | null;
   qtyEnteredUom: EnteredUom | null;
   uomSnapshot: UomSnapshot | null;
+  activeBomHeaderId: string | null;
+  activeBomVersion: number | null;
+  activeFactorySpecId: string | null;
+  activeFactorySpecVersion: number | null;
+  activeFactorySpecCode: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -308,6 +313,11 @@ export function mapWoHeader(row: WorkOrderRow): WOHeader {
         ? row.qty_entered_uom
         : null,
     uomSnapshot: row.uom_snapshot ? snapshotFromItemRow(row.uom_snapshot) : null,
+    activeBomHeaderId: row.active_bom_header_id ?? null,
+    activeBomVersion: row.active_bom_version == null ? null : Number(row.active_bom_version),
+    activeFactorySpecId: row.active_factory_spec_id ?? null,
+    activeFactorySpecVersion: row.active_factory_spec_version == null ? null : Number(row.active_factory_spec_version),
+    activeFactorySpecCode: row.active_factory_spec_code ?? null,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
@@ -430,6 +440,11 @@ export type WorkOrderRow = {
   qty_entered?: string | null;
   qty_entered_uom?: string | null;
   uom_snapshot?: Record<string, unknown> | null;
+  active_bom_header_id?: string | null;
+  active_bom_version?: number | null;
+  active_factory_spec_id?: string | null;
+  active_factory_spec_version?: number | null;
+  active_factory_spec_code?: string | null;
   created_at: Date | string;
   updated_at: Date | string;
 };

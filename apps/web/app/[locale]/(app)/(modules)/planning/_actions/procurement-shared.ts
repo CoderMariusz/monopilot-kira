@@ -50,6 +50,12 @@ export const numeric4Schema = z
   .trim()
   .regex(/^\d+(?:\.\d{1,4})?$/)
   .refine((value) => Number(value) >= 0, 'unit price must be non-negative');
+/** Percentage 0–100 up to 4 dp — PO/SO line tax_pct (numeric(7,4)). */
+export const pctSchema = z
+  .string()
+  .trim()
+  .regex(/^\d+(?:\.\d{1,4})?$/)
+  .refine((value) => Number(value) >= 0 && Number(value) <= 100, 'percentage must be 0–100');
 
 export const SupplierStatusSchema = z.enum(['active', 'inactive', 'blocked']);
 export const PurchaseOrderStatusSchema = z.enum([
@@ -74,9 +80,10 @@ export const SupplierCreateInput = z.object({
 
 export const PurchaseOrderLineInput = z.object({
   itemId: uuidSchema,
-  qty: numeric3Schema,
+  qty: numeric6PositiveSchema,
   uom: z.string().trim().min(1).max(32),
   unitPrice: numeric4Schema.default('0'),
+  taxPct: pctSchema.default('0'),
   lineNo: z.number().int().positive(),
 });
 

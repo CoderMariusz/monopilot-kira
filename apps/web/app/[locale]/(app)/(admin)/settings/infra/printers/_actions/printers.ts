@@ -229,7 +229,7 @@ async function loadLicensePlateForLabel(client: QueryClient, entityId: string): 
             lp.product_id::text as item_id,
             i.gs1_gtin,
             coalesce(lp.batch_number, lp.supplier_batch_number) as batch_lot,
-            lp.expiry_date::date::text as expiry_date,
+            coalesce(lp.expiry_date, lp.best_before_date)::date::text as expiry_date,
             lp.catch_weight_kg::text
        from public.license_plates lp
        left join public.items i
@@ -254,7 +254,16 @@ function buildLpPayload(lp: LicensePlateLabelRow): Record<string, unknown> {
   const netWeightKg = toGs1NetWeightKg(lp.catch_weight_kg);
   if (netWeightKg !== undefined) gs1Input.netWeightKg = netWeightKg;
   const hasGs1Input = Object.keys(gs1Input).length > 0;
-  const gs1Element = hasGs1Input ? buildGs1Element(gs1Input) : null;
+
+  let gs1Element: ReturnType<typeof buildGs1Element> | null = null;
+  let gs1BuildError: string | null = null;
+  if (hasGs1Input) {
+    try {
+      gs1Element = buildGs1Element(gs1Input);
+    } catch (err) {
+      gs1BuildError = err instanceof Error ? err.message : 'gs1_build_failed';
+    }
+  }
 
   const payload: Record<string, unknown> = {
     entity_type: 'lp',
@@ -277,6 +286,7 @@ function buildLpPayload(lp: LicensePlateLabelRow): Record<string, unknown> {
     },
   };
 
+  if (gs1BuildError) payload.gs1_build_error = gs1BuildError;
   if (!lp.gs1_gtin) payload.gtin_missing = true;
   return payload;
 }

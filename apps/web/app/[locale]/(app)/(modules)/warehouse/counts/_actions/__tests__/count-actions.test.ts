@@ -81,6 +81,8 @@ let activeHold: boolean;
 let canSeeSite: boolean;
 /** When false, SUPERVISOR_ID has no warehouse.stock.adjust grant in the org. */
 let supervisorHasOrgGrant: boolean;
+/** Stock LP rows available when seeding a new count session. */
+let warehouseStockLineCount: number;
 
 vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: { userId: string; orgId: string; client: QueryClient }) => Promise<unknown>) =>
@@ -194,6 +196,14 @@ function makeClient(): QueryClient {
 
       if (n.startsWith('select site_id::text from public.warehouses')) {
         return { rows: [{ site_id: SITE_ID }], rowCount: 1 };
+      }
+
+      if (n.includes('count(*)::int as line_count') && n.includes('from public.license_plates lp')) {
+        return { rows: [{ line_count: warehouseStockLineCount }], rowCount: 1 };
+      }
+
+      if (n.startsWith('insert into public.count_lines') && n.includes('select app.current_org_id()')) {
+        return { rowCount: warehouseStockLineCount, rows: [] };
       }
 
       if (n.startsWith('select cs.id::text') && n.includes('from public.count_sessions cs')) {
@@ -368,6 +378,7 @@ beforeEach(async () => {
   activeHold = false;
   canSeeSite = true;
   supervisorHasOrgGrant = true;
+  warehouseStockLineCount = 2;
   client = makeClient();
 
   const { signEvent } = await import('@monopilot/e-sign');
@@ -397,7 +408,28 @@ describe('stock count actions', () => {
     const insert = queries.find((q) => normalize(q.sql).startsWith('insert into public.count_sessions'));
     expect(normalize(insert!.sql)).toContain('org_id, site_id, warehouse_id');
     expect(insert!.params).toEqual([SITE_ID, WAREHOUSE_ID, 'cycle']);
+    const seed = queries.find((q) => normalize(q.sql).startsWith('insert into public.count_lines'));
+    expect(seed).toBeTruthy();
+    expect(seed!.params).toEqual([SESSION_ID, WAREHOUSE_ID, ['consumed', 'merged', 'shipped']]);
     expect(revalidateLocalized).toHaveBeenCalledWith('/warehouse/counts', 'page');
+  });
+
+  it('seeds count lines from warehouse license plates with on-hand qty', async () => {
+    warehouseStockLineCount = 3;
+    await createCountSession({ warehouseId: WAREHOUSE_ID, countType: 'spot' });
+
+    const stockCount = queries.find((q) => normalize(q.sql).includes('count(*)::int as line_count'));
+    expect(stockCount).toBeTruthy();
+    const seed = queries.find((q) => normalize(q.sql).startsWith('insert into public.count_lines'));
+    expect(normalize(seed!.sql)).toContain('greatest(lp.quantity - lp.reserved_qty, 0)');
+    expect(seed!.params[0]).toBe(SESSION_ID);
+    expect(seed!.params[1]).toBe(WAREHOUSE_ID);
+  });
+
+  it('rejects count session creation when the warehouse has no stock lines', async () => {
+    warehouseStockLineCount = 0;
+    await expect(createCountSession({ warehouseId: WAREHOUSE_ID, countType: 'cycle' })).rejects.toThrow('count_no_stock');
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.count_sessions'))).toBe(false);
   });
 
   it('filters count session LIST reads to the active site', async () => {

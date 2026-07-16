@@ -299,6 +299,7 @@ function buildLabels(locale: string): LpDetailLabels {
       currentLocation: t('detail.move.currentLocation'),
       loadingLocations: t('detail.move.loadingLocations'),
       noLocations: t('detail.move.noLocations'),
+      noAlternateLocations: t('detail.move.noAlternateLocations'),
       locationsError: t('detail.move.locationsError'),
       cancel: t('detail.move.cancel'),
       submit: t('detail.move.submit'),
@@ -309,6 +310,7 @@ function buildLabels(locale: string): LpDetailLabels {
       errorForbidden: t('detail.move.errorForbidden'),
       errorLocked: t('detail.move.errorLocked'),
       errorInvalidState: t('detail.move.errorInvalidState'),
+      errorSameLocation: t('detail.move.errorSameLocation'),
       errorNotFound: t('detail.move.errorNotFound'),
       success: t('detail.move.success'),
     },
@@ -400,6 +402,18 @@ function buildLabels(locale: string): LpDetailLabels {
       error: t('detail.labels.error'),
       forbidden: t('detail.labels.forbidden'),
       historyLink: t('detail.labels.historyLink'),
+      errors: {
+        generic: t('detail.labels.error'),
+        entityNotFound: t.has('detail.labels.errors.entityNotFound')
+          ? t('detail.labels.errors.entityNotFound')
+          : 'License plate not found — it may have been removed.',
+        printerNotFound: t.has('detail.labels.errors.printerNotFound')
+          ? t('detail.labels.errors.printerNotFound')
+          : 'The selected printer is missing or inactive.',
+        unsupportedEntity: t.has('detail.labels.errors.unsupportedEntity')
+          ? t('detail.labels.errors.unsupportedEntity')
+          : 'Only license-plate labels can be printed from here.',
+      },
     },
     raw: { title: t('detail.raw.title'), empty: t('detail.raw.empty') },
     expiryBanner: t('detail.expiryBanner'),
@@ -453,8 +467,16 @@ async function resolveCanPrint(): Promise<boolean> {
  */
 async function printLpLabel(input: LpPrintLabelInput): Promise<LpPrintLabelResult> {
   'use server';
-  const job = await printLabel({ entityType: input.entityType, entityId: input.entityId });
-  return { status: job.status, result_url: job.result_url };
+  try {
+    const job = await printLabel({ entityType: input.entityType, entityId: input.entityId });
+    if (job.status === 'failed') {
+      return { status: 'failed', result_url: null, code: job.error_text ?? 'print_failed' };
+    }
+    return { status: job.status, result_url: job.result_url };
+  } catch (e) {
+    const code = e instanceof Error ? e.message : 'print_failed';
+    return { status: 'failed', result_url: null, code };
+  }
 }
 
 async function DetailContent({ locale, lpId }: { locale: string; lpId: string }) {

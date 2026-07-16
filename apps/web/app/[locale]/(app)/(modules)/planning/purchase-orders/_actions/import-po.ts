@@ -51,6 +51,7 @@ type CreatePurchaseOrderLinePayload = {
   qty: string;
   uom: string;
   unitPrice: string;
+  taxPct: string;
   lineNo: number;
 };
 
@@ -170,6 +171,7 @@ export async function commitPoImport(
             qty: numberToPlainString(entry.row.qty),
             uom: entry.uom,
             unitPrice: numberToPlainString(entry.row.price ?? 0),
+            taxPct: '0',
             lineNo: lineInputs.length + 1,
           });
         }

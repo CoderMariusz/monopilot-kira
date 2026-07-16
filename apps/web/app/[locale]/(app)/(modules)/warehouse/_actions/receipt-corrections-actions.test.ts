@@ -27,6 +27,7 @@ const SITE_ID = '88888888-8888-4888-8888-888888888888';
 type State = {
   granted: boolean;
   grnExists: boolean;
+  grnStatus: string;
   cancelledAt: string | null;
   lpExists: boolean;
   lpStatus: string;
@@ -68,6 +69,7 @@ function makeClient(): QueryClient {
             ? [{
                 id: GRN_ITEM_ID,
                 grn_id: GRN_ID,
+                grn_status: state.grnStatus,
                 po_id: PO_ID,
                 item_id: '77777777-7777-4777-8777-777777777777',
                 lp_id: LP_ID,
@@ -176,6 +178,7 @@ beforeEach(() => {
   state = {
     granted: true,
     grnExists: true,
+    grnStatus: 'draft',
     cancelledAt: null,
     lpExists: true,
     lpStatus: 'received',
@@ -197,6 +200,15 @@ beforeEach(() => {
 });
 
 describe('receipt corrections actions', () => {
+  it('cancelGrnLine rejects completed GRNs before any mutation (C052)', async () => {
+    state.grnStatus = 'completed';
+
+    const result = await cancelGrnLine({ grnItemId: GRN_ITEM_ID, reasonCode: 'entry_error' });
+    expect(result).toEqual({ ok: false, error: 'grn_completed' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.grn_items'))).toBe(false);
+  });
+
   it('cancelGrnLine rolls PO back to partially_received when other receipts remain', async () => {
     state.rollupTotalReceived = '5.000000';
     state.rollupIsReceived = false;

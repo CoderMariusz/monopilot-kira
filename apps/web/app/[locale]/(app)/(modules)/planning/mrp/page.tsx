@@ -69,7 +69,18 @@ export default async function PlanningMrpPage({ params }: MrpPageProps) {
       demand: t('mrp.columns.demand'),
       net: t('mrp.columns.net'),
       action: t('mrp.columns.action'),
+      supplier: t('mrp.columns.supplier'),
     },
+    supplyProvenance: {
+      po: t('mrp.supplyProvenance.po'),
+      production: t('mrp.supplyProvenance.production'),
+    },
+    supplierStatus: {
+      active: t('mrp.supplierStatus.active'),
+      inactive: t('mrp.supplierStatus.inactive'),
+      blocked: t('mrp.supplierStatus.blocked'),
+    },
+    noPreferredSupplier: t('mrp.noPreferredSupplier'),
     severity: {
       shortage: t('mrp.severity.shortage'),
       below_min: t('mrp.severity.belowMin'),

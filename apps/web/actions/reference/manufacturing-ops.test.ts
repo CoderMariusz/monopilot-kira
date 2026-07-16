@@ -267,6 +267,40 @@ async function loadAction<T extends (...args: never[]) => unknown>(
 }
 
 describe('Reference.ManufacturingOperations Server Actions (T-038)', () => {
+  it('creates hyphenated and underscored operation names used by audit markers and generic seeds', async () => {
+    const createManufacturingOperation = await loadAction<
+      (input: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: ManufacturingOperation }>
+    >('manufacturing-ops/create.ts', 'createManufacturingOperation', () => import(`${__dirname}/manufacturing-ops/create.ts`) as Promise<Record<string, unknown>>);
+
+    const result = await createManufacturingOperation({
+      operationName: 'SOL-R03-20260715094455',
+      processSuffix: 'R3',
+      description: 'Browser audit marker',
+      operationSeq: 11,
+      industryCode: 'generic',
+      isActive: true,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        operation_name: 'SOL-R03-20260715094455',
+        process_suffix: 'R3',
+        operation_seq: 11,
+        industry_code: 'generic',
+        marker: 'ORG-CONFIG',
+      },
+    });
+    expect(
+      currentClient.calls.some(
+        (call) =>
+          normalizeSql(call.sql).startsWith('insert into "reference"."manufacturingoperations"') &&
+          call.params.map(String).includes('SOL-R03-20260715094455'),
+      ),
+      'valid hyphenated audit marker must reach insert',
+    ).toBe(true);
+  });
+
   it('creates only valid dedicated-table ORG-CONFIG rows and enforces suffix/name/industry validation', async () => {
     const createManufacturingOperation = await loadAction<
       (input: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: ManufacturingOperation }>

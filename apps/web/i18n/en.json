@@ -8527,6 +8527,14 @@
           "source": "Source",
           "empty": "No materials — this work order has no active BOM."
         },
+        "snapshot": {
+          "title": "Pinned BOM / factory spec",
+          "bomHeaderId": "BOM header ID",
+          "bomVersion": "BOM version",
+          "factorySpecId": "Factory spec ID",
+          "factorySpecVersion": "Factory spec version",
+          "none": "—"
+        },
         "operations": {
           "title": "Operations (routing snapshot)",
           "seq": "#",
@@ -8820,6 +8828,8 @@
         "lineQty": "Qty",
         "lineUom": "UoM",
         "lineUnitPrice": "Unit price",
+        "lineTaxPct": "Tax %",
+        "taxPctPlaceholder": "0",
         "uomPlaceholder": "e.g. kg",
         "qtyPlaceholder": "0",
         "unitPricePlaceholder": "0.00",
@@ -8874,8 +8884,14 @@
           "expected": "Expected delivery",
           "currency": "Currency",
           "destinationWarehouse": "Destination warehouse",
-          "total": "Total",
+          "netTotal": "Net",
+          "taxTotal": "Tax",
+          "total": "Total (gross)",
           "created": "Created"
+        },
+        "relatedGrns": {
+          "title": "Related goods receipts",
+          "empty": "No goods receipts linked to this purchase order yet."
         },
         "lines": {
           "title": "PO lines",
@@ -8884,6 +8900,7 @@
           "qty": "Qty",
           "uom": "UoM",
           "unitPrice": "Unit price",
+          "taxPct": "Tax %",
           "lineTotal": "Line total",
           "empty": "No lines on this purchase order.",
           "received": "Received",
@@ -9299,8 +9316,19 @@
         "openSupply": "Open supply",
         "demand": "Demand",
         "net": "Net position",
-        "action": "Suggested action"
+        "action": "Suggested action",
+        "supplier": "Preferred supplier"
       },
+      "supplyProvenance": {
+        "po": "PO",
+        "production": "Prod"
+      },
+      "supplierStatus": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "blocked": "Blocked"
+      },
+      "noPreferredSupplier": "None configured",
       "severity": {
         "shortage": "Shortage",
         "atRisk": "Covered by incoming supply",

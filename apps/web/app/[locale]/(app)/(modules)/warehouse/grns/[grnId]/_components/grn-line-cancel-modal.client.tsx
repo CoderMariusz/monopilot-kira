@@ -56,6 +56,7 @@ export type CancelGrnLineError =
   | 'not_found'
   | 'lp_not_cancellable'
   | 'already_cancelled'
+  | 'grn_completed'
   | 'invalid_input'
   | 'persistence_failed';
 export type CancelGrnLineResult =
@@ -82,6 +83,7 @@ export type GrnLineCancelLabels = {
     not_found: string;
     lp_not_cancellable: string;
     already_cancelled: string;
+    grn_completed: string;
     invalid_input: string;
     persistence_failed: string;
     session_expired: string;
@@ -133,6 +135,8 @@ export function GrnLineCancelModal({
         return labels.errors.lp_not_cancellable;
       case 'already_cancelled':
         return labels.errors.already_cancelled;
+      case 'grn_completed':
+        return labels.errors.grn_completed;
       case 'invalid_input':
         return labels.errors.invalid_input;
       case 'persistence_failed':

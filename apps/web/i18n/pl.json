@@ -7536,6 +7536,14 @@
           "source": "Źródło",
           "empty": "Brak materiałów — to zlecenie nie ma aktywnego BOM."
         },
+        "snapshot": {
+          "title": "Przypięty BOM / spec fabryczny",
+          "bomHeaderId": "ID nagłówka BOM",
+          "bomVersion": "Wersja BOM",
+          "factorySpecId": "ID spec fabrycznego",
+          "factorySpecVersion": "Wersja spec fabrycznego",
+          "none": "—"
+        },
         "operations": {
           "title": "Operacje (migawka marszruty)",
           "seq": "#",
@@ -7829,6 +7837,8 @@
         "lineQty": "Ilość",
         "lineUom": "JM",
         "lineUnitPrice": "Cena jedn.",
+        "lineTaxPct": "VAT %",
+        "taxPctPlaceholder": "0",
         "uomPlaceholder": "np. kg",
         "qtyPlaceholder": "0",
         "unitPricePlaceholder": "0,00",
@@ -7883,8 +7893,14 @@
           "expected": "Oczekiwana dostawa",
           "currency": "Waluta",
           "destinationWarehouse": "Magazyn docelowy",
-          "total": "Razem",
+          "netTotal": "Netto",
+          "taxTotal": "VAT",
+          "total": "Razem (brutto)",
           "created": "Utworzono"
+        },
+        "relatedGrns": {
+          "title": "Powiązane przyjęcia towaru",
+          "empty": "Brak przyjęć towaru powiązanych z tym zamówieniem."
         },
         "lines": {
           "title": "Pozycje zamówienia",
@@ -7893,6 +7909,7 @@
           "qty": "Ilość",
           "uom": "JM",
           "unitPrice": "Cena jedn.",
+          "taxPct": "VAT %",
           "lineTotal": "Wartość pozycji",
           "empty": "Brak pozycji w tym zamówieniu.",
           "received": "Przyjęto",
@@ -8308,8 +8325,19 @@
         "openSupply": "Otwarte dostawy",
         "demand": "Popyt",
         "net": "Pozycja netto",
-        "action": "Sugerowane działanie"
+        "action": "Sugerowane działanie",
+        "supplier": "Preferowany dostawca"
       },
+      "supplyProvenance": {
+        "po": "ZP",
+        "production": "Prod"
+      },
+      "supplierStatus": {
+        "active": "Aktywny",
+        "inactive": "Nieaktywny",
+        "blocked": "Zablokowany"
+      },
+      "noPreferredSupplier": "Nie skonfigurowano",
       "severity": {
         "shortage": "Brak",
         "atRisk": "Pokryte nadchodzącą dostawą",

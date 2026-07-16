@@ -10,6 +10,10 @@ import {
   type PaginatedResult,
 } from '../../../../../../lib/shared/pagination';
 import {
+  GRN_LINE_EXPIRY_SQL,
+  parseGrnItemCount,
+} from '../grns/_lib/grn-read-model';
+import {
   WAREHOUSE_READ_PERMISSION,
   asTrimmed,
   hasWarehousePermission,
@@ -34,6 +38,7 @@ type GrnRow = {
   receipt_date: string | Date;
   completed_at: string | Date | null;
   po_id?: string | null;
+  po_number?: string | null;
   /** Server-rolled count of live (non-cancelled) receipt lines; null in detail. */
   item_count?: number | string | null;
   notes?: string | null;
@@ -52,7 +57,8 @@ function mapGrn(row: GrnRow, itemCountOverride?: number): GrnListItem {
     receiptDate: toIso(row.receipt_date) ?? '',
     completedAt: toIso(row.completed_at),
     poId: row.po_id ?? null,
-    itemCount: itemCountOverride ?? Number(row.item_count ?? 0),
+    poNumber: row.po_number ?? null,
+    itemCount: itemCountOverride ?? parseGrnItemCount(row.item_count),
   };
 }
 
@@ -111,14 +117,17 @@ export async function listGrns(input: GrnListInput = {}): Promise<WarehouseResul
                   g.receipt_date,
                   g.completed_at,
                   g.po_id::text,
-                  (select count(*)
-                     from public.grn_items gi
-                    where gi.org_id = app.current_org_id()
-                      and gi.grn_id = g.id
-                      and gi.cancelled_at is null) as item_count
+                  coalesce(ic.item_count, 0)::int as item_count
              from public.grns g
              left join public.suppliers s on s.org_id = app.current_org_id() and s.id = g.supplier_id
              left join public.warehouses w on w.org_id = app.current_org_id() and w.id = g.warehouse_id
+             left join lateral (
+               select count(*)::int as item_count
+                 from public.grn_items gi
+                where gi.grn_id = g.id
+                  and gi.org_id = g.org_id
+                  and gi.cancelled_at is null
+             ) ic on true
             where g.org_id = app.current_org_id()
               and g.site_id = $4::uuid
               and ($1::text is null or g.status = $1)
@@ -163,10 +172,14 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
                 g.receipt_date,
                 g.completed_at,
                 g.notes,
-                g.po_id::text
+                g.po_id::text,
+                po.po_number
            from public.grns g
            left join public.suppliers s on s.org_id = app.current_org_id() and s.id = g.supplier_id
            left join public.warehouses w on w.org_id = app.current_org_id() and w.id = g.warehouse_id
+           left join public.purchase_orders po
+             on po.org_id = g.org_id
+            and po.id = g.po_id
           where g.org_id = app.current_org_id()
             and g.id = $1::uuid
           limit 1`,
@@ -206,12 +219,13 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
                   gi.received_qty::text,
                   gi.uom,
                   gi.batch_number,
-                  gi.expiry_date,
+                  ${GRN_LINE_EXPIRY_SQL} as expiry_date,
                   gi.lp_id::text,
                   lp.lp_number,
                   lp.qa_status as lp_qa_status,
                   coalesce((
                     gi.cancelled_at is null
+                    and g.status = 'draft'
                     and gi.lp_id is not null
                     and lp.status in ('received', 'available')
                     and lp.qa_status in ('pending', 'released')
@@ -232,6 +246,7 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
                   ), false) as can_cancel,
                   case
                     when gi.cancelled_at is not null then 'already_cancelled'
+                    when g.status = 'completed' then 'grn_completed'
                     when gi.lp_id is null then 'lp_not_cancellable'
                     when lp.id is null then 'lp_not_cancellable'
                     when lp.status is null or lp.status not in ('received', 'available') then 'lp_not_cancellable'
@@ -255,6 +270,7 @@ export async function getGrnDetail(grnId: string): Promise<WarehouseResult<GrnDe
                   gi.cancelled_at,
                   gi.cancellation_reason_code
              from public.grn_items gi
+             join public.grns g on g.org_id = gi.org_id and g.id = gi.grn_id
              left join public.items i on i.org_id = app.current_org_id() and i.id = gi.product_id
              left join public.license_plates lp on lp.org_id = app.current_org_id() and lp.id = gi.lp_id
             where gi.org_id = app.current_org_id()

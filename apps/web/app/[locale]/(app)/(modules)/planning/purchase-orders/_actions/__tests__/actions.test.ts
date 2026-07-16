@@ -275,7 +275,7 @@ describe('planning purchase order draft edit actions', () => {
 
       expect(result.ok).toBe(true);
       const insert = vi.mocked(client.query).mock.calls.find(([sql]) => String(sql).startsWith('insert into public.purchase_order_lines'));
-      expect(insert?.[1]).toEqual([PO_ID, ITEM_ID, '1.250', 'kg', '3.4567', USER_ID]);
+      expect(insert?.[1]).toEqual([PO_ID, ITEM_ID, '1.250', 'kg', '3.4567', '0', USER_ID]);
     });
 
     it('retries once when concurrent append collides on line_no', async () => {
@@ -320,7 +320,7 @@ describe('planning purchase order draft edit actions', () => {
 
       expect(result.ok).toBe(true);
       const update = vi.mocked(client.query).mock.calls.find(([sql]) => String(sql).startsWith('update public.purchase_order_lines l'));
-      expect(update?.[1]).toEqual([PO_ID, LINE_ID, '2.500', 'case', '7.0000', USER_ID]);
+      expect(update?.[1]).toEqual([PO_ID, LINE_ID, '2.500', 'case', '7.0000', null, USER_ID]);
     });
 
     it('returns invalid_state for a non-draft purchase order', async () => {

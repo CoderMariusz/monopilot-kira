@@ -159,6 +159,14 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): WoDetailLa
       source: t('detail.materials.source'),
       empty: t('detail.materials.empty'),
     },
+    snapshot: {
+      title: t('detail.snapshot.title'),
+      bomHeaderId: t('detail.snapshot.bomHeaderId'),
+      bomVersion: t('detail.snapshot.bomVersion'),
+      factorySpecId: t('detail.snapshot.factorySpecId'),
+      factorySpecVersion: t('detail.snapshot.factorySpecVersion'),
+      none: t('detail.snapshot.none'),
+    },
     operations: {
       title: t('detail.operations.title'),
       seq: t('detail.operations.seq'),

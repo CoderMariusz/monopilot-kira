@@ -83,6 +83,7 @@ export type CountSessionListLabels = {
     creating: string;
     denied: string;
     error: string;
+    noStock: string;
     /** F4 — warehouse site differs from the top-bar site (create will switch scope). */
     siteMismatch: string;
   };
@@ -165,6 +166,7 @@ export function CountSessionListClient({
       }
       // forbidden / error surface INLINE — never trusted client-side.
       if (res.code === 'forbidden') setErrorMsg(labels.create.denied);
+      else if (res.code === 'no_stock') setErrorMsg(labels.create.noStock);
       else setErrorMsg(labels.create.error);
     });
   }

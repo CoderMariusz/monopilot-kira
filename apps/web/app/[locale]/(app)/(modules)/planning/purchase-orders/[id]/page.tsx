@@ -54,11 +54,11 @@ async function updatePurchaseOrderAction(input: {
   'use server';
   return updatePurchaseOrder(input);
 }
-async function addPurchaseOrderLineAction(input: { poId: string; itemId: string; qty: string; uom: string; unitPrice: string }) {
+async function addPurchaseOrderLineAction(input: { poId: string; itemId: string; qty: string; uom: string; unitPrice: string; taxPct: string }) {
   'use server';
   return addPurchaseOrderLine(input);
 }
-async function updatePurchaseOrderLineAction(input: { poId: string; lineId: string; qty?: string; uom?: string; unitPrice?: string }) {
+async function updatePurchaseOrderLineAction(input: { poId: string; lineId: string; qty?: string; uom?: string; unitPrice?: string; taxPct?: string }) {
   'use server';
   return updatePurchaseOrderLine(input);
 }
@@ -134,7 +134,13 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       currency: t('detail.summary.currency'),
       destinationWarehouse: t('detail.summary.destinationWarehouse'),
       total: t('detail.summary.total'),
+      netTotal: t('detail.summary.netTotal'),
+      taxTotal: t('detail.summary.taxTotal'),
       created: t('detail.summary.created'),
+    },
+    relatedGrns: {
+      title: t('detail.relatedGrns.title'),
+      empty: t('detail.relatedGrns.empty'),
     },
     lines: {
       title: t('detail.lines.title'),
@@ -143,6 +149,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
       qty: t('detail.lines.qty'),
       uom: t('detail.lines.uom'),
       unitPrice: t('detail.lines.unitPrice'),
+      taxPct: t('detail.lines.taxPct'),
       lineTotal: t('detail.lines.lineTotal'),
       received: t('detail.lines.received'),
       receivedFull: t('detail.lines.receivedFull'),
@@ -225,6 +232,8 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         lineQty: t('create.lineQty'),
         lineUom: t('create.lineUom'),
         lineUnitPrice: t('create.lineUnitPrice'),
+        lineTaxPct: t('create.lineTaxPct'),
+        taxPctPlaceholder: t('create.taxPctPlaceholder'),
         uomPlaceholder: uoms.placeholder,
         uomOptions: uoms.options,
         uomUnits: uoms.units,
@@ -362,9 +371,11 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
           qty: l.qty,
           uom: l.uom,
           unitPrice: l.unitPrice,
+          taxPct: l.taxPct,
           lineNo: l.lineNo,
           receivedQty: l.receivedQty,
         })),
+        relatedGrns: po.relatedGrns,
       }}
       labels={buildLabels(t, locale, uom)}
       transitionPurchaseOrderStatusAction={transitionPurchaseOrderStatus}

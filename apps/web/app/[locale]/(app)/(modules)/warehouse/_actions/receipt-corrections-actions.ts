@@ -54,6 +54,7 @@ type ReceiptCorrectionError =
   | 'not_found'
   | 'lp_not_cancellable'
   | 'already_cancelled'
+  | 'grn_completed'
   | 'invalid_input'
   | 'persistence_failed';
 
@@ -67,6 +68,7 @@ type LpMetadataError =
 type GrnLineForCancel = {
   id: string;
   grn_id: string;
+  grn_status: string;
   po_id: string | null;
   item_id: string;
   lp_id: string | null;
@@ -159,6 +161,7 @@ async function loadGrnLineForUpdate(ctx: WarehouseContext, grnItemId: string): P
   const { rows } = await ctx.client.query<GrnLineForCancel>(
     `select gi.id::text,
             gi.grn_id::text,
+            g.status as grn_status,
             coalesce(g.po_id, pol.po_id)::text as po_id,
             gi.product_id::text as item_id,
             gi.lp_id::text,
@@ -182,7 +185,7 @@ async function loadGrnLineForUpdate(ctx: WarehouseContext, grnItemId: string): P
       where gi.org_id = app.current_org_id()
         and gi.id = $1::uuid
       limit 1
-      for update of gi`,
+      for update of gi, g`,
     [grnItemId],
   );
   return rows[0] ?? null;
@@ -380,6 +383,7 @@ export async function cancelGrnLine(input: unknown): Promise<
 
       const line = await loadGrnLineForUpdate(ctx, parsed.data.grnItemId);
       if (!line) return { ok: false, error: 'not_found' };
+      if (line.grn_status === 'completed') return { ok: false, error: 'grn_completed' };
       if (line.cancelled_at) return { ok: false, error: 'already_cancelled' };
       if (!line.lp_id) return { ok: false, error: 'lp_not_cancellable' };
       const lp = await loadLpForCancel(ctx, line.lp_id);

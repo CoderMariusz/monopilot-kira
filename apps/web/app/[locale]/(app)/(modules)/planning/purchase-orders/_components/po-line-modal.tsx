@@ -30,8 +30,9 @@ import type { ItemPickerOption, SearchItemsInput } from '../../../../../../(npd)
 import { UomSelect, type UomOptionLabels } from '../../../../../../../components/forms/uom-select';
 import type { GetItemSupplierPriceAction } from './create-po-modal';
 
-const QTY_PATTERN = /^\d+(?:\.\d{1,3})?$/;
+const QTY_PATTERN = /^\d+(?:\.\d{1,6})?$/;
 const PRICE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
+const PCT_PATTERN = /^\d+(?:\.\d{1,4})?$/;
 
 export type PoLineModalLabels = {
   addTitle: string;
@@ -40,6 +41,8 @@ export type PoLineModalLabels = {
   lineQty: string;
   lineUom: string;
   lineUnitPrice: string;
+  lineTaxPct: string;
+  taxPctPlaceholder: string;
   uomPlaceholder: string;
   uomOptions: UomOptionLabels;
   /**
@@ -88,6 +91,7 @@ export type EditLineSeed = {
   qty: string;
   uom: string;
   unitPrice: string;
+  taxPct: string;
 };
 
 export type PoLineModalProps = {
@@ -111,6 +115,7 @@ export type PoLineModalProps = {
     qty: string;
     uom: string;
     unitPrice: string;
+    taxPct: string;
   }) => Promise<PoLineMutationResult>;
   updatePurchaseOrderLineAction: (input: {
     poId: string;
@@ -118,6 +123,7 @@ export type PoLineModalProps = {
     qty?: string;
     uom?: string;
     unitPrice?: string;
+    taxPct?: string;
   }) => Promise<PoLineMutationResult>;
   onSaved: () => void;
 };
@@ -141,6 +147,7 @@ export function PoLineModal({
   const [qty, setQty] = React.useState('');
   const [uom, setUom] = React.useState('');
   const [unitPrice, setUnitPrice] = React.useState('');
+  const [taxPct, setTaxPct] = React.useState('0');
   const [priceSource, setPriceSource] = React.useState<'spec' | 'list_price' | null>(null);
   const [pending, setPending] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
@@ -158,11 +165,12 @@ export function PoLineModal({
       setQty(editLine?.qty ?? '');
       setUom(editLine?.uom ?? '');
       setUnitPrice(editLine?.unitPrice ?? '');
+      setTaxPct(editLine?.taxPct ?? '0');
       setPriceSource(null);
       setPending(false);
       setFormError(null);
     }
-  }, [open, editLine?.lineId, editLine?.qty, editLine?.uom, editLine?.unitPrice]);
+  }, [open, editLine?.lineId, editLine?.qty, editLine?.uom, editLine?.unitPrice, editLine?.taxPct]);
 
   // BUG1 — pre-fill the unit price from the supplier-effective price on item select.
   async function prefillPrice(picked: ItemPickerOption) {
@@ -194,8 +202,13 @@ export function PoLineModal({
       setFormError(labels.errors.qtyRequired);
       return;
     }
+    if (!PCT_PATTERN.test(taxPct.trim()) || Number(taxPct) < 0 || Number(taxPct) > 100) {
+      setFormError(labels.errors.qtyRequired);
+      return;
+    }
 
     const price = PRICE_PATTERN.test(unitPrice.trim()) ? unitPrice.trim() : '0';
+    const tax = taxPct.trim() || '0';
 
     setPending(true);
     try {
@@ -207,6 +220,7 @@ export function PoLineModal({
           qty: qty.trim(),
           uom: uom.trim(),
           unitPrice: price,
+          taxPct: tax,
         });
       } else {
         if (!item) {
@@ -220,6 +234,7 @@ export function PoLineModal({
           qty: qty.trim(),
           uom: uom.trim(),
           unitPrice: price,
+          taxPct: tax,
         });
       }
       if (!result.ok) {
@@ -320,6 +335,18 @@ export function PoLineModal({
                 {labels.priceSource[priceSource]}
               </span>
             ) : null}
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-slate-700">{labels.lineTaxPct}</span>
+            <Input
+              type="text"
+              inputMode="decimal"
+              value={taxPct}
+              data-testid="po-line-tax"
+              placeholder={labels.taxPctPlaceholder}
+              onChange={(e) => setTaxPct(e.target.value)}
+            />
           </label>
         </form>
       </Modal.Body>

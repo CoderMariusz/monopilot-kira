@@ -137,6 +137,8 @@ describe('computeMrp — netting formula', () => {
 
     const dough = rows[0];
     expect(dough.openSupply).toBe('15.000');
+    expect(dough.supplyFromProduction).toBe('15.000');
+    expect(dough.supplyFromPo).toBe('0.000');
     expect(dough.net).toBe('-25.000');
     expect(dough.suggestedAction).toEqual({ type: 'make', qty: '25', dueDate: null, supplierId: null });
   });
@@ -348,6 +350,36 @@ describe('computeMrp — reorder thresholds (mig 178, CL2)', () => {
     preferred_supplier_id: null,
     lead_time_days: null,
     ...over,
+  });
+
+  it('tracks PO and production supply provenance separately on each row', () => {
+    const { rows } = computeMrp({
+      items: [RM_FLOUR],
+      onHand: [{ product_id: 'item-flour', uom: 'kg', on_hand: '10.000', reserved: '0' }],
+      demand: [],
+      poSupply: [{ product_id: 'item-flour', uom: 'kg', qty: '30.000' }],
+      productionSupply: [{ product_id: 'item-flour', uom: 'kg', qty: '12.500' }],
+      thresholds: [
+        threshold({
+          preferred_supplier_id: SUPPLIER,
+          preferred_supplier_code: 'SUP-01',
+          preferred_supplier_name: 'Acme Mills',
+          preferred_supplier_status: 'blocked',
+        }),
+      ],
+    });
+
+    expect(rows[0]).toMatchObject({
+      openSupply: '42.500',
+      supplyFromPo: '30.000',
+      supplyFromProduction: '12.500',
+      preferredSupplier: {
+        id: SUPPLIER,
+        code: 'SUP-01',
+        name: 'Acme Mills',
+        status: 'blocked',
+      },
+    });
   });
 
   it('flags net >= 0 below min_qty as below_min with its own severity (not shortage)', () => {

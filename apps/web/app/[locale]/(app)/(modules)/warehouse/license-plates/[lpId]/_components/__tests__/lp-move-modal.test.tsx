@@ -27,6 +27,7 @@ const labels: LpMoveLabels = {
   currentLocation: t('detail.move.currentLocation'),
   loadingLocations: t('detail.move.loadingLocations'),
   noLocations: t('detail.move.noLocations'),
+  noAlternateLocations: t('detail.move.noAlternateLocations'),
   locationsError: t('detail.move.locationsError'),
   cancel: t('detail.move.cancel'),
   submit: t('detail.move.submit'),
@@ -36,13 +37,16 @@ const labels: LpMoveLabels = {
   errorForbidden: t('detail.move.errorForbidden'),
   errorLocked: t('detail.move.errorLocked'),
   errorInvalidState: t('detail.move.errorInvalidState'),
+  errorSameLocation: t('detail.move.errorSameLocation'),
   errorNotFound: t('detail.move.errorNotFound'),
   success: t('detail.move.success'),
 };
 
 const LOC_ID = '33333333-3333-4333-8333-333333333333';
-const LP = { id: 'lp-1', lpNumber: 'LP-000123', currentLocationCode: 'A-01' };
+const CURRENT_LOC_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const LP = { id: 'lp-1', lpNumber: 'LP-000123', currentLocationCode: 'A-01', currentLocationId: CURRENT_LOC_ID };
 const LOCATIONS = [
+  { id: CURRENT_LOC_ID, code: 'A-01', name: 'Bay 01', warehouseId: 'wh1', warehouseCode: 'WH1', warehouseName: 'Main' },
   { id: LOC_ID, code: 'B-02', name: 'Bay 02', warehouseId: 'wh1', warehouseCode: 'WH1', warehouseName: 'Main' },
 ];
 
@@ -87,6 +91,31 @@ describe('LP move modal', () => {
     expect(payload.reason).toBe('consolidate');
     expect(typeof payload.clientOpId).toBe('string');
     expect(payload.clientOpId.length).toBeGreaterThan(0);
+  });
+
+  it('excludes the current location from the destination picker (C101)', async () => {
+    setup({});
+    await screen.findByTestId('lp-move-destination');
+    fireEvent.click(screen.getByTestId('lp-move-destination').querySelector('[role="combobox"]')!);
+    expect(screen.queryByText('WH1 · A-01 — Bay 01')).not.toBeInTheDocument();
+    expect(await screen.findByText('WH1 · B-02 — Bay 02')).toBeInTheDocument();
+  });
+
+  it('shows no-alternate-locations when only the current location exists (C101)', async () => {
+    setup({ list: async () => ({ ok: true, data: [LOCATIONS[0]] }) });
+    expect(await screen.findByTestId('lp-move-no-locations')).toHaveTextContent(labels.noAlternateLocations);
+    expect(screen.getByTestId('lp-move-submit')).toBeDisabled();
+  });
+
+  it('maps a same_location move result to verbatim copy (C101)', async () => {
+    const move = vi.fn(async () => ({ ok: false as const, reason: 'error' as const, message: 'same_location' }));
+    setup({ move });
+    await screen.findByTestId('lp-move-destination');
+    fireEvent.click(screen.getByTestId('lp-move-destination').querySelector('[role="combobox"]')!);
+    fireEvent.click(await screen.findByText('WH1 · B-02 — Bay 02'));
+    fireEvent.click(screen.getByTestId('lp-move-submit'));
+
+    expect(await screen.findByTestId('lp-move-error')).toHaveTextContent(labels.errorSameLocation);
   });
 
   it('shows the empty state when there are no locations', async () => {

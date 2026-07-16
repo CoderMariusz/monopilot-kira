@@ -209,6 +209,24 @@ describe('GRN document assembly (pure)', () => {
     });
   });
 
+  it('mapGrnLineRow formats coalesced expiry dates for print/detail payloads', () => {
+    expect(
+      mapGrnLineRow({
+        line_number: 1,
+        item_code: 'RM-001',
+        item_name: 'Flour',
+        ordered_qty: '10',
+        received_qty: '10',
+        uom: 'kg',
+        batch_number: 'B-1',
+        expiry_date: '2026-08-30T00:00:00.000Z',
+        lp_number: 'LP-1',
+        gs1_gtin: null,
+        cancelled: false,
+      }).expiryDate,
+    ).toBe('2026-08-30');
+  });
+
   it('mapGrnTotalsRows renders SQL NUMERIC strings verbatim', () => {
     const lines = SEEDED_LINES.map(mapGrnLineRow);
     expect(

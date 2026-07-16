@@ -7,6 +7,8 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const WO_ID = '33333333-3333-4333-8333-333333333333';
 const PRODUCT_ID = '44444444-4444-4444-8444-444444444444';
+const BOM_HEADER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const FACTORY_SPEC_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 let client: QueryClient;
 
@@ -44,6 +46,11 @@ describe('getPlanningWorkOrder', () => {
                 qty_entered: null,
                 qty_entered_uom: null,
                 uom_snapshot: null,
+                active_bom_header_id: BOM_HEADER_ID,
+                active_bom_version: 3,
+                active_factory_spec_id: FACTORY_SPEC_ID,
+                active_factory_spec_version: 2,
+                active_factory_spec_code: 'FS-FG-004',
                 created_at: '2026-06-09T07:00:00.000Z',
                 updated_at: '2026-06-09T07:00:00.000Z',
               },
@@ -149,6 +156,11 @@ describe('getPlanningWorkOrder', () => {
         qtyEntered: null,
         qtyEnteredUom: null,
         uomSnapshot: null,
+        activeBomHeaderId: BOM_HEADER_ID,
+        activeBomVersion: 3,
+        activeFactorySpecId: FACTORY_SPEC_ID,
+        activeFactorySpecVersion: 2,
+        activeFactorySpecCode: 'FS-FG-004',
         materials: [expect.objectContaining({ materialName: 'Flour' })],
         operations: [expect.objectContaining({ operationName: 'Mix' })],
         schedules: [expect.objectContaining({ outputRole: 'primary' })],

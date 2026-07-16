@@ -9,7 +9,7 @@ vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
 }));
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { softDeleteUnit, updateUnit } from './manage-units';
+import { createUnit, softDeleteUnit, updateUnit } from './manage-units';
 
 const ORG_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const USER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -37,6 +37,48 @@ function mockOrgContext(queryHandler: QueryHandler, canManage = true) {
 describe('manage-units actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('createUnit rejects zero or negative factorToBase before any DB write', async () => {
+    mockOrgContext(() => ({ rows: [], rowCount: 0 }));
+
+    await expect(createUnit({ category: 'mass', code: 'z', name: 'Zero', factorToBase: 0, isBase: false })).resolves.toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'Conversion factor must be greater than zero.',
+    });
+    await expect(createUnit({ category: 'mass', code: 'n', name: 'Negative', factorToBase: -1, isBase: false })).resolves.toEqual({
+      ok: false,
+      error: 'invalid_input',
+      message: 'Conversion factor must be greater than zero.',
+    });
+    expect(withOrgContext).not.toHaveBeenCalled();
+  });
+
+  it('createUnit persists a valid unit and revalidates after commit', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    mockOrgContext((sql, params) => {
+      calls.push({ sql, params });
+      if (/insert into public\.unit_of_measure/i.test(sql)) {
+        return { rows: [{ id: UNIT_ID }], rowCount: 1 };
+      }
+      if (/insert into public\.audit_log/i.test(sql) || /insert into public\.outbox_events/i.test(sql)) {
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await createUnit({
+      category: 'mass',
+      code: 'lb',
+      name: 'Pound',
+      factorToBase: 2.5,
+      isBase: false,
+    });
+
+    expect(result).toEqual({ ok: true, data: { id: UNIT_ID, code: 'lb', category: 'mass' } });
+    const insert = calls.find((call) => /insert into public\.unit_of_measure/i.test(call.sql));
+    expect(insert?.params).toEqual([ORG_ID, 'mass', 'lb', 'Pound', 2.5, false]);
   });
 
   it('updateUnit persists name only under org scope (factor_to_base immutable)', async () => {

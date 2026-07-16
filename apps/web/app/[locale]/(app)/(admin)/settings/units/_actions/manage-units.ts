@@ -21,14 +21,17 @@ import {
   CreateUnitInput,
   UpdateUnitInput,
   type CreateUnitInputType,
+  type CreateUnitResult,
   type UnitCategory,
+  type UnitsActionError,
   type UpdateUnitInputType,
 } from './units-validation';
 
-export type { CreateUnitInputType };
+export type { CreateUnitInputType, CreateUnitResult, UnitsActionError };
 
 const MANAGE_PERMISSION = 'settings.units.manage';
 const APP_VERSION = 'settings-units-v1';
+const UNITS_ROUTE = '/settings/units';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -38,19 +41,6 @@ type QueryClient = {
 };
 
 type OrgActionContext = { userId: string; orgId: string; client: QueryClient };
-
-export type UnitsActionError =
-  | 'invalid_input'
-  | 'forbidden'
-  | 'already_exists'
-  | 'not_found'
-  | 'invalid_reference'
-  | 'in_use'
-  | 'persistence_failed';
-
-export type CreateUnitResult =
-  | { ok: true; data: { id: string; code: string; category: UnitCategory } }
-  | { ok: false; error: UnitsActionError; message?: string };
 
 const CreateConversionInput = z.object({
   label: z.string().trim().min(1).max(120),
@@ -133,6 +123,18 @@ async function writeOutbox(
 
 function isPgError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
+}
+
+function safeRevalidateUnitsRoute(): void {
+  try {
+    revalidateLocalized(UNITS_ROUTE);
+  } catch {
+    /* no request store in unit tests — client router.refresh() covers reload */
+  }
+}
+
+function invalidFactorMessage(): string {
+  return 'Conversion factor must be greater than zero.';
 }
 
 async function loadUnitRow(
@@ -254,12 +256,19 @@ async function isUnitCodeInUse(client: QueryClient, code: string): Promise<boole
 }
 
 export async function createUnit(rawInput: unknown): Promise<CreateUnitResult> {
-  const parsed = CreateUnitInput.safeParse(rawInput);
-  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
-  const input = parsed.data;
-
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<CreateUnitResult> => {
+    const parsed = CreateUnitInput.safeParse(rawInput);
+    if (!parsed.success) {
+      const factorIssue = parsed.error.issues.some((issue) => issue.path[0] === 'factorToBase');
+      return {
+        ok: false,
+        error: 'invalid_input',
+        message: factorIssue ? invalidFactorMessage() : parsed.error.issues[0]?.message ?? 'Invalid input.',
+      };
+    }
+    const input = parsed.data;
+
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<CreateUnitResult> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasManagePermission(ctx))) return { ok: false, error: 'forbidden' };
 
@@ -288,16 +297,24 @@ export async function createUnit(rawInput: unknown): Promise<CreateUnitResult> {
         payload: { code: input.code, category: input.category },
       });
 
-      revalidateLocalized('/settings/units');
       return { ok: true, data: { id: inserted.id, code: input.code, category: input.category } };
     });
+
+    if (result.ok) {
+      safeRevalidateUnitsRoute();
+    }
+    return result;
   } catch (err) {
     if (isPgError(err) && err.code === '23505') return { ok: false, error: 'already_exists' };
     if (isPgError(err) && err.code === '23503') return { ok: false, error: 'invalid_reference' };
-    if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
-    console.error('[settings/units] createUnit persistence_failed', {
-      err: err instanceof Error ? err.message : String(err),
-    });
+    if (isPgError(err) && err.code === '23514') {
+      return { ok: false, error: 'invalid_input', message: invalidFactorMessage() };
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('no partition of relation') && message.includes('audit_log')) {
+      return { ok: false, error: 'persistence_failed', message: 'Audit log partition unavailable.' };
+    }
+    console.error('[settings/units] createUnit persistence_failed', { err: message });
     return { ok: false, error: 'persistence_failed' };
   }
 }
@@ -337,7 +354,7 @@ export async function createCustomConversion(rawInput: unknown): Promise<CreateC
         payload: { label: input.label, from: input.fromUnitCode, to: input.toUnitCode },
       });
 
-      revalidateLocalized('/settings/units');
+      safeRevalidateUnitsRoute();
       return { ok: true, data: { id: inserted.id, label: input.label } };
     });
   } catch (err) {
@@ -394,7 +411,7 @@ export async function updateUnit(rawInput: unknown): Promise<UpdateUnitResult> {
         },
       });
 
-      revalidateLocalized('/settings/units');
+      safeRevalidateUnitsRoute();
       return {
         ok: true,
         data: {
@@ -458,7 +475,7 @@ export async function softDeleteUnit(rawInput: unknown): Promise<SoftDeleteUnitR
         payload: { id: input.id },
       });
 
-      revalidateLocalized('/settings/units');
+      safeRevalidateUnitsRoute();
       return { ok: true, data: { id: input.id } };
     });
   } catch (err) {
