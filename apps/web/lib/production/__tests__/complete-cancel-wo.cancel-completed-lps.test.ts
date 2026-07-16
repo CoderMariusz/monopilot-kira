@@ -29,6 +29,8 @@ type QueryCall = { sql: string; params: readonly unknown[] };
 
 let queries: QueryCall[];
 let executionStatus: 'completed' | 'in_progress';
+let outputExtJsonb: unknown;
+let lpHasDownstreamUsage: boolean;
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -52,6 +54,16 @@ function makeClient(): QueryClient {
         return { rows: [] as T[], rowCount: 0 };
       }
 
+      if (normalized.includes('select distinct lp.id::text as lp_id')) {
+        return executionStatus === 'completed'
+          ? { rows: [{ lp_id: LP_ID }] as T[], rowCount: 1 }
+          : { rows: [] as T[], rowCount: 0 };
+      }
+
+      if (normalized.includes('from public.wo_material_consumption') && normalized.includes('parent_lp_id')) {
+        return { rows: [{ ok: lpHasDownstreamUsage }] as T[], rowCount: 1 };
+      }
+
       if (normalized.startsWith('select o.id::text as output_id') && normalized.includes('from public.wo_outputs o')) {
         const rows =
           executionStatus === 'completed'
@@ -63,7 +75,7 @@ function makeClient(): QueryClient {
                 product_id: PRODUCT_ID,
                 qty_kg: '10.000',
                 fallback_wac_value: '120.0000',
-                ext_jsonb: { wac_qty_kg: '9.500', wac_value: '114.0000' },
+                ext_jsonb: outputExtJsonb,
               }]
             : [];
         return { rows: rows as T[], rowCount: rows.length };
@@ -98,6 +110,8 @@ describe('cancelWo completed-output LP handling', () => {
   beforeEach(() => {
     queries = [];
     executionStatus = 'completed';
+    outputExtJsonb = { wac_qty_kg: '9.500', wac_value: '114.0000' };
+    lpHasDownstreamUsage = false;
     vi.clearAllMocks();
   });
 
@@ -125,7 +139,7 @@ describe('cancelWo completed-output LP handling', () => {
 
     const wac = queries.find((query) => normalize(query.sql).includes('insert into public.item_wac_state'));
     expect(wac).toBeDefined();
-    expect(wac!.params).toEqual([ORG_ID, PRODUCT_ID, '-9.500', '-114.0000', USER_ID]);
+    expect(wac!.params).toEqual([ORG_ID, PRODUCT_ID, '-9.500', '-114.0000', USER_ID, SITE_ID, 'GBP']);
 
     const history = queries.find((query) => normalize(query.sql).startsWith('insert into public.lp_state_history'));
     expect(history).toBeDefined();
@@ -177,5 +191,56 @@ describe('cancelWo completed-output LP handling', () => {
     expect(result.ok).toBe(true);
     expect(queries.some((query) => normalize(query.sql).startsWith('update public.license_plates'))).toBe(false);
     expect(queries.some((query) => normalize(query.sql).startsWith('insert into public.lp_state_history'))).toBe(false);
+  });
+
+  it('skips WAC reversal when completed cancel output was flagged wac_excluded', async () => {
+    outputExtJsonb = { wac_excluded: 'un_costed' };
+
+    const result = await cancelWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      reasonCode: 'planner_cancel',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(queries.some((query) => normalize(query.sql).includes('insert into public.item_wac_state'))).toBe(false);
+  });
+
+  it('skips WAC reversal when completed cancel output has no WAC snapshot', async () => {
+    outputExtJsonb = {};
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await cancelWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      reasonCode: 'planner_cancel',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(queries.some((query) => normalize(query.sql).includes('insert into public.item_wac_state'))).toBe(false);
+    expect(console.warn).toHaveBeenCalledWith('[wac] void_skipped_no_snapshot', {
+      woOutputId: '88888888-8888-4888-8888-888888888888',
+    });
+  });
+
+  it('blocks completed cancel when output LP has downstream consumption or children', async () => {
+    lpHasDownstreamUsage = true;
+
+    const result = await cancelWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      reasonCode: 'planner_cancel',
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'invalid_state',
+      details: {
+        code: 'output_lp_has_downstream_usage',
+        lpId: LP_ID,
+      },
+    });
+    expect(applyTransition).not.toHaveBeenCalled();
+    expect(queries.some((query) => normalize(query.sql).startsWith('update public.license_plates'))).toBe(false);
   });
 });

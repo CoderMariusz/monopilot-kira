@@ -247,6 +247,34 @@ function canReserveCapacity(
   return true;
 }
 
+function canReserveCapacityIntervals(
+  lineKey: string,
+  intervals: readonly PendingChangeoverCapacity[],
+  capacityMs: number,
+  dayUsageMs: Map<string, number>,
+): boolean {
+  const scratch = new Map(dayUsageMs);
+  for (const interval of intervals) {
+    if (interval.durationMs <= 0) continue;
+    if (!canReserveCapacity(lineKey, interval.startMs, interval.durationMs, capacityMs, scratch)) {
+      return false;
+    }
+    reserveCapacity(lineKey, interval.startMs, interval.durationMs, scratch);
+  }
+  return true;
+}
+
+function reserveCapacityIntervals(
+  lineKey: string,
+  intervals: readonly PendingChangeoverCapacity[],
+  dayUsageMs: Map<string, number>,
+): void {
+  for (const interval of intervals) {
+    if (interval.durationMs <= 0) continue;
+    reserveCapacity(lineKey, interval.startMs, interval.durationMs, dayUsageMs);
+  }
+}
+
 function reserveCapacity(
   lineKey: string,
   startMs: number,
@@ -282,12 +310,19 @@ function nextCapacityRetryStart(
   return advanceTo;
 }
 
+/** Changeover interval charged against the daily capacity budget before the run. */
+type PendingChangeoverCapacity = {
+  startMs: number;
+  durationMs: number;
+};
+
 function resolvePlannedStart(
   lineKey: string,
   earliestMs: number,
   runDurationMs: number,
   config: ShiftAwareSolverConfig,
   dayUsageMs: Map<string, number>,
+  pendingChangeover?: PendingChangeoverCapacity,
 ): number {
   const capacityHours = capacityHoursForLine(lineKey, config);
   const capacityMs =
@@ -313,11 +348,34 @@ function resolvePlannedStart(
     }
 
     if (capacityMs !== null) {
-      if (canReserveCapacity(lineKey, start, runDurationMs, capacityMs, dayUsageMs)) {
-        reserveCapacity(lineKey, start, runDurationMs, dayUsageMs);
+      const reservationIntervals: PendingChangeoverCapacity[] = [];
+      if (pendingChangeover && pendingChangeover.durationMs > 0) {
+        reservationIntervals.push(pendingChangeover);
+      }
+      reservationIntervals.push({ startMs: start, durationMs: runDurationMs });
+      if (canReserveCapacityIntervals(lineKey, reservationIntervals, capacityMs, dayUsageMs)) {
+        reserveCapacityIntervals(lineKey, reservationIntervals, dayUsageMs);
         return start;
       }
       start = nextCapacityRetryStart(lineKey, start, runDurationMs, capacityMs, dayUsageMs);
+      if (pendingChangeover && pendingChangeover.durationMs > 0) {
+        start = Math.max(start, pendingChangeover.startMs + pendingChangeover.durationMs);
+        const scratch = new Map(dayUsageMs);
+        reserveCapacity(
+          lineKey,
+          pendingChangeover.startMs,
+          pendingChangeover.durationMs,
+          scratch,
+        );
+        if (!canReserveCapacity(lineKey, start, runDurationMs, capacityMs, scratch)) {
+          const changeoverEnd = pendingChangeover.startMs + pendingChangeover.durationMs;
+          for (const overlap of utcDayOverlapsForInterval(pendingChangeover.startMs, changeoverEnd)) {
+            if (start < overlap.dayStartMs + DAY_MS) {
+              start = Math.max(start, overlap.dayStartMs + DAY_MS);
+            }
+          }
+        }
+      }
       continue;
     }
 
@@ -385,6 +443,10 @@ function startNextSequenceSegment(unscheduled: WorkOrderForScheduling[]): WorkOr
   return next;
 }
 
+type PlaceSequencedWorkOrderResult =
+  | { ok: true; assignment: SequencedAssignment; cumulative: number }
+  | { ok: false; reason: OmittedWorkOrder['reason'] };
+
 function placeSequencedWorkOrder(
   workOrder: WorkOrderForScheduling,
   sequenceIndex: number,
@@ -396,7 +458,7 @@ function placeSequencedWorkOrder(
   lastWoByLine: Map<string, WorkOrderForScheduling>,
   now: number,
   cumulative: number,
-): { assignment: SequencedAssignment; cumulative: number } | null {
+): PlaceSequencedWorkOrderResult {
   const lineKey = workOrder.production_line_id ?? '__unassigned__';
   const previous = lastWoByLine.get(lineKey) ?? null;
   const profile = normalizedAllergenIds(workOrder.allergen_ids);
@@ -405,18 +467,40 @@ function placeSequencedWorkOrder(
     ? changeoverBetween(previous, workOrder, matrix, config.changeoverWeight, matrixConfigured)
     : { transitionMinutes: 0, feasible: true, cost: 0 };
   if (enforceChangeoverFeasibility(matrixConfigured) && previous && !changeover.feasible) {
-    return null;
+    return { ok: false, reason: 'no_feasible_changeover' };
   }
   const changeoverCost = changeover.transitionMinutes;
-  const earliestStart = Math.max(now, (plannedEndByLine.get(lineKey) ?? now) + changeoverCost * 60 * 1000);
+  const previousEndMs = plannedEndByLine.get(lineKey) ?? now;
+  const changeoverMs = changeoverCost * 60 * 1000;
+  const earliestStart = Math.max(now, previousEndMs + changeoverMs);
   const runDuration = durationMs(workOrder);
-  const plannedStart = resolvePlannedStart(lineKey, earliestStart, runDuration, config, dayUsageMs);
+  const pendingChangeover =
+    previous && changeoverMs > 0
+      ? { startMs: Math.max(now, previousEndMs), durationMs: changeoverMs }
+      : undefined;
+  let plannedStart: number;
+  try {
+    plannedStart = resolvePlannedStart(
+      lineKey,
+      earliestStart,
+      runDuration,
+      config,
+      dayUsageMs,
+      pendingChangeover,
+    );
+  } catch (error) {
+    if (error instanceof SequenceCapacityInfeasibleError) {
+      return { ok: false, reason: 'no_feasible_capacity' };
+    }
+    throw error;
+  }
   const plannedEnd = plannedStart + runDuration;
   plannedEndByLine.set(lineKey, plannedEnd);
   lastWoByLine.set(lineKey, workOrder);
   const nextCumulative = cumulative + changeoverCost;
 
   return {
+    ok: true,
     assignment: {
       wo_id: workOrder.id,
       sequence_index: sequenceIndex,
@@ -471,6 +555,7 @@ export function sequenceWorkOrders(
 
   const assignments: SequencedAssignment[] = [];
   const deferred: WorkOrderForScheduling[] = [];
+  const omitReasons = new Map<string, OmittedWorkOrder['reason']>();
   let cumulative = 0;
   let sequenceIndex = 0;
 
@@ -487,10 +572,12 @@ export function sequenceWorkOrders(
       now,
       cumulative,
     );
-    if (!placed) {
+    if (!placed.ok) {
+      omitReasons.set(workOrder.id, placed.reason);
       deferred.push(workOrder);
       continue;
     }
+    omitReasons.delete(workOrder.id);
     assignments.push(placed.assignment);
     cumulative = placed.cumulative;
     sequenceIndex += 1;
@@ -509,7 +596,11 @@ export function sequenceWorkOrders(
       now,
       cumulative,
     );
-    if (!placed) continue;
+    if (!placed.ok) {
+      omitReasons.set(workOrder.id, placed.reason);
+      continue;
+    }
+    omitReasons.delete(workOrder.id);
     assignments.push(placed.assignment);
     cumulative = placed.cumulative;
     sequenceIndex += 1;
@@ -520,7 +611,7 @@ export function sequenceWorkOrders(
     .filter((workOrder) => !assignedIds.has(workOrder.id))
     .map((workOrder) => ({
       wo_id: workOrder.id,
-      reason: 'no_feasible_changeover' as const,
+      reason: omitReasons.get(workOrder.id) ?? 'no_feasible_changeover',
     }));
 
   return { assignments, omitted };
@@ -589,6 +680,14 @@ export function __resolvePlannedStartForTests(
   runDurationMs: number,
   config: ShiftAwareSolverConfig,
   dayUsageMs: Map<string, number>,
+  pendingChangeover?: PendingChangeoverCapacity,
 ): number {
-  return resolvePlannedStart(lineKey, earliestMs, runDurationMs, config, dayUsageMs);
+  return resolvePlannedStart(
+    lineKey,
+    earliestMs,
+    runDurationMs,
+    config,
+    dayUsageMs,
+    pendingChangeover,
+  );
 }

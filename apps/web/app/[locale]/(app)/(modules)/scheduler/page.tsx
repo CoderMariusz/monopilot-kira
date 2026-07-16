@@ -113,6 +113,7 @@ async function BoardContent({
       appliedBadge: t('board.appliedBadge'),
       omittedTitle: t('board.omittedTitle'),
       omittedReason: t('board.omittedReason'),
+      omittedReasonCapacity: t('board.omittedReasonCapacity'),
     },
     apply: {
       button: t('apply.button'),

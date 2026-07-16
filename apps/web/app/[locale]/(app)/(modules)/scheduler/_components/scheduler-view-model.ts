@@ -130,6 +130,11 @@ function durationMinutesFromIso(start: string | null, end: string | null): numbe
   return (endMs - startMs) / (60 * 1000);
 }
 
+const OMITTED_WORK_ORDER_REASONS = new Set<OmittedWorkOrderReason>([
+  'no_feasible_changeover',
+  'no_feasible_capacity',
+]);
+
 function omittedFromOutputSummary(
   output: Extract<SchedulerRunResult, { ok: true }>['run']['output_summary'],
   woNumberById: Record<string, string>,
@@ -142,11 +147,12 @@ function omittedFromOutputSummary(
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
     const woId = entry.wo_id;
     const reason = entry.reason;
-    if (typeof woId !== 'string' || reason !== 'no_feasible_changeover') continue;
+    if (typeof woId !== 'string' || typeof reason !== 'string') continue;
+    if (!OMITTED_WORK_ORDER_REASONS.has(reason as OmittedWorkOrderReason)) continue;
     omitted.push({
       woId,
       woLabel: woNumberById[woId] ?? shortId(woId),
-      reason,
+      reason: reason as OmittedWorkOrderReason,
     });
   }
   return omitted;

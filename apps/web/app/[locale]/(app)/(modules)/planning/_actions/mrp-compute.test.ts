@@ -712,6 +712,23 @@ describe('computeMrpPhased — weekly buckets (C3b)', () => {
     expect(shortage.net).toBe('-20.000');
   });
 
+  it('nets demand on the last bucket-grid day instead of dropping it (N-PLN-3)', () => {
+    const horizonEnd = addDaysIso(buckets[3]!, 6);
+    const { bucketRows } = computeMrpPhased({
+      items: [RM_FLOUR],
+      onHand: [],
+      demand: [{ product_id: 'item-flour', uom: 'kg', qty: '12.500', need_date: horizonEnd }],
+      poSupply: [],
+      productionSupply: [],
+      today,
+      horizonWeeks: 4,
+    });
+
+    const lastBucket = bucketRows.find((r) => r.bucketDate === buckets[3])!;
+    expect(lastBucket.demand).toBe('12.500');
+    expect(lastBucket.net).toBe('-12.500');
+  });
+
   it('clamps release to today and flags expedite when lead time exceeds time-to-bucket (S12)', () => {
     const week2 = buckets[1]!;
     const { bucketRows } = computeMrpPhased({

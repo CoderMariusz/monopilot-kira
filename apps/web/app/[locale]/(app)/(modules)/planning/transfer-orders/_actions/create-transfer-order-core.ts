@@ -142,6 +142,12 @@ export async function createTransferOrderCore(
   const perm = await requireActionPermission(ctx, PLANNING_TO_MANAGE_PERMISSION);
   if (!perm.ok) return perm;
 
+  const fromWarehouseId = input.fromWarehouseId ?? null;
+  const toWarehouseId = input.toWarehouseId ?? null;
+  if (fromWarehouseId != null && toWarehouseId != null && fromWarehouseId === toWarehouseId) {
+    return { ok: false, error: 'same_warehouse' };
+  }
+
   async function insertHeader(toNumber: string) {
     return ctx.client.query<TransferOrderRow>(
       `insert into public.transfer_orders

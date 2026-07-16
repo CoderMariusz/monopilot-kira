@@ -30,6 +30,8 @@ export type ProcurementError =
   | 'insufficient_stock_holds'
   /** W9 RF5 F3: cancel of an in_transit TO with already-received destination LPs is refused. */
   | 'partially_received'
+  /** N-PLN-4: source and destination warehouse must differ when both are set. */
+  | 'same_warehouse'
   | 'persistence_failed';
 
 export const uuidSchema = z.string().uuid();

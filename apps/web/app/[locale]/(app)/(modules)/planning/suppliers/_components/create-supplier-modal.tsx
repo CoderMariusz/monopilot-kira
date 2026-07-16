@@ -77,6 +77,7 @@ export type CreateSupplierLabels = {
     insufficient_stock?: string;
     insufficient_stock_holds?: string;
     partially_received?: string;
+    same_warehouse?: string;
     persistence_failed: string;
   };
 };

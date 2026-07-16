@@ -193,7 +193,7 @@ export interface SequencedAssignment {
   work_order: WorkOrderForScheduling;
 }
 
-export type OmittedWorkOrderReason = 'no_feasible_changeover';
+export type OmittedWorkOrderReason = 'no_feasible_changeover' | 'no_feasible_capacity';
 
 export interface OmittedWorkOrder {
   wo_id: string;

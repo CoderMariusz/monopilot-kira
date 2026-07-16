@@ -206,6 +206,7 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>, locale: str
         not_found: t('errors.not_found'),
         already_exists: t('errors.already_exists'),
         invalid_state: t('errors.invalid_state'),
+        same_warehouse: t('errors.same_warehouse'),
         persistence_failed: t('errors.persistence_failed'),
       },
     },

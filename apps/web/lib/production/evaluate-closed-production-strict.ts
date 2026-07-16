@@ -4,6 +4,7 @@
  * relative to registered primary output and the effective BOM/operation yield.
  */
 
+import { woPostedConsumptionKgSubquery } from './consumption-qty-to-kg';
 import type { QueryClient } from './shared';
 
 /** Matches T-013 / register-output MASS_BALANCE_WARN_PCT. */
@@ -63,16 +64,7 @@ export async function evaluateClosedProductionStrict(
                 ),
                 0::numeric
               ) as output_kg,
-              coalesce(
-                (
-                  select sum(c.qty_consumed)
-                    from public.wo_material_consumption c
-                   where c.org_id = app.current_org_id()
-                     and c.wo_id = $1::uuid
-                     and c.uom = 'kg'
-                ),
-                0::numeric
-              ) as posted_consumption_kg
+              ${woPostedConsumptionKgSubquery('$1')} as posted_consumption_kg
      )
      select t.output_kg::text as output_kg,
             t.posted_consumption_kg::text as posted_consumption_kg,

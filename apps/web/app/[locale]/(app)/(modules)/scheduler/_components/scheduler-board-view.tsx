@@ -63,6 +63,7 @@ export type SchedulerBoardLabels = {
     appliedBadge: string;
     omittedTitle: string; // "{count} work orders could not be scheduled"
     omittedReason: string; // reason label for no_feasible_changeover
+    omittedReasonCapacity: string; // reason label for no_feasible_capacity
   };
   apply: {
     button: string;
@@ -283,7 +284,10 @@ export function SchedulerBoardView({
               <ul className="mt-2 list-inside list-disc text-amber-800">
                 {proposal.omittedWorkOrders?.map((omitted) => (
                   <li key={omitted.woId} data-testid={`scheduler-omitted-${omitted.woLabel}`}>
-                    {omitted.woLabel} — {labels.board.omittedReason}
+                    {omitted.woLabel} —{' '}
+                    {omitted.reason === 'no_feasible_capacity'
+                      ? labels.board.omittedReasonCapacity
+                      : labels.board.omittedReason}
                   </li>
                 ))}
               </ul>

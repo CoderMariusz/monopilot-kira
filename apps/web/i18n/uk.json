@@ -8083,6 +8083,7 @@
         "invalid_state": "That action isn't allowed in the current status.",
         "insufficient_stock": "Insufficient stock to fulfill this transfer",
         "partially_received": "This transfer has already-received stock. Receive the remainder or reverse the received license plates before cancelling.",
+        "same_warehouse": "To warehouse must differ from From warehouse.",
         "persistence_failed": "Something went wrong saving your changes. Please retry."
       },
       "create": {
@@ -12442,7 +12443,8 @@
       "noAssignments": "The run produced no assignments — there are no open work orders in the horizon.",
       "appliedBadge": "Applied",
       "omittedTitle": "{count} work orders could not be scheduled",
-      "omittedReason": "No feasible changeover"
+      "omittedReason": "No feasible changeover",
+      "omittedReasonCapacity": "Exceeds daily line capacity"
     },
     "apply": {
       "button": "Apply schedule",

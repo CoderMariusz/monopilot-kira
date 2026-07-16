@@ -24,7 +24,8 @@ import type pg from 'pg';
 
 import { signEvent } from '@monopilot/e-sign';
 
-import { computeWacReversalDelta, upsertWac } from '../finance/upsert-wac';
+import { applyOutputWacReversal } from '../finance/upsert-wac';
+import { hasLpConsumptionOrChildren } from './lp-downstream-guard';
 import { assertWoNotOnHold, holdsGuard } from './holds-guard';
 import { recordWoCompletionSnapshot } from './oee-snapshot-producer';
 import {
@@ -435,6 +436,32 @@ async function loadLiveOutputLps(ctx: ProductionContext, woId: string): Promise<
   return rows;
 }
 
+async function loadCompletedCancelAffectedLpIds(
+  ctx: ProductionContext,
+  woId: string,
+): Promise<string[]> {
+  const { rows } = await ctx.client.query<{ lp_id: string }>(
+    `select distinct lp.id::text as lp_id
+       from public.wo_outputs o
+       join public.license_plates lp
+         on lp.org_id = o.org_id
+        and lp.id = o.lp_id
+      where o.org_id = app.current_org_id()
+        and o.wo_id = $1::uuid
+        and o.correction_of_id is null
+        and o.lp_id is not null
+        and lp.status not in ('destroyed', 'consumed')
+        and not exists (
+          select 1
+            from public.wo_outputs correction
+           where correction.org_id = o.org_id
+             and correction.correction_of_id = o.id
+        )`,
+    [woId],
+  );
+  return rows.map((row) => row.lp_id);
+}
+
 export async function cancelWo(
   ctx: ProductionContext,
   input: CancelWoInput,
@@ -446,7 +473,11 @@ export async function cancelWo(
 
   const previousStatus = await readWoExecutionStatus(ctx, input.woId);
 
-  if (previousStatus === 'in_progress' || previousStatus === 'paused') {
+  if (
+    previousStatus === 'in_progress' ||
+    previousStatus === 'paused' ||
+    previousStatus === 'completed'
+  ) {
     const liveOutputs = await loadLiveOutputLps(ctx, input.woId);
     if (liveOutputs.length > 0) {
       return fail('invalid_state', {
@@ -457,6 +488,22 @@ export async function cancelWo(
           outputs: liveOutputs,
         },
       });
+    }
+  }
+
+  if (previousStatus === 'completed') {
+    const affectedLpIds = await loadCompletedCancelAffectedLpIds(ctx, input.woId);
+    for (const lpId of affectedLpIds) {
+      if (await hasLpConsumptionOrChildren(ctx, lpId)) {
+        return fail('invalid_state', {
+          message:
+            'Output license plate has downstream consumption or child plates — void each output before cancelling this work order.',
+          details: {
+            code: 'output_lp_has_downstream_usage',
+            lpId,
+          },
+        });
+      }
     }
   }
 
@@ -509,21 +556,21 @@ export async function cancelWo(
     for (const output of affectedOutputLps.rows) {
       affectedLpRows.set(output.lp_id, { site_id: output.site_id, status: output.status });
 
-      const wacReversal = computeWacReversalDelta({
-        extJsonb: output.ext_jsonb,
-        fallbackQtyKg: output.qty_kg,
-        fallbackValue: output.fallback_wac_value,
-      });
-      if (wacReversal.source === 'fallback') {
-        console.warn('[wac] reversal_fallback', { woOutputId: output.output_id });
+      if (await hasLpConsumptionOrChildren(ctx, output.lp_id)) {
+        throw new Error(
+          `cancelWo completed LP destroy blocked: output LP ${output.lp_id} has downstream consumption or child plates`,
+        );
       }
-      await upsertWac(ctx.client, {
+
+      await applyOutputWacReversal(ctx.client, {
         orgId: ctx.orgId,
         siteId: output.site_id,
         itemId: output.product_id,
-        deltaQtyKg: wacReversal.deltaQtyKg,
-        deltaValue: wacReversal.deltaValue,
+        extJsonb: output.ext_jsonb,
+        fallbackQtyKg: output.qty_kg,
+        fallbackValue: output.fallback_wac_value,
         updatedBy: ctx.userId,
+        logContext: { woOutputId: output.output_id },
       });
     }
 

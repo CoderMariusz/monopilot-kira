@@ -71,7 +71,7 @@ import {
   type MrpThresholdRow,
   type MrpTimedQtyBucket,
 } from './mrp-compute';
-import { addDaysIso } from './mrp-buckets';
+import { addDaysIso, buildMrpBucketDates, bucketHorizonEnd } from './mrp-buckets';
 import type {
   MrpCancelResult,
   MrpConvertResult,
@@ -152,15 +152,11 @@ function currentIsoWeek(now: Date = new Date()): string {
   return `${isoYear}-W${String(week).padStart(2, '0')}`;
 }
 
-/** Last ISO week label covered by the planning horizon (inclusive). */
-function horizonEndIsoWeek(todayIso: string, horizonWeeks: number): string {
-  const end = addDaysIso(todayIso, horizonWeeks * 7);
+/** Last ISO week label covered by the phased bucket grid (inclusive). */
+function horizonEndIsoWeek(bucketDates: readonly string[]): string {
+  const end = bucketHorizonEnd(bucketDates);
+  if (end === null) return currentIsoWeek();
   return currentIsoWeek(new Date(`${end}T00:00:00Z`));
-}
-
-/** Planning horizon end date (today + horizonWeeks). */
-function planningHorizonEnd(todayIso: string, horizonWeeks: number): string {
-  return addDaysIso(todayIso, horizonWeeks * 7);
 }
 
 async function hasPlanningReadPermission(
@@ -216,7 +212,12 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
       // Single run timestamp — the netting bucket date AND the forecast horizon floor.
       const startedAt = new Date();
       const today = startedAt.toISOString().slice(0, 10);
-      const horizonEnd = planningHorizonEnd(today, horizonWeeks);
+      // N-PLN-3: SQL horizon floor must equal the phased bucket-grid end so
+      // near-horizon demand/supply isn't accepted by SQL then dropped by the
+      // grid. Same (today, horizonWeeks) inputs as computeMrpPhased below, so
+      // this matches the bucketDates it returns.
+      const horizonBucketDates = buildMrpBucketDates(today, horizonWeeks);
+      const horizonEnd = bucketHorizonEnd(horizonBucketDates) ?? today;
 
       // 1) Item master — the MRP-planned item universe (pack hierarchy for UoM conversion).
       const items = await c.query<MrpItemRow>(
@@ -271,7 +272,7 @@ export async function runMrp(input: MrpRunInput = {}): Promise<MrpRunResult> {
             and f.iso_week >= $1
             and f.iso_week <= $2
           group by f.item_id, f.uom, f.iso_week`,
-        [currentIsoWeek(startedAt), horizonEndIsoWeek(today, horizonWeeks)],
+        [currentIsoWeek(startedAt), horizonEndIsoWeek(horizonBucketDates)],
       );
 
       // 3c) Independent (sales-order) demand — open SO lines bucketed by need-by date.

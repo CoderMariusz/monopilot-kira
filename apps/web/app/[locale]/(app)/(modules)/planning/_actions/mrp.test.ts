@@ -12,8 +12,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
+import { MRP_DEFAULT_HORIZON_WEEKS } from './mrp-compute';
 import { cancelPlannedOrder, convertPlannedToPo, convertPlannedToWo, getMrpRunRequirements, listMrpRuns, runMrp } from './mrp';
-import { addDaysIso, buildMrpBucketDates } from './mrp-buckets';
+import { addDaysIso, buildMrpBucketDates, bucketHorizonEnd } from './mrp-buckets';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -887,6 +888,65 @@ describe('runMrp', () => {
 
     expect(invariant.data.rows).toEqual(baseline.data.rows);
     expect(invariant.data.kpis).toEqual(baseline.data.kpis);
+  });
+
+  it('binds SQL demand/supply horizon to the phased bucket grid end, not today+weeks*7 (N-PLN-3)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-11T10:00:00.000Z'));
+    const today = '2026-06-11';
+    const expectedHorizonEnd = bucketHorizonEnd(buildMrpBucketDates(today, MRP_DEFAULT_HORIZON_WEEKS))!;
+    expect(expectedHorizonEnd).not.toBe(addDaysIso(today, MRP_DEFAULT_HORIZON_WEEKS * 7));
+
+    let capturedWoHorizon: string | undefined;
+    let capturedSoHorizon: string | undefined;
+    const probeClient: QueryClient = {
+      query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
+        const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        executed.push(normalized);
+        if (normalized.includes('from public.user_roles')) {
+          return { rows: allowPermission ? [{ ok: true }] : [], rowCount: allowPermission ? 1 : 0 };
+        }
+        if (normalized.includes('from public.items i') && normalized.includes('item_type = any')) {
+          return {
+            rows: [{ id: FLOUR_ID, item_code: 'RM-FLOUR', name: 'Flour', item_type: 'rm', uom_base: 'kg', output_uom: null, net_qty_per_each: null, each_per_box: null }],
+            rowCount: 1,
+          };
+        }
+        if (normalized.includes('from public.v_inventory_available')) {
+          return { rows: [{ product_id: FLOUR_ID, uom: 'kg', on_hand: '0', reserved: '0' }], rowCount: 1 };
+        }
+        if (normalized.includes('from public.wo_materials')) {
+          capturedWoHorizon = String(params?.[2]);
+          return { rows: [], rowCount: 0 };
+        }
+        if (normalized.includes('from public.sales_order_lines') && normalized.includes('need_date')) {
+          if (normalized.includes('count(distinct sol.id)')) {
+            return { rows: [{ undated_lines: '0' }], rowCount: 1 };
+          }
+          capturedSoHorizon = String(params?.[1]);
+          return { rows: [], rowCount: 0 };
+        }
+        if (normalized.includes('from public.demand_forecasts')) {
+          return { rows: [], rowCount: 0 };
+        }
+        if (normalized.includes('from public.purchase_order_lines') && !normalized.includes('distinct on')) {
+          return { rows: [], rowCount: 0 };
+        }
+        if (normalized.includes('from public.schedule_outputs')) {
+          return { rows: [], rowCount: 0 };
+        }
+        if (normalized.includes('from public.reorder_thresholds')) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+    client = probeClient;
+
+    await runMrp();
+    expect(capturedWoHorizon).toBe(expectedHorizonEnd);
+    expect(capturedSoHorizon).toBe(expectedHorizonEnd);
+    vi.useRealTimers();
   });
 
   it('reads sales_order_lines with post-confirm statuses and a horizon-end bind (NN-PLAN-4)', async () => {

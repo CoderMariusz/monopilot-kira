@@ -402,6 +402,56 @@ export async function applyConsumptionWacReversal(
   };
 }
 
+export type OutputWacReversalResult =
+  | { applied: true; deltaQtyKg: string; deltaValue: string; wac: WacUpdateResult }
+  | { applied: false; skipped: 'wac_excluded' | 'no_snapshot' };
+
+/** Reverses a prior WAC credit on output void/cancel — snapshot-only, skips excluded/un-booked outputs. */
+export async function applyOutputWacReversal(
+  client: QueryClient,
+  input: {
+    orgId: string;
+    siteId: string | null;
+    itemId: string;
+    extJsonb: unknown;
+    fallbackQtyKg: string;
+    fallbackValue: string;
+    updatedBy: string;
+    logContext?: Record<string, unknown>;
+  },
+): Promise<OutputWacReversalResult> {
+  if (isWacExcluded(input.extJsonb)) {
+    return { applied: false, skipped: 'wac_excluded' };
+  }
+
+  const wacReversal = computeWacReversalDelta({
+    extJsonb: input.extJsonb,
+    fallbackQtyKg: input.fallbackQtyKg,
+    fallbackValue: input.fallbackValue,
+  });
+
+  if (wacReversal.source !== 'snapshot') {
+    console.warn('[wac] void_skipped_no_snapshot', input.logContext ?? { itemId: input.itemId });
+    return { applied: false, skipped: 'no_snapshot' };
+  }
+
+  const wac = await upsertWac(client, {
+    orgId: input.orgId,
+    siteId: input.siteId,
+    itemId: input.itemId,
+    deltaQtyKg: wacReversal.deltaQtyKg,
+    deltaValue: wacReversal.deltaValue,
+    updatedBy: input.updatedBy,
+  });
+
+  return {
+    applied: true,
+    deltaQtyKg: wacReversal.deltaQtyKg,
+    deltaValue: wacReversal.deltaValue,
+    wac,
+  };
+}
+
 export type ShipmentWacDebitEntry = {
   lp_id: string;
   item_id: string;

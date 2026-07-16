@@ -605,6 +605,60 @@ describe('sequenceWorkOrders', () => {
     expect(result[1].changeover_cost).toBe(20);
   });
 
+  it('rolls the second run to the next day when changeover plus two runs exceed daily capacity (N-PLN-2)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+    const first = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      scheduledStart: '2026-06-01T08:00:00.000Z',
+      scheduledEnd: '2026-06-01T16:00:00.000Z',
+    });
+    const second = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['soy'],
+      scheduledStart: '2026-06-02T08:00:00.000Z',
+      scheduledEnd: '2026-06-02T16:00:00.000Z',
+    });
+    const entries = [matrix('milk', 'soy', 240, { requires_cleaning: false, requires_atp: false })];
+
+    const result = seq([first, second], entries, {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      capacityHoursPerDay: 16,
+    });
+
+    expect(result[0].planned_start_at).toBe('2026-06-24T00:00:00.000Z');
+    expect(result[0].planned_end_at).toBe('2026-06-24T08:00:00.000Z');
+    expect(result[1].planned_start_at).toBe('2026-06-25T00:00:00.000Z');
+    expect(result[1].planned_end_at).toBe('2026-06-25T08:00:00.000Z');
+    expect(result[1].changeover_cost).toBe(240);
+  });
+
+  it('charges changeover minutes against the daily capacity budget (N-PLN-2)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
+    const lineKey = LINE_ID;
+    const dayUsageMs = new Map<string, number>();
+    const runDurationMs = 8 * 60 * 60 * 1000;
+    const changeoverMs = 4 * 60 * 60 * 1000;
+    const config = { ...DEFAULT_SEQUENCE_SOLVER_CONFIG, capacityHoursPerDay: 16 };
+
+    __resolvePlannedStartForTests(lineKey, Date.parse('2026-06-24T00:00:00.000Z'), runDurationMs, config, dayUsageMs);
+    __resolvePlannedStartForTests(
+      lineKey,
+      Date.parse('2026-06-24T12:00:00.000Z'),
+      runDurationMs,
+      config,
+      dayUsageMs,
+      { startMs: Date.parse('2026-06-24T08:00:00.000Z'), durationMs: changeoverMs },
+    );
+
+    expect(dayUsageMs.get(`${lineKey}|2026-06-24`)).toBe(12 * 60 * 60 * 1000);
+    expect(dayUsageMs.get(`${lineKey}|2026-06-25`)).toBe(8 * 60 * 60 * 1000);
+  });
+
   it('splits an 8h WO across two 6h/day buckets instead of bypassing capacity', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-24T00:00:00.000Z'));
@@ -831,6 +885,74 @@ describe('sequenceWorkOrders', () => {
     expect(result.assignments).toHaveLength(1);
     expect(result.omitted).toEqual([
       { wo_id: nuts.id, reason: 'no_feasible_changeover' },
+    ]);
+  });
+
+  it('omits a WO longer than the longest shift window and schedules the rest', () => {
+    const nowMs = Date.parse('2026-06-24T12:00:00.000Z');
+    const shiftConfig = {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      capacityHoursPerDay: null,
+      nowMs,
+      shiftCalendarLineIds: [LINE_ID],
+      shiftWindows: [{
+        line_id: LINE_ID,
+        start_at: '2026-06-24T06:00:00.000Z',
+        end_at: '2026-06-24T14:00:00.000Z',
+      }],
+    };
+    const fits = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      routingDurationMs: 2 * 60 * 60 * 1000,
+    });
+    const tooLong = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['milk'],
+      routingDurationMs: 10 * 60 * 60 * 1000,
+    });
+
+    const result = sequenceWorkOrders([fits, tooLong], [], shiftConfig);
+
+    expect(result.assignments.map((assignment) => assignment.wo_id)).toEqual([fits.id]);
+    expect(result.omitted).toEqual([
+      { wo_id: tooLong.id, reason: 'no_feasible_capacity' },
+    ]);
+  });
+
+  it('does not abort the run when the first WO exceeds the longest shift window', () => {
+    const nowMs = Date.parse('2026-06-24T12:00:00.000Z');
+    const shiftConfig = {
+      ...DEFAULT_SEQUENCE_SOLVER_CONFIG,
+      capacityHoursPerDay: null,
+      nowMs,
+      shiftCalendarLineIds: [LINE_ID],
+      shiftWindows: [{
+        line_id: LINE_ID,
+        start_at: '2026-06-24T06:00:00.000Z',
+        end_at: '2026-06-24T14:00:00.000Z',
+      }],
+    };
+    const tooLong = wo({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      due: '2026-06-01T08:00:00.000Z',
+      allergens: ['milk'],
+      routingDurationMs: 10 * 60 * 60 * 1000,
+    });
+    const fits = wo({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      due: '2026-06-02T08:00:00.000Z',
+      allergens: ['milk'],
+      routingDurationMs: 2 * 60 * 60 * 1000,
+    });
+
+    const result = sequenceWorkOrders([tooLong, fits], [], shiftConfig);
+
+    expect(result.assignments.map((assignment) => assignment.wo_id)).toEqual([fits.id]);
+    expect(result.omitted).toEqual([
+      { wo_id: tooLong.id, reason: 'no_feasible_capacity' },
     ]);
   });
 });

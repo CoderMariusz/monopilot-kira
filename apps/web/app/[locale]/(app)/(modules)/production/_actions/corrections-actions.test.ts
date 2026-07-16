@@ -979,6 +979,8 @@ describe('voidWoOutput', () => {
       '-11.111',
       '-55.555',
       USER_ID,
+      null,
+      'GBP',
     ]);
     expect(queries.some((q) => normalize(q.sql).startsWith('select ($1::numeric * coalesce($2::numeric, 0))::text as value'))).toBe(false);
   });

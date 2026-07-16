@@ -154,6 +154,15 @@ export async function resumeWo(
 ): Promise<ProductionResult<ResumeWoData>> {
   if (!(await hasPermission(ctx, 'production.wo.resume'))) return fail('forbidden');
 
+  if (input.actualDurationMin != null) {
+    if (!Number.isInteger(input.actualDurationMin) || input.actualDurationMin < 0) {
+      return fail('invalid_input', {
+        message: 'actualDurationMin must be a non-negative integer',
+        details: { code: 'invalid_actual_duration_min', actualDurationMin: input.actualDurationMin },
+      });
+    }
+  }
+
   const transition = await applyTransition(ctx, {
     woId: input.woId,
     verb: 'resume',

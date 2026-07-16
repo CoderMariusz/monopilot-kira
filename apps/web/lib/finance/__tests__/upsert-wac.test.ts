@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   applyConsumptionWacReversal,
+  applyOutputWacReversal,
   applyShipmentWacCancelCredits,
   computeWacDebitReversalDelta,
   computeWacReversalDelta,
@@ -688,6 +689,70 @@ describe('computeWacDebitReversalDelta', () => {
         fallbackValue: '30',
       }),
     ).toEqual({ deltaQtyKg: '2.500', deltaValue: '25', source: 'snapshot' });
+  });
+});
+
+describe('applyOutputWacReversal', () => {
+  it('reverses WAC when a snapshot contribution exists', async () => {
+    const client = new WacMockClient();
+    await upsertWac(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      deltaQtyKg: '9.500',
+      deltaValue: '114.0000',
+      updatedBy: USER_ID,
+    });
+
+    const result = await applyOutputWacReversal(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      extJsonb: { wac_qty_kg: '9.500', wac_value: '114.0000' },
+      fallbackQtyKg: '10.000',
+      fallbackValue: '120.0000',
+      updatedBy: USER_ID,
+    });
+
+    expect(result).toMatchObject({ applied: true, deltaQtyKg: '-9.500', deltaValue: '-114.0000' });
+    expect(client.row).toMatchObject({ totalQtyKg: '0', totalValue: '0' });
+  });
+
+  it('skips reversal when output was flagged wac_excluded', async () => {
+    const client = new WacMockClient();
+
+    const result = await applyOutputWacReversal(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      extJsonb: { wac_excluded: 'un_costed' },
+      fallbackQtyKg: '10.000',
+      fallbackValue: '120.0000',
+      updatedBy: USER_ID,
+    });
+
+    expect(result).toEqual({ applied: false, skipped: 'wac_excluded' });
+    expect(client.calls.some((q) => q.sql.includes('insert into public.item_wac_state'))).toBe(false);
+  });
+
+  it('skips reversal when no snapshot exists (no fallback write)', async () => {
+    const client = new WacMockClient();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await applyOutputWacReversal(client, {
+      orgId: ORG_ID,
+      siteId: null,
+      itemId: ITEM_ID,
+      extJsonb: {},
+      fallbackQtyKg: '10.000',
+      fallbackValue: '120.0000',
+      updatedBy: USER_ID,
+      logContext: { woOutputId: 'out-1' },
+    });
+
+    expect(result).toEqual({ applied: false, skipped: 'no_snapshot' });
+    expect(client.calls.some((q) => q.sql.includes('insert into public.item_wac_state'))).toBe(false);
+    expect(console.warn).toHaveBeenCalledWith('[wac] void_skipped_no_snapshot', { woOutputId: 'out-1' });
   });
 });
 

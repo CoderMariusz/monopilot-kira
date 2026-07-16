@@ -44,6 +44,7 @@ import { resolveOutputWacContribution } from '../../finance/resolve-output-wac';
 import { resolveWacDeltaQtyKgFromSnapshot, upsertWac } from '../../finance/upsert-wac';
 import { woSnapshotWacQtyFields } from '../../uom/convert';
 import { makeLpNumber, makeStockMoveNumber } from '../../warehouse/lp-create';
+import { woPostedConsumptionKgSubquery } from '../consumption-qty-to-kg';
 import {
   PRODUCTION_OUTPUT_RECORDED_EVENT,
   PRODUCTION_OUTPUT_WRITE_PERMISSION,
@@ -630,14 +631,7 @@ async function evaluateMassBalanceGate(
                     and o.wo_id = $1::uuid),
                 0::numeric
               ) + $2::numeric as running_output_kg,
-              coalesce(
-                (select sum(c.qty_consumed)
-                  from public.wo_material_consumption c
-                  where c.org_id = app.current_org_id()
-                    and c.wo_id = $1::uuid
-                    and c.uom = 'kg'),
-                0::numeric
-              ) as posted_consumption_kg
+              ${woPostedConsumptionKgSubquery('$1')} as posted_consumption_kg
      )
      select case
               when y.effective_yield_pct > 0

@@ -374,6 +374,22 @@ describe('planning transfer order actions', () => {
     expect(result.data.lines).toEqual([expect.objectContaining({ itemCode: 'RM-BEEF-50', qty: '12.000' })]);
   });
 
+  it('rejects self-transfer when from and to warehouse are the same (N-PLN-4)', async () => {
+    const result = await createTransferOrder({
+      fromWarehouseId: FROM_WAREHOUSE_ID,
+      toWarehouseId: FROM_WAREHOUSE_ID,
+      lines: [{ itemId: ITEM_ID, qty: '12.000', uom: 'kg', lineNo: 1 }],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'same_warehouse' });
+    const calls = vi.mocked(client.query).mock.calls.map(([sql]) =>
+      String(sql).replace(/\s+/g, ' ').trim().toLowerCase(),
+    );
+    expect(calls.some((sql) => sql.startsWith('insert into public.transfer_orders'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('insert into public.transfer_order_lines'))).toBe(false);
+    expect(calls.some((sql) => sql.startsWith('insert into public.audit_events'))).toBe(false);
+  });
+
   it('creates transfer order header, lines, and audit event', async () => {
     const result = await createTransferOrder({
       toNumber: 'TO-TEST-001',

@@ -15,7 +15,8 @@ import {
 } from '../../../../../../lib/corrections/correct-ledger-entry';
 import { CONSUMPTION_CORRECT_PERMISSION } from '../../../../../../lib/corrections/constants';
 import { materialIdFromConsumptionExt } from '../../../../../../lib/corrections/material-scope';
-import { computeWacReversalDelta, applyConsumptionWacReversal, isWacExcluded, upsertWac } from '../../../../../../lib/finance/upsert-wac';
+import { applyConsumptionWacReversal, applyOutputWacReversal } from '../../../../../../lib/finance/upsert-wac';
+import { hasLpConsumptionOrChildren } from '../../../../../../lib/production/lp-downstream-guard';
 import type { ProductionContext, QueryClient } from '../../../../../../lib/production/shared';
 import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 
@@ -327,27 +328,6 @@ async function hasConsumptionCorrection(ctx: ProductionContext, consumptionId: s
     [consumptionId],
   );
   return rows.length > 0;
-}
-
-async function hasLpConsumptionOrChildren(ctx: ProductionContext, lpId: string): Promise<boolean> {
-  const { rows } = await ctx.client.query<{ ok: boolean }>(
-    `select (
-       (
-         select coalesce(sum(qty_consumed), 0)
-           from public.wo_material_consumption
-          where org_id = app.current_org_id()
-            and lp_id = $1::uuid
-       ) > 0
-       or exists (
-         select 1
-           from public.license_plates
-          where org_id = app.current_org_id()
-            and parent_lp_id = $1::uuid
-       )
-     ) as ok`,
-    [lpId],
-  );
-  return rows[0]?.ok === true;
 }
 
 // F1/F3 (R3 review) — lock the matching wo_materials row(s) BEFORE any write and
@@ -1038,25 +1018,16 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
         },
       });
 
-      if (!isWacExcluded(original.ext_jsonb)) {
-        const wacReversal = computeWacReversalDelta({
-          extJsonb: original.ext_jsonb,
-          fallbackQtyKg: original.qty_kg,
-          fallbackValue: '0',
-        });
-        if (wacReversal.source === 'snapshot') {
-          await upsertWac(ctx.client, {
-            orgId,
-            siteId: original.site_id,
-            itemId: original.product_id,
-            deltaQtyKg: wacReversal.deltaQtyKg,
-            deltaValue: wacReversal.deltaValue,
-            updatedBy: userId,
-          });
-        } else {
-          console.warn('[wac] void_skipped_no_snapshot', { woOutputId: original.id });
-        }
-      }
+      await applyOutputWacReversal(ctx.client, {
+        orgId,
+        siteId: original.site_id,
+        itemId: original.product_id,
+        extJsonb: original.ext_jsonb,
+        fallbackQtyKg: original.qty_kg,
+        fallbackValue: '0',
+        updatedBy: userId,
+        logContext: { woOutputId: original.id },
+      });
 
       await writeOutputVoidStockMove(ctx, { original, lp, correctionId: correction.id, reasonCode, note });
       await markLpVoided(ctx, original.lp_id);

@@ -96,4 +96,25 @@ describe('cancelWo live output LP guard', () => {
     expect(result.ok).toBe(true);
     expect(applyTransition).toHaveBeenCalled();
   });
+
+  it('blocks cancel when live output LPs remain on a completed WO', async () => {
+    executionStatus = 'completed';
+    liveOutputs = [{ lp_number: 'LP-OUT-002', qty: '40.000' }];
+
+    const result = await cancelWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      reasonCode: 'planner_cancel',
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'invalid_state',
+      details: {
+        code: 'live_output_lps_present',
+        outputs: [{ lp_number: 'LP-OUT-002', qty: '40.000' }],
+      },
+    });
+    expect(applyTransition).not.toHaveBeenCalled();
+  });
 });

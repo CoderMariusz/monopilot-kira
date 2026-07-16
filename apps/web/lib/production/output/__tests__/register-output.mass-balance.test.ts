@@ -27,6 +27,32 @@ function decimalText(value: number): string {
   return Number.isInteger(value) ? String(value) : String(value);
 }
 
+function consumptionRowToKg(row: { qty_consumed: string; uom: string }): number | null {
+  const qty = Number(row.qty_consumed);
+  switch (row.uom.toLowerCase()) {
+    case 'kg':
+      return qty;
+    case 'g':
+      return qty * 0.001;
+    case 'lb':
+      return qty * 0.45359237;
+    default:
+      return null;
+  }
+}
+
+function sumConsumptionKg(
+  rows: Array<{ qty_consumed: string; uom: string }>,
+  fallbackKg: string,
+): string {
+  if (rows.length === 0) return fallbackKg;
+  const total = rows.reduce((sum, row) => {
+    const kg = consumptionRowToKg(row);
+    return kg === null ? sum : sum + kg;
+  }, 0);
+  return decimalText(total);
+}
+
 class MockClient implements QueryClient {
   calls: QueryCall[] = [];
   outboxPayload: Record<string, unknown> | null = null;
@@ -45,12 +71,10 @@ class MockClient implements QueryClient {
       const yieldPct = Number(effectiveYieldPct);
       const postedConsumption =
         materialConsumptionRows.length > 0
-          ? materialConsumptionRows
-              .filter((row) => row.uom === 'kg')
-              .reduce((sum, row) => sum + Number(row.qty_consumed), 0)
+          ? Number(sumConsumptionKg(materialConsumptionRows, postedConsumptionKg))
           : Number(postedConsumptionKg);
       const postedConsumptionText =
-        materialConsumptionRows.length > 0 ? decimalText(postedConsumption) : postedConsumptionKg;
+        materialConsumptionRows.length > 0 ? sumConsumptionKg(materialConsumptionRows, postedConsumptionKg) : postedConsumptionKg;
       const yieldFactor = yieldPct / 100;
       const expectedInput = yieldPct > 0 ? runningOutput / yieldFactor : null;
       const warnThresholdOutput = postedConsumption * yieldFactor * (1 + warnPct);
@@ -284,23 +308,25 @@ describe('registerOutput mass-balance advisory warning', () => {
     });
   });
 
-  it('only includes kg material consumption in the mass-balance warning sum', async () => {
+  it('converts mass UoM consumption (g/lb) to kg for the mass-balance warning sum', async () => {
     materialConsumptionRows = [
       { qty_consumed: '200', uom: 'each' },
+      { qty_consumed: '50000', uom: 'g' },
       { qty_consumed: '50', uom: 'kg' },
     ];
 
-    const result = await register('100');
+    const result = await register('103');
 
     expect(result.mass_balance_warning).toEqual({
-      expected_input_kg: '100',
-      posted_consumption_kg: '50',
+      expected_input_kg: '103',
+      posted_consumption_kg: '100',
       effective_yield_pct: '100',
       warn_pct: 0.02,
     });
     const massBalanceQuery = client.calls.find(
       (call) => normalizeSql(call.sql).startsWith('with cfg as') && call.sql.includes('wo_material_consumption'),
     );
-    expect(massBalanceQuery?.sql).toContain("and c.uom = 'kg'");
+    expect(massBalanceQuery?.sql).not.toContain("and c.uom = 'kg'");
+    expect(massBalanceQuery?.sql).toContain('unit_of_measure');
   });
 });
