@@ -152,8 +152,28 @@ export function OutputModal({
   // never disabled by anything other than the normal field validity.
   const [noConsumptionAck, setNoConsumptionAck] = useState(false);
 
+  function resetFormState() {
+    setOutputType('primary');
+    setQty('');
+    setActualWeight('');
+    setBatch('');
+    setOutput(null);
+    setPrintBusy(false);
+    setPrintResult(null);
+    setPrintError(null);
+    setCatchUnits([]);
+    setCatchText('');
+    setBusy(false);
+    setError(null);
+    setNoConsumptionAck(false);
+    submittingRef.current = false;
+  }
+
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      resetFormState();
+      return;
+    }
     submittingRef.current = false;
     transactionIdRef.current = freshTransactionId();
   }, [open]);
@@ -371,10 +391,7 @@ export function OutputModal({
 
   // E1 — close + reset BOTH the form and the success/print state.
   function closeAndReset() {
-    setOutput(null);
-    setPrintResult(null);
-    setPrintError(null);
-    setPrintBusy(false);
+    resetFormState();
     onClose();
   }
 

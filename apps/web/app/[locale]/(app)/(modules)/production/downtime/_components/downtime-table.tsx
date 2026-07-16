@@ -19,6 +19,7 @@ export type DowntimeTableLabels = {
   col: {
     started: string;
     line: string;
+    shift: string;
     wo: string;
     category: string;
     reason: string;
@@ -65,6 +66,7 @@ export function DowntimeTable({
           <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
             <th className="px-3 py-2 font-semibold">{labels.col.started}</th>
             <th className="px-3 py-2 font-semibold">{labels.col.line}</th>
+            <th className="px-3 py-2 font-semibold">{labels.col.shift}</th>
             <th className="px-3 py-2 font-semibold">{labels.col.wo}</th>
             <th className="px-3 py-2 font-semibold">{labels.col.category}</th>
             <th className="px-3 py-2 font-semibold">{labels.col.reason}</th>
@@ -77,7 +79,8 @@ export function DowntimeTable({
           {rows.map((r) => (
             <tr key={r.id} data-testid={`production-downtime-row-${r.id}`} className="border-b border-slate-100 last:border-0">
               <td className="px-3 py-2 font-mono text-xs text-slate-600">{labels.dateFmt(r.startedAt)}</td>
-              <td className="px-3 py-2 font-mono text-slate-700">{r.lineId}</td>
+              <td className="px-3 py-2 font-mono text-slate-700">{r.lineLabel}</td>
+              <td className="px-3 py-2 text-slate-700">{r.shiftLabel ?? '—'}</td>
               <td className="px-3 py-2 font-mono text-xs text-slate-600">{r.woNumber ?? '—'}</td>
               <td className="px-3 py-2">
                 {r.categoryName ? (

@@ -225,6 +225,7 @@ function makeClient(): QueryClient {
             {
               id: WO_ID,
               site_id: SITE_ID,
+              item_type_at_creation: 'fg',
               active_bom_header_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
               active_factory_spec_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
               allergen_profile_snapshot: woSegregationRequired ? { segregation_required: true } : {},
@@ -290,6 +291,22 @@ function makeClient(): QueryClient {
         const id = String(params[0]);
         const found = changeovers.find((entry) => entry.id === id);
         return { rows: found ? [found] : [], rowCount: found ? 1 : 0 };
+      }
+      if (n.includes('from public.bom_headers bh') || n.includes('from public.factory_specs fs')) {
+        return {
+          rows: [
+            {
+              bom_exists: true,
+              spec_exists: true,
+              spec_site_id: SITE_ID,
+              spec_bom_header_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (n.includes('from public.wo_dependencies dep')) {
+        return { rows: [], rowCount: 0 };
       }
       if (n.includes('from public.schedule_outputs')) return { rows: [], rowCount: 0 };
       if (n.startsWith('insert into public.outbox_events')) return { rows: [], rowCount: 1 };

@@ -41,6 +41,7 @@ function makeClient(): QueryClient {
           rows: [{
             id: FG_WO_ID,
             site_id: SITE_ID,
+            item_type_at_creation: 'fg',
             active_bom_header_id: BOM_HEADER_ID,
             active_factory_spec_id: FACTORY_SPEC_ID,
             allergen_profile_snapshot: null,

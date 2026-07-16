@@ -187,6 +187,7 @@ export type WoDetailLabels = {
     output: string;
     plannedWindow: string;
     actualStart: string;
+    actualComplete: string;
     elapsed: string;
     allergens: string;
     bomVersion: string;
@@ -875,6 +876,7 @@ export function WoDetailScreen({
               <Fact label={labels.overview.output} value={`${fmtQty(h.outputKg)} ${h.uom}`} mono />
               <Fact label={labels.overview.plannedWindow} value={`${fmtDate(h.scheduledStart)} → ${fmtDate(h.scheduledEnd)}`} mono />
               <Fact label={labels.overview.actualStart} value={fmtDate(h.startedAt)} mono />
+              <Fact label={labels.overview.actualComplete} value={fmtDate(h.completedAt)} mono />
               <Fact
                 label={labels.overview.allergens}
                 value={h.allergenGate ? labels.overview.allergenYes : labels.overview.allergenNo}

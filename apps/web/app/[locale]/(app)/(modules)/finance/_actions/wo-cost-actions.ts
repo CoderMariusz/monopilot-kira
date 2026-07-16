@@ -44,11 +44,23 @@ const FINANCE_COSTS_READ_PERMISSION = 'fin.costs.read';
 /** WO actual-cost reporting currency — labor/setup are GBP; no FX conversion table exists. */
 const WO_REPORTING_CURRENCY = WAC_VALUATION_CURRENCY_CODE;
 
+/** Completion instant for finance windows — legacy rows may only have wo_events. */
+const COMPLETED_WO_COMPLETED_AT = `coalesce(x.completed_at, wo.completed_at, ev.completed_at)`;
+
 const COMPLETED_WO_FROM = `
              from public.work_orders wo
              left join public.wo_executions x
                on x.org_id = app.current_org_id()
               and x.wo_id = wo.id
+             left join lateral (
+               select e.occurred_at as completed_at
+                 from public.wo_events e
+                where e.org_id = wo.org_id
+                  and e.wo_id = wo.id
+                  and e.to_status in ('completed', 'closed')
+                order by e.occurred_at asc
+                limit 1
+             ) ev on true
              left join public.production_lines pl
                on pl.org_id = wo.org_id
               and pl.id = wo.production_line_id`;
@@ -60,10 +72,10 @@ const COMPLETED_WO_WHERE = `
                 wo.status in ('COMPLETED', 'CLOSED')
                 or x.status in ('completed', 'closed')
               )
-              and coalesce(x.completed_at, wo.completed_at) >= pg_catalog.now() - ($1::int * interval '1 day')`;
+              and ${COMPLETED_WO_COMPLETED_AT} >= pg_catalog.now() - ($1::int * interval '1 day')`;
 
 const COMPLETED_WO_ORDER = `
-            order by coalesce(x.completed_at, wo.completed_at) desc nulls last, wo.wo_number desc`;
+            order by ${COMPLETED_WO_COMPLETED_AT} desc nulls last, wo.wo_number desc`;
 
 export type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -259,13 +271,22 @@ async function computeWoActualCostInContext(
             i.item_code as product_code,
             i.name as product_name,
             coalesce(x.started_at, wo.started_at) as started_at,
-            coalesce(x.completed_at, wo.completed_at) as completed_at,
+            ${COMPLETED_WO_COMPLETED_AT} as completed_at,
             coalesce(sum(o.qty_kg), 0)::text as output_kg,
             coalesce(w.waste_kg, '0')::text as waste_kg
        from public.work_orders wo
        left join public.wo_executions x
          on x.org_id = app.current_org_id()
         and x.wo_id = wo.id
+       left join lateral (
+         select e.occurred_at as completed_at
+           from public.wo_events e
+          where e.org_id = wo.org_id
+            and e.wo_id = wo.id
+            and e.to_status in ('completed', 'closed')
+          order by e.occurred_at asc
+          limit 1
+       ) ev on true
        left join public.items i
          on i.org_id = app.current_org_id()
         and i.id = wo.product_id
@@ -288,7 +309,10 @@ async function computeWoActualCostInContext(
           wo.status in ('COMPLETED', 'CLOSED')
           or x.status in ('completed', 'closed')
         )
-      group by wo.id, wo.wo_number, i.item_code, i.name, x.started_at, x.completed_at, w.waste_kg`,
+      group by wo.id, wo.wo_number, i.item_code, i.name,
+               coalesce(x.started_at, wo.started_at),
+               coalesce(x.completed_at, wo.completed_at, ev.completed_at),
+               w.waste_kg`,
     [woId],
   );
   const wo = base.rows[0];
@@ -604,7 +628,7 @@ export async function listCompletedWoCosts(
           ),
           ctx.client.query<{ wo_id: string; completed_at: string | Date | null }>(
             `select wo.id::text as wo_id,
-                    coalesce(x.completed_at, wo.completed_at) as completed_at
+                    ${COMPLETED_WO_COMPLETED_AT} as completed_at
                ${COMPLETED_WO_FROM}
               ${COMPLETED_WO_WHERE}
               ${COMPLETED_WO_ORDER}

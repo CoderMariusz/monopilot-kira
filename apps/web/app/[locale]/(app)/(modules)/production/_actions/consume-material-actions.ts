@@ -42,16 +42,21 @@
  */
 import { createHash } from 'node:crypto';
 
+import { signEvent } from '@monopilot/e-sign';
+import type pg from 'pg';
+
 import { toMicro } from '../../../../../../lib/shared/decimal';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
 import { debitWac } from '../../../../../../lib/finance/upsert-wac';
 import {
   isNilOrZeroLpId,
+  NIL_LP_UUID,
   normalizePersistedQuantity,
   resolveConsumptionLp,
 } from '../../../../../../lib/production/consume-material-core';
 import { assertWoNotOnHold } from '../../../../../../lib/production/holds-guard';
+import { findUserByEmail, userHasPin, verifyPin } from '../../../../../../lib/scanner/auth';
 import { makeStockMoveNumber } from '../../../../../../lib/warehouse/lp-create';
 import {
   APP_VERSION,
@@ -65,16 +70,28 @@ import {
 } from '../../../../../../lib/production/shared';
 
 const CONSUMPTION_WRITE_PERMISSION = 'production.consumption.write';
+const CONSUMPTION_OVERRIDE_APPROVE_PERMISSION = 'production.consumption.override_approve';
+const FEFO_DEVIATION_ESIGN_INTENT = 'prod.consumption.override';
+const OVERCONSUME_OVERRIDE_ESIGN_INTENT = 'prod.consumption.override';
+const MANUAL_NO_LP_ID = NIL_LP_UUID;
 
 export type RecordDesktopConsumptionInput = {
   woId: string;
   materialId: string;
   /** Decimal string in the material's UoM (never a JS number — precision). */
   qty: string;
-  /** Optional license plate to decrement; omitted → consume without an LP. */
+  /** Explicit license plate to decrement; omit with reasonCode for manual/no-LP. */
   lpId?: string | null;
-  /** Required when consuming without an LP (manual/silo path audit reason). */
+  /** Required for manual/no-LP consumption (does not auto-select FEFO). */
   reasonCode?: string | null;
+  /** Required when the chosen LP violates FEFO (earlier-expiry stock exists). */
+  fefoDeviationReason?: string | null;
+  /** CFR-21 e-sign PIN/password — required for FEFO deviation before commit. */
+  signature?: { password: string } | null;
+  /** Required when consumption exceeds the approval tier (`overconsume_threshold_pct`). */
+  overconsumeReason?: string | null;
+  /** Supervisor approver for over-consumption override (must differ from the operator). */
+  approver?: { email: string; password: string } | null;
   /** Client-generated idempotency token (deterministic replay key). */
   clientOpId: string;
 };
@@ -83,6 +100,14 @@ export type OverconsumeWarning = {
   overconsumed: true;
   overPct: number;
   warnPct: number;
+};
+
+export type OverconsumeApprovalDetails = {
+  requiredQty: string;
+  consumedQty: string;
+  attemptedQty: string;
+  thresholdPct: number;
+  overPct: number;
 };
 
 export type RecordDesktopConsumptionData = {
@@ -119,14 +144,21 @@ export type ConsumeActionError =
   // Canonical T-064 holdsGuard rejection (lib/production/holds-guard.ts:5-9).
   | 'quality_hold_active'
   | 'reason_required'
-  | 'overconsume_blocked'
+  | 'fefo_deviation_approval_required'
+  | 'esign_failed'
+  | 'overconsume_approval_required'
+  | 'invalid_approver'
+  | 'approver_forbidden'
+  | 'pin_not_enrolled'
+  | 'pin_locked'
+  | 'invalid_pin'
   | 'wo_not_consumable'
   | 'invalid_input'
   | 'error';
 
 export type ConsumeActionResult<T> =
   | { ok: true; data: T }
-  | { ok: false; reason: ConsumeActionError; message?: string };
+  | { ok: false; reason: ConsumeActionError; message?: string; details?: OverconsumeApprovalDetails };
 
 type MaterialGateRow = {
   id: string;
@@ -179,6 +211,33 @@ function deterministicTransactionId(seed: string): string {
 
 function lpStateTransactionId(orgId: string, clientOpId: string): string {
   return deterministicTransactionId(`${orgId}:desktop-consume:lp-state:${clientOpId}`);
+}
+
+/** True when an earlier-expiry consumable LP exists for the same product/uom. */
+async function violatesFefoOrder(
+  client: QueryClient,
+  productId: string,
+  chosenLpId: string,
+  uom: string,
+): Promise<boolean> {
+  const fefo = await client.query<{ violates: boolean }>(
+    `select exists (
+              select 1
+                from public.v_inventory_available cand
+                join public.license_plates chosen
+                  on chosen.id = $2::uuid
+                 and chosen.org_id = app.current_org_id()
+               where cand.org_id = app.current_org_id()
+                 and cand.product_id = $1::uuid
+                 and cand.uom = $3
+                 and cand.lp_id <> $2::uuid
+                 and cand.expiry_date is not null
+                 and (chosen.expiry_date is null
+                      or cand.expiry_date < chosen.expiry_date)
+            ) as violates`,
+    [productId, chosenLpId, uom],
+  );
+  return fefo.rows[0]?.violates ?? false;
 }
 
 async function writeConsumeLedger(
@@ -343,6 +402,11 @@ export async function recordDesktopConsumption(
   const rawQty = asTrimmed(input?.qty);
   const lpId = asTrimmed(input?.lpId);
   const reasonCode = asTrimmed(input?.reasonCode);
+  const fefoDeviationReason = asTrimmed(input?.fefoDeviationReason);
+  const esignPassword = asTrimmed(input?.signature?.password);
+  const overconsumeReason = asTrimmed(input?.overconsumeReason);
+  const approverEmail = asTrimmed(input?.approver?.email)?.toLowerCase() ?? null;
+  const approverPassword = asTrimmed(input?.approver?.password);
   const clientOpId = asTrimmed(input?.clientOpId);
 
   if (!woId || !isUuid(woId) || !materialId || !isUuid(materialId) || !clientOpId) {
@@ -495,12 +559,76 @@ export async function recordDesktopConsumption(
       if (!gate) {
         return { ok: false, reason: 'invalid_material' };
       }
+      const overApprovalDetails: OverconsumeApprovalDetails = {
+        requiredQty: gate.required_qty,
+        consumedQty: gate.consumed_qty,
+        attemptedQty: qty,
+        thresholdPct: numericJson(gate.threshold_pct),
+        overPct: numericJson(gate.over_pct),
+      };
+
+      let overconsumeApproverUserId: string | null = null;
+      let overconsumeSignatureId: string | null = null;
+      let overconsumeSubjectHash: string | null = null;
+
       if (gate.over_limit) {
-        return {
-          ok: false,
-          reason: 'overconsume_blocked',
-          message: `Over-consumption blocked: required ${gate.required_qty} ${gate.uom}, consumed ${gate.consumed_qty} ${gate.uom}, attempted ${qty} ${gate.uom}, threshold ${gate.threshold_pct}%.`,
-        };
+        if (!overconsumeReason || !approverEmail || !approverPassword) {
+          return {
+            ok: false,
+            reason: 'overconsume_approval_required',
+            message: `Over-consumption requires supervisor approval: required ${gate.required_qty} ${gate.uom}, consumed ${gate.consumed_qty} ${gate.uom}, attempted ${qty} ${gate.uom}, threshold ${gate.threshold_pct}%.`,
+            details: overApprovalDetails,
+          };
+        }
+
+        const approver = await findUserByEmail(ctx.client, approverEmail);
+        if (!approver || approver.org_id !== orgId || approver.id === userId) {
+          return { ok: false, reason: 'invalid_approver' };
+        }
+        if (!(await userHasPin(ctx.client, approver.id))) {
+          return { ok: false, reason: 'pin_not_enrolled' };
+        }
+
+        const pinResult = await verifyPin(approver.id, approverPassword, { client: ctx.client as unknown as pg.PoolClient });
+        if (pinResult === 'locked') {
+          return { ok: false, reason: 'pin_locked' };
+        }
+        if (pinResult !== true) {
+          return { ok: false, reason: 'invalid_pin' };
+        }
+
+        const approverCtx: ProductionContext = { userId: approver.id, orgId, client: ctx.client };
+        if (!(await hasPermission(approverCtx, CONSUMPTION_OVERRIDE_APPROVE_PERMISSION))) {
+          return { ok: false, reason: 'approver_forbidden' };
+        }
+
+        try {
+          const receipt = await signEvent(
+            {
+              signerUserId: approver.id,
+              pin: approverPassword,
+              intent: OVERCONSUME_OVERRIDE_ESIGN_INTENT,
+              subject: {
+                woId,
+                materialId: gate.id,
+                qty,
+                uom: gate.uom,
+                transactionId: txnId,
+                overconsume: true,
+              },
+              reason: overconsumeReason,
+            },
+            { client: ctx.client as unknown as pg.PoolClient },
+          );
+          if (!receipt.subjectHash) {
+            throw new Error('recordDesktopConsumption: over-consumption e-sign did not produce a receipt hash');
+          }
+          overconsumeApproverUserId = approver.id;
+          overconsumeSignatureId = receipt.signatureId;
+          overconsumeSubjectHash = receipt.subjectHash;
+        } catch {
+          return { ok: false, reason: 'esign_failed' };
+        }
       }
       // Between the tiers: proceed, but flag the ledger row + the response.
       const warnBand = gate.over_warn && !gate.over_limit;
@@ -512,69 +640,142 @@ export async function recordDesktopConsumption(
           }
         : undefined;
 
-      const lpResolution = await resolveConsumptionLp(ctx, {
-        explicitLpId: lpId,
-        productIds: [gate.product_id, gate.substitute_item_id].filter((id): id is string => Boolean(id)),
-        uom: gate.uom,
-        qty,
-      });
-      if (!lpResolution.ok) {
-        if (lpResolution.error === 'quality_hold_active') {
-          await emitConsumeBlocked(
-            ctx,
-            new QualityHoldError({
-              hold: lpResolution.hold!,
-              woId,
-              blockedPath: 'consume',
-              transactionId: txnId,
-              lpId: lpId ?? null,
-              lotId: null,
-            }),
-          );
+      const manualNoLpPath = !lpId && Boolean(reasonCode);
+      let resolvedLpId: string;
+      let consumedItemId: string;
+      let lpResolution:
+        | {
+            status: string;
+            siteId: string | null;
+            locationId: string | null;
+          }
+        | null = null;
+      let fefoAdherence = true;
+      let persistedFefoDeviationReason: string | null = null;
+      let fefoDeviationSignatureId: string | null = null;
+      let fefoDeviationSubjectHash: string | null = null;
+
+      if (manualNoLpPath) {
+        // C081 — explicit no-LP consent must NOT silently auto-select FEFO.
+        resolvedLpId = MANUAL_NO_LP_ID;
+        consumedItemId = gate.product_id;
+      } else {
+        const lpResolve = await resolveConsumptionLp(ctx, {
+          explicitLpId: lpId,
+          productIds: [gate.product_id, gate.substitute_item_id].filter((id): id is string => Boolean(id)),
+          uom: gate.uom,
+          qty,
+        });
+        if (!lpResolve.ok) {
+          if (lpResolve.error === 'quality_hold_active') {
+            await emitConsumeBlocked(
+              ctx,
+              new QualityHoldError({
+                hold: lpResolve.hold!,
+                woId,
+                blockedPath: 'consume',
+                transactionId: txnId,
+                lpId: lpId ?? null,
+                lotId: null,
+              }),
+            );
+          }
+          return {
+            ok: false,
+            reason: lpResolve.error === 'invalid_input' ? 'invalid_input' : lpResolve.error,
+          };
         }
-        return {
-          ok: false,
-          reason: lpResolution.error === 'invalid_input' ? 'invalid_input' : lpResolution.error,
+
+        resolvedLpId = lpResolve.lpId;
+        consumedItemId = lpResolve.productId;
+        lpResolution = {
+          status: lpResolve.status,
+          siteId: lpResolve.siteId,
+          locationId: lpResolve.locationId,
+        };
+
+        const fefoDeviation = await violatesFefoOrder(ctx.client, consumedItemId, resolvedLpId, gate.uom);
+        fefoAdherence = !fefoDeviation;
+        if (fefoDeviation) {
+          if (!fefoDeviationReason) {
+            return { ok: false, reason: 'fefo_deviation_approval_required' };
+          }
+          if (!esignPassword) {
+            return { ok: false, reason: 'esign_failed' };
+          }
+          try {
+            const receipt = await signEvent(
+              {
+                signerUserId: userId,
+                pin: esignPassword,
+                intent: FEFO_DEVIATION_ESIGN_INTENT,
+                subject: {
+                  woId,
+                  materialId: gate.id,
+                  lpId: resolvedLpId,
+                  qty,
+                  uom: gate.uom,
+                  transactionId: txnId,
+                },
+                reason: fefoDeviationReason,
+              },
+              { client: ctx.client as unknown as pg.PoolClient },
+            );
+            if (!receipt.subjectHash) {
+              throw new Error('recordDesktopConsumption: FEFO deviation e-sign did not produce a receipt hash');
+            }
+            fefoDeviationSignatureId = receipt.signatureId;
+            fefoDeviationSubjectHash = receipt.subjectHash;
+            persistedFefoDeviationReason = fefoDeviationReason;
+          } catch {
+            return { ok: false, reason: 'esign_failed' };
+          }
+        }
+      }
+
+      let lpRes: { rows: Array<{ id: string; quantity: string }> } = { rows: [] };
+      let lpLedgerInput: Omit<Parameters<typeof writeConsumeLedger>[1], 'consumptionId'> | null = null;
+
+      if (!manualNoLpPath) {
+        lpRes = await ctx.client.query<{ id: string; quantity: string }>(
+          `update public.license_plates
+              set quantity = quantity - $3::numeric,
+                  status = case when quantity - $3::numeric = 0 then 'consumed' else status end,
+                  consumed_by_wo_id = $4::uuid,
+                  updated_by = $5::uuid,
+                  updated_at = now()
+            where org_id = $1::uuid
+              and id = $2::uuid
+              and product_id = any($6::uuid[])
+              and uom = $7
+              and quantity - $3::numeric >= reserved_qty
+            returning id::text, quantity::text as quantity`,
+          [orgId, resolvedLpId, qty, woId, userId, [gate.product_id, gate.substitute_item_id].filter(Boolean), gate.uom],
+        );
+        if (!lpRes.rows[0]) {
+          if (fefoDeviationSignatureId || overconsumeSignatureId) {
+            throw new Error('recordDesktopConsumption: LP decrement failed after approved override e-sign');
+          }
+          return { ok: false, reason: 'lp_unavailable' };
+        }
+
+        const lpToState = toMicro(lpRes.rows[0].quantity) <= 0n ? 'consumed' : lpResolution!.status;
+        lpLedgerInput = {
+          orgId,
+          userId,
+          woId,
+          materialId: gate.id,
+          lpId: resolvedLpId,
+          qty,
+          uom: gate.uom,
+          siteId: lpResolution!.siteId,
+          locationId: lpResolution!.locationId,
+          fromState: lpResolution!.status,
+          toState: lpToState,
+          stockMoveTransactionId: txnId,
+          lpStateTransactionId: lpStateTransactionId(orgId, clientOpId),
         };
       }
-
-      const resolvedLpId = lpResolution.lpId;
-      let consumedItemId = lpResolution.productId;
-      const lpRes = await ctx.client.query<{ id: string; quantity: string }>(
-        `update public.license_plates
-            set quantity = quantity - $3::numeric,
-                status = case when quantity - $3::numeric = 0 then 'consumed' else status end,
-                consumed_by_wo_id = $4::uuid,
-                updated_by = $5::uuid,
-                updated_at = now()
-          where org_id = $1::uuid
-            and id = $2::uuid
-            and product_id = any($6::uuid[])
-            and uom = $7
-            and quantity - $3::numeric >= reserved_qty
-          returning id::text, quantity::text as quantity`,
-        [orgId, resolvedLpId, qty, woId, userId, [gate.product_id, gate.substitute_item_id].filter(Boolean), gate.uom],
-      );
-      if (!lpRes.rows[0]) {
-        return { ok: false, reason: 'lp_unavailable' };
-      }
-
-      const lpToState = toMicro(lpRes.rows[0].quantity) <= 0n ? 'consumed' : lpResolution.status;
-      const lpLedgerInput: Omit<Parameters<typeof writeConsumeLedger>[1], 'consumptionId'> = {
-        orgId,
-        userId,
-        woId,
-        materialId: gate.id,
-        lpId: resolvedLpId,
-        qty,
-        uom: gate.uom,
-        siteId: lpResolution.siteId,
-        locationId: lpResolution.locationId,
-        fromState: lpResolution.status,
-        toState: lpToState,
-        stockMoveTransactionId: txnId,
-        lpStateTransactionId: lpStateTransactionId(orgId, clientOpId),
-      };
 
       // (4) Conditional UPDATE of consumed_qty — MIRRORS the scanner route.
       const materialRes = await ctx.client.query<{
@@ -599,39 +800,17 @@ export async function recordDesktopConsumption(
         throw new Error('recordDesktopConsumption: material update failed after material gate');
       }
 
-      let fefoAdherence = lpResolution.fefoAutoResolved;
-      if (!lpResolution.fefoAutoResolved) {
-        const fefo = await ctx.client.query<{ violates: boolean }>(
-          `select exists (
-                    select 1
-                      from public.v_inventory_available cand
-                      join public.license_plates chosen
-                        on chosen.id = $2::uuid
-                       and chosen.org_id = app.current_org_id()
-                     where cand.org_id = app.current_org_id()
-                       and cand.product_id = $1::uuid
-                       and cand.uom = $3
-                       and cand.lp_id <> $2::uuid
-                       and cand.expiry_date is not null
-                       and (chosen.expiry_date is null
-                            or cand.expiry_date < chosen.expiry_date)
-                  ) as violates`,
-          [consumedItemId, resolvedLpId, material.uom],
-        );
-        fefoAdherence = !(fefo.rows[0]?.violates ?? false);
-      }
-
       // (5) Ledger row LAST — its UNIQUE(transaction_id) is the final
       // exactly-once gate (a racing replay that slipped past the probe trips
       // the constraint and rolls the whole txn back).
       const consumption = await ctx.client.query<{ id: string }>(
         `insert into public.wo_material_consumption
            (org_id, transaction_id, wo_id, component_id, lp_id, qty_consumed, uom,
-            operator_id, fefo_adherence_flag, ext_jsonb)
+            operator_id, fefo_adherence_flag, fefo_deviation_reason, ext_jsonb)
          values
            (app.current_org_id(), $1::uuid, $2::uuid, $3::uuid,
             $4::uuid,
-            $5::numeric, $6, $7::uuid, $8, $9::jsonb)
+            $5::numeric, $6, $7::uuid, $8, $9, $10::jsonb)
          returning id::text as id`,
         [
           txnId,
@@ -642,13 +821,27 @@ export async function recordDesktopConsumption(
           material.uom,
           userId,
           fefoAdherence,
+          persistedFefoDeviationReason,
           JSON.stringify({
             source: 'desktop',
             clientOpId,
-            ...(reasonCode ? { reasonCode } : {}),
+            ...(manualNoLpPath ? { manualNoLp: true, reasonCode } : {}),
+            ...(reasonCode && !manualNoLpPath ? { reasonCode } : {}),
             materialId: material.id,
             materialName: material.material_name,
             ...(warning ? { warned: true, overPct: warning.overPct } : {}),
+            ...(fefoDeviationSignatureId
+              ? { fefoDeviationSignatureId, fefoDeviationSubjectHash }
+              : {}),
+            ...(overconsumeApproverUserId
+              ? {
+                  overconsumeReason,
+                  approverUserId: overconsumeApproverUserId,
+                  overconsumeSignatureId,
+                  overconsumeSubjectHash,
+                  overPct: numericJson(gate.over_pct),
+                }
+              : {}),
           }),
         ],
       );
@@ -702,20 +895,22 @@ export async function recordDesktopConsumption(
         );
       }
 
-      await writeConsumeLedger(ctx.client, {
-        ...lpLedgerInput,
-        consumptionId,
-      });
-      await emitMaterialConsumed(ctx.client, {
-        aggregateId: consumptionId,
-        woId,
-        lpId: resolvedLpId,
-        itemId: consumedItemId,
-        qty,
-        uom: material.uom,
-        orgId,
-        actor: userId,
-      });
+      if (lpLedgerInput) {
+        await writeConsumeLedger(ctx.client, {
+          ...lpLedgerInput,
+          consumptionId,
+        });
+        await emitMaterialConsumed(ctx.client, {
+          aggregateId: consumptionId,
+          woId,
+          lpId: resolvedLpId,
+          itemId: consumedItemId,
+          qty,
+          uom: material.uom,
+          orgId,
+          actor: userId,
+        });
+      }
 
       return {
         ok: true,
@@ -723,7 +918,7 @@ export async function recordDesktopConsumption(
           materialId: material.id,
           consumedQty: material.consumed_qty,
           uom: material.uom,
-          lpId: resolvedLpId,
+          lpId: manualNoLpPath ? null : resolvedLpId,
           replay: false,
           ...(warning ? { warning } : {}),
         },

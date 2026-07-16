@@ -336,6 +336,7 @@ async function WoDetailContent({ id, locale }: { id: string; locale: string }) {
       output: t('overview.output'),
       plannedWindow: t('overview.plannedWindow'),
       actualStart: t('overview.actualStart'),
+      actualComplete: t('overview.actualComplete'),
       elapsed: t('overview.elapsed'),
       allergens: t('overview.allergens'),
       bomVersion: t('overview.bomVersion'),

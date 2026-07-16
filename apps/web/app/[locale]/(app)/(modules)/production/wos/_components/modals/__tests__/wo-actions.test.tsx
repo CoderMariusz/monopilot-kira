@@ -434,6 +434,30 @@ describe('WO action error surfacing (verbatim handler codes)', () => {
     expect(alert).toHaveTextContent('Blocked by an active quality hold on this work order.');
   });
 
+  it('clears form fields and error banner after Cancel and reopen (C092)', async () => {
+    vi.stubGlobal('fetch', mockFetchError('quality_hold_active', 409));
+    const user = userEvent.setup();
+    render(<Harness status="in_progress" />);
+
+    await user.click(screen.getByTestId('wo-action-output'));
+    await user.type(screen.getByTestId('wo-output-qty'), '0.48');
+    await user.type(screen.getByTestId('wo-output-batch'), 'SOL-OLD-BATCH');
+    await user.click(screen.getByTestId('wo-output-confirm'));
+
+    expect(await screen.findByTestId('wo-output-error')).toBeInTheDocument();
+    expect(screen.getByTestId('wo-output-qty')).toHaveValue('0.48');
+    expect(screen.getByTestId('wo-output-batch')).toHaveValue('SOL-OLD-BATCH');
+
+    await user.click(screen.getByTestId('wo-output-cancel'));
+    expect(screen.queryByTestId('wo-output-qty')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('wo-action-output'));
+    expect(screen.getByTestId('wo-output-qty')).toHaveValue('');
+    expect(screen.getByTestId('wo-output-batch')).toHaveValue('');
+    expect(screen.queryByTestId('wo-output-error')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Output type' })).toHaveAttribute('data-value', 'primary');
+  });
+
   it('falls back to generic copy for an unmapped error code', async () => {
     vi.stubGlobal('fetch', mockFetchError('some_unmapped_code', 500));
     const user = userEvent.setup();
@@ -444,6 +468,37 @@ describe('WO action error surfacing (verbatim handler codes)', () => {
 
     const alert = await screen.findByTestId('wo-start-error');
     expect(alert).toHaveTextContent('The action could not be completed.');
+  });
+
+  it('surfaces upstream_wip_not_ready message on Start (C078)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            ok: false,
+            error: 'upstream_wip_not_ready',
+            message:
+              'Upstream WIP work order(s) must finish producing required output before this order can proceed: WO-202607-0026-W1.',
+            details: {
+              code: 'upstream_wip_not_ready',
+              mode: 'start',
+              blockers: [{ child_wo_number: 'WO-202607-0026-W1' }],
+            },
+          }),
+          { status: 409 },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<Harness status="planned" />);
+
+    await user.click(screen.getByTestId('wo-action-start'));
+    await user.click(screen.getByTestId('wo-start-confirm'));
+
+    const alert = await screen.findByTestId('wo-start-error');
+    expect(alert).toHaveTextContent('WO-202607-0026-W1');
+    expect(alert).toHaveTextContent('finish producing required output');
   });
 });
 

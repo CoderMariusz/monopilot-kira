@@ -12,7 +12,7 @@
  */
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -32,7 +32,7 @@ const LABELS: WoDetailLabels = {
   tabs: { overview: 'Overview', consumption: 'Consumption', output: 'Output', waste: 'Waste', downtime: 'Downtime', qa: 'QA results', genealogy: 'Genealogy', labor: 'Labor', history: 'Event log' },
   overview: {
     summaryTitle: 'Work order summary', kpisTitle: 'KPIs', wo: 'WO', product: 'Product', line: 'Line',
-    planned: 'Planned qty', output: 'Output', plannedWindow: 'Planned window', actualStart: 'Actual start', elapsed: 'Elapsed',
+    planned: 'Planned qty', output: 'Output', plannedWindow: 'Planned window', actualStart: 'Actual start', actualComplete: 'Actual complete', elapsed: 'Elapsed',
     allergens: 'Allergens', bomVersion: 'BOM v', consumption: 'Consumption', consumptionKpi: 'Consumption', outputKpi: 'Output',
     allergenYes: 'Allergen profile present', allergenNo: 'None', elapsedMin: 'min',
   },
@@ -228,6 +228,22 @@ describe('WoDetailScreen (parity: wo-detail.jsx:4-530)', () => {
     expect(screen.getByTestId('wo-tab-overview')).toBeInTheDocument();
     expect(screen.getByText('Work order summary')).toBeInTheDocument();
     expect(screen.getByText('Allergen profile present')).toBeInTheDocument();
+  });
+
+  it('C080: completed WO overview shows Actual complete from the execution timestamp', () => {
+    renderScreen({
+      ...DATA,
+      header: {
+        ...DATA.header,
+        status: 'completed',
+        startedAt: '2026-07-07T05:48:00.000Z',
+        completedAt: '2026-07-07T05:57:00.000Z',
+        elapsedMin: 9,
+      },
+    });
+    const overview = screen.getByTestId('wo-tab-overview');
+    expect(within(overview).getByText('Actual complete')).toBeInTheDocument();
+    expect(within(overview).getByText('2026-07-07 05:57')).toBeInTheDocument();
   });
 
   it('switching to Consumption renders the component rows', async () => {

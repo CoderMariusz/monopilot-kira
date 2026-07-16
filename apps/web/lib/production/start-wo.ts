@@ -70,11 +70,17 @@ export type StartWoData = {
 type WoSnapshotRow = {
   id: string;
   site_id: string | null;
+  item_type_at_creation: string;
   active_bom_header_id: string | null;
   active_factory_spec_id: string | null;
   allergen_profile_snapshot: { segregation_required?: boolean } | null;
   production_line_id: string | null;
 };
+
+/** Upstream WIP stages mirror Planning release — BOM snapshot only, no factory spec. */
+function isIntermediateWipStage(itemTypeAtCreation: string): boolean {
+  return itemTypeAtCreation === 'intermediate';
+}
 
 /**
  * Start a WO. MUST be invoked inside `withOrgContext(...)` (the caller opens the
@@ -91,7 +97,8 @@ export async function startWo(
 
   // (1) Factory-release preflight — read the WO SNAPSHOT, never the live BOM/spec.
   const woRes = await client.query<WoSnapshotRow>(
-      `select id, site_id::text as site_id, active_bom_header_id, active_factory_spec_id, allergen_profile_snapshot,
+      `select id, site_id::text as site_id, item_type_at_creation,
+              active_bom_header_id, active_factory_spec_id, allergen_profile_snapshot,
               production_line_id::text
        from public.work_orders
       where org_id = app.current_org_id() and id = $1::uuid`,
@@ -101,16 +108,22 @@ export async function startWo(
   if (!wo) return fail('not_found');
   const activeBomHeaderId = wo.active_bom_header_id;
   const activeFactorySpecId = wo.active_factory_spec_id;
-  if (!activeBomHeaderId || !activeFactorySpecId) {
+  const wipStage = isIntermediateWipStage(wo.item_type_at_creation);
+  const missingBom = !activeBomHeaderId;
+  const missingFactorySpec = !wipStage && !activeFactorySpecId;
+  if (missingBom || missingFactorySpec) {
     return fail('wo_snapshot_missing', {
-      message: 'WO has no factory-release snapshot; release the work order again in Planning to bind its approved BOM and factory spec before start.',
+      message: wipStage
+        ? 'WO has no BOM release snapshot; release the work order again in Planning to bind its approved BOM before start.'
+        : 'WO has no factory-release snapshot; release the work order again in Planning to bind its approved BOM and factory spec before start.',
       details: {
         code: 'wo_snapshot_missing',
         missing: {
-          activeBomHeader: !activeBomHeaderId,
-          activeFactorySpec: !activeFactorySpecId,
+          activeBomHeader: missingBom,
+          activeFactorySpec: missingFactorySpec,
         },
         remediation: 'release_work_order',
+        itemTypeAtCreation: wo.item_type_at_creation,
       },
     });
   }
@@ -119,6 +132,7 @@ export async function startWo(
     site_id: wo.site_id,
     active_bom_header_id: activeBomHeaderId,
     active_factory_spec_id: activeFactorySpecId,
+    requires_factory_spec: !wipStage,
   });
   if (!snapshotBinding.ok) return snapshotBinding;
 
@@ -375,7 +389,8 @@ export async function findOpenLineChangeover(
 type ReleasedSnapshotWo = {
   site_id: string | null;
   active_bom_header_id: string;
-  active_factory_spec_id: string;
+  active_factory_spec_id: string | null;
+  requires_factory_spec: boolean;
 };
 
 type ReleasedSnapshotBindingRow = {
@@ -412,17 +427,28 @@ async function validateReleasedSnapshotBindings(
     [wo.active_bom_header_id, wo.active_factory_spec_id],
   );
   const binding = bindingRes.rows[0];
-  if (!binding?.bom_exists || !binding.spec_exists) {
+  if (!binding?.bom_exists) {
     return fail('factory_release_incomplete', {
-      message: 'WO factory-release snapshot references a missing BOM or factory spec',
+      message: 'WO factory-release snapshot references a missing BOM',
       details: {
         code: 'release_snapshot_orphan',
-        bomExists: binding?.bom_exists === true,
-        specExists: binding?.spec_exists === true,
+        bomExists: false,
+        specExists: wo.requires_factory_spec ? binding?.spec_exists === true : null,
+      },
+    });
+  }
+  if (wo.requires_factory_spec && !binding.spec_exists) {
+    return fail('factory_release_incomplete', {
+      message: 'WO factory-release snapshot references a missing factory spec',
+      details: {
+        code: 'release_snapshot_orphan',
+        bomExists: true,
+        specExists: false,
       },
     });
   }
   if (
+    wo.requires_factory_spec &&
     wo.site_id &&
     binding.spec_site_id &&
     binding.spec_site_id !== wo.site_id
@@ -437,6 +463,7 @@ async function validateReleasedSnapshotBindings(
     });
   }
   if (
+    wo.requires_factory_spec &&
     binding.spec_bom_header_id &&
     binding.spec_bom_header_id !== wo.active_bom_header_id
   ) {

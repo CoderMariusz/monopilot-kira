@@ -17,6 +17,7 @@ let client: QueryClient;
 let woSiteId: string | null = SITE_ID;
 let activeBomHeaderId: string | null = BOM_HEADER_ID;
 let activeFactorySpecId: string | null = FACTORY_SPEC_ID;
+let itemTypeAtCreation = 'fg';
 let factorySpecSiteId: string | null = SITE_ID;
 let factorySpecBomHeaderId: string | null = BOM_HEADER_ID;
 let placeholderSiteId: string | null | undefined;
@@ -49,6 +50,7 @@ function makeClient(): QueryClient {
             {
               id: WO_ID,
               site_id: woSiteId,
+              item_type_at_creation: itemTypeAtCreation,
               active_bom_header_id: activeBomHeaderId,
               active_factory_spec_id: activeFactorySpecId,
               allergen_profile_snapshot: null,
@@ -109,6 +111,7 @@ describe('startWo placeholder output site stamping', () => {
     woSiteId = SITE_ID;
     activeBomHeaderId = BOM_HEADER_ID;
     activeFactorySpecId = FACTORY_SPEC_ID;
+    itemTypeAtCreation = 'fg';
     factorySpecSiteId = SITE_ID;
     factorySpecBomHeaderId = BOM_HEADER_ID;
     placeholderSiteId = undefined;
@@ -129,6 +132,16 @@ describe('startWo placeholder output site stamping', () => {
 
     expect(result.ok).toBe(true);
     expect(placeholderSiteId).toBeNull();
+  });
+
+  it('allows released intermediate WIP to start with BOM snapshot only (C077)', async () => {
+    itemTypeAtCreation = 'intermediate';
+    activeFactorySpecId = null;
+
+    const result = await startWo(makeCtx(), { woId: WO_ID, transactionId: TXN_ID });
+
+    expect(result.ok).toBe(true);
+    expect(placeholderSiteId).toBe(SITE_ID);
   });
 
   it('fails closed when the WO factory-release snapshot is missing and never self-heals at start', async () => {

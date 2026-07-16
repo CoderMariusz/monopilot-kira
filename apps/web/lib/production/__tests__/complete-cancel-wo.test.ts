@@ -286,6 +286,28 @@ describe('completeWo yield gate', () => {
     expect(outboxInsert!.params[3]).toContain(`"actor_user_id":"${USER_ID}"`);
   });
 
+  it('projects yield-gate override reason onto wo_events.reason via applyTransition (C086)', async () => {
+    const result = await completeWo(makeCtx(), {
+      woId: WO_ID,
+      transactionId: TX_ID,
+      overrideReasonCode: 'scrap_quality',
+      overridePin: '123456',
+      overrideEsignReason: 'supervisor attestation for low yield',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(applyTransition).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        reason: 'scrap_quality: supervisor attestation for low yield',
+        context: expect.objectContaining({
+          overrideReasonCode: 'scrap_quality',
+          overrideEsignReason: 'supervisor attestation for low yield',
+        }),
+      }),
+    );
+  });
+
   it('completes on the green path without an override reason', async () => {
     primaryOutputGreen = true;
 

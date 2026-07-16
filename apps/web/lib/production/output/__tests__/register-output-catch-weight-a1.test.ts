@@ -15,6 +15,8 @@ let insertedQtyKg: string | null;
 let insertedQtyUnits: string | null;
 let insertedActualWeightKg: string | null;
 let insertedCatchDetails: string | null;
+let insertedLpCatchWeightKg: string | null;
+let itemWeightMode: 'catch' | 'fixed' = 'catch';
 
 function makeCtx(): OrgContextLike {
   return { userId: USER_ID, orgId: ORG_ID, siteId: SITE_ID, client };
@@ -50,7 +52,7 @@ function makeClient(): QueryClient {
         return {
           rows: [{
             id: PRODUCT_ID,
-            weight_mode: 'catch',
+            weight_mode: itemWeightMode,
             shelf_life_days: null,
             nominal_weight: '1.000',
             variance_tolerance_pct: null,
@@ -81,6 +83,7 @@ function makeClient(): QueryClient {
         return { rows: [{ id: '77777777-7777-4777-8777-777777777777', default_location_id: '88888888-8888-4888-8888-888888888888' }], rowCount: 1 };
       }
       if (normalized.startsWith('insert into public.license_plates')) {
+        insertedLpCatchWeightKg = params[7] === null ? null : String(params[7]);
         return { rows: [{ id: '99999999-9999-4999-8999-999999999999' }], rowCount: 1 };
       }
       if (normalized.includes('with existing as materialized')) {
@@ -145,6 +148,8 @@ beforeEach(() => {
   insertedQtyUnits = null;
   insertedActualWeightKg = null;
   insertedCatchDetails = null;
+  insertedLpCatchWeightKg = null;
+  itemWeightMode = 'catch';
   client = makeClient();
 });
 
@@ -167,5 +172,18 @@ describe('registerOutput catch-weight persistence (S17)', () => {
     expect(details.per_unit_kg).toEqual(['0.95']);
     expect(details.reference_kg).toBe('1.000');
     expect(Number(details.variance_pct)).toBeGreaterThan(0);
+    expect(insertedLpCatchWeightKg).toBe('0.950');
+  });
+
+  it('does not set catch_weight_kg on the output LP for fixed-weight items', async () => {
+    itemWeightMode = 'fixed';
+    await registerOutput(makeCtx(), WO_ID, {
+      transaction_id: TX_ID,
+      output_type: 'primary',
+      product_id: PRODUCT_ID,
+      qty_kg: '1',
+    });
+
+    expect(insertedLpCatchWeightKg).toBeNull();
   });
 });

@@ -406,6 +406,21 @@ describe('listCompletedWoCosts', () => {
     expect(calls.some((call) => call.sql.includes('app.current_site_id()'))).toBe(true);
   });
 
+  it('falls back to wo_events.occurred_at when completed_at columns are null', async () => {
+    await listCompletedWoCosts({ days: 90 });
+
+    const listSql = calls.find(
+      (call) =>
+        call.sql.includes('select wo.id::text as wo_id') &&
+        call.sql.includes('limit $2::integer offset $3::integer'),
+    )?.sql;
+    expect(listSql).toBeTruthy();
+    expect(listSql).toContain('from public.wo_events e');
+    expect(listSql).toContain("e.to_status in ('completed', 'closed')");
+    expect(listSql).toContain('coalesce(x.completed_at, wo.completed_at, ev.completed_at)');
+    expect(listSql).not.toMatch(/coalesce\(x\.completed_at, wo\.completed_at\) >=/);
+  });
+
   it('paginates completed WO costs so rows beyond the first page are reachable', async () => {
     const result = await listCompletedWoCosts({ days: 30, page: 2 });
 

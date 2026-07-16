@@ -913,6 +913,7 @@ describe('voidWoOutput', () => {
     expect(insert?.params).toContain('-12.345');
     expect(insert?.params).toContain('primary');
     expect(insert?.params).toContain('BATCH-1-VOID-77777777');
+    expect(insert?.params).toContain('PASSED');
 
     const lpUpdate = queries.find((q) => normalize(q.sql).startsWith('update public.license_plates'));
     expect(lpUpdate?.params).toEqual([LP_ID, 'destroyed', USER_ID]);
@@ -945,6 +946,20 @@ describe('voidWoOutput', () => {
       }),
       expect.objectContaining({ client }),
     );
+  });
+
+  it('void counter-entries are stamped PASSED so LP-less corrections never re-enter QA pending', async () => {
+    const result = await voidWoOutput({
+      outputId: OUTPUT_ID,
+      reasonCode: 'entry_error',
+      signature: { password: '123456' },
+    });
+
+    expect(result).toEqual({ ok: true });
+
+    const insert = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_outputs'));
+    expect(insert?.params).toContain('PASSED');
+    expect(insert?.params).not.toContain('PENDING');
   });
 
   it('voidWoOutput reverses WAC using the originally-booked snapshot contribution', async () => {

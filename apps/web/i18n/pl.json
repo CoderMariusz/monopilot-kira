@@ -9112,6 +9112,7 @@
           "output": "Wyjście",
           "plannedWindow": "Okno planowane",
           "actualStart": "Rzeczywisty start",
+          "actualComplete": "Rzeczywiste ukończenie",
           "elapsed": "Czas",
           "allergens": "Alergeny",
           "bomVersion": "BOM v",
@@ -9571,6 +9572,7 @@
         "col": {
           "started": "Rozpoczęto",
           "line": "Linia",
+          "shift": "Zmiana",
           "wo": "Powiązane WO",
           "category": "Kategoria",
           "reason": "Powód",

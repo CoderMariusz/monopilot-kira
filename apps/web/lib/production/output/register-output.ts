@@ -736,6 +736,8 @@ async function createOutputLp(
     transactionId: string;
     actorUserId: string;
     siteId: string | null;
+    /** Dual-UoM actual weight for catch-weight items; persisted on license_plates.catch_weight_kg. */
+    catchWeightKg?: string | null;
   },
 ): Promise<{ id: string; lp_number: string }> {
   const warehouse = await resolveWarehouseForSessionSite(ctx);
@@ -759,14 +761,14 @@ async function createOutputLp(
   const { rows } = await ctx.client.query<{ id: string }>(
     `insert into public.license_plates (
        org_id, site_id, warehouse_id, location_id, lp_number, product_id, quantity, uom,
-       status, qa_status, batch_number, expiry_date, best_before_date,
+       catch_weight_kg, status, qa_status, batch_number, expiry_date, best_before_date,
        origin, wo_id, parent_lp_id, ext_jsonb, created_by, updated_by
      )
      values (
        app.current_org_id(), $1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::numeric, $7,
-       'received', 'pending', $8, $9::timestamptz, $9::timestamptz,
-       'production', $10::uuid, $11::uuid,
-       jsonb_build_object('consumed_lp_ids', $12::jsonb), $13::uuid, $13::uuid
+       $8::numeric, 'received', 'pending', $9, $10::timestamptz, $10::timestamptz,
+       'production', $11::uuid, $12::uuid,
+       jsonb_build_object('consumed_lp_ids', $13::jsonb), $14::uuid, $14::uuid
      )
      returning id`,
     [
@@ -777,6 +779,7 @@ async function createOutputLp(
       input.productId,
       input.quantity,
       input.uom,
+      input.catchWeightKg ?? null,
       input.batchNumber,
       input.expiryDate,
       input.woId,
@@ -1050,6 +1053,7 @@ export async function registerOutput(
       transactionId: input.transaction_id,
       actorUserId: input.operator_id ?? ctx.userId,
       siteId: wo.site_id,
+      catchWeightKg: item.weight_mode === 'catch' ? persistedActualWeightKg : null,
     });
     lpId = createdLp.id;
     lpNumber = createdLp.lp_number;

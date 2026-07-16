@@ -50,8 +50,8 @@ export type WoListRow = {
   productId: string | null;
   itemCode: string | null;
   productName: string | null;
-  plannedKg: number;
-  producedKg: number | null;
+  plannedKg: string;
+  producedKg: string | null;
   /** 0..100 progress = produced/planned, clamped. Null when planned is 0. */
   progressPct: number | null;
   /** True when the WO carries an allergen profile snapshot (changeover gate may apply). */
@@ -66,8 +66,8 @@ export type ProductionDashboardKpis = {
   woActiveTotal: number;
   /** count(work_orders WHERE over_production_flagged = true) */
   overProducedCount: number;
-  /** sum(wo_outputs.qty_kg WHERE registered_at::date = current_date), in kg. */
-  outputTodayKg: number;
+  /** sum(wo_outputs.qty_kg registered on the current UTC calendar day), exact numeric string. */
+  outputTodayKg: string;
   /** Latest oee_snapshots.oee_pct (most recent snapshot_minute); null = no snapshot yet. */
   oeeCurrentPct: number | null;
   /** count(downtime_events WHERE ended_at IS NULL) — currently-open downtime. */
@@ -165,15 +165,16 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
                 ) in ('planned', 'in_progress', 'paused')`,
       );
 
-      // KPI 2 — Output today (kg): sum of canonical wo_outputs registered today.
-      const outputRes = await c.query<{ kg: string | number | null }>(
-        `select coalesce(sum(qty_kg), 0) as kg
+      // KPI 2 — Output today (kg): sum of canonical wo_outputs registered on the
+      // UTC calendar day (matches reporting throughput MV + planning dashboard).
+      const outputRes = await c.query<{ kg: string | null }>(
+        `select coalesce(sum(qty_kg), 0)::text as kg
            from public.wo_outputs
           where org_id = app.current_org_id()
-            and registered_at >= date_trunc('day', now())
-            and registered_at < date_trunc('day', now()) + interval '1 day'`,
+            and registered_at >= (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC')
+            and registered_at < (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC') + interval '1 day'`,
       );
-      const outputTodayKg = Number(outputRes.rows[0]?.kg ?? 0);
+      const outputTodayKg = String(outputRes.rows[0]?.kg ?? '0');
 
       // KPI 3 — OEE current: most recent snapshot's oee_pct (08 is the sole producer).
       const oeeRes = await c.query<{ oee_pct: string | number | null }>(
@@ -249,8 +250,8 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
         product_id: string | null;
         item_code: string | null;
         product_name: string | null;
-        planned_quantity: string | number | null;
-        produced_quantity: string | number | null;
+        planned_quantity: string | null;
+        produced_quantity: string | null;
         progress_pct: string | number | null;
         has_allergen: boolean;
         over_production_flagged: boolean | null;
@@ -274,8 +275,8 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
                 w.product_id::text as product_id,
                 i.item_code,
                 i.name as product_name,
-                w.planned_quantity,
-                produced.qty_kg as produced_quantity,
+                w.planned_quantity::text as planned_quantity,
+                produced.qty_kg::text as produced_quantity,
                 case
                   when coalesce(w.planned_quantity, 0) > 0
                     then least(100::numeric, round(produced.qty_kg / w.planned_quantity * 100, 0))
@@ -291,7 +292,7 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
            left join public.production_lines pl
              on pl.org_id = w.org_id and pl.id = w.production_line_id
            left join lateral (
-             select coalesce(sum(o.qty_kg), 0) as qty_kg
+             select coalesce(sum(o.qty_kg), 0)::text as qty_kg
                from public.wo_outputs o
               where o.wo_id = w.id
                 and o.org_id = app.current_org_id()
@@ -303,10 +304,11 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
       );
 
       const woRows: WoListRow[] = woRes.rows.map((r) => {
-        const plannedKg = Number(r.planned_quantity ?? 0);
-        const producedKg = r.produced_quantity === null || r.produced_quantity === undefined
-          ? null
-          : Number(r.produced_quantity);
+        const plannedKg = String(r.planned_quantity ?? '0');
+        const producedKg =
+          r.produced_quantity === null || r.produced_quantity === undefined
+            ? null
+            : String(r.produced_quantity);
         const progressPct = r.progress_pct === null || r.progress_pct === undefined ? null : Number(r.progress_pct);
         const status = (ALL_STATUSES as string[]).includes(r.status)
           ? (r.status as WoExecStatus)

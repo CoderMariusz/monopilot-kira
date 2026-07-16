@@ -9034,6 +9034,7 @@
           "output": "Output",
           "plannedWindow": "Planned window",
           "actualStart": "Actual start",
+          "actualComplete": "Actual complete",
           "elapsed": "Elapsed",
           "allergens": "Allergens",
           "bomVersion": "BOM v",
@@ -9493,6 +9494,7 @@
         "col": {
           "started": "Started",
           "line": "Line",
+          "shift": "Shift",
           "wo": "Linked WO",
           "category": "Category",
           "reason": "Reason",

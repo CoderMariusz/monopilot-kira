@@ -172,7 +172,7 @@ export function StartModal({
       reset();
       onClose();
     } else {
-      setError(mapError(labels, result.errorCode));
+      setError(mapError(labels, result.errorCode, result.message));
     }
   }
   function reset() {

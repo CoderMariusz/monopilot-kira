@@ -35,12 +35,44 @@ export type DowntimeSource = 'manual' | 'wo_pause' | 'plc_auto' | 'changeover';
 /** downtime_categories.kind (migration 183) — drives the prototype red/amber/blue badge. */
 export type DowntimeKind = 'planned' | 'unplanned' | 'changeover';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Human-readable line label — never a raw production_lines UUID (C079). */
+export function resolveDowntimeLineLabel(
+  lineCode: string | null | undefined,
+  lineName: string | null | undefined,
+  lineId: string,
+): string {
+  const code = lineCode?.trim();
+  const name = lineName?.trim();
+  if (code && name) return `${code} — ${name}`;
+  if (code) return code;
+  if (name) return name;
+  if (!UUID_RE.test(lineId)) return lineId;
+  return '—';
+}
+
+/** Shift label from shift_configs, or the stable shift code when unconfigured. */
+export function resolveDowntimeShiftLabel(
+  shiftLabel: string | null | undefined,
+  shiftId: string | null | undefined,
+): string | null {
+  const label = shiftLabel?.trim();
+  if (label) return label;
+  const id = shiftId?.trim();
+  if (!id) return null;
+  if (UUID_RE.test(id)) return null;
+  return id;
+}
+
 /** One downtime event row (live, org-scoped). */
 export type DowntimeEventRow = {
   id: string;
   startedAt: string;
   endedAt: string | null;
-  lineId: string;
+  /** Resolved display label (code/name); never a raw line UUID. */
+  lineLabel: string;
+  shiftLabel: string | null;
   woNumber: string | null;
   categoryName: string | null;
   categoryKind: DowntimeKind | null;
@@ -177,6 +209,10 @@ export async function getDowntimeScreen(windowDays = 1): Promise<DowntimeScreenR
         started_at: string;
         ended_at: string | null;
         line_id: string;
+        line_code: string | null;
+        line_name: string | null;
+        shift_id: string | null;
+        shift_label: string | null;
         wo_number: string | null;
         category_name: string | null;
         category_kind: string | null;
@@ -189,6 +225,10 @@ export async function getDowntimeScreen(windowDays = 1): Promise<DowntimeScreenR
                 de.started_at,
                 de.ended_at,
                 de.line_id,
+                pl.code as line_code,
+                pl.name as line_name,
+                de.shift_id,
+                sc.shift_label,
                 w.wo_number,
                 dc.name as category_name,
                 dc.kind as category_kind,
@@ -199,6 +239,11 @@ export async function getDowntimeScreen(windowDays = 1): Promise<DowntimeScreenR
            from public.downtime_events de
            left join public.downtime_categories dc
              on dc.id = de.category_id and dc.org_id = de.org_id
+           left join public.production_lines pl
+             on pl.org_id = de.org_id
+            and (pl.id::text = de.line_id or pl.code = de.line_id)
+           left join public.shift_configs sc
+             on sc.org_id = de.org_id and sc.shift_id = de.shift_id
            left join public.work_orders w
              on w.id = de.wo_id and w.org_id = de.org_id
            left join public.users u
@@ -212,7 +257,8 @@ export async function getDowntimeScreen(windowDays = 1): Promise<DowntimeScreenR
         id: r.id,
         startedAt: r.started_at,
         endedAt: r.ended_at,
-        lineId: r.line_id,
+        lineLabel: resolveDowntimeLineLabel(r.line_code, r.line_name, r.line_id),
+        shiftLabel: resolveDowntimeShiftLabel(r.shift_label, r.shift_id),
         woNumber: r.wo_number,
         categoryName: r.category_name,
         categoryKind: KIND_VALUES.includes(r.category_kind as DowntimeKind)

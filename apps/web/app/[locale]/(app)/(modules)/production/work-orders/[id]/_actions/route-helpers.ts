@@ -17,6 +17,10 @@ import { NextResponse } from 'next/server';
 import type { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import {
+  upstreamWipNotReadyMessage,
+  type UpstreamWipGateFailure,
+} from '../../../../../../../../lib/planning/upstream-wip-dependency-gate';
 import { ProductionAbort } from '../../../../../../../../lib/production/pause-resume-wo';
 import {
   QualityHoldError,
@@ -27,6 +31,45 @@ import {
   type ProductionResult,
   type QueryClient,
 } from '../../../../../../../../lib/production/shared';
+
+type ProductionFailureBody = {
+  ok: false;
+  error: string;
+  message?: string;
+  details?: unknown;
+};
+
+/**
+ * C078 — ensure typed start gates always carry an operator-facing message.
+ * startWo already sets message for upstream_wip_not_ready; this layer backfills
+ * from structured details when a caller omits it so the Start modal can render
+ * the blocking predecessor WO instead of the generic fallback.
+ */
+export function formatProductionFailureBody<T>(
+  result: Extract<ProductionResult<T>, { ok: false }>,
+): ProductionFailureBody {
+  if (result.error === 'upstream_wip_not_ready') {
+    const details = result.details as UpstreamWipGateFailure | undefined;
+    const message =
+      (typeof result.message === 'string' && result.message.trim().length > 0
+        ? result.message
+        : undefined) ??
+      (details ? upstreamWipNotReadyMessage(details) : undefined);
+    return {
+      ok: false,
+      error: result.error,
+      ...(message ? { message } : {}),
+      details: details ?? result.details,
+    };
+  }
+
+  return {
+    ok: false,
+    error: result.error,
+    ...(result.message ? { message: result.message } : {}),
+    ...(result.details !== undefined ? { details: result.details } : {}),
+  };
+}
 
 /**
  * Map a ProductionResult to a NextResponse using the service's status.
@@ -44,10 +87,7 @@ export function toResponse<T>(result: ProductionResult<T>): NextResponse {
   if (result.ok) {
     return NextResponse.json({ ok: true, data: result.data }, { status: 200 });
   }
-  return NextResponse.json(
-    { ok: false, error: result.error, message: result.message, details: result.details },
-    { status: result.status },
-  );
+  return NextResponse.json(formatProductionFailureBody(result), { status: result.status });
 }
 
 /**

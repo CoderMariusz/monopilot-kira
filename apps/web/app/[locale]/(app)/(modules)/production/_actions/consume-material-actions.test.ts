@@ -3,14 +3,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { listConsumableLps, recordDesktopConsumption } from './consume-material-actions';
 import type { QueryClient } from '../../../../../../lib/production/shared';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+import { signEvent } from '@monopilot/e-sign';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
+const APPROVER_ID = '30000000-0000-4000-8000-000000000099';
 const WO_ID = '33333333-3333-4333-8333-333333333333';
 const MATERIAL_ID = '44444444-4444-4444-8444-444444444444';
 const PRODUCT_ID = '55555555-5555-4555-8555-555555555555';
 const SUBSTITUTE_PRODUCT_ID = '55555555-5555-4555-8555-000000000001';
 const LP_ID = '66666666-6666-4666-8666-666666666666';
+const MANUAL_NO_LP_ID = '00000000-0000-0000-0000-000000000000';
 const CONSUMPTION_ID = '77777777-7777-4777-8777-777777777777';
 
 type State = {
@@ -32,6 +35,7 @@ type State = {
   lpProductId: string;
   substituteItemId: string | null;
   fefoAutoLpAvailable: boolean;
+  fefoDeviation: boolean;
   woExecutionStatus: 'planned' | 'in_progress' | 'paused' | 'completed' | 'closed' | 'cancelled' | null;
 };
 
@@ -52,6 +56,23 @@ vi.mock('../../../../../../lib/i18n/revalidate-localized', () => ({
 
 vi.mock('../../../../../../lib/warehouse/lp-create', () => ({
   makeStockMoveNumber: vi.fn((transactionId: string) => `SM-${transactionId.replaceAll('-', '').slice(0, 20)}`),
+}));
+
+vi.mock('@monopilot/e-sign', () => ({
+  signEvent: vi.fn(async () => ({
+    signatureId: '99999999-9999-4999-8999-999999999999',
+    subjectHash: 'override-hash',
+  })),
+}));
+
+const findUserByEmailMock = vi.fn();
+const userHasPinMock = vi.fn();
+const verifyPinMock = vi.fn();
+
+vi.mock('../../../../../../lib/scanner/auth', () => ({
+  findUserByEmail: (...args: unknown[]) => findUserByEmailMock(...args),
+  userHasPin: (...args: unknown[]) => userHasPinMock(...args),
+  verifyPin: (...args: unknown[]) => verifyPinMock(...args),
 }));
 
 function normalize(sql: string): string {
@@ -183,7 +204,7 @@ function makeClient(): QueryClient {
         return { rows: [], rowCount: 1 };
       }
       if (n.includes('as violates')) {
-        return { rows: [{ violates: false }], rowCount: 1 };
+        return { rows: [{ violates: state.fefoDeviation }], rowCount: 1 };
       }
       if (n.startsWith('insert into public.wo_material_consumption')) {
         return { rows: [{ id: CONSUMPTION_ID }], rowCount: 1 };
@@ -247,10 +268,27 @@ beforeEach(() => {
     lpProductId: PRODUCT_ID,
     substituteItemId: null,
     fefoAutoLpAvailable: true,
+    fefoDeviation: false,
     woExecutionStatus: 'in_progress',
   };
   queries = [];
   client = makeClient();
+  vi.mocked(signEvent).mockClear();
+  vi.mocked(signEvent).mockResolvedValue({
+    signatureId: '99999999-9999-4999-8999-999999999999',
+    subjectHash: 'fefo-deviation-hash',
+  } as never);
+  findUserByEmailMock.mockReset();
+  findUserByEmailMock.mockResolvedValue({
+    id: APPROVER_ID,
+    org_id: ORG_ID,
+    email: 'supervisor@example.com',
+    name: 'Supervisor',
+  });
+  userHasPinMock.mockReset();
+  userHasPinMock.mockResolvedValue(true);
+  verifyPinMock.mockReset();
+  verifyPinMock.mockResolvedValue(true);
 });
 
 const VALID_INPUT = {
@@ -354,7 +392,7 @@ describe('recordDesktopConsumption — conditional UPDATE', () => {
     const ledger = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
     expect(ledger).toBeDefined();
     expect(ledger?.params[2]).toBe(SUBSTITUTE_PRODUCT_ID);
-    expect(JSON.parse(String(ledger?.params[8]))).toMatchObject({ materialId: MATERIAL_ID });
+    expect(JSON.parse(String(ledger?.params[9]))).toMatchObject({ materialId: MATERIAL_ID });
 
     const outbox = queries.find(
       (q) =>
@@ -413,17 +451,56 @@ describe('recordDesktopConsumption — over-consumption gate', () => {
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(true);
   });
 
-  it('returns overconsume_blocked (no mutation) when consumed+qty exceeds required × (1+threshold)', async () => {
+  it('returns overconsume_approval_required (no mutation) when consumed+qty exceeds required × (1+threshold) without approver', async () => {
     state.overLimit = true;
     const result = await recordDesktopConsumption(VALID_INPUT);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.reason).toBe('overconsume_blocked');
+      expect(result.reason).toBe('overconsume_approval_required');
+      expect(result.details).toMatchObject({
+        requiredQty: '120.000',
+        consumedQty: '2.500',
+        attemptedQty: '2.5',
+        thresholdPct: 0,
+        overPct: 10,
+      });
       expect(String(result.message ?? '')).toContain('threshold');
     }
+    expect(findUserByEmailMock).not.toHaveBeenCalled();
+    expect(verifyPinMock).not.toHaveBeenCalled();
     // The gate fires BEFORE any stock mutation or ledger write.
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
+  });
+
+  it('commits over-consumption when supervisor reason + approver e-sign are supplied', async () => {
+    state.overLimit = true;
+    state.granted.add('production.consumption.override_approve');
+    const result = await recordDesktopConsumption({
+      ...VALID_INPUT,
+      overconsumeReason: 'batch spill allowance',
+      approver: { email: 'supervisor@example.com', password: '1234' },
+    });
+    expect(result.ok).toBe(true);
+    expect(findUserByEmailMock).toHaveBeenCalledWith(client, 'supervisor@example.com');
+    expect(verifyPinMock).toHaveBeenCalledWith(APPROVER_ID, '1234', expect.objectContaining({ client }));
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signerUserId: APPROVER_ID,
+        intent: 'prod.consumption.override',
+        reason: 'batch spill allowance',
+        subject: expect.objectContaining({ overconsume: true }),
+      }),
+      expect.any(Object),
+    );
+    const ledger = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
+    expect(JSON.parse(String(ledger?.params[9]))).toMatchObject({
+      approverUserId: APPROVER_ID,
+      overconsumeReason: 'batch spill allowance',
+      overconsumeSignatureId: '99999999-9999-4999-8999-999999999999',
+      overconsumeSubjectHash: 'fefo-deviation-hash',
+      overPct: 10,
+    });
   });
 
   it('WARN band (over warn_pct, ≤ threshold_pct): proceeds with ok:true + warning field and flags the ledger ext', async () => {
@@ -518,40 +595,88 @@ describe('recordDesktopConsumption — idempotent replay', () => {
   });
 });
 
-describe('recordDesktopConsumption — no-LP / reason-code path (C1/C2)', () => {
+describe('recordDesktopConsumption — no-LP / reason-code path (C081)', () => {
   it('rejects an explicit zero UUID lpId before any stock mutation', async () => {
     const result = await recordDesktopConsumption({
       ...VALID_INPUT,
-      lpId: '00000000-0000-0000-0000-000000000000',
+      lpId: MANUAL_NO_LP_ID,
     });
     expect(result).toEqual({ ok: false, reason: 'invalid_input' });
     expect(queries.length).toBe(0);
   });
 
-  it('reason-code path auto-resolves FEFO LP, decrements stock, and never uses zero UUID', async () => {
+  it('manual/no-LP path records consumption without decrementing stock or auto-selecting FEFO', async () => {
     const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: null, reasonCode: 'silo-draw' });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.data.lpId).toBe(LP_ID);
+    if (result.ok) {
+      expect(result.data.lpId).toBeNull();
+      expect(result.data.replay).toBe(false);
+    }
     const ledger = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
-    expect(ledger?.params[3]).toBe(LP_ID);
+    expect(ledger?.params[3]).toBe(MANUAL_NO_LP_ID);
     expect(ledger?.params[7]).toBe(true);
-    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(true);
+    expect(ledger?.params[8]).toBeNull();
+    const ext = ledger!.params[9] as string;
+    expect(JSON.parse(ext)).toMatchObject({ manualNoLp: true, reasonCode: 'silo-draw' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.stock_moves'))).toBe(false);
+    expect(signEvent).not.toHaveBeenCalled();
   });
 
-  it('rejects reason-code consume when the only FEFO LP is on hold (C2)', async () => {
-    state.lpHeld = true;
-    const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: null, reasonCode: 'silo-draw' });
-    expect(result).toEqual({ ok: false, reason: 'quality_hold_active' });
-    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
-    expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
-  });
-
-  it('rejects reason-code consume when no eligible FEFO LP exists', async () => {
+  it('manual/no-LP path succeeds even when no FEFO LP is available', async () => {
     state.fefoAutoLpAvailable = false;
     const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: null, reasonCode: 'silo-draw' });
-    expect(result).toEqual({ ok: false, reason: 'lp_unavailable' });
-    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(result.ok).toBe(true);
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
+  });
+});
+
+describe('recordDesktopConsumption — FEFO deviation e-sign (C082)', () => {
+  it('rejects a non-FEFO LP without deviation reason or e-sign before mutation', async () => {
+    state.fefoDeviation = true;
+    const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: LP_ID });
+    expect(result).toEqual({ ok: false, reason: 'fefo_deviation_approval_required' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(false);
     expect(queries.some((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'))).toBe(false);
+    expect(signEvent).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-FEFO LP when reason is present but e-sign is missing', async () => {
+    state.fefoDeviation = true;
+    const result = await recordDesktopConsumption({
+      ...VALID_INPUT,
+      lpId: LP_ID,
+      fefoDeviationReason: 'batch constraint',
+    });
+    expect(result).toEqual({ ok: false, reason: 'esign_failed' });
+    expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
+    expect(signEvent).not.toHaveBeenCalled();
+  });
+
+  it('commits a FEFO deviation only after reason + e-sign and persists fefo_deviation_reason', async () => {
+    state.fefoDeviation = true;
+    const result = await recordDesktopConsumption({
+      ...VALID_INPUT,
+      lpId: LP_ID,
+      fefoDeviationReason: 'batch constraint',
+      signature: { password: '1234' },
+    });
+    expect(result.ok).toBe(true);
+    expect(signEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'prod.consumption.override',
+        reason: 'batch constraint',
+        subject: expect.objectContaining({ lpId: LP_ID }),
+      }),
+      expect.any(Object),
+    );
+    const ledger = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
+    expect(ledger?.params[7]).toBe(false);
+    expect(ledger?.params[8]).toBe('batch constraint');
+    expect(JSON.parse(String(ledger?.params[9]))).toMatchObject({
+      fefoDeviationSignatureId: '99999999-9999-4999-8999-999999999999',
+      fefoDeviationSubjectHash: 'fefo-deviation-hash',
+    });
   });
 });
 
@@ -578,17 +703,6 @@ describe('recordDesktopConsumption — no-LP path (legacy describe)', () => {
     const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: null });
     expect(result).toEqual({ ok: false, reason: 'reason_required' });
     expect(queries.some((q) => normalize(q.sql).startsWith('update public.wo_materials'))).toBe(false);
-  });
-
-  it('auto-resolves FEFO LP and logs reasonCode in ext_jsonb when lpId is omitted with a reason', async () => {
-    const result = await recordDesktopConsumption({ ...VALID_INPUT, lpId: null, reasonCode: 'silo-draw' });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.data.lpId).toBe(LP_ID);
-    expect(queries.some((q) => normalize(q.sql).startsWith('update public.license_plates'))).toBe(true);
-    const ledger = queries.find((q) => normalize(q.sql).startsWith('insert into public.wo_material_consumption'));
-    expect(ledger).toBeDefined();
-    const ext = ledger!.params.find((p) => typeof p === 'string' && (p as string).includes('reasonCode')) as string;
-    expect(JSON.parse(ext)).toMatchObject({ reasonCode: 'silo-draw' });
   });
 });
 

@@ -201,6 +201,7 @@ export async function completeWo(
   const consumptionWithinTolerance = strictGate?.within_tolerance !== false;
   const yieldGateGreen = primaryGreen && consumptionWithinTolerance;
   let persistedOverrideReasonCode: string | null = null;
+  let persistedOverrideEsignReason: string | null = null;
   let yieldOverrideSignatureId: string | null = null;
   if (!yieldGateGreen) {
     const overrideCode = input.overrideReasonCode?.trim() ?? '';
@@ -268,15 +269,25 @@ export async function completeWo(
     }
 
     persistedOverrideReasonCode = overrideCode;
+    persistedOverrideEsignReason = esignReason;
   }
+
+  const yieldOverrideEventReason =
+    persistedOverrideReasonCode && persistedOverrideEsignReason
+      ? `${persistedOverrideReasonCode}: ${persistedOverrideEsignReason}`
+      : persistedOverrideReasonCode;
 
   const transition = await applyTransition(ctx, {
     woId: input.woId,
     verb: 'complete',
     transactionId: input.transactionId,
+    ...(yieldOverrideEventReason ? { reason: yieldOverrideEventReason } : {}),
     context: {
       overrideReasonCode: persistedOverrideReasonCode,
       outputsRegistered: outputs.rows.length,
+      ...(persistedOverrideEsignReason
+        ? { overrideEsignReason: persistedOverrideEsignReason }
+        : {}),
       ...(yieldOverrideSignatureId
         ? {
             yieldOverrideSignatureId,

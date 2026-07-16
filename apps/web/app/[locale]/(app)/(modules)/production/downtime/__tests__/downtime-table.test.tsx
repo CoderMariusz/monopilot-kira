@@ -20,6 +20,7 @@ const LABELS: DowntimeTableLabels = {
   col: {
     started: 'Started',
     line: 'Line',
+    shift: 'Shift',
     wo: 'Linked WO',
     category: 'Category',
     reason: 'Reason',
@@ -38,7 +39,8 @@ const ROWS: DowntimeEventRow[] = [
     id: 'd1',
     startedAt: '2026-06-09T08:00:00Z',
     endedAt: '2026-06-09T08:30:00Z',
-    lineId: 'LINE-02',
+    lineLabel: 'LINE-02 — Packing line 2',
+    shiftLabel: 'AM Shift',
     woNumber: 'WO-2026-0041',
     categoryName: 'Breakdown',
     categoryKind: 'unplanned',
@@ -52,7 +54,8 @@ const ROWS: DowntimeEventRow[] = [
     id: 'd2',
     startedAt: '2026-06-09T09:00:00Z',
     endedAt: null,
-    lineId: 'LINE-04',
+    lineLabel: 'LINE-04',
+    shiftLabel: null,
     woNumber: null,
     categoryName: 'Changeover',
     categoryKind: 'changeover',
@@ -68,7 +71,9 @@ describe('Downtime event log (parity: other-screens.jsx:186-211)', () => {
   it('renders fixture rows with category + source labels', () => {
     render(<DowntimeTable rows={ROWS} labels={LABELS} />);
     const table = screen.getByTestId('production-downtime-table');
-    expect(within(table).getByText('LINE-02')).toBeInTheDocument();
+    expect(within(table).getByText('LINE-02 — Packing line 2')).toBeInTheDocument();
+    expect(within(table).getByText('AM Shift')).toBeInTheDocument();
+    expect(within(table).queryByText('948c099f-8054-49ae-99a1-dd5bb9410cd4')).not.toBeInTheDocument();
     expect(within(table).getByText('Breakdown')).toBeInTheDocument();
     expect(within(table).getByText('WO-2026-0041')).toBeInTheDocument();
     expect(within(table).getByText('Auto (WO pause)')).toBeInTheDocument();

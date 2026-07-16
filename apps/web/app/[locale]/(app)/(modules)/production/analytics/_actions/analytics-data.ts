@@ -6,8 +6,8 @@
  * downtime mocks are replaced 1:1 with real Supabase aggregates over a rolling 7-day
  * window:
  *   - OEE 7-day avg + FPQ (quality_pct) + the OEE trend sparkline → oee_snapshots
- *   - yield-by-line (avg quality_pct as a yield proxy)            → oee_snapshots
- *   - waste %                                                     → wo_waste_log + wo_outputs
+ *   - yield KPI + yield-by-line (avg work_orders.yield_percent)   → work_orders (same as Reporting)
+ *   - waste % (waste / (output + waste) over wo_outputs + waste)  → wo_outputs ⋈ wo_waste_log ⋈ work_orders
  *   - top downtime drivers (30d)                                  → downtime_events ⋈ downtime_categories
  * Simple SQL aggregates; the trend renders via the shared Sparkline SVG (the cost-history
  * pattern) — NO new chart libraries. No mocks.
@@ -15,6 +15,7 @@
  * Every read runs inside `withOrgContext` — RLS scopes to the signed-in org. Gated
  * server-side on `production.oee.read` (migration 185) like the dashboard loader.
  */
+import { num, pct } from '../../../reporting/_actions/shared';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 type QueryClient = {
@@ -42,13 +43,13 @@ export type AnalyticsScreenData = {
   oeeAvgPct: number | null;
   /** avg(quality_pct) over the 7-day window (first-pass quality proxy); null when none. */
   fpqAvgPct: number | null;
-  /** Yield proxy = avg(quality_pct) plant-wide; null when none. */
+  /** avg(work_orders.yield_percent) × 100 over completed WOs; null when none. */
   yieldAvgPct: number | null;
   /** Waste % of produced over 7 days = waste_kg / (waste_kg + output_kg); null when no output. */
   wastePct: number | null;
   /** OEE trend points (hourly buckets), oldest→newest. */
   oeeTrend: OeeTrendPoint[];
-  /** Per-line yield (avg quality_pct), sorted desc. */
+  /** Per-line avg(yield_percent) × 100, sorted desc. */
   yieldByLine: YieldByLineRow[];
   /** Top downtime drivers over 30 days. */
   topDowntime: TopDowntimeRow[];
@@ -89,9 +90,6 @@ async function hasPermission(
   return rows.length > 0;
 }
 
-function num(v: string | number | null | undefined): number | null {
-  return v === null || v === undefined ? null : Number(v);
-}
 
 function defaultWindow(days: number, now = new Date()): AnalyticsScreenWindow {
   return { from: new Date(now.getTime() - days * MS_PER_DAY), to: now };
@@ -133,26 +131,50 @@ export async function getAnalyticsScreen(input?: AnalyticsScreenInput): Promise<
       );
       const oeeAvgPct = num(oeeKpiRes.rows[0]?.oee_avg);
       const fpqAvgPct = num(oeeKpiRes.rows[0]?.fpq_avg);
-      const yieldAvgPct = fpqAvgPct;
 
-      // Waste % over the selected/default 7 days = waste / (waste + output).
-      const wasteKpiRes = await c.query<{ waste_kg: string | number | null; output_kg: string | number | null }>(
-        `select (select coalesce(sum(qty_kg), 0)
-                   from public.wo_waste_log
-                  where org_id = app.current_org_id()
-                    and recorded_at >= $1::timestamptz
-                    and recorded_at <= $2::timestamptz) as waste_kg,
-                (select coalesce(sum(qty_kg), 0)
-                   from public.wo_outputs
-                  where org_id = app.current_org_id()
-                    and registered_at >= $1::timestamptz
-                    and registered_at <= $2::timestamptz) as output_kg`,
+      // Yield KPI — same definition as Reporting productionSummary:
+      // avg(work_orders.yield_percent) over completed WOs in the window (0..1 fraction).
+      const yieldKpiRes = await c.query<{ avg_yield: string | number | null }>(
+        `select avg(wo.yield_percent)::text as avg_yield
+           from public.work_orders wo
+          where wo.org_id = app.current_org_id()
+            and wo.status in ('COMPLETED', 'CLOSED')
+            and wo.completed_at is not null
+            and wo.completed_at >= $1::timestamptz
+            and wo.completed_at <= $2::timestamptz`,
         [analyticsWindow.from, analyticsWindow.to],
       );
-      const wasteKg = Number(wasteKpiRes.rows[0]?.waste_kg ?? 0);
-      const outputKg = Number(wasteKpiRes.rows[0]?.output_kg ?? 0);
-      const denom = wasteKg + outputKg;
-      const wastePct = denom > 0 ? (wasteKg / denom) * 100 : null;
+      const avgYieldRaw = yieldKpiRes.rows[0]?.avg_yield;
+      const yieldAvgPct =
+        avgYieldRaw === null || avgYieldRaw === undefined ? null : num(avgYieldRaw) * 100;
+
+      // Waste % — same numerator/denominator as Reporting: sums over WO-linked rows.
+      const outputKpiRes = await c.query<{ output_kg: string | null }>(
+        `select sum(o.qty_kg)::text as output_kg
+           from public.wo_outputs o
+           join public.work_orders wo
+             on wo.org_id = app.current_org_id()
+            and wo.id = o.wo_id
+          where o.org_id = app.current_org_id()
+            and o.registered_at >= $1::timestamptz
+            and o.registered_at <= $2::timestamptz`,
+        [analyticsWindow.from, analyticsWindow.to],
+      );
+      const wasteKpiRes = await c.query<{ waste_kg: string | null }>(
+        `select sum(w.qty_kg)::text as waste_kg
+           from public.wo_waste_log w
+           join public.work_orders wo
+             on wo.org_id = app.current_org_id()
+            and wo.id = w.wo_id
+          where w.org_id = app.current_org_id()
+            and w.recorded_at >= $1::timestamptz
+            and w.recorded_at <= $2::timestamptz`,
+        [analyticsWindow.from, analyticsWindow.to],
+      );
+      const outputKg = num(outputKpiRes.rows[0]?.output_kg);
+      const wasteKg = num(wasteKpiRes.rows[0]?.waste_kg);
+      const wastePctRaw = pct(wasteKg, outputKg + wasteKg);
+      const wastePct = wastePctRaw === null ? null : num(wastePctRaw);
 
       // OEE trend — hourly buckets over the selected/default 7 days, oldest→newest.
       const trendRes = await c.query<{ bucket: string; oee_pct: string | number | null }>(
@@ -170,26 +192,27 @@ export async function getAnalyticsScreen(input?: AnalyticsScreenInput): Promise<
         .filter((r) => r.oee_pct !== null)
         .map((r) => ({ bucket: r.bucket, oeePct: Number(r.oee_pct) }));
 
-      // Yield by line — avg(quality_pct) over the selected/default 7 days, sorted desc.
-      const yieldRes = await c.query<{ line_id: string; line_label: string; yield_pct: string | number | null }>(
-        `select s.line_id,
-                coalesce(pl.code, pl.name, 'Unassigned') as line_label,
-                avg(s.quality_pct) as yield_pct
-          from public.oee_snapshots s
-          left join public.production_lines pl
-            on pl.org_id = app.current_org_id()
-           and pl.id::text = s.line_id
-          where s.org_id = app.current_org_id()
-            and s.snapshot_minute >= $1::timestamptz
-            and s.snapshot_minute <= $2::timestamptz
-          group by s.line_id, pl.code, pl.name
+      // Yield by line — avg(yield_percent) × 100 per production line (Reporting-aligned).
+      const yieldRes = await c.query<{ line_label: string; yield_pct: string | null }>(
+        `select coalesce(pl.code, pl.name, 'Unassigned') as line_label,
+                avg(wo.yield_percent)::text as yield_pct
+           from public.work_orders wo
+           left join public.production_lines pl
+             on pl.org_id = wo.org_id and pl.id = wo.production_line_id
+          where wo.org_id = app.current_org_id()
+            and wo.status in ('COMPLETED', 'CLOSED')
+            and wo.completed_at is not null
+            and wo.completed_at >= $1::timestamptz
+            and wo.completed_at <= $2::timestamptz
+            and wo.yield_percent is not null
+          group by pl.code, pl.name
           order by yield_pct desc
           limit 12`,
         [analyticsWindow.from, analyticsWindow.to],
       );
       const yieldByLine: YieldByLineRow[] = yieldRes.rows
         .filter((r) => r.yield_pct !== null)
-        .map((r) => ({ lineId: r.line_label, yieldPct: Number(r.yield_pct) }));
+        .map((r) => ({ lineId: r.line_label, yieldPct: num(r.yield_pct) * 100 }));
 
       // Top downtime drivers over the selected/default 30 days.
       const topRes = await c.query<{

@@ -120,11 +120,28 @@ export type WoDetailOutput = {
   qtyKg: number;
   uom: string;
   qaStatus: string;
+  /** FALSE when no LP exists — LP-less rows (void corrections) are not QA-actionable. */
+  qaActionsAvailable: boolean;
   lpId: string | null;
   lpNumber: string | null;
   expiryDate: string | null;
   correctionOfId: string | null;
   isCorrected: boolean;
+};
+
+/**
+ * Cascade dependency edge for the Dependencies tab (wo_dependencies).
+ * parent_wo_id = downstream FG consumer; child_wo_id = upstream WIP producer.
+ */
+export type WoDetailDependency = {
+  id: string;
+  direction: 'upstream' | 'downstream';
+  relatedWoId: string;
+  relatedWoNumber: string;
+  relatedItemCode: string | null;
+  relatedProductName: string | null;
+  requiredQty: string | null;
+  materialLink: string | null;
 };
 
 /** Waste tab: a wo_waste_log row. */
@@ -269,6 +286,8 @@ export type WorkOrderDetailData = {
   hasOutputWithoutConsumption: boolean;
   overProductionFlagged: boolean;
   overProductionFlaggedAt: string | null;
+  /** wo_dependencies edges where this WO is parent or child — includes linked WO identity. */
+  dependencies: WoDetailDependency[];
 };
 
 export type WorkOrderDetailResult =
@@ -383,6 +402,7 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         eventsRes,
         qaInspectionsRes,
         qaHoldsRes,
+        dependenciesRes,
       ] = await Promise.all([
         c.query<{
           id: string;
@@ -577,6 +597,35 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
             order by h.created_at desc`,
           [woId, ctx.orgId],
         ),
+        c.query<{
+          id: string;
+          direction: string;
+          related_wo_id: string;
+          related_wo_number: string | null;
+          related_item_code: string | null;
+          related_product_name: string | null;
+          required_qty: string | number | null;
+          material_link: string | null;
+        }>(
+          `select d.id::text as id,
+                  case when d.parent_wo_id = $1::uuid then 'upstream' else 'downstream' end as direction,
+                  case when d.parent_wo_id = $1::uuid then d.child_wo_id else d.parent_wo_id end::text as related_wo_id,
+                  coalesce(rw.wo_number, rw.id::text) as related_wo_number,
+                  ri.item_code as related_item_code,
+                  ri.name as related_product_name,
+                  d.required_qty,
+                  d.material_link
+             from public.wo_dependencies d
+             join public.work_orders rw
+               on rw.org_id = d.org_id
+              and rw.id = case when d.parent_wo_id = $1::uuid then d.child_wo_id else d.parent_wo_id end
+             left join public.items ri
+               on ri.org_id = rw.org_id and ri.id = rw.product_id
+            where d.org_id = app.current_org_id()
+              and (d.parent_wo_id = $1::uuid or d.child_wo_id = $1::uuid)
+            order by d.created_at asc`,
+          [woId],
+        ),
       ]);
 
       const components: WoDetailComponent[] = componentsRes.rows.map((r) => {
@@ -600,22 +649,26 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
 
       const consumptionSummary = summarizeConsumptionProgress(componentsRes.rows);
 
-      const outputs: WoDetailOutput[] = outputsRes.rows.map((r) => ({
-        id: r.id,
-        outputType: r.output_type,
-        productId: r.product_id,
-        productCode: r.product_code,
-        productName: r.product_name,
-        batchNumber: r.batch_number,
-        qtyKg: Number(r.qty_kg),
-        uom: r.uom,
-        qaStatus: r.qa_status,
-        lpId: r.lp_id,
-        lpNumber: r.lp_number,
-        expiryDate: toIso(r.expiry_date),
-        correctionOfId: r.correction_of_id,
-        isCorrected: Boolean(r.is_corrected),
-      }));
+      const outputs: WoDetailOutput[] = outputsRes.rows.map((r) => {
+        const qaActionsAvailable = isOutputQaActionable(r);
+        return {
+          id: r.id,
+          outputType: r.output_type,
+          productId: r.product_id,
+          productCode: r.product_code,
+          productName: r.product_name,
+          batchNumber: r.batch_number,
+          qtyKg: Number(r.qty_kg),
+          uom: r.uom,
+          qaStatus: qaActionsAvailable ? r.qa_status : normalizeLpLessQaStatus(r),
+          qaActionsAvailable,
+          lpId: r.lp_id,
+          lpNumber: r.lp_number,
+          expiryDate: toIso(r.expiry_date),
+          correctionOfId: r.correction_of_id,
+          isCorrected: Boolean(r.is_corrected),
+        };
+      });
 
       const waste: WoDetailWaste[] = wasteRes.rows.map((r) => ({
         id: r.id,
@@ -625,6 +678,17 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         reasonNotes: r.reason_notes,
         correctionOfId: r.correction_of_id,
         isCorrected: Boolean(r.is_corrected),
+      }));
+
+      const dependencies: WoDetailDependency[] = dependenciesRes.rows.map((r) => ({
+        id: r.id,
+        direction: r.direction === 'upstream' ? 'upstream' : 'downstream',
+        relatedWoId: r.related_wo_id,
+        relatedWoNumber: r.related_wo_number ?? r.related_wo_id.slice(0, 8),
+        relatedItemCode: r.related_item_code,
+        relatedProductName: r.related_product_name,
+        requiredQty: r.required_qty == null ? null : String(r.required_qty),
+        materialLink: r.material_link,
       }));
 
       const downtime: WoDetailDowntime[] = downtimeRes.rows.map((r) => ({
@@ -832,6 +896,7 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
           hasOutputWithoutConsumption,
           overProductionFlagged: Boolean(h.over_production_flagged),
           overProductionFlaggedAt: toIso(h.over_production_flagged_at),
+          dependencies,
         },
       };
     });
@@ -843,6 +908,26 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
 
 function isUuid(v: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
+function isOutputQaActionable(row: {
+  lp_id: string | null;
+  qa_status: string;
+  is_corrected: boolean;
+}): boolean {
+  return (
+    Boolean(row.lp_id)
+    && String(row.qa_status).toUpperCase() === 'PENDING'
+    && !row.is_corrected
+  );
+}
+
+/** LP-less outputs (void corrections) must not surface as QA-pending in the detail read-model. */
+function normalizeLpLessQaStatus(row: { lp_id: string | null; qa_status: string }): string {
+  if (!row.lp_id && String(row.qa_status).toUpperCase() === 'PENDING') {
+    return 'PASSED';
+  }
+  return row.qa_status;
 }
 
 function toIso(v: string | Date | null): string | null {

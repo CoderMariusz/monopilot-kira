@@ -135,6 +135,7 @@ async function DowntimeContent({ windowDays }: { windowDays: number }) {
     col: {
       started: t('table.col.started'),
       line: t('table.col.line'),
+      shift: t('table.col.shift'),
       wo: t('table.col.wo'),
       category: t('table.col.category'),
       reason: t('table.col.reason'),

@@ -1018,7 +1018,9 @@ export async function voidWoOutput(input: VoidWoOutputInput): Promise<VoidWoOutp
           batch_number: `${original.batch_number}-VOID-${original.id.slice(0, 8)}`,
           qty_kg: negateDecimalString(original.qty_kg),
           uom: original.uom,
-          qa_status: original.qa_status,
+          // C091 — void counter-entries never create an LP; they are ledger-only and
+          // must not re-enter the output QA pending queue (no pallet to release/hold).
+          qa_status: 'PASSED',
           expiry_date: original.expiry_date,
           catch_weight_details: original.catch_weight_details == null ? null : JSON.stringify(original.catch_weight_details),
           allergen_profile_snapshot: original.allergen_profile_snapshot == null

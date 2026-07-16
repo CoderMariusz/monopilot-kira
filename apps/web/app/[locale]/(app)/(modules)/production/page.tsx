@@ -37,6 +37,7 @@ import {
   type WoExecStatus,
   type WoListRow,
 } from './_actions/dashboard-data';
+import { formatDashboardKg } from './_lib/dashboard-format';
 import { KpiStrip, type KpiTile, type KpiTone } from './_components/kpi-strip';
 import { WoListTable, type WoListLabels, type WoRowView } from './_components/wo-list-table';
 
@@ -67,8 +68,6 @@ const NAV_CARDS: NavCard[] = [
   // scanner was otherwise unreachable from the app).
   { key: 'scanner', href: '/scanner/home' },
 ];
-
-const KG_FMT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 
 /** Skeleton placeholder matching the eventual layout (no CLS). */
 function DashboardSkeleton() {
@@ -118,8 +117,9 @@ async function DashboardContent({ locale }: { locale: string }) {
   const data = result.data;
 
   // ── KPI tiles (4 live, in prototype order) ──────────────────────────────────
-  const outputVal = `${KG_FMT.format(Math.round(data.outputTodayKg))} kg`;
+  const outputVal = `${formatDashboardKg(data.outputTodayKg)} kg`;
   const oeeVal = data.oeeCurrentPct === null ? t('kpi.oee.none') : `${data.oeeCurrentPct.toFixed(1)}%`;
+  const outputTodayKg = Number(data.outputTodayKg);
 
   const tiles: KpiTile[] = [
     {
@@ -134,7 +134,7 @@ async function DashboardContent({ locale }: { locale: string }) {
       label: t('kpi.outputToday.label'),
       value: outputVal,
       sub: t('kpi.outputToday.sub'),
-      tone: data.outputTodayKg > 0 ? 'success' : 'default',
+      tone: outputTodayKg > 0 ? 'success' : 'default',
     },
     {
       key: 'oee-current',
@@ -186,8 +186,8 @@ async function DashboardContent({ locale }: { locale: string }) {
     lineLabel: r.lineCode ?? (r.lineId ? r.lineId.slice(0, 8) : '—'),
     productName: r.productName ?? null,
     itemLabel: r.itemCode ?? (r.productName ? '' : r.productId ? r.productId.slice(0, 8) : '—'),
-    plannedLabel: `${KG_FMT.format(Math.round(r.plannedKg))} kg`,
-    producedLabel: r.producedKg === null ? '—' : `${KG_FMT.format(Math.round(r.producedKg))} kg`,
+    plannedLabel: `${formatDashboardKg(r.plannedKg)} kg`,
+    producedLabel: r.producedKg === null ? '—' : `${formatDashboardKg(r.producedKg)} kg`,
     progressPct: r.progressPct,
     allergenGate: r.allergenGate,
     overProductionFlagged: r.overProductionFlagged,
