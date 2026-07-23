@@ -5,6 +5,7 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 const ACTIVE_DEF_ID = '33333333-3333-4333-8333-333333333333';
 const NEW_DEF_ID = '44444444-4444-4444-8444-444444444444';
 const ITEM_ID = '55555555-5555-4555-8555-555555555555';
+const RAW_INGREDIENT_ID = '66666666-6666-4666-8666-666666666666';
 
 type QueryCall = { sql: string; params: readonly unknown[] };
 
@@ -30,6 +31,12 @@ function makeClient() {
   const query = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
     calls.push({ sql, params });
     const n = normalize(sql);
+    if (n.includes('pg_advisory_xact_lock')) {
+      return { rows: [{ pg_advisory_xact_lock: true }], rowCount: 1 };
+    }
+    if (n.includes('wd.item_id::text as parent') && n.includes('wdi.item_id::text as component')) {
+      return { rows: [], rowCount: 0 };
+    }
     if (n.includes('from public.wip_definitions') && n.includes('limit 1') && n.includes('select id, item_id')) {
       return {
         rows: [
@@ -50,7 +57,10 @@ function makeClient() {
       };
     }
     if (n.includes('from public.wip_definition_ingredients') && n.includes('qty_per_unit')) {
-      return { rows: [{ itemId: ITEM_ID, qtyPerUnit: '1.000000', uom: 'kg', sequence: 1 }], rowCount: 1 };
+      return {
+        rows: [{ itemId: RAW_INGREDIENT_ID, qtyPerUnit: '1.000000', uom: 'kg', sequence: 1 }],
+        rowCount: 1,
+      };
     }
     if (n.includes('from public.wip_definition_processes')) return { rows: [], rowCount: 0 };
     if (n.startsWith('insert into public.wip_definitions') && n.includes('supersedes_wip_definition_id')) {
@@ -96,7 +106,7 @@ describe('saveWipDefinition clone-on-write (N-22)', () => {
       baseUom: 'kg',
       yieldPct: 100,
       reusable: true,
-      ingredients: [{ itemId: ITEM_ID, qtyPerUnit: 2, uom: 'kg', sequence: 1 }],
+      ingredients: [{ itemId: RAW_INGREDIENT_ID, qtyPerUnit: 2, uom: 'kg', sequence: 1 }],
       processes: [],
     });
 

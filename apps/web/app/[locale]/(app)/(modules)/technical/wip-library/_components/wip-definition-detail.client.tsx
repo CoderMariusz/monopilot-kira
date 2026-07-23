@@ -76,7 +76,9 @@ export function WipDefinitionDetailClient({
       });
       if (!result.ok) {
         setSaveState('error');
-        setSaveError(labels.detailSaveError);
+        setSaveError(
+          result.code === 'WIP_DEFINITION_CYCLE' ? labels.detailSaveCycleError : labels.detailSaveError,
+        );
         return;
       }
       setHeader((prev) => ({ ...prev, version: result.version }));

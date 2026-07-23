@@ -54,6 +54,7 @@ vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
 }));
 
 const signEventMock = vi.fn();
+const dualSignMock = vi.fn();
 
 vi.mock('@monopilot/e-sign', () => ({
   EPinFailedError: class EPinFailedError extends Error {
@@ -69,6 +70,13 @@ vi.mock('@monopilot/e-sign', () => ({
       this.code = code;
     }
   },
+  ESignSoDError: class ESignSoDError extends Error {
+    constructor(message = 'Primary and secondary signers must be distinct') {
+      super(message);
+      this.name = 'ESignSoDError';
+    }
+  },
+  dualSign: (...args: unknown[]) => dualSignMock(...args),
   signEvent: (...args: unknown[]) => signEventMock(...args),
 }));
 
@@ -80,6 +88,19 @@ function makeClient(): QueryClient {
   return {
     query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
       const normalized = normalize(sql);
+
+      if (normalized.startsWith('select u.id::text, u.name, u.email::text')) {
+        return {
+          rows: [
+            {
+              id: OTHER_USER_ID,
+              name: 'Independent verifier',
+              email: 'verifier@example.test',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
 
       // RBAC probe.
       if (normalized.includes('from public.user_roles')) {
@@ -296,10 +317,21 @@ function makeClient(): QueryClient {
           return {
             rows: [
               {
+                lockout_applied_by: lotoLockoutUserId
+                  ? (lotoLockoutUserId === USER_ID ? OTHER_USER_ID : USER_ID)
+                  : null,
                 zero_energy_verified_by: lotoLockoutUserId,
+                lockout_signature_id: lotoLockoutUserId
+                  ? '88888888-8888-4888-8888-888888888888'
+                  : null,
+                zero_energy_signature_id: lotoLockoutUserId
+                  ? '99999999-9999-4999-8999-999999999999'
+                  : null,
                 verified_at: lotoLockoutUserId ? new Date('2026-06-11T09:00:00Z') : null,
                 released_by: lotoReleaseUserId,
                 released_at: lotoReleaseUserId ? new Date('2026-06-11T10:00:00Z') : null,
+                isolation_steps_recorded: Boolean(lotoLockoutUserId),
+                dual_signatures_valid: Boolean(lotoLockoutUserId),
               },
             ],
             rowCount: 1,
@@ -312,7 +344,7 @@ function makeClient(): QueryClient {
       }
 
       if (normalized.includes('update public.mwo_loto_checklists') && normalized.includes('zero_energy_verified_by')) {
-        lotoLockoutUserId = String(params?.[1] ?? USER_ID);
+        lotoLockoutUserId = String(params?.[4] ?? OTHER_USER_ID);
         return { rows: [{ verified_at: new Date('2026-06-11T09:00:00Z') }], rowCount: 1 };
       }
 
@@ -466,6 +498,27 @@ beforeEach(() => {
     signedAt: '2026-06-11T09:00:00.000Z',
     auditEventId: 1,
     nonce: 'nonce-loto',
+  });
+  dualSignMock.mockReset();
+  dualSignMock.mockResolvedValue({
+    primary: {
+      signatureId: '88888888-8888-4888-8888-888888888888',
+      signerUserId: USER_ID,
+      intent: 'mnt.loto.lockout',
+      subjectHash: 'a'.repeat(64),
+      signedAt: '2026-06-11T09:00:00.000Z',
+      auditEventId: 1,
+      nonce: 'nonce-loto-primary',
+    },
+    secondary: {
+      signatureId: '99999999-9999-4999-8999-999999999999',
+      signerUserId: OTHER_USER_ID,
+      intent: 'mnt.loto.lockout',
+      subjectHash: 'a'.repeat(64),
+      signedAt: '2026-06-11T09:01:00.000Z',
+      auditEventId: 2,
+      nonce: 'nonce-loto-secondary',
+    },
   });
 });
 
@@ -805,7 +858,7 @@ describe('transitionMwo', () => {
     expect(result).toEqual({
       ok: false,
       reason: 'loto_not_verified',
-      message: 'LOTO active lockout verification is required before starting work',
+      message: 'Two independent LOTO zero-energy signatures and recorded isolation are required before starting work',
     });
     expect(calls().some((c) => c.sql.startsWith('update public.maintenance_work_orders'))).toBe(false);
   });
@@ -821,7 +874,7 @@ describe('transitionMwo', () => {
     expect(result).toEqual({
       ok: false,
       reason: 'loto_not_verified',
-      message: 'LOTO active lockout verification is required before starting work',
+      message: 'Two independent LOTO zero-energy signatures and recorded isolation are required before starting work',
     });
     expect(calls().some((c) => c.sql.startsWith('update public.maintenance_work_orders'))).toBe(false);
   });
@@ -880,29 +933,43 @@ describe('verifyMwoLotoLockout', () => {
 
     const result = await verifyMwoLotoLockout({
       mwoId: MWO_ID,
+      energySourcesIsolated: ['Main electrical supply isolated'],
+      tagsApplied: ['Lock L-104'],
       signature: { password: '123456' },
+      verifierSignature: { userId: OTHER_USER_ID, password: '654321' },
     });
 
     expect(result.ok).toBe(true);
-    expect(signEventMock).toHaveBeenCalledWith(
+    expect(dualSignMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        signerUserId: USER_ID,
-        pin: '123456',
+        primarySignerUserId: USER_ID,
+        primaryPin: '123456',
+        secondarySignerUserId: OTHER_USER_ID,
+        secondaryPin: '654321',
         intent: 'mnt.loto.lockout',
-        subject: { mwoId: MWO_ID, equipmentId: EQUIPMENT_ID },
+        subject: expect.objectContaining({
+          mwoId: MWO_ID,
+          equipmentId: EQUIPMENT_ID,
+        }),
       }),
       expect.any(Object),
     );
-    expect(lotoLockoutUserId).toBe(USER_ID);
+    expect(lotoLockoutUserId).toBe(OTHER_USER_ID);
     const outbox = calls().find((c) => c.sql.startsWith('insert into public.outbox_events'));
     expect(outbox?.params?.[0]).toBe('maintenance.loto.applied');
   });
 
   it('requires mnt.loto.apply', async () => {
     grantedPermissions.delete('mnt.loto.apply');
-    const result = await verifyMwoLotoLockout({ mwoId: MWO_ID, signature: { password: '123456' } });
+    const result = await verifyMwoLotoLockout({
+      mwoId: MWO_ID,
+      energySourcesIsolated: ['Main electrical supply isolated'],
+      tagsApplied: ['Lock L-104'],
+      signature: { password: '123456' },
+      verifierSignature: { userId: OTHER_USER_ID, password: '654321' },
+    });
     expect(result).toEqual({ ok: false, reason: 'forbidden' });
-    expect(signEventMock).not.toHaveBeenCalled();
+    expect(dualSignMock).not.toHaveBeenCalled();
   });
 });
 
@@ -981,7 +1048,10 @@ describe('verifyMwoLotoRelease', () => {
 
     const result = await verifyMwoLotoLockout({
       mwoId: MWO_ID,
+      energySourcesIsolated: ['Main electrical supply isolated'],
+      tagsApplied: ['Lock L-104'],
       signature: { password: '123456' },
+      verifierSignature: { userId: OTHER_USER_ID, password: '654321' },
     });
 
     expect(result).toEqual({
@@ -989,7 +1059,7 @@ describe('verifyMwoLotoRelease', () => {
       reason: 'invalid_transition',
       message: 'LOTO lockout can only be applied while the MWO is open',
     });
-    expect(signEventMock).not.toHaveBeenCalled();
+    expect(dualSignMock).not.toHaveBeenCalled();
   });
 });
 
@@ -1139,6 +1209,7 @@ describe('getMwoById', () => {
       requiresLoto: false,
       lockoutVerified: false,
       lockoutActive: false,
+      releaseAllowed: false,
       releaseVerified: false,
     });
   });

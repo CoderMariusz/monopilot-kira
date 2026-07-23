@@ -14,8 +14,17 @@ import { PRIORITY_VARIANT, STATE_VARIANT, fmtDate, fmtDateTime } from '../../../
 import type { MwoListLabels, TransitionMwoAction } from '../../../_components/mwo-list.client';
 import type { EquipmentOption } from '../../../_actions/mwo-actions';
 import type { MwoDetailRow, MwoTransition } from '../../../_actions/mwo-actions';
+import type { MwoLotoVerifierOption } from '../../../_actions/mwo-types';
 
-type LotoSignAction = (input: {
+type LotoLockoutAction = (input: {
+  mwoId: string;
+  energySourcesIsolated: string[];
+  tagsApplied: string[];
+  signature: { password: string };
+  verifierSignature: { userId: string; password: string };
+}) => Promise<{ ok: boolean; reason?: string; message?: string }>;
+
+type LotoReleaseAction = (input: {
   mwoId: string;
   signature: { password: string };
 }) => Promise<{ ok: boolean; reason?: string; message?: string }>;
@@ -35,6 +44,7 @@ export type MwoDetailLabels = MwoListLabels & {
     error: string;
     notFound: string;
     lotoActiveBanner: string;
+    lotoLegacyBanner: string;
     lotoPendingBanner: string;
     lotoApply: string;
     lotoClear: string;
@@ -47,6 +57,7 @@ export function MwoDetailClient({
   locale,
   mwo: mwoProp,
   equipment,
+  lotoVerifiers,
   labels,
   permissions,
   transitionMwoAction,
@@ -57,6 +68,7 @@ export function MwoDetailClient({
   locale: string;
   mwo: MwoDetailRow;
   equipment: EquipmentOption[];
+  lotoVerifiers: MwoLotoVerifierOption[];
   labels: MwoDetailLabels;
   permissions: {
     canEdit: boolean;
@@ -67,8 +79,8 @@ export function MwoDetailClient({
   };
   transitionMwoAction: TransitionMwoAction;
   updateMwoAction: UpdateMwoAction;
-  verifyLotoLockoutAction: LotoSignAction;
-  verifyLotoReleaseAction: LotoSignAction;
+  verifyLotoLockoutAction: LotoLockoutAction;
+  verifyLotoReleaseAction: LotoReleaseAction;
 }) {
   const router = useRouter();
   const [mwo, setMwo] = useState(mwoProp);
@@ -148,13 +160,17 @@ export function MwoDetailClient({
         {lotoRequired && !terminal ? (
           <div
             className={
-              mwo.loto.lockoutActive
+              mwo.loto.lockoutActive || mwo.loto.releaseAllowed
                 ? 'mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900'
                 : 'mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700'
             }
             data-testid="mwo-loto-banner"
           >
-            {mwo.loto.lockoutActive ? d.lotoActiveBanner : d.lotoPendingBanner}
+            {mwo.loto.lockoutActive
+              ? d.lotoActiveBanner
+              : mwo.loto.releaseAllowed
+                ? d.lotoLegacyBanner
+                : d.lotoPendingBanner}
           </div>
         ) : null}
 
@@ -180,7 +196,7 @@ export function MwoDetailClient({
                 {d.lotoApply}
               </button>
             ) : null}
-            {lotoRequired && mwo.state === 'in_progress' && mwo.loto.lockoutActive && permissions.canLotoClear ? (
+            {lotoRequired && mwo.state === 'in_progress' && mwo.loto.releaseAllowed && permissions.canLotoClear ? (
               <button
                 type="button"
                 data-testid="mwo-detail-loto-clear"
@@ -289,7 +305,9 @@ export function MwoDetailClient({
           mode={pendingLoto}
           mwoId={mwo.id}
           labels={labels.loto}
-          signAction={pendingLoto === 'lockout' ? verifyLotoLockoutAction : verifyLotoReleaseAction}
+          verifierOptions={lotoVerifiers}
+          lockoutAction={verifyLotoLockoutAction}
+          releaseAction={verifyLotoReleaseAction}
           onClose={() => setPendingLoto(null)}
           onDone={() => {
             setPendingLoto(null);

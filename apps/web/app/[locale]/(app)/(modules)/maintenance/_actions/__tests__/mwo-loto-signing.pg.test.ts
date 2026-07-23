@@ -2,10 +2,12 @@
  * N-39 — REAL DB-backed LOTO e-sign integration tests.
  *
  * Exercises verifyMwoLotoLockout / verifyMwoLotoRelease / transitionMwo through
- * the real withOrgContext transaction and the real signEvent helper (no mock).
+ * the real withOrgContext transaction and real dualSign/signEvent helpers (no mock).
  * Skips when DATABASE_URL is unset.
  */
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import pg from 'pg';
 import { hashESignSubject } from '@monopilot/e-sign';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -27,6 +29,8 @@ const run = databaseUrl ? describe : describe.skip;
 const LOCKOUT_PIN = '482910';
 const RELEASE_PIN = '573829';
 const BAD_PIN = '000000';
+const ENERGY_SOURCES = ['Main electrical supply — breaker locked open'];
+const APPLIED_TAGS = ['Lock L-104 / tag T-104'];
 
 const seed = {
   tenantId: randomUUID(),
@@ -38,15 +42,47 @@ const seed = {
   mwoId: randomUUID(),
 };
 
-const lotoEsignSubject = () => ({
-  mwoId: seed.mwoId,
-  equipmentId: seed.equipmentId,
-});
+const lotoEsignSubject = (intent: string) => intent === 'mnt.loto.lockout'
+  ? {
+      mwoId: seed.mwoId,
+      equipmentId: seed.equipmentId,
+      energySourcesIsolated: ENERGY_SOURCES,
+      tagsApplied: APPLIED_TAGS,
+    }
+  : {
+      mwoId: seed.mwoId,
+      equipmentId: seed.equipmentId,
+    };
 
 let owner: pg.Pool;
 
 async function ensureAppUser(): Promise<void> {
   await ensureAppUserWithAdvisoryLock(owner);
+}
+
+async function applyMigration514(): Promise<void> {
+  const migrationPath = resolve(
+    process.cwd(),
+    '../../packages/db/migrations/514-maintenance-loto-dual-sign.sql',
+  );
+  await owner.query(readFileSync(migrationPath, 'utf8'));
+}
+
+function lockoutInput(options: {
+  primaryPassword?: string;
+  verifierUserId?: string;
+  verifierPassword?: string;
+} = {}) {
+  return {
+    mwoId: seed.mwoId,
+    energySourcesIsolated: ENERGY_SOURCES,
+    tagsApplied: APPLIED_TAGS,
+    signature: { password: options.primaryPassword ?? LOCKOUT_PIN },
+    verifierSignature: {
+      userId: options.verifierUserId ?? seed.releaseUserId,
+      password: options.verifierPassword ?? RELEASE_PIN,
+    },
+  };
 }
 
 async function seedOrg(): Promise<void> {
@@ -72,6 +108,12 @@ async function seedOrg(): Promise<void> {
   );
   seed.roleId = roleRow.rows[0]?.id ?? seed.roleId;
   await owner.query(`select public.seed_maintenance_permissions_for_org($1)`, [seed.orgId]);
+  await owner.query(
+    `insert into public.role_permissions (role_id, permission)
+     values ($1, 'mnt.loto.apply')
+     on conflict (role_id, permission) do nothing`,
+    [seed.roleId],
+  );
   for (const userId of [seed.lockoutUserId, seed.releaseUserId]) {
     await owner.query(
       `insert into public.users (id, org_id, email, name, role_id)
@@ -110,10 +152,10 @@ async function seedOrg(): Promise<void> {
 }
 
 async function cleanupOrg(): Promise<void> {
+  await owner.query(`delete from public.mwo_loto_checklists where org_id = $1`, [seed.orgId]);
   await owner.query(`delete from public.audit_events where org_id = $1`, [seed.orgId]);
   await owner.query(`delete from public.e_sign_log where org_id = $1`, [seed.orgId]);
   await owner.query(`delete from public.outbox_events where org_id = $1`, [seed.orgId]);
-  await owner.query(`delete from public.mwo_loto_checklists where org_id = $1`, [seed.orgId]);
   await owner.query(`delete from public.maintenance_work_orders where org_id = $1`, [seed.orgId]);
   await owner.query(`delete from public.equipment where org_id = $1`, [seed.orgId]);
   await owner.query(`delete from public.user_pins where user_id in ($1, $2)`, [
@@ -132,19 +174,35 @@ async function cleanupOrg(): Promise<void> {
 }
 
 async function readLotoRow(): Promise<{
+  lockout_applied_by: string | null;
   zero_energy_verified_by: string | null;
+  lockout_signature_id: string | null;
+  zero_energy_signature_id: string | null;
   released_by: string | null;
 }> {
   const { rows } = await owner.query<{
+    lockout_applied_by: string | null;
     zero_energy_verified_by: string | null;
+    lockout_signature_id: string | null;
+    zero_energy_signature_id: string | null;
     released_by: string | null;
   }>(
-    `select zero_energy_verified_by::text, released_by::text
+    `select lockout_applied_by::text,
+            zero_energy_verified_by::text,
+            lockout_signature_id::text,
+            zero_energy_signature_id::text,
+            released_by::text
        from public.mwo_loto_checklists
       where org_id = $1 and mwo_id = $2`,
     [seed.orgId, seed.mwoId],
   );
-  return rows[0] ?? { zero_energy_verified_by: null, released_by: null };
+  return rows[0] ?? {
+    lockout_applied_by: null,
+    zero_energy_verified_by: null,
+    lockout_signature_id: null,
+    zero_energy_signature_id: null,
+    released_by: null,
+  };
 }
 
 async function readMwoState(): Promise<string> {
@@ -158,11 +216,13 @@ async function readMwoState(): Promise<string> {
 type EsignRow = {
   intent: string;
   subject_hash: string;
+  signer_user_id: string;
+  nonce: string;
 };
 
 async function readEsignRows(intent: string): Promise<EsignRow[]> {
   const { rows } = await owner.query<EsignRow>(
-    `select intent, subject_hash
+    `select intent, subject_hash, signer_user_id::text, nonce
        from public.e_sign_log
       where org_id = $1 and intent = $2
       order by created_at`,
@@ -172,7 +232,7 @@ async function readEsignRows(intent: string): Promise<EsignRow[]> {
 }
 
 function expectEsignRowsForLotoSubject(rows: EsignRow[], intent: string, expectedCount: number): void {
-  const expectedHash = hashESignSubject(lotoEsignSubject());
+  const expectedHash = hashESignSubject(lotoEsignSubject(intent));
   expect(rows).toHaveLength(expectedCount);
   for (const row of rows) {
     expect(row.intent).toBe(intent);
@@ -183,6 +243,7 @@ function expectEsignRowsForLotoSubject(rows: EsignRow[], intent: string, expecte
 run('N-39 MWO LOTO e-sign (real DB)', () => {
   beforeAll(async () => {
     owner = new pg.Pool({ connectionString: databaseUrl });
+    await applyMigration514();
     await seedOrg();
   });
 
@@ -192,10 +253,10 @@ run('N-39 MWO LOTO e-sign (real DB)', () => {
   });
 
   beforeEach(async () => {
+    await owner.query(`delete from public.mwo_loto_checklists where org_id = $1`, [seed.orgId]);
     await owner.query(`delete from public.audit_events where org_id = $1`, [seed.orgId]);
     await owner.query(`delete from public.e_sign_log where org_id = $1`, [seed.orgId]);
     await owner.query(`delete from public.outbox_events where org_id = $1`, [seed.orgId]);
-    await owner.query(`delete from public.mwo_loto_checklists where org_id = $1`, [seed.orgId]);
     await owner.query(
       `update public.maintenance_work_orders
           set state = 'open', started_at = null, completed_at = null
@@ -209,7 +270,7 @@ run('N-39 MWO LOTO e-sign (real DB)', () => {
     const esignBefore = await readEsignRows('mnt.loto.lockout');
 
     const result = await withActionActor(seed.lockoutUserId, seed.orgId, () =>
-      verifyMwoLotoLockout({ mwoId: seed.mwoId, signature: { password: BAD_PIN } }),
+      verifyMwoLotoLockout(lockoutInput({ primaryPassword: BAD_PIN })),
     );
 
     expect(result).toEqual(
@@ -225,29 +286,75 @@ run('N-39 MWO LOTO e-sign (real DB)', () => {
       expect.objectContaining({
         ok: false,
         reason: 'loto_not_verified',
-        message: 'LOTO active lockout verification is required before starting work',
+        message: 'Two independent LOTO zero-energy signatures and recorded isolation are required before starting work',
       }),
     );
     expect(await readMwoState()).toBe('open');
   });
 
-  it('valid lockout PIN creates e_sign_log with mnt.loto.lockout and updates checklist', async () => {
+  it('rejects a same-actor second signature and hard-blocks Start with only one legacy signer', async () => {
+    const sameActor = await withActionActor(seed.lockoutUserId, seed.orgId, () =>
+      verifyMwoLotoLockout(lockoutInput({
+        verifierUserId: seed.lockoutUserId,
+        verifierPassword: LOCKOUT_PIN,
+      })),
+    );
+    expect(sameActor).toEqual(expect.objectContaining({
+      ok: false,
+      reason: 'loto_same_actor',
+    }));
+    expect(await readEsignRows('mnt.loto.lockout')).toHaveLength(0);
+
+    await owner.query(
+      `insert into public.mwo_loto_checklists (
+         org_id, mwo_id, energy_sources_isolated, tags_applied,
+         zero_energy_verified_by, verified_at
+       )
+       values ($1, $2, $3::jsonb, $4::jsonb, $5, pg_catalog.now())`,
+      [
+        seed.orgId,
+        seed.mwoId,
+        JSON.stringify(ENERGY_SOURCES),
+        JSON.stringify(APPLIED_TAGS),
+        seed.lockoutUserId,
+      ],
+    );
+
+    const start = await withActionActor(seed.lockoutUserId, seed.orgId, () =>
+      transitionMwo({ mwoId: seed.mwoId, to: 'in_progress' }),
+    );
+    expect(start).toEqual(expect.objectContaining({
+      ok: false,
+      reason: 'loto_not_verified',
+    }));
+    expect(await readMwoState()).toBe('open');
+  });
+
+  it('valid dual lockout signatures create paired e_sign_log rows and update the checklist', async () => {
     const result = await withActionActor(seed.lockoutUserId, seed.orgId, () =>
-      verifyMwoLotoLockout({ mwoId: seed.mwoId, signature: { password: LOCKOUT_PIN } }),
+      verifyMwoLotoLockout(lockoutInput()),
     );
 
     expect(result.ok).toBe(true);
     const loto = await readLotoRow();
-    expect(loto.zero_energy_verified_by).toBe(seed.lockoutUserId);
+    expect(loto.lockout_applied_by).toBe(seed.lockoutUserId);
+    expect(loto.zero_energy_verified_by).toBe(seed.releaseUserId);
+    expect(loto.lockout_signature_id).not.toBeNull();
+    expect(loto.zero_energy_signature_id).not.toBeNull();
+    expect(loto.lockout_signature_id).not.toBe(loto.zero_energy_signature_id);
     expect(loto.released_by).toBeNull();
 
     const lockoutRows = await readEsignRows('mnt.loto.lockout');
-    expectEsignRowsForLotoSubject(lockoutRows, 'mnt.loto.lockout', 1);
+    expectEsignRowsForLotoSubject(lockoutRows, 'mnt.loto.lockout', 2);
+    expect(new Set(lockoutRows.map((row) => row.signer_user_id))).toEqual(
+      new Set([seed.lockoutUserId, seed.releaseUserId]),
+    );
+    expect(lockoutRows[0]?.nonce).not.toBe(lockoutRows[1]?.nonce);
   });
 
   it('rejects release while the MWO is still open', async () => {
     await withActionActor(seed.lockoutUserId, seed.orgId, () =>
-      verifyMwoLotoLockout({ mwoId: seed.mwoId, signature: { password: LOCKOUT_PIN } }),
+      verifyMwoLotoLockout(lockoutInput()),
     );
 
     const releaseWhileOpen = await withActionActor(seed.releaseUserId, seed.orgId, () =>
@@ -263,7 +370,7 @@ run('N-39 MWO LOTO e-sign (real DB)', () => {
 
   it('exploit sequence: lockout on open MWO, release rejected while open, start allowed with active lockout', async () => {
     const lockout = await withActionActor(seed.lockoutUserId, seed.orgId, () =>
-      verifyMwoLotoLockout({ mwoId: seed.mwoId, signature: { password: LOCKOUT_PIN } }),
+      verifyMwoLotoLockout(lockoutInput()),
     );
     expect(lockout.ok).toBe(true);
 
@@ -278,7 +385,8 @@ run('N-39 MWO LOTO e-sign (real DB)', () => {
     expect(await readEsignRows('mnt.loto.release')).toHaveLength(0);
 
     const lotoBeforeStart = await readLotoRow();
-    expect(lotoBeforeStart.zero_energy_verified_by).toBe(seed.lockoutUserId);
+    expect(lotoBeforeStart.lockout_applied_by).toBe(seed.lockoutUserId);
+    expect(lotoBeforeStart.zero_energy_verified_by).toBe(seed.releaseUserId);
     expect(lotoBeforeStart.released_by).toBeNull();
     expect(await readMwoState()).toBe('open');
 
@@ -290,20 +398,21 @@ run('N-39 MWO LOTO e-sign (real DB)', () => {
     expect(start.data.state).toBe('in_progress');
 
     const lotoAfterStart = await readLotoRow();
-    expect(lotoAfterStart.zero_energy_verified_by).toBe(seed.lockoutUserId);
+    expect(lotoAfterStart.lockout_applied_by).toBe(seed.lockoutUserId);
+    expect(lotoAfterStart.zero_energy_verified_by).toBe(seed.releaseUserId);
     expect(lotoAfterStart.released_by).toBeNull();
     expect(await readMwoState()).toBe('in_progress');
   });
 
   it('blocks in_progress when the checklist lockout was already released', async () => {
     await withActionActor(seed.lockoutUserId, seed.orgId, () =>
-      verifyMwoLotoLockout({ mwoId: seed.mwoId, signature: { password: LOCKOUT_PIN } }),
+      verifyMwoLotoLockout(lockoutInput()),
     );
     await owner.query(
       `update public.mwo_loto_checklists
           set released_by = $2::uuid, released_at = pg_catalog.now()
         where org_id = $1 and mwo_id = $3`,
-      [seed.orgId, seed.releaseUserId, seed.mwoId],
+      [seed.orgId, seed.lockoutUserId, seed.mwoId],
     );
 
     const start = await withActionActor(seed.lockoutUserId, seed.orgId, () =>
@@ -313,14 +422,14 @@ run('N-39 MWO LOTO e-sign (real DB)', () => {
       expect.objectContaining({
         ok: false,
         reason: 'loto_not_verified',
-        message: 'LOTO active lockout verification is required before starting work',
+        message: 'Two independent LOTO zero-energy signatures and recorded isolation are required before starting work',
       }),
     );
   });
 
   it('lockout → in_progress → release → completed succeeds with correct e_sign intents', async () => {
     await withActionActor(seed.lockoutUserId, seed.orgId, () =>
-      verifyMwoLotoLockout({ mwoId: seed.mwoId, signature: { password: LOCKOUT_PIN } }),
+      verifyMwoLotoLockout(lockoutInput()),
     );
 
     const start = await withActionActor(seed.lockoutUserId, seed.orgId, () =>
@@ -328,8 +437,8 @@ run('N-39 MWO LOTO e-sign (real DB)', () => {
     );
     expect(start.ok).toBe(true);
 
-    const release = await withActionActor(seed.releaseUserId, seed.orgId, () =>
-      verifyMwoLotoRelease({ mwoId: seed.mwoId, signature: { password: RELEASE_PIN } }),
+    const release = await withActionActor(seed.lockoutUserId, seed.orgId, () =>
+      verifyMwoLotoRelease({ mwoId: seed.mwoId, signature: { password: LOCKOUT_PIN } }),
     );
     expect(release.ok).toBe(true);
 
@@ -341,11 +450,12 @@ run('N-39 MWO LOTO e-sign (real DB)', () => {
     expect(complete.data.state).toBe('completed');
 
     const loto = await readLotoRow();
-    expect(loto.zero_energy_verified_by).toBe(seed.lockoutUserId);
-    expect(loto.released_by).toBe(seed.releaseUserId);
+    expect(loto.lockout_applied_by).toBe(seed.lockoutUserId);
+    expect(loto.zero_energy_verified_by).toBe(seed.releaseUserId);
+    expect(loto.released_by).toBe(seed.lockoutUserId);
 
     const lockoutRows = await readEsignRows('mnt.loto.lockout');
-    expectEsignRowsForLotoSubject(lockoutRows, 'mnt.loto.lockout', 1);
+    expectEsignRowsForLotoSubject(lockoutRows, 'mnt.loto.lockout', 2);
 
     const releaseRows = await readEsignRows('mnt.loto.release');
     expectEsignRowsForLotoSubject(releaseRows, 'mnt.loto.release', 1);

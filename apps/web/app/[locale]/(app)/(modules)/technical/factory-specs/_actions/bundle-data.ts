@@ -19,6 +19,10 @@
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import {
+  readAuthorizationPolicy,
+  TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY,
+} from '../../../../../../../actions/authorization/preflight';
+import {
   guardBusinessFieldEdit,
   guardStatusTransition,
 } from '../../../../../../../lib/technical/factory-spec-release-guards';
@@ -48,6 +52,14 @@ export type BundleHistoryEntry = {
   action: string;
 };
 
+export type BundleApprovalReceipt = {
+  signatureId: string;
+  at: string;
+  signer: string;
+  reason: string | null;
+  current: boolean;
+};
+
 export type ReleaseBundleData = {
   factorySpecId: string;
   bomHeaderId: string | null;
@@ -57,6 +69,12 @@ export type ReleaseBundleData = {
   bomOptions: Array<{ id: string; version: number; status: string; label: string }>;
   blockers: BundleBlocker[];
   history: BundleHistoryEntry[];
+  approval: {
+    collected: number;
+    required: number;
+    outstanding: number;
+    receipts: BundleApprovalReceipt[];
+  };
   /** True when the approved/released factory_spec row is immutable (clone-on-write). */
   cloneOnWrite: boolean;
   /** D365 integration flag (informational only — never blocks Technical approval). */
@@ -95,7 +113,17 @@ type AuditRow = {
   action: string;
 };
 
+type ESignRow = {
+  signature_id: string;
+  signer_user_id: string;
+  created_at: string | Date;
+  signer: string | null;
+  reason: string | null;
+  current: boolean;
+};
+
 const BUNDLE_APPROVABLE_BOM_STATUSES = new Set(['draft', 'in_review', 'technical_approved', 'active']);
+const BUNDLE_APPROVE_INTENT = 'tech.fa.release';
 
 function iso(value: string | Date): string {
   return value instanceof Date ? value.toISOString() : String(value);
@@ -300,6 +328,46 @@ export async function loadReleaseBundle(factorySpecId: string): Promise<LoadBund
         action: row.action,
       }));
 
+      const currentApprovalNonce = spec.bom_header_id
+        ? `${spec.id}:${spec.bom_header_id}:approve`
+        : null;
+      const [receiptResult, approvalPolicy] = await Promise.all([
+        db.query<ESignRow>(
+          `select es.signature_id,
+                  es.signer_user_id,
+                  es.created_at,
+                  u.email as signer,
+                  es.reason,
+                  coalesce(es.nonce = $3, false) as current
+             from public.e_sign_log es
+             left join public.users u
+               on u.id = es.signer_user_id
+              and u.org_id = es.org_id
+            where es.org_id = app.current_org_id()
+              and es.intent = $1
+              and es.nonce like $2
+            order by es.created_at asc`,
+          [BUNDLE_APPROVE_INTENT, `${spec.id}:%:approve`, currentApprovalNonce],
+        ),
+        readAuthorizationPolicy(db, TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY),
+      ]);
+      const receipts: BundleApprovalReceipt[] = receiptResult.rows.map((row) => ({
+        signatureId: row.signature_id,
+        at: iso(row.created_at),
+        signer: row.signer ?? row.signer_user_id,
+        reason: row.reason,
+        current: row.current,
+      }));
+      const configuredApprovers = Number(approvalPolicy?.min_approvers ?? 1);
+      const approvalsRequired = Math.max(
+        1,
+        Number.isFinite(configuredApprovers) ? configuredApprovers : 1,
+        approvalPolicy?.settings_json?.require_dual_sign_off === true ? 2 : 1,
+      );
+      const approvalsCollected = new Set(
+        receiptResult.rows.filter((row) => row.current).map((row) => row.signer_user_id),
+      ).size;
+
       return {
         ok: true,
         data: {
@@ -323,6 +391,12 @@ export async function loadReleaseBundle(factorySpecId: string): Promise<LoadBund
           bomOptions,
           blockers,
           history,
+          approval: {
+            collected: approvalsCollected,
+            required: approvalsRequired,
+            outstanding: Math.max(0, approvalsRequired - approvalsCollected),
+            receipts,
+          },
           cloneOnWrite,
           d365Enabled,
           canApprove,

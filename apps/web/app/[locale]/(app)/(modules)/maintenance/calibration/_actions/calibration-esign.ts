@@ -10,6 +10,12 @@ export type CalibrationSignSubject = {
   notes: string | null;
 };
 
+export type CalibrationReviewerOption = {
+  id: string;
+  name: string;
+  email: string;
+};
+
 export function buildCalibrationSignSubject(params: {
   instrumentId: string;
   result: 'PASS' | 'FAIL' | 'OUT_OF_SPEC';

@@ -174,6 +174,7 @@ function bundleData(overrides: Partial<ReleaseBundleData> = {}): ReleaseBundleDa
       { kind: 'release', severity: 'info', code: 'D365_INFORMATIONAL', message: 'D365 informational.' },
     ],
     history: [{ at: '2026-04-30T11:22', who: 'A. Majewska', action: 'factory_spec.bundle_rejected' }],
+    approval: { collected: 0, required: 2, outstanding: 2, receipts: [] },
     cloneOnWrite: false,
     d365Enabled: false,
     canApprove: true,

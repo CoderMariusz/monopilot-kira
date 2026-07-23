@@ -14,6 +14,7 @@ type QueryClient = {
 
 type IngredientLineRow = {
   ingredient_line_id: string;
+  line_sequence: number;
   item_id: string | null;
   item_code: string | null;
   item_name: string | null;
@@ -56,6 +57,7 @@ export async function loadRecipeCascade(
     return await withOrgContext(async ({ client }) => {
       const ingredients = await client.query<IngredientLineRow>(
         `select fi.id::text as ingredient_line_id,
+                fi.sequence as line_sequence,
                 fi.item_id::text as item_id,
                 i.item_code,
                 i.name as item_name
@@ -84,6 +86,8 @@ export async function loadRecipeCascade(
             : undefined;
         nodes.push({
           ingredientLineId: ingredient.ingredient_line_id,
+          sequence: ingredient.line_sequence,
+          itemId: ingredient.item_id,
           itemCode,
           itemName,
           hasSubRecipe: Boolean(subRecipe),
@@ -106,22 +110,45 @@ async function loadSubRecipe(
   visited: Set<string>,
   itemId?: string | null,
 ): Promise<RecipeCascadeSubRecipe | undefined> {
+  if (depth >= MAX_DEPTH) {
+    if (itemCode || itemId) {
+      if (await hasExpandableSubRecipe(client, itemCode, itemId ?? null)) {
+        return { lines: [], totalCost: 0, maxDepthReached: true };
+      }
+    }
+    return undefined;
+  }
+
   const version = itemCode ? await findActiveRecipeVersion(client, itemCode) : null;
   if (version) {
-    if (depth >= MAX_DEPTH) {
-      return { lines: [], totalCost: 0, maxDepthReached: true };
-    }
     return loadFormulationSubRecipe(client, version.version_id, depth, visited);
   }
 
   // WIP/intermediate: prefer ACTIVE bom-with-lines; else active wip_definition_ingredients.
   if (!itemId) return undefined;
-  if (depth >= MAX_DEPTH) {
-    return { lines: [], totalCost: 0, maxDepthReached: true };
-  }
+
   const bom = await loadBomSubRecipe(client, itemId, depth, visited);
   if (bom) return bom;
   return loadWipDefinitionSubRecipe(client, itemId, depth, visited);
+}
+
+async function hasExpandableSubRecipe(
+  client: QueryClient,
+  itemCode: string,
+  itemId: string | null,
+): Promise<boolean> {
+  if (itemCode) {
+    const version = await findActiveRecipeVersion(client, itemCode);
+    if (version) {
+      const components = await loadRecipeComponents(client, version.version_id);
+      if (components.rows.length > 0) return true;
+    }
+  }
+  if (!itemId) return false;
+  const bom = await loadBomComponents(client, itemId);
+  if (bom.rows.length > 0) return true;
+  const wipDef = await loadWipDefinitionComponents(client, itemId);
+  return wipDef.rows.length > 0;
 }
 
 async function loadFormulationSubRecipe(

@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 
 import { Select } from '@monopilot/ui/Select';
 
+import type { CalibrationReviewerOption } from '../_actions/calibration-esign';
 import type { CalibrationRecordRowPatch, InstrumentOption } from '../_types/calibration-schemas';
 import { ModalShell } from '../../_components/mwo-modal-shell';
 
@@ -22,8 +23,10 @@ export type RecordCalibrationLabels = {
   certificateRef: string;
   certificatePlaceholder: string;
   calibratorPassword: string;
-  reviewerUserId: string;
-  reviewerUserIdPlaceholder: string;
+  reviewer: string;
+  reviewerPlaceholder: string;
+  reviewerSearchPlaceholder: string;
+  reviewerUnavailable: string;
   reviewerPassword: string;
   dualSignWarning: string;
   submit: string;
@@ -51,6 +54,7 @@ const RESULTS = ['PASS', 'FAIL', 'OUT_OF_SPEC'] as const;
 
 export function RecordCalibrationModal({
   instruments,
+  reviewers,
   defaultInstrumentId,
   labels,
   recordCalibrationAction,
@@ -58,6 +62,7 @@ export function RecordCalibrationModal({
   onRecorded,
 }: {
   instruments: InstrumentOption[];
+  reviewers: CalibrationReviewerOption[];
   defaultInstrumentId?: string;
   labels: RecordCalibrationLabels;
   recordCalibrationAction: RecordCalibrationAction;
@@ -72,6 +77,7 @@ export function RecordCalibrationModal({
   const [certificateRef, setCertificateRef] = useState('');
   const [calibratorPassword, setCalibratorPassword] = useState('');
   const [reviewerUserId, setReviewerUserId] = useState('');
+  const [reviewerSearch, setReviewerSearch] = useState('');
   const [reviewerPassword, setReviewerPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
@@ -81,6 +87,12 @@ export function RecordCalibrationModal({
     FAIL: labels.resultFail,
     OUT_OF_SPEC: labels.resultOutOfSpec,
   };
+  const normalizedReviewerSearch = reviewerSearch.trim().toLocaleLowerCase();
+  const visibleReviewers = normalizedReviewerSearch
+    ? reviewers.filter((reviewer) => (
+        `${reviewer.name} ${reviewer.email}`.toLocaleLowerCase().includes(normalizedReviewerSearch)
+      ))
+    : reviewers;
 
   const submit = () => {
     if (
@@ -230,15 +242,36 @@ export function RecordCalibrationModal({
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">{labels.reviewerUserId}</span>
-          <input
-            type="text"
-            value={reviewerUserId}
-            onChange={(e) => setReviewerUserId(e.target.value)}
-            placeholder={labels.reviewerUserIdPlaceholder}
-            data-testid="calibration-record-reviewer-user"
-            className="rounded-md border border-slate-300 px-2.5 py-1.5 font-mono text-xs focus:border-slate-400 focus:outline-none"
-          />
+          <span className="font-medium text-slate-700">{labels.reviewer}</span>
+          {reviewers.length === 0 ? (
+            <span
+              data-testid="calibration-record-no-reviewers"
+              className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800"
+            >
+              {labels.reviewerUnavailable}
+            </span>
+          ) : (
+            <div data-testid="calibration-record-reviewer-user" className="flex flex-col gap-2">
+              <input
+                type="search"
+                value={reviewerSearch}
+                onChange={(event) => setReviewerSearch(event.target.value)}
+                placeholder={labels.reviewerSearchPlaceholder}
+                data-testid="calibration-record-reviewer-search"
+                className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+              />
+              <Select
+                aria-label={labels.reviewer}
+                value={reviewerUserId}
+                placeholder={labels.reviewerPlaceholder}
+                onValueChange={setReviewerUserId}
+                options={visibleReviewers.map((reviewer) => ({
+                  value: reviewer.id,
+                  label: `${reviewer.name} · ${reviewer.email}`,
+                }))}
+              />
+            </div>
+          )}
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
@@ -271,7 +304,7 @@ export function RecordCalibrationModal({
           <button
             type="button"
             onClick={submit}
-            disabled={submitting || instruments.length === 0}
+            disabled={submitting || instruments.length === 0 || reviewers.length === 0}
             data-testid="calibration-record-submit"
             className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
           >

@@ -54,6 +54,8 @@ type SpecRow = {
   notes: string | null;
 };
 
+const BUNDLE_APPROVE_INTENT = 'tech.fa.release';
+
 function isPgError(err: unknown): err is { code: string; message?: string } {
   return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
 }
@@ -78,6 +80,21 @@ async function requireMutableSpec(client: QueryClient, specId: string): Promise<
   return rows[0] ?? null;
 }
 
+async function hasBundleApprovalReceipt(client: QueryClient, spec: SpecRow): Promise<boolean> {
+  if (!spec.bom_header_id) return false;
+  const { rows } = await client.query<{ exists: boolean }>(
+    `select exists (
+       select 1
+         from public.e_sign_log
+        where org_id = app.current_org_id()
+          and intent = $1
+          and nonce = $2
+     ) as exists`,
+    [BUNDLE_APPROVE_INTENT, `${spec.id}:${spec.bom_header_id}:approve`],
+  );
+  return rows[0]?.exists === true;
+}
+
 async function writeAuditEvent(
   client: QueryClient,
   params: {
@@ -87,6 +104,7 @@ async function writeAuditEvent(
     resourceId: string;
     beforeState: unknown;
     afterState: unknown;
+    retentionClass?: 'standard' | 'security';
   },
 ): Promise<void> {
   await client.query(
@@ -95,7 +113,7 @@ async function writeAuditEvent(
         before_state, after_state, request_id, retention_class)
      values
        ($1::uuid, $2::uuid, 'user', $3, 'factory_spec', $4,
-        $5::jsonb, $6::jsonb, $7::uuid, 'standard')`,
+        $5::jsonb, $6::jsonb, $7::uuid, $8)`,
     [
       params.orgId,
       params.actorUserId,
@@ -104,6 +122,7 @@ async function writeAuditEvent(
       JSON.stringify(params.beforeState),
       JSON.stringify(params.afterState),
       randomUUID(),
+      params.retentionClass ?? 'standard',
     ],
   );
 }
@@ -126,13 +145,83 @@ export async function updateFactorySpec(rawInput: unknown): Promise<LifecycleRes
         return { ok: false, error: 'invalid_state', message: guard.message };
       }
 
+      const notes = parsed.data.notes ?? null;
+      if (
+        spec.status === 'in_review'
+        && (spec.spec_code !== parsed.data.specCode || spec.notes !== notes)
+        && (await hasBundleApprovalReceipt(db, spec))
+      ) {
+        await db.query(
+          `select pg_advisory_xact_lock(hashtextextended($1::text || ':factory-spec-version:' || $2::text, 0))`,
+          [orgId, spec.fg_item_id],
+        );
+        const { rows: versionRows } = await db.query<{ next_version: number | string }>(
+          `select coalesce(max(version), 0) + 1 as next_version
+             from public.factory_specs
+            where org_id = app.current_org_id()
+              and fg_item_id = $1::uuid`,
+          [spec.fg_item_id],
+        );
+        const nextVersion = Number(versionRows[0]?.next_version ?? spec.version + 1);
+        const { rows: inserted } = await db.query<{ id: string }>(
+          `insert into public.factory_specs
+             (org_id, site_id, fg_item_id, spec_code, version, status, source,
+              bom_header_id, bom_version, supersedes_factory_spec_id, notes,
+              d365_item_id, created_by, schema_version)
+           select fs.org_id, fs.site_id, fs.fg_item_id, $2, $3::integer, 'in_review', fs.source,
+                  fs.bom_header_id, fs.bom_version, fs.id, $4,
+                  fs.d365_item_id, $5::uuid, fs.schema_version
+             from public.factory_specs fs
+            where fs.org_id = app.current_org_id()
+              and fs.id = $1::uuid
+              and fs.status = 'in_review'
+           returning id`,
+          [spec.id, parsed.data.specCode, nextVersion, notes, userId],
+        );
+        const revisedSpec = inserted[0];
+        if (!revisedSpec) throw new Error('signed factory_spec revision was not created');
+
+        await db.query(
+          `update public.factory_specs
+              set status = 'archived'
+            where org_id = app.current_org_id()
+              and id = $1::uuid
+              and status = 'in_review'`,
+          [spec.id],
+        );
+
+        await writeAuditEvent(db, {
+          orgId,
+          actorUserId: userId,
+          action: 'factory_spec.esign_invalidated',
+          resourceId: revisedSpec.id,
+          beforeState: {
+            specId: spec.id,
+            specCode: spec.spec_code,
+            version: spec.version,
+            notes: spec.notes,
+          },
+          afterState: {
+            specId: revisedSpec.id,
+            specCode: parsed.data.specCode,
+            version: nextVersion,
+            notes,
+            supersedesFactorySpecId: spec.id,
+          },
+          retentionClass: 'security',
+        });
+
+        safeRevalidatePath('/technical/factory-specs');
+        return { ok: true, data: { id: revisedSpec.id } };
+      }
+
       await db.query(
         `update public.factory_specs
             set spec_code = $2,
                 notes = $3
           where org_id = app.current_org_id()
             and id = $1::uuid`,
-        [parsed.data.specId, parsed.data.specCode, parsed.data.notes ?? null],
+        [parsed.data.specId, parsed.data.specCode, notes],
       );
 
       await writeAuditEvent(db, {
@@ -141,7 +230,7 @@ export async function updateFactorySpec(rawInput: unknown): Promise<LifecycleRes
         action: 'factory_spec.updated',
         resourceId: spec.id,
         beforeState: { specCode: spec.spec_code, notes: spec.notes },
-        afterState: { specCode: parsed.data.specCode, notes: parsed.data.notes ?? null },
+        afterState: { specCode: parsed.data.specCode, notes },
       });
 
       safeRevalidatePath('/technical/factory-specs');
@@ -283,6 +372,13 @@ export async function saveFactorySpecVersion(
           ok: false,
           error: 'invalid_state',
           message: 'Only draft or in_review specifications can be versioned in place',
+        };
+      }
+      if (spec.status === 'in_review' && (await hasBundleApprovalReceipt(db, spec))) {
+        return {
+          ok: false,
+          error: 'invalid_state',
+          message: 'Signed in-review specifications must be edited to create a new in-review revision',
         };
       }
 

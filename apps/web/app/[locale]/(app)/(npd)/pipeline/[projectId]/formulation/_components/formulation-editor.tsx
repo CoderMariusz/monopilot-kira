@@ -624,6 +624,15 @@ function toEditable(data: FormulationEditorData): EditableIngredient[] {
   }));
 }
 
+/** Stable cascade lookup key — survives saveDraft delete/reinsert of formulation_ingredients ids. */
+function ingredientCascadeKey(ingredient: EditableIngredient): string {
+  return `${ingredient.sequence}:${ingredient.itemId ?? ''}:${ingredient.rmCode}`;
+}
+
+function cascadeNodeKey(node: RecipeCascadeNode): string {
+  return `${node.sequence}:${node.itemId ?? ''}:${node.itemCode}`;
+}
+
 /** Pack weight (g, NUMERIC string) → kg (NUMERIC string), exact; null/0/invalid → null. */
 function packWeightKgFromG(grams: string | null): string | null {
   if (!grams || !isDecimalString(grams)) return null;
@@ -836,16 +845,29 @@ export function FormulationEditor({
   const [saveErrorDetail, setSaveErrorDetail] = React.useState<string>('');
   const [cascadeRows, setCascadeRows] = React.useState<RecipeCascadeNode[] | null>(null);
   const [cascadeLoading, setCascadeLoading] = React.useState(false);
-  const [expandedCascadeIds, setExpandedCascadeIds] = React.useState<Set<string>>(() => new Set());
+  const [expandedCascadeKeys, setExpandedCascadeKeys] = React.useState<Set<string>>(() => new Set());
 
   React.useEffect(() => {
     setCascadeRows(null);
-    setExpandedCascadeIds(new Set());
+    setExpandedCascadeKeys(new Set());
     setCascadeLoading(false);
   }, [versionId]);
 
-  const cascadeByLineId = React.useMemo(
-    () => new Map((cascadeRows ?? []).map((node) => [node.ingredientLineId, node])),
+  const cascadeSignature = React.useMemo(
+    () =>
+      rows
+        .map((row) => `${row.id}:${row.itemId ?? ''}:${row.wipDefinitionId ?? ''}:${row.qtyKg}`)
+        .join('|'),
+    [rows],
+  );
+
+  React.useEffect(() => {
+    setCascadeRows(null);
+    setCascadeLoading(false);
+  }, [cascadeSignature]);
+
+  const cascadeByStableKey = React.useMemo(
+    () => new Map((cascadeRows ?? []).map((node) => [cascadeNodeKey(node), node])),
     [cascadeRows],
   );
 
@@ -861,12 +883,17 @@ export function FormulationEditor({
     }
   }, [cascadeRows, cascadeLoading, data, loadRecipeCascadeAction, versionId]);
 
+  React.useEffect(() => {
+    if (expandedCascadeKeys.size === 0 || cascadeRows || cascadeLoading) return;
+    void ensureCascadeLoaded();
+  }, [cascadeRows, cascadeLoading, ensureCascadeLoaded, expandedCascadeKeys]);
+
   const toggleCascade = React.useCallback(
-    (lineId: string) => {
-      setExpandedCascadeIds((prev) => {
+    (stableKey: string) => {
+      setExpandedCascadeKeys((prev) => {
         const next = new Set(prev);
-        if (next.has(lineId)) next.delete(lineId);
-        else next.add(lineId);
+        if (next.has(stableKey)) next.delete(stableKey);
+        else next.add(stableKey);
         return next;
       });
       void ensureCascadeLoaded();
@@ -1104,6 +1131,8 @@ export function FormulationEditor({
         });
         if (result && 'ok' in result && result.ok) {
           setSaveStatus('saved');
+          setCascadeRows(null);
+          setCascadeLoading(false);
           if (recomputeAction) {
             void recomputeAction({ projectId: data.projectId, versionId }).catch(() => undefined);
           }
@@ -2015,8 +2044,9 @@ export function FormulationEditor({
                 </TableHeader>
                 <TableBody>
                   {rows.map((ingredient, index) => {
-                    const cascadeNode = cascadeByLineId.get(ingredient.id);
-                    const expanded = expandedCascadeIds.has(ingredient.id);
+                    const cascadeKey = ingredientCascadeKey(ingredient);
+                    const cascadeNode = cascadeByStableKey.get(cascadeKey);
+                    const expanded = expandedCascadeKeys.has(cascadeKey);
                     const canExpand = Boolean(loadRecipeCascadeAction && ingredient.itemId);
                     return (
                       <React.Fragment key={ingredient.id}>
@@ -2035,7 +2065,7 @@ export function FormulationEditor({
                                 // TODO(i18n): npd.formulationEditor.cascadeToggle
                                 aria-label={`Toggle sub-recipe for ${ingredient.name || ingredient.rmCode}`}
                                 data-testid="recipe-cascade-toggle"
-                                onClick={() => toggleCascade(ingredient.id)}
+                                onClick={() => toggleCascade(cascadeKey)}
                               >
                                 <span aria-hidden="true">{expanded ? '⌄' : '›'}</span>
                               </Button>

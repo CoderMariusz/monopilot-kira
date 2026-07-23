@@ -3,10 +3,13 @@
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
+import type { CalibrationReviewerOption } from './calibration-esign';
 import type { CalibrationDueRow } from '../_types/calibration-schemas';
 
 /** Maintenance register read — seeded in packages/db/migrations/202-maintenance-outbox-and-rbac-seed.sql:196 */
 const MNT_READ_PERMISSION = 'mnt.asset.read';
+const MNT_CALIB_RECORD_PERMISSION = 'mnt.calib.record';
+const REVIEWER_SUPER_ROLES = ['owner', 'admin', 'org_admin'] as const;
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -97,12 +100,18 @@ export async function listCalibration(): Promise<CalibrationDueRow[]> {
             ci.active,
             cr.id as record_id,
             cr.calibrated_at,
-            cr.calibrated_by,
+            case
+              when calibrator.id is null then null
+              else calibrator.name || ' · ' || calibrator.email::text
+            end as calibrated_by,
             cr.standard_applied,
             cr.result,
             cr.certificate_file_url,
             cr.next_due_date,
-            cr.reviewer_signed_by,
+            case
+              when reviewer.id is null then null
+              else reviewer.name || ' · ' || reviewer.email::text
+            end as reviewer_signed_by,
             cr.retention_until
            from public.calibration_instruments ci
            left join (
@@ -113,6 +122,12 @@ export async function listCalibration(): Promise<CalibrationDueRow[]> {
                order by cr_latest.instrument_id, cr_latest.calibrated_at desc, cr_latest.id desc
             ) cr
              on cr.instrument_id = ci.id
+           left join public.users calibrator
+             on calibrator.id = cr.calibrated_by
+            and calibrator.org_id = ci.org_id
+           left join public.users reviewer
+             on reviewer.id = cr.reviewer_signed_by
+            and reviewer.org_id = ci.org_id
           where ci.org_id = app.current_org_id()
           order by cr.next_due_date asc nulls last, ci.instrument_code asc`,
       );
@@ -121,6 +136,50 @@ export async function listCalibration(): Promise<CalibrationDueRow[]> {
     });
   } catch (error) {
     console.error('Failed to list calibration register', error);
+    return [];
+  }
+}
+
+/** Active, eligible, non-self reviewers resolved to readable identities. */
+export async function listCalibrationReviewers(): Promise<CalibrationReviewerOption[]> {
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<CalibrationReviewerOption[]> => {
+      if (!(await hasPermission({ userId, orgId, client: client as QueryClient }, MNT_READ_PERMISSION))) {
+        return [];
+      }
+
+      const { rows } = await (client as QueryClient).query<CalibrationReviewerOption>(
+        `select u.id::text, u.name, u.email::text
+           from public.users u
+          where u.org_id = app.current_org_id()
+            and u.id <> $1::uuid
+            and u.is_active = true
+            and u.deleted_at is null
+            and exists (
+              select 1
+                from public.user_roles ur
+                join public.roles r
+                  on r.id = ur.role_id
+                 and r.org_id = ur.org_id
+                left join public.role_permissions rp
+                  on rp.role_id = r.id
+                 and rp.permission = $2
+               where ur.org_id = app.current_org_id()
+                 and ur.user_id = u.id
+                 and (
+                   rp.permission is not null
+                   or coalesce(r.permissions, '[]'::jsonb) ? $2
+                   or r.code = any($3::text[])
+                   or r.slug = any($3::text[])
+                 )
+            )
+          order by pg_catalog.lower(u.name), pg_catalog.lower(u.email::text)`,
+        [userId, MNT_CALIB_RECORD_PERMISSION, REVIEWER_SUPER_ROLES],
+      );
+      return rows;
+    });
+  } catch (error) {
+    console.error('Failed to list calibration reviewers', error);
     return [];
   }
 }

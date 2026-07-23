@@ -2,12 +2,24 @@
 
 import { useState, useTransition } from 'react';
 
+import { Select } from '@monopilot/ui/Select';
+
+import type { MwoLotoVerifierOption } from '../_actions/mwo-types';
 import { ModalShell } from './mwo-modal-shell';
 
 export type MwoLotoModalLabels = {
   lockoutTitle: string;
   releaseTitle: string;
+  energySources: string;
+  energySourcesPlaceholder: string;
+  tagsApplied: string;
+  tagsAppliedPlaceholder: string;
   signaturePassword: string;
+  releaseSignaturePassword: string;
+  verifier: string;
+  verifierPlaceholder: string;
+  verifierPassword: string;
+  noVerifiers: string;
   submitLockout: string;
   submitRelease: string;
   submitting: string;
@@ -22,43 +34,91 @@ export type MwoLotoModalLabels = {
 
 type LotoActionResult = { ok: boolean; reason?: string; message?: string };
 
-type LotoSignAction = (input: {
+type LotoLockoutAction = (input: {
+  mwoId: string;
+  energySourcesIsolated: string[];
+  tagsApplied: string[];
+  signature: { password: string };
+  verifierSignature: { userId: string; password: string };
+}) => Promise<LotoActionResult>;
+
+type LotoReleaseAction = (input: {
   mwoId: string;
   signature: { password: string };
 }) => Promise<LotoActionResult>;
+
+function nonEmptyLines(value: string): string[] {
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
 
 export function MwoLotoModal({
   mode,
   mwoId,
   labels,
-  signAction,
+  verifierOptions,
+  lockoutAction,
+  releaseAction,
   onClose,
   onDone,
 }: {
   mode: 'lockout' | 'release';
   mwoId: string;
   labels: MwoLotoModalLabels;
-  signAction: LotoSignAction;
+  verifierOptions: MwoLotoVerifierOption[];
+  lockoutAction: LotoLockoutAction;
+  releaseAction: LotoReleaseAction;
   onClose: () => void;
   onDone: () => void;
 }) {
+  const [energySources, setEnergySources] = useState('');
+  const [tagsApplied, setTagsApplied] = useState('');
   const [signaturePassword, setSignaturePassword] = useState('');
+  const [verifierUserId, setVerifierUserId] = useState('');
+  const [verifierPassword, setVerifierPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
 
   const title = mode === 'lockout' ? labels.lockoutTitle : labels.releaseTitle;
   const submitLabel = mode === 'lockout' ? labels.submitLockout : labels.submitRelease;
+  const signatureLabel = mode === 'lockout' ? labels.signaturePassword : labels.releaseSignaturePassword;
   const testId = mode === 'lockout' ? 'mwo-loto-lockout-modal' : 'mwo-loto-release-modal';
 
   const submit = () => {
-    if (!signaturePassword.trim()) {
+    const isolatedSources = nonEmptyLines(energySources);
+    const appliedTags = nonEmptyLines(tagsApplied);
+    if (
+      !signaturePassword.trim()
+      || (
+        mode === 'lockout'
+        && (
+          isolatedSources.length === 0
+          || appliedTags.length === 0
+          || !verifierUserId
+          || !verifierPassword.trim()
+        )
+      )
+    ) {
       setError(labels.errorRequired);
       return;
     }
 
     setError(null);
     startSubmit(async () => {
-      const result = await signAction({ mwoId, signature: { password: signaturePassword } });
+      const result = mode === 'lockout'
+        ? await lockoutAction({
+            mwoId,
+            energySourcesIsolated: isolatedSources,
+            tagsApplied: appliedTags,
+            signature: { password: signaturePassword },
+            verifierSignature: {
+              userId: verifierUserId,
+              password: verifierPassword,
+            },
+          })
+        : await releaseAction({ mwoId, signature: { password: signaturePassword } });
       if (result.ok) {
         onDone();
         return;
@@ -70,9 +130,11 @@ export function MwoLotoModal({
             ? labels.errorEsign
             : result.reason === 'loto_same_actor'
               ? labels.errorSameActor
-              : result.reason === 'invalid_transition'
-                ? (result.message ?? labels.errorInvalidTransition)
-                : labels.errorFailed,
+              : result.reason === 'invalid_verifier'
+                ? labels.noVerifiers
+                : result.reason === 'invalid_transition'
+                  ? (result.message ?? labels.errorInvalidTransition)
+                  : labels.errorFailed,
       );
     });
   };
@@ -80,8 +142,35 @@ export function MwoLotoModal({
   return (
     <ModalShell title={title} testId={testId} onClose={onClose}>
       <div className="flex flex-col gap-3">
+        {mode === 'lockout' ? (
+          <>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-slate-700">{labels.energySources}</span>
+              <textarea
+                value={energySources}
+                onChange={(event) => setEnergySources(event.target.value)}
+                placeholder={labels.energySourcesPlaceholder}
+                rows={3}
+                data-testid={`${testId}-energy-sources`}
+                className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-slate-700">{labels.tagsApplied}</span>
+              <textarea
+                value={tagsApplied}
+                onChange={(event) => setTagsApplied(event.target.value)}
+                placeholder={labels.tagsAppliedPlaceholder}
+                rows={2}
+                data-testid={`${testId}-tags`}
+                className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+              />
+            </label>
+          </>
+        ) : null}
+
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">{labels.signaturePassword}</span>
+          <span className="font-medium text-slate-700">{signatureLabel}</span>
           <input
             type="password"
             value={signaturePassword}
@@ -91,6 +180,46 @@ export function MwoLotoModal({
             className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
           />
         </label>
+
+        {mode === 'lockout' ? (
+          <>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-slate-700">{labels.verifier}</span>
+              {verifierOptions.length === 0 ? (
+                <span
+                  data-testid={`${testId}-no-verifiers`}
+                  className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800"
+                >
+                  {labels.noVerifiers}
+                </span>
+              ) : (
+                <div data-testid={`${testId}-verifier`}>
+                  <Select
+                    aria-label={labels.verifier}
+                    value={verifierUserId}
+                    placeholder={labels.verifierPlaceholder}
+                    onValueChange={setVerifierUserId}
+                    options={verifierOptions.map((verifier) => ({
+                      value: verifier.id,
+                      label: `${verifier.name} · ${verifier.email}`,
+                    }))}
+                  />
+                </div>
+              )}
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-slate-700">{labels.verifierPassword}</span>
+              <input
+                type="password"
+                value={verifierPassword}
+                onChange={(event) => setVerifierPassword(event.target.value)}
+                autoComplete="current-password"
+                data-testid={`${testId}-verifier-signature`}
+                className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+              />
+            </label>
+          </>
+        ) : null}
 
         {error ? (
           <p
@@ -114,7 +243,7 @@ export function MwoLotoModal({
           <button
             type="button"
             onClick={submit}
-            disabled={submitting}
+            disabled={submitting || (mode === 'lockout' && verifierOptions.length === 0)}
             data-testid={`${testId}-submit`}
             className={
               mode === 'release'

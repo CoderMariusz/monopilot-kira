@@ -12,6 +12,7 @@ import {
   recordCalibration,
   updateInstrument,
 } from '../_actions/calibration-actions';
+import type { CalibrationReviewerOption } from '../_actions/calibration-esign';
 import { InstrumentFormModal, type InstrumentFormLabels } from './instrument-form-modal';
 import { RecordCalibrationModal, type RecordCalibrationLabels } from './record-calibration-modal';
 
@@ -117,11 +118,13 @@ function applyRecordRowPatch(rows: CalibrationDueRow[], patch: CalibrationRecord
 export function CalibrationRegisterClient({
   rows: rowsProp,
   instruments,
+  reviewers,
   labels,
   permissions,
 }: {
   rows: CalibrationDueRow[];
   instruments: InstrumentOption[];
+  reviewers: CalibrationReviewerOption[];
   labels: CalibrationRegisterLabels;
   permissions: {
     canEditInstrument: boolean;
@@ -326,6 +329,7 @@ export function CalibrationRegisterClient({
       {modal?.kind === 'record' ? (
         <RecordCalibrationModal
           instruments={instruments}
+          reviewers={reviewers}
           defaultInstrumentId={modal.instrumentId}
           labels={labels.record}
           recordCalibrationAction={recordCalibration}

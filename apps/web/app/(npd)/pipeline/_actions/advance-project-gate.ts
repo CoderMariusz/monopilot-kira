@@ -1,6 +1,5 @@
 'use server';
 
-import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
@@ -8,19 +7,15 @@ import {
   APP_VERSION,
   FG_CANDIDATE_STAGE,
   GATE_ADVANCE_PERMISSION,
+  GATE_APPROVE_PERMISSION,
   GATE_ADVANCED_EVENT,
   STAGE_ORDER,
   assertHonestGateAdvance,
-  assertG3ESignForApproval,
-  assertG4ESignForHandoff,
   createFgCandidate,
   emitOutbox,
-  checkCostingNutritionReady,
-  getBlockers,
   loadProjectForUpdate,
   requireActionPermission,
   resolveAdvanceTransition,
-  resolveGateReadiness,
   seedHandoffChecklist,
   serializeGateError,
   updateProjectGateOnly,
@@ -28,11 +23,10 @@ import {
   type AnyStage,
   type GateBlocker,
 } from './_lib/gate-helpers';
+import { evaluateStageGate, writeGateOverrideAudit } from './_lib/evaluate-stage-gate';
 import { closeOutLegacyStagesForLaunch } from './close-out-legacy-stages';
 import { type OrgContextLike, type ProjectGate } from './shared';
 import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
-import { isGateChecklistItemResolved } from '../_lib/gate-checklist-auto-satisfy';
-import { loadGateChecklistAutoSignals } from '../_lib/gate-checklist-signals';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // advanceProjectGate — STAGE-NATIVE advance (2026-06-06 pivot).
@@ -83,194 +77,6 @@ export type AdvanceProjectGateResult =
     }
   | { ok: false; error: string; status: number; blockers?: GateBlocker[]; missing?: string[] };
 
-type StageGateEvaluation =
-  | { status: 'PASS' }
-  | { status: 'SOFT_GATE_BLOCKED'; missing: string[] }
-  | { status: 'HARD_BLOCKED'; hardReason: string; blockers?: GateBlocker[] };
-
-type RequiredFieldRow = {
-  dept_code: string | null;
-  dept_name: string | null;
-  field_code: string | null;
-  field_label: string | null;
-  auto_source_field: string | null;
-  product_json: Record<string, unknown> | null;
-  project_json: Record<string, unknown> | null;
-};
-
-// F6.1 CRITICAL: this action's soft-gate check is a SECOND implementation of the
-// required-fields read, separate from loadStageDeptSections. Before an FG exists
-// (np.product_code IS NULL) the values live on the PROJECT (direct columns +
-// field_values jsonb + the product_name<->name alias) — reading only product_json
-// here recreated the Brief deadlock the F6.1 loader fix closed (caught by the
-// Gate-5b logic walk). Value resolution must mirror the loader exactly.
-function resolveGateFieldValues(row: RequiredFieldRow): Record<string, unknown> {
-  if (row.product_json) return row.product_json;
-  const projectJson = row.project_json ?? {};
-  const rawFieldValues = projectJson.field_values;
-  const fieldValues =
-    typeof rawFieldValues === 'object' && rawFieldValues !== null && !Array.isArray(rawFieldValues)
-      ? (rawFieldValues as Record<string, unknown>)
-      : {};
-  const values: Record<string, unknown> = { ...fieldValues };
-  for (const [key, value] of Object.entries(projectJson)) {
-    if (key !== 'field_values') values[key] = value;
-  }
-  values.product_name = projectJson.name ?? null;
-  return values;
-}
-
-function isFilled(value: unknown): boolean {
-  if (value === null || value === undefined) return false;
-  if (typeof value === 'string') return value.trim() !== '';
-  if (Array.isArray(value)) return value.length > 0;
-  return true;
-}
-
-async function incompleteRequiredChecklistItems(
-  ctx: OrgContextLike,
-  projectId: string,
-  gateCode: ProjectGate,
-): Promise<string[]> {
-  if (gateCode === 'Launched') return [];
-  const [signals, checklist] = await Promise.all([
-    loadGateChecklistAutoSignals(ctx.client, projectId),
-    ctx.client.query<{ item_text: string; completed_at: string | null }>(
-      `select gci.item_text,
-              gci.completed_at::text as completed_at
-         from public.gate_checklist_items gci
-        where gci.org_id = app.current_org_id()
-          and gci.project_id = $1::uuid
-          and gci.gate_code = $2::text
-          and gci.required = true
-        order by gci.item_text asc`,
-      [projectId, gateCode],
-    ),
-  ]);
-  return checklist.rows
-    .filter((row) => !isGateChecklistItemResolved(row.item_text, row.completed_at, signals))
-    .map((row) => `Checklist: ${row.item_text.trim()}`);
-}
-
-async function requiredFieldsMissing(
-  ctx: OrgContextLike,
-  projectId: string,
-  stage: AnyStage,
-): Promise<string[]> {
-  if (stage === 'launched') return [];
-  const { rows } = await ctx.client.query<RequiredFieldRow>(
-    `select
-        d.code as dept_code,
-        d.name as dept_name,
-        f.code as field_code,
-        f.label as field_label,
-        f.auto_source_field,
-        case when p.product_code is not null then to_jsonb(p.*) end as product_json,
-        to_jsonb(np.*) as project_json
-       from public.npd_departments d
-       join public.npd_department_field df
-         on df.department_id = d.id
-        and df.org_id = d.org_id
-       join public.npd_field_catalog f
-         on f.id = df.field_id
-        and f.org_id = df.org_id
-       join public.npd_projects np
-         on np.id = $1::uuid
-        and np.org_id = app.current_org_id()
-       left join public.product p
-         on p.org_id = app.current_org_id()
-        and p.product_code = np.product_code
-      where d.org_id = app.current_org_id()
-        and d.active = true
-        and d.stage_code = $2::text
-        and df.visible = true
-        and df.required = true
-        and f.active = true
-      order by d.display_order asc, d.code asc, df.display_order asc, f.code asc`,
-    [projectId, stage],
-  );
-
-  const missing: string[] = [];
-  for (const row of rows) {
-    const fieldCode = (row.field_code ?? '').trim().toLowerCase();
-    if (!fieldCode) continue;
-    const autoSource = (row.auto_source_field ?? '').trim().toLowerCase();
-    const values = resolveGateFieldValues(row);
-    const value = autoSource && autoSource in values ? values[autoSource] : values[fieldCode];
-    if (!isFilled(value)) {
-      const dept = (row.dept_name ?? row.dept_code ?? 'Stage field').trim();
-      const field = (row.field_label ?? fieldCode).trim();
-      missing.push(`${dept}: ${field}`);
-    }
-  }
-  return missing;
-}
-
-async function writeGateOverrideAudit(
-  ctx: OrgContextLike,
-  params: {
-    projectId: string;
-    fromStage: AnyStage;
-    toStage: AnyStage;
-    missing: string[];
-    note: string;
-  },
-): Promise<void> {
-  const payload = {
-    fromStage: params.fromStage,
-    toStage: params.toStage,
-    missing: params.missing,
-    note: params.note,
-    actor: ctx.userId,
-  };
-  await ctx.client.query(
-    `insert into public.audit_log
-       (org_id, actor_user_id, actor_type, action, resource_type, resource_id,
-        before_state, after_state, request_id, retention_class)
-     values (app.current_org_id(), $1::uuid, 'user', 'npd.stage.gate_overridden',
-             'npd_project', $2, null, $3::jsonb, $4::uuid, 'operational')`,
-    [ctx.userId, params.projectId, JSON.stringify(payload), randomUUID()],
-  );
-}
-
-export async function evaluateStageGate(
-  projectId: string,
-  fromStage: AnyStage,
-  toStage: AnyStage,
-  db: OrgContextLike,
-  project?: Parameters<typeof getBlockers>[1],
-): Promise<StageGateEvaluation> {
-  const softMissing: string[] = [];
-  const projectRow = project ?? await loadProjectForUpdate(db, projectId);
-  const readiness = resolveGateReadiness(projectRow);
-
-  const blockers = await getBlockers(db, projectRow, toStage);
-  if (blockers.length > 0) {
-    return { status: 'HARD_BLOCKED', hardReason: blockers[0]?.code ?? 'BLOCKERS_PRESENT', blockers };
-  }
-
-  if (readiness.currentGate === 'G3' && resolveAdvanceTransition(projectRow)?.targetGate === 'G4') {
-    await assertG3ESignForApproval(db, projectId);
-  }
-  if (fromStage === 'approval' && toStage === 'handoff') {
-    await assertG4ESignForHandoff(db, projectId);
-  }
-
-  if (fromStage === 'costing_nutrition' && toStage === 'trial') {
-    const readinessCheck = await checkCostingNutritionReady(db, projectId);
-    if (!readinessCheck.costReady) softMissing.push('Cost breakdown computed');
-    if (!readinessCheck.nutritionReady) softMissing.push('Nutrition computed');
-  }
-
-  softMissing.push(
-    ...(await incompleteRequiredChecklistItems(db, projectId, readiness.checklistGate)),
-  );
-  softMissing.push(...await requiredFieldsMissing(db, projectId, fromStage));
-  return softMissing.length > 0
-    ? { status: 'SOFT_GATE_BLOCKED', missing: softMissing }
-    : { status: 'PASS' };
-}
-
 export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProjectGateResult> {
   const parsed = inputSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, error: 'INVALID_INPUT', status: 400 };
@@ -317,6 +123,7 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
         if (!parsed.data.override) {
           return { ok: false, error: 'SOFT_GATE_BLOCKED', status: 409, missing: gateEvaluation.missing };
         }
+        await requireActionPermission(context, GATE_APPROVE_PERMISSION);
         await writeGateOverrideAudit(context, {
           projectId: project.id,
           fromStage: project.current_stage as AnyStage,

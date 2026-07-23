@@ -48,6 +48,7 @@ export type WipLibraryLabels = {
   detailSaving: string;
   detailSaved: string;
   detailSaveError: string;
+  detailSaveCycleError: string;
   detailArchive: string;
   detailArchiving: string;
   detailArchiveConfirmTitle: string;
@@ -155,6 +156,7 @@ export const WIP_LIBRARY_DEFAULT_LABELS: WipLibraryLabels = {
   detailSaving: 'Saving…',
   detailSaved: 'Saved',
   detailSaveError: 'Could not save changes.',
+  detailSaveCycleError: 'This composition would create a circular WIP reference.',
   detailArchive: 'Archive',
   detailArchiving: 'Archiving…',
   detailArchiveConfirmTitle: 'Archive this definition?',
@@ -263,6 +265,7 @@ export const WIP_LABEL_KEY_MAP: Record<keyof WipLibraryLabels, string> = {
   detailSaving: 'detail.saving',
   detailSaved: 'detail.saved',
   detailSaveError: 'detail.saveError',
+  detailSaveCycleError: 'detail.saveCycleError',
   detailArchive: 'detail.archive',
   detailArchiving: 'detail.archiving',
   detailArchiveConfirmTitle: 'detail.archiveConfirmTitle',

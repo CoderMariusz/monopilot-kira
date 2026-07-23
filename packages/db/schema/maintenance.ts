@@ -306,8 +306,9 @@ export type MwoChecklist = InferSelectModel<typeof mwoChecklists>;
 export type NewMwoChecklist = InferInsertModel<typeof mwoChecklists>;
 
 // ---------------------------------------------------------------------------
-// 9.7 mwo_loto_checklists — LOTO pre-execution (D-MNT-15, T-004). Dual e-sign applied in T-014.
-//   zero_energy_verified_by / released_by are the two distinct e-sign actors (OSHA 1910.147).
+// 9.7 mwo_loto_checklists — LOTO pre-execution (D-MNT-15, T-004).
+//   lockout_applied_by / zero_energy_verified_by are the distinct atomic lockout signers.
+//   released_by is the later, independent release verifier (OSHA 1910.147).
 // ---------------------------------------------------------------------------
 export const mwoLotoChecklists = pgTable(
   'mwo_loto_checklists',
@@ -322,10 +323,17 @@ export const mwoLotoChecklists = pgTable(
       .references(() => maintenanceWorkOrders.id, { onDelete: 'cascade' }),
     energySourcesIsolated: jsonb('energy_sources_isolated').notNull().default('[]'), // [{source, method, verified_by}]
     tagsApplied: jsonb('tags_applied').notNull().default('[]'),
-    zeroEnergyVerifiedBy: uuid('zero_energy_verified_by'), // e-sign actor 1 (lockout verify)
+    lockoutAppliedBy: uuid('lockout_applied_by').references(() => users.id, { onDelete: 'restrict' }),
+    zeroEnergyVerifiedBy: uuid('zero_energy_verified_by'), // independent lockout verifier
+    lockoutSignatureId: uuid('lockout_signature_id').references(() => eSignLog.signatureId, {
+      onDelete: 'restrict',
+    }),
+    zeroEnergySignatureId: uuid('zero_energy_signature_id').references(() => eSignLog.signatureId, {
+      onDelete: 'restrict',
+    }),
     verifiedAt: timestamp('verified_at', { withTimezone: true }),
     releasedAt: timestamp('released_at', { withTimezone: true }),
-    releasedBy: uuid('released_by'), // e-sign actor 2 (release verify)
+    releasedBy: uuid('released_by'), // later release verifier; distinct from zero-energy verifier
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

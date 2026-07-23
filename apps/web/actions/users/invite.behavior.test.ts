@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { isUserSiteAccessUnrestricted } from '../../lib/site/assert-user-site-access';
+
 const ORG_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const OTHER_ORG_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const USER_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const VIEWER_ROLE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const OWNER_ROLE_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const CROSS_ORG_ROLE_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+const WARSAW_SITE_ID = '11111111-1111-4111-8111-111111111111';
+const AUTH_USER_ID = '22222222-2222-4222-8222-222222222222';
 
 const {
   _withOrgContextRunner,
@@ -48,7 +52,14 @@ type FakeClientOptions = {
   hasInvitePermission: boolean;
   seatLimit: number | null;
   activeUsers: number;
-  rolesById: Record<string, { id: string; org_id: string; code: string; is_system: boolean; display_order: number | null }>;
+  rolesById: Record<string, {
+    id: string;
+    org_id: string;
+    code: string;
+    slug?: string;
+    is_system: boolean;
+    display_order: number | null;
+  }>;
   existingUser?: {
     id: string;
     org_id: string;
@@ -59,14 +70,20 @@ type FakeClientOptions = {
     invite_token: string | null;
     invite_token_expires_at: string | null;
   } | null;
+  siteByName?: Record<string, string>;
+  scopeWriteSucceeds?: boolean;
 };
 
 type FakeClient = {
   calls: QueryCall[];
   upsertedUser: Record<string, unknown> | null;
+  pendingUpsertedUser: Record<string, unknown> | null;
   updatedInvite: Record<string, unknown> | null;
+  userSiteAssignment: { user_id: string; site_id: string; assigned_by: string } | null;
   outboxEvents: Array<{ event_type: string; payload: Record<string, unknown> }>;
   conflictEmailOrgId?: string;
+  commitTransaction: () => void;
+  rollbackTransaction: () => void;
   query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
 };
 
@@ -75,11 +92,41 @@ function makeClient(opts: FakeClientOptions): FakeClient {
   const client: FakeClient = {
     calls,
     upsertedUser: null,
+    pendingUpsertedUser: null,
     updatedInvite: null,
+    userSiteAssignment: null,
     outboxEvents: [],
+    commitTransaction() {
+      if (client.pendingUpsertedUser) {
+        client.upsertedUser = client.pendingUpsertedUser;
+      }
+      client.pendingUpsertedUser = null;
+    },
+    rollbackTransaction() {
+      client.pendingUpsertedUser = null;
+      client.userSiteAssignment = null;
+    },
     async query(sql: string, params: unknown[] = []) {
       calls.push({ sql, params });
       const norm = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+
+      if (norm.includes('from public.sites s') && norm.includes('app.current_org_id()')) {
+        const siteName = String(params[1] ?? '');
+        const siteId = opts.siteByName?.[siteName];
+        return { rows: siteId ? [{ id: siteId }] : [], rowCount: siteId ? 1 : 0 };
+      }
+
+      if (norm.includes('insert into public.user_sites')) {
+        if (opts.scopeWriteSucceeds === false) {
+          return { rows: [], rowCount: 0 };
+        }
+        client.userSiteAssignment = {
+          user_id: String(params[0]),
+          site_id: String(params[1]),
+          assigned_by: String(params[2]),
+        };
+        return { rows: [{ site_id: params[1] }], rowCount: 1 };
+      }
 
       if (norm.startsWith('select') && norm.includes('role_permissions') && norm.includes('user_roles')) {
         return {
@@ -102,11 +149,21 @@ function makeClient(opts: FakeClientOptions): FakeClient {
         return { rows: role ? [role] : [], rowCount: role ? 1 : 0 };
       }
 
-      if (norm.startsWith('select') && norm.includes('from public.users') && norm.includes('where email =')) {
+      if (
+        norm.startsWith('select') &&
+        norm.includes('from public.users') &&
+        (norm.includes('where email =') || norm.includes('where u.email ='))
+      ) {
         if (!opts.existingUser) {
           return { rows: [], rowCount: 0 };
         }
-        return { rows: [opts.existingUser], rowCount: 1 };
+        return {
+          rows: [{
+            ...opts.existingUser,
+            role_slug: opts.rolesById[opts.existingUser.role_id]?.slug ?? null,
+          }],
+          rowCount: 1,
+        };
       }
 
       if (norm.startsWith('update public.users') && norm.includes('invite_token =')) {
@@ -120,19 +177,20 @@ function makeClient(opts: FakeClientOptions): FakeClient {
       }
 
       if (norm.startsWith('insert into public.users')) {
-        if (client.conflictEmailOrgId && client.conflictEmailOrgId !== params[0]) {
+        if (client.conflictEmailOrgId && client.conflictEmailOrgId !== params[1]) {
           return { rows: [], rowCount: 0 };
         }
-        client.upsertedUser = {
-          org_id: params[0],
-          email: params[1],
-          name: params[2],
-          role_id: params[3],
-          language: params[4],
-          invite_token: params[5],
-          invite_token_expires_at: params[6],
+        client.pendingUpsertedUser = {
+          id: params[0],
+          org_id: params[1],
+          email: params[2],
+          name: params[3],
+          role_id: params[4],
+          language: params[5],
+          invite_token: params[6],
+          invite_token_expires_at: params[7],
         };
-        return { rows: [{ id: 'new-invite-user-id' }], rowCount: 1 };
+        return { rows: [{ id: params[0] }], rowCount: 1 };
       }
 
       if (norm.startsWith('insert into public.outbox_events')) {
@@ -154,11 +212,21 @@ let currentClient: FakeClient;
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
-  _withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, sessionToken: 'sess', client: currentClient }),
-  );
+  _withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) => {
+    try {
+      const result = await action({ userId: USER_ID, orgId: ORG_ID, sessionToken: 'sess', client: currentClient });
+      currentClient.commitTransaction();
+      return result;
+    } catch (error) {
+      currentClient.rollbackTransaction();
+      throw error;
+    }
+  });
   _mockGenerateLink.mockResolvedValue({
-    data: { properties: { hashed_token: 'hashed-token-stub' } },
+    data: {
+      properties: { hashed_token: 'hashed-token-stub' },
+      user: { id: AUTH_USER_ID },
+    },
     error: null,
   });
   process.env.NEXT_PUBLIC_APP_URL = 'https://app.example.com';
@@ -197,6 +265,7 @@ describe('inviteUser RBAC (behavior)', () => {
       rolesById: {
         [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', is_system: false, display_order: 99 },
       },
+      siteByName: { 'Warsaw Plant': WARSAW_SITE_ID },
     });
     const { inviteUser } = await loadInvite();
     const result = await inviteUser({
@@ -207,6 +276,8 @@ describe('inviteUser RBAC (behavior)', () => {
     });
 
     expect(result.ok).toBe(true);
+    const siteLookup = currentClient.calls.find(({ sql }) => sql.includes('from public.sites s'));
+    expect(siteLookup?.params).toEqual([null, 'Warsaw Plant']);
     expect(_mockGenerateLink).toHaveBeenCalledWith(expect.objectContaining({
       options: expect.objectContaining({
         data: expect.objectContaining({
@@ -219,6 +290,174 @@ describe('inviteUser RBAC (behavior)', () => {
       site: 'Warsaw Plant',
       personal_message_present: true,
     });
+  });
+
+  it('persists invite site scope in user_sites and keeps the user site-restricted after claim', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: 100,
+      activeUsers: 5,
+      rolesById: {
+        [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', is_system: false, display_order: 99 },
+      },
+      siteByName: { 'Warsaw Plant': WARSAW_SITE_ID },
+    });
+    const { inviteUser } = await loadInvite();
+
+    const unknownSite = await inviteUser({
+      email: 'scoped@example.com',
+      roleId: VIEWER_ROLE_ID,
+      site: 'Unknown Plant',
+    });
+    expect(unknownSite).toEqual({ ok: false, error: 'invalid_input' });
+    expect(_mockGenerateLink).not.toHaveBeenCalled();
+    expect(currentClient.userSiteAssignment).toBeNull();
+
+    const invited = await inviteUser({
+      email: 'scoped@example.com',
+      roleId: VIEWER_ROLE_ID,
+      site: 'Warsaw Plant',
+    });
+    expect(invited.ok).toBe(true);
+    expect(currentClient.userSiteAssignment).toEqual({
+      user_id: AUTH_USER_ID,
+      site_id: WARSAW_SITE_ID,
+      assigned_by: USER_ID,
+    });
+
+    const unrestricted = await isUserSiteAccessUnrestricted(AUTH_USER_ID, {
+      query: async (sql: string) => {
+        const norm = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (norm.includes('from public.user_roles')) {
+          return { rows: [] };
+        }
+        if (norm.includes('from public.user_sites')) {
+          return { rows: [{ count: currentClient.userSiteAssignment ? 1 : 0 }] };
+        }
+        return { rows: [] };
+      },
+    });
+    expect(unrestricted).toBe(false);
+  });
+
+  it('uses the Supabase auth UUID for public.users and user_sites', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: 100,
+      activeUsers: 5,
+      rolesById: {
+        [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', is_system: false, display_order: 99 },
+      },
+      siteByName: { 'Warsaw Plant': WARSAW_SITE_ID },
+    });
+    const { inviteUser } = await loadInvite();
+
+    const result = await inviteUser({
+      email: 'identity@example.com',
+      roleId: VIEWER_ROLE_ID,
+      site: 'Warsaw Plant',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(currentClient.upsertedUser?.id).toBe(AUTH_USER_ID);
+    expect(currentClient.userSiteAssignment?.user_id).toBe(AUTH_USER_ID);
+  });
+
+  it('rolls back the public.users insert when site scope persistence fails', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: 100,
+      activeUsers: 5,
+      rolesById: {
+        [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', is_system: false, display_order: 99 },
+      },
+      siteByName: { 'Warsaw Plant': WARSAW_SITE_ID },
+      scopeWriteSucceeds: false,
+    });
+    const { inviteUser } = await loadInvite();
+
+    const result = await inviteUser({
+      email: 'rollback@example.com',
+      roleId: VIEWER_ROLE_ID,
+      site: 'Warsaw Plant',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'persistence_failed' });
+    expect(currentClient.upsertedUser).toBeNull();
+    expect(currentClient.userSiteAssignment).toBeNull();
+  });
+
+  it('rejects a site-restricted role when no site is supplied', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: 100,
+      activeUsers: 5,
+      rolesById: {
+        [VIEWER_ROLE_ID]: {
+          id: VIEWER_ROLE_ID,
+          org_id: ORG_ID,
+          code: 'viewer',
+          slug: 'viewer',
+          is_system: false,
+          display_order: 99,
+        },
+      },
+    });
+    const { inviteUser } = await loadInvite();
+
+    const result = await inviteUser({
+      email: 'unscoped@example.com',
+      roleId: VIEWER_ROLE_ID,
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input' });
+    expect(_mockGenerateLink).not.toHaveBeenCalled();
+    expect(currentClient.upsertedUser).toBeNull();
+  });
+
+  it('allows an org-wide admin invite to be resent without a site', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: 100,
+      activeUsers: 5,
+      rolesById: {
+        [VIEWER_ROLE_ID]: {
+          id: VIEWER_ROLE_ID,
+          org_id: ORG_ID,
+          code: 'viewer',
+          slug: 'viewer',
+          is_system: false,
+          display_order: 99,
+        },
+        [OWNER_ROLE_ID]: {
+          id: OWNER_ROLE_ID,
+          org_id: ORG_ID,
+          code: 'org.access.admin',
+          slug: 'org.access.admin',
+          is_system: true,
+          display_order: 0,
+        },
+      },
+      existingUser: {
+        id: '33333333-3333-4333-8333-333333333333',
+        org_id: ORG_ID,
+        email: 'org-wide@example.com',
+        name: 'Org Admin',
+        role_id: OWNER_ROLE_ID,
+        is_active: false,
+        invite_token: 'old-token',
+        invite_token_expires_at: '2026-07-01T00:00:00.000Z',
+      },
+    });
+    const { inviteUser } = await loadInvite();
+
+    const result = await inviteUser({
+      email: 'org-wide@example.com',
+      roleId: VIEWER_ROLE_ID,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(currentClient.userSiteAssignment).toBeNull();
   });
 
   it('rejects an external redirectTo before calling Supabase invite link generation', async () => {
@@ -355,12 +594,14 @@ describe('inviteUser roleId handling', () => {
         invite_token: 'old-token',
         invite_token_expires_at: '2026-07-01T00:00:00.000Z',
       },
+      siteByName: { 'Warsaw Plant': WARSAW_SITE_ID },
     });
     const { inviteUser } = await loadInvite();
     const result = await inviteUser({
       email: 'pending@example.com',
       name: 'SOL-R01-DUPLICATE',
       roleId: OWNER_ROLE_ID,
+      site: 'Warsaw Plant',
     });
 
     expect(result.ok).toBe(true);
@@ -378,6 +619,7 @@ describe('inviteUser roleId handling', () => {
       name: 'SOL-R01-DUPLICATE',
       role_id: OWNER_ROLE_ID,
     });
+    expect(currentClient.userSiteAssignment?.user_id).toBe('pending-user-id');
   });
 
   it('never silently defaults the role to a system owner/admin role', async () => {

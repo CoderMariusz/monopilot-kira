@@ -194,6 +194,7 @@ type MwoActionFailureReason =
   | 'invalid_transition'
   | 'loto_not_verified'
   | 'loto_same_actor'
+  | 'invalid_verifier'
   | 'esign_failed'
   | 'error';
 

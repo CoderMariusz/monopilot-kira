@@ -398,7 +398,8 @@ export type GateBlocker = {
     | 'FG_CANDIDATE_REQUIRED'
     | 'FG_ALREADY_LINKED'
     | 'RECIPE_INGREDIENTS_REQUIRED'
-    | 'LAUNCH_COMPLIANCE_BLOCKED';
+    | 'LAUNCH_COMPLIANCE_BLOCKED'
+    | 'REQUIRED_EVIDENCE_MISSING';
   message: string;
   /** Stable criterion keys (e.g. C7) for client i18n when code is LAUNCH_COMPLIANCE_BLOCKED. */
   pendingCriteria?: string;
@@ -549,10 +550,9 @@ export async function loadProjectForUpdate(ctx: OrgContextLike, projectId: strin
 }
 
 /**
- * Blockers that must be resolved before advancing the project's CURRENT stage.
- * Required gate-checklist items block advance unless a recorded override (reason +
- * audit row) is supplied via advanceProjectGate.override — same path as other
- * soft-gate missing fields.
+ * Hard blockers that must be resolved before advancing the project's CURRENT stage.
+ * Required gate-checklist items and required stage fields are enforced by
+ * evaluateStageGate (non-overridable); this helper covers operational guards only.
  */
 export async function getBlockers(
   ctx: OrgContextLike,
@@ -587,7 +587,11 @@ export async function getBlockers(
     }
   }
 
-  if (project.current_stage === 'handoff' && targetStage === 'launched') {
+  const requiresG4OperationalEvidence =
+    (project.current_stage === 'approval' && targetStage === 'handoff') ||
+    (project.current_stage === 'handoff' && targetStage === 'launched');
+
+  if (requiresG4OperationalEvidence) {
     blockers.push(...await getLaunchComplianceBlockers(ctx, project));
   }
 

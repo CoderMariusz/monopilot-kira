@@ -4,7 +4,7 @@ import {
   getCalibrationPermissions,
   listActiveInstruments,
 } from './_actions/calibration-actions';
-import { listCalibration } from './_actions/list-calibration';
+import { listCalibration, listCalibrationReviewers } from './_actions/list-calibration';
 import { CalibrationRegisterClient, type CalibrationRegisterLabels } from './_components/calibration-register.client';
 import { getCalibrationTranslator, type CalibrationTranslator } from './calibration-labels';
 
@@ -110,8 +110,10 @@ function buildLabels(t: CalibrationTranslator): CalibrationRegisterLabels {
       certificateRef: t('record.certificateRef'),
       certificatePlaceholder: t('record.certificatePlaceholder'),
       calibratorPassword: t('record.calibratorPassword'),
-      reviewerUserId: t('record.reviewerUserId'),
-      reviewerUserIdPlaceholder: t('record.reviewerUserIdPlaceholder'),
+      reviewer: t('record.reviewer'),
+      reviewerPlaceholder: t('record.reviewerPlaceholder'),
+      reviewerSearchPlaceholder: t('record.reviewerSearchPlaceholder'),
+      reviewerUnavailable: t('record.reviewerUnavailable'),
       reviewerPassword: t('record.reviewerPassword'),
       dualSignWarning: t('record.dualSignWarning'),
       submit: t('record.submit'),
@@ -146,7 +148,11 @@ export default async function CalibrationRegisterPage({ params }: PageProps) {
     );
   }
 
-  const [rows, instrumentsResult] = await Promise.all([listCalibration(), listActiveInstruments()]);
+  const [rows, instrumentsResult, reviewers] = await Promise.all([
+    listCalibration(),
+    listActiveInstruments(),
+    listCalibrationReviewers(),
+  ]);
   const instruments = instrumentsResult.ok ? instrumentsResult.data : [];
   const labels = buildLabels(t);
 
@@ -177,6 +183,7 @@ export default async function CalibrationRegisterPage({ params }: PageProps) {
       <CalibrationRegisterClient
         rows={rows}
         instruments={instruments}
+        reviewers={reviewers}
         labels={labels}
         permissions={{
           canEditInstrument: permissions.canEditInstrument,

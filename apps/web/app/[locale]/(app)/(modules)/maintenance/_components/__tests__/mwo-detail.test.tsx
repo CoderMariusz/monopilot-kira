@@ -36,6 +36,7 @@ const MWO: MwoDetailRow = {
     requiresLoto: false,
     lockoutVerified: false,
     lockoutActive: false,
+    releaseAllowed: false,
     releaseVerified: false,
   },
 };
@@ -86,6 +87,7 @@ const LABELS: MwoDetailLabels = {
     description: 'Description',
     denied: '', error: '', notFound: '',
     lotoActiveBanner: 'LOTO active',
+    lotoLegacyBanner: 'Legacy LOTO active',
     lotoPendingBanner: 'LOTO required',
     lotoApply: 'Apply LOTO',
     lotoClear: 'Clear LOTO',
@@ -94,7 +96,16 @@ const LABELS: MwoDetailLabels = {
   loto: {
     lockoutTitle: 'Apply LOTO',
     releaseTitle: 'Clear LOTO',
+    energySources: 'Energy sources',
+    energySourcesPlaceholder: 'Source',
+    tagsApplied: 'Tags',
+    tagsAppliedPlaceholder: 'Tag',
     signaturePassword: 'PIN',
+    releaseSignaturePassword: 'Release PIN',
+    verifier: 'Verifier',
+    verifierPlaceholder: 'Select verifier',
+    verifierPassword: 'Verifier PIN',
+    noVerifiers: 'No verifiers',
     submitLockout: 'Verify',
     submitRelease: 'Verify',
     submitting: '…',
@@ -118,6 +129,7 @@ describe('MwoDetailClient', () => {
         locale="en"
         mwo={MWO}
         equipment={equipment}
+        lotoVerifiers={[]}
         labels={LABELS}
         permissions={{ canEdit: true, canExecute: true, canCancel: false, canLotoApply: false, canLotoClear: false }}
         transitionMwoAction={noop}
@@ -139,6 +151,7 @@ describe('MwoDetailClient', () => {
         locale="en"
         mwo={MWO}
         equipment={equipment}
+        lotoVerifiers={[]}
         labels={LABELS}
         permissions={{ canEdit: true, canExecute: true, canCancel: false, canLotoApply: false, canLotoClear: false }}
         transitionMwoAction={noop}
@@ -158,6 +171,7 @@ describe('MwoDetailClient', () => {
         locale="en"
         mwo={MWO}
         equipment={equipment}
+        lotoVerifiers={[]}
         labels={LABELS}
         permissions={{ canEdit: true, canExecute: true, canCancel: false, canLotoApply: false, canLotoClear: false }}
         transitionMwoAction={noop}

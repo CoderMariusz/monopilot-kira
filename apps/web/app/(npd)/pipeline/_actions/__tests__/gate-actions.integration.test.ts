@@ -204,9 +204,14 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
 
     expect(advanced).toMatchObject({
       ok: false,
-      error: 'SOFT_GATE_BLOCKED',
+      error: 'BLOCKERS_PRESENT',
       status: 409,
-      missing: expect.arrayContaining([expect.stringMatching(/^Checklist:/)]),
+      blockers: expect.arrayContaining([
+        expect.objectContaining({
+          code: 'REQUIRED_EVIDENCE_MISSING',
+          message: expect.stringMatching(/^Checklist:/),
+        }),
+      ]),
     });
 
     const gate = await owner.query<{ current_gate: string; current_stage: string }>(

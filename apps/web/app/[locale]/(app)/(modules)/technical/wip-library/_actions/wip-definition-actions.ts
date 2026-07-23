@@ -24,6 +24,7 @@ import type {
   SaveWipDefinitionInput,
   SearchWipDefinitionsInput,
 } from './wip-definition-schemas';
+import { assertWipDefinitionCompositionAcyclic } from './wip-definition-cycle';
 
 const CREATE_PERMISSION = 'technical.wip.create';
 const EDIT_PERMISSION = 'technical.wip.edit';
@@ -184,7 +185,40 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
     const contentChanged = !beforeContent || JSON.stringify(beforeContent) !== JSON.stringify(afterContent);
     const nextVersion = writeTarget ? writeTarget.version + (contentChanged ? 1 : 0) : 1;
 
-    const itemId = writeTarget?.item_id ?? await ensureDefinitionItem(ctx, data.name, data.baseUom);
+    const prospectiveItemId = writeTarget?.item_id ?? null;
+    if (prospectiveItemId) {
+      const cycleGuard = await assertWipDefinitionCompositionAcyclic(
+        ctx.client,
+        prospectiveItemId,
+        data.ingredients.map((ingredient) => ingredient.itemId),
+      );
+      if (!cycleGuard.ok) {
+        return {
+          ok: false,
+          error: 'WIP definition composition would introduce a cycle',
+          code: cycleGuard.code,
+          status: 409,
+        };
+      }
+    }
+
+    const itemId = prospectiveItemId ?? (await ensureDefinitionItem(ctx, data.name, data.baseUom));
+
+    if (!prospectiveItemId) {
+      const cycleGuard = await assertWipDefinitionCompositionAcyclic(
+        ctx.client,
+        itemId,
+        data.ingredients.map((ingredient) => ingredient.itemId),
+      );
+      if (!cycleGuard.ok) {
+        return {
+          ok: false,
+          error: 'WIP definition composition would introduce a cycle',
+          code: cycleGuard.code,
+          status: 409,
+        };
+      }
+    }
     const cloneOnWrite = Boolean(writeTarget && writeTarget.status === 'active' && contentChanged);
 
     const saved = cloneOnWrite

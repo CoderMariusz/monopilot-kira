@@ -47,6 +47,7 @@ function makeClient(): QueryClient {
           rows: [
             {
               ingredient_line_id: 'line-root',
+              line_sequence: 1,
               item_id: rootItemId,
               item_code: rootCode,
               item_name: rootCode,
@@ -96,7 +97,29 @@ beforeEach(() => {
 });
 
 describe('loadRecipeCascade', () => {
-  it('stops recursive expansion at depth 3', async () => {
+  it('does not mark a terminal leaf at max depth as a max-depth failure', async () => {
+    versionsByCode = {
+      'WIP-A': 'version-a',
+      'WIP-B': 'version-b',
+    };
+    componentsByVersion = {
+      'version-a': [line('WIP-B', 'Blend B', '50', '0.5', '2')],
+      'version-b': [line('RM-LEAF', 'Leaf RM', '100', '1', '1')],
+    };
+
+    const result = await loadRecipeCascade(PROJECT_ID, VERSION_ID);
+    const leaf = result[0]?.subRecipe?.lines[0]?.subRecipe?.lines[0];
+
+    expect(leaf).toMatchObject({
+      itemCode: 'RM-LEAF',
+      itemName: 'Leaf RM',
+    });
+    expect(leaf?.hasSubRecipe).toBeFalsy();
+    expect(leaf?.subRecipe).toBeUndefined();
+    expect(JSON.stringify(result)).not.toContain('maxDepthReached');
+  });
+
+  it('marks an expandable node at max depth as max-depth reached', async () => {
     versionsByCode = {
       'WIP-A': 'version-a',
       'WIP-B': 'version-b',
@@ -109,11 +132,34 @@ describe('loadRecipeCascade', () => {
     };
 
     const result = await loadRecipeCascade(PROJECT_ID, VERSION_ID);
-
     const first = result[0]?.subRecipe?.lines[0];
     const second = first?.subRecipe?.lines[0];
+
     expect(second?.subRecipe).toMatchObject({ maxDepthReached: true, lines: [] });
-    expect(queries.filter((q) => q.includes('where fi.version_id = $1::uuid'))).toHaveLength(2);
+    // version-a + version-b loads, plus one expandability probe for WIP-C at MAX_DEPTH (version-c).
+    expect(queries.filter((q) => q.includes('where fi.version_id = $1::uuid'))).toHaveLength(3);
+  });
+
+  it('does not mark shallow terminal leaves as max-depth failures', async () => {
+    rootCode = 'WIP-20260714-0011';
+    rootItemId = WIP_ITEM_ID;
+    wipDefLinesByItemId = {
+      [WIP_ITEM_ID]: [
+        bomLine('flour-id', 'ING-FLOUR', 'Flour', '0.70', '1.0'),
+        bomLine('sugar-id', 'ING-SUGAR', 'Sugar', '0.10', '2.0'),
+        bomLine('butter-id', 'RM-BUTTER', 'Butter', '0.20', '3.0'),
+      ],
+    };
+
+    const result = await loadRecipeCascade(PROJECT_ID, VERSION_ID);
+    const leaves = result[0]?.subRecipe?.lines ?? [];
+
+    expect(leaves).toHaveLength(3);
+    for (const leaf of leaves) {
+      expect(leaf.hasSubRecipe).toBeFalsy();
+      expect(leaf.subRecipe).toBeUndefined();
+    }
+    expect(JSON.stringify(result)).not.toContain('maxDepthReached');
   });
 
   it('marks a repeated item code as a cycle', async () => {

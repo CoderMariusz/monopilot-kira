@@ -24,8 +24,8 @@ const db = {
   },
 };
 
-async function loadAdvanceGate() {
-  return import('../advance-project-gate');
+async function loadEvaluateStageGate() {
+  return import('../_lib/evaluate-stage-gate');
 }
 
 describe('evaluateStageGate handoff → launched compliance', () => {
@@ -35,7 +35,7 @@ describe('evaluateStageGate handoff → launched compliance', () => {
   });
 
   it('returns HARD_BLOCKED when compliance docs are pending (C7)', async () => {
-    const { evaluateStageGate } = await loadAdvanceGate();
+    const { evaluateStageGate } = await loadEvaluateStageGate();
     evaluateApprovalCriteriaWithClientMock.mockResolvedValue({
       ok: true,
       data: {
@@ -70,7 +70,7 @@ describe('evaluateStageGate handoff → launched compliance', () => {
   });
 
   it('passes when compliance criteria are satisfied', async () => {
-    const { evaluateStageGate } = await loadAdvanceGate();
+    const { evaluateStageGate } = await loadEvaluateStageGate();
     evaluateApprovalCriteriaWithClientMock.mockResolvedValue({
       ok: true,
       data: {

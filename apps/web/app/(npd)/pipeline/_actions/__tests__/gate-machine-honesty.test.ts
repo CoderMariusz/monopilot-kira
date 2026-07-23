@@ -372,7 +372,7 @@ describe('advanceProjectGate — ONE gate system soft and hard gates', () => {
     ctx.handler = () => ({ rows: [] });
   });
 
-  it('returns SOFT_GATE_BLOCKED when required stage fields are missing and no override is supplied', async () => {
+  it('returns BLOCKERS_PRESENT when required stage fields are missing', async () => {
     const calls: string[] = [];
     ctx.handler = (sql) => {
       calls.push(sql);
@@ -408,9 +408,13 @@ describe('advanceProjectGate — ONE gate system soft and hard gates', () => {
     const result = await advanceProjectGate({ projectId: PROJECT, targetStage: 'costing_nutrition' });
     expect(result).toEqual({
       ok: false,
-      error: 'SOFT_GATE_BLOCKED',
+      error: 'BLOCKERS_PRESENT',
       status: 409,
-      missing: ['Packaging: Box'],
+      blockers: [{
+        code: 'REQUIRED_EVIDENCE_MISSING',
+        message: 'Packaging: Box',
+        itemText: 'Packaging: Box',
+      }],
     });
     expect(calls.some((sql) => /update public\.npd_projects/.test(sql))).toBe(false);
   });

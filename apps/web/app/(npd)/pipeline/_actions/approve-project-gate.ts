@@ -14,7 +14,6 @@ import {
   assertGateStageConsistent,
   emitOutbox,
   gateForStage,
-  getBlockers,
   loadProjectForUpdate,
   requireActionPermission,
   seedHandoffChecklist,
@@ -23,6 +22,7 @@ import {
   type AnyStage,
   type GateBlocker,
 } from './_lib/gate-helpers';
+import { evaluateStageGate } from './_lib/evaluate-stage-gate';
 import { type OrgContextLike, type ProjectGate } from './shared';
 import { revalidateLocalized } from '../../../../lib/i18n/revalidate-localized';
 
@@ -88,9 +88,36 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
         parsed.data.decision === 'approved'
           ? approvalTargetStage(project.current_stage, parsed.data.gateCode)
           : null;
-      const blockers =
-        targetStage ? await getBlockers(context, project, targetStage) : [];
-      if (blockers.length > 0) return { ok: false, error: 'BLOCKERS_PRESENT', status: 409, blockers };
+      if (parsed.data.decision === 'approved') {
+        const gateEvaluation = await evaluateStageGate(
+          project.id,
+          project.current_stage as AnyStage,
+          targetStage ?? (project.current_stage as AnyStage),
+          context,
+          project,
+          { mode: 'formal_approve', approveGateCode: parsed.data.gateCode },
+        );
+        if (gateEvaluation.status === 'HARD_BLOCKED') {
+          return {
+            ok: false,
+            error: 'BLOCKERS_PRESENT',
+            status: 409,
+            blockers: gateEvaluation.blockers,
+          };
+        }
+        if (gateEvaluation.status === 'SOFT_GATE_BLOCKED') {
+          return {
+            ok: false,
+            error: 'BLOCKERS_PRESENT',
+            status: 409,
+            blockers: gateEvaluation.missing.map((item) => ({
+              code: 'REQUIRED_EVIDENCE_MISSING' as const,
+              message: item,
+              itemText: item,
+            })),
+          };
+        }
+      }
 
       let currentGate: ReturnType<typeof gateForStage> = project.current_gate;
 

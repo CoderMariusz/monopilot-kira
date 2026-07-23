@@ -17,6 +17,10 @@ export type RecipeCascadeSubLine = {
 
 export type RecipeCascadeNode = {
   ingredientLineId: string;
+  /** Stable ordering key — survives saveDraft delete/reinsert of formulation_ingredients. */
+  sequence: number;
+  /** Stable item reference for cascade row lookup when line ids rotate. */
+  itemId: string | null;
   itemCode: string;
   itemName: string;
   hasSubRecipe: boolean;

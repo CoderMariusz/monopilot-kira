@@ -160,6 +160,8 @@ describe('FormulationEditor recipe cascade rows', () => {
     const loadRecipeCascadeAction = vi.fn().mockResolvedValue([
       {
         ingredientLineId: 'line-1',
+        sequence: 1,
+        itemId: '33333333-3333-4333-8333-333333333333',
         itemCode: 'WIP-A',
         itemName: 'Processed blend',
         hasSubRecipe: true,
@@ -205,5 +207,92 @@ describe('FormulationEditor recipe cascade rows', () => {
       expect(screen.queryByText('Raw material 1')).not.toBeInTheDocument();
     });
     expect(within(screen.getByTestId('ingredient-row')).getByText('WIP-A')).toBeInTheDocument();
+  });
+
+  it('keeps cascade rows fresh after save when ingredient line ids rotate', async () => {
+    const itemId = '33333333-3333-4333-8333-333333333333';
+    const initialData: FormulationEditorData = {
+      ...DATA,
+      ingredients: [
+        {
+          ...DATA.ingredients[0]!,
+          id: 'line-before-save',
+        },
+      ],
+    };
+    const refreshedData: FormulationEditorData = {
+      ...DATA,
+      ingredients: [
+        {
+          ...DATA.ingredients[0]!,
+          id: 'line-after-save',
+        },
+      ],
+    };
+
+    const loadRecipeCascadeAction = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          ingredientLineId: 'line-before-save',
+          sequence: 1,
+          itemId,
+          itemCode: 'WIP-A',
+          itemName: 'Processed blend',
+          hasSubRecipe: true,
+          subRecipe: {
+            totalCost: 1.25,
+            lines: [{ itemCode: 'RM-OLD', itemName: 'Stale component', pct: 100, unitCost: 1.0 }],
+          },
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          ingredientLineId: 'line-after-save',
+          sequence: 1,
+          itemId,
+          itemCode: 'WIP-A',
+          itemName: 'Processed blend',
+          hasSubRecipe: true,
+          subRecipe: {
+            totalCost: 2.5,
+            lines: [{ itemCode: 'RM-NEW', itemName: 'Fresh component', pct: 100, unitCost: 2.0 }],
+          },
+        },
+      ]);
+
+    const saveDraftAction = vi.fn().mockResolvedValue({ ok: true, data: {} });
+
+    const { rerender } = render(
+      <FormulationEditor
+        state="ready"
+        data={initialData}
+        labels={LABELS}
+        canEdit
+        saveDraftAction={saveDraftAction}
+        loadRecipeCascadeAction={loadRecipeCascadeAction}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('recipe-cascade-toggle'));
+    expect(await screen.findByText('Stale component')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: LABELS.saveDraft }));
+    await waitFor(() => expect(saveDraftAction).toHaveBeenCalled());
+
+    rerender(
+      <FormulationEditor
+        state="ready"
+        data={refreshedData}
+        labels={LABELS}
+        canEdit
+        saveDraftAction={saveDraftAction}
+        loadRecipeCascadeAction={loadRecipeCascadeAction}
+      />,
+    );
+
+    await waitFor(() => expect(loadRecipeCascadeAction).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Fresh component')).toBeInTheDocument();
+    expect(screen.queryByText('Stale component')).not.toBeInTheDocument();
   });
 });

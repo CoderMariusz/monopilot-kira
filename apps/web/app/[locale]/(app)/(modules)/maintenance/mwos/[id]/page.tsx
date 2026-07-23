@@ -8,7 +8,7 @@ import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { getMaintenanceTranslator } from '../../maintenance-labels';
 import { buildMwoListLabels } from '../../_components/mwo-detail-labels';
-import { getMwoById, getMwoPermissions, listEquipmentForMwo, transitionMwo, updateMwo, verifyMwoLotoLockout, verifyMwoLotoRelease } from '../../_actions/mwo-actions';
+import { getMwoById, getMwoPermissions, listEquipmentForMwo, listMwoLotoVerifiers, transitionMwo, updateMwo, verifyMwoLotoLockout, verifyMwoLotoRelease } from '../../_actions/mwo-actions';
 import { MwoDetailClient } from './_components/mwo-detail.client';
 
 export const dynamic = 'force-dynamic';
@@ -28,12 +28,14 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
   const t = getMaintenanceTranslator(locale);
   const labels = buildMwoListLabels(t);
 
-  const [mwoResult, permissions, equipmentResult] = await Promise.all([
+  const [mwoResult, permissions, equipmentResult, lotoVerifiersResult] = await Promise.all([
     getMwoById(id),
     getMwoPermissions(),
     listEquipmentForMwo(),
+    listMwoLotoVerifiers(),
   ]);
   const equipment = equipmentResult.ok ? equipmentResult.data : [];
+  const lotoVerifiers = lotoVerifiersResult.ok ? lotoVerifiersResult.data : [];
 
   if (!mwoResult.ok) {
     if (mwoResult.reason === 'forbidden') {
@@ -67,6 +69,7 @@ async function DetailContent({ locale, id }: { locale: string; id: string }) {
       locale={locale}
       mwo={mwoResult.data}
       equipment={equipment}
+      lotoVerifiers={lotoVerifiers}
       labels={labels}
       permissions={{
         canEdit: permissions.canCreate,

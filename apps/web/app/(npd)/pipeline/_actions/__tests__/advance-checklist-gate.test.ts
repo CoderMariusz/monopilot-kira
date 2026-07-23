@@ -21,7 +21,7 @@ vi.mock('../../../../../lib/auth/with-org-context', () => ({
     }),
 }));
 
-import { evaluateStageGate } from '../advance-project-gate';
+import { evaluateStageGate } from '../_lib/evaluate-stage-gate';
 
 const G3_AUTO_ITEMS = [
   { item_text: 'Formulation created and locked', completed_at: null },
@@ -130,8 +130,13 @@ describe('evaluateStageGate checklist enforcement (S18 + D1)', () => {
     } as never);
 
     expect(evaluation).toEqual({
-      status: 'SOFT_GATE_BLOCKED',
-      missing: ['Checklist: Initial shared BOM ready and linked to NPD project'],
+      status: 'HARD_BLOCKED',
+      hardReason: 'REQUIRED_EVIDENCE_BLOCKED',
+      blockers: [{
+        code: 'REQUIRED_EVIDENCE_MISSING',
+        message: 'Checklist: Initial shared BOM ready and linked to NPD project',
+        itemText: 'Checklist: Initial shared BOM ready and linked to NPD project',
+      }],
     });
   });
 
@@ -184,8 +189,20 @@ describe('evaluateStageGate checklist enforcement (S18 + D1)', () => {
     } as never);
 
     expect(evaluation).toEqual({
-      status: 'SOFT_GATE_BLOCKED',
-      missing: ['Checklist: Brief complete', 'Checklist: Stakeholders aligned'],
+      status: 'HARD_BLOCKED',
+      hardReason: 'REQUIRED_EVIDENCE_BLOCKED',
+      blockers: [
+        {
+          code: 'REQUIRED_EVIDENCE_MISSING',
+          message: 'Checklist: Brief complete',
+          itemText: 'Checklist: Brief complete',
+        },
+        {
+          code: 'REQUIRED_EVIDENCE_MISSING',
+          message: 'Checklist: Stakeholders aligned',
+          itemText: 'Checklist: Stakeholders aligned',
+        },
+      ],
     });
   });
 });

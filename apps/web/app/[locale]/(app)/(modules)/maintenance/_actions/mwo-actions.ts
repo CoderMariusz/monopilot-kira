@@ -36,13 +36,20 @@
  */
 
 import type pg from 'pg';
-import { EPinFailedError, ESignPolicyError, signEvent } from '@monopilot/e-sign';
+import {
+  dualSign,
+  EPinFailedError,
+  ESignPolicyError,
+  ESignSoDError,
+  signEvent,
+  type ESignReceipt,
+} from '@monopilot/e-sign';
 import { z } from 'zod';
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
-import type { MwoLotoStatus } from './mwo-types';
+import type { MwoLotoStatus, MwoLotoVerifierOption } from './mwo-types';
 import {
   advancePmScheduleOnMwoCompletion,
   generateMwoFromPmScheduleCore,
@@ -119,6 +126,7 @@ type ActionFailure = {
     | 'invalid_transition'
     | 'loto_not_verified'
     | 'loto_same_actor'
+    | 'invalid_verifier'
     | 'esign_failed'
     | 'error';
   message?: string;
@@ -243,7 +251,12 @@ const lotoSignatureSchema = z.object({
 
 const verifyLotoLockoutSchema = z.object({
   mwoId: uuidSchema,
+  energySourcesIsolated: z.array(z.string().trim().min(1).max(240)).min(1).max(50),
+  tagsApplied: z.array(z.string().trim().min(1).max(120)).min(1).max(50),
   signature: lotoSignatureSchema,
+  verifierSignature: lotoSignatureSchema.extend({
+    userId: uuidSchema,
+  }),
 });
 
 const verifyLotoReleaseSchema = z.object({
@@ -252,6 +265,9 @@ const verifyLotoReleaseSchema = z.object({
 });
 
 function maintenanceActionError(err: unknown): ActionFailure {
+  if (err instanceof ESignSoDError) {
+    return { ok: false, reason: 'loto_same_actor', message: err.message };
+  }
   if (err instanceof EPinFailedError) {
     return { ok: false, reason: 'esign_failed', message: err.message };
   }
@@ -289,21 +305,57 @@ async function writeOutbox(
 }
 
 type LotoGateRow = {
+  lockout_applied_by: string | null;
   zero_energy_verified_by: string | null;
+  lockout_signature_id: string | null;
+  zero_energy_signature_id: string | null;
   verified_at: Date | string | null;
   released_by: string | null;
   released_at: Date | string | null;
+  isolation_steps_recorded: boolean;
+  dual_signatures_valid: boolean;
 };
 
 async function readLotoGate(ctx: MaintenanceContext, mwoId: string): Promise<LotoGateRow | null> {
   const { rows } = await ctx.client.query<LotoGateRow>(
-    `select zero_energy_verified_by::text,
-            verified_at,
-            released_by::text,
-            released_at
-       from public.mwo_loto_checklists
-      where org_id = app.current_org_id()
-        and mwo_id = $1::uuid
+    `select lc.lockout_applied_by::text,
+            lc.zero_energy_verified_by::text,
+            lc.lockout_signature_id::text,
+            lc.zero_energy_signature_id::text,
+            lc.verified_at,
+            lc.released_by::text,
+            lc.released_at,
+            (
+              case
+                when pg_catalog.jsonb_typeof(lc.energy_sources_isolated) = 'array'
+                  then pg_catalog.jsonb_array_length(lc.energy_sources_isolated) > 0
+                else false
+              end
+              and case
+                when pg_catalog.jsonb_typeof(lc.tags_applied) = 'array'
+                  then pg_catalog.jsonb_array_length(lc.tags_applied) > 0
+                else false
+              end
+            ) as isolation_steps_recorded,
+            exists (
+              select 1
+                from public.e_sign_log primary_signature
+                join public.e_sign_log verifier_signature
+                  on verifier_signature.signature_id = lc.zero_energy_signature_id
+                 and verifier_signature.org_id = lc.org_id
+               where primary_signature.signature_id = lc.lockout_signature_id
+                 and primary_signature.org_id = lc.org_id
+                 and primary_signature.signer_user_id = lc.lockout_applied_by
+                 and verifier_signature.signer_user_id = lc.zero_energy_verified_by
+                 and primary_signature.signer_user_id <> verifier_signature.signer_user_id
+                 and primary_signature.intent = 'mnt.loto.lockout'
+                 and verifier_signature.intent = 'mnt.loto.lockout'
+                 and primary_signature.subject_hash = verifier_signature.subject_hash
+                 and primary_signature.nonce <> verifier_signature.nonce
+            ) as dual_signatures_valid
+       from public.mwo_loto_checklists lc
+      where lc.org_id = app.current_org_id()
+        and lc.mwo_id = $1::uuid
       limit 1`,
     [mwoId],
   );
@@ -311,12 +363,26 @@ async function readLotoGate(ctx: MaintenanceContext, mwoId: string): Promise<Lot
 }
 
 function lotoLockoutRecorded(loto: LotoGateRow | null): boolean {
-  return Boolean(loto?.zero_energy_verified_by && loto.verified_at);
+  return Boolean(
+    loto?.lockout_applied_by
+      && loto.zero_energy_verified_by
+      && loto.lockout_applied_by !== loto.zero_energy_verified_by
+      && loto.lockout_signature_id
+      && loto.zero_energy_signature_id
+      && loto.verified_at
+      && loto.isolation_steps_recorded
+      && loto.dual_signatures_valid,
+  );
 }
 
 /** Active lockout: verified and not yet released — required to start work. */
 function lotoActiveLockout(loto: LotoGateRow | null): boolean {
   return lotoLockoutRecorded(loto) && !loto?.released_by;
+}
+
+/** Release compatibility for already-started legacy MWOs; never used by Start. */
+function lotoReleaseAllowed(loto: LotoGateRow | null): boolean {
+  return Boolean(loto?.zero_energy_verified_by && loto.verified_at && !loto.released_by);
 }
 
 function lotoReleaseSatisfied(loto: LotoGateRow | null): boolean {
@@ -329,6 +395,7 @@ function mapLotoStatus(requiresLoto: boolean, loto: LotoGateRow | null): MwoLoto
     requiresLoto,
     lockoutVerified,
     lockoutActive: lotoActiveLockout(loto),
+    releaseAllowed: lotoReleaseAllowed(loto),
     releaseVerified: lotoReleaseSatisfied(loto),
   };
 }
@@ -348,6 +415,85 @@ async function ensureLotoChecklistRow(ctx: MaintenanceContext, mwoId: string): P
         )`,
     [mwoId],
   );
+}
+
+const LOTO_SUPER_ROLES = ['owner', 'admin', 'org_admin'] as const;
+
+async function eligibleLotoVerifiers(
+  ctx: MaintenanceContext,
+  excludeUserId: string | null,
+): Promise<MwoLotoVerifierOption[]> {
+  const { rows } = await ctx.client.query<{
+    id: string;
+    name: string;
+    email: string;
+  }>(
+    `select u.id::text, u.name, u.email::text
+       from public.users u
+      where u.org_id = app.current_org_id()
+        and u.is_active = true
+        and u.deleted_at is null
+        and ($1::uuid is null or u.id <> $1::uuid)
+        and exists (
+          select 1
+            from public.user_roles ur
+            join public.roles r
+              on r.id = ur.role_id
+             and r.org_id = ur.org_id
+            left join public.role_permissions rp
+              on rp.role_id = r.id
+             and rp.permission = $2
+           where ur.org_id = app.current_org_id()
+             and ur.user_id = u.id
+             and (
+               rp.permission is not null
+               or coalesce(r.permissions, '[]'::jsonb) ? $2
+               or r.code = any($3::text[])
+               or r.slug = any($3::text[])
+             )
+        )
+      order by pg_catalog.lower(u.name), pg_catalog.lower(u.email::text)`,
+    [excludeUserId, MNT_LOTO_APPLY_PERMISSION, LOTO_SUPER_ROLES],
+  );
+  return rows;
+}
+
+function assertDualLotoReceipts(
+  receipts: { primary: ESignReceipt; secondary: ESignReceipt },
+  expected: { primaryUserId: string; verifierUserId: string },
+): {
+  lockoutSignatureId: string;
+  zeroEnergySignatureId: string;
+  signatureHash: string;
+} {
+  const { primary, secondary } = receipts;
+  if (
+    primary.signerUserId !== expected.primaryUserId
+    || secondary.signerUserId !== expected.verifierUserId
+    || primary.signerUserId === secondary.signerUserId
+    || !primary.nonce
+    || !secondary.nonce
+    || primary.nonce === secondary.nonce
+  ) {
+    throw new ESignSoDError('LOTO lockout requires two distinct actors and signing sessions');
+  }
+  if (
+    !primary.signatureId
+    || !secondary.signatureId
+    || primary.signatureId === secondary.signatureId
+    || !primary.subjectHash
+    || primary.subjectHash !== secondary.subjectHash
+  ) {
+    throw new ESignPolicyError(
+      'second_signature_required',
+      'LOTO signatures must attest the same zero-energy isolation record',
+    );
+  }
+  return {
+    lockoutSignatureId: primary.signatureId,
+    zeroEnergySignatureId: secondary.signatureId,
+    signatureHash: primary.subjectHash,
+  };
 }
 
 function toIso(value: Date | string | null | undefined): string | null {
@@ -468,6 +614,20 @@ export async function getMwoPermissions(): Promise<MwoPermissions> {
       canLotoApply: false,
       canLotoClear: false,
     };
+  }
+}
+
+/** Active, same-org LOTO verifiers eligible for the independent second signature. */
+export async function listMwoLotoVerifiers(): Promise<ActionResult<MwoLotoVerifierOption[]>> {
+  try {
+    return await withOrgContext(async (ctx: MaintenanceContext): Promise<ActionResult<MwoLotoVerifierOption[]>> => {
+      if (!(await hasPermission(ctx, MNT_READ_PERMISSION))) {
+        return { ok: false, reason: 'forbidden' };
+      }
+      return { ok: true, data: await eligibleLotoVerifiers(ctx, ctx.userId) };
+    });
+  } catch (err) {
+    return { ok: false, reason: 'error', message: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -607,10 +767,6 @@ export async function getMwoById(mwoId: string): Promise<ActionResult<MwoDetailR
           schedule_interval_basis: PmScheduleRow['intervalBasis'] | null;
           schedule_interval_value: number | null;
           requires_loto: boolean;
-          loto_zero_energy_verified_by: string | null;
-          loto_verified_at: Date | string | null;
-          loto_released_by: string | null;
-          loto_released_at: Date | string | null;
         }
       >(
         `select w.id::text,
@@ -632,18 +788,12 @@ export async function getMwoById(mwoId: string): Promise<ActionResult<MwoDetailR
                 s.next_due_date::text as schedule_next_due,
                 s.interval_basis as schedule_interval_basis,
                 s.interval_value as schedule_interval_value,
-                coalesce(e.requires_loto, false) as requires_loto,
-                lc.zero_energy_verified_by::text as loto_zero_energy_verified_by,
-                lc.verified_at as loto_verified_at,
-                lc.released_by::text as loto_released_by,
-                lc.released_at as loto_released_at
+                coalesce(e.requires_loto, false) as requires_loto
            from public.maintenance_work_orders w
            left join public.equipment e
              on e.id = w.equipment_id and e.org_id = w.org_id
            left join public.maintenance_schedules s
              on s.id = w.schedule_id and s.org_id = w.org_id
-           left join public.mwo_loto_checklists lc
-             on lc.mwo_id = w.id and lc.org_id = w.org_id
           where w.org_id = app.current_org_id()
             and w.id = $1::uuid
           limit 1`,
@@ -665,12 +815,10 @@ export async function getMwoById(mwoId: string): Promise<ActionResult<MwoDetailR
               equipmentName: row.equipment_name,
             }
           : null;
-      const loto = mapLotoStatus(row.requires_loto, {
-        zero_energy_verified_by: row.loto_zero_energy_verified_by,
-        verified_at: row.loto_verified_at,
-        released_by: row.loto_released_by,
-        released_at: row.loto_released_at,
-      });
+      const loto = mapLotoStatus(
+        row.requires_loto,
+        row.requires_loto ? await readLotoGate(ctx, parsed) : null,
+      );
 
       return {
         ok: true,
@@ -1051,12 +1199,16 @@ export async function generateMwoFromPmSchedule(input: {
 }
 
 /**
- * LOTO lockout verify (actor 1): e-sign + persist zero_energy_verified_by on
- * mwo_loto_checklists. Gate: mnt.loto.apply. Equipment must require LOTO.
+ * LOTO lockout + zero-energy verify: atomically dual-sign the immutable
+ * isolation subject, then persist both actors and receipt IDs. Gate:
+ * mnt.loto.apply. Equipment must require LOTO.
  */
 export async function verifyMwoLotoLockout(input: {
   mwoId: string;
+  energySourcesIsolated: string[];
+  tagsApplied: string[];
   signature: { password: string; nonce?: string };
+  verifierSignature: { userId: string; password: string; nonce?: string };
 }): Promise<ActionResult<{ mwoId: string; verifiedAt: string }>> {
   try {
     const parsed = verifyLotoLockoutSchema.parse(input);
@@ -1103,29 +1255,68 @@ export async function verifyMwoLotoLockout(input: {
         return { ok: false, reason: 'error', message: 'LOTO lockout is already verified' };
       }
 
-      const receipt = await signEvent(
+      const verifierEligible = (
+        await eligibleLotoVerifiers(ctx, null)
+      ).some((verifier) => verifier.id === parsed.verifierSignature.userId);
+      if (!verifierEligible) {
+        return {
+          ok: false,
+          reason: 'invalid_verifier',
+          message: 'LOTO verifier must be an active eligible user in the current organization',
+        };
+      }
+
+      const subject = {
+        mwoId: parsed.mwoId,
+        equipmentId: row.equipment_id,
+        energySourcesIsolated: parsed.energySourcesIsolated,
+        tagsApplied: parsed.tagsApplied,
+      };
+      const receipts = await dualSign(
         {
-          signerUserId: ctx.userId,
-          pin: parsed.signature.password,
+          primarySignerUserId: ctx.userId,
+          primaryPin: parsed.signature.password,
+          secondarySignerUserId: parsed.verifierSignature.userId,
+          secondaryPin: parsed.verifierSignature.password,
           intent: 'mnt.loto.lockout',
-          subject: { mwoId: parsed.mwoId, equipmentId: row.equipment_id },
-          reason: 'LOTO zero-energy lockout verify',
-          nonce: parsed.signature.nonce,
+          subject,
+          reason: 'LOTO isolation and independent zero-energy verification',
+          primaryNonce: parsed.signature.nonce,
+          secondaryNonce: parsed.verifierSignature.nonce,
         },
         { client: ctx.client as unknown as pg.PoolClient },
       );
+      const esign = assertDualLotoReceipts(receipts, {
+        primaryUserId: ctx.userId,
+        verifierUserId: parsed.verifierSignature.userId,
+      });
 
       await ensureLotoChecklistRow(ctx, parsed.mwoId);
       const updated = await ctx.client.query<{ verified_at: Date | string }>(
         `update public.mwo_loto_checklists
-            set zero_energy_verified_by = $2::uuid,
+            set energy_sources_isolated = $2::jsonb,
+                tags_applied = $3::jsonb,
+                lockout_applied_by = $4::uuid,
+                zero_energy_verified_by = $5::uuid,
+                lockout_signature_id = $6::uuid,
+                zero_energy_signature_id = $7::uuid,
                 verified_at = pg_catalog.now(),
                 updated_at = pg_catalog.now()
           where org_id = app.current_org_id()
             and mwo_id = $1::uuid
-            and zero_energy_verified_by is null
+            and lockout_applied_by is null
+            and lockout_signature_id is null
+            and zero_energy_signature_id is null
           returning verified_at`,
-        [parsed.mwoId, ctx.userId],
+        [
+          parsed.mwoId,
+          JSON.stringify(parsed.energySourcesIsolated),
+          JSON.stringify(parsed.tagsApplied),
+          ctx.userId,
+          parsed.verifierSignature.userId,
+          esign.lockoutSignatureId,
+          esign.zeroEnergySignatureId,
+        ],
       );
       const verifiedAt = updated.rows[0]?.verified_at;
       if (!verifiedAt) throw new Error('LOTO lockout update did not return a row');
@@ -1138,7 +1329,11 @@ export async function verifyMwoLotoLockout(input: {
           mwo_id: parsed.mwoId,
           mwo_number: row.mwo_number,
           equipment_id: row.equipment_id,
-          signature_hash: receipt.subjectHash,
+          lockout_applied_by: ctx.userId,
+          zero_energy_verified_by: parsed.verifierSignature.userId,
+          lockout_signature_id: esign.lockoutSignatureId,
+          zero_energy_signature_id: esign.zeroEnergySignatureId,
+          signature_hash: esign.signatureHash,
         },
       });
 
@@ -1156,8 +1351,8 @@ export async function verifyMwoLotoLockout(input: {
 }
 
 /**
- * LOTO release verify (actor 2): distinct-actor e-sign + released_by on
- * mwo_loto_checklists. Gate: mnt.loto.clear.
+ * LOTO release verify: signer must differ from the zero-energy verifier;
+ * existing in-progress legacy lockouts remain releasable. Gate: mnt.loto.clear.
  */
 export async function verifyMwoLotoRelease(input: {
   mwoId: string;
@@ -1204,7 +1399,7 @@ export async function verifyMwoLotoRelease(input: {
       }
 
       const existing = await readLotoGate(ctx, parsed.mwoId);
-      if (!lotoActiveLockout(existing)) {
+      if (!lotoReleaseAllowed(existing)) {
         return {
           ok: false,
           reason: 'loto_not_verified',
@@ -1331,7 +1526,7 @@ export async function transitionMwo(input: {
           return {
             ok: false,
             reason: 'loto_not_verified',
-            message: 'LOTO active lockout verification is required before starting work',
+            message: 'Two independent LOTO zero-energy signatures and recorded isolation are required before starting work',
           };
         }
         if (parsed.to === 'completed' && !lotoReleaseSatisfied(loto)) {

@@ -4,5 +4,12 @@ export type MwoLotoStatus = {
   requiresLoto: boolean;
   lockoutVerified: boolean;
   lockoutActive: boolean;
+  releaseAllowed: boolean;
   releaseVerified: boolean;
+};
+
+export type MwoLotoVerifierOption = {
+  id: string;
+  name: string;
+  email: string;
 };

@@ -447,6 +447,50 @@ function BundleModalBody({
       </div>
 
       <div className="card mb-3" style={{ padding: 12 }}>
+        <strong className="text-sm">{t('esignTitle')}</strong>
+        <p role="status" className="mt-1 text-xs text-muted-foreground">
+          {t('esignProgress', {
+            collected: data.approval.collected,
+            required: data.approval.required,
+          })}
+          {data.approval.outstanding > 0
+            ? ` ${t('esignOutstanding', { count: data.approval.outstanding })}`
+            : null}
+        </p>
+        <div className="mt-2">
+          {data.approval.receipts.length === 0 ? (
+            <p className="text-xs text-muted-foreground">{t('noSignatures')}</p>
+          ) : (
+            data.approval.receipts.map((receipt) => (
+              <div
+                key={receipt.signatureId}
+                className="grid grid-cols-[140px_1fr_auto] gap-2 border-t py-1 text-xs first:border-t-0"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <span className="font-mono text-muted-foreground">
+                  {receipt.at.slice(0, 16).replace('T', ' ')}
+                </span>
+                <span>
+                  {receipt.signer}
+                  <span className="block font-mono text-[11px] text-muted-foreground">
+                    {t('signatureId', { id: receipt.signatureId })}
+                  </span>
+                  {receipt.reason ? (
+                    <span className="block text-[11px] text-muted-foreground">
+                      {t('signatureReason', { reason: receipt.reason })}
+                    </span>
+                  ) : null}
+                </span>
+                <span className={`badge ${receipt.current ? 'badge-green' : 'badge-gray'}`}>
+                  {receipt.current ? t('signatureCurrent') : t('signatureHistorical')}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="card mb-3" style={{ padding: 12 }}>
         <strong className="text-sm">{t('historyTitle')}</strong>
         <div className="mt-2">
           {data.history.length === 0 ? (
@@ -599,7 +643,6 @@ export function ReleaseBundlePanelButton({
   function openPanel() {
     setDone(null);
     setOpen(true);
-    if (data) return;
     setLoadState('loading');
     void (async () => {
       const result: LoadBundleResult = await loadReleaseBundle(factorySpecId);

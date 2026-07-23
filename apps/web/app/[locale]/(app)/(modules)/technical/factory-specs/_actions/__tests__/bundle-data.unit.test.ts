@@ -14,7 +14,16 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function createClient(bomStatus: string): QueryClient {
+type ReceiptRow = {
+  signature_id: string;
+  signer_user_id: string;
+  created_at: string;
+  signer: string | null;
+  reason: string | null;
+  current: boolean;
+};
+
+function createClient(bomStatus: string, receipts: ReceiptRow[] = []): QueryClient {
   return {
     query: vi.fn(async (sql: string) => {
       const n = normalize(sql);
@@ -97,6 +106,16 @@ function createClient(bomStatus: string): QueryClient {
       if (n.includes('from public.feature_flags_core')) return { rows: [{ is_enabled: false }] };
       if (n.includes('from public.audit_log')) return { rows: [] };
       if (n.includes('from public.audit_events')) return { rows: [] };
+      if (n.includes('from public.e_sign_log')) return { rows: receipts };
+      if (n.includes('from public.org_authorization_policies')) {
+        return {
+          rows: [{
+            policy_code: 'technical_product_spec_approval',
+            min_approvers: 2,
+            settings_json: { require_dual_sign_off: true },
+          }],
+        };
+      }
 
       throw new Error(`Unhandled SQL: ${n}`);
     }),
@@ -155,5 +174,48 @@ describe('loadReleaseBundle release preflight', () => {
         }),
       ]),
     );
+  });
+
+  it('marks receipts for the paired BOM as current and prior BOM receipts as historical', async () => {
+    const client = createClient('in_review', [
+      {
+        signature_id: '77777777-7777-4777-8777-777777777777',
+        signer_user_id: '88888888-8888-4888-8888-888888888888',
+        created_at: '2026-04-29T10:00:00.000Z',
+        signer: 'historical@example.test',
+        reason: 'Approved prior BOM pairing',
+        current: false,
+      },
+      {
+        signature_id: '99999999-9999-4999-8999-999999999999',
+        signer_user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        created_at: '2026-04-30T10:00:00.000Z',
+        signer: 'current@example.test',
+        reason: 'Approved current BOM pairing',
+        current: true,
+      },
+    ]);
+    withOrgContextMock.mockImplementation(async (callback: (ctx: unknown) => Promise<unknown>) =>
+      callback({
+        userId: '33333333-3333-4333-8333-333333333333',
+        orgId: '44444444-4444-4444-8444-444444444444',
+        client,
+      }),
+    );
+
+    const result = await loadReleaseBundle('11111111-1111-4111-8111-111111111111');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.approval.receipts).toEqual([
+      expect.objectContaining({
+        signatureId: '77777777-7777-4777-8777-777777777777',
+        current: false,
+      }),
+      expect.objectContaining({
+        signatureId: '99999999-9999-4999-8999-999999999999',
+        current: true,
+      }),
+    ]);
   });
 });
