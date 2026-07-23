@@ -138,7 +138,7 @@ export async function upsertPolicy(rawInput: UpsertSecurityPolicyInput): Promise
       await client.query(
         `insert into public.outbox_events
            (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-         values ($1::uuid, $2, $3, null, $4::jsonb, $5)`,
+         values ($1::uuid, $2, $3, $1::uuid, $4::jsonb, $5)`,
         [
           orgId,
           'org.security_policy.updated',
@@ -242,7 +242,7 @@ async function forceAdminMfa({
   await client.query(
     `insert into public.outbox_events
        (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values ($1::uuid, $2, $3, null, $4::jsonb, $5)`,
+     values ($1::uuid, $2, $3, $1::uuid, $4::jsonb, $5)`,
     [
       orgId,
       'org.mfa_enrollment.forced',
@@ -279,7 +279,7 @@ async function forceAllUsersMfa({
   await client.query(
     `insert into public.outbox_events
        (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-     values ($1::uuid, $2, $3, null, $4::jsonb, $5)`,
+     values ($1::uuid, $2, $3, $1::uuid, $4::jsonb, $5)`,
     [
       orgId,
       'org.mfa_enrollment.forced',
