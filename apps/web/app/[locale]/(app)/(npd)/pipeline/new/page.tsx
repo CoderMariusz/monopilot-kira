@@ -87,8 +87,18 @@ const DEFAULT_LABELS: WizardLabels = {
   cloneNoSourceHint: 'No project to clone yet',
   cloneSourceLabel: 'Project to clone',
   cloneSourcePlaceholder: 'Select a source project…',
+  cloneSourceRequired:
+    'Pick the project to clone, or go back and choose "Blank recipe" instead.',
   cloneAlert:
     'A new project will be created copying the chosen project’s header and checklist items. It starts at G0 / Brief and you can edit every value after creation.',
+  reviewBlockedTitle: 'Not ready to create yet',
+  reviewBlockedBasics:
+    'Basics — product working name, weekly volume and runs per week are required.',
+  reviewBlockedBoxes:
+    'Basics — output unit "boxes" needs pack weight (g) and packs per case above 0.',
+  reviewBlockedBrief: 'Brief — the target retail price is not a valid amount.',
+  reviewBlockedCloneSource: 'Starting point — no source project chosen for the clone.',
+  reviewBlockedFix: 'Fix this',
   reviewTitle: 'Review & create',
   reviewReady:
     'Ready to create the project. A new project ID will be assigned, a first recipe draft generated, and your brief saved.',

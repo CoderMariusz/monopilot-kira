@@ -34,6 +34,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 import { BookLineTimeModal } from './book-line-time-modal';
 import { LogTrialModal, TrialFormModal, type TrialFormValues } from './log-trial-modal';
+import {
+  VoidTrialModal,
+  type TrialReversalMode,
+  type TrialReversalOutcome,
+  type TrialReversalValues,
+} from './void-trial-modal';
 import type { ProductionLineOption } from '../_lib/capacity-block';
 import type { TrialBatchView, TrialResult } from '../_actions/errors';
 import type {
@@ -84,6 +90,7 @@ export type TrialLabels = {
   confirmDelete: string;
   deleteError: string;
   deleteHasProgressed: string;
+  deleteVoided: string;
   // Modal
   modalTitle: string;
   editModalTitle: string;
@@ -100,7 +107,41 @@ export type TrialLabels = {
   saving: string;
   cancel: string;
   saveError: string;
+  /** Field-specific save failures (PF-R04-12 — "Could not save" named nothing). */
+  saveErrorYieldRange: string;
+  saveErrorBatchSize: string;
+  saveErrorVoided: string;
   duplicateError: string;
+  // Corrective reversal (void trial / release booked line time).
+  voidTrial: string;
+  releaseLineTime: string;
+  /** "{trial}" placeholder. */
+  voidTrialTitle: string;
+  voidTrialIntro: string;
+  /** "{trial}" placeholder. */
+  releaseLineTimeTitle: string;
+  releaseLineTimeIntro: string;
+  voidReasonLabel: string;
+  voidReasonPlaceholder: string;
+  voidReasonEntryError: string;
+  voidReasonTrialNotRun: string;
+  voidReasonWrongProject: string;
+  voidReasonDuplicateEntry: string;
+  voidReasonOther: string;
+  voidNoteLabel: string;
+  voidNotePlaceholder: string;
+  voidSubmit: string;
+  voidSubmitting: string;
+  releaseLineTimeSubmit: string;
+  voidError: string;
+  voidErrorForbidden: string;
+  voidErrorNotFound: string;
+  voidErrorAlreadyVoided: string;
+  voidErrorGateApproved: string;
+  voidErrorNotBooked: string;
+  voidedBadge: string;
+  /** "{reason}" placeholder — shown on a voided row. */
+  voidedReasonHint: string;
   // Line time booking
   colLineTime: string;
   lineTimeNotBooked: string;
@@ -121,6 +162,7 @@ export type TrialLabels = {
   bookLineTimeErrorForbidden: string;
   bookLineTimeErrorInvalidLine: string;
   bookLineTimeErrorTrialNotFound: string;
+  bookLineTimeErrorVoided: string;
   bookLineTimeErrorPersistence: string;
   // States
   loading: string;
@@ -148,7 +190,53 @@ export type UpdateTrialCall = LogTrialCall & { id: string };
 
 export type DeleteTrialCall = { id: string; projectId: string };
 
+/** Corrective reversal payloads — a reason is mandatory, the note is free text. */
+export type VoidTrialCall = {
+  id: string;
+  projectId: string;
+  reasonCode: string;
+  note: string | null;
+};
+
+export type ReleaseLineTimeCall = {
+  trialId: string;
+  projectId: string;
+  reasonCode: string;
+  note: string | null;
+};
+
 export type BookLineTimeCall = UpsertCapacityBlockCall;
+
+/** Voided trials are withdrawn evidence — visible, never mutable again. */
+function isVoided(row: TrialBatchView): boolean {
+  return Boolean(row.voidedAt);
+}
+
+/**
+ * A row accepts mutating actions only once it is persisted (optimistic rows
+ * carry a transient id) and has not been voided.
+ */
+function isEditable(row: TrialBatchView): boolean {
+  return !row.id.startsWith('optimistic-') && !isVoided(row);
+}
+
+/** Human reason for a voided row: the note if given, else the reason code label. */
+function voidReasonText(row: TrialBatchView, labels: TrialLabels): string {
+  const note = row.voidNote?.trim();
+  if (note) return note;
+  switch (row.voidReasonCode) {
+    case 'entry_error':
+      return labels.voidReasonEntryError;
+    case 'trial_not_run':
+      return labels.voidReasonTrialNotRun;
+    case 'wrong_project':
+      return labels.voidReasonWrongProject;
+    case 'duplicate_entry':
+      return labels.voidReasonDuplicateEntry;
+    default:
+      return labels.voidReasonOther;
+  }
+}
 
 function resultVariant(result: TrialResult): BadgeVariant {
   switch (result) {
@@ -267,6 +355,8 @@ export function TrialScreen({
   onUpdateTrial,
   onDeleteTrial,
   onBookLineTime,
+  onVoidTrial,
+  onReleaseLineTime,
 }: {
   state?: PageState;
   data: TrialScreenData | null;
@@ -275,12 +365,21 @@ export function TrialScreen({
   onUpdateTrial?: (call: UpdateTrialCall) => Promise<TrialActionOutcome>;
   onDeleteTrial?: (call: DeleteTrialCall) => Promise<TrialActionOutcome>;
   onBookLineTime?: (call: BookLineTimeCall) => Promise<CapacityBlockActionOutcome>;
+  /** Void = withdraw a persisted trial (npd.trial.write). */
+  onVoidTrial?: (call: VoidTrialCall) => Promise<TrialActionOutcome>;
+  /** Unbook = free the reserved line slot (npd.planning.write). */
+  onReleaseLineTime?: (call: ReleaseLineTimeCall) => Promise<TrialActionOutcome>;
 }) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = React.useState(false);
   // The row currently being edited (null = edit modal closed).
   const [editingRow, setEditingRow] = React.useState<TrialBatchView | null>(null);
   const [bookingTrialId, setBookingTrialId] = React.useState<string | null>(null);
+  // The row + kind of corrective reversal being confirmed (null = modal closed).
+  const [reversal, setReversal] = React.useState<{
+    row: TrialBatchView;
+    mode: TrialReversalMode;
+  } | null>(null);
 
   // Optimistic placeholder rows while a create is in flight. Cleared on settle
   // so a successful revalidate/router.refresh() cannot stack a duplicate.
@@ -381,9 +480,25 @@ export function TrialScreen({
     });
     if (typeof window !== 'undefined') {
       window.alert(
-        result.error === 'has_progressed' ? labels.deleteHasProgressed : labels.deleteError,
+        result.error === 'has_progressed'
+          ? labels.deleteHasProgressed
+          : result.error === 'voided'
+            ? labels.deleteVoided
+            : labels.deleteError,
       );
     }
+  }
+
+  async function handleReversal(values: TrialReversalValues): Promise<TrialReversalOutcome> {
+    if (!reversal) return { ok: false, error: 'not_found' };
+    const shared = { projectId: data!.projectId, reasonCode: values.reasonCode, note: values.note };
+    const outcome =
+      reversal.mode === 'void'
+        ? await onVoidTrial?.({ id: reversal.row.id, ...shared })
+        : await onReleaseLineTime?.({ trialId: reversal.row.id, ...shared });
+    if (!outcome) return { ok: false, error: 'forbidden' };
+    if (outcome.ok) router.refresh();
+    return outcome;
   }
 
   async function handleBookLineTime(call: BookLineTimeCall): Promise<CapacityBlockActionOutcome> {
@@ -450,22 +565,44 @@ export function TrialScreen({
             </TableHeader>
             <TableBody>
               {rows.map((t) => (
-                <TableRow key={t.id} data-testid="trial-row">
+                <TableRow
+                  key={t.id}
+                  data-testid="trial-row"
+                  data-voided={isVoided(t) || undefined}
+                  className={isVoided(t) ? 'opacity-60' : undefined}
+                >
                   <TableCell className="mono">{t.trialNo}</TableCell>
                   <TableCell className="mono">{t.trialDate ?? '—'}</TableCell>
                   <TableCell className="mono">{formatBatch(t.batchSizeKg)}</TableCell>
                   <TableCell className="mono">{formatYield(t.yieldPct)}</TableCell>
                   <TableCell>{t.technologistName ?? '—'}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant={resultVariant(t.result)}
-                      className={resultToneClass(t.result)}
-                      data-testid={`trial-result-${t.result}`}
-                    >
-                      {resultLabel(t.result, labels)}
-                    </Badge>
+                    {isVoided(t) ? (
+                      <Badge
+                        variant="muted"
+                        className="badge-red"
+                        data-testid={`trial-voided-${t.id}`}
+                      >
+                        {labels.voidedBadge}
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant={resultVariant(t.result)}
+                        className={resultToneClass(t.result)}
+                        data-testid={`trial-result-${t.result}`}
+                      >
+                        {resultLabel(t.result, labels)}
+                      </Badge>
+                    )}
                   </TableCell>
-                  <TableCell className="muted">{t.notes ?? ''}</TableCell>
+                  <TableCell className="muted">
+                    {isVoided(t)
+                      ? labels.voidedReasonHint.replace(
+                          '{reason}',
+                          voidReasonText(t, labels),
+                        )
+                      : t.notes ?? ''}
+                  </TableCell>
                   <TableCell
                     className="mono text-sm"
                     data-testid={`trial-line-time-${t.id}`}
@@ -476,8 +613,10 @@ export function TrialScreen({
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end gap-1">
                         {/* Optimistic rows have a transient id and aren't yet
-                            persisted, so they can't be edited until the refresh. */}
-                        {data.canWrite && !t.id.startsWith('optimistic-') ? (
+                            persisted, so they can't be edited until the refresh.
+                            A voided trial is withdrawn evidence — every mutating
+                            affordance is gone, leaving only the record. */}
+                        {data.canWrite && isEditable(t) ? (
                           <Button
                             type="button"
                             variant="default"
@@ -490,7 +629,7 @@ export function TrialScreen({
                         ) : null}
                         {data.canWrite &&
                         onDeleteTrial &&
-                        !t.id.startsWith('optimistic-') &&
+                        isEditable(t) &&
                         t.result === 'pending' ? (
                           <Button
                             type="button"
@@ -502,7 +641,20 @@ export function TrialScreen({
                             {labels.deleteTrial}
                           </Button>
                         ) : null}
-                        {data.canBookLineTime && !t.id.startsWith('optimistic-') ? (
+                        {/* Void — the reversal for anything delete refuses: a
+                            graded trial, or one already accepted at a gate. */}
+                        {data.canWrite && onVoidTrial && isEditable(t) ? (
+                          <Button
+                            type="button"
+                            variant="default"
+                            className="btn-ghost btn-sm"
+                            data-testid={`void-trial-button-${t.id}`}
+                            onClick={() => setReversal({ row: t, mode: 'void' })}
+                          >
+                            {labels.voidTrial}
+                          </Button>
+                        ) : null}
+                        {data.canBookLineTime && isEditable(t) ? (
                           <Button
                             type="button"
                             variant="default"
@@ -511,6 +663,20 @@ export function TrialScreen({
                             onClick={() => setBookingTrialId(t.id)}
                           >
                             {data.capacityBookings[t.id] ? labels.rebookLineTime : labels.bookLineTime}
+                          </Button>
+                        ) : null}
+                        {data.canBookLineTime &&
+                        onReleaseLineTime &&
+                        isEditable(t) &&
+                        data.capacityBookings[t.id] ? (
+                          <Button
+                            type="button"
+                            variant="default"
+                            className="btn-ghost btn-sm"
+                            data-testid={`release-line-time-button-${t.id}`}
+                            onClick={() => setReversal({ row: t, mode: 'releaseLineTime' })}
+                          >
+                            {labels.releaseLineTime}
                           </Button>
                         ) : null}
                       </div>
@@ -546,6 +712,19 @@ export function TrialScreen({
           existingBooking={bookingExisting}
           defaultProductionLineId={data.defaultProductionLineId}
           onSubmit={handleBookLineTime}
+        />
+      ) : null}
+
+      {reversal ? (
+        <VoidTrialModal
+          open={reversal !== null}
+          onOpenChange={(open) => {
+            if (!open) setReversal(null);
+          }}
+          mode={reversal.mode}
+          trialNo={reversal.row.trialNo}
+          labels={labels}
+          onSubmit={handleReversal}
         />
       ) : null}
 

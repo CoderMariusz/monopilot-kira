@@ -58,7 +58,7 @@ export async function revertNpdGate(rawInput: unknown): Promise<RevertNpdGateRes
         return { success: false, error: 'ALREADY_AT_FIRST_GATE', status: 409 };
       }
 
-      await signEvent(
+      const revertReceipt = await signEvent(
         {
           signerUserId: context.userId,
           pin: parsed.data.pin,
@@ -75,6 +75,13 @@ export async function revertNpdGate(rawInput: unknown): Promise<RevertNpdGateRes
         { client: context.client as ESignTxOptions['client'] },
       );
 
+      await supersedeGateApproval(context, {
+        projectId: project.id,
+        gateCode: project.current_gate,
+        reason: parsed.data.reason,
+        supersededSignatureId: revertReceipt.signatureId,
+      });
+
       await updateProjectGate(context, project.id, targetGate);
       await emitOutbox(context, {
         eventType: GATE_REVERTED_EVENT,
@@ -86,6 +93,8 @@ export async function revertNpdGate(rawInput: unknown): Promise<RevertNpdGateRes
           to_gate: targetGate,
           reason: parsed.data.reason,
           actor_user_id: context.userId,
+          superseded_gate: project.current_gate,
+          revert_signature_id: revertReceipt.signatureId,
         },
         dedupKey: `${GATE_REVERTED_EVENT}:${project.id}:${project.current_gate}:${targetGate}:${Date.now()}`,
       });
@@ -105,6 +114,37 @@ export async function revertNpdGate(rawInput: unknown): Promise<RevertNpdGateRes
     });
     return { success: false, error: 'PERSISTENCE_FAILED', status: 500 };
   }
+}
+
+async function supersedeGateApproval(
+  ctx: OrgContextLike,
+  input: {
+    projectId: string;
+    gateCode: ProjectGate;
+    reason: string;
+    supersededSignatureId: string;
+  },
+): Promise<void> {
+  await ctx.client.query(
+    `update public.gate_approvals
+        set superseded_at = now(),
+            superseded_by_user_id = $3::uuid,
+            superseded_reason = $4,
+            superseded_signature_id = $5::uuid
+      where org_id = app.current_org_id()
+        and project_id = $1::uuid
+        and gate_code = $2
+        and decision = 'approved'
+        and superseded_at is null
+        and esigned_at is not null`,
+    [
+      input.projectId,
+      input.gateCode,
+      ctx.userId,
+      input.reason,
+      input.supersededSignatureId,
+    ],
+  );
 }
 
 async function loadProjectForRevert(ctx: OrgContextLike, projectId: string): Promise<RevertProjectRow> {

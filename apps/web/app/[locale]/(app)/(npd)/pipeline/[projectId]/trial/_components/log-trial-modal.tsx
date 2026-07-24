@@ -32,6 +32,27 @@ import Textarea from '@monopilot/ui/Textarea';
 
 import type { TrialActionOutcome, TechnologistOption, TrialLabels } from './trial-screen';
 import type { TrialResult } from '../_actions/errors';
+import { percentFieldError } from '../../_lib/yield-percent';
+
+/**
+ * Server error code → the message that names the field AND the rule.
+ * PF-R04-12: every rejection used to collapse into `labels.saveError`
+ * ("Could not save"), which told the user nothing about the 101% they typed.
+ */
+function saveErrorMessage(labels: TrialLabels, code: string | null): string {
+  switch (code) {
+    case 'duplicate_trial_no':
+      return labels.duplicateError;
+    case 'yield_out_of_range':
+      return labels.saveErrorYieldRange;
+    case 'batch_size_invalid':
+      return labels.saveErrorBatchSize;
+    case 'voided':
+      return labels.saveErrorVoided;
+    default:
+      return labels.saveError;
+  }
+}
 
 export type TrialFormValues = {
   trialNo: string;
@@ -105,12 +126,22 @@ export function TrialFormModal({
     setValues((prev) => ({ ...prev, [key]: next }));
   }
 
+  // Mirrors the server rule so a 101% yield is named at the field before the
+  // round-trip; the same code is used for both surfaces.
+  const yieldError = percentFieldError(values.yieldPct);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitState === 'saving') return;
     if (values.trialNo.trim() === '') {
       setSubmitState('error');
       setErrorCode('invalid_input');
+      return;
+    }
+    if (yieldError) {
+      // Both "101" and "abc" break the same field rule — say which field.
+      setSubmitState('error');
+      setErrorCode('yield_out_of_range');
       return;
     }
     setSubmitState('saving');
@@ -174,7 +205,14 @@ export function TrialFormModal({
                 inputMode="decimal"
                 value={values.yieldPct}
                 onChange={(e) => update('yieldPct', e.target.value)}
+                aria-invalid={yieldError !== null || undefined}
+                aria-describedby={yieldError ? 'trial-yield-error' : undefined}
               />
+              {yieldError ? (
+                <p id="trial-yield-error" className="ff-error" role="alert" data-testid="trial-yield-error">
+                  {labels.saveErrorYieldRange}
+                </p>
+              ) : null}
             </div>
             <div className="field">
               <label id="trial-tech-label">{labels.fieldTechnologist}</label>
@@ -206,7 +244,7 @@ export function TrialFormModal({
             </div>
             {submitState === 'error' ? (
               <div role="alert" className="alert alert-red" data-testid={errorTestId}>
-                {errorCode === 'duplicate_trial_no' ? labels.duplicateError : labels.saveError}
+                {saveErrorMessage(labels, errorCode)}
               </div>
             ) : null}
           </div>

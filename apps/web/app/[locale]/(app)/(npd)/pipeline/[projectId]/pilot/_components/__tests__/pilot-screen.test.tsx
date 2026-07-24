@@ -105,6 +105,8 @@ const LABELS: PilotLabels = {
   saving: 'Saving…',
   cancel: 'Cancel',
   saveError: 'Could not save. Check the values and try again.',
+  saveErrorYieldRange: 'Expected yield % must be a number between 0 and 100.',
+  saveErrorForbidden: 'You do not have permission to change the pilot plan.',
   pilotWoTitle: 'Pilot work order',
   createPilotWo: 'Create pilot WO',
   creatingPilotWo: 'Creating pilot WO…',

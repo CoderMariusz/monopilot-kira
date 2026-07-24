@@ -215,6 +215,7 @@ export async function recordSensoryEvaluation(
              from public.technical_sensory_evaluations
             where id = $1::uuid
               and org_id = app.current_org_id()
+              and voided_at is null
             limit 1`,
           [input.panelId],
         );
@@ -237,6 +238,7 @@ export async function recordSensoryEvaluation(
                   updated_at = now()
             where id = $1::uuid
               and org_id = app.current_org_id()
+              and voided_at is null
           returning id::text as id`,
           [
             input.panelId,

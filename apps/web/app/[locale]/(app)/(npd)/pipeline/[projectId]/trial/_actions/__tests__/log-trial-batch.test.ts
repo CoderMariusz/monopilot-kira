@@ -127,8 +127,14 @@ describe('logTrialBatch — validation + RBAC + duplicate', () => {
     expect(r).toEqual(expect.objectContaining({ ok: false, error: 'invalid_input' }));
   });
 
-  it('rejects out-of-range yieldPct (>100)', async () => {
-    const r = await logTrialBatch({ ...VALID, yieldPct: '150' });
+  // PF-R04-12: `101` used to land as a bare invalid_input → "Could not save".
+  it.each(['150', '101', '100.01'])('rejects yieldPct %s as yield_out_of_range', async (yieldPct) => {
+    const r = await logTrialBatch({ ...VALID, yieldPct });
+    expect(r).toEqual(expect.objectContaining({ ok: false, error: 'yield_out_of_range' }));
+  });
+
+  it('keeps a non-percent failure generic (the yield field is not to blame)', async () => {
+    const r = await logTrialBatch({ ...VALID, projectId: 'not-a-uuid' });
     expect(r).toEqual(expect.objectContaining({ ok: false, error: 'invalid_input' }));
   });
 

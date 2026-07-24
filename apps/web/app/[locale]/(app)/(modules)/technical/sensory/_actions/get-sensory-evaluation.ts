@@ -93,6 +93,7 @@ export async function getSensoryEvaluation(panelId: string): Promise<GetSensoryE
            from public.technical_sensory_evaluations
           where id = $1::uuid
             and org_id = app.current_org_id()
+            and voided_at is null
           limit 1`,
         [id],
       );

@@ -6,38 +6,18 @@
  * Prototype parity source (1:1):
  *   prototypes/design/Monopilot Design System/npd/gate-screens.jsx:525-616
  *   (ApprovalHistoryTimeline) — labelled region #approval_history_timeline.
- *
- * Translation notes applied (prototype → production):
- *   - APPROVAL_HISTORY_SAMPLE (mock) → REAL org-scoped read via
- *     packages/queries `listApprovalHistory(projectId)` over public.gate_approvals.
- *     RLS scopes to the caller's org (app.current_org_id()); the page-side loader
- *     never trusts the client. This component is purely presentational — the
- *     parent passes `entries` (risk red line: no fetch inside the component).
- *   - `<div class="card">` + `.card-head` → shadcn Card + CardHeader/CardContent.
- *   - status pill `<span class="badge badge-green|red">` → shadcn Badge
- *     (variant success/destructive).
- *   - green/red circle with ✓ / ✗ glyph → circle with glyph + aria-label so the
- *     decision is never color/glyph-only (a11y).
- *   - mono date → <time dateTime> (machine-readable + mono styling).
- *   - 🔐 e-signed marker → text Badge tag + aria-labelled glyph (never emoji-only).
- *   - "View signature details ▼" button + sigOpen panel → controlled disclosure
- *     button (aria-expanded/aria-controls) revealing the signature detail grid.
- *     Rendered ONLY for eSigned entries (risk red line).
- *   - inline English literals → next-intl label props (namespace npd.approvalHistory),
- *     resolved server-side and passed down (RSC must not call useTranslations).
- *
- * Required UI states: loading / empty / error / permission_denied / ready — the
- * interactive "optimistic"/reveal affordance in this read-only screen is the
- * signature-details disclosure (no mutation exists).
- *
- * Red lines (T-110): read-only (no edit/delete/approve controls); does not fetch
- * data; never renders e-signature details for a non-eSigned entry.
  */
 
 import React from 'react';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
+import {
+  formatApprovalHistoryDate,
+  formatEsignCertificateId,
+  formatEsignTimestamp,
+  type GateApprovalEsignVerification,
+} from '../../../../../../../lib/npd/esign-display';
 
 export type ApprovalHistoryState =
   | 'ready'
@@ -49,31 +29,22 @@ export type ApprovalHistoryState =
 export type ApprovalDecision = 'approved' | 'rejected';
 
 export type ApprovalHistoryEntry = {
-  /** Stable id (gate_approvals.id) for React keys + test ids. */
   id: string;
-  /** Gate code, e.g. 'G1'. */
   gate: string;
-  /** Human gate label, e.g. 'Feasibility'. */
   gateLabel: string;
   result: ApprovalDecision;
-  /** Resolved approver display name. */
   approver: string;
-  /** Approver role / title. */
   role: string;
-  /** Approval notes (or rejection reason). */
   notes: string | null;
-  /** Display date (ISO date or datetime). */
   date: string;
   eSigned: boolean;
-  /** SHA-256 certificate hash for e-signed entries (null otherwise). */
   eSignHash?: string | null;
-  /** Full ISO timestamp the signature was applied (null otherwise). */
   eSignedAt?: string | null;
+  eSignVerification?: GateApprovalEsignVerification;
 };
 
 export type ApprovalHistoryLabels = {
   title: string;
-  /** ICU plural string already resolved by the caller, e.g. "2 approvals recorded". */
   subtitle: string;
   statusApproved: string;
   statusRejected: string;
@@ -86,8 +57,11 @@ export type ApprovalHistoryLabels = {
   sigRole: string;
   sigTimestamp: string;
   sigCertId: string;
+  sigCertUnavailable: string;
   sigVerification: string;
   sigValid: string;
+  sigVerificationUnavailable: string;
+  sigHashRecordedUnverified: string;
   approvedIconLabel: string;
   rejectedIconLabel: string;
   loading: string;
@@ -125,7 +99,6 @@ function StateNotice({
       </div>
     );
   }
-  // empty
   return (
     <div
       data-testid="approval-history-empty"
@@ -150,7 +123,25 @@ function SignaturePanel({
 }) {
   const [open, setOpen] = React.useState(false);
   const panelId = `approval-history-signature-panel-${entry.id}`;
-  const timestamp = entry.eSignedAt ?? entry.date;
+  const timestampIso = entry.eSignedAt ?? entry.date;
+  const timestampDisplay = formatEsignTimestamp(timestampIso);
+  const verification = entry.eSignVerification ?? (entry.eSigned ? 'hash_unverified' : 'unsigned');
+  const certificateId =
+    verification === 'verified'
+      ? formatEsignCertificateId(entry.eSignHash)
+      : verification === 'hash_unverified' && entry.eSignHash?.trim()
+        ? formatEsignCertificateId(entry.eSignHash) ?? entry.eSignHash.trim()
+        : null;
+  const verificationLabel =
+    verification === 'verified'
+      ? `✓ ${labels.sigValid}`
+      : verification === 'hash_unverified'
+        ? labels.sigHashRecordedUnverified
+        : labels.sigVerificationUnavailable;
+  const verificationClass =
+    verification === 'verified'
+      ? 'font-medium text-green-700'
+      : 'font-medium text-amber-700';
 
   return (
     <div data-testid="approval-history-signature" className="mt-2">
@@ -177,13 +168,23 @@ function SignaturePanel({
             <dt className="text-slate-500">{labels.sigRole}</dt>
             <dd className="text-slate-900">{entry.role}</dd>
             <dt className="text-slate-500">{labels.sigTimestamp}</dt>
-            <dd className="font-mono text-slate-900">
-              <time dateTime={timestamp}>{timestamp}</time>
+            <dd className="text-slate-900">
+              <time dateTime={timestampIso}>{timestampDisplay}</time>
             </dd>
             <dt className="text-slate-500">{labels.sigCertId}</dt>
-            <dd className="break-all font-mono text-slate-900">{entry.eSignHash}</dd>
+            <dd
+              className="break-all font-mono text-slate-900"
+              data-testid="approval-history-signature-cert-id"
+            >
+              {certificateId ?? labels.sigCertUnavailable}
+            </dd>
             <dt className="text-slate-500">{labels.sigVerification}</dt>
-            <dd className="font-medium text-green-700">✓ {labels.sigValid}</dd>
+            <dd
+              className={verificationClass}
+              data-testid="approval-history-signature-verification"
+            >
+              {verificationLabel}
+            </dd>
           </dl>
         </div>
       ) : null}
@@ -201,6 +202,7 @@ function TimelineEntry({
   const approved = entry.result === 'approved';
   const statusLabel = approved ? labels.statusApproved : labels.statusRejected;
   const iconLabel = approved ? labels.approvedIconLabel : labels.rejectedIconLabel;
+  const dateDisplay = formatApprovalHistoryDate(entry.date);
 
   return (
     <li
@@ -230,11 +232,8 @@ function TimelineEntry({
               🔐
             </span>
           ) : null}
-          <time
-            dateTime={entry.date}
-            className="ml-auto font-mono text-xs text-slate-500"
-          >
-            {entry.date}
+          <time dateTime={entry.date} className="ml-auto text-xs text-slate-500">
+            {dateDisplay}
           </time>
         </div>
         <div
@@ -284,22 +283,16 @@ export function ApprovalHistoryTimeline({
     >
       <Card>
         <CardHeader className="flex flex-wrap items-center justify-between gap-2">
-          <h2
-            id="approval-history-title"
-            className="text-base font-semibold text-slate-900"
-          >
+          <h2 id="approval-history-title" className="text-base font-semibold text-slate-900">
             {labels.title}
           </h2>
-          {hasEntries ? (
-            <span className="text-xs text-slate-500">{labels.subtitle}</span>
-          ) : null}
+          {hasEntries ? <span className="text-xs text-slate-500">{labels.subtitle}</span> : null}
         </CardHeader>
         <CardContent>
           {!hasEntries ? (
             <StateNotice state={dataLoaded ? 'empty' : state} labels={labels} />
           ) : (
             <div className="relative pt-2">
-              {/* vertical connector line */}
               <div
                 aria-hidden="true"
                 className="absolute bottom-2 left-[15px] top-6 z-0 w-0.5 bg-slate-200"

@@ -9,6 +9,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+import { Dec } from '@monopilot/domain';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '@monopilot/ui/Card';
 import Input from '@monopilot/ui/Input';
@@ -143,11 +144,9 @@ const CURRENCY = '£';
 
 function formatMoney(value: string | null): string {
   if (value == null) return '—';
-  const negative = value.trim().startsWith('-');
-  const unsigned = negative ? value.trim().slice(1) : value.trim();
-  const [intPart, fracRaw = ''] = unsigned.split('.');
-  const frac = (fracRaw + '00').slice(0, 2);
-  return `${negative ? '-' : ''}${CURRENCY}${intPart}.${frac}`;
+  const rounded = Dec.from(value).toFixed(2);
+  const negative = rounded.startsWith('-');
+  return `${negative ? '-' : ''}${CURRENCY}${negative ? rounded.slice(1) : rounded}`;
 }
 
 function interpolate(template: string, vars: Record<string, string>): string {
@@ -515,8 +514,10 @@ export function CostingScreen({
       : [];
 
   const marginStep = resolvedEngine?.steps.find((s) => s.key === 'margin');
-  const marginNegative = marginStep
-    ? /^-(?!0(\.0+)?$)/.test(marginStep.valuePerPackEur.trim())
+  const marginPct = resolvedEngine?.marginPct;
+  const marginValue = marginPct ?? marginStep?.valuePerPackEur;
+  const marginNegative = marginValue
+    ? /^-(?!0(\.0+)?$)/.test(marginValue.trim())
     : false;
 
   return (
@@ -564,7 +565,7 @@ export function CostingScreen({
           <div className="alert-title">{labels.marginNegativeWarn}</div>
           <p className="mt-1">
             {interpolate(labels.marginNegativeWarnBody, {
-              marginPct: marginStep?.valuePerPackEur ?? '0',
+              marginPct: marginPct ?? marginStep?.valuePerPackEur ?? '0',
             })}
           </p>
         </div>

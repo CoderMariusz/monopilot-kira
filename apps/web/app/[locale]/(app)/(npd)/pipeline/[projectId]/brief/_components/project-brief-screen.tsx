@@ -68,7 +68,15 @@ export type BriefPatch = {
 export type UpdateBriefCall = { projectId: string; patch: BriefPatch };
 export type UpdateBriefOutcome =
   | { ok: true }
-  | { ok: false; error: 'INVALID_INPUT' | 'FORBIDDEN' | 'NOT_FOUND' | 'PERSISTENCE_FAILED' };
+  | {
+      ok: false;
+      error:
+        | 'INVALID_INPUT'
+        | 'FORBIDDEN'
+        | 'NOT_FOUND'
+        | 'PERSISTENCE_FAILED'
+        | 'SIGNED_DEFINITION_FROZEN';
+    };
 
 // ── Attachments (npd-attachments bucket, mig 279) ─────────────────────────────
 export type BriefAttachmentItem = {
@@ -141,6 +149,8 @@ export type ProjectBriefLabels = {
   errForbidden: string;
   errNotFound: string;
   errPersistence: string;
+  definitionFrozenBanner: string;
+  errDefinitionFrozen: string;
   // Attachments backend (additive — wired to the npd-attachments bucket).
   uploading: string;
   attachColName: string;
@@ -268,6 +278,23 @@ const CHANNEL_OPTIONS = ['Retail', 'HoReCa', 'Industrial', 'Export'];
 
 const OUTPUT_UNIT_VALUES = ['kg', 'pieces', 'boxes'] as const;
 
+const FROZEN_CRITICAL_FORM_KEYS: Array<keyof FormState> = [
+  'productName',
+  'category',
+  'targetLaunchDate',
+  'targetRetailPriceEur',
+  'packFormat',
+  'packWeightG',
+  'packsPerCase',
+  'outputUnit',
+  'weeklyVolumePacks',
+  'runsPerWeek',
+  'salesChannel',
+  'targetAudience',
+  'marketingClaims',
+  'constraints',
+];
+
 function outputUnitLabel(value: string, labels: ProjectBriefLabels): string {
   switch (value) {
     case 'kg':
@@ -295,7 +322,12 @@ function withCurrentStrings(canonical: string[], current: string): Array<{ value
 }
 
 function errorMessage(
-  error: 'INVALID_INPUT' | 'FORBIDDEN' | 'NOT_FOUND' | 'PERSISTENCE_FAILED',
+  error:
+    | 'INVALID_INPUT'
+    | 'FORBIDDEN'
+    | 'NOT_FOUND'
+    | 'PERSISTENCE_FAILED'
+    | 'SIGNED_DEFINITION_FROZEN',
   labels: ProjectBriefLabels,
 ): string {
   switch (error) {
@@ -305,6 +337,8 @@ function errorMessage(
       return labels.errForbidden;
     case 'NOT_FOUND':
       return labels.errNotFound;
+    case 'SIGNED_DEFINITION_FROZEN':
+      return labels.errDefinitionFrozen;
     default:
       return labels.errPersistence;
   }
@@ -404,6 +438,7 @@ function EditBriefCard({
   categoryOptions?: CategoryOption[];
 }) {
   const router = useRouter();
+  const definitionFrozen = data.definitionFrozen;
   // Re-seed local form state whenever the persisted brief changes (after a
   // successful save the action revalidatePath'd and router.refresh re-runs the
   // RSC loader, so `data` arrives fresh). `pristine` is the baseline we diff
@@ -425,11 +460,12 @@ function EditBriefCard({
   );
 
   const set = React.useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
+    if (definitionFrozen && FROZEN_CRITICAL_FORM_KEYS.includes(key)) return;
     setForm((prev) => ({ ...prev, [key]: value }));
     // A fresh edit clears the "Saved" / error indicator.
     setStatus((s) => (s === 'idle' || s === 'saving' ? s : 'idle'));
     setError(null);
-  }, []);
+  }, [definitionFrozen]);
 
   const handleSubmit = React.useCallback(
     async (e: React.FormEvent) => {
@@ -467,6 +503,7 @@ function EditBriefCard({
 
   const saveLabel =
     status === 'saving' ? labels.saving : status === 'saved' && !dirty ? labels.saved : labels.saveChanges;
+  const lockCritical = definitionFrozen ? { readOnly: true, disabled: true } : {};
 
   return (
     <Card>
@@ -489,6 +526,15 @@ function EditBriefCard({
           </div>
         </CardHeader>
         <CardContent>
+          {definitionFrozen ? (
+            <div
+              role="status"
+              data-testid="brief-definition-frozen-banner"
+              className="alert alert-amber mb-4"
+            >
+              {labels.definitionFrozenBanner}
+            </div>
+          ) : null}
           <div className="form-grid">
             <label className="field">
               <span className="field__label" style={{ textTransform: 'uppercase' }}>{labels.fieldProductName}</span>
@@ -496,6 +542,7 @@ function EditBriefCard({
                 value={form.productName}
                 onChange={(e) => set('productName', e.target.value)}
                 data-testid="brief-field-productName"
+                {...lockCritical}
               />
             </label>
             <label className="field">
@@ -505,6 +552,7 @@ function EditBriefCard({
                 value={form.category}
                 onValueChange={(v) => set('category', v)}
                 options={withCurrent(categoryOptions, form.category)}
+                disabled={definitionFrozen}
               >
                 <SelectTrigger aria-label={labels.fieldCategory} data-testid="brief-field-category">
                   <SelectValue placeholder={labels.fieldCategory} />
@@ -525,6 +573,7 @@ function EditBriefCard({
                 value={form.targetLaunchDate}
                 onChange={(e) => set('targetLaunchDate', e.target.value)}
                 data-testid="brief-field-targetLaunchDate"
+                {...lockCritical}
               />
             </label>
             <label className="field">
@@ -534,6 +583,7 @@ function EditBriefCard({
                 value={form.targetRetailPriceEur}
                 onChange={(e) => set('targetRetailPriceEur', e.target.value)}
                 data-testid="brief-field-targetRetailPriceEur"
+                {...lockCritical}
               />
             </label>
             <label className="field">
@@ -542,6 +592,7 @@ function EditBriefCard({
                 value={form.packFormat}
                 onChange={(e) => set('packFormat', e.target.value)}
                 data-testid="brief-field-packFormat"
+                {...lockCritical}
               />
             </label>
             <label className="field">
@@ -554,6 +605,7 @@ function EditBriefCard({
                 value={form.packWeightG}
                 onChange={(e) => set('packWeightG', e.target.value)}
                 data-testid="brief-field-packWeightG"
+                {...lockCritical}
               />
             </label>
             <label className="field">
@@ -566,6 +618,7 @@ function EditBriefCard({
                 value={form.packsPerCase}
                 onChange={(e) => set('packsPerCase', e.target.value)}
                 data-testid="brief-field-packsPerCase"
+                {...lockCritical}
               />
             </label>
             <label className="field">
@@ -578,6 +631,7 @@ function EditBriefCard({
                   value,
                   label: outputUnitLabel(value, labels),
                 }))}
+                disabled={definitionFrozen}
               >
                 <SelectTrigger aria-label={labels.fieldOutputUnit} data-testid="brief-field-outputUnit">
                   <SelectValue placeholder={labels.fieldOutputUnit} />
@@ -605,6 +659,7 @@ function EditBriefCard({
                 value={form.weeklyVolumePacks}
                 onChange={(e) => set('weeklyVolumePacks', e.target.value)}
                 data-testid="brief-field-weeklyVolumePacks"
+                {...lockCritical}
               />
             </label>
             <label className="field">
@@ -621,6 +676,7 @@ function EditBriefCard({
                 value={form.runsPerWeek}
                 onChange={(e) => set('runsPerWeek', e.target.value)}
                 data-testid="brief-field-runsPerWeek"
+                {...lockCritical}
               />
               <p className="muted text-xs" data-testid="brief-field-runsPerWeek-help">
                 {labels.fieldRunsPerWeekHelp}
@@ -633,6 +689,7 @@ function EditBriefCard({
                 value={form.salesChannel}
                 onValueChange={(v) => set('salesChannel', v)}
                 options={withCurrentStrings(CHANNEL_OPTIONS, form.salesChannel)}
+                disabled={definitionFrozen}
               >
                 <SelectTrigger aria-label={labels.fieldSalesChannel} data-testid="brief-field-salesChannel">
                   <SelectValue placeholder={labels.fieldSalesChannel} />
@@ -652,6 +709,7 @@ function EditBriefCard({
                 value={form.targetAudience}
                 onChange={(e) => set('targetAudience', e.target.value)}
                 data-testid="brief-field-targetAudience"
+                {...lockCritical}
               />
             </label>
           </div>
@@ -662,6 +720,7 @@ function EditBriefCard({
               value={form.marketingClaims}
               onChange={(e) => set('marketingClaims', e.target.value)}
               data-testid="brief-field-marketingClaims"
+              {...lockCritical}
             />
           </label>
           <label className="field">
@@ -671,6 +730,7 @@ function EditBriefCard({
               value={form.constraints}
               onChange={(e) => set('constraints', e.target.value)}
               data-testid="brief-field-constraints"
+              {...lockCritical}
             />
           </label>
           <label className="field">

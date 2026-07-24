@@ -130,9 +130,10 @@ export async function listSensory(): Promise<ListSensoryResult> {
            left join public.items it
                   on it.id = se.subject_item_id
                  and it.org_id = app.current_org_id()
-           left join public.users u
+          left join public.users u
                   on u.id = se.evaluated_by
           where se.org_id = app.current_org_id()
+            and se.voided_at is null
           order by
             case se.status
               when 'fail' then 0

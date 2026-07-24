@@ -158,6 +158,8 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
     });
 
     // ── upsert the cache row (single statement) ──────────────────────────────
+    // Cache contract: consumers MUST inspect yieldValid before parsing any
+    // yield-dependent decimal. Invalid yield stores nulls, never numeric sentinels.
     const costJson = {
       totalPct: result.totalPct,
       totalPctValid: result.totalPctValid,
@@ -167,6 +169,7 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
       allRmHaveCost: result.allRmHaveCost,
       rawCostPerPack: result.rawCostPerPack,
       rawCost: result.rawCost,
+      yieldValid: result.yieldValid,
       yieldedCost: result.yieldedCost,
       processing: result.processing,
       packaging: result.packaging,

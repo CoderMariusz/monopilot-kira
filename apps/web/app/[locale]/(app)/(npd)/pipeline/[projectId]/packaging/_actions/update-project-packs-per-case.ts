@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
+import { hasActiveVerifiedG4Approval } from '../../../../../../../../lib/npd/g4-definition-freeze';
 import {
   PACKAGING_WRITE_PERMISSION,
   hasPermission,
@@ -17,7 +18,7 @@ const inputSchema = z.object({
 
 export type UpdateProjectPacksPerCaseResult =
   | { ok: true }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' | 'definition_frozen' };
 
 export async function updateProjectPacksPerCase(raw: unknown): Promise<UpdateProjectPacksPerCaseResult> {
   const parsed = inputSchema.safeParse(raw);
@@ -28,6 +29,10 @@ export async function updateProjectPacksPerCase(raw: unknown): Promise<UpdatePro
       const queryClient = client as unknown as QueryClient;
       if (!(await hasPermission(queryClient, userId, orgId, PACKAGING_WRITE_PERMISSION))) {
         return { ok: false as const, error: 'forbidden' as const };
+      }
+
+      if (await hasActiveVerifiedG4Approval({ client: queryClient }, parsed.data.projectId)) {
+        return { ok: false as const, error: 'definition_frozen' as const };
       }
 
       const updated = await queryClient.query<{ id: string }>(

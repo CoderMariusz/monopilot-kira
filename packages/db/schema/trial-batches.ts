@@ -24,6 +24,12 @@ export const trialBatches = pgTable(
     technologistUserId: uuid('technologist_user_id').references(() => users.id),
     result: text('result').notNull().default('pending'),
     notes: text('notes'),
+    // Migration 518 — corrective withdrawal. A voided trial stays as evidence
+    // but is never edited, deleted or booked again.
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    voidedBy: uuid('voided_by').references(() => users.id, { onDelete: 'set null' }),
+    voidReasonCode: text('void_reason_code'),
+    voidNote: text('void_note'),
     // Audit (R13)
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -45,6 +51,10 @@ export const trialBatches = pgTable(
     yieldPctRangeCheck: check(
       'trial_batches_yield_pct_range',
       sql`${table.yieldPct} is null or (${table.yieldPct} >= 0 and ${table.yieldPct} <= 100)`,
+    ),
+    voidReasonPresentCheck: check(
+      'trial_batches_void_reason_present',
+      sql`${table.voidedAt} is null or coalesce(btrim(${table.voidReasonCode}), '') <> ''`,
     ),
   }),
 );

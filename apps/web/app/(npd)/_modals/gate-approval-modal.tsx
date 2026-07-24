@@ -43,6 +43,7 @@ import Input from '@monopilot/ui/Input';
 import { Button } from '@monopilot/ui/Button';
 import { Badge } from '@monopilot/ui/Badge';
 import { Checkbox } from '@monopilot/ui/Checkbox';
+import type { AdvanceGateServerReadiness } from './advance-gate-modal';
 
 const NOTES_MIN_LENGTH = 10;
 
@@ -82,7 +83,9 @@ export type RejectGateInput = {
   notes: string;
 };
 
-export type GateActionResult = { ok: true } | { ok: false; error: string };
+export type GateActionResult =
+  | { ok: true }
+  | { ok: false; error: string; blockers?: Array<{ code?: string; message?: string; itemText?: string; itemId?: string }> };
 
 /** Server Action caller (owned by T-058 — imported by the parent, passed in here as a prop). */
 export type OnApproveGate = (input: ApproveGateInput | RejectGateInput) => Promise<GateActionResult>;
@@ -90,6 +93,7 @@ export type OnApproveGate = (input: ApproveGateInput | RejectGateInput) => Promi
 export type GateApprovalModalProps = {
   open: boolean;
   project: GateApprovalProject;
+  serverReadiness?: AdvanceGateServerReadiness;
   status?: GateApprovalStatus;
   onApprove: OnApproveGate;
   onClose: () => void;
@@ -115,7 +119,7 @@ function errorKey(code: string): 'errorEsign' | 'errorBlockers' | 'errorGeneric'
   }
 }
 
-export function GateApprovalModal({ open, project, status = 'ready', onApprove, onClose }: GateApprovalModalProps) {
+export function GateApprovalModal({ open, project, serverReadiness, status = 'ready', onApprove, onClose }: GateApprovalModalProps) {
   const t = useTranslations('npd.gateApprovalModal');
 
   const [decision, setDecision] = React.useState<GateApprovalDecision>('approve');
@@ -134,6 +138,12 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
 
   const notes = watch('notes') ?? '';
   const notesValid = notes.trim().length >= NOTES_MIN_LENGTH;
+  const serverBlockers = serverReadiness?.blockers ?? [];
+  const isBlocked = serverReadiness?.status === 'HARD_BLOCKED' && serverBlockers.length > 0;
+  const requiredDone = serverReadiness?.requiredDone ?? project.requiredDone;
+  const requiredTotal = serverReadiness?.requiredTotal ?? project.requiredTotal;
+  const pct = requiredTotal > 0 ? Math.round((requiredDone / requiredTotal) * 100) : project.pct;
+  const canSubmitDecision = notesValid && !isBlocked;
 
   // Reset all transient state whenever the modal is (re)opened/closed.
   React.useEffect(() => {
@@ -158,7 +168,7 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
 
   // ── decision-step submit: approve → e-sign overlay; reject → action directly ──
   const handleDecisionSubmit = async () => {
-    if (!notesValid || submitting) return;
+    if (!canSubmitDecision || submitting) return;
     setErrorCode(null);
     if (decision === 'approve') {
       setStep('esign');
@@ -398,7 +408,7 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
               <div className="mb-1.5 flex items-center gap-2">
                 <div
                   role="progressbar"
-                  aria-valuenow={project.pct}
+                  aria-valuenow={pct}
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-label={t('checklistCompletion')}
@@ -406,15 +416,24 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
                   className="h-1.5 flex-1 overflow-hidden rounded bg-slate-100"
                 >
                   <div
-                    className={project.pct >= 100 ? 'h-full bg-emerald-600' : 'h-full bg-blue-600'}
-                    style={{ width: `${project.pct}%` }}
+                    className={pct >= 100 ? 'h-full bg-emerald-600' : 'h-full bg-blue-600'}
+                    style={{ width: `${pct}%` }}
                   />
                 </div>
-                <span className="font-mono text-xs">{project.pct}%</span>
+                <span className="font-mono text-xs">{pct}%</span>
               </div>
               <div className="text-xs text-slate-500">
-                {t('requiredComplete', { done: project.requiredDone, total: project.requiredTotal })}
+                {t('requiredComplete', { done: requiredDone, total: requiredTotal })}
               </div>
+              {isBlocked ? (
+                <ul data-testid="gate-approval-blockers" className="mt-2 list-none p-0">
+                  {serverBlockers.map((blocker) => (
+                    <li key={blocker.id} className="text-xs text-amber-900">
+                      <span aria-hidden="true">○</span> {blocker.text}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
 
             {/* Decision radio group */}
@@ -498,8 +517,8 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
           <Button
             type="button"
             className={decision === 'reject' ? 'btn-danger btn-sm' : 'btn-success btn-sm'}
-            disabled={!notesValid || submitting}
-            aria-disabled={!notesValid || submitting}
+            disabled={!canSubmitDecision || submitting}
+            aria-disabled={!canSubmitDecision || submitting}
             onClick={() => void handleDecisionSubmit()}
           >
             {submitting ? t('processing') : decision === 'approve' ? t('submitApproval') : t('submitRejection')}

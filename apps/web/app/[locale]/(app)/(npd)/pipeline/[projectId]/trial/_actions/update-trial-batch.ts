@@ -3,6 +3,8 @@
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { isPercentWithinRange } from '../../_lib/yield-percent';
+import { trialFieldErrorFrom } from './_lib/field-errors';
 import {
   TRIAL_WRITE_PERMISSION,
   type TrialResult,
@@ -15,13 +17,10 @@ const NON_NEG_DECIMAL = z
   .trim()
   .regex(/^\d+(\.\d+)?$/, 'must be a non-negative decimal string');
 
-const PERCENT_0_100 = NON_NEG_DECIMAL.refine(
-  (s) => {
-    const n = Number(s);
-    return Number.isFinite(n) && n >= 0 && n <= 100;
-  },
-  { message: 'yieldPct must be between 0 and 100' },
-);
+// Exact 0..100 (Dec, never Number) — see _lib/yield-percent.ts.
+const PERCENT_0_100 = NON_NEG_DECIMAL.refine(isPercentWithinRange, {
+  message: 'yieldPct must be between 0 and 100',
+});
 
 const RESULT = z.enum(['pass', 'fail', 'pending']);
 const ISO_DATE = z
@@ -113,7 +112,11 @@ function mapDbError(err: unknown): UpdateTrialBatchError {
 export async function updateTrialBatch(raw: unknown): Promise<UpdateTrialBatchResult> {
   const parsed = UpdateInput.safeParse(raw);
   if (!parsed.success) {
-    return { ok: false, error: 'invalid_input', message: parsed.error.message };
+    return {
+      ok: false,
+      error: trialFieldErrorFrom(parsed.error, raw),
+      message: parsed.error.message,
+    };
   }
   const input = parsed.data;
 
@@ -130,6 +133,7 @@ export async function updateTrialBatch(raw: unknown): Promise<UpdateTrialBatchRe
         technologist_user_id: string | null;
         result: TrialResult;
         notes: string | null;
+        voided_at: string | null;
       }>(
         `select trial_no,
                 to_char(trial_date, 'YYYY-MM-DD') as trial_date,
@@ -137,7 +141,8 @@ export async function updateTrialBatch(raw: unknown): Promise<UpdateTrialBatchRe
                 yield_pct::text                   as yield_pct,
                 technologist_user_id::text        as technologist_user_id,
                 result,
-                notes
+                notes,
+                voided_at::text                   as voided_at
            from public.trial_batches
           where id = $1::uuid and project_id = $2::uuid
             and org_id = app.current_org_id()
@@ -145,6 +150,9 @@ export async function updateTrialBatch(raw: unknown): Promise<UpdateTrialBatchRe
         [input.id, input.projectId],
       );
       if (before.rows.length === 0) return { ok: false as const, error: 'not_found' as const };
+      // A voided trial is withdrawn evidence — it must never be edited back into
+      // shape. Re-log a new trial instead (migration 518).
+      if (before.rows[0]?.voided_at) return { ok: false as const, error: 'voided' as const };
 
       const updated = await client.query<{ id: string }>(
         `update public.trial_batches
@@ -158,6 +166,7 @@ export async function updateTrialBatch(raw: unknown): Promise<UpdateTrialBatchRe
                 updated_by           = $10::uuid
           where id = $1::uuid and project_id = $2::uuid
             and org_id = app.current_org_id()
+            and voided_at is null
           returning id`,
         [
           input.id,

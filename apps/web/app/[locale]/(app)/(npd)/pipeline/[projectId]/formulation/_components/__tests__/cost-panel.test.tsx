@@ -53,6 +53,7 @@ const LABELS: CostPanelLabels = {
 
 /** A NUMERIC-exact calc snapshot (every money/percent field is a STRING). */
 const CALC: CostBreakdown = {
+  yieldValid: true,
   rawCost: '3.5000',
   yieldedCost: '3.8043',
   processing: '0.3043',
@@ -164,6 +165,25 @@ describe('CostPanel — controlled inputs (AC#2)', () => {
     renderPanel({ targetPrice: '3.10', yieldPct: 75 });
     expect(screen.getByLabelText('Target price (per pack)')).toHaveValue('3.10');
     expect(screen.getByLabelText('Expected yield %')).toHaveValue(75);
+  });
+
+  it('marks zero yield invalid and renders yield-dependent costs as undefined', () => {
+    renderPanel({
+      yieldPct: 0,
+      calc: {
+        ...CALC,
+        yieldValid: false,
+        yieldedCost: null,
+        processing: null,
+        costPerKg: null,
+        marginPct: null,
+      },
+    });
+
+    expect(screen.getByLabelText('Expected yield %')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('alert')).toHaveTextContent('0 < Expected yield % ≤ 100');
+    expect(screen.getByTestId('cost-yielded')).toHaveTextContent('—');
+    expect(screen.getByTestId('cost-total')).toHaveTextContent('—');
   });
 });
 

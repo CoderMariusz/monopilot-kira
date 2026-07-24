@@ -62,7 +62,7 @@ export async function saveDraft(input: {
   const versionId = parseUuid(input?.versionId);
   const ingredients = parseIngredients(input?.ingredients);
   const batchSizeKg = normalizePositiveNumeric(input?.batchSizeKg);
-  const targetYieldPct = normalizeNumericPct(input?.targetYieldPct);
+  const targetYieldPct = normalizeNumericPct(input?.targetYieldPct, false);
   const targetPriceEur = input?.targetPriceEur === undefined
     ? null
     : parseOptionalRetailPriceEur(input.targetPriceEur);
@@ -449,11 +449,13 @@ function normalizeOptionalText(value: unknown): string | null {
   return trimmed.length > 0 && trimmed.length <= 32 ? trimmed : null;
 }
 
-function normalizeNumericPct(value: unknown): string | null | undefined {
+function normalizeNumericPct(value: unknown, allowZero = true): string | null | undefined {
   const normalized = normalizeNumeric(value);
   if (normalized === null || normalized === undefined) return normalized;
   const asNumber = Number(normalized);
-  if (!Number.isFinite(asNumber) || asNumber < 0 || asNumber > 100) return undefined;
+  if (!Number.isFinite(asNumber) || asNumber < 0 || (!allowZero && asNumber === 0) || asNumber > 100) {
+    return undefined;
+  }
   return normalized;
 }
 

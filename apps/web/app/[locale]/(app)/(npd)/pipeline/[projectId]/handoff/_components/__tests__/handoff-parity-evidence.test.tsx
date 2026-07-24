@@ -107,6 +107,7 @@ const LABELS: HandoffLabels = {
   generateNoRecipe: 'Lock a recipe first.',
   generatePacksPerBoxRequired: 'Set packs-per-box on the FG first.',
   generateError: 'Could not generate the production BOM.',
+  generateActivationBlocked: 'Draft {bomHeaderId} preserved: {reason}',
   promoteSuccessTitle: 'Production BOM created',
   promoteSuccessBody: 'Production FG {code} was created and its BOM auto-built.',
   promoteSuccessViewBom: 'Open production BOM',

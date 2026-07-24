@@ -88,6 +88,7 @@ const LABELS: HandoffLabels = {
   generateNoRecipe: 'L_GEN_NO_RECIPE',
   generatePacksPerBoxRequired: 'L_GEN_PACKS_PER_BOX',
   generateError: 'L_GEN_ERR',
+  generateActivationBlocked: 'Draft {bomHeaderId} preserved: {reason}',
   promoteSuccessTitle: 'L_PROMOTE_OK_TITLE',
   promoteSuccessBody: 'Created FG {code}',
   promoteSuccessViewBom: 'L_PROMOTE_OK_VIEW_BOM',
@@ -240,6 +241,27 @@ describe('HandoffScreen — release-gate panel (dead-end repair)', () => {
   it('enables Promote only when the checklist AND every release gate are met', () => {
     render(<HandoffScreen state="ready" data={dataReady(true)} labels={LABELS} onPromote={vi.fn()} />);
     expect(screen.getByTestId('handoff-promote-btn')).not.toBeDisabled();
+  });
+
+  it('shows the blocked bar (not ready) when the checklist is complete but release gates fail', () => {
+    const gates: HandoffScreenData['releaseGates'] = [
+      { code: 'G4_REQUIRED', met: true },
+      { code: 'FG_CANDIDATE_REQUIRED', met: true },
+      { code: 'ACTIVE_SHARED_BOM_REQUIRED', met: false },
+      { code: 'FACTORY_SPEC_REQUIRED', met: false },
+      { code: 'V18_OPEN_HIGH_RISK', met: true },
+    ];
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true, gates)}
+        labels={LABELS}
+        onPromote={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('handoff-blocked-bar')).toHaveTextContent('L_BLOCKED_TITLE');
+    expect(screen.queryByTestId('handoff-ready-bar')).not.toBeInTheDocument();
+    expect(screen.getByTestId('handoff-promote-btn')).toBeDisabled();
   });
 });
 
@@ -446,6 +468,35 @@ describe('HandoffScreen — Generate production BOM (deadlock break)', () => {
     fireEvent.click(screen.getByTestId('handoff-generate-btn'));
     const err = await screen.findByTestId('handoff-generate-error');
     expect(err).toHaveTextContent('L_GEN_ERR');
+  });
+
+  it('shows the activation blocker and preserved draft instead of the generic generate error', async () => {
+    refreshSpy.mockClear();
+    const onGenerate = vi.fn().mockResolvedValue({
+      ok: false,
+      error: 'bom_activation_blocked',
+      message: 'ING-FLOUR: SUPPLIER_SPEC_NOT_ACTIVE',
+      bomHeaderId: 'bom-draft-1',
+    });
+    render(
+      <HandoffScreen
+        state="ready"
+        data={dataReady(true, BOM_GATE_UNMET)}
+        labels={LABELS}
+        hrefs={HREFS}
+        onPromote={vi.fn()}
+        onGenerate={onGenerate}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('handoff-generate-btn'));
+
+    const err = await screen.findByTestId('handoff-generate-error');
+    expect(err).toHaveTextContent(
+      'Draft bom-draft-1 preserved: ING-FLOUR: SUPPLIER_SPEC_NOT_ACTIVE',
+    );
+    expect(err).not.toHaveTextContent('L_GEN_ERR');
+    expect(refreshSpy).toHaveBeenCalledTimes(1);
   });
 
   it('does not render the Generate button once promoted', () => {

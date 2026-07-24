@@ -75,4 +75,18 @@ describe('updateProjectPacksPerCase', () => {
     expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith(`/pipeline/${PROJECT}/packaging`, 'page');
     expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith(`/pipeline/${PROJECT}/brief`, 'page');
   });
+
+  it('returns definition_frozen without updating packs_per_case when G4 is signed', async () => {
+    ctx.grantedPerms.add(PACKAGING_WRITE_PERMISSION);
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      if (/gate_approvals/.test(sql) && /gate_code = 'G4'/.test(sql)) return { rows: [{ ok: true }] };
+      return { rows: [] };
+    };
+
+    const res = await updateProjectPacksPerCase({ projectId: PROJECT, packsPerCase: 12 });
+    expect(res).toEqual({ ok: false, error: 'definition_frozen' });
+    expect(calls.some((c) => /update public\.npd_projects/.test(c.sql))).toBe(false);
+  });
 });

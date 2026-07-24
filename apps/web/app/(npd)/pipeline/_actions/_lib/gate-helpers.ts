@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   hasPermission,
   type OrgContextLike,
+  type AdvanceTargetGate,
   type ProjectGate,
   type QueryClient,
 } from '../shared';
@@ -73,7 +74,7 @@ const G3_STAGES: ProjectStage[] = ['packaging', 'costing_nutrition', 'trial', 's
 export const FG_CANDIDATE_STAGE: ProjectStage = 'packaging';
 
 /** Gate for stages other than `brief` (brief allows G0 or G1 — see resolveGateReadiness). */
-const GATE_BY_STAGE: Record<Exclude<AnyStage, 'brief'>, ProjectGate> = {
+const GATE_BY_STAGE: Record<Exclude<AnyStage, 'brief'>, AdvanceTargetGate> = {
   recipe: 'G2',
   packaging: 'G3',
   costing_nutrition: 'G3',
@@ -98,7 +99,9 @@ const ALL_STAGES: Record<AnyStage, true> = {
   launched: true,
 };
 
-export function gateForStage(stage: AnyStage): ProjectGate {
+export function gateForStage(stage: Exclude<AnyStage, 'brief'>): AdvanceTargetGate;
+export function gateForStage(stage: AnyStage): AdvanceTargetGate;
+export function gateForStage(stage: AnyStage): AdvanceTargetGate {
   if (stage === 'brief') {
     throw new GateActionError('INVALID_STAGE_GATE', 500);
   }
@@ -312,7 +315,7 @@ export type AdvanceTransition = {
   /** Gate-only advance keeps the stage unchanged; stage advance moves STAGE_ORDER. */
   kind: 'gate' | 'stage';
   nextStage: AnyStage;
-  targetGate: ProjectGate;
+  targetGate: AdvanceTargetGate;
   /** True only for the approval→handoff step (the enforced G4 e-sign checkpoint). */
   requiresESign: boolean;
 };
@@ -399,7 +402,8 @@ export type GateBlocker = {
     | 'FG_ALREADY_LINKED'
     | 'RECIPE_INGREDIENTS_REQUIRED'
     | 'LAUNCH_COMPLIANCE_BLOCKED'
-    | 'REQUIRED_EVIDENCE_MISSING';
+    | 'REQUIRED_EVIDENCE_MISSING'
+    | 'ESIGN_REQUIRED';
   message: string;
   /** Stable criterion keys (e.g. C7) for client i18n when code is LAUNCH_COMPLIANCE_BLOCKED. */
   pendingCriteria?: string;
@@ -493,7 +497,7 @@ export async function requireAdmin(ctx: OrgContextLike): Promise<void> {
  * esign_hash). This guard verifies a valid, immutable G4 e-sign approval exists
  * before allowing the stage to advance — advancing without one throws ESIGN_REQUIRED.
  */
-export async function assertG4ESignForHandoff(ctx: OrgContextLike, projectId: string): Promise<void> {
+export async function hasG4ESignForHandoff(ctx: OrgContextLike, projectId: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
        from public.gate_approvals
@@ -501,12 +505,17 @@ export async function assertG4ESignForHandoff(ctx: OrgContextLike, projectId: st
         and project_id = $1::uuid
         and gate_code = 'G4'
         and decision = 'approved'
+        and superseded_at is null
         and esigned_at is not null
         and esign_hash is not null
       limit 1`,
     [projectId],
   );
-  if (rows.length === 0) {
+  return rows.length > 0;
+}
+
+export async function assertG4ESignForHandoff(ctx: OrgContextLike, projectId: string): Promise<void> {
+  if (!(await hasG4ESignForHandoff(ctx, projectId))) {
     throw new GateActionError('ESIGN_REQUIRED', 403);
   }
 }
@@ -517,7 +526,7 @@ export async function assertG4ESignForHandoff(ctx: OrgContextLike, projectId: st
  * by approveProjectGate, gateCode 'G3') must exist before the project may enter G4.
  * Advancing without one throws ESIGN_REQUIRED. (Owner decision F-1, 2026-06-27.)
  */
-export async function assertG3ESignForApproval(ctx: OrgContextLike, projectId: string): Promise<void> {
+export async function hasG3ESignForApproval(ctx: OrgContextLike, projectId: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
        from public.gate_approvals
@@ -525,14 +534,61 @@ export async function assertG3ESignForApproval(ctx: OrgContextLike, projectId: s
         and project_id = $1::uuid
         and gate_code = 'G3'
         and decision = 'approved'
+        and superseded_at is null
         and esigned_at is not null
         and esign_hash is not null
       limit 1`,
     [projectId],
   );
-  if (rows.length === 0) {
+  return rows.length > 0;
+}
+
+export async function assertG3ESignForApproval(ctx: OrgContextLike, projectId: string): Promise<void> {
+  if (!(await hasG3ESignForApproval(ctx, projectId))) {
     throw new GateActionError('ESIGN_REQUIRED', 403);
   }
+}
+
+/** True when the next step is a BRCGS/CFR-21 formal gate approval (pilot→approval G3, approval→handoff G4). */
+export function transitionRequiresFormalApproval(project: {
+  current_gate: ProjectGate;
+  current_stage: string;
+}): boolean {
+  const transition = resolveAdvanceTransition(project);
+  if (!transition) return false;
+  const stage = project.current_stage;
+  return (stage === 'pilot' && transition.nextStage === 'approval')
+    || (stage === 'approval' && transition.nextStage === 'handoff');
+}
+
+/** Gate code for the formal approval modal, or null when the current transition is operational. */
+export function formalApprovalGateCode(project: {
+  current_gate: ProjectGate;
+  current_stage: string;
+}): 'G3' | 'G4' | null {
+  if (!transitionRequiresFormalApproval(project)) return null;
+  if (project.current_stage === 'pilot') return 'G3';
+  if (project.current_stage === 'approval') return 'G4';
+  return null;
+}
+
+/** Target stage after a successful formal gate approval, or null when not on an approval checkpoint. */
+export function formalApprovalTargetStage(currentStage: string, gateCode: 'G3' | 'G4'): AnyStage | null {
+  if (gateCode === 'G3' && currentStage === 'pilot') return 'approval';
+  if (gateCode === 'G4' && currentStage === 'approval') return 'handoff';
+  return null;
+}
+
+export async function loadProject(ctx: OrgContextLike, projectId: string): Promise<GateProjectRow | null> {
+  const { rows } = await ctx.client.query<GateProjectRow>(
+    `select id, code, name, type, current_gate, current_stage, product_code
+       from public.npd_projects
+      where id = $1::uuid
+        and org_id = app.current_org_id()
+      limit 1`,
+    [projectId],
+  );
+  return rows[0] ?? null;
 }
 
 export async function loadProjectForUpdate(ctx: OrgContextLike, projectId: string): Promise<GateProjectRow> {

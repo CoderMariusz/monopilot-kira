@@ -15,6 +15,7 @@ import {
 import Textarea from '@monopilot/ui/Textarea';
 
 import { saveStageDeptField } from '../_actions/save-stage-dept-field';
+import { isProtectedFaFieldCode } from '../../../../lib/npd/g4-definition-freeze';
 import type { Dept } from '../../fa/actions/get-required-fields-for-dept';
 import type { StageDeptField, StageDeptSectionsResult } from '../_actions/load-stage-dept-sections.types';
 import { StageDeptCloseButton } from './StageDeptCloseButton';
@@ -46,6 +47,8 @@ type StageDeptSectionsProps = {
   projectId: string;
   stage: string;
   data: StageDeptSectionsResult;
+  /** When true, protected definition fields are read-only (signed G4). */
+  definitionFrozen?: boolean;
   /** Label template for close button, e.g. "Close {dept} section". */
   closeSectionLabel?: string;
   /** Optional i18n labels; omitted keys fall back to English defaults. */
@@ -182,6 +185,7 @@ export function StageDeptSections({
   projectId,
   stage,
   data,
+  definitionFrozen = false,
   closeSectionLabel,
   labels: labelsProp,
 }: StageDeptSectionsProps) {
@@ -256,7 +260,8 @@ export function StageDeptSections({
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
               {section.fields.map((field) => {
-                const disabled = section.readOnly || field.readOnly || isPending;
+                const fieldFrozen = definitionFrozen && isProtectedFaFieldCode(field.code);
+                const disabled = section.readOnly || field.readOnly || isPending || fieldFrozen;
                 return (
                   <div key={field.code} className="space-y-2">
                     <FieldEditor
@@ -266,7 +271,7 @@ export function StageDeptSections({
                       labels={labels}
                       onChange={(next) => setDrafts((prev) => ({ ...prev, [field.code]: next }))}
                     />
-                    {!section.readOnly && !field.readOnly ? (
+                    {!section.readOnly && !field.readOnly && !fieldFrozen ? (
                       <div className="flex items-center gap-2">
                         <Button
                           type="button"

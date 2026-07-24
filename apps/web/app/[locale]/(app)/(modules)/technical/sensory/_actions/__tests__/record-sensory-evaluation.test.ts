@@ -8,6 +8,7 @@ const ctx = {
   grantedPerms: new Set<string>(),
   // simulate whether an UPDATE/SELECT-by-id finds an existing panel row
   panelExists: true,
+  panelVoided: false,
   calls: [] as Call[],
 };
 
@@ -30,10 +31,18 @@ function fakeClient() {
       }
       // EDIT prior-row SELECT
       if (s.startsWith('select id::text as id, subject_type, subject_ref, status')) {
-        return { rows: ctx.panelExists ? [{ id: 'panel-edit-1', status: 'pending' }] : [] };
+        return {
+          rows: ctx.panelExists && !(ctx.panelVoided && s.includes('voided_at is null'))
+            ? [{ id: 'panel-edit-1', status: 'pending' }]
+            : [],
+        };
       }
       if (s.startsWith('update public.technical_sensory_evaluations')) {
-        return { rows: ctx.panelExists ? [{ id: 'panel-edit-1' }] : [] };
+        return {
+          rows: ctx.panelExists && !(ctx.panelVoided && s.includes('voided_at is null'))
+            ? [{ id: 'panel-edit-1' }]
+            : [],
+        };
       }
       // savepoint / audit / delete / child inserts
       return { rows: [] };
@@ -64,6 +73,7 @@ const baseInput = {
 beforeEach(() => {
   ctx.grantedPerms = new Set<string>([SENSORY_WRITE_PERMISSION]);
   ctx.panelExists = true;
+  ctx.panelVoided = false;
   ctx.calls = [];
 });
 afterEach(() => vi.clearAllMocks());
@@ -178,6 +188,26 @@ describe('recordSensoryEvaluation', () => {
       panelId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     });
     expect(missing).toEqual({ ok: false, code: 'NOT_FOUND' });
+  });
+
+  it('refuses to edit a sensory panel voided with its deleted NPD project', async () => {
+    ctx.panelVoided = true;
+
+    const result = await recordSensoryEvaluation({
+      ...baseInput,
+      panelId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    });
+
+    expect(result).toEqual({ ok: false, code: 'NOT_FOUND' });
+    const update = ctx.calls.find((c) =>
+      norm(c.sql).startsWith('update public.technical_sensory_evaluations'),
+    );
+    expect(norm(update?.sql ?? '')).toContain('voided_at is null');
+    expect(
+      ctx.calls.some((c) =>
+        norm(c.sql).startsWith('delete from public.technical_sensory_attribute_scores'),
+      ),
+    ).toBe(false);
   });
 
   it('writes a technical.sensory.recorded audit event (best-effort, in a SAVEPOINT)', async () => {

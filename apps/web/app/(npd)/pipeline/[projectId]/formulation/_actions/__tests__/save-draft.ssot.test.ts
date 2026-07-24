@@ -317,6 +317,18 @@ describe('saveDraft — F-B12 cost from the effective-cost view', () => {
 });
 
 describe('saveDraft — formulation version batch size', () => {
+  it('rejects targetYieldPct = 0 before any query', async () => {
+    const result = await saveDraft({
+      projectId: PROJECT_ID,
+      versionId: VERSION_ID,
+      targetYieldPct: '0',
+      ingredients: [],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input' });
+    expect(client.query).not.toHaveBeenCalled();
+  });
+
   it('persists the supplied batchSizeKg on the draft formulation version', async () => {
     const result = await saveDraft({
       projectId: PROJECT_ID,

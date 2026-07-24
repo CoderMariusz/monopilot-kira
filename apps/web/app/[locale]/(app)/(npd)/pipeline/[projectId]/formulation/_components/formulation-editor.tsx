@@ -513,8 +513,28 @@ function toCostBreakdown(
   processingPct: string,
   realProcessingPerKg?: string | null,
 ): CostBreakdown {
+  if (
+    !calc.yieldValid ||
+    calc.yieldedCost === null ||
+    calc.processing === null ||
+    calc.costPerKg === null ||
+    calc.marginPct === null
+  ) {
+    return {
+      yieldValid: false,
+      rawCost: calc.rawCost,
+      yieldedCost: null,
+      processing: null,
+      packaging: calc.packaging,
+      costPerKg: null,
+      revenuePerKg: calc.revenuePerKg,
+      marginPct: null,
+      overheadPct: processingPct,
+    };
+  }
   if (realProcessingPerKg == null) {
     return {
+      yieldValid: true,
       rawCost: calc.rawCost,
       yieldedCost: calc.yieldedCost,
       processing: calc.processing,
@@ -532,6 +552,7 @@ function toCostBreakdown(
     ? calc.marginPct
     : revenue.sub(costPerKg).div(revenue).mul(Dec.from('100')).toFixed(2);
   return {
+    yieldValid: true,
     rawCost: calc.rawCost,
     yieldedCost: calc.yieldedCost,
     processing: processing.toFixed(4),

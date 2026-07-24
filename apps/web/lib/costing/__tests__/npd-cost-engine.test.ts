@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { Dec } from '@monopilot/domain';
+
 import { computeNpdCostEngine, type NpdCostEngineInput } from '../compute-waterfall';
 
 function breadInput(overrides: Partial<NpdCostEngineInput> = {}): NpdCostEngineInput {
@@ -38,6 +40,34 @@ function breadInput(overrides: Partial<NpdCostEngineInput> = {}): NpdCostEngineI
 }
 
 describe('computeNpdCostEngine', () => {
+  it('PF-R04-05 computes £2.26/pack margin from £0.50/kg, 0.480 kg and £2.50 target', () => {
+    const result = computeNpdCostEngine(
+      breadInput({
+        ingredients: [
+          { rmCode: 'AUDIT-RM', qtyKg: '0.480', costPerKgEur: '0.50', allergensInherited: [] },
+        ],
+        yieldPct: '100',
+        packWeightKg: '0.480',
+        packsPerCase: '1',
+        avgBatchQty: '500',
+        fgBaseUom: 'pack',
+        weeklyVolumePacks: '500',
+        runsPerWeek: '1',
+        targetPriceEur: '2.50',
+        packagingComponents: [],
+        processes: [],
+        overheadPerKg: '0',
+        logisticsPerBox: '0',
+      }),
+    );
+
+    expect(result.rawCostEur).toBe('0.2400');
+    expect(result.steps[7]!.valueEur).toBe('0.2400');
+    expect(result.steps[8]!.valueEur).toBe('2.2600');
+    expect(result.targetPriceEur).toBe('2.5000');
+    expect(result.units.packsPerBatch).toBe('500.0000');
+  });
+
   it('computes the owner bread example per pack in U2 order', () => {
     const result = computeNpdCostEngine(breadInput());
 
@@ -65,7 +95,7 @@ describe('computeNpdCostEngine', () => {
     expect(result.steps[3]!.valueEur).toBe('0.4122');
     expect(result.steps[4]!.valueEur).toBe('0.9632');
     expect(result.steps[7]!.valueEur).toBe('1.1232');
-    expect(result.steps[8]!.valueEur).toBe('2.0000');
+    expect(result.steps[8]!.valueEur).toBe('0.8768');
     expect(result.marginPct).toBe('43.8389');
   });
 
@@ -289,7 +319,9 @@ describe('computeNpdCostEngine', () => {
       stepName: 'Raw materials',
       perPackEur: '1.0000',
     });
-    expect(Number(result.costSteps[0]!.perPackEur) / Number(result.units.packWeightKg)).toBe(5);
+    expect(
+      Dec.from(result.costSteps[0]!.perPackEur).div(Dec.from(result.units.packWeightKg)).toFixed(4),
+    ).toBe('5.0000');
   });
 
   it('WIP contribution is per-pack in the WIP base unit and invariant to pack weight (review H1)', () => {

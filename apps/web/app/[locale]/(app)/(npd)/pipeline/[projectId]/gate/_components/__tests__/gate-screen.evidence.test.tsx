@@ -33,6 +33,10 @@ vi.mock('next-intl', () => ({
       : key,
 }));
 
+vi.mock('../../../../../../../../(npd)/pipeline/_actions/get-stage-gate-readiness', () => ({
+  getStageGateReadiness: vi.fn(async () => ({ ok: false as const, error: 'terminal' as const })),
+}));
+
 vi.mock('@monopilot/ui/Modal', () => {
   function Modal({ children, open, modalId }: { children: React.ReactNode; open: boolean; modalId?: string }) {
     if (!open) return null;
@@ -127,8 +131,11 @@ const LABELS: GateScreenLabels = {
     sigRole: 'Role',
     sigTimestamp: 'Timestamp',
     sigCertId: 'Certificate ID',
+    sigCertUnavailable: 'Certificate hash not recorded for this approval',
     sigVerification: 'Verification',
     sigValid: 'Valid — Signature verified',
+    sigVerificationUnavailable: 'Cannot verify — no certificate hash on record',
+    sigHashRecordedUnverified: 'Hash recorded — verification unavailable',
     approvedIconLabel: 'Approved',
     rejectedIconLabel: 'Rejected',
     loading: 'Loading approval history…',
@@ -141,7 +148,7 @@ const LABELS: GateScreenLabels = {
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 
-function makeData(currentGate: 'G2' | 'G3', withBlocker = false): GateScreenData {
+function makeData(currentGate: 'G2' | 'G3', withBlocker = false, formalApproval = false): GateScreenData {
   const g2Items = [
     { id: 'g2-t1', text: 'Detailed ingredient spec', required: true, done: true, category: 'TECHNICAL', by: 'J. Lewis', at: '2025-11-05', file: 'spec.pdf' },
     { id: 'g2-b1', text: 'Target margin confirmed', required: true, done: !withBlocker, category: 'BUSINESS', by: withBlocker ? null : 'A. Owner', at: withBlocker ? null : '2025-11-06', file: null },
@@ -155,8 +162,8 @@ function makeData(currentGate: 'G2' | 'G3', withBlocker = false): GateScreenData
     { key: 'G0' as const, label: 'Idea', items: [], pct: 100, blockers: [], isCurrent: false, next: 'G1' as const, nextLabel: 'Feasibility', requiresApproval: false },
     { key: 'G1' as const, label: 'Feasibility', items: [], pct: 100, blockers: [], isCurrent: false, next: 'G2' as const, nextLabel: 'Business Case', requiresApproval: false },
     { key: 'G2' as const, label: 'Business Case', items: g2Items, pct: withBlocker ? 50 : 100, blockers: currentGate === 'G2' ? blockers : [], isCurrent: currentGate === 'G2', next: 'G3' as const, nextLabel: 'Development', requiresApproval: false },
-    { key: 'G3' as const, label: 'Development', items: currentGate === 'G3' ? g3Items : [], pct: 100, blockers: currentGate === 'G3' ? blockers : [], isCurrent: currentGate === 'G3', next: 'G4' as const, nextLabel: 'Testing', requiresApproval: true },
-    { key: 'G4' as const, label: 'Testing', items: [], pct: 0, blockers: [], isCurrent: false, next: null, nextLabel: 'Launched', requiresApproval: true },
+    { key: 'G3' as const, label: 'Development', items: currentGate === 'G3' ? g3Items : [], pct: 100, blockers: currentGate === 'G3' ? blockers : [], isCurrent: currentGate === 'G3', next: 'G4' as const, nextLabel: 'Testing', requiresApproval: currentGate === 'G3' ? formalApproval : false },
+    { key: 'G4' as const, label: 'Testing', items: [], pct: 0, blockers: [], isCurrent: false, next: null, nextLabel: 'Launched', requiresApproval: false },
   ];
   return {
     panelProject: { id: PROJECT_ID, code: 'DEV-123', name: 'Apex sausage roll', currentGate },
@@ -167,15 +174,18 @@ function makeData(currentGate: 'G2' | 'G3', withBlocker = false): GateScreenData
       currentLabel: currentGate === 'G2' ? 'Business Case' : 'Development',
       next: currentGate === 'G2' ? 'G3' : 'G4',
       nextLabel: currentGate === 'G2' ? 'Development' : 'Testing',
-      requiresApproval: currentGate === 'G3',
+      requiresApproval: formalApproval,
     },
     advanceItems: items.map((i) => ({ id: i.id, text: i.text, required: i.required, done: i.done })),
+    advanceServerReadiness: null,
     approvalProject: { id: PROJECT_ID, code: 'DEV-123', name: 'Apex sausage roll', gateCode: 'G3', requiredDone: 1, requiredTotal: 1, pct: 100 },
+    approvalServerReadiness: null,
     approvals: [
       { id: 'appr-2', gate: 'G3', gateLabel: 'Development', result: 'approved', approver: 'Quality Lead', role: 'Approver', notes: 'Development gate approved.', date: '2025-12-02', eSigned: true, eSignHash: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6abcd', eSignedAt: '2025-12-02T10:15:00.000Z' },
       { id: 'appr-1', gate: 'G2', gateLabel: 'Business Case', result: 'approved', approver: 'A. Owner', role: 'Approver', notes: 'Business case approved.', date: '2025-11-10', eSigned: false, eSignHash: null, eSignedAt: null },
     ],
     isTerminal: false,
+    launchHardBlockers: [],
   };
 }
 
@@ -219,7 +229,7 @@ describe('T-111 parity evidence — composed gate-screen DOM snapshots', () => {
   it('captures gate-approval-modal decision step (e-sign gate G3)', async () => {
     const user = userEvent.setup();
     const { container } = render(
-      <GateScreen projectId={PROJECT_ID} data={makeData('G3')} labels={LABELS} state="ready" canWrite canAdvance canApprove />,
+      <GateScreen projectId={PROJECT_ID} data={makeData('G3', false, true)} labels={LABELS} state="ready" canWrite canAdvance canApprove />,
     );
     await user.click(screen.getByTestId('gate-advance-button'));
     expect(await screen.findByTestId('gate-approval-project')).toBeTruthy();
@@ -229,7 +239,7 @@ describe('T-111 parity evidence — composed gate-screen DOM snapshots', () => {
   it('captures gate-approval-modal e-signature overlay (approve path)', async () => {
     const user = userEvent.setup();
     const { container } = render(
-      <GateScreen projectId={PROJECT_ID} data={makeData('G3')} labels={LABELS} state="ready" canWrite canAdvance canApprove approveProjectGate={async () => ({ ok: true })} />,
+      <GateScreen projectId={PROJECT_ID} data={makeData('G3', false, true)} labels={LABELS} state="ready" canWrite canAdvance canApprove approveProjectGate={async () => ({ ok: true })} />,
     );
     await user.click(screen.getByTestId('gate-advance-button'));
     await screen.findByTestId('gate-approval-project');

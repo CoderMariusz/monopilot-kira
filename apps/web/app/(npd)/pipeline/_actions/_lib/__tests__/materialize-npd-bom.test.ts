@@ -101,6 +101,7 @@ function bomActivationGuardDefaults(
   sql: string,
   params: readonly unknown[],
   getLastBomVersion: () => number,
+  options?: { supplierSpecLifecycleStatus?: string },
 ): unknown[] | null {
   const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
   if (rmUsabilityRow) return rmUsabilityRow;
@@ -128,7 +129,7 @@ function bomActivationGuardDefaults(
     return [{
       supplier_code: 'SUP-1',
       supplier_status: 'approved',
-      lifecycle_status: 'active',
+      lifecycle_status: options?.supplierSpecLifecycleStatus ?? 'active',
       review_status: 'approved',
       effective_from: '2020-01-01',
       expiry_date: '2030-01-01',
@@ -158,7 +159,11 @@ function bomActivationGuardDefaults(
 
 function createClient(
   handler: (sql: string, params: readonly unknown[]) => unknown[],
-  options?: { hasProcessAssignments?: boolean; crossOrgPoisonInProcessAssignments?: boolean },
+  options?: {
+    hasProcessAssignments?: boolean;
+    crossOrgPoisonInProcessAssignments?: boolean;
+    supplierSpecLifecycleStatus?: string;
+  },
 ): QueryClient & { calls: Call[]; lastBomVersion: number } {
   const calls: Call[] = [];
   let lastBomVersion = 1;
@@ -177,7 +182,7 @@ function createClient(
         }
         return { rows: [{ has_assignments: options?.hasProcessAssignments ?? false }] as never[] };
       }
-      const guardFallback = bomActivationGuardDefaults(normalized, params, () => lastBomVersion);
+      const guardFallback = bomActivationGuardDefaults(normalized, params, () => lastBomVersion, options);
       if (guardFallback) return { rows: guardFallback as never[] };
       try {
         const rows = handler(normalized, params) as never[];
@@ -219,7 +224,13 @@ function ctx(client: QueryClient) {
   return { userId: USER, orgId: ORG, client };
 }
 
-function createBomMaterializationClient(targetYieldPct: string | null) {
+function createBomMaterializationClient(
+  targetYieldPct: string | null,
+  options?: {
+    supplierSpecLifecycleStatus?: string;
+    existingDraft?: boolean;
+  },
+) {
   return createClient((sql, params) => {
     const rmUsabilityRow = matchRmUsabilityItemLookup(sql, params);
     if (rmUsabilityRow) return rmUsabilityRow;
@@ -242,6 +253,12 @@ function createBomMaterializationClient(targetYieldPct: string | null) {
     if (sql.startsWith('select id, wo_reference, status')) return [];
     if (sql.startsWith('update public.product')) return [];
     if (sql.startsWith('select h.id, h.version')) return [];
+    if (sql.startsWith('select draft.id, draft.version')) {
+      return options?.existingDraft ? [{ id: BOM, version: 1 }] : [];
+    }
+    if (sql.startsWith('with expected as') && options?.existingDraft) {
+      return [{ matches: true }];
+    }
     if (sql.startsWith('select coalesce(i.item_code, pc.component_name)')) return [];
     if (sql.startsWith('select pd.id::text as prod_detail_id')) return [];
     if (sql.startsWith('select coalesce(max(version)')) return [{ next_version: 1 }];
@@ -252,7 +269,7 @@ function createBomMaterializationClient(targetYieldPct: string | null) {
     if (sql.startsWith('select id, bom_header_id from public.factory_specs')) return [];
     if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
     throw new Error(`Unhandled SQL: ${sql}`);
-  });
+  }, options);
 }
 
 describe('deriveFgOutputUom', () => {
@@ -1654,6 +1671,95 @@ describe('materializeNpdBom', () => {
       (call) => normalize(call.sql).includes("set status = 'active'") && normalize(call.sql).includes("technical_approved"),
     );
     expect(activeFlip).toBeUndefined();
+  });
+
+  it('keeps the generated draft and lines when V-TEC-14 blocks activation', async () => {
+    const client = createBomMaterializationClient('100', {
+      supplierSpecLifecycleStatus: 'inactive',
+    });
+
+    const result = await materializeNpdBom(ctx(client), {
+      projectId: PROJECT,
+      preserveDraftOnActivationFailure: true,
+    });
+
+    expect(result).toMatchObject({
+      code: 'BOM_ACTIVATION_BLOCKED',
+      activationValidationCode: 'V-TEC-14',
+      activationMessage: expect.stringContaining('SUPPLIER_SPEC_NOT_ACTIVE'),
+      bomHeaderId: BOM,
+      factorySpecId: null,
+      createdBom: true,
+      createdFactorySpec: false,
+    });
+    expect(
+      client.calls.some((call) => normalize(call.sql).startsWith('insert into public.bom_headers')),
+    ).toBe(true);
+    expect(
+      client.calls.some((call) => normalize(call.sql).startsWith('insert into public.bom_lines')),
+    ).toBe(true);
+    expect(
+      client.calls.some((call) => normalize(call.sql).includes("set status = 'technical_approved'")),
+    ).toBe(false);
+    expect(
+      client.calls.some((call) => normalize(call.sql).startsWith('insert into public.factory_specs')),
+    ).toBe(false);
+    expect(
+      client.calls.some((call) => normalize(call.sql).startsWith('insert into public.outbox_events')),
+    ).toBe(false);
+  });
+
+  it('reuses the matching blocked draft on retry instead of creating a duplicate version', async () => {
+    const client = createBomMaterializationClient('100', {
+      supplierSpecLifecycleStatus: 'inactive',
+      existingDraft: true,
+    });
+
+    const result = await materializeNpdBom(ctx(client), {
+      projectId: PROJECT,
+      preserveDraftOnActivationFailure: true,
+    });
+
+    expect(result).toMatchObject({
+      code: 'BOM_ACTIVATION_BLOCKED',
+      activationValidationCode: 'V-TEC-14',
+      bomHeaderId: BOM,
+      createdBom: false,
+    });
+    expect(
+      client.calls.some((call) => normalize(call.sql).startsWith('insert into public.bom_headers')),
+    ).toBe(false);
+    expect(
+      client.calls.some((call) => normalize(call.sql).startsWith('insert into public.bom_lines')),
+    ).toBe(false);
+  });
+
+  it('activates the retained draft on retry after the supplier-spec block is cleared', async () => {
+    const client = createBomMaterializationClient('100', {
+      existingDraft: true,
+    });
+
+    const result = await materializeNpdBom(ctx(client), {
+      projectId: PROJECT,
+      preserveDraftOnActivationFailure: true,
+    });
+
+    expect(result).toMatchObject({
+      bomHeaderId: BOM,
+      factorySpecId: SPEC,
+      createdBom: false,
+      createdFactorySpec: true,
+    });
+    expect(result.code).toBeUndefined();
+    expect(
+      client.calls.some((call) => normalize(call.sql).includes("set status = 'technical_approved'")),
+    ).toBe(true);
+    expect(
+      client.calls.some((call) => normalize(call.sql).startsWith('insert into public.bom_headers')),
+    ).toBe(false);
+    expect(
+      client.calls.some((call) => normalize(call.sql).startsWith('insert into public.bom_lines')),
+    ).toBe(false);
   });
 
   it('emits fg.bom.released when a new FG BOM is activated', async () => {

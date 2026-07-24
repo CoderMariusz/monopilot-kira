@@ -69,6 +69,9 @@ function wireQueries() {
     if (/set_config\('app\.fa_actor_user_id'/i.test(text)) {
       return { rows: [] };
     }
+    if (/gate_approvals/.test(text) && /gate_code = 'G4'/.test(text)) {
+      return { rows: globalThis.__freezeActive ? [{ ok: true }] : [] };
+    }
     if (/set\s+name\s*=\s*\$2/i.test(text)) {
       const value = params?.[1] == null ? null : String(params[1]);
       return { rows: [{ previous_value: previousValues.product_name ?? null, new_value: value }] };
@@ -194,5 +197,17 @@ describe('saveStageDeptField pre-FG project writes', () => {
     ).rejects.toMatchObject({ code: 'READ_ONLY_COLUMN' });
 
     expect(queryMock.mock.calls.some((call) => /information_schema\.columns/i.test(String(call[0])))).toBe(false);
+  });
+
+  it('rejects protected definition fields when G4 is signed', async () => {
+    (globalThis as { __freezeActive?: boolean }).__freezeActive = true;
+    const { saveStageDeptField } = await import('../save-stage-dept-field');
+
+    await expect(
+      saveStageDeptField({ projectId, productCode: null, fieldCode: 'product_name', value: 'Blocked name' }),
+    ).rejects.toMatchObject({ code: 'SIGNED_DEFINITION_FROZEN' });
+
+    expect(queryMock.mock.calls.some((call) => /update\s+public\.npd_projects/i.test(String(call[0])))).toBe(false);
+    (globalThis as { __freezeActive?: boolean }).__freezeActive = false;
   });
 });

@@ -12,8 +12,8 @@
  * the seeded permission string in migration 236).
  *
  * No mocks, no hard-coded rows. `ready` (the green "Ready to promote" bar) is
- * derived here as "every checklist item is checked" so the screen never
- * re-derives the gate.
+ * derived here as "every checklist item is checked AND every release gate is met"
+ * so the screen never re-derives the gate from checklist toggles alone.
  */
 
 import { z } from 'zod';
@@ -58,7 +58,7 @@ export type HandoffData = {
   projectId: string;
   bomVerificationStatus: string | null;
   promoteToProductionDate: string | null;
-  /** True ⇔ a checklist exists with ≥1 item and every item is checked. */
+  /** True ⇔ a checklist exists with ≥1 item, every item is checked, and release gates pass. */
   ready: boolean;
   /** True once the factory release has been recorded for this project. */
   promoted: boolean;
@@ -314,7 +314,7 @@ export async function getHandoff(raw: unknown): Promise<GetHandoffResult> {
         isChecked: r.is_checked,
         displayOrder: r.display_order,
       }));
-      const ready = items.length > 0 && items.every((i) => i.isChecked);
+      const ready = items.length > 0 && items.every((i) => i.isChecked) && releaseGatesMet;
       const promoted =
         release?.release_status === 'released_to_factory' ||
         checklist.promote_to_production_date !== null;

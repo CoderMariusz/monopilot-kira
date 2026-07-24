@@ -17,7 +17,7 @@ vi.mock('../../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bo
 vi.mock('../../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-routing', () => ({
   materializeNpdRouting,
 }));
-vi.mock('../../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized }));
+vi.mock('../../../../../../../../../lib/i18n/revalidate-localized', () => ({ revalidateLocalized }));
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -99,5 +99,53 @@ describe('generateProductionBom — L5 packaging gate + routing', () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.warnings).toEqual([]);
+  });
+
+  it('commits a generated draft but reports the actionable V-TEC-14 activation block', async () => {
+    materializeNpdBom.mockResolvedValue({
+      code: 'BOM_ACTIVATION_BLOCKED',
+      activationValidationCode: 'V-TEC-14',
+      activationMessage: 'RM-FLOUR: SUPPLIER_SPEC_NOT_ACTIVE',
+      bomHeaderId: 'bom-draft-1',
+      productionCode: 'FG-001',
+      yieldPromptRequired: false,
+    });
+
+    const { generateProductionBom } = await import('../generate-production-bom');
+    const result = await generateProductionBom({ projectId: PROJECT_ID });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'bom_activation_blocked',
+      message: 'RM-FLOUR: SUPPLIER_SPEC_NOT_ACTIVE',
+      bomHeaderId: 'bom-draft-1',
+    });
+    expect(materializeNpdBom).toHaveBeenCalledWith(
+      expect.anything(),
+      { projectId: PROJECT_ID, preserveDraftOnActivationFailure: true },
+    );
+    expect(materializeNpdRouting).not.toHaveBeenCalled();
+    expect(revalidateLocalized).toHaveBeenCalled();
+  });
+
+  it('logs the real persistence exception while keeping database detail off the client result', async () => {
+    const dbError = Object.assign(new Error('column "legacy_code" does not exist'), {
+      code: '42703',
+    });
+    materializeNpdBom.mockRejectedValue(dbError);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { generateProductionBom } = await import('../generate-production-bom');
+    const result = await generateProductionBom({ projectId: PROJECT_ID });
+
+    expect(result).toEqual({ ok: false, error: 'persistence_failed' });
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[generateProductionBom] persistence_failed',
+      expect.objectContaining({
+        projectId: PROJECT_ID,
+        code: '42703',
+        message: 'column "legacy_code" does not exist',
+      }),
+    );
   });
 });

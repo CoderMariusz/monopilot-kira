@@ -18,6 +18,8 @@
 
 import { hasPermission } from '../../../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import type { SignedBriefGateCode } from '../_lib/brief-approval-guards';
+import { hasActiveVerifiedG4Approval } from '../../../../../../../../lib/npd/g4-definition-freeze';
 
 export type ProjectBriefState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
@@ -52,6 +54,9 @@ export type ProjectBriefView = {
   /** Full-width. */
   constraints: string | null;
   notes: string | null;
+  /** True when a verified signed G4 gate approval freezes physical/cost/label brief fields. */
+  definitionFrozen: boolean;
+  signedApprovalGates: SignedBriefGateCode[];
 };
 
 export type ReadProjectBriefResult = {
@@ -132,6 +137,9 @@ export async function readProjectBrief(projectId: string): Promise<ReadProjectBr
         return { state: 'empty', data: null };
       }
 
+      const definitionFrozen = await hasActiveVerifiedG4Approval(ctx, projectId);
+      const signedApprovalGates: SignedBriefGateCode[] = definitionFrozen ? ['G4'] : [];
+
       const data: ProjectBriefView = {
         // No separate brief row — the project IS the brief.
         briefId: row.id,
@@ -156,6 +164,8 @@ export async function readProjectBrief(projectId: string): Promise<ReadProjectBr
         targetAudience: row.target_audience,
         constraints: row.constraints,
         notes: row.notes,
+        definitionFrozen,
+        signedApprovalGates,
       };
 
       return { state: 'ready', data };

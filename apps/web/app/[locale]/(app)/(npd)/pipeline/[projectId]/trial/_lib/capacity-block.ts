@@ -37,6 +37,8 @@ export type UpsertCapacityBlockError =
   | 'forbidden'
   | 'invalid_line'
   | 'trial_not_found'
+  /** The trial was voided — withdrawn evidence never holds line time. */
+  | 'voided'
   | 'persistence_failed';
 
 export type CapacityBlockActionOutcome = { ok: boolean; error?: UpsertCapacityBlockError };

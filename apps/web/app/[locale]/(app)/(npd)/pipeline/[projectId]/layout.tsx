@@ -43,6 +43,9 @@ import { deleteProject as deleteProjectAction } from '../../../../../(npd)/pipel
 import { cloneProject as cloneProjectAction } from '../../../../../(npd)/pipeline/_actions/clone-project';
 import { createOrMapFgCandidateAtG3 as createOrMapFgCandidateAtG3Action } from '../../../../../(npd)/pipeline/_actions/create-or-map-fg-candidate-at-g3';
 import { resolveAdvanceTransition } from '../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
+import { fetchStageGateReadinessForProject } from '../../../../../(npd)/pipeline/_actions/_lib/fetch-stage-gate-readiness';
+import { withOrgContext, type OrgContext } from '../../../../../../lib/auth/with-org-context';
+import type { OrgContextLike } from '../../../../../(npd)/pipeline/_actions/shared';
 import {
   type ProjectGate,
   type ProjectPriority,
@@ -443,6 +446,39 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
           required: item.required,
           done: item.done,
         }));
+  const stageLabels = stepLabels;
+  const gateLabelMap = Object.fromEntries(
+    (['G0', 'G1', 'G2', 'G3', 'G4'] as GateKey[]).map((key) => [
+      key,
+      p(`gate.${key}`, GATE_LABEL_DEFAULTS[key]),
+    ]),
+  ) as Record<GateKey, string>;
+  const serverBundle = transition
+    ? await withOrgContext(async (rawCtx: OrgContext) => {
+        try {
+          const ctx = rawCtx as OrgContextLike;
+          return await fetchStageGateReadinessForProject(
+            {
+              id: project.id,
+              code: project.code,
+              name: project.name,
+              type: project.type,
+              current_gate: project.currentGate,
+              current_stage: project.currentStage,
+              product_code: project.productCode,
+            },
+            {
+              db: ctx,
+              gateLabels: gateLabelMap,
+              stageLabels,
+            },
+          );
+        } catch (error) {
+          console.error('[project-layout] stage-gate readiness degraded:', error);
+          return null;
+        }
+      })
+    : null;
   const advanceModal = {
     labels: {
       title: a('title', ADVANCE_DEFAULTS.title),
@@ -482,7 +518,7 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
       overrideConfirm: a('overrideConfirm', ADVANCE_DEFAULTS.overrideConfirm),
     },
     project: { id: project.id, code: project.code, name: project.name, currentGate: currentKey },
-    gateInfo: {
+    gateInfo: serverBundle?.gateInfo ?? {
       current: currentKey,
       currentLabel: gateLabel,
       next: targetGate,
@@ -491,7 +527,8 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
       // (assertG4ESignForHandoff); claiming approval on other steps was dishonest.
       requiresApproval: transition?.requiresESign ?? false,
     },
-    items: advanceItems,
+    items: serverBundle?.items ?? advanceItems,
+    serverReadiness: serverBundle?.readiness ?? null,
   };
 
   return (

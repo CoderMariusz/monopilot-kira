@@ -121,12 +121,22 @@ describe('getPilotRun — RBAC', () => {
 describe('upsertPilotRun — zod + RBAC', () => {
   it('rejects missing production line (required)', async () => {
     const r = await upsertPilotRun({ projectId: PROJECT, line: '' });
-    expect(r).toEqual(expect.objectContaining({ ok: false, error: 'invalid_input' }));
+    expect(r).toEqual(expect.objectContaining({ ok: false, error: 'line_required' }));
   });
 
-  it('rejects an out-of-range expectedYieldPct', async () => {
-    const r = await upsertPilotRun({ projectId: PROJECT, expectedYieldPct: '120' });
-    expect(r).toEqual(expect.objectContaining({ ok: false, error: 'invalid_input' }));
+  // PF-R04-12: the audit's `100.01` was rejected but only ever surfaced as
+  // "Could not save" — the code now names the offending field.
+  it.each(['120', '101', '100.01'])(
+    'rejects expectedYieldPct %s as yield_out_of_range',
+    async (expectedYieldPct) => {
+      const r = await upsertPilotRun({ projectId: PROJECT, line: 'Line 2', expectedYieldPct });
+      expect(r).toEqual(expect.objectContaining({ ok: false, error: 'yield_out_of_range' }));
+    },
+  );
+
+  it('reports a missing line as line_required, not a generic failure', async () => {
+    const r = await upsertPilotRun({ projectId: PROJECT, expectedYieldPct: '90' });
+    expect(r).toEqual(expect.objectContaining({ ok: false, error: 'line_required' }));
   });
 
   it('returns forbidden without npd.pilot.write', async () => {

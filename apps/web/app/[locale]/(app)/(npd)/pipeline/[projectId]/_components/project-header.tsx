@@ -44,6 +44,7 @@ import type {
   AdvanceGateItem,
   AdvanceGateLabels,
   AdvanceGateProject,
+  AdvanceGateServerReadiness,
   AdvanceProjectGateAction,
 } from '../../../../../../(npd)/_modals/advance-gate-modal';
 import {
@@ -132,6 +133,7 @@ export type ProjectHeaderProps = {
     project: AdvanceGateProject;
     gateInfo: AdvanceGateInfo;
     items: AdvanceGateItem[];
+    serverReadiness?: AdvanceGateServerReadiness | null;
   };
   /** Server-resolved permission to advance the gate (never client-trusted). */
   canAdvance: boolean;
@@ -401,6 +403,7 @@ export function ProjectHeader({
           project={advanceModal.project}
           gateInfo={advanceModal.gateInfo}
           items={advanceModal.items}
+          serverReadiness={advanceModal.serverReadiness ?? undefined}
           state="ready"
           advanceProjectGate={advanceProjectGate}
         />

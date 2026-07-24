@@ -128,6 +128,8 @@ const DEFAULT_LABELS: HandoffLabels = {
   generateNoRecipe: 'Lock a recipe first, then generate the production BOM.',
   generatePacksPerBoxRequired: 'Set packs-per-box on the FG before generating the production BOM.',
   generateError: 'Could not generate the production BOM. Try again.',
+  generateActivationBlocked:
+    'BOM draft {bomHeaderId} was preserved, but activation is blocked: {reason}',
   generatePackagingUnlinked:
     'Packaging components must be linked to items before generating the production BOM: {components}',
   generateWarningNoLine:
@@ -257,6 +259,8 @@ export default async function HandoffPage(propsInput: unknown = {}) {
       return {
         ok: false,
         error: result.error,
+        message: result.message,
+        bomHeaderId: result.bomHeaderId,
         unlinkedComponents: 'unlinkedComponents' in result ? result.unlinkedComponents : undefined,
       };
     }

@@ -45,14 +45,15 @@ import {
   type AdvanceGateItem,
   type AdvanceGateLabels,
   type AdvanceGateProject,
+  type AdvanceGateServerReadiness,
   type AdvanceProjectGateAction,
 } from '../../../../../../../(npd)/_modals/advance-gate-modal';
 import {
   GateApprovalModal,
   type GateApprovalProject,
-  type GateApprovalStatus,
   type OnApproveGate,
 } from '../../../../../../../(npd)/_modals/gate-approval-modal';
+import { getStageGateReadiness } from '../../../../../../../(npd)/pipeline/_actions/get-stage-gate-readiness';
 import {
   GateRevertModal,
   type RevertProjectGateAction,
@@ -75,8 +76,12 @@ export type GateScreenData = {
   advanceProject: AdvanceGateProject;
   advanceGateInfo: AdvanceGateInfo;
   advanceItems: AdvanceGateItem[];
+  /** Server-authoritative readiness for the advance modal (evaluateStageGate). */
+  advanceServerReadiness: AdvanceGateServerReadiness | null;
   /** Approval-modal project header (G3/G4 e-sign context). */
   approvalProject: GateApprovalProject;
+  /** Server-authoritative readiness for the approval modal (formal_approve). */
+  approvalServerReadiness: AdvanceGateServerReadiness | null;
   /** Approval-history timeline entries (DESC, newest first). */
   approvals: ApprovalHistoryEntry[];
   /** True once the project has reached the launched terminal state. */
@@ -134,6 +139,67 @@ export function GateScreen({
 }: GateScreenProps) {
   const router = useRouter();
   const [activeModal, setActiveModal] = React.useState<ActiveModal>('none');
+  const [advanceGateInfo, setAdvanceGateInfo] = React.useState(data.advanceGateInfo);
+  const [advanceItems, setAdvanceItems] = React.useState(data.advanceItems);
+  const [advanceServerReadiness, setAdvanceServerReadiness] = React.useState(data.advanceServerReadiness);
+  const [approvalProject, setApprovalProject] = React.useState(data.approvalProject);
+  const [approvalServerReadiness, setApprovalServerReadiness] = React.useState(data.approvalServerReadiness);
+  const [readinessLoading, setReadinessLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    setAdvanceGateInfo(data.advanceGateInfo);
+    setAdvanceItems(data.advanceItems);
+    setAdvanceServerReadiness(data.advanceServerReadiness);
+    setApprovalProject(data.approvalProject);
+    setApprovalServerReadiness(data.approvalServerReadiness);
+  }, [data.advanceGateInfo, data.advanceItems, data.advanceServerReadiness, data.approvalProject, data.approvalServerReadiness]);
+
+  const refreshAdvanceReadiness = React.useCallback(async () => {
+    setReadinessLoading(true);
+    try {
+      const result = await getStageGateReadiness({ projectId, purpose: 'advance' });
+      if (result.ok) {
+        setAdvanceGateInfo(result.data.gateInfo);
+        setAdvanceItems(result.data.items);
+        setAdvanceServerReadiness(result.data.readiness);
+      }
+    } finally {
+      setReadinessLoading(false);
+    }
+  }, [projectId]);
+
+  const refreshApprovalReadiness = React.useCallback(async () => {
+    setReadinessLoading(true);
+    try {
+      const result = await getStageGateReadiness({ projectId, purpose: 'formal_approve' });
+      if (result.ok) {
+        const gateCode = result.data.formalApprovalGateCode ?? result.data.gateInfo.current;
+        const pct = result.data.readiness.requiredTotal > 0
+          ? Math.round((result.data.readiness.requiredDone / result.data.readiness.requiredTotal) * 100)
+          : 0;
+        setApprovalProject({
+          id: projectId,
+          code: data.approvalProject.code,
+          name: data.approvalProject.name,
+          gateCode: gateCode === 'G3' || gateCode === 'G4' ? gateCode : data.approvalProject.gateCode,
+          requiredDone: result.data.readiness.requiredDone,
+          requiredTotal: result.data.readiness.requiredTotal,
+          pct,
+        });
+        setApprovalServerReadiness(result.data.readiness);
+      }
+    } finally {
+      setReadinessLoading(false);
+    }
+  }, [data.approvalProject.code, data.approvalProject.gateCode, data.approvalProject.name, projectId]);
+
+  React.useEffect(() => {
+    if (activeModal === 'advanceGate') {
+      void refreshAdvanceReadiness();
+    } else if (activeModal === 'gateApproval') {
+      void refreshApprovalReadiness();
+    }
+  }, [activeModal, refreshAdvanceReadiness, refreshApprovalReadiness]);
 
   // GateChecklistPanel asks to open a modal keyed by the gate's requiresApproval flag.
   const openModal = React.useCallback<OpenModalFn>((modal) => {
@@ -159,15 +225,30 @@ export function GateScreen({
     async (input) => {
       if (!approveProjectGate) return { ok: false, error: 'FORBIDDEN' };
       const result = await approveProjectGate(input);
-      if (result.ok) router.refresh();
+      if (result.ok) {
+        router.refresh();
+      } else if (result.error === 'BLOCKERS_PRESENT' && 'blockers' in result && result.blockers?.length) {
+        const blockers = result.blockers.map((blocker, index) => ({
+          id: blocker.itemId ?? `${blocker.code ?? 'BLOCKER'}-${index}`,
+          text: blocker.itemText ?? blocker.message ?? blocker.code ?? 'Blocker',
+          code: blocker.code,
+        }));
+        const requiredTotal = Math.max(approvalProject.requiredTotal, blockers.length);
+        setApprovalServerReadiness({
+          status: 'HARD_BLOCKED',
+          blockers,
+          softMissing: [],
+          requiredDone: approvalProject.requiredDone,
+          requiredTotal,
+          canAdvance: false,
+        });
+      }
       return result;
     },
-    [approveProjectGate, router],
+    [approveProjectGate, approvalProject.requiredDone, approvalProject.requiredTotal, router],
   );
 
-  const approvalStatus: GateApprovalStatus = canApprove ? 'ready' : 'forbidden';
-
-  // Human label of the gate the project currently sits at (e.g. "G3 — Development"),
+  // Human label of the gate the project currently sits at
   // shown in the revert modal's warning copy.
   const currentGateView = data.gates.find((g) => g.isCurrent) ?? data.gates[data.gates.length - 1];
   const currentGateLabel = currentGateView
@@ -206,19 +287,22 @@ export function GateScreen({
         open={activeModal === 'advanceGate'}
         labels={labels.advance}
         project={data.advanceProject}
-        gateInfo={data.advanceGateInfo}
-        items={data.advanceItems}
-        state={canAdvance ? 'ready' : 'permission_denied'}
+        gateInfo={advanceGateInfo}
+        items={advanceItems}
+        serverReadiness={advanceServerReadiness ?? undefined}
+        state={readinessLoading ? 'loading' : canAdvance ? 'ready' : 'permission_denied'}
         advanceProjectGate={canAdvance ? advanceProjectGate : undefined}
         onAdvanced={onMutated}
         onESignRequired={() => setActiveModal('gateApproval')}
         onClose={closeModal}
+        onReadinessBlocked={(readiness) => setAdvanceServerReadiness(readiness)}
       />
 
       <GateApprovalModal
         open={activeModal === 'gateApproval'}
-        project={data.approvalProject}
-        status={approvalStatus}
+        project={approvalProject}
+        serverReadiness={approvalServerReadiness ?? undefined}
+        status={readinessLoading ? 'loading' : canApprove ? 'ready' : 'forbidden'}
         onApprove={handleApprove}
         onClose={closeModal}
       />

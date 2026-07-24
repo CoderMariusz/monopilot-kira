@@ -43,6 +43,8 @@ function grantHandler(opts: {
   perm?: string;
   batchExists?: boolean;
   updateId?: string;
+  /** Pre-image voided_at — a voided trial must refuse further edits. */
+  voidedAt?: string | null;
   throwOnUpdate?: { code?: string; constraint?: string };
 }): Handler {
   return (sql) => {
@@ -61,6 +63,7 @@ function grantHandler(opts: {
               technologist_user_id: null,
               result: 'pending',
               notes: null,
+              voided_at: opts.voidedAt ?? null,
             }],
       };
     }
@@ -89,9 +92,23 @@ describe('updateTrialBatch', () => {
     expect(result).toEqual(expect.objectContaining({ ok: false, error: 'invalid_input' }));
   });
 
-  it('rejects out-of-range yieldPct', async () => {
-    const result = await updateTrialBatch({ ...VALID, yieldPct: '150' });
-    expect(result).toEqual(expect.objectContaining({ ok: false, error: 'invalid_input' }));
+  // PF-R04-12: the rejection now names the field, so the modal can point at it
+  // instead of falling back to "Could not save".
+  it.each(['150', '101', '100.01'])('rejects yieldPct %s as yield_out_of_range', async (yieldPct) => {
+    const result = await updateTrialBatch({ ...VALID, yieldPct });
+    expect(result).toEqual(expect.objectContaining({ ok: false, error: 'yield_out_of_range' }));
+  });
+
+  it('accepts exactly 100% (the inclusive boundary)', async () => {
+    ctx.handler = grantHandler({ perm: TRIAL_WRITE_PERMISSION, updateId: BATCH });
+    const result = await updateTrialBatch({ ...VALID, yieldPct: '100' });
+    expect(result).toEqual({ ok: true, data: { id: BATCH, trialNo: 'T-012', result: 'pass' } });
+  });
+
+  it('refuses to edit a voided trial', async () => {
+    ctx.handler = grantHandler({ perm: TRIAL_WRITE_PERMISSION, voidedAt: '2026-07-20T10:00:00Z' });
+    const result = await updateTrialBatch(VALID);
+    expect(result).toEqual({ ok: false, error: 'voided' });
   });
 
   it('returns forbidden without npd.trial.write', async () => {

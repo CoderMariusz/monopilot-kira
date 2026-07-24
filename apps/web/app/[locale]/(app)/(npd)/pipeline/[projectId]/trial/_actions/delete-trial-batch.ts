@@ -61,14 +61,18 @@ export async function deleteTrialBatch(raw: unknown): Promise<DeleteTrialBatchRe
       const canWrite = await hasPermission(client, userId, orgId, TRIAL_WRITE_PERMISSION);
       if (!canWrite) return { ok: false as const, error: 'forbidden' as const };
 
+      // A voided trial is a corrective record: hard-deleting it would erase the
+      // very trail the void created. The UI hides the button, but a Server
+      // Action can be called directly — so the invariant lives here.
       const deleted = await client.query<{
         id: string;
         trial_no: string;
         result: string;
+        voided_at: string | null;
         deleted: boolean;
       }>(
         `with target as (
-           select id, trial_no, result
+           select id, trial_no, result, voided_at
              from public.trial_batches
             where id = $1::uuid
               and project_id = $2::uuid
@@ -78,9 +82,11 @@ export async function deleteTrialBatch(raw: unknown): Promise<DeleteTrialBatchRe
             using target t
             where tb.id = t.id
               and tb.result = 'pending'
+              and tb.voided_at is null
             returning tb.id
          )
          select t.id::text as id, t.trial_no, t.result,
+                t.voided_at::text as voided_at,
                 (r.id is not null) as deleted
            from target t
            left join removed r on r.id = t.id`,
@@ -88,6 +94,7 @@ export async function deleteTrialBatch(raw: unknown): Promise<DeleteTrialBatchRe
       );
       const row = deleted.rows[0];
       if (!row) return { ok: false as const, error: 'not_found' as const };
+      if (!row.deleted && row.voided_at) return { ok: false as const, error: 'voided' as const };
       if (!row.deleted) return { ok: false as const, error: 'has_progressed' as const };
       const id = row.id;
 

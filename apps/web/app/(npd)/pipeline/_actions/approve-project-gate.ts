@@ -14,6 +14,7 @@ import {
   assertGateStageConsistent,
   emitOutbox,
   gateForStage,
+  formalApprovalTargetStage,
   loadProjectForUpdate,
   requireActionPermission,
   seedHandoffChecklist,
@@ -86,7 +87,7 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
       // for G3, approval→handoff for G4) — never by skipping intermediate G3 substages.
       const targetStage =
         parsed.data.decision === 'approved'
-          ? approvalTargetStage(project.current_stage, parsed.data.gateCode)
+          ? formalApprovalTargetStage(project.current_stage, parsed.data.gateCode)
           : null;
       if (parsed.data.decision === 'approved') {
         const gateEvaluation = await evaluateStageGate(
@@ -150,9 +151,9 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
 
       const approval = await context.client.query<{ id: string }>(
         `insert into public.gate_approvals
-           (org_id, project_id, gate_code, decision, approver_user_id, notes, rejection_reason, esigned_at, esign_hash)
+           (org_id, project_id, gate_code, decision, approver_user_id, notes, rejection_reason, esigned_at, esign_hash, signature_id)
          values
-           (app.current_org_id(), $1::uuid, $2, $3, $4::uuid, $5, $6, $7::timestamptz, $8)
+           (app.current_org_id(), $1::uuid, $2, $3, $4::uuid, $5, $6, $7::timestamptz, $8, $9::uuid)
          returning id`,
         [
           project.id,
@@ -163,6 +164,7 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
           parsed.data.decision === 'rejected' ? parsed.data.notes : null,
           esignedAt,
           esignHash,
+          signatureId,
         ],
       );
       const approvalId = approval.rows[0]?.id;
@@ -225,12 +227,6 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
     });
     return { ok: false, error: 'PERSISTENCE_FAILED', status: 500 };
   }
-}
-
-function approvalTargetStage(currentStage: string, gateCode: 'G3' | 'G4'): AnyStage | null {
-  if (gateCode === 'G3' && currentStage === 'pilot') return 'approval';
-  if (gateCode === 'G4' && currentStage === 'approval') return 'handoff';
-  return null;
 }
 
 function safeRevalidatePath(path: string): void {

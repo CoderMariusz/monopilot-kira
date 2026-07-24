@@ -31,6 +31,25 @@ import type {
   PilotRunStatus,
   PilotRunView,
 } from './pilot-screen';
+import { percentFieldError } from '../../_lib/yield-percent';
+
+/**
+ * PF-R04-12: every failure — including a rejected `100.01%` — rendered
+ * `labels.saveError` ("Could not save. Check the values and try again."). Map
+ * the server's code to a message that names the field and the rule.
+ */
+function saveErrorMessage(labels: PilotLabels, code: string | null): string {
+  switch (code) {
+    case 'yield_out_of_range':
+      return labels.saveErrorYieldRange;
+    case 'line_required':
+      return labels.fieldLineRequired;
+    case 'forbidden':
+      return labels.saveErrorForbidden;
+    default:
+      return labels.saveError;
+  }
+}
 
 export type PilotRunFormValues = {
   plannedDate: string;
@@ -96,24 +115,36 @@ export function PilotRunModal({
 }) {
   const [values, setValues] = React.useState<PilotRunFormValues>(() => fromRun(run));
   const [submitState, setSubmitState] = React.useState<'idle' | 'saving' | 'error'>('idle');
+  const [errorCode, setErrorCode] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (open) {
       setValues(fromRun(run));
       setSubmitState('idle');
+      setErrorCode(null);
     }
   }, [open, run]);
 
   function update<K extends keyof PilotRunFormValues>(key: K, next: PilotRunFormValues[K]) {
     setSubmitState('idle');
+    setErrorCode(null);
     setValues((prev) => ({ ...prev, [key]: next }));
   }
+
+  // Mirrors the server rule so `100.01` is named at the field, not after a save.
+  const yieldError = percentFieldError(values.expectedYieldPct);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitState === 'saving') return;
     if (!values.line.trim()) {
       setSubmitState('error');
+      setErrorCode('line_required');
+      return;
+    }
+    if (yieldError) {
+      setSubmitState('error');
+      setErrorCode('yield_out_of_range');
       return;
     }
     setSubmitState('saving');
@@ -122,6 +153,7 @@ export function PilotRunModal({
       onOpenChange(false);
     } else {
       setSubmitState('error');
+      setErrorCode(result.error ?? null);
     }
   }
 
@@ -207,7 +239,14 @@ export function PilotRunModal({
                 inputMode="decimal"
                 value={values.expectedYieldPct}
                 onChange={(e) => update('expectedYieldPct', e.target.value)}
+                aria-invalid={yieldError !== null || undefined}
+                aria-describedby={yieldError ? 'pilot-yield-error' : undefined}
               />
+              {yieldError ? (
+                <p id="pilot-yield-error" className="ff-error" role="alert" data-testid="pilot-yield-error">
+                  {labels.saveErrorYieldRange}
+                </p>
+              ) : null}
             </div>
             <div className="field">
               <label htmlFor="pilot-duration">{labels.fieldDuration}</label>
@@ -239,7 +278,7 @@ export function PilotRunModal({
             </div>
             {submitState === 'error' ? (
               <div role="alert" className="alert alert-red" data-testid="pilot-run-error">
-                {labels.saveError}
+                {saveErrorMessage(labels, errorCode)}
               </div>
             ) : null}
           </div>

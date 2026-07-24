@@ -3,6 +3,8 @@
  * Contract tweaks should land here only.
  */
 
+import { Dec } from '@monopilot/domain';
+
 export type CostEngineUnits = {
   packWeightKg: string | null;
   packsPerCase: number | null;
@@ -25,6 +27,8 @@ export type CostEngineStepKey =
 export type CostEngineResult = {
   status: 'ok' | 'fail' | 'blocked';
   missing: string[];
+  /** Margin percentage from the breakdown summary; distinct from the margin amount step. */
+  marginPct?: string;
   steps: Array<{ key: CostEngineStepKey; valuePerPackEur: string }>;
   units: CostEngineUnits;
 };
@@ -76,25 +80,23 @@ function trimDecimal(value: string): string {
 function isPositiveDecimal(value: string | null | undefined): value is string {
   if (value == null) return false;
   const trimmed = trimDecimal(value);
-  if (trimmed === '' || trimmed === '0' || trimmed === '0.0' || trimmed === '0.00') return false;
-  const n = Number(trimmed);
-  return Number.isFinite(n) && n > 0;
+  return /^-?\d+(\.\d+)?$/.test(trimmed) && Dec.from(trimmed).cmp(Dec.zero()) > 0;
 }
 
 /** Display-only derivation — never persisted. */
 function divideDecimal(a: string, b: string): string | null {
-  const num = Number(trimDecimal(a));
-  const den = Number(trimDecimal(b));
-  if (!Number.isFinite(num) || !Number.isFinite(den) || den <= 0) return null;
-  return (num / den).toFixed(4);
+  const numerator = trimDecimal(a);
+  const denominator = trimDecimal(b);
+  if (!/^-?\d+(\.\d+)?$/.test(numerator) || !isPositiveDecimal(denominator)) return null;
+  return Dec.from(numerator).div(Dec.from(denominator)).toFixed(4);
 }
 
 /** Display-only derivation — never persisted. */
 function multiplyDecimal(a: string, b: string): string | null {
-  const num = Number(trimDecimal(a));
-  const factor = Number(trimDecimal(b));
-  if (!Number.isFinite(num) || !Number.isFinite(factor)) return null;
-  return (num * factor).toFixed(4);
+  const value = trimDecimal(a);
+  const factor = trimDecimal(b);
+  if (!/^-?\d+(\.\d+)?$/.test(value) || !/^-?\d+(\.\d+)?$/.test(factor)) return null;
+  return Dec.from(value).mul(Dec.from(factor)).toFixed(4);
 }
 
 export function adaptWaterfallRows(

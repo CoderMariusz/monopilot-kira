@@ -13,6 +13,12 @@ import {
 } from './shared';
 import { peekSuggestedFgCandidateCode } from './_lib/gate-helpers';
 import { applyGateChecklistAutoSatisfy, buildGateChecklistAutoSignals } from '../_lib/gate-checklist-auto-satisfy';
+import {
+  computeGateApprovalSubjectHash,
+  resolveGateApprovalEsignVerification,
+  resolveVerifiedCertificateHash,
+  type GateApprovalEsignVerification,
+} from '../../../../lib/npd/gate-approval-esign';
 
 const GATE_ADVANCE_PERMISSION = 'npd.gate.advance';
 
@@ -43,6 +49,9 @@ export type GateApprovalTimelineItem = {
   notes: string | null;
   rejectionReason: string | null;
   esignedAt: string | null;
+  esignHash: string | null;
+  esignSubjectHash: string | null;
+  esignVerification: GateApprovalEsignVerification;
   createdAt: string;
 };
 
@@ -79,6 +88,7 @@ type ChecklistItemRow = {
 
 type ApprovalRow = {
   id: string;
+  project_id: string;
   gate_code: ChecklistGate;
   decision: 'approved' | 'rejected';
   approver_user_id: string;
@@ -86,6 +96,10 @@ type ApprovalRow = {
   notes: string | null;
   rejection_reason: string | null;
   esigned_at: string | null;
+  esign_hash: string | null;
+  signature_id: string | null;
+  project_code: string | null;
+  receipt_subject_hash: string | null;
   created_at: string;
 };
 
@@ -154,7 +168,8 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
                 (select count(bh.id)::int
                    from public.bom_headers bh
                   where bh.org_id = app.current_org_id()
-                    and bh.npd_project_id = p.id) as linked_bom_count
+                    and bh.npd_project_id = p.id
+                    and bh.status = 'active') as linked_bom_count
            from public.npd_projects p
            left join public.gate_checklist_items gci
              on gci.project_id = p.id
@@ -242,6 +257,7 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
         ),
         context.client.query<ApprovalRow>(
           `select ga.id,
+                  ga.project_id::text as project_id,
                   ga.gate_code,
                   ga.decision,
                   ga.approver_user_id::text as approver_user_id,
@@ -249,9 +265,38 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
                   ga.notes,
                   ga.rejection_reason,
                   ga.esigned_at::text as esigned_at,
+                  ga.esign_hash,
+                  ga.signature_id::text as signature_id,
+                  coalesce(p.code, ga.project_code) as project_code,
+                  coalesce(esl_fk.subject_hash, esl_hist.subject_hash) as receipt_subject_hash,
                   ga.created_at::text as created_at
              from public.gate_approvals ga
+             left join public.npd_projects p
+               on p.id = ga.project_id
+              and p.org_id = ga.org_id
              left join public.users u on u.id = ga.approver_user_id
+             left join public.e_sign_log esl_fk
+               on esl_fk.signature_id = ga.signature_id
+              and esl_fk.org_id = ga.org_id
+             left join lateral (
+               select esl.subject_hash
+                 from public.e_sign_log esl
+                where ga.signature_id is null
+                  and ga.esigned_at is not null
+                  and ga.project_id is not null
+                  and esl.org_id = ga.org_id
+                  and esl.signer_user_id = ga.approver_user_id
+                  and esl.intent = 'npd.gate.approved'
+                  and esl.subject_hash = public.npd_gate_approval_subject_hash(
+                    ga.project_id,
+                    coalesce(p.code, ga.project_code),
+                    ga.gate_code,
+                    ga.decision
+                  )
+                group by esl.subject_hash
+               having count(*) = 1
+                limit 1
+             ) esl_hist on true
             where ga.org_id = app.current_org_id()
               and ga.project_id = $1::uuid
             order by ga.created_at desc, ga.id desc`,
@@ -316,6 +361,23 @@ function groupChecklist(rows: ChecklistItemRow[]): Record<ChecklistGate, Checkli
 }
 
 function mapApproval(row: ApprovalRow): GateApprovalTimelineItem {
+  const expectedSubjectHash =
+    row.project_id && row.project_code
+      ? computeGateApprovalSubjectHash({
+          projectId: row.project_id,
+          projectCode: row.project_code,
+          gateCode: row.gate_code,
+          decision: row.decision,
+        })
+      : null;
+
+  const verification = resolveGateApprovalEsignVerification({
+    esignedAt: row.esigned_at,
+    signatureId: row.signature_id,
+    receiptSubjectHash: row.receipt_subject_hash,
+    expectedSubjectHash,
+  });
+
   return {
     id: row.id,
     gateCode: row.gate_code,
@@ -324,6 +386,9 @@ function mapApproval(row: ApprovalRow): GateApprovalTimelineItem {
     notes: row.notes,
     rejectionReason: row.rejection_reason,
     esignedAt: row.esigned_at,
+    esignHash: resolveVerifiedCertificateHash(verification, row.receipt_subject_hash),
+    esignSubjectHash: row.receipt_subject_hash,
+    esignVerification: verification,
     createdAt: row.created_at,
   };
 }

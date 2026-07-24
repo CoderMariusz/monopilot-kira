@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { hasPilotPermission } from './get-pilot-run';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
+import { isPercentWithinRange, percentFieldError } from '../../_lib/yield-percent';
 
 const DECIMAL = z
   .string()
@@ -36,7 +37,8 @@ const Input = z.object({
     .optional(),
   line: z.string().trim().min(1, 'line is required').max(120),
   batchSizeKg: OPTIONAL_DECIMAL,
-  expectedYieldPct: DECIMAL.refine((s) => Number(s) <= 100, { message: 'yield must be <= 100' })
+  // Exact 0..100 (Dec, never Number) — mirrors pilot_runs_expected_yield_pct_range.
+  expectedYieldPct: DECIMAL.refine(isPercentWithinRange, { message: 'yield must be <= 100' })
     .nullable()
     .optional(),
   durationHours: OPTIONAL_DECIMAL,
@@ -48,6 +50,9 @@ export type UpsertPilotRunInput = z.infer<typeof Input>;
 
 export type UpsertPilotRunError =
   | 'invalid_input'
+  /** PF-R04-12: names the field so the modal stops saying "Could not save". */
+  | 'yield_out_of_range'
+  | 'line_required'
   | 'forbidden'
   | 'not_found'
   | 'persistence_failed';
@@ -61,7 +66,17 @@ const WRITE_PERMISSION = 'npd.pilot.write';
 export async function upsertPilotRun(raw: unknown): Promise<UpsertPilotRunResult> {
   const parsed = Input.safeParse(raw);
   if (!parsed.success) {
-    return { ok: false, error: 'invalid_input', message: parsed.error.message };
+    // Name the field that failed instead of a bare `invalid_input` (PF-R04-12).
+    const failed = new Set(parsed.error.issues.map((issue) => String(issue.path[0] ?? '')));
+    const rawYield = (raw as { expectedYieldPct?: unknown } | null | undefined)?.expectedYieldPct;
+    const error: UpsertPilotRunError = failed.has('expectedYieldPct')
+      ? typeof rawYield === 'string' && percentFieldError(rawYield) === 'yield_out_of_range'
+        ? 'yield_out_of_range'
+        : 'invalid_input'
+      : failed.has('line')
+        ? 'line_required'
+        : 'invalid_input';
+    return { ok: false, error, message: parsed.error.message };
   }
   const input = parsed.data;
 

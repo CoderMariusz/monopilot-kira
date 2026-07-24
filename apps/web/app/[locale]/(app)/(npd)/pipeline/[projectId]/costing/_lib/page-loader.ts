@@ -280,6 +280,7 @@ function engineResultFromRows(
   return {
     status: marginStatus(primary.margin_pct, warnPct) === 'fail' ? 'fail' : 'ok',
     missing: primary.params?.missing ?? [],
+    marginPct: primary.margin_pct,
     steps: rows.flatMap((row) => {
       const key = stepKey(row.step_name);
       return key ? [{ key, valuePerPackEur: row.value_eur }] : [];

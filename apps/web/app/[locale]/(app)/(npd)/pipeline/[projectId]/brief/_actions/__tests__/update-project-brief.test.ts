@@ -51,10 +51,13 @@ const AFTER = {
   notes: 'Updated note',
 };
 
-function handler(opts: { perm?: boolean; found?: boolean; failUpdate?: boolean } = {}): Handler {
+function handler(opts: { perm?: boolean; found?: boolean; failUpdate?: boolean; signedGates?: string[] } = {}): Handler {
   return (sql) => {
     if (sql.includes('from public.user_roles')) {
       return { rows: opts.perm === false ? [] : [{ ok: true }] };
+    }
+    if (sql.includes('gate_approvals') && sql.includes("gate_code = 'G4'")) {
+      return { rows: opts.signedGates?.includes('G4') ? [{ ok: true }] : [] };
     }
     if (sql.includes('from public.npd_projects') && sql.includes('for update')) {
       return { rows: opts.found === false ? [] : [BEFORE] };
@@ -225,5 +228,36 @@ describe('updateProjectBrief', () => {
     expect(result).toEqual({ ok: true, data: { projectId: PROJECT } });
     const update = calls.find((c) => /update public\.npd_projects/.test(c.sql));
     expect(update?.params).toContain('9999999999.99');
+  });
+
+  it('blocks critical brief fields after a signed G4 gate approval', async () => {
+    ctx.handler = handler({ signedGates: ['G4'] });
+    const result = await updateProjectBrief({
+      projectId: PROJECT,
+      patch: { packWeightG: '500' },
+    });
+    expect(result).toEqual({
+      ok: false,
+      error: 'SIGNED_DEFINITION_FROZEN',
+      status: 409,
+      blockedFields: ['packWeightG'],
+      signedGateCodes: ['G4'],
+    });
+  });
+
+  it('allows notes-only edits after a signed gate approval', async () => {
+    const calls: Array<{ sql: string; params?: readonly unknown[] }> = [];
+    ctx.handler = (sql, params) => {
+      calls.push({ sql, params });
+      return handler({ signedGates: ['G4'] })(sql, params);
+    };
+
+    const result = await updateProjectBrief({
+      projectId: PROJECT,
+      patch: { notes: 'Post-approval note' },
+    });
+
+    expect(result).toEqual({ ok: true, data: { projectId: PROJECT } });
+    expect(calls.some((call) => /update public\.npd_projects/.test(call.sql))).toBe(true);
   });
 });

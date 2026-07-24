@@ -43,6 +43,7 @@ export type GenerateProductionBomError =
   | 'packs_per_box_required'
   | 'packaging_unlinked'
   | 'bom_materialization_failed'
+  | 'bom_activation_blocked'
   | 'persistence_failed';
 
 export type GenerateProductionBomResult =
@@ -59,6 +60,8 @@ export type GenerateProductionBomResult =
       ok: false;
       error: GenerateProductionBomError;
       message?: string;
+      /** Reviewable DRAFT retained when canonical activation validation fails. */
+      bomHeaderId?: string;
       /** Present when error === 'packaging_unlinked'. */
       unlinkedComponents?: string[];
     };
@@ -96,6 +99,7 @@ type InnerGenerateResult =
       ok: false;
       error: GenerateProductionBomError;
       message?: string;
+      bomHeaderId?: string;
       unlinkedComponents?: string[];
     };
 
@@ -127,12 +131,34 @@ export async function generateProductionBom(raw: unknown): Promise<GenerateProdu
         return packagingUnlinkedFailure(unlinkedComponents);
       }
 
-      const materialized = await materializeNpdBom(ctx, { projectId });
+      const materialized = await materializeNpdBom(ctx, {
+        projectId,
+        preserveDraftOnActivationFailure: true,
+      });
       if (materialized.code === 'PRODUCTION_CODE_CONFLICT') {
         return { ok: false as const, error: 'production_code_conflict' as const };
       }
       if (materialized.code === 'PACKS_PER_BOX_REQUIRED') {
         return { ok: false as const, error: 'packs_per_box_required' as const };
+      }
+      if (materialized.code === 'BOM_ACTIVATION_BLOCKED') {
+        const message =
+          materialized.activationMessage ??
+          `${materialized.activationValidationCode ?? 'BOM validation'} blocked activation`;
+        console.error('[generateProductionBom] bom_activation_blocked', {
+          projectId,
+          bomHeaderId: materialized.bomHeaderId,
+          validationCode: materialized.activationValidationCode,
+          message,
+        });
+        // Intentional normal return: unlike unexpected persistence errors, this
+        // commits the reviewable DRAFT header/lines while keeping it non-active.
+        return {
+          ok: false as const,
+          error: 'bom_activation_blocked' as const,
+          message,
+          bomHeaderId: materialized.bomHeaderId ?? undefined,
+        };
       }
       // No locked formulation / no ingredients ⇒ no BOM could be built.
       if (!materialized.bomHeaderId) {
@@ -165,7 +191,12 @@ export async function generateProductionBom(raw: unknown): Promise<GenerateProdu
       };
     });
 
-    if (!result.ok) return result;
+    if (!result.ok) {
+      if (result.error === 'bom_activation_blocked') {
+        safeRevalidatePath(`/[locale]/(app)/(npd)/pipeline/${projectId}/handoff`);
+      }
+      return result;
+    }
 
     safeRevalidatePath(`/[locale]/(app)/(npd)/pipeline/${projectId}/handoff`);
 
@@ -180,11 +211,31 @@ export async function generateProductionBom(raw: unknown): Promise<GenerateProdu
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const cause =
+      error instanceof Error && error.cause && typeof error.cause === 'object'
+        ? error.cause as { code?: string; constraint?: string; detail?: string; message?: string }
+        : null;
+    const dbError = error as {
+      code?: string;
+      constraint?: string;
+      detail?: string;
+    };
     if (message.startsWith('Could not generate production BOM header:')) {
-      console.error('[generateProductionBom] bom_materialization_failed:', message);
+      console.error('[generateProductionBom] bom_materialization_failed', {
+        projectId,
+        code: cause?.code ?? dbError.code,
+        constraint: cause?.constraint ?? dbError.constraint,
+        message,
+        detail: cause?.detail,
+      });
       return { ok: false, error: 'bom_materialization_failed', message };
     }
-    console.error('[generateProductionBom] persistence_failed:', error);
+    console.error('[generateProductionBom] persistence_failed', {
+      projectId,
+      code: dbError.code,
+      constraint: dbError.constraint,
+      message,
+    });
     return { ok: false, error: 'persistence_failed' };
   }
 }

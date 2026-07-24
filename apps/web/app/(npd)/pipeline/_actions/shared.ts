@@ -23,6 +23,8 @@ export type OrgContextLike = {
 
 export type ProjectPriority = 'high' | 'normal' | 'low';
 export type ProjectGate = 'G0' | 'G1' | 'G2' | 'G3' | 'G4' | 'Launched';
+/** Honest advance/approval targets — G0 is creation-only and never a transition destination. */
+export type AdvanceTargetGate = Exclude<ProjectGate, 'G0'>;
 export type ChecklistGate = Exclude<ProjectGate, 'Launched'>;
 
 export function trimOptionalString(value: unknown, maxLength: number): string | null | undefined {

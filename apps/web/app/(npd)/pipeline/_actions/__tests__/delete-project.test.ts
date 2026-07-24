@@ -52,6 +52,9 @@ describe('deleteProject (N-42)', () => {
       if (q.includes('from public.product') && q.includes('built')) return { rows: [] };
       if (q.includes('update public.product') && q.includes('deleted_at')) return { rows: [] };
       if (q.includes('update public.items') && q.includes("status = 'blocked'")) return { rows: [] };
+      if (q.startsWith('with voided as') && q.includes('technical_sensory_evaluations')) {
+        return { rows: [{ resource_id: 'sensory-1' }] };
+      }
       if (q.startsWith('delete from public.npd_projects')) {
         return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-001' }] };
       }
@@ -63,6 +66,21 @@ describe('deleteProject (N-42)', () => {
 
     expect(result).toEqual({ ok: true });
     expect(calls().some((c) => c.sql.includes('update public.gate_approvals'))).toBe(false);
+    const recordedCalls = calls();
+    const sensoryVoid = recordedCalls.find(
+      (c) => c.sql.startsWith('with voided as') && c.sql.includes('technical_sensory_evaluations'),
+    );
+    expect(sensoryVoid).toBeDefined();
+    expect(sensoryVoid?.params).toEqual([
+      PROJECT_ID,
+      'NPD-DEL-001',
+      USER_ID,
+      'Parent NPD project NPD-DEL-001 was deleted',
+    ]);
+    expect(sensoryVoid?.sql).toContain("'technical.sensory.voided'");
+    expect(recordedCalls.findIndex((c) => c === sensoryVoid)).toBeLessThan(
+      recordedCalls.findIndex((c) => c.sql.includes('delete from public.npd_projects')),
+    );
     const outbox = calls().find((c) => c.sql.includes('insert into public.outbox_events'));
     expect(outbox?.params[0]).toBe('npd.project.deleted');
     expect(JSON.parse(String(outbox?.params[2]))).toMatchObject({
@@ -153,6 +171,32 @@ describe('deleteProject (N-42)', () => {
     expect(result).toEqual({ ok: false, error: 'HAS_DEPENDENTS' });
     expect(calls().some((c) => c.sql.includes('update public.product') && c.sql.includes('deleted_at'))).toBe(true);
     expect(calls().some((c) => c.sql.includes("status = 'blocked'"))).toBe(true);
+    expect(calls().some((c) => c.sql.includes('insert into public.outbox_events'))).toBe(false);
+  });
+
+  it('rolls back sensory voiding when a later project delete fails with FK', async () => {
+    const fkError = Object.assign(new Error('foreign_key_violation'), { code: '23503' });
+    queryMock.mockImplementation(async (sql: string) => {
+      const q = normalize(sql);
+      if (q.includes('as ok')) return { rows: [{ ok: true }] };
+      if (q.startsWith('select id, code') && q.includes('from public.npd_projects')) {
+        return { rows: [{ id: PROJECT_ID, code: 'NPD-DEL-SENSORY', product_code: null }] };
+      }
+      if (q.startsWith('with voided as') && q.includes('technical_sensory_evaluations')) {
+        return { rows: [{ resource_id: 'sensory-1' }] };
+      }
+      if (q.startsWith('delete from public.npd_projects')) throw fkError;
+      return { rows: [] };
+    });
+
+    const result = await deleteProject({ projectId: PROJECT_ID });
+
+    expect(result).toEqual({ ok: false, error: 'HAS_DEPENDENTS' });
+    expect(
+      calls().some(
+        (c) => c.sql.startsWith('with voided as') && c.sql.includes('technical_sensory_evaluations'),
+      ),
+    ).toBe(true);
     expect(calls().some((c) => c.sql.includes('insert into public.outbox_events'))).toBe(false);
   });
 });

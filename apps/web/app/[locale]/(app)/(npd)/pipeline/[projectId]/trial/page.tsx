@@ -26,10 +26,12 @@
 
 import { getTranslations } from 'next-intl/server';
 
-import { TrialScreen, type TrialScreenData, type TrialLabels, type PageState, type LogTrialCall, type UpdateTrialCall, type DeleteTrialCall, type TrialActionOutcome, type BookLineTimeCall } from './_components/trial-screen';
+import { TrialScreen, type TrialScreenData, type TrialLabels, type PageState, type LogTrialCall, type UpdateTrialCall, type DeleteTrialCall, type TrialActionOutcome, type BookLineTimeCall, type VoidTrialCall, type ReleaseLineTimeCall } from './_components/trial-screen';
 import { logTrialBatch } from './_actions/log-trial-batch';
 import { updateTrialBatch } from './_actions/update-trial-batch';
 import { deleteTrialBatch } from './_actions/delete-trial-batch';
+import { voidTrialBatch } from './_actions/void-trial-batch';
+import { releaseTrialLineTime } from './_actions/release-trial-line-time';
 import { listProductionLines } from './_actions/list-production-lines';
 import { upsertCapacityBlock } from '../../../../(modules)/planning/schedule/_actions/capacity-block-actions';
 import { PLANNING_WO_WRITE_PERMISSION } from '../../../../(modules)/planning/work-orders/_actions/shared';
@@ -81,6 +83,7 @@ const DEFAULT_LABELS: TrialLabels = {
   confirmDelete: 'Delete this trial?',
   deleteError: 'Could not delete the trial. Try again.',
   deleteHasProgressed: 'This trial already has a result and cannot be deleted.',
+  deleteVoided: 'This trial was voided and is kept as corrective evidence — it cannot be deleted.',
   modalTitle: 'Log new trial',
   editModalTitle: 'Edit trial',
   fieldTrialNo: 'Trial #',
@@ -96,7 +99,39 @@ const DEFAULT_LABELS: TrialLabels = {
   saving: 'Saving…',
   cancel: 'Cancel',
   saveError: 'Could not save the trial. Try again.',
+  saveErrorYieldRange: 'Yield % must be a number between 0 and 100.',
+  saveErrorBatchSize: 'Batch size (kg) must be a non-negative number.',
+  saveErrorVoided: 'This trial was voided and can no longer be edited. Log a new trial instead.',
   duplicateError: 'A trial with this number already exists for this project.',
+  voidTrial: 'Void',
+  releaseLineTime: 'Release line time',
+  voidTrialTitle: 'Void trial {trial}',
+  voidTrialIntro:
+    'The trial stays on record as withdrawn evidence and any line time it reserved is released. This cannot be undone — log a new trial instead.',
+  releaseLineTimeTitle: 'Release line time for {trial}',
+  releaseLineTimeIntro:
+    'Frees the reserved slot on the production line. The trial itself is kept.',
+  voidReasonLabel: 'Reason',
+  voidReasonPlaceholder: 'Select a reason…',
+  voidReasonEntryError: 'Entry error',
+  voidReasonTrialNotRun: 'Trial was never run',
+  voidReasonWrongProject: 'Logged against the wrong project',
+  voidReasonDuplicateEntry: 'Duplicate entry',
+  voidReasonOther: 'Other',
+  voidNoteLabel: 'Note (optional)',
+  voidNotePlaceholder: 'Anything a reviewer would need to understand this later…',
+  voidSubmit: 'Void trial',
+  voidSubmitting: 'Working…',
+  releaseLineTimeSubmit: 'Release line time',
+  voidError: 'Could not complete this. Try again.',
+  voidErrorForbidden: 'You do not have permission to reverse this.',
+  voidErrorNotFound: 'This trial could not be found.',
+  voidErrorAlreadyVoided: 'This trial has already been voided.',
+  voidErrorGateApproved:
+    'This trial supports a signed G4 gate approval. Revert the gate first, then void the trial.',
+  voidErrorNotBooked: 'This trial has no line time booked.',
+  voidedBadge: 'Voided',
+  voidedReasonHint: 'Voided — {reason}',
   colLineTime: 'Line time',
   lineTimeNotBooked: 'Not booked',
   bookLineTime: 'Book line time',
@@ -116,6 +151,7 @@ const DEFAULT_LABELS: TrialLabels = {
   bookLineTimeErrorForbidden: 'You do not have permission to book line time.',
   bookLineTimeErrorInvalidLine: 'The selected line is not available.',
   bookLineTimeErrorTrialNotFound: 'This trial could not be found.',
+  bookLineTimeErrorVoided: 'This trial was voided and can no longer hold line time.',
   bookLineTimeErrorPersistence: 'Could not save the booking. Try again.',
   loading: 'Loading trials…',
   empty: 'No trials logged yet',
@@ -157,6 +193,10 @@ type TrialRow = {
   technologist_name: string | null;
   result: TrialResult;
   notes: string | null;
+  voided_at: string | null;
+  voided_by_name: string | null;
+  void_reason_code: string | null;
+  void_note: string | null;
 };
 
 type CapacityBookingRow = {
@@ -279,10 +319,16 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
                 tb.technologist_user_id::text        as technologist_user_id,
                 u.display_name                       as technologist_name,
                 tb.result,
-                tb.notes
+                tb.notes,
+                tb.voided_at::text                   as voided_at,
+                vb.display_name                      as voided_by_name,
+                tb.void_reason_code,
+                tb.void_note
            from public.trial_batches tb
            left join public.users u
              on u.id = tb.technologist_user_id and u.org_id = tb.org_id
+           left join public.users vb
+             on vb.id = tb.voided_by and vb.org_id = tb.org_id
           where tb.org_id = app.current_org_id()
             and tb.project_id = $1::uuid
           order by tb.trial_date desc nulls last, tb.trial_no asc`,
@@ -307,6 +353,10 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
         technologistName: r.technologist_name,
         result: r.result,
         notes: r.notes,
+        voidedAt: r.voided_at,
+        voidedByName: r.voided_by_name,
+        voidReasonCode: r.void_reason_code,
+        voidNote: r.void_note,
       }));
 
       if (batches.length === 0 && !canWrite) {
@@ -362,6 +412,20 @@ async function bookLineTimeAction(call: BookLineTimeCall) {
   return result.ok ? { ok: true as const } : { ok: false as const, error: result.error };
 }
 
+/** Corrective withdrawal of a persisted trial (voidTrialBatch owns the write). */
+async function voidTrialAction(call: VoidTrialCall): Promise<TrialActionOutcome> {
+  'use server';
+  const result = await voidTrialBatch(call);
+  return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
+/** Unbook: release the trial's reserved line slot (releaseTrialLineTime owns it). */
+async function releaseLineTimeAction(call: ReleaseLineTimeCall): Promise<TrialActionOutcome> {
+  'use server';
+  const result = await releaseTrialLineTime(call);
+  return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
 async function readStageSections(projectId: string) {
   if (!projectId) return null;
   try {
@@ -411,6 +475,8 @@ export default async function TrialPage(propsInput: unknown = {}) {
           onUpdateTrial={updateTrialAction}
           onDeleteTrial={deleteTrialAction}
           onBookLineTime={bookLineTimeAction}
+          onVoidTrial={voidTrialAction}
+          onReleaseLineTime={releaseLineTimeAction}
         />
         {stageDeptSectionsEl}
       </>
@@ -427,6 +493,8 @@ export default async function TrialPage(propsInput: unknown = {}) {
         onUpdateTrial={updateTrialAction}
         onDeleteTrial={deleteTrialAction}
         onBookLineTime={bookLineTimeAction}
+        onVoidTrial={voidTrialAction}
+        onReleaseLineTime={releaseLineTimeAction}
       />
       {stageDeptSectionsEl}
     </>

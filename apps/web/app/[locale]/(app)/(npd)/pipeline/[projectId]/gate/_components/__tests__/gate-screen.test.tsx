@@ -44,6 +44,10 @@ vi.mock('next-intl', () => ({
       : key,
 }));
 
+vi.mock('../../../../../../../../(npd)/pipeline/_actions/get-stage-gate-readiness', () => ({
+  getStageGateReadiness: vi.fn(async () => ({ ok: false as const, error: 'terminal' as const })),
+}));
+
 // ── @monopilot/ui/Modal: render body/footer inline when open (jsdom-friendly). ──
 vi.mock('@monopilot/ui/Modal', () => {
   function Modal({ children, open, modalId }: { children: React.ReactNode; open: boolean; modalId?: string }) {
@@ -141,8 +145,11 @@ const HISTORY_LABELS: GateScreenLabels['approvalHistory'] = {
   sigRole: 'hist.sigRole',
   sigTimestamp: 'hist.sigTimestamp',
   sigCertId: 'hist.sigCertId',
+  sigCertUnavailable: 'hist.sigCertUnavailable',
   sigVerification: 'hist.sigVerification',
   sigValid: 'hist.sigValid',
+  sigVerificationUnavailable: 'hist.sigVerificationUnavailable',
+  sigHashRecordedUnverified: 'hist.sigHashRecordedUnverified',
   approvedIconLabel: 'hist.approvedIconLabel',
   rejectedIconLabel: 'hist.rejectedIconLabel',
   loading: 'hist.loading',
@@ -160,8 +167,11 @@ const LABELS: GateScreenLabels = {
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 
-/** Build a data object whose current gate is configurable (G2 self-advance / G3 approval). */
-function makeData(currentGate: 'G2' | 'G3'): GateScreenData {
+/** Build a data object whose current gate is configurable (G2 self-advance / G3 operational / pilot formal approval). */
+function makeData(
+  currentGate: 'G2' | 'G3',
+  options?: { formalApproval?: boolean },
+): GateScreenData {
   const g2Items = [
     { id: 'g2-t1', text: 'Detailed ingredient spec', required: true, done: true, category: 'TECHNICAL', by: 'J. Lewis', at: '2025-11-05', file: null },
     { id: 'g2-b1', text: 'Target margin confirmed', required: true, done: true, category: 'BUSINESS', by: 'A. Owner', at: '2025-11-06', file: null },
@@ -169,6 +179,7 @@ function makeData(currentGate: 'G2' | 'G3'): GateScreenData {
   const g3Items = [
     { id: 'g3-t1', text: 'Trial run complete', required: true, done: true, category: 'TECHNICAL', by: 'J. Lewis', at: '2025-12-01', file: null },
   ];
+  const formalApproval = options?.formalApproval ?? false;
   const gates = [
     { key: 'G0' as const, label: 'Idea', items: [], pct: 0, blockers: [], isCurrent: false, next: 'G1' as const, nextLabel: 'Feasibility', requiresApproval: false },
     { key: 'G1' as const, label: 'Feasibility', items: [], pct: 0, blockers: [], isCurrent: false, next: 'G2' as const, nextLabel: 'Business Case', requiresApproval: false },
@@ -192,9 +203,9 @@ function makeData(currentGate: 'G2' | 'G3'): GateScreenData {
       isCurrent: currentGate === 'G3',
       next: 'G4' as const,
       nextLabel: 'Testing',
-      requiresApproval: true,
+      requiresApproval: currentGate === 'G3' ? formalApproval : false,
     },
-    { key: 'G4' as const, label: 'Testing', items: [], pct: 0, blockers: [], isCurrent: false, next: null, nextLabel: 'Launched', requiresApproval: true },
+    { key: 'G4' as const, label: 'Testing', items: [], pct: 0, blockers: [], isCurrent: false, next: null, nextLabel: 'Launched', requiresApproval: false },
   ];
   return {
     panelProject: { id: PROJECT_ID, code: 'DEV-123', name: 'Apex sausage roll', currentGate },
@@ -205,10 +216,12 @@ function makeData(currentGate: 'G2' | 'G3'): GateScreenData {
       currentLabel: currentGate === 'G2' ? 'Business Case' : 'Development',
       next: currentGate === 'G2' ? 'G3' : 'G4',
       nextLabel: currentGate === 'G2' ? 'Development' : 'Testing',
-      requiresApproval: currentGate === 'G3',
+      requiresApproval: formalApproval,
     },
     advanceItems: (currentGate === 'G2' ? g2Items : g3Items).map((i) => ({ id: i.id, text: i.text, required: i.required, done: i.done })),
-    approvalProject: { id: PROJECT_ID, code: 'DEV-123', name: 'Apex sausage roll', gateCode: currentGate === 'G3' ? 'G3' : 'G3', requiredDone: 1, requiredTotal: 1, pct: 100 },
+    advanceServerReadiness: null,
+    approvalProject: { id: PROJECT_ID, code: 'DEV-123', name: 'Apex sausage roll', gateCode: 'G3', requiredDone: 1, requiredTotal: 1, pct: 100 },
+    approvalServerReadiness: null,
     approvals: [
       {
         id: 'appr-1',
@@ -225,14 +238,19 @@ function makeData(currentGate: 'G2' | 'G3'): GateScreenData {
       },
     ],
     isTerminal: false,
+    launchHardBlockers: [],
   };
 }
 
-function renderScreen(overrides: Partial<GateScreenProps> = {}, currentGate: 'G2' | 'G3' = 'G2') {
+function renderScreen(
+  overrides: Partial<GateScreenProps> = {},
+  currentGate: 'G2' | 'G3' = 'G2',
+  dataOptions?: { formalApproval?: boolean },
+) {
   return render(
     <GateScreen
       projectId={PROJECT_ID}
-      data={makeData(currentGate)}
+      data={makeData(currentGate, dataOptions)}
       labels={LABELS}
       state="ready"
       canWrite
@@ -266,9 +284,17 @@ describe('T-111 GateScreen wiring', () => {
     expect(screen.queryByTestId('gate-approval-project')).not.toBeInTheDocument();
   });
 
-  it('AC2: advancing a requiresApproval gate (G3) opens GateApprovalModal instead', async () => {
+  it('AC2: advancing operational G3 opens AdvanceGateModal', async () => {
     const user = userEvent.setup();
     renderScreen({}, 'G3');
+    await user.click(screen.getByTestId('gate-advance-button'));
+    expect(await screen.findByTestId('advance-gate-transition')).toBeInTheDocument();
+    expect(screen.queryByTestId('gate-approval-project')).not.toBeInTheDocument();
+  });
+
+  it('AC2: advancing at pilot (formal approval) opens GateApprovalModal instead', async () => {
+    const user = userEvent.setup();
+    renderScreen({}, 'G3', { formalApproval: true });
     await user.click(screen.getByTestId('gate-advance-button'));
     expect(await screen.findByTestId('gate-approval-project')).toBeInTheDocument();
     expect(screen.queryByTestId('advance-gate-transition')).not.toBeInTheDocument();
@@ -277,7 +303,7 @@ describe('T-111 GateScreen wiring', () => {
   it('AC3: a successful REJECT (no password) triggers router.refresh for timeline revalidation', async () => {
     const user = userEvent.setup();
     const approveProjectGate = vi.fn(async () => ({ ok: true as const }));
-    renderScreen({ approveProjectGate }, 'G3');
+    renderScreen({ approveProjectGate }, 'G3', { formalApproval: true });
 
     await user.click(screen.getByTestId('gate-advance-button'));
     // Switch decision to reject.
@@ -296,7 +322,7 @@ describe('T-111 GateScreen wiring', () => {
 
   it('RBAC: without approve permission the GateApprovalModal renders the forbidden shell', async () => {
     const user = userEvent.setup();
-    renderScreen({ canApprove: false }, 'G3');
+    renderScreen({ canApprove: false }, 'G3', { formalApproval: true });
     await user.click(screen.getByTestId('gate-advance-button'));
     expect(await screen.findByTestId('gate-approval-forbidden')).toBeInTheDocument();
   });

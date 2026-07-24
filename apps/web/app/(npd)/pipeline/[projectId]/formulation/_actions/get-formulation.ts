@@ -57,6 +57,14 @@ type IngredientRow = {
   nutrition_per_100g: Record<string, unknown> | null;
 };
 
+type FormulationCostCache = Record<string, unknown> & {
+  yieldValid: boolean;
+  yieldedCost: string | null;
+  processing: string | null;
+  costPerKg: string | null;
+  marginPct: string | null;
+};
+
 export type GetFormulationResult =
   | {
       ok: true;
@@ -85,7 +93,11 @@ export type GetFormulationResult =
          */
         resolvedNutritionByCode: Record<string, Record<string, string>>;
         cachedCalc: {
-          costJson: unknown;
+          /**
+           * Yield-dependent decimals are safe to parse only when yieldValid is true.
+           * A missing cache is represented by cachedCalc=null, not an empty object.
+           */
+          costJson: FormulationCostCache;
           nutritionJson: unknown;
           allergenJson: unknown;
           computedAt: string | null;
@@ -198,9 +210,9 @@ export async function getFormulation(input: {
               : null,
           ingredients: ingredients.rows,
           resolvedNutritionByCode,
-          cachedCalc: row.version_id
+          cachedCalc: row.version_id && row.computed_at
             ? {
-                costJson: row.cost_json ?? {},
+                costJson: normalizeCostJson(row.cost_json),
                 nutritionJson: row.nutrition_json ?? {},
                 allergenJson: row.allergen_json ?? {},
                 computedAt: row.computed_at,
@@ -212,6 +224,22 @@ export async function getFormulation(input: {
   } catch {
     return { ok: false, error: 'persistence_failed' };
   }
+}
+
+function normalizeCostJson(value: unknown): FormulationCostCache {
+  const cost =
+    value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {};
+  if (cost.yieldValid === true) return cost as FormulationCostCache;
+  return {
+    ...cost,
+    yieldValid: false,
+    yieldedCost: null,
+    processing: null,
+    costPerKg: null,
+    marginPct: null,
+  };
 }
 
 /** Postgres SQLSTATE for "undefined_table" (relation does not exist). */

@@ -517,4 +517,53 @@ describe('AdvanceGateModal — F-C09: every ok:false surfaces visibly and the mo
     ).toBeInTheDocument();
     expect(screen.queryByTestId('advance-gate-success')).not.toBeInTheDocument();
   });
+
+  it('server readiness: shows hidden blockers and disables Advance when checklist looks complete', () => {
+    renderModal({
+      items: readyItems,
+      serverReadiness: {
+        status: 'HARD_BLOCKED',
+        blockers: [
+          { id: 'dup-1', text: 'Checklist: Runs/week', code: 'REQUIRED_EVIDENCE_MISSING' },
+        ],
+        softMissing: [],
+        requiredDone: 2,
+        requiredTotal: 3,
+        canAdvance: false,
+      },
+    });
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).queryByTestId('advance-gate-ready')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Checklist: Runs/week')).toBeInTheDocument();
+    expect(within(dialog).getByText('2 of 3 required items complete')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /Advance to G3/ })).toBeDisabled();
+  });
+
+  it('server readiness: renders stage labels for intra-G3 operational transitions', () => {
+    renderModal({
+      gateInfo: {
+        current: 'G3',
+        currentLabel: 'Development',
+        next: 'G3',
+        nextLabel: 'Development',
+        requiresApproval: false,
+        transitionMode: 'stage',
+        currentStageLabel: 'Packaging',
+        nextStageLabel: 'Costing & Nutrition',
+      },
+      serverReadiness: {
+        status: 'PASS',
+        blockers: [],
+        softMissing: [],
+        requiredDone: 2,
+        requiredTotal: 2,
+        canAdvance: true,
+      },
+    });
+
+    const transition = within(screen.getByRole('dialog')).getByTestId('advance-gate-transition');
+    expect(within(transition).getByText('Packaging')).toBeInTheDocument();
+    expect(within(transition).getByText('Costing & Nutrition')).toBeInTheDocument();
+  });
 });

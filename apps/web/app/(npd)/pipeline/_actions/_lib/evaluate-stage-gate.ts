@@ -7,6 +7,8 @@ import {
   assertG4ESignForHandoff,
   checkCostingNutritionReady,
   getBlockers,
+  hasG3ESignForApproval,
+  hasG4ESignForHandoff,
   loadProjectForUpdate,
   resolveAdvanceTransition,
   resolveGateReadiness,
@@ -23,7 +25,7 @@ export type StageGateEvaluation =
 
 export type EvaluateStageGateOptions = {
   /** Formal G3/G4 e-sign approval — enforces checklist/evidence without soft override. */
-  mode?: 'advance' | 'formal_approve';
+  mode?: 'advance' | 'formal_approve' | 'readiness';
   approveGateCode?: 'G3' | 'G4';
 };
 
@@ -194,12 +196,33 @@ export async function evaluateStageGate(
     return { status: 'HARD_BLOCKED', hardReason: blockers[0]?.code ?? 'BLOCKERS_PRESENT', blockers };
   }
 
-  if (mode === 'advance') {
-    if (readiness.currentGate === 'G3' && resolveAdvanceTransition(projectRow)?.targetGate === 'G4') {
-      await assertG3ESignForApproval(db, projectId);
+  const transition = resolveAdvanceTransition(projectRow);
+  if (mode === 'advance' || mode === 'readiness') {
+    if (readiness.currentGate === 'G3' && transition?.targetGate === 'G4') {
+      const hasG3Sign = await hasG3ESignForApproval(db, projectId);
+      if (!hasG3Sign) {
+        const blocker: GateBlocker = {
+          code: 'ESIGN_REQUIRED',
+          message: 'Gate G3 e-signature approval is required before entering the Approval stage.',
+        };
+        if (mode === 'readiness') {
+          return { status: 'HARD_BLOCKED', hardReason: 'ESIGN_REQUIRED', blockers: [blocker] };
+        }
+        await assertG3ESignForApproval(db, projectId);
+      }
     }
     if (fromStage === 'approval' && toStage === 'handoff') {
-      await assertG4ESignForHandoff(db, projectId);
+      const hasG4Sign = await hasG4ESignForHandoff(db, projectId);
+      if (!hasG4Sign) {
+        const blocker: GateBlocker = {
+          code: 'ESIGN_REQUIRED',
+          message: 'Gate G4 e-signature approval is required before handoff.',
+        };
+        if (mode === 'readiness') {
+          return { status: 'HARD_BLOCKED', hardReason: 'ESIGN_REQUIRED', blockers: [blocker] };
+        }
+        await assertG4ESignForHandoff(db, projectId);
+      }
     }
   }
 

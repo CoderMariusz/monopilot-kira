@@ -31,6 +31,8 @@ const ITEM_A = '66666666-6666-4666-8666-666666666666';
 let client: QueryClient;
 let rawMaterialsProvisioned = true;
 let ingredientQueries: string[];
+let costJson: unknown;
+let computedAt: string | null;
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(
@@ -81,7 +83,9 @@ function makeClient(): QueryClient {
   return {
     query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
       const q = normalize(sql);
-      if (q.includes('from public.formulations f')) return { rows: [FORMULATION_ROW] };
+      if (q.includes('from public.formulations f')) {
+        return { rows: [{ ...FORMULATION_ROW, cost_json: costJson, computed_at: computedAt }] };
+      }
       if (q.includes('from public.formulation_ingredients fi')) {
         ingredientQueries.push(q);
         if (q.includes('"reference"."rawmaterials"')) {
@@ -109,6 +113,8 @@ beforeEach(() => {
   client = makeClient();
   rawMaterialsProvisioned = true;
   ingredientQueries = [];
+  costJson = {};
+  computedAt = null;
 });
 
 describe('getFormulation — F-B05 nutrition join + F-A06 live allergen resolution', () => {
@@ -151,6 +157,34 @@ describe('getFormulation — F-B05 nutrition join + F-A06 live allergen resoluti
     if (!result.ok) return;
     expect(result.data.resolvedNutritionByCode).toEqual({
       'RM-1001': { energy_kj: '500' },
+    });
+  });
+
+  it('represents a missing cache as null', async () => {
+    const result = await getFormulation({ projectId: PROJECT_ID });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.cachedCalc).toBeNull();
+  });
+
+  it('nulls unsafe cost fields when cached yieldValid is false', async () => {
+    costJson = {
+      yieldValid: false,
+      yieldedCost: '9.0000',
+      processing: '1.0000',
+      costPerKg: '10.0000',
+      marginPct: '50.00',
+    };
+    computedAt = '2026-07-24T10:00:00.000Z';
+    const result = await getFormulation({ projectId: PROJECT_ID });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.cachedCalc?.costJson).toMatchObject({
+      yieldValid: false,
+      yieldedCost: null,
+      processing: null,
+      costPerKg: null,
+      marginPct: null,
     });
   });
 });

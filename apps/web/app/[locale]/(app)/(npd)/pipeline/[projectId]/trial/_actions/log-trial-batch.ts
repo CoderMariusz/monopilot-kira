@@ -23,6 +23,8 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
+import { isPercentWithinRange } from '../../_lib/yield-percent';
+import { trialFieldErrorFrom } from './_lib/field-errors';
 import {
   TRIAL_WRITE_PERMISSION,
   type LogTrialBatchError,
@@ -34,14 +36,11 @@ const NON_NEG_DECIMAL = z
   .string()
   .trim()
   .regex(/^\d+(\.\d+)?$/, 'must be a non-negative decimal string');
-// yield_pct is NUMERIC(5,2) with a 0..100 CHECK at the DB; mirror it here.
-const PERCENT_0_100 = NON_NEG_DECIMAL.refine(
-  (s) => {
-    const n = Number(s);
-    return Number.isFinite(n) && n >= 0 && n <= 100;
-  },
-  { message: 'yieldPct must be between 0 and 100' },
-);
+// yield_pct is NUMERIC(5,2) with a 0..100 CHECK at the DB; mirror it here
+// (exact Dec comparison — see _lib/yield-percent.ts).
+const PERCENT_0_100 = NON_NEG_DECIMAL.refine(isPercentWithinRange, {
+  message: 'yieldPct must be between 0 and 100',
+});
 
 const RESULT = z.enum(['pass', 'fail', 'pending']);
 const ISO_DATE = z
@@ -135,7 +134,11 @@ function mapDbError(err: unknown): LogTrialBatchError {
 export async function logTrialBatch(raw: unknown): Promise<LogTrialBatchResult> {
   const parsed = LogInput.safeParse(raw);
   if (!parsed.success) {
-    return { ok: false, error: 'invalid_input', message: parsed.error.message };
+    return {
+      ok: false,
+      error: trialFieldErrorFrom(parsed.error, raw),
+      message: parsed.error.message,
+    };
   }
   const input = parsed.data;
 

@@ -80,6 +80,35 @@ describe('deleteTrialBatch', () => {
     expect(r).toEqual({ ok: false, error: 'has_progressed' });
   });
 
+  // The UI hides Delete on a voided row, but a Server Action can be invoked
+  // directly — hard-deleting a voided trial would erase the corrective trail.
+  it('refuses to hard-delete a voided trial', async () => {
+    const calls: Array<{ sql: string }> = [];
+    ctx.handler = (sql) => {
+      calls.push({ sql });
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes('delete from public.trial_batches')) {
+        return {
+          rows: [
+            {
+              id: TRIAL,
+              trial_no: 'T-012',
+              result: 'pending',
+              voided_at: '2026-07-20T10:00:00Z',
+              deleted: false,
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    };
+    const r = await deleteTrialBatch({ id: TRIAL, projectId: PROJECT });
+    expect(r).toEqual({ ok: false, error: 'voided' });
+    // The invariant is enforced in SQL, not only by the returned code.
+    const del = calls.find(({ sql }) => sql.includes('delete from public.trial_batches'));
+    expect(del?.sql).toContain('voided_at is null');
+  });
+
   it('uses BYTE-IDENTICAL npd.trial.write permission', async () => {
     let seenPerm: string | undefined;
     ctx.handler = (sql, params) => {

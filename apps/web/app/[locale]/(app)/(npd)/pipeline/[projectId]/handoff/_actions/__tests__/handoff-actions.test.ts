@@ -97,7 +97,7 @@ describe('getHandoff — RBAC + ready derivation', () => {
     expect(r).toEqual({ ok: false, error: 'not_found' });
   });
 
-  it('derives ready=true only when every item is checked', async () => {
+  it('derives ready=true only when every item is checked and release gates are met', async () => {
     handlerHolder.handler = permHandler(['npd.handoff.read'], (sql) => {
       if (/from public.handoff_checklists/.test(sql)) {
         return {
@@ -120,6 +120,68 @@ describe('getHandoff — RBAC + ready derivation', () => {
           ],
         };
       }
+      if (/from public.npd_projects/.test(sql) && /current_gate/.test(sql)) {
+        return { rows: [{ current_gate: 'G4', product_code: 'FG-9' }] };
+      }
+      if (/from public.npd_projects/.test(sql)) {
+        return {
+          rows: [
+            {
+              product_code: 'SKU-2451',
+              product_name: 'Sliced Ham 200g',
+              npd_locked_for_release_at: null,
+            },
+          ],
+        };
+      }
+      if (/from public.risks/.test(sql)) {
+        return { rows: [{ open_high_count: '0' }] };
+      }
+      if (/from public.bom_headers/.test(sql)) {
+        return { rows: [{ id: 'bom-h', line_count: '2' }] };
+      }
+      if (/from public.factory_specs/.test(sql)) {
+        return { rows: [{ id: 'spec-1' }] };
+      }
+      return { rows: [] };
+    });
+
+    const r = await getHandoff({ projectId: PROJECT });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.ready).toBe(true);
+    expect(r.data.releaseGatesMet).toBe(true);
+    expect(r.data.destinationBom.bomCode).toBe('BOM-238');
+    expect(r.data.destinationBom.productSku).toBe('SKU-2451');
+    expect(r.data.checklist).toHaveLength(2);
+  });
+
+  it('derives ready=false when checklist is complete but release gates are unmet', async () => {
+    handlerHolder.handler = permHandler(['npd.handoff.read'], (sql) => {
+      if (/from public.handoff_checklists/.test(sql)) {
+        return {
+          rows: [
+            {
+              id: CHECKLIST,
+              bom_verification_status: 'pending',
+              destination_bom_code: 'BOM-238',
+              promote_to_production_date: null,
+              destination_warehouse_id: null,
+            },
+          ],
+        };
+      }
+      if (/from public.handoff_checklist_items/.test(sql)) {
+        return {
+          rows: [
+            { id: 'i1', label: 'Recipe locked', is_checked: true, display_order: 1 },
+            { id: 'i2', label: 'Nutrition approved', is_checked: true, display_order: 2 },
+          ],
+        };
+      }
+      if (/from public.npd_projects/.test(sql) && /current_gate/.test(sql)) {
+        return { rows: [{ current_gate: 'G1', product_code: null }] };
+      }
       if (/from public.npd_projects/.test(sql)) {
         return {
           rows: [
@@ -137,10 +199,8 @@ describe('getHandoff — RBAC + ready derivation', () => {
     const r = await getHandoff({ projectId: PROJECT });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.data.ready).toBe(true);
-    expect(r.data.destinationBom.bomCode).toBe('BOM-238');
-    expect(r.data.destinationBom.productSku).toBe('SKU-2451');
-    expect(r.data.checklist).toHaveLength(2);
+    expect(r.data.ready).toBe(false);
+    expect(r.data.releaseGatesMet).toBe(false);
   });
 
   it('surfaces per-gate release status via the read-only preflight probe', async () => {

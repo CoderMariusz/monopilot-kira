@@ -91,6 +91,8 @@ const LABELS: ProjectBriefLabels = {
   attachUnsupportedType: 'Unsupported file type. Allowed: PDF, PNG, JPG, DOCX, XLSX.',
   attachUploadFailed: 'Could not upload the attachment. Please try again.',
   attachDeleteFailed: 'Could not delete the attachment. Please try again.',
+  definitionFrozenBanner: 'Definition locked after signed gate approval.',
+  errDefinitionFrozen: 'Signed gate approval locks product definition fields.',
 };
 
 const READY: ProjectBriefView = {
@@ -113,6 +115,8 @@ const READY: ProjectBriefView = {
   targetAudience: 'Premium retail',
   constraints: 'Shelf life >= 28 days',
   notes: 'Carrefour PL listing target',
+  definitionFrozen: false,
+  signedApprovalGates: [],
 };
 
 beforeEach(() => {
@@ -171,6 +175,22 @@ describe('ProjectBriefScreen — inline edit form (write grant)', () => {
     expect(save).toBeDisabled();
     fireEvent.change(screen.getByTestId('brief-field-notes'), { target: { value: 'Updated note' } });
     expect(save).toBeEnabled();
+  });
+
+  it('locks critical fields after a signed gate approval but still allows notes edits', () => {
+    render(
+      <ProjectBriefScreen
+        state="ready"
+        data={{ ...READY, definitionFrozen: true, signedApprovalGates: ['G4'] }}
+        labels={LABELS}
+        canWrite
+        onUpdate={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('brief-definition-frozen-banner')).toBeInTheDocument();
+    expect(screen.getByTestId('brief-field-packWeightG')).toBeDisabled();
+    expect(screen.getByTestId('brief-field-notes')).not.toBeDisabled();
   });
 
   it('submit: calls the action with the exact zod patch payload, then refreshes', async () => {

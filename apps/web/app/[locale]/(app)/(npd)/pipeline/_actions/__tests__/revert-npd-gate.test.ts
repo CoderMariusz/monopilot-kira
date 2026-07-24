@@ -53,6 +53,7 @@ function handler(row = project()): { calls: Array<{ sql: string; params?: readon
       calls.push({ sql, params });
       if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
       if (sql.includes('from public.npd_projects') && sql.includes('for update')) return { rows: [row] };
+      if (sql.includes('update public.gate_approvals') && sql.includes('superseded_at')) return { rows: [] };
       if (sql.includes('update public.npd_projects')) return { rows: [] };
       if (sql.includes('insert into public.outbox_events')) return { rows: [] };
       return { rows: [] };
@@ -112,8 +113,23 @@ describe('revertNpdGate', () => {
       to_gate: 'G2',
       reason: 'Trial failed label review.',
       actor_user_id: mocks.ctx.userId,
+      superseded_gate: 'G3',
+      revert_signature_id: 'sig-1',
     });
     expect(revalidateLocalized).toHaveBeenCalledWith(`/npd/pipeline/${PROJECT}`);
+  });
+
+  it('supersedes the active signed approval for the reverted gate before moving back', async () => {
+    const setup = handler(project({ current_gate: 'G4', current_stage: 'approval' }));
+    mocks.ctx.handler = setup.handle;
+
+    const result = await revertNpdGate({ projectId: PROJECT, reason: 'Label evidence failed.', pin: '123456' });
+
+    expect(result).toEqual({ success: true });
+    const supersede = setup.calls.find(
+      (call) => /update public\.gate_approvals/.test(call.sql) && call.sql.includes('superseded_at'),
+    );
+    expect(supersede?.params).toEqual([PROJECT, 'G4', mocks.ctx.userId, 'Label evidence failed.', 'sig-1']);
   });
 
   it('refuses to revert below the first gate', async () => {

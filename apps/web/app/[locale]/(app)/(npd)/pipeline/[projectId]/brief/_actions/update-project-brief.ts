@@ -18,6 +18,8 @@ import {
 } from '../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom';
 import { syncLinkedFgNameFromProject } from '../../../../../../../(npd)/pipeline/_actions/_lib/project-fg-sync';
 import { parseRetailPriceEurInput } from '../../../../../../../(npd)/pipeline/_actions/_lib/retail-price-eur';
+import { guardBriefPatchAfterSignedApproval } from '../_lib/brief-approval-guards';
+import { hasActiveVerifiedG4Approval } from '../../../../../../../../lib/npd/g4-definition-freeze';
 
 const WRITE_PERMISSION = 'npd.core.write';
 
@@ -93,7 +95,13 @@ const inputSchema = z.object({
 
 type UpdateProjectBriefResult =
   | { ok: true; data: { projectId: string } }
-  | { ok: false; error: 'INVALID_INPUT' | 'FORBIDDEN' | 'NOT_FOUND' | 'PERSISTENCE_FAILED'; status: number };
+  | {
+      ok: false;
+      error: 'INVALID_INPUT' | 'FORBIDDEN' | 'NOT_FOUND' | 'PERSISTENCE_FAILED' | 'SIGNED_DEFINITION_FROZEN';
+      status: number;
+      blockedFields?: string[];
+      signedGateCodes?: string[];
+    };
 
 type ProjectBriefAuditRow = {
   id: string;
@@ -150,6 +158,23 @@ export async function updateProjectBrief(rawInput: unknown): Promise<UpdateProje
       );
       const beforeRow = before.rows[0];
       if (!beforeRow) return { ok: false, error: 'NOT_FOUND', status: 404 };
+
+      const definitionFrozen = await hasActiveVerifiedG4Approval(context, parsed.data.projectId);
+      const signedGateCodes = definitionFrozen ? ['G4'] : [];
+      const patchGuard = guardBriefPatchAfterSignedApproval(
+        parsed.data.patch,
+        beforeRow,
+        signedGateCodes,
+      );
+      if (!patchGuard.ok) {
+        return {
+          ok: false,
+          error: 'SIGNED_DEFINITION_FROZEN',
+          status: 409,
+          blockedFields: patchGuard.blockedFields,
+          signedGateCodes: patchGuard.signedGateCodes,
+        };
+      }
 
       const patch = parsed.data.patch;
       const effectiveOutputUnit =

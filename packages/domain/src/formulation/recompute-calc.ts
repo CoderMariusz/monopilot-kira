@@ -16,7 +16,8 @@
  * COSTING v2 — quantity-per-pack model (replaces the broken %-based model):
  *   rawCostPerPack = Σ (qtyKg × costPerKg)         — total RM cost for ONE pack
  *   rawCost (/kg)  = packWeightKg > 0 ? rawCostPerPack / packWeightKg : 0
- *   yieldedCost    = yieldPct > 0 ? rawCost / (yieldPct/100) : rawCost
+ *   yieldedCost    = yieldPct NULL ? rawCost : 0 < yieldPct <= 100
+ *                    ? rawCost / (yieldPct/100) : null
  *   processing     = yieldedCost × (processingOverheadPct/100)   — overhead on raw
  *   packaging      = packagingCostPerKg (DEFAULT 0 — NOT part of the recipe; the
  *                    caller passes packaging only AFTER the packaging stage)
@@ -104,7 +105,7 @@ export interface RecomputeInput {
   batchKg?: Numericish;
   /** Target sell price per pack in EUR. */
   targetPriceEur?: Numericish;
-  /** Process yield percentage (0–100). */
+  /** Process yield percentage (0, 100]; null means unspecified and defaults to 100%. */
   yieldPct?: Numericish;
   /**
    * Pack net weight in kg = npd_projects.pack_weight_g / 1000. No default —
@@ -143,18 +144,20 @@ export interface RecomputeResult {
   rawCostPerPack: string;
   /** Raw material cost per kg = rawCostPerPack / packWeightKg, 4 dp string. */
   rawCost: string;
-  /** Cost per kg after yield loss, 4 dp string. */
-  yieldedCost: string;
-  /** Processing overhead per kg, 4 dp string. */
-  processing: string;
+  /** True iff yieldPct is null/unspecified or in the valid (0, 100] range. */
+  yieldValid: boolean;
+  /** Cost per kg after yield loss, or null when yield is invalid. */
+  yieldedCost: string | null;
+  /** Processing overhead per kg, or null when yield is invalid. */
+  processing: string | null;
   /** Packaging cost per kg, 4 dp string. */
   packaging: string;
-  /** Total fully-loaded cost per kg, 4 dp string. */
-  costPerKg: string;
+  /** Total fully-loaded cost per kg, or null when yield is invalid. */
+  costPerKg: string | null;
   /** Revenue per kg derived from target price / pack weight, 4 dp string. */
   revenuePerKg: string;
-  /** Gross margin percentage, 2 dp string (may be negative). */
-  marginPct: string;
+  /** Gross margin percentage, or null when yield is invalid. */
+  marginPct: string | null;
   /** Per-100g nutrition, weighted sum keyed by nutrient code, 2 dp strings. */
   nutrition: Record<string, string>;
   /** Sorted, deduped union of ingredient + process allergens. */
@@ -208,17 +211,28 @@ export function recomputeCalc(input: RecomputeInput): RecomputeResult {
     : rawCostPerPackDec.div(packWeightDec);
 
   // ── yield / processing / packaging / total ─────────────────────────────────
-  const yieldPctDec = Dec.from(input.yieldPct);
-  const yieldedCostDec = yieldPctDec.isZero()
-    ? rawCostDec
-    : rawCostDec.div(yieldPctDec.div(HUNDRED));
+  // Legacy NULL means "not provided", so it preserves the old no-loss behavior
+  // as 100%. Explicit 0 is data, not absence, and remains invalid.
+  const yieldPctDec =
+    input.yieldPct === null || input.yieldPct === undefined
+      ? HUNDRED
+      : Dec.from(input.yieldPct);
+  const yieldValid =
+    yieldPctDec.cmp(Dec.zero()) > 0 &&
+    yieldPctDec.cmp(HUNDRED) <= 0;
+  const yieldedCostDec = yieldValid
+    ? rawCostDec.div(yieldPctDec.div(HUNDRED))
+    : null;
 
   const overheadPctDec = Dec.from(input.processingOverheadPct ?? DEFAULT_PROCESSING_OVERHEAD_PCT);
-  const processingDec = yieldedCostDec.mul(overheadPctDec.div(HUNDRED));
+  const processingDec = yieldedCostDec?.mul(overheadPctDec.div(HUNDRED)) ?? null;
 
   const packagingDec = Dec.from(input.packagingCostPerKg ?? DEFAULT_PACKAGING_COST_PER_KG);
 
-  const costPerKgDec = yieldedCostDec.add(processingDec).add(packagingDec);
+  const costPerKgDec =
+    yieldedCostDec !== null && processingDec !== null
+      ? yieldedCostDec.add(processingDec).add(packagingDec)
+      : null;
 
   // ── revenue & margin ───────────────────────────────────────────────────────
   const targetPriceDec = Dec.from(input.targetPriceEur);
@@ -226,9 +240,11 @@ export function recomputeCalc(input: RecomputeInput): RecomputeResult {
     ? Dec.zero()
     : targetPriceDec.div(packWeightDec);
 
-  const marginPctDec = revenuePerKgDec.isZero()
-    ? Dec.zero()
-    : revenuePerKgDec.sub(costPerKgDec).div(revenuePerKgDec).mul(HUNDRED);
+  const marginPctDec = costPerKgDec === null
+    ? null
+    : revenuePerKgDec.isZero()
+      ? Dec.zero()
+      : revenuePerKgDec.sub(costPerKgDec).div(revenuePerKgDec).mul(HUNDRED);
 
   // ── nutrition per-100g weighted sum ────────────────────────────────────────
   const nutrition = computeNutritionPer100g(
@@ -248,12 +264,13 @@ export function recomputeCalc(input: RecomputeInput): RecomputeResult {
     allRmHaveCost,
     rawCostPerPack: rawCostPerPackDec.toFixed(COST_DP),
     rawCost: rawCostDec.toFixed(COST_DP),
-    yieldedCost: yieldedCostDec.toFixed(COST_DP),
-    processing: processingDec.toFixed(COST_DP),
+    yieldValid,
+    yieldedCost: yieldedCostDec?.toFixed(COST_DP) ?? null,
+    processing: processingDec?.toFixed(COST_DP) ?? null,
     packaging: packagingDec.toFixed(COST_DP),
-    costPerKg: costPerKgDec.toFixed(COST_DP),
+    costPerKg: costPerKgDec?.toFixed(COST_DP) ?? null,
     revenuePerKg: revenuePerKgDec.toFixed(COST_DP),
-    marginPct: marginPctDec.toFixed(MARGIN_DP),
+    marginPct: marginPctDec?.toFixed(MARGIN_DP) ?? null,
     nutrition,
     allergens,
   };

@@ -126,4 +126,77 @@ describe('submitForTrial lock gate (S19)', () => {
     expect(gateSql).toContain('unnest($3::text[])');
     expect(gateSql).not.toContain("nutrition_json->'missingTargets'");
   });
+
+  // PF-R04-12 review: a project whose only trial was VOIDED must get a real new
+  // trial on resubmission — otherwise the version flips to submitted_for_trial
+  // and reports success with nothing behind it. The voided row keeps its number
+  // under the (org_id, project_id, trial_no) unique index, so the new trial must
+  // take the next free sequence rather than reusing 'T-1'.
+  it('creates a fresh trial when the only existing one was voided', async () => {
+    const { submitForTrial } = await import('../submit-for-trial');
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          formulation_id: '66666666-6666-4666-8666-666666666666',
+          version_id: lockedVersionId,
+          state: 'locked',
+          product_code: 'FG-1',
+          actual_total_pct: '100.000',
+          missing_cost_count: 0,
+          missing_nutrition_target_count: 0,
+        }],
+      })
+      // Only trial is voided → no ACTIVE trial, next free number is T-2.
+      .mockResolvedValueOnce({ rows: [{ has_active_trial: false, next_trial_no: 'T-2' }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: lockedVersionId }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(submitForTrial({ projectId, versionId: lockedVersionId })).resolves.toEqual({
+      ok: true,
+      data: { versionId: lockedVersionId, trialCreated: true },
+    });
+
+    const existsProbe = queryMock.mock.calls.find(([sql]) =>
+      String(sql).includes('has_active_trial'),
+    );
+    // Voided rows must not count as an existing trial.
+    expect(String(existsProbe?.[0])).toContain('voided_at is null');
+
+    const insert = queryMock.mock.calls.find(([sql]) =>
+      String(sql).includes('insert into public.trial_batches'),
+    );
+    expect(insert).toBeDefined();
+    expect(insert?.[1]).toContain('T-2');
+  });
+
+  it('does not create a second trial when an active one already exists', async () => {
+    const { submitForTrial } = await import('../submit-for-trial');
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          formulation_id: '66666666-6666-4666-8666-666666666666',
+          version_id: lockedVersionId,
+          state: 'locked',
+          product_code: 'FG-1',
+          actual_total_pct: '100.000',
+          missing_cost_count: 0,
+          missing_nutrition_target_count: 0,
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [{ has_active_trial: true, next_trial_no: 'T-2' }] })
+      .mockResolvedValueOnce({ rows: [{ id: lockedVersionId }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(submitForTrial({ projectId, versionId: lockedVersionId })).resolves.toEqual({
+      ok: true,
+      data: { versionId: lockedVersionId, trialCreated: false },
+    });
+
+    expect(
+      queryMock.mock.calls.some(([sql]) => String(sql).includes('insert into public.trial_batches')),
+    ).toBe(false);
+  });
 });

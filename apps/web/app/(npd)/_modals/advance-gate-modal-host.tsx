@@ -24,9 +24,11 @@ import {
   type AdvanceGateItem,
   type AdvanceGateLabels,
   type AdvanceGateProject,
+  type AdvanceGateServerReadiness,
   type AdvanceGateState,
   type AdvanceProjectGateAction,
 } from './advance-gate-modal';
+import { getStageGateReadiness } from '../pipeline/_actions/get-stage-gate-readiness';
 
 /** The query value that opens this modal. Exported so callers build trigger URLs from one source. */
 export const ADVANCE_GATE_MODAL_PARAM = 'advanceGate';
@@ -43,6 +45,7 @@ export type AdvanceGateModalHostProps = {
   project: AdvanceGateProject;
   gateInfo: AdvanceGateInfo;
   items: AdvanceGateItem[];
+  serverReadiness?: AdvanceGateServerReadiness;
   /** Server-resolved load/permission state for the gate summary (defaults to 'ready'). */
   state?: AdvanceGateState;
   /** Injected only when the user may advance (RBAC resolved server-side). */
@@ -56,6 +59,7 @@ export function AdvanceGateModalHost({
   project,
   gateInfo,
   items,
+  serverReadiness,
   state = 'ready',
   advanceProjectGate,
   onAdvanced,
@@ -65,6 +69,37 @@ export function AdvanceGateModalHost({
   const searchParams = useSearchParams();
 
   const modal = searchParams?.get('modal') ?? null;
+  const open = modal === ADVANCE_GATE_MODAL_PARAM;
+
+  const [resolvedGateInfo, setResolvedGateInfo] = React.useState(gateInfo);
+  const [resolvedItems, setResolvedItems] = React.useState(items);
+  const [resolvedReadiness, setResolvedReadiness] = React.useState(serverReadiness);
+  const [readinessLoading, setReadinessLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    setResolvedGateInfo(gateInfo);
+    setResolvedItems(items);
+    setResolvedReadiness(serverReadiness);
+  }, [gateInfo, items, serverReadiness]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setReadinessLoading(true);
+    void getStageGateReadiness({ projectId: project.id, purpose: 'advance' })
+      .then((result) => {
+        if (cancelled || !result.ok) return;
+        setResolvedGateInfo(result.data.gateInfo);
+        setResolvedItems(result.data.items);
+        setResolvedReadiness(result.data.readiness);
+      })
+      .finally(() => {
+        if (!cancelled) setReadinessLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, project.id]);
 
   const closeModal = React.useCallback(() => {
     const params = new URLSearchParams(searchParams?.toString() ?? '');
@@ -78,16 +113,20 @@ export function AdvanceGateModalHost({
     router.refresh();
   }, [closeModal, router]);
 
+  const effectiveState: AdvanceGateState = readinessLoading ? 'loading' : state;
+
   return (
     <AdvanceGateModal
-      open={modal === ADVANCE_GATE_MODAL_PARAM}
+      open={open}
       labels={labels}
       project={project}
-      gateInfo={gateInfo}
-      items={items}
-      state={state}
+      gateInfo={resolvedGateInfo}
+      items={resolvedItems}
+      serverReadiness={resolvedReadiness}
+      state={effectiveState}
       advanceProjectGate={advanceProjectGate}
       onAdvanced={onAdvanced ?? defaultAdvanced}
+      onReadinessBlocked={setResolvedReadiness}
       onClose={closeModal}
     />
   );

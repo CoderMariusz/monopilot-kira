@@ -63,27 +63,36 @@ export async function upsertCapacityBlock(rawInput: {
       );
       if (!lineResult.rows[0]) return { ok: false as const, error: 'invalid_line' as const };
 
+      // `for update of tb` locks the trial row so this booking serializes against
+      // a concurrent void (which locks the same row before releasing its slot).
+      // Without it, book-vs-void can interleave and leave a line reserved for a
+      // trial that no longer exists as evidence.
       const trialResult = await ctx.client.query<{
         trial_id: string;
         trial_no: string;
         project_id: string;
         project_code: string;
+        voided_at: string | null;
       }>(
         `select tb.id::text as trial_id,
                 tb.trial_no,
                 p.id::text as project_id,
-                p.code as project_code
+                p.code as project_code,
+                tb.voided_at::text as voided_at
            from public.trial_batches tb
            join public.npd_projects p
              on p.org_id = tb.org_id
             and p.id = tb.project_id
           where tb.org_id = app.current_org_id()
             and tb.id = $1::uuid
-          limit 1`,
+          limit 1
+            for update of tb`,
         [input.trialId],
       );
       const trial = trialResult.rows[0];
       if (!trial) return { ok: false as const, error: 'trial_not_found' as const };
+      // A voided trial is withdrawn evidence — it must never hold line time.
+      if (trial.voided_at) return { ok: false as const, error: 'voided' as const };
 
       const label = `${trial.project_code} trial ${trial.trial_no}`;
       const saved = await ctx.client.query<{ id: string }>(

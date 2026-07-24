@@ -59,6 +59,20 @@ export type AdvanceGateInfo = {
   next: TargetGate;
   nextLabel: string;
   requiresApproval: boolean;
+  /** When the gate code is unchanged (intra-G3 operational steps), show stage names. */
+  transitionMode?: 'gate' | 'stage';
+  currentStageLabel?: string;
+  nextStageLabel?: string;
+};
+
+/** Server-authoritative readiness — the same evaluation advanceProjectGate enforces. */
+export type AdvanceGateServerReadiness = {
+  status: 'PASS' | 'HARD_BLOCKED' | 'SOFT_GATE_BLOCKED';
+  blockers: Array<{ id: string; text: string; code?: string }>;
+  softMissing: string[];
+  requiredDone: number;
+  requiredTotal: number;
+  canAdvance: boolean;
 };
 
 export type AdvanceGateProject = {
@@ -84,7 +98,15 @@ export type AdvanceProjectGateAction = (input: {
   ok: false;
   error: string;
   status: number;
-  blockers?: Array<{ id?: string; code?: string; text?: string; label?: string; message?: string }>;
+  blockers?: Array<{
+    id?: string;
+    itemId?: string;
+    code?: string;
+    text?: string;
+    itemText?: string;
+    label?: string;
+    message?: string;
+  }>;
   missing?: string[];
 }>;
 
@@ -225,10 +247,12 @@ export function AdvanceGateModal({
   project,
   gateInfo,
   items,
+  serverReadiness,
   state = 'ready',
   advanceProjectGate,
   onAdvanced,
   onESignRequired,
+  onReadinessBlocked,
   onClose,
 }: {
   open: boolean;
@@ -236,12 +260,16 @@ export function AdvanceGateModal({
   project: AdvanceGateProject;
   gateInfo: AdvanceGateInfo;
   items: AdvanceGateItem[];
+  /** Authoritative server evaluation — blocks submit when present and not PASS. */
+  serverReadiness?: AdvanceGateServerReadiness;
   state?: AdvanceGateState;
   advanceProjectGate?: AdvanceProjectGateAction;
   /** Called after a successful advance; the host maps it to revalidation / close. */
   onAdvanced?: () => void;
   /** Called when the server reports that an e-sign approval must be collected first. */
   onESignRequired?: () => void;
+  /** Called when submit returns BLOCKERS_PRESENT so the modal can refresh its snapshot. */
+  onReadinessBlocked?: (readiness: AdvanceGateServerReadiness) => void;
   onClose: () => void;
 }) {
   const { register, handleSubmit, reset, formState, watch } = useForm<NotesForm>({
@@ -266,16 +294,50 @@ export function AdvanceGateModal({
 
   const incompleteRequired = React.useMemo(() => items.filter((i) => i.required && !i.done), [items]);
   const requiredItems = React.useMemo(() => items.filter((i) => i.required), [items]);
-  const requiredDone = requiredItems.filter((i) => i.done).length;
+  const checklistRequiredDone = requiredItems.filter((i) => i.done).length;
+  const checklistRequiredTotal = requiredItems.length;
+  const requiredDone = serverReadiness?.requiredDone ?? checklistRequiredDone;
+  const requiredTotal = serverReadiness?.requiredTotal ?? checklistRequiredTotal;
   const pct = items.length
     ? Math.round((items.filter((i) => i.done).length / items.length) * 100)
     : 0;
 
-  const isBlocked = incompleteRequired.length > 0;
-  const overrideMode = softGateMissing.length > 0;
+  const serverBlockers = serverReadiness?.blockers ?? [];
+  const serverSoftMissing = serverReadiness?.softMissing ?? [];
+  const blockingItems = React.useMemo(() => {
+    if (serverBlockers.length > 0) {
+      return serverBlockers.map((blocker) => ({
+        id: blocker.id,
+        text: blocker.text,
+      }));
+    }
+    return incompleteRequired.map((item) => ({ id: item.id, text: item.text }));
+  }, [incompleteRequired, serverBlockers]);
+  const isBlocked = serverReadiness
+    ? serverReadiness.status === 'HARD_BLOCKED'
+    : incompleteRequired.length > 0;
+  const showReady = serverReadiness
+    ? serverReadiness.status === 'PASS'
+    : incompleteRequired.length === 0;
+  const overrideMode =
+    serverReadiness?.status === 'SOFT_GATE_BLOCKED' ||
+    softGateMissing.length > 0;
+  const effectiveSoftMissing =
+    softGateMissing.length > 0 ? softGateMissing : serverSoftMissing;
   const overrideNote = noteValue.trim();
-  const canAdvance = !isBlocked && (!overrideMode || overrideNote.length > 0);
+  const canAdvance = serverReadiness
+    ? (serverReadiness.status === 'SOFT_GATE_BLOCKED'
+        ? overrideNote.length > 0
+        : serverReadiness.canAdvance)
+    : !isBlocked && (!overrideMode || overrideNote.length > 0);
   const submitting = formState.isSubmitting;
+  const showStageTransition = gateInfo.transitionMode === 'stage';
+  const transitionCurrent = showStageTransition
+    ? (gateInfo.currentStageLabel ?? gateInfo.currentLabel)
+    : gateInfo.current;
+  const transitionTarget = showStageTransition
+    ? (gateInfo.nextStageLabel ?? gateInfo.nextLabel)
+    : gateInfo.next;
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
@@ -292,6 +354,22 @@ export function AdvanceGateModal({
         onAdvanced?.();
       } else if (result?.error === 'ESIGN_REQUIRED') {
         onESignRequired?.();
+        setServerError(resolveSubmitError(result, labels));
+      } else if (result?.error === 'BLOCKERS_PRESENT') {
+        const mappedBlockers = (result.blockers ?? []).map((blocker, index) => ({
+          id: blocker.id ?? blocker.itemId ?? `${blocker.code ?? 'BLOCKER'}-${index}`,
+          text: blocker.text ?? blocker.label ?? blocker.message ?? blocker.itemText ?? blocker.code ?? 'Blocker',
+          code: blocker.code,
+        }));
+        const nextRequiredTotal = Math.max(checklistRequiredTotal, mappedBlockers.length);
+        onReadinessBlocked?.({
+          status: 'HARD_BLOCKED',
+          blockers: mappedBlockers,
+          softMissing: [],
+          requiredDone: checklistRequiredDone,
+          requiredTotal: nextRequiredTotal,
+          canAdvance: false,
+        });
         setServerError(resolveSubmitError(result, labels));
       } else if (result?.error === 'SOFT_GATE_BLOCKED') {
         setSoftGateMissing(result.missing ?? []);
@@ -343,7 +421,7 @@ export function AdvanceGateModal({
                     aria-hidden="true"
                     className="mx-auto mb-1 flex h-14 w-14 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white"
                   >
-                    {gateInfo.current}
+                    {transitionCurrent}
                   </span>
                   <div className="text-[11px] text-slate-500">{gateInfo.currentLabel}</div>
                   <div className="text-[10px] text-slate-500">{labels.currentTag}</div>
@@ -364,7 +442,7 @@ export function AdvanceGateModal({
                     aria-hidden="true"
                     className="mx-auto mb-1 flex h-14 w-14 items-center justify-center rounded-lg bg-slate-100 text-sm font-bold text-slate-500"
                   >
-                    {gateInfo.next}
+                    {transitionTarget}
                   </span>
                   <div className="text-[11px] text-slate-500">{gateInfo.nextLabel}</div>
                   <div className="text-[10px] text-slate-500">{labels.targetTag}</div>
@@ -432,38 +510,38 @@ export function AdvanceGateModal({
                 })}
               </ul>
               <p className="mt-1.5 text-xs text-slate-500">
-                {fmt(labels.requiredComplete, { done: requiredDone, total: requiredItems.length })}
+                {fmt(labels.requiredComplete, { done: requiredDone, total: requiredTotal })}
               </p>
             </div>
 
             {/* ——— Required readiness / ready ——— */}
-            {incompleteRequired.length > 0 ? (
+            {showReady ? (
+              <div role="status" data-testid="advance-gate-ready" className="alert alert-green text-xs">
+                <span aria-hidden="true">✓</span> {labels.readyAlert}
+              </div>
+            ) : overrideMode ? null : (
               <div role="note" data-testid="advance-gate-required-warning" className="alert alert-amber">
                 <p className="alert-title text-amber-800">
                   <span aria-hidden="true">ℹ</span>{' '}
-                  {fmt(labels.requiredIncompleteWarning, { count: incompleteRequired.length })}
+                  {fmt(labels.requiredIncompleteWarning, { count: blockingItems.length || 1 })}
                 </p>
                 <ul data-testid="advance-gate-required-warning-list" className="list-none p-0">
-                  {incompleteRequired.map((b) => (
+                  {blockingItems.map((b) => (
                     <li key={b.id} data-testid="advance-gate-required-warning-item" className="text-xs text-amber-900">
                       <span aria-hidden="true">○</span> {b.text}
                     </li>
                   ))}
                 </ul>
               </div>
-            ) : (
-              <div role="status" data-testid="advance-gate-ready" className="alert alert-green text-xs">
-                <span aria-hidden="true">✓</span> {labels.readyAlert}
-              </div>
             )}
 
-            {softGateMissing.length > 0 ? (
+            {overrideMode ? (
               <div role="alert" data-testid="advance-gate-soft-block" className="alert alert-amber">
                 <p className="alert-title text-amber-800">
                   {labels.softGateBlockedError ?? 'Required stage checks are incomplete. Add an override note to continue.'}
                 </p>
                 <ul data-testid="advance-gate-soft-block-list" className="list-none p-0">
-                  {softGateMissing.map((missing) => (
+                  {effectiveSoftMissing.map((missing) => (
                     <li key={missing} data-testid="advance-gate-soft-block-item" className="text-xs text-amber-900">
                       <span aria-hidden="true">○</span> {missing}
                     </li>

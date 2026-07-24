@@ -39,26 +39,28 @@ export type CostPanelState = 'ready' | 'loading' | 'empty' | 'error' | 'permissi
 
 /**
  * Live cost breakdown — a subset of the T-065 `RecomputeResult` cost roll-up
- * (recompute-calc.ts). Every money/percent field is a NUMERIC decimal STRING as
- * read from Postgres NUMERIC; the panel never receives a JS `number` on the
+ * (recompute-calc.ts). Money/percent fields are NUMERIC decimal strings, or
+ * null when yield is invalid; the panel never receives a JS `number` on the
  * money path. `margin` €/kg is derived here (revenue − cost) so the parent only
  * has to pass the raw recompute result.
  */
 export type CostBreakdown = {
+  /** False means yield-dependent values are intentionally undefined. */
+  yieldValid: boolean;
   /** Raw material cost per kg = Σ(pct/100 × costPerKg). */
   rawCost: string;
   /** Cost per kg after yield loss. */
-  yieldedCost: string;
+  yieldedCost: string | null;
   /** Processing overhead per kg. */
-  processing: string;
+  processing: string | null;
   /** Packaging cost per kg. */
   packaging: string;
   /** Total fully-loaded cost per kg (recompute-calc `costPerKg`). */
-  costPerKg: string;
+  costPerKg: string | null;
   /** Revenue per kg derived from target price / pack weight. */
   revenuePerKg: string;
   /** Gross margin percentage (may be negative). */
-  marginPct: string;
+  marginPct: string | null;
   /** Processing overhead percentage (for the "Processing ({overheadPct}%)" label). */
   overheadPct: string;
 };
@@ -115,7 +117,8 @@ function interpolate(template: string, vars: Record<string, string>): string {
  * NO binary-float math — `Dec.toFixed` does scaled-bigint rounding. A negative
  * sign is preserved and rendered BEFORE the symbol (e.g. "-€0.26").
  */
-function formatMoney(value: string, currency: string): string {
+function formatMoney(value: string | null, currency: string): string {
+  if (value === null) return '—';
   const sym = symbolFor(currency);
   const rounded = Dec.from(value).toFixed(2); // exact half-up; never a float
   const negative = rounded.startsWith('-');
@@ -128,24 +131,28 @@ function formatMoney(value: string, currency: string): string {
  * (matching the prototype's `.toFixed(1)`), no floats.
  * e.g. "51.93" → "51.9%", "-4.20" → "-4.2%".
  */
-function formatPct(value: string): string {
+function formatPct(value: string | null): string {
+  if (value === null) return '—';
   return `${Dec.from(value).toFixed(1)}%`;
 }
 
 /** Exact margin €/kg = revenuePerKg − costPerKg (Dec; never a binary float). */
-function marginPerKg(calc: CostBreakdown): string {
+function marginPerKg(calc: CostBreakdown): string | null {
+  if (calc.costPerKg === null) return null;
   return Dec.from(calc.revenuePerKg).sub(Dec.from(calc.costPerKg)).toFixed(4);
 }
 
 /** True when a decimal STRING is strictly negative (Dec compare, no float). */
-function isNegative(value: string): boolean {
+function isNegative(value: string | null): boolean {
+  if (value === null) return false;
   return Dec.from(value).cmp(Dec.zero()) < 0;
 }
 
 const FIFTEEN = '15';
 
 /** Margin-box tint class per prototype thresholds (< 0 red / < 15 amber / ≥ 15 green). */
-function marginTintClass(marginPctStr: string): string {
+function marginTintClass(marginPctStr: string | null): string {
+  if (marginPctStr === null) return 'bg-slate-50';
   const m = Dec.from(marginPctStr);
   if (m.cmp(Dec.zero()) < 0) return 'bg-red-50';
   if (m.cmp(Dec.from(FIFTEEN)) < 0) return 'bg-amber-50';
@@ -153,7 +160,8 @@ function marginTintClass(marginPctStr: string): string {
 }
 
 /** Margin-% text colour per the same thresholds. */
-function marginPctColour(marginPctStr: string): string {
+function marginPctColour(marginPctStr: string | null): string {
+  if (marginPctStr === null) return 'text-slate-500';
   const m = Dec.from(marginPctStr);
   if (m.cmp(Dec.zero()) < 0) return 'text-red-600';
   if (m.cmp(Dec.from(FIFTEEN)) < 0) return 'text-amber-700';
@@ -278,6 +286,7 @@ export function CostPanel({
   const margin = marginPerKg(calc);
   const marginNegative = isNegative(margin);
   const overheadPct = processingPct ?? calc.overheadPct;
+  const yieldInvalid = !calc.yieldValid || yieldPct <= 0 || yieldPct > 100;
 
   return (
     <Card role="region" aria-labelledby={titleId} data-testid="cost-panel">
@@ -336,10 +345,20 @@ export function CostPanel({
             <Input
               id="cost-yield"
               type="number"
+              min="0.001"
+              max="100"
+              step="any"
               className="form-input mono"
               value={yieldPct}
+              aria-invalid={yieldInvalid}
+              aria-describedby={yieldInvalid ? 'cost-yield-error' : undefined}
               onChange={(e) => onYieldChange(Number(e.target.value))}
             />
+            {yieldInvalid ? (
+              <p id="cost-yield-error" role="alert" className="text-xs text-red-600">
+                0 &lt; {labels.expectedYield} ≤ 100
+              </p>
+            ) : null}
           </div>
           <div className="space-y-1">
             <label htmlFor="cost-processing-pct" className="block text-xs font-medium muted">
@@ -377,7 +396,11 @@ export function CostPanel({
               data-testid="cost-margin"
               className={[
                 'mono text-sm tabular-nums',
-                marginNegative ? 'text-red-600' : 'text-emerald-600',
+                margin === null
+                  ? 'text-slate-500'
+                  : marginNegative
+                    ? 'text-red-600'
+                    : 'text-emerald-600',
               ].join(' ')}
             >
               {formatMoney(margin, currency)}

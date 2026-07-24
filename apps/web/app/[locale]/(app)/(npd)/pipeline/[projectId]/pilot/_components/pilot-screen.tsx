@@ -188,6 +188,9 @@ export type PilotLabels = {
   saving: string;
   cancel: string;
   saveError: string;
+  /** Field-specific save failures (PF-R04-12 — "Could not save" named nothing). */
+  saveErrorYieldRange: string;
+  saveErrorForbidden: string;
   /** Pilot WO affordances (D9). */
   pilotWoTitle: string;
   createPilotWo: string;

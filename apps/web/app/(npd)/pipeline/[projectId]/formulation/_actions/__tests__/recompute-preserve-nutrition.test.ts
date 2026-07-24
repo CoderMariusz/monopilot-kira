@@ -40,6 +40,7 @@ vi.mock('@monopilot/domain', () => ({
     allRmHaveCost: true,
     rawCostPerPack: '100',
     rawCost: '100',
+    yieldValid: true,
     yieldedCost: '100',
     processing: null,
     packaging: null,
@@ -175,5 +176,6 @@ describe('recomputeAndCache — formulation_calc_cache upsert semantics (C1c)', 
     const cost = JSON.parse(upsert.params[1] as string) as Record<string, unknown>;
     expect(cost).toHaveProperty('totalPct');
     expect(cost).toHaveProperty('rawCost');
+    expect(cost.yieldValid).toBe(true);
   });
 });

@@ -19,6 +19,12 @@ import {
   type UpdateFaCellResult,
 } from '../../fa/actions/_lib/fa-cell-shared';
 import { syncLinkedFgNameFromProject } from './_lib/project-fg-sync';
+import {
+  assertProjectDefinitionEditable,
+  DefinitionFrozenError,
+  isProtectedFaFieldCode,
+  isProtectedNpdProjectColumn,
+} from '../../../../lib/npd/g4-definition-freeze';
 
 type SaveStageDeptFieldInput = {
   projectId: string;
@@ -62,6 +68,7 @@ export async function saveStageDeptField(input: SaveStageDeptFieldInput) {
       }
 
       const newValue = await validateValue(ctx, column, parsed.data.value);
+      await assertProtectedFieldEditable(ctx, parsed.data.projectId, parsed.data.fieldCode, column.column_key);
       await ctx.client.query(`select set_config('app.fa_actor_user_id', $1, true)`, [ctx.userId]);
       const result = await updateProjectName(ctx, parsed.data.projectId, newValue);
       await syncLinkedFgNameFromProject(
@@ -87,6 +94,7 @@ export async function saveStageDeptField(input: SaveStageDeptFieldInput) {
       }
 
       const newValue = await validateValue(ctx, column, parsed.data.value);
+      await assertProtectedFieldEditable(ctx, parsed.data.projectId, parsed.data.fieldCode, column.column_key);
       await ctx.client.query(`select set_config('app.fa_actor_user_id', $1, true)`, [ctx.userId]);
       const result = await updateProjectField(ctx, parsed.data.projectId, column.column_key, newValue);
       await writeProjectEditOutbox(ctx, parsed.data.projectId, column.column_key, result);
@@ -281,5 +289,29 @@ function safeRevalidatePath(path: string): void {
     revalidateLocalized(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
+  }
+}
+
+async function assertProtectedFieldEditable(
+  ctx: OrgContextLike,
+  projectId: string,
+  fieldCode: string,
+  columnKey: string,
+): Promise<void> {
+  const normalizedField = fieldCode.trim().toLowerCase();
+  const normalizedColumn = columnKey.trim().toLowerCase();
+  const touchesProtectedDefinition =
+    isProtectedFaFieldCode(normalizedField) ||
+    isProtectedNpdProjectColumn(normalizedColumn) ||
+    isProtectedNpdProjectColumn(normalizedField);
+  if (!touchesProtectedDefinition) return;
+
+  try {
+    await assertProjectDefinitionEditable(ctx, projectId);
+  } catch (error) {
+    if (error instanceof DefinitionFrozenError) {
+      throw new ValidationError('SIGNED_DEFINITION_FROZEN', error.message);
+    }
+    throw error;
   }
 }

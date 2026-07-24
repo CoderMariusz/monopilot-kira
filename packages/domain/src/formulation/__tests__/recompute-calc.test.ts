@@ -203,7 +203,7 @@ describe('recomputeCalc — cost roll-up (money exact, no float)', () => {
     expect(out.marginPct).toMatch(/^-?\d+\.\d{2}$/);
   });
 
-  it('does not divide by zero when yieldPct is 0 (falls back to rawCost)', () => {
+  it('represents yieldPct = 0 as invalid with undefined yield-dependent costs', () => {
     const out = recomputeCalc({
       ingredients: [{ rmCode: 'A', qtyKg: '1', costPerKgEur: '1.00', allergensInherited: [] }],
       targetPriceEur: '2.00',
@@ -211,7 +211,65 @@ describe('recomputeCalc — cost roll-up (money exact, no float)', () => {
       packWeightKg: '1',
       processingOverheadPct: '8',
     });
+    expect(out).toMatchObject({
+      yieldValid: false,
+      rawCost: '1.0000',
+      yieldedCost: null,
+      processing: null,
+      costPerKg: null,
+      marginPct: null,
+    });
+  });
+
+  it('represents a negative yield as invalid instead of producing a finite cost', () => {
+    const out = recomputeCalc({
+      ingredients: [{ rmCode: 'A', qtyKg: '1', costPerKgEur: '1.00', allergensInherited: [] }],
+      targetPriceEur: '2.00',
+      yieldPct: '-1',
+      packWeightKg: '1',
+      processingOverheadPct: '8',
+    });
+    expect(out.yieldValid).toBe(false);
+    expect(out.yieldedCost).toBeNull();
+    expect(out.costPerKg).toBeNull();
+  });
+
+  it('represents yieldPct above 100 as invalid', () => {
+    const out = recomputeCalc({
+      ingredients: [{ rmCode: 'A', qtyKg: '1', costPerKgEur: '1.00', allergensInherited: [] }],
+      targetPriceEur: '2.00',
+      yieldPct: '100.01',
+      packWeightKg: '1',
+      processingOverheadPct: '8',
+    });
+    expect(out.yieldValid).toBe(false);
+    expect(out.costPerKg).toBeNull();
+  });
+
+  it('treats a null yield as 100% while keeping explicit zero invalid', () => {
+    const out = recomputeCalc({
+      ingredients: [{ rmCode: 'A', qtyKg: '1', costPerKgEur: '1.00', allergensInherited: [] }],
+      targetPriceEur: '2.00',
+      yieldPct: null,
+      packWeightKg: '1',
+      processingOverheadPct: '0',
+    });
+    expect(out.yieldValid).toBe(true);
     expect(out.yieldedCost).toBe('1.0000');
+    expect(out.costPerKg).toBe('1.0000');
+  });
+
+  it('accepts yieldPct = 100 and keeps raw cost unchanged', () => {
+    const out = recomputeCalc({
+      ingredients: [{ rmCode: 'A', qtyKg: '1', costPerKgEur: '1.00', allergensInherited: [] }],
+      targetPriceEur: '2.00',
+      yieldPct: '100',
+      packWeightKg: '1',
+      processingOverheadPct: '0',
+    });
+    expect(out.yieldValid).toBe(true);
+    expect(out.yieldedCost).toBe('1.0000');
+    expect(out.costPerKg).toBe('1.0000');
   });
 
   it('treats a missing/null cost as zero contribution but flags it', () => {

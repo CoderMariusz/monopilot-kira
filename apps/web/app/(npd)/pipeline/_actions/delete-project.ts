@@ -31,7 +31,7 @@ export type DeleteProjectResult =
 /** Postgres SQLSTATE for foreign_key_violation. */
 const PG_FK_VIOLATION = '23503';
 
-/** Thrown inside withOrgContext after linked-FG archive writes so the txn rolls back. */
+/** Thrown inside withOrgContext after pre-delete writes so the txn rolls back. */
 class HasDependentsError extends Error {
   constructor() {
     super('HAS_DEPENDENTS');
@@ -39,8 +39,66 @@ class HasDependentsError extends Error {
   }
 }
 
-function throwIfArchivedLinkedFg(archivedLinkedFg: boolean): void {
-  if (archivedLinkedFg) throw new HasDependentsError();
+function throwIfPreDeleteWrites(preDeleteWrites: boolean): void {
+  if (preDeleteWrites) throw new HasDependentsError();
+}
+
+async function voidProjectSensory(
+  ctx: OrgContextLike,
+  project: { id: string; code: string },
+): Promise<boolean> {
+  const reason = `Parent NPD project ${project.code} was deleted`;
+  const { rows } = await ctx.client.query<{ resource_id: string }>(
+    `with voided as (
+       update public.technical_sensory_evaluations sensory
+          set voided_at = now(),
+              voided_by = $3::uuid,
+              void_reason = $4,
+              updated_at = now()
+        where sensory.org_id = app.current_org_id()
+          and sensory.subject_type = 'project'
+          and sensory.voided_at is null
+          and (
+            sensory.npd_project_id = $1::uuid
+            or (
+              sensory.npd_project_id is null
+              and sensory.subject_ref in ($1::uuid::text, $2)
+            )
+          )
+      returning sensory.id::text as resource_id,
+                sensory.subject_ref,
+                sensory.status,
+                sensory.status_reason
+     ),
+     audited as (
+       insert into public.audit_events
+         (org_id, actor_user_id, actor_type, action, resource_type, resource_id,
+          before_state, after_state, request_id, retention_class)
+       select app.current_org_id(),
+              $3::uuid,
+              'user',
+              'technical.sensory.voided',
+              'technical_sensory_evaluation',
+              voided.resource_id,
+              jsonb_build_object(
+                'subject_ref', voided.subject_ref,
+                'status', voided.status,
+                'status_reason', voided.status_reason
+              ),
+              jsonb_build_object(
+                'voided', true,
+                'void_reason', $4,
+                'npd_project_id', $1::uuid
+              ),
+              gen_random_uuid(),
+              'operational'
+         from voided
+      returning resource_id
+     )
+     select resource_id from audited`,
+    [project.id, project.code, ctx.userId, reason],
+  );
+  return rows.length > 0;
 }
 
 /**
@@ -75,6 +133,10 @@ export async function deleteProject(rawInput: unknown): Promise<DeleteProjectRes
       const project = existing[0];
       if (!project) return { ok: false, error: 'NOT_FOUND' };
 
+      // Preserve Technical sensory history but make it non-live/non-editable.
+      // Migration 516 provides the durable parent id; UUID/code fallbacks cover
+      // legacy rows created while subject_ref was the only soft reference.
+      const voidedSensory = await voidProjectSensory(ctx, project);
       const linkedProductCode = project.product_code?.trim() || null;
       let archivedLinkedFg = false;
       if (linkedProductCode) {
@@ -94,14 +156,14 @@ export async function deleteProject(rawInput: unknown): Promise<DeleteProjectRes
         deleted = rows[0];
       } catch (err) {
         if ((err as { code?: string })?.code === PG_FK_VIOLATION) {
-          throwIfArchivedLinkedFg(archivedLinkedFg);
+          throwIfPreDeleteWrites(voidedSensory || archivedLinkedFg);
           return { ok: false, error: 'HAS_DEPENDENTS' };
         }
         throw err;
       }
 
       if (!deleted) {
-        throwIfArchivedLinkedFg(archivedLinkedFg);
+        throwIfPreDeleteWrites(voidedSensory || archivedLinkedFg);
         return { ok: false, error: 'NOT_FOUND' };
       }
 
@@ -134,6 +196,11 @@ export async function deleteProject(rawInput: unknown): Promise<DeleteProjectRes
     if (err instanceof LinkedFgArchiveBlockedError) {
       return { ok: false, error: 'LINKED_FG_BLOCKED', blockReason: err.reason };
     }
+    console.error('[deleteProject] persistence failed', {
+      projectId,
+      code: (err as { code?: string })?.code,
+      message: err instanceof Error ? err.message : String(err),
+    });
     return { ok: false, error: 'PERSISTENCE_FAILED' };
   }
 }

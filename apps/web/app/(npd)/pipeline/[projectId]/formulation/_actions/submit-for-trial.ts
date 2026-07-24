@@ -72,24 +72,46 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
         return { ok: false, error: 'MISSING_NUTRITION_TARGET' };
       }
 
-      const existingTrial = await ctx.client.query<{ id: string }>(
-        `select id from public.trial_batches
-          where project_id = $1::uuid and org_id = app.current_org_id()
-          limit 1`,
+      // Only an ACTIVE trial counts: if the project's only trial was voided
+      // (migration 518) the resubmission must produce a real one, otherwise the
+      // version flips to `submitted_for_trial` and reports success with no trial
+      // behind it. A voided row still holds its number under the
+      // (org_id, project_id, trial_no) unique index, so take the NEXT free
+      // sequence rather than reusing 'T-1'.
+      const trialState = await ctx.client.query<{
+        has_active_trial: boolean;
+        next_trial_no: string;
+      }>(
+        `select
+           exists (
+             select 1 from public.trial_batches
+              where project_id = $1::uuid
+                and org_id = app.current_org_id()
+                and voided_at is null
+           ) as has_active_trial,
+           'T-' || (
+             coalesce((
+               select max((substring(trial_no from '^T-([0-9]+)$'))::int)
+                 from public.trial_batches
+                where project_id = $1::uuid
+                  and org_id = app.current_org_id()
+             ), 0) + 1
+           ) as next_trial_no`,
         [projectId],
       );
-      const trialAlreadyExists = existingTrial.rows.length > 0;
+      const trialAlreadyExists = trialState.rows[0]?.has_active_trial === true;
+      const nextTrialNo = trialState.rows[0]?.next_trial_no ?? 'T-1';
 
       if (!trialAlreadyExists) {
         await ctx.client.query(
           `insert into public.trial_batches
              (org_id, project_id, trial_no, batch_size_kg, result, created_by, updated_by)
            values (
-             app.current_org_id(), $1::uuid, 'T-1',
+             app.current_org_id(), $1::uuid, $4,
              (select batch_size_kg from public.formulation_versions where id = $2::uuid),
              'pending', $3::uuid, $3::uuid
            )`,
-          [projectId, resolvedVersionId, ctx.userId],
+          [projectId, resolvedVersionId, ctx.userId, nextTrialNo],
         );
       }
 

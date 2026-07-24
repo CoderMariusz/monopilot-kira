@@ -208,6 +208,7 @@ run('formulation Server Actions — REAL DB integration (T-065 rework)', () => {
     expect(Object.keys(nutritionJson).length).toBeGreaterThan(0);
     expect(nutritionJson.protein_g).toBe('15.00');
     expect(nutritionJson.energy_kj).toBe('300.00');
+    expect(cache.rows[0].cost_json.yieldValid).toBe(true);
   });
 
   it('F6: recompute unions PROFILE-derived allergens for item-linked lines, stored only for free-text', async () => {

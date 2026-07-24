@@ -47,8 +47,11 @@ const LABELS: ApprovalHistoryLabels = {
   sigRole: 'Role',
   sigTimestamp: 'Timestamp',
   sigCertId: 'Certificate ID',
+  sigCertUnavailable: 'Certificate hash not recorded for this approval',
   sigVerification: 'Verification',
   sigValid: 'Valid — Signature verified',
+  sigVerificationUnavailable: 'Cannot verify — no certificate hash on record',
+  sigHashRecordedUnverified: 'Hash recorded — verification unavailable',
   approvedIconLabel: 'Approved',
   rejectedIconLabel: 'Rejected',
   loading: 'Loading approval history…',
@@ -69,8 +72,9 @@ const ENTRIES: ApprovalHistoryEntry[] = [
     notes: 'Technical feasibility confirmed. Proceed to business case.',
     date: '2025-10-28',
     eSigned: true,
-    eSignHash: 'SHA256:a8f3b2c9012',
+    eSignHash: `SHA256:${'a'.repeat(64)}`,
     eSignedAt: '2025-10-28T10:30:00.000Z',
+    eSignVerification: 'verified',
   },
   {
     id: 'ah-1',
@@ -184,7 +188,46 @@ describe('T-110 ApprovalHistoryTimeline — e-signature collapsible (AC2)', () =
     expect(within(panel).getByText(LABELS.sigCertId)).toBeInTheDocument();
     expect(within(panel).getByText(LABELS.sigVerification)).toBeInTheDocument();
     // real hash from the entry, not a placeholder
-    expect(within(panel).getByText(/SHA256:a8f3b2c9012/)).toBeInTheDocument();
+    expect(within(panel).getByText(new RegExp(`SHA256:${'a'.repeat(64)}`))).toBeInTheDocument();
+  });
+
+  it('shows an honest unavailable message when the certificate hash is missing', async () => {
+    const user = userEvent.setup();
+    renderTimeline({
+      entries: [
+        {
+          ...ENTRIES[0],
+          id: 'ah-missing-hash',
+          eSignHash: null,
+        },
+      ],
+    });
+
+    await user.click(screen.getByRole('button', { name: LABELS.sigShow }));
+
+    const panel = screen.getByTestId('approval-history-signature-panel');
+    expect(within(panel).getByText(LABELS.sigCertUnavailable)).toBeInTheDocument();
+    expect(within(panel).getByText(LABELS.sigVerificationUnavailable)).toBeInTheDocument();
+    expect(within(panel).queryByText(LABELS.sigValid)).not.toBeInTheDocument();
+  });
+
+  it('does not show verified for a malformed certificate hash', async () => {
+    const user = userEvent.setup();
+    renderTimeline({
+      entries: [
+        {
+          ...ENTRIES[0],
+          id: 'ah-bad-hash',
+          eSignHash: 'x',
+          eSignVerification: 'hash_unverified',
+        },
+      ],
+    });
+
+    await user.click(screen.getByRole('button', { name: LABELS.sigShow }));
+    const panel = screen.getByTestId('approval-history-signature-panel');
+    expect(within(panel).getByText(LABELS.sigHashRecordedUnverified)).toBeInTheDocument();
+    expect(within(panel).queryByText(LABELS.sigValid)).not.toBeInTheDocument();
   });
 });
 

@@ -328,7 +328,7 @@ function buildResult(input: {
   const marginPctFull = input.marginPct ?? computeMarginPct(input.total, input.target);
   const status = computeStatus(marginPctFull, input.marginWarnPct);
   const marginPct = Dec.from(marginPctFull).toFixed(4);
-  const cumulatives = [
+  const values = [
     input.raw,
     input.yielded,
     input.yielded.add(input.labour),
@@ -337,13 +337,17 @@ function buildResult(input: {
     input.yielded.add(input.labour).add(input.setup).add(input.packaging).add(input.overhead),
     input.yielded.add(input.labour).add(input.setup).add(input.packaging).add(input.overhead).add(input.logistics),
     input.total,
-    input.target,
+    // Margin is a standalone amount; target revenue remains available as
+    // targetPriceEur. Therefore total cost + margin = target price.
+    input.target.sub(input.total),
   ];
   const steps: WaterfallStep[] = COSTING_WATERFALL_STEP_NAMES.map((stepName, idx) => ({
     stepIndex: idx + 1,
     stepName,
-    valueEur: cumulatives[idx]!.toFixed(4),
-    deltaPct: idx === 0 ? null : percentChange(cumulatives[idx - 1]!, cumulatives[idx]!),
+    valueEur: values[idx]!.toFixed(4),
+    deltaPct: idx === 0 ? null : idx === values.length - 1
+      ? marginPct
+      : percentChange(values[idx - 1]!, values[idx]!),
   }));
 
   return {

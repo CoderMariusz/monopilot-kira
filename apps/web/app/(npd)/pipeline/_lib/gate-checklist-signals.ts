@@ -37,7 +37,8 @@ export async function loadGateChecklistAutoSignals(
             (select count(bh.id)::int
                from public.bom_headers bh
               where bh.org_id = app.current_org_id()
-                and bh.npd_project_id = p.id) as linked_bom_count
+                and bh.npd_project_id = p.id
+                and bh.status = 'active') as linked_bom_count
        from public.npd_projects p
       where p.org_id = app.current_org_id()
         and p.id = $1::uuid

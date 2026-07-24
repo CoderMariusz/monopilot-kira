@@ -155,6 +155,8 @@ export type HandoffLabels = {
   /** Special-cased error when the FG has no packs-per-box set (S0a contract). */
   generatePacksPerBoxRequired: string;
   generateError: string;
+  /** Activation failure preserves a reviewable draft; interpolates {bomHeaderId} + {reason}. */
+  generateActivationBlocked: string;
   /** W5 hard gate: packaging components not linked to items ({components} placeholder). */
   generatePackagingUnlinked?: string;
   /** W5 routing-bridge warnings (BOM succeeded, routing skipped or draft). */
@@ -227,6 +229,7 @@ export type GenerateCall = { projectId: string };
 export type GenerateOutcome = {
   ok: boolean;
   error?: string;
+  message?: string;
   /** W5: packaging component names blocking the hard gate (error === 'packaging_unlinked'). */
   unlinkedComponents?: string[];
   /** W5: routing-bridge warning codes on success ('no_line' | 'no_processes'). */
@@ -385,6 +388,10 @@ export function HandoffScreen({
   // "Generate production BOM" step (deadlock break) — its own pending + error state.
   const [generating, setGenerating] = React.useState(false);
   const [generateError, setGenerateError] = React.useState<string | null>(null);
+  const [generateActivationBlock, setGenerateActivationBlock] = React.useState<{
+    message: string | null;
+    bomHeaderId: string | null;
+  } | null>(null);
   const [generateUnlinked, setGenerateUnlinked] = React.useState<string[]>([]);
   const [generateWarnings, setGenerateWarnings] = React.useState<string[]>([]);
   // Auto-built production-BOM result + the inline yield-prompt sub-state.
@@ -405,6 +412,7 @@ export function HandoffScreen({
     setReleaseToFactoryError(null);
     setGenerating(false);
     setGenerateError(null);
+    setGenerateActivationBlock(null);
     setPromoteSuccess(null);
     setYieldInput('');
     setYieldSaving(false);
@@ -460,7 +468,7 @@ export function HandoffScreen({
   // Promote is gated on BOTH the handoff checklist AND every release gate. The
   // server preflight remains authoritative; this mirror just stops the button
   // looking "permanently disabled with no reason" (the reported dead end).
-  const releaseGatesMet = releaseGates.length > 0 && releaseGates.every((g) => g.met);
+  const releaseGatesMet = data.releaseGatesMet ?? (releaseGates.length > 0 && releaseGates.every((g) => g.met));
   const releasedToFactory = destinationBom.releaseStatus === 'released_to_factory';
   const canPromote = allChecked && releaseGatesMet && !promoted;
   const canReleaseToFactory = releaseGatesMet && !releasedToFactory;
@@ -561,20 +569,29 @@ export function HandoffScreen({
     if (!onGenerate || generating) return;
     setGenerating(true);
     setGenerateError(null);
+    setGenerateActivationBlock(null);
     setGenerateUnlinked([]);
     setGenerateWarnings([]);
     try {
       const result = await onGenerate({ projectId: data!.projectId });
       if (!result.ok) {
-        // Special-case no_recipe + packs_per_box_required (S0a contract) and the
-        // W5 packaging hard gate; everything else falls back to the generic copy.
+        // Special-case the actionable contracts; unexpected failures use generic copy.
         if (result.error === 'packaging_unlinked') {
           setGenerateUnlinked(result.unlinkedComponents ?? []);
+        }
+        if (result.error === 'bom_activation_blocked') {
+          setGenerateActivationBlock({
+            message: result.message ?? null,
+            bomHeaderId: result.bomHeaderId ?? null,
+          });
+          // The failed activation intentionally committed a reviewable draft.
+          router.refresh();
         }
         setGenerateError(
           result.error === 'no_recipe' ? 'no_recipe'
           : result.error === 'packs_per_box_required' ? 'packs_per_box_required'
           : result.error === 'packaging_unlinked' ? 'packaging_unlinked'
+          : result.error === 'bom_activation_blocked' ? 'bom_activation_blocked'
           : 'error',
         );
       } else {
@@ -696,7 +713,7 @@ export function HandoffScreen({
         <div role="status" data-testid="handoff-promoted-bar" className="alert alert-green">
           <strong>{labels.promotedTitle}</strong> <span>{labels.promotedBody}</span>
         </div>
-      ) : allChecked ? (
+      ) : allChecked && releaseGatesMet ? (
         <div role="status" data-testid="handoff-ready-bar" className="alert alert-green">
           <strong>{labels.readyTitle}</strong> <span>{labels.readyBody}</span>
         </div>
@@ -938,6 +955,16 @@ export function HandoffScreen({
                         : generateError === 'packaging_unlinked'
                         ? (labels.generatePackagingUnlinked ?? 'Packaging components must be linked to items before generating the production BOM: {components}')
                             .replace('{components}', generateUnlinked.join(', '))
+                        : generateError === 'bom_activation_blocked'
+                        ? labels.generateActivationBlocked
+                            .replace(
+                              '{bomHeaderId}',
+                              generateActivationBlock?.bomHeaderId ?? labels.notSet,
+                            )
+                            .replace(
+                              '{reason}',
+                              generateActivationBlock?.message ?? labels.generateError,
+                            )
                         : labels.generateError}
                     </div>
                   </div>

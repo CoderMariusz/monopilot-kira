@@ -160,6 +160,21 @@ describe('CostingScreen — 3-column waterfall', () => {
     expect(within(rmRow).getByText('£600.00')).toBeInTheDocument();
   });
 
+  it('shows the audited margin as £4.71/kg, £2.26/pack and £1130.00/batch', () => {
+    const audited: CostEngineResult = {
+      ...ENGINE_RESULT,
+      marginPct: '90.4',
+      units: { ...ENGINE_RESULT.units, packWeightKg: '0.480', packsPerBatch: '500' },
+      steps: [{ key: 'margin', valuePerPackEur: '2.2600' }],
+    };
+    renderReady({ engineResult: audited });
+    const marginRow = screen.getAllByTestId('waterfall-row')[8]!;
+
+    expect(within(marginRow).getByText('£4.71')).toBeInTheDocument();
+    expect(within(marginRow).getByText('£2.26')).toBeInTheDocument();
+    expect(within(marginRow).getByText('£1130.00')).toBeInTheDocument();
+  });
+
   it('shows em dash when kg or batch is not derivable', () => {
     const noUnits: CostEngineResult = {
       ...ENGINE_RESULT,

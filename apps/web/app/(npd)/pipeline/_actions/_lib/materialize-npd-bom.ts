@@ -33,6 +33,11 @@ function deriveProductionCode(npdCode: string): string { return npdCode; }
 
 type MaterializeNpdBomInput = {
   projectId: string;
+  /**
+   * Generate-only mode: retain a reviewable draft when canonical activation
+   * guards reject it. Other callers keep the historical throw/rollback contract.
+   */
+  preserveDraftOnActivationFailure?: boolean;
 };
 
 type ProjectRow = GateProjectRow & {
@@ -183,7 +188,16 @@ type DbErrorLike = {
 };
 
 export type MaterializeNpdBomResult = {
-  code?: 'PRODUCTION_CODE_CONFLICT' | 'PACKS_PER_BOX_REQUIRED' | 'WIP_ITEM_REQUIRED' | 'AMBIGUOUS_WIP_CONSUMPTION';
+  code?:
+    | 'PRODUCTION_CODE_CONFLICT'
+    | 'PACKS_PER_BOX_REQUIRED'
+    | 'WIP_ITEM_REQUIRED'
+    | 'AMBIGUOUS_WIP_CONSUMPTION'
+    | 'BOM_ACTIVATION_BLOCKED';
+  /** Canonical approval guard that kept the generated version in DRAFT. */
+  activationValidationCode?: 'V-TEC-13' | 'V-TEC-14';
+  /** Actionable canonical guard message (for example SUPPLIER_SPEC_NOT_ACTIVE). */
+  activationMessage?: string;
   /** Populated when code is WIP_ITEM_REQUIRED — definitions lacking an active intermediate item. */
   wipDefinitionIds?: string[];
   /** Populated when code is AMBIGUOUS_WIP_CONSUMPTION — the shared WIP definition. */
@@ -228,6 +242,9 @@ export async function materializeNpdBom(
   const wipIngredients = ingredients.filter((ingredient) => !!ingredient.wip_definition_id);
 
   const existingBom = await loadExistingActiveNpdBom(ctx, project.id, productionCode);
+  const existingDraft = input.preserveDraftOnActivationFailure
+    ? await loadExistingDraftNpdBom(ctx, project.id, productionCode)
+    : null;
   const ingredientDeclaredWipComponents = await resolveWipComponents(ctx, wipIngredients);
   const ingredientDeclaredWipDefinitionIds = new Set(
     ingredientDeclaredWipComponents.map((component) => component.wipDefinitionId),
@@ -298,12 +315,20 @@ export async function materializeNpdBom(
   const existingBomMatches = existingBom
     ? await npdBomContentMatches(ctx, existingBom.id, formulation, expectedLines)
     : false;
+  const existingDraftMatches = existingDraft
+    ? await npdBomContentMatches(ctx, existingDraft.id, formulation, expectedLines)
+    : false;
 
   // v2 anchor #2: a production BOM is built PER BOX, so packs-per-box must be set before we can
   // create or regenerate one. This gate MUST run BEFORE ensureFgItemAndProduct/stampProductCloseoutInputs:
   // those WRITE and this function RETURNS (not throws) on the missing-packs path, so withOrgContext
   // would COMMIT those writes. An unchanged active BOM is still reused idempotently.
-  if (!existingBomMatches && expectedLines.length > 0 && Number(project.packs_per_case ?? 0) <= 0) {
+  if (
+    !existingBomMatches &&
+    !existingDraftMatches &&
+    expectedLines.length > 0 &&
+    Number(project.packs_per_case ?? 0) <= 0
+  ) {
     return {
       code: 'PACKS_PER_BOX_REQUIRED',
       ...emptyResult(project.id, project.product_code, productionCode),
@@ -320,15 +345,39 @@ export async function materializeNpdBom(
     productionCode,
   );
 
-  const bom = existingBomMatches && existingBom ? existingBom : (expectedLines.length > 0
-    ? await createActiveNpdBom(ctx, project, formulation, expectedLines, existingBom)
-    : null);
+  let bom: BomHeaderRow | null = existingBomMatches && existingBom ? existingBom : null;
+  let createdBom = false;
+  let activationBlocked: NpdBomActivationValidationError | null = null;
+  if (!bom && expectedLines.length > 0) {
+    const materialized = await createActiveNpdBom(
+      ctx,
+      project,
+      formulation,
+      expectedLines,
+      existingBom,
+      {
+        reusableDraft: existingDraftMatches ? existingDraft : null,
+        preserveDraftOnActivationFailure: input.preserveDraftOnActivationFailure === true,
+      },
+    );
+    bom = materialized.header;
+    createdBom = materialized.created;
+    activationBlocked = materialized.activationBlocked;
+  }
 
-  const existingSpec = bom ? await loadApprovedFactorySpec(ctx, item.id) : null;
+  // A draft rejected by V-TEC-13/14 is deliberately reviewable but is not factory
+  // release evidence. Never mint/supersede an approved spec for that draft.
+  const existingSpec = bom && !activationBlocked ? await loadApprovedFactorySpec(ctx, item.id) : null;
   let createdSpec: FactorySpecRow | null = null;
-  if (bom && !existingSpec) {
+  if (bom && !activationBlocked && !existingSpec) {
     createdSpec = await createApprovedFactorySpec(ctx, project, item.id, bom);
-  } else if (bom && existingSpec && existingSpec.bom_header_id != null && existingSpec.bom_header_id !== bom.id) {
+  } else if (
+    bom &&
+    !activationBlocked &&
+    existingSpec &&
+    existingSpec.bom_header_id != null &&
+    existingSpec.bom_header_id !== bom.id
+  ) {
     // Regen produced a NEW BOM version while the frozen approved spec still
     // points at the superseded header — check_factory_release_consistency
     // rejects the release on that mismatch (walk-6 HIGH-1). Mirror the BOM's
@@ -351,7 +400,7 @@ export async function materializeNpdBom(
   // trial_allergens_cascade_recomputed_at, and nothing else in the pipeline ever
   // writes it (live walk-5: every project 409'd at handoff→launched on it). The
   // stamp is honest: the recompute genuinely ran here, right after the BOM landed.
-  if (bom) {
+  if (bom && !activationBlocked) {
     const cascadeItemIds = [
       ...plainIngredients.map((ingredient) => ingredient.item_id),
       ...wipComponents.map((component) => component.itemId),
@@ -376,6 +425,13 @@ export async function materializeNpdBom(
   }
 
   return {
+    ...(activationBlocked
+      ? {
+          code: 'BOM_ACTIVATION_BLOCKED' as const,
+          activationValidationCode: activationBlocked.code,
+          activationMessage: activationBlocked.message,
+        }
+      : {}),
     projectId: project.id,
     productCode: project.product_code,
     productionCode,
@@ -383,7 +439,7 @@ export async function materializeNpdBom(
     bomHeaderId: bom?.id ?? null,
     factorySpecId: existingSpec?.id ?? createdSpec?.id ?? null,
     yieldPromptRequired: !formulation.target_yield_pct,
-    createdBom: !(existingBomMatches && existingBom) && !!bom,
+    createdBom,
     createdFactorySpec: !!createdSpec,
   };
 }
@@ -801,66 +857,106 @@ async function loadExistingActiveNpdBom(
   return rows[0] ?? null;
 }
 
+async function loadExistingDraftNpdBom(
+  ctx: OrgContextLike,
+  projectId: string,
+  productCode: string,
+): Promise<BomHeaderRow | null> {
+  const { rows } = await ctx.client.query<BomHeaderRow>(
+    `select draft.id, draft.version
+       from public.bom_headers draft
+      where draft.org_id = app.current_org_id()
+        and draft.npd_project_id = $1::uuid
+        and draft.product_id = $2
+        and draft.origin_module = 'npd'
+        and draft.status = 'draft'
+        and exists (
+          select 1
+            from public.bom_lines line
+           where line.org_id = draft.org_id
+             and line.bom_header_id = draft.id
+        )
+      order by draft.version desc, draft.created_at desc
+      limit 1`,
+    [projectId, productCode],
+  );
+  return rows[0] ?? null;
+}
+
+type ActiveNpdBomResult = {
+  header: BomHeaderRow;
+  created: boolean;
+  activationBlocked: NpdBomActivationValidationError | null;
+};
+
 async function createActiveNpdBom(
   ctx: OrgContextLike,
   project: ProjectRow,
   formulation: LockedFormulationRow,
   lines: ExpectedBomLine[],
   supersedesBom: BomHeaderRow | null,
-): Promise<BomHeaderRow> {
+  options: {
+    reusableDraft: BomHeaderRow | null;
+    preserveDraftOnActivationFailure: boolean;
+  },
+): Promise<ActiveNpdBomResult> {
   const productCode = deriveProductionCode(project.product_code as string);
-  const version = await nextBomVersion(ctx, productCode);
-  const yieldPct = normalizeBomYieldPct(formulation.target_yield_pct);
-  let rows: BomHeaderRow[];
-  try {
-    ({ rows } = await ctx.client.query<BomHeaderRow>(
-      `insert into public.bom_headers
-         (org_id, product_id, item_id, npd_project_id, origin_module, status, version, yield_pct,
-          supersedes_bom_header_id, line_basis, effective_from, notes, created_by_user, app_version)
-       values
-         (app.current_org_id(), $1, (select id from public.items where org_id = app.current_org_id() and item_code = $1), $2::uuid, 'npd', 'draft', $3, $4::numeric,
-          $5::uuid, 'per_box', current_date, $6, $7::uuid, 'npd-release-materialize-v1')
-       returning id, version`,
-      [
-        productCode,
-        project.id,
-        version,
-        yieldPct,
-        supersedesBom?.id ?? null,
-        `Materialized from locked NPD formulation version ${formulation.version_number}.`,
-        ctx.userId,
-      ],
-    ));
-  } catch (error) {
-    throw new Error(formatBomHeaderInsertError(error));
-  }
-  const header = rows[0];
-  if (!header) throw new Error('bom_headers insert returned no row');
+  let header = options.reusableDraft;
+  const created = header == null;
+  if (!header) {
+    const version = await nextBomVersion(ctx, productCode);
+    const yieldPct = normalizeBomYieldPct(formulation.target_yield_pct);
+    let rows: BomHeaderRow[];
+    try {
+      ({ rows } = await ctx.client.query<BomHeaderRow>(
+        `insert into public.bom_headers
+           (org_id, product_id, item_id, npd_project_id, origin_module, status, version, yield_pct,
+            supersedes_bom_header_id, line_basis, effective_from, notes, created_by_user, app_version)
+         values
+           (app.current_org_id(), $1, (select id from public.items where org_id = app.current_org_id() and item_code = $1), $2::uuid, 'npd', 'draft', $3, $4::numeric,
+            $5::uuid, 'per_box', current_date, $6, $7::uuid, 'npd-release-materialize-v1')
+         returning id, version`,
+        [
+          productCode,
+          project.id,
+          version,
+          yieldPct,
+          supersedesBom?.id ?? null,
+          `Materialized from locked NPD formulation version ${formulation.version_number}.`,
+          ctx.userId,
+        ],
+      ));
+    } catch (error) {
+      throw new Error(formatBomHeaderInsertError(error), { cause: error });
+    }
+    header = rows[0] ?? null;
+    if (!header) throw new Error('bom_headers insert returned no row');
 
-  for (const line of lines) {
-    await ctx.client.query(
-      `insert into public.bom_lines
-         (org_id, bom_header_id, line_no, item_id, substitute_item_id, component_code, component_type, quantity, uom,
-          scrap_pct, manufacturing_operation_name, sequence, is_phantom, source)
-       values
-         (app.current_org_id(), $1::uuid, $2, $3::uuid, $4::uuid, $5, $6, $7::numeric, $8,
-          $9::numeric, $10, $11, $12::boolean, $13)`,
-      [
-        header.id,
-        line.line_no,
-        line.item_id,
-        line.substitute_item_id,
-        line.component_code,
-        line.component_type,
-        line.quantity,
-        line.uom,
-        line.scrap_pct,
-        line.manufacturing_operation_name,
-        line.sequence,
-        line.is_phantom,
-        line.source,
-      ],
-    );
+    for (const line of lines) {
+      await ctx.client.query(
+        `insert into public.bom_lines
+           (org_id, bom_header_id, line_no, item_id, substitute_item_id, component_code, component_type, quantity, uom,
+            scrap_pct, manufacturing_operation_name, sequence, is_phantom, source)
+         values
+           (app.current_org_id(), $1::uuid, $2, $3::uuid, $4::uuid, $5, $6, $7::numeric, $8,
+            $9::numeric, $10, $11, $12::boolean, $13)`,
+        [
+          header.id,
+          line.line_no,
+          line.item_id,
+          line.substitute_item_id,
+          line.component_code,
+          line.component_type,
+          line.quantity,
+          line.uom,
+          line.scrap_pct,
+          line.manufacturing_operation_name,
+          line.sequence,
+          line.is_phantom,
+          line.source,
+        ],
+      );
+    }
   }
 
   // Canonical publishBom guards (V-TEC-13 cycle + V-TEC-14 RM usability) — same
@@ -872,7 +968,11 @@ async function createActiveNpdBom(
     { cycleBlockedMessage: 'BOM has a cycle; cannot activate' },
   );
   if (!guard.ok) {
-    throw new NpdBomActivationValidationError(guard.code, guard.message);
+    const activationBlocked = new NpdBomActivationValidationError(guard.code, guard.message);
+    if (options.preserveDraftOnActivationFailure) {
+      return { header, created, activationBlocked };
+    }
+    throw activationBlocked;
   }
 
   // NPD promote is the technical approval step — record approver fields, then publish
@@ -906,7 +1006,7 @@ async function createActiveNpdBom(
     );
   }
 
-  return header;
+  return { header, created, activationBlocked: null };
 }
 
 function buildExpectedBomLines(

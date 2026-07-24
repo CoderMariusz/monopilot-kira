@@ -111,6 +111,8 @@ export function BookLineTimeModal({
         return labels.bookLineTimeErrorInvalidLine;
       case 'trial_not_found':
         return labels.bookLineTimeErrorTrialNotFound;
+      case 'voided':
+        return labels.bookLineTimeErrorVoided;
       case 'persistence_failed':
         return labels.bookLineTimeErrorPersistence;
       default:

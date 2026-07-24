@@ -38,9 +38,12 @@ import {
   GATE_APPROVE_PERMISSION,
   resolveAdvanceTransition,
   resolveGateReadiness,
+  transitionRequiresFormalApproval,
+  formalApprovalGateCode,
   getBlockers,
   type GateProjectRow,
 } from '../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
+import { buildAuthoritativeAdvanceGateInfo } from '../../../../../../(npd)/pipeline/_actions/_lib/map-stage-gate-readiness';
 import {
   PROJECT_VIEW_PERMISSION,
   hasPermission,
@@ -60,6 +63,7 @@ import type {
   AdvanceGateInfo,
   AdvanceGateItem,
   AdvanceGateLabels,
+  AdvanceGateServerReadiness,
   TargetGate,
 } from '../../../../../../(npd)/_modals/advance-gate-modal';
 import type {
@@ -67,7 +71,6 @@ import type {
   ApprovalHistoryLabels,
 } from '../_components/approval-history-timeline';
 import type { GateApprovalProject } from '../../../../../../(npd)/_modals/gate-approval-modal';
-
 /** The page-level UI state mirrors the panel/timeline shared 5-state union. */
 type PageState = PanelState;
 
@@ -117,8 +120,8 @@ const GATE_META: Record<GateKey, GateMeta> = {
   // "Could not record the gate decision" (a new project could never advance past G2).
   // The gate-screen test fixtures already model G2 as requiresApproval:false.
   G2: { label: 'Business Case', next: 'G3', nextLabel: 'Development', advanceTarget: 'G3', requiresApproval: false },
-  G3: { label: 'Development', next: 'G4', nextLabel: 'Testing', advanceTarget: 'G4', requiresApproval: true },
-  G4: { label: 'Testing', next: null, nextLabel: 'Launched', advanceTarget: 'Launched', requiresApproval: true },
+  G3: { label: 'Development', next: 'G4', nextLabel: 'Testing', advanceTarget: 'G4', requiresApproval: false },
+  G4: { label: 'Testing', next: null, nextLabel: 'Launched', advanceTarget: 'Launched', requiresApproval: false },
 };
 
 // ─────────────────────────────── i18n label loaders ────────────────────────────────
@@ -215,8 +218,11 @@ const DEFAULT_HISTORY_LABELS: ApprovalHistoryLabels = {
   sigRole: 'Role',
   sigTimestamp: 'Timestamp',
   sigCertId: 'Certificate ID',
+  sigCertUnavailable: 'Certificate hash not recorded for this approval',
   sigVerification: 'Verification',
   sigValid: 'Valid — Signature verified',
+  sigVerificationUnavailable: 'Cannot verify — no certificate hash on record',
+  sigHashRecordedUnverified: 'Hash recorded — verification unavailable',
   approvedIconLabel: 'Approved',
   rejectedIconLabel: 'Rejected',
   loading: 'Loading approval history…',
@@ -332,6 +338,10 @@ function buildGateViews(
   checklistByGate: Record<ChecklistGate, ChecklistItem[]>,
 ): GateView[] {
   const currentKey = resolveAuthoritativeGateKey(currentGate, currentStage);
+  const formalApproval = transitionRequiresFormalApproval({
+    current_gate: currentGate,
+    current_stage: currentStage,
+  });
   return GATE_ORDER.map((key): GateView => {
     const meta = GATE_META[key];
     const items = (checklistByGate[key] ?? []).map(mapChecklistItem);
@@ -345,7 +355,7 @@ function buildGateViews(
       isCurrent: key === currentKey,
       next: meta.next,
       nextLabel: meta.nextLabel,
-      requiresApproval: meta.requiresApproval,
+      requiresApproval: key === currentKey ? formalApproval : false,
     };
   });
 }
@@ -357,7 +367,16 @@ function buildAdvanceProps(
   currentGate: ProjectGate,
   currentStage: string,
   gates: GateView[],
-): { project: GateScreenData['advanceProject']; info: AdvanceGateInfo; items: AdvanceGateItem[] } {
+  serverBundle?: {
+    gateInfo: AdvanceGateInfo;
+    readiness: AdvanceGateServerReadiness;
+  } | null,
+): {
+  project: GateScreenData['advanceProject'];
+  info: AdvanceGateInfo;
+  items: AdvanceGateItem[];
+  serverReadiness: AdvanceGateServerReadiness | null;
+} {
   const readiness = resolveGateReadiness({ current_gate: currentGate, current_stage: currentStage });
   const currentKey = resolveAuthoritativeGateKey(currentGate, currentStage);
   const meta = GATE_META[currentKey];
@@ -369,19 +388,25 @@ function buildAdvanceProps(
     done: i.done,
   }));
   const transition = readiness.advance;
-  const targetGate = (transition?.targetGate ?? 'Launched') as TargetGate;
-  const nextLabel =
-    targetGate === 'Launched' ? 'Launched' : GATE_META[targetGate as GateKey].label;
+  const fallbackInfo: AdvanceGateInfo = transition
+    ? buildAuthoritativeAdvanceGateInfo({
+        currentGate: readiness.currentGate,
+        currentStage,
+        transition,
+      })
+    : {
+        current: currentKey,
+        currentLabel: meta.label,
+        next: (meta.advanceTarget ?? 'Launched') as TargetGate,
+        nextLabel: meta.nextLabel ?? 'Launched',
+        requiresApproval: meta.requiresApproval,
+      };
+
   return {
     project: { id: projectId, code, name, currentGate: currentKey },
-    info: {
-      current: currentKey,
-      currentLabel: meta.label,
-      next: targetGate,
-      nextLabel,
-      requiresApproval: transition?.requiresESign ?? false,
-    },
+    info: serverBundle?.gateInfo ?? fallbackInfo,
     items,
+    serverReadiness: serverBundle?.readiness ?? null,
   };
 }
 
@@ -390,11 +415,32 @@ function buildApprovalProject(
   code: string,
   name: string,
   currentGate: ProjectGate,
+  currentStage: string,
   gates: GateView[],
+  approvalBundle?: {
+    formalApprovalGateCode?: 'G3' | 'G4' | null;
+    readiness: AdvanceGateServerReadiness;
+  } | null,
 ): GateApprovalProject {
-  // The approval modal only handles the e-sign gates (G3/G4). Default to the current
-  // gate when it is one of those, otherwise G3 (the first e-sign gate) as a safe shell.
-  const gateCode = currentGate === 'G3' || currentGate === 'G4' ? currentGate : 'G3';
+  const gateCode =
+    approvalBundle?.formalApprovalGateCode
+    ?? formalApprovalGateCode({ current_gate: currentGate, current_stage: currentStage })
+    ?? 'G3';
+  if (approvalBundle) {
+    const { readiness } = approvalBundle;
+    const pct = readiness.requiredTotal > 0
+      ? Math.round((readiness.requiredDone / readiness.requiredTotal) * 100)
+      : 0;
+    return {
+      id: projectId,
+      code,
+      name,
+      gateCode,
+      requiredDone: readiness.requiredDone,
+      requiredTotal: readiness.requiredTotal,
+      pct,
+    };
+  }
   const view = gates.find((g) => g.key === gateCode);
   const required = (view?.items ?? []).filter((i) => i.required);
   return {
@@ -421,9 +467,10 @@ function mapApprovalEntry(row: GateApprovalTimelineItem): ApprovalHistoryEntry {
     notes: row.decision === 'rejected' ? row.rejectionReason ?? row.notes : row.notes,
     date: row.esignedAt ?? row.createdAt,
     eSigned,
-    eSignHash: null,
+    eSignHash: row.esignHash,
     eSignedAt: row.esignedAt,
-  } as ApprovalHistoryEntry;
+    eSignVerification: row.esignVerification,
+  };
 }
 
 function buildGateScreenData(
@@ -434,9 +481,19 @@ function buildGateScreenData(
   currentStage: string,
   checklistByGate: Record<ChecklistGate, ChecklistItem[]>,
   approvalsTimeline: GateApprovalTimelineItem[],
+  serverBundle?: {
+    gateInfo: AdvanceGateInfo;
+    readiness: AdvanceGateServerReadiness;
+    items: AdvanceGateItem[];
+    formalApprovalGateCode?: 'G3' | 'G4' | null;
+  } | null,
+  approvalBundle?: {
+    formalApprovalGateCode?: 'G3' | 'G4' | null;
+    readiness: AdvanceGateServerReadiness;
+  } | null,
 ): GateScreenData {
   const gates = buildGateViews(currentGate, currentStage, checklistByGate);
-  const advance = buildAdvanceProps(projectId, code, name, currentGate, currentStage, gates);
+  const advance = buildAdvanceProps(projectId, code, name, currentGate, currentStage, gates, serverBundle);
   const currentKey = resolveAuthoritativeGateKey(currentGate, currentStage);
   const isTerminal = currentGate === 'Launched';
   return {
@@ -444,8 +501,10 @@ function buildGateScreenData(
     gates,
     advanceProject: advance.project,
     advanceGateInfo: advance.info,
-    advanceItems: advance.items,
-    approvalProject: buildApprovalProject(projectId, code, name, currentGate, gates),
+    advanceItems: serverBundle?.items ?? advance.items,
+    advanceServerReadiness: advance.serverReadiness,
+    approvalProject: buildApprovalProject(projectId, code, name, currentGate, currentStage, gates, approvalBundle),
+    approvalServerReadiness: approvalBundle?.readiness ?? null,
     approvals: approvalsTimeline.map(mapApprovalEntry),
     isTerminal,
     launchHardBlockers: [],
@@ -503,6 +562,15 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
     }
 
     const { project, checklistByGate, approvalsTimeline } = result.data;
+    const projectRow = toGateProjectRow(
+      project.id,
+      project.code,
+      project.name,
+      project.currentGate,
+      project.currentStage,
+      project.productCode,
+      project.type,
+    );
     const data = buildGateScreenData(
       project.id,
       project.code,
@@ -511,6 +579,8 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       project.currentStage,
       checklistByGate,
       approvalsTimeline,
+      null,
+      null,
     );
     if (project.currentStage === 'handoff') {
       data.launchHardBlockers = await withOrgContext(async (rawCtx) => {
@@ -575,7 +645,12 @@ async function approveAdapter(
 ) {
   'use server';
   const result = await approveProjectGateAction(input);
-  return result.ok ? { ok: true as const } : { ok: false as const, error: result.error };
+  if (result.ok) return { ok: true as const };
+  return {
+    ok: false as const,
+    error: result.error,
+    blockers: result.blockers,
+  };
 }
 
 // revertNpdGate adapter — forwards to the EXISTING action (revert-npd-gate.ts, T2-owned).
@@ -620,7 +695,9 @@ export default async function GatePage(propsInput: unknown = {}) {
         requiresApproval: false,
       },
       advanceItems: [],
+      advanceServerReadiness: null,
       approvalProject: { id: projectId, code: '', name: '', gateCode: 'G3', requiredDone: 0, requiredTotal: 0, pct: 0 },
+      approvalServerReadiness: null,
       approvals: [],
       isTerminal: false,
       launchHardBlockers: [],

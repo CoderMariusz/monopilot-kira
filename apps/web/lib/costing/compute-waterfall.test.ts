@@ -111,9 +111,9 @@ describe('computeWaterfall — NUMERIC-exact worked example (rawCost=10, yield=9
     expect(byName('Total cost').valueEur).toBe('16.1111');
   });
 
-  it('step 9 Margin vs target price grosses COGS up to target price = COGS / (1 - margin)', () => {
-    // 16.1111 / (1 - 0.20) = 16.1111 / 0.80 = 20.1389 (4dp half-up)
-    expect(byName('Margin vs target price').valueEur).toBe('20.1389');
+  it('step 9 Margin vs target price is target price minus COGS', () => {
+    // Target 20.1389 − COGS 16.1111 = margin 4.0278 (4dp half-up).
+    expect(byName('Margin vs target price').valueEur).toBe('4.0278');
   });
 
   it('reports the breakdown summary: rawCost, marginPct, targetPrice (ex-works = COGS / (1-margin))', () => {
@@ -131,8 +131,27 @@ describe('computeWaterfall — NUMERIC-exact worked example (rawCost=10, yield=9
     expect(byName('Setup').deltaPct).toBe('0.0000');
     // Total cost vs Logistics: both 16.1111 → delta = 0.0000
     expect(byName('Total cost').deltaPct).toBe('0.0000');
-    // Margin vs target price vs Total cost: (20.1389-16.1111)/16.1111*100 = 25.0000% (4dp)
-    expect(byName('Margin vs target price').deltaPct).toBe('25.0000');
+    // Margin is 20% of target price.
+    expect(byName('Margin vs target price').deltaPct).toBe('20.0000');
+  });
+});
+
+describe('computeWaterfall — PF-R04-05 audited margin values', () => {
+  it('keeps revenue separate and reports £2.26/pack margin for the production example', () => {
+    const result = computeWaterfall({
+      rawCostEur: '0.2400',
+      yieldPct: '100',
+      processLabourEur: '0',
+      packagingEur: '0',
+      overheadEur: '0',
+      logisticsEur: '0',
+      marginPct: '90.4',
+    });
+    const byName = (name: string) => result.steps.find((step) => step.stepName === name)!;
+
+    expect(byName('Total cost').valueEur).toBe('0.2400');
+    expect(byName('Margin vs target price').valueEur).toBe('2.2600');
+    expect(result.targetPriceEur).toBe('2.5000');
   });
 });
 

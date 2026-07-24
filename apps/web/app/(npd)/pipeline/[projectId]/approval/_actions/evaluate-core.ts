@@ -252,9 +252,16 @@ async function resolveSensoryInput(
     `select overall_score::text as overall_score
        from public.technical_sensory_evaluations
       where org_id = app.current_org_id()
+        and voided_at is null
         and (
           (subject_type = 'product' and subject_ref = $1)
-          or (subject_type = 'project' and subject_ref = $2)
+          or (
+            subject_type = 'project'
+            and (
+              npd_project_id = $2::uuid
+              or (npd_project_id is null and subject_ref = $2)
+            )
+          )
         )
       order by case when subject_type = 'product' then 0 else 1 end,
                evaluated_at desc nulls last,

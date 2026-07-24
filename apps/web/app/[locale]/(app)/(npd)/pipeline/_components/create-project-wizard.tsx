@@ -220,7 +220,17 @@ export type WizardLabels = {
   /** Label for the source-project picker shown once Clone is selected. */
   cloneSourceLabel: string;
   cloneSourcePlaceholder: string;
+  /** Inline field error when Clone is chosen but no source project is picked. */
+  cloneSourceRequired: string;
   cloneAlert: string;
+  /** Review: heading of the "what is still missing" list (PF-R04-11). */
+  reviewBlockedTitle: string;
+  reviewBlockedBasics: string;
+  reviewBlockedBoxes: string;
+  reviewBlockedBrief: string;
+  reviewBlockedCloneSource: string;
+  /** Review: per-blocker CTA that jumps back to the step that fixes it. */
+  reviewBlockedFix: string;
   reviewTitle: string;
   reviewReady: string;
   reviewName: string;
@@ -534,7 +544,15 @@ export function CreateProjectWizard({
 
     // Clone path: seed a new project from the picked source, applying the brief edits.
     if (form.startFrom === 'clone') {
-      if (!cloneAction || form.cloneSourceId.trim().length === 0) {
+      // A missing (or stale, draft-restored) source is a fixable user mistake,
+      // NOT a permission problem — name it and send the user back to the step
+      // that owns the field. Same predicate the Review blockers use.
+      if (!cloneSources.some((source) => source.id === form.cloneSourceId.trim())) {
+        setServerError(labels.cloneSourceRequired);
+        setStep(3);
+        return;
+      }
+      if (!cloneAction) {
         setServerError(labels.errorForbidden);
         return;
       }
@@ -614,7 +632,7 @@ export function CreateProjectWizard({
       setServerError(labels.errorGeneric);
       setSubmitting(false);
     }
-  }, [createAction, cloneAction, draftScopeId, form, labels, locale, router, todayYmd]);
+  }, [createAction, cloneAction, cloneSources, draftScopeId, form, labels, locale, router, todayYmd]);
 
   // Clone is REAL now (cloneProject) — enabled whenever the action is injected and
   // there is ≥1 source project to clone from (else honestly disabled with a "nothing
@@ -660,13 +678,30 @@ export function CreateProjectWizard({
   const reviewRetailPrice =
     formatRetailPriceEurDisplay(retailPriceParsed) ?? labels.empty;
 
-  // In clone mode the Create button additionally requires a chosen source project.
-  const cloneSourceMissing = form.startFrom === 'clone' && form.cloneSourceId.trim().length === 0;
+  // In clone mode Create additionally requires a source project that STILL
+  // EXISTS: a restored draft can carry an id that has since been deleted or left
+  // the org, which used to sail through Review and fail on save with NOT_FOUND.
+  const cloneSourceMissing =
+    form.startFrom === 'clone' &&
+    !cloneSources.some((source) => source.id === form.cloneSourceId.trim());
+  // Every unmet precondition for Create, paired with the step that fixes it.
+  // PF-R04-11: a disabled Create with no explanation is a dead end — Review must
+  // name what is missing and let the user jump straight to it. These MUST be the
+  // same predicates `onCreate` enforces, or Review says "ready" and the save then
+  // fails with an unexplained error — the original bug in a new costume.
+  // Basics/Brief are gated by Continue, but a restored localStorage draft can
+  // land on step 4 with either still invalid, so they belong here too.
+  const blockers: Array<{ step: number; text: string }> = [
+    ...(basicsIncomplete ? [{ step: 1, text: labels.reviewBlockedBasics }] : []),
+    ...(boxesOutputUnitInvalid(form) ? [{ step: 1, text: labels.reviewBlockedBoxes }] : []),
+    ...(briefIncomplete ? [{ step: 2, text: labels.reviewBlockedBrief }] : []),
+    ...(cloneSourceMissing ? [{ step: 3, text: labels.reviewBlockedCloneSource }] : []),
+  ];
   // The Create CTA is available when blank-create is permitted OR (clone mode) the
-  // clone action is injected. It stays disabled until a clone source is picked.
+  // clone action is injected. It stays disabled while any blocker is listed above.
   const createDisabled =
     submitting ||
-    cloneSourceMissing ||
+    blockers.length > 0 ||
     (form.startFrom === 'clone' ? !cloneAction : !canCreate);
 
   return (
@@ -1036,7 +1071,9 @@ export function CreateProjectWizard({
           {form.startFrom === 'clone' && (
             <div style={{ marginTop: 14 }}>
               <div className="ff">
-                <label htmlFor="wiz-clone-source">{labels.cloneSourceLabel}</label>
+                <label htmlFor="wiz-clone-source">
+                  {labels.cloneSourceLabel} <span className="req" aria-label="required">*</span>
+                </label>
                 <Select
                   id="wiz-clone-source"
                   aria-label={labels.cloneSourceLabel}
@@ -1044,7 +1081,20 @@ export function CreateProjectWizard({
                   value={form.cloneSourceId}
                   options={cloneSourceOptions}
                   onValueChange={(v) => update('cloneSourceId', v)}
+                  required
+                  aria-invalid={cloneSourceMissing || undefined}
+                  aria-describedby={cloneSourceMissing ? 'wiz-clone-source-error' : undefined}
                 />
+                {cloneSourceMissing ? (
+                  <p
+                    id="wiz-clone-source-error"
+                    className="ff-error"
+                    role="alert"
+                    data-testid="wiz-clone-source-error"
+                  >
+                    {labels.cloneSourceRequired}
+                  </p>
+                ) : null}
               </div>
               <div className="alert alert-blue" style={{ marginTop: 10 }} data-testid="wizard-clone-alert">
                 {labels.cloneAlert}
@@ -1060,7 +1110,28 @@ export function CreateProjectWizard({
           <div className="card-title" style={{ marginBottom: 12 }}>
             {labels.reviewTitle}
           </div>
-          <div className="alert alert-green">{labels.reviewReady}</div>
+          {blockers.length > 0 ? (
+            <div className="alert alert-amber" role="alert" data-testid="wizard-review-blockers">
+              <div className="alert-title">{labels.reviewBlockedTitle}</div>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {blockers.map((blocker) => (
+                  <li key={blocker.text} style={{ marginTop: 2 }}>
+                    {blocker.text}{' '}
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => setStep(blocker.step)}
+                      data-testid={`wizard-review-fix-${blocker.step}`}
+                    >
+                      {labels.reviewBlockedFix} →
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="alert alert-green">{labels.reviewReady}</div>
+          )}
           <table style={{ marginTop: 8 }}>
             <tbody>
               <tr>
@@ -1132,7 +1203,11 @@ export function CreateProjectWizard({
               type="button"
               className="btn btn-primary"
               onClick={next}
-              disabled={(step === 1 && basicsIncomplete) || (step === 2 && briefIncomplete)}
+              disabled={
+                (step === 1 && basicsIncomplete) ||
+                (step === 2 && briefIncomplete) ||
+                (step === 3 && cloneSourceMissing)
+              }
               data-testid="wizard-continue"
             >
               {labels.continue} →

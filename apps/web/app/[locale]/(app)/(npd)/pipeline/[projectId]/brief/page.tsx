@@ -115,6 +115,10 @@ const DEFAULT_LABELS: ProjectBriefLabels = {
   errForbidden: 'You do not have permission to edit this brief.',
   errNotFound: 'This project could not be found.',
   errPersistence: 'Could not save the brief. Please try again.',
+  definitionFrozenBanner:
+    'Product definition fields are locked after a signed G4 gate approval. Only notes can be edited until the gate is reverted with a documented reason.',
+  errDefinitionFrozen:
+    'Signed G4 gate approval locks product definition fields. Update notes only, or revert the gate with a documented reason.',
   uploading: 'Uploading…',
   attachColName: 'File',
   attachColSize: 'Size',
@@ -261,6 +265,7 @@ export default async function ProjectBriefPage(propsInput: unknown = {}) {
           projectId={projectId}
           stage="brief"
           data={stageSections}
+          definitionFrozen={loaded.data?.definitionFrozen === true}
           closeSectionLabel={closeSectionLabel}
           labels={stageDeptLabels}
         />
