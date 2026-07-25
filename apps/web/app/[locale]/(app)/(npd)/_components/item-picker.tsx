@@ -27,6 +27,7 @@ import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
 
 import type { ItemPickerOption } from '../../../../(npd)/fa/actions/search-items-types';
+import { symbolFor } from '../pipeline/[projectId]/formulation/_components/cost-panel';
 
 export type ItemPickerLabels = {
   /** Trigger button text (e.g. "+ Add production component"). */
@@ -58,6 +59,13 @@ export type ItemSearchFn<TItemType extends SearchableItemType = ComponentItemTyp
 }) => Promise<ItemPickerOption[]>;
 
 const SEARCH_DEBOUNCE_MS = 250;
+
+function formatPickerCost(item: ItemPickerOption): string {
+  const unit = item.uomBase;
+  if (!item.costPerKgEur) return `—/${unit}`;
+  if (!item.costCurrency) return `${item.costPerKgEur}/${unit}`;
+  return `${symbolFor(item.costCurrency)}${item.costPerKgEur}/${unit}`;
+}
 
 /** English fallbacks so a partial/absent label bundle never crashes the picker. */
 const DEFAULT_PICKER_LABELS: ItemPickerLabels = {
@@ -346,7 +354,7 @@ export function ItemPicker<TItemType extends SearchableItemType = ComponentItemT
                     {item.itemType}
                   </span>
                   <span className="ml-2 text-[10px] tabular-nums text-slate-500">
-                    {item.costPerKgEur ? `€${item.costPerKgEur}/${item.uomBase}` : `—/${item.uomBase}`}
+                    {formatPickerCost(item)}
                   </span>
                 </li>
               ))

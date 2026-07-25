@@ -107,6 +107,8 @@ const LABELS: PilotLabels = {
   saveError: 'Could not save. Check the values and try again.',
   saveErrorYieldRange: 'Expected yield % must be a number between 0 and 100.',
   saveErrorForbidden: 'You do not have permission to change the pilot plan.',
+  stageNotReached:
+    'Pilot planning requires the {requiredStage} stage. This project is at {currentStage} ({currentGate} {gateLabel}).',
   pilotWoTitle: 'Pilot work order',
   createPilotWo: 'Create pilot WO',
   creatingPilotWo: 'Creating pilot WO…',
@@ -368,6 +370,20 @@ describe('PilotScreen — optimistic toggle', () => {
         .find((i) => within(i).getByTestId('pilot-checklist-label').textContent === 'Materials reserved')!;
       expect(after.dataset.checked).toBe('false');
     });
+  });
+
+  it('disables checklist checkboxes when canWrite is false', () => {
+    const onToggle = vi.fn().mockResolvedValue({ ok: true });
+    renderReady({
+      canWrite: false,
+      data: { ...DATA, canWrite: false },
+      onToggleChecklistItem: onToggle,
+    });
+
+    const items = screen.getAllByTestId('pilot-checklist-item');
+    for (const item of items) {
+      expect(within(item).getByRole('checkbox')).toBeDisabled();
+    }
   });
 });
 

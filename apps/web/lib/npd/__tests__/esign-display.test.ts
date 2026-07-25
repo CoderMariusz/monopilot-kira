@@ -31,4 +31,24 @@ describe('esign-display', () => {
   it('keeps date-only values unchanged in approval history', () => {
     expect(formatApprovalHistoryDate('2025-10-28', 'en-GB')).toBe('2025-10-28');
   });
+
+  /**
+   * Hydration: SSR runs in UTC on Vercel, the browser in the user's zone and
+   * locale. An unpinned formatter emits different text for the same instant on
+   * each side. No production call site passes a locale, so the no-argument form
+   * is the one that has to be host-independent — and TZ is flipped around it
+   * because a UTC CI host would otherwise make an unpinned formatter look right.
+   */
+  it('renders the same instant in every host timezone (SSR/client parity)', () => {
+    const iso = '2026-07-17T09:13:14.821Z';
+    const originalTz = process.env.TZ;
+    try {
+      process.env.TZ = 'Asia/Tokyo';
+      expect(formatEsignTimestamp(iso)).toBe('17 Jul 2026, 09:13:14 UTC');
+      process.env.TZ = 'America/New_York';
+      expect(formatEsignTimestamp(iso)).toBe('17 Jul 2026, 09:13:14 UTC');
+    } finally {
+      process.env.TZ = originalTz;
+    }
+  });
 });

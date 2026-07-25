@@ -128,6 +128,43 @@ function makeClient(): QueryClient {
       }
       if (q.startsWith('insert into public.formulation_audit_log')) return { rows: [] };
       if (q.startsWith('insert into public.wip_definition_acks')) return { rows: [] };
+      if (q.includes('with formulation_wips as') && q.includes('raw_material_cost_per_output_unit')) {
+        return {
+          rows: [
+            {
+              line_key: `WIP-BASE:${WIP_DEF_ID}`,
+              wip_definition_id: WIP_DEF_ID,
+              qty_kg: '0.200',
+              yield_pct: '100',
+              raw_material_cost_per_output_unit: '1.5000',
+              composition_missing_cost: false,
+            },
+          ],
+        };
+      }
+      if (q.includes('payload_wips as') && q.includes('raw_material_cost_per_output_unit')) {
+        return {
+          rows: [
+            {
+              line_key: `WIP-BASE:${WIP_DEF_ID}`,
+              wip_definition_id: WIP_DEF_ID,
+              qty_kg: '0.200',
+              yield_pct: '100',
+              raw_material_cost_per_output_unit: '1.5000',
+              composition_missing_cost: false,
+            },
+          ],
+        };
+      }
+      if (q.includes('with formulation_wips as') && q.includes('process_id')) {
+        return { rows: [] };
+      }
+      if (q.includes('payload_defs as') && q.includes('process_id')) {
+        return { rows: [] };
+      }
+      if (q.includes('from public.formulation_versions fv') && q.includes('runs_per_week')) {
+        return { rows: [{ runs_per_week: '1', weekly_volume_packs: '100', avg_batch_qty: '50' }] };
+      }
       throw new Error(`unexpected query in save-draft.ssot.test: ${q.slice(0, 120)}`);
     }),
   };
@@ -175,7 +212,13 @@ describe('saveDraft — F-A06 allergen SSOT (client payload ignored)', () => {
       ingredients: [line({ allergensInherited: ['bogus-client-allergen'] })],
     });
 
-    expect(result).toEqual({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 1 } });
+    expect(result).toMatchObject({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 1 } });
+    if (result.ok) {
+      expect(result.data.ingredients[0]).toMatchObject({
+        rmCode: 'RM-1001',
+        costPerKgEur: '1.00',
+      });
+    }
     expect(insertedRows).not.toBeNull();
     // Multi-allergen preserved IN FULL (F-A08's [0]-truncation can never recur
     // at the persistence layer) and sorted/deduped from the SSOT.
@@ -198,7 +241,7 @@ describe('saveDraft — F-A06 allergen SSOT (client payload ignored)', () => {
       ingredients: [line({ substituteItemId: ITEM_C })],
     });
 
-    expect(result).toEqual({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 1 } });
+    expect(result).toMatchObject({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 1 } });
     expect(insertedRows?.[0]?.substitute_item_id).toBe(ITEM_C);
   });
 
@@ -297,7 +340,31 @@ describe('saveDraft — F-B12 cost from the effective-cost view', () => {
     expect(insertedRows?.[0]?.cost_currency).toBeNull();
   });
 
-  it('persists a manual WIP ingredient cost when the linked item has no master cost', async () => {
+  it('persists canonical live WIP unit cost when the client left cost empty', async () => {
+    const result = await saveDraft({
+      projectId: PROJECT_ID,
+      versionId: VERSION_ID,
+      ingredients: [
+        line({
+          rmCode: 'WIP-BASE',
+          itemId: WIP_ITEM_ID,
+          wipDefinitionId: WIP_DEF_ID,
+          costPerKgEur: null,
+          sequence: 1,
+        }),
+      ],
+    });
+    expect(insertedRows?.[0]?.wip_definition_id).toBe(WIP_DEF_ID);
+    expect(insertedRows?.[0]?.cost_per_kg_eur).toBe('1.5000');
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        ingredients: [{ costPerKgEur: '1.5000', wipDefinitionId: WIP_DEF_ID, derived: true }],
+      },
+    });
+  });
+
+  it('persists a manual WIP ingredient cost when the user typed one', async () => {
     await saveDraft({
       projectId: PROJECT_ID,
       versionId: VERSION_ID,
@@ -340,7 +407,7 @@ describe('saveDraft — formulation version batch size', () => {
       ingredients: [line()],
     });
 
-    expect(result).toEqual({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 1 } });
+    expect(result).toMatchObject({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 1 } });
     expect(versionUpdateParams).toEqual([VERSION_ID, '100', '1.20', '8', true, '0.250000']);
   });
 
@@ -364,7 +431,9 @@ describe('saveDraft — formulation version batch size', () => {
       ingredients: [],
     });
 
-    expect(result).toEqual({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 0 } });
+    // toMatchObject, not toEqual: saveDraft's success payload now also carries the
+    // server-resolved `ingredients[]` that the editor merges to kill the fake margin.
+    expect(result).toMatchObject({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 0 } });
     expect(versionUpdateParams?.[2]).toBe('9999999999.99');
     expect(projectUpdateParams).toEqual([VERSION_ID, '9999999999.99']);
   });

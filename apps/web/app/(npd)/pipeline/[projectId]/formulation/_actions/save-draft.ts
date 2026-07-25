@@ -2,6 +2,7 @@
 
 import { hasPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { loadLiveWipUnitCostMap, liveWipCostLineKey } from '../../../../../../lib/npd/live-wip-cost-query';
 import { createLogger } from '@monopilot/observability';
 import { parseOptionalRetailPriceEur } from '../../../_actions/_lib/retail-price-eur';
 
@@ -34,8 +35,25 @@ type VersionRow = {
   state: string;
 };
 
+export type SaveDraftPersistedIngredient = {
+  sequence: number;
+  rmCode: string;
+  wipDefinitionId: string | null;
+  costPerKgEur: string | null;
+  /** True when the server computed the cost (live WIP path), not a user override. */
+  derived: boolean;
+};
+
 export type SaveDraftResult =
-  | { ok: true; data: { versionId: string; ingredientCount: number } }
+  | {
+      ok: true;
+      data: {
+        versionId: string;
+        ingredientCount: number;
+        /** Authoritative persisted €/kg per line — client must merge after save. */
+        ingredients: SaveDraftPersistedIngredient[];
+      };
+    }
   | {
       ok: false;
       error:
@@ -221,6 +239,18 @@ export async function saveDraft(input: {
         }
       }
 
+      const wipPayloadLines = ingredients
+        .filter((ingredient) => ingredient.wipDefinitionId)
+        .map((ingredient) => ({
+          rmCode: ingredient.rmCode,
+          wipDefinitionId: ingredient.wipDefinitionId as string,
+          qtyKg: ingredient.qtyKg,
+        }));
+      const liveWipUnitCosts =
+        wipPayloadLines.length > 0
+          ? await loadLiveWipUnitCostMap(ctx.client, versionId, wipPayloadLines)
+          : {};
+
       const ingredientRows = ingredients.map((ingredient) => {
         const itemId = ingredient.itemId && resolvedCostByItemId.has(ingredient.itemId) ? ingredient.itemId : null;
         const substituteItemId =
@@ -229,20 +259,27 @@ export async function saveDraft(input: {
             : null;
         const masterCost = itemId ? (resolvedCostByItemId.get(itemId) ?? null) : null;
         const masterCurrency = itemId ? (resolvedCurrencyByItemId.get(itemId) ?? null) : null;
+        const liveWipCostKey =
+          ingredient.wipDefinitionId && !ingredient.costPerKgEur
+            ? liveWipCostLineKey(ingredient.rmCode, ingredient.wipDefinitionId)
+            : null;
+        const liveWipCost = liveWipCostKey ? (liveWipUnitCosts[liveWipCostKey] ?? null) : null;
         return {
           rm_code: ingredient.rmCode,
           item_id: itemId,
           wip_definition_id: ingredient.wipDefinitionId,
           substitute_item_id: substituteItemId,
           qty_kg: ingredient.qtyKg,
-          // F-B12: manual cost wins when the user typed one; master cost is the
-          // fallback when the editable field is empty (WIP/intermediate lines often
-          // have no master cost until the user enters a manual €/kg).
-          cost_per_kg_eur: ingredient.costPerKgEur ?? masterCost,
+          // F-B12: manual cost wins when the user typed one; WIP lines without a
+          // client value use the canonical live WIP unit cost (material + process +
+          // setup / yield); other lines fall back to master effective cost.
+          cost_per_kg_eur: ingredient.costPerKgEur ?? liveWipCost ?? masterCost,
           cost_currency:
             ingredient.costPerKgEur != null
               ? ingredient.costCurrency
-              : (masterCurrency ?? ingredient.costCurrency),
+              : liveWipCost != null
+                ? masterCurrency
+                : (masterCurrency ?? ingredient.costCurrency),
           // F-A06: client payload IGNORED. Item-linked line → profile-derived
           // full array (truly-empty profile → []); free-text line → server-side
           // carryover of what was already persisted (never the wire value).
@@ -353,7 +390,29 @@ export async function saveDraft(input: {
         [row.formulation_id, versionId, JSON.stringify({ ingredientCount: ingredients.length }), ctx.userId],
       );
 
-      return { ok: true, data: { versionId, ingredientCount: ingredients.length } };
+      return {
+        ok: true,
+        data: {
+          versionId,
+          ingredientCount: ingredients.length,
+          ingredients: ingredientRows.map((row, index) => {
+            const ingredient = ingredients[index]!;
+            const hadManualCost = ingredient.costPerKgEur != null;
+            const liveKey =
+              ingredient.wipDefinitionId && !hadManualCost
+                ? liveWipCostLineKey(ingredient.rmCode, ingredient.wipDefinitionId)
+                : null;
+            const derived = Boolean(liveKey && liveWipUnitCosts[liveKey]);
+            return {
+              sequence: row.sequence,
+              rmCode: row.rm_code,
+              wipDefinitionId: row.wip_definition_id,
+              costPerKgEur: row.cost_per_kg_eur,
+              derived,
+            };
+          }),
+        },
+      };
     });
   } catch (error) {
     logger.error(

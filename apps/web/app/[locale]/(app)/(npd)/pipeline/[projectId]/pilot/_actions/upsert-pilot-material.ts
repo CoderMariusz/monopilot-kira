@@ -17,6 +17,7 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { hasPilotPermission } from './get-pilot-run';
+import { assertPilotWriteStage } from './pilot-stage-guard';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
 const DECIMAL = z
@@ -40,6 +41,7 @@ export type UpsertPilotMaterialError =
   | 'invalid_input'
   | 'forbidden'
   | 'not_found'
+  | 'stage_not_reached'
   | 'persistence_failed';
 
 export type UpsertPilotMaterialResult =
@@ -70,6 +72,13 @@ export async function upsertPilotMaterial(raw: unknown): Promise<UpsertPilotMate
     return await withOrgContext(async (ctx) => {
       if (!(await hasPilotPermission(ctx, WRITE_PERMISSION))) {
         return { ok: false as const, error: 'forbidden' as const };
+      }
+
+      const stageGuard = await assertPilotWriteStage(ctx, input.projectId);
+      if (!stageGuard.ok) {
+        return stageGuard.error === 'stage_not_reached'
+          ? { ok: false as const, error: 'stage_not_reached' as const, stage: stageGuard.stage }
+          : { ok: false as const, error: 'not_found' as const };
       }
 
       // The run must exist within the org and belong to the project (RLS-scoped).

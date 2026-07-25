@@ -42,7 +42,7 @@ export async function createOrMapFgCandidateAtG3(
       }
 
       const result = await createFgCandidate(context, project, parsed.data.productCode);
-      safeRevalidatePath(`/npd/pipeline/${project.id}`);
+      safeRevalidatePath(`/pipeline/${project.id}`, 'layout');
       return { ok: true, data: { projectId: project.id, ...result } };
     });
   } catch (error) {
@@ -52,9 +52,9 @@ export async function createOrMapFgCandidateAtG3(
   }
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidateLocalized(path);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

@@ -54,6 +54,7 @@ import { createFormulationVersion } from '../../../../../../(npd)/pipeline/[proj
 import { submitForTrial } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/submit-for-trial';
 import { compareVersions } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/compare-versions';
 import { loadRecipeCascade } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade';
+import { resolveLiveWipCosts } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/resolve-live-wip-costs';
 // C1 — lock recipe: import the legacy-tree action DIRECTLY (no re-export shim).
 import { lockVersion } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/lock-version';
 // A6 — unlock recipe: import the legacy-tree action DIRECTLY (no re-export shim).
@@ -74,6 +75,7 @@ import { FaBomTab, type FaBomTabLabels, type FaBomTabState } from '../../../../.
 import { getFaBom } from '../../../../../../(npd)/fa/[productCode]/_actions/get-fa-bom';
 import type { FaBomResult } from '../../../../../../(npd)/fa/[productCode]/_actions/fa-bom-types';
 import { AuthError } from '../../../../../../(npd)/fa/actions/errors';
+import { WAC_VALUATION_CURRENCY_CODE } from '../../../../../../../lib/finance/upsert-wac';
 
 export const dynamic = 'force-dynamic';
 
@@ -1036,7 +1038,7 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       nutritionTargets={NUTRITION_TARGETS}
       allergenNames={allergenNames}
       allergenReference={loaded.allergenReference}
-      currency="GBP"
+      currency={WAC_VALUATION_CURRENCY_CODE}
       canEdit={loaded.canEdit}
       submitAllowed={loaded.submitAllowed}
       saveDraftAction={saveDraft}
@@ -1044,6 +1046,7 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       submitForTrialAction={submitForTrial}
       compareVersionsAction={compareVersions}
       loadRecipeCascadeAction={loadRecipeCascade}
+      resolveLiveWipCostsAction={resolveLiveWipCosts}
       // C1 — lock recipe: only thread the action when the user can write (same
       // gate as save). The action ALSO enforces `npd.formulation.lock` server-side
       // and surfaces `forbidden` inline if the user lacks the lock grant.

@@ -60,6 +60,27 @@ export function WipDefinitionDetailClient({
 
   const writable = canEdit && header.status !== 'archived';
 
+  // PF-R05-09: `header` is seeded ONCE from props, so a post-mutation
+  // router.refresh() re-renders this component with the fresh server row but the
+  // lifecycle fields stay at their mount-time values — an archived definition
+  // kept rendering a live reusable switch and Archive button. Server-owned
+  // fields re-sync from props; in-progress name/description edits are untouched
+  // (they only reset when the server row itself changed).
+  React.useEffect(() => {
+    setHeader((prev) =>
+      prev.status === definition.status &&
+      prev.version === definition.version &&
+      prev.reusable === definition.reusable
+        ? prev
+        : {
+            ...prev,
+            status: definition.status,
+            version: definition.version,
+            reusable: definition.reusable,
+          },
+    );
+  }, [definition.status, definition.version, definition.reusable]);
+
   async function handleSave() {
     setSaveState('saving');
     setSaveError(null);
@@ -100,6 +121,13 @@ export function WipDefinitionDetailClient({
         return;
       }
       setArchiveOpen(false);
+      // The server row is already archived; without this the Archive button and
+      // the reusable switch stay live until router.refresh() → new props → the
+      // re-sync effect above (~a second on a slow link). ONLY the server-owned
+      // lifecycle fields the archive write touches (status + reusable) — an
+      // in-progress name/description edit is left alone, and the effect still
+      // re-syncs from props when the real row lands.
+      setHeader((prev) => ({ ...prev, status: 'archived', reusable: false }));
       router.push(`/${locale}/technical/wip-library`);
       router.refresh();
     } catch {

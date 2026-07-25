@@ -54,6 +54,13 @@ const LINE_ID = '07300000-0000-4000-8000-0000000000d1';
 const SITE_ID = '07300000-0000-4000-8000-0000000000e1';
 const PRODUCT_CODE = 'FG0042';
 
+const ELIGIBLE_PROJECT = {
+  id: PROJECT,
+  product_code: PRODUCT_CODE,
+  current_stage: 'pilot',
+  current_gate: 'G3',
+} as const;
+
 afterEach(() => {
   handlerHolder.handler = () => ({ rows: [] });
   createWorkOrderChainMock.mockReset();
@@ -114,7 +121,7 @@ function seedHappyPath(rest?: Handler): Handler {
     const override = rest?.(sql, params);
     if (override) return override;
     if (/from public.npd_projects/.test(sql)) {
-      return { rows: [{ id: PROJECT, product_code: PRODUCT_CODE }] };
+      return { rows: [{ ...ELIGIBLE_PROJECT }] };
     }
     if (/from public.product/.test(sql) && /private_jsonb/.test(sql)) {
       return { rows: [{ private_jsonb: {} }] };
@@ -148,10 +155,33 @@ function seedHappyPath(rest?: Handler): Handler {
 }
 
 describe('createPilotWorkOrder', () => {
+  it('rejects on a G0 Brief project with a named stage reason (PF-R05-06)', async () => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
+      if (/from public.npd_projects/.test(sql)) {
+        return { rows: [{ id: PROJECT, product_code: PRODUCT_CODE, current_stage: 'brief', current_gate: 'G0' }] };
+      }
+      return { rows: [] };
+    });
+
+    const result = await createPilotWorkOrder({ projectId: PROJECT });
+    expect(result).toEqual({
+      ok: false,
+      error: 'stage_not_reached',
+      stage: {
+        requiredStage: 'packaging',
+        currentStage: 'brief',
+        currentGate: 'G0',
+      },
+    });
+    expect(createWorkOrderChainMock).not.toHaveBeenCalled();
+  });
+
   it('rejects when the project has no linked FG', async () => {
     handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
       if (/from public.npd_projects/.test(sql)) {
-        return { rows: [{ id: PROJECT, product_code: null }] };
+        return {
+          rows: [{ id: PROJECT, product_code: null, current_stage: 'pilot', current_gate: 'G3' }],
+        };
       }
       return { rows: [] };
     });
@@ -311,7 +341,7 @@ describe('createPilotWorkOrder', () => {
   it('returns recipe_not_ready without materializing when no locked recipe and no active BOM exist', async () => {
     handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
       if (/from public.npd_projects/.test(sql)) {
-        return { rows: [{ id: PROJECT, product_code: PRODUCT_CODE }] };
+        return { rows: [{ ...ELIGIBLE_PROJECT }] };
       }
       if (/from public.product/.test(sql) && /private_jsonb/.test(sql)) {
         return { rows: [{ private_jsonb: {} }] };
@@ -345,7 +375,7 @@ describe('createPilotWorkOrder', () => {
     const linked = { id: WO_ID, wo_number: `WO-pilot-${PRODUCT_CODE}`, status: 'RELEASED' };
     handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
       if (/from public.npd_projects/.test(sql)) {
-        return { rows: [{ id: PROJECT, product_code: PRODUCT_CODE }] };
+        return { rows: [{ ...ELIGIBLE_PROJECT }] };
       }
       if (/from public.product/.test(sql)) {
         return { rows: [{ private_jsonb: { npd_project_pilot_wo_id: WO_ID } }] };
@@ -380,7 +410,7 @@ describe('createPilotWorkOrder', () => {
   it('requires a pilot production line before creating the WO', async () => {
     handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
       if (/from public.npd_projects/.test(sql)) {
-        return { rows: [{ id: PROJECT, product_code: PRODUCT_CODE }] };
+        return { rows: [{ ...ELIGIBLE_PROJECT }] };
       }
       if (/from public.product/.test(sql) && /private_jsonb/.test(sql)) {
         return { rows: [{ private_jsonb: {} }] };
@@ -409,7 +439,7 @@ describe('createPilotWorkOrder', () => {
   it('returns fg_item_missing when the product code has no public.items row', async () => {
     handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
       if (/from public.npd_projects/.test(sql)) {
-        return { rows: [{ id: PROJECT, product_code: PRODUCT_CODE }] };
+        return { rows: [{ ...ELIGIBLE_PROJECT }] };
       }
       if (/from public.product/.test(sql) && /private_jsonb/.test(sql)) {
         return { rows: [{ private_jsonb: {} }] };

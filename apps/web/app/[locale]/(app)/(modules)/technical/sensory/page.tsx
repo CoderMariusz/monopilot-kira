@@ -9,9 +9,11 @@
  *
  * The screen REPORTS sensory state (required / pending / pass / fail / hold /
  * not_required) and surfaces the SENSORIAL_BLOCKED reason for fail/hold so
- * downstream release guards can read it. It is read-only: NO sensory write path,
- * and it does NOT move NPD gate ownership into Technical — NPD consumes the same
- * SensoryStatusBadge read-only. FG is canonical; no FA aliases.
+ * downstream release guards can read it. Technical OWNS sensory: callers holding
+ * technical.sensory.write record and edit evaluations here (the NPD stage screen
+ * is the read-only mirror). Writing an evaluation does NOT move NPD gate
+ * ownership into Technical — NPD consumes the same SensoryStatusBadge read-only.
+ * FG is canonical; no FA aliases.
  *
  * States: loading (RSC Suspense), empty (EmptyState), error, permission-denied
  * (the `denied` branch — no data leak), plus the populated table. No optimistic
@@ -142,8 +144,16 @@ export default async function TechnicalSensoryPage() {
         subtitle={t('subtitle')}
         breadcrumb={[{ label: t('breadcrumb.technical') }, { label: t('breadcrumb.sensory') }]}
       />
-      <div role="note" data-testid="sensory-readonly-note" className="alert alert-amber">
-        <span aria-hidden="true">△</span> {t('readOnlyNote')}
+      {/* PF-R04-13: this screen OWNS sensory — it renders Record/Edit whenever the
+          caller holds technical.sensory.write, so the banner may not claim to be
+          read-only in that case. It states ownership instead; the read-only copy is
+          kept for callers who genuinely cannot write here. */}
+      <div
+        role="note"
+        data-testid={canWrite ? 'sensory-owner-note' : 'sensory-readonly-note'}
+        className={canWrite ? 'alert alert-blue' : 'alert alert-amber'}
+      >
+        <span aria-hidden="true">{canWrite ? 'ⓘ' : '△'}</span> {canWrite ? t('ownerNote') : t('readOnlyNote')}
       </div>
 
       {/* Write affordances — rendered server-side ONLY when the caller holds

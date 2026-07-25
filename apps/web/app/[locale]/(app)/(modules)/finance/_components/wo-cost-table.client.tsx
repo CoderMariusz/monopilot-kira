@@ -22,6 +22,8 @@ export type FinanceWoCostLabels = {
     wo: string;
     product: string;
     outputKg: string;
+    /** Denominates every money column on the row — never a hardcoded symbol. */
+    currency: string;
     materials: string;
     labor: string;
     total: string;
@@ -127,6 +129,7 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
           'woNumber',
           'product',
           'outputKg',
+          'currency',
           'materials',
           'materialsTotal',
           'labor',
@@ -144,6 +147,7 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
           row.woNumber,
           JSON.stringify(row.product),
           row.outputKg,
+          row.currency,
           JSON.stringify(row.materials),
           row.materialsTotal,
           row.labor == null ? null : JSON.stringify(row.labor),
@@ -226,6 +230,7 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
                 <th className="px-4 py-3">{labels.columns.wo}</th>
                 <th className="px-4 py-3">{labels.columns.product}</th>
                 <th className="px-4 py-3 text-right">{labels.columns.outputKg}</th>
+                <th className="px-4 py-3">{labels.columns.currency}</th>
                 <th className="px-4 py-3 text-right">{labels.columns.materials}</th>
                 <th className="px-4 py-3 text-right">{labels.columns.labor}</th>
                 <th className="px-4 py-3 text-right">{labels.columns.total}</th>
@@ -241,7 +246,10 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
                         {row.woNumber}
                       </summary>
                       <div data-testid={`finance-breakdown-${row.woId}`} className="mt-3 min-w-[28rem] rounded border border-slate-200 bg-slate-50 p-3">
-                        <div className="mb-2 text-xs font-semibold uppercase text-slate-500">{labels.breakdown.title}</div>
+                        {/* Currency repeated here: the panel is read detached from the row's currency cell. */}
+                        <div className="mb-2 text-xs font-semibold uppercase text-slate-500">
+                          {labels.breakdown.title} · {row.currency}
+                        </div>
                         {row.materials.length === 0 ? (
                           <div className="text-xs text-slate-500">{labels.empty}</div>
                         ) : (
@@ -289,6 +297,9 @@ export function FinanceWoCostTable({ result, labels }: FinanceWoCostTableProps) 
                   </td>
                   <td className="px-4 py-3 text-slate-700">{row.product.itemCode ?? row.product.name ?? labels.notAvailable}</td>
                   <td className="px-4 py-3 text-right font-mono">{row.outputKg}</td>
+                  <td className="px-4 py-3 font-mono" data-testid={`finance-currency-${row.woId}`}>
+                    {row.currency}
+                  </td>
                   <td className="px-4 py-3 text-right font-mono">{row.materialsTotal}</td>
                   <td className="px-4 py-3 text-right font-mono">{row.labor?.cost ?? labels.breakdown.noLabor}</td>
                   <td className="px-4 py-3 text-right font-mono font-semibold">{row.totalCost}</td>

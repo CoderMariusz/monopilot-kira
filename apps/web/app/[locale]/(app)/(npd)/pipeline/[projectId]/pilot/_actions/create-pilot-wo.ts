@@ -18,6 +18,8 @@ import { withOrgContext } from '../../../../../../../../lib/auth/with-org-contex
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import { materializeNpdBom } from '../../../../../../../(npd)/pipeline/_actions/_lib/materialize-npd-bom';
 import { hasPilotPermission } from './get-pilot-run';
+import { assertPilotWriteStage } from './pilot-stage-guard';
+import type { PilotStageNotReachedContext } from './pilot-stage-guard';
 import { buildPilotWoNumber } from './_helpers';
 
 const Input = z.object({
@@ -28,6 +30,7 @@ type CreatePilotWoError =
   | 'invalid_input'
   | 'forbidden'
   | 'not_found'
+  | 'stage_not_reached'
   | 'no_linked_fg'
   | 'recipe_not_ready'
   | 'no_planned_quantity'
@@ -50,7 +53,7 @@ type PilotWorkOrderLink = {
 
 type CreatePilotWoResult =
   | { ok: true; data: PilotWorkOrderLink; created: boolean; released: boolean }
-  | { ok: false; error: CreatePilotWoError; message?: string; planningError?: string };
+  | { ok: false; error: CreatePilotWoError; message?: string; planningError?: string; stage?: PilotStageNotReachedContext };
 
 const WRITE_PERMISSION = 'npd.pilot.write';
 const WIP_ITEM_REQUIRED_MESSAGE =
@@ -405,10 +408,14 @@ export async function createPilotWorkOrder(raw: unknown): Promise<CreatePilotWoR
         return { ok: false as const, error: 'forbidden' as const };
       }
 
-      const project = await loadProject(ctx, projectId);
-      if (!project) return { ok: false as const, error: 'not_found' as const };
+      const stageGuard = await assertPilotWriteStage(ctx, projectId);
+      if (!stageGuard.ok) {
+        return stageGuard.error === 'stage_not_reached'
+          ? { ok: false as const, error: 'stage_not_reached' as const, stage: stageGuard.stage }
+          : { ok: false as const, error: 'not_found' as const };
+      }
 
-      const productCode = project.product_code?.trim();
+      const productCode = stageGuard.project.product_code?.trim();
       if (!productCode) return { ok: false as const, error: 'no_linked_fg' as const };
 
       const product = await loadProductPrivateJson(ctx, productCode);

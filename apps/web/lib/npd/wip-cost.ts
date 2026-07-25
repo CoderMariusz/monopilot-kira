@@ -353,3 +353,139 @@ function isDecimalString(value: string): boolean {
 function nonNegativeNumberText(value: unknown): string {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? String(value) : '0';
 }
+
+/** DB row shape for WIP process labour (npd_wip_processes or wip_definition_processes). */
+export type LiveWipProcessDbRow = {
+  wip_definition_id: string;
+  process_id: string;
+  duration_hours: string | null;
+  additional_cost: string | null;
+  throughput_per_hour: string | null;
+  throughput_uom: string | null;
+  setup_cost: string | null;
+  rate_per_hour: string | null;
+  headcount: string | null;
+};
+
+function nonNegativeStringText(value: string | null | undefined): string {
+  if (typeof value !== 'string' || !/^-?\d+(\.\d+)?$/.test(value.trim())) return '0';
+  const parsed = Dec.from(value);
+  return parsed.cmp(Dec.zero()) < 0 ? '0' : value.trim();
+}
+
+/** Groups flat process-role rows into {@link WipProcessCostInput} per WIP definition. */
+export function groupWipProcessDbRows(rows: LiveWipProcessDbRow[]): Map<string, WipProcessCostInput[]> {
+  const byDefinition = new Map<string, Map<string, WipProcessCostInput>>();
+  const safeRows = Array.isArray(rows) ? rows : [];
+  for (const row of safeRows) {
+    const defId = row.wip_definition_id;
+    if (!defId) continue;
+    let byProcess = byDefinition.get(defId);
+    if (!byProcess) {
+      byProcess = new Map();
+      byDefinition.set(defId, byProcess);
+    }
+    let process = byProcess.get(row.process_id);
+    if (!process) {
+      process = {
+        roles: [],
+        durationHours: nonNegativeStringText(row.duration_hours),
+        additionalCost: nonNegativeStringText(row.additional_cost),
+        throughputPerHour: row.throughput_per_hour ? nonNegativeStringText(row.throughput_per_hour) : undefined,
+        throughputUom: row.throughput_uom,
+        setupCost: row.setup_cost ? nonNegativeStringText(row.setup_cost) : undefined,
+      };
+      byProcess.set(row.process_id, process);
+    }
+    if (row.headcount !== null || row.rate_per_hour !== null) {
+      process.roles.push({
+        rolePerHour: nonNegativeStringText(row.rate_per_hour),
+        headcount: nonNegativeStringText(row.headcount),
+      });
+    }
+  }
+  const result = new Map<string, WipProcessCostInput[]>();
+  for (const [defId, byProcess] of byDefinition) {
+    result.set(defId, [...byProcess.values()]);
+  }
+  return result;
+}
+
+export function buildWipSetupAmortization(input: {
+  runsPerWeek: string | null | undefined;
+  weeklyVolumePacks: string | null | undefined;
+  wipQtyPerFgPack: string | null | undefined;
+  /** When zero/unset, setup is omitted — parity with compute-waterfall brief_inputs_required. */
+  avgBatchQty?: string | null | undefined;
+}): WipSetupAmortization | undefined {
+  const runs = input.runsPerWeek;
+  const volume = input.weeklyVolumePacks;
+  const wipQty = input.wipQtyPerFgPack;
+  const avgBatchQty = input.avgBatchQty;
+  if (!runs || !volume || !wipQty) return undefined;
+  if (!isDecimalString(runs) || !isDecimalString(volume) || !isDecimalString(wipQty)) return undefined;
+  if (Dec.from(runs).isZero() || Dec.from(volume).isZero() || Dec.from(wipQty).isZero()) return undefined;
+  if (!avgBatchQty || !isDecimalString(avgBatchQty) || Dec.from(avgBatchQty).isZero()) return undefined;
+  return { runsPerWeek: runs, weeklyVolumePacks: volume, wipQtyPerFgPack: wipQty };
+}
+
+/**
+ * Live formulation path — canonical WIP unit cost from material + definition/NPD
+ * processes + optional setup amortisation, divided by definition yield.
+ */
+export function computeLiveWipUnitCost(input: {
+  rawMaterialCostPerOutputUnit: string;
+  processes: WipProcessCostInput[];
+  yieldPct?: string;
+  setupAmortization?: WipSetupAmortization;
+}): string {
+  return computeWipUnitCost({
+    materials: [{ qtyPerUnit: '1', unitCost: input.rawMaterialCostPerOutputUnit }],
+    processes: input.processes,
+    yieldPct: input.yieldPct,
+    setupAmortization: input.setupAmortization,
+  });
+}
+
+export type LiveWipMaterialRow = {
+  /** Per formulation line — amortises setup independently (compute-waterfall parity). */
+  line_key: string;
+  wip_definition_id: string;
+  qty_kg: string | null;
+  yield_pct: string;
+  raw_material_cost_per_output_unit: string;
+  composition_missing_cost: boolean;
+};
+
+/** Stable merge/save key for a WIP recipe line (sequence-independent). */
+export function liveWipCostLineKey(rmCode: string, wipDefinitionId: string): string {
+  return `${rmCode}:${wipDefinitionId}`;
+}
+
+/** Builds lineKey → unit cost map for the live formulation editor. */
+export function buildLiveWipUnitCostMap(input: {
+  materialRows: LiveWipMaterialRow[];
+  processRows: LiveWipProcessDbRow[];
+  runsPerWeek?: string | null;
+  weeklyVolumePacks?: string | null;
+  avgBatchQty?: string | null;
+}): Record<string, string> {
+  const processesByDefinition = groupWipProcessDbRows(input.processRows);
+  const out: Record<string, string> = {};
+  for (const row of input.materialRows) {
+    if (row.composition_missing_cost) continue;
+    const setupAmortization = buildWipSetupAmortization({
+      runsPerWeek: input.runsPerWeek,
+      weeklyVolumePacks: input.weeklyVolumePacks,
+      wipQtyPerFgPack: row.qty_kg,
+      avgBatchQty: input.avgBatchQty,
+    });
+    out[row.line_key] = computeLiveWipUnitCost({
+      rawMaterialCostPerOutputUnit: row.raw_material_cost_per_output_unit,
+      processes: processesByDefinition.get(row.wip_definition_id) ?? [],
+      yieldPct: row.yield_pct,
+      setupAmortization,
+    });
+  }
+  return out;
+}

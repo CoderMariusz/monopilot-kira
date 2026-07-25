@@ -38,6 +38,13 @@ vi.mock('../_actions/list-sensory', () => ({
   listSensory: listSensoryMock,
 }));
 
+// The write affordances pull the record Server Action through the modal island;
+// stub the transport boundary so the ownership-banner assertions stay hermetic.
+vi.mock('../_components/sensory-record-controls.client', () => ({
+  SensoryRecordControls: () => <div data-testid="sensory-record-controls" />,
+  SensoryEditButton: () => <button type="button">Edit</button>,
+}));
+
 vi.mock('next-intl/server', () => ({
   getTranslations: vi.fn(async (req?: string | { locale?: string; namespace?: string }) => {
     const locale = typeof req === 'object' ? (req.locale ?? 'en') : 'en';
@@ -178,8 +185,55 @@ describe('T-092 Sensory Evaluation — parity + read-model states', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Unable to load sensory evaluations');
   });
 
+  /**
+   * PF-R04-13 — the banner must not call this screen "Read-only" while it is
+   * rendering Record evaluation / Edit. Technical OWNS sensory; the NPD stage
+   * screen is the read-only mirror. The banner therefore states ownership for a
+   * writer, and only claims read-only for a caller who genuinely cannot write.
+   */
+  it('states ownership (never "Read-only") on the screen that renders the write controls', async () => {
+    listSensoryMock.mockResolvedValue({
+      rows: [row({ id: 'a', subjectRef: 'FG1001', itemCode: 'FG1001', itemName: 'Smoked sausage', status: 'pass' })],
+      state: 'ready',
+      counts: { total: 1, blocked: 0, pending: 0, notRequired: 0 },
+      canWrite: true,
+    });
+    render(await TechnicalSensoryPage());
+
+    // Write affordances are on screen…
+    expect(screen.getByTestId('sensory-record-controls')).toBeInTheDocument();
+    // …so the banner may not contradict them.
+    expect(screen.queryByTestId('sensory-readonly-note')).not.toBeInTheDocument();
+    const note = screen.getByTestId('sensory-owner-note');
+    expect(note).toHaveTextContent(/Sensory is owned by Technical/);
+    expect(note).toHaveTextContent(/recorded and edited on this screen/);
+    // The ownership boundary still has to be stated: NPD keeps the gate.
+    expect(note).toHaveTextContent(/NPD remains the gate owner/);
+  });
+
+  it('keeps the read-only banner for a caller who cannot record evaluations', async () => {
+    listSensoryMock.mockResolvedValue({
+      rows: [row({ id: 'a', subjectRef: 'FG1001', itemCode: 'FG1001', itemName: 'Smoked sausage', status: 'pass' })],
+      state: 'ready',
+      counts: { total: 1, blocked: 0, pending: 0, notRequired: 0 },
+      canWrite: false,
+    });
+    render(await TechnicalSensoryPage());
+
+    expect(screen.queryByTestId('sensory-record-controls')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sensory-readonly-note')).toHaveTextContent(/Read-only/);
+  });
+
   it('resolves every technical.sensory key in all 4 locales (i18n completeness)', () => {
-    const keysToCheck = ['title', 'readOnlyNote', 'status.fail', 'status.notRequired', 'state.denied', 'sourceNote'];
+    const keysToCheck = [
+      'title',
+      'readOnlyNote',
+      'ownerNote',
+      'status.fail',
+      'status.notRequired',
+      'state.denied',
+      'sourceNote',
+    ];
     for (const locale of ['en', 'pl', 'ro', 'uk'] as Locale[]) {
       const file = path.resolve(__dirname, `../../../../../../../i18n/${locale}.json`);
       const messages = JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown>;

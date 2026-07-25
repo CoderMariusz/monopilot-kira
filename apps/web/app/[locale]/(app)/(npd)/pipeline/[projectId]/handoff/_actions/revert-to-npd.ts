@@ -194,8 +194,8 @@ export async function revertToNpd(raw: unknown): Promise<RevertToNpdResult> {
 
     if (!result.ok) return result;
 
-    safeRevalidatePath(`/[locale]/(app)/(npd)/pipeline/${projectId}/handoff`);
-    safeRevalidatePath(`/npd/pipeline/${projectId}`);
+    safeRevalidatePath(`/pipeline/${projectId}/handoff`, 'page');
+    safeRevalidatePath(`/pipeline/${projectId}`, 'layout');
     safeRevalidatePath('/technical/factory-specs');
 
     return {
@@ -274,9 +274,9 @@ async function loadBlockingWorkOrders(ctx: OrgCtx, specId: string): Promise<stri
   return rows.map((row) => row.wo_number);
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidateLocalized(path, 'page');
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request store.
   }

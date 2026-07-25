@@ -120,6 +120,7 @@ export async function toggleGateChecklistItem(rawInput: unknown): Promise<Toggle
         ],
       );
 
+      safeRevalidatePath(`/pipeline/${parsed.data.projectId}`, 'layout');
       safeRevalidatePath('/pipeline');
       return { ok: true };
     });
@@ -133,9 +134,9 @@ export async function toggleGateChecklistItem(rawInput: unknown): Promise<Toggle
   }
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidateLocalized(path);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

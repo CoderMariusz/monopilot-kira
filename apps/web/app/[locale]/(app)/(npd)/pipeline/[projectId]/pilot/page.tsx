@@ -39,6 +39,12 @@ import {
   type DeleteRunCall,
 } from './_components/pilot-screen';
 import { getPilotRun, hasPilotPermission } from './_actions/get-pilot-run';
+import { isPilotWriteStageEligible } from './_actions/pilot-stage-guard';
+import type { PilotStageNotReachedContext } from './_actions/pilot-stage-guard';
+import {
+  formatPilotStageNotReached,
+  type PilotLabelBundle,
+} from './_lib/format-pilot-stage-not-reached';
 import { togglePilotChecklistItem } from './_actions/toggle-pilot-checklist-item';
 import { upsertPilotRun } from './_actions/upsert-pilot-run';
 import { deletePilotRun } from './_actions/delete-pilot-run';
@@ -137,6 +143,8 @@ const DEFAULT_LABELS: PilotLabels = {
   saveError: 'Could not save. Check the values and try again.',
   saveErrorYieldRange: 'Expected yield % must be a number between 0 and 100.',
   saveErrorForbidden: 'You do not have permission to change the pilot plan.',
+  stageNotReached:
+    'Pilot planning requires the {requiredStage} stage. This project is at {currentStage} ({currentGate} {gateLabel}).',
   pilotWoTitle: 'Pilot work order',
   createPilotWo: 'Create pilot WO',
   creatingPilotWo: 'Creating pilot WO…',
@@ -161,6 +169,21 @@ const DEFAULT_LABELS: PilotLabels = {
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof PilotLabels>;
 
+const PIPELINE_STAGE_CODES = [
+  'brief',
+  'recipe',
+  'packaging',
+  'costing_nutrition',
+  'trial',
+  'sensory',
+  'pilot',
+  'approval',
+  'handoff',
+  'launched',
+] as const;
+
+const GATE_CODES = ['G0', 'G1', 'G2', 'G3', 'G4', 'Launched'] as const;
+
 function translateLabel(t: (key: string) => string, key: keyof PilotLabels): string {
   try {
     const value = t(key);
@@ -182,12 +205,53 @@ async function buildLabels(locale: string): Promise<PilotLabels> {
   }
 }
 
+async function buildLabelBundle(locale: string): Promise<PilotLabelBundle> {
+  const labels = await buildLabels(locale);
+  const stageLabels: Record<string, string> = {};
+  const gateLabels: Record<string, string> = {};
+
+  try {
+    const tStepper = await getTranslations({ locale, namespace: 'npd.stepper' });
+    for (const code of PIPELINE_STAGE_CODES) {
+      try {
+        stageLabels[code] = tStepper(code);
+      } catch {
+        stageLabels[code] = code;
+      }
+    }
+  } catch {
+    for (const code of PIPELINE_STAGE_CODES) stageLabels[code] = code;
+  }
+
+  try {
+    const tGate = await getTranslations({ locale, namespace: 'npd.projectDetail.gate' });
+    for (const code of GATE_CODES) {
+      try {
+        gateLabels[code] = tGate(code);
+      } catch {
+        gateLabels[code] = code;
+      }
+    }
+  } catch {
+    for (const code of GATE_CODES) gateLabels[code] = code;
+  }
+
+  return { ...labels, stageLabels, gateLabels };
+}
+
+function stageNotReachedMessage(
+  bundle: PilotLabelBundle,
+  stage: PilotStageNotReachedContext | undefined,
+): string | undefined {
+  return stage ? formatPilotStageNotReached(bundle, stage) : undefined;
+}
+
 /** Resolve write capability + the supervisor picker options (org-scoped). */
-async function readWriteContext(): Promise<{ canWrite: boolean; supervisors: SupervisorOption[] }> {
+async function readWriteContext(projectId: string): Promise<{ canWrite: boolean; supervisors: SupervisorOption[] }> {
   try {
     return await withOrgContext(async (rawCtx) => {
       const ctx = rawCtx as { userId: string; orgId: string; client: QueryClient };
-      const canWrite = await hasPilotPermission(ctx, WRITE_PERMISSION);
+      const canWritePerm = await hasPilotPermission(ctx, WRITE_PERMISSION);
       const supervisors = await ctx.client.query<{ id: string; name: string }>(
         `select id::text as id, coalesce(display_name, email::text, id::text) as name
            from public.users
@@ -195,6 +259,19 @@ async function readWriteContext(): Promise<{ canWrite: boolean; supervisors: Sup
           order by name asc
           limit 200`,
       );
+      if (!canWritePerm) {
+        return { canWrite: false, supervisors: supervisors.rows.map((u) => ({ id: u.id, name: u.name })) };
+      }
+      const stageRes = await ctx.client.query<{ current_stage: string }>(
+        `select current_stage
+           from public.npd_projects
+          where id = $1::uuid
+            and org_id = app.current_org_id()
+          limit 1`,
+        [projectId],
+      );
+      const currentStage = stageRes.rows[0]?.current_stage ?? '';
+      const canWrite = isPilotWriteStageEligible(currentStage);
       return { canWrite, supervisors: supervisors.rows.map((u) => ({ id: u.id, name: u.name })) };
     });
   } catch (error) {
@@ -265,7 +342,7 @@ async function readFgBaseUom(projectId: string): Promise<string | null> {
 
 async function readPageData(projectId: string): Promise<LoaderResult> {
   const [{ canWrite, supervisors }, result, lines, pilotWorkOrder, fgBaseUom] = await Promise.all([
-    readWriteContext(),
+    readWriteContext(projectId),
     getPilotRun({ projectId }),
     readLines(),
     getPilotWorkOrderLink(projectId),
@@ -351,7 +428,8 @@ export default async function PilotPage(propsInput: unknown = {}) {
     ? await props.params
     : { locale: 'en', projectId: '' };
 
-  const labels = await buildLabels(locale);
+  const labelBundle = await buildLabelBundle(locale);
+  const labels = labelBundle;
 
   // Inline 'use server' adapters — serializable function props across the RSC
   // boundary (Next 16). Each action owns its own RBAC (npd.pilot.write).
@@ -378,7 +456,16 @@ export default async function PilotPage(propsInput: unknown = {}) {
       supervisorUserId: call.supervisorUserId,
       status: call.status,
     });
-    return result.ok ? { ok: true } : { ok: false, error: result.error };
+    return result.ok
+      ? { ok: true }
+      : {
+          ok: false,
+          error: result.error,
+          message:
+            result.error === 'stage_not_reached'
+              ? stageNotReachedMessage(labelBundle, result.stage)
+              : result.message,
+        };
   }
 
   async function deleteRunAction(call: DeleteRunCall): Promise<PilotActionOutcome> {
@@ -404,7 +491,14 @@ export default async function PilotPage(propsInput: unknown = {}) {
     'use server';
     const result = await createPilotWorkOrder({ projectId: call.projectId });
     if (!result.ok) {
-      return { ok: false, error: result.error, message: result.message ?? result.planningError };
+      return {
+        ok: false,
+        error: result.error,
+        message:
+          result.error === 'stage_not_reached'
+            ? stageNotReachedMessage(labelBundle, result.stage)
+            : (result.message ?? result.planningError),
+      };
     }
     return { ok: true, workOrder: result.data, created: result.created };
   }

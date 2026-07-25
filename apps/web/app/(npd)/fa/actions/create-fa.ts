@@ -71,7 +71,7 @@ export async function createFa(input: CreateFaInput): Promise<CreateFaResult> {
       throw error;
     }
 
-    safeRevalidatePath('/npd/fg');
+    safeRevalidatePath('/fg', 'page');
     return { productCode: productCode.productCode };
   });
 }
@@ -124,9 +124,9 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidateLocalized(path);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

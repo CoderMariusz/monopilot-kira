@@ -169,7 +169,7 @@ describe('T-081 risk Server Actions', () => {
     expect(auditCall.params).toContain(RISK_ID);
     expect(JSON.stringify(auditCall.params)).toContain('supplier evidence attached');
     expect(currentClient.mutations).toEqual(['risk_update', 'audit']);
-    expect(_revalidatePath).toHaveBeenCalledWith(`/npd/fg/${PRODUCT_CODE}/risks`, 'page');
+    expect(_revalidatePath).toHaveBeenCalledWith(`/fg/${PRODUCT_CODE}/risks`, 'page');
   });
 
   it('inserts risks and emits risk.created outbox for authorized callers', async () => {

@@ -54,17 +54,22 @@ const STEP_ORDER: CostEngineStepKey[] = [
   'margin',
 ];
 
-/** Default EN labels; PL mandated names noted in i18n report. */
+/**
+ * Source-locale (EN) step labels — the last-resort fallback when a caller passes
+ * no `labels` map. Localized copy comes from `npd.costing.step_*`; these were PL
+ * literals, which rendered Polish under every locale (PF-R04-14c).
+ * Single source of truth: `DEFAULT_COSTING_LABELS.stepLabels` re-exports this.
+ */
 export const DEFAULT_STEP_LABELS: Record<CostEngineStepKey, string> = {
-  raw_materials: 'Surowce',
-  yield_loss: 'Strata',
-  process_labour: 'Praca procesów',
+  raw_materials: 'Raw materials',
+  yield_loss: 'Yield loss',
+  process_labour: 'Process labour',
   setup: 'Setup',
-  packaging: 'Opakowania',
+  packaging: 'Packaging',
   overhead: 'Overhead',
-  logistics: 'Logistyka',
-  total: 'Koszt całkowity',
-  margin: 'Marża vs cena docelowa',
+  logistics: 'Logistics',
+  total: 'Total cost',
+  margin: 'Margin vs target price',
 };
 
 export type MissingItemLink = {

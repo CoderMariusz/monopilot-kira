@@ -3769,7 +3769,8 @@
         "technical": "Technical",
         "sensory": "Sensory"
       },
-      "readOnlyNote": "Read-only. Sensory is a reported read model — NPD remains the gate owner and consumes this status read-only.",
+      "readOnlyNote": "Лише для перегляду для вашої ролі — ви не можете створювати чи редагувати сенсорні оцінки тут. Сенсорика належить Technical; NPD залишається власником гейта та споживає цей статус лише для читання.",
+      "ownerNote": "Сенсорика належить Technical — оцінки створюються та редагуються на цьому екрані. NPD залишається власником гейта та споживає цей статус лише для читання; запис оцінки ніколи не рухає гейт NPD.",
       "tableLabel": "Sensory evaluations",
       "kpi": {
         "region": "Sensory summary",
@@ -6430,8 +6431,9 @@
       "colScore": "Оцінка /10",
       "colVsBenchmark": "проти еталона",
       "overall": "Загалом",
-      "aboveBenchmark": "✓ Вище еталона ({score})",
-      "belowBenchmark": "Нижче еталона ({score})",
+      "aboveBenchmark": "✓ Вище еталона ({delta})",
+      "belowBenchmark": "Нижче еталона ({delta})",
+      "onBenchmark": "На рівні еталона ({delta})",
       "commentsTitle": "Коментарі дегустаторів",
       "loading": "Завантаження сенсорної панелі…",
       "empty": "Для цього продукту ще немає сенсорної панелі",
@@ -6518,7 +6520,8 @@
       "deletePlan": "Видалити план",
       "confirmDeletePlan": "Видалити цей пілотний план?",
       "deletePlanError": "Не вдалося видалити пілотний план. Спробуйте ще раз.",
-      "deletePlanHasProgressed": "Цей пілотний план уже прогресував і не може бути видалений."
+      "deletePlanHasProgressed": "Цей пілотний план уже прогресував і не може бути видалений.",
+      "stageNotReached": "Планування пілоту потребує етапу {requiredStage}. Цей проєкт на етапі {currentStage} ({currentGate} {gateLabel})."
     },
     "trial": {
       "title": "Лабораторні та кухонні випробування",
@@ -10376,6 +10379,7 @@
         "wo": "WO",
         "product": "Product",
         "outputKg": "Output kg",
+        "currency": "Currency",
         "materials": "Materials",
         "labor": "Labor",
         "total": "Total",

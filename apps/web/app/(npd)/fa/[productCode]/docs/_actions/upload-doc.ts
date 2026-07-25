@@ -174,7 +174,7 @@ export async function uploadDoc(formData: FormData): Promise<UploadDocResult> {
         },
       });
 
-      revalidateLocalized(`/npd/fg/${parsed.value.productCode}/docs`, 'page');
+      revalidateLocalized(`/fg/${parsed.value.productCode}/docs`, 'page');
       return { ok: true, docId: row.id, versionNumber: row.version_number };
     } catch {
       return { ok: false, code: 'PERSISTENCE_FAILED' };

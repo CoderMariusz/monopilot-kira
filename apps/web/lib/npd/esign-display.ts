@@ -5,6 +5,8 @@
  * and exposes pure verification predicates — no e-sign / auth / argon2 imports.
  */
 
+import { formatUtcDateTime } from '../shared/format-utc-datetime';
+
 export const ESIGN_SUBJECT_HASH_HEX_LEN = 64;
 const ESIGN_SUBJECT_HASH_HEX_PATTERN = /^[0-9a-f]{64}$/i;
 
@@ -60,19 +62,29 @@ export function resolveVerifiedCertificateHash(
   return formatEsignCertificateId(receiptSubjectHash);
 }
 
+/**
+ * An `Intl.DateTimeFormat` with neither an explicit timeZone nor an explicit
+ * locale resolves BOTH from the host: Vercel SSR (UTC, Node's en-US default) vs
+ * the browser (user's zone + locale) render different text for the same instant
+ * → React hydration mismatch + a visible flicker. Every call site
+ * (approval-history-timeline, gate-checklist-panel, approval-screen) passes no
+ * locale, so both have to be pinned here — one change covers all three.
+ */
+const ESIGN_DISPLAY_LOCALE = 'en-GB';
+const ESIGN_TIMESTAMP_FORMAT: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  timeZoneName: 'short',
+};
+
 export function formatEsignTimestamp(iso: string | null | undefined, locale?: string): string {
   if (!iso) return '';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat(locale, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    timeZoneName: 'short',
-  }).format(date);
+  if (Number.isNaN(Date.parse(iso))) return iso;
+  return formatUtcDateTime(iso, locale ?? ESIGN_DISPLAY_LOCALE, ESIGN_TIMESTAMP_FORMAT);
 }
 
 export function formatApprovalHistoryDate(

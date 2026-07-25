@@ -26,7 +26,7 @@
  */
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 import {
   GateChecklistPanel,
@@ -48,6 +48,7 @@ import {
   type AdvanceGateServerReadiness,
   type AdvanceProjectGateAction,
 } from '../../../../../../../(npd)/_modals/advance-gate-modal';
+import { pipelineStageHrefFromPathname } from '../../../../../../../../lib/npd/stage-routes';
 import {
   GateApprovalModal,
   type GateApprovalProject,
@@ -138,6 +139,7 @@ export function GateScreen({
   revertProjectGate,
 }: GateScreenProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [activeModal, setActiveModal] = React.useState<ActiveModal>('none');
   const [advanceGateInfo, setAdvanceGateInfo] = React.useState(data.advanceGateInfo);
   const [advanceItems, setAdvanceItems] = React.useState(data.advanceItems);
@@ -220,6 +222,20 @@ export function GateScreen({
     router.refresh();
   }, [closeModal, router]);
 
+  // Advance is NOT just a mutation — it moves the project to a new stage, and the
+  // stage is the route segment. Refreshing alone kept the user on the stage they
+  // just left (PF-R04-14a). Revert/approve keep plain onMutated: they do not move
+  // the project forward off the current route.
+  const onAdvanced = React.useCallback(
+    (advanced?: { currentStage?: string | null }) => {
+      const href = pipelineStageHrefFromPathname(pathname, projectId, advanced?.currentStage);
+      if (href) router.push(href);
+      else closeModal();
+      router.refresh();
+    },
+    [closeModal, pathname, projectId, router],
+  );
+
   // Approve adapter: refresh the page after a successful decision (approve or reject).
   const handleApprove = React.useCallback<OnApproveGate>(
     async (input) => {
@@ -292,7 +308,7 @@ export function GateScreen({
         serverReadiness={advanceServerReadiness ?? undefined}
         state={readinessLoading ? 'loading' : canAdvance ? 'ready' : 'permission_denied'}
         advanceProjectGate={canAdvance ? advanceProjectGate : undefined}
-        onAdvanced={onMutated}
+        onAdvanced={onAdvanced}
         onESignRequired={() => setActiveModal('gateApproval')}
         onClose={closeModal}
         onReadinessBlocked={(readiness) => setAdvanceServerReadiness(readiness)}

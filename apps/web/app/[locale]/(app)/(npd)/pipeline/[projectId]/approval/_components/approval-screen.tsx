@@ -42,6 +42,7 @@ import {
   type CriterionLinks,
 } from './criteria-card';
 import { GateApprovalModal, type GateApprovalModalLabels } from './gate-approval-modal';
+import { formatEsignTimestamp } from '../../../../../../../../lib/npd/esign-display';
 
 export { CRITERIA_ORDER };
 export type { ApprovalCriterionKey, ApprovalCriterionStatus, CriterionLinks };
@@ -299,7 +300,14 @@ export function ApprovalScreen({
               <div className="flex-1">
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{step.who}</div>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  {[step.name ?? (step.status === 'current' ? pendingApproverCopy : null), step.when]
+                  {/* `step.when` is a raw `esigned_at::text` cast from the loader — the
+                      approval TIMELINE was fixed earlier, this CHAIN reads the same
+                      column and was still leaking it (PF-R04-14b). Empty string from
+                      the formatter is dropped by the existing filter. */}
+                  {[
+                    step.name ?? (step.status === 'current' ? pendingApproverCopy : null),
+                    formatEsignTimestamp(step.when),
+                  ]
                     .filter(Boolean)
                     .join(' · ') || '—'}
                 </div>

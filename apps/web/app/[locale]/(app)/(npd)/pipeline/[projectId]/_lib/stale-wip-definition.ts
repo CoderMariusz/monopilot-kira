@@ -32,16 +32,79 @@ export type ReferencedWipDefinition = {
   version: number;
 };
 
+export type WipLineageRow = ReferencedWipDefinition & {
+  supersedesWipDefinitionId: string | null;
+};
+
 export type StaleWipDefinitionRow = ReferencedWipDefinition & {
   changesHint: string | null;
 };
+
+const MAX_WIP_SUCCESSOR_HOPS = 50;
+
+/** Maps a superseded definition id to its direct clone-on-write successor. */
+export function buildWipSuccessorIndex(rows: WipLineageRow[]): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const row of rows) {
+    if (row.supersedesWipDefinitionId) {
+      index.set(row.supersedesWipDefinitionId, row.wipDefinitionId);
+    }
+  }
+  return index;
+}
+
+/**
+ * Walk the clone-on-write chain (v2→v3→v4) from a pinned root id.
+ * Cycle-safe: revisiting an id stops the walk (PF-R05-01 precedent).
+ */
+export function resolveWipSuccessorHead(
+  rootId: string,
+  rowsById: Map<string, WipLineageRow>,
+  successorIndex: Map<string, string>,
+  maxHops = MAX_WIP_SUCCESSOR_HOPS,
+): ReferencedWipDefinition | null {
+  const visited = new Set<string>();
+  let currentId = rootId;
+
+  for (let hop = 0; hop < maxHops; hop++) {
+    if (visited.has(currentId)) break;
+    visited.add(currentId);
+
+    const nextId = successorIndex.get(currentId);
+    if (!nextId) break;
+    currentId = nextId;
+  }
+
+  const head = rowsById.get(currentId);
+  if (!head) return null;
+  return {
+    wipDefinitionId: head.wipDefinitionId,
+    name: head.name,
+    version: head.version,
+  };
+}
+
+export function isWipDefinitionSuperseded(input: {
+  definition: ReferencedWipDefinition;
+  successorHead: ReferencedWipDefinition | null;
+}): boolean {
+  return (
+    input.successorHead !== null &&
+    input.successorHead.wipDefinitionId !== input.definition.wipDefinitionId
+  );
+}
 
 export function isWipDefinitionStale(input: {
   definition: ReferencedWipDefinition;
   ack: WipDefinitionAck | null;
   bumpNotifications: WipBumpNotification[];
+  successorHead?: ReferencedWipDefinition | null;
 }): boolean {
-  const { definition, ack, bumpNotifications } = input;
+  const { definition, ack, bumpNotifications, successorHead } = input;
+
+  if (isWipDefinitionSuperseded({ definition, successorHead: successorHead ?? null })) {
+    return true;
+  }
 
   if (ack !== null && ack.acceptedVersion < definition.version) {
     return true;
@@ -79,6 +142,7 @@ export function resolveStaleWipDefinitions(input: {
   acks: WipDefinitionAck[];
   bumpNotifications: WipBumpNotification[];
   projectId: string;
+  successorHeads?: Map<string, ReferencedWipDefinition | null>;
 }): StaleWipDefinitionRow[] {
   const ackByDef = new Map(input.acks.map((a) => [a.wipDefinitionId, a]));
   const projectNotifications = input.bumpNotifications.filter((n) => n.projectId === input.projectId);
@@ -86,9 +150,12 @@ export function resolveStaleWipDefinitions(input: {
   const stale: StaleWipDefinitionRow[] = [];
 
   for (const definition of input.definitions) {
+    const successorHead = input.successorHeads?.get(definition.wipDefinitionId) ?? null;
     const ack = ackByDef.get(definition.wipDefinitionId) ?? null;
     const defNotifications = projectNotifications.filter(
-      (n) => n.wipDefinitionId === definition.wipDefinitionId,
+      (n) =>
+        n.wipDefinitionId === definition.wipDefinitionId ||
+        (successorHead !== null && n.wipDefinitionId === successorHead.wipDefinitionId),
     );
 
     if (
@@ -96,13 +163,20 @@ export function resolveStaleWipDefinitions(input: {
         definition,
         ack,
         bumpNotifications: defNotifications,
+        successorHead,
       })
     ) {
       continue;
     }
 
+    const display = isWipDefinitionSuperseded({ definition, successorHead })
+      ? successorHead!
+      : definition;
+
     stale.push({
-      ...definition,
+      wipDefinitionId: definition.wipDefinitionId,
+      name: display.name,
+      version: display.version,
       changesHint: pickChangesHint(definition.wipDefinitionId, defNotifications),
     });
   }

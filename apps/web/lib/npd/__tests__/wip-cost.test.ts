@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildLiveWipUnitCostMap,
+  computeLiveWipUnitCost,
   computeWipComponentCost,
   computeWipMaterialCost,
   computeWipProcessCost,
@@ -216,6 +218,154 @@ describe('wip-cost', () => {
       });
       expect(unitCost).toBe('1.4460');
       expect(unitCost).not.toBe('217.2300');
+    });
+  });
+
+  describe('PF-R05-04 live WIP unit cost (prod audit oracle)', () => {
+    it('includes labour, additional, setup amortisation and definition yield', () => {
+      const unitCost = computeLiveWipUnitCost({
+        rawMaterialCostPerOutputUnit: '150.0437',
+        processes: [
+          {
+            roles: [{ rolePerHour: '11.1111', headcount: '3' }],
+            durationHours: '1.25',
+            additionalCost: '3.3333',
+            throughputPerHour: '2.5',
+            throughputUom: 'kg',
+            setupCost: '7.7777',
+          },
+        ],
+        yieldPct: '87.5',
+        setupAmortization: {
+          runsPerWeek: '3',
+          weeklyVolumePacks: '1234.567',
+          wipQtyPerFgPack: '0.823456',
+        },
+      });
+      expect(unitCost).toBe('187.9619');
+    });
+
+    it('with 100% yield and zero process returns material cost only', () => {
+      expect(
+        computeLiveWipUnitCost({
+          rawMaterialCostPerOutputUnit: '150.0437',
+          processes: [],
+          yieldPct: '100',
+        }),
+      ).toBe('150.0437');
+    });
+
+    it('buildLiveWipUnitCostMap wires grouped process rows per definition line', () => {
+      const costs = buildLiveWipUnitCostMap({
+        materialRows: [
+          {
+            line_key: 'WIP-PARENT:wip-parent',
+            wip_definition_id: 'wip-parent',
+            qty_kg: '0.823456',
+            yield_pct: '87.5',
+            raw_material_cost_per_output_unit: '150.0437',
+            composition_missing_cost: false,
+          },
+        ],
+        processRows: [
+          {
+            wip_definition_id: 'wip-parent',
+            process_id: 'p1',
+            duration_hours: '1.25',
+            additional_cost: '3.3333',
+            throughput_per_hour: '2.5',
+            throughput_uom: 'kg',
+            setup_cost: '7.7777',
+            rate_per_hour: '11.1111',
+            headcount: '3',
+          },
+        ],
+        runsPerWeek: '3',
+        weeklyVolumePacks: '1234.567',
+        avgBatchQty: '100',
+      });
+      expect(costs['WIP-PARENT:wip-parent']).toBe('187.9619');
+    });
+
+    it('skips WIP lines with composition_missing_cost', () => {
+      const costs = buildLiveWipUnitCostMap({
+        materialRows: [
+          {
+            line_key: 'WIP-PARENT:wip-parent',
+            wip_definition_id: 'wip-parent',
+            qty_kg: '0.5',
+            yield_pct: '100',
+            raw_material_cost_per_output_unit: '10',
+            composition_missing_cost: true,
+          },
+        ],
+        processRows: [],
+        runsPerWeek: '1',
+        weeklyVolumePacks: '100',
+        avgBatchQty: '50',
+      });
+      expect(costs).toEqual({});
+    });
+
+    it('omits setup when avg_batch_qty is zero (brief_inputs_required parity)', () => {
+      const withSetup = buildLiveWipUnitCostMap({
+        materialRows: [
+          {
+            line_key: 'WIP:wip-1',
+            wip_definition_id: 'wip-1',
+            qty_kg: '0.2',
+            yield_pct: '100',
+            raw_material_cost_per_output_unit: '1.00',
+            composition_missing_cost: false,
+          },
+        ],
+        processRows: [
+          {
+            wip_definition_id: 'wip-1',
+            process_id: 'p1',
+            duration_hours: '0',
+            additional_cost: '0',
+            throughput_per_hour: null,
+            throughput_uom: null,
+            setup_cost: '50',
+            rate_per_hour: null,
+            headcount: null,
+          },
+        ],
+        runsPerWeek: '2',
+        weeklyVolumePacks: '1000',
+        avgBatchQty: '100',
+      });
+      const withoutSetup = buildLiveWipUnitCostMap({
+        materialRows: [
+          {
+            line_key: 'WIP:wip-1',
+            wip_definition_id: 'wip-1',
+            qty_kg: '0.2',
+            yield_pct: '100',
+            raw_material_cost_per_output_unit: '1.00',
+            composition_missing_cost: false,
+          },
+        ],
+        processRows: [
+          {
+            wip_definition_id: 'wip-1',
+            process_id: 'p1',
+            duration_hours: '0',
+            additional_cost: '0',
+            throughput_per_hour: null,
+            throughput_uom: null,
+            setup_cost: '50',
+            rate_per_hour: null,
+            headcount: null,
+          },
+        ],
+        runsPerWeek: '2',
+        weeklyVolumePacks: '1000',
+        avgBatchQty: '0',
+      });
+      expect(withSetup['WIP:wip-1']).toBe('1.5000');
+      expect(withoutSetup['WIP:wip-1']).toBe('1.0000');
     });
   });
 

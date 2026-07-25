@@ -16,6 +16,14 @@
  *   - highlighted Overall summary row "✓ Above benchmark"   → highlighted table row
  *   - "Panelist comments" list (panelist code bold + quote) → second Card
  *
+ * Parity deviation (PF-R04-13, deliberate): the prototype hard-codes the
+ * parenthetical as the benchmark baseline ("✓ Above benchmark (7.2)" against a
+ * 7.6 overall). The real read model stores a benchmark PRODUCT CODE, not a
+ * benchmark score, so there is no baseline number to render — the parenthetical
+ * carries the aggregate ± delta instead ("✓ Above benchmark (+0.50)"). Same row,
+ * same wording, same badge; only the number's meaning is pinned to the data we
+ * actually have. See `benchmarkVerdict`.
+ *
  * READ-ONLY (ownership boundary): sensory is owned by 03-Technical; this NPD stage
  * never writes sensory. No write affordance, no Server Action mutation. The
  * "Export scores" CTA is rendered for parity but is a layout-only, non-write
@@ -36,6 +44,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { SensoryRadar, type SensoryRadarPoint } from './sensory-radar';
+import { microToFixed, toMicro } from '../../../../../../../../lib/shared/decimal';
 import { downloadCsv, fileSafe, toCsv } from '../../../../../../../../lib/shared/download';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
@@ -78,10 +87,12 @@ export type SensoryLabels = {
   colScore: string;
   colVsBenchmark: string;
   overall: string;
-  /** "{score}" replaced client-side. */
+  /** "{delta}" replaced client-side with the AGGREGATE ± delta vs benchmark. */
   aboveBenchmark: string;
-  /** "{score}" replaced client-side. */
+  /** "{delta}" replaced client-side with the AGGREGATE ± delta vs benchmark. */
   belowBenchmark: string;
+  /** "{delta}" replaced client-side — aggregate delta is exactly 0. */
+  onBenchmark: string;
   commentsTitle: string;
   loading: string;
   empty: string;
@@ -145,10 +156,69 @@ function toneBarClass(tone: ScoreTone): string {
   }
 }
 
-/** Whether a ± delta string is non-negative (string-only, no float). */
-function deltaNonNegative(value: string | null): boolean {
-  if (value === null) return false;
-  return !/^-(?!0(\.0+)?$)/.test(value.trim());
+/** Exact sign of a ± delta decimal STRING; null = no benchmark. No float math. */
+function deltaSign(value: string | null): -1 | 0 | 1 | null {
+  if (value === null) return null;
+  const micro = toMicro(value);
+  return micro > 0n ? 1 : micro < 0n ? -1 : 0;
+}
+
+/** Round-half-away-from-zero bigint division (exact; never a JS float). */
+function divRoundHalf(numer: bigint, denom: bigint): bigint {
+  const negative = (numer < 0n) !== (denom < 0n);
+  const a = numer < 0n ? -numer : numer;
+  const b = denom < 0n ? -denom : denom;
+  const q = (a * 2n + b) / (b * 2n);
+  return negative ? -q : q;
+}
+
+export type BenchmarkVerdict = {
+  direction: 'above' | 'on' | 'below';
+  /** Signed aggregate ± delta as a decimal STRING, 2 dp (the panel's NUMERIC scale). */
+  delta: string;
+};
+
+/**
+ * PF-R04-13 — the AGGREGATE benchmark verdict.
+ *
+ * The verdict follows the MEAN of the per-attribute ± deltas, and the number in
+ * the sentence IS that mean. Previously any single negative attribute forced the
+ * whole verdict to "below benchmark" (so +1,0,+2,−1,0,+1 → mean +0.5 read as
+ * "below"), and the interpolated number was the product's own overall score,
+ * which the words never claimed. Attributes that individually sit below the
+ * benchmark are surfaced per-row in the "vs benchmark" column, not by inverting
+ * the aggregate.
+ *
+ * Returns `null` when there is no benchmark claim to make at all — no benchmark
+ * product on the panel, or no attribute carries a ± delta. An exactly-zero mean
+ * is `on` benchmark, never "below".
+ *
+ * ponytail: the mean is exact bigint micro-unit math (no JS float). It rounds to
+ * 2 dp for display, which is the NUMERIC scale the deltas are stored at — with
+ * 2 dp inputs a non-zero mean can only round to "0.00" above ~200 attributes on
+ * one panel; if a panel ever gets that wide, widen the display scale here.
+ */
+export function benchmarkVerdict(data: {
+  benchmarkProductCode: string | null;
+  attributes: SensoryAttributeView[];
+}): BenchmarkVerdict | null {
+  if (data.benchmarkProductCode === null) return null;
+
+  let sumMicro = 0n;
+  let scored = 0n;
+  for (const a of data.attributes) {
+    if (a.vsBenchmark === null) continue;
+    sumMicro += toMicro(a.vsBenchmark);
+    scored += 1n;
+  }
+  if (scored === 0n) return null;
+
+  const meanMicro = divRoundHalf(sumMicro, scored);
+  const fixed = microToFixed(meanMicro, 2);
+  return {
+    direction: meanMicro > 0n ? 'above' : meanMicro < 0n ? 'below' : 'on',
+    delta: meanMicro > 0n ? `+${fixed}` : fixed,
+  };
 }
 
 /** Replace `{token}` placeholders in an i18n string (no inline strings). */
@@ -268,22 +338,9 @@ export function SensoryScreen({
     downloadCsv(csv, `sensory-${fileSafe(data!.productCode)}.csv`);
   }
 
-  // Overall "✓ Above benchmark" decision (prototype's highlighted summary row).
-  // A panel is shown above benchmark only when it scored against a benchmark
-  // product AND it is not net-negative across attributes (at least one positive
-  // ± and no all-negative set). String-only sign checks — no float math.
-  const overallBenchmarkStatus = (() => {
-    if (data.benchmarkProductCode === null) return false;
-    let anyNeg = false;
-    let anyPos = false;
-    for (const a of data.attributes) {
-      if (a.vsBenchmark === null) continue;
-      if (deltaNonNegative(a.vsBenchmark)) anyPos = true;
-      else anyNeg = true;
-    }
-    if (!anyPos && !anyNeg) return null;
-    return anyPos && !anyNeg;
-  })();
+  // Overall benchmark verdict (prototype's highlighted summary row): driven by
+  // the AGGREGATE delta, and the number rendered is that same aggregate delta.
+  const verdict = benchmarkVerdict(data);
 
   return (
     <main
@@ -333,7 +390,7 @@ export function SensoryScreen({
                 <TableBody>
                   {data.attributes.map((a) => {
                     const tone = scoreTone(a.scoreOutOf10);
-                    const deltaPos = deltaNonNegative(a.vsBenchmark);
+                    const sign = deltaSign(a.vsBenchmark);
                     return (
                       <TableRow key={a.attributeName} data-testid="sensory-attr-row" data-tone={tone}>
                         <TableCell className="font-medium">{a.attributeName}</TableCell>
@@ -355,16 +412,15 @@ export function SensoryScreen({
                             <span className="font-mono text-xs tabular-nums">{formatScore(a.scoreOutOf10)}</span>
                           </div>
                         </TableCell>
+                        {/* Per-attribute signal: a delta BELOW benchmark is its own
+                            red marker here — it never inverts the aggregate verdict. */}
                         <TableCell
                           className={[
                             'font-mono text-sm tabular-nums',
-                            a.vsBenchmark === null
-                              ? 'muted'
-                              : deltaPos
-                                ? 'text-emerald-600'
-                                : 'muted',
+                            sign === 1 ? 'text-emerald-600' : sign === -1 ? 'text-red-600' : 'muted',
                           ].join(' ')}
                           data-testid="sensory-vs-benchmark"
+                          data-delta={sign === null ? 'none' : sign === 1 ? 'above' : sign === -1 ? 'below' : 'on'}
                         >
                           {formatDelta(a.vsBenchmark)}
                         </TableCell>
@@ -378,21 +434,21 @@ export function SensoryScreen({
                       {formatScore(data.overallScore)} / 10
                     </TableCell>
                     <TableCell>
-                      {overallBenchmarkStatus === null ? null : overallBenchmarkStatus ? (
+                      {verdict === null ? null : verdict.direction === 'above' ? (
                         <Badge
                           variant="success"
                           className="badge-green"
                           data-testid="sensory-above-benchmark"
                         >
-                          {interpolate(labels.aboveBenchmark, {
-                            score: formatScore(data.overallScore),
-                          })}
+                          {interpolate(labels.aboveBenchmark, { delta: verdict.delta })}
                         </Badge>
+                      ) : verdict.direction === 'below' ? (
+                        <span className="font-mono text-sm text-red-600" data-testid="sensory-below-benchmark">
+                          {interpolate(labels.belowBenchmark, { delta: verdict.delta })}
+                        </span>
                       ) : (
-                        <span className="muted font-mono text-sm" data-testid="sensory-below-benchmark">
-                          {interpolate(labels.belowBenchmark, {
-                            score: formatScore(data.overallScore),
-                          })}
+                        <span className="muted font-mono text-sm" data-testid="sensory-on-benchmark">
+                          {interpolate(labels.onBenchmark, { delta: verdict.delta })}
                         </span>
                       )}
                     </TableCell>

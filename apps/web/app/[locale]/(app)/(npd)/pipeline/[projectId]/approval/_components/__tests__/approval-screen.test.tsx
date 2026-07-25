@@ -32,6 +32,8 @@ import {
   type ApproveGateCall,
   type ApproveGateOutcome,
 } from '../approval-screen';
+// Real module at its real depth (9 up from __tests__ → apps/web/lib), not a mock.
+import { formatEsignTimestamp } from '../../../../../../../../../lib/npd/esign-display';
 
 afterEach(() => cleanup());
 
@@ -298,5 +300,42 @@ describe('ApprovalScreen — parity + gating + e-sign', () => {
     expect(screen.getByTestId('submit-for-approval')).toHaveTextContent(LABELS.submit);
     // Status text is paired with the icon glyph (a11y: never color-only).
     expect(screen.getAllByText(LABELS.statusPass).length).toBeGreaterThan(0);
+  });
+});
+
+describe('PF-R04-14b — approval chain never leaks a raw Postgres timestamp', () => {
+  // approval/page.tsx selects `ga.esigned_at::text`, so a signed chain step arrives
+  // in the wire form below. The approval TIMELINE was formatted in an earlier wave;
+  // this CHAIN reads the same column and was still rendering it verbatim.
+  const RAW_PG_TIMESTAMP = '2026-07-17 09:13:14.821+00';
+
+  it('formats a signed step instant instead of printing the wire value', () => {
+    render(
+      <ApprovalScreen
+        state="ready"
+        data={{
+          ...makeData(),
+          steps: [{ who: 'Approver', name: 'A. Davis', status: 'done', when: RAW_PG_TIMESTAMP }],
+        }}
+        labels={LABELS}
+        canApprove
+      />,
+    );
+
+    const chain = screen.getByTestId('approval-chain-card');
+    expect(chain.textContent ?? '').not.toContain(RAW_PG_TIMESTAMP);
+    // Asserted against the REAL helper the component imports (apps/web/lib/npd/…),
+    // never a mock — a mock at the wrong depth silently passes on broken code.
+    const formatted = formatEsignTimestamp(RAW_PG_TIMESTAMP);
+    expect(formatted).not.toBe(RAW_PG_TIMESTAMP);
+    // Normalize BOTH sides: Intl emits U+202F before AM/PM, and toHaveTextContent
+    // normalizes only the DOM side, which would fail on an otherwise correct render.
+    const flatten = (value: string) => value.replace(/\s+/g, ' ').trim();
+    expect(flatten(chain.textContent ?? '')).toContain(flatten(`A. Davis · ${formatted}`));
+  });
+
+  it('passes a non-instant marker such as "pending" through untouched', () => {
+    render(<ApprovalScreen state="ready" data={makeData()} labels={LABELS} canApprove />);
+    expect(screen.getByTestId('approval-chain-card')).toHaveTextContent('A. Davis · pending');
   });
 });

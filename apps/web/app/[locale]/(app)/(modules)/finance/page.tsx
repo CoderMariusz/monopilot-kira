@@ -43,6 +43,7 @@ async function buildLabels(): Promise<FinanceWoCostLabels> {
       wo: t('columns.wo'),
       product: t('columns.product'),
       outputKg: t('columns.outputKg'),
+      currency: t('columns.currency'),
       materials: t('columns.materials'),
       labor: t('columns.labor'),
       total: t('columns.total'),
@@ -86,6 +87,8 @@ async function FinanceContent({
       : 'reason' in wasteSummary && wasteSummary.reason === 'forbidden'
         ? 'Permission denied'
         : 'Not available';
+  // Only a real amount carries a denomination — never label an error string with a currency.
+  const wasteCurrency = wasteSummary.ok ? wasteSummary.data.currency : null;
 
   if (result.ok) {
     return (
@@ -93,7 +96,7 @@ async function FinanceContent({
         <div className="rounded border border-slate-200 bg-white px-5 py-4 shadow-sm">
           <p className="text-xs font-semibold uppercase text-slate-500">Scrap / waste cost</p>
           <p className="mt-2 font-mono text-2xl font-semibold text-slate-950" data-testid="finance-waste-cost-summary">
-            {wasteCost}
+            {wasteCurrency ? `${wasteCost} ${wasteCurrency}` : wasteCost}
           </p>
           <p className="mt-1 text-sm text-slate-500">Completed WOs in selected period</p>
         </div>

@@ -93,7 +93,8 @@ export type AdvanceProjectGateAction = (input: {
   override?: { note: string };
 }) => Promise<{
   ok: true;
-  data?: unknown;
+  /** advanceProjectGate's result payload; `currentStage` drives the post-advance route. */
+  data?: { currentStage?: string | null } & Record<string, unknown>;
 } | {
   ok: false;
   error: string;
@@ -264,8 +265,12 @@ export function AdvanceGateModal({
   serverReadiness?: AdvanceGateServerReadiness;
   state?: AdvanceGateState;
   advanceProjectGate?: AdvanceProjectGateAction;
-  /** Called after a successful advance; the host maps it to revalidation / close. */
-  onAdvanced?: () => void;
+  /**
+   * Called after a successful advance; the host maps it to revalidation / close.
+   * Receives the action payload so the host can navigate to the stage the project
+   * just moved INTO — without it the caller can only refresh the old route.
+   */
+  onAdvanced?: (advanced?: { currentStage?: string | null }) => void;
   /** Called when the server reports that an e-sign approval must be collected first. */
   onESignRequired?: () => void;
   /** Called when submit returns BLOCKERS_PRESENT so the modal can refresh its snapshot. */
@@ -351,7 +356,7 @@ export function AdvanceGateModal({
       });
       if (result?.ok) {
         setSuccess(true);
-        onAdvanced?.();
+        onAdvanced?.(result.data);
       } else if (result?.error === 'ESIGN_REQUIRED') {
         onESignRequired?.();
         setServerError(resolveSubmitError(result, labels));

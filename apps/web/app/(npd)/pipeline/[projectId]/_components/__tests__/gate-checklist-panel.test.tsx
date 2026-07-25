@@ -34,6 +34,9 @@ import {
   type GateChecklistLabels,
   type GateChecklistProject,
 } from '../gate-checklist-panel';
+// Real module, real path (6 levels up from __tests__ → apps/web/lib). A mock, or a
+// path one directory too shallow, would make working code look broken.
+import { formatApprovalHistoryDate } from '../../../../../../lib/npd/esign-display';
 
 const LABELS: GateChecklistLabels = {
   title: 'lbl.title',
@@ -473,5 +476,63 @@ describe('GateChecklistPanel — i18n (no inline English literals)', () => {
     const reqBadges = screen.getAllByTestId('gate-item-requirement-badge');
     expect(reqBadges.some((b) => b.textContent === 'lbl.required')).toBe(true);
     expect(reqBadges.some((b) => b.textContent === 'lbl.optional')).toBe(true);
+  });
+});
+
+describe('PF-R04-14b — checklist history never leaks a raw Postgres timestamp', () => {
+  // getProject casts gate_checklist_items.completed_at with `::text`, so `item.at`
+  // arrives in the wire form below. Before the fix this string was substituted into
+  // the `completedBy` template verbatim and rendered to the user.
+  const RAW_PG_TIMESTAMP = '2026-07-17 09:13:14.821+00';
+
+  function renderWithCompletedAt(at: string | null) {
+    return renderPanel({
+      gates: [
+        {
+          key: 'G2',
+          label: 'Business Case',
+          isCurrent: true,
+          next: 'G3',
+          nextLabel: 'Development',
+          requiresApproval: false,
+          pct: 100,
+          blockers: [],
+          items: [
+            {
+              id: 'g2-t1',
+              text: 'Detailed ingredient spec',
+              required: true,
+              done: true,
+              category: 'TECHNICAL',
+              by: 'J. Lewis',
+              at,
+              file: null,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  it('renders civil time, not the raw `2026-07-17 09:13:14.821+00` wire value', () => {
+    renderWithCompletedAt(RAW_PG_TIMESTAMP);
+
+    const panel = screen.getByTestId('gate-checklist-panel');
+    expect(panel.textContent ?? '').not.toContain(RAW_PG_TIMESTAMP);
+    // Asserted against the REAL helper module the component imports — not a mock,
+    // and not a hand-rolled expectation that would drift from it.
+    const formatted = formatApprovalHistoryDate(RAW_PG_TIMESTAMP);
+    expect(formatted).not.toBe(RAW_PG_TIMESTAMP);
+    // Normalize BOTH sides: Intl emits U+202F before AM/PM, and toHaveTextContent
+    // normalizes only the DOM side, which would fail on an otherwise correct render.
+    const flatten = (value: string) => value.replace(/\s+/g, ' ').trim();
+    expect(flatten(panel.textContent ?? '')).toContain(flatten(`Completed by J. Lewis · ${formatted}`));
+  });
+
+  it('leaves an already-civil `YYYY-MM-DD` completion date untouched', () => {
+    renderWithCompletedAt('2025-11-05');
+    expect(screen.getByTestId('gate-checklist-panel')).toHaveTextContent(
+      'Completed by J. Lewis · 2025-11-05',
+    );
   });
 });

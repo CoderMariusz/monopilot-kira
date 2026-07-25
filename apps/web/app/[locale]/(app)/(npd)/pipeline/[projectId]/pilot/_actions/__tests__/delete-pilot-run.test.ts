@@ -56,6 +56,21 @@ describe('deletePilotRun', () => {
     expect(r).toEqual({ ok: false, error: 'forbidden' });
   });
 
+  it('deletes a planned run on a G0 Brief project (no stage guard — NPD-023 cleanup)', async () => {
+    const calls: string[] = [];
+    handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
+      calls.push(sql);
+      if (/delete from public.pilot_runs/.test(sql)) {
+        return { rows: [{ id: RUN, status: 'planned', line: 'LINE2', deleted: true }] };
+      }
+      return { rows: [] };
+    });
+    const r = await deletePilotRun({ pilotRunId: RUN, projectId: PROJECT });
+    expect(r).toEqual({ ok: true, data: { pilotRunId: RUN } });
+    expect(calls.some((s) => /npd\.pilot\.run\.deleted/.test(s))).toBe(true);
+    expect(calls.some((s) => /from public.npd_projects/.test(s))).toBe(false);
+  });
+
   it('deletes a planned run and writes an audit row', async () => {
     const calls: string[] = [];
     handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {

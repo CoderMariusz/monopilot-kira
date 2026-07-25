@@ -104,7 +104,7 @@ export async function createRisk(input: CreateRiskInput): Promise<CreateRiskResu
         ],
       );
 
-      revalidateLocalized(`/npd/fg/${parsed.productCode}/risks`, 'page');
+      revalidateLocalized(`/fg/${parsed.productCode}/risks`, 'page');
       return { ok: true, riskId };
     } catch {
       return { ok: false, code: 'PERSISTENCE_FAILED' };

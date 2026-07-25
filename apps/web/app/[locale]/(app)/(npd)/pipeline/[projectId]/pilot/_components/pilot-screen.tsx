@@ -191,6 +191,8 @@ export type PilotLabels = {
   /** Field-specific save failures (PF-R04-12 — "Could not save" named nothing). */
   saveErrorYieldRange: string;
   saveErrorForbidden: string;
+  /** Localized stage-not-reached template ({requiredStage}, {currentStage}, {currentGate}, {gateLabel}). */
+  stageNotReached: string;
   /** Pilot WO affordances (D9). */
   pilotWoTitle: string;
   createPilotWo: string;
@@ -219,7 +221,7 @@ export type PilotLabels = {
 export type ToggleChecklistCall = { itemId: string; isChecked: boolean };
 export type ToggleChecklistOutcome = { ok: boolean; error?: string };
 
-export type PilotActionOutcome = { ok: boolean; error?: string };
+export type PilotActionOutcome = { ok: boolean; error?: string; message?: string };
 
 export type CreatePilotWoCall = { projectId: string };
 
@@ -458,6 +460,8 @@ export function PilotScreen({
       case 'packs_per_box_required':
         return labels.createPilotWoErrorPacksPerBox ?? labels.createPilotWoErrorRecipe;
       case 'wip_item_required':
+        return message ?? labels.createPilotWoError;
+      case 'stage_not_reached':
         return message ?? labels.createPilotWoError;
       case 'wo_create_failed':
         return message
@@ -909,7 +913,7 @@ export function PilotScreen({
                 >
                   <Checkbox
                     checked={checked}
-                    disabled={!onToggleChecklistItem}
+                    disabled={!canEdit || !onToggleChecklistItem}
                     onCheckedChange={(next) => handleToggle(item, next)}
                     aria-label={item.label}
                   />

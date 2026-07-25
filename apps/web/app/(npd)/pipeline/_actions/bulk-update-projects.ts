@@ -138,7 +138,6 @@ export async function bulkMoveGate(rawInput: unknown): Promise<BulkMoveGateResul
     });
   }
 
-  safeRevalidatePath('/npd/pipeline');
   safeRevalidatePath('/pipeline');
   if (failed.length > 0) {
     return { ok: false, error: 'PERSISTENCE_FAILED', status: 500, failed };
@@ -197,7 +196,6 @@ async function updateProjectField(
     projectIds: updated.rows.map((row) => row.id),
   });
 
-  safeRevalidatePath('/npd/pipeline');
   safeRevalidatePath('/pipeline');
   return { ok: true, data: { updated: updated.rows.length, projectIds: updated.rows.map((row) => row.id) } };
 }

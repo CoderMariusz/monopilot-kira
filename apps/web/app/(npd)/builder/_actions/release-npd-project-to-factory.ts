@@ -117,8 +117,8 @@ export async function releaseNpdProjectToFactory(
 
       await persistPromotedItemPricesAndCost(context, ready.projectId, ready.productCode);
 
-      safeRevalidatePath(`/npd/pipeline/${ready.projectId}`);
-      safeRevalidatePath(`/npd/fg/${ready.productCode}`);
+      safeRevalidatePath(`/pipeline/${ready.projectId}`, 'layout');
+      safeRevalidatePath(`/fg/${ready.productCode}`, 'page');
       // materializeNpdBom wrote fresh rows to public.items, public.bom_headers/
       // bom_lines and public.factory_specs — refresh the Technical lists so the
       // newly-minted FG / BOM / spec appear without a manual reload.
@@ -174,9 +174,9 @@ function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidateLocalized(path);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

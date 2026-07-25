@@ -4,7 +4,10 @@ export type ItemPickerOption = {
   name: string;
   itemType: string;
   status: string;
+  /** Misleading legacy name — amount is whatever v_item_effective_cost resolves (GBP on prod). */
   costPerKgEur: string | null;
+  /** ISO-4217 from v_item_effective_cost.currency; null when cost is unknown. */
+  costCurrency?: string | null;
   listPriceGbp?: string | null;
   supplierCode?: string | null;
   unitPrice?: string | null;

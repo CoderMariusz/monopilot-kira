@@ -35,6 +35,9 @@ vi.mock('../../../../../lib/auth/with-org-context', () => ({
     }),
 }));
 
+import { revalidatePath } from 'next/cache';
+
+import { routing } from '../../../../../i18n/routing';
 import {
   STAGE_ORDER,
   assertHonestGateAdvance,
@@ -148,6 +151,7 @@ describe('advanceProjectGate — C025 gate sequence end-to-end', () => {
 
   beforeEach(() => {
     ctx.handler = () => ({ rows: [] });
+    vi.mocked(revalidatePath).mockClear();
   });
 
   function mockProject(row: Record<string, unknown>) {
@@ -250,6 +254,17 @@ describe('advanceProjectGate — C025 gate sequence end-to-end', () => {
     });
     const gateUpdate = calls.find((call) => /update public\.npd_projects/.test(call.sql) && call.sql.includes('current_gate = $2'));
     expect(gateUpdate?.params).toEqual([PROJECT, 'G1']);
+
+    // PF-R04-14a: `(npd)` is a ROUTE GROUP and contributes no URL segment, so the
+    // old `/npd/pipeline/{id}` target matched nothing — the revalidation was a
+    // SILENT no-op that no assertion would have caught at runtime. 'layout' is
+    // required: the stage rail + header live in the project layout.
+    // DEPTH GUARD: the only stub here is the bare specifier `next/cache`;
+    // `revalidate-localized` and `i18n/routing` run for real, so this asserts the
+    // actual localized URLs the app serves.
+    for (const locale of routing.locales) {
+      expect(revalidatePath).toHaveBeenCalledWith(`/${locale}/pipeline/${PROJECT}`, 'layout');
+    }
   });
 
   it('G1→G2 stage advance validates G1 checklist then lands on G2+recipe', async () => {

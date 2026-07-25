@@ -506,6 +506,60 @@ runIntegration('computeCosting (integration)', () => {
     );
     expect(persisted.rows[0]).toEqual({ breakdowns: '1', steps: '9' });
   });
+
+  it('persists margin_pct below -100 with fail status after migration 522 (PF-R05-05)', async () => {
+    const projectId = randomUUID();
+    const formulationId = randomUUID();
+    const versionId = randomUUID();
+    const productCode = `FA-T073-NEG-${randomUUID().slice(0, 8)}`;
+
+    await ownerPool.query('delete from public.product where product_code = $1', [productCode]);
+    await ownerQueryWithInferredOrgContext(ownerPool,
+      `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+         values ($1, $2, 'T073 Deep Negative Margin', 1, $3)`,
+      [productCode, orgA, orgAUser],
+    );
+    await ownerPool.query(
+      `insert into public.npd_projects
+         (id, org_id, code, name, type, current_gate, current_stage, prio, product_code, pack_weight_g, created_by_user)
+       values
+         ($1::uuid, $2::uuid, $3, 'T073 Deep Negative', 'Recipe Standard', 'G3', 'costing', 'normal', $4, 250, $5::uuid)`,
+      [projectId, orgA, `NPD-NEG-${randomUUID().slice(0, 8)}`, productCode, orgAUser],
+    );
+    await ownerPool.query(
+      `insert into public.formulations (id, org_id, project_id, product_code, created_by_user)
+       values ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid)`,
+      [formulationId, orgA, projectId, productCode, orgAUser],
+    );
+    await ownerPool.query(
+      `insert into public.formulation_versions
+         (id, formulation_id, version_number, state, batch_size_kg, target_yield_pct, target_price_eur, created_by_user)
+       values ($1::uuid, $2::uuid, 1, 'draft', 10.000, 100.000, 4.9900, $3::uuid)`,
+      [versionId, formulationId, orgAUser],
+    );
+    await ownerPool.query(
+      `update public.formulations set current_version_id = $2::uuid where id = $1::uuid`,
+      [formulationId, versionId],
+    );
+    await ownerPool.query(
+      `insert into public.formulation_ingredients
+         (version_id, rm_code, qty_kg, pct, cost_per_kg_eur, sequence)
+       values ($1::uuid, 'RM-DEEP-NEG', 165.250000, 100.000, 1.0000, 1)`,
+      [versionId],
+    );
+
+    const res = await computeAndSaveInitialBreakdown({ projectId });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.status).toBe('fail');
+    expect(Number(res.data.marginPct)).toBeLessThan(-100);
+
+    const row = await appClient.query<{ margin_pct: string }>(
+      `select margin_pct::text from public.costing_breakdowns where id = $1::uuid`,
+      [res.data.breakdownId],
+    );
+    expect(Number(row.rows[0]?.margin_pct)).toBeLessThan(-100);
+  });
 });
 
 // ── Pure validation path (always runs, no DB) ─────────────────────────────────
@@ -977,5 +1031,125 @@ describe('computeAndSaveInitialBreakdown — lookup honesty (W9-L6, fake client)
 
     const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
     expect(res).toMatchObject({ ok: false, error: 'ingredient_costs_missing' });
+  });
+});
+
+describe('computeAndSaveInitialBreakdown — persistence error mapping (PF-R05-05)', () => {
+  type Handler = (sql: string, params?: readonly unknown[]) => { rows: unknown[] } | Promise<never>;
+  let handler: Handler = () => ({ rows: [] });
+
+  const BOOTSTRAP_MARK = 'org_npd_cost_params';
+
+  function lockedFormulationRow(productCode: string) {
+    return {
+      product_code: productCode,
+      version_id: '00000000-0000-4000-8000-00000000aaaa',
+      target_yield_pct: '95',
+      target_price_eur: '4.99',
+      pack_weight_kg: '0.25',
+      packs_per_case: '10',
+      weekly_volume_packs: '1000',
+      runs_per_week: '2',
+      avg_batch_qty: '100',
+      fg_base_uom: 'kg',
+      overhead_per_kg: '0',
+      logistics_per_box: '0',
+    };
+  }
+
+  beforeEach(() => {
+    handler = () => ({ rows: [] });
+    ctxHolder.client = {
+      query: async (sql: string, params?: readonly unknown[]) => handler(sql, params),
+    } as unknown as pg.PoolClient;
+    hasPermissionMock.mockReset();
+    hasPermissionMock.mockResolvedValue(true);
+  });
+
+  it('maps FK violation 23503 to not_found (not persistence_failed)', async () => {
+    const { computeAndSaveInitialBreakdown } = await import('../compute');
+    handler = (sql) => {
+      if (sql.includes(BOOTSTRAP_MARK)) return { rows: [lockedFormulationRow('FG-FK')] };
+      if (sql.includes('from public.formulation_ingredients') && !sql.includes('formulation_wips')) {
+        return { rows: [{ rm_code: 'RM1', qty_kg: '1', pct: '100', cost_per_kg_eur: '2.00', wip_definition_id: null }] };
+      }
+      if (sql.includes('"Reference"."AlertThresholds"')) return { rows: [{ value_int: 15, value_text: null }] };
+      if (sql.includes('insert into public.costing_breakdowns')) {
+        const err = new Error('insert or update on table violates foreign key constraint') as Error & {
+          code: string;
+        };
+        err.code = '23503';
+        throw err;
+      }
+      return { rows: [] };
+    };
+
+    const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
+    expect(res).toEqual({ ok: false, error: 'not_found' });
+  });
+
+  it('logs pg code and constraint (not message alone) on persistence failure', async () => {
+    const { computeAndSaveInitialBreakdown } = await import('../compute');
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    handler = (sql) => {
+      if (sql.includes(BOOTSTRAP_MARK)) return { rows: [lockedFormulationRow('FG-CHK')] };
+      if (sql.includes('from public.formulation_ingredients') && !sql.includes('formulation_wips')) {
+        return { rows: [{ rm_code: 'RM1', qty_kg: '1', pct: '100', cost_per_kg_eur: '2.00', wip_definition_id: null }] };
+      }
+      if (sql.includes('"Reference"."AlertThresholds"')) return { rows: [{ value_int: 15, value_text: null }] };
+      if (sql.includes('insert into public.costing_breakdowns')) {
+        const err = new Error('new row violates check constraint') as Error & {
+          code: string;
+          constraint: string;
+          detail: string;
+          routine: string;
+        };
+        err.code = '23514';
+        err.constraint = 'costing_breakdowns_margin_pct_check';
+        err.detail = 'Failing row contains (margin_pct)=(-3211.5737).';
+        err.routine = '_ExecConstraints';
+        throw err;
+      }
+      return { rows: [] };
+    };
+
+    const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
+    expect(res).toEqual({
+      ok: false,
+      error: 'persistence_failed',
+      message: 'constraint_violation:costing_breakdowns_margin_pct_check',
+    });
+
+    const logPayload = errorSpy.mock.calls.find((call) =>
+      String(call[0]).includes('[computeAndSaveInitialBreakdown]'),
+    )?.[1] as Record<string, unknown> | undefined;
+    expect(logPayload?.code).toBe('23514');
+    expect(logPayload?.constraint).toBe('costing_breakdowns_margin_pct_check');
+    expect(logPayload?.detail).toContain('margin_pct');
+    expect(logPayload?.routine).toBe('_ExecConstraints');
+
+    errorSpy.mockRestore();
+  });
+
+  it('persists advisory fail status when margin_pct is deeply negative (D10)', async () => {
+    const { computeAndSaveInitialBreakdown } = await import('../compute');
+    handler = (sql) => {
+      if (sql.includes(BOOTSTRAP_MARK)) return { rows: [lockedFormulationRow('FG-DEEP-NEG')] };
+      if (sql.includes('from public.formulation_ingredients') && !sql.includes('formulation_wips')) {
+        return {
+          rows: [{ rm_code: 'RM1', qty_kg: '165.25', pct: '100', cost_per_kg_eur: '1.00', wip_definition_id: null }],
+        };
+      }
+      if (sql.includes('"Reference"."AlertThresholds"')) return { rows: [{ value_int: 15, value_text: null }] };
+      if (sql.includes('insert into public.costing_breakdowns')) return { rows: [{ id: randomUUID() }] };
+      if (sql.includes('insert into public.costing_waterfall_steps')) return { rows: [] };
+      return { rows: [] };
+    };
+
+    const res = await computeAndSaveInitialBreakdown({ projectId: randomUUID() });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.status).toBe('fail');
+    expect(Number(res.data.marginPct)).toBeLessThan(-100);
   });
 });

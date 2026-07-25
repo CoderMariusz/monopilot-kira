@@ -179,7 +179,12 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
         dedupKey: `${GATE_ADVANCED_EVENT}:${project.id}:${project.current_stage}:${targetStage}`,
       });
 
-      safeRevalidatePath(`/npd/pipeline/${project.id}`);
+      // `(npd)` is a ROUTE GROUP — it contributes no URL segment, so the real
+      // route is `/{locale}/pipeline/{id}`. The old `/npd/pipeline/...` target
+      // matched nothing and revalidated nothing. `'layout'` is required because
+      // the stage rail + header live in the project layout that wraps every
+      // stage child route the user actually advances from (PF-R04-14a).
+      safeRevalidatePath(`/pipeline/${project.id}`, 'layout');
       return {
         ok: true,
         data: {
@@ -204,9 +209,9 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
   }
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidateLocalized(path);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

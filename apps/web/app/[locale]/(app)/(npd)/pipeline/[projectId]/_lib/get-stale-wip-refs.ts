@@ -1,9 +1,12 @@
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
 import {
+  buildWipSuccessorIndex,
   resolveStaleWipDefinitions,
+  resolveWipSuccessorHead,
   type StaleWipDefinitionRow,
   type WipBumpNotification,
+  type WipLineageRow,
 } from './stale-wip-definition';
 
 type QueryClient = {
@@ -156,6 +159,83 @@ async function loadBumpNotifications(
   return out;
 }
 
+const MAX_WIP_LINEAGE_HOPS = 50;
+
+/**
+ * Load every wip_definitions row along forward supersedes chains from pinned
+ * formulation references (multi-hop; cycles stop at the revisiting node).
+ */
+async function loadWipLineageRows(
+  ctx: OrgContextLike,
+  rootDefinitionIds: string[],
+): Promise<WipLineageRow[]> {
+  if (rootDefinitionIds.length === 0) return [];
+
+  const { rows } = await ctx.client.query<{
+    wip_definition_id: string;
+    name: string;
+    version: number;
+    supersedes_wip_definition_id: string | null;
+  }>(
+    `with recursive
+       roots as (
+         select unnest($1::uuid[]) as root_id
+       ),
+       walk as (
+         select wd.id,
+                wd.name,
+                wd.version,
+                wd.supersedes_wip_definition_id,
+                array[wd.id] as visited,
+                0 as depth
+           from roots r
+           join public.wip_definitions wd
+             on wd.id = r.root_id
+            and wd.org_id = app.current_org_id()
+         union all
+         select succ.id,
+                succ.name,
+                succ.version,
+                succ.supersedes_wip_definition_id,
+                w.visited || succ.id,
+                w.depth + 1
+           from walk w
+           join public.wip_definitions succ
+             on succ.supersedes_wip_definition_id = w.id
+            and succ.org_id = app.current_org_id()
+          where not (succ.id = any (w.visited))
+            and w.depth < $2::int
+       )
+     select distinct on (id)
+            id::text as wip_definition_id,
+            name,
+            version,
+            supersedes_wip_definition_id::text as supersedes_wip_definition_id
+       from walk
+      order by id, depth desc`,
+    [rootDefinitionIds, MAX_WIP_LINEAGE_HOPS],
+  );
+
+  return rows.map((row) => ({
+    wipDefinitionId: row.wip_definition_id,
+    name: row.name,
+    version: row.version,
+    supersedesWipDefinitionId: row.supersedes_wip_definition_id,
+  }));
+}
+
+function buildSuccessorHeadMap(lineageRows: WipLineageRow[], rootIds: string[]) {
+  const rowsById = new Map(lineageRows.map((row) => [row.wipDefinitionId, row]));
+  const successorIndex = buildWipSuccessorIndex(lineageRows);
+  const heads = new Map<string, ReturnType<typeof resolveWipSuccessorHead>>();
+
+  for (const rootId of rootIds) {
+    heads.set(rootId, resolveWipSuccessorHead(rootId, rowsById, successorIndex));
+  }
+
+  return heads;
+}
+
 export async function getStaleWipRefs(input: {
   projectId: string;
   versionId?: string;
@@ -182,6 +262,9 @@ export async function getStaleWipRefs(input: {
       }
 
       const definitionIds = definitions.map((d) => d.wipDefinitionId);
+      const lineageRows = await loadWipLineageRows(ctx, definitionIds);
+      const successorHeads = buildSuccessorHeadMap(lineageRows, definitionIds);
+
       const [acks, bumpNotifications] = await Promise.all([
         loadAcks(ctx, input.projectId, definitionIds),
         loadBumpNotifications(ctx, input.projectId, definitionIds),
@@ -192,6 +275,7 @@ export async function getStaleWipRefs(input: {
         acks,
         bumpNotifications,
         projectId: input.projectId,
+        successorHeads,
       });
 
       return { staleDefinitions, canAccept };

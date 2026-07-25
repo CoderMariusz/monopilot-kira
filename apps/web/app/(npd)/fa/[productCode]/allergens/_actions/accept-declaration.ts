@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { hasAnyPermission } from '../../../../../../lib/auth/has-permission';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { revalidateLocalized } from '../../../../../../lib/i18n/revalidate-localized';
+import { revalidateAllergenCascadeRoutes } from './revalidate-allergen-cascade-routes';
 
 // Accept/revoke permission OR-list (NN-TEC-5). Arbitration 2026-07-07: the npd_manager
 // ROLE bypass was removed (no r.code/r.slug = 'npd_manager' shortcut), but the legacy
@@ -143,12 +144,10 @@ async function updateAllergenDeclaration(productCode: string, accepted: boolean)
         [productCode],
       );
 
-      safeRevalidatePath('/[locale]/fg/[productCode]/allergens', 'page');
-      safeRevalidatePath('/[locale]/fg/[productCode]/allergens', 'page');
+      revalidateAllergenCascadeRoutes(productCode);
       const projectId = project.rows[0]?.id;
       if (projectId) {
-        safeRevalidatePath(`/npd/pipeline/${projectId}/approval`);
-        safeRevalidatePath(`/en/npd/pipeline/${projectId}/approval`);
+        safeRevalidatePath(`/pipeline/${projectId}/approval`, 'page');
       }
 
       return { ok: true, productCode };

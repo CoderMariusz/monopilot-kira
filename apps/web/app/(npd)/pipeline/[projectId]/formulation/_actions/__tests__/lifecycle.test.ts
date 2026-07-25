@@ -197,7 +197,7 @@ runIntegrationTest('formulation lifecycle Server Actions against real Postgres',
           { rmCode: 'RM-T064-B', qtyKg: '4.000', pct: '40.000', costPerKgEur: '3.7500', sequence: 2 },
         ],
       }),
-    ).resolves.toEqual({ ok: true, data: { versionId: seeded.versionId, ingredientCount: 2 } });
+    ).resolves.toMatchObject({ ok: true, data: { versionId: seeded.versionId, ingredientCount: 2 } });
 
     await expect(lockVersion({ projectId: seeded.projectId, versionId: seeded.versionId })).resolves.toMatchObject({
       ok: true,
@@ -340,7 +340,7 @@ runIntegrationTest('formulation lifecycle Server Actions against real Postgres',
           { rmCode: 'RM-T064-DER-B', qtyKg: '0.667', pct: null, costPerKgEur: '3.7500', sequence: 2 },
         ],
       }),
-    ).resolves.toEqual({ ok: true, data: { versionId: draft.versionId, ingredientCount: 2 } });
+    ).resolves.toMatchObject({ ok: true, data: { versionId: draft.versionId, ingredientCount: 2 } });
 
     const saved = await ownerPool.query<{ rm_code: string; qty_kg: string; pct: string }>(
       `

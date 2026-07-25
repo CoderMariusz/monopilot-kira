@@ -17,6 +17,7 @@ import {
   type SaveScenarioOutcome,
   type ScenarioRow,
 } from '../_components/costing-screen';
+import { DEFAULT_STEP_LABELS } from './cost-engine-adapter';
 import { saveCostingScenario } from '../_actions/save-scenario';
 import { computeAndSaveInitialBreakdown } from '../_actions/compute';
 import { hasPermission } from '../../../../../../../../lib/auth/has-permission';
@@ -69,6 +70,14 @@ export const DEFAULT_COSTING_LABELS: CostingLabels = {
   saveInputsError: 'Could not save inputs.',
   blockedTitle: 'Costing inputs required',
   blockedPrefix: 'Missing',
+  // LABEL_KEYS is derived from this object's keys, so a key omitted here is never
+  // translated and CostingScreen falls through to its inline fallback in EVERY
+  // locale. That is how the PL blocker copy reached the EN screen (PF-R04-14c).
+  blockedYieldRequired: 'Fill in the yield % on the recipe, then recompute.',
+  blockedBriefInputs:
+    'Complete the costing inputs: avg batch (panel above) plus weekly volume and runs/week in Brief.',
+  blockedPacksPerCase: 'Set packs per box on the Packaging stage.',
+  blockedIngredientCosts: 'At least one recipe ingredient has no cost - fill in ingredient costs.',
   notDerivable: 'Not derivable',
   marginNegativeWarn: 'Negative margin',
   marginNegativeWarnBody:
@@ -88,17 +97,8 @@ export const DEFAULT_COSTING_LABELS: CostingLabels = {
     'The target margin is negative — the breakdown was saved; review pricing and costs.',
   computeErrorFgNotMapped:
     'The recipe exists, but no Finished Good is linked yet — advance the project to the Packaging stage first.',
-  stepLabels: {
-    raw_materials: 'Raw materials',
-    yield_loss: 'Yield loss',
-    process_labour: 'Process labour',
-    setup: 'Setup',
-    packaging: 'Packaging',
-    overhead: 'Overhead',
-    logistics: 'Logistics',
-    total: 'Total cost',
-    margin: 'Margin vs target price',
-  },
+  // Same object the adapter falls back to — one EN source of truth for step names.
+  stepLabels: DEFAULT_STEP_LABELS,
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_COSTING_LABELS) as Array<keyof CostingLabels>;

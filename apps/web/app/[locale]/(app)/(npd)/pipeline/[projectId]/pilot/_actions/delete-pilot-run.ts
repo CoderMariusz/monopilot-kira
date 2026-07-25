@@ -6,6 +6,10 @@
  * Org-scoped hard delete of a planned pilot run. RBAC: `npd.pilot.write`.
  * Rejects runs that have progressed past `planned` (`has_progressed`).
  * Child materials/checklist rows cascade via FK ON DELETE CASCADE.
+ *
+ * Intentionally NOT gated by assertPilotWriteStage — deleting a run is the
+ * cleanup path for a bogus plan created before G3 (audit case NPD-023). The UI
+ * already hides delete when canEdit is false; RBAC remains the server gate.
  */
 
 import { z } from 'zod';

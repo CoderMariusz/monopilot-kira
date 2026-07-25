@@ -25,12 +25,28 @@ import type {
   SearchWipDefinitionsInput,
 } from './wip-definition-schemas';
 import { assertWipDefinitionCompositionAcyclic } from './wip-definition-cycle';
+import { safeRevalidatePath } from './revalidate';
 
 const CREATE_PERMISSION = 'technical.wip.create';
 const EDIT_PERMISSION = 'technical.wip.edit';
 const DEACTIVATE_PERMISSION = 'technical.wip.deactivate';
 const NPD_PRODUCTION_WRITE_PERMISSION = 'npd.production.write';
 const WIP_UPDATED_EVENT = 'wip.definition.updated';
+const WIP_LIBRARY_PATH = '/technical/wip-library';
+
+/**
+ * PF-R05-09 — the single revalidation point for WIP-definition lifecycle writes.
+ * Every mutation routes through here so status changes (archive, draft→active on
+ * the reusable toggle, clone-on-write supersession) can never leave a cached
+ * detail page rendering stale, still-editable controls. `ids` are the definition
+ * rows whose detail route changed (the saved row, plus any row it superseded).
+ */
+function revalidateWipLibrary(...ids: Array<string | null | undefined>): void {
+  safeRevalidatePath(WIP_LIBRARY_PATH);
+  for (const id of new Set(ids.filter((value): value is string => Boolean(value)))) {
+    safeRevalidatePath(`${WIP_LIBRARY_PATH}/${encodeURIComponent(id)}`);
+  }
+}
 
 type QueryResult<T = Record<string, unknown>> = { rows: T[]; rowCount?: number | null };
 type QueryClient = {
@@ -314,6 +330,10 @@ export async function saveWipDefinition(input: SaveWipDefinitionInput): Promise<
       await fanOutDefinitionNotifications(ctx, definitionId, data.name, nextVersion);
     }
 
+    // The saved row AND the row it superseded (clone-on-write archives the old
+    // one) both changed status/version — drop both detail routes plus the list.
+    revalidateWipLibrary(definitionId, data.id, writeTarget?.id);
+
     return { ok: true, id: definitionId, version: nextVersion };
   });
 }
@@ -440,6 +460,8 @@ export async function publishWipDefinitionFromComponent(input: PublishWipDefinit
       [parsed.data.prodDetailId, definitionId, itemId],
     );
 
+    revalidateWipLibrary(definitionId);
+
     return { ok: true, id: definitionId };
   });
 }
@@ -536,7 +558,11 @@ export async function archiveWipDefinition(input: ArchiveWipDefinitionInput): Pr
           and org_id = app.current_org_id()`,
       [parsed.data.id],
     );
-    return archived.rowCount === 1 ? { ok: true } : { ok: false, error: 'WIP definition not found', code: 'NOT_FOUND', status: 404 };
+    if (archived.rowCount !== 1) {
+      return { ok: false, error: 'WIP definition not found', code: 'NOT_FOUND', status: 404 };
+    }
+    revalidateWipLibrary(parsed.data.id);
+    return { ok: true };
   });
 }
 

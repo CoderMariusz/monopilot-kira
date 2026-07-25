@@ -99,7 +99,7 @@ export async function revertNpdGate(rawInput: unknown): Promise<RevertNpdGateRes
         dedupKey: `${GATE_REVERTED_EVENT}:${project.id}:${project.current_gate}:${targetGate}:${Date.now()}`,
       });
 
-      safeRevalidatePath(`/npd/pipeline/${project.id}`);
+      safeRevalidatePath(`/pipeline/${project.id}`, 'layout');
       return { success: true };
     });
   } catch (error) {
@@ -169,9 +169,9 @@ async function loadProjectForRevert(ctx: OrgContextLike, projectId: string): Pro
   return project;
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidateLocalized(path);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

@@ -38,7 +38,7 @@ import { percentFieldError } from '../../_lib/yield-percent';
  * `labels.saveError` ("Could not save. Check the values and try again."). Map
  * the server's code to a message that names the field and the rule.
  */
-function saveErrorMessage(labels: PilotLabels, code: string | null): string {
+function saveErrorMessage(labels: PilotLabels, code: string | null, detail?: string): string {
   switch (code) {
     case 'yield_out_of_range':
       return labels.saveErrorYieldRange;
@@ -46,6 +46,8 @@ function saveErrorMessage(labels: PilotLabels, code: string | null): string {
       return labels.fieldLineRequired;
     case 'forbidden':
       return labels.saveErrorForbidden;
+    case 'stage_not_reached':
+      return detail ?? labels.saveError;
     default:
       return labels.saveError;
   }
@@ -116,18 +118,21 @@ export function PilotRunModal({
   const [values, setValues] = React.useState<PilotRunFormValues>(() => fromRun(run));
   const [submitState, setSubmitState] = React.useState<'idle' | 'saving' | 'error'>('idle');
   const [errorCode, setErrorCode] = React.useState<string | null>(null);
+  const [errorDetail, setErrorDetail] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (open) {
       setValues(fromRun(run));
       setSubmitState('idle');
       setErrorCode(null);
+      setErrorDetail(null);
     }
   }, [open, run]);
 
   function update<K extends keyof PilotRunFormValues>(key: K, next: PilotRunFormValues[K]) {
     setSubmitState('idle');
     setErrorCode(null);
+    setErrorDetail(null);
     setValues((prev) => ({ ...prev, [key]: next }));
   }
 
@@ -154,6 +159,7 @@ export function PilotRunModal({
     } else {
       setSubmitState('error');
       setErrorCode(result.error ?? null);
+      setErrorDetail(result.message ?? null);
     }
   }
 
@@ -278,7 +284,7 @@ export function PilotRunModal({
             </div>
             {submitState === 'error' ? (
               <div role="alert" className="alert alert-red" data-testid="pilot-run-error">
-                {saveErrorMessage(labels, errorCode)}
+                {saveErrorMessage(labels, errorCode, errorDetail ?? undefined)}
               </div>
             ) : null}
           </div>

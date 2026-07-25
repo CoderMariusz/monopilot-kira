@@ -16,6 +16,8 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { hasPilotPermission } from './get-pilot-run';
+import { assertPilotWriteStage } from './pilot-stage-guard';
+import type { PilotStageNotReachedContext } from './pilot-stage-guard';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 import { isPercentWithinRange, percentFieldError } from '../../_lib/yield-percent';
 
@@ -55,11 +57,12 @@ export type UpsertPilotRunError =
   | 'line_required'
   | 'forbidden'
   | 'not_found'
+  | 'stage_not_reached'
   | 'persistence_failed';
 
 export type UpsertPilotRunResult =
   | { ok: true; data: { pilotRunId: string } }
-  | { ok: false; error: UpsertPilotRunError; message?: string };
+  | { ok: false; error: UpsertPilotRunError; message?: string; stage?: PilotStageNotReachedContext };
 
 const WRITE_PERMISSION = 'npd.pilot.write';
 
@@ -86,14 +89,11 @@ export async function upsertPilotRun(raw: unknown): Promise<UpsertPilotRunResult
         return { ok: false as const, error: 'forbidden' as const };
       }
 
-      // Guard: the project must exist within this org (RLS scopes the lookup).
-      const project = await ctx.client.query<{ id: string }>(
-        `select id from public.npd_projects
-          where id = $1::uuid and org_id = app.current_org_id() limit 1`,
-        [input.projectId],
-      );
-      if (project.rows.length === 0) {
-        return { ok: false as const, error: 'not_found' as const };
+      const stageGuard = await assertPilotWriteStage(ctx, input.projectId);
+      if (!stageGuard.ok) {
+        return stageGuard.error === 'stage_not_reached'
+          ? { ok: false as const, error: 'stage_not_reached' as const, stage: stageGuard.stage }
+          : { ok: false as const, error: 'not_found' as const };
       }
 
       const before = input.pilotRunId

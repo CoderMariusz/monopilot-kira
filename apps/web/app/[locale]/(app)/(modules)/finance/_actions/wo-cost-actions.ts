@@ -98,6 +98,13 @@ export type WoActualCost = {
   woId: string;
   woNumber: string;
   product: { itemCode: string | null; name: string | null };
+  /**
+   * ISO-4217 code every monetary field below is denominated in. Always
+   * WO_REPORTING_CURRENCY: non-conforming material costs are rejected upstream
+   * with `unsupported_currency`, and labor/setup rates are currency-filtered in
+   * SQL — so a row can never mix denominations.
+   */
+  currency: string;
   outputKg: string;
   materials: WoActualCostMaterial[];
   unresolvedUom: Array<{
@@ -141,6 +148,8 @@ export type CompletedWoWasteCostSummary = {
   days: number;
   woCount: number;
   wasteCost: string;
+  /** Denomination of `wasteCost` — see WoActualCost.currency for why one code covers the sum. */
+  currency: string;
 };
 
 type MaterialRow = {
@@ -559,6 +568,7 @@ async function computeWoActualCostInContext(
       woId: wo.wo_id,
       woNumber: wo.wo_number,
       product: { itemCode: wo.product_code, name: wo.product_name },
+      currency: WO_REPORTING_CURRENCY,
       outputKg: wo.output_kg,
       ...totals,
       unresolvedUom: materials.rows
@@ -695,7 +705,12 @@ export async function summarizeCompletedWoWasteCost(
 
         return {
           ok: true,
-          data: { days, woCount: Number(countResult.rows[0]?.total ?? woCount), wasteCost: microToFixed(wasteCost, 4) },
+          data: {
+            days,
+            woCount: Number(countResult.rows[0]?.total ?? woCount),
+            wasteCost: microToFixed(wasteCost, 4),
+            currency: WO_REPORTING_CURRENCY,
+          },
         };
       },
     );

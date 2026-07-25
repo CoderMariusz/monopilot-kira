@@ -56,3 +56,27 @@ export function pipelineStageHref(locale: string, projectId: string, stageCode: 
   const prefix = locale ? `/${locale}` : '';
   return `${prefix}/pipeline/${projectId}/${stageRoutePath(stageCode)}`;
 }
+
+/**
+ * Rebuild the caller's CURRENT url for a different stage of the same project,
+ * reusing whatever locale prefix it is already on (so no client has to parse the
+ * locale out of the path itself).
+ *
+ * Returns null — meaning "do not navigate" — when the pathname is not a
+ * `/pipeline/{projectId}` route, or when the stage has no stage route at all.
+ * `launched` is the live case for the latter: it is a terminal state reached
+ * from handoff and has no page, so pushing `stageRoutePath()`'s passthrough
+ * would navigate the user into a 404.
+ */
+export function pipelineStageHrefFromPathname(
+  pathname: string | null | undefined,
+  projectId: string,
+  stageCode: string | null | undefined,
+): string | null {
+  const segment = STAGE_ROUTE_BY_CODE[(stageCode ?? '').trim().toLowerCase()];
+  if (!segment || !pathname || !projectId) return null;
+  const marker = `/pipeline/${projectId}`;
+  const index = pathname.indexOf(marker);
+  if (index === -1) return null;
+  return `${pathname.slice(0, index + marker.length)}/${segment}`;
+}

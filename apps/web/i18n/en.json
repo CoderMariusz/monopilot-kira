@@ -3959,8 +3959,9 @@
       "colScore": "Score /10",
       "colVsBenchmark": "vs benchmark",
       "overall": "Overall",
-      "aboveBenchmark": "✓ Above benchmark ({score})",
-      "belowBenchmark": "Below benchmark ({score})",
+      "aboveBenchmark": "✓ Above benchmark ({delta})",
+      "belowBenchmark": "Below benchmark ({delta})",
+      "onBenchmark": "On benchmark ({delta})",
       "commentsTitle": "Panelist comments",
       "loading": "Loading sensory panel…",
       "empty": "No sensory panel recorded for this product yet",
@@ -4047,7 +4048,8 @@
       "deletePlan": "Delete plan",
       "confirmDeletePlan": "Delete this pilot plan?",
       "deletePlanError": "Could not delete the pilot plan. Try again.",
-      "deletePlanHasProgressed": "This pilot plan has progressed and cannot be deleted."
+      "deletePlanHasProgressed": "This pilot plan has progressed and cannot be deleted.",
+      "stageNotReached": "Pilot planning requires the {requiredStage} stage. This project is at {currentStage} ({currentGate} {gateLabel})."
     },
     "trial": {
       "title": "Lab & kitchen trials",
@@ -6511,7 +6513,8 @@
         "technical": "Technical",
         "sensory": "Sensory"
       },
-      "readOnlyNote": "Read-only. Sensory is a reported read model — NPD remains the gate owner and consumes this status read-only.",
+      "readOnlyNote": "Read-only for your role — you cannot record or edit sensory evaluations here. Sensory is owned by Technical; NPD remains the gate owner and consumes this status read-only.",
+      "ownerNote": "Sensory is owned by Technical — evaluations are recorded and edited on this screen. NPD remains the gate owner and consumes this status read-only; recording an evaluation never moves the NPD gate.",
       "tableLabel": "Sensory evaluations",
       "kpi": {
         "region": "Sensory summary",
@@ -10482,6 +10485,7 @@
         "wo": "WO",
         "product": "Product",
         "outputKg": "Output kg",
+        "currency": "Currency",
         "materials": "Materials",
         "labor": "Labor",
         "total": "Total",

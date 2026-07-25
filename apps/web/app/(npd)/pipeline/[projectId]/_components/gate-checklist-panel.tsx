@@ -39,6 +39,8 @@ import { Card } from '@monopilot/ui/Card';
 import { Checkbox } from '@monopilot/ui/Checkbox';
 import { EmptyState } from '@monopilot/ui/EmptyState';
 
+import { formatApprovalHistoryDate } from '../../../../../lib/npd/esign-display';
+
 // ——— Gate metadata (mirrors prototype GATE_INFO; static gate sequence is domain constant, not data) ———
 export type GateKey = 'G0' | 'G1' | 'G2' | 'G3' | 'G4';
 export type CategoryCode = 'TECHNICAL' | 'BUSINESS' | 'COMPLIANCE';
@@ -344,7 +346,13 @@ function ChecklistItemRow({
               ? labels.autoDerived
               : item.done
                 ? item.by
-                  ? labels.completedBy.replace('{by}', item.by).replace('{at}', item.at ?? '')
+                  ? // `item.at` arrives as a raw `completed_at::text` cast from getProject,
+                    // i.e. `2026-07-17 09:13:14.821+00`. formatApprovalHistoryDate is the
+                    // same helper the approval timeline uses: it formats real instants and
+                    // passes a bare `YYYY-MM-DD` through untouched (PF-R04-14b).
+                    labels.completedBy
+                      .replace('{by}', item.by)
+                      .replace('{at}', formatApprovalHistoryDate(item.at))
                   : labels.completed
                 : labels.notStarted}
         </div>

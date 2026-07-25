@@ -344,3 +344,61 @@ describe('C3 — Compute costing (empty state)', () => {
     expect(screen.queryByText('forbidden')).not.toBeInTheDocument();
   });
 });
+
+describe('PF-R04-14c — typed compute blockers never render Polish under /en', () => {
+  const POLISH_CHARS = /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/;
+
+  // LABELS above intentionally omits the blocked* keys — that is the real production
+  // shape whenever a caller does not supply them, and it is the branch that used to
+  // fall through to hardcoded Polish copy regardless of locale.
+  const CASES: Array<[string, string]> = [
+    ['yield_required', 'Fill in the yield % on the recipe, then recompute.'],
+    ['brief_inputs_required', 'Complete the costing inputs:'],
+    ['packs_per_case_required', 'Set packs per box on the Packaging stage.'],
+    ['ingredient_costs_missing', 'At least one recipe ingredient has no cost'],
+  ];
+
+  it.each(CASES)('maps %s to English copy with no Polish characters', async (error, expected) => {
+    const compute = vi.fn().mockResolvedValue({ ok: false, error });
+    render(
+      <CostingScreen
+        state="empty"
+        data={null}
+        labels={LABELS}
+        projectId={PROJECT_ID}
+        computeAction={compute}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('costing-compute'));
+    });
+
+    const alert = await screen.findByTestId('costing-compute-error');
+    expect(alert).toHaveTextContent(expected);
+    expect(alert.textContent ?? '').not.toMatch(POLISH_CHARS);
+  });
+
+  it('prefers an injected localized blocker label over the English fallback', async () => {
+    const compute = vi.fn().mockResolvedValue({ ok: false, error: 'yield_required' });
+    render(
+      <CostingScreen
+        state="empty"
+        data={null}
+        labels={{ ...LABELS, blockedYieldRequired: 'Uzupełnij uzysk (yield %) w recepturze.' }}
+        projectId={PROJECT_ID}
+        computeAction={compute}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('costing-compute'));
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId('costing-compute-error')).toHaveTextContent(
+        'Uzupełnij uzysk (yield %) w recepturze.',
+      ),
+    );
+  });
+});

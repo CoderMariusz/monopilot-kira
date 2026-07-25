@@ -41,6 +41,16 @@ const PROJECT = '07300000-0000-4000-8000-0000000000c1';
 const RUN = '07300000-0000-4000-8000-0000000000d1';
 const ITEM = '07300000-0000-4000-8000-0000000000e1';
 
+function projectAtStage(current_stage: string, current_gate: string) {
+  return { id: PROJECT, current_stage, current_gate, product_code: null };
+}
+
+const BRIEF_STAGE_BLOCK = {
+  requiredStage: 'packaging' as const,
+  currentStage: 'brief',
+  currentGate: 'G0' as const,
+};
+
 afterEach(() => {
   handlerHolder.handler = () => ({ rows: [] });
   vi.clearAllMocks();
@@ -145,11 +155,28 @@ describe('upsertPilotRun — zod + RBAC', () => {
     expect(r).toEqual({ ok: false, error: 'forbidden' });
   });
 
-  it('inserts a new run + writes an audit row when npd.pilot.write is granted', async () => {
+  it('rejects upsert on a G0 Brief project with a named stage reason (PF-R05-06)', async () => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
+      if (/from public.npd_projects/.test(sql)) {
+        return { rows: [projectAtStage('brief', 'G0')] };
+      }
+      return { rows: [] };
+    });
+    const r = await upsertPilotRun({ projectId: PROJECT, line: 'Line 2', batchSizeKg: '500' });
+    expect(r).toEqual({
+      ok: false,
+      error: 'stage_not_reached',
+      stage: BRIEF_STAGE_BLOCK,
+    });
+  });
+
+  it('inserts a new run + writes an audit row when npd.pilot.write is granted at Pilot stage', async () => {
     const calls: string[] = [];
     handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
       calls.push(sql);
-      if (/from public.npd_projects/.test(sql)) return { rows: [{ id: PROJECT }] };
+      if (/from public.npd_projects/.test(sql)) {
+        return { rows: [projectAtStage('pilot', 'G3')] };
+      }
       if (/insert into public.pilot_runs/.test(sql)) return { rows: [{ id: RUN }] };
       return { rows: [] };
     });
@@ -160,8 +187,33 @@ describe('upsertPilotRun — zod + RBAC', () => {
 });
 
 describe('upsertPilotMaterial — status compute + RBAC', () => {
+  it('rejects upsert on a G0 Brief project with a named stage reason (PF-R05-06)', async () => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
+      if (/from public.npd_projects/.test(sql)) {
+        return { rows: [projectAtStage('brief', 'G0')] };
+      }
+      return { rows: [] };
+    });
+    const r = await upsertPilotMaterial({
+      projectId: PROJECT,
+      pilotRunId: RUN,
+      ingredientCode: 'Spice',
+      requiredKg: '4.5',
+      availableKg: '3.2',
+      reservedKg: '3.2',
+    });
+    expect(r).toEqual({
+      ok: false,
+      error: 'stage_not_reached',
+      stage: BRIEF_STAGE_BLOCK,
+    });
+  });
+
   it('computes short when reserved < required', async () => {
     handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
+      if (/from public.npd_projects/.test(sql)) {
+        return { rows: [projectAtStage('pilot', 'G3')] };
+      }
       if (/from public.pilot_runs/.test(sql)) return { rows: [{ id: RUN }] };
       if (/into public.pilot_run_materials/.test(sql)) return { rows: [{ id: 'm9' }] };
       return { rows: [] };
@@ -179,6 +231,9 @@ describe('upsertPilotMaterial — status compute + RBAC', () => {
 
   it('computes reserved when reserved >= required', async () => {
     handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
+      if (/from public.npd_projects/.test(sql)) {
+        return { rows: [projectAtStage('pilot', 'G3')] };
+      }
       if (/from public.pilot_runs/.test(sql)) return { rows: [{ id: RUN }] };
       if (/into public.pilot_run_materials/.test(sql)) return { rows: [{ id: 'm10' }] };
       return { rows: [] };
@@ -207,10 +262,28 @@ describe('togglePilotChecklistItem — zod + RBAC', () => {
     expect(r).toEqual({ ok: false, error: 'forbidden' });
   });
 
+  it('rejects toggle on a G0 Brief project with a named stage reason (PF-R05-06)', async () => {
+    handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
+      if (/from public.npd_projects/.test(sql)) {
+        return { rows: [projectAtStage('brief', 'G0')] };
+      }
+      return { rows: [] };
+    });
+    const r = await togglePilotChecklistItem({ projectId: PROJECT, itemId: ITEM, isChecked: true });
+    expect(r).toEqual({
+      ok: false,
+      error: 'stage_not_reached',
+      stage: BRIEF_STAGE_BLOCK,
+    });
+  });
+
   it('toggles + audits when granted', async () => {
     const calls: string[] = [];
     handlerHolder.handler = permHandler(['npd.pilot.write'], (sql) => {
       calls.push(sql);
+      if (/from public.npd_projects/.test(sql)) {
+        return { rows: [projectAtStage('pilot', 'G3')] };
+      }
       if (/update public.pilot_run_checklist_items/.test(sql)) return { rows: [{ id: ITEM, is_checked: true }] };
       return { rows: [] };
     });

@@ -4,6 +4,7 @@ import { computeNpdCostEngine } from '../../../../../../../../../lib/costing/com
 import {
   adaptMissingChecklist,
   adaptWaterfallRows,
+  DEFAULT_STEP_LABELS,
   type CostEngineResult,
   type CostEngineStepKey,
 } from '../cost-engine-adapter';
@@ -89,5 +90,39 @@ describe('cost-engine-adapter', () => {
       '/en/pipeline/proj-1/brief',
       '/en/pipeline/proj-1/packaging',
     ]);
+  });
+});
+
+describe('PF-R04-14c — step-label fallbacks are source-locale EN, not Polish', () => {
+  const POLISH_CHARS = /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/;
+
+  it('labels every waterfall row in English when no labels map is injected', () => {
+    // adaptWaterfallRows(result) with no second argument is the real production path
+    // whenever a caller builds CostingLabels without stepLabels — it used to emit
+    // 'Praca procesów' / 'Koszt całkowity' / 'Marża vs cena docelowa' under /en.
+    const rows = adaptWaterfallRows(BASE);
+
+    expect(rows.map((row) => row.label)).toEqual([
+      'Raw materials',
+      'Yield loss',
+      'Process labour',
+      'Setup',
+      'Packaging',
+      'Overhead',
+      'Logistics',
+      'Total cost',
+      'Margin vs target price',
+    ]);
+  });
+
+  it('exposes no Polish characters in any default step label', () => {
+    for (const label of Object.values(DEFAULT_STEP_LABELS)) {
+      expect(label).not.toMatch(POLISH_CHARS);
+    }
+  });
+
+  it('still lets an injected localized label win over the EN default', () => {
+    const rows = adaptWaterfallRows(BASE, { total: 'Koszt całkowity' });
+    expect(rows.find((row) => row.key === 'total')?.label).toBe('Koszt całkowity');
   });
 });

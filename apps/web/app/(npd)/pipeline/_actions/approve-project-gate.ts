@@ -201,7 +201,7 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
         dedupKey: `${GATE_APPROVED_EVENT}:${approvalId}`,
       });
 
-      safeRevalidatePath(`/npd/pipeline/${project.id}`);
+      safeRevalidatePath(`/pipeline/${project.id}`, 'layout');
       return {
         ok: true,
         data: {
@@ -229,9 +229,9 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
   }
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidateLocalized(path);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

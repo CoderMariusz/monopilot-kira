@@ -22,6 +22,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   SensoryScreen,
+  benchmarkVerdict,
   buildSensoryCsv,
   type SensoryLabels,
   type SensoryScreenData,
@@ -37,8 +38,9 @@ const LABELS: SensoryLabels = {
   colScore: 'Score /10',
   colVsBenchmark: 'vs benchmark',
   overall: 'Overall',
-  aboveBenchmark: '✓ Above benchmark ({score})',
-  belowBenchmark: 'Below benchmark ({score})',
+  aboveBenchmark: '✓ Above benchmark ({delta})',
+  belowBenchmark: 'Below benchmark ({delta})',
+  onBenchmark: 'On benchmark ({delta})',
   commentsTitle: 'Panelist comments',
   loading: 'Loading sensory panel…',
   empty: 'No sensory panel recorded for this product yet',
@@ -123,7 +125,7 @@ describe('SensoryScreen — parity', () => {
     const overall = screen.getByTestId('sensory-overall-row');
     expect(within(overall).getByText(LABELS.overall)).toBeInTheDocument();
     expect(within(overall).getByText('7.6 / 10')).toBeInTheDocument();
-    expect(screen.getByTestId('sensory-above-benchmark')).toHaveTextContent('✓ Above benchmark (7.6)');
+    expect(screen.getByTestId('sensory-above-benchmark')).toHaveTextContent('✓ Above benchmark (+0.10)');
   });
 
   it('renders the Panelist comments list with bold codes and quotes', () => {
@@ -144,7 +146,7 @@ describe('SensoryScreen — parity', () => {
     expect(container.querySelectorAll('button[type="submit"]')).toHaveLength(0);
   });
 
-  it('renders no Above-benchmark badge when there is no benchmark product', () => {
+  it('renders no benchmark verdict at all when there is no benchmark product', () => {
     renderReady({
       data: {
         ...DATA,
@@ -153,7 +155,8 @@ describe('SensoryScreen — parity', () => {
       },
     });
     expect(screen.queryByTestId('sensory-above-benchmark')).not.toBeInTheDocument();
-    expect(screen.getByTestId('sensory-below-benchmark')).toBeInTheDocument();
+    expect(screen.queryByTestId('sensory-below-benchmark')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sensory-on-benchmark')).not.toBeInTheDocument();
   });
 
   it('renders no benchmark verdict when a benchmark product exists but all deltas are unset', () => {
@@ -166,6 +169,120 @@ describe('SensoryScreen — parity', () => {
     });
     expect(screen.queryByTestId('sensory-above-benchmark')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sensory-below-benchmark')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sensory-on-benchmark')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * PF-R04-13 — the aggregate benchmark verdict.
+ *
+ * Production panel: attribute scores 8, 7, 9, 6, 7, 7 (overall 7.33) against
+ * benchmark deltas +1, 0, +2, −1, 0, +1 (mean +0.5, i.e. ABOVE benchmark). The
+ * screen read "Below benchmark (7.3)": one negative attribute inverted the whole
+ * verdict, and the parenthetical was the product's OWN score, which the sentence
+ * never claimed to be showing.
+ */
+const PROD_PANEL: SensoryScreenData = {
+  ...DATA,
+  overallScore: '7.33',
+  benchmarkProductCode: 'BENCH-HAM',
+  attributes: [
+    { attributeName: 'Aroma', scoreOutOf10: '8.00', vsBenchmark: '1.00', displayOrder: 1 },
+    { attributeName: 'Flavour', scoreOutOf10: '7.00', vsBenchmark: '0.00', displayOrder: 2 },
+    { attributeName: 'Texture', scoreOutOf10: '9.00', vsBenchmark: '2.00', displayOrder: 3 },
+    { attributeName: 'Saltiness', scoreOutOf10: '6.00', vsBenchmark: '-1.00', displayOrder: 4 },
+    { attributeName: 'Colour', scoreOutOf10: '7.00', vsBenchmark: '0.00', displayOrder: 5 },
+    { attributeName: 'Aftertaste', scoreOutOf10: '7.00', vsBenchmark: '1.00', displayOrder: 6 },
+  ],
+};
+
+describe('SensoryScreen — benchmark verdict semantics (PF-R04-13)', () => {
+  it('reads ABOVE benchmark for deltas +1,0,+2,-1,0,+1 (one negative must not invert the aggregate)', () => {
+    render(<SensoryScreen state="ready" data={PROD_PANEL} labels={LABELS} />);
+    expect(screen.getByTestId('sensory-above-benchmark')).toBeInTheDocument();
+    expect(screen.queryByTestId('sensory-below-benchmark')).not.toBeInTheDocument();
+  });
+
+  it('interpolates the aggregate DELTA, never the overall score', () => {
+    render(<SensoryScreen state="ready" data={PROD_PANEL} labels={LABELS} />);
+    const badge = screen.getByTestId('sensory-above-benchmark');
+    expect(badge).toHaveTextContent('✓ Above benchmark (+0.50)');
+    // 7.3 is the product's own score — it must not appear in a benchmark claim.
+    expect(badge.textContent).not.toContain('7.3');
+  });
+
+  it('reads ON benchmark when every attribute is exactly level with the benchmark', () => {
+    render(
+      <SensoryScreen
+        state="ready"
+        data={{ ...PROD_PANEL, attributes: PROD_PANEL.attributes.map((a) => ({ ...a, vsBenchmark: '0.00' })) }}
+        labels={LABELS}
+      />,
+    );
+    expect(screen.getByTestId('sensory-on-benchmark')).toHaveTextContent('On benchmark (0.00)');
+    expect(screen.queryByTestId('sensory-above-benchmark')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sensory-below-benchmark')).not.toBeInTheDocument();
+  });
+
+  it('reads BELOW benchmark with the signed aggregate delta when the mean is negative', () => {
+    render(
+      <SensoryScreen
+        state="ready"
+        data={{
+          ...PROD_PANEL,
+          attributes: PROD_PANEL.attributes.map((a) => ({ ...a, vsBenchmark: '-0.25' })),
+        }}
+        labels={LABELS}
+      />,
+    );
+    expect(screen.getByTestId('sensory-below-benchmark')).toHaveTextContent('Below benchmark (-0.25)');
+  });
+
+  it('surfaces an individually below-benchmark attribute per-row while the aggregate stays above', () => {
+    render(<SensoryScreen state="ready" data={PROD_PANEL} labels={LABELS} />);
+    const cells = screen.getAllByTestId('sensory-vs-benchmark');
+    expect(cells.map((c) => c.getAttribute('data-delta'))).toEqual([
+      'above',
+      'on',
+      'above',
+      'below',
+      'on',
+      'above',
+    ]);
+    expect(screen.getByTestId('sensory-above-benchmark')).toBeInTheDocument();
+  });
+
+  it('benchmarkVerdict is exact decimal-string math with honest no-benchmark handling', () => {
+    expect(benchmarkVerdict(PROD_PANEL)).toEqual({ direction: 'above', delta: '+0.50' });
+    // No benchmark product → there is no above/below claim to make.
+    expect(benchmarkVerdict({ ...PROD_PANEL, benchmarkProductCode: null })).toBeNull();
+    // Benchmark product, but nothing was scored against it.
+    expect(
+      benchmarkVerdict({
+        benchmarkProductCode: 'BENCH-HAM',
+        attributes: PROD_PANEL.attributes.map((a) => ({ ...a, vsBenchmark: null })),
+      }),
+    ).toBeNull();
+    // Attributes without a delta are excluded from the mean, not counted as 0.
+    expect(
+      benchmarkVerdict({
+        benchmarkProductCode: 'BENCH-HAM',
+        attributes: [
+          { attributeName: 'A', scoreOutOf10: '8.00', vsBenchmark: '0.30', displayOrder: 1 },
+          { attributeName: 'B', scoreOutOf10: '8.00', vsBenchmark: null, displayOrder: 2 },
+        ],
+      }),
+    ).toEqual({ direction: 'above', delta: '+0.30' });
+    // -0.10 / +0.10 cancel exactly → level, never "below".
+    expect(
+      benchmarkVerdict({
+        benchmarkProductCode: 'BENCH-HAM',
+        attributes: [
+          { attributeName: 'A', scoreOutOf10: '8.00', vsBenchmark: '-0.10', displayOrder: 1 },
+          { attributeName: 'B', scoreOutOf10: '8.00', vsBenchmark: '0.10', displayOrder: 2 },
+        ],
+      }),
+    ).toEqual({ direction: 'on', delta: '0.00' });
   });
 });
 

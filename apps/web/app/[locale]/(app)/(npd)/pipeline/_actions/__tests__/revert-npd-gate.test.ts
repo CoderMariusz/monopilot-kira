@@ -116,7 +116,7 @@ describe('revertNpdGate', () => {
       superseded_gate: 'G3',
       revert_signature_id: 'sig-1',
     });
-    expect(revalidateLocalized).toHaveBeenCalledWith(`/npd/pipeline/${PROJECT}`);
+    expect(revalidateLocalized).toHaveBeenCalledWith(`/pipeline/${PROJECT}`, 'layout');
   });
 
   it('supersedes the active signed approval for the reverted gate before moving back', async () => {

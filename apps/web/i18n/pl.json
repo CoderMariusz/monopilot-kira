@@ -3838,7 +3838,8 @@
         "technical": "Technologia",
         "sensory": "Sensoryka"
       },
-      "readOnlyNote": "Tylko do odczytu. Sensoryka jest raportowanym modelem odczytowym — NPD pozostaje właścicielem bramki i korzysta z tego statusu tylko do odczytu.",
+      "readOnlyNote": "Tylko do odczytu dla Twojej roli — nie możesz tutaj rejestrować ani edytować ocen sensorycznych. Sensoryka należy do Technical; NPD pozostaje właścicielem bramki i korzysta z tego statusu tylko do odczytu.",
+      "ownerNote": "Sensoryka należy do Technical — oceny rejestruje się i edytuje na tym ekranie. NPD pozostaje właścicielem bramki i korzysta z tego statusu tylko do odczytu; zapis oceny nigdy nie przesuwa bramki NPD.",
       "tableLabel": "Oceny sensoryczne",
       "kpi": {
         "region": "Podsumowanie sensoryczne",
@@ -6508,8 +6509,9 @@
       "colScore": "Wynik /10",
       "colVsBenchmark": "względem benchmarku",
       "overall": "Ogółem",
-      "aboveBenchmark": "✓ Powyżej benchmarku ({score})",
-      "belowBenchmark": "Poniżej benchmarku ({score})",
+      "aboveBenchmark": "✓ Powyżej benchmarku ({delta})",
+      "belowBenchmark": "Poniżej benchmarku ({delta})",
+      "onBenchmark": "Na poziomie benchmarku ({delta})",
       "commentsTitle": "Komentarze oceniających",
       "loading": "Ładowanie panelu sensorycznego…",
       "empty": "Brak zarejestrowanego panelu sensorycznego dla tego produktu",
@@ -6596,7 +6598,8 @@
       "deletePlan": "Usuń plan",
       "confirmDeletePlan": "Usunąć ten plan pilotażowy?",
       "deletePlanError": "Nie udało się usunąć planu pilotażowego. Spróbuj ponownie.",
-      "deletePlanHasProgressed": "Ten plan pilotażowy został już uruchomiony i nie może zostać usunięty."
+      "deletePlanHasProgressed": "Ten plan pilotażowy został już uruchomiony i nie może zostać usunięty.",
+      "stageNotReached": "Planowanie pilotażu wymaga etapu {requiredStage}. Ten projekt jest na etapie {currentStage} ({currentGate} {gateLabel})."
     },
     "trial": {
       "title": "Próby laboratoryjne i kuchenne",
@@ -10463,6 +10466,7 @@
         "wo": "WO",
         "product": "Produkt",
         "outputKg": "Wyjście kg",
+        "currency": "Waluta",
         "materials": "Materiały",
         "labor": "Robocizna",
         "total": "Razem",

@@ -56,7 +56,8 @@ type ItemRow = {
   name: string;
   item_type: string;
   status: string;
-  cost_per_kg: string | null;
+  effective_cost: string | null;
+  effective_currency: string | null;
   list_price_gbp: string | null;
   supplier_code: string | null;
   unit_price: string | null;
@@ -117,12 +118,16 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
               i.name,
               i.item_type,
               i.status,
-              i.cost_per_kg,
+              vec.amount::text as effective_cost,
+              vec.currency as effective_currency,
               i.list_price_gbp::text as list_price_gbp,
               sp.supplier_code,
               coalesce(sp.unit_price, i.list_price_gbp::text) as unit_price,
               i.uom_base
          from public.items i
+         left join public.v_item_effective_cost vec
+           on vec.item_id = i.id
+          and vec.org_id = i.org_id
          left join lateral (
            select ss.supplier_code, ss.unit_price::text as unit_price
              from public.supplier_specs ss
@@ -164,7 +169,8 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
       name: r.name,
       itemType: r.item_type,
       status: r.status,
-      costPerKgEur: r.cost_per_kg,
+      costPerKgEur: r.effective_cost,
+      costCurrency: r.effective_currency,
       listPriceGbp: r.list_price_gbp,
       supplierCode: r.supplier_code,
       unitPrice: r.unit_price,

@@ -14,6 +14,7 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
 import { hasPilotPermission } from './get-pilot-run';
+import { assertPilotWriteStage } from './pilot-stage-guard';
 import { revalidateLocalized } from '../../../../../../../../lib/i18n/revalidate-localized';
 
 const Input = z.object({
@@ -28,6 +29,7 @@ export type TogglePilotChecklistItemError =
   | 'invalid_input'
   | 'forbidden'
   | 'not_found'
+  | 'stage_not_reached'
   | 'persistence_failed';
 
 export type TogglePilotChecklistItemResult =
@@ -49,6 +51,13 @@ export async function togglePilotChecklistItem(
     return await withOrgContext(async (ctx) => {
       if (!(await hasPilotPermission(ctx, WRITE_PERMISSION))) {
         return { ok: false as const, error: 'forbidden' as const };
+      }
+
+      const stageGuard = await assertPilotWriteStage(ctx, input.projectId);
+      if (!stageGuard.ok) {
+        return stageGuard.error === 'stage_not_reached'
+          ? { ok: false as const, error: 'stage_not_reached' as const, stage: stageGuard.stage }
+          : { ok: false as const, error: 'not_found' as const };
       }
 
       // RLS scopes the update to the org; the join guard ties the item to a run

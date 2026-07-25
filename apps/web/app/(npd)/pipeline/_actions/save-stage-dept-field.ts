@@ -77,7 +77,7 @@ export async function saveStageDeptField(input: SaveStageDeptFieldInput) {
         typeof newValue === 'string' ? newValue : null,
       );
       await writeProjectEditOutbox(ctx, parsed.data.projectId, column.column_key, result);
-      safeRevalidatePath(`/npd/pipeline/${parsed.data.projectId}`);
+      safeRevalidatePath(`/pipeline/${parsed.data.projectId}`, 'layout');
       return result;
     });
   }
@@ -98,7 +98,7 @@ export async function saveStageDeptField(input: SaveStageDeptFieldInput) {
       await ctx.client.query(`select set_config('app.fa_actor_user_id', $1, true)`, [ctx.userId]);
       const result = await updateProjectField(ctx, parsed.data.projectId, column.column_key, newValue);
       await writeProjectEditOutbox(ctx, parsed.data.projectId, column.column_key, result);
-      safeRevalidatePath(`/npd/pipeline/${parsed.data.projectId}`);
+      safeRevalidatePath(`/pipeline/${parsed.data.projectId}`, 'layout');
       return result;
     });
   }
@@ -284,9 +284,9 @@ async function writeProjectEditOutbox(
   );
 }
 
-function safeRevalidatePath(path: string): void {
+function safeRevalidatePath(path: string, type?: 'page' | 'layout'): void {
   try {
-    revalidateLocalized(path);
+    revalidateLocalized(path, type);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
   }

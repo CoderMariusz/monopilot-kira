@@ -155,7 +155,7 @@ export async function updateRisk(input: UpdateRiskInput): Promise<UpdateRiskResu
         ],
       );
 
-      revalidateLocalized(`/npd/fg/${parsed.productCode}/risks`, 'page');
+      revalidateLocalized(`/fg/${parsed.productCode}/risks`, 'page');
       return { ok: true, riskId: row.id, state: row.state };
     } catch {
       return { ok: false, code: 'PERSISTENCE_FAILED' };

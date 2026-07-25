@@ -71,7 +71,8 @@ describe('searchItems item-type fan-out', () => {
           name: 'Salt',
           item_type: 'rm',
           status: 'active',
-          cost_per_kg: '1.2300',
+          effective_cost: '1.2300',
+          effective_currency: 'GBP',
           list_price_gbp: '1.4500',
           uom_base: 'kg',
         },
@@ -86,6 +87,32 @@ describe('searchItems item-type fan-out', () => {
     expect(sql).toContain("ss.review_status = 'approved'");
     expect(params).toContain('SUP-001');
     expect(result[0]?.listPriceGbp).toBe('1.4500');
+  });
+
+  it('reads cost + currency from v_item_effective_cost (same SSOT as save-draft)', async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'wip-019',
+          item_code: 'WIP-019',
+          name: 'Sugar syrup',
+          item_type: 'intermediate',
+          status: 'active',
+          effective_cost: '217.230000',
+          effective_currency: 'GBP',
+          list_price_gbp: null,
+          uom_base: 'kg',
+        },
+      ],
+    });
+
+    const result = await searchItems({ query: 'WIP-019' });
+    const { sql } = lastQuery();
+
+    expect(sql).toContain('public.v_item_effective_cost');
+    expect(sql).not.toContain('i.cost_per_kg');
+    expect(result[0]?.costPerKgEur).toBe('217.230000');
+    expect(result[0]?.costCurrency).toBe('GBP');
   });
 
   it('does not add the supplier_specs filter when supplierCode is absent', async () => {

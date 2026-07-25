@@ -70,7 +70,7 @@ export async function updateFaAllergenSet(
       if (!row) return { ok: false, code: 'NOT_FOUND' };
 
       if (row.changed) {
-        revalidateLocalized(`/npd/fg/${productCode}/allergens`, 'page');
+        revalidateLocalized(`/fg/${productCode}/allergens`, 'page');
       }
 
       return {

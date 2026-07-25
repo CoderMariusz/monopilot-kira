@@ -49,6 +49,7 @@ const LABELS = {
   saving: 'lbl.saving',
   cancel: 'lbl.cancel',
   saveError: 'lbl.saveError',
+  saveErrorYieldRange: 'lbl.saveErrorYieldRange',
 } as unknown as PilotLabels;
 
 const RUN: PilotRunView = {
@@ -175,5 +176,64 @@ describe('PilotRunModal — status control (gap 1)', () => {
     );
     const field = screen.getByTestId('pilot-status-field');
     expect(within(field).getByRole('combobox')).toHaveTextContent(LABELS.statusInProgress);
+  });
+
+  it('shows localized saveError for zod validation failures, not raw JSON detail', async () => {
+    const user = userEvent.setup();
+    const zodBlob = '[\n  {\n    "code": "invalid_string",\n    "path": ["batchSizeKg"]\n  }\n]';
+    const onSubmit = vi.fn(async () => ({
+      ok: false as const,
+      error: 'invalid_input' as const,
+      message: zodBlob,
+    }));
+    render(
+      <PilotRunModal
+        open
+        onOpenChange={() => {}}
+        labels={LABELS}
+        run={RUN}
+        supervisors={[]}
+        lines={LINES}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const lineField = screen.getByTestId('pilot-line-field');
+    await user.click(within(lineField).getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: /L1 — Line 1 · PL01/ }));
+    await user.click(screen.getByTestId('pilot-run-submit'));
+
+    await waitFor(() => expect(screen.getByTestId('pilot-run-error')).toBeInTheDocument());
+    const alert = screen.getByTestId('pilot-run-error');
+    expect(alert).toHaveTextContent(LABELS.saveError);
+    expect(alert).not.toHaveTextContent('invalid_string');
+    expect(alert).not.toHaveTextContent('batchSizeKg');
+  });
+
+  it('maps yield_out_of_range to the field label even when a zod message is present', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn(async () => ({
+      ok: false as const,
+      error: 'yield_out_of_range' as const,
+      message: '[{"code":"custom","path":["expectedYieldPct"]}]',
+    }));
+    render(
+      <PilotRunModal
+        open
+        onOpenChange={() => {}}
+        labels={{ ...LABELS, saveErrorYieldRange: 'lbl.yieldRange' } as PilotLabels}
+        run={RUN}
+        supervisors={[]}
+        lines={LINES}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const lineField = screen.getByTestId('pilot-line-field');
+    await user.click(within(lineField).getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: /L1 — Line 1 · PL01/ }));
+    await user.click(screen.getByTestId('pilot-run-submit'));
+
+    await waitFor(() => expect(screen.getByTestId('pilot-run-error')).toHaveTextContent('lbl.yieldRange'));
   });
 });

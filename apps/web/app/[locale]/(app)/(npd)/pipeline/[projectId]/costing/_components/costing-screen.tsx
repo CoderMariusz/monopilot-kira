@@ -397,25 +397,22 @@ export function CostingScreen({
           return labels.forbidden;
         // W2 typed blockers — tell the user exactly WHAT to complete and WHERE,
         // never the generic "try again" (Gate-5b truthful-copy rule).
+        // Fallbacks are the EN source copy; the localized text arrives via
+        // `labels` (npd.costing.blocked*). A PL literal here shipped Polish to
+        // every locale because the label keys were never wired (PF-R04-14c).
         case 'yield_required':
-          return (
-            labels.blockedYieldRequired ??
-            'Uzupełnij uzysk (yield %) w recepturze, potem przelicz ponownie.'
-          );
+          return labels.blockedYieldRequired ?? 'Fill in the yield % on the recipe, then recompute.';
         case 'brief_inputs_required':
           return (
             labels.blockedBriefInputs ??
-            'Uzupełnij dane kosztowe: średni batch (panel powyżej) oraz wolumen tygodniowy i przebiegi/tydzień w Brief.'
+            'Complete the costing inputs: avg batch (panel above) plus weekly volume and runs/week in Brief.'
           );
         case 'packs_per_case_required':
-          return (
-            labels.blockedPacksPerCase ??
-            'Uzupełnij liczbę paczek w boxie na etapie Opakowania.'
-          );
+          return labels.blockedPacksPerCase ?? 'Set packs per box on the Packaging stage.';
         case 'ingredient_costs_missing':
           return (
             labels.blockedIngredientCosts ??
-            'Co najmniej jeden składnik receptury nie ma ceny — uzupełnij koszty składników.'
+            'At least one recipe ingredient has no cost - fill in ingredient costs.'
           );
         default:
           return labels.computeError;

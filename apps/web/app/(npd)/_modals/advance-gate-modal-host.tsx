@@ -29,6 +29,7 @@ import {
   type AdvanceProjectGateAction,
 } from './advance-gate-modal';
 import { getStageGateReadiness } from '../pipeline/_actions/get-stage-gate-readiness';
+import { pipelineStageHrefFromPathname } from '../../../lib/npd/stage-routes';
 
 /** The query value that opens this modal. Exported so callers build trigger URLs from one source. */
 export const ADVANCE_GATE_MODAL_PARAM = 'advanceGate';
@@ -50,8 +51,8 @@ export type AdvanceGateModalHostProps = {
   state?: AdvanceGateState;
   /** Injected only when the user may advance (RBAC resolved server-side). */
   advanceProjectGate?: AdvanceProjectGateAction;
-  /** Called after a successful advance; defaults to closing the modal + refreshing. */
-  onAdvanced?: () => void;
+  /** Called after a successful advance; defaults to navigating to the new stage. */
+  onAdvanced?: (advanced?: { currentStage?: string | null }) => void;
 };
 
 export function AdvanceGateModalHost({
@@ -108,10 +109,20 @@ export function AdvanceGateModalHost({
     router.push(query ? `${pathname}?${query}` : pathname);
   }, [pathname, router, searchParams]);
 
-  const defaultAdvanced = React.useCallback(() => {
-    closeModal();
-    router.refresh();
-  }, [closeModal, router]);
+  // Advancing changes current_stage, and the stage IS the route segment — so a
+  // bare refresh left the user parked on the stage they just left until some
+  // later navigation happened to re-derive it (PF-R04-14a). Push the new stage
+  // route (which also drops `?modal=`); fall back to close+refresh when the
+  // target has no route of its own, e.g. the terminal 'launched' state.
+  const defaultAdvanced = React.useCallback(
+    (advanced?: { currentStage?: string | null }) => {
+      const href = pipelineStageHrefFromPathname(pathname, project.id, advanced?.currentStage);
+      if (href) router.push(href);
+      else closeModal();
+      router.refresh();
+    },
+    [closeModal, pathname, project.id, router],
+  );
 
   const effectiveState: AdvanceGateState = readinessLoading ? 'loading' : state;
 

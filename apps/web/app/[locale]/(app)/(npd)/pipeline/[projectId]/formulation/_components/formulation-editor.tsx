@@ -85,6 +85,7 @@ import type {
   RecipeCascadeNode,
   RecipeCascadeSubRecipe,
 } from '../../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/load-recipe-cascade.types';
+import type { ResolveLiveWipCostsResult } from '../../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/resolve-live-wip-costs';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
@@ -312,6 +313,15 @@ export type SaveDraftAction = (input: {
   processingOverheadPct?: string | null;
 }) => Promise<{ ok: true; data: unknown } | { ok: false; error: string }>;
 
+export type ResolveLiveWipCostsAction = (input: {
+  versionId: string;
+  wipLines?: Array<{
+    rmCode: string;
+    wipDefinitionId: string;
+    qtyKg: string | null;
+  }>;
+}) => Promise<ResolveLiveWipCostsResult>;
+
 export type RecomputeAction = (input: {
   projectId: string;
   versionId: string;
@@ -500,6 +510,49 @@ function toRecomputeIngredients(
   });
 }
 
+/** Overlay canonical live WIP unit costs onto editable rows (PF-R05-04). */
+export function applyLiveWipCosts(
+  rows: EditableIngredient[],
+  costsByLineKey: Record<string, string>,
+): EditableIngredient[] {
+  if (Object.keys(costsByLineKey).length === 0) return rows;
+  let changed = false;
+  const next = rows.map((row) => {
+    if (!row.wipDefinitionId) return row;
+    if (isDecimalString(row.costPerKgEur)) return row;
+    const liveCost = costsByLineKey[`${row.rmCode}:${row.wipDefinitionId}`];
+    if (!liveCost || !isDecimalString(liveCost)) return row;
+    changed = true;
+    return { ...row, costPerKgEur: liveCost };
+  });
+  return changed ? next : rows;
+}
+
+/** Merge authoritative persisted costs from saveDraft into client rows (PF-R05-03). */
+export function mergeSavedIngredientCosts(
+  rows: EditableIngredient[],
+  saved: Array<{
+    rmCode: string;
+    wipDefinitionId: string | null;
+    costPerKgEur: string | null;
+    derived?: boolean;
+  }>,
+): EditableIngredient[] {
+  if (saved.length === 0) return rows;
+  const savedByKey = new Map(
+    saved
+      .filter((line) => line.derived)
+      .map((line) => [`${line.rmCode}:${line.wipDefinitionId ?? ''}`, line]),
+  );
+  return rows.map((row) => {
+    if (!row.wipDefinitionId || isDecimalString(row.costPerKgEur)) return row;
+    const key = `${row.rmCode}:${row.wipDefinitionId}`;
+    const persisted = savedByKey.get(key);
+    if (!persisted?.costPerKgEur || !isDecimalString(persisted.costPerKgEur)) return row;
+    return { ...row, costPerKgEur: persisted.costPerKgEur };
+  });
+}
+
 /**
  * calc roll-up → CostPanel breakdown (adds the overhead% the panel label needs).
  *
@@ -513,6 +566,19 @@ function toCostBreakdown(
   processingPct: string,
   realProcessingPerKg?: string | null,
 ): CostBreakdown {
+  if (!calc.allRmHaveCost) {
+    return {
+      yieldValid: calc.yieldValid,
+      rawCost: calc.rawCost,
+      yieldedCost: calc.yieldedCost,
+      processing: calc.processing,
+      packaging: calc.packaging,
+      costPerKg: null,
+      revenuePerKg: calc.revenuePerKg,
+      marginPct: null,
+      overheadPct: processingPct,
+    };
+  }
   if (
     !calc.yieldValid ||
     calc.yieldedCost === null ||
@@ -637,7 +703,7 @@ function toEditable(data: FormulationEditorData): EditableIngredient[] {
     name: ing.name,
     qtyKg: ing.qtyKg ?? '',
     pct: ing.pct ?? '',
-    costPerKgEur: ing.costPerKgEur ?? '',
+    costPerKgEur: ing.wipDefinitionId ? '' : (ing.costPerKgEur ?? ''),
     // F-A08: prefer the full derived array; the deprecated single `allergen`
     // input is widened for back-compat (older callers/fixtures).
     allergens: ing.allergens ?? (ing.allergen ? [ing.allergen] : []),
@@ -739,6 +805,7 @@ export function FormulationEditor({
   searchItemsAction,
   searchWipDefinitionsAction,
   loadProcessCostAction,
+  resolveLiveWipCostsAction,
   projectId,
   createDraftAction,
   onRefresh,
@@ -785,6 +852,8 @@ export function FormulationEditor({
   searchWipDefinitionsAction?: SearchWipDefinitionsFn;
   /** W1-T2: Σ real process cost loader (defaults to getProjectProcessCost). */
   loadProcessCostAction?: LoadProcessCostAction;
+  /** PF-R05-04: canonical live WIP unit costs (material + process + setup / yield). */
+  resolveLiveWipCostsAction?: ResolveLiveWipCostsAction;
   /** Server-side refresh (router.refresh) — called after a successful submit. */
   onRefresh?: () => void;
 }) {
@@ -862,6 +931,41 @@ export function FormulationEditor({
   // displayed rows are the same version — picking a version navigates (below),
   // it never just swaps a local label while the editor keeps the old rows.
   const versionId = data?.versionId ?? '';
+  const [liveWipCostNonce, setLiveWipCostNonce] = React.useState(0);
+  const liveWipCostSignature = React.useMemo(
+    () =>
+      rows
+        .filter((row) => row.wipDefinitionId)
+        .map((row) => `${row.rmCode}:${row.wipDefinitionId}:${row.qtyKg}`)
+        .join('|'),
+    [rows],
+  );
+  React.useEffect(() => {
+    if (!resolveLiveWipCostsAction || !versionId || !liveWipCostSignature) return;
+    const wipLines = rows
+      .filter((row) => row.wipDefinitionId)
+      .map((row) => ({
+        rmCode: row.rmCode.trim(),
+        wipDefinitionId: row.wipDefinitionId as string,
+        qtyKg: isDecimalString(row.qtyKg) ? row.qtyKg : null,
+      }));
+    let cancelled = false;
+    void resolveLiveWipCostsAction({ versionId, wipLines })
+      .then((res) => {
+        if (!cancelled && res.ok) {
+          setRows((prev) => applyLiveWipCosts(prev, res.costsByLineKey));
+        }
+      })
+      .catch(() => {
+        // Leave rows unchanged — incomplete costs surface via allRmHaveCost.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // rows intentionally omitted — wipLines are captured when signature/nonce changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- liveWipCostSignature encodes WIP rows
+  }, [versionId, liveWipCostSignature, liveWipCostNonce, resolveLiveWipCostsAction]);
+
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>('idle');
   const [saveErrorDetail, setSaveErrorDetail] = React.useState<string>('');
   const [cascadeRows, setCascadeRows] = React.useState<RecipeCascadeNode[] | null>(null);
@@ -1154,6 +1258,25 @@ export function FormulationEditor({
           setSaveStatus('saved');
           setCascadeRows(null);
           setCascadeLoading(false);
+          const savedIngredients =
+            result &&
+            'data' in result &&
+            result.data &&
+            typeof result.data === 'object' &&
+            result.data !== null &&
+            'ingredients' in result.data &&
+            Array.isArray((result.data as { ingredients?: unknown }).ingredients)
+              ? ((result.data as { ingredients: Array<{
+                  sequence: number;
+                  rmCode: string;
+                  wipDefinitionId: string | null;
+                  costPerKgEur: string | null;
+                }> }).ingredients)
+              : [];
+          if (savedIngredients.length > 0) {
+            setRows((prev) => mergeSavedIngredientCosts(prev, savedIngredients));
+          }
+          setLiveWipCostNonce((nonce) => nonce + 1);
           if (recomputeAction) {
             void recomputeAction({ projectId: data.projectId, versionId }).catch(() => undefined);
           }

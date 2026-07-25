@@ -275,17 +275,12 @@ export async function computeCosting(raw: unknown): Promise<ComputeCostingResult
       };
     });
   } catch (err) {
-    const code = (err as { code?: string }).code;
-    if (code === '23503') {
-      // FK violation (product_code not in this org's products under RLS).
-      return { ok: false, error: 'not_found' };
-    }
-    console.error('[computeCosting] persistence_failed', {
+    const mapped = mapCostingPersistenceError(err);
+    logCostingPersistenceError('computeCosting', {
       productCode: input.productCode,
       scenario: input.scenario,
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return { ok: false, error: 'persistence_failed' };
+    }, err);
+    return { ok: false, error: mapped.error, ...(mapped.message ? { message: mapped.message } : {}) };
   }
 }
 
@@ -441,11 +436,11 @@ export async function computeAndSaveInitialBreakdown(raw: unknown): Promise<Comp
       };
     });
   } catch (err) {
-    console.error('[computeAndSaveInitialBreakdown] persistence_failed', {
+    const mapped = mapCostingPersistenceError(err);
+    logCostingPersistenceError('computeAndSaveInitialBreakdown', {
       projectId: parsed.data.projectId,
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return { ok: false, error: 'persistence_failed' };
+    }, err);
+    return { ok: false, error: mapped.error, ...(mapped.message ? { message: mapped.message } : {}) };
   }
 }
 
@@ -990,4 +985,59 @@ function assertCanonicalOrder(steps: WaterfallResult['steps']): void {
       );
     }
   });
+}
+
+type PgErrorLike = {
+  code?: string;
+  message?: string;
+  detail?: string;
+  constraint?: string;
+  routine?: string;
+};
+
+function extractPgError(err: unknown): PgErrorLike {
+  if (!err || typeof err !== 'object') {
+    return { message: String(err) };
+  }
+  const pg = err as PgErrorLike;
+  return {
+    code: pg.code,
+    message: pg.message ?? (err instanceof Error ? err.message : String(err)),
+    detail: pg.detail,
+    constraint: pg.constraint,
+    routine: pg.routine,
+  };
+}
+
+function logCostingPersistenceError(
+  context: string,
+  meta: Record<string, unknown>,
+  err: unknown,
+): void {
+  const pg = extractPgError(err);
+  console.error(`[${context}] persistence error`, {
+    ...meta,
+    err: pg.message,
+    code: pg.code,
+    detail: pg.detail,
+    constraint: pg.constraint,
+    routine: pg.routine,
+  });
+}
+
+function mapCostingPersistenceError(err: unknown): {
+  error: ComputeCostingError;
+  message?: string;
+} {
+  const pg = extractPgError(err);
+  if (pg.code === '23503') {
+    return { error: 'not_found' };
+  }
+  if (pg.code === '22003') {
+    return { error: 'persistence_failed', message: 'numeric_value_out_of_range' };
+  }
+  if (pg.constraint) {
+    return { error: 'persistence_failed', message: `constraint_violation:${pg.constraint}` };
+  }
+  return { error: 'persistence_failed' };
 }

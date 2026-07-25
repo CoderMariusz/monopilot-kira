@@ -5,11 +5,20 @@ import { FinanceWoCostTable, type FinanceWoCostLabels } from '../wo-cost-table.c
 
 const refreshMock = vi.fn();
 const pushMock = vi.fn();
+const downloadCsvMock = vi.fn();
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/en/finance',
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
   useSearchParams: () => new URLSearchParams(''),
+}));
+
+// Capture the emitted CSV while keeping the REAL toCsv/csvCell (RFC-4180) behaviour —
+// the assertion must exercise the actual serializer, not a stand-in. Path is resolved
+// from THIS file (7 levels up to apps/web), which is one deeper than the component's.
+vi.mock('../../../../../../../lib/shared/download', async (importActual) => ({
+  ...(await importActual<typeof import('../../../../../../../lib/shared/download')>()),
+  downloadCsv: (...args: unknown[]) => downloadCsvMock(...args),
 }));
 
 const labels: FinanceWoCostLabels = {
@@ -26,6 +35,7 @@ const labels: FinanceWoCostLabels = {
     wo: 'WO',
     product: 'Product',
     outputKg: 'Output kg',
+    currency: 'Currency',
     materials: 'Materials',
     labor: 'Labor',
     total: 'Total',
@@ -59,6 +69,7 @@ const readyResult = {
         woNumber: 'WO-1001',
         completedAt: '2026-06-10T10:00:00.000Z',
         product: { itemCode: 'FG-001', name: 'Finished good' },
+        currency: 'GBP',
         outputKg: '25.000',
         materials: [{ itemCode: 'RM-A', qtyKg: '10.000', costPerKg: '1.250000', cost: '12.5000' }],
         materialsTotal: '12.5000',
@@ -93,6 +104,7 @@ describe('FinanceWoCostTable', () => {
   beforeEach(() => {
     refreshMock.mockClear();
     pushMock.mockClear();
+    downloadCsvMock.mockClear();
   });
 
   it('renders permission-denied, error, loading, and empty states', () => {
@@ -159,5 +171,62 @@ describe('FinanceWoCostTable', () => {
     fireEvent.click(screen.getByTestId('finance-refresh'));
 
     expect(refreshMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PF-R19-03 — WO actual costs disclose their currency', () => {
+  /** Same fixture, re-denominated. Proves the glyph is DATA, not a constant. */
+  function summaryIn(currency: string) {
+    return {
+      state: 'ready' as const,
+      summary: {
+        ...readyResult.summary,
+        rows: readyResult.summary.rows.map((row) => ({ ...row, currency })),
+      },
+    };
+  }
+
+  it('renders a currency column carrying the row denomination', () => {
+    render(<FinanceWoCostTable result={readyResult} labels={labels} />);
+
+    expect(screen.getByRole('columnheader', { name: labels.columns.currency })).toBeInTheDocument();
+    expect(screen.getByTestId('finance-currency-wo-1')).toHaveTextContent('GBP');
+  });
+
+  it('takes the denomination from the data — no hardcoded GBP or £ glyph', () => {
+    render(<FinanceWoCostTable result={summaryIn('EUR')} labels={labels} />);
+
+    const table = screen.getByTestId('finance-wo-costs');
+    expect(screen.getByTestId('finance-currency-wo-1')).toHaveTextContent('EUR');
+    expect(table.textContent ?? '').not.toContain('GBP');
+    expect(table.textContent ?? '').not.toContain('£');
+  });
+
+  it('denominates the expanded material breakdown too (read detached from the row)', () => {
+    render(<FinanceWoCostTable result={summaryIn('EUR')} labels={labels} />);
+    fireEvent.click(screen.getByText('WO-1001'));
+
+    expect(screen.getByTestId('finance-breakdown-wo-1')).toHaveTextContent('EUR');
+  });
+
+  it('exports a currency column in the CSV so a consumer cannot assume its own default', () => {
+    render(<FinanceWoCostTable result={readyResult} labels={labels} />);
+
+    fireEvent.click(screen.getByTestId('finance-export-csv'));
+
+    expect(downloadCsvMock).toHaveBeenCalledTimes(1);
+    const [csv] = downloadCsvMock.mock.calls[0] as [string, string];
+    const [header, firstRow] = csv.split('\r\n');
+
+    // The header row has no quoted fields, so a plain split is exact here.
+    const columns = (header ?? '').split(',');
+    expect(columns).toContain('currency');
+    expect(columns[columns.indexOf('currency') - 1]).toBe('outputKg');
+
+    // Positional value check by adjacency: both outputKg and currency are unquoted
+    // cells, so this pins the column without re-implementing an RFC-4180 reader —
+    // and it cannot be satisfied by the old behaviour, where GBP appeared ONLY
+    // inside the quoted processResolution JSON blob.
+    expect(firstRow).toContain(`,${readyResult.summary.rows[0]!.outputKg},GBP,`);
   });
 });

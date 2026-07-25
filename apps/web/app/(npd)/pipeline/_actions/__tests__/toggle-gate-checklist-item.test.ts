@@ -124,6 +124,9 @@ describe('toggleGateChecklistItem', () => {
       true,
       ctx.userId,
     ]);
-    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith('/pipeline');
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith(`/pipeline/${PROJECT}`, 'layout');
+    // safeRevalidatePath always forwards its optional `type`, so the list call lands as
+    // (path, undefined) — asserting a single argument would fail on an arity detail.
+    expect(vi.mocked(revalidateLocalized)).toHaveBeenCalledWith('/pipeline', undefined);
   });
 });

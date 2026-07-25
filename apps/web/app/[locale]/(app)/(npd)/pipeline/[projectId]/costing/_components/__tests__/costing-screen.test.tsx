@@ -147,9 +147,12 @@ describe('CostingScreen — 3-column waterfall', () => {
     const rows = screen.getAllByTestId('waterfall-row');
     expect(rows).toHaveLength(9);
     const labels = rows.map((r) => r.textContent);
-    expect(labels[0]).toContain('Surowce');
-    expect(labels[7]).toContain('Koszt całkowity');
-    expect(labels[8]).toContain('Marża');
+    // LABELS carries no `stepLabels`, so the rows fall back to DEFAULT_STEP_LABELS.
+    // This screen renders with locale="en", so those must be English — they used
+    // to be PL literals and leaked Polish into every locale (PF-R04-14c).
+    expect(labels[0]).toContain('Raw materials');
+    expect(labels[7]).toContain('Total cost');
+    expect(labels[8]).toContain('Margin vs target price');
   });
 
   it('derives £/kg and £/batch from per-pack values', () => {

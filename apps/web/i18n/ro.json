@@ -3769,7 +3769,8 @@
         "technical": "Technical",
         "sensory": "Sensory"
       },
-      "readOnlyNote": "Read-only. Sensory is a reported read model — NPD remains the gate owner and consumes this status read-only.",
+      "readOnlyNote": "Doar citire pentru rolul dumneavoastră — nu puteți înregistra sau edita evaluări senzoriale aici. Senzorialul este deținut de Technical; NPD rămâne proprietarul porții și consumă acest status doar în citire.",
+      "ownerNote": "Senzorialul este deținut de Technical — evaluările sunt înregistrate și editate pe acest ecran. NPD rămâne proprietarul porții și consumă acest status doar în citire; înregistrarea unei evaluări nu mută niciodată poarta NPD.",
       "tableLabel": "Sensory evaluations",
       "kpi": {
         "region": "Sensory summary",
@@ -6430,8 +6431,9 @@
       "colScore": "Scor /10",
       "colVsBenchmark": "vs benchmark",
       "overall": "General",
-      "aboveBenchmark": "✓ Peste benchmark ({score})",
-      "belowBenchmark": "Sub benchmark ({score})",
+      "aboveBenchmark": "✓ Peste benchmark ({delta})",
+      "belowBenchmark": "Sub benchmark ({delta})",
+      "onBenchmark": "La nivelul benchmarkului ({delta})",
       "commentsTitle": "Comentariile degustătorilor",
       "loading": "Se încarcă panelul senzorial…",
       "empty": "Niciun panel senzorial înregistrat pentru acest produs",
@@ -6518,7 +6520,8 @@
       "deletePlan": "Șterge planul",
       "confirmDeletePlan": "Ștergeți acest plan pilot?",
       "deletePlanError": "Nu s-a putut șterge planul pilot. Încercați din nou.",
-      "deletePlanHasProgressed": "Acest plan pilot a progresat și nu poate fi șters."
+      "deletePlanHasProgressed": "Acest plan pilot a progresat și nu poate fi șters.",
+      "stageNotReached": "Planificarea pilotului necesită etapa {requiredStage}. Acest proiect este la {currentStage} ({currentGate} {gateLabel})."
     },
     "trial": {
       "title": "Probe de laborator și bucătărie",
@@ -10376,6 +10379,7 @@
         "wo": "WO",
         "product": "Product",
         "outputKg": "Output kg",
+        "currency": "Currency",
         "materials": "Materials",
         "labor": "Labor",
         "total": "Total",

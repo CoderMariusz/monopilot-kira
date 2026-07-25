@@ -35,6 +35,10 @@ import { Dec } from '@monopilot/domain';
 import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
 import Input from '@monopilot/ui/Input';
 
+import { symbolFor } from '../../../../../../../../lib/npd/currency-symbol';
+
+export { symbolFor } from '../../../../../../../../lib/npd/currency-symbol';
+
 export type CostPanelState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
 /**
@@ -87,24 +91,6 @@ export type CostPanelLabels = {
   error: string;
   forbidden: string;
 };
-
-/** ISO-4217 → display symbol. Default currency is GBP (never hardcoded inline). */
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  EUR: '€',
-  GBP: '£',
-  USD: '$',
-  PLN: 'zł',
-  RON: 'lei',
-  UAH: '₴',
-};
-
-/**
- * Exported as THE single ISO-4217 → symbol seam for the formulation components
- * (F-D08b: ingredient-row / formulation-editor must never hardcode '€').
- */
-export function symbolFor(currency: string): string {
-  return CURRENCY_SYMBOLS[currency] ?? currency;
-}
 
 /** Replace `{token}` placeholders in an i18n string (no inline strings). */
 function interpolate(template: string, vars: Record<string, string>): string {

@@ -55,7 +55,7 @@ export async function softDeleteDoc(input: SoftDeleteDocInput): Promise<SoftDele
         },
       });
 
-      revalidateLocalized(`/npd/fg/${productCode}/docs`, 'page');
+      revalidateLocalized(`/fg/${productCode}/docs`, 'page');
       return { ok: true, docId: row.id };
     } catch {
       return { ok: false, code: 'PERSISTENCE_FAILED' };
