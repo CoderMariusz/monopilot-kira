@@ -167,6 +167,7 @@ export type FormulationLabels = {
   saving: string;
   saved: string;
   saveError: string;
+  saveErrorNotDraft: string;
   substituteAllergenMismatch?: string;
   submitForTrial: string;
   /** Transient toast/inline state after a successful submit-for-trial. */
@@ -690,7 +691,7 @@ function toCompositionSegments(rows: EditableIngredient[]): CompositionSegment[]
   });
 }
 
-function toEditable(data: FormulationEditorData): EditableIngredient[] {
+export function toEditable(data: FormulationEditorData): EditableIngredient[] {
   return data.ingredients.map((ing) => ({
     id: ing.id,
     rmCode: ing.rmCode,
@@ -703,7 +704,7 @@ function toEditable(data: FormulationEditorData): EditableIngredient[] {
     name: ing.name,
     qtyKg: ing.qtyKg ?? '',
     pct: ing.pct ?? '',
-    costPerKgEur: ing.wipDefinitionId ? '' : (ing.costPerKgEur ?? ''),
+    costPerKgEur: ing.costPerKgEur ?? '',
     // F-A08: prefer the full derived array; the deprecated single `allergen`
     // input is widened for back-compat (older callers/fixtures).
     allergens: ing.allergens ?? (ing.allergen ? [ing.allergen] : []),
@@ -1286,16 +1287,18 @@ export function FormulationEditor({
           // its render-time value and the gate reads 0 despite ingredients existing.
           refresh();
         } else {
-          if (
-            result &&
-            'error' in result &&
-            result.error === 'SUBSTITUTE_ALLERGEN_MISMATCH' &&
-            'offendingAllergens' in result &&
-            Array.isArray(result.offendingAllergens)
-          ) {
-            setSaveErrorDetail(
-              `${labels.substituteAllergenMismatch ?? 'Substitute blocked because it introduces undeclared allergens'}: ${result.offendingAllergens.join(', ')}`,
-            );
+          if (result && 'error' in result) {
+            if (
+              result.error === 'SUBSTITUTE_ALLERGEN_MISMATCH' &&
+              'offendingAllergens' in result &&
+              Array.isArray(result.offendingAllergens)
+            ) {
+              setSaveErrorDetail(
+                `${labels.substituteAllergenMismatch ?? 'Substitute blocked because it introduces undeclared allergens'}: ${result.offendingAllergens.join(', ')}`,
+              );
+            } else if (result.error === 'VERSION_NOT_DRAFT') {
+              setSaveErrorDetail(labels.saveErrorNotDraft);
+            }
           }
           setSaveStatus('error');
         }
@@ -1304,7 +1307,7 @@ export function FormulationEditor({
         setSaveStatus('error');
       }
     })();
-  }, [data, editable, labels.substituteAllergenMismatch, packWeightKg, processingPct, recomputeAction, refresh, saveDraftAction, targetPrice, validate, versionId, yieldPct]);
+  }, [data, editable, labels.saveErrorNotDraft, labels.substituteAllergenMismatch, packWeightKg, processingPct, recomputeAction, refresh, saveDraftAction, targetPrice, validate, versionId, yieldPct]);
 
   /** Schedule a single debounced save (resets the 800 ms timer on each call). */
   const scheduleSave = React.useCallback(() => {

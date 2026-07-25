@@ -5457,6 +5457,7 @@
       "saving": "Zapisywanie…",
       "saved": "Zapisano",
       "saveError": "Nie udało się zapisać wersji roboczej. Spróbuj ponownie.",
+      "saveErrorNotDraft": "Ta wersja nie jest już edytowalna — zapisywać można tylko wersje robocze.",
       "submitForTrial": "Zgłoś do próby",
       "compareVersions": "Porównaj wersje",
       "ingredients": "Składniki",
@@ -6780,6 +6781,7 @@
       "pilot": "Pilotaż",
       "approval": "Zatwierdzenie",
       "handoff": "Przekazanie",
+      "launched": "Wprowadzony na rynek",
       "ariaLabel": "Etapy projektu",
       "costing_nutrition": "Koszt i żywienie"
     },

@@ -120,6 +120,7 @@ const DEFAULT_LABELS: FormulationLabels = {
   saving: 'Saving…',
   saved: 'Saved',
   saveError: 'Could not save the draft. Try again.',
+  saveErrorNotDraft: 'This version is no longer editable — only draft versions can be saved.',
   substituteAllergenMismatch: 'Substitute blocked because it introduces undeclared allergens',
   submitForTrial: 'Submit for trial',
   submitting: 'Submitting…',

@@ -93,7 +93,7 @@ function makeClient(): QueryClient {
           [ITEM_B]: { id: ITEM_B, cost_per_kg: null, cost_currency: null },
           [ITEM_C]: { id: ITEM_C, cost_per_kg: '8.8800', cost_currency: 'GBP' },
           [ITEM_D]: { id: ITEM_D, cost_per_kg: '7.7700', cost_currency: 'GBP' },
-          [WIP_ITEM_ID]: { id: WIP_ITEM_ID, cost_per_kg: null, cost_currency: null },
+          [WIP_ITEM_ID]: { id: WIP_ITEM_ID, cost_per_kg: null, cost_currency: 'GBP' },
         };
         return { rows: requested.filter((id) => known[id]).map((id) => known[id]) };
       }
@@ -317,7 +317,7 @@ describe('saveDraft — F-B12 cost from the effective-cost view', () => {
       ingredients: [line({ costPerKgEur: '3.75', costCurrency: 'USD' })],
     });
     expect(insertedRows?.[0]?.cost_per_kg_eur).toBe('3.75');
-    expect(insertedRows?.[0]?.cost_currency).toBe('USD');
+    expect(insertedRows?.[0]?.cost_currency).toBe('GBP');
   });
 
   it('falls back to the master cost when the user left the cost field empty', async () => {
@@ -356,6 +356,7 @@ describe('saveDraft — F-B12 cost from the effective-cost view', () => {
     });
     expect(insertedRows?.[0]?.wip_definition_id).toBe(WIP_DEF_ID);
     expect(insertedRows?.[0]?.cost_per_kg_eur).toBe('1.5000');
+    expect(insertedRows?.[0]?.cost_currency).toBe('GBP');
     expect(result).toMatchObject({
       ok: true,
       data: {
@@ -380,6 +381,17 @@ describe('saveDraft — F-B12 cost from the effective-cost view', () => {
     });
     expect(insertedRows?.[0]?.wip_definition_id).toBe(WIP_DEF_ID);
     expect(insertedRows?.[0]?.cost_per_kg_eur).toBe('3.75');
+    expect(insertedRows?.[0]?.cost_currency).toBe('GBP');
+  });
+
+  it('persists master currency when the client sends a cost but no currency', async () => {
+    await saveDraft({
+      projectId: PROJECT_ID,
+      versionId: VERSION_ID,
+      ingredients: [line({ costPerKgEur: '1.6127', costCurrency: null })],
+    });
+    expect(insertedRows?.[0]?.cost_per_kg_eur).toBe('1.6127');
+    expect(insertedRows?.[0]?.cost_currency).toBe('GBP');
   });
 });
 

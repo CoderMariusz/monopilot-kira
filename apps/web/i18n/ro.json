@@ -5379,6 +5379,7 @@
       "saving": "Se salvează…",
       "saved": "Salvat",
       "saveError": "Ciorna nu a putut fi salvată. Încercați din nou.",
+      "saveErrorNotDraft": "Această versiune nu mai poate fi editată — doar versiunile ciornă pot fi salvate.",
       "submitForTrial": "Trimite pentru probă",
       "compareVersions": "Compară versiunile",
       "ingredients": "Ingrediente",
@@ -6702,6 +6703,7 @@
       "pilot": "Pilot",
       "approval": "Aprobare",
       "handoff": "Predare",
+      "launched": "Lansat",
       "ariaLabel": "Etapele proiectului",
       "costing_nutrition": "Costing & Nutrition"
     },

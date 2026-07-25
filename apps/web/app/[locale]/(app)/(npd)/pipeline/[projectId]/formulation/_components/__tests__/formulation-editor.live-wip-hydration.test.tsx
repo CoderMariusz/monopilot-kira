@@ -37,6 +37,7 @@ const LABELS: FormulationLabels = {
   saving: 'Saving…',
   saved: 'Saved',
   saveError: 'Could not save the draft. Try again.',
+  saveErrorNotDraft: 'This version is no longer editable — only draft versions can be saved.',
   submitForTrial: 'Submit for trial',
   compareVersions: 'Compare versions',
   lockRecipe: 'Lock recipe',
@@ -148,7 +149,7 @@ const WIP_ITEM_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const LIVE_COST = '187.9619';
 const LINE_KEY = `WIP-PARENT:${WIP_DEF_ID}`;
 
-function makeWipData(sequence: number): FormulationEditorData {
+function makeWipData(sequence: number, costPerKgEur: string | null = null): FormulationEditorData {
   return {
     projectId: PROJECT_ID,
     versionId: VERSION_ID,
@@ -170,7 +171,7 @@ function makeWipData(sequence: number): FormulationEditorData {
         name: 'Parent v3',
         qtyKg: '0.823456',
         pct: '100',
-        costPerKgEur: '150.0437',
+        costPerKgEur,
         allergen: null,
         sequence,
       },
@@ -268,7 +269,7 @@ describe('FormulationEditor live WIP cost hydration', () => {
     render(
       <FormulationEditor
         state="ready"
-        data={makeWipData(2)}
+        data={makeWipData(2, null)}
         labels={LABELS}
         panelLabels={PANEL_LABELS}
         currency="EUR"
@@ -287,9 +288,45 @@ describe('FormulationEditor live WIP cost hydration', () => {
     fireEvent.change(costInput, { target: { value: '5' } });
     expect(costInput).toHaveValue('5');
   });
+
+  it('keeps a persisted WIP cost from the database instead of overlaying live cost', async () => {
+    const PERSISTED_COST = '3.7500';
+    const resolveLiveWipCostsAction = vi.fn().mockResolvedValue({
+      ok: true,
+      costsByLineKey: { [LINE_KEY]: LIVE_COST },
+    });
+
+    render(
+      <FormulationEditor
+        state="ready"
+        data={makeWipData(13, PERSISTED_COST)}
+        labels={LABELS}
+        panelLabels={PANEL_LABELS}
+        currency="EUR"
+        canEdit
+        resolveLiveWipCostsAction={resolveLiveWipCostsAction}
+      />,
+    );
+
+    const row = screen.getByTestId('ingredient-row');
+    const costInput = within(row).getByLabelText(LABELS.colCostPerKg);
+
+    await waitFor(() => {
+      expect(resolveLiveWipCostsAction).toHaveBeenCalled();
+    });
+
+    expect(costInput).toHaveValue(PERSISTED_COST);
+    expect(costInput).not.toHaveValue(LIVE_COST);
+  });
 });
 
 describe('live WIP cost client helpers', () => {
+  it('toEditable preserves persisted WIP costPerKgEur from server data', async () => {
+    const { toEditable } = await import('../formulation-editor');
+    const rows = toEditable(makeWipData(13, '3.7500'));
+    expect(rows[0]?.costPerKgEur).toBe('3.7500');
+  });
+
   it('applyLiveWipCosts overlays only empty WIP rows', async () => {
     const { applyLiveWipCosts, mergeSavedIngredientCosts } = await import('../formulation-editor');
     const WIP_ROW = {

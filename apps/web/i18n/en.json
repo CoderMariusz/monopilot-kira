@@ -2864,6 +2864,7 @@
       "saving": "Saving…",
       "saved": "Saved",
       "saveError": "Could not save the draft. Try again.",
+      "saveErrorNotDraft": "This version is no longer editable — only draft versions can be saved.",
       "submitForTrial": "Submit for trial",
       "compareVersions": "Compare versions",
       "ingredients": "Ingredients",
@@ -4230,6 +4231,7 @@
       "pilot": "Pilot",
       "approval": "Approval",
       "handoff": "Handoff",
+      "launched": "Launched",
       "ariaLabel": "Project stages",
       "costing_nutrition": "Costing & Nutrition"
     },

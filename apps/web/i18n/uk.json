@@ -5379,6 +5379,7 @@
       "saving": "Збереження…",
       "saved": "Збережено",
       "saveError": "Не вдалося зберегти чернетку. Спробуйте ще раз.",
+      "saveErrorNotDraft": "Цю версію більше не можна редагувати — зберігати можна лише чернетки.",
       "submitForTrial": "Надіслати на випробування",
       "compareVersions": "Порівняти версії",
       "ingredients": "Інгредієнти",
@@ -6702,6 +6703,7 @@
       "pilot": "Пілот",
       "approval": "Затвердження",
       "handoff": "Передача",
+      "launched": "Запущено",
       "ariaLabel": "Етапи проєкту",
       "costing_nutrition": "Costing & Nutrition"
     },

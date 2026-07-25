@@ -274,12 +274,9 @@ export async function saveDraft(input: {
           // client value use the canonical live WIP unit cost (material + process +
           // setup / yield); other lines fall back to master effective cost.
           cost_per_kg_eur: ingredient.costPerKgEur ?? liveWipCost ?? masterCost,
-          cost_currency:
-            ingredient.costPerKgEur != null
-              ? ingredient.costCurrency
-              : liveWipCost != null
-                ? masterCurrency
-                : (masterCurrency ?? ingredient.costCurrency),
+          // F-B12: currency is resolved server-side from v_item_effective_cost —
+          // a manual cost override changes the amount, not the item's currency.
+          cost_currency: masterCurrency ?? ingredient.costCurrency,
           // F-A06: client payload IGNORED. Item-linked line → profile-derived
           // full array (truly-empty profile → []); free-text line → server-side
           // carryover of what was already persisted (never the wire value).
