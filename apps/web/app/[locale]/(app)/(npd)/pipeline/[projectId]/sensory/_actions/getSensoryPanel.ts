@@ -133,7 +133,10 @@ export async function getSensoryPanel(projectId: string): Promise<GetSensoryPane
                 subject_type = 'project'
                 and (
                   npd_project_id = $2::uuid
-                  or (npd_project_id is null and subject_ref = $2)
+                  -- ponytail: the ::text cast is required. The ::uuid cast above pins
+                  -- this parameter's type for the whole statement, so an uncast $2
+                  -- here resolves as text-equals-uuid and fails with 42883.
+                  or (npd_project_id is null and subject_ref = $2::text)
                 )
               )
             )
