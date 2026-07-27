@@ -5380,6 +5380,7 @@
       "saved": "Salvat",
       "saveError": "Ciorna nu a putut fi salvată. Încercați din nou.",
       "saveErrorNotDraft": "Această versiune nu mai poate fi editată — doar versiunile ciornă pot fi salvate.",
+      "saveErrorTargetYieldZero": "Randamentul așteptat % trebuie să fie mai mare decât 0 — zero ar însemna nicio pierdere și ar distorsiona costul.",
       "submitForTrial": "Trimite pentru probă",
       "compareVersions": "Compară versiunile",
       "ingredients": "Ingrediente",
@@ -5983,7 +5984,8 @@
         "info": "Info"
       },
       "deleteDisabledHint": "You do not have permission to delete finished goods.",
-      "totalYield": "Randament total"
+      "totalYield": "Randament total",
+      "validationErrorNotice": "Validarea nu a putut fi încărcată acum. Reîmprospătați pagina."
     },
     "faDetailModals": {
       "deptCloseTitle": "Închide departamentul",

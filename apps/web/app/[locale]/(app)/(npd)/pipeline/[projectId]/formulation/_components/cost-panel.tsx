@@ -231,9 +231,9 @@ export function CostPanel({
   /** Controlled target-price value (decimal STRING — parent owns the state). */
   targetPrice: string;
   onTargetPriceChange: (value: string) => void;
-  /** Controlled expected-yield percentage (parent owns the state). */
-  yieldPct: number;
-  onYieldChange: (value: number) => void;
+  /** Controlled expected-yield percentage (parent owns the state; null = unset). */
+  yieldPct: number | null;
+  onYieldChange: (value: number | null) => void;
   /** Controlled processing-overhead percentage (parent owns the state). */
   processingPct?: string;
   onProcessingChange?: (value: string) => void;
@@ -272,7 +272,7 @@ export function CostPanel({
   const margin = marginPerKg(calc);
   const marginNegative = isNegative(margin);
   const overheadPct = processingPct ?? calc.overheadPct;
-  const yieldInvalid = !calc.yieldValid || yieldPct <= 0 || yieldPct > 100;
+  const yieldInvalid = yieldPct === null || !calc.yieldValid || yieldPct <= 0 || yieldPct > 100;
 
   return (
     <Card role="region" aria-labelledby={titleId} data-testid="cost-panel">
@@ -286,7 +286,9 @@ export function CostPanel({
             testId="cost-raw"
           />
           <CostLine
-            label={interpolate(labels.afterYield, { yieldPct: String(yieldPct) })}
+            label={interpolate(labels.afterYield, {
+              yieldPct: yieldPct === null ? '—' : String(yieldPct),
+            })}
             value={`${formatMoney(calc.yieldedCost, currency)} ${labels.perKgSuffix}`}
             testId="cost-yielded"
           />
@@ -335,10 +337,13 @@ export function CostPanel({
               max="100"
               step="any"
               className="form-input mono"
-              value={yieldPct}
+              value={yieldPct ?? ''}
               aria-invalid={yieldInvalid}
               aria-describedby={yieldInvalid ? 'cost-yield-error' : undefined}
-              onChange={(e) => onYieldChange(Number(e.target.value))}
+              onChange={(e) => {
+                const raw = e.target.value;
+                onYieldChange(raw === '' ? null : Number(raw));
+              }}
             />
             {yieldInvalid ? (
               <p id="cost-yield-error" role="alert" className="text-xs text-red-600">

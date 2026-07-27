@@ -2865,6 +2865,7 @@
       "saved": "Saved",
       "saveError": "Could not save the draft. Try again.",
       "saveErrorNotDraft": "This version is no longer editable — only draft versions can be saved.",
+      "saveErrorTargetYieldZero": "Expected yield % must be greater than 0 — zero would mean no loss and would distort costing.",
       "submitForTrial": "Submit for trial",
       "compareVersions": "Compare versions",
       "ingredients": "Ingredients",
@@ -3495,7 +3496,8 @@
         "warn": "Warning",
         "info": "Info"
       },
-      "deleteDisabledHint": "You do not have permission to delete finished goods."
+      "deleteDisabledHint": "You do not have permission to delete finished goods.",
+      "validationErrorNotice": "Validation could not be loaded right now. Try refreshing."
     },
     "faDetailModals": {
       "deptCloseTitle": "Close department",

@@ -404,8 +404,23 @@ describe('saveDraft — formulation version batch size', () => {
       ingredients: [],
     });
 
-    expect(result).toEqual({ ok: false, error: 'invalid_input' });
+    expect(result).toEqual({ ok: false, error: 'TARGET_YIELD_ZERO_NOT_ALLOWED' });
     expect(client.query).not.toHaveBeenCalled();
+  });
+
+  it('accepts null targetYieldPct (unset) and persists NULL', async () => {
+    const result = await saveDraft({
+      projectId: PROJECT_ID,
+      versionId: VERSION_ID,
+      batchSizeKg: '0.250000',
+      targetYieldPct: null,
+      targetPriceEur: '1.20',
+      processingOverheadPct: '8',
+      ingredients: [line()],
+    });
+
+    expect(result).toMatchObject({ ok: true, data: { versionId: VERSION_ID, ingredientCount: 1 } });
+    expect(versionUpdateParams?.[1]).toBeNull();
   });
 
   it('persists the supplied batchSizeKg on the draft formulation version', async () => {

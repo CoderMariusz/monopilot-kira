@@ -168,6 +168,7 @@ export type FormulationLabels = {
   saved: string;
   saveError: string;
   saveErrorNotDraft: string;
+  saveErrorTargetYieldZero: string;
   substituteAllergenMismatch?: string;
   submitForTrial: string;
   /** Transient toast/inline state after a successful submit-for-trial. */
@@ -728,11 +729,11 @@ function packWeightKgFromG(grams: string | null): string | null {
   return kg.isZero() ? null : kg.toFixed(6);
 }
 
-/** Yield % as a layout-only integer (default 0 when unset/invalid). */
-function parseYield(value: string | null | undefined): number {
-  if (!value) return 0;
+/** Yield % — null when unset in the DB (never conflate with zero). */
+function parseYield(value: string | null | undefined): number | null {
+  if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n) ? n : null;
 }
 
 function StateNotice({ state, labels }: { state: PageState; labels: FormulationLabels }) {
@@ -901,7 +902,7 @@ export function FormulationEditor({
   const [packStatus, setPackStatus] = React.useState<PackStatus>('idle');
   const packWeightKg = packWeightKgFromG(packWeightG || null);
   const [targetPrice, setTargetPrice] = React.useState<string>(data?.targetPriceEur ?? '');
-  const [yieldPct, setYieldPct] = React.useState<number>(parseYield(data?.targetYieldPct));
+  const [yieldPct, setYieldPct] = React.useState<number | null>(parseYield(data?.targetYieldPct));
   const [processingPct, setProcessingPct] = React.useState<string>(data?.processingOverheadPct ?? DEFAULT_OVERHEAD_PCT);
   // W1-T2: Σ real process cost (roles×headcount×rate — the SAME math as the
   // costing screen, via getProjectProcessCost). null → lookup pending/failed or
@@ -1140,7 +1141,7 @@ export function FormulationEditor({
       recomputeCalc({
         ingredients: toRecomputeIngredients(rows, nutritionByRm),
         targetPriceEur: isDecimalString(targetPrice) ? targetPrice : null,
-        yieldPct: String(yieldPct),
+        yieldPct: yieldPct === null ? null : String(yieldPct),
         processingOverheadPct: processingPct,
         // Costing v2: pack weight from the project (g→kg); recipe stage adds NO packaging.
         packWeightKg,
@@ -1237,7 +1238,7 @@ export function FormulationEditor({
           projectId: data.projectId,
           versionId,
           batchSizeKg: packWeightKg,
-          targetYieldPct: String(yieldPct),
+          targetYieldPct: yieldPct === null ? null : String(yieldPct),
           targetPriceEur: targetPrice,
           processingOverheadPct: processingPct,
           ingredients: completeRows.map((r, i) => ({
@@ -1298,6 +1299,10 @@ export function FormulationEditor({
               );
             } else if (result.error === 'VERSION_NOT_DRAFT') {
               setSaveErrorDetail(labels.saveErrorNotDraft);
+            } else if (result.error === 'TARGET_YIELD_ZERO_NOT_ALLOWED') {
+              setSaveErrorDetail(labels.saveErrorTargetYieldZero);
+            } else if (result.error === 'TARGET_YIELD_INVALID') {
+              setSaveErrorDetail(labels.saveErrorTargetYieldZero);
             }
           }
           setSaveStatus('error');
@@ -1307,7 +1312,7 @@ export function FormulationEditor({
         setSaveStatus('error');
       }
     })();
-  }, [data, editable, labels.saveErrorNotDraft, labels.substituteAllergenMismatch, packWeightKg, processingPct, recomputeAction, refresh, saveDraftAction, targetPrice, validate, versionId, yieldPct]);
+  }, [data, editable, labels.saveErrorNotDraft, labels.saveErrorTargetYieldZero, labels.substituteAllergenMismatch, packWeightKg, processingPct, recomputeAction, refresh, saveDraftAction, targetPrice, validate, versionId, yieldPct]);
 
   /** Schedule a single debounced save (resets the 800 ms timer on each call). */
   const scheduleSave = React.useCallback(() => {
@@ -2283,21 +2288,21 @@ export function FormulationEditor({
 
               {/* Costing v2: pack-weight unset → hint (no hard block); else the
                   qty-balance warning when Σ qtyKg drifts from the pack weight. */}
-              {packWeightUnset ? (
-                <div
-                  role="status"
-                  data-testid="pack-weight-unset-hint"
-                  className="alert alert-blue m-2.5"
-                >
-                  {labels.packWeightUnsetHint}
-                </div>
-              ) : saveStatus === 'error' && saveErrorDetail ? (
+              {saveStatus === 'error' && saveErrorDetail ? (
                 <div
                   role="alert"
                   data-testid="formulation-save-error-detail"
                   className="alert alert-red m-2.5"
                 >
                   {saveErrorDetail}
+                </div>
+              ) : packWeightUnset ? (
+                <div
+                  role="status"
+                  data-testid="pack-weight-unset-hint"
+                  className="alert alert-blue m-2.5"
+                >
+                  {labels.packWeightUnsetHint}
                 </div>
               ) : !balanced ? (
                 <div

@@ -5380,6 +5380,7 @@
       "saved": "Збережено",
       "saveError": "Не вдалося зберегти чернетку. Спробуйте ще раз.",
       "saveErrorNotDraft": "Цю версію більше не можна редагувати — зберігати можна лише чернетки.",
+      "saveErrorTargetYieldZero": "Очікуваний вихід % має бути більшим за 0 — нуль означав би відсутність втрат і спотворив би собівартість.",
       "submitForTrial": "Надіслати на випробування",
       "compareVersions": "Порівняти версії",
       "ingredients": "Інгредієнти",
@@ -5983,7 +5984,8 @@
         "info": "Інформація"
       },
       "deleteDisabledHint": "You do not have permission to delete finished goods.",
-      "totalYield": "Загальний вихід"
+      "totalYield": "Загальний вихід",
+      "validationErrorNotice": "Не вдалося завантажити валідацію. Оновіть сторінку та спробуйте знову."
     },
     "faDetailModals": {
       "deptCloseTitle": "Закрити відділ",

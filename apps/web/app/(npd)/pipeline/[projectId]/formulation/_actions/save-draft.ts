@@ -62,6 +62,8 @@ export type SaveDraftResult =
         | 'not_found'
         | 'VERSION_LOCKED'
         | 'VERSION_NOT_DRAFT'
+        | 'TARGET_YIELD_ZERO_NOT_ALLOWED'
+        | 'TARGET_YIELD_INVALID'
         | 'SUBSTITUTE_ALLERGEN_MISMATCH'
         | 'persistence_failed';
       offendingAllergens?: string[];
@@ -80,7 +82,11 @@ export async function saveDraft(input: {
   const versionId = parseUuid(input?.versionId);
   const ingredients = parseIngredients(input?.ingredients);
   const batchSizeKg = normalizePositiveNumeric(input?.batchSizeKg);
-  const targetYieldPct = normalizeNumericPct(input?.targetYieldPct, false);
+  const targetYieldResult = parseTargetYieldPct(input?.targetYieldPct);
+  if (!targetYieldResult.ok) {
+    return { ok: false, error: targetYieldResult.error };
+  }
+  const targetYieldPct = targetYieldResult.value;
   const targetPriceEur = input?.targetPriceEur === undefined
     ? null
     : parseOptionalRetailPriceEur(input.targetPriceEur);
@@ -90,7 +96,6 @@ export async function saveDraft(input: {
     !versionId ||
     !ingredients ||
     batchSizeKg === undefined ||
-    targetYieldPct === undefined ||
     targetPriceEur === undefined ||
     processingOverheadPct === undefined
   ) {
@@ -503,6 +508,35 @@ function normalizeOptionalText(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed.length > 0 && trimmed.length <= 32 ? trimmed : null;
+}
+
+type TargetYieldParseResult =
+  | { ok: true; value: string | null }
+  | { ok: false; error: 'TARGET_YIELD_ZERO_NOT_ALLOWED' | 'TARGET_YIELD_INVALID' };
+
+/** NULL = unset (allowed). Zero is rejected — mig 520 CHECK is (0,100]. */
+function parseTargetYieldPct(value: unknown): TargetYieldParseResult {
+  if (value === null || value === undefined || value === '') {
+    return { ok: true, value: null };
+  }
+  const normalized = normalizeNumeric(value);
+  if (normalized === null) {
+    return { ok: true, value: null };
+  }
+  if (normalized === undefined) {
+    return { ok: false, error: 'TARGET_YIELD_INVALID' };
+  }
+  const asNumber = Number(normalized);
+  if (!Number.isFinite(asNumber)) {
+    return { ok: false, error: 'TARGET_YIELD_INVALID' };
+  }
+  if (asNumber === 0) {
+    return { ok: false, error: 'TARGET_YIELD_ZERO_NOT_ALLOWED' };
+  }
+  if (asNumber < 0 || asNumber > 100) {
+    return { ok: false, error: 'TARGET_YIELD_INVALID' };
+  }
+  return { ok: true, value: normalized };
 }
 
 function normalizeNumericPct(value: unknown, allowZero = true): string | null | undefined {

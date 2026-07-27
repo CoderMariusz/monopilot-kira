@@ -5458,6 +5458,7 @@
       "saved": "Zapisano",
       "saveError": "Nie udało się zapisać wersji roboczej. Spróbuj ponownie.",
       "saveErrorNotDraft": "Ta wersja nie jest już edytowalna — zapisywać można tylko wersje robocze.",
+      "saveErrorTargetYieldZero": "Oczekiwany uzysk % musi być większy od 0 — zero oznaczałoby brak strat i zafałszowałoby koszt.",
       "submitForTrial": "Zgłoś do próby",
       "compareVersions": "Porównaj wersje",
       "ingredients": "Składniki",
@@ -6061,7 +6062,8 @@
         "info": "Informacja"
       },
       "deleteDisabledHint": "Nie masz uprawnień do usuwania wyrobów gotowych.",
-      "totalYield": "Łączny uzysk"
+      "totalYield": "Łączny uzysk",
+      "validationErrorNotice": "Nie udało się załadować walidacji. Odśwież stronę i spróbuj ponownie."
     },
     "faDetailModals": {
       "deptCloseTitle": "Zamknij dział",
