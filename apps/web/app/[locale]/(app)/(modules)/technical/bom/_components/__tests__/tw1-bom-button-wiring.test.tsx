@@ -189,6 +189,7 @@ describe('TW1-bom — detail action bar is wired', () => {
     productName: 'Kabanosy',
     currentVersion: 3,
     snapshotCount: 0,
+    versionCount: 3,
     lines: [{ componentCode: 'RM-1', quantity: 1, uom: 'kg' }],
     canPublish: false,
   };

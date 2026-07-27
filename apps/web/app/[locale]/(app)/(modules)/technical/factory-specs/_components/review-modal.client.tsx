@@ -23,6 +23,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
 import { specBadge } from '../../../../../../../lib/technical/release-state-adapters';
@@ -106,7 +107,7 @@ function Dialog({
   );
 }
 
-function SummaryRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function SummaryRow({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="flex justify-between gap-4 py-1">
       <dt className="text-muted-foreground">{label}</dt>
@@ -129,12 +130,23 @@ export function FactorySpecRowActions({
   canApprove,
   canRecall = false,
   reviewLabel,
+  fgItemHref,
 }: {
   spec: FactorySpecListItem;
   canApprove: boolean;
   /** R4-CL2 — caller holds technical.factory_spec.recall (gates "Recall to draft"). */
   canRecall?: boolean;
   reviewLabel: string;
+  /**
+   * PF-R06-02 — deep link to the FG item master, where shelf life is actually
+   * authored. Built by the (server) list page, which owns `locale`; a client
+   * `useLocale()`/`useParams()` here would drop /pl users into the English app
+   * (the bug pipeline-tabs.tsx:220 documents).
+   * ponytail: optional so the prop stays a pure add — the sole production caller
+   * (page.tsx) always passes it; without it the provenance text still renders,
+   * only the link is omitted.
+   */
+  fgItemHref?: string;
 }) {
   const t = useTranslations('Technical.factorySpecs');
   const [open, setOpen] = React.useState(false);
@@ -239,7 +251,12 @@ export function FactorySpecRowActions({
         defaultSpecCode={spec.specCode}
       />
 
-      <EditFactorySpecModal open={editOpen} onClose={() => setEditOpen(false)} spec={spec} />
+      <EditFactorySpecModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        spec={spec}
+        fgItemHref={fgItemHref}
+      />
       <SaveFactorySpecVersionModal open={versionOpen} onClose={() => setVersionOpen(false)} spec={spec} />
       <DeleteFactorySpecModal open={deleteOpen} onClose={() => setDeleteOpen(false)} spec={spec} />
 
@@ -273,7 +290,39 @@ export function FactorySpecRowActions({
             value={spec.bomVersion != null ? t('modal.bomVersion', { version: spec.bomVersion }) : t('modal.noBom')}
             mono
           />
-          <SummaryRow label={t('modal.shelfLife')} value={spec.shelfLifeDays != null ? `${spec.shelfLifeDays} d` : '—'} mono />
+          {/*
+            PF-R06-02 — shelf life is NOT a factory_specs column: list-factory-specs.ts
+            reads `i.shelf_life_days` off the joined FG item master. The reviewer signs
+            this document, so the row says whose value it is, and a missing value is
+            named as a gap on the FG item instead of a mute em dash.
+          */}
+          <SummaryRow
+            label={t('modal.shelfLife')}
+            value={
+              <span className="flex flex-col items-end gap-0.5">
+                {spec.shelfLifeDays != null ? (
+                  <span className="font-mono" data-testid={`factory-spec-shelf-life-${spec.id}`}>{`${spec.shelfLifeDays} d`}</span>
+                ) : (
+                  <span className="badge badge-amber" data-testid={`factory-spec-shelf-life-${spec.id}`}>
+                    {t('modal.shelfLifeUnset', { item: spec.fgItemCode })}
+                  </span>
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {t('modal.shelfLifeInherited', { item: spec.fgItemCode })}{' '}
+                  {fgItemHref ? (
+                    <Link
+                      href={fgItemHref}
+                      className="font-medium hover:underline"
+                      style={{ color: 'var(--blue)' }}
+                      data-testid={`factory-spec-fg-item-link-${spec.id}`}
+                    >
+                      {t('modal.openFgItem')}
+                    </Link>
+                  ) : null}
+                </span>
+              </span>
+            }
+          />
           <SummaryRow label={t('modal.source')} value={spec.source} />
           <SummaryRow label={t('modal.notes')} value={spec.notes?.trim() ? spec.notes : t('modal.noNotes')} />
         </dl>

@@ -11,6 +11,7 @@ import { diffBom } from '../_actions/diff';
 import { buildJobPayload, isComplete, resolveEligibleFgs } from '../_actions/generator';
 import { runGeneratorJob } from '../_actions/generator-worker';
 import type { BomDetailView } from '../_actions/shared';
+import { isScrapPrecisionValid } from '../_lib/scrap-precision';
 
 describe('cycle-detection (V-TEC-13)', () => {
   it('flags a self-reference (parent appears in its own components)', () => {
@@ -103,5 +104,40 @@ describe('generator (V-TEC-15)', () => {
     const batch = runGeneratorJob('org-1', { outputMode: 'single_batch', productCodes: ['FG1', 'FG2'], runDate: '2026-06-04', bomsByFg: boms });
     expect(batch.resultUrls).toHaveLength(1);
     expect(batch.artifacts[0]!.sheets).toHaveLength(2);
+  });
+});
+
+// ── PF-R06-03 — numeric(5,2) scrap precision (pure) ───────────────────────────
+describe('isScrapPrecisionValid', () => {
+  it('accepts values numeric(5,2) can store exactly', () => {
+    for (const v of [0, 1, 1.5, 2.35, 49.99, 99.9, 100]) {
+      expect(isScrapPrecisionValid(v)).toBe(true);
+    }
+  });
+
+  it('rejects a 3rd decimal instead of letting Postgres round it away', () => {
+    for (const v of [2.3456, 0.001, 12.345]) {
+      expect(isScrapPrecisionValid(v)).toBe(false);
+    }
+  });
+
+  it('is not fooled by float dust (8.45 * 100 === 844.9999999999999)', () => {
+    // The dust is real, but 2.35 was never an example of it: 2.35 * 100 is exactly 235.
+    expect(2.35 * 100).toBe(235);
+    expect(8.45 * 100).not.toBe(845);
+    expect(isScrapPrecisionValid(8.45)).toBe(true);
+    expect(isScrapPrecisionValid(2.35)).toBe(true);
+  });
+
+  // The old toFixed(6) tolerance swallowed six digits of REAL input: 2.350000001
+  // validated, then Postgres stored 2.35 — the silent rounding this guard prevents.
+  it('rejects extra digits hiding under a float-dust-sized tolerance', () => {
+    expect(isScrapPrecisionValid(2.350000001)).toBe(false);
+    expect(isScrapPrecisionValid(49.990000001)).toBe(false);
+  });
+
+  it('rejects non-finite input', () => {
+    expect(isScrapPrecisionValid(Number.NaN)).toBe(false);
+    expect(isScrapPrecisionValid(Number.POSITIVE_INFINITY)).toBe(false);
   });
 });

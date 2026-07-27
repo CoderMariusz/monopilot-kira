@@ -201,7 +201,14 @@ describe('ComponentAddModal (TEC-022 parity + behavior)', () => {
 
   it('shows clone-on-write notice when the source BOM is released/active (AC6)', async () => {
     render(<ComponentAddModal open onClose={() => {}} context={{ ...DRAFT_CTX, sourceStatus: 'active' }} />);
-    expect(await screen.findByText(/Saving creates a new draft version/)).toBeInTheDocument();
+    expect(await screen.findByText(/creates a new version in review/i)).toBeInTheDocument();
+    expect(screen.queryByText(/creates a new draft version/i)).not.toBeInTheDocument();
+  });
+
+  it('does not show the released clone-on-write notice for an editable draft source', async () => {
+    render(<ComponentAddModal open onClose={() => {}} context={DRAFT_CTX} />);
+    await screen.findByRole('dialog');
+    expect(screen.queryByText(/creates a new version in review/i)).not.toBeInTheDocument();
   });
 
   it('DRAFT AUTHORING: a fresh item with readiness warnings is ADDABLE; warning badges render', async () => {
@@ -350,7 +357,10 @@ describe('VersionSaveModal (TEC-022 parity + behavior)', () => {
       { coProductItemId: 'cp-1', quantity: 2, uom: 'kg', allocationPct: 30, isByproduct: false },
       { coProductItemId: 'cp-2', quantity: 1, uom: 'kg', allocationPct: 0, isByproduct: true },
     ];
-    render(<VersionSaveModal open onClose={() => {}} context={ctx} lines={lines} coProducts={coProducts} />);
+    // Co-products travel in the CONTEXT, not a sibling prop — see the B-1 note on
+    // VersionSaveModal. Passing them as a prop is what made this test green while
+    // production shipped `coProducts: []`.
+    render(<VersionSaveModal open onClose={() => {}} context={{ ...ctx, coProducts }} lines={lines} />);
     await user.type(screen.getByLabelText('Change reason'), 'Carry the co-product split');
     await user.click(screen.getByRole('button', { name: 'Save version' }));
     await waitFor(() => expect(mocks.createBomDraft).toHaveBeenCalledTimes(1));
@@ -358,5 +368,31 @@ describe('VersionSaveModal (TEC-022 parity + behavior)', () => {
     // parent share = 100 − Σ non-byproduct allocations (byproduct rows excluded).
     expect(arg.parentAllocationPct).toBe(70);
     expect(arg.coProducts).toEqual(coProducts);
+  });
+
+  it('carries the source yield instead of letting the server default it to 100 %', async () => {
+    const user = userEvent.setup();
+    render(<VersionSaveModal open onClose={() => {}} context={{ ...ctx, yieldPct: 95 }} lines={lines} />);
+    await user.type(screen.getByLabelText('Change reason'), 'Keep the 95 percent yield');
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() => expect(mocks.createBomDraft).toHaveBeenCalledTimes(1));
+    expect(mocks.createBomDraft.mock.calls[0][0].yieldPct).toBe(95);
+  });
+
+  // [B-4] the notice is status-dependent; both branches must be renderable.
+  it('tells a draft source it will get a new DRAFT version', () => {
+    render(<VersionSaveModal open onClose={() => {}} context={ctx} lines={lines} />);
+    const notice = screen.getByTestId('bom-save-version-notice');
+    expect(notice).toHaveTextContent(/draft version/i);
+    expect(notice).not.toHaveTextContent(/in review/i);
+  });
+
+  it('tells an active source it will open IN REVIEW', () => {
+    render(
+      <VersionSaveModal open onClose={() => {}} context={{ ...ctx, sourceStatus: 'active' }} lines={lines} />,
+    );
+    const notice = screen.getByTestId('bom-save-version-notice');
+    expect(notice).toHaveTextContent(/in review/i);
+    expect(notice).not.toHaveTextContent(/new draft version/i);
   });
 });

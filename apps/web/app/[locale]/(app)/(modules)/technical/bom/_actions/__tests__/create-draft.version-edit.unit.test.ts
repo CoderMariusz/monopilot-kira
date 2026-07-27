@@ -133,6 +133,50 @@ describe('createBomDraft clone-on-write lineage (N-20)', () => {
   });
 });
 
+// ── [B-2] the trail must state the status the version REALLY landed in ─────────
+// bom_request_version_edit creates an `in_review` version and emits
+// bom.version_submitted itself. createBomDraft used to write an audit row saying
+// `status: 'draft'` and emit a SECOND event with that same wrong status — and with no
+// dedup_key both events stick, so consumers saw in_review followed by draft. Saving an
+// existing fork again ('existing' decision) piled on another wrong event each time.
+describe('createBomDraft audit + outbox on the clone-on-write path', () => {
+  async function runVersionEdit(decisions: { decision: string }[]) {
+    const client = makeClient(decisions);
+    runWithOrgContext.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+    const { createBomDraft } = await import('../create-draft');
+    const shared = await import('../shared');
+    const payload = {
+      productId: 'FG-1',
+      sourceBomHeaderId: SOURCE_HEADER_ID,
+      lines: [{ componentCode: 'RM-1', quantity: 1, uom: 'kg' }],
+    };
+    for (let i = 0; i < decisions.length; i++) await createBomDraft(payload);
+    return shared;
+  }
+
+  it('audits the status the helper actually produced (in_review), not a hardcoded draft', async () => {
+    const shared = await runVersionEdit([{ decision: 'cloned' }]);
+    expect(shared.writeAudit).toHaveBeenCalledTimes(1);
+    const audited = vi.mocked(shared.writeAudit).mock.calls[0]![1];
+    expect(audited.afterState).toMatchObject({ status: 'in_review', productId: 'FG-1', version: 3 });
+  });
+
+  it('emits no application-level event on the path where the DB helper already emitted one', async () => {
+    const shared = await runVersionEdit([{ decision: 'cloned' }]);
+    expect(shared.writeOutbox).not.toHaveBeenCalled();
+  });
+
+  it('does not append another wrong event every time an existing fork is re-saved', async () => {
+    const shared = await runVersionEdit([{ decision: 'existing' }, { decision: 'existing' }]);
+    expect(shared.writeOutbox).not.toHaveBeenCalled();
+    for (const call of vi.mocked(shared.writeAudit).mock.calls) {
+      expect(call[1].afterState).toMatchObject({ status: 'in_review' });
+    }
+  });
+});
+
 describe('ensureBomVersionEditDraft idempotency (N-20)', () => {
   it('returns the canonical draft id from bom_request_version_edit', async () => {
     const client = makeClient([{ decision: 'existing' }]);

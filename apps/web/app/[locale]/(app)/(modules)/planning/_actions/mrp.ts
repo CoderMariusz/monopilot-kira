@@ -53,6 +53,7 @@ import { randomUUID } from 'node:crypto';
 import { nextDocumentNumber } from '../../../../../../lib/documents/numbering';
 import { pickProcurementSupplierId, fetchNonBlockedSupplierIds, resolveProcurementSuppliersForItems } from '../../../../../../lib/procurement/resolve-item-supplier';
 import { computeWoMaterialScalar, WoMaterialScalarError } from '../../../../../../lib/production/wo-material-scalar';
+import { createBomSnapshot } from '../../../../../../lib/technical/bom/snapshot';
 import { resolveWriteSiteId } from '../../../../../../lib/site/site-context';
 import { snapshotFromItemRow, toBaseQty } from '../../../../../../lib/uom/convert';
 import { createPurchaseOrderCore } from '../purchase-orders/_actions/create-purchase-order-core';
@@ -1441,6 +1442,10 @@ export async function convertPlannedToWo(plannedOrderIds: string[]): Promise<Mrp
           if (!isPgError(error) || error.code !== '23505') throw error;
           await insertWorkOrderHeader(await nextDocumentNumber(c, orgId, 'wo', new Date()));
         }
+        await createBomSnapshot(
+          { userId, orgId, client: c },
+          { woId, bomHeaderId: activeBom.rows[0].id },
+        );
         await c.query(
           `insert into public.wo_materials
              (org_id, wo_id, product_id, material_name, required_qty, uom, sequence,

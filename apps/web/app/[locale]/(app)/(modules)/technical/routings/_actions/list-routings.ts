@@ -25,6 +25,7 @@ type RoutingRow = {
   item_id: string;
   version: number;
   status: string;
+  site_id: string | null;
   effective_from: string;
   effective_to: string | null;
   operation_count: string | number;
@@ -33,7 +34,10 @@ type RoutingRow = {
     op_code: string;
     op_name: string;
     line_id: string;
-    setup_time_min: number;
+    // R-2: `::text` in the SQL below. A JSONB *number* is parsed by the driver
+    // with JSON.parse → a JS double, which silently drops digits of a value that
+    // numeric(18,6) stores exactly (999999999999.123456).
+    setup_time_min: string;
     run_time_per_unit_sec: string | null;
     cost_per_hour: string | null;
     manufacturing_operation_name: string;
@@ -48,6 +52,8 @@ function mapRow(row: RoutingRow): RoutingSummary {
     itemId: String(row.item_id),
     version: Number(row.version),
     status: STATUS_SET.has(row.status as RoutingStatus) ? (row.status as RoutingStatus) : 'draft',
+    // PF-R06-07: the edit modal narrows the line picker to this site.
+    siteId: row.site_id ?? null,
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to,
     operationCount: Number(row.operation_count),
@@ -56,7 +62,10 @@ function mapRow(row: RoutingRow): RoutingSummary {
       opCode: op.op_code,
       opName: op.op_name,
       lineId: op.line_id,
-      setupTimeMin: Number(op.setup_time_min),
+      // R-2: NO Number() — the write path is NUMERIC-exact strings end to end, and
+      // this value flows straight back into updateRouting when the operator saves
+      // the draft. Rounding here would persist the rounded value on the next save.
+      setupTimeMin: op.setup_time_min,
       runTimePerUnitSec: op.run_time_per_unit_sec,
       costPerHour: op.cost_per_hour,
       manufacturingOperationName: op.manufacturing_operation_name,
@@ -80,6 +89,7 @@ export async function listRoutings(rawInput: unknown): Promise<ListRoutingsResul
                 r.item_id,
                 r.version,
                 r.status,
+                r.site_id::text as site_id,
                 r.effective_from::text as effective_from,
                 r.effective_to::text as effective_to,
                 (select count(*) from public.routing_operations o
@@ -91,7 +101,7 @@ export async function listRoutings(rawInput: unknown): Promise<ListRoutingsResul
                               'op_code', o.op_code,
                               'op_name', o.op_name,
                               'line_id', o.line_id,
-                              'setup_time_min', o.setup_time_min,
+                              'setup_time_min', o.setup_time_min::text,
                               'run_time_per_unit_sec', o.run_time_per_unit_sec::text,
                               'cost_per_hour', o.cost_per_hour::text,
                               'manufacturing_operation_name', o.manufacturing_operation_name

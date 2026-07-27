@@ -199,7 +199,8 @@ export async function startWo(
     });
   }
 
-  // (2) Freeze the BOM (T-025) — idempotent per (org, wo, bom_header).
+  // (2) Resolve the BOM snapshot (T-025) — created at WO creation (ADR-002); this call is
+  // idempotent per (org, wo, bom_header) and returns the existing row when already frozen.
   let bomSnapshotId: string;
   try {
     const snapshot = await createBomSnapshot(ctx, {

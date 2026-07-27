@@ -208,6 +208,62 @@ describe('createBomDraft product reference self-heal', () => {
     expect(client.calls[headerInsertIndex]!.params.at(-1)).toBe('forward');
   });
 
+  // [B-2] the first-authoring path really does produce a draft — it keeps its single
+  // bom.version_submitted event, and both the audit and the payload say 'draft'.
+  it('emits exactly one submitted event, saying draft, on the first-authoring path', async () => {
+    const { createBomDraft } = await import('../create-draft');
+
+    const result = await createBomDraft({
+      productId: 'FG-WIZ-001',
+      parentAllocationPct: 100,
+      lines: [{ itemId: RM_ID, componentCode: 'RM-001', quantity: 1, uom: 'kg' }],
+    });
+    expect(result).toMatchObject({ ok: true });
+
+    const events = client.calls.filter((call) => normalizeSql(call.sql).startsWith('insert into public.outbox_events'));
+    expect(events).toHaveLength(1);
+    expect(JSON.parse(events[0]!.params[4] as string)).toMatchObject({ status: 'draft', product_id: 'FG-WIZ-001' });
+
+    const audits = client.calls.filter((call) => normalizeSql(call.sql).startsWith('insert into public.audit_log'));
+    expect(audits).toHaveLength(1);
+    expect(JSON.parse(audits[0]!.params[5] as string)).toMatchObject({ status: 'draft' });
+  });
+
+  // ── [B-12] the manual authoring boundary refuses precision numeric(5,2) drops ──
+  // createBomDraft IS the hand-authoring path (first authoring + Save version); the
+  // client-side check alone left the Server Action accepting 2.3456, which Postgres
+  // then stored as 2.35 with no message at all.
+  it('rejects a scrapPct with more than 2 decimals before touching the database', async () => {
+    const { createBomDraft } = await import('../create-draft');
+
+    const result = await createBomDraft({
+      productId: 'FG-WIZ-001',
+      parentAllocationPct: 100,
+      lines: [{ itemId: RM_ID, componentCode: 'RM-001', quantity: 1, uom: 'kg', scrapPct: 2.3456 }],
+    });
+
+    expect(result).toMatchObject({ ok: false, error: 'invalid_input' });
+    expect(result).toMatchObject({ message: expect.stringContaining('2 decimal places') });
+    expect(client.calls).toHaveLength(0);
+  });
+
+  it('still accepts the values a numeric(5,2) column can hold, including float-dusty ones', async () => {
+    const { createBomDraft } = await import('../create-draft');
+
+    const result = await createBomDraft({
+      productId: 'FG-WIZ-001',
+      parentAllocationPct: 100,
+      lines: [
+        { itemId: RM_ID, componentCode: 'RM-001', quantity: 1, uom: 'kg', scrapPct: 2.35 },
+        { itemId: RM_ID, componentCode: 'RM-002', quantity: 1, uom: 'kg', scrapPct: 8.45 },
+        { itemId: RM_ID, componentCode: 'RM-003', quantity: 1, uom: 'kg', scrapPct: 0 },
+        { itemId: RM_ID, componentCode: 'RM-004', quantity: 1, uom: 'kg' },
+      ],
+    });
+
+    expect(result).toMatchObject({ ok: true });
+  });
+
   it('keeps invalid-reference rejection when the target FG item is missing', async () => {
     client.fgItem = null;
     const { createBomDraft } = await import('../create-draft');

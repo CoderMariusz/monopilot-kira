@@ -18,7 +18,8 @@
  *     routing (and no two distinct line sites within one routing).
  *
  * NUMERIC-exact: run_time_per_unit_sec and cost_per_hour are numeric(18,6) —
- * bound as ::numeric; max 6 decimal places (migration 503).
+ * bound as ::numeric; max 6 decimal places (migration 503). setup_time_min got
+ * the same treatment in migration 523 (PF-R06-09).
  *
  * RBAC: there is NO dedicated `technical.routing.*` string in the PRD §3
  * `technical.*` family (Wave0 enum-lock — new strings are forbidden). Routings
@@ -64,6 +65,9 @@ export type RoutingActionError =
   | 'v_tec_62_zero_run_time'
   | 'v_tec_63_unknown_operation'
   | 'v_tec_64_cross_site_lines'
+  // PF-R06-06 delete refusals — named, never a bare 'error'.
+  | 'not_draft'
+  | 'version_referenced'
   | 'persistence_failed';
 
 // ── Operation input ───────────────────────────────────────────────────────────
@@ -83,7 +87,14 @@ export const RoutingOperationInput = z.object({
   opCode: z.string().trim().min(1).max(64),
   opName: z.string().trim().min(1).max(256),
   lineId: z.string().uuid(),
-  setupTimeMin: z.number().int().min(0).optional().default(0),
+  // setup_time_min is numeric(18,6) since migration 523 (PF-R06-09) — fractional
+  // setup minutes are a legitimate domain value, so it takes the same
+  // NumericString contract (max 6 dp) as runTimePerUnitSec / costPerHour.
+  // R-4: what the old `z.number().int()` did was REJECT a decimal, not round it.
+  // Nothing downstream rounded either — `pg` sends binds as text, so '12.345' on
+  // the old `$6::integer` bind raised an int4 input error. Every layer blocked the
+  // value; none of them quietly changed it.
+  setupTimeMin: NumericString.optional().default('0'),
   // run_time_per_unit_sec numeric(18,6) — optional column, but V-TEC-62 requires
   // it > 0 for production ops (enforced in the service, not just zod).
   runTimePerUnitSec: NumericString.optional().nullable(),
@@ -129,6 +140,14 @@ export type ApproveRoutingResult =
   | { ok: true; data: { id: string; status: RoutingStatus } }
   | { ok: false; error: RoutingActionError; message?: string };
 
+// ── Delete routing input (PF-R06-06 — draft versions only) ────────────────────
+export const DeleteRoutingInput = z.object({ routingId: z.string().uuid() });
+export type DeleteRoutingInputType = z.input<typeof DeleteRoutingInput>;
+
+export type DeleteRoutingResult =
+  | { ok: true; data: { id: string; itemId: string; version: number } }
+  | { ok: false; error: RoutingActionError; message?: string; referenceCount?: number };
+
 // ── List routings input ───────────────────────────────────────────────────────
 export const ListRoutingsInput = z.object({ itemId: z.string().uuid() });
 export type ListRoutingsInputType = z.input<typeof ListRoutingsInput>;
@@ -138,6 +157,15 @@ export type RoutingSummary = {
   itemId: string;
   version: number;
   status: RoutingStatus;
+  /**
+   * PF-R06-07: the site this routing is pinned to (null = not pinned yet). The
+   * edit modal narrows the line picker with it — V-TEC-64
+   * (validateOperationLineSiteScope) rejects every line whose site differs,
+   * org-wide lines included, so offering them would be a promise without cover.
+   * Null must keep offering EVERY line or a brand-new routing could never bind
+   * its first operation.
+   */
+  siteId: string | null;
   effectiveFrom: string;
   effectiveTo: string | null;
   operationCount: number;
@@ -146,7 +174,14 @@ export type RoutingSummary = {
     opCode: string;
     opName: string;
     lineId: string;
-    setupTimeMin: number;
+    /**
+     * R-2: string, like runTimePerUnitSec / costPerHour. numeric(18,6) holds 18
+     * significant digits; a JS number holds ~15, so `Number(...)` on the read path
+     * silently rounded 999999999999.123456 — and because opening a draft and
+     * pressing Save replaces the whole operation set, merely LOOKING at a routing
+     * used to persist the rounded value. Exact in, exact out.
+     */
+    setupTimeMin: string;
     runTimePerUnitSec: string | null;
     costPerHour: string | null;
     manufacturingOperationName: string;

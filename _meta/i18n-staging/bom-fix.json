@@ -7,5 +7,13 @@
   "technical.bom.edit.usabilityWarning": {
     "en": "{label} ({code})",
     "pl": "{label} ({code})"
+  },
+  "technical.bom.edit.scrapInvalid": {
+    "en": "Enter a scrap % between 0 and 100.",
+    "pl": "Podaj straty % z zakresu od 0 do 100."
+  },
+  "technical.bom.edit.scrapPrecision": {
+    "en": "Scrap % supports at most 2 decimal places.",
+    "pl": "Straty % obsługują maksymalnie 2 miejsca po przecinku."
   }
 }

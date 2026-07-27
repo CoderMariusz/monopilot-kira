@@ -24,7 +24,11 @@
  *   - `prototypes/design/Monopilot Design System/technical/modals.jsx:168-190`
  *     (bom_version_save_modal) → VersionSaveModal: Version label + Change reason
  *     (min-10) + read-only "previous version stays available" note + Cancel /
- *     "Save version".
+ *     "Save version". The modal states WHICH status the save produces: a
+ *     draft/in_review source forks a new DRAFT, a technical_approved/active source
+ *     opens IN REVIEW via bom_request_version_edit. It carries the source version's
+ *     co-products and yield through `context` — dropping either is silent recipe
+ *     loss, not a cosmetic default.
  *
  * Real data — NO mocks:
  *   - the component picker reads the real item master via `listItems`
@@ -56,6 +60,7 @@ import { Select } from '@monopilot/ui/Select';
 import { createBomDraft } from '../_actions/create-draft';
 import { addBomLine } from '../_actions/line-actions';
 import { ensureBomVersionEditDraft } from '../_actions/request-version-edit';
+import { isScrapPrecisionValid } from '../_lib/scrap-precision';
 import type { BomStatus, BomValidationCode, ComponentType } from '../_actions/shared';
 import { listItems } from '../../items/_actions/list-items';
 import { ITEM_CHOOSER_MAX_LIMIT } from '../../../../../../../lib/shared/pagination';
@@ -323,11 +328,20 @@ export function ComponentAddModal({
 
   const qtyNum = Number(qty);
   const qtyInvalid = !Number.isFinite(qtyNum) || qtyNum <= 0;
+  // PF-R06-03 — scrap_pct is numeric(5,2): refuse a 3rd decimal here instead of
+  // letting Postgres round it away behind the user's back. Same rule the server
+  // enforces on AddBomLineInput / UpdateBomLineInput.
+  const scrapNum = Number(scrap);
+  const scrapOutOfRange =
+    scrap.trim().length === 0 || !Number.isFinite(scrapNum) || scrapNum < 0 || scrapNum > 100;
+  const scrapTooPrecise = !scrapOutOfRange && !isScrapPrecisionValid(scrapNum);
+  const scrapInvalid = scrapOutOfRange || scrapTooPrecise;
   const operationMissing = operationName.trim().length === 0;
   const blocked = usability.kind === 'blocked';
   const checking = usability.kind === 'checking';
   // ponytail: gate Add on in-flight usability — submit during 'checking' races a second long validate
-  const canSubmit = !!picked && !qtyInvalid && !operationMissing && !blocked && !checking && !pending;
+  const canSubmit =
+    !!picked && !qtyInvalid && !scrapInvalid && !operationMissing && !blocked && !checking && !pending;
 
   async function onPick(material: ItemListItem) {
     setPicked(material);
@@ -573,13 +587,24 @@ export function ComponentAddModal({
               <label>{t('scrapPct')}</label>
               <input
                 type="number"
-                step="0.1"
+                step="0.01"
                 min="0"
+                max="100"
                 className="form-input"
+                data-testid="bom-add-scrap"
                 aria-label={t('scrapPct')}
                 value={scrap}
                 onChange={(event) => setScrap(event.currentTarget.value)}
               />
+              {scrapOutOfRange ? (
+                <span className="ff-error" role="alert">
+                  {tg('scrapInvalid', 'Enter a scrap % between 0 and 100.')}
+                </span>
+              ) : scrapTooPrecise ? (
+                <span className="ff-error" role="alert" data-testid="bom-add-scrap-precision-error">
+                  {tg('scrapPrecision', 'Scrap % supports at most 2 decimal places.')}
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -615,11 +640,18 @@ export function VersionSaveModal({
   context,
   /** The draft lines to persist into the new version (supplied by the parent). */
   lines,
-  coProducts,
   onSaved,
 }: {
   open: boolean;
   onClose: () => void;
+  /**
+   * Co-products and yield come from `context` — NOT from a separate prop. They used
+   * to be a `coProducts?` prop that the ONE production caller (BomDetailActions)
+   * never passed, so every "Save version" silently shipped `coProducts: []` and no
+   * yield, and the server's `yieldPct ?? 100` reset the recipe to 100 %. A prop a
+   * caller can forget is a prop that will be forgotten; the context object the
+   * parent already builds carries both fields.
+   */
   context: BomEditContext;
   lines: Array<{
     itemId?: string;
@@ -629,7 +661,6 @@ export function VersionSaveModal({
     scrapPct?: number;
     manufacturingOperationName?: string;
   }>;
-  coProducts?: Array<{ coProductItemId: string; quantity: number; uom: string; allocationPct: number; isByproduct?: boolean }>;
   onSaved?: (result: { id: string; version: number }) => void;
 }) {
   const t = useTranslations('technical.bom.edit');
@@ -655,13 +686,15 @@ export function VersionSaveModal({
     if (!canSubmit) return;
     setError(null);
     startTransition(async () => {
-      // Clone-on-write: createBomDraft always opens a NEW draft version; the
-      // released v{currentVersion} is never mutated in place.
+      // Clone-on-write: the source version is never mutated in place. What the new
+      // version BECOMES depends on the source — draft/in_review fork into a new
+      // draft, technical_approved/active go through bom_request_version_edit and
+      // open IN REVIEW. (This used to claim "always opens a NEW draft".)
       // F4 (W9 cross-review HIGH): same V-TEC-12 reconstruction as the
       // add-component fork path — parent share = 100 − Σ non-byproduct
       // co-product allocations. Without it, carrying any non-byproduct
       // co-product fails the create-draft allocation validation.
-      const carriedCoProducts = coProducts ?? [];
+      const carriedCoProducts = context.coProducts ?? [];
       const parentAllocationPct =
         100 - carriedCoProducts.filter((cp) => !cp.isByproduct).reduce((acc, cp) => acc + cp.allocationPct, 0);
       const result = await createBomDraft({
@@ -671,6 +704,9 @@ export function VersionSaveModal({
         lines,
         coProducts: carriedCoProducts,
         parentAllocationPct,
+        // Carry the source yield: omitting it makes the server apply `yieldPct ?? 100`,
+        // which silently reset a 95 % recipe to 100 % on every save.
+        ...(context.yieldPct != null ? { yieldPct: context.yieldPct } : {}),
       });
       if (result.ok) {
         onSaved?.({ id: result.data.id, version: result.data.version });
@@ -708,6 +744,23 @@ export function VersionSaveModal({
       }
     >
       <div>
+        {/* What the save actually produces, per SOURCE status — the server decides
+            this, not the modal: draft/in_review fork into a new draft, while
+            technical_approved/active route through bom_request_version_edit and open
+            IN REVIEW. Both branches are reachable: BomDetailActions mounts this modal
+            for all four of those statuses (saveVersion is only blocked on
+            superseded/archived), so neither message is dead copy. */}
+        <div
+          className={RELEASED_STATUSES.has(context.sourceStatus) ? 'alert alert-amber mb-3' : 'alert alert-blue mb-3'}
+          role="status"
+          data-testid="bom-save-version-notice"
+        >
+          <div className="alert-title">
+            {RELEASED_STATUSES.has(context.sourceStatus)
+              ? t('newDraftNotice', { status: context.sourceStatus })
+              : t('newEditableDraftNotice')}
+          </div>
+        </div>
         <div className="ff">
           <label>{t('versionLabel')}<span className="req">*</span></label>
           <input

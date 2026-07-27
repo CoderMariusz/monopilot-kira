@@ -83,6 +83,7 @@ export default async function FactorySpecsPage({ params }: { params: Promise<{ l
       ) : (
         <FactorySpecsTable
           specs={specs}
+          locale={locale}
           canApprove={canApprove}
           canRecall={canRecall}
           statusLabel={statusLabel}
@@ -112,6 +113,7 @@ export default async function FactorySpecsPage({ params }: { params: Promise<{ l
 
 function FactorySpecsTable({
   specs,
+  locale,
   canApprove,
   canRecall,
   statusLabel,
@@ -121,6 +123,8 @@ function FactorySpecsTable({
   columns,
 }: {
   specs: FactorySpecListItem[];
+  /** PF-R06-02 — needed to build the locale-correct FG item-master deep link. */
+  locale: string;
   canApprove: boolean;
   canRecall: boolean;
   statusLabel: (status: FactorySpecStatus) => string;
@@ -168,7 +172,13 @@ function FactorySpecsTable({
                 <span className={`badge ${STATUS_TONE[spec.status]}`}>{statusLabel(spec.status)}</span>
               </td>
               <td style={{ textAlign: 'right' }}>
-                <FactorySpecRowActions spec={spec} canApprove={canApprove} canRecall={canRecall} reviewLabel={reviewLabel} />
+                <FactorySpecRowActions
+                  spec={spec}
+                  canApprove={canApprove}
+                  canRecall={canRecall}
+                  reviewLabel={reviewLabel}
+                  fgItemHref={`/${locale}/technical/items/${encodeURIComponent(spec.fgItemCode)}`}
+                />
               </td>
             </tr>
           ))}

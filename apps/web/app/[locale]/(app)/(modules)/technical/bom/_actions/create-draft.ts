@@ -4,8 +4,10 @@
  * 03-technical shared BOM SSOT — create draft Server Action (T-013).
  *
  * POST equivalent for `/api/technical/items/:code/boms`. Creates a NEW BOM version
- * in status 'draft' (never auto-publishes), transactionally writing header + lines
- * + co-products. Validation (PRD §7.4/§7.6):
+ * transactionally writing header + lines + co-products. Resulting status depends
+ * on the source: first authoring and draft/in_review forks stay `draft`; editing
+ * active/technical_approved via `bom_request_version_edit` opens `in_review`.
+ * Validation (PRD §7.4/§7.6):
  *   - V-TEC-13 cycle / self-reference (DFS over the org's ACTIVE BOM graph).
  *   - V-TEC-12 non-byproduct allocation sum (parent + non-byproduct co-products)
  *     must equal 100 (rounded to 3 dp).
@@ -13,8 +15,8 @@
  *   - V-TEC-11 advisory warnings returned in `warnings` (NOT a 422).
  * version = previous_max(version for this product_id) + 1.
  *
- * Red-lines: status stays 'draft' (no auto-publish); NO bom_snapshots write here
- * (snapshots are WO-time only, T-024); RLS scopes every statement to the org.
+ * Red-lines: never auto-publish; NO bom_snapshots write here (snapshots are WO-time
+ * only, T-024); RLS scopes every statement to the org.
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -201,6 +203,20 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
 
       let headerId: string;
       let version: number;
+      /**
+       * The status the new version ACTUALLY lands in. Not always 'draft': the
+       * clone-on-write branch opens `in_review`. The audit trail and the outbox
+       * must state this, not the branch-independent literal they used to.
+       */
+      let resultStatus = 'draft';
+      /**
+       * True when the DB helper `bom_request_version_edit` already emitted
+       * `bom.version_submitted` for this aggregate (mig 479, and it is idempotent
+       * via `where not exists`). Emitting again here produced a SECOND, contradicting
+       * event (`status: 'draft'` right after the helper's `in_review`), and re-saving
+       * an existing fork appended another one every time.
+       */
+      let versionSubmittedAlreadyEmitted = false;
 
       if (input.sourceBomHeaderId) {
         const { rows: sourceHeaderRows } = await c.query<{
@@ -283,6 +299,10 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
           if (!edit) return { ok: false, error: 'persistence_failed' };
           headerId = edit.bom_header_id;
           version = edit.version;
+          // The helper returns the row's real status ('in_review') and owns the
+          // lifecycle event for it.
+          resultStatus = edit.status;
+          versionSubmittedAlreadyEmitted = true;
 
           const { rows: lockedDraftRows } = await c.query<{ id: string }>(
             `select header.id
@@ -408,17 +428,23 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
         action: AUDIT_BOM_CREATED,
         resourceId: headerId,
         beforeState: null,
-        afterState: { productId: input.productId, version, status: 'draft', lineCount: input.lines.length },
+        afterState: { productId: input.productId, version, status: resultStatus, lineCount: input.lines.length },
       });
 
-      // Outbox: a draft version submitted into the shared BOM lifecycle.
-      await writeOutbox(c, {
-        orgId,
-        eventType: EVENT_BOM_VERSION_SUBMITTED,
-        aggregateType: 'bom_header',
-        aggregateId: headerId,
-        payload: { product_id: input.productId, version, status: 'draft', actor_user_id: userId },
-      });
+      // Outbox: a new version submitted into the shared BOM lifecycle. Skipped on the
+      // clone-on-write path — `bom_request_version_edit` already emitted this event
+      // with the correct `in_review` status, and there is no dedup_key, so a second
+      // emit is not deduplicated downstream: consumers would see in_review followed
+      // by a contradicting draft for the same aggregate.
+      if (!versionSubmittedAlreadyEmitted) {
+        await writeOutbox(c, {
+          orgId,
+          eventType: EVENT_BOM_VERSION_SUBMITTED,
+          aggregateType: 'bom_header',
+          aggregateId: headerId,
+          payload: { product_id: input.productId, version, status: resultStatus, actor_user_id: userId },
+        });
+      }
 
       safeRevalidatePath('/technical/bom');
       return { ok: true, data: { id: headerId, version, warnings } };

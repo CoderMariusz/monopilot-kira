@@ -37,6 +37,7 @@ import {
   type RmUsabilityContext,
   type RmUsabilityReasonCode,
 } from '../../../../../../../lib/technical/rm-usability';
+import { isScrapPrecisionValid } from '../_lib/scrap-precision';
 import { buildGraph, detectCycle } from './cycle-detection';
 
 // ── RBAC permission strings (packages/rbac/src/permissions.enum.ts) ───────────
@@ -170,6 +171,17 @@ export type BomDetailView = {
   co_products: BomCoProductView[];
 };
 
+// PF-R06-03 — scrap % precision, shared by EVERY hand-authored seam: "Add component",
+// the row-edit modal AND create-draft's bulk lines. `bom_lines.scrap_pct` is
+// numeric(5,2), so Postgres silently rounds a third decimal (2.3456 lands as 2.35) and
+// the user gets back a loss factor they never typed. Refuse it instead.
+// Declared here (above its first use) — `LineInput` below is evaluated at module load.
+const ScrapPct = z.coerce
+  .number()
+  .min(0)
+  .max(100)
+  .refine(isScrapPrecisionValid, { message: 'scrap % supports at most 2 decimal places' });
+
 // ── Create-draft input (T-013) ────────────────────────────────────────────────
 const LineInput = z.object({
   // canonical FK to items.id; component_code TEXT retained for display
@@ -178,7 +190,15 @@ const LineInput = z.object({
   componentType: z.enum(COMPONENT_TYPES).optional(),
   quantity: z.coerce.number().positive().finite(),
   uom: z.string().trim().min(1).max(32),
-  scrapPct: z.coerce.number().min(0).max(100).optional().default(0),
+  // PF-R06-03 — same 2-decimal rule as the row-edit seam. `createBomDraft` IS the
+  // manual first-authoring / save-version path (its only callers are the two
+  // bom-edit-dialog modals), so a hand-typed 2.3456 reached Postgres and was stored
+  // as 2.35 with no message — client-side validation alone left the Server Action
+  // boundary open. This does NOT touch machine-authored BOMs: the NPD/generator path
+  // (app/(npd)/pipeline/_actions/_lib/materialize-npd-bom.ts) writes bom_lines with
+  // its own SQL and never parses this schema, and disassembly drafts have their own
+  // action — so nothing computed is being newly rejected.
+  scrapPct: ScrapPct.optional().default(0),
   manufacturingOperationName: z.string().trim().max(256).optional(),
   sequence: z.coerce.number().int().optional(),
   isPhantom: z.boolean().optional().default(false),
@@ -551,6 +571,9 @@ export const UpdateBomLineInput = z.object({
   lineId: z.string().uuid(),
   qty: DecimalString,
   uom: z.string().trim().min(1).max(32).optional(),
+  // Deliberately NO .default(0): an omitted scrapPct must LEAVE the persisted value
+  // alone, never silently zero a loss factor the caller did not touch.
+  scrapPct: ScrapPct.optional(),
   manufacturingOperationName: z.string().trim().max(256).nullish(),
 });
 export type UpdateBomLineInputType = z.input<typeof UpdateBomLineInput>;
@@ -560,6 +583,16 @@ export const DeleteBomLineInput = z.object({
   lineId: z.string().uuid(),
 });
 export type DeleteBomLineInputType = z.input<typeof DeleteBomLineInput>;
+
+// PF-R06-04 — reorder one component line by ONE position. `line_no` is the single
+// ordering key (bom_lines.sequence is dead and stays dead); the server recomputes a
+// dense 1..N sequence on every move.
+export const MoveBomLineInput = z.object({
+  bomHeaderId: z.string().uuid(),
+  lineId: z.string().uuid(),
+  direction: z.enum(['up', 'down']),
+});
+export type MoveBomLineInputType = z.input<typeof MoveBomLineInput>;
 
 // F-B01 fix — APPEND a component line to an EXISTING editable (draft | in_review)
 // version instead of forking a new 1-line draft. Line fields mirror LineInput
@@ -571,7 +604,7 @@ export const AddBomLineInput = z.object({
   componentType: z.enum(COMPONENT_TYPES).optional(),
   quantity: z.coerce.number().positive().finite(),
   uom: z.string().trim().min(1).max(32),
-  scrapPct: z.coerce.number().min(0).max(100).optional().default(0),
+  scrapPct: ScrapPct.optional().default(0),
   manufacturingOperationName: z.string().trim().max(256).optional(),
 });
 export type AddBomLineInputType = z.input<typeof AddBomLineInput>;
@@ -585,12 +618,13 @@ export type BomLineActionError =
   | 'persistence_failed';
 
 export type BomLineActionResult =
-  | { ok: true; data: { lineId: string; bomHeaderId: string } }
+  | { ok: true; data: { lineId: string; bomHeaderId: string }; warnings?: BomValidationCode[] }
   | { ok: false; error: BomLineActionError; code?: BomValidationCode; message?: string };
 
 export const AUDIT_BOM_LINE_ADDED = 'bom.line_added';
 export const AUDIT_BOM_LINE_UPDATED = 'bom.line_updated';
 export const AUDIT_BOM_LINE_DELETED = 'bom.line_deleted';
+export const AUDIT_BOM_LINE_MOVED = 'bom.line_moved';
 
 // ── Generator input (T-016) ───────────────────────────────────────────────────
 export const BomGeneratorInput = z.object({

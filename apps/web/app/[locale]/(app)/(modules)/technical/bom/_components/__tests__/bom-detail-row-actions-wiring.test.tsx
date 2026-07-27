@@ -72,6 +72,16 @@ describe('BomDetailScreen ↔ row actions wiring', () => {
     expect(props.target).toMatchObject({ bomHeaderId: 'H1', lineId: 'L1', componentCode: 'RM-001', quantity: '1.5', uom: 'kg' });
   });
 
+  // PF-R06-04 — the reorder buttons need the row's position in line_no order.
+  it('forwards the scrap % and the first/last position flags for the reorder controls', () => {
+    render(<BomDetailScreen state="ready" data={makeData({})} labels={LABELS} />);
+    const props = rowActionsSpy.mock.calls[0][0];
+    expect(props.target).toMatchObject({ scrapPct: '1.0' });
+    // Single-line BOM: the only row is both first and last, so neither move is offered.
+    expect(props.isFirst).toBe(true);
+    expect(props.isLast).toBe(true);
+  });
+
   it('forwards editable=false on a non-editable (active) version', () => {
     render(<BomDetailScreen state="ready" data={makeData({ status: 'active', isEditable: false })} labels={LABELS} />);
     const props = rowActionsSpy.mock.calls[0][0];

@@ -91,7 +91,8 @@ export const routingOperations = pgTable(
     opCode: text('op_code').notNull(),
     opName: text('op_name').notNull(),
     lineId: uuid('line_id').references(() => productionLines.id, { onDelete: 'set null' }),
-    setupTimeMin: integer('setup_time_min').notNull().default(0),
+    // numeric(18,6) since migration 523 (PF-R06-09) — fractional setup minutes.
+    setupTimeMin: numeric('setup_time_min', { precision: 18, scale: 6 }).notNull().default('0'),
     setupCost: numeric('setup_cost', { precision: 14, scale: 4 }),
     runTimePerUnitSec: numeric('run_time_per_unit_sec', { precision: 18, scale: 6 }),
     costPerHour: numeric('cost_per_hour', { precision: 18, scale: 6 }),

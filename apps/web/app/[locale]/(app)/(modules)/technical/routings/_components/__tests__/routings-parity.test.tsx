@@ -28,6 +28,7 @@ vi.mock('../../_actions/list-routings', () => ({ listRoutings: (...a: unknown[])
 vi.mock('../../_actions/create-routing', () => ({ createRouting: vi.fn() }));
 vi.mock('../../_actions/update-routing', () => ({ updateRouting: vi.fn() }));
 vi.mock('../../_actions/approve-routing', () => ({ approveRouting: vi.fn(), publishRouting: vi.fn() }));
+vi.mock('../../_actions/delete-routing', () => ({ deleteRouting: vi.fn() }));
 vi.mock('../../_actions/cost-preview', () => ({ routingCostPreview: (...a: unknown[]) => routingCostPreview(...a) }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
@@ -37,7 +38,9 @@ import type { RoutingItemOption, ResourceOption } from '../../_actions/list-rout
 const ITEMS: RoutingItemOption[] = [
   { id: '11111111-1111-1111-1111-111111111111', itemCode: 'FG-2001', name: 'Sausage' },
 ];
-const LINES: ResourceOption[] = [{ id: 'l1', code: 'LINE-A', name: 'Line A' }];
+const LINES: ResourceOption[] = [
+  { id: 'l1', code: 'LINE-A', name: 'Line A', siteId: 'site-1', siteCode: 'WAW', siteName: 'Warsaw Plant' },
+];
 const OP_NAMES = ['Cutting', 'Smoking'];
 
 const ROUTINGS = {

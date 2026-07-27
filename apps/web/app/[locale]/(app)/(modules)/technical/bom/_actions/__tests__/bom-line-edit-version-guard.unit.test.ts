@@ -40,6 +40,9 @@ function makeClient(options: ClientOptions = {}) {
               id: LINE_ID,
               quantity: '1.000',
               uom: 'kg',
+              // PF-R06-03: updateBomLine reads the persisted scrap_pct for the audit
+              // before-state; without it the fixture audits `undefined`.
+              scrap_pct: '1.00',
               manufacturing_operation_name: 'Packing',
             },
           ],
@@ -104,7 +107,9 @@ describe('C046 — updateBomLine versioning / operation guard', () => {
 
     expect(res).toEqual({ ok: true, data: { lineId: LINE_ID, bomHeaderId: HEADER_ID } });
     const upd = calls.find((c) => c.sql.toLowerCase().startsWith('update public.bom_lines'));
-    expect(upd?.params).toEqual([HEADER_ID, LINE_ID, '2.5', null, 'Packing']);
+    // 6 params, not 5: PF-R06-03 appended `scrap_pct = coalesce($6::numeric, scrap_pct)`.
+    // The trailing null is an OMITTED scrapPct — it must leave the stored value alone.
+    expect(upd?.params).toEqual([HEADER_ID, LINE_ID, '2.5', null, 'Packing', null]);
   });
 
   it('rejects an arbitrary manufacturing operation with V-TEC-63 and performs zero writes', async () => {
@@ -169,6 +174,7 @@ describe('C046 — updateBomLine versioning / operation guard', () => {
                 id: LINE_ID,
                 quantity: '1.000',
                 uom: 'kg',
+                scrap_pct: '1.00',
                 manufacturing_operation_name: 'Packing',
               },
             ],
@@ -222,6 +228,7 @@ describe('C046 — updateBomLine versioning / operation guard', () => {
               id: LINE_ID,
               quantity: '1.000',
               uom: 'kg',
+              scrap_pct: '1.00',
               manufacturing_operation_name: 'Packing',
             },
           ],

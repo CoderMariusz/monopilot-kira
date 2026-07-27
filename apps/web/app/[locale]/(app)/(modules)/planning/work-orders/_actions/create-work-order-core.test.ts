@@ -1,5 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { createBomSnapshotMock } = vi.hoisted(() => ({
+  createBomSnapshotMock: vi.fn(async () => ({
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    orgId: '11111111-1111-4111-8111-111111111111',
+    workOrderId: 'wo-id',
+    bomHeaderId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    snapshotJson: {},
+    snapshotAt: '2026-07-27T00:00:00.000Z',
+  })),
+}));
+
 import { createWorkOrderCore } from './create-work-order-core';
 import { hasPermission } from './shared';
 import type { OrgActionContext, QueryClient } from './shared';
@@ -14,6 +25,17 @@ vi.mock('../../../../../../../lib/site/site-context', () => ({
 
 vi.mock('../../../../../../../lib/planning/factory-release-wo-gate', () => ({
   assertFgReleasedToFactoryForWo: vi.fn(),
+}));
+
+vi.mock('../../../../../../../lib/technical/bom/snapshot', () => ({
+  createBomSnapshot: (...args: unknown[]) => createBomSnapshotMock(...args),
+  BomSnapshotError: class BomSnapshotError extends Error {
+    readonly code: string;
+    constructor(code: string, message?: string) {
+      super(message ?? code);
+      this.code = code;
+    }
+  },
 }));
 
 vi.mock('./shared', async (importOriginal) => {
@@ -39,6 +61,15 @@ describe('createWorkOrderCore factory-release gate', () => {
   beforeEach(() => {
     vi.mocked(hasPermission).mockResolvedValue(true);
     vi.mocked(assertFgReleasedToFactoryForWo).mockReset();
+    createBomSnapshotMock.mockReset();
+    createBomSnapshotMock.mockResolvedValue({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      orgId: ORG_ID,
+      workOrderId: 'wo-id',
+      bomHeaderId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      snapshotJson: {},
+      snapshotAt: '2026-07-27T00:00:00.000Z',
+    });
   });
 
   it('returns not_released_to_factory when the FG is not owner-released', async () => {

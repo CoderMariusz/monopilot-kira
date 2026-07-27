@@ -14,10 +14,16 @@
  *                   Append runs the SAME validation chain as create-draft:
  *                   V-TEC-13 self-reference + cycle (active graph) and V-TEC-14
  *                   RM usability ('bom_edit' context).
- *   updateBomLine : mutate quantity / uom / notes of one bom_lines row.
+ *   updateBomLine : mutate quantity / uom / scrap % / manufacturing operation of one
+ *                   bom_lines row. (PF-R06-03: scrap % used to be write-once —
+ *                   settable in "Add component", frozen forever after. It feeds the
+ *                   WO requirement inflation, so it has to stay editable. `notes` is
+ *                   NOT mutated here and never was — this docstring used to claim it.)
  *   deleteBomLine : remove one bom_lines row and renumber the remaining lines
  *                   so line_no stays a dense 1..N sequence (consistent with how
  *                   createBomDraft assigns line_no = i + 1 in line order).
+ *   moveBomLine   : reorder one row by a single position (PF-R06-04) and renumber
+ *                   the header back to a dense 1..N sequence.
  *
  * Editability guard (BOM_LINE_EDITABLE_STATUSES): the owning header must still be
  * in a pre-released state (draft | in_review). For technical_approved / active /
@@ -32,21 +38,25 @@
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { BOM_SCRAP_WARN_PCT } from '../_lib/scrap-precision';
 import { safeRevalidatePath } from './revalidate';
 import { buildGraph, detectCycle } from './cycle-detection';
 import {
   AddBomLineInput,
   AUDIT_BOM_LINE_ADDED,
   AUDIT_BOM_LINE_DELETED,
+  AUDIT_BOM_LINE_MOVED,
   AUDIT_BOM_LINE_UPDATED,
   BOM_CREATE_PERMISSION,
   BOM_LINE_EDITABLE_STATUSES,
   type BomLineActionResult,
   type BomStatus,
+  type BomValidationCode,
   DeleteBomLineInput,
   formatRmUsabilityFailures,
   hasPermission,
   isPgError,
+  MoveBomLineInput,
   type OrgActionContext,
   type QueryClient,
   UpdateBomLineInput,
@@ -237,9 +247,10 @@ export async function updateBomLine(rawInput: unknown): Promise<BomLineActionRes
         id: string;
         quantity: string;
         uom: string;
+        scrap_pct: string;
         manufacturing_operation_name: string | null;
       }>(
-        `select id, quantity::text as quantity, uom, manufacturing_operation_name
+        `select id, quantity::text as quantity, uom, scrap_pct::text as scrap_pct, manufacturing_operation_name
            from public.bom_lines
           where org_id = app.current_org_id()
             and bom_header_id = $1::uuid
@@ -268,26 +279,35 @@ export async function updateBomLine(rawInput: unknown): Promise<BomLineActionRes
         }
       }
 
+      // PF-R06-03 — scrap % is now mutable. `coalesce($n::numeric, scrap_pct)` keeps
+      // the two SQL branches at two (not four): an omitted scrapPct passes NULL and
+      // leaves the stored loss factor untouched, exactly like `uom` already does.
+      // A supplied 0 is a real value and survives coalesce.
+      const nextScrapPct = input.scrapPct ?? null;
       const { rowCount } = await c.query(
         operationProvided
           ? `update public.bom_lines
                set quantity = $3::numeric,
                    uom = coalesce($4, uom),
-                   manufacturing_operation_name = $5
+                   manufacturing_operation_name = $5,
+                   scrap_pct = coalesce($6::numeric, scrap_pct)
              where org_id = app.current_org_id()
                and bom_header_id = $1::uuid
                and id = $2::uuid`
           : `update public.bom_lines
                set quantity = $3::numeric,
-                   uom = coalesce($4, uom)
+                   uom = coalesce($4, uom),
+                   scrap_pct = coalesce($5::numeric, scrap_pct)
              where org_id = app.current_org_id()
                and bom_header_id = $1::uuid
                and id = $2::uuid`,
         operationProvided
-          ? [input.bomHeaderId, input.lineId, input.qty, input.uom ?? null, nextOperation]
-          : [input.bomHeaderId, input.lineId, input.qty, input.uom ?? null],
+          ? [input.bomHeaderId, input.lineId, input.qty, input.uom ?? null, nextOperation, nextScrapPct]
+          : [input.bomHeaderId, input.lineId, input.qty, input.uom ?? null, nextScrapPct],
       );
       if (rowCount !== 1) return { ok: false, error: 'persistence_failed' };
+
+      const afterScrapPct = nextScrapPct === null ? beforeRow.scrap_pct : String(nextScrapPct);
 
       await writeAudit(c, {
         orgId,
@@ -298,12 +318,14 @@ export async function updateBomLine(rawInput: unknown): Promise<BomLineActionRes
           lineId: input.lineId,
           quantity: beforeRow.quantity,
           uom: beforeRow.uom,
+          scrapPct: beforeRow.scrap_pct,
           manufacturingOperationName: beforeRow.manufacturing_operation_name,
         },
         afterState: {
           lineId: input.lineId,
           quantity: input.qty,
           uom: input.uom ?? beforeRow.uom,
+          scrapPct: afterScrapPct,
           manufacturingOperationName: operationProvided
             ? nextOperation
             : beforeRow.manufacturing_operation_name,
@@ -311,7 +333,14 @@ export async function updateBomLine(rawInput: unknown): Promise<BomLineActionRes
       });
 
       revalidateForHeader(header.product_id);
-      return { ok: true, data: { lineId: input.lineId, bomHeaderId: input.bomHeaderId } };
+      // V-TEC-11 advisory (mirrors create-draft): an edit could previously raise scrap
+      // past the threshold with no warning at all, because scrap was only ever
+      // validated on INSERT. Warn on the RESULTING value — never block.
+      const data = { lineId: input.lineId, bomHeaderId: input.bomHeaderId };
+      const warnings: BomValidationCode[] = ['V-TEC-11'];
+      return Number(afterScrapPct) >= BOM_SCRAP_WARN_PCT
+        ? { ok: true, data, warnings }
+        : { ok: true, data };
     });
   } catch (err) {
     if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
@@ -418,6 +447,130 @@ export async function deleteBomLine(rawInput: unknown): Promise<BomLineActionRes
       return { ok: false, error: 'invalid_input' };
     }
     console.error('[technical/bom] deleteBomLine persistence_failed', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+/**
+ * PF-R06-04 — move ONE component line up or down by a single position.
+ *
+ * Ordering key is `bom_lines.line_no` and only that. (`bom_lines.sequence` exists but
+ * is dead — no unique, no index, no check, never written by the UI; reviving it would
+ * create a second, competing sort key. It stays dead.)
+ *
+ * Move-up/down rather than a free "move to position": two buttons are keyboard
+ * operable for free, need no extra input per row, and — being a pure permutation of
+ * the existing ranks — cannot produce an out-of-range target. Multi-step moves are
+ * repeated clicks; drag-and-drop would need a dependency for the same outcome.
+ */
+export async function moveBomLine(rawInput: unknown): Promise<BomLineActionResult> {
+  const parsed = MoveBomLineInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<BomLineActionResult> => {
+      const c = client as QueryClient;
+      const ctx: OrgActionContext = { userId, orgId, client: c };
+      if (!(await hasPermission(ctx, BOM_CREATE_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+      const header = await loadHeader(c, input.bomHeaderId);
+      if (!header) return { ok: false, error: 'not_found' };
+      if (!BOM_LINE_EDITABLE_STATUSES.has(header.status as BomStatus)) {
+        return { ok: false, error: 'bom_not_editable', message: `BOM version is ${header.status}` };
+      }
+
+      // Read the header's lines in the SAME order every reader uses (queries.ts,
+      // detail-page.ts, snapshot.ts all sort by line_no asc), so "up" on screen and
+      // "up" in the sequence are the same thing.
+      //
+      // FOR UPDATE serializes header mutations. Without it the id list goes stale
+      // between this read and the renumber: a concurrent deleteBomLine could remove
+      // one of these rows and re-densify, after which the staging UPDATE below
+      // matches only the survivors and the flip lands them at [2,3] — a GAP in a
+      // sequence the whole module contracts to keep dense at 1..N (UNIQUE and
+      // CHECK stay satisfied, so nothing else catches it). Holding the row locks
+      // makes the concurrent delete wait for this transaction, or this read wait
+      // for the delete and observe the post-delete order.
+      const { rows: ordered } = await c.query<{ id: string; line_no: number }>(
+        `select id, line_no
+           from public.bom_lines
+          where org_id = app.current_org_id()
+            and bom_header_id = $1::uuid
+          order by line_no asc, id asc
+          for update`,
+        [input.bomHeaderId],
+      );
+
+      const from = ordered.findIndex((row) => row.id === input.lineId);
+      if (from < 0) return { ok: false, error: 'not_found' };
+      const to = input.direction === 'up' ? from - 1 : from + 1;
+      // Already at the edge. The UI disables the button, but a stale render or a
+      // double-click must be a harmless no-op, not an error.
+      if (to < 0 || to >= ordered.length) {
+        return { ok: true, data: { lineId: input.lineId, bomHeaderId: input.bomHeaderId } };
+      }
+
+      const nextOrder = ordered.map((row) => row.id);
+      [nextOrder[from], nextOrder[to]] = [nextOrder[to]!, nextOrder[from]!];
+
+      // Two-phase renumber — the SAME technique deleteBomLine uses, for the same
+      // reason: `bom_lines_header_line_unique (bom_header_id, line_no)` is NOT
+      // deferrable, so a naive swap collides mid-statement, and CHECK (line_no > 0)
+      // forbids staging through negatives. Parking the WHOLE header in the
+      // 100001..100000+N band — disjoint from both the old and the new 1..N band —
+      // keeps every intermediate state legal under both constraints.
+      //
+      // Renumbering ALL rows (not just the swapped pair) is what guarantees the dense
+      // 1..N contract: it also heals a sequence that arrived with gaps.
+      const staged = await c.query(
+        `update public.bom_lines bl
+            set line_no = target.rn + 100000
+           from unnest($2::uuid[], $3::int[]) as target(id, rn)
+          where bl.id = target.id
+            and bl.org_id = app.current_org_id()
+            and bl.bom_header_id = $1::uuid`,
+        [input.bomHeaderId, nextOrder, nextOrder.map((_, index) => index + 1)],
+      );
+      // Belt to the FOR UPDATE braces: phase 1 must have moved EXACTLY the rows we
+      // ranked. Fewer means the header changed under us and the permutation is
+      // partial — the flip would then produce a gapped sequence and the audit entry
+      // below would claim we moved a line that no longer exists. Throwing rolls the
+      // whole withOrgContext transaction back (nothing is left parked at 100001+);
+      // the catch maps it to persistence_failed.
+      if (staged.rowCount !== nextOrder.length) {
+        throw new Error(
+          `bom line reorder raced: staged ${staged.rowCount ?? 0} of ${nextOrder.length} lines for header ${input.bomHeaderId}`,
+        );
+      }
+      await c.query(
+        `update public.bom_lines
+            set line_no = line_no - 100000
+          where org_id = app.current_org_id()
+            and bom_header_id = $1::uuid
+            and line_no > 100000`,
+        [input.bomHeaderId],
+      );
+
+      await writeAudit(c, {
+        orgId,
+        actorUserId: userId,
+        action: AUDIT_BOM_LINE_MOVED,
+        resourceId: header.id,
+        beforeState: { lineId: input.lineId, lineNo: Number(ordered[from]!.line_no) },
+        afterState: { lineId: input.lineId, lineNo: to + 1, direction: input.direction },
+      });
+
+      revalidateForHeader(header.product_id);
+      return { ok: true, data: { lineId: input.lineId, bomHeaderId: input.bomHeaderId } };
+    });
+  } catch (err) {
+    if (isPgError(err) && (err.code === '23514' || err.code === '23505')) {
+      return { ok: false, error: 'invalid_input' };
+    }
+    console.error('[technical/bom] moveBomLine persistence_failed', {
       err: err instanceof Error ? err.message : String(err),
     });
     return { ok: false, error: 'persistence_failed' };

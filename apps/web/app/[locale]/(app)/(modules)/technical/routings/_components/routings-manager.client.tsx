@@ -32,6 +32,7 @@ import { Select } from '@monopilot/ui/Select';
 
 import { approveRouting, publishRouting } from '../_actions/approve-routing';
 import { createRouting } from '../_actions/create-routing';
+import { deleteRouting } from '../_actions/delete-routing';
 import { listRoutings } from '../_actions/list-routings';
 import { routingCostPreview } from '../_actions/cost-preview';
 import type { RoutingCostPreviewResult } from '../_actions/cost-preview-shared';
@@ -96,6 +97,10 @@ function errorLabel(error: RoutingActionError, labels: RoutingsLabels): string {
       return labels.errUnknownOperation;
     case 'v_tec_64_cross_site_lines':
       return labels.errCrossSiteLines;
+    case 'not_draft':
+      return labels.errNotDraft;
+    case 'version_referenced':
+      return labels.errVersionReferenced;
     default:
       return labels.errGeneric;
   }
@@ -220,7 +225,9 @@ function opFormFromRouting(op: RoutingSummary['operations'][number]): OpForm {
     opName: op.opName,
     opCode: op.opCode,
     lineId: op.lineId,
-    setupTimeMin: String(op.setupTimeMin),
+    // R-2: already the exact NUMERIC text from the server — no String(Number(…))
+    // round trip, which is what rounded 18-digit values on open-then-save.
+    setupTimeMin: op.setupTimeMin,
     runTimePerUnitSec: op.runTimePerUnitSec ?? '',
     costPerHour: op.costPerHour ?? '',
     manufacturingOperationName: op.manufacturingOperationName,
@@ -251,7 +258,55 @@ function RoutingEditModal({
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
-  const lineOptions = lines.map((l) => ({ value: l.id, label: `${l.code} · ${l.name}` }));
+  // PF-R06-07 — the line picker must name the site and must not offer lines the
+  // server will reject.
+  //
+  // 1. Narrowing: once a routing pins `site_id`, V-TEC-64
+  //    (validateOperationLineSiteScope) rejects EVERY line whose site differs —
+  //    org-wide (site_id null) lines included, because a pinned header requires
+  //    an exact match. Offering them is a promise without cover.
+  // 2. Anti-over-blocking (the critical half): `siteId` is null for a new
+  //    routing and for a draft that has not been pinned yet, and then every
+  //    active line stays on offer — otherwise the first operation of the first
+  //    routing could never be bound. Mixing rules for an unpinned routing stay
+  //    where they already work, on the server; the site suffix below is what
+  //    lets the operator see they are about to mix.
+  // 3. A line already bound by an operation is always listed even when it falls
+  //    outside the pinned site (site backfills predate the pin) — dropping it
+  //    would blank the control and hide the very row that needs fixing. R-9: that
+  //    exception is now scoped to the ROW that holds the line (see lineOptionsFor).
+  const routingSiteId = existing?.siteId ?? null;
+
+  // R-10: "All sites" is a statement about the data — `production_lines.site_id IS
+  // NULL`. `site_id` is a soft reference with no FK, so a non-null id whose site
+  // row is gone also arrives here with siteCode/siteName null; labelling THAT
+  // "All sites" told the operator the line was org-wide while the database still
+  // treats it as site-specific, and saving pinned the routing to that invisible
+  // uuid. Name the broken reference instead of impersonating org-wide.
+  function siteQualifier(line: ResourceOption): string {
+    if (line.siteId === null) return labels.fLineOrgWideSite;
+    return line.siteCode ?? line.siteName ?? `${labels.fLineUnknownSite} ${line.siteId}`;
+  }
+
+  // R-9: options are built PER OPERATION, not once for the form. `lineOptions`
+  // used to union every already-bound line into one shared list, so a single
+  // inherited operation sitting on an out-of-site line published that line to the
+  // pickers of ALL the other operations — the picker offered it, then the save
+  // died on v_tec_64_cross_site_lines. The escape hatch belongs to the row that
+  // actually holds the line, and nowhere else.
+  // Anti-over-blocking: `routingSiteId` is null for a new routing and for a draft
+  // that has not been pinned yet, and then EVERY active line stays on offer —
+  // otherwise the first operation of the first routing could never be bound.
+  function lineOptionsFor(currentLineId: string) {
+    return lines
+      .filter((l) => !routingSiteId || l.siteId === routingSiteId || l.id === currentLineId)
+      .map((l) => ({
+        value: l.id,
+        // Line codes repeat across plants (LINE01 exists in every site), so the
+        // site qualifier is what makes two same-code lines tellable apart.
+        label: `${l.code} · ${l.name} — ${siteQualifier(l)}`,
+      }));
+  }
   const opNameOptions = operationNames.map((n) => ({ value: n, label: n }));
 
   function updateOp(index: number, patch: Partial<OpForm>) {
@@ -266,6 +321,21 @@ function RoutingEditModal({
     setOps((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
   }
 
+  // PF-R06-05: reorder in form state only. onSubmit re-derives opNo from the
+  // array index, and updateRouting replaces the whole operation set, so the
+  // renumbering stays contiguous 1..N (V-TEC-60) with no extra plumbing.
+  function moveOp(index: number, delta: -1 | 1) {
+    setOps((prev) => {
+      const target = index + delta;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      const moved = next[index]!;
+      next[index] = next[target]!;
+      next[target] = moved;
+      return next;
+    });
+  }
+
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -274,7 +344,10 @@ function RoutingEditModal({
       opCode: op.opCode || `OP-${String(i + 1).padStart(2, '0')}`,
       opName: op.opName,
       lineId: op.lineId,
-      setupTimeMin: Number(op.setupTimeMin) || 0,
+      // PF-R06-09: send the typed decimal verbatim (NUMERIC-exact, like run time
+      // and cost/h). Number() would hand the server a float; a blank field still
+      // means "no setup".
+      setupTimeMin: op.setupTimeMin.trim() || '0',
       runTimePerUnitSec: op.runTimePerUnitSec || null,
       costPerHour: op.costPerHour || null,
       manufacturingOperationName: op.manufacturingOperationName,
@@ -297,6 +370,20 @@ function RoutingEditModal({
       title={existing ? `${labels.modalEditTitlePrefix}${existing.version}` : labels.modalNewTitle}
       footer={
         <>
+          {/*
+            PF-R06-09: the rejection alert lives in `.modal-foot`, NOT in the
+            body — `.modal-body` is the only scrolling region (globals.css:497
+            `overflow-y:auto; flex:1`), so an alert appended after the op list
+            renders below the fold on a long routing and the submit still looks
+            like a no-op. The foot is a flex sibling of the scroller inside a
+            max-height:86vh column, so it is on screen whenever the dialog is,
+            right next to the Save button that was just pressed.
+          */}
+          {error ? (
+            <div role="alert" className="alert alert-red" style={{ marginRight: 'auto', minWidth: 0 }}>
+              <div className="alert-title">{error}</div>
+            </div>
+          ) : null}
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             {labels.cancel}
           </button>
@@ -308,23 +395,49 @@ function RoutingEditModal({
     >
       <p className="helper mb-3">{labels.modalIntro}</p>
       <form id="technical-routing-form" className="flex flex-col gap-4" onSubmit={onSubmit}>
-        {ops.map((op, index) => (
+        {ops.map((op, index) => {
+          const lineOptions = lineOptionsFor(op.lineId);
+          return (
             <div key={index} className="card" style={{ padding: 12 }}>
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-semibold">
                   {labels.operationLabel}
                   {index + 1}
                 </span>
-                {ops.length > 1 ? (
-                  <button
-                    type="button"
-                    className="text-xs font-medium hover:underline"
-                    style={{ color: 'var(--red)' }}
-                    onClick={() => removeOp(index)}
-                  >
-                    {labels.remove}
-                  </button>
-                ) : null}
+                <span className="flex items-center gap-3">
+                  {index > 0 ? (
+                    <button
+                      type="button"
+                      className="text-xs font-medium hover:underline"
+                      style={{ color: 'var(--blue)' }}
+                      aria-label={`${labels.operationLabel}${index + 1} ${labels.moveUp}`}
+                      onClick={() => moveOp(index, -1)}
+                    >
+                      ↑
+                    </button>
+                  ) : null}
+                  {index < ops.length - 1 ? (
+                    <button
+                      type="button"
+                      className="text-xs font-medium hover:underline"
+                      style={{ color: 'var(--blue)' }}
+                      aria-label={`${labels.operationLabel}${index + 1} ${labels.moveDown}`}
+                      onClick={() => moveOp(index, 1)}
+                    >
+                      ↓
+                    </button>
+                  ) : null}
+                  {ops.length > 1 ? (
+                    <button
+                      type="button"
+                      className="text-xs font-medium hover:underline"
+                      style={{ color: 'var(--red)' }}
+                      onClick={() => removeOp(index)}
+                    >
+                      {labels.remove}
+                    </button>
+                  ) : null}
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label={labels.fOperationName} htmlFor={`op-name-${index}`}>
@@ -366,11 +479,18 @@ function RoutingEditModal({
                 </Field>
                 <div className="grid grid-cols-3 gap-2">
                   <Field label={labels.fSetup} htmlFor={`op-setup-${index}`}>
+                    {/*
+                      PF-R06-09: was type="number" without `step`, so the browser
+                      assumed step=1 and marked 12.345 stepMismatch — native
+                      constraint validation then blocked submit BEFORE onSubmit
+                      ran, i.e. no navigation and no app-rendered error. Same
+                      decimal control as Run / Cost per hour: every rejection now
+                      reaches the server and comes back as a visible alert.
+                    */}
                     <input
                       id={`op-setup-${index}`}
                       className="form-input mono"
-                      type="number"
-                      min={0}
+                      inputMode="decimal"
                       value={op.setupTimeMin}
                       onChange={(e) => updateOp(index, { setupTimeMin: e.currentTarget.value })}
                     />
@@ -396,7 +516,8 @@ function RoutingEditModal({
                 </div>
               </div>
             </div>
-          ))}
+          );
+        })}
         <button
           type="button"
           className="text-sm font-medium hover:underline"
@@ -406,11 +527,6 @@ function RoutingEditModal({
           {labels.addOperation}
         </button>
       </form>
-      {error ? (
-        <div role="alert" className="alert alert-red mt-3">
-          <div className="alert-title">{error}</div>
-        </div>
-      ) : null}
     </Dialog>
   );
 }
@@ -543,6 +659,91 @@ function CostPreviewPanel({ routing, labels }: { routing: RoutingSummary; labels
   );
 }
 
+// ── PF-R06-06: draft-only delete confirmation ─────────────────────────────────
+// Modelled on technical/bom/_components/delete-version-modal.tsx: irreversible
+// warning + type-the-version-label to confirm. There is no soft delete on
+// public.routings (no deleted_at) — the row and its operations are gone for
+// good, so the confirmation is proportionate. Rendered in the island's own
+// `.modal-*` Dialog rather than pulling in a second modal primitive.
+function DeleteRoutingDialog({
+  routing,
+  labels,
+  onClose,
+  onDeleted,
+}: {
+  routing: RoutingSummary;
+  labels: RoutingsLabels;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [typed, setTyped] = React.useState('');
+  const [error, setError] = React.useState<string | null>(null);
+  const [pending, startTransition] = React.useTransition();
+
+  const versionLabel = `v${routing.version}`;
+
+  function onConfirm() {
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteRouting({ routingId: routing.id });
+      if (result.ok) onDeleted();
+      // A refusal (not_draft / version_referenced / forbidden) keeps the dialog
+      // open with a named reason — never a silent close that looks like success.
+      else setError(errorLabel(result.error, labels));
+    });
+  }
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      closeLabel={labels.close}
+      title={`${labels.deleteTitlePrefix}${routing.version}`}
+      footer={
+        <>
+          {/* Same placement decision as the edit modal (PF-R06-09): the alert
+              lives in `.modal-foot`, the only region guaranteed to be on screen. */}
+          {error ? (
+            <div role="alert" className="alert alert-red" style={{ marginRight: 'auto', minWidth: 0 }}>
+              <div className="alert-title">{error}</div>
+            </div>
+          ) : null}
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            {labels.cancel}
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger"
+            data-testid="routing-delete-confirm-button"
+            disabled={pending || typed !== versionLabel}
+            aria-disabled={pending || typed !== versionLabel}
+            onClick={onConfirm}
+          >
+            {labels.deleteConfirmButton}
+          </button>
+        </>
+      }
+    >
+      <div role="alert" className="alert alert-red mb-3">
+        <div className="alert-title">⚠ {labels.deleteWarning.replace('{version}', versionLabel)}</div>
+      </div>
+      <Field
+        label={labels.deleteConfirmLabel.replace('{version}', versionLabel)}
+        htmlFor="routing-delete-confirm"
+      >
+        <input
+          id="routing-delete-confirm"
+          className="form-input mono"
+          autoComplete="off"
+          placeholder={versionLabel}
+          value={typed}
+          onChange={(e) => setTyped(e.currentTarget.value)}
+        />
+      </Field>
+    </Dialog>
+  );
+}
+
 // ── Routing version list (RoutingsScreen + product-detail Routing tab) ─────────
 function RoutingRowActions({
   routing,
@@ -560,6 +761,7 @@ function RoutingRowActions({
   labels: RoutingsLabels;
 }) {
   const [pending, startTransition] = React.useTransition();
+  const [confirmingDelete, setConfirmingDelete] = React.useState(false);
 
   function transition(fn: typeof approveRouting) {
     startTransition(async () => {
@@ -569,41 +771,71 @@ function RoutingRowActions({
   }
 
   return (
-    <span className="flex justify-end gap-3">
-      {canWrite && routing.status === 'draft' ? (
-        <button
-          type="button"
-          className="font-medium hover:underline"
-          style={{ color: 'var(--blue)' }}
-          onClick={onEdit}
-        >
-          {labels.edit}
-        </button>
+    <>
+      <span className="flex justify-end gap-3">
+        {canWrite && routing.status === 'draft' ? (
+          <button
+            type="button"
+            className="font-medium hover:underline"
+            style={{ color: 'var(--blue)' }}
+            onClick={onEdit}
+          >
+            {labels.edit}
+          </button>
+        ) : null}
+        {canApprove && routing.status === 'draft' ? (
+          <button
+            type="button"
+            className="font-medium hover:underline disabled:opacity-50"
+            style={{ color: 'var(--green-700)' }}
+            disabled={pending}
+            onClick={() => transition(approveRouting)}
+          >
+            {labels.approve}
+          </button>
+        ) : null}
+        {canApprove && routing.status === 'approved' ? (
+          <button
+            type="button"
+            className="font-medium hover:underline disabled:opacity-50"
+            style={{ color: 'var(--green-700)' }}
+            disabled={pending}
+            onClick={() => transition(publishRouting)}
+          >
+            {labels.publish}
+          </button>
+        ) : null}
+        {/* PF-R06-06: a mistaken draft was a permanent resident — no delete action
+            existed anywhere in the module. Drafts only: approved / active /
+            superseded versions are audit history (server re-checks, `not_draft`). */}
+        {canWrite && routing.status === 'draft' ? (
+          <button
+            type="button"
+            className="font-medium hover:underline"
+            style={{ color: 'var(--red)' }}
+            onClick={() => setConfirmingDelete(true)}
+          >
+            {labels.delete}
+          </button>
+        ) : null}
+        {routing.status !== 'draft' && routing.status !== 'approved' ? (
+          <span className="muted">—</span>
+        ) : null}
+      </span>
+      {/* Sibling of the action span, not a child: `.modal-overlay` is a <div>
+          and phrasing content (<span>) may not contain it. */}
+      {confirmingDelete ? (
+        <DeleteRoutingDialog
+          routing={routing}
+          labels={labels}
+          onClose={() => setConfirmingDelete(false)}
+          onDeleted={() => {
+            setConfirmingDelete(false);
+            onChanged();
+          }}
+        />
       ) : null}
-      {canApprove && routing.status === 'draft' ? (
-        <button
-          type="button"
-          className="font-medium hover:underline disabled:opacity-50"
-          style={{ color: 'var(--green-700)' }}
-          disabled={pending}
-          onClick={() => transition(approveRouting)}
-        >
-          {labels.approve}
-        </button>
-      ) : null}
-      {canApprove && routing.status === 'approved' ? (
-        <button
-          type="button"
-          className="font-medium hover:underline disabled:opacity-50"
-          style={{ color: 'var(--green-700)' }}
-          disabled={pending}
-          onClick={() => transition(publishRouting)}
-        >
-          {labels.publish}
-        </button>
-      ) : null}
-      {routing.status !== 'draft' && routing.status !== 'approved' ? <span className="muted">—</span> : null}
-    </span>
+    </>
   );
 }
 

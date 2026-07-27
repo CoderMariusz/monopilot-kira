@@ -31,6 +31,16 @@ function fmtQty(value: number): string {
   return String(Number(value.toFixed(6)));
 }
 
+/**
+ * Scrap % exactly as persisted. `bom_lines.scrap_pct` is numeric(5,2) and the edit
+ * modal accepts 2 decimals, so `toFixed(1)` made the table disagree with both the
+ * database and the modal: a saved 2.35 rendered as "2.4%", and 0.01 as "0.0%".
+ * Trailing zeros are trimmed — the stored value, not a padded one.
+ */
+function fmtScrapPct(value: number): string {
+  return String(Number(value.toFixed(2)));
+}
+
 function isWip(componentType: string | null): boolean {
   return (componentType ?? '').toUpperCase() === 'WIP';
 }
@@ -107,7 +117,7 @@ export function BomComponentLines({
         </tr>
       </thead>
       <tbody>
-        {lines.map((l) => {
+        {lines.map((l, index) => {
           const wip = isWip(l.componentType);
           const open = !!expanded[l.id];
           const state = subBoms[l.id];
@@ -172,7 +182,7 @@ export function BomComponentLines({
                 </td>
                 <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{l.uom}</td>
                 <td className="mono tabular-nums" style={{ textAlign: 'right' }}>
-                  {scrap > 0 ? `${scrap.toFixed(1)}%` : '—'}
+                  {scrap > 0 ? `${fmtScrapPct(scrap)}%` : '—'}
                 </td>
                 <td>{l.manufacturingOperationName ?? '—'}</td>
                 {showActions ? (
@@ -184,10 +194,15 @@ export function BomComponentLines({
                         componentCode: l.componentCode,
                         quantity: l.quantity,
                         uom: l.uom,
+                        scrapPct: l.scrapPct,
                         manufacturingOperationName: l.manufacturingOperationName ?? null,
                       }}
                       editable={isEditable}
                       canEdit={canEditLines}
+                      // `lines` arrives sorted by line_no asc (queries.ts / detail-page.ts),
+                      // so array position IS the display order the move acts on.
+                      isFirst={index === 0}
+                      isLast={index === lines.length - 1}
                     />
                   </td>
                 ) : null}
@@ -280,7 +295,7 @@ function WipSubBom({
                 </td>
                 <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{sl.uom}</td>
                 <td className="mono tabular-nums" style={{ textAlign: 'right' }}>
-                  {scrap > 0 ? `${scrap.toFixed(1)}%` : '—'}
+                  {scrap > 0 ? `${fmtScrapPct(scrap)}%` : '—'}
                 </td>
               </tr>
             );

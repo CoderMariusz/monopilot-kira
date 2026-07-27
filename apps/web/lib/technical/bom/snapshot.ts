@@ -233,14 +233,34 @@ export async function createBomSnapshot(
 
   const snapshotJson = await buildSnapshotJson(client, bomHeaderId);
 
+  // Concurrent callers may race past the idempotency SELECT; the UNIQUE
+  // (org_id, work_order_id, bom_header_id) constraint (migration 524) is the
+  // authoritative guard. DO NOTHING + re-read returns the winner's row without
+  // violating immutability (no UPDATE).
   const inserted = await client.query<SnapshotRowRaw>(
     `insert into public.bom_snapshots (org_id, work_order_id, bom_header_id, snapshot_json)
      values (app.current_org_id(), $1, $2, $3::jsonb)
+     on conflict (org_id, work_order_id, bom_header_id) do nothing
      returning id, org_id, work_order_id, bom_header_id, snapshot_json, snapshot_at`,
     [input.woId, bomHeaderId, JSON.stringify(snapshotJson)],
   );
+  if (inserted.rows[0]) {
+    return mapSnapshotRow(inserted.rows[0]);
+  }
 
-  return mapSnapshotRow(inserted.rows[0]!);
+  const raced = await client.query<SnapshotRowRaw>(
+    `select id, org_id, work_order_id, bom_header_id, snapshot_json, snapshot_at
+       from public.bom_snapshots
+      where org_id = app.current_org_id()
+        and work_order_id = $1
+        and bom_header_id = $2
+      limit 1`,
+    [input.woId, bomHeaderId],
+  );
+  if (!raced.rows[0]) {
+    throw new Error('bom_snapshot_insert_conflict_but_row_missing');
+  }
+  return mapSnapshotRow(raced.rows[0]);
 }
 
 /**

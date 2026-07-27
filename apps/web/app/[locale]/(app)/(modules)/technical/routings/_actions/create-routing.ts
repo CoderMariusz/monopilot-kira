@@ -10,8 +10,13 @@
  * are written in the SAME transaction (atomic), so a V-TEC failure mid-insert
  * leaves no partial routing.
  *
- * Supersede pattern (same as BOMs): a new routing starts at `status='draft'`. We
- * NEVER delete routing rows — versions are superseded, never hard-deleted.
+ * Supersede pattern (same as BOMs): a new routing starts at `status='draft'`.
+ * An approved, active or superseded routing is NEVER hard-deleted — those rows
+ * are the audit trail and are superseded instead. `draft` is the one exception
+ * (PF-R06-06, see delete-routing.ts): a draft was never approved, never produced
+ * against and carries no signature, so it is not part of that history and a
+ * mistakenly created one can be removed. Same line BOM draws with
+ * deleteBomVersion.
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -137,7 +142,7 @@ export async function createRouting(rawInput: unknown): Promise<CreateRoutingRes
               setup_time_min, run_time_per_unit_sec, cost_per_hour, manufacturing_operation_name, crew, yield_pct, created_by)
            values
              (app.current_org_id(), $1::uuid, $2::integer, $3, $4, $5::uuid,
-              $6::integer, $7::numeric, $8::numeric, $9, $10::jsonb, $11::numeric, $12::uuid)`,
+              $6::numeric, $7::numeric, $8::numeric, $9, $10::jsonb, $11::numeric, $12::uuid)`,
           [
             routing.id,
             op.opNo,

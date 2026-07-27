@@ -502,7 +502,11 @@ export function WoListView({
         searchFgProductsAction={searchFgProductsAction}
         createWorkOrderAction={createWorkOrderAction}
         onCreated={(result) => {
-          if (result.chain && result.chain.totalCount > 1) {
+          if (result.warning === 'no_active_bom') {
+            setCreateNotice(labels.create.noBomWarning);
+          } else if (result.warning === 'no_approved_factory_spec') {
+            setCreateNotice(labels.create.noFactorySpecWarning ?? labels.create.noBomWarning);
+          } else if (result.chain && result.chain.totalCount > 1) {
             const root = result.workOrder.woNumber;
             setCreateNotice(
               labels.create.chainCreatedWarning

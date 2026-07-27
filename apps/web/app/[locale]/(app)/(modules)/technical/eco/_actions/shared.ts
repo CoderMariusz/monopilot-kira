@@ -170,7 +170,11 @@ export function isPgError(err: unknown): err is { code: string } {
   return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
 }
 
-/** Thrown after closeChangeOrder has performed writes so withOrgContext rolls back. */
+/**
+ * Thrown after an ECO action has performed writes so withOrgContext rolls back
+ * (closeChangeOrder's state guards, and replaceEcoLines when a line's target row
+ * disappeared under a concurrent delete).
+ */
 export class EcoCloseAbort extends Error {
   constructor(
     readonly code: EcoActionError,
@@ -230,6 +234,35 @@ export async function replaceEcoLines(
   );
 
   for (const line of lines) {
+    // R-7 — `target_id` is polymorphic and has no FK, so nothing in the database
+    // stops this insert from pointing at a routing that a concurrent
+    // deleteRouting is about to remove. That guard reads the routing `for update`
+    // and then counts referencing ECO lines; without a conflicting lock here the
+    // two transactions interleave (A counts 0 → B inserts → A deletes → both
+    // commit) and B's line is born an orphan.
+    //
+    // `for key share` conflicts with `for update`, so the two flows serialize:
+    // if the deleter went first the row is gone and this select returns nothing
+    // (refuse, do not orphan); if we went first the deleter blocks, then counts
+    // this line and refuses. KEY SHARE — not UPDATE — because ECO writes only
+    // need the routing to keep existing; it must not block concurrent edits of
+    // other ECOs referencing the same routing.
+    if (line.targetType === 'routing' && line.targetId) {
+      const { rows } = await client.query<{ id: string }>(
+        `select r.id
+           from public.routings r
+          where r.org_id = app.current_org_id()
+            and r.id = $1::uuid
+          for key share`,
+        [line.targetId],
+      );
+      if (!rows[0]) {
+        throw new EcoCloseAbort(
+          'not_found',
+          `change order line ${line.lineNo} targets routing ${line.targetId}, which no longer exists`,
+        );
+      }
+    }
     await client.query(
       `insert into public.technical_change_order_lines
          (org_id, change_order_id, line_no, action, target_type, target_id, field_name,

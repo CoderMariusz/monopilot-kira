@@ -11,6 +11,17 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { createBomSnapshotMock } = vi.hoisted(() => ({
+  createBomSnapshotMock: vi.fn(async () => ({
+    id: 'snap-mrp-0001',
+    orgId: '11111111-1111-4111-8111-111111111111',
+    workOrderId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    bomHeaderId: 'bom-id',
+    snapshotJson: {},
+    snapshotAt: '2026-07-27T00:00:00.000Z',
+  })),
+}));
+
 import { withSiteContext } from '../../../../../../lib/auth/with-site-context';
 import { MRP_DEFAULT_HORIZON_WEEKS } from './mrp-compute';
 import { cancelPlannedOrder, convertPlannedToPo, convertPlannedToWo, getMrpRunRequirements, listMrpRuns, runMrp } from './mrp';
@@ -152,6 +163,17 @@ vi.mock('../../../../../../lib/auth/with-org-context', () => ({
 
 vi.mock('../purchase-orders/_actions/create-purchase-order-core', () => ({
   createPurchaseOrderCore: (ctx: unknown, input: unknown) => createPurchaseOrderCoreMock(ctx, input),
+}));
+
+vi.mock('../../../../../../lib/technical/bom/snapshot', () => ({
+  createBomSnapshot: (...args: unknown[]) => createBomSnapshotMock(...args),
+  BomSnapshotError: class BomSnapshotError extends Error {
+    readonly code: string;
+    constructor(code: string, message?: string) {
+      super(message ?? code);
+      this.code = code;
+    }
+  },
 }));
 
 function plannedOrdersVisibleForSql<T extends { site_id?: string | null }>(
@@ -526,6 +548,15 @@ beforeEach(() => {
   supplierCurrency = 'GBP';
   createPurchaseOrderCoreMock.mockReset();
   createPurchaseOrderCoreMock.mockResolvedValue({ ok: true, data: { id: PO_ID } });
+  createBomSnapshotMock.mockReset();
+  createBomSnapshotMock.mockResolvedValue({
+    id: 'snap-mrp-0001',
+    orgId: ORG_ID,
+    workOrderId: WO_ID,
+    bomHeaderId: 'bom-id',
+    snapshotJson: {},
+    snapshotAt: '2026-07-27T00:00:00.000Z',
+  });
 });
 
 describe('cancelPlannedOrder', () => {
@@ -1616,6 +1647,11 @@ describe('convertPlannedToWo', () => {
     expect(releaseUpdate).toContain('app.current_site_id() is null or site_id = app.current_site_id()');
     expect(executed.find((sql) => sql.startsWith('insert into public.work_orders'))).toContain('site_id');
     expect(executed.find((sql) => sql.startsWith('insert into public.schedule_outputs'))).toContain('site_id');
+    expect(createBomSnapshotMock).toHaveBeenCalledTimes(1);
+    expect(createBomSnapshotMock).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: USER_ID, orgId: ORG_ID }),
+      { woId, bomHeaderId: 'bom-id' },
+    );
   });
 
   it('skips make planned orders with no active BOM before inlining WO creation', async () => {

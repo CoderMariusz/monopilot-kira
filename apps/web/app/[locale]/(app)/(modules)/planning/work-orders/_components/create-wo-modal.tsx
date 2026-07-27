@@ -198,7 +198,6 @@ export function CreateWoModal({
 
   const [pending, setPending] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
-  const [warning, setWarning] = React.useState<string | null>(null);
 
   // Reset field + status state when the modal closes; seed scheduled start to today
   // when it opens so the visible default date is always forwarded on submit (Extra-1).
@@ -212,7 +211,6 @@ export function CreateWoModal({
       setNotes('');
       setPending(false);
       setFormError(null);
-      setWarning(null);
       return;
     }
     setScheduledStart(todayCivilDateUtc());
@@ -264,7 +262,6 @@ export function CreateWoModal({
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
-    setWarning(null);
 
     if (!product) {
       setFormError(labels.errors.productRequired);
@@ -320,13 +317,6 @@ export function CreateWoModal({
         return;
       }
 
-      // Success. Surface create warnings (no active BOM / no approved factory spec)
-      // in-modal; multi-stage chain summary is shown by the list parent via onCreated.
-      if (result.warning === 'no_active_bom') {
-        setWarning(labels.noBomWarning);
-      } else if (result.warning === 'no_approved_factory_spec') {
-        setWarning(labels.noFactorySpecWarning ?? labels.noBomWarning);
-      }
       onCreated(result);
       onOpenChange(false);
     } catch {
@@ -405,11 +395,6 @@ export function CreateWoModal({
           {formError ? (
             <div role="alert" data-testid="create-wo-error" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {formError}
-            </div>
-          ) : null}
-          {warning ? (
-            <div role="status" data-testid="create-wo-warning" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              {warning}
             </div>
           ) : null}
 

@@ -18,11 +18,16 @@
  * CTAs and is gated by server-resolved RBAC (canCreate / canApprove) — never
  * trusted from the client.
  *
- * Real data — NO mocks. Clone-on-write: Add component / Save version always create
- * a NEW draft via createBomDraft; released rows are never mutated in place.
+ * Real data — NO mocks. Clone-on-write: Add component / Save version fork via
+ * createBomDraft — draft/in_review sources become a new draft; active /
+ * technical_approved sources become in_review (bom_request_version_edit). Released
+ * rows are never mutated in place.
  *
- * Delete version calls the real deleteBomVersion Server Action. The action is
- * server-authoritative for draft-only, only-version, and snapshot guards.
+ * Delete version calls the real deleteBomVersion Server Action, which is
+ * server-authoritative for all THREE of its guards — draft-only, not-the-only-version,
+ * and no-snapshot-references. The button now mirrors all three (it used to mirror only
+ * the status one, so on a single-version or snapshotted draft it rendered enabled and
+ * the user got a refusal after clicking).
  */
 
 import React from 'react';
@@ -38,6 +43,11 @@ import {
 } from './bom-edit-dialog';
 import { DeleteBomVersionModal, type DeleteVersionLabels } from './delete-version-modal';
 import { deleteBomVersion } from '../_actions/delete-bom-version';
+import {
+  bomVersionMutationBlockedKey,
+  isBomVersionMutationAllowed,
+  type BomVersionMutationAction,
+} from '../_lib/bom-version-mutation';
 import { approveBom, publishBom } from '../_actions/workflow';
 import type { BomRmUsabilityFailure, BomStatus } from '../_actions/shared';
 
@@ -50,6 +60,7 @@ export function BomDetailActions({
   status,
   bomHeaderId,
   snapshotCount,
+  versionCount,
   lines,
   coProducts,
   yieldPct,
@@ -63,7 +74,10 @@ export function BomDetailActions({
   status: BomStatus;
   /** Selected version's bom_headers.id — keys the in-place append (F-B01). */
   bomHeaderId?: string;
+  /** bom_snapshots rows referencing THIS version — >0 makes the server refuse Delete. */
   snapshotCount: number;
+  /** Total versions of this product — the server refuses Delete on the last one. */
+  versionCount: number;
   lines: EditLine[];
   /** Source version co-products — carried into a clone-on-write fork. */
   coProducts?: BomEditCoProduct[];
@@ -114,7 +128,20 @@ export function BomDetailActions({
   const approvable = status === 'draft' || status === 'in_review';
   // Publish (technical_approved -> active) only makes sense once approved.
   const publishable = status === 'technical_approved';
-  const deletable = status === 'draft';
+  // Delete is only offered when the server would actually accept it: draft, more than
+  // one version, and no snapshot referencing this one. Anything less and the enabled
+  // button was a promise the Server Action refused.
+  const deleteCounts = { versionCount, snapshotCount };
+  const deletable = isBomVersionMutationAllowed(status, 'deleteVersion', deleteCounts);
+  const addComponentAllowed = isBomVersionMutationAllowed(status, 'addComponent');
+  const saveVersionAllowed =
+    isBomVersionMutationAllowed(status, 'saveVersion') && lines.length > 0;
+
+  function mutationBlockedLabel(action: BomVersionMutationAction): string | undefined {
+    const key = bomVersionMutationBlockedKey(status, action, deleteCounts);
+    return key ? t(key) : undefined;
+  }
+
   const deleteLabels: DeleteVersionLabels = {
     title: tDelete('title'),
     subtitle: tDelete('subtitle'),
@@ -213,7 +240,17 @@ export function BomDetailActions({
             type="button"
             className="btn btn-secondary"
             data-testid="bom-add-component-cta"
-            onClick={() => setAddOpen(true)}
+            disabled={!addComponentAllowed}
+            title={mutationBlockedLabel('addComponent')}
+            aria-label={
+              addComponentAllowed
+                ? t('addComponent')
+                : `${t('addComponent')}: ${mutationBlockedLabel('addComponent')}`
+            }
+            onClick={() => {
+              if (!addComponentAllowed) return;
+              setAddOpen(true);
+            }}
           >
             {t('addComponent')}
           </button>
@@ -221,8 +258,25 @@ export function BomDetailActions({
             type="button"
             className="btn btn-secondary"
             data-testid="bom-save-version-cta"
-            disabled={lines.length === 0}
-            onClick={() => setSaveOpen(true)}
+            disabled={!saveVersionAllowed}
+            title={
+              lines.length === 0 && isBomVersionMutationAllowed(status, 'saveVersion')
+                ? t('saveVersionBlockedEmpty')
+                : mutationBlockedLabel('saveVersion')
+            }
+            aria-label={
+              saveVersionAllowed
+                ? t('saveVersion')
+                : `${t('saveVersion')}: ${
+                    lines.length === 0 && isBomVersionMutationAllowed(status, 'saveVersion')
+                      ? t('saveVersionBlockedEmpty')
+                      : mutationBlockedLabel('saveVersion') ?? t('saveVersion')
+                  }`
+            }
+            onClick={() => {
+              if (!saveVersionAllowed) return;
+              setSaveOpen(true);
+            }}
           >
             {t('saveVersion')}
           </button>
@@ -230,8 +284,17 @@ export function BomDetailActions({
             type="button"
             className="btn btn-danger"
             data-testid="bom-delete-version-cta"
-            disabled={pending}
-            onClick={() => setDeleteOpen(true)}
+            disabled={!deletable || pending}
+            title={mutationBlockedLabel('deleteVersion')}
+            aria-label={
+              deletable
+                ? t('deleteVersion')
+                : `${t('deleteVersion')}: ${mutationBlockedLabel('deleteVersion')}`
+            }
+            onClick={() => {
+              if (!deletable || pending) return;
+              setDeleteOpen(true);
+            }}
           >
             {t('deleteVersion')}
           </button>
@@ -298,13 +361,13 @@ export function BomDetailActions({
         </div>
       ) : null}
 
-      {canCreate && addOpen ? (
+      {canCreate && addComponentAllowed && addOpen ? (
         <ComponentAddModal open={addOpen} onClose={() => setAddOpen(false)} context={ctx} />
       ) : null}
-      {canCreate && saveOpen ? (
+      {canCreate && saveVersionAllowed && saveOpen ? (
         <VersionSaveModal open={saveOpen} onClose={() => setSaveOpen(false)} context={ctx} lines={lines} />
       ) : null}
-      {canCreate && deleteOpen ? (
+      {canCreate && deletable && deleteOpen ? (
         <DeleteBomVersionModal
           open={deleteOpen}
           onOpenChange={setDeleteOpen}

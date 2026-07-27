@@ -29,6 +29,8 @@ vi.mock('../shared', async (importOriginal) => {
   };
 });
 
+import { RoutingOperationInput } from '../shared';
+
 function normalizeSql(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
@@ -128,5 +130,174 @@ describe('routing numeric precision (C042)', () => {
     expect(insert!.sql).toContain('cost_per_hour');
     expect(insert!.params).toContain('5.555555');
     expect(insert!.params).toContain('19.876543');
+  });
+});
+
+// PF-R06-09 — setup_time_min was `integer` in the DB and z.number().int() on the
+// server, so 12.345 was rejected with no visible feedback. Migration 523 widens
+// the column to numeric(18,6); the schema now uses the same NumericString
+// contract as run time / cost per hour.
+describe('PF-R06-09 — fractional setup minutes', () => {
+  it('accepts a fractional setupTimeMin and keeps it as an exact decimal string', () => {
+    const parsed = RoutingOperationInput.safeParse({ ...opPayload, setupTimeMin: 12.345 });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.setupTimeMin).toBe('12.345');
+  });
+
+  it('accepts the full 6 decimal places (numeric(18,6) parity with run time)', () => {
+    const parsed = RoutingOperationInput.safeParse({ ...opPayload, setupTimeMin: '7.891234' });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.setupTimeMin).toBe('7.891234');
+  });
+
+  it('rejects a 7th decimal place with the named max-decimal-places error', () => {
+    const parsed = RoutingOperationInput.safeParse({ ...opPayload, setupTimeMin: '12.3456789' });
+    expect(parsed.success).toBe(false);
+    const messages = parsed.success ? [] : parsed.error.issues.map((issue) => issue.message);
+    expect(messages.join(' | ')).toContain('supports at most 6 decimal places');
+  });
+
+  // R-3: `expect(success).toBe(false)` alone was green on the OLD schema too —
+  // z.number().int().min(0) rejected the string '-1' as "expected number", so the
+  // assertion never distinguished the new validator from the one it replaced.
+  // Assert the message that only the new non-negative decimal refinement emits.
+  it.each([['-1'], [-1], ['-0.5']])('rejects a negative setup time (%s) with the named error', (value) => {
+    const parsed = RoutingOperationInput.safeParse({ ...opPayload, setupTimeMin: value });
+    expect(parsed.success).toBe(false);
+    const messages = parsed.success ? [] : parsed.error.issues.map((issue) => issue.message);
+    expect(messages.join(' | ')).toContain('must be a non-negative decimal');
+  });
+
+  it('updateRouting binds setup_time_min as an exact ::numeric string (not ::integer)', async () => {
+    const client = makeUpdateClient();
+    runWithOrgContext.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+
+    const { updateRouting } = await import('../update-routing');
+    const result = await updateRouting({
+      routingId: ROUTING_ID,
+      operations: [{ ...opPayload, setupTimeMin: '12.345' }],
+    });
+    expect(result.ok).toBe(true);
+
+    const insert = client.calls.find((c) => normalizeSql(c.sql).startsWith('insert into public.routing_operations'));
+    expect(insert).toBeDefined();
+    // $6 is setup_time_min. R-4 correction: an ::integer bind does NOT quietly
+    // round — `pg` sends parameters as text, so '12.345' bound as ::integer fails
+    // with an int4 input error. It was the last of three blockers (browser
+    // stepMismatch, then Zod .int(), then the bind), not a rounder. ::numeric is
+    // what lets a fractional changeover reach the column at all.
+    expect(normalizeSql(insert!.sql)).toContain('$6::numeric');
+    expect(normalizeSql(insert!.sql)).not.toContain('$6::integer');
+    expect(insert!.params).toContain('12.345');
+  });
+
+  it('createRouting binds setup_time_min as an exact ::numeric string (not ::integer)', async () => {
+    const client = makeCreateClient();
+    runWithOrgContext.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+
+    const { createRouting } = await import('../create-routing');
+    const result = await createRouting({
+      itemId: ITEM_ID,
+      operations: [{ ...opPayload, setupTimeMin: '7.891234' }],
+    });
+    expect(result.ok).toBe(true);
+
+    const insert = client.calls.find((c) => normalizeSql(c.sql).startsWith('insert into public.routing_operations'));
+    expect(insert).toBeDefined();
+    expect(normalizeSql(insert!.sql)).toContain('$6::numeric');
+    expect(insert!.params).toContain('7.891234');
+  });
+});
+
+// ── R-2 — the READ path was the missing sixth layer. The write was fixed to be
+// NUMERIC-exact, but listRoutings put setup_time_min into jsonb_build_object as a
+// NUMBER; the driver parses jsonb with JSON.parse, so the value arrived as a JS
+// double and the mapper ran Number() over it again. Because opening a draft and
+// pressing Save replaces the whole operation set, simply LOOKING at a routing
+// persisted the rounded value.
+const EXACT_18_DIGITS = '999999999999.123456';
+
+function makeListClient(setupTimeMin: string) {
+  const calls: QueryCall[] = [];
+  const query = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+    calls.push({ sql, params });
+    if (normalizeSql(sql).includes('from public.routings r')) {
+      return {
+        rows: [
+          {
+            id: ROUTING_ID,
+            item_id: ITEM_ID,
+            version: 3,
+            status: 'draft',
+            site_id: null,
+            effective_from: '2026-07-01',
+            effective_to: null,
+            operation_count: 1,
+            operations: [
+              {
+                op_no: 1,
+                op_code: 'MIX-10',
+                op_name: 'Mix',
+                line_id: LINE_ID,
+                // `::text` in SQL → the driver hands back a string, not a double.
+                setup_time_min: setupTimeMin,
+                run_time_per_unit_sec: '12.500000',
+                cost_per_hour: '80.000000',
+                manufacturing_operation_name: 'Mixing',
+              },
+            ],
+          },
+        ],
+        rowCount: 1,
+      };
+    }
+    return { rows: [], rowCount: 0 };
+  });
+  return { calls, query };
+}
+
+describe('R-2 — setup_time_min survives read → open → save', () => {
+  it('selects setup_time_min as text so the driver never parses it as a double', async () => {
+    const client = makeListClient(EXACT_18_DIGITS);
+    runWithOrgContext.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+
+    const { listRoutings } = await import('../list-routings');
+    await listRoutings({ itemId: ITEM_ID });
+
+    const read = client.calls.find((c) => normalizeSql(c.sql).includes('from public.routings r'));
+    expect(read).toBeDefined();
+    expect(normalizeSql(read!.sql)).toContain("'setup_time_min', o.setup_time_min::text");
+  });
+
+  it('returns the exact stored decimal, and that value round-trips back into the write schema', async () => {
+    const client = makeListClient(EXACT_18_DIGITS);
+    runWithOrgContext.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({ userId: USER_ID, orgId: ORG_ID, client }),
+    );
+
+    const { listRoutings } = await import('../list-routings');
+    const result = await listRoutings({ itemId: ITEM_ID });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const op = result.data.routings[0]!.operations[0]!;
+    // The value numeric(18,6) stores exactly, returned verbatim…
+    expect(op.setupTimeMin).toBe(EXACT_18_DIGITS);
+    // …and this is what the old Number() hop did to it — the assertion is only
+    // meaningful because the two differ.
+    expect(String(Number(EXACT_18_DIGITS))).not.toBe(EXACT_18_DIGITS);
+
+    // Save half of the cycle: the modal sends the value it was given straight
+    // back, so the write schema must accept it unchanged (no rounding, no
+    // "at most 6 decimal places" rejection of a 6 dp value).
+    const parsed = RoutingOperationInput.safeParse({ ...opPayload, setupTimeMin: op.setupTimeMin });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.setupTimeMin).toBe(EXACT_18_DIGITS);
   });
 });

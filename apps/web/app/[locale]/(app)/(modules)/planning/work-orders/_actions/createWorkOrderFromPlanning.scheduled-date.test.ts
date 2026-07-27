@@ -1,5 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { createBomSnapshotMock } = vi.hoisted(() => ({
+  createBomSnapshotMock: vi.fn(async () => ({
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    orgId: '11111111-1111-4111-8111-111111111111',
+    workOrderId: 'wo-id',
+    bomHeaderId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    snapshotJson: {},
+    snapshotAt: '2026-07-27T00:00:00.000Z',
+  })),
+}));
+
 import { createWorkOrderFromPlanning } from './createWorkOrder';
 import type { QueryClient } from './shared';
 
@@ -31,6 +42,17 @@ vi.mock('./resolve-stage-production-line', () => ({
     [WIP_PRODUCT_ID, '66666666-6666-4666-8666-666666666666'],
     [PRODUCT_ID, '77777777-7777-4777-8777-777777777777'],
   ])),
+}));
+
+vi.mock('../../../../../../../lib/technical/bom/snapshot', () => ({
+  createBomSnapshot: (...args: unknown[]) => createBomSnapshotMock(...args),
+  BomSnapshotError: class BomSnapshotError extends Error {
+    readonly code: string;
+    constructor(code: string, message?: string) {
+      super(message ?? code);
+      this.code = code;
+    }
+  },
 }));
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -209,6 +231,15 @@ describe('createWorkOrderFromPlanning — scheduled_start_time persistence (C1a)
     vi.mocked(withOrgContext).mockImplementation(async (action) =>
       action({ userId: USER_ID, orgId: ORG_ID, client }),
     );
+    createBomSnapshotMock.mockReset();
+    createBomSnapshotMock.mockResolvedValue({
+      id: BOM_ID,
+      orgId: ORG_ID,
+      workOrderId: 'wo-id',
+      bomHeaderId: BOM_ID,
+      snapshotJson: {},
+      snapshotAt: '2026-07-27T00:00:00.000Z',
+    });
   });
 
   it('binds scheduledStartTime to INSERT $6 for FG and WIP when planning chains', async () => {

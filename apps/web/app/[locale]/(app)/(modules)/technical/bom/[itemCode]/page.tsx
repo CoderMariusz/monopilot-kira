@@ -399,6 +399,9 @@ export default async function BomDetailPage(propsInput: unknown = {}) {
           status={d.header.status}
           bomHeaderId={d.header.id}
           snapshotCount={d.snapshots.length}
+          // Same two counts deleteBomVersion re-queries server-side: every version of
+          // this product, and the snapshots referencing the selected one.
+          versionCount={d.versions.length}
           lines={d.lines.map((l) => ({
             itemId: l.itemId ?? undefined,
             componentCode: l.componentCode,

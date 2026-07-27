@@ -353,6 +353,11 @@ describe('WoListView — create modal (parity: wo-list.jsx:94 + modals wo_create
         expect.objectContaining({ productId: 'p1', itemCode: 'FG-001', plannedQuantity: '1000.5' }),
       ),
     );
+    await waitFor(() => expect(screen.queryByTestId('create-wo-form')).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId('wo-list-create-notice')).toHaveTextContent(enWo.create.noBomWarning),
+    );
+    expect(screen.queryByTestId('create-wo-warning')).not.toBeInTheDocument();
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 

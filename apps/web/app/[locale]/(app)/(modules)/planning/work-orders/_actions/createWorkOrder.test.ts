@@ -1,8 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { createBomSnapshotMock } = vi.hoisted(() => ({
+  createBomSnapshotMock: vi.fn(async () => ({
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    orgId: '11111111-1111-4111-8111-111111111111',
+    workOrderId: 'wo-id',
+    bomHeaderId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    snapshotJson: {},
+    snapshotAt: '2026-07-27T00:00:00.000Z',
+  })),
+}));
+
 import { createWorkOrder } from './createWorkOrder';
 import type { QueryClient } from './shared';
 import { revalidateLocalized } from '../../../../../../../lib/i18n/revalidate-localized';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -38,6 +50,17 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 
 vi.mock('../../../../../../../lib/i18n/revalidate-localized', () => ({
   revalidateLocalized: vi.fn(),
+}));
+
+vi.mock('../../../../../../../lib/technical/bom/snapshot', () => ({
+  createBomSnapshot: (...args: unknown[]) => createBomSnapshotMock(...args),
+  BomSnapshotError: class BomSnapshotError extends Error {
+    readonly code: string;
+    constructor(code: string, message?: string) {
+      super(message ?? code);
+      this.code = code;
+    }
+  },
 }));
 
 function makeClient(): QueryClient {
@@ -182,6 +205,15 @@ describe('createWorkOrder', () => {
       weight_mode: 'fixed',
     };
     client = makeClient();
+    createBomSnapshotMock.mockReset();
+    createBomSnapshotMock.mockResolvedValue({
+      id: BOM_ID,
+      orgId: ORG_ID,
+      workOrderId: 'wo-id',
+      bomHeaderId: BOM_ID,
+      snapshotJson: {},
+      snapshotAt: '2026-07-27T00:00:00.000Z',
+    });
   });
 
   it('creates a draft WO and snapshots materials from the active BOM', async () => {
@@ -342,6 +374,38 @@ describe('createWorkOrder', () => {
     if (!result.ok) throw new Error(result.error);
     expect(result.materials).toEqual([]);
     expect(result.warning).toBe('no_active_bom');
+  });
+
+  it('maps BomSnapshotError to persistence_failed and rolls back the WO header (no orphan row)', async () => {
+    const { BomSnapshotError } = await import('../../../../../../../lib/technical/bom/snapshot');
+    let persistedWoInserts = 0;
+    vi.mocked(withOrgContext).mockImplementationOnce(async (action) => {
+      let txnInserts = 0;
+      const txnClient: QueryClient = {
+        query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
+          if (sql.includes('insert into public.work_orders')) txnInserts++;
+          return client.query(sql, params);
+        }),
+      };
+      try {
+        const result = await action({ userId: USER_ID, orgId: ORG_ID, client: txnClient });
+        persistedWoInserts = txnInserts;
+        return result;
+      } catch (err) {
+        persistedWoInserts = 0;
+        throw err;
+      }
+    });
+    createBomSnapshotMock.mockRejectedValueOnce(new BomSnapshotError('BOM_NOT_FOUND'));
+
+    const result = await createWorkOrder({
+      productId: PRODUCT_ID,
+      itemCode: 'FG-NPD-004',
+      plannedQuantity: '1000.000',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'persistence_failed' });
+    expect(persistedWoInserts).toBe(0);
   });
 
   it('returns forbidden when the caller lacks planning write permission', async () => {

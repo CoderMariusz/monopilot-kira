@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 
 import { nextDocumentNumber } from '../../../../../../../lib/documents/numbering';
+import { createBomSnapshot } from '../../../../../../../lib/technical/bom/snapshot';
 import { fetchEligibleFactorySpecUnderBindLock } from '../../../../../../../lib/technical/factory-spec-bind-lock';
 import { assertFgReleasedToFactoryForWo } from '../../../../../../../lib/planning/factory-release-wo-gate';
 import { fetchActiveProductionLineSite, productionLineMatchesWoSite } from '../../../../../../../lib/planning/production-line-site';
@@ -236,6 +237,13 @@ export async function createWorkOrderCore(
   }
   const workOrder = insertedWo.rows[0];
   if (!workOrder) throw new Error('work_order_insert_returned_no_row');
+
+  // ADR-002 / T-025: freeze the pinned BOM at WO creation (idempotent per org+wo+header).
+  // Throw on failure so withOrgContext rolls back the WO header — returning { ok:false }
+  // here would COMMIT an orphan work_orders row (withOrgContext commits on normal return).
+  if (bom) {
+    await createBomSnapshot(ctx, { woId, bomHeaderId: bom.id });
+  }
 
   let materialRows: WOMaterialRow[] = [];
   if (bom) {

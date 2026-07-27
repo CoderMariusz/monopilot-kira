@@ -111,7 +111,7 @@ export async function updateRouting(rawInput: unknown): Promise<UpdateRoutingRes
               setup_time_min, run_time_per_unit_sec, cost_per_hour, manufacturing_operation_name, crew, yield_pct, created_by)
            values
              (app.current_org_id(), $1::uuid, $2::integer, $3, $4, $5::uuid,
-              $6::integer, $7::numeric, $8::numeric, $9, $10::jsonb, $11::numeric, $12::uuid)`,
+              $6::numeric, $7::numeric, $8::numeric, $9, $10::jsonb, $11::numeric, $12::uuid)`,
           [
             input.routingId,
             op.opNo,

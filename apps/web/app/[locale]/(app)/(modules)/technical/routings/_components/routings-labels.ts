@@ -35,17 +35,34 @@ export type RoutingsLabels = {
   edit: string;
   approve: string;
   publish: string;
+  // PF-R06-06 — draft-only delete
+  delete: string;
+  deleteTitlePrefix: string; // "Delete routing v"
+  deleteWarning: string; // `{version}` interpolated
+  deleteConfirmLabel: string; // "Type {version} to confirm"
+  deleteConfirmButton: string;
   // modal
   modalNewTitle: string;
   modalEditTitlePrefix: string; // "Edit routing v"
   modalIntro: string;
   operationLabel: string; // "Operation "
   remove: string;
+  moveUp: string;
+  moveDown: string;
   fOperationName: string;
   fOperationNamePlaceholder: string;
   fOpCode: string;
   fOpCodePlaceholder: string;
   fLine: string;
+  /** PF-R06-07 — site qualifier for a line with no site (production_lines.site_id null). */
+  fLineOrgWideSite: string;
+  /**
+   * R-10 — site qualifier for a line whose site_id is NOT null but does not
+   * resolve (production_lines.site_id is a soft reference with no FK). Rendered
+   * with the raw uuid appended so the data can be fixed; never "All sites",
+   * which would claim the line is org-wide when the database says otherwise.
+   */
+  fLineUnknownSite: string;
   fSelect: string;
   fNoneConfigured: string;
   fManufacturingOp: string;
@@ -82,6 +99,8 @@ export type RoutingsLabels = {
   errZeroRunTime: string;
   errUnknownOperation: string;
   errCrossSiteLines: string;
+  errNotDraft: string;
+  errVersionReferenced: string;
   errGeneric: string;
 };
 
@@ -110,17 +129,27 @@ export const ROUTINGS_DEFAULT_LABELS: RoutingsLabels = {
   edit: 'Edit',
   approve: 'Approve',
   publish: 'Publish',
+  delete: 'Delete',
+  deleteTitlePrefix: 'Delete routing v',
+  deleteWarning:
+    'Deleting {version} permanently removes this draft and all of its operations. This cannot be undone.',
+  deleteConfirmLabel: 'Type {version} to confirm',
+  deleteConfirmButton: 'Delete routing',
   modalNewTitle: 'New routing',
   modalEditTitlePrefix: 'Edit routing v',
   modalIntro:
     'Operations run in order (op 1 → n). Each operation binds a production line (V-TEC-61) and a manufacturing-operation name from the reference (V-TEC-63).',
   operationLabel: 'Operation ',
   remove: 'Remove',
+  moveUp: 'Move up',
+  moveDown: 'Move down',
   fOperationName: 'Operation name',
   fOperationNamePlaceholder: 'e.g. Smoking — phase 2',
   fOpCode: 'Op code',
   fOpCodePlaceholder: 'auto',
   fLine: 'Line',
+  fLineOrgWideSite: 'All sites',
+  fLineUnknownSite: 'Unknown site',
   fSelect: 'Select…',
   fNoneConfigured: 'None configured',
   fManufacturingOp: 'Manufacturing operation',
@@ -156,5 +185,9 @@ export const ROUTINGS_DEFAULT_LABELS: RoutingsLabels = {
   errUnknownOperation: 'An operation name is not in the manufacturing-operations reference (V-TEC-63).',
   errCrossSiteLines:
     'Every operation must use production lines from the same site as the routing (V-TEC-64).',
+  errNotDraft:
+    'Only a draft version can be deleted. Approved, active and superseded routings are kept as audit history.',
+  errVersionReferenced:
+    'This routing version is still referenced by a work order or a change order and cannot be deleted.',
   errGeneric: 'Could not save the routing. Please try again.',
 };

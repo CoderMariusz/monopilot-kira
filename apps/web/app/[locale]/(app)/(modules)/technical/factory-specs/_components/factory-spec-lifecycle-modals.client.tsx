@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
@@ -101,10 +102,13 @@ export function EditFactorySpecModal({
   open,
   onClose,
   spec,
+  fgItemHref,
 }: {
   open: boolean;
   onClose: () => void;
   spec: FactorySpecListItem;
+  /** PF-R06-02 — route to the FG item master, the only place shelf life is authored. */
+  fgItemHref?: string;
 }) {
   const t = useTranslations('Technical.factorySpecs.lifecycle.edit');
   const router = useRouter();
@@ -174,6 +178,24 @@ export function EditFactorySpecModal({
           onChange={(event) => setNotes(event.currentTarget.value)}
         />
       </div>
+      {/*
+        PF-R06-02 — Review shows a shelf life this form cannot set, because it is not a
+        factory_specs column at all. Point the author at the FG item master rather than
+        duplicating the field (a second source of truth would drift on the first item edit).
+      */}
+      <p className="ff-help" data-testid={`edit-spec-shelf-life-hint-${spec.id}`}>
+        {t('shelfLifeHint', { item: spec.fgItemCode })}{' '}
+        {fgItemHref ? (
+          <Link
+            href={fgItemHref}
+            className="font-medium hover:underline"
+            style={{ color: 'var(--blue)' }}
+            data-testid={`edit-spec-fg-item-link-${spec.id}`}
+          >
+            {t('openFgItem')}
+          </Link>
+        ) : null}
+      </p>
       {error ? (
         <div role="alert" className="alert alert-red mt-3">
           {error}

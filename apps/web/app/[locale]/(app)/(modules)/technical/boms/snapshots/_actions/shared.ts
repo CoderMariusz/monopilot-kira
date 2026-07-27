@@ -26,6 +26,12 @@ export type QueryClient = {
 /** Derived lifecycle status of a snapshot (read-only, computed). */
 export type SnapshotStatus = 'in_use' | 'closed' | 'orphaned';
 
+/** Open planning WO states → snapshot is still live for execution. */
+export const SNAPSHOT_OPEN_WO_STATUSES = ['DRAFT', 'RELEASED', 'IN_PROGRESS', 'ON_HOLD'] as const;
+
+/** Terminal planning WO states → snapshot is historical only. */
+export const SNAPSHOT_TERMINAL_WO_STATUSES = ['COMPLETED', 'CLOSED', 'CANCELLED'] as const;
+
 export type SnapshotRow = {
   id: string;
   workOrderId: string | null;
@@ -55,7 +61,7 @@ export type SnapshotQueryRow = {
   line_count: number | string;
   snapshot_at: string | Date;
   header_exists: boolean;
-  is_latest: boolean;
+  wo_status: string | null;
 };
 
 /**
@@ -65,8 +71,9 @@ export type SnapshotQueryRow = {
  *
  * Joins are org-scoped: `public.product` exposes `product_name` (NOT `name`);
  * `bom_headers.item_id` is the items.id FK while this read model still returns
- * item_code strings. Derived status is computed via a window function (latest
- * snapshot per header = in_use; older = closed; missing header = orphaned).
+ * item_code strings. Derived status follows the linked WO: open planning states
+ * (DRAFT/RELEASED/IN_PROGRESS/ON_HOLD) → in_use; terminal (COMPLETED/CLOSED/
+ * CANCELLED) → closed; missing canonical header or WO link → orphaned.
  */
 export const LIST_SNAPSHOTS_SQL = `select
            s.id,
@@ -79,9 +86,7 @@ export const LIST_SNAPSHOTS_SQL = `select
            coalesce(jsonb_array_length(s.snapshot_json -> 'lines'), 0) as line_count,
            s.snapshot_at,
            (h.id is not null) as header_exists,
-           (s.id = first_value(s.id) over (
-              partition by s.bom_header_id order by s.snapshot_at desc, s.id desc
-           )) as is_latest
+           wo.status as wo_status
          from public.bom_snapshots s
          left join public.bom_headers h
            on h.id = s.bom_header_id and h.org_id = app.current_org_id()
@@ -94,12 +99,19 @@ export const LIST_SNAPSHOTS_SQL = `select
          where s.org_id = app.current_org_id()
          order by s.snapshot_at desc, s.id desc`;
 
+/** Derive snapshot lifecycle status from header presence and linked WO state. Pure. */
+export function deriveSnapshotStatus(r: Pick<SnapshotQueryRow, 'header_exists' | 'wo_status'>): SnapshotStatus {
+  if (!r.header_exists) return 'orphaned';
+  const woStatus = r.wo_status?.toUpperCase() ?? null;
+  if (!woStatus) return 'orphaned';
+  if ((SNAPSHOT_OPEN_WO_STATUSES as readonly string[]).includes(woStatus)) return 'in_use';
+  if ((SNAPSHOT_TERMINAL_WO_STATUSES as readonly string[]).includes(woStatus)) return 'closed';
+  return 'closed';
+}
+
 /** Map a raw {@link SnapshotQueryRow} to the UI {@link SnapshotRow}. Pure. */
 export function mapSnapshotRow(r: SnapshotQueryRow): SnapshotRow {
-  let status: SnapshotStatus;
-  if (!r.header_exists) status = 'orphaned';
-  else if (r.is_latest) status = 'in_use';
-  else status = 'closed';
+  const status = deriveSnapshotStatus(r);
   return {
     id: String(r.id),
     workOrderId: r.work_order_id ? String(r.work_order_id) : null,

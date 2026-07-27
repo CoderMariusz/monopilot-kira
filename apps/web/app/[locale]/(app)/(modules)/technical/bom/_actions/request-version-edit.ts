@@ -1,10 +1,12 @@
 'use server';
 
 /**
- * Ensure a clone-on-write draft exists for an immutable (active/technical_approved)
- * BOM version via the canonical DB helper bom_request_version_edit (mig 168).
+ * Ensure a clone-on-write in_review version exists for an immutable (active/
+ * technical_approved) BOM version via the canonical DB helper
+ * bom_request_version_edit (mig 168).
  *
- * Idempotent per source: concurrent edits attach to the SAME in-flight draft.
+ * Idempotent per source: concurrent edits attach to the SAME in-flight in_review
+ * version.
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
