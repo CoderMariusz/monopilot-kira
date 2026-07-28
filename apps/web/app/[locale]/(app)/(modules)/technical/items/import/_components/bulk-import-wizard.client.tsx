@@ -74,6 +74,8 @@ export type BulkImportLabels = {
   reasonPlaceholder: string;
   reasonHelp: string;
   applied: string;
+  /** Shown INSTEAD of `applied` when the commit refused at least one row. */
+  appliedWithErrors: string;
   forbidden: string;
   parseFailed: string;
   supplierBlocker: string;
@@ -87,13 +89,14 @@ const SCOPE_OPTIONS = (labels: BulkImportLabels): Array<{ value: ImportScope; la
   { value: 'rm_supplier_specs', label: labels.scopeRmSupplier },
 ];
 
-type ValidationIssueRow =
-  | { rowNumber: number; kind: 'error' | 'warning' | 'info'; column: string; message: string }
-  | (CommitImportRowError & { kind: 'error'; message: string });
-
-function isInvalidStatusTransitionIssue(issue: ValidationIssueRow): issue is CommitImportRowError & { kind: 'error'; message: string } {
-  return 'code' in issue && issue.code === 'invalid_status_transition';
-}
+type ValidationIssueRow = {
+  rowNumber: number;
+  kind: 'error' | 'warning' | 'info';
+  column: string;
+  message: string;
+  /** Set only for the status-transition refusal, which has a localized message. */
+  transition?: { from: string; to: string };
+};
 
 // Locked design-system wizard stepper (globals.css `.wiz-*`), translated 1:1 from
 // the prototype Stepper primitive (_shared/modals.jsx:46-62): current step → blue
@@ -184,7 +187,8 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
       if (res.ok) {
         setCommitted(res.committed);
         setCommitRowErrors(res.rowErrors);
-        if (res.rowErrors.length > 0) setStep('validate');
+        // Any refused row sends the user back to the table that names it.
+        if (res.committed.errors > 0) setStep('validate');
       } else if (res.error === 'forbidden') {
         setErrorKey(labels.forbidden);
       } else {
@@ -197,26 +201,30 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
   const hasWarnings = (preview?.counts.warnings ?? 0) > 0;
   const confirmValid = reason.trim().length >= 10 && !hasErrors;
 
-  const validationRows: ValidationIssueRow[] = (preview?.rows ?? []).flatMap((row) =>
-    row.issues.map((iss) => ({ rowNumber: row.rowNumber, ...iss })),
-  ).concat(
-    commitRowErrors.map((err) => ({
-      rowNumber: err.rowNumber,
-      kind: 'error' as const,
-      column: err.column,
-      message: '',
-      code: err.code,
-      from: err.from,
-      to: err.to,
-    })),
-  );
+  const validationRows: ValidationIssueRow[] = [
+    ...(preview?.rows ?? []).flatMap((row) =>
+      row.issues.map((iss): ValidationIssueRow => ({ rowNumber: row.rowNumber, ...iss })),
+    ),
+    // Commit-time refusals land in the SAME table as the preview issues — with
+    // the row number and the offending column, not just an errors counter.
+    ...commitRowErrors.map(
+      (err): ValidationIssueRow =>
+        err.code === 'row_rejected'
+          ? { rowNumber: err.rowNumber, kind: 'error', column: err.column, message: err.message }
+          : {
+              rowNumber: err.rowNumber,
+              kind: 'error',
+              column: err.column,
+              message: '',
+              transition: { from: err.from, to: err.to },
+            },
+    ),
+  ];
 
-  const renderIssueMessage = (iss: ValidationIssueRow) => {
-    if (isInvalidStatusTransitionIssue(iss)) {
-      return labels.invalidStatusTransition.replace('{from}', iss.from).replace('{to}', iss.to);
-    }
-    return iss.message;
-  };
+  const renderIssueMessage = (iss: ValidationIssueRow) =>
+    iss.transition
+      ? labels.invalidStatusTransition.replace('{from}', iss.transition.from).replace('{to}', iss.transition.to)
+      : iss.message;
 
   return (
     <div data-prototype-label="bulk_import_csv_screen" data-screen="technical-items-import" className="flex flex-col gap-4">
@@ -228,12 +236,21 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
         </div>
       ) : null}
 
+      {/* A partially-refused import is NOT a success: green + "1 errors" read as
+          "applied" and hid the refusal. Errors > 0 ⇒ red alert, and the rows that
+          were refused are listed on the Validate step. */}
       {committed ? (
-        <div role="status" data-testid="bulk-import-applied" className="alert alert-green">
-          <span aria-hidden="true">✓</span>
+        <div
+          role={committed.errors > 0 ? 'alert' : 'status'}
+          data-testid="bulk-import-applied"
+          data-has-errors={committed.errors > 0 ? 'true' : 'false'}
+          className={committed.errors > 0 ? 'alert alert-red' : 'alert alert-green'}
+        >
+          <span aria-hidden="true">{committed.errors > 0 ? '⚠' : '✓'}</span>
           <div>
-            <span className="alert-title">{labels.applied}</span> · {committed.created} create / {committed.updated}{' '}
-            update / {committed.skipped} skip / {committed.errors} errors
+            <span className="alert-title">{committed.errors > 0 ? labels.appliedWithErrors : labels.applied}</span> ·{' '}
+            {committed.created} create / {committed.updated} update / {committed.skipped} skip / {committed.errors}{' '}
+            errors
           </div>
         </div>
       ) : null}

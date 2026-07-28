@@ -208,6 +208,55 @@
       "reset_mfa_success": "MFA enrollment cleared.",
       "reset_mfa_failed": "Could not reset MFA: {error}."
     },
+    "units": {
+      "title": "Units & conversions",
+      "subtitle": "Units of measure used across recipes, stock, and shipping.",
+      "addUnit": "+ Add unit",
+      "baseUnitPrefix": "Base unit:",
+      "code": "Code",
+      "name": "Name",
+      "factorToBase": "Factor to base",
+      "baseQuestion": "Base?",
+      "actions": "Actions",
+      "base": "Base",
+      "customConversions": "Custom conversions",
+      "customConversionsSubtitle": "Define non-linear conversions (e.g. Flour: 1 cup = 120g).",
+      "noCustomConversions": "No custom conversions yet.",
+      "addCustomConversion": "+ Add custom conversion",
+      "noUnits": "No units configured yet.",
+      "loading": "Loading units…",
+      "error": "Unable to load units.",
+      "permissionDenied": "You do not have permission to manage units.",
+      "saveUnit": "Save unit",
+      "cancel": "Cancel",
+      "category": "Category",
+      "label": "Label",
+      "fromUnit": "From unit",
+      "toUnit": "To unit",
+      "saveConversion": "Save conversion",
+      "categoryMass": "Mass",
+      "categoryVolume": "Volume",
+      "categoryCount": "Count",
+      "categoryLength": "Length",
+      "errorAlreadyExists": "A unit or conversion with that code already exists.",
+      "errorForbidden": "You do not have permission to manage units.",
+      "errorInvalidInput": "Please check the values and try again.",
+      "errorFactorPositive": "Conversion factor must be greater than zero.",
+      "errorGeneric": "Could not save. Please try again.",
+      "editUnit": "Edit",
+      "deleteUnit": "Delete",
+      "editUnitTitle": "Edit unit",
+      "confirmDeleteUnit": "Delete unit {code}? This cannot be undone.",
+      "errorInUse": "This unit is referenced elsewhere and cannot be deleted.",
+      "errorNotFound": "Unit not found.",
+      "errorNameRequired": "Enter a unit name between 1 and 120 characters.",
+      "errorAuditPartitionMissing": "Could not save: the audit log has no partition covering today, so the change was rolled back. Ask an administrator to extend the audit_log partitions.",
+      "errorCannotDeleteBase": "Cannot delete a base unit.",
+      "errorInvalidUnitId": "That unit reference is not valid.",
+      "errorInUseWithCode": "Unit \"{code}\" is referenced elsewhere and cannot be deleted.",
+      "errorConversionLabelRequired": "Enter a conversion label.",
+      "errorConversionFactorPositive": "Conversion factor must be greater than zero."
+    },
     "features": {
       "title": "Feature flags",
       "subtitle": "Turn modules and features on for your workspace.",
@@ -792,7 +841,8 @@
       "revokeDialog": {
         "title": "Revoke invitation",
         "confirm": "Revoke invitation for <strong>{email}</strong>?",
-        "body": "This pending invitation expires at {expiresAt}. Revoking it records a T-124 audit result and prevents the magic link from being used."
+        "body": "This pending invitation expires at {expiresAt}. Revoking it records a T-124 audit result and prevents the magic link from being used.",
+        "confirmPlain": "Revoke the pending invitation for {email}?"
       },
       "errors": {
         "emailAndRoleRequired": "Enter a valid email and role.",
@@ -810,7 +860,8 @@
         "expiresAt": "Expires At",
         "status": "Status",
         "actions": "Actions"
-      }
+      },
+      "resentNoEmailFeedback": "Invitation link renewed for {email}, but no email was sent — this deployment has no email transport. Pass the new invite link on yourself."
     },
     "roles": {
       "heading": "Roles & Permissions",
@@ -4989,6 +5040,7 @@
             "loading": "Loading routings…",
             "empty": "No routing yet",
             "emptyBody": "No routing version exists for this item. Create one to define its operations.",
+            "createCta": "+ New routing",
             "error": "Unable to load routings. Please try again."
           },
           "lab": {
@@ -5170,7 +5222,10 @@
           "uomRequired": "Base UoM is required.",
           "netRequired": "Net content per each is required (> 0) for Each / Box output.",
           "eachPerBoxRequired": "Each per box is required (> 0) for Box output.",
-          "priceNonNegative": "Price must be zero or greater."
+          "priceNonNegative": "Price must be zero or greater.",
+          "uomSecondaryDistinct": "Secondary UoM must be different from Base UoM, or left empty.",
+          "grossBelowNominal": "Gross weight max must be greater than or equal to the nominal weight.",
+          "shelfLifeIncomplete": "Shelf life needs a positive number of days and a mode — or switch it off."
         },
         "intermediateHint": "= WIP (work in progress)",
         "uomLabels": {
@@ -6239,6 +6294,7 @@
         "help": "Recorded in the import audit trail; min 10 characters."
       },
       "applied": "Import applied",
+      "appliedWithErrors": "Import applied with refused rows",
       "forbidden": "You do not have permission to import items.",
       "parseFailed": "Could not parse the CSV. Check the header row and try again.",
       "supplierBlocker": "Some rows reference a supplier that requires a supplier_spec upload before the catalog row can reference it.",

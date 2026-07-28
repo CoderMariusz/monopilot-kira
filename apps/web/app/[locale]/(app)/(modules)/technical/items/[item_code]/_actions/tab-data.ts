@@ -186,12 +186,23 @@ export type RoutingVersionRow = {
 export type RoutingTabData = {
   state: 'ready' | 'empty' | 'error';
   routings: RoutingVersionRow[];
+  /**
+   * Whether the item_code actually resolved to a row.
+   *
+   * `state: 'empty'` alone is ambiguous — it means BOTH "this item has no
+   * routings yet" (offer the create CTA) and "this item does not exist" (offer
+   * nothing). The page reads the item separately via getItem(), so a deletion
+   * landing between the two reads left it rendering a "+ New routing" CTA for an
+   * item that is gone. Optional so existing fixtures keep compiling; callers
+   * must treat `undefined` as "unknown, don't assume resolved".
+   */
+  itemResolved?: boolean;
 };
 
 export async function loadRoutingTab(itemCode: string): Promise<RoutingTabData> {
   return run<RoutingTabData>(async (ctx) => {
     const item = await resolveItem(ctx, itemCode);
-    if (!item) return { state: 'empty', routings: [] };
+    if (!item) return { state: 'empty', routings: [], itemResolved: false };
 
     const { rows } = await ctx.client.query<{
       id: string;
@@ -223,8 +234,8 @@ export async function loadRoutingTab(itemCode: string): Promise<RoutingTabData> 
       totalSetupMin: Number(r.setup_sum) || 0,
     }));
 
-    return { state: routings.length ? 'ready' : 'empty', routings };
-  }, { state: 'error', routings: [] });
+    return { state: routings.length ? 'ready' : 'empty', routings, itemResolved: true };
+  }, { state: 'error', routings: [], itemResolved: false });
 }
 
 // ── Lab results tab (read-only; Quality-owned) ────────────────────────────────

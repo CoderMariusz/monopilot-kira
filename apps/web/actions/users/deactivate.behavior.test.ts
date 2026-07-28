@@ -88,6 +88,13 @@ function makeClient(ownerGuard: OwnerGuardState): FakeClient {
         return { rows: [{ id: targetUserId, updated_at: updatedAt }], rowCount: 1 };
       }
 
+      if (norm.includes('from public.users') && norm.includes('invite_token')) {
+        return {
+          rows: [{ id: TARGET_USER_ID, is_active: true, invite_token: null }],
+          rowCount: 1,
+        };
+      }
+
       if (norm.startsWith('select is_active') && norm.includes('from public.users')) {
         return { rows: [{ is_active: true }], rowCount: 1 };
       }
@@ -152,6 +159,7 @@ describe('deactivateUser behavior', () => {
     expect(permissionCall?.params[2]).toEqual(['org.access.admin', 'settings.users.deactivate']);
     expect(currentClient.ownerGuard.activeOwnerIds.has(TARGET_USER_ID)).toBe(false);
     expect(currentClient.deactivated).toBe(true);
+    expect(_revalidateLocalized).toHaveBeenCalledWith('/settings/users');
     const outboxCall = currentClient.calls.find((call) => call.sql.includes('insert into public.outbox_events'));
     expect(outboxCall?.params.at(-1)).toBe(`settings.user.deactivated:${TARGET_USER_ID}:2026-07-12T12:00:00.000Z`);
   });
@@ -278,5 +286,43 @@ describe('deactivateUser behavior', () => {
       data: { targetUserId: TARGET_USER_ID, deactivated: true, authRevokeWarning: 'session_revoke_failed' },
     });
     expect(currentClient.deactivated).toBe(true);
+  });
+
+  it('refuses deactivateUser when the target row still carries a pending invite_token', async () => {
+    currentClient.query = async (sql: string, params: unknown[] = []) => {
+      const norm = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+
+      if (norm.includes('from public.user_roles') && norm.includes('permission = any($3::text[])')) {
+        return currentClient.grantedDeactivate ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+
+      if (norm.includes('from public.organizations') && norm.includes('for update')) {
+        return { rows: [{ id: ORG_ID }], rowCount: 1 };
+      }
+
+      if (norm.includes('with active_owners')) {
+        return { rows: [{ last_owner_violation: false }], rowCount: 1 };
+      }
+
+      if (norm.includes('from public.users') && norm.includes('invite_token')) {
+        return {
+          rows: [{ id: TARGET_USER_ID, is_active: false, invite_token: 'pending-token' }],
+          rowCount: 1,
+        };
+      }
+
+      if (norm.startsWith('update public.users')) {
+        throw new Error('deactivate must not write when invite_token is present');
+      }
+
+      return { rows: [], rowCount: 0 };
+    };
+
+    const { deactivateUser } = await loadDeactivateUser();
+    const result = await deactivateUser({ targetUserId: TARGET_USER_ID });
+
+    expect(result).toEqual({ ok: false, error: 'pending_invitation' });
+    expect(_revalidateLocalized).not.toHaveBeenCalled();
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
   });
 });

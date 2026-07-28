@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 import { ALL_SITE_AUTHORITY_ROLE_SLUGS } from './role-grant-guards';
 import { SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT } from './user-role-policy';
 import { createSupabaseAuthAdmin } from './supabase-admin';
@@ -92,7 +93,9 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
   const expiresAt = new Date(Date.now() + INVITE_TTL_SECONDS * 1000);
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }) => {
+    // Annotated so the callback's returns keep their literal `ok` types; without it
+    // TypeScript widens `ok` to `boolean` and the union stops matching InviteUserResult.
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<InviteUserResult> => {
     // Fail-closed permission-based RBAC: require an explicit grant of
     // settings.users.invite on one of the caller's roles. Role-code fallbacks
     // are honored only when the role exposes the permission via its slug/code
@@ -282,6 +285,16 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
 
     return { ok: true, data: { email, expiresAt: expiresAt.toISOString() } };
     });
+
+    if (result.ok) {
+      try {
+        revalidateLocalized('/settings/users');
+        revalidateLocalized('/settings/invitations');
+      } catch {
+        // Unit tests and non-Next callers do not provide a static-generation store.
+      }
+    }
+    return result;
   } catch (error) {
     if (error instanceof InvitePersistenceError) {
       return { ok: false, error: 'persistence_failed' };

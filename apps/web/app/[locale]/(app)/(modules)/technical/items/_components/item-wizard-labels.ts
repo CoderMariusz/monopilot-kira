@@ -89,6 +89,14 @@ export type ItemWizardLabels = {
     netRequired: string;
     eachPerBoxRequired: string;
     priceNonNegative: string;
+    /** R03-01 — secondary UoM equal to base UoM. */
+    uomSecondaryDistinct: string;
+    /** R03-02 — gross weight max below the nominal weight it bounds. */
+    grossBelowNominal: string;
+    /** R03-02 — variance tolerance outside the server's [0,100] range. */
+    tolerancePctRange: string;
+    /** R03-03 — shelf life switched on with 0 days and/or no mode. */
+    shelfLifeIncomplete: string;
   };
   actionErrors: Record<ItemsActionError, string>;
   /** Generic already_exists when item code is unknown (fallback). */
@@ -214,6 +222,10 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     netRequired: 'Net content per each is required (> 0) for Each / Box output.',
     eachPerBoxRequired: 'Each per box is required (> 0) for Box output.',
     priceNonNegative: 'Price must be zero or greater.',
+    uomSecondaryDistinct: 'Secondary UoM must be different from Base UoM, or left empty.',
+    grossBelowNominal: 'Gross weight max must be greater than or equal to the nominal weight.',
+    tolerancePctRange: 'Variance tolerance must be a number between 0 and 100 %.',
+    shelfLifeIncomplete: 'Shelf life needs a positive number of days and a mode — or switch it off.',
   },
   actionErrors: {
     already_exists:
@@ -364,6 +376,10 @@ export function buildWizardLabels(t: WizardTranslator): ItemWizardLabels {
       netRequired: get('create.errors.netRequired', D.errors.netRequired),
       eachPerBoxRequired: get('create.errors.eachPerBoxRequired', D.errors.eachPerBoxRequired),
       priceNonNegative: get('create.errors.priceNonNegative', D.errors.priceNonNegative),
+      uomSecondaryDistinct: get('create.errors.uomSecondaryDistinct', D.errors.uomSecondaryDistinct),
+      grossBelowNominal: get('create.errors.grossBelowNominal', D.errors.grossBelowNominal),
+      tolerancePctRange: get('create.errors.tolerancePctRange', D.errors.tolerancePctRange),
+      shelfLifeIncomplete: get('create.errors.shelfLifeIncomplete', D.errors.shelfLifeIncomplete),
     },
     actionErrors,
     actionErrorsGeneric,

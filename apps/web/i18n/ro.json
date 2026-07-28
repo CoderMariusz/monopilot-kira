@@ -175,6 +175,55 @@
       "reset_mfa_success": "MFA enrollment cleared.",
       "reset_mfa_failed": "Could not reset MFA: {error}."
     },
+    "units": {
+      "title": "Unități și conversii",
+      "subtitle": "Unități de măsură folosite în rețete, stoc și expediere.",
+      "addUnit": "+ Adaugă unitate",
+      "baseUnitPrefix": "Unitate de bază:",
+      "code": "Cod",
+      "name": "Nume",
+      "factorToBase": "Factor la bază",
+      "baseQuestion": "De bază?",
+      "actions": "Acțiuni",
+      "base": "De bază",
+      "customConversions": "Conversii personalizate",
+      "customConversionsSubtitle": "Definiți conversii neliniare (ex. Făină: 1 cană = 120 g).",
+      "noCustomConversions": "Încă nu există conversii personalizate.",
+      "addCustomConversion": "+ Adaugă conversie",
+      "noUnits": "Nu sunt configurate unități încă.",
+      "loading": "Se încarcă unitățile…",
+      "error": "Unitățile nu au putut fi încărcate.",
+      "permissionDenied": "Nu aveți permisiunea de a gestiona unitățile.",
+      "saveUnit": "Salvează unitatea",
+      "cancel": "Anulează",
+      "category": "Categorie",
+      "label": "Etichetă",
+      "fromUnit": "Din unitatea",
+      "toUnit": "În unitatea",
+      "saveConversion": "Salvează conversia",
+      "categoryMass": "Masă",
+      "categoryVolume": "Volum",
+      "categoryCount": "Număr",
+      "categoryLength": "Lungime",
+      "errorAlreadyExists": "O unitate sau conversie cu acest cod există deja.",
+      "errorForbidden": "Nu aveți permisiunea de a gestiona unitățile.",
+      "errorInvalidInput": "Verificați valorile și încercați din nou.",
+      "errorFactorPositive": "Factorul de conversie trebuie să fie mai mare decât zero.",
+      "errorGeneric": "Nu s-a putut salva. Încercați din nou.",
+      "editUnit": "Editează",
+      "deleteUnit": "Șterge",
+      "editUnitTitle": "Editează unitatea",
+      "confirmDeleteUnit": "Ștergeți unitatea {code}? Această acțiune nu poate fi anulată.",
+      "errorInUse": "Această unitate este referențiată în altă parte și nu poate fi ștearsă.",
+      "errorNotFound": "Unitatea nu a fost găsită.",
+      "errorNameRequired": "Introduceți un nume de unitate între 1 și 120 de caractere.",
+      "errorAuditPartitionMissing": "Nu s-a putut salva: jurnalul de audit nu are o partiție pentru ziua de azi, deci modificarea a fost anulată. Cereți unui administrator să extindă partițiile audit_log.",
+      "errorCannotDeleteBase": "Nu se poate șterge o unitate de bază.",
+      "errorInvalidUnitId": "Referința la unitate nu este validă.",
+      "errorInUseWithCode": "Unitatea „{code}” este referențiată în altă parte și nu poate fi ștearsă.",
+      "errorConversionLabelRequired": "Introduceți o etichetă pentru conversie.",
+      "errorConversionFactorPositive": "Factorul de conversie trebuie să fie mai mare decât zero."
+    },
     "features": {
       "title": "Indicatori de funcționalitate",
       "subtitle": "Activați module și funcționalități pentru spațiul dvs. de lucru.",
@@ -759,7 +808,8 @@
       "revokeDialog": {
         "title": "Revoke invitation",
         "confirm": "Revoke invitation for <strong>{email}</strong>?",
-        "body": "This pending invitation expires at {expiresAt}. Revoking it records a T-124 audit result and prevents the magic link from being used."
+        "body": "This pending invitation expires at {expiresAt}. Revoking it records a T-124 audit result and prevents the magic link from being used.",
+        "confirmPlain": "Revoke the pending invitation for {email}?"
       },
       "errors": {
         "emailAndRoleRequired": "Enter a valid email and role.",
@@ -777,7 +827,8 @@
         "expiresAt": "Expires At",
         "status": "Status",
         "actions": "Actions"
-      }
+      },
+      "resentNoEmailFeedback": "Invitation link renewed for {email}, but no email was sent — this deployment has no email transport. Pass the new invite link on yourself."
     },
     "roles": {
       "heading": "Roles & Permissions",
@@ -2250,6 +2301,7 @@
             "loading": "Loading routings…",
             "empty": "No routing yet",
             "emptyBody": "No routing version exists for this item. Create one to define its operations.",
+            "createCta": "+ Rutare nouă",
             "error": "Unable to load routings. Please try again."
           },
           "lab": {
@@ -2427,6 +2479,9 @@
         "errors": {
           "codeRequired": "Item code is required (min 1 char).",
           "priceNonNegative": "Prețul trebuie să fie zero sau mai mare.",
+          "uomSecondaryDistinct": "Unitatea de măsură secundară trebuie să fie diferită de cea de bază sau lăsată goală.",
+          "grossBelowNominal": "Greutatea brută maximă trebuie să fie mai mare sau egală cu greutatea nominală.",
+          "shelfLifeIncomplete": "Termenul de valabilitate necesită un număr pozitiv de zile și un mod — sau dezactivați-l.",
           "nameRequired": "Name is required (min 1 char).",
           "uomRequired": "Base UoM is required.",
           "netRequired": "Net content per each is required (> 0) for Each / Box output.",
@@ -3491,6 +3546,7 @@
         "help": "Recorded in the import audit trail; min 10 characters."
       },
       "applied": "Import applied",
+      "appliedWithErrors": "Import applied with refused rows",
       "forbidden": "You do not have permission to import items.",
       "parseFailed": "Could not parse the CSV. Check the header row and try again.",
       "supplierBlocker": "Some rows reference a supplier that requires a supplier_spec upload before the catalog row can reference it.",

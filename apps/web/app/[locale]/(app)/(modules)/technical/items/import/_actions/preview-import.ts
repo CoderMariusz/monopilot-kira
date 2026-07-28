@@ -38,7 +38,17 @@ export type PreviewImportResult =
   | { ok: true; preview: ItemImportPreview }
   | { ok: false; error: 'forbidden' | 'parse_failed' };
 
-type ExistingRow = { item_code: string; item_type: string; name: string };
+// The catch-weight envelope travels with the snapshot so the preview validates
+// the MERGED row (import is a patch — an omitted column keeps the stored value).
+type ExistingRow = {
+  item_code: string;
+  item_type: string;
+  name: string;
+  weight_mode: string | null;
+  nominal_weight: string | null;
+  gross_weight_max: string | null;
+  variance_tolerance_pct: string | null;
+};
 
 export async function previewItemsImport(scope: ImportScope, csvText: string): Promise<PreviewImportResult> {
   try {
@@ -54,9 +64,22 @@ export async function previewItemsImport(scope: ImportScope, csvText: string): P
 
       // Existing item snapshot for the diff (org-scoped via RLS).
       const { rows } = await qc.query<ExistingRow>(
-        `select item_code, item_type, name from public.items where org_id = app.current_org_id()`,
+        `select item_code, item_type, name, weight_mode, nominal_weight, gross_weight_max, variance_tolerance_pct
+           from public.items where org_id = app.current_org_id()`,
       );
-      const existing = new Map(rows.map((r) => [r.item_code, { itemType: r.item_type, name: r.name }]));
+      const existing = new Map(
+        rows.map((r) => [
+          r.item_code,
+          {
+            itemType: r.item_type,
+            name: r.name,
+            weightMode: r.weight_mode,
+            nominalWeight: r.nominal_weight,
+            grossWeightMax: r.gross_weight_max,
+            varianceTolerancePct: r.variance_tolerance_pct,
+          },
+        ]),
+      );
 
       const preview = diffItemsAgainstExisting(scope, parsed.rows, existing);
       return { ok: true, preview };

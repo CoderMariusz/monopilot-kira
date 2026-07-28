@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
@@ -73,6 +74,7 @@ export function InviteDialog({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const canSetPassword = Boolean(createUserWithPasswordAction);
 
@@ -124,6 +126,7 @@ export function InviteDialog({
           });
           resetForm();
           onOpenChange(false);
+          router.refresh();
           return;
         }
         const errorMessage = inviteErrorMessage(result.error, labels, 'password');
@@ -153,6 +156,7 @@ export function InviteDialog({
         onFeedback({ kind: 'status', message: interpolate(labels.invitationSent, { email: result.data.email }) });
         resetForm();
         onOpenChange(false);
+        router.refresh();
         return;
       }
       const errorMessage = inviteErrorMessage(result.error, labels, 'invite');

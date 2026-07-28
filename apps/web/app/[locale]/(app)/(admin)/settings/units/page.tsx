@@ -71,6 +71,13 @@ type UnitsLabels = {
   confirmDeleteUnit: string;
   errorInUse: string;
   errorNotFound: string;
+  errorNameRequired: string;
+  errorAuditPartitionMissing: string;
+  errorCannotDeleteBase: string;
+  errorInvalidUnitId: string;
+  errorInUseWithCode: string;
+  errorConversionLabelRequired: string;
+  errorConversionFactorPositive: string;
 };
 
 type UnitsPageProps = {
@@ -144,6 +151,14 @@ const DEFAULT_LABELS: UnitsLabels = {
   confirmDeleteUnit: 'Delete unit {code}? This cannot be undone.',
   errorInUse: 'This unit is referenced elsewhere and cannot be deleted.',
   errorNotFound: 'Unit not found.',
+  errorNameRequired: 'Enter a unit name between 1 and 120 characters.',
+  errorAuditPartitionMissing:
+    'Could not save: the audit log has no partition covering today, so the change was rolled back. Ask an administrator to extend the audit_log partitions.',
+  errorCannotDeleteBase: 'Cannot delete a base unit.',
+  errorInvalidUnitId: 'That unit reference is not valid.',
+  errorInUseWithCode: 'Unit "{code}" is referenced elsewhere and cannot be deleted.',
+  errorConversionLabelRequired: 'Enter a conversion label.',
+  errorConversionFactorPositive: 'Conversion factor must be greater than zero.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof UnitsLabels>;
@@ -320,6 +335,13 @@ function toManagerLabels(labels: UnitsLabels): UnitsManagerLabels {
     confirmDeleteUnit: labels.confirmDeleteUnit,
     errorInUse: labels.errorInUse,
     errorNotFound: labels.errorNotFound,
+    errorNameRequired: labels.errorNameRequired,
+    errorAuditPartitionMissing: labels.errorAuditPartitionMissing,
+    errorCannotDeleteBase: labels.errorCannotDeleteBase,
+    errorInvalidUnitId: labels.errorInvalidUnitId,
+    errorInUseWithCode: labels.errorInUseWithCode,
+    errorConversionLabelRequired: labels.errorConversionLabelRequired,
+    errorConversionFactorPositive: labels.errorConversionFactorPositive,
   };
 }
 

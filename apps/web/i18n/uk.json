@@ -175,6 +175,55 @@
       "reset_mfa_success": "MFA enrollment cleared.",
       "reset_mfa_failed": "Could not reset MFA: {error}."
     },
+    "units": {
+      "title": "Одиниці та перетворення",
+      "subtitle": "Одиниці виміру, що використовуються в рецептурах, запасах і відвантаженні.",
+      "addUnit": "+ Додати одиницю",
+      "baseUnitPrefix": "Базова одиниця:",
+      "code": "Код",
+      "name": "Назва",
+      "factorToBase": "Коефіцієнт до бази",
+      "baseQuestion": "Базова?",
+      "actions": "Дії",
+      "base": "Базова",
+      "customConversions": "Користувацькі перетворення",
+      "customConversionsSubtitle": "Визначте нелінійні перетворення (напр. борошно: 1 склянка = 120 г).",
+      "noCustomConversions": "Користувацьких перетворень ще немає.",
+      "addCustomConversion": "+ Додати перетворення",
+      "noUnits": "Одиниці ще не налаштовано.",
+      "loading": "Завантаження одиниць…",
+      "error": "Не вдалося завантажити одиниці.",
+      "permissionDenied": "У вас немає дозволу керувати одиницями.",
+      "saveUnit": "Зберегти одиницю",
+      "cancel": "Скасувати",
+      "category": "Категорія",
+      "label": "Мітка",
+      "fromUnit": "З одиниці",
+      "toUnit": "В одиницю",
+      "saveConversion": "Зберегти перетворення",
+      "categoryMass": "Маса",
+      "categoryVolume": "Об'єм",
+      "categoryCount": "Кількість",
+      "categoryLength": "Довжина",
+      "errorAlreadyExists": "Одиниця або перетворення з таким кодом уже існує.",
+      "errorForbidden": "У вас немає дозволу керувати одиницями.",
+      "errorInvalidInput": "Перевірте значення та спробуйте ще раз.",
+      "errorFactorPositive": "Коефіцієнт перетворення має бути більшим за нуль.",
+      "errorGeneric": "Не вдалося зберегти. Спробуйте ще раз.",
+      "editUnit": "Редагувати",
+      "deleteUnit": "Видалити",
+      "editUnitTitle": "Редагувати одиницю",
+      "confirmDeleteUnit": "Видалити одиницю {code}? Цю дію не можна скасувати.",
+      "errorInUse": "Ця одиниця використовується в інших місцях і не може бути видалена.",
+      "errorNotFound": "Одиницю не знайдено.",
+      "errorNameRequired": "Введіть назву одиниці від 1 до 120 символів.",
+      "errorAuditPartitionMissing": "Не вдалося зберегти: у журналі аудиту немає розділу на сьогодні, тому зміну скасовано. Попросіть адміністратора розширити розділи audit_log.",
+      "errorCannotDeleteBase": "Неможливо видалити базову одиницю.",
+      "errorInvalidUnitId": "Посилання на одиницю недійсне.",
+      "errorInUseWithCode": "Одиниця «{code}» використовується в інших місцях і не може бути видалена.",
+      "errorConversionLabelRequired": "Введіть мітку перетворення.",
+      "errorConversionFactorPositive": "Коефіцієнт перетворення має бути більшим за нуль."
+    },
     "features": {
       "title": "Прапорці функцій",
       "subtitle": "Вмикайте модулі та функції для вашого робочого простору.",
@@ -759,7 +808,8 @@
       "revokeDialog": {
         "title": "Revoke invitation",
         "confirm": "Revoke invitation for <strong>{email}</strong>?",
-        "body": "This pending invitation expires at {expiresAt}. Revoking it records a T-124 audit result and prevents the magic link from being used."
+        "body": "This pending invitation expires at {expiresAt}. Revoking it records a T-124 audit result and prevents the magic link from being used.",
+        "confirmPlain": "Revoke the pending invitation for {email}?"
       },
       "errors": {
         "emailAndRoleRequired": "Enter a valid email and role.",
@@ -777,7 +827,8 @@
         "expiresAt": "Expires At",
         "status": "Status",
         "actions": "Actions"
-      }
+      },
+      "resentNoEmailFeedback": "Invitation link renewed for {email}, but no email was sent — this deployment has no email transport. Pass the new invite link on yourself."
     },
     "roles": {
       "heading": "Roles & Permissions",
@@ -2250,6 +2301,7 @@
             "loading": "Loading routings…",
             "empty": "No routing yet",
             "emptyBody": "No routing version exists for this item. Create one to define its operations.",
+            "createCta": "+ Новий маршрут",
             "error": "Unable to load routings. Please try again."
           },
           "lab": {
@@ -2427,6 +2479,9 @@
         "errors": {
           "codeRequired": "Item code is required (min 1 char).",
           "priceNonNegative": "Ціна має дорівнювати нулю або бути більшою.",
+          "uomSecondaryDistinct": "Додаткова одиниця виміру має відрізнятися від базової або бути порожньою.",
+          "grossBelowNominal": "Максимальна маса брутто має бути більшою або дорівнювати номінальній масі.",
+          "shelfLifeIncomplete": "Термін придатності потребує додатної кількості днів і режиму — або вимкніть його.",
           "nameRequired": "Name is required (min 1 char).",
           "uomRequired": "Base UoM is required.",
           "netRequired": "Net content per each is required (> 0) for Each / Box output.",
@@ -3491,6 +3546,7 @@
         "help": "Recorded in the import audit trail; min 10 characters."
       },
       "applied": "Import applied",
+      "appliedWithErrors": "Import applied with refused rows",
       "forbidden": "You do not have permission to import items.",
       "parseFailed": "Could not parse the CSV. Check the header row and try again.",
       "supplierBlocker": "Some rows reference a supplier that requires a supplier_spec upload before the catalog row can reference it.",

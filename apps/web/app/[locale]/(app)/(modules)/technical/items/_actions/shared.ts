@@ -20,6 +20,7 @@
 
 import { z } from 'zod';
 import { hasPermission } from '../../../../../../../lib/auth/has-permission';
+import { toMicro } from '../../../../../../../lib/shared/decimal';
 import { normalizePieceUom } from '../../../../../../../lib/uom/piece';
 
 export { hasPermission };
@@ -96,10 +97,11 @@ export type ItemsActionError =
   | 'invalid_category'
   | 'item_type_immutable';
 
-const OptionalNumeric = z.preprocess(
-  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-  z.coerce.number().nonnegative().optional(),
-);
+/** An empty text input is "not filled in", never a deliberate 0. */
+const emptyToUndefined = (value: unknown) =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value;
+
+const OptionalNumeric = z.preprocess(emptyToUndefined, z.coerce.number().nonnegative().optional());
 // Positive NUMERIC string ('' / undefined ⇒ undefined). Used for net_qty_per_each —
 // bound ::numeric so JSON/float never truncates declared pack weights.
 // DB scale: numeric(18,6) — max 6 decimal places (migration 502).
@@ -128,6 +130,37 @@ const OptionalNetQtyPerEach = z.preprocess(
 function isPositiveDecimalString(value: string | undefined): boolean {
   return value !== undefined && /^\d+(\.\d+)?$/.test(value) && Number(value) > 0;
 }
+
+// ── Weight columns — EXACT decimal strings, capped at the column's scale ───────
+// nominal_weight / tare_weight / gross_weight_max are numeric(10,4) (migration
+// 153). Held as `number` + checked with `> 0`, the R03-02 gate defeated itself:
+// `0.00001` coerced to a positive JS float, passed `> 0`, and Postgres then
+// rounded it to `0.0000` — re-creating the unmeasurable zero reference the rule
+// exists to prevent (register-output.ts reads `item.nominal_weight ?? '0'`).
+//
+// Capping the decimal places AT the column scale makes "below scale"
+// unrepresentable: with ≤ 4 dp the smallest accepted positive value IS 0.0001.
+// Same shape as NetQtyPerEachInput above — one decimal-places pattern, not two.
+const MAX_WEIGHT_DP = 4;
+
+export const WeightInput = z
+  .union([z.string(), z.number()])
+  .transform((v) => (typeof v === 'number' ? String(v) : v.trim()))
+  .refine((v) => /^\d+(\.\d+)?$/.test(v), { message: 'weight must be a non-negative decimal' })
+  .refine((v) => hasAtMostDecimalPlaces(v, MAX_WEIGHT_DP), {
+    message: `weight supports at most ${MAX_WEIGHT_DP} decimal places (numeric(10,4)) — a smaller value persists as 0`,
+  });
+
+const OptionalWeight = z.preprocess(emptyToUndefined, WeightInput.optional());
+
+// numeric(5,2) in [0,100]. '' ⇒ undefined BEFORE the range check: z.coerce.number()
+// turns '' into 0, so an EMPTY tolerance field satisfied R03-02's presence check as
+// if the user had deliberately chosen a 0 % policy. An explicit 0 still passes.
+const OptionalTolerancePct = z.preprocess(emptyToUndefined, z.coerce.number().min(0).max(100).optional());
+
+// Same '' ⇒ 0 trap: an empty shelf-life field must not switch shelf life ON (and
+// then fail R03-03 for "0 days"). Explicit 0 still reaches R03-03 and is rejected.
+const OptionalShelfLifeDays = z.preprocess(emptyToUndefined, z.coerce.number().int().nonnegative().optional());
 // Positive integer for each_per_box / boxes_per_pallet ('' / undefined ⇒ undefined).
 const OptionalPositiveInt = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
@@ -178,6 +211,123 @@ export function refinePackHierarchy(
     }
   }
 }
+/**
+ * Cross-field invariants for the WHOLE item master — the single seam every
+ * writer passes through. Both CreateItemInput and UpdateItemInput apply it, and
+ * the CSV bulk import (items/import/_actions/commit-import.ts) re-parses through
+ * those same two schemas because it commits by calling createItem / updateItem.
+ * One rule here therefore covers wizard-create, wizard-edit AND import.
+ *
+ *   R03-01  uom_secondary must be empty or DIFFERENT from uom_base. Both were
+ *           validated against the same closed enum but never against each other,
+ *           so `g` + `g` persisted happily.
+ *   R03-02  weight_mode='catch' must carry the numbers the production variance
+ *           gate measures against. lib/production/output/register-output.ts takes
+ *           its reference as `item.nominal_weight ?? '0'` — a NULL nominal
+ *           silently degrades the reference to 0 and the tolerance gate stops
+ *           measuring anything at all. A catch SKU without an envelope is a
+ *           landmine, not a draft, so it is rejected at the write boundary.
+ *   R03-03  shelf life is opt-in, but opting in requires a POSITIVE day count
+ *           AND a mode. This aligns the item master with ShelfLifeOverrideInput
+ *           (technical/shelf-life/_actions/shared.ts), which has always been the
+ *           stricter of the two — the item master was the inconsistent one.
+ *
+ * Deliberately NOT tightened: weight_mode='fixed' (the overwhelming majority of
+ * items carry no weight fields at all) and tare_weight (optional in every mode).
+ * The DB CHECKs are left alone — historical rows may hold 0-day shelf lives, and
+ * this gate gets them cleaned up on next write instead of blocking the migration.
+ */
+export function refineItemInvariants(
+  value: {
+    outputUom?: OutputUom;
+    netQtyPerEach?: string;
+    eachPerBox?: number;
+    uomBase?: string;
+    uomSecondary?: string;
+    weightMode?: WeightMode;
+    // Exact decimal strings (OptionalWeight) — never JS floats. See MAX_WEIGHT_DP.
+    nominalWeight?: string;
+    grossWeightMax?: string;
+    varianceTolerancePct?: number;
+    shelfLifeDays?: number;
+    shelfLifeMode?: string;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  refinePackHierarchy(value, ctx);
+
+  // R03-01 — an item may not declare the same unit twice.
+  if (value.uomSecondary !== undefined && value.uomSecondary === value.uomBase) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['uomSecondary'],
+      message: 'uom_secondary must differ from uom_base (leave it empty when the item has no second unit)',
+    });
+  }
+
+  // R03-02 — catch weight without an envelope cannot be measured downstream.
+  if (value.weightMode === 'catch') {
+    if (!isPositiveDecimalString(value.nominalWeight)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['nominalWeight'],
+        message: 'nominal_weight is required (> 0) when weight_mode is "catch"',
+      });
+    }
+    if (!isPositiveDecimalString(value.grossWeightMax)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['grossWeightMax'],
+        message: 'gross_weight_max is required (> 0) when weight_mode is "catch"',
+      });
+    }
+    // Presence only: 0 % is a legitimate zero-tolerance policy, and demanding
+    // > 0 here would block it for no safety gain.
+    if (value.varianceTolerancePct === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['varianceTolerancePct'],
+        message: 'variance_tolerance_pct is required when weight_mode is "catch"',
+      });
+    }
+    // The upper bound must sit above the reference it bounds. Tare is NOT folded
+    // in (gross >= nominal + tare would be the physically exact rule) because
+    // tare stays optional — this is the weakest form that still catches a
+    // transposed pair without blocking items that omit tare.
+    // Compared as exact micro-units (lib/shared/decimal), never as JS floats.
+    if (
+      value.nominalWeight !== undefined &&
+      value.grossWeightMax !== undefined &&
+      toMicro(value.grossWeightMax) < toMicro(value.nominalWeight)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['grossWeightMax'],
+        message: 'gross_weight_max must be greater than or equal to nominal_weight',
+      });
+    }
+  }
+
+  // R03-03 — shelf life is opt-in; either field present means it is switched on.
+  if (value.shelfLifeDays !== undefined || value.shelfLifeMode !== undefined) {
+    if (value.shelfLifeDays === undefined || !(value.shelfLifeDays > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['shelfLifeDays'],
+        message:
+          'shelf_life_days must be a positive number of days when shelf life is set (clear both shelf-life fields to switch it off)',
+      });
+    }
+    if (value.shelfLifeMode === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['shelfLifeMode'],
+        message: 'shelf_life_mode is required when shelf_life_days is set',
+      });
+    }
+  }
+}
+
 const OptionalGs1Gtin = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
   z.string().trim().regex(GS1_GTIN_RE, 'gs1_gtin must be 8, 12, 13, or 14 digits').optional(),
@@ -247,19 +397,18 @@ export const CreateItemInput = z
     // '' (the empty option) ⇒ undefined; otherwise must be canonical.
     uomSecondary: OptionalCanonicalUomInput,
     gs1Gtin: OptionalGs1Gtin,
-    nominalWeight: OptionalNumeric,
-    tareWeight: OptionalNumeric,
-    grossWeightMax: OptionalNumeric,
+    nominalWeight: OptionalWeight,
+    tareWeight: OptionalWeight,
+    grossWeightMax: OptionalWeight,
     // Cost writes must go through item_cost_history; keep decimal strings exact.
     costPerKg: CostPerKgInput.optional(),
     listPriceGbp: OptionalNumeric,
-    // numeric(5,2) in [0,100]
-    varianceTolerancePct: z.coerce.number().min(0).max(100).optional(),
-    shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
+    varianceTolerancePct: OptionalTolerancePct,
+    shelfLifeDays: OptionalShelfLifeDays,
     shelfLifeMode: z.enum(SHELF_LIFE_MODES).optional(),
     ...PackHierarchyShape,
   })
-  .superRefine(refinePackHierarchy);
+  .superRefine(refineItemInvariants);
 export type CreateItemInputType = z.input<typeof CreateItemInput>;
 
 export type CreateItemWarning = {
@@ -289,18 +438,18 @@ export const UpdateItemInput = z
     ),
     uomSecondary: OptionalCanonicalUomInput,
     gs1Gtin: OptionalGs1Gtin,
-    nominalWeight: OptionalNumeric,
-    tareWeight: OptionalNumeric,
-    grossWeightMax: OptionalNumeric,
+    nominalWeight: OptionalWeight,
+    tareWeight: OptionalWeight,
+    grossWeightMax: OptionalWeight,
     // Accepted for legacy callers/import payloads, but updateItem never writes cost.
     costPerKg: CostPerKgInput.optional(),
     listPriceGbp: OptionalNumeric,
-    varianceTolerancePct: z.coerce.number().min(0).max(100).optional(),
-    shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
+    varianceTolerancePct: OptionalTolerancePct,
+    shelfLifeDays: OptionalShelfLifeDays,
     shelfLifeMode: z.enum(SHELF_LIFE_MODES).optional(),
     ...PackHierarchyShape,
   })
-  .superRefine(refinePackHierarchy);
+  .superRefine(refineItemInvariants);
 export type UpdateItemInputType = z.input<typeof UpdateItemInput>;
 
 export type UpdateItemResult =

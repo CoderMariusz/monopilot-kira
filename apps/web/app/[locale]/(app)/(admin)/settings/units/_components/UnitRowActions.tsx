@@ -9,8 +9,8 @@ import Input from '@monopilot/ui/Input';
 import {
   softDeleteUnit,
   updateUnit,
-  type UnitsActionError,
 } from '../_actions/manage-units';
+import type { UnitsActionError, UnitsActionSubcode } from '../_actions/units-validation';
 import type { UnitsManagerLabels } from './UnitsManager';
 
 export type UnitRowData = {
@@ -21,7 +21,51 @@ export type UnitRowData = {
   isBase: boolean;
 };
 
-function errorLabel(labels: UnitsManagerLabels, error: UnitsActionError): string {
+function interpolateLabel(template: string, context?: Record<string, string>): string {
+  if (!context) return template;
+  return Object.entries(context).reduce(
+    (text, [key, value]) => text.replace(new RegExp(`\\{${key}\\}`, 'g'), value),
+    template,
+  );
+}
+
+function subcodeLabel(
+  labels: UnitsManagerLabels,
+  subcode: UnitsActionSubcode,
+  context?: Record<string, string>,
+): string | null {
+  switch (subcode) {
+    case 'name_required':
+      return labels.errorNameRequired;
+    case 'audit_partition_missing':
+      return labels.errorAuditPartitionMissing;
+    case 'factor_positive':
+      return labels.errorFactorPositive;
+    case 'cannot_delete_base':
+      return labels.errorCannotDeleteBase;
+    case 'unit_in_use':
+      return interpolateLabel(labels.errorInUseWithCode, context);
+    case 'invalid_unit_id':
+      return labels.errorInvalidUnitId;
+    case 'conversion_label_required':
+      return labels.errorConversionLabelRequired;
+    case 'conversion_factor_positive':
+      return labels.errorConversionFactorPositive;
+    default:
+      return null;
+  }
+}
+
+function errorLabel(
+  labels: UnitsManagerLabels,
+  error: UnitsActionError,
+  subcode?: UnitsActionSubcode,
+  context?: Record<string, string>,
+): string {
+  if (subcode) {
+    const mapped = subcodeLabel(labels, subcode, context);
+    if (mapped) return mapped;
+  }
   switch (error) {
     case 'already_exists':
       return labels.errorAlreadyExists;
@@ -137,12 +181,18 @@ export function UnitRowActions({ unit, labels }: { unit: UnitRowData; labels: Un
     event.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await updateUnit({ id: unit.id, name: name.trim() });
-      if (result.ok) {
-        setEditOpen(false);
-        router.refresh();
-      } else {
-        setError(errorLabel(labels, result.error));
+      // Contain the failure in the dialog: an uncaught rejection inside a
+      // transition escapes to the route error boundary (audit 17.07).
+      try {
+        const result = await updateUnit({ id: unit.id, name: name.trim() });
+        if (result.ok) {
+          setEditOpen(false);
+          router.refresh();
+          return;
+        }
+        setError(errorLabel(labels, result.error, result.subcode, result.context));
+      } catch {
+        setError(labels.errorGeneric);
       }
     });
   }
@@ -150,12 +200,16 @@ export function UnitRowActions({ unit, labels }: { unit: UnitRowData; labels: Un
   function onDeleteConfirm() {
     setError(null);
     startTransition(async () => {
-      const result = await softDeleteUnit({ id: unit.id });
-      if (result.ok) {
-        setDeleteOpen(false);
-        router.refresh();
-      } else {
-        setError(errorLabel(labels, result.error));
+      try {
+        const result = await softDeleteUnit({ id: unit.id });
+        if (result.ok) {
+          setDeleteOpen(false);
+          router.refresh();
+          return;
+        }
+        setError(errorLabel(labels, result.error, result.subcode, result.context));
+      } catch {
+        setError(labels.errorGeneric);
       }
     });
   }

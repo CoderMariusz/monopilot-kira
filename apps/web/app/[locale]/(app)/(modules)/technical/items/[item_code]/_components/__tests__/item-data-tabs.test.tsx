@@ -210,6 +210,12 @@ describe('CostTab (NUMERIC-exact)', () => {
 });
 
 describe('RoutingTab', () => {
+  const routingCtaAction = (
+    <a href="/pl/technical/routings?item=NIGHT-R06-FG-1138" data-testid="item-routing-new-cta">
+      + New routing
+    </a>
+  );
+
   it('renders routing rows + EmptyState', () => {
     const { rerender } = render(
       <RoutingTab
@@ -221,6 +227,43 @@ describe('RoutingTab', () => {
     expect(screen.getByText('11')).toBeInTheDocument();
     rerender(<RoutingTab data={{ state: 'empty', routings: [] }} labels={routingLabels} />);
     expect(screen.getByText('No routing yet')).toBeInTheDocument();
+  });
+
+  it('shows a "+ New routing" CTA in the empty state when the page injects an action', () => {
+    render(
+      <RoutingTab
+        data={{ state: 'empty', routings: [] }}
+        labels={routingLabels}
+        action={routingCtaAction}
+      />,
+    );
+    const cta = screen.getByTestId('item-routing-new-cta');
+    expect(cta).toHaveTextContent('+ New routing');
+    expect(cta).toHaveAttribute('href', '/pl/technical/routings?item=NIGHT-R06-FG-1138');
+  });
+
+  it('hides the create CTA when the page omits the action (no permission)', () => {
+    render(<RoutingTab data={{ state: 'empty', routings: [] }} labels={routingLabels} />);
+    expect(screen.queryByTestId('item-routing-new-cta')).not.toBeInTheDocument();
+  });
+
+  // NOTE: "does the page inject an action for an unresolved item?" cannot be
+  // answered here — this component only renders whatever it is handed, so such a
+  // test was byte-identical to the no-permission case above and passed no matter
+  // what the page decided. That decision (permission gate, loader's itemResolved
+  // verdict, locale-prefixed href) is covered against the REAL page in
+  // ../../__tests__/routing-cta.page.test.tsx.
+
+  it('does not render the create CTA when routings exist (anti-regression)', () => {
+    render(
+      <RoutingTab
+        data={{ state: 'ready', routings: [{ id: '1', version: 1, status: 'draft', effectiveFrom: null, approvedAt: null, operationCount: 3, totalSetupMin: 12 }] }}
+        labels={routingLabels}
+        action={routingCtaAction}
+      />,
+    );
+    expect(screen.getByTestId('routing-tab')).toBeInTheDocument();
+    expect(screen.queryByTestId('item-routing-new-cta')).not.toBeInTheDocument();
   });
 });
 

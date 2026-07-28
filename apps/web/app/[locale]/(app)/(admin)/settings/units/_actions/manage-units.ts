@@ -24,10 +24,12 @@ import {
   type CreateUnitResult,
   type UnitCategory,
   type UnitsActionError,
+  type UnitsActionFailure,
+  type UnitsActionSubcode,
   type UpdateUnitInputType,
 } from './units-validation';
 
-export type { CreateUnitInputType, CreateUnitResult, UnitsActionError };
+export type { CreateUnitInputType, CreateUnitResult, UnitsActionError, UnitsActionSubcode };
 
 const MANAGE_PERMISSION = 'settings.units.manage';
 const APP_VERSION = 'settings-units-v1';
@@ -52,17 +54,17 @@ export type CreateConversionInputType = z.infer<typeof CreateConversionInput>;
 
 export type CreateConversionResult =
   | { ok: true; data: { id: string; label: string } }
-  | { ok: false; error: UnitsActionError; message?: string };
+  | UnitsActionFailure;
 
 const SoftDeleteUnitInput = z.object({ id: z.string().uuid() });
 
 export type SoftDeleteUnitResult =
   | { ok: true; data: { id: string } }
-  | { ok: false; error: UnitsActionError; message?: string };
+  | UnitsActionFailure;
 
 export type UpdateUnitResult =
   | { ok: true; data: { id: string; code: string; name: string; factorToBase: number } }
-  | { ok: false; error: UnitsActionError; message?: string };
+  | UnitsActionFailure;
 
 async function hasManagePermission(ctx: OrgActionContext): Promise<boolean> {
   // Canonical dual-store RBAC check (matches actions/infra/line.ts,
@@ -121,10 +123,6 @@ async function writeOutbox(
   );
 }
 
-function isPgError(err: unknown): err is { code: string } {
-  return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
-}
-
 function safeRevalidateUnitsRoute(): void {
   try {
     revalidateLocalized(UNITS_ROUTE);
@@ -133,8 +131,82 @@ function safeRevalidateUnitsRoute(): void {
   }
 }
 
-function invalidFactorMessage(): string {
-  return 'Conversion factor must be greater than zero.';
+function invalidInputFailure(subcode: UnitsActionSubcode, context?: Record<string, string>): UnitsActionFailure {
+  return { ok: false, error: 'invalid_input', subcode, context };
+}
+
+function validationSubcode(
+  error: z.ZodError,
+  form: 'create' | 'update' | 'delete' | 'conversion',
+): UnitsActionSubcode {
+  const path = error.issues[0]?.path[0];
+  if (form === 'update' && path === 'name') return 'name_required';
+  if (form === 'create' && path === 'factorToBase') return 'factor_positive';
+  if (form === 'create' && path === 'name') return 'name_required';
+  if (form === 'delete' && path === 'id') return 'invalid_unit_id';
+  if (form === 'conversion' && path === 'label') return 'conversion_label_required';
+  if (form === 'conversion' && path === 'factor') return 'conversion_factor_positive';
+  return 'name_required';
+}
+
+/**
+ * Map a write failure to a named, actionable result.
+ *
+ * ORDER MATTERS. Postgres raises SQLSTATE **23514** (check_violation) for
+ * `no partition of relation "audit_log" found for row` — the SAME code as a real
+ * CHECK failure (verified against the live DB). The message test therefore runs
+ * BEFORE the code switch, never after.
+ *
+ * SQLSTATE 23503 is mapped only when `constraint` is recognized. Soft-delete is
+ * an UPDATE (no inbound FK on unit_of_measure per migration 449), so a blanket
+ * op-based 23503 branch would mislabel audit_log FK failures as "unit in use".
+ */
+function mapWriteError(err: unknown): Pick<UnitsActionFailure, 'error' | 'subcode'> {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (raw.includes('no partition of relation') && raw.includes('audit_log')) {
+    return { error: 'persistence_failed', subcode: 'audit_partition_missing' };
+  }
+  const pgErr = err as { code?: string; constraint?: string };
+  switch (pgErr.code) {
+    case '23505':
+      return { error: 'already_exists' };
+    case '23503':
+      return { error: 'persistence_failed' };
+    case '23514':
+      if (
+        pgErr.constraint === 'unit_of_measure_factor_positive' ||
+        pgErr.constraint === 'uom_custom_conversions_factor_positive'
+      ) {
+        return { error: 'invalid_input', subcode: 'factor_positive' };
+      }
+      return { error: 'persistence_failed' };
+    case '42501':
+      return { error: 'forbidden' };
+    default:
+      return { error: 'persistence_failed' };
+  }
+}
+
+/**
+ * Log the pg diagnostics the 17.07 audit needed and could not get — the browser
+ * only ever saw an opaque digest, so the root cause could not be resolved from
+ * the outside — then return the mapped, user-safe result.
+ */
+function handleWriteError(
+  action: string,
+  err: unknown,
+): UnitsActionFailure {
+  const mapped = mapWriteError(err);
+  const pgErr = err as { code?: string; constraint?: string; detail?: string } | undefined;
+  console.error(`[settings/units] ${action} failed`, {
+    err: err instanceof Error ? err.message : String(err),
+    code: pgErr?.code,
+    constraint: pgErr?.constraint,
+    detail: pgErr?.detail,
+    mappedTo: mapped.error,
+    subcode: mapped.subcode,
+  });
+  return { ok: false, ...mapped };
 }
 
 async function loadUnitRow(
@@ -259,12 +331,7 @@ export async function createUnit(rawInput: unknown): Promise<CreateUnitResult> {
   try {
     const parsed = CreateUnitInput.safeParse(rawInput);
     if (!parsed.success) {
-      const factorIssue = parsed.error.issues.some((issue) => issue.path[0] === 'factorToBase');
-      return {
-        ok: false,
-        error: 'invalid_input',
-        message: factorIssue ? invalidFactorMessage() : parsed.error.issues[0]?.message ?? 'Invalid input.',
-      };
+      return invalidInputFailure(validationSubcode(parsed.error, 'create'));
     }
     const input = parsed.data;
 
@@ -305,27 +372,19 @@ export async function createUnit(rawInput: unknown): Promise<CreateUnitResult> {
     }
     return result;
   } catch (err) {
-    if (isPgError(err) && err.code === '23505') return { ok: false, error: 'already_exists' };
-    if (isPgError(err) && err.code === '23503') return { ok: false, error: 'invalid_reference' };
-    if (isPgError(err) && err.code === '23514') {
-      return { ok: false, error: 'invalid_input', message: invalidFactorMessage() };
-    }
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes('no partition of relation') && message.includes('audit_log')) {
-      return { ok: false, error: 'persistence_failed', message: 'Audit log partition unavailable.' };
-    }
-    console.error('[settings/units] createUnit persistence_failed', { err: message });
-    return { ok: false, error: 'persistence_failed' };
+    return handleWriteError('createUnit', err);
   }
 }
 
 export async function createCustomConversion(rawInput: unknown): Promise<CreateConversionResult> {
   const parsed = CreateConversionInput.safeParse(rawInput);
-  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  if (!parsed.success) {
+    return invalidInputFailure(validationSubcode(parsed.error, 'conversion'));
+  }
   const input = parsed.data;
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<CreateConversionResult> => {
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<CreateConversionResult> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       if (!(await hasManagePermission(ctx))) return { ok: false, error: 'forbidden' };
 
@@ -354,26 +413,27 @@ export async function createCustomConversion(rawInput: unknown): Promise<CreateC
         payload: { label: input.label, from: input.fromUnitCode, to: input.toUnitCode },
       });
 
-      safeRevalidateUnitsRoute();
       return { ok: true, data: { id: inserted.id, label: input.label } };
     });
+
+    // Revalidate AFTER the transaction commits (matches createUnit) — purging the
+    // cache from inside the txn advertises a write that may still roll back.
+    if (result.ok) safeRevalidateUnitsRoute();
+    return result;
   } catch (err) {
-    if (isPgError(err) && err.code === '23505') return { ok: false, error: 'already_exists' };
-    if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
-    console.error('[settings/units] createCustomConversion persistence_failed', {
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return { ok: false, error: 'persistence_failed' };
+    return handleWriteError('createCustomConversion', err);
   }
 }
 
 export async function updateUnit(rawInput: unknown): Promise<UpdateUnitResult> {
   const parsed = UpdateUnitInput.safeParse(rawInput);
-  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  if (!parsed.success) {
+    return invalidInputFailure(validationSubcode(parsed.error, 'update'));
+  }
   const input: UpdateUnitInputType = parsed.data;
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<UpdateUnitResult> => {
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<UpdateUnitResult> => {
       const queryClient = client as QueryClient;
       const ctx: OrgActionContext = { userId, orgId, client: queryClient };
       if (!(await hasManagePermission(ctx))) return { ok: false, error: 'forbidden' };
@@ -411,7 +471,6 @@ export async function updateUnit(rawInput: unknown): Promise<UpdateUnitResult> {
         },
       });
 
-      safeRevalidateUnitsRoute();
       return {
         ok: true,
         data: {
@@ -422,31 +481,32 @@ export async function updateUnit(rawInput: unknown): Promise<UpdateUnitResult> {
         },
       };
     });
+
+    if (result.ok) safeRevalidateUnitsRoute();
+    return result;
   } catch (err) {
-    if (isPgError(err) && err.code === '23514') return { ok: false, error: 'invalid_input' };
-    console.error('[settings/units] updateUnit persistence_failed', {
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return { ok: false, error: 'persistence_failed' };
+    return handleWriteError('updateUnit', err);
   }
 }
 
 export async function softDeleteUnit(rawInput: unknown): Promise<SoftDeleteUnitResult> {
   const parsed = SoftDeleteUnitInput.safeParse(rawInput);
-  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  if (!parsed.success) {
+    return invalidInputFailure(validationSubcode(parsed.error, 'delete'));
+  }
   const input = parsed.data;
 
   try {
-    return await withOrgContext(async ({ userId, orgId, client }): Promise<SoftDeleteUnitResult> => {
+    const result = await withOrgContext(async ({ userId, orgId, client }): Promise<SoftDeleteUnitResult> => {
       const queryClient = client as QueryClient;
       const ctx: OrgActionContext = { userId, orgId, client: queryClient };
       if (!(await hasManagePermission(ctx))) return { ok: false, error: 'forbidden' };
 
       const existing = await loadUnitRow(queryClient, input.id);
       if (!existing) return { ok: false, error: 'not_found' };
-      if (existing.is_base) return { ok: false, error: 'invalid_input', message: 'Cannot delete a base unit.' };
+      if (existing.is_base) return invalidInputFailure('cannot_delete_base');
       if (await isUnitCodeInUse(queryClient, existing.code)) {
-        return { ok: false, error: 'in_use', message: `Unit "${existing.code}" is referenced elsewhere and cannot be deleted.` };
+        return { ok: false, error: 'in_use', subcode: 'unit_in_use', context: { code: existing.code } };
       }
 
       const { rows, rowCount } = await queryClient.query<{ id: string }>(
@@ -475,13 +535,12 @@ export async function softDeleteUnit(rawInput: unknown): Promise<SoftDeleteUnitR
         payload: { id: input.id },
       });
 
-      safeRevalidateUnitsRoute();
       return { ok: true, data: { id: input.id } };
     });
+
+    if (result.ok) safeRevalidateUnitsRoute();
+    return result;
   } catch (err) {
-    console.error('[settings/units] softDeleteUnit persistence_failed', {
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return { ok: false, error: 'persistence_failed' };
+    return handleWriteError('softDeleteUnit', err);
   }
 }

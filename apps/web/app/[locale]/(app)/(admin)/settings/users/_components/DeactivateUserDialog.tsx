@@ -20,6 +20,7 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
 
@@ -63,6 +64,7 @@ export function DeactivateUserDialog({
 }) {
   const titleId = React.useId();
   const contentRef = React.useRef<HTMLDivElement | null>(null);
+  const router = useRouter();
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
@@ -96,6 +98,7 @@ export function DeactivateUserDialog({
         // full label set and the users state).
         onDeactivated?.(targetUser.id);
         onClose();
+        router.refresh();
         return;
       }
       const message =

@@ -846,6 +846,7 @@ export function RoutingsManager({
   canWrite,
   canApprove,
   labels = ROUTINGS_DEFAULT_LABELS,
+  initialItemId,
 }: {
   items: RoutingItemOption[];
   lines: ResourceOption[];
@@ -853,9 +854,21 @@ export function RoutingsManager({
   canWrite: boolean;
   canApprove: boolean;
   labels?: RoutingsLabels;
+  /**
+   * Which item to open on, when the caller deep-linked one (`?item=<item_code>`).
+   *
+   * PRESENCE is the signal, not truthiness: `''` means "the caller named an item
+   * we could not resolve", and must leave the picker EMPTY so the operator picks
+   * deliberately. Defaulting to `items[0]` there is how a deep link for
+   * NIGHT-R06-FG-1138 ended up authoring a routing against whatever sorts first
+   * alphabetically. `undefined` (no deep link) keeps the first-item default.
+   */
+  initialItemId?: string;
 }) {
   const router = useRouter();
-  const [selectedId, setSelectedId] = React.useState<string>(items[0]?.id ?? '');
+  const [selectedId, setSelectedId] = React.useState<string>(
+    initialItemId !== undefined ? initialItemId : (items[0]?.id ?? ''),
+  );
   const [routings, setRoutings] = React.useState<RoutingSummary[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [loadError, setLoadError] = React.useState(false);

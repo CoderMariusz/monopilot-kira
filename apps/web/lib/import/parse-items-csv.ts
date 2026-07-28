@@ -30,12 +30,28 @@ export const REQUIRED_HEADERS = ['item_code', 'name', 'item_type', 'uom_base'] a
 export const OPTIONAL_HEADERS = [
   'status',
   'weight_mode',
+  // The catch-weight envelope R03-02 makes mandatory for weight_mode='catch'.
+  // Without these columns a `catch` row could not be imported at all — it was
+  // refused at COMMIT time as a bare counter increment, never as a row error.
+  'nominal_weight',
+  'gross_weight_max',
+  'variance_tolerance_pct',
   'description',
   'product_group',
   'uom_secondary',
   'cost_per_kg',
   'supplier',
 ] as const;
+
+const WEIGHT_MODES = ['fixed', 'catch'] as const;
+
+// Mirror of OptionalWeight in technical/items/_actions/shared.ts (the authority):
+// nominal_weight / gross_weight_max are numeric(10,4), so a cell with more than 4
+// decimal places is not "precise", it persists as a DIFFERENT number — 0.00001
+// becomes 0.0000, the unmeasurable zero reference R03-02 exists to prevent.
+const WEIGHT_CELL_RE = /^\d+(\.\d{1,4})?$/;
+// variance_tolerance_pct is numeric(5,2) in [0,100].
+const TOLERANCE_CELL_RE = /^\d+(\.\d{1,2})?$/;
 
 export type ParsedItemRow = {
   itemCode: string;
@@ -44,11 +60,30 @@ export type ParsedItemRow = {
   uomBase: string;
   status?: string;
   weightMode?: string;
+  /** Exact decimal text, never parsed through a JS float. */
+  nominalWeight?: string;
+  grossWeightMax?: string;
+  varianceTolerancePct?: string;
   description?: string;
   productGroup?: string;
   uomSecondary?: string;
   costPerKg?: string;
   supplier?: string;
+};
+
+/**
+ * What the org already holds for an item_code. The import is a PATCH: a CSV that
+ * omits `weight_mode` keeps the stored one, so the catch-weight envelope must be
+ * validated against the MERGED row, not against the CSV cells alone (otherwise a
+ * name-only update of a catch item reads as "catch with no envelope").
+ */
+export type ExistingItemSnapshot = {
+  itemType: string;
+  name: string;
+  weightMode?: string | null;
+  nominalWeight?: string | null;
+  grossWeightMax?: string | null;
+  varianceTolerancePct?: string | null;
 };
 
 export type RowIssue = { kind: 'error' | 'warning' | 'info'; column: string; message: string };
@@ -138,6 +173,9 @@ export function parseItemsCsv(scope: ImportScope, csvText: string): ParseResult 
       uomBase: normalizePieceUom(get('uom_base')) ?? get('uom_base'),
       status: get('status') || undefined,
       weightMode: get('weight_mode') || undefined,
+      nominalWeight: get('nominal_weight') || undefined,
+      grossWeightMax: get('gross_weight_max') || undefined,
+      varianceTolerancePct: get('variance_tolerance_pct') || undefined,
       description: get('description') || undefined,
       productGroup: get('product_group') || undefined,
       uomSecondary: secondaryRaw
@@ -151,7 +189,94 @@ export function parseItemsCsv(scope: ImportScope, csvText: string): ParseResult 
   return { ok: true, rows, headers };
 }
 
-function validateRow(scope: ImportScope, row: ParsedItemRow): RowIssue[] {
+/**
+ * R03-02 in the PREVIEW, where the user can still fix it. Previously the item
+ * schema refused an incomplete catch row only at commit time, where the failure
+ * was folded into an `errors` counter and the wizard still painted a green
+ * "Applied" — a silent refusal. Every rule below names its column so the
+ * validation table can point at the offending cell.
+ */
+function validateCatchEnvelope(row: ParsedItemRow, prior: ExistingItemSnapshot | undefined): RowIssue[] {
+  const issues: RowIssue[] = [];
+
+  if (row.weightMode !== undefined && !WEIGHT_MODES.includes(row.weightMode.toLowerCase() as 'fixed' | 'catch')) {
+    issues.push({
+      kind: 'error',
+      column: 'weight_mode',
+      message: `unknown weight_mode '${row.weightMode}'; valid: ${WEIGHT_MODES.join(', ')}`,
+    });
+    return issues;
+  }
+
+  // Cell-level shape first — a malformed cell is reported against ITS column.
+  for (const [column, cell] of [
+    ['nominal_weight', row.nominalWeight],
+    ['gross_weight_max', row.grossWeightMax],
+  ] as const) {
+    if (cell !== undefined && !WEIGHT_CELL_RE.test(cell)) {
+      issues.push({
+        kind: 'error',
+        column,
+        message: `${column} must be a non-negative decimal with at most 4 decimal places (numeric(10,4)) — a smaller value stores as 0`,
+      });
+    }
+  }
+  const tolerance = row.varianceTolerancePct;
+  if (tolerance !== undefined && (!TOLERANCE_CELL_RE.test(tolerance) || Number(tolerance) > 100)) {
+    issues.push({
+      kind: 'error',
+      column: 'variance_tolerance_pct',
+      message: 'variance_tolerance_pct must be a number between 0 and 100',
+    });
+  }
+  if (issues.length) return issues;
+
+  // Merged view: omitted cells keep whatever the item already carries.
+  const mode = (row.weightMode ?? prior?.weightMode ?? 'fixed').toLowerCase();
+  if (mode !== 'catch') return issues;
+
+  const nominal = row.nominalWeight ?? prior?.nominalWeight ?? undefined;
+  const gross = row.grossWeightMax ?? prior?.grossWeightMax ?? undefined;
+  const pct = row.varianceTolerancePct ?? prior?.varianceTolerancePct ?? undefined;
+
+  const positive = (v: string | undefined) => v !== undefined && WEIGHT_CELL_RE.test(v) && Number(v) > 0;
+  if (!positive(nominal)) {
+    issues.push({
+      kind: 'error',
+      column: 'nominal_weight',
+      message: 'nominal_weight is required (> 0) when weight_mode is "catch"',
+    });
+  }
+  if (!positive(gross)) {
+    issues.push({
+      kind: 'error',
+      column: 'gross_weight_max',
+      message: 'gross_weight_max is required (> 0) when weight_mode is "catch"',
+    });
+  }
+  if (pct === undefined) {
+    issues.push({
+      kind: 'error',
+      column: 'variance_tolerance_pct',
+      message: 'variance_tolerance_pct is required when weight_mode is "catch"',
+    });
+  }
+  // Fixed 4-dp integers — an exact compare, never a float one.
+  const toScaled = (v: string) => {
+    const [int, frac = ''] = v.split('.');
+    return BigInt(int || '0') * 10000n + BigInt((frac + '0000').slice(0, 4));
+  };
+  if (positive(nominal) && positive(gross) && toScaled(gross!) < toScaled(nominal!)) {
+    issues.push({
+      kind: 'error',
+      column: 'gross_weight_max',
+      message: 'gross_weight_max must be greater than or equal to nominal_weight',
+    });
+  }
+  return issues;
+}
+
+function validateRow(scope: ImportScope, row: ParsedItemRow, prior?: ExistingItemSnapshot): RowIssue[] {
   const issues: RowIssue[] = [];
 
   if (!row.itemCode) issues.push({ kind: 'error', column: 'item_code', message: 'item_code is required' });
@@ -182,6 +307,8 @@ function validateRow(scope: ImportScope, row: ParsedItemRow): RowIssue[] {
     issues.push({ kind: 'error', column: 'cost_per_kg', message: 'cost_per_kg must be a non-negative number' });
   }
 
+  issues.push(...validateCatchEnvelope(row, prior));
+
   // supplier_specs blocker (warning): a supplier referenced under the supplier
   // scopes needs a supplier_spec uploaded before the row can be committed.
   if ((scope === 'rm_supplier_specs' || scope === 'rm') && row.supplier) {
@@ -198,17 +325,17 @@ function validateRow(scope: ImportScope, row: ParsedItemRow): RowIssue[] {
 export function diffItemsAgainstExisting(
   scope: ImportScope,
   rows: ParsedItemRow[],
-  existing: Map<string, { itemType: string; name: string }>,
+  existing: Map<string, ExistingItemSnapshot>,
 ): ItemImportPreview {
   const diffRows: ImportDiffRow[] = rows.map((row, i) => {
     const rowNumber = i + 2; // +1 for 0-based, +1 for the header line
-    const issues = validateRow(scope, row);
+    const prior = existing.get(row.itemCode);
+    const issues = validateRow(scope, row, prior);
     const errored = issues.some((x) => x.kind === 'error');
     if (errored) {
       return { rowNumber, itemCode: row.itemCode, op: 'error', field: '—', before: '—', after: '—', parsed: row, issues };
     }
 
-    const prior = existing.get(row.itemCode);
     if (!prior) {
       return {
         rowNumber,

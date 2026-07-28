@@ -1,7 +1,8 @@
 'use server';
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
-import { createServerSupabaseClient } from '../../lib/auth/supabase-server';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
+import { createSupabaseAuthAdmin } from './supabase-admin';
 
 const INVITE_TTL_SECONDS = 604800;
 const INVITE_PERMISSION = 'settings.users.invite';
@@ -60,8 +61,34 @@ export type InvitationLifecycleInput = {
   inviteToken: string;
 };
 
+/**
+ * `delivery` is what the caller is allowed to CLAIM happened.
+ *
+ * `'none'` — the invite token was rotated and the audit/outbox rows were written,
+ * but NO email left the system. This repo has no outbound email transport: the
+ * only `resend.emails.send()` call (actions/email/test-provider.ts) is dead code
+ * behind a query against `integration_settings` columns that no migration
+ * creates, and the outbox consumers only log. Supabase's own mailer cannot help
+ * either — acceptance runs through THIS app's `/api/auth/invite/accept?token=`,
+ * matched against `public.users.invite_token`, not through a GoTrue magic link.
+ * So the operator must be told to pass the link on out of band.
+ *
+ * ponytail: a literal `'none'` rather than a delivery abstraction. When a real
+ * transport lands, widen this to `'email'` and send before returning ok.
+ */
+export type InvitationDelivery = 'none';
+
 export type ResendInvitationResult =
-  | { ok: true; data: { invitationId: string; email: string; expiresAt: string; resendKind: 'pending' | 'expired' } }
+  | {
+      ok: true;
+      data: {
+        invitationId: string;
+        email: string;
+        expiresAt: string;
+        resendKind: 'pending' | 'expired';
+        delivery: InvitationDelivery;
+      };
+    }
   | {
       ok: false;
       error:
@@ -288,20 +315,39 @@ export async function resendInvitation(input: InvitationLifecycleInput): Promise
       }
 
       const expiresAt = new Date(Date.now() + INVITE_TTL_SECONDS * 1000);
-      const supabase = await createServerSupabaseClient();
-      const linkResponse = await supabase.auth.admin.generateLink({
-        type: 'invite',
-        email: invitation.email,
-        options: {
-          data: {
-            org_id: context.orgId,
-            role_id: invitation.role_id,
-            invited_by: context.userId,
-            invitation_id: invitation.id,
-            expires_in: INVITE_TTL_SECONDS,
+      // `auth.admin.*` is a service-role endpoint. Minting this through the
+      // request-scoped ANON client (createServerSupabaseClient) makes Supabase
+      // answer `not_admin` on every production call, so the UPDATE + audit +
+      // outbox + revalidate below were unreachable and the action always ended
+      // `invite_failed`. Same service-role factory the initial invite uses
+      // (invite.ts → mintInviteLink).
+      let linkResponse: Awaited<
+        ReturnType<Awaited<ReturnType<typeof createSupabaseAuthAdmin>>['auth']['admin']['generateLink']>
+      >;
+      try {
+        const supabase = await createSupabaseAuthAdmin();
+        linkResponse = await supabase.auth.admin.generateLink({
+          type: 'invite',
+          email: invitation.email,
+          options: {
+            data: {
+              org_id: context.orgId,
+              role_id: invitation.role_id,
+              invited_by: context.userId,
+              invitation_id: invitation.id,
+              expires_in: INVITE_TTL_SECONDS,
+            },
           },
-        },
-      });
+        });
+      } catch (error) {
+        // createSupabaseAuthAdmin throws when the service-role env is absent.
+        // Fail closed BEFORE the UPDATE so a missing key can never half-apply.
+        console.error('[resendInvitation] service-role invite link mint failed', {
+          invitationId: invitation.id,
+          err: error instanceof Error ? error.message : String(error),
+        });
+        return { ok: false, error: 'invite_failed' };
+      }
       if (linkResponse.error) return { ok: false, error: 'invite_failed' };
       const newInviteToken =
         linkResponse.data?.properties?.hashed_token ??
@@ -338,6 +384,13 @@ export async function resendInvitation(input: InvitationLifecycleInput): Promise
       await writeAuditLog(context, 'settings.user.invitation_resent', beforeState, afterState);
       await writeOutbox(context, 'settings.user.invitation_resent', afterState);
 
+      try {
+        revalidateLocalized('/settings/users');
+        revalidateLocalized('/settings/invitations');
+      } catch {
+        // Unit tests and non-Next callers do not provide a static-generation store.
+      }
+
       return {
         ok: true,
         data: {
@@ -345,6 +398,8 @@ export async function resendInvitation(input: InvitationLifecycleInput): Promise
           email: invitation.email,
           expiresAt: expiresAt.toISOString(),
           resendKind: status,
+          // Token rotated + audited, but nothing was emailed — see InvitationDelivery.
+          delivery: 'none',
         },
       };
     });
@@ -400,6 +455,13 @@ export async function revokeInvitation(input: InvitationLifecycleInput): Promise
       };
       await writeAuditLog(context, 'settings.user.invitation_revoked', beforeState, afterState);
       await writeOutbox(context, 'settings.user.invitation_revoked', afterState);
+
+      try {
+        revalidateLocalized('/settings/users');
+        revalidateLocalized('/settings/invitations');
+      } catch {
+        // Unit tests and non-Next callers do not provide a static-generation store.
+      }
 
       return { ok: true, data: { invitationId: invitation.id, status: 'revoked' } };
     });

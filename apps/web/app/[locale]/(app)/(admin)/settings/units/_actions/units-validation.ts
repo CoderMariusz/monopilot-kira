@@ -36,9 +36,28 @@ export type UnitsActionError =
   | 'in_use'
   | 'persistence_failed';
 
+/** Stable, locale-mapped reason codes — never show raw Zod or server English text in the UI. */
+export type UnitsActionSubcode =
+  | 'name_required'
+  | 'audit_partition_missing'
+  | 'factor_positive'
+  | 'cannot_delete_base'
+  | 'unit_in_use'
+  | 'invalid_unit_id'
+  | 'conversion_label_required'
+  | 'conversion_factor_positive';
+
+export type UnitsActionFailure = {
+  ok: false;
+  error: UnitsActionError;
+  subcode?: UnitsActionSubcode;
+  /** Interpolation values for translated subcode labels (e.g. `{ code }`). */
+  context?: Record<string, string>;
+};
+
 export type CreateUnitResult =
   | { ok: true; data: { id: string; code: string; category: UnitCategory } }
-  | { ok: false; error: UnitsActionError; message?: string };
+  | UnitsActionFailure;
 
 export const UpdateUnitInput = z.object({
   id: z.string().uuid(),

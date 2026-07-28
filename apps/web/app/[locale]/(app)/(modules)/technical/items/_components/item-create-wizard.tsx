@@ -55,7 +55,7 @@ import {
 } from '../_actions/shared';
 import { createItemSupplierSpec } from '../_actions/supplier-spec-actions';
 import { updateItem } from '../_actions/update-item';
-import { formatDecimalString, mulDecimalStrings } from '../../../../../../../lib/shared/decimal';
+import { formatDecimalString, mulDecimalStrings, toMicro } from '../../../../../../../lib/shared/decimal';
 import { DEFAULT_WIZARD_LABELS, formatItemActionError, type ItemWizardLabels } from './item-wizard-labels';
 export { DEFAULT_WIZARD_LABELS, type ItemWizardLabels } from './item-wizard-labels';
 
@@ -110,6 +110,11 @@ export type WizardFormState = {
   uomSecondary: string;
   weightMode: (typeof WEIGHT_MODES)[number];
   nominalWeight: string;
+  // R03-02 — the catch-weight envelope. These columns always existed on
+  // public.items but had NO wizard field, so every wizard save wrote them NULL
+  // (updateItem overwrites all weight columns unconditionally).
+  tareWeight: string;
+  grossWeightMax: string;
   gs1Gtin: string;
   varianceTolerancePct: string;
   shelfLifeDays: string;
@@ -137,6 +142,8 @@ export function emptyWizardForm(): WizardFormState {
     uomSecondary: '',
     weightMode: 'fixed',
     nominalWeight: '',
+    tareWeight: '',
+    grossWeightMax: '',
     gs1Gtin: '',
     varianceTolerancePct: '',
     shelfLifeDays: '',
@@ -470,6 +477,52 @@ export function ItemWizard({
     return !trimmed || (Number.isFinite(Number(trimmed)) && Number(trimmed) >= 0);
   });
 
+  // ── Client mirrors of refineItemInvariants (items/_actions/shared.ts) ────────
+  // Same rules, one step earlier: the user gets them at the field instead of as
+  // a server round-trip. The schema stays the authority — this only saves a trip.
+  const isPositive = (value: string) => {
+    const trimmed = value.trim();
+    return trimmed.length > 0 && Number.isFinite(Number(trimmed)) && Number(trimmed) > 0;
+  };
+  // Mirrors OptionalWeight (_actions/shared.ts): nominal/tare/gross are
+  // numeric(10,4). `0.00001` is not a small weight — Postgres stores it as
+  // 0.0000, so the client must refuse it here instead of letting Review show
+  // "Ready" and the save come back as a generic invalid_input.
+  const isWeight = (value: string) => {
+    const trimmed = value.trim();
+    return /^\d+(\.\d{1,4})?$/.test(trimmed) && Number(trimmed) > 0;
+  };
+  // A tolerance outside the server's [0,100] used to reach Review as "Ready":
+  // `min`/`max` on the input do nothing without native form validation, and the
+  // guard only checked for non-empty text. 0 % stays a legal policy.
+  const tolerancePctValid = (() => {
+    const trimmed = form.varianceTolerancePct.trim();
+    const n = Number(trimmed);
+    return trimmed.length > 0 && Number.isFinite(n) && n >= 0 && n <= 100;
+  })();
+  // R03-01 — base + secondary UoM live on the classification step.
+  const uomSecondaryValid = form.uomSecondary === '' || form.uomSecondary !== form.uomBase;
+  // R03-02 — catch weight needs a measurable envelope before Review sees it.
+  const catchComplete =
+    form.weightMode !== 'catch' ||
+    (isWeight(form.nominalWeight) && isWeight(form.grossWeightMax) && tolerancePctValid);
+  const catchOrdered =
+    form.weightMode !== 'catch' ||
+    !isWeight(form.nominalWeight) ||
+    !isWeight(form.grossWeightMax) ||
+    // Exact micro-unit compare — the same one refineItemInvariants uses.
+    toMicro(form.grossWeightMax) >= toMicro(form.nominalWeight);
+  // A filled-in but out-of-range tolerance gets its OWN message (and renders at
+  // the field); a blank one keeps the generic "catch needs an envelope" hint.
+  const catchError = catchComplete
+    ? null
+    : form.weightMode === 'catch' && form.varianceTolerancePct.trim().length > 0 && !tolerancePctValid
+      ? labels.errors.tolerancePctRange
+      : labels.catchHint;
+  // R03-03 — switched on ⇒ positive days AND a mode (matches the stricter rule
+  // the shelf-life override screen has always enforced).
+  const shelfLifeValid = !hasShelfLife || (isPositive(form.shelfLifeDays) && form.shelfLifeMode !== '');
+
   // Live conversion helper, e.g. "1 box = 10 × 0.333333 kg = 3.33333 kg".
   const conversionHint = (() => {
     if (form.outputUom === 'base' || !netValid) return null;
@@ -507,9 +560,27 @@ export function ItemWizard({
       else setError(labels.errors.uomRequired);
       return;
     }
+    if (step === 'classification' && !uomSecondaryValid) {
+      setError(labels.errors.uomSecondaryDistinct);
+      return;
+    }
     if (step === 'weight' && !packagingValid) {
       if (!netValid) setError(labels.errors.netRequired);
       else setError(labels.errors.eachPerBoxRequired);
+      return;
+    }
+    // An incomplete catch-weight item must never reach Review — Review is the
+    // last place a user can still see what is about to be written.
+    if (step === 'weight' && !catchComplete) {
+      setError(catchError ?? labels.catchHint);
+      return;
+    }
+    if (step === 'weight' && !catchOrdered) {
+      setError(labels.errors.grossBelowNominal);
+      return;
+    }
+    if (step === 'weight' && !shelfLifeValid) {
+      setError(labels.errors.shelfLifeIncomplete);
       return;
     }
     if (step === 'weight' && !priceValid) {
@@ -539,6 +610,28 @@ export function ItemWizard({
       setError(!netValid ? labels.errors.netRequired : labels.errors.eachPerBoxRequired);
       return;
     }
+    // Same three invariants the server enforces — jump to the owning step so the
+    // offending field is on screen, not just named in the alert.
+    if (!uomSecondaryValid) {
+      setStepIndex(STEP_KEYS.indexOf('classification'));
+      setError(labels.errors.uomSecondaryDistinct);
+      return;
+    }
+    if (!catchComplete) {
+      setStepIndex(STEP_KEYS.indexOf('weight'));
+      setError(catchError ?? labels.catchHint);
+      return;
+    }
+    if (!catchOrdered) {
+      setStepIndex(STEP_KEYS.indexOf('weight'));
+      setError(labels.errors.grossBelowNominal);
+      return;
+    }
+    if (!shelfLifeValid) {
+      setStepIndex(STEP_KEYS.indexOf('weight'));
+      setError(labels.errors.shelfLifeIncomplete);
+      return;
+    }
     if (!priceValid) {
       setStepIndex(STEP_KEYS.indexOf('weight'));
       setError(labels.errors.priceNonNegative);
@@ -555,7 +648,12 @@ export function ItemWizard({
       categoryCode: trimOrUndefined(form.categoryCode),
       uomSecondary: trimOrUndefined(form.uomSecondary),
       gs1Gtin: trimOrUndefined(form.gs1Gtin),
-      nominalWeight: numOrUndefined(form.nominalWeight),
+      // numeric(10,4) — send the EXACT text the user typed, never a JS float
+      // (0.00001 must reach the server as "0.00001" so it can be refused, not
+      // silently rounded to 0 by Postgres).
+      nominalWeight: decimalStringOrUndefined(form.nominalWeight),
+      tareWeight: decimalStringOrUndefined(form.tareWeight),
+      grossWeightMax: decimalStringOrUndefined(form.grossWeightMax),
       varianceTolerancePct: numOrUndefined(form.varianceTolerancePct),
       shelfLifeDays: numOrUndefined(form.shelfLifeDays),
       shelfLifeMode: form.shelfLifeMode === '' ? undefined : form.shelfLifeMode,
@@ -832,7 +930,14 @@ export function ItemWizard({
                 ariaLabel={labels.fields.uomBase}
               />
             </Field>
-            <Field label={labels.fields.uomSecondary}>
+            <Field
+              label={labels.fields.uomSecondary}
+              help={
+                !uomSecondaryValid ? (
+                  <span style={{ color: 'var(--red-700)' }}>{labels.errors.uomSecondaryDistinct}</span>
+                ) : undefined
+              }
+            >
               <LabeledSelect
                 value={form.uomSecondary}
                 onValueChange={(v) => update('uomSecondary', v)}
@@ -913,7 +1018,18 @@ export function ItemWizard({
                     onChange={(e) => update('nominalWeight', e.currentTarget.value)}
                   />
                 </Field>
-                <Field label={labels.fields.varianceTolerance} htmlFor="wiz-variance">
+                <Field
+                  label={labels.fields.varianceTolerance}
+                  required
+                  htmlFor="wiz-variance"
+                  help={
+                    form.varianceTolerancePct.trim().length > 0 && !tolerancePctValid ? (
+                      <span style={{ color: 'var(--red-700)' }} data-testid="wiz-variance-error">
+                        {labels.errors.tolerancePctRange}
+                      </span>
+                    ) : undefined
+                  }
+                >
                   <Input
                     id="wiz-variance"
                     name="varianceTolerancePct"
@@ -925,6 +1041,46 @@ export function ItemWizard({
                     className="form-input"
                     value={form.varianceTolerancePct}
                     onChange={(e) => update('varianceTolerancePct', e.currentTarget.value)}
+                  />
+                </Field>
+              </div>
+              {/* R03-02 — gross weight max is REQUIRED for catch weight (it is the
+                  upper bound the production variance gate measures against); tare
+                  stays optional. Both columns already exist on public.items. */}
+              <div className="ff-inline" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                <Field
+                  label={labels.fields.grossWeightMax}
+                  required
+                  htmlFor="wiz-gross-weight-max"
+                  help={
+                    !catchOrdered ? (
+                      <span style={{ color: 'var(--red-700)' }}>{labels.errors.grossBelowNominal}</span>
+                    ) : undefined
+                  }
+                >
+                  <Input
+                    id="wiz-gross-weight-max"
+                    name="grossWeightMax"
+                    type="number"
+                    min={0}
+                    step="0.0001"
+                    aria-label={labels.fields.grossWeightMax}
+                    className="form-input"
+                    value={form.grossWeightMax}
+                    onChange={(e) => update('grossWeightMax', e.currentTarget.value)}
+                  />
+                </Field>
+                <Field label={labels.fields.tareWeight} htmlFor="wiz-tare-weight">
+                  <Input
+                    id="wiz-tare-weight"
+                    name="tareWeight"
+                    type="number"
+                    min={0}
+                    step="0.0001"
+                    aria-label={labels.fields.tareWeight}
+                    className="form-input"
+                    value={form.tareWeight}
+                    onChange={(e) => update('tareWeight', e.currentTarget.value)}
                   />
                 </Field>
               </div>
@@ -942,12 +1098,14 @@ export function ItemWizard({
             <span>{labels.fields.hasShelfLife}</span>
           </label>
           <div className="ff-inline">
+            {/* R03-03 — min is 1, not 0: zero days is not "no shelf life", it is
+                a broken row. "No shelf life" is the tickbox above, switched off. */}
             <Field label={labels.fields.shelfLifeDays} htmlFor="wiz-shelf-days">
               <Input
                 id="wiz-shelf-days"
                 name="shelfLifeDays"
                 type="number"
-                min={0}
+                min={1}
                 disabled={!hasShelfLife}
                 aria-label={labels.fields.shelfLifeDays}
                 className="form-input"
@@ -1094,10 +1252,27 @@ export function ItemWizard({
                 [labels.fields.itemType, labels.typeLabels[form.itemType] ?? ITEM_TYPE_LABELS[form.itemType], false],
                 [labels.fields.status, labels.statusLabels[form.status] ?? STATUS_LABELS[form.status], false],
                 [labels.fields.uomBase, labels.uomLabels[form.uomBase as keyof typeof labels.uomLabels] ?? form.uomBase, true],
+                // R03-01 — Review never showed the secondary unit, so a base ==
+                // secondary contradiction was invisible right up to the write.
+                [
+                  labels.fields.uomSecondary,
+                  form.uomSecondary
+                    ? (labels.uomLabels[form.uomSecondary as keyof typeof labels.uomLabels] ?? form.uomSecondary)
+                    : '',
+                  true,
+                ],
                 [labels.review.packaging, packagingReview, false],
                 [labels.fields.weightMode, WEIGHT_MODE_LABELS[form.weightMode], false],
                 [labels.fields.gs1Gtin, form.gs1Gtin, true],
                 [labels.fields.nominalWeight, form.nominalWeight, true],
+                // R03-02 — show the rest of the envelope that is now enforced.
+                ...(form.weightMode === 'catch'
+                  ? ([
+                      [labels.fields.grossWeightMax, form.grossWeightMax, true],
+                      [labels.fields.tareWeight, form.tareWeight, true],
+                      [labels.fields.varianceTolerance, form.varianceTolerancePct, true],
+                    ] as Array<[string, string, boolean]>)
+                  : []),
                 ...(form.supplierCode
                   ? ([[labels.fields.supplierUnitPrice, form.supplierUnitPrice, true]] as Array<
                       [string, string, boolean]

@@ -14,15 +14,21 @@ const AUTH_USER_ID = '22222222-2222-4222-8222-222222222222';
 const {
   _withOrgContextRunner,
   _mockGenerateLink,
+  _revalidateLocalized,
 } = vi.hoisted(() => ({
   _withOrgContextRunner: vi.fn(),
   _mockGenerateLink: vi.fn(),
+  _revalidateLocalized: vi.fn(),
 }));
 
 vi.mock('../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: unknown) => Promise<unknown>) =>
     _withOrgContextRunner(action),
   ),
+}));
+
+vi.mock('../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: _revalidateLocalized,
 }));
 
 vi.mock('../../lib/auth/supabase-server', () => ({
@@ -639,5 +645,27 @@ describe('inviteUser roleId handling', () => {
       expect(result.error).toBe('invalid_input');
     }
     expect(currentClient.upsertedUser?.role_id).not.toBe(OWNER_ROLE_ID);
+  });
+
+  it('revalidates users and invitations routes after a successful invite', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: null,
+      activeUsers: 0,
+      rolesById: {
+        [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', slug: 'viewer', is_system: false, display_order: 1 },
+      },
+      siteByName: { 'Warsaw Plant': WARSAW_SITE_ID },
+    });
+    const { inviteUser } = await loadInvite();
+    const result = await inviteUser({
+      email: 'new@example.com',
+      roleId: VIEWER_ROLE_ID,
+      site: 'Warsaw Plant',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(_revalidateLocalized).toHaveBeenCalledWith('/settings/users');
+    expect(_revalidateLocalized).toHaveBeenCalledWith('/settings/invitations');
   });
 });

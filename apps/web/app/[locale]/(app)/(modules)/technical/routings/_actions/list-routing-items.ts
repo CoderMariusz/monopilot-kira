@@ -65,17 +65,32 @@ type OpNameRow = { operation_name: string };
 const ITEM_LOOKUP_LIMIT = 500;
 const OPERATION_NAME_LOOKUP_LIMIT = 200;
 
-export async function listRoutingItems(): Promise<ListRoutingItemsResult> {
+/**
+ * @param ensureItemCode item_code the caller deep-linked (`?item=`). The picker
+ *   is capped at ITEM_LOOKUP_LIMIT rows ordered by item_code, so an org past that
+ *   cap could not select — or even see — an item sorting after the cut. Pinning
+ *   the named row into the result makes the deep link work for every item, not
+ *   just the alphabetically lucky first 500.
+ */
+export async function listRoutingItems(ensureItemCode?: string): Promise<ListRoutingItemsResult> {
+  const pinnedCode = ensureItemCode?.trim() || null;
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<ListRoutingItemsResult> => {
       const qc = client as QueryClient;
       const ctx: OrgActionContext = { userId, orgId, client: qc };
 
       const [itemRows, lineRows, opRows, canWrite, canApprove] = await Promise.all([
+        // The pinned branch yields 0 rows when $2 is null, so this degrades to
+        // the plain capped list when nothing was deep-linked. UNION dedupes the
+        // overlap when the pinned item is inside the cap anyway.
         qc.query<ItemRow>(
-          `select id, item_code, name from public.items
-            where org_id = app.current_org_id() order by item_code asc limit $1`,
-          [ITEM_LOOKUP_LIMIT],
+          `(select id, item_code, name from public.items
+             where org_id = app.current_org_id() and item_code = $2::text limit 1)
+           union
+           (select id, item_code, name from public.items
+             where org_id = app.current_org_id() order by item_code asc limit $1)
+           order by item_code asc`,
+          [ITEM_LOOKUP_LIMIT, pinnedCode],
         ),
         // Production lines live in 02-settings (production_lines).
         // Tolerate their absence so the page still renders if a fresh org has none.

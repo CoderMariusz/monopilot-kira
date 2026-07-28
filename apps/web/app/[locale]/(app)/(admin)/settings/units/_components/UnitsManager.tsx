@@ -22,7 +22,7 @@ import {
   createUnit,
   type CreateConversionResult,
 } from '../_actions/manage-units';
-import type { CreateUnitResult, UnitsActionError } from '../_actions/units-validation';
+import type { CreateUnitResult, UnitsActionError, UnitsActionSubcode } from '../_actions/units-validation';
 import { FACTOR_TO_BASE_MIN_EXCLUSIVE } from '../_actions/units-validation';
 
 /**
@@ -130,18 +130,69 @@ export type UnitsManagerLabels = {
   confirmDeleteUnit: string;
   errorInUse: string;
   errorNotFound: string;
+  errorNameRequired: string;
+  errorAuditPartitionMissing: string;
+  errorCannotDeleteBase: string;
+  errorInvalidUnitId: string;
+  errorInUseWithCode: string;
+  errorConversionLabelRequired: string;
+  errorConversionFactorPositive: string;
 };
+
+function interpolateLabel(template: string, context?: Record<string, string>): string {
+  if (!context) return template;
+  return Object.entries(context).reduce(
+    (text, [key, value]) => text.replace(new RegExp(`\\{${key}\\}`, 'g'), value),
+    template,
+  );
+}
+
+function subcodeLabel(
+  labels: UnitsManagerLabels,
+  subcode: UnitsActionSubcode,
+  context?: Record<string, string>,
+): string | null {
+  switch (subcode) {
+    case 'name_required':
+      return labels.errorNameRequired;
+    case 'audit_partition_missing':
+      return labels.errorAuditPartitionMissing;
+    case 'factor_positive':
+      return labels.errorFactorPositive;
+    case 'cannot_delete_base':
+      return labels.errorCannotDeleteBase;
+    case 'unit_in_use':
+      return interpolateLabel(labels.errorInUseWithCode, context);
+    case 'invalid_unit_id':
+      return labels.errorInvalidUnitId;
+    case 'conversion_label_required':
+      return labels.errorConversionLabelRequired;
+    case 'conversion_factor_positive':
+      return labels.errorConversionFactorPositive;
+    default:
+      return null;
+  }
+}
 
 const CATEGORY_VALUES = ['mass', 'volume', 'count', 'length'] as const;
 
-function errorLabel(labels: UnitsManagerLabels, error: UnitsActionError, message?: string): string {
+function errorLabel(
+  labels: UnitsManagerLabels,
+  error: UnitsActionError,
+  subcode?: UnitsActionSubcode,
+  context?: Record<string, string>,
+): string {
+  if (subcode) {
+    const mapped = subcodeLabel(labels, subcode, context);
+    if (mapped) return mapped;
+  }
   switch (error) {
     case 'already_exists':
       return labels.errorAlreadyExists;
     case 'forbidden':
       return labels.errorForbidden;
     case 'invalid_input':
-      return message ?? labels.errorInvalidInput;
+      return labels.errorInvalidInput;
     case 'in_use':
       return labels.errorInUse;
     case 'not_found':
@@ -214,7 +265,7 @@ function AddUnitDialog({ labels }: { labels: UnitsManagerLabels }) {
           router.refresh();
           return;
         }
-        setError(errorLabel(labels, result.error, result.message));
+        setError(errorLabel(labels, result.error, result.subcode, result.context));
       } catch {
         setError(labels.errorGeneric);
       }
@@ -310,13 +361,21 @@ function AddConversionDialog({ labels, unitCodes }: { labels: UnitsManagerLabels
       factor: Number(data.get('factor') ?? ''),
     };
     startTransition(async () => {
-      const result: CreateConversionResult = await createCustomConversion(payload);
-      if (result.ok) {
-        setError(null);
-        setOpen(false);
-        router.refresh();
-      } else {
-        setError(errorLabel(labels, result.error));
+      // An action rejection thrown inside a transition escapes to the nearest
+      // error boundary and replaces the WHOLE route with the global "Something
+      // went wrong" screen (audit 17.07, digest 494781054). Contain it here so a
+      // failed conversion is an inline alert and the units table stays on screen.
+      try {
+        const result: CreateConversionResult = await createCustomConversion(payload);
+        if (result.ok) {
+          setError(null);
+          setOpen(false);
+          router.refresh();
+          return;
+        }
+        setError(errorLabel(labels, result.error, result.subcode, result.context));
+      } catch {
+        setError(labels.errorGeneric);
       }
     });
   }

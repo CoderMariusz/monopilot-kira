@@ -53,11 +53,31 @@ function buildLabels(t: Translator): RoutingsLabels {
   }, {} as RoutingsLabels);
 }
 
-export default async function TechnicalRoutingsPage({ params }: { params: Promise<{ locale: string }> }) {
+export default async function TechnicalRoutingsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { locale } = await params;
-  const { items, lines, operationNames, canWrite, canApprove, state } = await listRoutingItems();
+  // `?item=<item_code>` is the item-detail "+ New routing" deep link. It was
+  // previously accepted by nobody: this page took no searchParams and the
+  // manager always opened on items[0], so the CTA silently offered to author a
+  // routing for the alphabetically-first item instead of the one the operator
+  // came from. Resolve it to an id here, and pass '' when it does not resolve so
+  // the manager opens with NOTHING selected rather than the wrong thing.
+  const rawItem = (await searchParams)?.item;
+  const requestedItemCode = (Array.isArray(rawItem) ? rawItem[0] : rawItem)?.trim() || null;
+
+  const { items, lines, operationNames, canWrite, canApprove, state } = await listRoutingItems(
+    requestedItemCode ?? undefined,
+  );
   const t = await getTranslations('technical.routings');
   const labels = buildLabels(t);
+  const initialItemId = requestedItemCode
+    ? (items.find((it) => it.itemCode === requestedItemCode)?.id ?? '')
+    : undefined;
 
   return (
     <main data-screen="technical-routings" className="flex w-full flex-col gap-4 px-6 py-6">
@@ -92,6 +112,7 @@ export default async function TechnicalRoutingsPage({ params }: { params: Promis
           canWrite={canWrite}
           canApprove={canApprove}
           labels={labels}
+          initialItemId={initialItemId}
         />
       )}
     </main>

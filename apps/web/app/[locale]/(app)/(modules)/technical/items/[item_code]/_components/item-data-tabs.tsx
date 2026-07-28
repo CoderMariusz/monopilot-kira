@@ -309,12 +309,28 @@ export type RoutingTabLabels = TabStateLabels & {
   effectiveFrom: string;
   approved: string;
   none: string;
+  /** "+ New routing" CTA label, shown in the empty state when the caller may create. */
+  createCta?: string;
 };
 
-export function RoutingTab({ data, labels }: { data: RoutingTabData; labels: RoutingTabLabels }) {
+/**
+ * The routing tab. `action` is the "+ New routing" link (gated by
+ * technical.bom.create on the page). It is surfaced in the empty state so an
+ * item with no routing version is no longer a dead-end — the page injects it as
+ * a prop seam, matching SupplierSpecsTab.
+ */
+export function RoutingTab({
+  data,
+  labels,
+  action,
+}: {
+  data: RoutingTabData;
+  labels: RoutingTabLabels;
+  action?: ReactNode;
+}) {
   if (data.state === 'error') return <ErrorCard message={labels.error} />;
   if (data.state === 'empty')
-    return <EmptyCard icon="🛠️" title={labels.empty} body={labels.emptyBody} />;
+    return <EmptyCard icon="🛠️" title={labels.empty} body={labels.emptyBody} action={action} />;
   return (
     <div className="card" style={{ padding: 0, overflowX: 'auto' }} data-testid="routing-tab">
       <div className="card-head" style={SECTION_HEAD}>

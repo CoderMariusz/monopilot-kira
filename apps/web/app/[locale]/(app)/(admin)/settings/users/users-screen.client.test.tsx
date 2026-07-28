@@ -69,6 +69,10 @@ vi.mock('../../../../../../components/settings/modals/password-reset-modal', () 
 // Mock ONLY the browser download side-effect; keep the real toCsv / isoDateStamp
 // so the CSV shape + filename stamp assertions exercise production code.
 const downloadCsvMock = vi.hoisted(() => vi.fn((_content: string, filename: string) => filename));
+const routerRefreshMock = vi.hoisted(() => vi.fn());
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: routerRefreshMock }),
+}));
 vi.mock('../../../../../../lib/shared/download', async (importActual) => {
   const actual = await importActual<typeof import('../../../../../../lib/shared/download')>();
   return { ...actual, downloadCsv: downloadCsvMock };
@@ -156,6 +160,8 @@ const labels: UsersScreenLabels = {
   saveSites: 'Save sites',
   sitesAssignmentSuccess: 'Site access updated.',
   sitesAssignmentFailed: 'Site assignment failed: {error}.',
+  resendInvitation: 'Resend',
+  revokeInvitation: 'Revoke',
 };
 
 function permissionGroupId(permission: string): string {
@@ -736,6 +742,187 @@ describe('SettingsUsersScreen deactivate flow (F2-C1 item 2)', () => {
     expect(guards.length).toBeGreaterThan(0);
     // Not marked disabled — the action failed.
     expect(screen.getByRole('row', { name: /Maria Manager maria@example\.com/i })).toHaveAttribute('data-status', 'active');
+  });
+});
+
+describe('SettingsUsersScreen invited-user lifecycle (R01-04)', () => {
+  const invitedUser = {
+    id: 'user-invited',
+    name: 'Pending Invite',
+    email: 'pending@example.com',
+    initials: 'PI',
+    roleCode: 'viewer',
+    roleId: 'role-viewer',
+    roleLabel: 'Viewer',
+    roleCategory: 'Viewer' as const,
+    site: 'All sites',
+    assignedSiteIds: [],
+    lastLogin: '—',
+    mfaEnrolled: false,
+    lastActive: '—',
+    status: 'invited' as const,
+  };
+
+  it('renders Resend/Revoke for invited rows and never offers Deactivate', () => {
+    renderScreen({
+      data: {
+        ...data,
+        users: [...data.users, invitedUser],
+        kpis: { ...data.kpis, invitedUsers: 1 },
+      } as UsersScreenData,
+      resendInvitation: vi.fn(),
+      revokeInvitation: vi.fn(),
+      getInvitationLifecycleToken: vi.fn().mockResolvedValue({ token: 'token-pending' }),
+    } as Partial<SettingsUsersScreenProps>);
+
+    const invitedRow = screen.getByRole('row', { name: /Pending Invite pending@example\.com/i });
+    expect(invitedRow).toHaveAttribute('data-status', 'invited');
+    expect(within(invitedRow).getByTestId('resend-invitation-button')).toBeVisible();
+    expect(within(invitedRow).getByTestId('revoke-invitation-button')).toBeVisible();
+    expect(within(invitedRow).queryByTestId('deactivate-user-button')).not.toBeInTheDocument();
+    expect(within(invitedRow).queryByTestId('reactivate-user-button')).not.toBeInTheDocument();
+  });
+
+  const invitationLabels: Partial<UsersScreenLabels> = {
+    resendInvitation: 'Resend',
+    revokeInvitation: 'Revoke',
+    revokeInvitationDialogTitle: 'Revoke invitation',
+    revokeInvitationDialogBody: 'Revoke the pending invitation for {email}?',
+    revokeInvitationConfirm: 'Confirm revoke',
+    invitationResent: 'Invitation resent for {email}.',
+    invitationResentNoEmail: 'Invitation link renewed for {email}, but no email was sent.',
+    invitationRevoked: 'Invitation revoked for {email}.',
+    invitationLifecycleFailed: 'Could not update invitation: {error}.',
+    invitationNoActions: 'No actions',
+  };
+
+  function renderInvited(
+    overrides: Partial<SettingsUsersScreenProps> = {},
+    user: Partial<typeof invitedUser> = {},
+    dataOverrides: Partial<UsersScreenData> = {},
+  ) {
+    return renderScreen({
+      data: {
+        ...data,
+        users: [...data.users, { ...invitedUser, ...user }],
+        kpis: { ...data.kpis, invitedUsers: 1 },
+        ...dataOverrides,
+      } as UsersScreenData,
+      labels: { ...labels, ...invitationLabels } as UsersScreenLabels,
+      resendInvitation: vi.fn().mockResolvedValue({ ok: true, data: { delivery: 'none' } }),
+      revokeInvitation: vi.fn().mockResolvedValue({ ok: true }),
+      getInvitationLifecycleToken: vi.fn().mockResolvedValue({ token: 'token-pending' }),
+      ...overrides,
+    } as Partial<SettingsUsersScreenProps>);
+  }
+
+  function invitedRow() {
+    return screen.getByRole('row', { name: /Pending Invite pending@example\.com/i });
+  }
+
+  it('B-2: an operator without the invite permission gets NO actions on an invited row — never Deactivate', () => {
+    // The regression: the invited branch was gated on canManageInvitations, so
+    // without the permission the row fell through to the default arm and offered
+    // Deactivate on a user who has never accepted.
+    renderInvited({}, {}, { canInviteUsers: false });
+
+    const row = invitedRow();
+    expect(within(row).queryByTestId('resend-invitation-button')).not.toBeInTheDocument();
+    expect(within(row).queryByTestId('revoke-invitation-button')).not.toBeInTheDocument();
+    expect(within(row).queryByTestId('deactivate-user-button')).not.toBeInTheDocument();
+    expect(within(row).getByTestId('invitation-actions-readonly')).toHaveTextContent('No actions');
+  });
+
+  it('B-2: the same holds when the lifecycle Server Actions are simply not wired', () => {
+    renderInvited({
+      resendInvitation: undefined,
+      revokeInvitation: undefined,
+      getInvitationLifecycleToken: undefined,
+    });
+
+    const row = invitedRow();
+    expect(within(row).queryByTestId('deactivate-user-button')).not.toBeInTheDocument();
+    expect(within(row).getByTestId('invitation-actions-readonly')).toBeVisible();
+  });
+
+  it('B-3: an EXPIRED invitation offers Resend but not Revoke', () => {
+    // revokeInvitation's UPDATE requires invite_token_expires_at > now(), so a
+    // Revoke button on an expired row could only ever fail.
+    renderInvited({}, { invitationState: 'expired' });
+
+    const row = invitedRow();
+    expect(within(row).getByTestId('resend-invitation-button')).toBeVisible();
+    expect(within(row).queryByTestId('revoke-invitation-button')).not.toBeInTheDocument();
+    expect(within(row).queryByTestId('deactivate-user-button')).not.toBeInTheDocument();
+  });
+
+  it('B-3: resending an expired invitation asks for the expired token explicitly', async () => {
+    const user = userEvent.setup();
+    const getInvitationLifecycleToken = vi.fn().mockResolvedValue({ token: 'token-expired' });
+    renderInvited({ getInvitationLifecycleToken }, { invitationState: 'expired' });
+
+    await user.click(within(invitedRow()).getByTestId('resend-invitation-button'));
+
+    // Without allowExpired the token loader rejects the row as `non_pending` and
+    // the button is dead for exactly the invitations that need resending.
+    expect(getInvitationLifecycleToken).toHaveBeenCalledWith({
+      invitationId: 'user-invited',
+      allowExpired: true,
+    });
+  });
+
+  it('B-3: revoking never asks for an expired token', async () => {
+    const user = userEvent.setup();
+    const getInvitationLifecycleToken = vi.fn().mockResolvedValue({ token: 'token-pending' });
+    renderInvited({ getInvitationLifecycleToken });
+
+    await user.click(within(invitedRow()).getByTestId('revoke-invitation-button'));
+    const dialog = await screen.findByRole('dialog', { name: /revoke invitation/i });
+    await user.click(within(dialog).getByRole('button', { name: /confirm revoke/i }));
+
+    expect(getInvitationLifecycleToken).toHaveBeenCalledWith({
+      invitationId: 'user-invited',
+      allowExpired: false,
+    });
+  });
+
+  it('B-1: a successful resend does NOT claim an email was sent when nothing was delivered', async () => {
+    const user = userEvent.setup();
+    renderInvited();
+
+    await user.click(within(invitedRow()).getByTestId('resend-invitation-button'));
+
+    // delivery: 'none' — the token was rotated, but no mail left the system, so
+    // the operator must be told to pass the link on rather than shown "resent".
+    const feedback = await screen.findByRole('alert');
+    expect(feedback).toHaveTextContent('Invitation link renewed for pending@example.com, but no email was sent.');
+    expect(screen.queryByText(/Invitation resent for/i)).not.toBeInTheDocument();
+  });
+
+  it('B-1: it does report a plain resend once the action reports real delivery', async () => {
+    const user = userEvent.setup();
+    renderInvited({
+      resendInvitation: vi.fn().mockResolvedValue({ ok: true, data: { delivery: 'email' } }),
+    });
+
+    await user.click(within(invitedRow()).getByTestId('resend-invitation-button'));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Invitation resent for pending@example.com.');
+  });
+
+  it('B-5: the revoke confirmation is a real modal dialog, not a bare div', async () => {
+    const user = userEvent.setup();
+    renderInvited();
+
+    await user.click(within(invitedRow()).getByTestId('revoke-invitation-button'));
+
+    // Via the shared Modal (Radix) the dialog is labelled, focus-trapped, Escape
+    // -dismissible and restores focus — none of which the hand-rolled overlay did.
+    const dialog = await screen.findByRole('dialog', { name: /revoke invitation/i });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(within(dialog).getByTestId('revoke-invitation-body')).toHaveTextContent(
+      'Revoke the pending invitation for pending@example.com?',
+    );
   });
 });
 

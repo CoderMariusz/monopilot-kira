@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(),
@@ -16,6 +18,11 @@ const USER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const UNIT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
 type QueryHandler = (sql: string, params?: readonly unknown[]) => { rows: Record<string, unknown>[]; rowCount?: number };
+
+/** A node-postgres style error: an Error carrying a SQLSTATE `code`. */
+function pgError(code: string, message: string): Error {
+  return Object.assign(new Error(message), { code });
+}
 
 function mockOrgContext(queryHandler: QueryHandler, canManage = true) {
   vi.mocked(withOrgContext).mockImplementation(async (fn) =>
@@ -45,12 +52,12 @@ describe('manage-units actions', () => {
     await expect(createUnit({ category: 'mass', code: 'z', name: 'Zero', factorToBase: 0, isBase: false })).resolves.toEqual({
       ok: false,
       error: 'invalid_input',
-      message: 'Conversion factor must be greater than zero.',
+      subcode: 'factor_positive',
     });
     await expect(createUnit({ category: 'mass', code: 'n', name: 'Negative', factorToBase: -1, isBase: false })).resolves.toEqual({
       ok: false,
       error: 'invalid_input',
-      message: 'Conversion factor must be greater than zero.',
+      subcode: 'factor_positive',
     });
     expect(withOrgContext).not.toHaveBeenCalled();
   });
@@ -195,7 +202,8 @@ describe('manage-units actions', () => {
     expect(result).toEqual({
       ok: false,
       error: 'in_use',
-      message: 'Unit "kg" is referenced elsewhere and cannot be deleted.',
+      subcode: 'unit_in_use',
+      context: { code: 'kg' },
     });
   });
 
@@ -241,5 +249,122 @@ describe('manage-units actions', () => {
     mockOrgContext(() => ({ rows: [], rowCount: 0 }), false);
     const result = await softDeleteUnit({ id: UNIT_ID });
     expect(result).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  // ── Error mapping (FALA-05 / T3) ──────────────────────────────────────────
+  // Postgres raises SQLSTATE 23514 (check_violation) for
+  // `no partition of relation "audit_log" found for row` — the SAME code as a
+  // real CHECK failure. Before the fix, the 23514 branch ran first and the
+  // partition branch below it was unreachable, so an audit-log outage was
+  // reported to the administrator as a bad conversion factor.
+
+  it('reports a missing audit_log partition as an audit failure, not a conversion-factor error', async () => {
+    mockOrgContext((sql) => {
+      if (/insert into public\.unit_of_measure/i.test(sql)) return { rows: [{ id: UNIT_ID }], rowCount: 1 };
+      if (/insert into public\.audit_log/i.test(sql)) {
+        throw pgError('23514', 'no partition of relation "audit_log" found for row');
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await createUnit({ category: 'mass', code: 'lb', name: 'Pound', factorToBase: 2.5, isBase: false });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe('persistence_failed');
+      expect(result.subcode).toBe('audit_partition_missing');
+    }
+  });
+
+  it('still reports a genuine CHECK violation (23514) as an invalid conversion factor', async () => {
+    mockOrgContext((sql) => {
+      if (/insert into public\.unit_of_measure/i.test(sql)) {
+        throw Object.assign(new Error('new row violates check constraint "unit_of_measure_factor_positive"'), {
+          code: '23514',
+          constraint: 'unit_of_measure_factor_positive',
+        });
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await createUnit({ category: 'mass', code: 'lb', name: 'Pound', factorToBase: 2.5, isBase: false });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'invalid_input',
+      subcode: 'factor_positive',
+    });
+  });
+
+  it('softDeleteUnit surfaces a missing audit_log partition as audit_partition_missing', async () => {
+    mockOrgContext((sql) => {
+      if (/from public\.unit_of_measure/i.test(sql) && /deleted_at is null/i.test(sql) && /limit 1/i.test(sql)) {
+        return {
+          rows: [{ id: UNIT_ID, code: 'g', name: 'Gram', factor_to_base: '0.001', is_base: false }],
+          rowCount: 1,
+        };
+      }
+      if (/select exists/i.test(sql)) return { rows: [{ in_use: false }], rowCount: 1 };
+      if (/update public\.unit_of_measure/i.test(sql) && /deleted_at = now/i.test(sql)) {
+        return { rows: [{ id: UNIT_ID }], rowCount: 1 };
+      }
+      if (/insert into public\.audit_log/i.test(sql)) {
+        throw pgError('23514', 'no partition of relation "audit_log" found for row');
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await softDeleteUnit({ id: UNIT_ID });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.subcode).toBe('audit_partition_missing');
+  });
+
+  it('maps an unrecognized 23503 to persistence_failed, not in_use', async () => {
+    mockOrgContext((sql) => {
+      if (/insert into public\.unit_of_measure/i.test(sql)) return { rows: [{ id: UNIT_ID }], rowCount: 1 };
+      if (/insert into public\.audit_log/i.test(sql)) {
+        throw Object.assign(new Error('insert violates foreign key constraint'), {
+          code: '23503',
+          constraint: 'audit_log_actor_user_id_fkey',
+        });
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const result = await createUnit({ category: 'mass', code: 'lb', name: 'Pound', factorToBase: 2.5, isBase: false });
+
+    expect(result).toEqual({ ok: false, error: 'persistence_failed' });
+  });
+
+  it('updateUnit returns name_required subcode for an empty name', async () => {
+    mockOrgContext(() => ({ rows: [], rowCount: 0 }));
+    const result = await updateUnit({ id: UNIT_ID, name: '' });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input', subcode: 'name_required' });
+  });
+
+  const SUBCODE_I18N_KEYS = [
+    'errorNameRequired',
+    'errorAuditPartitionMissing',
+    'errorCannotDeleteBase',
+    'errorInvalidUnitId',
+    'errorInUseWithCode',
+    'errorConversionLabelRequired',
+    'errorConversionFactorPositive',
+  ] as const;
+
+  it('defines action-error subcode labels in all four locales', () => {
+    const locales = ['en', 'pl', 'ro', 'uk'] as const;
+    for (const locale of locales) {
+      const json = JSON.parse(readFileSync(join(process.cwd(), 'i18n', `${locale}.json`), 'utf8')) as {
+        settings?: { units?: Record<string, string> };
+      };
+      const units = json.settings?.units;
+      expect(units, `${locale}: settings.units namespace`).toBeDefined();
+      for (const key of SUBCODE_I18N_KEYS) {
+        expect(units?.[key], `${locale}.settings.units.${key}`).toBeTruthy();
+      }
+    }
   });
 });

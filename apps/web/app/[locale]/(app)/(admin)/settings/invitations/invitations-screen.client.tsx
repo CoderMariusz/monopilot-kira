@@ -13,6 +13,7 @@
  */
 
 import React, { useEffect, useId, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@monopilot/ui/Button';
@@ -371,6 +372,7 @@ function InviteDialog({
 
 export default function InvitationsScreen(props: Partial<InvitationsScreenProps> = {}) {
   const t = useTranslations('settings.invitations');
+  const router = useRouter();
   const isControlled = 'invitations' in props || 'permissions' in props || 'state' in props;
   const [runtimeInvitations, setRuntimeInvitations] = useState<PendingInvitation[]>([]);
   const [runtimePermissions, setRuntimePermissions] = useState<string[]>([]);
@@ -471,6 +473,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
         kind: 'status',
         message: t('resentFeedback', { email: invitation.email, auditResult: result.auditEventId ?? t('recorded') }),
       });
+      router.refresh();
       return;
     }
     setFeedback({ kind: 'alert', message: t('errors.resendFailed', { error: result.error ?? 'invite_failed' }) });
@@ -498,6 +501,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
         kind: 'status',
         message: t('revokedFeedback', { email: invitation.email, auditResult: result.auditEventId ?? t('recorded') }),
       });
+      router.refresh();
       return;
     }
     setFeedback({ kind: 'alert', message: t('errors.revokeFailed', { error: result.error ?? 'invite_failed' }) });

@@ -189,6 +189,55 @@
       "reset_mfa_success": "Rejestracja MFA została wyczyszczona.",
       "reset_mfa_failed": "Nie udało się zresetować MFA: {error}."
     },
+    "units": {
+      "title": "Jednostki i przeliczniki",
+      "subtitle": "Jednostki miary używane w recepturach, magazynie i wysyłce.",
+      "addUnit": "+ Dodaj jednostkę",
+      "baseUnitPrefix": "Jednostka bazowa:",
+      "code": "Kod",
+      "name": "Nazwa",
+      "factorToBase": "Współczynnik do bazy",
+      "baseQuestion": "Bazowa?",
+      "actions": "Akcje",
+      "base": "Bazowa",
+      "customConversions": "Przeliczniki niestandardowe",
+      "customConversionsSubtitle": "Zdefiniuj przeliczniki nieliniowe (np. mąka: 1 szklanka = 120 g).",
+      "noCustomConversions": "Brak niestandardowych przeliczników.",
+      "addCustomConversion": "+ Dodaj przelicznik",
+      "noUnits": "Nie skonfigurowano jeszcze jednostek.",
+      "loading": "Ładowanie jednostek…",
+      "error": "Nie udało się załadować jednostek.",
+      "permissionDenied": "Nie masz uprawnień do zarządzania jednostkami.",
+      "saveUnit": "Zapisz jednostkę",
+      "cancel": "Anuluj",
+      "category": "Kategoria",
+      "label": "Etykieta",
+      "fromUnit": "Z jednostki",
+      "toUnit": "Na jednostkę",
+      "saveConversion": "Zapisz przelicznik",
+      "categoryMass": "Masa",
+      "categoryVolume": "Objętość",
+      "categoryCount": "Ilość",
+      "categoryLength": "Długość",
+      "errorAlreadyExists": "Jednostka lub przelicznik o tym kodzie już istnieje.",
+      "errorForbidden": "Nie masz uprawnień do zarządzania jednostkami.",
+      "errorInvalidInput": "Sprawdź wartości i spróbuj ponownie.",
+      "errorFactorPositive": "Współczynnik przeliczenia musi być większy od zera.",
+      "errorGeneric": "Nie udało się zapisać. Spróbuj ponownie.",
+      "editUnit": "Edytuj",
+      "deleteUnit": "Usuń",
+      "editUnitTitle": "Edytuj jednostkę",
+      "confirmDeleteUnit": "Usunąć jednostkę {code}? Tej operacji nie można cofnąć.",
+      "errorInUse": "Ta jednostka jest używana w innych miejscach i nie może zostać usunięta.",
+      "errorNotFound": "Nie znaleziono jednostki.",
+      "errorNameRequired": "Podaj nazwę jednostki (od 1 do 120 znaków).",
+      "errorAuditPartitionMissing": "Nie można zapisać: dziennik audytu nie ma partycji na dziś, więc zmiana została wycofana. Poproś administratora o rozszerzenie partycji audit_log.",
+      "errorCannotDeleteBase": "Nie można usunąć jednostki bazowej.",
+      "errorInvalidUnitId": "To odniesienie do jednostki jest nieprawidłowe.",
+      "errorInUseWithCode": "Jednostka „{code}” jest używana w innych miejscach i nie może zostać usunięta.",
+      "errorConversionLabelRequired": "Podaj etykietę przelicznika.",
+      "errorConversionFactorPositive": "Współczynnik przeliczenia musi być większy od zera."
+    },
     "features": {
       "title": "Flagi funkcji",
       "subtitle": "Włączaj moduły i funkcje w swoim obszarze roboczym.",
@@ -773,7 +822,8 @@
       "revokeDialog": {
         "title": "Cofnij zaproszenie",
         "confirm": "Cofnąć zaproszenie dla <strong>{email}</strong>?",
-        "body": "To oczekujące zaproszenie wygasa {expiresAt}. Cofnięcie zapisze wynik audytu T-124 i uniemożliwi użycie magicznego linku."
+        "body": "To oczekujące zaproszenie wygasa {expiresAt}. Cofnięcie zapisze wynik audytu T-124 i uniemożliwi użycie magicznego linku.",
+        "confirmPlain": "Cofnąć oczekujące zaproszenie dla {email}?"
       },
       "errors": {
         "emailAndRoleRequired": "Wpisz poprawny adres e-mail i wybierz rolę.",
@@ -791,7 +841,8 @@
         "expiresAt": "Wygasa",
         "status": "Status",
         "actions": "Akcje"
-      }
+      },
+      "resentNoEmailFeedback": "Odnowiono link zaproszenia dla {email}, ale nie wysłano e-maila — to wdrożenie nie ma transportu e-mail. Przekaż nowy link zaproszenia samodzielnie."
     },
     "roles": {
       "heading": "Role i uprawnienia",
@@ -2319,6 +2370,7 @@
             "loading": "Ładowanie marszrut…",
             "empty": "Brak marszruty",
             "emptyBody": "Dla tej pozycji nie istnieje wersja marszruty. Utwórz ją, aby zdefiniować operacje.",
+            "createCta": "+ Nowa marszruta",
             "error": "Nie udało się załadować marszrut. Spróbuj ponownie."
           },
           "lab": {
@@ -2496,6 +2548,9 @@
         "errors": {
           "codeRequired": "Kod pozycji jest wymagany (min. 1 znak).",
           "priceNonNegative": "Cena musi wynosić zero lub więcej.",
+          "uomSecondaryDistinct": "Druga JM musi być inna niż bazowa JM albo pozostać pusta.",
+          "grossBelowNominal": "Maksymalna waga brutto musi być większa lub równa wadze nominalnej.",
+          "shelfLifeIncomplete": "Termin przydatności wymaga dodatniej liczby dni i trybu — albo go wyłącz.",
           "nameRequired": "Nazwa jest wymagana (min. 1 znak).",
           "uomRequired": "Bazowa JM jest wymagana.",
           "netRequired": "Zawartość netto na sztukę jest wymagana (> 0) dla wyjścia Sztuka / Karton.",
@@ -3560,6 +3615,7 @@
         "help": "Zapisywane w ścieżce audytu importu; min. 10 znaków."
       },
       "applied": "Import zastosowany",
+      "appliedWithErrors": "Import zastosowany z odrzuconymi wierszami",
       "forbidden": "Nie masz uprawnień do importu pozycji.",
       "parseFailed": "Nie udało się sparsować CSV. Sprawdź wiersz nagłówka i spróbuj ponownie.",
       "supplierBlocker": "Niektóre wiersze odwołują się do dostawcy, który wymaga przesłania supplier_spec, zanim wiersz katalogu będzie mógł się do niego odwołać.",

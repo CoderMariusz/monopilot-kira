@@ -62,6 +62,7 @@ function buildLabels(t: Translator): BulkImportLabels {
     reasonPlaceholder: t('reason.placeholder'),
     reasonHelp: t('reason.help'),
     applied: t('applied'),
+    appliedWithErrors: t('appliedWithErrors'),
     forbidden: t('forbidden'),
     parseFailed: t('parseFailed'),
     supplierBlocker: t('supplierBlocker'),

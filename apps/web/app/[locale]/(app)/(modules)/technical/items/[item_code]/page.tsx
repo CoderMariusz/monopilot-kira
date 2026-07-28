@@ -43,6 +43,9 @@ import {
 } from './_components/item-data-tabs';
 import { buildDataTabLabels } from './_components/item-data-tab-labels';
 import { loadBomTab, loadCostTab, loadRoutingTab, loadLabTab, loadD365Tab } from './_actions/tab-data';
+import { hasPermission } from '../../../../../../../lib/auth/has-permission';
+// Canonical routing-authoring permission (routings reuse the BOM RBAC family).
+import { ROUTING_WRITE_PERMISSION } from '../../routings/_actions/shared';
 import { listSupplierSpecs } from './_actions/list-supplier-specs';
 import {
   SupplierSpecAdd,
@@ -110,18 +113,14 @@ async function resolveCanCreateBom(): Promise<boolean> {
   try {
     return await withOrgContext(async (rawCtx) => {
       const ctx = rawCtx as OrgContextLike;
-      const { rows } = await ctx.client.query<{ ok: boolean }>(
-        `select true as ok
-           from public.user_roles ur
-           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-           left join public.role_permissions rp
-             on rp.role_id = r.id and rp.permission = 'technical.bom.create'
-          where ur.user_id = $1::uuid and ur.org_id = $2::uuid
-            and (rp.permission is not null or coalesce(r.permissions, '[]'::jsonb) ? 'technical.bom.create')
-          limit 1`,
-        [ctx.userId, ctx.orgId],
-      );
-      return rows.length > 0;
+      // Delegates to the SAME central helper the BOM/routing write actions use.
+      // The bespoke query this replaces honoured only an explicit permission
+      // grant, while createRouting()/createBom() also accept the owner/admin/
+      // org_admin role codes and the platform admin — so an owner saw no CTA for
+      // an action the server would have happily performed. One resolver, one
+      // answer; the constant comes from the routing actions' own module so the
+      // gate cannot drift from what it gates.
+      return await hasPermission(ctx, ROUTING_WRITE_PERMISSION);
     });
   } catch {
     return false;
@@ -443,6 +442,32 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
       ? 'Open BOM →'
       : openBomResolved;
 
+  // Item-detail Routing tab "+ New routing" CTA: locale-prefixed deep-link to the
+  // routings authoring screen. `?item=` is CONSUMED there (routings/page.tsx reads
+  // it, pins the row past the picker's row cap and passes initialItemId), so the
+  // target screen opens on this item — or on nothing at all if it cannot resolve
+  // it. It must never silently fall back to the first item in the list.
+  const createRoutingHref = `/${locale}/technical/routings?item=${encodeURIComponent(item.itemCode)}`;
+  const routingCreateCtaKey = 'detail.dataTabs.routing.createCta';
+  const routingCreateCtaResolved = t(routingCreateCtaKey);
+  const routingCreateCta =
+    routingCreateCtaResolved === routingCreateCtaKey || routingCreateCtaResolved.endsWith('.createCta')
+      ? '+ New routing'
+      : routingCreateCtaResolved;
+  // Gate on the loader's own verdict too: `routingData.state === 'empty'` is
+  // returned BOTH for "no routings yet" and for "item_code did not resolve", and
+  // getItem() ran earlier against a separate connection — so permission alone
+  // could offer a create CTA for an item deleted in between.
+  const routingAddAction = canCreateBom && routingData.itemResolved === true ? (
+    <Link
+      href={createRoutingHref}
+      className="btn btn-primary btn-sm"
+      data-testid="item-routing-new-cta"
+    >
+      {routingCreateCta}
+    </Link>
+  ) : undefined;
+
   return (
     <main data-screen="technical-item-detail" className="flex w-full flex-col gap-4 px-6 py-6">
       <nav className="breadcrumb" aria-label="Breadcrumb">
@@ -502,7 +527,9 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
             />
           ),
           cost: <CostTab data={costData} labels={dataTabLabels.cost} />,
-          routing: <RoutingTab data={routingData} labels={dataTabLabels.routing} />,
+          routing: (
+            <RoutingTab data={routingData} labels={dataTabLabels.routing} action={routingAddAction} />
+          ),
           labResults: <LabTab data={labData} labels={dataTabLabels.lab} />,
           d365: <D365Tab data={d365Data} labels={dataTabLabels.d365} />,
           supplierSpecs: (

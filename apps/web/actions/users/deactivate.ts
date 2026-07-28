@@ -2,6 +2,7 @@
 
 import { hasAnyPermission } from '../../lib/auth/has-permission';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { revalidateLocalized } from '../../lib/i18n/revalidate-localized';
 import { createSupabaseAuthAdmin } from './supabase-admin';
 
 const FORBIDDEN = 'forbidden' as const;
@@ -28,7 +29,13 @@ export type DeactivateUserResult =
     }
   | {
       ok: false;
-      error: 'invalid_input' | 'forbidden' | 'self_deactivation' | 'not_found' | 'persistence_failed';
+      error:
+        | 'invalid_input'
+        | 'forbidden'
+        | 'self_deactivation'
+        | 'pending_invitation'
+        | 'not_found'
+        | 'persistence_failed';
     };
 
 function normalizeId(value: unknown): string | null {
@@ -107,6 +114,28 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
         return { ok: false, error: 'forbidden' } as const;
       }
 
+      const { rows: targetRows } = await client.query<{
+        id: string;
+        is_active: boolean;
+        invite_token: string | null;
+      }>(
+        `select id, is_active, invite_token
+           from public.users
+          where id = $1::uuid
+            and org_id = $2::uuid`,
+        [targetUserId, orgId],
+      );
+      const target = targetRows[0];
+      if (!target) {
+        return { ok: false, error: 'not_found' } as const;
+      }
+      if (target.invite_token) {
+        return { ok: false, error: 'pending_invitation' } as const;
+      }
+      if (!target.is_active) {
+        return { ok: true, data: { targetUserId, deactivated: true } } as const;
+      }
+
       const { rows } = await client.query<{ id: string; updated_at: string }>(
         `update public.users
             set is_active = false,
@@ -114,21 +143,11 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
           where id = $1::uuid
             and org_id = $2::uuid
             and is_active = true
+            and invite_token is null
         returning id, updated_at::text as updated_at`,
         [targetUserId, orgId],
       );
       if (rows.length === 0) {
-        const existing = await client.query<{ is_active: boolean }>(
-          `select is_active
-             from public.users
-            where id = $1::uuid
-              and org_id = $2::uuid
-            limit 1`,
-          [targetUserId, orgId],
-        );
-        if (existing.rows[0]?.is_active === false) {
-          return { ok: true, data: { targetUserId, deactivated: true } } as const;
-        }
         return { ok: false, error: 'not_found' } as const;
       }
 
@@ -172,6 +191,11 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
     if (result.ok) {
       const revoked = await revokeAuthSessions(targetUserId);
       if (!revoked.ok) {
+        try {
+          revalidateLocalized('/settings/users');
+        } catch {
+          // Unit tests and non-Next callers do not provide a static-generation store.
+        }
         return {
           ok: true,
           data: {
@@ -179,6 +203,11 @@ export async function deactivateUser(input: DeactivateUserInput): Promise<Deacti
             authRevokeWarning: 'session_revoke_failed',
           },
         };
+      }
+      try {
+        revalidateLocalized('/settings/users');
+      } catch {
+        // Unit tests and non-Next callers do not provide a static-generation store.
       }
     }
 

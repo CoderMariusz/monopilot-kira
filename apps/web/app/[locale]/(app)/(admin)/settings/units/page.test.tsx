@@ -522,8 +522,8 @@ describe('SET-094 Units (UoM) screen parity', () => {
     expect(mocks.softDeleteUnit).toHaveBeenCalledWith({ id: 'u-g' });
   });
 
-  it('surfaces in-use errors from softDeleteUnit on delete', async () => {
-    mocks.softDeleteUnit.mockResolvedValue({ ok: false, error: 'in_use' });
+  it('surfaces in-use errors from softDeleteUnit on delete via subcode', async () => {
+    mocks.softDeleteUnit.mockResolvedValue({ ok: false, error: 'in_use', subcode: 'unit_in_use', context: { code: 'g' } });
     const user = userEvent.setup();
 
     await renderUnitsPage();
@@ -537,5 +537,79 @@ describe('SET-094 Units (UoM) screen parity', () => {
     await renderUnitsPage({ canEdit: false });
     expect(screen.queryByTestId('unit-actions-g')).not.toBeInTheDocument();
     expect(screen.queryByText('⋮')).not.toBeInTheDocument();
+  });
+
+  // ── Action-promise rejection containment (FALA-05 / FIX-C) ─────────────────
+  // Audit 17.07: uncaught rejections inside startTransition escape to the route
+  // error boundary. These tests mock a *rejected action promise* (what try/catch
+  // actually catches). They do NOT exercise a post-commit RSC Flight render
+  // failure — that path resolves the action first, then applies Flight data, and
+  // hits the global (app)/error.tsx instead of the dialog catch.
+
+  it('contains a rejected softDeleteUnit action promise in the dialog (not an RSC Flight error)', async () => {
+    mocks.softDeleteUnit.mockRejectedValue(new Error('An error occurred in the Server Components render'));
+    const user = userEvent.setup();
+
+    await renderUnitsPage();
+
+    await user.click(screen.getByTestId('unit-actions-g'));
+    await user.click(within(screen.getByTestId('unit-actions-menu-g')).getByRole('menuitem', { name: /delete/i }));
+    await user.click(screen.getByTestId('unit-delete-confirm-g'));
+
+    expect(screen.getByRole('alert'), 'a rejected action promise must report inline').toBeInTheDocument();
+    expect(screen.getAllByRole('table').length, 'the units table must survive a contained action rejection').toBeGreaterThan(0);
+    expect(screen.getByTestId('unit-actions-g'), 'the unit row must still be there').toBeInTheDocument();
+  });
+
+  it('contains a rejected updateUnit action promise in the edit dialog (not an RSC Flight error)', async () => {
+    mocks.updateUnit.mockRejectedValue(new Error('An error occurred in the Server Components render'));
+    const user = userEvent.setup();
+
+    await renderUnitsPage();
+
+    await user.click(screen.getByTestId('unit-actions-g'));
+    await user.click(within(screen.getByTestId('unit-actions-menu-g')).getByRole('menuitem', { name: /edit/i }));
+    const dialog = screen.getByRole('dialog', { name: /edit unit/i });
+    await user.click(within(dialog).getByRole('button', { name: /save unit/i }));
+
+    expect(within(dialog).getByRole('alert')).toBeInTheDocument();
+    expect(screen.getAllByRole('table').length).toBeGreaterThan(0);
+  });
+
+  it('contains a rejected createCustomConversion action promise in the dialog (not an RSC Flight error)', async () => {
+    mocks.createCustomConversion.mockRejectedValue(new Error('An error occurred in the Server Components render'));
+    const user = userEvent.setup();
+
+    await renderUnitsPage({
+      units: [{ id: 'u-kg', category: 'mass', code: 'kg', name: 'Kilogram', factorToBase: 1, isBase: true }],
+      customConversions: [],
+      canEdit: true,
+      state: 'ready',
+    });
+
+    await user.click(screen.getByRole('link', { name: /add custom conversion/i }));
+    const dialog = screen.getByRole('dialog', { name: /add custom conversion/i });
+    await user.type(within(dialog).getByLabelText(/^label$/i), 'PCS to Box');
+    await user.type(within(dialog).getByLabelText(/factor to base/i), '0.48');
+    await user.click(within(dialog).getByRole('button', { name: /save conversion/i }));
+
+    expect(within(dialog).getByRole('alert')).toBeInTheDocument();
+    expect(screen.getAllByRole('table').length, 'the units table must survive a contained action rejection').toBeGreaterThan(0);
+  });
+
+  it('shows the audit-log partition subcode via translated labels, not a raw server message', async () => {
+    mocks.softDeleteUnit.mockResolvedValue({
+      ok: false,
+      error: 'persistence_failed',
+      subcode: 'audit_partition_missing',
+    });
+    const user = userEvent.setup();
+
+    await renderUnitsPage();
+    await user.click(screen.getByTestId('unit-actions-g'));
+    await user.click(within(screen.getByTestId('unit-actions-menu-g')).getByRole('menuitem', { name: /delete/i }));
+    await user.click(screen.getByTestId('unit-delete-confirm-g'));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/audit log/i);
   });
 });

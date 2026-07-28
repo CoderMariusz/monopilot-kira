@@ -51,6 +51,10 @@ function detailToForm(item: ItemDetail): WizardFormState {
     uomSecondary: item.uomSecondary ?? '',
     weightMode: item.weightMode,
     nominalWeight: item.nominalWeight ?? '',
+    // R03-02 — seed the catch-weight envelope so an edit PRESERVES it. The
+    // wizard had no field for these, so every save wrote them back as NULL.
+    tareWeight: item.tareWeight ?? '',
+    grossWeightMax: item.grossWeightMax ?? '',
     gs1Gtin: item.gs1Gtin ?? '',
     varianceTolerancePct: item.varianceTolerancePct ?? '',
     shelfLifeDays: item.shelfLifeDays === null ? '' : String(item.shelfLifeDays),

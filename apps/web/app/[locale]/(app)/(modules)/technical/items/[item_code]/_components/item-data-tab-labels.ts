@@ -75,6 +75,7 @@ const DEFAULTS: DataTabLabels = {
     loading: 'Loading routings…',
     empty: 'No routing yet',
     emptyBody: 'No routing version exists for this item. Create one to define its operations.',
+    createCta: '+ New routing',
     error: 'Unable to load routings. Please try again.',
   },
   lab: {

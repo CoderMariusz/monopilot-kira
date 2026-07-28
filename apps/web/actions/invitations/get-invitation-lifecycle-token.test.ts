@@ -156,8 +156,72 @@ describe('getInvitationLifecycleToken', () => {
           invitation_id: INVITATION_ID,
           email: 'pending@example.test',
           expires_at: '2026-06-08T00:00:00.000Z',
+          expired: false,
         }),
       },
     ]);
+  });
+
+  // ── B-3: expired invitations ────────────────────────────────────────────────
+  // Note the case above only ever exercised `is_active: true`; an actually
+  // EXPIRED token was never covered, which is how the Resend button shipped
+  // permanently broken for expired rows (resendInvitation accepts them, this
+  // loader refused to hand over their token).
+  const expiredInvitation = {
+    id: INVITATION_ID,
+    email: 'expired@example.test',
+    invite_token: 'secret-token',
+    invite_token_expires_at: '2026-05-01T00:00:00.000Z', // before the faked now
+    is_active: false,
+  };
+
+  it('still refuses an expired token by default (Revoke must not get one)', async () => {
+    currentClient = makeClient({ hasInvitePermission: true, invitation: expiredInvitation });
+    const { getInvitationLifecycleToken } = await loadAction();
+
+    await expect(getInvitationLifecycleToken({ invitationId: INVITATION_ID })).rejects.toThrow('non_pending');
+    await expect(
+      getInvitationLifecycleToken({ invitationId: INVITATION_ID, allowExpired: false }),
+    ).rejects.toThrow('non_pending');
+    expect(currentClient.auditEvents).toHaveLength(0);
+  });
+
+  it('hands over an expired token when the caller opts in, and records that it did', async () => {
+    currentClient = makeClient({ hasInvitePermission: true, invitation: expiredInvitation });
+    const { getInvitationLifecycleToken } = await loadAction();
+
+    await expect(
+      getInvitationLifecycleToken({ invitationId: INVITATION_ID, allowExpired: true }),
+    ).resolves.toEqual({ token: 'secret-token' });
+    expect(currentClient.auditEvents).toEqual([
+      {
+        action: 'settings.user.invitation_lifecycle_token_accessed',
+        resourceId: INVITATION_ID,
+        afterState: expect.objectContaining({ invitation_id: INVITATION_ID, expired: true }),
+      },
+    ]);
+  });
+
+  it('allowExpired does not widen WHO may read a token', async () => {
+    currentClient = makeClient({ hasInvitePermission: false, invitation: expiredInvitation });
+    const { getInvitationLifecycleToken } = await loadAction();
+
+    await expect(
+      getInvitationLifecycleToken({ invitationId: INVITATION_ID, allowExpired: true }),
+    ).rejects.toThrow('forbidden');
+    expect(currentClient.auditEvents).toHaveLength(0);
+  });
+
+  it('allowExpired does not resurrect a revoked invitation (no token at all)', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      invitation: { ...expiredInvitation, invite_token: '' },
+    });
+    const { getInvitationLifecycleToken } = await loadAction();
+
+    await expect(
+      getInvitationLifecycleToken({ invitationId: INVITATION_ID, allowExpired: true }),
+    ).rejects.toThrow('non_pending');
+    expect(currentClient.auditEvents).toHaveLength(0);
   });
 });

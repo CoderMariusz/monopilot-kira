@@ -28,8 +28,10 @@ All columns use the canonical `items` table schema (PRD §5.1). The importer acc
 | `uom_base` | ENUM | YES | One of: `kg`, `g`, `l`, `ml`, `pcs` | `items.uom_base` |
 | `description` | TEXT | NO | Max 2000 chars | `items.description` |
 | `product_group` | TEXT | NO | Must exist in org's `reference_tables.product_groups` if provided | `items.product_group` |
-| `weight_mode` | ENUM | NO | `fixed` or `catch`; default `fixed` | `items.weight_mode` |
-| `nominal_weight` | DECIMAL | NO | Required when `weight_mode=catch`; > 0 | `items.nominal_weight` |
+| `weight_mode` | ENUM | NO | `fixed` or `catch`; omitted ⇒ keeps the item's stored mode (new items default `fixed`) | `items.weight_mode` |
+| `nominal_weight` | DECIMAL | NO | Required when the merged row is `catch`; > 0; **max 4 dp** (`numeric(10,4)` — 0.00001 would store as 0) | `items.nominal_weight` |
+| `gross_weight_max` | DECIMAL | NO | Required when the merged row is `catch`; > 0; **max 4 dp**; must be >= `nominal_weight` | `items.gross_weight_max` |
+| `variance_tolerance_pct` | DECIMAL | NO | Required when the merged row is `catch`; 0–100 (0 % is a legal zero-tolerance policy) | `items.variance_tolerance_pct` |
 | `shelf_life_days` | INT | NO | 1–3650 | `items.shelf_life_days` |
 | `shelf_life_mode` | ENUM | NO | `use_by` or `best_before`; default `use_by` | `items.shelf_life_mode` |
 | `cost_per_kg` | DECIMAL | NO | >= 0; stored as current active cost | `items.cost_per_kg` |
@@ -38,6 +40,12 @@ All columns use the canonical `items` table schema (PRD §5.1). The importer acc
 **Rules:**
 - Columns not listed above are silently ignored (future extensibility).
 - `item_code` is the idempotency key: existing rows are updated, new rows are created.
+- **An update is a PATCH, never a replace.** A column absent from the CSV keeps the
+  value already stored on the item — a CSV that changes only `name` must not blank
+  the catch-weight envelope, shelf life, pack hierarchy or GTIN.
+- **Catch-weight completeness is validated in Step 2 (preview), against the merged
+  row** (CSV cell ?? stored value) — never deferred to commit. A refusal at commit
+  time is reported as a ROW error (row number + column), never as a bare counter.
 - No column may hard-reference D365 IDs as FK constraints (`d365_item_id` is TEXT soft reference only).
 - FG, intermediate, and legacy FA/Factory Article identifiers in the CSV map to canonical `item_type` values; FA is a legacy alias only — T3-ui must never display or emit FA-* identifiers.
 

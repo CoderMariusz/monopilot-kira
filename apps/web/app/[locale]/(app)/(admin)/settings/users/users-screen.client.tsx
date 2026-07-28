@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
 import { EmptyState } from '@monopilot/ui/EmptyState';
 import Input from '@monopilot/ui/Input';
+import Modal from '@monopilot/ui/Modal';
 
 import { downloadCsv, isoDateStamp, toCsv as buildCsv } from '../../../../../../lib/shared/download';
 import { PasswordResetModal } from '../../../../../../components/settings/modals/password-reset-modal';
@@ -46,6 +48,16 @@ export type SettingsUser = {
   mfaEnrolled: boolean;
   lastActive: string;
   status: UserStatus;
+  /**
+   * Splits `status: 'invited'` into the two lifecycle states the server actions
+   * treat differently: Revoke's UPDATE requires `invite_token_expires_at > now()`
+   * (pending only), while Resend accepts pending AND expired. Offering both on an
+   * expired row put a permanently-failing Revoke in front of the operator.
+   *
+   * Optional: when the page omits it, an invited row is treated as `pending`
+   * (the pre-split behaviour). `null` = not an invitation.
+   */
+  invitationState?: 'pending' | 'expired' | null;
 };
 
 export type RoleSummary = {
@@ -218,6 +230,18 @@ export type UsersScreenLabels = {
   resettingMfa?: string;
   resetMfaSuccess?: string;
   resetMfaFailed?: string;
+  resendInvitation?: string;
+  revokeInvitation?: string;
+  revokeInvitationDialogTitle?: string;
+  revokeInvitationDialogBody?: string;
+  revokeInvitationConfirm?: string;
+  invitationResent?: string;
+  /** Shown when the token was rotated but no email left the system (delivery: 'none'). */
+  invitationResentNoEmail?: string;
+  invitationRevoked?: string;
+  invitationLifecycleFailed?: string;
+  /** Read-only placeholder for an invited row the operator may not act on. */
+  invitationNoActions?: string;
 };
 
 export type InviteUserAction = (input: {
@@ -256,6 +280,17 @@ export type CreateUserWithPasswordAction = (input: {
 
 export type ResetPasswordAction = (input: { userId: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
 
+export type InvitationLifecycleAction = (input: {
+  invitationId: string;
+  inviteToken: string;
+}) => Promise<{ ok: true; data?: Record<string, unknown> } | { ok: false; error: string }>;
+
+export type GetInvitationLifecycleTokenAction = (input: {
+  invitationId: string;
+  /** Resend needs the token of an EXPIRED invitation too; Revoke never does. */
+  allowExpired?: boolean;
+}) => Promise<{ token: string }>;
+
 export type SettingsUsersScreenProps = {
   data: UsersScreenData;
   labels: UsersScreenLabels;
@@ -269,6 +304,9 @@ export type SettingsUsersScreenProps = {
   deactivateUserAction?: DeactivateUserAction;
   reactivateUserAction?: ReactivateUserAction;
   resetUserMfaAction?: ResetUserMfaAction;
+  resendInvitation?: InvitationLifecycleAction;
+  revokeInvitation?: InvitationLifecycleAction;
+  getInvitationLifecycleToken?: GetInvitationLifecycleTokenAction;
 };
 
 const roleFilters: RoleFilter[] = ['all', 'admin', 'manager', 'operator', 'viewer'];
@@ -362,7 +400,11 @@ export default function SettingsUsersScreen({
   deactivateUserAction,
   reactivateUserAction,
   resetUserMfaAction,
+  resendInvitation,
+  revokeInvitation,
+  getInvitationLifecycleToken,
 }: SettingsUsersScreenProps) {
+  const router = useRouter();
   const [selectedRole, setSelectedRole] = useState<RoleFilter>(normalizeRoleFilter(searchParams?.role));
   const [view, setView] = useState<UsersView>(normalizeView(searchParams?.view));
   const [query, setQuery] = useState(searchParams?.q ?? '');
@@ -373,6 +415,7 @@ export default function SettingsUsersScreen({
   const [deactivateUser, setDeactivateUser] = useState<SettingsUser | null>(null);
   const [reactivateUser, setReactivateUser] = useState<SettingsUser | null>(null);
   const [resetMfaUser, setResetMfaUser] = useState<SettingsUser | null>(null);
+  const [revokeInvitationTarget, setRevokeInvitationTarget] = useState<SettingsUser | null>(null);
   // Optimistic: ids the caller just deactivated — flip them to "disabled" in the
   // list without a full reload; the server row is already updated by the action.
   const [optimisticDeactivated, setOptimisticDeactivated] = useState<Set<string>>(() => new Set());
@@ -384,6 +427,11 @@ export default function SettingsUsersScreen({
   const canDeactivate = Boolean(data.canDeactivateUsers) && Boolean(deactivateUserAction);
   const canReactivate = Boolean(data.canDeactivateUsers) && Boolean(reactivateUserAction);
   const canResetMfa = Boolean(data.canDeactivateUsers) && Boolean(resetUserMfaAction);
+  const canManageInvitations =
+    Boolean(data.canInviteUsers) &&
+    Boolean(resendInvitation) &&
+    Boolean(revokeInvitation) &&
+    Boolean(getInvitationLifecycleToken);
 
   function openDeactivate(user: SettingsUser) {
     if (!canDeactivate) {
@@ -497,6 +545,185 @@ export default function SettingsUsersScreen({
       return;
     }
     setPasswordResetUser(user);
+  }
+
+  /** `pending` unless the page says otherwise — see SettingsUser.invitationState. */
+  function invitationStateOf(user: SettingsUser): 'pending' | 'expired' {
+    return user.invitationState === 'expired' ? 'expired' : 'pending';
+  }
+
+  async function invitationTokenInput(
+    user: SettingsUser,
+    allowExpired: boolean,
+  ): Promise<{ invitationId: string; inviteToken: string } | null> {
+    if (!getInvitationLifecycleToken) return null;
+    const result = await getInvitationLifecycleToken({ invitationId: user.id, allowExpired });
+    return { invitationId: user.id, inviteToken: result.token };
+  }
+
+  async function handleResendInvitation(user: SettingsUser) {
+    if (!canManageInvitations || !resendInvitation) {
+      setFeedback({ kind: 'alert', message: labels.invitationLifecycleFailed ?? 'Invitation lifecycle action unavailable.' });
+      return;
+    }
+    try {
+      // Resend is legal on an expired invitation, so ask for its token explicitly.
+      const input = await invitationTokenInput(user, invitationStateOf(user) === 'expired');
+      if (!input) {
+        setFeedback({ kind: 'alert', message: labels.invitationLifecycleFailed ?? 'Invitation lifecycle action unavailable.' });
+        return;
+      }
+      const result = await resendInvitation(input);
+      if (result.ok) {
+        // The action reports whether anything was actually DELIVERED. Today it is
+        // always 'none' (this repo has no email transport — see
+        // InvitationDelivery in actions/users/invitations-lifecycle.ts), so
+        // claiming "resent" would lie to the operator: the token was rotated but
+        // no mail left the system. Reads the field rather than hard-coding the
+        // copy, so a real transport flips this to the plain message on its own.
+        const delivered = result.data?.delivery !== 'none';
+        setFeedback({
+          kind: delivered ? 'status' : 'alert',
+          message: delivered
+            ? interpolate(labels.invitationResent ?? 'Invitation resent to {email}.', { email: user.email })
+            : interpolate(
+                labels.invitationResentNoEmail ??
+                  'Invitation link renewed for {email}, but no email was sent — pass the new link on yourself.',
+                { email: user.email },
+              ),
+        });
+        router.refresh();
+        return;
+      }
+      setFeedback({
+        kind: 'alert',
+        message: interpolate(labels.invitationLifecycleFailed ?? 'Could not update invitation: {error}.', { error: result.error }),
+      });
+    } catch (error) {
+      setFeedback({
+        kind: 'alert',
+        message: interpolate(labels.invitationLifecycleFailed ?? 'Could not update invitation: {error}.', {
+          error: error instanceof Error ? error.message : 'token_unavailable',
+        }),
+      });
+    }
+  }
+
+  async function handleRevokeInvitation(user: SettingsUser) {
+    if (!canManageInvitations || !revokeInvitation) {
+      setRevokeInvitationTarget(null);
+      setFeedback({ kind: 'alert', message: labels.invitationLifecycleFailed ?? 'Invitation lifecycle action unavailable.' });
+      return;
+    }
+    try {
+      // Revoke only ever applies to a pending invitation — never widen this.
+      const input = await invitationTokenInput(user, false);
+      if (!input) {
+        setRevokeInvitationTarget(null);
+        setFeedback({ kind: 'alert', message: labels.invitationLifecycleFailed ?? 'Invitation lifecycle action unavailable.' });
+        return;
+      }
+      const result = await revokeInvitation(input);
+      setRevokeInvitationTarget(null);
+      if (result.ok) {
+        setFeedback({
+          kind: 'status',
+          message: interpolate(labels.invitationRevoked ?? 'Invitation revoked for {email}.', { email: user.email }),
+        });
+        router.refresh();
+        return;
+      }
+      setFeedback({
+        kind: 'alert',
+        message: interpolate(labels.invitationLifecycleFailed ?? 'Could not update invitation: {error}.', { error: result.error }),
+      });
+    } catch (error) {
+      setRevokeInvitationTarget(null);
+      setFeedback({
+        kind: 'alert',
+        message: interpolate(labels.invitationLifecycleFailed ?? 'Could not update invitation: {error}.', {
+          error: error instanceof Error ? error.message : 'token_unavailable',
+        }),
+      });
+    }
+  }
+
+  function renderMembershipControls(user: SettingsUser, status: UserStatus) {
+    const isDisabled = status === 'disabled';
+    const isInvited = status === 'invited';
+
+    // Branch on isInvited UNCONDITIONALLY. Gating this on canManageInvitations
+    // let an operator without the invite permission fall through to the default
+    // arm and get a Deactivate button on a user who has never accepted — a
+    // different, destructive action on an account that cannot be deactivated
+    // meaningfully. No permission => no actions, never a fallback action.
+    if (isInvited) {
+      if (!canManageInvitations) {
+        return (
+          <span className="text-xs text-shell-muted" data-testid="invitation-actions-readonly">
+            {labels.invitationNoActions ?? 'No actions'}
+          </span>
+        );
+      }
+      return (
+        <>
+          <Button
+            type="button"
+            className="text-xs"
+            data-testid="resend-invitation-button"
+            aria-label={`${labels.resendInvitation ?? 'Resend'} ${user.name}`}
+            onClick={() => void handleResendInvitation(user)}
+          >
+            {labels.resendInvitation ?? 'Resend'}
+          </Button>
+          {/* Revoke's UPDATE requires an unexpired token, so an expired
+              invitation gets Resend only — the button would always fail. */}
+          {invitationStateOf(user) === 'pending' ? (
+            <Button
+              type="button"
+              className="text-xs text-red-700"
+              data-testid="revoke-invitation-button"
+              aria-label={`${labels.revokeInvitation ?? 'Revoke'} ${user.name}`}
+              onClick={() => setRevokeInvitationTarget(user)}
+            >
+              {labels.revokeInvitation ?? 'Revoke'}
+            </Button>
+          ) : null}
+        </>
+      );
+    }
+
+    if (isDisabled) {
+      return (
+        <Button
+          type="button"
+          className="text-xs"
+          data-testid="reactivate-user-button"
+          disabled={!canReactivate}
+          aria-label={canReactivate
+            ? `${labels.reactivate ?? 'Reactivate'} ${user.name}`
+            : `${labels.reactivateUnavailable ?? 'Reactivation unavailable'} for ${user.name}`}
+          onClick={() => openReactivate(user)}
+        >
+          {labels.reactivate ?? 'Reactivate'}
+        </Button>
+      );
+    }
+
+    return (
+      <Button
+        type="button"
+        className="text-xs text-red-700"
+        data-testid="deactivate-user-button"
+        disabled={!canDeactivate}
+        aria-label={canDeactivate
+          ? `${labels.deactivate ?? 'Deactivate'} ${user.name}`
+          : `${labels.deactivateUnavailable ?? 'Deactivation unavailable'} for ${user.name}`}
+        onClick={() => openDeactivate(user)}
+      >
+        {labels.deactivate ?? 'Deactivate'}
+      </Button>
+    );
   }
 
   const renderEmptyState = () => (
@@ -651,33 +878,7 @@ export default function SettingsUsersScreen({
                     >
                       {labels.resetPassword ?? 'Reset password'}
                     </Button>
-                    {isDisabled ? (
-                      <Button
-                        type="button"
-                        className="text-xs"
-                        data-testid="reactivate-user-button"
-                        disabled={!canReactivate}
-                        aria-label={canReactivate
-                          ? `${labels.reactivate ?? 'Reactivate'} ${user.name}`
-                          : `${labels.reactivateUnavailable ?? 'Reactivation unavailable'} for ${user.name}`}
-                        onClick={() => openReactivate(user)}
-                      >
-                        {labels.reactivate ?? 'Reactivate'}
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        className="text-xs text-red-700"
-                        data-testid="deactivate-user-button"
-                        disabled={!canDeactivate}
-                        aria-label={canDeactivate
-                          ? `${labels.deactivate ?? 'Deactivate'} ${user.name}`
-                          : `${labels.deactivateUnavailable ?? 'Deactivation unavailable'} for ${user.name}`}
-                        onClick={() => openDeactivate(user)}
-                      >
-                        {labels.deactivate ?? 'Deactivate'}
-                      </Button>
-                    )}
+                    {renderMembershipControls(user, status)}
                     {/* Reset MFA is only offered when the user HAS an enrolled
                         MFA factor — there is nothing to reset for a user who
                         has never enrolled (effectiveMfaEnrolled = false). This
@@ -793,33 +994,7 @@ export default function SettingsUsersScreen({
                           >
                             {labels.resetPassword ?? 'Reset password'}
                           </Button>
-                          {isDisabled ? (
-                            <Button
-                              type="button"
-                              className="text-xs"
-                              data-testid="reactivate-user-button"
-                              disabled={!canReactivate}
-                              aria-label={canReactivate
-                                ? `${labels.reactivate ?? 'Reactivate'} ${user.name}`
-                                : `${labels.reactivateUnavailable ?? 'Reactivation unavailable'} for ${user.name}`}
-                              onClick={() => openReactivate(user)}
-                            >
-                              {labels.reactivate ?? 'Reactivate'}
-                            </Button>
-                          ) : (
-                            <Button
-                              type="button"
-                              className="text-xs text-red-700"
-                              data-testid="deactivate-user-button"
-                              disabled={!canDeactivate}
-                              aria-label={canDeactivate
-                                ? `${labels.deactivate ?? 'Deactivate'} ${user.name}`
-                                : `${labels.deactivateUnavailable ?? 'Deactivation unavailable'} for ${user.name}`}
-                              onClick={() => openDeactivate(user)}
-                            >
-                              {labels.deactivate ?? 'Deactivate'}
-                            </Button>
-                          )}
+                          {renderMembershipControls(user, status)}
                           {effectiveMfaEnrolled(user) ? (
                             <Button
                               type="button"
@@ -976,6 +1151,40 @@ export default function SettingsUsersScreen({
         onReset={handleMfaReset}
         onFeedback={setFeedback}
       />
+      {/* Shared Radix dialog (same one InviteDialog on this screen already uses).
+          The hand-rolled overlay this replaces moved no focus, trapped none,
+          ignored Escape and never restored focus, leaving the page behind it
+          reachable by keyboard. Modal gives all four for free. */}
+      {revokeInvitationTarget ? (
+        <Modal
+          open
+          onOpenChange={(open) => {
+            if (!open) setRevokeInvitationTarget(null);
+          }}
+          size="sm"
+        >
+          <Modal.Header title={labels.revokeInvitationDialogTitle ?? 'Revoke invitation'} />
+          <Modal.Body>
+            <p className="text-sm" data-testid="revoke-invitation-body">
+              {interpolate(labels.revokeInvitationDialogBody ?? 'Revoke the pending invitation for {email}?', {
+                email: revokeInvitationTarget.email,
+              })}
+            </p>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button type="button" className="btn-secondary" onClick={() => setRevokeInvitationTarget(null)}>
+              {labels.cancel}
+            </Button>
+            <Button
+              type="button"
+              className="btn-danger"
+              onClick={() => void handleRevokeInvitation(revokeInvitationTarget)}
+            >
+              {labels.revokeInvitationConfirm ?? labels.revokeInvitation ?? 'Revoke'}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+      ) : null}
       {passwordResetUser ? (
         <PasswordResetModal
           open={Boolean(passwordResetUser)}

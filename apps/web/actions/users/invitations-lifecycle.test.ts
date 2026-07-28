@@ -13,10 +13,20 @@ const NOW = '2026-05-19T12:00:00.000Z';
 
 const lifecycleActionPath = resolve(__dirname, 'invitations-lifecycle.ts');
 
-const { _withOrgContextRunner, _mockGenerateLink, _operations } = vi.hoisted(() => ({
+const {
+  _withOrgContextRunner,
+  _mockGenerateLink,
+  _operations,
+  _revalidateLocalized,
+  _mockCreateSupabaseAuthAdmin,
+  _mockCreateServerSupabaseClient,
+} = vi.hoisted(() => ({
   _withOrgContextRunner: vi.fn(),
   _mockGenerateLink: vi.fn(),
   _operations: [] as string[],
+  _revalidateLocalized: vi.fn(),
+  _mockCreateSupabaseAuthAdmin: vi.fn(),
+  _mockCreateServerSupabaseClient: vi.fn(),
 }));
 
 vi.mock('../../lib/auth/with-org-context', () => ({
@@ -25,14 +35,29 @@ vi.mock('../../lib/auth/with-org-context', () => ({
   ),
 }));
 
-vi.mock('../../lib/auth/supabase-server', () => ({
-  createServerSupabaseClient: vi.fn(async () => ({
+vi.mock('../../lib/i18n/revalidate-localized', () => ({
+  revalidateLocalized: _revalidateLocalized,
+}));
+
+// `auth.admin.*` needs the SERVICE-ROLE client. The previous version of this
+// suite hung generateLink off the request-scoped ANON client
+// (createServerSupabaseClient), which made every assertion below pass against a
+// client production would answer `not_admin` to. Mock the service-role factory,
+// and keep a spy on the anon one so a regression back to it fails loudly.
+vi.mock('./supabase-admin', () => ({
+  createSupabaseAuthAdmin: _mockCreateSupabaseAuthAdmin.mockImplementation(async () => ({
     auth: {
       admin: {
         generateLink: _mockGenerateLink,
       },
     },
   })),
+}));
+
+vi.mock('../../lib/auth/supabase-server', () => ({
+  createServerSupabaseClient: _mockCreateServerSupabaseClient.mockImplementation(async () => {
+    throw new Error('resendInvitation must not mint invite links through the anon client');
+  }),
 }));
 
 type InvitationRow = {
@@ -326,6 +351,13 @@ describe('Pending Invitations lifecycle Server Actions (TASK-000208/T-124 RED)',
 
     expect(data).toMatchObject({ invitationId: PENDING_ID, email: 'pending@example.com', resendKind: 'pending' });
     expect(new Date(data.expiresAt as string).getTime()).toBeGreaterThan(new Date(NOW).getTime());
+    // The link MUST be minted with the service-role client; the anon one answers
+    // `not_admin` in production, which made this whole success path unreachable.
+    expect(_mockCreateSupabaseAuthAdmin).toHaveBeenCalled();
+    expect(_mockCreateServerSupabaseClient).not.toHaveBeenCalled();
+    // …and the action must not claim delivery it cannot perform: this repo has no
+    // email transport, so a successful resend rotates the token and says so.
+    expect(data.delivery).toBe('none');
     expect(_operations.indexOf('query:seat_limit')).toBeGreaterThan(_operations.indexOf('query:invitation_lookup'));
     expect(_operations.indexOf('query:active_user_count')).toBeGreaterThan(_operations.indexOf('query:seat_limit'));
     expect(_operations.indexOf('auth:generateLink')).toBeGreaterThan(_operations.indexOf('query:active_user_count'));
@@ -351,9 +383,26 @@ describe('Pending Invitations lifecycle Server Actions (TASK-000208/T-124 RED)',
     );
 
     expect(data).toMatchObject({ invitationId: EXPIRED_ID, email: 'expired@example.com', resendKind: 'expired' });
+    expect(data.delivery).toBe('none');
     expect(currentClient.updates).toHaveLength(1);
     expect(currentClient.outboxEvents.map((call) => eventType(call.params))).toContain('settings.user.invitation_resent');
     expect(currentClient.auditLog).toHaveLength(1);
+  });
+
+  it('fails closed without mutating anything when the service-role credentials are absent', async () => {
+    const { resendInvitation } = await loadLifecycle();
+    // createSupabaseAuthAdmin throws when SUPABASE_SERVICE_ROLE_KEY is unset.
+    // That must surface as invite_failed, never as a silent partial success that
+    // rotates the token while the operator is told the invite went out.
+    _mockCreateSupabaseAuthAdmin.mockImplementationOnce(async () => {
+      throw new Error('privileged user actions require Supabase service-role env');
+    });
+
+    expectError(await resendInvitation({ invitationId: PENDING_ID, inviteToken: 'pending-token' }), 'invite_failed');
+
+    expect(currentClient.updates).toHaveLength(0);
+    expect(currentClient.outboxEvents).toHaveLength(0);
+    expect(currentClient.auditLog).toHaveLength(0);
   });
 
   it('revokes a pending invitation only, clears the active invite token, and writes audit/outbox records', async () => {
@@ -403,5 +452,25 @@ describe('Pending Invitations lifecycle Server Actions (TASK-000208/T-124 RED)',
     expect(currentClient.updates).toHaveLength(0);
     expect(currentClient.outboxEvents).toHaveLength(0);
     expect(currentClient.auditLog).toHaveLength(0);
+  });
+
+  it('revalidates users and invitations routes after resendInvitation succeeds', async () => {
+    const { resendInvitation } = await loadLifecycle();
+
+    const result = await resendInvitation({ invitationId: PENDING_ID, inviteToken: 'pending-token' });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(_revalidateLocalized).toHaveBeenCalledWith('/settings/users');
+    expect(_revalidateLocalized).toHaveBeenCalledWith('/settings/invitations');
+  });
+
+  it('revalidates users and invitations routes after revokeInvitation succeeds', async () => {
+    const { revokeInvitation } = await loadLifecycle();
+
+    const result = await revokeInvitation({ invitationId: PENDING_ID, inviteToken: 'pending-token' });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(_revalidateLocalized).toHaveBeenCalledWith('/settings/users');
+    expect(_revalidateLocalized).toHaveBeenCalledWith('/settings/invitations');
   });
 });

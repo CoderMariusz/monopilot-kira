@@ -119,8 +119,11 @@ describe('ItemWizard create mode (TEC-011)', () => {
     expect(screen.getByText(L.catchHint)).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: L.fields.nominalWeight })).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: L.fields.varianceTolerance })).toBeInTheDocument();
-    expect(screen.queryByRole('spinbutton', { name: L.fields.tareWeight })).not.toBeInTheDocument();
-    expect(screen.queryByRole('spinbutton', { name: L.fields.grossWeightMax })).not.toBeInTheDocument();
+    // R03-02 — these two used to be ASSERTED ABSENT even though catchHint has
+    // always promised them and the columns exist on public.items. The wizard
+    // could not express a valid catch-weight item at all.
+    expect(screen.getByRole('spinbutton', { name: L.fields.grossWeightMax })).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: L.fields.tareWeight })).toBeInTheDocument();
   });
 
   it('renders an OPTIONAL supplier dropdown in the classification step, populated from threaded options', async () => {
@@ -238,20 +241,33 @@ describe('ItemWizard create mode (TEC-011)', () => {
     await user.click(screen.getByRole('option', { name: 'Catch weight' }));
     await user.type(screen.getByRole('spinbutton', { name: L.fields.nominalWeight }), '0.2500');
     await user.type(screen.getByRole('spinbutton', { name: L.fields.varianceTolerance }), '5');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.grossWeightMax }), '0.3000');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.tareWeight }), '0.0200');
     await user.click(screen.getByRole('button', { name: L.next })); // → review
     await user.click(screen.getByRole('button', { name: L.create }));
 
     expect(createItem).toHaveBeenCalledTimes(1);
-    expect(createItem.mock.calls[0][0]).toMatchObject({
+    const payload = createItem.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload).toMatchObject({
       itemCode: 'RM-2002',
       name: 'Cure salt',
       itemType: 'rm',
       uomBase: 'kg',
       weightMode: 'catch',
       gs1Gtin: '01234567890123',
-      nominalWeight: 0.25,
       varianceTolerancePct: 5,
     });
+    // A-1 — weights leave the wizard as the exact decimal TEXT the user typed,
+    // never as a JS float: numeric(10,4) has to be able to refuse a sub-scale
+    // value instead of silently storing it as 0.
+    for (const [field, value] of [
+      ['nominalWeight', 0.25],
+      ['grossWeightMax', 0.3],
+      ['tareWeight', 0.02],
+    ] as const) {
+      expect(typeof payload[field], field).toBe('string');
+      expect(Number(payload[field]), field).toBe(value);
+    }
   });
 
   // F5 — a successful create (WITH a supplier attached) must surface NO error and
@@ -387,6 +403,209 @@ describe('ItemWizard create mode (TEC-011)', () => {
     expect(createItem).not.toHaveBeenCalled();
   });
 
+  // ── FALA 5 / T1 — the wizard must stop these BEFORE the server round-trip ──
+  // Each guard mirrors refineItemInvariants in items/_actions/shared.ts; the
+  // schema stays the authority, this just gets the user the message at the field.
+
+  it('R03-01: blocks Next when Secondary UoM equals Base UoM, and names the field', async () => {
+    const user = userEvent.setup();
+    // The exact audit row: NIGHT-R03-0806-RM with Base UoM g and Secondary UoM g.
+    renderWizard({
+      open: true,
+      onClose: vi.fn(),
+      mode: { kind: 'create' },
+      initialForm: { ...emptyWizardForm(), itemCode: 'RM-2002', name: 'Cure salt', uomBase: 'g', uomSecondary: 'g' },
+    });
+    await user.click(screen.getByRole('button', { name: L.next })); // → classification
+    await user.click(screen.getByRole('button', { name: L.next })); // blocked here
+
+    expect(screen.getByRole('alert')).toHaveTextContent(L.errors.uomSecondaryDistinct);
+    expect(screen.getByRole('tab', { name: new RegExp(L.steps.classification) })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    // The message is also rendered inline, at the offending field.
+    expect(screen.getAllByText(L.errors.uomSecondaryDistinct).length).toBeGreaterThan(1);
+    expect(createItem).not.toHaveBeenCalled();
+  });
+
+  it('R03-01: Review shows Secondary UoM, so the contradiction is visible before saving', async () => {
+    const user = userEvent.setup();
+    renderWizard({
+      open: true,
+      onClose: vi.fn(),
+      mode: { kind: 'create' },
+      initialForm: { ...emptyWizardForm(), itemCode: 'RM-2002', name: 'Cure salt', uomBase: 'kg', uomSecondary: 'g' },
+    });
+    await user.click(screen.getByRole('button', { name: L.next })); // → classification
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.click(screen.getByRole('button', { name: L.next })); // → review
+
+    const review = document.querySelector('[data-step-panel="review"]') as HTMLElement | null;
+    expect(review).not.toBeNull();
+    // Previously the Review step listed Base UoM but never Secondary UoM.
+    expect(review!.textContent).toContain(L.fields.uomSecondary);
+    expect(within(review!).getByText('g')).toBeInTheDocument();
+  });
+
+  it('R03-02: blocks Next into Review when catch weight is incomplete', async () => {
+    const user = userEvent.setup();
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user); // → classification
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.click(screen.getByRole('combobox', { name: L.fields.weightMode }));
+    await user.click(screen.getByRole('option', { name: 'Catch weight' }));
+
+    // Every catch field left empty — the exact audit payload.
+    await user.click(screen.getByRole('button', { name: L.next }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(L.catchHint);
+    expect(screen.getByRole('tab', { name: new RegExp(L.steps.weight) })).toHaveAttribute('aria-selected', 'true');
+    expect(document.querySelector('[data-step-panel="review"]')).toBeNull();
+    expect(createItem).not.toHaveBeenCalled();
+  });
+
+  it('R03-02: blocks Next when gross weight max is below the nominal weight', async () => {
+    const user = userEvent.setup();
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user);
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.click(screen.getByRole('combobox', { name: L.fields.weightMode }));
+    await user.click(screen.getByRole('option', { name: 'Catch weight' }));
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.nominalWeight }), '0.5');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.grossWeightMax }), '0.3');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.varianceTolerance }), '5');
+    await user.click(screen.getByRole('button', { name: L.next }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(L.errors.grossBelowNominal);
+    expect(createItem).not.toHaveBeenCalled();
+  });
+
+  // A-5 — `min`/`max` on the input does nothing: Next.js renders no native form
+  // validation, so 101 % used to reach Review as "Ready" and fail server-side
+  // with a generic invalid_input.
+  it('A-5: blocks a variance tolerance outside 0..100 and names it AT the field', async () => {
+    const user = userEvent.setup();
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user);
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.click(screen.getByRole('combobox', { name: L.fields.weightMode }));
+    await user.click(screen.getByRole('option', { name: 'Catch weight' }));
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.nominalWeight }), '0.25');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.grossWeightMax }), '0.3');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.varianceTolerance }), '101');
+
+    // The message is at the field, before Next is even pressed.
+    expect(screen.getByTestId('wiz-variance-error')).toHaveTextContent(L.errors.tolerancePctRange);
+
+    await user.click(screen.getByRole('button', { name: L.next }));
+    expect(screen.getByRole('alert')).toHaveTextContent(L.errors.tolerancePctRange);
+    expect(document.querySelector('[data-step-panel="review"]')).toBeNull();
+    expect(createItem).not.toHaveBeenCalled();
+  });
+
+  it('A-5 ANTI-REGRESSION: an explicit 0 % tolerance still reaches Review', async () => {
+    const user = userEvent.setup();
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user);
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.click(screen.getByRole('combobox', { name: L.fields.weightMode }));
+    await user.click(screen.getByRole('option', { name: 'Catch weight' }));
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.nominalWeight }), '0.25');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.grossWeightMax }), '0.3');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.varianceTolerance }), '0');
+    await user.click(screen.getByRole('button', { name: L.next }));
+
+    expect(screen.queryByTestId('wiz-variance-error')).not.toBeInTheDocument();
+    expect(document.querySelector('[data-step-panel="review"]')).not.toBeNull();
+  });
+
+  // A-1 (client mirror) — a weight below the column scale is not "small", it is 0.
+  it('A-1: blocks a sub-scale nominal weight (0.00001) before Review', async () => {
+    const user = userEvent.setup();
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user);
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.click(screen.getByRole('combobox', { name: L.fields.weightMode }));
+    await user.click(screen.getByRole('option', { name: 'Catch weight' }));
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.nominalWeight }), '0.00001');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.grossWeightMax }), '0.3');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.varianceTolerance }), '5');
+    await user.click(screen.getByRole('button', { name: L.next }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(L.catchHint);
+    expect(document.querySelector('[data-step-panel="review"]')).toBeNull();
+    expect(createItem).not.toHaveBeenCalled();
+  });
+
+  it('R03-03: blocks Next when shelf life is on with 0 days / no mode, and the input floor is 1', async () => {
+    const user = userEvent.setup();
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user);
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+
+    await user.click(screen.getByRole('checkbox', { name: L.fields.hasShelfLife }));
+    const days = screen.getByRole('spinbutton', { name: L.fields.shelfLifeDays });
+    // 0 is no longer even offerable by the stepper.
+    expect(days).toHaveAttribute('min', '1');
+    await user.type(days, '0');
+    await user.click(screen.getByRole('button', { name: L.next }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(L.errors.shelfLifeIncomplete);
+    expect(createItem).not.toHaveBeenCalled();
+  });
+
+  it('R03-03: blocks a positive day count that still has no mode', async () => {
+    const user = userEvent.setup();
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user);
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.click(screen.getByRole('checkbox', { name: L.fields.hasShelfLife }));
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.shelfLifeDays }), '19');
+    await user.click(screen.getByRole('button', { name: L.next }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(L.errors.shelfLifeIncomplete);
+    expect(createItem).not.toHaveBeenCalled();
+  });
+
+  it('R03-03: lets 19 days + Best before through to the payload', async () => {
+    const user = userEvent.setup();
+    createItem.mockResolvedValue({ ok: true, data: { id: 'x', itemCode: 'RM-2002' } });
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user);
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.click(screen.getByRole('checkbox', { name: L.fields.hasShelfLife }));
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.shelfLifeDays }), '19');
+    await user.click(screen.getByRole('combobox', { name: L.fields.shelfLifeMode }));
+    await user.click(screen.getByRole('option', { name: 'Best before' }));
+    await user.click(screen.getByRole('button', { name: L.next })); // → review
+    await user.click(screen.getByRole('button', { name: L.create }));
+
+    expect(createItem).toHaveBeenCalledTimes(1);
+    expect(createItem.mock.calls[0][0]).toMatchObject({ shelfLifeDays: 19, shelfLifeMode: 'best_before' });
+  });
+
+  it('ANTI-REGRESSION: a plain fixed-weight item with no weights and no shelf life still sails through', async () => {
+    const user = userEvent.setup();
+    createItem.mockResolvedValue({ ok: true, data: { id: 'x', itemCode: 'RM-2002' } });
+    renderWizard({ open: true, onClose: vi.fn(), mode: { kind: 'create' } });
+    await fillBasicAndAdvance(user); // → classification
+    await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.click(screen.getByRole('button', { name: L.next })); // → review
+    await user.click(screen.getByRole('button', { name: L.create }));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(createItem).toHaveBeenCalledTimes(1);
+    const payload = createItem.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.weightMode).toBe('fixed');
+    expect(payload.nominalWeight).toBeUndefined();
+    expect(payload.grossWeightMax).toBeUndefined();
+    expect(payload.tareWeight).toBeUndefined();
+    expect(payload.shelfLifeDays).toBeUndefined();
+    expect(payload.shelfLifeMode).toBeUndefined();
+    expect(payload.uomSecondary).toBeUndefined();
+  });
+
   it('shows friendly copy instead of raw Zod JSON on submit failure', async () => {
     const user = userEvent.setup();
     createItem.mockResolvedValue({
@@ -438,6 +657,9 @@ describe('ItemWizard edit mode (TEC-013 reuse)', () => {
       name: 'Existing',
       weightMode: 'catch' as const,
       nominalWeight: '0.2500',
+      // R03-02 — a catch-weight seed now carries its full envelope.
+      grossWeightMax: '0.3000',
+      varianceTolerancePct: '5',
       gs1Gtin: '01234567890123',
     };
     renderWizard({
@@ -459,8 +681,13 @@ describe('ItemWizard edit mode (TEC-013 reuse)', () => {
     expect(updateItem.mock.calls[0][0]).toMatchObject({
       id: 'abc-id',
       name: 'Existing',
-      nominalWeight: 0.25,
+      nominalWeight: '0.2500',
       gs1Gtin: '01234567890123',
+      // R03-02 — an untouched edit must PRESERVE the catch envelope. updateItem
+      // overwrites every weight column, so a payload that omits these silently
+      // NULLed gross_weight_max / tare_weight on every single save.
+      grossWeightMax: '0.3000',
+      varianceTolerancePct: 5,
     });
   });
 

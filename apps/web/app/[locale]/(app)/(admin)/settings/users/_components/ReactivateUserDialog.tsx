@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@monopilot/ui/Button';
 
@@ -47,6 +48,7 @@ export function ReactivateUserDialog({
 }) {
   const titleId = React.useId();
   const contentRef = React.useRef<HTMLDivElement | null>(null);
+  const router = useRouter();
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
@@ -77,6 +79,7 @@ export function ReactivateUserDialog({
         if (result.ok) {
           onReactivated?.(targetUser.id);
           onClose();
+          router.refresh();
           return;
         }
         const message = interpolate(labels.failed, { error: result.error });

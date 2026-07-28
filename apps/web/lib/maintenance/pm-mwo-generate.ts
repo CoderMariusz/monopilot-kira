@@ -162,7 +162,7 @@ export async function generateMwoFromPmScheduleCore(
 
   if (!opts.skipDueWindowCheck) {
     const dueCheck = await ctx.client.query<{ due: boolean }>(
-      `select ($1::date <= (pg_catalog.current_date + make_interval(days => $2::int))) as due`,
+      `select ($1::date <= (pg_catalog.now()::date + make_interval(days => $2::int))) as due`,
       [schedule.next_due_date, schedule.warning_days],
     );
     if (!dueCheck.rows[0]?.due) {
@@ -245,7 +245,7 @@ export async function listDuePmScheduleIds(ctx: PmMwoTxnContext): Promise<string
         and s.active = true
         and s.interval_basis = 'calendar_days'
         and s.next_due_date is not null
-        and s.next_due_date <= (pg_catalog.current_date + make_interval(days => coalesce(s.warning_days, 7)::int))
+        and s.next_due_date <= (pg_catalog.now()::date + make_interval(days => coalesce(s.warning_days, 7)::int))
       order by s.next_due_date asc, s.id asc`,
   );
   return rows.map((r) => r.id);

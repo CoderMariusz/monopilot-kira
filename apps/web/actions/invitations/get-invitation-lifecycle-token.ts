@@ -27,6 +27,15 @@ type InvitationTokenRow = {
 
 export type GetInvitationLifecycleTokenInput = {
   invitationId: string;
+  /**
+   * Resend accepts BOTH `pending` and `expired` invitations (see
+   * resendInvitation), so refusing an expired token here left the Resend button
+   * permanently broken for exactly the rows that most need it. Revoke stays
+   * pending-only and therefore leaves this false. The flag never widens WHOSE
+   * token is readable — org scope + `settings.users.invite` still gate that; it
+   * only widens the lifecycle state, and the audit row records that it was used.
+   */
+  allowExpired?: boolean;
 };
 
 export type GetInvitationLifecycleTokenResult = {
@@ -62,6 +71,7 @@ async function hasInvitePermission({ client, userId, orgId }: OrgContextLike): P
 async function writeAuditEvent(
   { client, orgId, userId }: OrgContextLike,
   invitation: InvitationTokenRow,
+  expired: boolean,
 ): Promise<void> {
   await client.query(
     `insert into public.audit_events
@@ -80,6 +90,7 @@ async function writeAuditEvent(
           invitation.invite_token_expires_at instanceof Date
             ? invitation.invite_token_expires_at.toISOString()
             : invitation.invite_token_expires_at,
+        expired,
       }),
       randomUUID(),
     ],
@@ -122,11 +133,15 @@ export async function getInvitationLifecycleToken(
       invitation.invite_token_expires_at instanceof Date
         ? invitation.invite_token_expires_at.getTime()
         : Date.parse(invitation.invite_token_expires_at);
-    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    if (!Number.isFinite(expiresAt)) {
+      throw new Error('non_pending');
+    }
+    const expired = expiresAt <= Date.now();
+    if (expired && input.allowExpired !== true) {
       throw new Error('non_pending');
     }
 
-    await writeAuditEvent(context, invitation);
+    await writeAuditEvent(context, invitation, expired);
     return { token: invitation.invite_token };
   });
 }

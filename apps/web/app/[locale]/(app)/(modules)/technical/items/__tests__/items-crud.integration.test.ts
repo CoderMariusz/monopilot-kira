@@ -260,6 +260,8 @@ run('03-technical items CRUD (RLS + RBAC, real DB)', () => {
         nominalWeight: '0.2500',
         tareWeight: '0.0200',
         grossWeightMax: '0.3000',
+        // R03-02 — catch weight now requires a tolerance to measure against.
+        varianceTolerancePct: 5,
         gs1Gtin: '01234567890123',
       }),
     );
@@ -290,6 +292,7 @@ run('03-technical items CRUD (RLS + RBAC, real DB)', () => {
         nominalWeight: '0.5000',
         tareWeight: '0.0300',
         grossWeightMax: '0.6000',
+        varianceTolerancePct: 5,
         gs1Gtin: '1234567890123',
       }),
     );

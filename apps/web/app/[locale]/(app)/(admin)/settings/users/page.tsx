@@ -5,8 +5,10 @@ import { assignUserSites } from '../../../../../../actions/users/assign-user-sit
 import { createUserWithPassword } from '../../../../../../actions/users/create-user-with-password';
 import { deactivateUser } from '../../../../../../actions/users/deactivate';
 import { reactivateUser } from '../../../../../../actions/users/reactivate';
+import { resendInvitation, revokeInvitation } from '../../../../../../actions/users/invitations-lifecycle';
 import { resetUserMfa } from '../../../../../../actions/users/reset-user-mfa';
 import { inviteUser } from '../../../../../../actions/users/invite';
+import { getInvitationLifecycleToken } from '../../../../../../actions/invitations/get-invitation-lifecycle-token';
 import { resetPassword } from '../../../../../../actions/users/reset-password';
 import { hasAnyPermission } from '../../../../../../lib/auth/has-permission';
 import { USERS_DIRECTORY_ACCESS_PERMISSIONS } from '../../../../../../lib/rbac/users-directory-access';
@@ -139,6 +141,27 @@ function toIsoString(value: string | Date | null | undefined) {
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed)) return value;
   return new Date(parsed).toISOString().slice(0, 16).replace('T', ' ');
+}
+
+/**
+ * Splits the `invited` bucket into `pending` vs `expired`.
+ *
+ * `status` alone treats every inactive row holding a token as invited, which put
+ * BOTH lifecycle buttons on expired rows: Revoke can never succeed there (the
+ * action's UPDATE requires `invite_token_expires_at > now()`), while Resend
+ * legitimately accepts `expired`. The screen needs the two states apart to offer
+ * only the action that can actually complete.
+ */
+function invitationState(user: Pick<UserRow, 'is_active' | 'invite_token' | 'invite_token_expires_at'>):
+  | 'pending'
+  | 'expired'
+  | null {
+  if (user.is_active || !user.invite_token) return null;
+  const raw = user.invite_token_expires_at;
+  if (!raw) return 'expired';
+  const expiresAt = raw instanceof Date ? raw.getTime() : Date.parse(raw);
+  if (!Number.isFinite(expiresAt)) return 'expired';
+  return expiresAt > Date.now() ? 'pending' : 'expired';
 }
 
 function permissionsFromJson(value: unknown): string[] {
@@ -309,6 +332,7 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
           mfaEnrolled: user.mfa_enrolled === true,
           lastActive: toIsoString(user.last_login_at ?? user.updated_at),
           status: user.is_active ? 'active' : user.invite_token ? 'invited' : 'disabled',
+          invitationState: invitationState(user),
         };
       });
 
@@ -370,6 +394,7 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
 
 async function buildLabels(locale: string): Promise<UsersScreenLabels> {
   const t = await getTranslations({ locale, namespace: 'settings.users_screen' });
+  const inv = await getTranslations({ locale, namespace: 'settings.invitations' });
   return {
     title: t('title'),
     summary: t('summary', { users: '{users}', roles: '{roles}' }),
@@ -522,6 +547,28 @@ async function buildLabels(locale: string): Promise<UsersScreenLabels> {
     resettingMfa: t('resetting_mfa'),
     resetMfaSuccess: t('reset_mfa_success'),
     resetMfaFailed: t('reset_mfa_failed'),
+    // ── Invitation lifecycle ──────────────────────────────────────────────
+    // These live in `settings.invitations` (already translated in all four
+    // locales for the invitations screen), NOT in `settings.users_screen`.
+    // Leaving them unset made every lifecycle control fall back to its English
+    // literal, so /pl/settings/users rendered a Polish page with English
+    // "Resend"/"Revoke" buttons. Reuse beats duplicating the namespace.
+    resendInvitation: inv('resend'),
+    revokeInvitation: inv('revoke'),
+    revokeInvitationDialogTitle: inv('revokeDialog.title'),
+    // `revokeDialog.confirm` carries <strong> markup and needs t.rich; this
+    // screen interpolates plain text, hence the plain sibling key.
+    revokeInvitationDialogBody: inv('revokeDialog.confirmPlain'),
+    revokeInvitationConfirm: inv('confirmRevoke'),
+    // `{auditResult}` is resolved here (server-side) so the client only has to
+    // interpolate `{email}` — same passthrough trick as `summary` above.
+    invitationResent: inv('resentFeedback', { email: '{email}', auditResult: inv('recorded') }),
+    invitationResentNoEmail: inv('resentNoEmailFeedback', { email: '{email}' }),
+    invitationRevoked: inv('revokedFeedback', { email: '{email}', auditResult: inv('recorded') }),
+    // The screen uses ONE failure label for both resend and revoke, so pick the
+    // generic invitation error rather than a resend-specific string.
+    invitationLifecycleFailed: inv('errors.invitationFailed', { error: '{error}' }),
+    invitationNoActions: inv('noActions'),
   };
 }
 
@@ -629,6 +676,9 @@ export default async function SettingsUsersPage({ params, searchParams }: PagePr
       deactivateUserAction={result.data.canDeactivateUsers ? deactivateUserAction : undefined}
       reactivateUserAction={result.data.canDeactivateUsers ? reactivateUserAction : undefined}
       resetUserMfaAction={result.data.canDeactivateUsers ? resetUserMfaAction : undefined}
+      resendInvitation={result.data.canInviteUsers ? resendInvitation : undefined}
+      revokeInvitation={result.data.canInviteUsers ? revokeInvitation : undefined}
+      getInvitationLifecycleToken={result.data.canInviteUsers ? getInvitationLifecycleToken : undefined}
     />
   );
 }
